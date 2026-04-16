@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(rtk git *)",
+      "Bash(Get-ChildItem \"/c/Users/riddl/source/repos/KHost\")",
+      "Bash(rtk ls *)",
+      "Bash(rtk read *)",
+      "Bash(Get-ChildItem KHost.WindowsScreen/FFmpeg/)",
+      "Bash(rtk dotnet *)",
+      "Bash(Get-ChildItem)",
+      "Bash(ffmpeg -version)",
+      "Bash(rtk find *)",
+      "Bash(Get-ChildItem /c/Users/riddl/.nuget/packages/avalonia.controls/)"
+    ]
+  }
+}

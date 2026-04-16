@@ -1,0 +1,7 @@
+<Solution>
+  <Project Path="KHost.Abstractions/KHost.Abstractions.csproj" Id="91bcf8fe-4b91-4bd3-87cb-87d7192c5819" />
+  <Project Path="KHost.AppHost/KHost.AppHost.csproj" />
+  <Project Path="KHost.Screen/KHost.Screen.csproj" />
+  <Project Path="KHost.ServiceDefaults/KHost.ServiceDefaults.csproj" />
+  <Project Path="KHost.UserInterface/KHost.UserInterface.csproj" />
+</Solution>
