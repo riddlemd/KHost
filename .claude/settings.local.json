@@ -10,7 +10,9 @@
       "Bash(Get-ChildItem)",
       "Bash(ffmpeg -version)",
       "Bash(rtk find *)",
-      "Bash(Get-ChildItem /c/Users/riddl/.nuget/packages/avalonia.controls/)"
+      "Bash(Get-ChildItem /c/Users/riddl/.nuget/packages/avalonia.controls/)",
+      "Bash(Get-ChildItem \"C:/Users/riddl/source/repos/KHost/KHost.Abstractions\")",
+      "Bash(dotnet watch *)"
     ]
   }
 }

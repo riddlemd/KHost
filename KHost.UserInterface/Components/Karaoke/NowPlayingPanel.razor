@@ -1,0 +1,104 @@
+@implements IDisposable
+@inject PlaybackService PlaybackService
+
+<div class="card h-100 np-card">
+    <div class="card-header d-flex align-items-center gap-2">
+        <i class="bi bi-music-note-beamed"></i>
+        <span class="card-title">Now Playing</span>
+    </div>
+
+    <div class="card-body np-body">
+        @if (PlaybackService.CurrentSong is null)
+        {
+            <div class="np-empty">
+                <i class="bi bi-mic np-empty-icon"></i>
+                <span class="np-empty-text">
+                    No song loaded &mdash; click <i class="bi bi-play-fill"></i> in the queue
+                </span>
+            </div>
+        }
+        else
+        {
+            var song      = PlaybackService.CurrentSong;
+            var isPlaying = PlaybackService.State == PlaybackState.Playing;
+            var hasDur    = song.Song.Duration is { TotalSeconds: > 0 };
+            var pct       = hasDur
+                ? Math.Clamp(PlaybackService.Position.TotalSeconds / song.Song.Duration!.Value.TotalSeconds * 100, 0, 100)
+                : 0;
+
+            <div class="np-top-row">
+                <div class="np-info">
+                    <div class="np-song-title">@song.Song.DisplayName</div>
+                    <div class="np-singer-name">
+                        <i class="bi bi-person-fill"></i>
+                        @song.Singer.Name
+                    </div>
+                </div>
+
+                <div class="np-controls">
+                    @if (isPlaying)
+                    {
+                        <button id="playback-play-pause-btn" class="btn-np-play" @onclick="PlaybackService.Pause" title="Pause">
+                            <i class="bi bi-pause-fill"></i>
+                        </button>
+                    }
+                    else
+                    {
+                        <button id="playback-play-pause-btn" class="btn-np-play" @onclick="PlaybackService.Play" title="Play">
+                            <i class="bi bi-play-fill icon-nudge"></i>
+                        </button>
+                    }
+                    <button id="playback-stop-btn" class="btn-np-stop" @onclick="PlaybackService.Stop" title="Stop"
+                            disabled="@(PlaybackService.State == PlaybackState.Stopped)">
+                        <i class="bi bi-stop-fill"></i>
+                    </button>
+                </div>
+            </div>
+
+            <div class="np-progress-section">
+                @if (hasDur)
+                {
+                    <div class="np-progress-track">
+                        <div class="np-progress-fill @(isPlaying ? "is-playing" : "")"
+                             style="width:@(pct.ToString("F1", System.Globalization.CultureInfo.InvariantCulture))%">
+                        </div>
+                    </div>
+                }
+                else if (isPlaying)
+                {
+                    <div class="np-progress-track">
+                        <div class="np-progress-indeterminate"></div>
+                    </div>
+                }
+                else
+                {
+                    <div class="np-progress-track"></div>
+                }
+                <div class="np-times">
+                    <span class="np-time">@FormatTime(PlaybackService.Position)</span>
+                    <span class="np-time">@(hasDur ? FormatTime(song.Song.Duration!.Value) : "--:--")</span>
+                </div>
+            </div>
+
+            @if (song.Status == SongStatus.Played)
+            {
+                <div class="np-finished">
+                    <i class="bi bi-check-circle-fill"></i> Song finished
+                </div>
+            }
+        }
+    </div>
+</div>
+
+@code {
+    protected override void OnInitialized() =>
+        PlaybackService.StateChanged += OnStateChanged;
+
+    private void OnStateChanged() => InvokeAsync(StateHasChanged);
+
+    private static string FormatTime(TimeSpan ts) =>
+        $"{(int)ts.TotalMinutes}:{ts.Seconds:D2}";
+
+    public void Dispose() =>
+        PlaybackService.StateChanged -= OnStateChanged;
+}

@@ -1,0 +1,202 @@
+@implements IDisposable
+@inject SingerQueueService QueueService
+@inject PlaybackService PlaybackService
+@inject IJSRuntime JS
+
+<div class="card h-100" tabindex="0" @onkeydown="OnKeyDown">
+    <div class="card-header d-flex align-items-center gap-2">
+        <i class="bi bi-people-fill"></i>
+        <span class="card-title">Singer Queue</span>
+        @if (QueueService.Singers.Count > 0)
+        {
+            <span class="badge bg-secondary ms-auto">@QueueService.Singers.Count</span>
+        }
+        <span class="card-shortcut">ctrl+1</span>
+    </div>
+
+    <div @ref="_cardBody" class="card-body d-flex flex-column gap-3">
+        <form name="add-singer-form" class="panel-form-row" @onsubmit="AddSinger" @onsubmit:preventDefault>
+            <input @ref="_singerNameInput" type="text" id="singer-name-input" class="form-control form-grow" placeholder="New Singer Name"
+                   autocomplete="off" @bind="_newSingerName" @bind:event="oninput" @onkeydown="OnSingerNameKeyDown" />
+            <button type="submit" id="singer-add-btn" class="btn btn-primary"
+                    disabled="@string.IsNullOrWhiteSpace(_newSingerName)" title="Add singer">
+                <i class="bi bi-plus-lg"></i>
+            </button>
+        </form>
+
+        @if (!QueueService.Singers.Any())
+        {
+            <div class="panel-empty panel-empty-lg">
+                <i class="bi bi-person-plus"></i>
+                <span>No singers yet. Add one above to get started.</span>
+            </div>
+        }
+
+        @foreach (var (singer, singerIdx) in QueueService.Singers.Select((s, i) => (s, i)))
+        {
+            var isFirst = singerIdx == 0;
+            var disableMoveUp = isFirst || singer.IsPerforming;
+            var disableMoveDown  = singerIdx == QueueService.Singers.Count - 1 || singer.IsPerforming;
+            var disableRemove = singer.IsPerforming;
+
+            <div class="singer-card @(QueueService.SelectedSingerId == singer.Id ? "singer-card-selected" : "")" @onclick="() => QueueService.SelectSinger(singer.Id)">
+                <div class="singer-icon">
+                    @if (isFirst && PlaybackService.CurrentSong?.Singer.Id == singer.Id && PlaybackService.State == PlaybackState.Playing)
+                    {
+                        <div class="np-bars np-bars-sm">
+                            <div class="np-bar"></div>
+                            <div class="np-bar"></div>
+                            <div class="np-bar"></div>
+                        </div>
+                    }
+                    else
+                    {
+                        <i class="bi bi-person-circle"></i>
+                    }
+                </div>
+                <div>
+                    <div class="singer-name">@singer.Name</div>
+                    <div class="singer-info">
+                        @((MarkupString)FormatSongCount(@singer.SongQueue.Count))
+                        @FormatEwt(CalculateEwt(singerIdx))
+                    </div>
+                </div>
+
+                <div class="singer-card-actions">
+                    <button class="btn-icon-minimal" title="Move up"
+                            disabled="@disableMoveUp"
+                            @onclick="() => QueueService.MoveSingerUp(singer.Id)"
+                            @onclick:stopPropagation>
+                        <i class="bi bi-chevron-up"></i>
+                    </button>
+                    <button class="btn-icon-minimal" title="Move down"
+                            disabled="@disableMoveDown"
+                            @onclick="() => QueueService.MoveSingerDown(singer.Id)"
+                            @onclick:stopPropagation>
+                        <i class="bi bi-chevron-down"></i>
+                    </button>
+                    <button class="btn-icon-info" title="Singer Information"
+                            @onclick:stopPropagation>
+                        <i class="bi bi-info-circle-fill"></i>
+                    </button>
+                    <button class="btn-icon-danger" title="Remove singer"
+                            disabled="@disableRemove"
+                            @onclick="() => ConfirmRemoveSinger(singer)"
+                            @onclick:stopPropagation>
+                        <i class="bi bi-x-lg"></i>
+                    </button>
+                </div>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    private string _newSingerName = string.Empty;
+    private ElementReference _singerNameInput;
+    private ElementReference _cardBody;
+
+    protected override void OnInitialized()
+    {
+        QueueService.StateChanged  += OnStateChanged;
+        PlaybackService.StateChanged += OnStateChanged;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (QueueService.SelectedSingerId.HasValue)
+            await ScrollToSelectedSinger();
+    }
+
+    private void AddSinger()
+    {
+        if (string.IsNullOrWhiteSpace(_newSingerName)) return;
+        var singer = QueueService.AddSinger(_newSingerName.Trim());
+        QueueService.SelectSinger(singer.Id);
+        _newSingerName = string.Empty;
+    }
+
+    private void OnSingerNameKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !string.IsNullOrWhiteSpace(_newSingerName))
+            AddSinger();
+    }
+
+    private async Task OnKeyDown(KeyboardEventArgs e)
+    {
+        var selectedSingerId = QueueService.SelectedSingerId;
+        var currentIdx = QueueService.Singers.ToList().FindIndex(s => s.Id == QueueService.SelectedSingerId);
+
+        if (e.ShiftKey && selectedSingerId != null)
+        {
+            if (e.Key == "ArrowUp" && currentIdx > 0)
+                QueueService.MoveSingerUp(QueueService.SelectedSingerId!.Value);
+            else if (e.Key == "ArrowDown" && currentIdx < QueueService.Singers.Count - 1)
+                QueueService.MoveSingerDown(QueueService.SelectedSingerId!.Value);
+        }
+        else
+        {
+            Singer? selectedSinger = null;
+
+            if (e.Key == "ArrowUp" && currentIdx > 0)
+                selectedSinger = QueueService.Singers[currentIdx - 1];
+            else if (e.Key == "ArrowDown" && currentIdx < QueueService.Singers.Count - 1)
+                selectedSinger = QueueService.Singers[currentIdx + 1];
+
+            if(selectedSinger != null)
+                QueueService.SelectSinger(selectedSinger.Id);
+        }
+    }
+
+    private TimeSpan CalculateEwt(int singerIndex)
+    {
+        var totalDuration = TimeSpan.Zero;
+        for (int i = 0; i < singerIndex; i++)
+        {
+            var firstSong = QueueService.Singers[i].SongQueue.FirstOrDefault();
+            if (firstSong?.Song.Duration is { } duration)
+                totalDuration += duration;
+        }
+        return totalDuration;
+    }
+
+    private string FormatEwt(TimeSpan duration)
+    {
+        if (duration.TotalSeconds == 0) return string.Empty;
+        return $", EWT: {((int)Math.Floor(duration.TotalMinutes)):D2}:{duration.Seconds:D2}";
+    }
+
+    private string FormatSongCount(int songCount)
+    {
+        var className = "";
+
+        if (songCount <= 0)
+            className = "empty-song-queue";
+
+        return $"<span class=\"{className}\">{songCount} song(s) queued<span>";
+    }
+
+    private async Task ScrollToSelectedSinger()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("scrollIntoViewSmooth", ".singer-card-selected");
+        }
+        catch { }
+    }
+
+    private async Task ConfirmRemoveSinger(Singer singer)
+    {
+        var confirmed = await JS.InvokeAsync<bool>("confirm", $"Remove {singer.Name} from the queue?");
+        if (confirmed)
+            QueueService.RemoveSinger(singer.Id);
+    }
+
+    private void OnStateChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose()
+    {
+        QueueService.StateChanged  -= OnStateChanged;
+        PlaybackService.StateChanged -= OnStateChanged;
+    }
+}

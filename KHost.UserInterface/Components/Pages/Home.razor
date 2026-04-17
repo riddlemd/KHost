@@ -1,7 +1,151 @@
-﻿@page "/"
+@page "/"
+@rendermode InteractiveServer
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+@inject SingerQueueService QueueService
+@inject VenueService VenueService
 
-<PageTitle>Home</PageTitle>
+<PageTitle>KHost &mdash; Karaoke Queue</PageTitle>
 
-<h1>Hello, world!</h1>
+<div class="khost-layout" tabindex="0" @onkeydown="OnGlobalKeyDown">
 
-Welcome to your new app.
+    <header class="khost-header">
+        <i class="bi bi-headphones khost-logo-icon"></i>
+        <span class="khost-logo-text">KHost</span>
+        <span class="khost-logo-sep">|</span>
+        <span class="khost-logo-sub">Karaoke for the people, by the people.</span>
+        <span class="khost-header-venue-selector">
+            Venue:
+            <select id="venue-select" class="form-select form-select-sm" @onchange="OnVenueChanged">
+                @if (VenueService.Venues.Count > 0)
+                {
+                    @foreach (var venue in VenueService.Venues)
+                    {
+                        <option value="@venue.Id" selected="@(VenueService.SelectedVenueId == venue.Id)">@venue.Name</option>
+                    }
+                }
+                else
+                {
+                    <option>No venues available</option>
+                }
+            </select>
+        </span>
+        <span class="khost-header-theme-selector">
+            Theme:
+            <select id="theme-select" class="form-select form-select-sm"></select>
+        </span>
+        <span class="khost-logo-version">Version: @_version</span>
+    </header>
+
+    <div class="khost-body" id="khost-body">
+
+        <!-- Left column: Singer Queue -->
+        <div class="khost-col-left" id="panel-queue" tabindex="0">
+            <SingerQueuePanel />
+        </div>
+
+        <!-- Vertical resize handle -->
+        <div class="resize-handle-v" id="resize-v">
+            <div class="resize-grip-v"></div>
+        </div>
+
+        <!-- Right column -->
+        <div class="khost-col-right">
+
+            <!-- Top-right: Now Playing -->
+            <div class="khost-nowplaying" id="panel-nowplaying" tabindex="0">
+                <NowPlayingPanel />
+            </div>
+
+            <!-- Bottom-right: Song Search -->
+            <div class="khost-search" id="panel-search" tabindex="0">
+                <SongSearchPanel />
+            </div>
+
+            <!-- Second horizontal resize handle -->
+            <div class="resize-handle-h" id="resize-h2">
+                <div class="resize-grip-h"></div>
+            </div>
+
+            <!-- Singer Song Queue detail -->
+            <div class="khost-queue-detail" id="panel-queue-detail" tabindex="0">
+                <SingerSongQueuePanel />
+            </div>
+
+        </div>
+    </div>
+
+</div>
+
+@code {
+    private IJSObjectReference? _module;
+    private IJSObjectReference? _handle;
+    private string _version = "_ERROR_";
+
+    protected override void OnInitialized()
+    {
+        var assembly = System.Reflection.Assembly.GetExecutingAssembly();
+        var version = assembly.GetName().Version;
+        _version = version?.ToString() ?? "_ERROR_";
+        VenueService.StateChanged += OnVenueStateChanged;
+    }
+
+    private void OnVenueChanged(ChangeEventArgs e)
+    {
+        if (e.Value is string venueIdStr && Guid.TryParse(venueIdStr, out var venueId))
+        {
+            VenueService.SelectVenue(venueId);
+        }
+        else
+        {
+            VenueService.SelectVenue(null);
+        }
+    }
+
+    private void OnVenueStateChanged() => InvokeAsync(StateHasChanged);
+
+    private async Task OnGlobalKeyDown(KeyboardEventArgs e)
+    {
+        var element = await JS.InvokeAsync<IJSObjectReference>("import", "/js/focus-utils.js");
+
+        if (e.CtrlKey)
+        {
+            switch (e.Key.ToLower())
+            {
+                case "1":
+                    await element.InvokeVoidAsync("focusSingerInput");
+                    break;
+                case "2":
+                    await element.InvokeVoidAsync("focusSingerSongQueue");
+                    break;
+            }
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        await JS.InvokeAsync<IJSObjectReference>("import", "/js/prevent-zoom.js");
+        _module = await JS.InvokeAsync<IJSObjectReference>("import", "/js/panel-resize.js");
+        _handle = await _module.InvokeAsync<IJSObjectReference>("init");
+        await JS.InvokeVoidAsync("window.themeInit");
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        VenueService.StateChanged -= OnVenueStateChanged;
+        try {
+            if (_handle is not null)
+            {
+                await _handle.InvokeVoidAsync("dispose");
+                await _handle.DisposeAsync();
+            }
+            if (_module is not null)
+                await _module.DisposeAsync();
+        }
+        catch
+        {
+            // Do nothing...
+        }
+    }
+}

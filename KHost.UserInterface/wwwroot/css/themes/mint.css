@@ -1,0 +1,73 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   KHost Mint Theme
+   Color tokens and theme configuration
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ─── Design Tokens ──────────────────────────────────────────────────────── */
+:root {
+    --kh-purple: #14b8a6;
+    --kh-purple-hover: #0d9488;
+    --kh-purple-bright: #5eead4;
+    --kh-purple-glow: rgba(20, 184, 166, 0.45);
+    --kh-purple-subtle: rgba(20, 184, 166, 0.14);
+    --kh-purple-dim: rgba(20, 184, 166, 0.08);
+    --kh-accent: #CC5500;
+    --kh-accent-hover: #B84600;
+    --kh-accent-bright: #FF6B1A;
+    --kh-accent-glow: rgba(204, 85, 0, 0.45);
+    --kh-accent-subtle: rgba(204, 85, 0, 0.14);
+    --kh-bg: #0a1f1d;
+    --kh-bg-card: #0f2d2a;
+    --kh-bg-elevated: #1a3a37;
+    --kh-bg-input: #0d2622;
+    --kh-border: rgba(20, 184, 166, 0.28);
+    --kh-border-bright: rgba(20, 184, 166, 0.55);
+    --kh-text: #e0f2f1;
+    --kh-text-secondary: #80ccc7;
+    --kh-text-muted: #5ebdba;
+    --kh-success: #22C55E;
+    --kh-warning: #F59E0B;
+    --kh-info: #2686e2;
+    --kh-danger: #EF4444;
+    --kh-danger-glow: rgba(239, 68, 68, 0.3);
+    --kh-radius: 8px;
+    --kh-radius-lg: 12px;
+    --kh-transition: 0.15s ease;
+    --kh-font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --kh-font-display: 'Exo 2', 'Inter', sans-serif;
+}
+
+[data-bs-theme="dark"] {
+    --bs-body-bg: var(--kh-bg);
+    --bs-body-color: var(--kh-text);
+    --bs-secondary-color: var(--kh-text-secondary);
+    --bs-tertiary-color: var(--kh-text-muted);
+    --bs-card-bg: var(--kh-bg-card);
+    --bs-card-border-color: var(--kh-border);
+    --bs-border-color: var(--kh-border);
+    --bs-border-color-translucent: var(--kh-border);
+    --bs-link-color: var(--kh-purple-bright);
+    --bs-link-hover-color: #81e6d9;
+    --bs-primary: var(--kh-purple);
+    --bs-primary-rgb: 20, 184, 166;
+    --bs-table-hover-bg: var(--kh-purple-subtle);
+    --bs-table-striped-bg: var(--kh-purple-dim);
+}
+
+.khost-header {
+    background: linear-gradient(180deg, #1a3a37 0%, #0f2d2a 100%);
+}
+
+.card-header {
+    background: rgba(20, 184, 166, 0.12);
+}
+
+.np-card {
+    background: linear-gradient(160deg, #1a3a37 0%, var(--kh-bg-card) 60%);
+}
+
+.khost-logo-text {
+    background: linear-gradient(135deg, #5eead4 0%, #81e6d9 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+}
