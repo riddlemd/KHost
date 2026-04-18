@@ -1,0 +1,45 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   Tables
+   Table styles and header variants
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.table {
+    --bs-table-color: var(--kh-text);
+    --bs-table-bg: transparent;
+    --bs-table-hover-bg: var(--kh-primary-subtle);
+    --bs-table-border-color: var(--kh-border);
+    width: 100%;
+}
+
+.table-header-primary {
+    thead th {
+        background: var(--kh-primary-subtle);
+        color: var(--kh-text-secondary);
+        border-bottom: 1px solid var(--kh-border-bright);
+        font-size: 0.7rem;
+        font-weight: 600;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        padding: 10px 12px;
+        white-space: nowrap;
+        text-align: left;
+    }
+
+    tbody td {
+        border-color: var(--kh-border);
+        padding: 8px 12px;
+        vertical-align: middle;
+    }
+
+    tbody tr:hover td {
+        color: var(--kh-text);
+    }
+}
+
+.table tbody tr:nth-child(even) {
+    background: rgba(0, 0, 0, 0.2);
+}
+
+.table-cell-fill {
+    width: 100%;
+}

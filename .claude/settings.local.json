@@ -2,17 +2,16 @@
   "permissions": {
     "allow": [
       "Bash(rtk git *)",
-      "Bash(Get-ChildItem \"/c/Users/riddl/source/repos/KHost\")",
       "Bash(rtk ls *)",
       "Bash(rtk read *)",
-      "Bash(Get-ChildItem KHost.WindowsScreen/FFmpeg/)",
       "Bash(rtk dotnet *)",
-      "Bash(Get-ChildItem)",
+      "Bash(Get-ChildItem *)",
       "Bash(ffmpeg -version)",
       "Bash(rtk find *)",
-      "Bash(Get-ChildItem /c/Users/riddl/.nuget/packages/avalonia.controls/)",
-      "Bash(Get-ChildItem \"C:/Users/riddl/source/repos/KHost/KHost.Abstractions\")",
-      "Bash(dotnet watch *)"
+      "Bash(dotnet watch *)",
+      "Bash(rtk grep *)",
+      "Bash(dotnet test *)",
+      "Bash(grep *)"
     ]
   }
 }

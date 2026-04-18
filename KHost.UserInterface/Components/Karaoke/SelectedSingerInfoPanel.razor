@@ -1,0 +1,195 @@
+@using KHost.Domain.Collections.Generics
+@implements IDisposable
+@inject ISingerQueueService SingerQueueService
+@inject IPlaybackService PlaybackService
+
+<div class="card h-100" tabindex="0" @onkeydown="OnKeyDownAsync" @ref="_card">
+    <div class="card-header d-flex align-items-center gap-2">
+        <i class="bi bi-queue-music"></i>
+        <i class="bi bi-music-note-list"></i>
+        @if (SingerQueueService.SelectedSinger is { } singer)
+        {
+            <span class="card-title">@singer.Name's Queue</span>
+            <span class="badge bg-secondary ms-auto">@singer.SongQueue.Count</span>
+        }
+        else
+        {
+            <span class="card-title">Singer Song Queue</span>
+        }
+        <div class="singer-flags">
+            @if (SingerQueueService.SelectedSinger?.IsPerforming == true)
+            {
+                <i class="bi bi-music-note singer-is-performing" title="This singer is Performing!"></i>
+            }
+
+            <button class="btn-icon-minimal @(SingerQueueService.SelectedSinger?.IsRegular == false ? " btn-off" : "")"
+                    title="@(SingerQueueService.SelectedSinger?.IsRegular == true ? "This singer is a Regular!" : "Click to flag this singer as a Regular")"
+                    @onclick="() => ToggleIsRegularAsync()">
+                <i class="bi bi-heart-fill singer-is-regular"></i>
+            </button>
+
+            <button class="btn-icon-minimal @(SingerQueueService.SelectedSinger?.IsTipper == false ? " btn-off" : "")"
+                    title="@(SingerQueueService.SelectedSinger?.IsTipper == true ? "This singer is a Tipper!" : "Click to flag this singer as a Tipper")"
+                    @onclick="() => ToggleIsTipperAsync()">
+                <i class="bi bi-coin singer-is-tipper"></i>
+            </button>
+
+            <button class="btn btn-primary" title="Click to edit Singer's Profile'"
+                    @onclick:stopPropagation>
+                <i class="bi bi-pencil-fill"></i>
+            </button>
+        </div>
+    </div>
+
+    <div class="card-body ssq-body">
+        @if (SingerQueueService.SelectedSinger is null)
+        {
+            // Do nothing, we should not see this.
+        }
+        else if (SingerQueueService.SelectedSinger.SongQueue.Count == 0)
+        {
+            <div class="panel-empty">
+                <i class="bi bi-music-note-list"></i>
+                <span>No songs queued for @SingerQueueService.SelectedSinger.Name yet</span>
+            </div>
+        }
+        else
+        {
+            var selected = SingerQueueService.SelectedSinger!;
+            <table id="singer-song-queue-table" class="table table-sm table-hover table-header-primary mb-0 ssq-table">
+                <thead class="sticky-top">
+                    <tr>
+                        <th id="ssq-col-number">#</th>
+                        <th>Title</th>
+                        <th>Artist</th>
+                        <th id="ssq-col-duration">Duration</th>
+                        <th id="ssq-col-status">Status</th>
+                        <th id="ssq-col-actions">Options</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var (queuedSong, idx) in selected.SongQueue.Select((q, i) => (q, i)))
+                    {
+                        var isCurrent = PlaybackService.CurrentQueuedSong?.Id == queuedSong.Id;
+                        var isSelected = SingerQueueService.SelectedQueuedSongId == queuedSong.Id;
+                        var disableMoveUp = idx == 0 || queuedSong.Status == QueuedSongStatus.Played;
+                        var disableMoveDown = idx == selected.SongQueue.Count - 1 || queuedSong.Status == QueuedSongStatus.Played;
+                        var disableRemove = PlaybackService.CurrentQueuedSong?.Id == queuedSong.Id || queuedSong.Status == QueuedSongStatus.Played;
+                        var rowClass = isSelected ? "ssq-row-selected" : isCurrent ? "ssq-row-current" : queuedSong.Status == QueuedSongStatus.Played ? "ssq-row-played" : "";
+                        var nameClass = isCurrent ? "ssq-name-current" : queuedSong.Status == QueuedSongStatus.Played ? "ssq-name-played" : "";
+                        var disablePlay = PlaybackService.CurrentQueuedSong != null;
+
+                        <tr class="@rowClass" @onclick="() => SingerQueueService.SelectSongAsync(queuedSong.Id)" style="cursor: pointer;">
+                            <td class="ssq-pos">
+                                @if (isCurrent && PlaybackService.State == PlaybackState.Playing)
+                                {
+                                    <div class="np-bars np-bars-sm">
+                                        <div class="np-bar"></div>
+                                        <div class="np-bar"></div>
+                                        <div class="np-bar"></div>
+                                    </div>
+                                }
+                                else
+                                {
+                                    <span>@(idx + 1)</span>
+                                }
+                            </td>
+                            <td class="text-truncate ssq-name table-cell-fill" title="@queuedSong.FilePath">
+                                <span class="@nameClass">@queuedSong.Song.Title</span>
+                            </td>
+                            <td>
+                                @queuedSong.Song.Artist
+                            </td>
+                            <td class="ssq-duration">
+                                @if (queuedSong.Song.Duration is { } duration)
+                                {
+                                    <span>@(((int)duration.TotalMinutes).ToString("D2")):@duration.Seconds.ToString("D2")</span>
+                                }
+                            </td>
+                            <td>@queuedSong.Song.Status</td>
+                            <td class="ssq-actions-cell">
+                                <div class="actions-inline">
+                                    <button class="btn btn-sm ssq-btn-play" title="@(disablePlay ? "Cannot Load and Play while another song is loaded" : "Load and Play")"
+                                            disabled="@disablePlay"
+                                            @onclick="() => LoadAndPlayAsync(queuedSong)">
+                                        <i class="bi bi-play-fill"></i>
+                                    </button>
+                                    <button class="btn-icon-minimal" title="Move up"
+                                            disabled="@disableMoveUp"
+                                            @onclick="() => SingerQueueService.MoveQueuedSongUpAsync(selected.Id, queuedSong.Id)">
+                                        <i class="bi bi-chevron-up"></i>
+                                    </button>
+                                    <button class="btn-icon-minimal" title="Move down"
+                                            disabled="@disableMoveDown"
+                                            @onclick="() => SingerQueueService.MoveQueuedSongDownAsync(selected.Id, queuedSong.Id)">
+                                        <i class="bi bi-chevron-down"></i>
+                                    </button>
+                                    <button class="btn-icon-danger" title="Remove"
+                                            disabled="@disableRemove"
+                                            @onclick="() => SingerQueueService.RemoveQueuedSongAsync(selected.Id, queuedSong.Id)">
+                                        <i class="bi bi-x"></i>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </div>
+</div>
+
+@code {
+    private ElementReference _card;
+
+    protected override void OnInitialized()
+    {
+        SingerQueueService.StateChanged    += OnStateChanged;
+        PlaybackService.StateChanged += OnStateChanged;
+    }
+
+    private async Task OnKeyDownAsync(KeyboardEventArgs e)
+    {
+        var currentIdx = SingerQueueService.SelectedSinger?.SongQueue.FindIndex(s => s.Id == SingerQueueService.SelectedQueuedSongId) ?? -1;
+
+        IQueuedSong? selectedQueuedSong = null;
+
+        if (e.Key == "ArrowUp" && currentIdx > 0)
+            selectedQueuedSong = SingerQueueService.SelectedSinger?.SongQueue[currentIdx - 1];
+        else if (e.Key == "ArrowDown" && currentIdx < SingerQueueService.SelectedSinger?.SongQueue.Count - 1)
+            selectedQueuedSong = SingerQueueService.SelectedSinger?.SongQueue[currentIdx + 1];
+
+        if (selectedQueuedSong != null)
+            await SingerQueueService.SelectSongAsync(selectedQueuedSong.Id);
+    }
+
+    private async Task LoadAndPlayAsync(IQueuedSong queuedSong)
+    {
+        // Prevent loading a new song if one is already playing
+        if (PlaybackService.State == PlaybackState.Playing && PlaybackService.CurrentQueuedSong?.Id != queuedSong.Id)
+            return;
+
+        PlaybackService.Load(queuedSong);
+        await PlaybackService.PlayAsync();
+    }
+
+    private async Task ToggleIsRegularAsync()
+    {
+        if (SingerQueueService.SelectedSinger is { } singer)
+            await SingerQueueService.ToggleSingerIsRegularAsync(singer.Id);
+    }
+
+    private async Task ToggleIsTipperAsync()
+    {
+        if (SingerQueueService.SelectedSinger is { } singer)
+            await SingerQueueService.ToggleSingerIsTipperAsync(singer.Id);
+    }
+
+    private void OnStateChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose()
+    {
+        SingerQueueService.StateChanged    -= OnStateChanged;
+        PlaybackService.StateChanged -= OnStateChanged;
+    }
+}

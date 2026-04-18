@@ -7,8 +7,8 @@ export function focusSingerInput() {
     elm.focus();
 }
 
-export function focusSingerSongQueue() {
-    const elm = document.getElementById('panel-queue-detail');
+export function focusSingerDetail() {
+    const elm = document.getElementById('panel-singer-detail');
 
     if (!elm)
         return;

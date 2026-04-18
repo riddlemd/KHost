@@ -1,0 +1,76 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   KHost Evergreen Theme
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ─── Design Tokens ──────────────────────────────────────────────────────── */
+:root {
+    --kh-primary: #1B5E20;
+    --kh-primary-hover: #2E7D32;
+    --kh-primary-bright: #66BB6A;
+    --kh-primary-glow: rgba(27, 94, 32, 0.45);
+    --kh-primary-subtle: rgba(27, 94, 32, 0.14);
+    --kh-primary-dim: rgba(27, 94, 32, 0.08);
+    --kh-accent: #FFD700;
+    --kh-accent-hover: #FFC700;
+    --kh-accent-bright: #FFED4E;
+    --kh-accent-glow: rgba(255, 215, 0, 0.35);
+    --kh-accent-subtle: rgba(255, 215, 0, 0.12);
+    --kh-bg: #0B0F0A;
+    --kh-btn-primary-text: #F5E6D3;
+    --kh-bg-card: #131610;
+    --kh-bg-elevated: #1C221A;
+    --kh-bg-input: #0D0E0C;
+    --kh-border: rgba(27, 94, 32, 0.35);
+    --kh-border-bright: rgba(255, 215, 0, 0.28);
+    --kh-text: #F5E6D3;
+    --kh-text-secondary: #C9B89A;
+    --kh-text-muted: #8B8070;
+    --kh-success: #22C55E;
+    --kh-warning: #F59E0B;
+    --kh-info: #2686e2;
+    --kh-danger: #DC143C;
+    --kh-danger-glow: rgba(220, 20, 60, 0.3);
+    --kh-radius: 8px;
+    --kh-radius-lg: 12px;
+    --kh-transition: 0.15s ease;
+    --kh-font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --kh-font-display: 'Exo 2', 'Inter', sans-serif;
+}
+
+[data-bs-theme="dark"] {
+    --bs-body-bg: var(--kh-bg);
+    --bs-body-color: var(--kh-text);
+    --bs-secondary-color: var(--kh-text-secondary);
+    --bs-tertiary-color: var(--kh-text-muted);
+    --bs-card-bg: var(--kh-bg-card);
+    --bs-card-border-color: var(--kh-border);
+    --bs-border-color: var(--kh-border);
+    --bs-border-color-translucent: var(--kh-border);
+    --bs-link-color: var(--kh-accent-bright);
+    --bs-link-hover-color: #FFD700;
+    --bs-primary: var(--kh-primary);
+    --bs-primary-rgb: 27, 94, 32;
+    --bs-table-hover-bg: var(--kh-primary-subtle);
+    --bs-table-striped-bg: var(--kh-primary-dim);
+}
+
+.khost-header {
+    background: linear-gradient(180deg, #0D3A1A 0%, #131610 100%);
+    border-bottom: 2px solid rgba(255, 215, 0, 0.15);
+}
+
+.card-header {
+    background: rgba(27, 94, 32, 0.15);
+    border-bottom: 1px solid rgba(255, 215, 0, 0.15);
+}
+
+.np-card {
+    background: linear-gradient(160deg, #0D3A1A 0%, var(--kh-bg-card) 60%);
+    border: 1px solid rgba(255, 215, 0, 0.12);
+}
+
+.khost-logo-text {
+    background: linear-gradient(135deg, #FFD700 0%, #FFED4E 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+}

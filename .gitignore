@@ -361,4 +361,9 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
-/KHost.UserInterface/queue-state.json
+
+# SCSS/CSS (compiled output - do not commit)
+/KHost.UserInterface/wwwroot/css/*
+
+# KHost Caches
+/KHost.UserInterface/cache/*

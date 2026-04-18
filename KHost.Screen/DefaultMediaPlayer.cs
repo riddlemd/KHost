@@ -21,8 +21,6 @@ namespace KHost.Screen;
 /// </remarks>
 public sealed class DefaultMediaPlayer : IMediaPlayer
 {
-    private enum State { Idle, Stopped, Playing, Paused }
-
     private readonly IFfmpegService _ffmpeg;
     private readonly OpenAlAudioPlayer _audio = new();
     private IMediaPlayer.MediaInfo? _info;
@@ -39,7 +37,9 @@ public sealed class DefaultMediaPlayer : IMediaPlayer
     private Thread? _demuxThread;
     private CancellationTokenSource? _cts;
 
-    // ── IMediaPlayer ────────────────────────────────────────────────────────
+    public event EventHandler<IMediaPlayer.FrameData>? FrameAvailable;
+    public event EventHandler? PlaybackEnded;
+    public event EventHandler<string>? ErrorOccurred;
 
     public IMediaPlayer.MediaInfo? Info => _info;
     public bool IsLoaded => _info is not null;
@@ -68,10 +68,6 @@ public sealed class DefaultMediaPlayer : IMediaPlayer
             }
         }
     }
-
-    public event EventHandler<IMediaPlayer.FrameData>? FrameAvailable;
-    public event EventHandler? PlaybackEnded;
-    public event EventHandler<string>? ErrorOccurred;
 
     public DefaultMediaPlayer(IFfmpegService? ffmpegService = null)
     {
@@ -344,4 +340,6 @@ public sealed class DefaultMediaPlayer : IMediaPlayer
             PlaybackEnded?.Invoke(this, EventArgs.Empty);
         }
     }
+
+    private enum State { Idle, Stopped, Playing, Paused }
 }

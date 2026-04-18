@@ -1,0 +1,149 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   Singer Song Queue Panel (SelectedSingerInfoPanel)
+   Queued songs, status indicators, and singer flags
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.ssq-body {
+    padding: 0;
+    overflow-y: auto;
+}
+
+.singer-flags {
+    margin-left: auto;
+    font-size: 1.5em;
+
+    > i {
+        margin: 0 0.33em;
+    }
+}
+
+.singer-is-tipper {
+    color: #00ff00;
+}
+
+.singer-is-regular {
+    color: deeppink;
+}
+
+.singer-is-performing {
+    color: #0000ff;
+}
+
+/* ─── Table ───────────────────────────────────────────────────────────────── */
+.ssq-table {
+    width: 100%;
+}
+
+#ssq-col-number {
+    width: 32px;
+}
+
+#ssq-col-duration {
+    width: 70px;
+}
+
+#ssq-col-status {
+    width: 80px;
+}
+
+#ssq-col-actions {
+    width: 0px;
+}
+
+.ssq-pos {
+    color: var(--kh-text-muted);
+    font-size: 0.75rem;
+    font-variant-numeric: tabular-nums;
+    width: 32px;
+    text-align: center;
+}
+
+.ssq-name {
+    max-width: 1px;
+}
+
+.ssq-name-current {
+    // Styling for currently playing song (if needed)
+}
+
+.ssq-name-played {
+    color: var(--kh-text-muted);
+    text-decoration: line-through;
+}
+
+.ssq-row-selected td {
+    background: var(--kh-primary-dim) !important;
+    border-left: 2px solid var(--kh-primary);
+    color: var(--kh-primary-bright);
+    font-weight: 600;
+}
+
+.ssq-row-current {
+    // Styling for row with currently playing song (if needed)
+}
+
+.ssq-row-played td {
+    opacity: 0.45;
+}
+
+.ssq-actions-cell {
+    white-space: nowrap;
+}
+
+.ssq-duration {
+    // Duration column styling
+}
+
+/* ─── Status Badges ───────────────────────────────────────────────────────── */
+.ssq-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 0.68rem;
+    font-weight: 500;
+    padding: 2px 6px;
+    border-radius: 10px;
+    white-space: nowrap;
+}
+
+.ssq-badge-playing {
+    background: rgba(93, 43, 144, 0.25);
+    color: var(--kh-primary-bright);
+    border: 1px solid var(--kh-border-bright);
+}
+
+.ssq-badge-played {
+    background: rgba(34, 197, 94, 0.1);
+    color: var(--kh-success);
+    border: 1px solid rgba(34, 197, 94, 0.25);
+}
+
+.ssq-badge-pending {
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--kh-text-muted);
+    border: 1px solid var(--kh-border);
+}
+
+/* ─── Play Button ─────────────────────────────────────────────────────────── */
+.ssq-btn-play {
+    width: 26px;
+    height: 26px;
+    padding: 0;
+    border-radius: 50%;
+    background: var(--kh-primary-subtle);
+    border: 1px solid var(--kh-border-bright);
+    color: var(--kh-primary-bright);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    transition: all var(--kh-transition);
+    flex-shrink: 0;
+
+    &:hover {
+        background: var(--kh-primary);
+        border-color: var(--kh-primary-hover);
+        color: #fff;
+        box-shadow: 0 2px 8px var(--kh-primary-glow);
+    }
+}

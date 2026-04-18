@@ -1,0 +1,21 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   KHost — Main SCSS Entry Point
+   Organized: Themes → Base → Components → Panels → Utilities → Layout
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Theme files are imported via HTML <link> tags, so they set CSS custom properties */
+/* Base styles and components use those variables */
+
+@use 'base';
+@use 'buttons';
+@use 'cards';
+@use 'tables';
+@use 'alerts-panels';
+@use 'resize-handles';
+@use 'layout';
+@use 'loading-splash';
+@use 'now-playing';
+@use 'singer-queue';
+@use 'singer-song-queue';
+@use 'song-search';
+@use 'validation';

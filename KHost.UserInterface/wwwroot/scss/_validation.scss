@@ -1,0 +1,54 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   Blazor Validation & Error UI
+   Form validation states and error boundary styles
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.valid.modified:not([type=checkbox]) {
+    outline: 1px solid var(--kh-success);
+}
+
+.invalid {
+    outline: 1px solid var(--kh-danger);
+}
+
+.validation-message {
+    color: var(--kh-danger);
+}
+
+#blazor-error-ui {
+    background: linear-gradient(135deg, #2D0A0A, #1A0A0A);
+    border-top: 1px solid rgba(239,68,68,0.4);
+    bottom: 0;
+    left: 0;
+    right: 0;
+    position: fixed;
+    padding: 12px 20px;
+    color: var(--kh-danger);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 0.875rem;
+    z-index: 9999;
+
+    .reload {
+        color: var(--kh-primary-bright);
+    }
+
+    .dismiss {
+        margin-left: auto;
+        cursor: pointer;
+        opacity: 0.6;
+    }
+}
+
+.blazor-error-boundary {
+    padding: 12px 16px;
+    background: rgba(239,68,68,0.1);
+    border: 1px solid rgba(239,68,68,0.3);
+    border-radius: var(--kh-radius);
+    color: var(--kh-danger);
+
+    &::after {
+        content: "An error has occurred.";
+    }
+}

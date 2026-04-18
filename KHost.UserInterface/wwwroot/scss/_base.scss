@@ -1,0 +1,101 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   Base Styles
+   Global resets, typography, form controls, and scrollbar
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ─── Resets ─────────────────────────────────────────────────────────────── */
+*, *::before, *::after {
+    box-sizing: border-box;
+}
+
+html, body {
+    height: 100%;
+    margin: 0;
+    font-family: var(--kh-font);
+    background: var(--kh-bg);
+    color: var(--kh-text);
+    user-select: none;
+    touch-action: manipulation;
+    font-size: 12px;
+}
+
+input, textarea {
+    user-select: text;
+}
+
+h1:focus {
+    outline: none;
+}
+
+/* ─── Scrollbar ──────────────────────────────────────────────────────────── */
+::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--kh-border-bright);
+    border-radius: 3px;
+
+    &:hover {
+        background: var(--kh-primary-bright);
+    }
+}
+
+html {
+    scrollbar-color: var(--kh-border-bright) transparent;
+    scrollbar-width: thin;
+}
+
+/* ─── Form Controls ──────────────────────────────────────────────────────── */
+.form-control,
+.form-select {
+    background-color: var(--kh-bg-input);
+    border-color: var(--kh-border);
+    color: var(--kh-text);
+    border-radius: var(--kh-radius);
+    transition: border-color var(--kh-transition), box-shadow var(--kh-transition);
+    padding: 0.5rem 0.75rem;
+
+    &::placeholder {
+        color: var(--kh-text-muted);
+    }
+
+    &:focus {
+        background-color: var(--kh-bg-input);
+        border-color: var(--kh-accent);
+        box-shadow: 0 0 0 3px var(--kh-accent-glow);
+        color: var(--kh-text);
+    }
+}
+
+.form-select option {
+    background-color: var(--kh-bg-elevated);
+    color: var(--kh-text);
+}
+
+.form-check-input {
+    background-color: var(--kh-bg-input);
+    border-color: var(--kh-border-bright);
+
+    &:checked {
+        background-color: var(--kh-primary);
+        border-color: var(--kh-primary);
+    }
+
+    &:focus {
+        box-shadow: 0 0 0 3px var(--kh-accent-glow);
+    }
+}
+
+.form-label {
+    color: var(--kh-text-secondary);
+    font-size: 0.75rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+}

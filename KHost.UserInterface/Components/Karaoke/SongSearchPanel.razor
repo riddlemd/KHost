@@ -1,6 +1,6 @@
 @implements IDisposable
-@inject SongSearchService SearchService
-@inject SingerQueueService QueueService
+@inject ISongSearchService SongSearchService
+@inject ISingerQueueService SingerQueueService
 
 <div class="card h-100">
     <div class="card-header d-flex align-items-center gap-2">
@@ -12,12 +12,12 @@
 
         <div class="panel-form-row">
             <div class="form-grow">
-                <label class="form-label" for="search-filter-input">Search for Song</label>
-                <input type="text" id="search-filter-input" class="form-control form-control-sm" placeholder="Type a song name or artist..."
-                       autocomplete="off" @bind="_filter" @bind:event="oninput" @onkeydown="OnFilterKeyDown" />
+                <label class="form-label" for="song-search-input">Search for Song</label>
+                <input type="text" id="song-search-input" class="form-control form-control-sm" placeholder="Type a song name or artist..."
+                       autocomplete="off" @bind="_filter" @bind:event="oninput" @onkeydown="OnFilterKeyDownAsync" />
             </div>
-            <button id="search-btn" class="btn btn-primary btn-sm d-flex align-items-center gap-2"
-                    @onclick="RunSearch" disabled="@_searching">
+            <button id="song-search-btn" class="btn btn-primary btn-sm d-flex align-items-center gap-2"
+                    @onclick="RunSearchAsync" disabled="@_searching">
                 @if (_searching)
                 {
                     <span class="spinner-border spinner-border-sm" role="status"></span>
@@ -39,7 +39,7 @@
 
         @if (_results is not null)
         {
-            <div class="song-results-header">
+            <div class="song-search-results-header">
                 <span class="text-caption">
                     @if (_results.Count == 0)
                     {
@@ -51,15 +51,15 @@
                         <span>@_results.Count file(s) found@(_results.Count > MaxDisplay ? $" — showing first {MaxDisplay}" : "")</span>
                     }
                 </span>
-                @if (QueueService.SelectedSingerId is null && _results.Count > 0)
+                @if (SingerQueueService.SelectedSingerId is null && _results.Count > 0)
                 {
-                    <span class="search-hint">
+                    <span class="song-search-hint">
                         <i class="bi bi-arrow-left me-1"></i>Select a singer in the queue to add songs
                     </span>
                 }
             </div>
 
-            <div class="song-results">
+            <div class="song-search-results">
                 @if (_results.Count == 0)
                 {
                     <div class="panel-empty">
@@ -69,33 +69,33 @@
                 }
                 else
                 {
-                    <table id="song-search-results-table" class="table table-sm table-hover table-header-purple mb-0">
+                    <table id="song-search-results-table" class="table table-sm table-hover table-header-primary mb-0">
                         <thead class="sticky-top">
                             <tr>
                                 <th>Name</th>
-                                <th id="ssp-col-type">Type</th>
-                                <th id="ssp-col-actions"></th>
+                                <th>Duration</th>
+                                <th id="song-search-col-type">Format</th>
+                                <th id="song-search-col-actions">Options</th>
                             </tr>
                         </thead>
                         <tbody>
-                            @foreach (var song in _results.Take(MaxDisplay))
+                            @foreach (var songSearchEntity in _results.Take(MaxDisplay))
                             {
-                                var ext = Path.GetExtension(song.FilePath).ToLowerInvariant();
-                                var isCdg = ext == ".cdg";
                                 <tr>
-                                    <td class="text-truncate" title="@song.FilePath">
-                                        <i class="bi bi-file-earmark-music me-1 song-file-icon"></i>
-                                        @song.DisplayName
+                                    <td class="text-truncate table-cell-fill" title="@songSearchEntity.FilePath">
+                                        <i class="bi bi-file-earmark-music me-1 song-search-file-icon"></i>
+                                        @songSearchEntity.DisplayName
+                                    </td>
+                                    <td>--:--</td>
+                                    <td>
+                                        @songSearchEntity.Format
                                     </td>
                                     <td>
-                                        <span class="badge @(isCdg ? "badge-cdg" : "badge-ext")">@ext[1..]</span>
-                                    </td>
-                                    <td>
-                                        <button class="btn btn-primary btn-sm song-add-btn"
-                                                disabled="@(QueueService.SelectedSingerId is null)"
-                                                @onclick="() => AddSong(song)"
-                                                title="Add to singer">
-                                            <i class="bi bi-plus-lg me-1"></i>Add
+                                        <button class="btn btn-primary btn-sm song-search-add-btn"
+                                                disabled="@(SingerQueueService.SelectedSingerId is null)"
+                                                @onclick="() => EnqueueSongAsync(songSearchEntity)"
+                                                title="Enqueue for selected singer">
+                                            <i class="bi bi-plus-lg me-1"></i> Enqueue
                                         </button>
                                     </td>
                                 </tr>
@@ -120,49 +120,48 @@
     private string _directory = string.Empty;
     private string _filter = string.Empty;
     private bool _searching;
-    private List<SongFile>? _results;
+    private List<ISongSearchEntity>? _results;
     private string? _errorMessage;
 
     protected override void OnInitialized()
     {
         _directory = Path.Combine(Environment.ExpandEnvironmentVariables("%USERPROFILE%"), "OneDrive", "Karaoke");
-        QueueService.StateChanged += OnStateChanged;
+        SingerQueueService.StateChanged += OnStateChanged;
     }
 
-    private async Task RunSearch()
+    private async Task RunSearchAsync()
     {
         _errorMessage = null;
         _searching = true;
         _results = null;
         StateHasChanged();
 
-        _results = await Task.Run(() =>
+        if (!Directory.Exists(_directory))
         {
-            if (!Directory.Exists(_directory))
-                return null;
-            return SearchService.Search(_directory, _filter, recursive: true);
-        });
-
-        if (_results is null)
             _errorMessage = $"Directory not found: {_directory}";
+            _searching = false;
+            return;
+        }
+
+        _results = await SongSearchService.SearchAsync(_directory, _filter, recursive: true);
 
         _searching = false;
     }
 
-    private async Task OnFilterKeyDown(KeyboardEventArgs e)
+    private async Task OnFilterKeyDownAsync(KeyboardEventArgs e)
     {
         if (e.Key == "Enter" && !_searching)
-            await RunSearch();
+            await RunSearchAsync();
     }
 
-    private void AddSong(SongFile song)
+    private async Task EnqueueSongAsync(ISongSearchEntity song)
     {
-        if (QueueService.SelectedSingerId is { } singerId)
-            QueueService.AddSong(singerId, song);
+        if (SingerQueueService.SelectedSingerId is { } singerId)
+            await SingerQueueService.AddSongAsync(singerId, song);
     }
 
     private void OnStateChanged() => InvokeAsync(StateHasChanged);
 
     public void Dispose() =>
-        QueueService.StateChanged -= OnStateChanged;
+        SingerQueueService.StateChanged -= OnStateChanged;
 }

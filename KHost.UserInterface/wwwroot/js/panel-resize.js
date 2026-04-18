@@ -11,10 +11,10 @@ export function init() {
     const nowPlaying = document.getElementById('panel-nowplaying');
     const songSearch = document.getElementById('panel-search');
     const vHandle    = document.getElementById('resize-v');
-    const hHandle2   = document.getElementById('resize-h2');
+    const hHandle   = document.getElementById('resize-h');
     const body       = document.getElementById('khost-body');
 
-    if (!colLeft || !nowPlaying || !songSearch || !vHandle || !hHandle2 || !body)
+    if (!colLeft || !nowPlaying || !songSearch || !vHandle || !hHandle || !body)
         return { dispose: () => {} };
 
     // ── Restore saved sizes ───────────────────────────────────────────────
@@ -28,7 +28,7 @@ export function init() {
     }
 
     // ── Drag state ────────────────────────────────────────────────────────
-    let mode       = null;   // 'v' | 'h2'
+    let mode       = null;   // 'v' | 'h'
     let startCoord = 0;
     let startSize  = 0;
     let saveTimer  = null;
@@ -58,11 +58,11 @@ export function init() {
         e.preventDefault();
     }
 
-    function beginH2(e) {
-        mode       = 'h2';
+    function beginH(e) {
+        mode       = 'h';
         startCoord = clientCoords(e).y;
         startSize  = songSearch.getBoundingClientRect().height;
-        hHandle2.classList.add('dragging');
+        hHandle.classList.add('dragging');
         lock('row-resize');
         e.preventDefault();
     }
@@ -76,10 +76,10 @@ export function init() {
             const newW   = Math.max(150, Math.min(startSize + (x - startCoord), totalW * 0.65));
             colLeft.style.width = newW + 'px';
 
-        } else if (mode === 'h2') {
+        } else if (mode === 'h') {
             const bodyH     = body.getBoundingClientRect().height;
             const npH       = nowPlaying.getBoundingClientRect().height;
-            const handleH   = hHandle2.getBoundingClientRect().height;
+            const handleH   = hHandle.getBoundingClientRect().height;
             const available = bodyH - npH - handleH;
             const newH      = Math.max(80, Math.min(startSize + (y - startCoord), available - 80));
             songSearch.style.flex   = 'none';
@@ -92,7 +92,7 @@ export function init() {
     function end() {
         if (!mode) return;
         vHandle.classList.remove('dragging');
-        hHandle2.classList.remove('dragging');
+        hHandle.classList.remove('dragging');
         mode = null;
         unlock();
     }
@@ -108,12 +108,12 @@ export function init() {
 
     // ── Wire up events ────────────────────────────────────────────────────
     vHandle.addEventListener('mousedown',  beginV);
-    hHandle2.addEventListener('mousedown', beginH2);
+    hHandle.addEventListener('mousedown', beginH);
     document.addEventListener('mousemove', move);
     document.addEventListener('mouseup',   end);
 
     vHandle.addEventListener('touchstart',  beginV,  { passive: false });
-    hHandle2.addEventListener('touchstart', beginH2, { passive: false });
+    hHandle.addEventListener('touchstart', beginH, { passive: false });
     document.addEventListener('touchmove',  move,    { passive: false });
     document.addEventListener('touchend',   end);
 
@@ -121,11 +121,11 @@ export function init() {
         dispose: () => {
             clearTimeout(saveTimer);
             vHandle.removeEventListener('mousedown',  beginV);
-            hHandle2.removeEventListener('mousedown', beginH2);
+            hHandle.removeEventListener('mousedown', beginH);
             document.removeEventListener('mousemove', move);
             document.removeEventListener('mouseup',   end);
             vHandle.removeEventListener('touchstart',  beginV);
-            hHandle2.removeEventListener('touchstart', beginH2);
+            hHandle.removeEventListener('touchstart', beginH);
             document.removeEventListener('touchmove',  move);
             document.removeEventListener('touchend',   end);
         }

@@ -1,3 +1,5 @@
+using KHost.DataAccess;
+using KHost.Domain;
 using KHost.ServiceDefaults;
 using KHost.UserInterface.Components;
 
@@ -5,10 +7,8 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.AddServiceDefaults();
 
-builder.Services.AddSingleton<KHost.UserInterface.Services.SingerQueueService>();
-builder.Services.AddSingleton<KHost.UserInterface.Services.PlaybackService>();
-builder.Services.AddSingleton<KHost.UserInterface.Services.SongSearchService>();
-builder.Services.AddSingleton<KHost.UserInterface.Services.VenueService>();
+builder.Services.AddDomain();
+builder.Services.AddDataAccess();
 
 // Add services to the container.
 builder.Services.AddRazorComponents()

@@ -8,7 +8,19 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\KHost.DataAccess\KHost.DataAccess.csproj" />
     <ProjectReference Include="..\KHost.ServiceDefaults\KHost.ServiceDefaults.csproj" />
+    <ProjectReference Include="..\KHost.Abstractions\KHost.Abstractions.csproj" />
+    <ProjectReference Include="..\KHost.Domain\KHost.Domain.csproj" />
   </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="wwwroot\css\themes\" />
+  </ItemGroup>
+
+  <!-- Compile SCSS before build -->
+  <Target Name="CompileSCSS" BeforeTargets="Build">
+    <Exec Command="npm run sass" ContinueOnError="false" />
+  </Target>
 
 </Project>

@@ -16,6 +16,13 @@ namespace KHost.Screen.OpenAl;
 internal static class OpenAlNative
 {
     private const string Lib = "KHost_OpenAL"; // dummy name resolved at runtime
+    internal const int AL_FORMAT_MONO16 = 0x1101;
+    internal const int AL_FORMAT_STEREO16 = 0x1103;
+    internal const int AL_GAIN = 0x100A;
+    internal const int AL_SOURCE_STATE = 0x1010;
+    internal const int AL_PLAYING = 0x1012;
+    internal const int AL_BUFFERS_QUEUED = 0x1015;
+    internal const int AL_BUFFERS_PROCESSED = 0x1016;
 
     /// <summary>True when an OpenAL library was loaded successfully.</summary>
     internal static readonly bool IsLoaded;
@@ -113,14 +120,4 @@ internal static class OpenAlNative
 
     [DllImport(Lib, EntryPoint = "alGetSourcei")]
     internal static extern void alGetSourcei(int sid, int param, out int val);
-
-    // ── Constants ───────────────────────────────────────────────────────────
-
-    internal const int AL_FORMAT_MONO16 = 0x1101;
-    internal const int AL_FORMAT_STEREO16 = 0x1103;
-    internal const int AL_GAIN = 0x100A;
-    internal const int AL_SOURCE_STATE = 0x1010;
-    internal const int AL_PLAYING = 0x1012;
-    internal const int AL_BUFFERS_QUEUED = 0x1015;
-    internal const int AL_BUFFERS_PROCESSED = 0x1016;
 }

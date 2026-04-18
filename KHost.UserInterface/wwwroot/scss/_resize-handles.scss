@@ -1,0 +1,57 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   Resize Handles
+   Vertical and horizontal drag-to-resize handles
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.resize-handle-v,
+.resize-handle-h {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    transition: background var(--kh-transition);
+    position: relative;
+    z-index: 10;
+}
+
+.resize-handle-v {
+    width: 8px;
+    cursor: col-resize;
+}
+
+.resize-handle-h {
+    height: 8px;
+    cursor: row-resize;
+}
+
+.resize-handle-v:hover, .resize-handle-v.dragging,
+.resize-handle-h:hover, .resize-handle-h.dragging {
+    background: var(--kh-primary-subtle);
+}
+
+.resize-grip-v,
+.resize-grip-h {
+    border-radius: 1px;
+    transition: background var(--kh-transition);
+}
+
+.resize-grip-v {
+    width: 2px;
+    height: 32px;
+    background: repeating-linear-gradient(to bottom, var(--kh-border-bright) 0, var(--kh-border-bright) 3px, transparent 3px, transparent 6px);
+}
+
+.resize-grip-h {
+    height: 2px;
+    width: 32px;
+    background: repeating-linear-gradient(to right, var(--kh-border-bright) 0, var(--kh-border-bright) 3px, transparent 3px, transparent 6px);
+}
+
+.resize-handle-v:hover .resize-grip-v, .resize-handle-v.dragging .resize-grip-v {
+    background: repeating-linear-gradient(to bottom, var(--kh-primary-bright) 0, var(--kh-primary-bright) 3px, transparent 3px, transparent 6px);
+}
+
+.resize-handle-h:hover .resize-grip-h, .resize-handle-h.dragging .resize-grip-h {
+    background: repeating-linear-gradient(to right, var(--kh-primary-bright) 0, var(--kh-primary-bright) 3px, transparent 3px, transparent 6px);
+}

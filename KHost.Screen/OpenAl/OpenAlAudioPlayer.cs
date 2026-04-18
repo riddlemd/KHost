@@ -76,16 +76,6 @@ internal sealed class OpenAlAudioPlayer : IDisposable
         catch { /* audio is optional */ }
     }
 
-    public void Dispose()
-    {
-        Stop();
-        if (!IsAvailable) return;
-        alDeleteBuffers(_bufferPool.Length, _bufferPool);
-        alDeleteSources(1, ref _source);
-        alcDestroyContext(_context);
-        alcCloseDevice(_device);
-    }
-
     // ── Streaming lifecycle ─────────────────────────────────────────────────
 
     /// <summary>
@@ -149,6 +139,16 @@ internal sealed class OpenAlAudioPlayer : IDisposable
         UnqueueAll();
         _stagingPos = 0;
         _started = false;
+    }
+
+    public void Dispose()
+    {
+        Stop();
+        if (!IsAvailable) return;
+        alDeleteBuffers(_bufferPool.Length, _bufferPool);
+        alDeleteSources(1, ref _source);
+        alcDestroyContext(_context);
+        alcCloseDevice(_device);
     }
 
     // ── Internal ────────────────────────────────────────────────────────────

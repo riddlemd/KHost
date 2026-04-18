@@ -1,0 +1,203 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   App Layout
+   Main layout grid, header, footer, and column structure
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.khost-layout {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    overflow: hidden;
+    background: var(--kh-bg);
+}
+
+/* ─── Header ──────────────────────────────────────────────────────────────── */
+.khost-header {
+    flex-shrink: 0;
+    background: linear-gradient(180deg, #180D30 0%, #0F0A20 100%);
+    border-bottom: 1px solid var(--kh-border-bright);
+    padding: 0 20px;
+    height: 56px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    position: relative;
+
+    &::after {
+        content: '';
+        position: absolute;
+        bottom: -1px;
+        left: 0;
+        right: 0;
+        height: 1px;
+        background: linear-gradient(90deg, transparent, var(--kh-primary), transparent);
+    }
+}
+
+.khost-logo-icon {
+    font-size: 22px;
+    color: var(--kh-primary-bright);
+    line-height: 1;
+}
+
+.khost-logo-text {
+    font-family: var(--kh-font-display);
+    font-size: 18px;
+    font-weight: 700;
+    background: linear-gradient(135deg, #C59AE8 0%, #E8D5FF 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    letter-spacing: 0.03em;
+}
+
+.khost-logo-sep {
+    color: var(--kh-border-bright);
+    font-size: 20px;
+    font-weight: 200;
+}
+
+.khost-logo-sub {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--kh-text-muted);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+}
+
+.khost-header-venue-selector {
+    display: flex;
+    align-items: center;
+    margin-right: 20px;
+    margin-left: auto;
+}
+
+.khost-header-theme-selector {
+    display: flex;
+    align-items: center;
+
+    .form-select-sm {
+        max-width: 120px;
+        font-size: 0.75rem;
+        padding: 0.35rem 0.6rem;
+        background-color: var(--kh-bg-input);
+        border-color: var(--kh-border);
+        color: var(--kh-text);
+    }
+}
+
+/* ─── Footer ──────────────────────────────────────────────────────────────── */
+.khost-footer {
+    font-size: 0.75em;
+    display: flex;
+    flex-shrink: 0;
+    margin: 0 0.5rem 0.5rem 0.5rem;
+    opacity: 0.33;
+}
+
+.khost-version {
+    margin-left: auto;
+}
+
+/* ─── Body ────────────────────────────────────────────────────────────────── */
+.khost-body {
+    flex: 1;
+    display: flex;
+    overflow: hidden;
+    min-height: 0;
+    padding: 0.5em;
+}
+
+/* ─── Left Column — Singer Queue ──────────────────────────────────────────– */
+.khost-col-queue {
+    width: 20%;
+    min-width: 150px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+
+    > .card {
+        flex: 1;
+        overflow: hidden;
+    }
+
+    .card-body {
+        overflow-y: auto;
+        padding: 1em;
+    }
+}
+
+#panel-queue .add-singer-inputs {
+    border-bottom: 2px solid var(--kh-border);
+    overflow: hidden;
+    padding: 1em;
+
+    form {
+        margin: 0;
+    }
+}
+
+#singer-add-btn {
+    padding: 0.5em;
+}
+
+/* ─── Right Column ────────────────────────────────────────────────────────── */
+.khost-col-detail {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    gap: 1em;
+}
+
+#resize-h {
+    margin: -1em 0;
+}
+
+.khost-nowplaying {
+    height: 20vh;
+    max-height: 20vh;
+    min-height: 72px;
+    flex-shrink: 0;
+    overflow: hidden;
+
+    > .card {
+        height: 100%;
+        overflow: hidden;
+    }
+}
+
+.khost-search {
+    flex: 1 1 0;
+    overflow: hidden;
+    min-height: 80px;
+    display: flex;
+
+    > .card {
+        flex: 1;
+    }
+
+    .card-body {
+        padding: 1em;
+    }
+}
+
+.khost-singer-detail {
+    flex: 1 1 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    min-height: 80px;
+
+    > .card {
+        flex: 1;
+        overflow: hidden;
+    }
+
+    .card-body {
+        overflow-y: auto;
+        padding: 0;
+    }
+}

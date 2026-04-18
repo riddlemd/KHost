@@ -1,5 +1,5 @@
 @implements IDisposable
-@inject PlaybackService PlaybackService
+@inject IPlaybackService PlaybackService
 
 <div class="card h-100 np-card">
     <div class="card-header d-flex align-items-center gap-2">
@@ -8,7 +8,7 @@
     </div>
 
     <div class="card-body np-body">
-        @if (PlaybackService.CurrentSong is null)
+        @if (PlaybackService.CurrentQueuedSong is null)
         {
             <div class="np-empty">
                 <i class="bi bi-mic np-empty-icon"></i>
@@ -19,7 +19,7 @@
         }
         else
         {
-            var song      = PlaybackService.CurrentSong;
+            var song = PlaybackService.CurrentQueuedSong;
             var isPlaying = PlaybackService.State == PlaybackState.Playing;
             var hasDur    = song.Song.Duration is { TotalSeconds: > 0 };
             var pct       = hasDur
@@ -28,7 +28,7 @@
 
             <div class="np-top-row">
                 <div class="np-info">
-                    <div class="np-song-title">@song.Song.DisplayName</div>
+                    <div class="np-song-title">@song.Song.Title - @song.Song.Artist</div> 
                     <div class="np-singer-name">
                         <i class="bi bi-person-fill"></i>
                         @song.Singer.Name
@@ -44,11 +44,11 @@
                     }
                     else
                     {
-                        <button id="playback-play-pause-btn" class="btn-np-play" @onclick="PlaybackService.Play" title="Play">
+                        <button id="playback-play-pause-btn" class="btn-np-play" @onclick="PlaybackService.PlayAsync" title="Play">
                             <i class="bi bi-play-fill icon-nudge"></i>
                         </button>
                     }
-                    <button id="playback-stop-btn" class="btn-np-stop" @onclick="PlaybackService.Stop" title="Stop"
+                    <button id="playback-stop-btn" class="btn-np-stop" @onclick="PlaybackService.StopAsync" title="Stop"
                             disabled="@(PlaybackService.State == PlaybackState.Stopped)">
                         <i class="bi bi-stop-fill"></i>
                     </button>
@@ -80,7 +80,7 @@
                 </div>
             </div>
 
-            @if (song.Status == SongStatus.Played)
+            @if (song.Status == QueuedSongStatus.Played)
             {
                 <div class="np-finished">
                     <i class="bi bi-check-circle-fill"></i> Song finished
