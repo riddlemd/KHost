@@ -1,0 +1,45 @@
+@using System.Text.Json
+
+<Dialog IsOpen="IsOpen" Class="@($"kh-dialog__confirmation {Class}".TrimEnd())">
+    <Header>
+        <i class="bi bi-exclamation-triangle-fill"></i> Confirm
+    </Header>
+    <Body>
+        @Message
+    </Body>
+    <Footer>
+        <button class="kh-confirmation__cancel-btn kh-button kh-button--primary" @onclick="CloseAsync" type="button">Cancel</button>
+        <button class="kh-confirmation__confirm-btn kh-button kh-button--primary kh-button--@GetButtonClassName(Verb)" @onclick="ConfirmAsync" type="button">@Verb</button>
+    </Footer>
+</Dialog>
+
+@code {
+    [Parameter] public bool IsOpen { get; set; }
+    [Parameter] public string Message { get; set; } = "Are you sure?";
+    [Parameter] public string Verb { get; set; } = "Confirm";
+    [Parameter] public string Class { get; set; } = "";
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback OnOpen { get; set; }
+    [Parameter] public EventCallback OnConfirm { get; set; }
+
+    public async Task CloseAsync()
+    {
+        IsOpen = false;
+        await OnClose.InvokeAsync();
+    }
+
+    public async Task OpenAsync()
+    {
+        IsOpen = true;
+        await OnOpen.InvokeAsync();
+    }
+
+    public async Task ConfirmAsync()
+    {
+        await OnConfirm.InvokeAsync();
+        await CloseAsync();
+    }
+
+    private string GetButtonClassName(string verb)
+        => JsonNamingPolicy.KebabCaseLower.ConvertName(verb);
+}

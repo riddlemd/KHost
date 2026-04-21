@@ -4,5 +4,5 @@ namespace KHost.Abstractions.Services;
 
 public interface IMediaFileParsingService
 {
-    ISong LoadAndParse(string filePath);
+    Media LoadAndParse(string filePath);
 }

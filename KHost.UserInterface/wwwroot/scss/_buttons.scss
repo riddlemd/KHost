@@ -3,7 +3,7 @@
    All button styles including primary, outline, and icon variants
    ═══════════════════════════════════════════════════════════════════════════ */
 
-.btn {
+.kh-button {
     border-radius: var(--kh-radius);
     font-weight: 500;
     transition: all var(--kh-transition);
@@ -13,152 +13,164 @@
         opacity: 0.3;
         cursor: default;
     }
-}
+    /* ─── Primary Button ──────────────────────────────────────────────────── */
+    &--primary {
+        background: linear-gradient(135deg, var(--kh-primary), var(--kh-primary-hover));
+        border-color: var(--kh-primary-hover);
+        color: var(--kh-button-primary-text);
 
-/* ─── Primary Button ─────────────────────────────────────────────────────── */
-.btn-primary {
-    background: linear-gradient(135deg, var(--kh-primary), var(--kh-primary-hover));
-    border-color: var(--kh-primary-hover);
-    color: var(--kh-btn-primary-text);
+        &:hover:not(:disabled) {
+            background: linear-gradient(135deg, var(--kh-primary-hover), var(--kh-primary-bright));
+            border-color: var(--kh-primary-bright);
+            color: var(--kh-button-primary-text);
+        }
 
-    &:hover:not(:disabled) {
-        background: linear-gradient(135deg, var(--kh-primary-hover), var(--kh-primary-bright));
-        border-color: var(--kh-primary-bright);
-        box-shadow: 0 4px 16px var(--kh-primary-glow);
-        color: var(--kh-btn-primary-text);
+        &:active {
+            transform: translateY(1px);
+        }
+
+        &:disabled {
+            opacity: 0.4;
+        }
+    }
+    /* ─── Outline Secondary Button ────────────────────────────────────────── */
+    &--outline-secondary {
+        border-color: var(--kh-border-bright);
+        color: var(--kh-text-secondary);
+
+        &:hover:not(:disabled) {
+            background: var(--kh-primary-subtle);
+            border-color: var(--kh-primary);
+            color: var(--kh-text);
+        }
+
+        &:disabled {
+            opacity: 0.3;
+            border-color: var(--kh-border);
+        }
+    }
+    /* ─── Outline Danger Button ───────────────────────────────────────────── */
+    &--outline-danger {
+        border-color: var(--kh-danger-border-subtle);
+        color: var(--kh-danger-text-subtle);
+
+        &:hover:not(:disabled) {
+            background: var(--kh-danger-bg-subtle);
+            border-color: var(--kh-danger);
+            color: var(--kh-danger);
+        }
+    }
+    /* ─── Icon Button — Small (26x26) ─────────────────────────────────────── */
+    &--icon-sm {
+        width: 26px;
+        height: 26px;
+        padding: 0;
+        flex-shrink: 0;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+
+        i {
+            font-size: 10px;
+        }
+
+        &.btn--outline-danger i {
+            font-size: 12px;
+        }
+    }
+    /* ─── Icon Button — Minimal ───────────────────────────────────────────── */
+    &--icon-minimal {
+        background: none;
+        border: none;
+        color: #fff;
+        padding: 0;
+        width: 26px;
+        height: 26px;
+        flex-shrink: 0;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: color var(--kh-transition);
+
+        i {
+            font-size: 12px;
+        }
+
+        &:hover:not(:disabled) {
+            color: var(--kh-primary-bright);
+        }
+
+        &:disabled {
+            opacity: 0.3;
+            cursor: default;
+        }
     }
 
-    &:active {
-        transform: translateY(1px);
+    &--off {
+        filter: saturate(0);
     }
-
-    &:disabled {
-        opacity: 0.4;
+    /* ─── Icon Button — Info ──────────────────────────────────────────────── */
+    &--icon-info {
+        background: none;
+        border: none;
+        color: var(--kh-info);
+        padding: 0;
+        width: 26px;
+        height: 26px;
+        flex-shrink: 0;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: color var(--kh-transition);
     }
-}
-
-/* ─── Outline Secondary Button ──────────────────────────────────────────── */
-.btn-outline-secondary {
-    border-color: var(--kh-border-bright);
-    color: var(--kh-text-secondary);
-
-    &:hover:not(:disabled) {
-        background: var(--kh-primary-subtle);
-        border-color: var(--kh-primary);
-        color: var(--kh-text);
-    }
-
-    &:disabled {
-        opacity: 0.3;
-        border-color: var(--kh-border);
-    }
-}
-
-/* ─── Outline Danger Button ────────────────────────────────────────────── */
-.btn-outline-danger {
-    border-color: rgba(239, 68, 68, 0.35);
-    color: rgba(239, 68, 68, 0.7);
-
-    &:hover:not(:disabled) {
-        background: rgba(239, 68, 68, 0.12);
-        border-color: var(--kh-danger);
+    /* ─── Icon Button — Danger ────────────────────────────────────────────── */
+    &--icon-danger {
+        background: none;
+        border: none;
         color: var(--kh-danger);
-    }
-}
+        padding: 0;
+        width: 26px;
+        height: 26px;
+        flex-shrink: 0;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: color var(--kh-transition);
 
-/* ─── Icon Button — Small (26x26) ──────────────────────────────────────── */
-.btn-icon-sm {
-    width: 26px;
-    height: 26px;
-    padding: 0;
-    flex-shrink: 0;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
+        i {
+            font-size: 12px;
+        }
 
-    i {
-        font-size: 10px;
-    }
+        &:hover:not(:disabled) {
+            color: var(--kh-danger-bright);
+        }
 
-    &.btn-outline-danger i {
-        font-size: 12px;
-    }
-}
-
-/* ─── Icon Button — Minimal ────────────────────────────────────────────── */
-.btn-icon-minimal {
-    background: none;
-    border: none;
-    color: #fff;
-    padding: 0;
-    width: 26px;
-    height: 26px;
-    flex-shrink: 0;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    transition: color var(--kh-transition);
-
-    i {
-        font-size: 12px;
+        &:disabled {
+            opacity: 0.3;
+            cursor: default;
+        }
     }
 
-    &:hover:not(:disabled) {
-        color: var(--kh-primary-bright);
+    &--delete {
+        background: var(--kh-danger);
+        border-color: var(--kh-danger);
+
+        &:hover:not(:disabled) {
+            background: var(--kh-danger-bright);
+            border-color: var(--kh-danger);
+        }
     }
 
-    &:disabled {
-        opacity: 0.3;
-        cursor: default;
-    }
-}
+    &--remove {
+        background: var(--kh-danger);
+        border-color: var(--kh-danger);
 
-.btn-off {
-    filter: saturate(0);
-}
-
-/* ─── Icon Button — Info ───────────────────────────────────────────────── */
-.btn-icon-info {
-    background: none;
-    border: none;
-    color: var(--kh-info);
-    padding: 0;
-    width: 26px;
-    height: 26px;
-    flex-shrink: 0;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    transition: color var(--kh-transition);
-}
-
-/* ─── Icon Button — Danger ─────────────────────────────────────────────── */
-.btn-icon-danger {
-    background: none;
-    border: none;
-    color: var(--kh-danger);
-    padding: 0;
-    width: 26px;
-    height: 26px;
-    flex-shrink: 0;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    transition: color var(--kh-transition);
-
-    i {
-        font-size: 12px;
-    }
-
-    &:hover:not(:disabled) {
-        color: #ff6b6b;
-    }
-
-    &:disabled {
-        opacity: 0.3;
-        cursor: default;
+        &:hover:not(:disabled) {
+            background: var(--kh-danger-bright);
+            border-color: var(--kh-danger);
+        }
     }
 }

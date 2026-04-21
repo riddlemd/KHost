@@ -1,9 +1,7 @@
 @page "/"
+@using KHost.UserInterface.Components.Dialogs
 @rendermode InteractiveServer
 @implements IAsyncDisposable
-@inject IJSRuntime JS
-@inject ISingerQueueService QueueService
-@inject IVenuesService VenuesService
 
 <PageTitle>KHost &mdash; Karaoke Queue</PageTitle>
 
@@ -12,19 +10,19 @@
     <LoadingSplash />
 }
 
-<div class="khost-layout" tabindex="0" @onkeydown="OnGlobalKeyDown">
+<div class="kh-app" tabindex="0" @onkeydown="OnGlobalKeyDown">
 
-    <header class="khost-header">
-        <i class="bi bi-headphones khost-logo-icon"></i>
-        <span class="khost-logo-text">KHost</span>
-        <span class="khost-logo-sep">|</span>
-        <span class="khost-logo-sub">Karaoke for the people, by the people.</span>
-        <span class="khost-header-venue-selector">
+    <header class="kh-app__header">
+        <i class="bi bi-headphones kh-app__logo-icon"></i>
+        <span class="kh-app__logo-text">KHost</span>
+        <span class="kh-app__logo-sep">|</span>
+        <span class="kh-app__logo-sub">Karaoke for the people, by the people.</span>
+        <span class="kh-app__venue-selector">
             Venue:
-            <select id="venue-select" class="form-select form-select-sm" @onchange="OnVenueChanged">
-                @if (VenuesService.Venues.Count > 0)
+            <select class="form-select form-select-sm" @onchange="OnVenueChanged">
+                @if (_venues?.Count > 0)
                 {
-                    @foreach (var venue in VenuesService.Venues)
+                    @foreach (var venue in _venues)
                     {
                         <option value="@venue.Id" selected="@(VenuesService.SelectedVenueId == venue.Id)">@venue.Name</option>
                     }
@@ -35,29 +33,34 @@
                 }
             </select>
         </span>
-        <span class="khost-header-theme-selector">
+        <span class="kh-app__theme-selector">
             Theme:
-            <select id="theme-select" class="form-select"></select>
+            <select class="kh-theme-select form-select"></select>
+        </span>
+        <span class="kh-app__settings-btn">
+            <button class="kh-app__open-settings-btn kh-button--icon-minimal" title="Open Settings Menu" @onclick="OpenSettingsDialogAsync">
+                <i class="bi bi-gear-fill" style="font-size:2em"></i>
+            </button>
         </span>
     </header>
 
-    <div class="khost-body" id="khost-body">
+    <div class="kh-app__body">
 
         <!-- Left column: Singer Queue -->
-        <div class="khost-col-queue" id="panel-queue" tabindex="0">
+        <div class="kh-app__col--queue" tabindex="0">
             <SingerQueuePanel />
         </div>
 
         <!-- Vertical resize handle -->
-        <div class="resize-handle-v" id="resize-v">
-            <div class="resize-grip-v"></div>
+        <div class="kh-resize-handle--v">
+            <div class="kh-resize-handle__grip--v"></div>
         </div>
 
         <!-- Right column -->
-        <div class="khost-col-detail">
+        <div class="kh-app__col--detail">
             @if (QueueService.SelectedSinger is null)
             {
-                <div class="panel-empty">
+                <div class="kh-panel--empty">
                     <i class="bi bi-arrow-left"></i>
                     <span>@(QueueService.Singers.Count == 0 ? "Add a singer to the Singer Queue to continue." : "Select a singer in the Singer Queue to continue.")</span>
                 </div>
@@ -65,40 +68,50 @@
             else
             {
                 <!-- Top-right: Now Playing -->
-                <div class="khost-nowplaying" id="panel-nowplaying" tabindex="0">
+                <div class="kh-app__nowplaying" tabindex="0">
                     <NowPlayingPanel />
                 </div>
 
-                <!-- Bottom-right: Song Search -->
-                <div class="khost-search" id="panel-search" tabindex="0">
-                    <SongSearchPanel />
+                <!-- Bottom-right: Media Search -->
+                <div class="kh-app__search" tabindex="0">
+                    <MediaSearchPanel />
                 </div>
 
                 <!-- Horizontal resize handle -->
-                <div class="resize-handle-h" id="resize-h">
-                    <div class="resize-grip-h"></div>
+                <div class="kh-resize-handle--h">
+                    <div class="kh-resize-handle__grip--h"></div>
                 </div>
 
-                <!-- Singer Song Queue detail -->
-                <div class="khost-singer-detail" id="panel-singer-detail" tabindex="0">
+                <!-- Singer Media Queue detail -->
+                <div class="kh-app__singer-detail" tabindex="0">
                     <SelectedSingerInfoPanel />
                 </div>
             }
         </div>
     </div>
 
-    <div class="khost-footer">
+    <div class="kh-app__footer">
         <AppStatusBar />
     </div>
+
+    <SettingsMenuDialog @ref="_settingsDialog" />
 </div>
 
 @code {
+    [Inject] private IJSRuntime? JS { get; set; }
+    [Inject] private ISingerQueueService? QueueService { get; set; }
+    [Inject] private IVenuesService? VenuesService { get; set; }
+
+    private SettingsMenuDialog? _settingsDialog;
     private bool _showingSplash = true;
     private IJSObjectReference? _module;
     private IJSObjectReference? _handle;
+    private IReadOnlyList<Venue>? _venues;
 
     protected override async Task OnInitializedAsync()
     {
+        var result = await VenuesService.ReadAllAsync(pageSize: 1000);
+        _venues = result.Items;
         VenuesService.StateChanged += OnVenueStateChanged;
     }
 
@@ -106,31 +119,51 @@
     {
         if (!firstRender) return;
 
-        await JS.InvokeAsync<IJSObjectReference>("import", "/js/prevent-zoom.js");
-        _module = await JS.InvokeAsync<IJSObjectReference>("import", "/js/panel-resize.js");
-        _handle = await _module.InvokeAsync<IJSObjectReference>("init");
-        await JS.InvokeVoidAsync("window.themeInit");
+        try
+        {
+            await JS.InvokeAsync<IJSObjectReference>("import", "/js/prevent-zoom.js");
+            _module = await JS.InvokeAsync<IJSObjectReference>("import", "/js/panel-resize.js");
+            _handle = await _module.InvokeAsync<IJSObjectReference>("init");
+            await JS.InvokeVoidAsync("window.themeInit");
+        }
+        catch
+        {
+            // Do nothing...
+        }
 
-        await Task.Delay(1000);
+        await Task.Delay(1);
 
         _showingSplash = false;
 
         await InvokeAsync(StateHasChanged);
     }
 
-    private void OnVenueChanged(ChangeEventArgs e)
+    private async Task OnVenueChanged(ChangeEventArgs e)
     {
         if (e.Value is string venueIdStr && Guid.TryParse(venueIdStr, out var venueId))
         {
-            VenuesService.SelectVenue(venueId);
+            await VenuesService.SelectVenueAsync(venueId);
         }
         else
         {
-            VenuesService.SelectVenue(null);
+            await VenuesService.SelectVenueAsync(null);
         }
     }
 
-    private void OnVenueStateChanged() => InvokeAsync(StateHasChanged);
+    private async void OnVenueStateChanged(object? sender, EventArgs e)
+    {
+        var result = await VenuesService.ReadAllAsync(pageSize: 1000);
+        _venues = result.Items;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task OpenSettingsDialogAsync()
+    {
+        if (_settingsDialog is null)
+            return;
+
+        await _settingsDialog.OpenAsync();
+    }
 
     private async Task OnGlobalKeyDown(KeyboardEventArgs e)
     {

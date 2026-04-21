@@ -3,7 +3,7 @@ window.availableThemes = [];
 window.loadTheme = function (themeName) {
     console.info(`Loading theme ${themeName}`)
 
-    const themeLink = document.getElementById('khost-theme-link');
+    const themeLink = document.querySelector('.kh-theme-link');
     if (!themeLink) return;
 
     if (window.availableThemes.length > 0 && !window.availableThemes.includes(themeName)) {
@@ -16,7 +16,7 @@ window.loadTheme = function (themeName) {
 };
 
 window.themeInit = function() {
-    const select = document.getElementById('theme-select');
+    const select = document.querySelector('.kh-theme-select');
     if (!select) {
         console.warn('[Theme Init] Select element not found');
         return;

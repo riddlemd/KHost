@@ -1,7 +1,7 @@
-using System.Text.Json;
-using KHost.Domain.Models;
 using KHost.Domain.Services;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using System.Text.Json;
 
 namespace KHost.UnitTests.Domain.Services;
 
@@ -16,8 +16,7 @@ public class JsonFileCacheServiceTests : IDisposable
             Directory.CreateDirectory(_cacheDir);
 
         var options = Substitute.For<IOptionsMonitor<JsonFileCacheService.ServiceOptions>>();
-        options.CurrentValue.Returns(new JsonFileCacheService.ServiceOptions { CachePath = "./cache" });
-        _service = new JsonFileCacheService(options);
+        _service = new JsonFileCacheService(NullLogger<JsonFileCacheService>.Instance, options);
     }
 
     public void Dispose()

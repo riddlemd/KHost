@@ -1,0 +1,108 @@
+@using System.ComponentModel.DataAnnotations
+
+<Dialog IsOpen="IsOpen" CloseOnOverlayClick="false" Class="@($"kh-dialog__singer-edit {Class}".TrimEnd())">
+    <Header>
+        <i class="bi bi-person-fill"></i> Edit Singer
+    </Header>
+    <Body>
+        <EditForm EditContext="_editContext" OnValidSubmit="SaveAsync">
+            <DataAnnotationsValidator />
+            <div class="mb-3">
+                <label class="form-label">Name</label>
+                <InputText class="form-control" @bind-Value="_model.Name" autofocus />
+                <ValidationMessage For="() => _model.Name" />
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Notes</label>
+                <InputTextArea class="form-control" @bind-Value="_model.Notes" rows="5" />
+                <ValidationMessage For="() => _model.Notes" />
+            </div>
+            <div class="mb-3 d-flex gap-4">
+                <label class="form-check">
+                    <InputCheckbox class="form-check-input" @bind-Value="_model.IsRegular" />
+                    <span class="form-check-label">Regular</span>
+                </label>
+                <label class="form-check">
+                    <InputCheckbox class="form-check-input" @bind-Value="_model.IsTipper" />
+                    <span class="form-check-label">Tipper</span>
+                </label>
+            </div>
+            <button type="submit" class="kh-singer-edit__submit-hidden" style="display: none;"></button>
+        </EditForm>
+    </Body>
+    <Footer>
+        <button class="kh-singer-edit__cancel-btn kh-button kh-button--secondary" @onclick="CloseAsync" type="button">Cancel</button>
+        <button class="kh-singer-edit__save-btn kh-button kh-button--primary" @onclick="SubmitAsync" type="button">Save</button>
+    </Footer>
+</Dialog>
+
+@code {
+    [Parameter] public bool IsOpen { get; set; }
+    [Parameter] public EventCallback<SingerEditModel> OnSave { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback OnOpen { get; set; }
+    [Parameter] public string Class { get; set; } = "";
+
+    private SingerEditModel _model = new();
+    private EditContext _editContext = default!;
+
+    protected override void OnInitialized()
+    {
+        _editContext = new EditContext(_model);
+    }
+
+    private async Task SubmitAsync()
+    {
+        if (_editContext.Validate())
+            await SaveAsync();
+    }
+
+    private async Task SaveAsync()
+    {
+        await OnSave.InvokeAsync(_model);
+        await CloseAsync();
+    }
+
+    public async Task CloseAsync()
+    {
+        IsOpen = false;
+        await OnClose.InvokeAsync();
+    }
+
+    public async Task OpenAsync(Singer? singer = null)
+    {
+        _model = singer is null
+            ? new SingerEditModel()
+            : new SingerEditModel
+            {
+                Id = singer.Id,
+                Name = singer.Name,
+                Notes = singer.Notes,
+                IsRegular = singer.IsRegular,
+                IsTipper = singer.IsTipper
+            };
+
+        _editContext = new EditContext(_model);
+
+        IsOpen = true;
+
+        await OnOpen.InvokeAsync();
+
+        StateHasChanged();
+    }
+
+    public class SingerEditModel
+    {
+        public Guid Id { get; set; }
+
+        [Required(ErrorMessage = "Name is required.")]
+        [MaxLength(64, ErrorMessage = "Name cannot exceed 64 characters.")]
+        public string Name { get; set; } = "";
+
+        [MaxLength(255, ErrorMessage = "Notes cannot exceed 255 characters.")]
+        public string Notes { get; set; } = "";
+
+        public bool IsRegular { get; set; }
+        public bool IsTipper { get; set; }
+    }
+}

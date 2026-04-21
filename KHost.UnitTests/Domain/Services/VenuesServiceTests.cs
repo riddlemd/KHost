@@ -1,83 +1,177 @@
 using KHost.Abstractions.Models;
-using KHost.Abstractions.Services;
-using KHost.Domain.Models;
+using KHost.Abstractions.Repositories;
 using KHost.Domain.Services;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace KHost.UnitTests.Domain.Services;
 
 public class VenuesServiceTests : IDisposable
 {
-    private const string _cacheDir = "./cache";
+    private readonly ILogger<VenuesService> _logger = Substitute.For<ILogger<VenuesService>>();
     private readonly IOptionsMonitor<VenuesService.ServiceOptions> _options =
         Substitute.For<IOptionsMonitor<VenuesService.ServiceOptions>>();
-    private readonly ICacheService _cacheService;
+    private readonly IVenuesRepository _repository;
     private readonly VenuesService _service;
+    private readonly List<Venue> _venueStore = new();
 
     public VenuesServiceTests()
     {
-        var cacheOptions = Substitute.For<IOptionsMonitor<JsonFileCacheService.ServiceOptions>>();
-        cacheOptions.CurrentValue.Returns(new JsonFileCacheService.ServiceOptions { CachePath = _cacheDir });
-        _cacheService = new JsonFileCacheService(cacheOptions);
-        _service = new VenuesService(_options, _cacheService);
+        _repository = Substitute.For<IVenuesRepository>();
+        SetupRepositoryDefaults();
+        _service = new VenuesService(_logger, _options, _repository);
+    }
+
+    private void SetupRepositoryDefaults()
+    {
+        _repository.CreateAsync(Arg.Any<Venue>())
+            .Returns(call =>
+            {
+                var venue = call.Arg<Venue>();
+                _venueStore.Add(venue);
+                return Task.FromResult(venue);
+            });
+
+        _repository.ReadAsync(Arg.Any<Guid>())
+            .Returns(call =>
+            {
+                var id = call.Arg<Guid>();
+                return Task.FromResult(_venueStore.FirstOrDefault(v => v.Id == id));
+            });
+
+        _repository.UpdateAsync(Arg.Any<Venue>())
+            .Returns(Task.CompletedTask);
+
+        _repository.DeleteAsync(Arg.Any<Guid>())
+            .Returns(call =>
+            {
+                var id = call.Arg<Guid>();
+                var venue = _venueStore.FirstOrDefault(v => v.Id == id);
+                if (venue is not null)
+                    _venueStore.Remove(venue);
+                return Task.FromResult(venue is not null);
+            });
+
+        _repository.ReadAllAsync(Arg.Any<int>(), Arg.Any<int>())
+            .Returns(call =>
+            {
+                var pageNumber = call.ArgAt<int>(0);
+                var pageSize = call.ArgAt<int>(1);
+                if (pageNumber < 1) pageNumber = 1;
+                if (pageSize < 1) pageSize = 50;
+                if (pageSize > 1000) pageSize = 1000;
+                var items = _venueStore.Skip((pageNumber - 1) * pageSize).Take(pageSize).ToList();
+                var result = new PaginatedResult<Venue>
+                {
+                    Items = items,
+                    TotalCount = _venueStore.Count,
+                    PageNumber = pageNumber,
+                    PageSize = pageSize
+                };
+                return Task.FromResult(result);
+            });
+
+        // SearchAsync with generic options parameter
+        _repository.SearchAsync<object>(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<int>(), Arg.Any<object>())
+            .Returns(call =>
+            {
+                var query = call.ArgAt<string>(0);
+                var pageNumber = call.ArgAt<int>(1);
+                var pageSize = call.ArgAt<int>(2);
+                if (pageNumber < 1) pageNumber = 1;
+                if (pageSize < 1) pageSize = 50;
+                if (pageSize > 1000) pageSize = 1000;
+                var filtered = string.IsNullOrWhiteSpace(query)
+                    ? _venueStore
+                    : _venueStore.Where(v => v.Name.Contains(query, StringComparison.OrdinalIgnoreCase) ||
+                                             v.Notes.Contains(query, StringComparison.OrdinalIgnoreCase)).ToList();
+                var items = filtered.Skip((pageNumber - 1) * pageSize).Take(pageSize).ToList();
+                var result = new PaginatedResult<Venue>
+                {
+                    Items = items,
+                    TotalCount = filtered.Count,
+                    PageNumber = pageNumber,
+                    PageSize = pageSize
+                };
+                return Task.FromResult(result);
+            });
+
+        // SearchAsync without options parameter
+        _repository.SearchAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<int>())
+            .Returns(call =>
+            {
+                var query = call.ArgAt<string>(0);
+                var pageNumber = call.ArgAt<int>(1);
+                var pageSize = call.ArgAt<int>(2);
+                if (pageNumber < 1) pageNumber = 1;
+                if (pageSize < 1) pageSize = 50;
+                if (pageSize > 1000) pageSize = 1000;
+                var filtered = string.IsNullOrWhiteSpace(query)
+                    ? _venueStore
+                    : _venueStore.Where(v => v.Name.Contains(query, StringComparison.OrdinalIgnoreCase) ||
+                                             v.Notes.Contains(query, StringComparison.OrdinalIgnoreCase)).ToList();
+                var items = filtered.Skip((pageNumber - 1) * pageSize).Take(pageSize).ToList();
+                var result = new PaginatedResult<Venue>
+                {
+                    Items = items,
+                    TotalCount = filtered.Count,
+                    PageNumber = pageNumber,
+                    PageSize = pageSize
+                };
+                return Task.FromResult(result);
+            });
     }
 
     public void Dispose()
     {
-        var cacheFile = Path.Combine(_cacheDir, "venues.json");
-        if (File.Exists(cacheFile))
-            File.Delete(cacheFile);
+        _venueStore.Clear();
     }
 
     [Fact]
-    public void NewService_StartsWithDefaultVenue()
+    public async Task NewService_StartsWithNoVenues()
     {
-        Assert.Single(_service.Venues);
-        Assert.Equal("Default Venue", _service.Venues[0].Name);
+        var result = await _service.ReadAllAsync();
+        Assert.Empty(result.Items);
         Assert.Null(_service.SelectedVenueId);
-        Assert.Null(_service.SelectedVenue);
+        Assert.Null(await _service.GetSelectedVenueAsync());
     }
 
     [Fact]
     public async Task CreateAsync_AddsVenueToList()
     {
-        var venue = await _service.CreateAsync("The Pub");
+        var venue = new Venue { Name = "The Pub", Notes = "", Enabled = true };
+        var created = await _service.CreateAsync(venue);
+        var result = await _service.ReadAllAsync();
 
-        Assert.Equal(2, _service.Venues.Count);
-        Assert.Equal("The Pub", venue.Name);
-        Assert.Contains(_service.Venues, v => v.Id == venue.Id);
+        Assert.Single(result.Items);
+        Assert.Equal("The Pub", created.Name);
+        Assert.Contains(result.Items, v => v.Id == created.Id);
     }
 
     [Fact]
     public async Task CreateAsync_RaisesStateChanged()
     {
         var raised = false;
-        _service.StateChanged += () => raised = true;
+        _service.StateChanged += (_, _) => raised = true;
 
-        await _service.CreateAsync("The Pub");
+        var venue = new Venue { Name = "The Pub", Notes = "", Enabled = true };
+        await _service.CreateAsync(venue);
 
         Assert.True(raised);
     }
 
     [Fact]
-    public async Task CreateAsync_PersistsStateToFile()
-    {
-        await _service.CreateAsync("The Pub");
-
-        var cacheFile = Path.Combine(_cacheDir, "venues.json");
-        Assert.True(File.Exists(cacheFile));
-        var content = await File.ReadAllTextAsync(cacheFile);
-        Assert.Contains("The Pub", content);
-    }
-
-    [Fact]
     public async Task UpdateAsync_ChangesNameAndNotes()
     {
-        var venue = await _service.CreateAsync("Original");
+        var venue = new Venue { Name = "Original", Notes = "", Enabled = true };
+        var created = await _service.CreateAsync(venue);
 
-        await _service.UpdateAsync(venue.Id, "Updated", "Some notes", false);
+        created.Name = "Updated";
+        created.Notes = "Some notes";
+        created.Enabled = false;
+        await _service.UpdateAsync(created);
 
-        var updated = await _service.ReadByIdAsync(venue.Id);
+        var updated = await _service.ReadAsync(created.Id);
         Assert.NotNull(updated);
         Assert.Equal("Updated", updated!.Name);
         Assert.Equal("Some notes", updated.Notes);
@@ -85,44 +179,52 @@ public class VenuesServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task UpdateAsync_IgnoresUnknownId()
+    public async Task UpdateAsync_UpdatesVenue()
     {
-        var venue = await _service.CreateAsync("Real");
+        var venue = new Venue { Name = "Real", Notes = "", Enabled = true };
+        var created = await _service.CreateAsync(venue);
 
-        await _service.UpdateAsync(Guid.NewGuid(), "Ghost");
+        created.Name = "Updated";
+        await _service.UpdateAsync(created);
 
-        var updated = await _service.ReadByIdAsync(venue.Id);
+        var updated = await _service.ReadAsync(created.Id);
         Assert.NotNull(updated);
-        Assert.Equal("Real", updated!.Name);
+        Assert.Equal("Updated", updated!.Name);
     }
 
     [Fact]
-    public async Task RemoveAsync_RemovesVenue()
+    public async Task DeleteAsync_RemovesVenue()
     {
-        var venue = await _service.CreateAsync("The Pub");
+        var venue = new Venue { Name = "The Pub", Notes = "", Enabled = true };
+        var created = await _service.CreateAsync(venue);
 
-        await _service.RemoveAsync(venue.Id);
+        await _service.DeleteAsync(created.Id);
 
-        Assert.Single(_service.Venues);
-        Assert.DoesNotContain(_service.Venues, v => v.Id == venue.Id);
+        var result = await _service.ReadAllAsync();
+        Assert.Empty(result.Items);
+        Assert.DoesNotContain(result.Items, v => v.Id == created.Id);
     }
 
     [Fact]
     public async Task SearchAsync_ReturnsAll_WhenQueryIsWhitespace()
     {
-        await _service.CreateAsync("Alpha");
-        await _service.CreateAsync("Beta");
+        var alpha = new Venue { Name = "Alpha", Notes = "", Enabled = true };
+        var beta = new Venue { Name = "Beta", Notes = "", Enabled = true };
+        await _service.CreateAsync(alpha);
+        await _service.CreateAsync(beta);
 
         var result = await _service.SearchAsync("   ");
 
-        Assert.Equal(3, result.Items.Count);
+        Assert.Equal(2, result.Items.Count);
     }
 
     [Fact]
     public async Task SearchAsync_FiltersByName_CaseInsensitive()
     {
-        await _service.CreateAsync("Alpha Bar");
-        await _service.CreateAsync("Beta Pub");
+        var alpha = new Venue { Name = "Alpha Bar", Notes = "", Enabled = true };
+        var beta = new Venue { Name = "Beta Pub", Notes = "", Enabled = true };
+        await _service.CreateAsync(alpha);
+        await _service.CreateAsync(beta);
 
         var result = await _service.SearchAsync("alpha");
 
@@ -133,9 +235,13 @@ public class VenuesServiceTests : IDisposable
     [Fact]
     public async Task SearchAsync_MatchesOnNotes()
     {
-        var alpha = await _service.CreateAsync("Alpha");
-        await _service.UpdateAsync(alpha.Id, "Alpha", "has a keyword here");
-        await _service.CreateAsync("Beta");
+        var alpha = new Venue { Name = "Alpha", Notes = "", Enabled = true };
+        var created = await _service.CreateAsync(alpha);
+        created.Notes = "has a keyword here";
+        await _service.UpdateAsync(created);
+
+        var beta = new Venue { Name = "Beta", Notes = "", Enabled = true };
+        await _service.CreateAsync(beta);
 
         var result = await _service.SearchAsync("keyword");
 
@@ -144,27 +250,29 @@ public class VenuesServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task ReadByIdAsync_ReturnsVenue_WhenExists()
+    public async Task ReadAsync_ReturnsVenue_WhenExists()
     {
-        var venue = await _service.CreateAsync("The Pub");
+        var venue = new Venue { Name = "The Pub", Notes = "", Enabled = true };
+        var created = await _service.CreateAsync(venue);
 
-        var found = await _service.ReadByIdAsync(venue.Id);
+        var found = await _service.ReadAsync(created.Id);
 
         Assert.NotNull(found);
-        Assert.Equal(venue.Id, found!.Id);
+        Assert.Equal(created.Id, found!.Id);
     }
 
     [Fact]
-    public async Task ReadByIdAsync_ReturnsNull_WhenMissing()
+    public async Task ReadAsync_ReturnsNull_WhenMissing()
     {
-        var result = await _service.ReadByIdAsync(Guid.NewGuid());
+        var result = await _service.ReadAsync(Guid.NewGuid());
         Assert.Null(result);
     }
 
     [Fact]
     public async Task ReadByNameAsync_IsCaseInsensitive()
     {
-        await _service.CreateAsync("The Pub");
+        var venue = new Venue { Name = "The Pub", Notes = "", Enabled = true };
+        await _service.CreateAsync(venue);
 
         var found = await _service.ReadByNameAsync("the pub");
 
@@ -175,32 +283,33 @@ public class VenuesServiceTests : IDisposable
     [Fact]
     public async Task SelectVenueAsync_SetsSelectedVenueId()
     {
-        var venue = await _service.CreateAsync("The Pub");
+        var venue = new Venue { Name = "The Pub", Notes = "", Enabled = true };
+        var created = await _service.CreateAsync(venue);
 
-        await _service.SelectVenueAsync(venue.Id);
+        await _service.SelectVenueAsync(created.Id);
 
-        Assert.Equal(venue.Id, _service.SelectedVenueId);
-        Assert.NotNull(_service.SelectedVenue);
-        Assert.Equal(venue.Id, _service.SelectedVenue!.Id);
+        Assert.Equal(created.Id, _service.SelectedVenueId);
+        Assert.NotNull(await _service.GetSelectedVenueAsync());
     }
 
     [Fact]
     public async Task SelectVenueAsync_Null_ClearsSelection()
     {
-        var venue = await _service.CreateAsync("The Pub");
-        await _service.SelectVenueAsync(venue.Id);
+        var venue = new Venue { Name = "The Pub", Notes = "", Enabled = true };
+        var created = await _service.CreateAsync(venue);
+        await _service.SelectVenueAsync(created.Id);
 
         await _service.SelectVenueAsync(null);
 
         Assert.Null(_service.SelectedVenueId);
-        Assert.Null(_service.SelectedVenue);
+        Assert.Null(await _service.GetSelectedVenueAsync());
     }
 
     [Fact]
     public async Task SelectVenueAsync_RaisesStateChanged()
     {
         var raised = false;
-        _service.StateChanged += () => raised = true;
+        _service.StateChanged += (_, _) => raised = true;
 
         await _service.SelectVenueAsync(Guid.NewGuid());
 

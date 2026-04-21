@@ -1,6 +1,7 @@
+using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
-using KHost.Domain.Models;
 using KHost.Domain.Services;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
 namespace KHost.UnitTests.Domain.Services;
@@ -11,14 +12,28 @@ public class SingerQueueServiceTests : IDisposable
     private readonly IOptionsMonitor<SingerQueueService.ServiceOptions> _options =
         Substitute.For<IOptionsMonitor<SingerQueueService.ServiceOptions>>();
     private readonly ICacheService _cacheService;
+    private readonly IPerformanceService _performanceService;
+    private readonly ISingersService _singersService;
+    private readonly Dictionary<Guid, Singer> _singerDb = [];
     private readonly SingerQueueService _service;
 
     public SingerQueueServiceTests()
     {
         var cacheOptions = Substitute.For<IOptionsMonitor<JsonFileCacheService.ServiceOptions>>();
-        cacheOptions.CurrentValue.Returns(new JsonFileCacheService.ServiceOptions { CachePath = _cacheDir });
-        _cacheService = new JsonFileCacheService(cacheOptions);
-        _service = new SingerQueueService(_options, _cacheService);
+        _cacheService = new JsonFileCacheService(NullLogger<JsonFileCacheService>.Instance, cacheOptions);
+        _performanceService = Substitute.For<IPerformanceService>();
+        _singersService = Substitute.For<ISingersService>();
+
+        _performanceService.CreateAndEnqueueAsync(Arg.Any<Performance>())
+            .Returns(args => Task.FromResult((Performance)args[0]));
+
+        _singersService.ReadAsync(Arg.Any<Guid>())
+            .Returns(args => { _singerDb.TryGetValue((Guid)args[0], out var s); return Task.FromResult(s); });
+
+        _singersService.UpdateAsync(Arg.Any<Singer>())
+            .Returns(args => { var s = (Singer)args[0]; _singerDb[s.Id] = s; return Task.CompletedTask; });
+
+        _service = new SingerQueueService(NullLogger<SingerQueueService>.Instance, _options, _cacheService, _performanceService, _singersService);
     }
 
     public void Dispose()
@@ -34,13 +49,12 @@ public class SingerQueueServiceTests : IDisposable
         Assert.Empty(_service.Singers);
         Assert.Null(_service.SelectedSingerId);
         Assert.Null(_service.SelectedSinger);
-        Assert.Null(_service.CurrentlyPerformingSinger);
     }
 
     [Fact]
-    public async Task AddSingerAsync_AddsSingerAndReturnsIt()
+    public async Task AddSingerAsync_AddsSingerById()
     {
-        var singer = await _service.AddSingerAsync("Alice");
+        var singer = await EnqueueAsync("Alice");
 
         Assert.Single(_service.Singers);
         Assert.Equal("Alice", singer.Name);
@@ -51,9 +65,9 @@ public class SingerQueueServiceTests : IDisposable
     public async Task AddSingerAsync_RaisesStateChanged()
     {
         var raised = false;
-        _service.StateChanged += () => raised = true;
+        _service.StateChanged += (_, _) => raised = true;
 
-        await _service.AddSingerAsync("Alice");
+        await EnqueueAsync("Alice");
 
         Assert.True(raised);
     }
@@ -61,7 +75,7 @@ public class SingerQueueServiceTests : IDisposable
     [Fact]
     public async Task RemoveSingerAsync_RemovesSinger()
     {
-        var alice = await _service.AddSingerAsync("Alice");
+        var alice = await EnqueueAsync("Alice");
 
         await _service.RemoveSingerAsync(alice.Id);
 
@@ -71,7 +85,7 @@ public class SingerQueueServiceTests : IDisposable
     [Fact]
     public async Task RemoveSingerAsync_ClearsSelection_IfRemovingSelected()
     {
-        var alice = await _service.AddSingerAsync("Alice");
+        var alice = await EnqueueAsync("Alice");
         await _service.SelectSingerAsync(alice.Id);
 
         await _service.RemoveSingerAsync(alice.Id);
@@ -80,73 +94,54 @@ public class SingerQueueServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task SelectSingerAsync_SetsSelectedId_AndClearsSongSelection()
+    public async Task SelectSingerAsync_SetsSelectedId()
     {
-        var alice = await _service.AddSingerAsync("Alice");
-        var bob = await _service.AddSingerAsync("Bob");
+        var alice = await EnqueueAsync("Alice");
+        var bob = await EnqueueAsync("Bob");
 
         await _service.SelectSingerAsync(bob.Id);
 
         Assert.Equal(bob.Id, _service.SelectedSingerId);
         Assert.Equal("Bob", _service.SelectedSinger!.Name);
-        Assert.Null(_service.SelectedQueuedSongId);
     }
 
     [Fact]
-    public async Task AddSongAsync_AddsSongToSingerQueue()
+    public async Task AddMediaAsync_DelegatesWithUnknownSinger()
     {
-        var alice = await _service.AddSingerAsync("Alice");
-        var entity = new SongSearchEntity
+        var mediaId = Guid.NewGuid();
+        var entity = new MediaSearchEntity
         {
-            FilePath = "/music/song.mp4",
-            DisplayName = "My Song",
-            Format = "MP4"
+            Source = "FileSystem",
+            ForeignKey = Guid.NewGuid().ToString(),
+            DisplayName = "My Media",
         };
 
-        await _service.AddSongAsync(alice.Id, entity);
+        await _service.AddMediaAsync(Guid.NewGuid(), entity);
 
-        Assert.Single(alice.SongQueue);
-        Assert.Equal("My Song", alice.SongQueue[0].Song.Title);
-        Assert.Equal("/music/song.mp4", alice.SongQueue[0].FilePath);
+        await _performanceService.DidNotReceive().CreateAndEnqueueAsync(Arg.Any<Performance>());
     }
 
     [Fact]
-    public async Task AddSongAsync_DoesNothing_ForUnknownSinger()
+    public async Task AddMediaAsync_DelegatesWithKnownSinger()
     {
-        var entity = new SongSearchEntity
+        var alice = await EnqueueAsync("Alice");
+        var entity = new MediaSearchEntity
         {
-            FilePath = "/music/song.mp4",
-            DisplayName = "My Song",
-            Format = "MP4"
+            Source = "FileSystem",
+            ForeignKey = "/music/media.mp4",
+            DisplayName = "My Media"
         };
 
-        await _service.AddSongAsync(Guid.NewGuid(), entity);
+        await _service.AddMediaAsync(alice.Id, entity);
 
-        Assert.Empty(_service.Singers);
-    }
-
-    [Fact]
-    public async Task RemoveQueuedSongAsync_RemovesSong()
-    {
-        var alice = await _service.AddSingerAsync("Alice");
-        await _service.AddSongAsync(alice.Id, new SongSearchEntity
-        {
-            FilePath = "/music/a.mp4",
-            DisplayName = "A",
-            Format = "MP4"
-        });
-        var queuedSong = alice.SongQueue[0];
-
-        await _service.RemoveQueuedSongAsync(alice.Id, queuedSong.Id);
-
-        Assert.Empty(alice.SongQueue);
+        await _performanceService.Received(1).CreateAndEnqueueAsync(Arg.Is<Performance>(p => p.SingerId == alice.Id));
     }
 
     [Fact]
     public async Task MoveSingerUpAsync_SwapsWithPrevious()
     {
-        var a = await _service.AddSingerAsync("A");
-        var b = await _service.AddSingerAsync("B");
+        var a = await EnqueueAsync("A");
+        var b = await EnqueueAsync("B");
 
         await _service.MoveSingerUpAsync(b.Id);
 
@@ -157,8 +152,8 @@ public class SingerQueueServiceTests : IDisposable
     [Fact]
     public async Task MoveSingerUpAsync_DoesNothing_ForFirst()
     {
-        var a = await _service.AddSingerAsync("A");
-        var b = await _service.AddSingerAsync("B");
+        var a = await EnqueueAsync("A");
+        var b = await EnqueueAsync("B");
 
         await _service.MoveSingerUpAsync(a.Id);
 
@@ -169,8 +164,8 @@ public class SingerQueueServiceTests : IDisposable
     [Fact]
     public async Task MoveSingerDownAsync_SwapsWithNext()
     {
-        var a = await _service.AddSingerAsync("A");
-        var b = await _service.AddSingerAsync("B");
+        var a = await EnqueueAsync("A");
+        var b = await EnqueueAsync("B");
 
         await _service.MoveSingerDownAsync(a.Id);
 
@@ -181,8 +176,8 @@ public class SingerQueueServiceTests : IDisposable
     [Fact]
     public async Task MoveSingerDownAsync_DoesNothing_ForLast()
     {
-        var a = await _service.AddSingerAsync("A");
-        var b = await _service.AddSingerAsync("B");
+        var a = await EnqueueAsync("A");
+        var b = await EnqueueAsync("B");
 
         await _service.MoveSingerDownAsync(b.Id);
 
@@ -193,9 +188,9 @@ public class SingerQueueServiceTests : IDisposable
     [Fact]
     public async Task MoveSingerToStartAsync_MovesToFirst()
     {
-        await _service.AddSingerAsync("A");
-        await _service.AddSingerAsync("B");
-        var c = await _service.AddSingerAsync("C");
+        await EnqueueAsync("A");
+        await EnqueueAsync("B");
+        var c = await EnqueueAsync("C");
 
         await _service.MoveSingerToStartAsync(c.Id);
 
@@ -206,50 +201,14 @@ public class SingerQueueServiceTests : IDisposable
     [Fact]
     public async Task MoveSingerToEndAsync_MovesToLast()
     {
-        var a = await _service.AddSingerAsync("A");
-        await _service.AddSingerAsync("B");
-        await _service.AddSingerAsync("C");
+        var a = await EnqueueAsync("A");
+        await EnqueueAsync("B");
+        await EnqueueAsync("C");
 
         await _service.MoveSingerToEndAsync(a.Id);
 
         Assert.Equal(a.Id, _service.Singers[^1].Id);
         Assert.Equal(3, _service.Singers.Count);
-    }
-
-    [Fact]
-    public async Task MoveSingerUp_SkipsWhen_SingerIsPerforming()
-    {
-        var a = await _service.AddSingerAsync("A");
-        var b = await _service.AddSingerAsync("B");
-        b.IsPerforming = true;
-
-        await _service.MoveSingerUpAsync(b.Id);
-
-        Assert.Equal(a.Id, _service.Singers[0].Id);
-        Assert.Equal(b.Id, _service.Singers[1].Id);
-    }
-
-    [Fact]
-    public async Task ToggleSingerIsRegularAsync_TogglesFlag()
-    {
-        var alice = await _service.AddSingerAsync("Alice");
-        Assert.False(alice.IsRegular);
-
-        await _service.ToggleSingerIsRegularAsync(alice.Id);
-        Assert.True(alice.IsRegular);
-
-        await _service.ToggleSingerIsRegularAsync(alice.Id);
-        Assert.False(alice.IsRegular);
-    }
-
-    [Fact]
-    public async Task ToggleSingerIsTipperAsync_TogglesFlag()
-    {
-        var alice = await _service.AddSingerAsync("Alice");
-        Assert.False(alice.IsTipper);
-
-        await _service.ToggleSingerIsTipperAsync(alice.Id);
-        Assert.True(alice.IsTipper);
     }
 
     [Fact]
@@ -263,65 +222,31 @@ public class SingerQueueServiceTests : IDisposable
     [Fact]
     public async Task SelectFirstSingerInQueueAsync_SelectsFirst()
     {
-        var a = await _service.AddSingerAsync("A");
-        await _service.AddSingerAsync("B");
+        var a = await EnqueueAsync("A");
+        await EnqueueAsync("B");
 
         await _service.SelectFirstSingerInQueueAsync();
 
         Assert.Equal(a.Id, _service.SelectedSingerId);
     }
 
+
     [Fact]
-    public async Task MoveQueuedSongUpAsync_SwapsWithPrevious()
+    public async Task SelectFirstSingerInQueueAsync_SelectsFirst_WhenMultipleSingersExist()
     {
-        var alice = await _service.AddSingerAsync("Alice");
-        await _service.AddSongAsync(alice.Id, new SongSearchEntity { FilePath = "/a.mp4", DisplayName = "A", Format = "MP4" });
-        await _service.AddSongAsync(alice.Id, new SongSearchEntity { FilePath = "/b.mp4", DisplayName = "B", Format = "MP4" });
-        var songA = alice.SongQueue[0];
-        var songB = alice.SongQueue[1];
+        var a = await EnqueueAsync("A");
+        var b = await EnqueueAsync("B");
 
-        await _service.MoveQueuedSongUpAsync(alice.Id, songB.Id);
+        await _service.SelectFirstSingerInQueueAsync();
 
-        Assert.Equal(songB.Id, alice.SongQueue[0].Id);
-        Assert.Equal(songA.Id, alice.SongQueue[1].Id);
+        Assert.Equal(a.Id, _service.SelectedSingerId);
     }
 
-    [Fact]
-    public async Task MoveQueuedSongDownAsync_SwapsWithNext()
+    private async Task<Singer> EnqueueAsync(string name)
     {
-        var alice = await _service.AddSingerAsync("Alice");
-        await _service.AddSongAsync(alice.Id, new SongSearchEntity { FilePath = "/a.mp4", DisplayName = "A", Format = "MP4" });
-        await _service.AddSongAsync(alice.Id, new SongSearchEntity { FilePath = "/b.mp4", DisplayName = "B", Format = "MP4" });
-        var songA = alice.SongQueue[0];
-        var songB = alice.SongQueue[1];
-
-        await _service.MoveQueuedSongDownAsync(alice.Id, songA.Id);
-
-        Assert.Equal(songB.Id, alice.SongQueue[0].Id);
-        Assert.Equal(songA.Id, alice.SongQueue[1].Id);
-    }
-
-    [Fact]
-    public async Task MoveQueuedSongToEndAsync_MovesToEnd()
-    {
-        var alice = await _service.AddSingerAsync("Alice");
-        await _service.AddSongAsync(alice.Id, new SongSearchEntity { FilePath = "/a.mp4", DisplayName = "A", Format = "MP4" });
-        await _service.AddSongAsync(alice.Id, new SongSearchEntity { FilePath = "/b.mp4", DisplayName = "B", Format = "MP4" });
-        await _service.AddSongAsync(alice.Id, new SongSearchEntity { FilePath = "/c.mp4", DisplayName = "C", Format = "MP4" });
-        var first = alice.SongQueue[0];
-
-        await _service.MoveQueuedSongToEndAsync(alice.Id, first.Id);
-
-        Assert.Equal(first.Id, alice.SongQueue[^1].Id);
-    }
-
-    [Fact]
-    public async Task CurrentlyPerformingSinger_ReturnsPerformingSinger()
-    {
-        var a = await _service.AddSingerAsync("A");
-        var b = await _service.AddSingerAsync("B");
-        b.IsPerforming = true;
-
-        Assert.Equal(b.Id, _service.CurrentlyPerformingSinger!.Id);
+        var singer = new Singer { Name = name };
+        _singerDb[singer.Id] = singer;
+        await _service.AddSingerAsync(singer.Id);
+        return singer;
     }
 }

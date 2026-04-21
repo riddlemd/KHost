@@ -2,10 +2,10 @@
 const reconnectModal = document.getElementById("components-reconnect-modal");
 reconnectModal.addEventListener("components-reconnect-state-changed", handleReconnectStateChanged);
 
-const retryButton = document.getElementById("components-reconnect-button");
+const retryButton = document.querySelector(".kh-reconnect__retry-btn");
 retryButton.addEventListener("click", retry);
 
-const resumeButton = document.getElementById("components-resume-button");
+const resumeButton = document.querySelector(".kh-reconnect__resume-btn");
 resumeButton.addEventListener("click", resume);
 
 function handleReconnectStateChanged(event) {

@@ -1,33 +1,31 @@
+@using KHost.UserInterface.Components.Dialogs
 @using Microsoft.Extensions.Options
 @implements IDisposable
-@inject ISingerQueueService SingerQueueService
-@inject IPlaybackService PlaybackService
-@inject IJSRuntime JS
 
-<div class="card h-100" tabindex="0" @onkeydown="OnKeyDownAsync">
-    <div class="card-header d-flex align-items-center gap-2">
+<div class="kh-card" tabindex="0" @onkeydown="OnKeyDownAsync">
+    <div class="kh-card__header d-flex align-items-center gap-2">
         <i class="bi bi-people-fill"></i>
-        <span class="card-title">Singer Queue</span>
+        <span class="kh-card__title">Singer Queue</span>
         @if (SingerQueueService.Singers.Count > 0)
         {
-            <span class="badge bg-secondary ms-auto">@SingerQueueService.Singers.Count</span>
+            <span class="kh-badge kh-badge--secondary ms-auto">@SingerQueueService.Singers.Count</span>
         }
-        <span class="card-shortcut">ctrl+1</span>
+        <span class="kh-card__shortcut">ctrl+1</span>
     </div>
-    <div class="add-singer-inputs card-body d-flex flex-column gap-3">
-        <form name="add-singer-form" class="panel-form-row" @onsubmit="AddSingerAsync" @onsubmit:preventDefault>
-            <input type="text" id="singer-name-input" class="form-control form-grow" placeholder="Type New Singer's Name..."
+    <div class="kh-app__singer-inputs kh-card__body d-flex flex-column gap-3">
+        <form name="add-singer-form" class="kh-panel__form-row" @onsubmit="AddSingerAsync" @onsubmit:preventDefault>
+            <input type="text" class="kh-singer-queue__name-input form-control kh-panel__form-grow" placeholder="Type New Singer's Name..."
                    autocomplete="off" @bind="_newSingerName" @bind:event="oninput" />
-            <button type="submit" id="singer-add-btn" class="btn btn-primary"
+            <button type="submit" class="kh-singer-queue__add-btn kh-button kh-button--primary"
                     disabled="@string.IsNullOrWhiteSpace(_newSingerName)" title="Add Singer to Queue">
                 <i class="bi bi-plus-lg"></i>
             </button>
         </form>
     </div>
-    <div class="card-body d-flex flex-column gap-3">
+    <div class="kh-card__body d-flex flex-column gap-3">
         @if (!SingerQueueService.Singers.Any())
         {
-            <div class="panel-empty panel-empty-lg">
+            <div class="kh-panel--empty kh-panel--empty-lg">
                 <i class="bi bi-person-plus"></i>
                 <span>No singers yet. Add one above to get started.</span>
             </div>
@@ -35,19 +33,20 @@
 
         @foreach (var (singer, singerIdx) in SingerQueueService.Singers.Select((s, i) => (s, i)))
         {
+            var isCurrentlyPerforming = PlaybackService.CurrentlyPerformingSingerId == singer.Id;
             var isFirst = singerIdx == 0;
-            var disableMoveUp = isFirst || singer.IsPerforming;
-            var disableMoveDown  = singerIdx == SingerQueueService.Singers.Count - 1 || singer.IsPerforming;
-            var disableRemove = singer.IsPerforming;
+            var disableMoveUp = isFirst || isCurrentlyPerforming;
+            var disableMoveDown = singerIdx == SingerQueueService.Singers.Count - 1 || isCurrentlyPerforming;
+            var disableRemove = isCurrentlyPerforming;
 
-            <div class="singer-card @(SingerQueueService.SelectedSingerId == singer.Id ? "singer-card-selected" : "")" @onclick="() => SingerQueueService.SelectSingerAsync(singer.Id)">
-                <div class="singer-icon">
-                    @if (isFirst && PlaybackService.CurrentQueuedSong?.Singer.Id == singer.Id && PlaybackService.State == PlaybackState.Playing)
+            <div class="kh-singer-queue-card @(SingerQueueService.SelectedSingerId == singer.Id ? "kh-singer-queue-card--selected" : "")" @onclick="() => SingerQueueService.SelectSingerAsync(singer.Id)">
+                <div class="kh-singer-queue-card__icon">
+                    @if (isFirst && PlaybackService.CurrentPerformance?.SingerId == singer.Id && PlaybackService.State == PlaybackState.Playing)
                     {
-                        <div class="np-bars np-bars-sm">
-                            <div class="np-bar"></div>
-                            <div class="np-bar"></div>
-                            <div class="np-bar"></div>
+                        <div class="kh-np__bars kh-np__bars--sm">
+                            <div class="kh-np__bar"></div>
+                            <div class="kh-np__bar"></div>
+                            <div class="kh-np__bar"></div>
                         </div>
                     }
                     else
@@ -56,27 +55,27 @@
                     }
                 </div>
                 <div>
-                    <div class="singer-name">@singer.Name</div>
-                    <div class="singer-info">
-                        @((MarkupString)FormatSongCount(@singer.SongQueue.Count))
+                    <div class="kh-singer-queue-card__name">@singer.Name</div>
+                    <div class="kh-singer-queue-card__info">
+                        @((MarkupString)FormatMediaCount(_performanceCounts.GetValueOrDefault(singer.Id, 0)))
                         @FormatEwt(CalculateEwt(singerIdx))
                     </div>
                 </div>
 
-                <div class="singer-card-actions">
-                    <button class="btn-icon-minimal" title="Move up (Shift+Up)"
+                <div class="kh-singer-queue-card__actions">
+                    <button class="kh-singer-queue__move-up-btn kh-button--icon-minimal" title="Move up (Shift+Up)"
                             disabled="@disableMoveUp"
                             @onclick="() => SingerQueueService.MoveSingerUpAsync(singer.Id)"
                             @onclick:stopPropagation>
                         <i class="bi bi-chevron-up"></i>
                     </button>
-                    <button class="btn-icon-minimal" title="Move down (Shift+Down)"
+                    <button class="kh-singer-queue__move-down-btn kh-button--icon-minimal" title="Move down (Shift+Down)"
                             disabled="@disableMoveDown"
                             @onclick="() => SingerQueueService.MoveSingerDownAsync(singer.Id)"
                             @onclick:stopPropagation>
                         <i class="bi bi-chevron-down"></i>
                     </button>
-                    <button class="btn-icon-danger" title="Remove singer"
+                    <button class="kh-singer-queue__remove-btn kh-button--icon-danger" title="Remove singer"
                             disabled="@disableRemove"
                             @onclick="() => ConfirmRemoveSingerAsync(singer)"
                             @onclick:stopPropagation>
@@ -88,31 +87,55 @@
     </div>
 </div>
 
+<ConfirmationDialog @ref="_deleteConfirmationDialog"
+    Message="@($"Remove {_singerToRemove?.Name} from the queue?")"
+    Verb="Remove"
+    OnConfirm="RemoveSingerAsync" />
+
 @code {
+    [Inject] private ISingerQueueService? SingerQueueService { get; set; }
+    [Inject] private IPerformanceService? PerformanceService { get; set; }
+    [Inject] private IPlaybackService? PlaybackService { get; set; }
+    [Inject] private ISingersService? SingersService { get; set; }
+    [Inject] private IJSRuntime? JS { get; set; }
+
     private string _newSingerName = string.Empty;
+    private Singer? _singerToRemove;
+    private ConfirmationDialog? _deleteConfirmationDialog;
+    private Dictionary<Guid, int> _performanceCounts = [];
 
     protected override void OnInitialized()
     {
-        SingerQueueService.StateChanged  += OnStateChanged;
-        PlaybackService.StateChanged += OnStateChanged;
+        SingerQueueService?.StateChanged  += OnStateChanged;
+        PerformanceService?.StateChanged  += OnStateChanged;
+        PlaybackService?.StateChanged += OnStateChanged;
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (SingerQueueService.SelectedSingerId.HasValue)
+        await RefreshPerformanceCountsAsync();
+        if (SingerQueueService?.SelectedSingerId is not null)
             await ScrollToSelectedSingerAsync();
     }
 
     private async Task AddSingerAsync()
     {
         if (string.IsNullOrWhiteSpace(_newSingerName)) return;
-        var singer = await SingerQueueService.AddSingerAsync(_newSingerName.Trim());
+        if (SingerQueueService is null || SingersService is null) return;
+
+        var name = _newSingerName.Trim();
+        var results = await SingersService.SearchAsync(name);
+        var singer = results.Items.FirstOrDefault(s => s.Name.Equals(name, StringComparison.OrdinalIgnoreCase))
+                     ?? await SingersService.CreateAsync(new Singer { Name = name });
+        await SingerQueueService.AddSingerAsync(singer.Id);
         await SingerQueueService.SelectSingerAsync(singer.Id);
         _newSingerName = string.Empty;
     }
 
     private async Task OnKeyDownAsync(KeyboardEventArgs e)
     {
+        if (SingerQueueService is null) return;
+
         var selectedSingerId = SingerQueueService.SelectedSingerId;
         var currentIdx = SingerQueueService.Singers.ToList().FindIndex(s => s.Id == SingerQueueService.SelectedSingerId);
 
@@ -125,7 +148,7 @@
         }
         else
         {
-            ISinger? selectedSinger = null;
+            Singer? selectedSinger = null;
 
             if (e.Key == "ArrowUp" && currentIdx > 0)
                 selectedSinger = SingerQueueService.Singers[currentIdx - 1];
@@ -139,14 +162,8 @@
 
     private TimeSpan CalculateEwt(int singerIndex)
     {
-        var totalDuration = TimeSpan.Zero;
-        for (int i = 0; i < singerIndex; i++)
-        {
-            var firstSong = SingerQueueService.Singers[i].SongQueue.FirstOrDefault(x => x.Status != QueuedSongStatus.Played);
-            if (firstSong?.Song.Duration is { } duration)
-                totalDuration += duration;
-        }
-        return totalDuration;
+        // EWT calculation removed until Media duration data is available in Performance
+        return TimeSpan.Zero;
     }
 
     private string FormatEwt(TimeSpan duration)
@@ -155,37 +172,64 @@
         return $", EWT: {((int)Math.Floor(duration.TotalMinutes)):D2}:{duration.Seconds:D2}";
     }
 
-    private string FormatSongCount(int songCount)
+    private string FormatMediaCount(int mediaCount)
     {
         var className = "";
 
-        if (songCount <= 0)
-            className = "empty-song-queue";
+        if (mediaCount <= 0)
+            className = "kh-singer-queue-card__empty-queue";
 
-        return $"<span class=\"{className}\">{songCount} song(s) queued<span>";
+        return $"<span class=\"{className}\">{mediaCount} media queued<span>";
     }
 
     private async Task ScrollToSelectedSingerAsync()
     {
         try
         {
-            await JS.InvokeVoidAsync("scrollIntoViewSmooth", ".singer-card-selected", -10);
+            await JS.InvokeVoidAsync("scrollIntoViewSmooth", ".kh-singer-queue-card--selected", -10);
         }
         catch { }
     }
 
-    private async Task ConfirmRemoveSingerAsync(ISinger singer)
+    private async Task ConfirmRemoveSingerAsync(Singer singer)
     {
-        var confirmed = await JS.InvokeAsync<bool>("confirm", $"Remove {singer.Name} from the queue?");
-        if (confirmed)
-            await SingerQueueService.RemoveSingerAsync(singer.Id);
+        if (_deleteConfirmationDialog is null)
+            return;
+
+        _singerToRemove = singer;
+        await _deleteConfirmationDialog.OpenAsync();
     }
 
-    private void OnStateChanged() => InvokeAsync(StateHasChanged);
+    private async Task RemoveSingerAsync()
+    {
+        if (_singerToRemove is null) return;
+        await SingerQueueService.RemoveSingerAsync(_singerToRemove.Id);
+        _singerToRemove = null;
+    }
+
+    private void OnStateChanged(object? sender, EventArgs e) => InvokeAsync(async () =>
+    {
+        await RefreshPerformanceCountsAsync();
+        StateHasChanged();
+    });
+
+    private async Task RefreshPerformanceCountsAsync()
+    {
+        if (SingerQueueService?.Singers is null) return;
+        if (PerformanceService is null) return;
+
+        _performanceCounts.Clear();
+        foreach (var singer in SingerQueueService.Singers)
+        {
+            var perfs = await PerformanceService.GetSingerPerformances(singer.Id);
+            _performanceCounts[singer.Id] = perfs.Count;
+        }
+    }
 
     public void Dispose()
     {
-        SingerQueueService.StateChanged  -= OnStateChanged;
-        PlaybackService.StateChanged -= OnStateChanged;
+        SingerQueueService?.StateChanged  -= OnStateChanged;
+        PerformanceService?.StateChanged  -= OnStateChanged;
+        PlaybackService?.StateChanged -= OnStateChanged;
     }
 }

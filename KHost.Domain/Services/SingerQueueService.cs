@@ -1,9 +1,7 @@
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
-using KHost.Domain.Models;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using System.Reflection;
-using System.Text.Json;
 
 namespace KHost.Domain.Services;
 
@@ -11,216 +9,164 @@ public class SingerQueueService : ISingerQueueService
 {
     private const string _cacheKey = "singer-queue";
 
-    private static readonly PropertyInfo QueuedSongSingerProp =
-        typeof(QueuedSong).GetProperty(nameof(QueuedSong.Singer))!;
-
+    private readonly ILogger<SingerQueueService> _logger;
     private readonly ICacheService _cacheService;
-    private readonly List<Singer> _singers = [];
+    private readonly IPerformanceService _performanceService;
+    private readonly ISingersService _singersService;
+    private readonly List<Guid> _singerIds = [];
+    private List<Singer> _cachedSingers = [];
 
-    public event Action? StateChanged;
+    public event EventHandler? StateChanged;
 
-    public IReadOnlyList<ISinger> Singers => _singers.AsReadOnly();
+    public IReadOnlyList<Singer> Singers => _cachedSingers.AsReadOnly();
     public Guid? SelectedSingerId { get; private set; }
-    public ISinger? SelectedSinger =>
-        SelectedSingerId is { } id ? _singers.FirstOrDefault(s => s.Id == id) : null;
-
-    public Guid? SelectedQueuedSongId { get; private set; }
-    public IQueuedSong? SelectedQueuedSong =>
-        SelectedQueuedSongId is { } id ? SelectedSinger?.SongQueue.FirstOrDefault(s => s.Id == id) : null;
-
-    public ISinger? CurrentlyPerformingSinger => _singers.FirstOrDefault(x => x.IsPerforming);
+    public Singer? SelectedSinger =>
+        SelectedSingerId is { } id ? _cachedSingers.FirstOrDefault(s => s.Id == id) : null;
 
     public IOptionsMonitor<ServiceOptions> Options { get; set; }
 
-    public SingerQueueService(IOptionsMonitor<ServiceOptions> options, ICacheService cacheService)
+    public SingerQueueService(
+        ILogger<SingerQueueService> logger,
+        IOptionsMonitor<ServiceOptions> options,
+        ICacheService cacheService,
+        IPerformanceService performanceService,
+        ISingersService singersService)
     {
+        _logger = logger;
         Options = options;
         _cacheService = cacheService;
+        _performanceService = performanceService;
+        _singersService = singersService;
+
         Load();
     }
 
     public async Task SelectSingerAsync(Guid? singerId)
     {
         SelectedSingerId = singerId;
-        SelectedQueuedSongId = null;
+
+        _logger.LogInformation("Selected singer {SingerId}", singerId);
+
         await NotifyAsync();
     }
 
-    public async Task SelectSongAsync(Guid? queuedSongId)
+    public async Task AddSingerAsync(Guid singerId)
     {
-        if (SelectedQueuedSong?.Status == QueuedSongStatus.Played) return;
+        _singerIds.Add(singerId);
 
-        SelectedQueuedSongId = queuedSongId;
-        await NotifyAsync();
-    }
-
-    public async Task<ISinger> AddSingerAsync(string name)
-    {
-        var singer = new Singer { Id = Guid.NewGuid(), Name = name };
-
-        _singers.Add(singer);
+        _logger.LogInformation("Singer {SingerId} added to queue", singerId);
 
         await NotifyAsync();
-
-        return singer;
     }
 
     public async Task RemoveSingerAsync(Guid singerId)
     {
-        _singers.RemoveAll(s => s.Id == singerId);
+        _singerIds.Remove(singerId);
 
         if (SelectedSingerId == singerId)
             SelectedSingerId = null;
 
+        _logger.LogInformation("Singer {SingerId} removed from queue", singerId);
+
         await NotifyAsync();
     }
 
-    public async Task AddSongAsync(Guid singerId, SongSearchEntity song)
+    public async Task AddMediaAsync(Guid singerId, MediaSearchEntity media)
     {
-        var singer = _singers.FirstOrDefault(s => s.Id == singerId);
-        if (singer is null) return;
-        singer.SongQueue.Add(new QueuedSong
+        if (!_singerIds.Contains(singerId)) return;
+
+        var performance = new Performance
         {
-            Singer = singer,
-            Song = new Song
-            {
-                FilePath = song.FilePath,
-                Title = song.DisplayName
-            }
-        });
-        await NotifyAsync();
-    }
-
-    public async Task RemoveQueuedSongAsync(Guid singerId, Guid queuedSongId)
-    {
-        var singer = _singers.FirstOrDefault(s => s.Id == singerId);
-        singer?.SongQueue.RemoveAll(q => q.Id == queuedSongId);
-        await NotifyAsync();
+            Id = Guid.NewGuid(),
+            SingerId = singerId,
+            MediaId = Guid.NewGuid()
+        };
+        
+        await _performanceService.CreateAndEnqueueAsync(performance);
     }
 
     public async Task MoveSingerUpAsync(Guid singerId)
     {
-        if (IsCurrentlyPerforming(singerId)) return;
-        var idx = _singers.FindIndex(s => s.Id == singerId);
-        if (idx > 0) (_singers[idx], _singers[idx - 1]) = (_singers[idx - 1], _singers[idx]);
+        var idx = _singerIds.IndexOf(singerId);
+
+        if (idx > 0)
+        {
+            (_singerIds[idx], _singerIds[idx - 1]) = (_singerIds[idx - 1], _singerIds[idx]);
+            _logger.LogDebug("Singer {SingerId} moved up from position {OldIndex} to {NewIndex}", singerId, idx, idx - 1);
+        }
+
         await NotifyAsync();
     }
 
     public async Task MoveSingerDownAsync(Guid singerId)
     {
-        if (IsCurrentlyPerforming(singerId)) return;
-        var idx = _singers.FindIndex(s => s.Id == singerId);
-        if (idx >= 0 && idx < _singers.Count - 1) (_singers[idx], _singers[idx + 1]) = (_singers[idx + 1], _singers[idx]);
+        var idx = _singerIds.IndexOf(singerId);
+
+        if (idx >= 0 && idx < _singerIds.Count - 1)
+        {
+            (_singerIds[idx], _singerIds[idx + 1]) = (_singerIds[idx + 1], _singerIds[idx]);
+            _logger.LogDebug("Singer {SingerId} moved down from position {OldIndex} to {NewIndex}", singerId, idx, idx + 1);
+        }
+
         await NotifyAsync();
     }
 
     public async Task MoveSingerToStartAsync(Guid singerId)
     {
-        if (IsCurrentlyPerforming(singerId)) return;
-        var idx = _singers.FindIndex(s => s.Id == singerId);
+        var idx = _singerIds.IndexOf(singerId);
+
         if (idx > 0)
         {
-            var singer = _singers[idx];
-            _singers.RemoveAt(idx);
-            _singers.Insert(0, singer);
+            _singerIds.RemoveAt(idx);
+            _singerIds.Insert(0, singerId);
+            _logger.LogDebug("Singer {SingerId} moved to start of queue", singerId);
             await NotifyAsync();
         }
     }
 
     public async Task MoveSingerToEndAsync(Guid singerId)
     {
-        if (IsCurrentlyPerforming(singerId)) return;
-        var idx = _singers.FindIndex(s => s.Id == singerId);
-        if (idx >= 0 && idx < _singers.Count - 1)
+        var idx = _singerIds.IndexOf(singerId);
+
+        if (idx >= 0 && idx < _singerIds.Count - 1)
         {
-            var singer = _singers[idx];
-            _singers.RemoveAt(idx);
-            _singers.Add(singer);
+            _singerIds.RemoveAt(idx);
+            _singerIds.Add(singerId);
+            _logger.LogDebug("Singer {SingerId} moved to end of queue", singerId);
             await NotifyAsync();
         }
     }
 
     public async Task SelectFirstSingerInQueueAsync()
     {
-        var firstSinger = _singers.FirstOrDefault();
+        var firstId = _singerIds.FirstOrDefault();
 
-        if (firstSinger == null) return;
-
-        await SelectSingerAsync(firstSinger.Id);
+        if (firstId == Guid.Empty) return;
+        
+        await SelectSingerAsync(firstId);
     }
 
-    public async Task MoveQueuedSongUpAsync(Guid singerId, Guid queuedSongId)
+    public async Task RefreshAsync()
     {
-        var singer = _singers.FirstOrDefault(s => s.Id == singerId);
-        if (singer is null) return;
-        var idx = singer.SongQueue.FindIndex(q => q.Id == queuedSongId);
-        if (idx > 0) (singer.SongQueue[idx], singer.SongQueue[idx - 1]) = (singer.SongQueue[idx - 1], singer.SongQueue[idx]);
         await NotifyAsync();
-    }
-
-    public async Task MoveQueuedSongDownAsync(Guid singerId, Guid queuedSongId)
-    {
-        var singer = _singers.FirstOrDefault(s => s.Id == singerId);
-        if (singer is null) return;
-        var idx = singer.SongQueue.FindIndex(q => q.Id == queuedSongId);
-        if (idx >= 0 && idx < singer.SongQueue.Count - 1) (singer.SongQueue[idx], singer.SongQueue[idx + 1]) = (singer.SongQueue[idx + 1], singer.SongQueue[idx]);
-        await NotifyAsync();
-    }
-
-    public async Task MoveQueuedSongToEndAsync(Guid singerId, Guid queuedSongId)
-    {
-        var singer = _singers.FirstOrDefault(s => s.Id == singerId);
-        if (singer is null) return;
-        var idx = singer.SongQueue.FindIndex(q => q.Id == queuedSongId);
-        if (idx >= 0 && idx < singer.SongQueue.Count - 1)
-        {
-            var song = singer.SongQueue[idx];
-            singer.SongQueue.RemoveAt(idx);
-            singer.SongQueue.Add(song);
-        }
-        await NotifyAsync();
-    }
-
-    public async Task ToggleSingerIsRegularAsync(Guid singerId)
-    {
-        var singer = _singers.FirstOrDefault(s => s.Id == singerId);
-        if (singer is null) return;
-        singer.IsRegular = !singer.IsRegular;
-        await NotifyAsync();
-    }
-
-    public async Task ToggleSingerIsTipperAsync(Guid singerId)
-    {
-        var singer = _singers.FirstOrDefault(s => s.Id == singerId);
-        if (singer is null) return;
-        singer.IsTipper = !singer.IsTipper;
-        await NotifyAsync();
-    }
-
-    async Task ISingerQueueService.AddSongAsync(Guid singerId, ISongSearchEntity song)
-    {
-        if (song is SongSearchEntity entity)
-            await AddSongAsync(singerId, entity);
     }
 
     private async void Load()
     {
         var queueData = await _cacheService.LoadAsync<QueueCacheData>(_cacheKey);
 
-        if (queueData?.Singers != null)
+        if (queueData?.SingerIds is { Count: > 0 })
         {
-            _singers.Clear();
-            _singers.AddRange(queueData.Singers);
+            _singerIds.AddRange(queueData.SingerIds);
             SelectedSingerId = queueData.SelectedSingerId;
-            RebuildSingerReferences();
+            await ResolveAsync();
+            _logger.LogInformation("Singer queue loaded ({Count} singers)", queueData.SingerIds.Count);
+            StateChanged?.Invoke(this, EventArgs.Empty);
         }
-    }
-
-    private void RebuildSingerReferences()
-    {
-        foreach (var singer in _singers.OfType<Singer>())
-            foreach (var qs in singer.SongQueue.OfType<QueuedSong>())
-                QueuedSongSingerProp.SetValue(qs, singer);
+        else
+        {
+            _logger.LogWarning("Singer queue cache was empty or missing");
+        }
     }
 
     private async Task SaveAsync()
@@ -228,31 +174,43 @@ public class SingerQueueService : ISingerQueueService
         var queueData = new QueueCacheData
         {
             SelectedSingerId = SelectedSingerId,
-            Singers = _singers
+            SingerIds = _singerIds
         };
 
         await _cacheService.SaveAsync(_cacheKey, queueData);
     }
 
-    private async Task NotifyAsync()
+    private async Task ResolveAsync()
     {
-        await SaveAsync();
-        StateChanged?.Invoke();
+        var resolved = new List<Singer>(_singerIds.Count);
+
+        foreach (var id in _singerIds)
+        {
+            var singer = await _singersService.ReadAsync(id);
+            if (singer is not null)
+                resolved.Add(singer);
+        }
+
+        _cachedSingers = resolved;
     }
 
-    private bool IsCurrentlyPerforming(Guid singerId) =>
-        CurrentlyPerformingSinger?.Id == singerId;
+    private async Task NotifyAsync()
+    {
+        await ResolveAsync();
+        await SaveAsync();
+
+        StateChanged?.Invoke(this, EventArgs.Empty);
+    }
 
     public class ServiceOptions
     {
         public const string SectionName = nameof(SingerQueueService);
-
         public bool PromptBeforeRemovingSinger { get; init; }
     }
 
     private class QueueCacheData
     {
         public Guid? SelectedSingerId { get; set; }
-        public List<Singer> Singers { get; set; } = [];
+        public List<Guid> SingerIds { get; set; } = [];
     }
 }

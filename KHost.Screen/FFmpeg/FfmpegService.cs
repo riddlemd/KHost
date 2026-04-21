@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using System.Diagnostics;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -22,6 +24,8 @@ public sealed class FfmpegService : IFfmpegService
         @"frame=\s*(?<frame>\d+).*?fps=\s*(?<fps>[\d.]+).*?time=(?<time>\d{2}:\d{2}:\d{2}\.\d{2}).*?bitrate=\s*(?<bitrate>[\d.]+)kbits/s.*?speed=\s*(?<speed>[\d.]+)x",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
+    private readonly ILogger<FfmpegService> _logger;
+
     public string FfmpegPath { get; }
     public string FfprobePath { get; }
     public bool IsAvailable { get; }
@@ -30,8 +34,9 @@ public sealed class FfmpegService : IFfmpegService
     /// Optional directory containing the ffmpeg executables.
     /// Pass null to auto-discover via <c>FFMPEG_PATH</c> env var or system PATH.
     /// </param>
-    public FfmpegService(string? ffmpegDirectory = null)
+    public FfmpegService(string? ffmpegDirectory = null, ILogger<FfmpegService>? logger = null)
     {
+        _logger = logger ?? NullLogger<FfmpegService>.Instance;
         FfmpegPath = ResolveExecutable("ffmpeg", ffmpegDirectory);
         FfprobePath = ResolveExecutable("ffprobe", ffmpegDirectory);
         IsAvailable = File.Exists(FfmpegPath);
@@ -83,7 +88,7 @@ public sealed class FfmpegService : IFfmpegService
         process.BeginOutputReadLine();
         process.BeginErrorReadLine();
 
-        await WaitForExitAsync(process, cancellationToken).ConfigureAwait(false);
+        await WaitForExitAsync(process, cancellationToken, _logger).ConfigureAwait(false);
 
         return new FfmpegResult(
             process.ExitCode == 0,
@@ -117,7 +122,7 @@ public sealed class FfmpegService : IFfmpegService
             .ReadToEndAsync(cancellationToken)
             .ConfigureAwait(false);
 
-        await WaitForExitAsync(process, cancellationToken).ConfigureAwait(false);
+        await WaitForExitAsync(process, cancellationToken, _logger).ConfigureAwait(false);
         return output;
     }
 
@@ -196,7 +201,7 @@ public sealed class FfmpegService : IFfmpegService
             System.Globalization.CultureInfo.InvariantCulture,
             out var v) ? v : null;
 
-    private static async Task WaitForExitAsync(Process process, CancellationToken cancellationToken)
+    private static async Task WaitForExitAsync(Process process, CancellationToken cancellationToken, ILogger logger)
     {
         var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         process.Exited += (_, _) => tcs.TrySetResult(true);
@@ -205,7 +210,8 @@ public sealed class FfmpegService : IFfmpegService
 
         using var reg = cancellationToken.Register(() =>
         {
-            try { process.Kill(entireProcessTree: true); } catch { }
+            try { process.Kill(entireProcessTree: true); }
+            catch (Exception ex) { logger.LogWarning(ex, "Exception killing ffmpeg process during cancellation"); }
             tcs.TrySetCanceled(cancellationToken);
         });
 

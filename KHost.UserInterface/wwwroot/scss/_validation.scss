@@ -15,9 +15,9 @@
     color: var(--kh-danger);
 }
 
-#blazor-error-ui {
-    background: linear-gradient(135deg, #2D0A0A, #1A0A0A);
-    border-top: 1px solid rgba(239,68,68,0.4);
+.kh-blazor-error-ui {
+    background: var(--kh-error-bg);
+    border-top: 1px solid var(--kh-danger-border-subtle);
     bottom: 0;
     left: 0;
     right: 0;
@@ -43,8 +43,8 @@
 
 .blazor-error-boundary {
     padding: 12px 16px;
-    background: rgba(239,68,68,0.1);
-    border: 1px solid rgba(239,68,68,0.3);
+    background: var(--kh-danger-bg-subtle);
+    border: 1px solid var(--kh-danger-glow);
     border-radius: var(--kh-radius);
     color: var(--kh-danger);
 

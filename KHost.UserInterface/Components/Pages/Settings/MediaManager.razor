@@ -1,0 +1,196 @@
+@page "/settings/media-manager"
+@rendermode InteractiveServer
+@using KHost.Abstractions.Services
+@implements IAsyncDisposable
+
+<PageTitle>KHost &mdash; Media Library</PageTitle>
+
+<div class="kh-app">
+    <header class="kh-app__header">
+        <i class="bi bi-headphones kh-app__logo-icon"></i>
+        <span class="kh-app__logo-text">KHost</span>
+        <span class="kh-app__logo-sep">|</span>
+        <span class="kh-app__logo-sub">Karaoke for the people, by the people.</span>
+        <span class="kh-app__manage-venues ms-auto">
+            <a href="/" class="kh-button kh-button--outline-secondary">&#8592; Back to Queue</a>
+        </span>
+    </header>
+
+    <div class="kh-app__body">
+        <div style="flex: 1; overflow: auto; display: flex; flex-direction: column;">
+            <div class="kh-card h-100">
+                <div class="kh-card__header d-flex align-items-center gap-2">
+                    <i class="bi bi-music-note-list"></i>
+                    <span class="kh-card__title">Media Manager</span>
+                    @if (_paginatedResult?.TotalCount > 0)
+                    {
+                        <span class="kh-badge kh-badge--secondary">@_paginatedResult.TotalCount</span>
+                    }
+                </div>
+                <div class="kh-card__body">
+                    <form class="kh-panel__form-row mb-3" @onsubmit:preventDefault>
+                        <input type="text" class="form-control kh-panel__form-grow" placeholder="Search by title or artist..."
+                               autocomplete="off" @bind="_searchQuery" @bind:event="oninput" @onchange="OnSearchChanged" />
+                        <button type="button" class="kh-media__clear-search-btn kh-button kh-button--primary" @onclick="ClearSearch"
+                                disabled="@string.IsNullOrWhiteSpace(_searchQuery)">
+                            <i class="bi bi-x-lg"></i>
+                        </button>
+                    </form>
+                </div>
+                <div class="kh-card__body">
+                    @if (_paginatedResult?.Items.Count == 0)
+                    {
+                        <div class="kh-panel--empty kh-panel--empty-lg">
+                            @if (string.IsNullOrWhiteSpace(_searchQuery))
+                            {
+                                <i class="bi bi-music-note-list"></i>
+                                <span>No media in the library yet.</span>
+                            }
+                            else
+                            {
+                                <i class="bi bi-search"></i>
+                                <span>No media match your search.</span>
+                            }
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="kh-pagination__menu">
+                            <span>Page @_currentPage of @_paginatedResult.TotalPages</span>
+                            <span>@PageSize per page</span>
+                        </div>
+
+                        <table class="kh-table kh-media__table">
+                            <thead>
+                                <tr>
+                                    <th>Title</th>
+                                    <th>Artist</th>
+                                    <th class="kh-media__col--format">Format</th>
+                                    <th class="kh-media__col--duration">Duration</th>
+                                    <th class="kh-media__col--status">Status</th>
+                                    <th class="kh-media__col--date">Date Added</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var media in _paginatedResult.Items)
+                                {
+                                    <tr>
+                                        <td class="text-truncate kh-table__cell--fill" title="@media.FilePath">@media.Title</td>
+                                        <td>@media.Artist</td>
+                                        <td>@media.Format</td>
+                                        <td>
+                                            @if (media.Duration is { } dur)
+                                            {
+                                                <span>@(((int)dur.TotalMinutes).ToString("D2")):@dur.Seconds.ToString("D2")</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="kh-text--muted">--:--</span>
+                                            }
+                                        </td>
+                                        <td>
+                                            <span class="kh-badge @GetStatusBadgeClass(media.Status)">@media.Status</span>
+                                        </td>
+                                        <td>@media.DateAdded.ToString("yyyy-MM-dd")</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+
+                        @if (_paginatedResult.TotalPages > 1)
+                        {
+                            <div class="d-flex justify-content-center align-items-center gap-2 mt-2">
+                                <button class="kh-media__prev-page-btn kh-button kh-button--outline-secondary"
+                                        disabled="@(_currentPage <= 1)" @onclick="PreviousPage" type="button">
+                                    &#8592; Prev
+                                </button>
+                                <span class="px-2">@_currentPage</span>
+                                <button class="kh-media__next-page-btn kh-button kh-button--outline-secondary"
+                                        disabled="@(_currentPage >= _paginatedResult.TotalPages)" @onclick="NextPage" type="button">
+                                    Next &#8594;
+                                </button>
+                            </div>
+                        }
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private const int PageSize = 25;
+
+    private int _currentPage = 1;
+    private string _searchQuery = "";
+    private PaginatedResult<Media>? _paginatedResult;
+
+    [Inject] private IMediaService? MediaService { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (MediaService is null)
+            return;
+
+        await SearchAsync();
+        MediaService.StateChanged += OnMediaStateChanged;
+    }
+
+    private async Task SearchAsync()
+    {
+        if (MediaService is null)
+            return;
+
+        _paginatedResult = await MediaService.SearchAsync(_searchQuery, pageNumber: _currentPage, pageSize: PageSize);
+    }
+
+    private async Task OnSearchChanged()
+    {
+        await SearchAsync();
+    }
+
+    private void OnMediaStateChanged(object? sender, EventArgs e)
+    {
+        _ = SearchAsync();
+    }
+
+    async ValueTask IAsyncDisposable.DisposeAsync()
+    {
+        if (MediaService is not null)
+            MediaService.StateChanged -= OnMediaStateChanged;
+
+        await Task.CompletedTask;
+    }
+
+    private async Task ClearSearch()
+    {
+        _searchQuery = "";
+        await SearchAsync();
+    }
+
+    private async Task PreviousPage()
+    {
+        if (_currentPage > 1)
+        {
+            _currentPage--;
+            await SearchAsync();
+        }
+    }
+
+    private async Task NextPage()
+    {
+        if (_paginatedResult?.HasNextPage ?? false)
+        {
+            _currentPage++;
+            await SearchAsync();
+        }
+    }
+
+    private static string GetStatusBadgeClass(MediaStatus status) => status switch
+    {
+        MediaStatus.Ready       => "kh-badge--success",
+        MediaStatus.Downloading => "kh-badge--info",
+        MediaStatus.Broken      => "kh-badge--danger",
+        _                       => "kh-badge--secondary",
+    };
+}

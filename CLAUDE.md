@@ -206,6 +206,26 @@ public int CachedValue
 }
 ```
 
+## CSS/SCSS
+
+- This solution only uses bootstrap icons, it does not use bootstrap and does not have access to the classes or javascript it provides.
+- Do not use inline styles, do not add a style attribute to an element.
+- Do not add a style element to the page and put style in it.
+- All styles should be in .scss files.
+
+- Button classes should start with the prefix btn-
+- Use BEM class naming conventions
+- Use SCSS structure when possible, instead of CSS.
+- All top level class names should start with the prefix kh-
+
+## C#
+
+- When creating events use an EventHandler instead of event Action or event Func
+
+## Git
+
+- Do NOT automatically commit changes unless explicitly asked
+
 ## Gotchas
 
 - The Domain services folder is `KHost.Domain/Services/` (plural). Earlier commits/messages may reference `Servies` — that path does not exist.

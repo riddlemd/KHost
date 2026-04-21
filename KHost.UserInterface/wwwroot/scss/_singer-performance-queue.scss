@@ -1,0 +1,160 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   Singer Performance Queue Panel (SelectedSingerInfoPanel)
+   Queued Media, status indicators, and singer flags
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.kh-selected-singer-info {
+    &__body {
+        padding: 0;
+        overflow-y: auto;
+    }
+    /* ─── Table ───────────────────────────────────────────────────────────── */
+    &__table {
+        width: 100%;
+    }
+
+    &__pos {
+        color: var(--kh-text-muted);
+        font-size: 0.75rem;
+        font-variant-numeric: tabular-nums;
+        width: 32px;
+        text-align: center;
+    }
+
+    &__name {
+        max-width: 1px;
+
+        &--current {
+            // Styling for currently playing Media (if needed)
+        }
+
+        &--played {
+            color: var(--kh-text-muted);
+            text-decoration: line-through;
+        }
+    }
+
+    &__row {
+        &--selected td {
+            background: var(--kh-primary-dim) !important;
+            border-left: 2px solid var(--kh-primary);
+            color: var(--kh-primary-bright);
+            font-weight: 600;
+        }
+
+        &--current {
+            // Styling for row with currently playing Media (if needed)
+        }
+
+        &--played td {
+            opacity: 0.45;
+        }
+    }
+
+    &__actions-cell {
+        white-space: nowrap;
+    }
+
+    &__duration {
+        // Duration column styling
+    }
+    /* ─── Status Badges ───────────────────────────────────────────────────── */
+    &__badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 3px;
+        font-size: 0.68rem;
+        font-weight: 500;
+        padding: 2px 6px;
+        border-radius: 10px;
+        white-space: nowrap;
+
+        &--playing {
+            background: var(--kh-primary-active);
+            color: var(--kh-primary-bright);
+            border: 1px solid var(--kh-border-bright);
+        }
+
+        &--played {
+            background: var(--kh-success-subtle);
+            color: var(--kh-success);
+            border: 1px solid var(--kh-success-border-subtle);
+        }
+
+        &--pending {
+            background: var(--kh-badge-pending-bg);
+            color: var(--kh-text-muted);
+            border: 1px solid var(--kh-border);
+        }
+    }
+    /* ─── Play Button ─────────────────────────────────────────────────────── */
+    &__btn--play {
+        width: 26px;
+        height: 26px;
+        padding: 0;
+        border-radius: 50%;
+        background: var(--kh-primary-subtle);
+        border: 1px solid var(--kh-border-bright);
+        color: var(--kh-primary-bright);
+        font-size: 11px;
+        transition: all var(--kh-transition);
+
+        &:hover {
+            background: var(--kh-primary);
+            border-color: var(--kh-primary-hover);
+            color: #fff;
+            box-shadow: 0 2px 8px var(--kh-primary-glow);
+        }
+    }
+    /* ─── Column Widths ───────────────────────────────────────────────────── */
+    &__col--number {
+        padding: 0 0.5em;
+    }
+
+    &__col--duration {
+        width: 70px;
+    }
+
+    &__col--status {
+        width: 80px;
+    }
+
+    &__col--actions {
+        width: 0px;
+    }
+    /* ─── Quick Menu (singer flags + actions) ────────────────────────────── */
+    &__quick-menu {
+        display: flex;
+        margin-left: auto;
+        font-size: 1.5em;
+        align-items: center;
+
+        > i {
+            margin: 0 0.33em;
+        }
+
+        &__flags {
+            padding: 0.33em;
+            background: rgba(0, 0, 0, 0.5);
+            border-radius: 0.5em;
+            margin-left: auto;
+
+            &__icon {
+                &--tipper {
+                    color: var(--kh-flag-tipper);
+                }
+
+                &--regular {
+                    color: var(--kh-flag-regular);
+                }
+            }
+        }
+
+        &__edit-singer-btn {
+            height: 32px;
+            width: 32px;
+            margin: 0 0 0 1em;
+        }
+    }
+}
+

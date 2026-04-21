@@ -1,17 +1,20 @@
-using System.Text.Json;
 using KHost.Abstractions.Services;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using System.Text.Json;
 
 namespace KHost.Domain.Services;
 
 public class JsonFileCacheService : ICacheService
 {
     private readonly SemaphoreSlim _lock = new(1, 1);
+    private readonly ILogger<JsonFileCacheService> _logger;
 
     public IOptionsMonitor<ServiceOptions> Options { get; }
 
-    public JsonFileCacheService(IOptionsMonitor<ServiceOptions> options)
+    public JsonFileCacheService(ILogger<JsonFileCacheService> logger, IOptionsMonitor<ServiceOptions> options)
     {
+        _logger = logger;
         Options = options;
     }
 
@@ -30,7 +33,7 @@ public class JsonFileCacheService : ICacheService
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Error loading state from {filePath}: {ex.Message}");
+            _logger.LogError(ex, "Failed to load cache from {FilePath}", filePath);
             return default;
         }
     }
@@ -53,7 +56,7 @@ public class JsonFileCacheService : ICacheService
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Error saving state to {filePath}: {ex.Message}");
+            _logger.LogError(ex, "Failed to save cache to {FilePath}", filePath);
         }
         finally
         {
@@ -62,12 +65,10 @@ public class JsonFileCacheService : ICacheService
     }
 
     private string GetCacheLocation(string key)
-        => Path.Combine(Options.CurrentValue.CachePath, key + ".json");
+        => Path.Combine(AppContext.BaseDirectory, "cache", JsonNamingPolicy.KebabCaseLower.ConvertName(key) + ".json");
 
     public class ServiceOptions
     {
         public const string SectionName = nameof(JsonFileCacheService);
-
-        public string CachePath { get; set; } = "./cache";
     }
 }

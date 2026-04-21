@@ -1,0 +1,145 @@
+@using KHost.Abstractions.Models
+@using KHost.Abstractions.Services
+
+<Dialog IsOpen="IsOpen" CloseOnOverlayClick="true" Class="@($"kh-dialog__performance-history {Class}".TrimEnd())">
+    <Header>
+        <i class="bi bi-clock-history"></i> Performance History
+    </Header>
+    <Body>
+        @if (_paginatedPerformances?.Items.Count > 0)
+        {
+            <div class="kh-dialog__performance-history__table-wrapper">
+                <table class="kh-dialog__performance-history__table">
+                    <thead>
+                        <tr>
+                            <th>Media</th>
+                            <th>Artist</th>
+                            <th>Date</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var perf in _paginatedPerformances.Items.OrderByDescending(p => p.CreatedDate))
+                        {
+                            var media = _media.FirstOrDefault(m => m.Id == perf.MediaId);
+                            var isReady = media?.Status == MediaStatus.Ready;
+                            var buttonText = isReady ? "Enqueue" : (media?.Status.ToString() ?? "Unknown");
+                            <tr>
+                                <td>@(media?.Title ?? "Unknown")</td>
+                                <td>@(media?.Artist ?? "Unknown")</td>
+                                <td>@perf.CreatedDate.ToString("g")</td>
+                                <td>
+                                    <button class="kh-dialog__performance-history__enqueue-btn kh-button kh-button--primary"
+                                            disabled="@(!isReady)"
+                                            @onclick="() => EnqueueAsync(perf.MediaId)"
+                                            type="button">@buttonText</button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            @if (TotalPages > 1)
+            {
+                <div class="kh-pagination__nav">
+                    <span class="kh-pagination__info">Page @_currentPage of @TotalPages</span>
+                    <div class="kh-pagination__buttons">
+                        <button class="kh-pagination__link" disabled="@(_currentPage <= 1)" @onclick="() => PreviousPage()" type="button" title="Previous page">
+                            &#8592; Prev
+                        </button>
+                        <button class="kh-pagination__link" disabled="@(!_paginatedPerformances.HasNextPage)" @onclick="() => NextPage()" type="button" title="Next page">
+                            Next &#8594;
+                        </button>
+                    </div>
+                </div>
+            }
+        }
+        else
+        {
+            <p class="kh-dialog__performance-history__empty">No performances found.</p>
+        }
+    </Body>
+    <Footer>
+        <button class="kh-button kh-button--primary" @onclick="CloseAsync" type="button">Close</button>
+    </Footer>
+</Dialog>
+
+@code {
+    private const int PageSize = 5;
+
+    [Parameter] public bool IsOpen { get; set; }
+    [Parameter] public string Class { get; set; } = "";
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    [Inject] private IPerformanceService? PerformanceService { get; set; }
+    [Inject] private IMediaService? MediaService { get; set; }
+
+    private PaginatedResult<Performance>? _paginatedPerformances;
+    private List<Media> _media = [];
+    private int _currentPage = 1;
+    private Guid _currentSingerId = Guid.Empty;
+
+    private int TotalPages => _paginatedPerformances?.TotalPages ?? 0;
+
+    public async Task OpenAsync(Guid singerId)
+    {
+        _currentSingerId = singerId;
+        _currentPage = 1;
+
+        await LoadPageAsync();
+
+        IsOpen = true;
+    }
+
+    private async Task PreviousPage()
+    {
+        if (_currentPage > 1)
+        {
+            _currentPage--;
+            await LoadPageAsync();
+        }
+    }
+
+    private async Task NextPage()
+    {
+        if (_paginatedPerformances?.HasNextPage ?? false)
+        {
+            _currentPage++;
+            await LoadPageAsync();
+        }
+    }
+
+    private async Task LoadPageAsync()
+    {
+        if (PerformanceService is null || MediaService is null)
+            return;
+
+        _paginatedPerformances = await PerformanceService.GetBySingerIdAsync(_currentSingerId, pageNumber: _currentPage, pageSize: PageSize);
+
+        var mediaIds = _paginatedPerformances.Items.Select(p => p.MediaId).Distinct().ToList();
+        var mediaResults = await Task.WhenAll(mediaIds.Select(id => MediaService.ReadAsync(id)));
+
+        _media = mediaResults.Where(m => m is not null).Cast<Media>().ToList();
+
+        StateHasChanged();
+    }
+
+    public async Task CloseAsync()
+    {
+        IsOpen = false;
+        await OnClose.InvokeAsync();
+    }
+
+    private async Task EnqueueAsync(Guid mediaId)
+    {
+        if (PerformanceService is null)
+            return;
+
+        await PerformanceService.CreateAndEnqueueAsync(new Performance
+        {
+            SingerId = _currentSingerId,
+            MediaId = mediaId
+        });
+    }
+}

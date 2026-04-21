@@ -1,0 +1,67 @@
+@using Microsoft.AspNetCore.Components.Routing
+
+<Dialog IsOpen="IsOpen" OnClose="CloseAsync" Class="@($"kh-dialog__settings-menu {Class}".TrimEnd())">
+    <Header>
+        <span>Settings</span>
+    </Header>
+    <Body>
+        <div class="kh-settings-menu">
+            @foreach (var settingsPage in _settingsPages)
+            {
+                <button class="kh-settings-menu__button" @onclick="() => NavigateToPageAsync(settingsPage.Route)" type="button">
+                    <i class="bi @settingsPage.Icon"></i>
+                    <span>@settingsPage.Title</span>
+                </button>
+            }
+        </div>
+    </Body>
+</Dialog>
+
+@code {
+    [Inject] private NavigationManager? Navigation { get; set; }
+
+    [Parameter] public bool IsOpen { get; set; }
+    [Parameter] public string Class { get; set; } = "";
+
+    [Parameter] public EventCallback OnOpen { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    private class SettingsPage
+    {
+        public string Title { get; set; } = "";
+        public string Icon { get; set; } = "";
+        public string Route { get; set; } = "";
+    }
+
+    private readonly List<SettingsPage> _settingsPages = new()
+    {
+        new SettingsPage { Title = "Singers Manager", Icon = "bi-person-fill", Route = "/settings/singers-manager" },
+        new SettingsPage { Title = "Venues Manager", Icon = "bi-geo-alt-fill", Route = "/settings/venues-manager" },
+        new SettingsPage { Title = "Media Manager", Icon = "bi-music-note-list", Route = "/settings/media-manager" },
+    };
+
+    public async Task OpenAsync()
+    {
+        IsOpen = true;
+
+        await OnOpen.InvokeAsync();
+
+        StateHasChanged();
+    }
+
+    public async Task CloseAsync()
+    {
+        IsOpen = false;
+
+        await OnClose.InvokeAsync();
+
+        StateHasChanged();
+    }
+
+    private async Task NavigateToPageAsync(string route)
+    {
+        await CloseAsync();
+
+        Navigation.NavigateTo(route);
+    }
+}

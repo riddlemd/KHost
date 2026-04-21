@@ -4,15 +4,17 @@ namespace KHost.Abstractions.Services;
 
 public interface IPlaybackService : IDisposable
 {
-    event Action? StateChanged;
+    event EventHandler? StateChanged;
 
-    IQueuedSong? CurrentQueuedSong { get; }
+    Performance? CurrentPerformance { get; }
+    Media? CurrentMedia { get; }
     PlaybackState State { get; }
     TimeSpan Position { get; }
+    Guid? CurrentlyPerformingSingerId { get; }
 
-    void Load(IQueuedSong song);
+    Task LoadAsync(Performance performance, Media media);
     Task PlayAsync();
-    void Pause();
+    Task PauseAsync();
     Task StopAsync();
 }
 

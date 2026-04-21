@@ -1,72 +1,96 @@
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
-using KHost.Domain.Models;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace KHost.Domain.Services;
 
-public class PlaybackService : IPlaybackService
+public class PlaybackService : BaseService, IPlaybackService
 {
     private Timer? _timer;
     private DateTime _lastTick;
     private readonly ISingerQueueService _singerQueueService;
+    private readonly IPerformanceService _performanceService;
+    private readonly ISingersService _singersService;
 
-    public event Action? StateChanged;
-
-    public IQueuedSong? CurrentQueuedSong { get; private set; }
+    public Performance? CurrentPerformance { get; private set; }
+    public Media? CurrentMedia { get; private set; }
     public PlaybackState State { get; private set; } = PlaybackState.Stopped;
     public TimeSpan Position { get; private set; }
+    public Guid? CurrentlyPerformingSingerId { get; private set; }
     public IOptionsMonitor<ServiceOptions> Options { get; set; }
 
-    public PlaybackService(IOptionsMonitor<ServiceOptions> options, ISingerQueueService singerQueueService)
+    public PlaybackService(
+        ILogger<PlaybackService> logger,
+        IOptionsMonitor<ServiceOptions> options,
+        ISingerQueueService singerQueueService,
+        IPerformanceService performanceService,
+        ISingersService singersService)
+        : base(logger)
     {
         Options = options;
         _singerQueueService = singerQueueService;
+        _performanceService = performanceService;
+        _singersService = singersService;
     }
 
-    public void Load(QueuedSong song)
+    public async Task LoadAsync(Performance performance, Media media)
     {
         ResetState();
-        CurrentQueuedSong = song;
+
+        CurrentPerformance = performance;
+        CurrentMedia = media;
         Position = TimeSpan.Zero;
-        StateChanged?.Invoke();
+
+        Logger.LogInformation("Loading media '{Title}' for performance {PerformanceId}", media.Title, performance.Id);
+
+        InvokeStateChanged();
     }
 
     public async Task PlayAsync()
     {
-        if (CurrentQueuedSong is null || State == PlaybackState.Playing) return;
+        if (CurrentPerformance is null || State == PlaybackState.Playing) return;
 
-        // Move the song's singer to the top of the queue when play starts
-        if (CurrentQueuedSong.Singer?.Id is { } singerId)
-        {
-            await _singerQueueService.MoveSingerToStartAsync(singerId);
-            CurrentQueuedSong.Singer.IsPerforming = true;
-        }
+        // Move the singer to the top of the queue when play starts
+        await _singerQueueService.MoveSingerToStartAsync(CurrentPerformance.SingerId);
+
+        CurrentlyPerformingSingerId = CurrentPerformance.SingerId;
 
         State = PlaybackState.Playing;
-        CurrentQueuedSong.Status = QueuedSongStatus.Playing;
         _lastTick = DateTime.UtcNow;
         _timer?.Dispose();
         _timer = new Timer(OnTick, null, 500, 500);
-        StateChanged?.Invoke();
+
+        Logger.LogInformation("Playback started for singer {SingerId}", CurrentPerformance.SingerId);
+
+        InvokeStateChanged();
     }
 
-    public void Pause()
+    public async Task PauseAsync()
     {
-        if (State != PlaybackState.Playing) return;
-        if (CurrentQueuedSong?.Singer != null)
-            CurrentQueuedSong.Singer.IsPerforming = false;
+        if (State != PlaybackState.Playing)
+            return;
+
         State = PlaybackState.Paused;
         _timer?.Dispose();
         _timer = null;
-        StateChanged?.Invoke();
+
+        Logger.LogInformation("Playback paused at {Position}", Position);
+
+        InvokeStateChanged();
+
+        return;
     }
 
     public async Task StopAsync()
     {
         ResetState();
+
+        Logger.LogInformation("Playback stopped");
+
         await EndedAsync();
-        StateChanged?.Invoke();
+
+        InvokeStateChanged();
     }
 
     public void Dispose()
@@ -84,19 +108,13 @@ public class PlaybackService : IPlaybackService
         }
     }
 
-    void IPlaybackService.Load(IQueuedSong song)
-    {
-        if (song is QueuedSong queuedSong)
-            Load(queuedSong);
-    }
 
     private void ResetState()
     {
         _timer?.Dispose();
         _timer = null;
 
-        if (CurrentQueuedSong?.Singer != null)
-            CurrentQueuedSong.Singer.IsPerforming = false;
+        CurrentlyPerformingSingerId = null;
 
         State = PlaybackState.Stopped;
         Position = TimeSpan.Zero;
@@ -104,24 +122,23 @@ public class PlaybackService : IPlaybackService
 
     private async Task EndedAsync()
     {
-        var currentQueuedSong = CurrentQueuedSong;
+        var currentPerformance = CurrentPerformance;
 
-        CurrentQueuedSong = null;
+        CurrentPerformance = null;
+        CurrentMedia = null;
 
-        if (currentQueuedSong?.Id is not { } singerId)
+        if (currentPerformance is null)
             return;
 
+        Logger.LogInformation("Performance {PerformanceId} ended for singer {SingerId}", currentPerformance.Id, currentPerformance.SingerId);
 
         if (Options.CurrentValue.MoveSingerToBottomAfterPerformance)
         {
-            await _singerQueueService.MoveSingerToEndAsync(singerId);
+            await _singerQueueService.MoveSingerToEndAsync(currentPerformance.SingerId);
             await _singerQueueService.SelectFirstSingerInQueueAsync();
         }
 
-        if (currentQueuedSong?.Id is not { } queuedSongId)
-            return;
-
-        await _singerQueueService.RemoveQueuedSongAsync(singerId, queuedSongId);
+        await _performanceService.DequeueAsync(currentPerformance.SingerId, currentPerformance.Id);
     }
 
     private void OnTick(object? state) => _ = TickAsync();
@@ -132,20 +149,14 @@ public class PlaybackService : IPlaybackService
         Position += now - _lastTick;
         _lastTick = now;
 
-        if (CurrentQueuedSong?.Song.Duration is { } duration && Position >= duration)
+        if (CurrentMedia?.Duration is { } duration && Position >= duration)
         {
             Position = duration;
-            CurrentQueuedSong.Status = QueuedSongStatus.Played;
-            if (CurrentQueuedSong.Singer != null)
-                CurrentQueuedSong.Singer.IsPerforming = false;
-            State = PlaybackState.Stopped;
-            _timer?.Dispose();
-            _timer = null;
-
+            ResetState();
             await EndedAsync();
         }
 
-        StateChanged?.Invoke();
+        InvokeStateChanged();
     }
 
     public class ServiceOptions

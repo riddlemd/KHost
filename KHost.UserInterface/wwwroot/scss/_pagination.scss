@@ -1,0 +1,54 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   Pagination
+   Pagination controls and menu styles
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.kh-pagination {
+    &__menu {
+        display: flex;
+        justify-content: flex-end;
+        margin: 0.5em;
+        padding: 0.5em;
+    }
+
+    &__nav {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-top: 1rem;
+        padding: 0.75rem 0.5em;
+        border-top: 1px solid var(--kh-border);
+    }
+
+    &__info {
+        font-size: 0.85rem;
+        color: var(--kh-text-secondary);
+    }
+
+    &__buttons {
+        display: flex;
+        gap: 1rem;
+    }
+
+    &__link {
+        background: none;
+        border: none;
+        padding: 0;
+        font-size: 0.85rem;
+        color: var(--kh-primary-bright);
+        cursor: pointer;
+        transition: color var(--kh-transition);
+        font-weight: 500;
+
+        &:hover:not(:disabled) {
+            color: var(--kh-primary);
+            text-decoration: underline;
+        }
+
+        &:disabled {
+            color: var(--kh-text-muted);
+            cursor: not-allowed;
+            opacity: 0.5;
+        }
+    }
+}

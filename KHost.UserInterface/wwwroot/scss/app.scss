@@ -6,16 +6,22 @@
 /* Theme files are imported via HTML <link> tags, so they set CSS custom properties */
 /* Base styles and components use those variables */
 
+@use 'bootstrap-icons';
 @use 'base';
 @use 'buttons';
 @use 'cards';
+@use 'dialog';
+@use 'settings-menu-dialog';
+@use 'singer-performance-history';
 @use 'tables';
+@use 'pagination';
 @use 'alerts-panels';
 @use 'resize-handles';
 @use 'layout';
 @use 'loading-splash';
 @use 'now-playing';
 @use 'singer-queue';
-@use 'singer-song-queue';
-@use 'song-search';
+@use 'singer-performance-queue';
+@use 'media-search';
+@use 'media-manager';
 @use 'validation';

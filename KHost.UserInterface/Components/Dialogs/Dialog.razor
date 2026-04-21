@@ -1,0 +1,48 @@
+@if (IsOpen)
+{
+    <div class="kh-dialog__overlay @Class" @onclick="OnOverlayClick">
+        <div class="kh-dialog" @onclick:stopPropagation>
+            <div class="kh-dialog__header">
+                <span>@Header</span>
+                <button class="kh-dialog__close-btn kh-button--icon-minimal" @onclick="CloseAsync" type="button"><i class="bi bi-x-lg"></i></button>
+            </div>
+            <div class="kh-dialog__body">
+                @Body
+            </div>
+            <div class="kh-dialog__footer">
+                @Footer
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public bool IsOpen { get; set; }
+    [Parameter] public RenderFragment? Header { get; set; }
+    [Parameter] public RenderFragment? Body { get; set; }
+    [Parameter] public RenderFragment? Footer { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback OnOpen { get; set; }
+    [Parameter] public bool CloseOnOverlayClick { get; set; } = true;
+    [Parameter] public string Class { get; set; } = "";
+
+    public async Task CloseAsync()
+    {
+        IsOpen = false;
+        await OnClose.InvokeAsync();
+    }
+
+    public async Task Open()
+    {
+        IsOpen = true;
+        await OnOpen.InvokeAsync();
+    }
+
+    private async Task OnOverlayClick()
+    {
+        if (CloseOnOverlayClick)
+        {
+            await CloseAsync();
+        }
+    }
+}

@@ -7,14 +7,14 @@ const KEYS = {
 };
 
 export function init() {
-    const colLeft    = document.getElementById('panel-queue');
-    const nowPlaying = document.getElementById('panel-nowplaying');
-    const songSearch = document.getElementById('panel-search');
-    const vHandle    = document.getElementById('resize-v');
-    const hHandle   = document.getElementById('resize-h');
-    const body       = document.getElementById('khost-body');
+    const colLeft    = document.querySelector('.kh-app__col--queue');
+    const nowPlaying = document.querySelector('.kh-app__nowplaying');
+    const MediaSearch = document.querySelector('.kh-app__search');
+    const vHandle    = document.querySelector('.kh-resize-handle--v');
+    const hHandle    = document.querySelector('.kh-resize-handle--h');
+    const body       = document.querySelector('.kh-app__body');
 
-    if (!colLeft || !nowPlaying || !songSearch || !vHandle || !hHandle || !body)
+    if (!colLeft || !nowPlaying || !MediaSearch || !vHandle || !hHandle || !body)
         return { dispose: () => {} };
 
     // ── Restore saved sizes ───────────────────────────────────────────────
@@ -23,8 +23,8 @@ export function init() {
 
     const savedSH = parseFloat(localStorage.getItem(KEYS.searchHeight));
     if (savedSH > 0) {
-        songSearch.style.flex   = 'none';
-        songSearch.style.height = savedSH + 'px';
+        MediaSearch.style.flex   = 'none';
+        MediaSearch.style.height = savedSH + 'px';
     }
 
     // ── Drag state ────────────────────────────────────────────────────────
@@ -43,8 +43,8 @@ export function init() {
         clearTimeout(saveTimer);
         saveTimer = setTimeout(() => {
             localStorage.setItem(KEYS.queueWidth,   colLeft.getBoundingClientRect().width);
-            if (songSearch.style.height)
-                localStorage.setItem(KEYS.searchHeight, parseFloat(songSearch.style.height));
+            if (MediaSearch.style.height)
+                localStorage.setItem(KEYS.searchHeight, parseFloat(MediaSearch.style.height));
         }, 150);
     }
 
@@ -53,7 +53,7 @@ export function init() {
         mode       = 'v';
         startCoord = clientCoords(e).x;
         startSize  = colLeft.getBoundingClientRect().width;
-        vHandle.classList.add('dragging');
+        vHandle.classList.add('kh-resize-handle--dragging');
         lock('col-resize');
         e.preventDefault();
     }
@@ -61,8 +61,8 @@ export function init() {
     function beginH(e) {
         mode       = 'h';
         startCoord = clientCoords(e).y;
-        startSize  = songSearch.getBoundingClientRect().height;
-        hHandle.classList.add('dragging');
+        startSize  = MediaSearch.getBoundingClientRect().height;
+        hHandle.classList.add('kh-resize-handle--dragging');
         lock('row-resize');
         e.preventDefault();
     }
@@ -82,8 +82,8 @@ export function init() {
             const handleH   = hHandle.getBoundingClientRect().height;
             const available = bodyH - npH - handleH;
             const newH      = Math.max(80, Math.min(startSize + (y - startCoord), available - 80));
-            songSearch.style.flex   = 'none';
-            songSearch.style.height = newH + 'px';
+            MediaSearch.style.flex   = 'none';
+            MediaSearch.style.height = newH + 'px';
         }
 
         scheduleSave();
@@ -91,8 +91,8 @@ export function init() {
 
     function end() {
         if (!mode) return;
-        vHandle.classList.remove('dragging');
-        hHandle.classList.remove('dragging');
+        vHandle.classList.remove('kh-resize-handle--dragging');
+        hHandle.classList.remove('kh-resize-handle--dragging');
         mode = null;
         unlock();
     }

@@ -4,62 +4,58 @@
    ═══════════════════════════════════════════════════════════════════════════ */
 
 /* ─── Alerts ──────────────────────────────────────────────────────────────── */
-.alert-warning {
-    background: rgba(245, 158, 11, 0.1);
-    border-color: rgba(245, 158, 11, 0.3);
-    color: var(--kh-warning);
-    font-size: 0.82rem;
+.kh-alert {
+    &--warning {
+        background: var(--kh-warning-subtle);
+        border-color: var(--kh-warning-border-subtle);
+        color: var(--kh-warning);
+        font-size: 0.82rem;
+    }
 }
 
 /* ─── Shared Panel Utilities ──────────────────────────────────────────────── */
-/* Empty state used by every panel (SingerQueue, SingerSongQueue, SongSearch) */
-.panel-empty {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    padding: 24px 20px;
-    color: var(--kh-text-muted);
-    font-size: 0.85rem;
-    text-align: center;
+.kh-panel {
+    /* Empty state used by every panel (SingerQueue, SingerMediaQueue, MediaSearch) */
+    &--empty {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        padding: 24px 20px;
+        color: var(--kh-text-muted);
+        font-size: 0.85rem;
+        text-align: center;
 
-    > i {
-        font-size: 28px;
-        opacity: 0.4;
+        > i {
+            font-size: 28px;
+            opacity: 0.4;
+        }
+
+        &-lg > i {
+            font-size: 32px;
+        }
     }
 
-    &.panel-empty-lg > i {
-        font-size: 32px;
+    /* Inline form row: input(s) + action button */
+    &__form-row {
+        display: flex;
+        gap: 8px;
+        width: 100%;
+        align-items: flex-end;
     }
-}
 
-/* Inline form row: input(s) + action button */
-.panel-form-row {
-    display: flex;
-    gap: 8px;
-    width: 100%;
-    align-items: flex-end;
+    &__form-grow {
+        flex: 1;
+        min-width: 0;
+    }
+
+    &__caption {
+        font-size: 0.75rem;
+        color: var(--kh-text-muted);
+    }
 }
 
 form[name="add-singer-form"] {
     margin-bottom: 8px;
-}
-
-.panel-form-row > .form-grow {
-    flex: 1;
-    min-width: 0;
-}
-
-/* Horizontal action cluster (right-aligned buttons in a table cell) */
-.actions-inline {
-    display: inline-flex;
-    gap: 4px;
-    flex-wrap: nowrap;
-}
-
-/* Small muted caption text (e.g. "N file(s) found") */
-.text-caption {
-    font-size: 0.75rem;
-    color: var(--kh-text-muted);
 }

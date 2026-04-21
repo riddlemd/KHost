@@ -3,7 +3,7 @@
    Singer cards, selection states, and actions
    ═══════════════════════════════════════════════════════════════════════════ */
 
-.singer-card {
+.kh-singer-queue-card {
     background: var(--kh-bg-elevated);
     border: 1px solid var(--kh-border);
     border-left: 3px solid var(--kh-primary);
@@ -19,40 +19,40 @@
     &:hover {
         border-left-color: var(--kh-primary-hover);
     }
-}
 
-.singer-card-selected {
-    background: var(--kh-primary-subtle);
-    border: 1px solid var(--kh-primary-bright);
-    border-left: 3px solid var(--kh-primary-bright);
-    box-shadow: 0 0 12px var(--kh-primary-glow);
-}
+    &--selected {
+        background: var(--kh-primary-subtle);
+        border: 1px solid var(--kh-primary-bright);
+        border-left: 3px solid var(--kh-primary-bright);
+        box-shadow: 0 0 12px var(--kh-primary-glow);
+    }
 
-.singer-card-actions {
-    display: flex;
-    margin-left: auto;
-}
+    &__actions {
+        display: flex;
+        margin-left: auto;
+    }
 
-.singer-icon {
-    display: flex;
-    position: relative;
-    justify-content: center;
-    margin-right: 0.75rem;
-    font-size: 1.5em;
-    min-width: 1em;
-}
+    &__icon {
+        display: flex;
+        position: relative;
+        justify-content: center;
+        margin-right: 0.75rem;
+        font-size: 1.5em;
+        min-width: 1em;
+    }
 
-.singer-name {
-    font-weight: 600;
-    color: var(--kh-text);
-    font-size: 0.9rem;
-}
+    &__name {
+        font-weight: 600;
+        color: var(--kh-text);
+        font-size: 0.9rem;
+    }
 
-.singer-info {
-    font-size: 0.7rem;
-    color: var(--kh-text-muted);
-}
+    &__info {
+        font-size: 0.7rem;
+        color: var(--kh-text-muted);
+    }
 
-.singer-card .empty-song-queue {
-    color: var(--kh-warning);
+    &__empty-queue {
+        color: var(--kh-warning);
+    }
 }

@@ -78,17 +78,35 @@ html {
     color: var(--kh-text);
 }
 
+.form-check {
+    display: inline;
+}
+
 .form-check-input {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 1.1em;
+    height: 1.1em;
+    border-radius: 3px;
+    border: 1px solid var(--kh-border-bright);
     background-color: var(--kh-bg-input);
-    border-color: var(--kh-border-bright);
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: 0.75em;
+    vertical-align: middle;
+    flex-shrink: 0;
+    cursor: pointer;
+    transition: background-color var(--kh-transition), border-color var(--kh-transition), box-shadow var(--kh-transition);
 
     &:checked {
         background-color: var(--kh-primary);
         border-color: var(--kh-primary);
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath fill='none' stroke='%23ffffff' stroke-linecap='round' stroke-linejoin='round' stroke-width='3' d='m6 10 3 3 6-6'/%3E%3C/svg%3E");
     }
 
     &:focus {
-        box-shadow: 0 0 0 3px var(--kh-accent-glow);
+        outline: none;
+        box-shadow: 0 0 0 3px var(--kh-primary-glow);
     }
 }
 

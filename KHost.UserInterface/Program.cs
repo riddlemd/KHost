@@ -1,9 +1,32 @@
+using KHost.Abstractions.Services;
 using KHost.DataAccess;
 using KHost.Domain;
 using KHost.ServiceDefaults;
 using KHost.UserInterface.Components;
+using Serilog;
+using Serilog.Events;
 
 var builder = WebApplication.CreateBuilder(args);
+
+var logDirectory = Path.Combine(AppContext.BaseDirectory, "logs");
+Directory.CreateDirectory(logDirectory);
+
+foreach (var staleLog in new DirectoryInfo(logDirectory).GetFiles("*.log")
+    .Where(f => f.LastWriteTimeUtc < DateTime.UtcNow.AddDays(-7)))
+{
+    staleLog.Delete();
+}
+
+builder.Host.UseSerilog((_, _, cfg) => cfg
+    .MinimumLevel.Information()
+    .MinimumLevel.Override("Microsoft", LogEventLevel.Warning)
+    .MinimumLevel.Override("Microsoft.AspNetCore", LogEventLevel.Warning)
+    .WriteTo.Console()
+    .WriteTo.File(
+        path: Path.Combine(logDirectory, ".log"),
+        rollingInterval: RollingInterval.Day,
+        retainedFileCountLimit: null,
+        outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] {Message:lj}{NewLine}{Exception}"));
 
 builder.AddServiceDefaults();
 
@@ -15,6 +38,13 @@ builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
 var app = builder.Build();
+
+// Initialize database with seed data
+using (var scope = app.Services.CreateScope())
+{
+    var initializer = scope.ServiceProvider.GetRequiredService<IDatabaseInitializer>();
+    await initializer.InitializeAsync();
+}
 
 app.MapDefaultEndpoints();
 

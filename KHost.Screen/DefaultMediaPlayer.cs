@@ -1,6 +1,8 @@
 using KHost.Abstractions.MediaPlayer;
 using KHost.Screen.FFmpeg;
 using KHost.Screen.OpenAl;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using System.Diagnostics;
 
 namespace KHost.Screen;
@@ -21,6 +23,7 @@ namespace KHost.Screen;
 /// </remarks>
 public sealed class DefaultMediaPlayer : IMediaPlayer
 {
+    private readonly ILogger<DefaultMediaPlayer> _logger;
     private readonly IFfmpegService _ffmpeg;
     private readonly OpenAlAudioPlayer _audio = new();
     private IMediaPlayer.MediaInfo? _info;
@@ -69,8 +72,9 @@ public sealed class DefaultMediaPlayer : IMediaPlayer
         }
     }
 
-    public DefaultMediaPlayer(IFfmpegService? ffmpegService = null)
+    public DefaultMediaPlayer(IFfmpegService? ffmpegService = null, ILogger<DefaultMediaPlayer>? logger = null)
     {
+        _logger = logger ?? NullLogger<DefaultMediaPlayer>.Instance;
         _ffmpeg = ffmpegService ?? new FfmpegService();
     }
 
@@ -237,7 +241,8 @@ public sealed class DefaultMediaPlayer : IMediaPlayer
     private void KillSegment()
     {
         _cts?.Cancel();
-        try { _process?.Kill(entireProcessTree: true); } catch { }
+        try { _process?.Kill(entireProcessTree: true); }
+        catch (Exception ex) { _logger.LogWarning(ex, "Exception killing ffmpeg process"); }
 
         _audio.Stop();
 

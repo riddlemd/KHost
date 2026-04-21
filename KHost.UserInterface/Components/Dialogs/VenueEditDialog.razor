@@ -1,0 +1,107 @@
+@using System.ComponentModel.DataAnnotations
+
+<Dialog IsOpen="IsOpen" CloseOnOverlayClick="false" Class="@($"kh-dialog__venue-edit {Class}".TrimEnd())">
+    <Header>
+        <i class="bi bi-geo-alt-fill"></i> @(_isNew ? "Add Venue" : "Edit Venue")
+    </Header>
+    <Body>
+        <EditForm EditContext="_editContext" OnValidSubmit="SaveAsync">
+            <DataAnnotationsValidator />
+            <div class="mb-3">
+                <label class="form-label">Name</label>
+                <InputText class="form-control" @bind-Value="_model.Name" autofocus />
+                <ValidationMessage For="() => _model.Name" />
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Notes</label>
+                <InputTextArea class="form-control" @bind-Value="_model.Notes" rows="10" />
+                <ValidationMessage For="() => _model.Notes" />
+            </div>
+            <div>
+                <label class="form-check">
+                    <InputCheckbox class="form-check-input" @bind-Value="_model.Enabled" />
+                    <span class="form-check-label">Enabled</span>
+                </label>
+            </div>
+            <button type="submit" class="kh-venue-edit__submit-hidden" style="display: none;"></button>
+        </EditForm>
+    </Body>
+    <Footer>
+        <button class="kh-venue-edit__cancel-btn kh-button kh-button--secondary" @onclick="CloseAsync" type="button">Cancel</button>
+        <button class="kh-venue-edit__save-btn kh-button kh-button--primary" @onclick="SubmitAsync" type="button">Save</button>
+    </Footer>
+</Dialog>
+
+@code {
+    [Parameter] public bool IsOpen { get; set; }
+    [Parameter] public EventCallback<VenueEditModel> OnSave { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback OnOpen { get; set; }
+    [Parameter] public string Class { get; set; } = "";
+
+    private bool _isNew;
+    private VenueEditModel _model = new();
+    private EditContext _editContext = default!;
+
+    protected override void OnInitialized()
+    {
+        _editContext = new EditContext(_model);
+    }
+
+    private async Task SubmitAsync()
+    {
+        if (_editContext.Validate())
+            await SaveAsync();
+    }
+
+    private async Task SaveAsync()
+    {
+        await OnSave.InvokeAsync(_model);
+
+        await CloseAsync();
+    }
+
+    public async Task CloseAsync()
+    {
+        IsOpen = false;
+
+        await OnClose.InvokeAsync();
+    }
+
+    public async Task OpenAsync(Venue? venue = null)
+    {
+        _model = venue is null
+            ? new VenueEditModel()
+            : new VenueEditModel
+            {
+                Id = venue.Id,
+                Name = venue.Name,
+                Notes = venue.Notes,
+                Enabled = venue.Enabled
+            };
+
+        _editContext = new EditContext(_model);
+
+        _isNew = venue is null;
+
+        IsOpen = true;
+
+        await OnOpen.InvokeAsync();
+
+        StateHasChanged();
+    }
+
+    public class VenueEditModel
+    {
+        public Guid Id { get; set; } = Guid.NewGuid();
+
+        [Required(ErrorMessage = "Name is required.")]
+        [MaxLength(32, ErrorMessage = "Name cannot exceed 32 characters.")]
+        public string Name { get; set; } = "";
+
+        [MaxLength(255, ErrorMessage = "Notes cannot exceed 255 characters.")]
+        public string Notes { get; set; } = "";
+
+        public bool Enabled { get; set; } = true;
+    }
+}

@@ -17,8 +17,9 @@
     --kh-accent-glow: rgba(249, 115, 22, 0.45);
     --kh-accent-subtle: rgba(249, 115, 22, 0.14);
     --kh-bg: #2A1810;
-    --kh-btn-primary-text: #FFFBF0;
+    --kh-button-primary-text: #FFFBF0;
     --kh-bg-card: #3D2817;
+    --kh-bg-card-dark: #362110;
     --kh-bg-elevated: #52331F;
     --kh-bg-input: #321E12;
     --kh-border: rgba(249, 115, 22, 0.32);
@@ -34,11 +35,9 @@
     --kh-radius: 8px;
     --kh-radius-lg: 12px;
     --kh-transition: 0.15s ease;
-    --kh-font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-    --kh-font-display: 'Exo 2', 'Inter', sans-serif;
-}
+    --kh-font: 'Segoe UI', sans-serif;
+    --kh-font-display: 'Segoe UI', sans-serif;
 
-[data-bs-theme="dark"] {
     --bs-body-bg: var(--kh-bg);
     --bs-body-color: var(--kh-text);
     --bs-secondary-color: var(--kh-text-secondary);
@@ -53,22 +52,47 @@
     --bs-primary-rgb: 249, 115, 22;
     --bs-table-hover-bg: var(--kh-primary-subtle);
     --bs-table-striped-bg: var(--kh-primary-dim);
-}
 
-.khost-header {
-    background: linear-gradient(180deg, #6B3E2E 0%, #3D2817 100%);
-}
+    /* ─── Structural gradients ─────────────────────────────────────────────── */
+    --kh-bg-header: linear-gradient(180deg, #6B3E2E 0%, #3D2817 100%);
+    --kh-logo-from: #FB923C;
+    --kh-logo-to: #FDE047;
+    --kh-np-gradient-from: #6B3E2E;
+    --kh-card-header-bg: rgba(249, 115, 22, 0.18);
 
-.card-header {
-    background: rgba(249, 115, 22, 0.18);
-}
+    /* ─── Primary alpha variants ────────────────────────────────────────────── */
+    --kh-primary-active: rgba(249, 115, 22, 0.3);
+    --kh-primary-glow-strong: rgba(249, 115, 22, 0.7);
+    --kh-primary-bright-glow: rgba(253, 176, 34, 0.7);
 
-.np-card {
-    background: linear-gradient(160deg, #6B3E2E 0%, var(--kh-bg-card) 60%);
-}
+    /* ─── Badge info colors ─────────────────────────────────────────────────── */
+    --kh-badge-info-bg: rgba(253, 176, 34, 0.2);
+    --kh-badge-info-text: #FDE047;
+    --kh-badge-info-border: rgba(253, 176, 34, 0.4);
 
-.khost-logo-text {
-    background: linear-gradient(135deg, #FB923C 0%, #FDE047 100%);
-    -webkit-background-clip: text;
-    background-clip: text;
+    /* ─── Overlays & neutral surfaces ───────────────────────────────────────── */
+    --kh-overlay: rgba(0, 0, 0, 0.6);
+    --kh-track-bg: rgba(255, 255, 255, 0.08);
+    --kh-table-stripe: rgba(0, 0, 0, 0.2);
+    --kh-badge-pending-bg: rgba(255, 255, 255, 0.04);
+    --kh-error-bg: linear-gradient(135deg, #2D0A0A, #1A0A0A);
+
+    /* ─── Danger alpha variants ─────────────────────────────────────────────── */
+    --kh-danger-bg-subtle: rgba(239, 68, 68, 0.1);
+    --kh-danger-bg-dim: rgba(239, 68, 68, 0.2);
+    --kh-danger-border-subtle: rgba(239, 68, 68, 0.35);
+    --kh-danger-text-subtle: rgba(239, 68, 68, 0.7);
+    --kh-danger-bright: #ff7040;
+
+    /* ─── Warning alpha variants ────────────────────────────────────────────── */
+    --kh-warning-subtle: rgba(245, 158, 11, 0.1);
+    --kh-warning-border-subtle: rgba(245, 158, 11, 0.3);
+
+    /* ─── Success alpha variants ────────────────────────────────────────────── */
+    --kh-success-subtle: rgba(34, 197, 94, 0.1);
+    --kh-success-border-subtle: rgba(34, 197, 94, 0.25);
+
+    /* ─── Singer flag colors ────────────────────────────────────────────────── */
+    --kh-flag-tipper: #4ADE80;
+    --kh-flag-regular: #F472B6;
 }

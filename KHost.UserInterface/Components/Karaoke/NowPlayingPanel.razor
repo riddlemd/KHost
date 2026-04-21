@@ -1,100 +1,97 @@
 @implements IDisposable
-@inject IPlaybackService PlaybackService
 
-<div class="card h-100 np-card">
-    <div class="card-header d-flex align-items-center gap-2">
+<div class="kh-card kh-now-playing">
+    <div class="kh-card__header d-flex align-items-center gap-2">
         <i class="bi bi-music-note-beamed"></i>
-        <span class="card-title">Now Playing</span>
+        <span class="kh-card__title">Now Playing</span>
     </div>
 
-    <div class="card-body np-body">
-        @if (PlaybackService.CurrentQueuedSong is null)
+    <div class="kh-card__body kh-now-playing__body">
+        @if (PlaybackService.CurrentPerformance is null || PlaybackService.CurrentMedia is null)
         {
-            <div class="np-empty">
-                <i class="bi bi-mic np-empty-icon"></i>
-                <span class="np-empty-text">
-                    No song loaded &mdash; click <i class="bi bi-play-fill"></i> in the queue
+            <div class="kh-now-playing__empty">
+                <i class="bi bi-mic kh-now-playing__empty-icon"></i>
+                <span class="kh-now-playing__empty-text">
+                    No media loaded &mdash; click <i class="bi bi-play-fill"></i> in the queue
                 </span>
             </div>
         }
         else
         {
-            var song = PlaybackService.CurrentQueuedSong;
+            var performance = PlaybackService.CurrentPerformance;
+            var media = PlaybackService.CurrentMedia;
+            var singer = SingerQueueService.Singers.FirstOrDefault(s => s.Id == performance.SingerId);
             var isPlaying = PlaybackService.State == PlaybackState.Playing;
-            var hasDur    = song.Song.Duration is { TotalSeconds: > 0 };
+            var hasDur    = media.Duration is { TotalSeconds: > 0 };
             var pct       = hasDur
-                ? Math.Clamp(PlaybackService.Position.TotalSeconds / song.Song.Duration!.Value.TotalSeconds * 100, 0, 100)
+                ? Math.Clamp(PlaybackService.Position.TotalSeconds / media.Duration!.Value.TotalSeconds * 100, 0, 100)
                 : 0;
 
-            <div class="np-top-row">
-                <div class="np-info">
-                    <div class="np-song-title">@song.Song.Title - @song.Song.Artist</div> 
-                    <div class="np-singer-name">
+            <div class="kh-now-playing__top-row">
+                <div class="kh-now-playing__info">
+                    <div class="kh-now-playing__Media-title">@media.Title</div>
+                    <div class="kh-now-playing__singer-name">
                         <i class="bi bi-person-fill"></i>
-                        @song.Singer.Name
+                        @(singer?.Name ?? "Unknown")
                     </div>
                 </div>
 
-                <div class="np-controls">
+                <div class="kh-now-playing__controls">
                     @if (isPlaying)
                     {
-                        <button id="playback-play-pause-btn" class="btn-np-play" @onclick="PlaybackService.Pause" title="Pause">
+                        <button class="kh-now-playing__btn--play" @onclick="PlaybackService.PauseAsync" title="Pause">
                             <i class="bi bi-pause-fill"></i>
                         </button>
                     }
                     else
                     {
-                        <button id="playback-play-pause-btn" class="btn-np-play" @onclick="PlaybackService.PlayAsync" title="Play">
-                            <i class="bi bi-play-fill icon-nudge"></i>
+                        <button class="kh-now-playing__btn--play" @onclick="PlaybackService.PlayAsync" title="Play">
+                            <i class="bi bi-play-fill kh-now-playing__icon-nudge"></i>
                         </button>
                     }
-                    <button id="playback-stop-btn" class="btn-np-stop" @onclick="PlaybackService.StopAsync" title="Stop"
+                    <button class="kh-now-playing__btn--stop" @onclick="PlaybackService.StopAsync" title="Stop"
                             disabled="@(PlaybackService.State == PlaybackState.Stopped)">
                         <i class="bi bi-stop-fill"></i>
                     </button>
                 </div>
             </div>
 
-            <div class="np-progress-section">
+            <div class="kh-now-playing__progress-section">
                 @if (hasDur)
                 {
-                    <div class="np-progress-track">
-                        <div class="np-progress-fill @(isPlaying ? "is-playing" : "")"
+                    <div class="kh-now-playing__progress-track">
+                        <div class="kh-now-playing__progress-fill @(isPlaying ? "kh-now-playing__progress-fill--playing" : "")"
                              style="width:@(pct.ToString("F1", System.Globalization.CultureInfo.InvariantCulture))%">
                         </div>
                     </div>
                 }
                 else if (isPlaying)
                 {
-                    <div class="np-progress-track">
-                        <div class="np-progress-indeterminate"></div>
+                    <div class="kh-now-playing__progress-track">
+                        <div class="kh-now-playing__progress-fill--indeterminate"></div>
                     </div>
                 }
                 else
                 {
-                    <div class="np-progress-track"></div>
+                    <div class="kh-now-playing__progress-track"></div>
                 }
-                <div class="np-times">
-                    <span class="np-time">@FormatTime(PlaybackService.Position)</span>
-                    <span class="np-time">@(hasDur ? FormatTime(song.Song.Duration!.Value) : "--:--")</span>
+                <div class="kh-now-playing__times">
+                    <span class="kh-now-playing__time">@FormatTime(PlaybackService.Position)</span>
+                    <span class="kh-now-playing__time">@(hasDur ? FormatTime(media.Duration!.Value) : "--:--")</span>
                 </div>
             </div>
-
-            @if (song.Status == QueuedSongStatus.Played)
-            {
-                <div class="np-finished">
-                    <i class="bi bi-check-circle-fill"></i> Song finished
-                </div>
-            }
         }
     </div>
 </div>
 
 @code {
+    [Inject] private IPlaybackService? PlaybackService { get; set; }
+    [Inject] private ISingerQueueService? SingerQueueService { get; set; }
+
     protected override void OnInitialized() =>
         PlaybackService.StateChanged += OnStateChanged;
 
-    private void OnStateChanged() => InvokeAsync(StateHasChanged);
+    private void OnStateChanged(object? sender, EventArgs e) => InvokeAsync(StateHasChanged);
 
     private static string FormatTime(TimeSpan ts) =>
         $"{(int)ts.TotalMinutes}:{ts.Seconds:D2}";
