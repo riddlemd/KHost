@@ -1,0 +1,151 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   App Layout
+   Main layout grid, header, footer, and column structure
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ─── Header ──────────────────────────────────────────────────────────────── */
+.kh-header {
+    flex-shrink: 0;
+    background: var(--kh-bg-header);
+    border-bottom: 1px solid var(--kh-border-bright);
+    padding: 0.5em 1em;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    position: relative;
+    margin-bottom: 0.5em;
+
+    &::after {
+        content: '';
+        position: absolute;
+        bottom: -1px;
+        left: 0;
+        right: 0;
+        height: 1px;
+        background: linear-gradient(90deg, transparent, var(--kh-primary), transparent);
+    }
+
+    .input {
+        select {
+            margin-left: 0.5em;
+        }
+    }
+}
+
+/* ─── Footer ──────────────────────────────────────────────────────────────── */
+.kh-footer {
+    display: flex;
+    flex-shrink: 0;
+    padding: 0.5em 0.5em 0 0.5em;
+    opacity: 0.33;
+}
+
+.kh-app {
+    flex: 1 1 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    background: var(--kh-bg);
+
+    /* ─── Logo ────────────────────────────────────────────────────────────── */
+    &__logo-icon {
+        font-size: 22px;
+        color: var(--kh-primary-bright);
+        line-height: 1;
+    }
+
+    &__logo-text {
+        font-family: var(--kh-font-display);
+        font-size: 18px;
+        font-weight: 700;
+        background: linear-gradient(135deg, var(--kh-logo-from) 0%, var(--kh-logo-to) 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        letter-spacing: 0.03em;
+    }
+
+    &__logo-sep {
+        color: var(--kh-border-bright);
+        font-size: 20px;
+        font-weight: 200;
+    }
+
+    &__logo-sub {
+        font-size: 11px;
+        font-weight: 500;
+        color: var(--kh-text-muted);
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+    }
+
+    /* ─── Body ────────────────────────────────────────────────────────────── */
+    &__body {
+        flex: 1 1 0;
+        min-height: 0;
+        display: flex;
+        overflow: hidden;
+    }
+
+    /* ─── Left Column — Singer Queue ──────────────────────────────────────── */
+    &__col--queue {
+        width: 20%;
+        min-width: 150px;
+        flex-shrink: 0;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+
+        > .kh-card {
+            flex: 1;
+            overflow: hidden;
+        }
+
+        .kh-card__body {
+            overflow-y: auto;
+        }
+    }
+
+    &__singer-inputs {
+        border-bottom: 2px solid var(--kh-border);
+        overflow: hidden;
+
+        form {
+            margin: 0;
+        }
+    }
+
+    /* ─── Right Column ────────────────────────────────────────────────────── */
+    &__col--detail {
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        gap: 0.5em;
+    }
+
+    &__toast-message {
+        flex: 1;
+    }
+}
+
+/* ─── Settings Page Wrapper ───────────────────────────────────────────────── */
+.kh-settings-page {
+    flex: 1;
+    overflow: auto;
+    display: flex;
+    flex-direction: column;
+}
+
+form {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+
+    > * {
+        flex: 1 1;
+        width: 100%;
+    }
+}

@@ -85,6 +85,7 @@ public partial class MainWindow : Window
         old?.Dispose();
 
         // Promote to the Image on the UI thread without blocking the decoder.
+        var alpha = frame.Alpha;
         Dispatcher.UIThread.Post(() =>
         {
             var bmp = Interlocked.Exchange(ref _pendingBitmap, null);
@@ -93,6 +94,7 @@ public partial class MainWindow : Window
             _displayBitmap?.Dispose();
             _displayBitmap = bmp;
 
+            ImgVideo.Opacity = alpha;
             ImgVideo.Source = _displayBitmap;
             TxtPlaceholder.IsVisible = false;
         }, DispatcherPriority.Render);
@@ -149,6 +151,29 @@ public partial class MainWindow : Window
         UpdateControlState();
     }
 
+    private void BtnPitchDown_Click(object? sender, RoutedEventArgs e)
+    {
+        _player.PitchSemitones = Math.Max(-12, _player.PitchSemitones - 1);
+        UpdatePitchLabel();
+    }
+
+    private void BtnPitchUp_Click(object? sender, RoutedEventArgs e)
+    {
+        _player.PitchSemitones = Math.Min(12, _player.PitchSemitones + 1);
+        UpdatePitchLabel();
+    }
+
+    private void UpdatePitchLabel()
+    {
+        int v = _player.PitchSemitones;
+        TxtPitch.Text = v switch
+        {
+            0 => "Key: 0",
+            > 0 => $"Key: +{v}",
+            _ => $"Key: {v}",
+        };
+    }
+
     // ── Slider seek ──────────────────────────────────────────────────────────
 
     private void SldPosition_PointerPressed(object? sender, PointerPressedEventArgs e)
@@ -199,6 +224,9 @@ public partial class MainWindow : Window
             _displayBitmap = null;
             TxtPlaceholder.IsVisible = true;
 
+            _player.PitchSemitones = 0;
+            UpdatePitchLabel();
+
             await _player.LoadAsync(filePath);
 
             var name = Path.GetFileName(filePath);
@@ -230,6 +258,8 @@ public partial class MainWindow : Window
 
         BtnPlay.IsEnabled = loaded;
         BtnStop.IsEnabled = loaded;
+        BtnPitchDown.IsEnabled = loaded;
+        BtnPitchUp.IsEnabled = loaded;
         SldPosition.IsEnabled = loaded;
         BtnPlay.Content = playing ? "⏸  Pause" : "▶  Play";
 

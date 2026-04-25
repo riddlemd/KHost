@@ -1,0 +1,305 @@
+@using KHost.UserInterface.Components.Dialogs
+@using KHost.UserInterface.Services
+@using Microsoft.Extensions.Options
+@implements IDisposable
+
+<div class="kh-singer-queue-panel kh-card">
+    <div class="kh-card__header d-flex align-items-center gap-2">
+        <Icon Name="people-fill" />
+        <span class="kh-card__title">Singer Queue</span>
+        @if (SingerQueueService?.Singers.Count > 0)
+        {
+            <span class="kh-badge kh-badge--secondary kh-singer-queue-panel__singer-count ms-auto" title="Number of singers in queue">@SingerQueueService.Singers.Count</span>
+        }
+        <span class="kh-card__shortcut">ctrl+1</span>
+    </div>
+    <div class="kh-card__body d-flex flex-column gap-3">
+        <form name="add-singer-form" class="kh-panel__form-row" @onsubmit="AddSingerAsync" @onsubmit:preventDefault>
+            <input type="text" class="form-control kh-panel__form-grow" placeholder="Type New Singer's Name..."
+                    autocomplete="off" @bind="_newSingerName" @bind:event="oninput" />
+            <button type="submit" class="kh-singer-queue-panel__add-btn kh-button kh-button--primary"
+                    disabled="@string.IsNullOrWhiteSpace(_newSingerName)" title="Add Singer to Queue">
+                <Icon Name="plus-lg" />
+            </button>
+        </form>
+    </div>
+    <div class="kh-singer-queue-panel__singer-queue kh-card__body d-flex flex-column gap-3">
+        @if (!SingerQueueService?.Singers.Any() == true)
+        {
+            <div class="kh-panel--empty kh-panel--empty-lg">
+                <Icon Name="person-plus" />
+                <span>No singers yet. Add one above to get started.</span>
+            </div>
+        }
+
+        @foreach (var (singer, singerIdx) in SingerQueueService?.Singers.Select((s, i) => (s, i)) ?? [])
+        {
+            var isCurrentlyPerforming = PlaybackService?.CurrentlyPerformingSingerId == singer.Id;
+            var isFirst = singerIdx == 0;
+            var disableMoveUp = isFirst || isCurrentlyPerforming || (singerIdx == 1 && SingerQueueService?.IsTopSlotLocked == true);
+            var disableMoveDown = singerIdx == SingerQueueService?.Singers.Count - 1 || isCurrentlyPerforming;
+            var disableRemove = isCurrentlyPerforming;
+
+            <div class="@GetSingerRowClasses(singer.Id, isFirst)"
+                 @key="singer.Id"
+                 data-singer-id="@singer.Id"
+                 @onclick="() => SingerQueueService?.SelectSingerAsync(singer.Id)">
+                <button class="kh-singer-queue-panel__drag-handle kh-button--icon-minimal"
+                        title="Drag to reorder"
+                        @onclick:stopPropagation>
+                    <Icon Name="grip-vertical" />
+                </button>
+                <div class="kh-singer-queue-panel__singer-queue__singer__icon">
+                    @if (isFirst && PlaybackService?.CurrentPerformance?.SingerId == singer.Id && PlaybackService.State == PlaybackState.Playing)
+                    {
+                        <div class="kh-now-playing__bars kh-now-playing__bars--sm">
+                            <div class="kh-now-playing__bar"></div>
+                            <div class="kh-now-playing__bar"></div>
+                            <div class="kh-now-playing__bar"></div>
+                        </div>
+                    }
+                    else
+                    {
+                        <Icon Name="person-circle" />
+                    }
+                </div>
+                <div>
+                    <div class="kh-singer-queue-panel__singer-queue__singer__name">@singer.Name</div>
+                    <div class="kh-singer-queue-panel__singer-queue__singer__info">
+                        @((MarkupString)FormatMediaCount(_performanceCounts.GetValueOrDefault(singer.Id, 0)))
+                        @FormatEwt(CalculateEwt(singerIdx))
+                    </div>
+                </div>
+
+                <div class="kh-singer-queue-panel__singer-queue__singer__actions">
+                    <button class="kh-singer-queue-panel__singer-queue__singer__move-up-btn kh-button--icon-minimal" title="Move up (Shift+Up)"
+                            disabled="@disableMoveUp"
+                            @onclick="() => SingerQueueService?.MoveSingerUpAsync(singer.Id)"
+                            @onclick:stopPropagation>
+                        <Icon Name="chevron-up" />
+                    </button>
+                    <button class="kh-singer-queue-panel__singer-queue__singer__move-down-btn kh-button--icon-minimal" title="Move down (Shift+Down)"
+                            disabled="@disableMoveDown"
+                            @onclick="() => SingerQueueService?.MoveSingerDownAsync(singer.Id)"
+                            @onclick:stopPropagation>
+                        <Icon Name="chevron-down" />
+                    </button>
+                    <button class="kh-singer-queue-panel__singer-queue__singer__remove-btn kh-button--icon-danger" title="Remove singer"
+                            disabled="@disableRemove"
+                            @onclick="@(async () => await ConfirmRemoveSingerAsync(singer))"
+                            @onclick:stopPropagation>
+                        <Icon Name="x-lg" />
+                    </button>
+                </div>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    [Inject] private ISingerQueueService? SingerQueueService { get; set; }
+    [Inject] private IPerformanceService? PerformanceService { get; set; }
+    [Inject] private IMediaService? MediaService { get; set; }
+    [Inject] private IPlaybackService? PlaybackService { get; set; }
+    [Inject] private ISingersService? SingersService { get; set; }
+    [Inject] private IDialogService? DialogService { get; set; }
+    [Inject] private IJSRuntime? JS { get; set; }
+
+    private string _newSingerName = string.Empty;
+    private List<Performance> _allQueuedPerformances = [];
+    private Dictionary<Guid, Media?> _mediaCache = [];
+    private Dictionary<Guid, int> _performanceCounts = [];
+    private DotNetObjectReference<SingerQueuePanel>? _dotNetRef;
+
+    protected override void OnInitialized()
+    {
+        SingerQueueService?.StateChanged  += OnStateChanged;
+        PerformanceService?.StateChanged  += OnStateChanged;
+        PlaybackService?.StateChanged += OnStateChanged;
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await RefreshPerformanceCountsAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        await RefreshPerformanceCountsAsync();
+
+        if (firstRender && JS is not null)
+        {
+            _dotNetRef = DotNetObjectReference.Create(this);
+            await JS.InvokeVoidAsync(
+                "singerQueueSortable.init",
+                ".kh-singer-queue-panel__singer-queue",
+                _dotNetRef);
+        }
+
+        if (SingerQueueService?.SelectedSingerId is not null)
+            await ScrollToSelectedSingerAsync();
+    }
+
+    [JSInvokable]
+    public async Task OnSortEnd(string singerIdStr, int newIndex)
+    {
+        if (Guid.TryParse(singerIdStr, out var singerId) && SingerQueueService is not null)
+            await SingerQueueService.MoveSingerToIndexAsync(singerId, newIndex);
+    }
+
+    private async Task AddSingerAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_newSingerName)) return;
+        if (SingerQueueService is null || SingersService is null) return;
+
+        var name = _newSingerName.Trim();
+        var results = await SingersService.SearchAsync(name);
+        var singer = results.Items.FirstOrDefault(s => s.Name.Equals(name, StringComparison.OrdinalIgnoreCase))
+                     ?? await SingersService.CreateAsync(new Singer { Name = name });
+
+        await SingerQueueService.AddSingerAsync(singer.Id);
+        await SingerQueueService.SelectSingerAsync(singer.Id);
+
+        _newSingerName = string.Empty;
+    }
+
+    private async Task OnKeyDownAsync(KeyboardEventArgs e)
+    {
+        if (SingerQueueService is null) return;
+
+        var selectedSingerId = SingerQueueService.SelectedSingerId;
+        var currentIdx = SingerQueueService.Singers.ToList().FindIndex(s => s.Id == SingerQueueService.SelectedSingerId);
+
+        if (e.ShiftKey && selectedSingerId != null)
+        {
+            if (e.Key == "ArrowUp" && currentIdx > 0)
+                await SingerQueueService.MoveSingerUpAsync(SingerQueueService.SelectedSingerId!.Value);
+            else if (e.Key == "ArrowDown" && currentIdx < SingerQueueService.Singers.Count - 1)
+                await SingerQueueService.MoveSingerDownAsync(SingerQueueService.SelectedSingerId!.Value);
+        }
+        else
+        {
+            Singer? selectedSinger = null;
+
+            if (e.Key == "ArrowUp" && currentIdx > 0)
+                selectedSinger = SingerQueueService.Singers[currentIdx - 1];
+            else if (e.Key == "ArrowDown" && currentIdx < SingerQueueService.Singers.Count - 1)
+                selectedSinger = SingerQueueService.Singers[currentIdx + 1];
+
+            if(selectedSinger != null)
+                await SingerQueueService.SelectSingerAsync(selectedSinger.Id);
+        }
+    }
+
+    private TimeSpan CalculateEwt(int singerIndex)
+    {
+        if (singerIndex == 0 || SingerQueueService is null) return TimeSpan.Zero;
+
+        var total = TimeSpan.Zero;
+
+        for (var i = 0; i < singerIndex; i++)
+        {
+            var singer = SingerQueueService.Singers[i];
+            var nextPerf = _allQueuedPerformances.FirstOrDefault(p => p.SingerId == singer.Id);
+
+            if (nextPerf is not null && _mediaCache.TryGetValue(nextPerf.MediaId, out var media) && media?.Duration is { } duration)
+                total += duration;
+        }
+
+        return total;
+    }
+
+    private string FormatEwt(TimeSpan duration)
+    {
+        if (duration.TotalSeconds == 0) return string.Empty;
+
+        return $", EWT: {((int)Math.Floor(duration.TotalMinutes)):D2}:{duration.Seconds:D2}";
+    }
+
+    private string FormatMediaCount(int mediaCount)
+    {
+        var className = "";
+
+        if (mediaCount <= 0)
+            className = "kh-singer-queue-panel__empty-queue";
+
+        return $"<span class=\"{className}\">{mediaCount} media queued<span>";
+    }
+
+    private async Task ScrollToSelectedSingerAsync()
+    {
+        if (JS is null) return;
+
+        try
+        {
+            await JS.InvokeVoidAsync("scrollIntoViewSmooth", ".kh-singer-queue-panel--selected", -10);
+        }
+        catch { }
+    }
+
+    private async Task ConfirmRemoveSingerAsync(Singer singer)
+    {
+        if (DialogService is null) return;
+        if (SingerQueueService is null) return;
+
+        bool confirmed = await DialogService.ShowConfirmationAsync(
+            $"Are you sure you want to remove <span class=\"kh-emphasis\">{singer.Name}</span> from the queue?",
+            async () => await SingerQueueService.RemoveSingerAsync(singer.Id),
+            "Remove Singer From Queue",
+            "Remove"
+        );
+    }
+
+    private void OnStateChanged(object? sender, EventArgs e) => InvokeAsync(async () =>
+    {
+        await RefreshPerformanceCountsAsync();
+
+        StateHasChanged();
+    });
+
+    private string GetSingerRowClasses(Guid singerId, bool isFirst)
+    {
+        var classes = new List<string> { "kh-singer-queue-panel__singer-queue__singer" };
+
+        if (SingerQueueService?.SelectedSingerId == singerId)
+            classes.Add("kh-singer-queue-panel__singer-queue__singer--selected");
+
+        if (isFirst && SingerQueueService?.IsTopSlotLocked == true)
+            classes.Add("kh-singer-queue-panel__singer-queue__singer--locked");
+
+        return string.Join(" ", classes);
+    }
+
+    private async Task RefreshPerformanceCountsAsync()
+    {
+        if (SingerQueueService?.Singers is null || PerformanceService is null || MediaService is null) return;
+
+        _allQueuedPerformances = await PerformanceService.ReadQueuedAsync();
+
+        _performanceCounts.Clear();
+        foreach (var singer in SingerQueueService.Singers)
+            _performanceCounts[singer.Id] = _allQueuedPerformances.Count(p => p.SingerId == singer.Id);
+
+        var nextMediaIds = SingerQueueService.Singers
+            .Select(s => _allQueuedPerformances.FirstOrDefault(p => p.SingerId == s.Id)?.MediaId)
+            .Where(id => id.HasValue)
+            .Select(id => id!.Value)
+            .Distinct()
+            .ToList();
+
+        var mediaResults = await Task.WhenAll(nextMediaIds.Select(id => MediaService.ReadAsync(id)));
+
+        _mediaCache = mediaResults
+            .Where(m => m is not null)
+            .ToDictionary(m => m!.Id);
+    }
+
+    public void Dispose()
+    {
+        SingerQueueService?.StateChanged -= OnStateChanged;
+        PerformanceService?.StateChanged -= OnStateChanged;
+        PlaybackService?.StateChanged -= OnStateChanged;
+        _dotNetRef?.Dispose();
+        JS?.InvokeVoidAsync("singerQueueSortable.destroy");
+    }
+}

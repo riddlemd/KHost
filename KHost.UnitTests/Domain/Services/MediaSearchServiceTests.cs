@@ -36,8 +36,8 @@ public class MediaSearchServiceTests
         var mediaId2 = Guid.NewGuid();
         var entities = new List<MediaSearchEntity>
         {
-            new MediaSearchEntity { DisplayName = "Artist1 - Media1", Source = "FileSystem", ForeignKey = mediaId1.ToString() },
-            new MediaSearchEntity { DisplayName = "Artist2 - Media2", Source = "FileSystem", ForeignKey = mediaId2.ToString() }
+            new MediaSearchEntity { SourceDisplayName = "FileSystem", DisplayName = "Artist1 - Media1", Source = "FileSystem", ForeignKey = mediaId1.ToString() },
+            new MediaSearchEntity { SourceDisplayName = "FileSystem", DisplayName = "Artist2 - Media2", Source = "FileSystem", ForeignKey = mediaId2.ToString() }
         };
 
         _provider.SearchAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<int>())

@@ -1,0 +1,100 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   Singer Queue Panel
+   Singer cards, selection states, and actions
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.kh-singer-queue-panel {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 0;
+    min-height: 0;
+
+    &:hover {
+        border-left-color: var(--kh-primary-hover);
+    }
+
+    &__singer-count {
+        padding: 0 0.5em;
+        margin-left: 1em;
+    }
+
+    &__singer-queue {
+        flex: 1 1 0;
+        min-height: 0;
+        overflow-y: auto;
+
+        &__singer {
+            border-top: 1px solid var(--kh-border);
+            padding: 10px 12px;
+            transition: all var(--kh-transition);
+            cursor: pointer;
+            position: relative;
+            display: flex;
+            align-items: center;
+
+            &--selected {
+                background: var(--kh-primary-subtle);
+                border: 1px solid var(--kh-primary-bright);
+                border-left: 3px solid var(--kh-primary-bright);
+                box-shadow: 0 0 12px var(--kh-primary-glow);
+            }
+
+            &__drag-handle {
+                cursor: grab;
+                color: var(--kh-text-muted);
+                margin-right: 0.25rem;
+                flex-shrink: 0;
+
+                &:active {
+                    cursor: grabbing;
+                }
+            }
+
+            &--locked {
+                .kh-singer-queue-panel__drag-handle {
+                    opacity: 0.3;
+                    cursor: not-allowed;
+                    pointer-events: none;
+                }
+            }
+
+            &__actions {
+                display: flex;
+                margin-left: auto;
+            }
+
+            &__icon {
+                display: flex;
+                position: relative;
+                justify-content: center;
+                margin-right: 0.75rem;
+                font-size: 1.5em;
+                min-width: 1em;
+            }
+
+            &__name {
+                font-weight: 600;
+                color: var(--kh-text);
+            }
+
+            &__info {
+                font-size: 0.9rem;
+                color: var(--kh-text-muted);
+            }
+        }
+    }
+
+    &__singer-queue .sortable-ghost {
+        opacity: 0.4;
+    }
+
+    &__empty-queue {
+        color: var(--kh-warning);
+    }
+
+    &__add-btn {
+        flex: 0 0 auto;
+        width: auto;
+        padding: 0.5em 0.75em;
+    }
+}

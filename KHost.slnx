@@ -4,6 +4,7 @@
   <Project Path="KHost.DataAccess/KHost.DataAccess.csproj" Id="611fb917-39fe-4005-b0d3-0add2fc77483" />
   <Project Path="KHost.Domain/KHost.Domain.csproj" Id="826b87ab-7a57-46aa-97df-819af6f09206" />
   <Project Path="KHost.IntegrationTests/KHost.IntegrationTests.csproj" Id="835b7ddc-0cbd-4cab-afc2-111955af7e02" />
+  <Project Path="KHost.LrcLib/KHost.LrcLib.csproj" />
   <Project Path="KHost.Screen/KHost.Screen.csproj" />
   <Project Path="KHost.ServiceDefaults/KHost.ServiceDefaults.csproj" />
   <Project Path="KHost.UnitTests/KHost.UnitTests.csproj" Id="c60047ab-adb0-484d-b5c2-5c153c037c07" />

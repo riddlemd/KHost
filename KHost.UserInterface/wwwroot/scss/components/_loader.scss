@@ -1,0 +1,200 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   Loader
+   Inline loading indicators — spinner, dots, bars, pulse, ripple, vinyl, typewriter
+   Scale by setting font-size on the component or a size modifier.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.kh-loader {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1rem;
+
+    &--sm { font-size: 0.65rem; }
+    &--lg { font-size: 1.75rem; }
+    &--xl { font-size: 3rem; }
+
+    // ── Spinner ──────────────────────────────────────────────────────────────
+    &__spinner {
+        width: 1.75em;
+        height: 1.75em;
+        border: 0.17em solid var(--kh-border-bright);
+        border-top-color: var(--kh-primary);
+        border-radius: 50%;
+        animation: kh-loader-spin 0.75s linear infinite;
+    }
+
+    // ── Dots ─────────────────────────────────────────────────────────────────
+    &__dots {
+        display: flex;
+        align-items: center;
+        gap: 0.4em;
+
+        span {
+            width: 0.5em;
+            height: 0.5em;
+            border-radius: 50%;
+            background: var(--kh-primary);
+            animation: kh-loader-bounce 1.2s ease-in-out infinite;
+
+            &:nth-child(2) { animation-delay: 0.2s; }
+            &:nth-child(3) { animation-delay: 0.4s; }
+        }
+    }
+
+    // ── Bars (equalizer) ─────────────────────────────────────────────────────
+    &__bars {
+        display: flex;
+        align-items: flex-end;
+        gap: 0.18em;
+        height: 1.75em;
+
+        span {
+            width: 0.25em;
+            border-radius: 0.13em 0.13em 0 0;
+            background: var(--kh-primary);
+            transform-origin: bottom;
+            animation: kh-loader-bar 1s ease-in-out infinite;
+
+            &:nth-child(1) { height: 55%;  animation-delay: 0s; }
+            &:nth-child(2) { height: 100%; animation-delay: 0.15s; }
+            &:nth-child(3) { height: 40%;  animation-delay: 0.3s; }
+            &:nth-child(4) { height: 80%;  animation-delay: 0.45s; }
+            &:nth-child(5) { height: 60%;  animation-delay: 0.6s; }
+        }
+    }
+
+    // ── Pulse ─────────────────────────────────────────────────────────────────
+    &__pulse {
+        width: 1.25em;
+        height: 1.25em;
+        border-radius: 50%;
+        background: var(--kh-primary);
+        animation: kh-loader-pulse 1.2s ease-in-out infinite;
+    }
+
+    // ── Ripple ────────────────────────────────────────────────────────────────
+    &__ripple {
+        position: relative;
+        width: 2em;
+        height: 2em;
+
+        span {
+            position: absolute;
+            inset: 0;
+            border-radius: 50%;
+            border: 0.12em solid var(--kh-primary);
+            animation: kh-loader-ripple 1.5s ease-out infinite;
+
+            &:nth-child(2) { animation-delay: 0.75s; }
+        }
+    }
+
+    // ── Vinyl ─────────────────────────────────────────────────────────────────
+    &__vinyl {
+        font-size: 1em;
+        color: var(--kh-primary);
+        animation: kh-loader-spin 1.8s linear infinite;
+    }
+
+    // ── KH ───────────────────────────────────────────────────────────────────
+    &__kh {
+        position: relative;
+        width: 2em;
+        height: 2em;
+        animation: kh-loader-spin 1.5s linear infinite;
+
+        span {
+            position: absolute;
+            left: 50%;
+            width: 1em;
+            margin-left: -0.5em;
+            text-align: center;
+            font-size: 0.7em;
+            font-weight: 800;
+            line-height: 1;
+            color: var(--kh-primary);
+            animation: kh-loader-counterspin 1.5s linear infinite;
+
+            &:first-child { top: 0; }
+            &:last-child  { bottom: 0; }
+        }
+    }
+
+    // ── Typewriter ────────────────────────────────────────────────────────────
+    &__typewriter {
+        display: flex;
+        align-items: center;
+        gap: 0.3em;
+
+        span {
+            width: 0.4em;
+            height: 0.4em;
+            border-radius: 50%;
+            background: var(--kh-text-secondary);
+            animation: kh-loader-typewriter 1.4s ease-in-out infinite;
+
+            &:nth-child(2) { animation-delay: 0.2s; }
+            &:nth-child(3) { animation-delay: 0.4s; }
+        }
+    }
+}
+
+// ── Keyframes ─────────────────────────────────────────────────────────────────
+
+@keyframes kh-loader-spin {
+    to { transform: rotate(360deg); }
+}
+
+@keyframes kh-loader-bounce {
+    0%, 80%, 100% {
+        transform: translateY(0);
+        opacity: 0.5;
+    }
+    40% {
+        transform: translateY(-0.5em);
+        opacity: 1;
+    }
+}
+
+@keyframes kh-loader-bar {
+    0%, 100% {
+        transform: scaleY(0.4);
+        opacity: 0.5;
+    }
+    50% {
+        transform: scaleY(1);
+        opacity: 1;
+    }
+}
+
+@keyframes kh-loader-pulse {
+    0%, 100% {
+        transform: scale(1);
+        opacity: 0.9;
+    }
+    50% {
+        transform: scale(1.5);
+        opacity: 0.3;
+    }
+}
+
+@keyframes kh-loader-ripple {
+    0% {
+        transform: scale(0);
+        opacity: 1;
+    }
+    100% {
+        transform: scale(1);
+        opacity: 0;
+    }
+}
+
+@keyframes kh-loader-counterspin {
+    to { transform: rotate(-360deg); }
+}
+
+@keyframes kh-loader-typewriter {
+    0%, 60%, 100% { opacity: 0.15; }
+    30%           { opacity: 1; }
+}

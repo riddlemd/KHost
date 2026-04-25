@@ -1,0 +1,15 @@
+@code {
+    [Parameter]
+    public string Name { get; set; } = "";
+
+    [Parameter]
+    public string Class { get; set; } = "";
+
+    [Parameter]
+    public EventCallback<MouseEventArgs> OnClick { get; set; }
+}
+
+@if(!string.IsNullOrWhiteSpace(Name))
+{
+    <i class="bi bi-@Name @Class" @onclick="OnClick"></i>
+}

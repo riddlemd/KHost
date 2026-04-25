@@ -22,6 +22,9 @@ public class SingerQueueService : ISingerQueueService
     public Guid? SelectedSingerId { get; private set; }
     public Singer? SelectedSinger =>
         SelectedSingerId is { } id ? _cachedSingers.FirstOrDefault(s => s.Id == id) : null;
+    public bool IsTopSlotLocked => _isTopSlotLocked;
+
+    private bool _isTopSlotLocked;
 
     public IOptionsMonitor<ServiceOptions> Options { get; set; }
 
@@ -89,9 +92,12 @@ public class SingerQueueService : ISingerQueueService
     {
         var idx = _singerIds.IndexOf(singerId);
 
-        if (idx > 0)
+        SelectedSingerId = singerId;
+
+        if (idx > 0 && !(idx == 1 && IsTopSlotLocked))
         {
             (_singerIds[idx], _singerIds[idx - 1]) = (_singerIds[idx - 1], _singerIds[idx]);
+
             _logger.LogDebug("Singer {SingerId} moved up from position {OldIndex} to {NewIndex}", singerId, idx, idx - 1);
         }
 
@@ -102,9 +108,12 @@ public class SingerQueueService : ISingerQueueService
     {
         var idx = _singerIds.IndexOf(singerId);
 
+        SelectedSingerId = singerId;
+
         if (idx >= 0 && idx < _singerIds.Count - 1)
         {
             (_singerIds[idx], _singerIds[idx + 1]) = (_singerIds[idx + 1], _singerIds[idx]);
+            
             _logger.LogDebug("Singer {SingerId} moved down from position {OldIndex} to {NewIndex}", singerId, idx, idx + 1);
         }
 
@@ -115,14 +124,21 @@ public class SingerQueueService : ISingerQueueService
     {
         var idx = _singerIds.IndexOf(singerId);
 
-        if (idx > 0)
+        if (idx > 0 && !IsTopSlotLocked)
         {
             _singerIds.RemoveAt(idx);
+
             _singerIds.Insert(0, singerId);
+
             _logger.LogDebug("Singer {SingerId} moved to start of queue", singerId);
+
             await NotifyAsync();
         }
     }
+
+    public void LockTopSlot() => _isTopSlotLocked = true;
+
+    public void UnlockTopSlot() => _isTopSlotLocked = false;
 
     public async Task MoveSingerToEndAsync(Guid singerId)
     {
@@ -131,10 +147,32 @@ public class SingerQueueService : ISingerQueueService
         if (idx >= 0 && idx < _singerIds.Count - 1)
         {
             _singerIds.RemoveAt(idx);
+
             _singerIds.Add(singerId);
+
             _logger.LogDebug("Singer {SingerId} moved to end of queue", singerId);
+
             await NotifyAsync();
         }
+    }
+
+    public async Task MoveSingerToIndexAsync(Guid singerId, int newIndex)
+    {
+        var idx = _singerIds.IndexOf(singerId);
+
+        if (idx < 0) return;
+
+        if (IsTopSlotLocked && newIndex == 0) return;
+
+        var clampedIndex = Math.Clamp(newIndex, 0, _singerIds.Count - 1);
+
+        _singerIds.RemoveAt(idx);
+
+        _singerIds.Insert(clampedIndex, singerId);
+
+        _logger.LogDebug("Singer {SingerId} moved to index {NewIndex}", singerId, clampedIndex);
+
+        await NotifyAsync();
     }
 
     public async Task SelectFirstSingerInQueueAsync()
@@ -149,6 +187,22 @@ public class SingerQueueService : ISingerQueueService
     public async Task RefreshAsync()
     {
         await NotifyAsync();
+    }
+
+    public async Task ClearAsync()
+    {
+        if (!Options.CurrentValue.ClearOnClose)
+            return;
+
+        _singerIds.Clear();
+
+        SelectedSingerId = null;
+
+        await SaveAsync();
+        
+        _logger.LogInformation("Singer queue cleared on close");
+
+        await _performanceService.DeleteAllQueuedAsync();
     }
 
     private async void Load()
@@ -206,6 +260,7 @@ public class SingerQueueService : ISingerQueueService
     {
         public const string SectionName = nameof(SingerQueueService);
         public bool PromptBeforeRemovingSinger { get; init; }
+        public bool ClearOnClose { get; set; }
     }
 
     private class QueueCacheData

@@ -18,7 +18,7 @@ public class VenuesService : BaseRepositoryService<Venue, IVenuesRepository>, IV
         Options = options;
     }
 
-    public async Task<Venue?> GetSelectedVenueAsync()
+    public async Task<Venue?> ReadSelectedVenueAsync()
     {
         if (SelectedVenueId is not { } id)
             return null;

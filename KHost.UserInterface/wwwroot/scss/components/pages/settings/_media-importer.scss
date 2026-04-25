@@ -1,0 +1,106 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   Media Importer Page
+   File browser, breadcrumb, and import progress
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.kh-media-importer {
+    &__path-bar {
+        overflow-y: unset;
+        padding: 8px 16px;
+        border-bottom: 1px solid var(--kh-border);
+        flex-shrink: 0;
+    }
+
+    &__breadcrumb {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 0.82rem;
+        color: var(--kh-text-secondary);
+        overflow: hidden;
+        white-space: nowrap;
+    }
+
+    &__path-input {
+        flex: 1;
+        background: transparent;
+        border: none;
+        outline: none;
+        font-size: 0.82rem;
+        color: var(--kh-text-secondary);
+        font-family: inherit;
+        min-width: 0;
+
+        &::placeholder {
+            color: var(--kh-text-muted);
+        }
+
+        &:focus {
+            color: var(--kh-text);
+        }
+    }
+
+    &__listing {
+        flex: 1;
+        overflow-y: auto;
+    }
+
+    &__table {
+        width: 100%;
+
+        td i {
+            margin-right: 1em;
+        }
+    }
+
+    &__col--check {
+        width: 36px;
+        text-align: center;
+    }
+
+    &__check {
+        cursor: pointer;
+        font-size: 1rem;
+
+        &--disabled {
+            color: var(--kh-text-muted);
+            cursor: default;
+            pointer-events: none;
+        }
+    }
+
+    &__col--status {
+        width: 20em;
+    }
+
+    &__row--dir {
+        cursor: pointer;
+
+        &:hover td {
+            color: var(--kh-primary-bright);
+        }
+    }
+
+    &__row--dir--selected {
+    }
+
+    &__row--empty {
+        cursor: default;
+
+        &:hover td {
+            background: unset;
+        }
+
+        td {
+            padding: 0;
+        }
+    }
+
+    &__progress {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 0.85rem;
+        color: var(--kh-text-muted);
+    }
+}

@@ -1,0 +1,68 @@
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+
+<div class="kh-split-btn @Class">
+    <button
+        class="kh-split-btn__primary kh-button"
+        disabled="@Disabled"
+        title="@Title"
+        @onclick="OnClick">
+        @Text
+    </button>
+    <button class="kh-split-btn__toggle kh-button"
+        disabled="@Disabled"
+        aria-haspopup="listbox" aria-expanded="@_open"
+        @ref="_toggleRef"
+        title="Click to show more options"
+        @onclick="ToggleMenu" @onclick:stopPropagation>
+        <Icon Name="@(_open ? "chevron-up" : "chevron-down")" />
+    </button>
+
+    @if (_open)
+    {
+        <div class="kh-split-btn__overlay" @onclick="CloseMenu"></div>
+
+        <div class="kh-split-btn__menu" @ref="_menuRef" @onclick="CloseMenu">
+            @Buttons
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public EventCallback<MouseEventArgs> OnClick { get; set; }
+    [Parameter] public RenderFragment? Text { get; set; }
+    [Parameter] public RenderFragment? Buttons { get; set; }
+    [Parameter] public bool Disabled { get; set; }
+    [Parameter] public string Class { get; set; } = "";
+    [Parameter] public string? Title { get; set; }
+
+    private ElementReference _toggleRef;
+    private ElementReference _menuRef;
+    private IJSObjectReference? _module;
+
+    private bool _open;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+            _module = await JS.InvokeAsync<IJSObjectReference>("import", "/js/split-button.js");
+
+        if (_open && _module is not null)
+            await _module.InvokeVoidAsync("positionMenu", _toggleRef, _menuRef);
+    }
+
+    private void ToggleMenu() => _open = !_open;
+    private void CloseMenu() => _open = false;
+
+    public async ValueTask DisposeAsync()
+    {
+        try {
+            if (_module is not null)
+                await _module.DisposeAsync();
+        }
+        catch
+        {
+            // Do nothing...    
+        }
+    }
+}

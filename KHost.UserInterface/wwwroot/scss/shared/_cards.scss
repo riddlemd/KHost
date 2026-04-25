@@ -1,0 +1,92 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   Cards & Badges
+   Card components, headers, bodies, and badge styles
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ─── Card ────────────────────────────────────────────────────────────────── */
+.kh-card {
+    background: linear-gradient(160deg, var(--kh-bg-card) 0%, var(--kh-bg-card-dark) 100%);
+    border: 1px solid var(--kh-border);
+    border-radius: var(--kh-radius-lg);
+    display: flex;
+    flex-direction: column;
+    overflow: clip;
+
+    &__header {
+        background: var(--kh-card-header-bg);
+        border-bottom: 1px solid var(--kh-border);
+        padding: 12px 16px;
+        font-weight: 600;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--kh-text-secondary);
+        display: flex;
+        align-items: center;
+
+        .kh-card__title {
+            color: var(--kh-text-secondary);
+            margin: 0 0 0 1em;
+            font-size: inherit;
+            font-weight: inherit;
+            letter-spacing: inherit;
+            text-transform: inherit;
+        }
+
+        .kh-card__shortcut {
+            margin-left: auto;
+            opacity: 0.3;
+        }
+
+        .kh-button {
+            margin-left: auto;
+            padding: 0.5em;
+        }
+    }
+
+    &__shortcut {
+        margin-left: auto;
+        opacity: 0.3;
+    }
+
+    &__body {
+        overflow-y: scroll;
+
+        > form {
+            padding: 0.5em;
+        }
+    }
+}
+
+/* ─── Badge ───────────────────────────────────────────────────────────────── */
+.kh-badge {
+    padding: 0.2em;
+    margin: 0.2em;
+
+    &--secondary {
+        background: var(--kh-primary-active) !important;
+        color: var(--kh-primary-bright);
+        border: 1px solid var(--kh-border-bright);
+        font-weight: 500;
+    }
+
+    &--success {
+        background: var(--kh-success-subtle) !important;
+        color: var(--kh-success);
+        border: 1px solid var(--kh-success-border-subtle);
+        font-weight: 500;
+    }
+
+    &--cdg {
+        background: var(--kh-badge-info-bg) !important;
+        color: var(--kh-badge-info-text);
+        border: 1px solid var(--kh-badge-info-border);
+        font-weight: 500;
+    }
+
+    &--ext {
+        background: var(--kh-primary-subtle) !important;
+        color: var(--kh-text-secondary);
+        border: 1px solid var(--kh-border);
+        font-weight: 500;
+    }
+}

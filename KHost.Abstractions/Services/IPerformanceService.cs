@@ -5,15 +5,17 @@ namespace KHost.Abstractions.Services;
 
 public interface IPerformanceService : IRepositoryService<Performance>
 {
-    Task<PaginatedResult<Performance>> GetBySingerIdAsync(Guid singerId, int pageNumber = 1, int pageSize = 0, bool includeQueued = false);
-    Task<PaginatedResult<Performance>> GetByMediaIdAsync(Guid mediaId, int pageNumber = 1, int pageSize = 0, bool includeQueued = false);
+    Task<PaginatedResult<Performance>> ReadAllAsync(int pageNumber = 1, int pageSize = 0, PerformanceFilter filter = PerformanceFilter.Queued);
+    Task<PaginatedResult<Performance>> ReadBySingerIdAsync(Guid singerId, int pageNumber = 1, int pageSize = 0, PerformanceFilter filter = PerformanceFilter.UnQueued);
+    Task<PaginatedResult<Performance>> ReadByMediaIdAsync(Guid mediaId, int pageNumber = 1, int pageSize = 0, PerformanceFilter filter = PerformanceFilter.UnQueued);
 
-    Task<IReadOnlyList<Performance>> GetSingerPerformances(Guid singerId, int pageNumber = 0, int pageSize = 0);
-    Task<Performance?> GetSingersNextPerformanceAsync(Guid singerId);
+    Task<Performance?> ReadSingersNextPerformanceAsync(Guid singerId);
+    Task<List<Performance>> ReadQueuedAsync();
 
     Task<Performance> CreateAndEnqueueAsync(Performance performance);
     Task DequeueAsync(Guid singerId, Guid performanceId);
     Task MoveUpInQueueAsync(Guid singerId, Guid performanceId);
     Task MoveDownInQueueAsync(Guid singerId, Guid performanceId);
     Task MoveToEndOfQueueAsync(Guid singerId, Guid performanceId);
+    Task DeleteAllQueuedAsync();
 }

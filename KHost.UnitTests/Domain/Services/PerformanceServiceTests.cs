@@ -37,7 +37,7 @@ public class PerformanceServiceTests
                 return Task.FromResult(perf);
             });
 
-        _repository.GetNextQueuePositionForSingerAsync(Arg.Any<Guid>())
+        _repository.ReadNextQueuePositionForSingerAsync(Arg.Any<Guid>())
             .Returns(args =>
             {
                 var singerId = (Guid)args[0];
@@ -45,6 +45,16 @@ public class PerformanceServiceTests
                     .Where(p => p.SingerId == singerId && p.QueuePosition.HasValue)
                     .Max(p => p.QueuePosition) ?? 0;
                 return Task.FromResult(maxPosition + 1);
+            });
+
+        _repository.ReadQueuedAsync()
+            .Returns(_ =>
+            {
+                var queued = _performanceDb
+                    .Where(p => p.QueuePosition.HasValue)
+                    .OrderBy(p => p.QueuePosition)
+                    .ToList();
+                return Task.FromResult(queued);
             });
 
         _repository.ReadAllAsync(Arg.Any<int>(), Arg.Any<int>())
@@ -60,6 +70,29 @@ public class PerformanceServiceTests
                 return Task.FromResult(allPerfs);
             });
 
+        _repository.ReadBySingerIdAsync(Arg.Any<Guid>(), Arg.Any<int>(), Arg.Any<int>(), Arg.Any<PerformanceFilter>())
+            .Returns(args =>
+            {
+                var singerId = (Guid)args[0];
+                var filter = (PerformanceFilter)args[3];
+
+                var query = _performanceDb.Where(p => p.SingerId == singerId);
+
+                if (filter.HasFlag(PerformanceFilter.Queued) && !filter.HasFlag(PerformanceFilter.UnQueued))
+                    query = query.Where(p => p.QueuePosition.HasValue);
+                else if (!filter.HasFlag(PerformanceFilter.Queued) && filter.HasFlag(PerformanceFilter.UnQueued))
+                    query = query.Where(p => !p.QueuePosition.HasValue);
+
+                var items = query.OrderBy(p => p.QueuePosition).ToList();
+                return Task.FromResult(new PaginatedResult<Performance>
+                {
+                    Items = items,
+                    TotalCount = items.Count,
+                    PageNumber = 1,
+                    PageSize = 0
+                });
+            });
+
         _service = new PerformanceService(_logger, _repository);
     }
 
@@ -67,9 +100,9 @@ public class PerformanceServiceTests
     public async Task NewService_HasEmptyQueues()
     {
         var singerId = Guid.NewGuid();
-        var performances = await _service.GetSingerPerformances(singerId);
+        var performances = await _service.ReadBySingerIdAsync(singerId, filter: PerformanceFilter.Queued);
 
-        Assert.Empty(performances);
+        Assert.Empty(performances.Items);
     }
 
     [Fact]
@@ -80,12 +113,12 @@ public class PerformanceServiceTests
 
         var performance = await _service.CreateAndEnqueueAsync(new Performance { Id = Guid.NewGuid(), SingerId = singerId, MediaId = mediaId });
 
-        var queued = await _service.GetSingerPerformances(singerId);
-        Assert.Single(queued);
-        Assert.Equal(performance.Id, queued[0].Id);
-        Assert.Equal(singerId, queued[0].SingerId);
-        Assert.Equal(mediaId, queued[0].MediaId);
-        Assert.Equal(1, queued[0].QueuePosition);
+        var queued = await _service.ReadBySingerIdAsync(singerId, filter: PerformanceFilter.Queued);
+        Assert.Single(queued.Items);
+        Assert.Equal(performance.Id, queued.Items[0].Id);
+        Assert.Equal(singerId, queued.Items[0].SingerId);
+        Assert.Equal(mediaId, queued.Items[0].MediaId);
+        Assert.Equal(1, queued.Items[0].QueuePosition);
     }
 
     [Fact]
@@ -108,9 +141,9 @@ public class PerformanceServiceTests
 
         await _service.DequeueAsync(singerId, perf1.Id);
 
-        var queued = await _service.GetSingerPerformances(singerId);
-        Assert.Single(queued);
-        Assert.Equal(perf2.Id, queued[0].Id);
+        var queued = await _service.ReadBySingerIdAsync(singerId, filter: PerformanceFilter.Queued);
+        Assert.Single(queued.Items);
+        Assert.Equal(perf2.Id, queued.Items[0].Id);
     }
 
     [Fact]
@@ -122,9 +155,9 @@ public class PerformanceServiceTests
 
         await _service.MoveUpInQueueAsync(singerId, perf2.Id);
 
-        var queued = await _service.GetSingerPerformances(singerId);
-        Assert.Equal(perf2.Id, queued[0].Id);
-        Assert.Equal(perf1.Id, queued[1].Id);
+        var queued = await _service.ReadBySingerIdAsync(singerId, filter: PerformanceFilter.Queued);
+        Assert.Equal(perf2.Id, queued.Items[0].Id);
+        Assert.Equal(perf1.Id, queued.Items[1].Id);
     }
 
     [Fact]
@@ -136,9 +169,9 @@ public class PerformanceServiceTests
 
         await _service.MoveDownInQueueAsync(singerId, perf1.Id);
 
-        var queued = await _service.GetSingerPerformances(singerId);
-        Assert.Equal(perf2.Id, queued[0].Id);
-        Assert.Equal(perf1.Id, queued[1].Id);
+        var queued = await _service.ReadBySingerIdAsync(singerId, filter: PerformanceFilter.Queued);
+        Assert.Equal(perf2.Id, queued.Items[0].Id);
+        Assert.Equal(perf1.Id, queued.Items[1].Id);
     }
 
     [Fact]
@@ -151,9 +184,9 @@ public class PerformanceServiceTests
 
         await _service.MoveToEndOfQueueAsync(singerId, perf1.Id);
 
-        var queued = await _service.GetSingerPerformances(singerId);
-        Assert.Equal(perf2.Id, queued[0].Id);
-        Assert.Equal(perf3.Id, queued[1].Id);
-        Assert.Equal(perf1.Id, queued[2].Id);
+        var queued = await _service.ReadBySingerIdAsync(singerId, filter: PerformanceFilter.Queued);
+        Assert.Equal(perf2.Id, queued.Items[0].Id);
+        Assert.Equal(perf3.Id, queued.Items[1].Id);
+        Assert.Equal(perf1.Id, queued.Items[2].Id);
     }
 }

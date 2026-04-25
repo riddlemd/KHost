@@ -42,6 +42,9 @@ public class PlaybackService : BaseService, IPlaybackService
         CurrentMedia = media;
         Position = TimeSpan.Zero;
 
+        await _singerQueueService.MoveSingerToStartAsync(performance.SingerId);
+        _singerQueueService.LockTopSlot();
+
         Logger.LogInformation("Loading media '{Title}' for performance {PerformanceId}", media.Title, performance.Id);
 
         InvokeStateChanged();
@@ -50,9 +53,6 @@ public class PlaybackService : BaseService, IPlaybackService
     public async Task PlayAsync()
     {
         if (CurrentPerformance is null || State == PlaybackState.Playing) return;
-
-        // Move the singer to the top of the queue when play starts
-        await _singerQueueService.MoveSingerToStartAsync(CurrentPerformance.SingerId);
 
         CurrentlyPerformingSingerId = CurrentPerformance.SingerId;
 
@@ -127,6 +127,8 @@ public class PlaybackService : BaseService, IPlaybackService
         CurrentPerformance = null;
         CurrentMedia = null;
 
+        _singerQueueService.UnlockTopSlot();
+
         if (currentPerformance is null)
             return;
 
@@ -141,7 +143,17 @@ public class PlaybackService : BaseService, IPlaybackService
         await _performanceService.DequeueAsync(currentPerformance.SingerId, currentPerformance.Id);
     }
 
-    private void OnTick(object? state) => _ = TickAsync();
+    private async void OnTick(object? state)
+    {
+        try
+        {
+            await TickAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Unhandled error in playback tick");
+        }
+    }
 
     private async Task TickAsync()
     {
@@ -151,8 +163,10 @@ public class PlaybackService : BaseService, IPlaybackService
 
         if (CurrentMedia?.Duration is { } duration && Position >= duration)
         {
-            Position = duration;
             ResetState();
+
+            Logger.LogInformation("Playback concluded");
+
             await EndedAsync();
         }
 

@@ -1,0 +1,41 @@
+@using KHost.UserInterface.Services
+@rendermode InteractiveServer
+@implements IDisposable
+
+<span class="kh-theme-selector input">
+    Theme
+    <select class="form-select" @onchange="OnThemeChanged">
+        @foreach (var theme in ThemeService?.AvailableThemes ?? [])
+        {
+            <option value="@theme" selected="@(ThemeService?.CurrentTheme == theme)">
+                @(char.ToUpper(theme[0]) + theme[1..])
+            </option>
+        }
+    </select>
+</span>
+
+@code {
+    [Inject] private IThemeService? ThemeService { get; set; }
+
+    protected override void OnInitialized()
+    {
+        ThemeService?.StateChanged += OnStateChanged;
+    }
+
+    private async Task OnThemeChanged(ChangeEventArgs e)
+    {
+        if (ThemeService is null) return;
+        if (e.Value is string theme)
+            await ThemeService.SetThemeAsync(theme);
+    }
+
+    private async void OnStateChanged(object? sender, EventArgs e)
+    {
+        await InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        ThemeService?.StateChanged -= OnStateChanged;
+    }
+}

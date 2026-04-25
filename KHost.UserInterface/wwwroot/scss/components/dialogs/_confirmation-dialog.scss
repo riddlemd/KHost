@@ -1,0 +1,10 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   Confirmation Dialog
+   Styles for ConfirmationDialog.razor (inherits .kh-dialog base)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.kh-confirmation-dialog {
+    &__message {
+        text-align: center;
+    }
+}

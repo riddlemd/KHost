@@ -1,0 +1,61 @@
+@rendermode InteractiveServer
+@implements IAsyncDisposable
+
+<span class="kh-venue-selector input">
+    Venue
+    <select class="form-select" @onchange="OnVenueChanged">
+        @if (_venues?.Count > 0)
+        {
+            @foreach (var venue in _venues)
+            {
+                <option value="@venue.Id" selected="@(VenuesService?.SelectedVenueId == venue.Id)">@venue.Name</option>
+            }
+        }
+        else
+        {
+            <option>No venues available</option>
+        }
+    </select>
+</span>
+
+@code {
+    [Inject] private IVenuesService? VenuesService { get; set; }
+
+    private IReadOnlyList<Venue>? _venues;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (VenuesService is null) return;
+
+        var result = await VenuesService.ReadAllAsync(pageSize: 1000);
+        _venues = result.Items;
+
+        VenuesService.StateChanged += OnStateChanged;
+    }
+
+    private async Task OnVenueChanged(ChangeEventArgs e)
+    {
+        if (VenuesService is null) return;
+
+        if (e.Value is string venueIdStr && Guid.TryParse(venueIdStr, out var venueId))
+            await VenuesService.SelectVenueAsync(venueId);
+        else
+            await VenuesService.SelectVenueAsync(null);
+    }
+
+    private async void OnStateChanged(object? sender, EventArgs e)
+    {
+        if (VenuesService is null) return;
+
+        var result = await VenuesService.ReadAllAsync(pageSize: 1000);
+        _venues = result.Items;
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    public ValueTask DisposeAsync()
+    {
+        VenuesService?.StateChanged -= OnStateChanged;
+        return ValueTask.CompletedTask;
+    }
+}

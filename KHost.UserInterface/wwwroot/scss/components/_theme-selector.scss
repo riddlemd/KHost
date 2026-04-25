@@ -1,0 +1,13 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   Theme Selector
+   Styles for ThemeSelector.razor
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.kh-theme-selector {
+    display: flex;
+    align-items: center;
+
+    .form-select {
+        padding: 0.35rem 0.6rem;
+    }
+}

@@ -1,8 +1,10 @@
 @using System.ComponentModel.DataAnnotations
+@using KHost.UserInterface.Models
+@using KHost.UserInterface.Services
 
-<Dialog IsOpen="IsOpen" CloseOnOverlayClick="false" Class="@($"kh-dialog__venue-edit {Class}".TrimEnd())">
+<Dialog IsOpen="IsOpen" Class="@($"{_rootClassName} {Class.Trim()}".Trim())" OnClose="OnClose" CloseOnScrimClick="CloseOnScrimClick">
     <Header>
-        <i class="bi bi-geo-alt-fill"></i> @(_isNew ? "Add Venue" : "Edit Venue")
+        <Icon Name="geo-alt-fill" /> @(_isNew ? "Add Venue" : "Edit Venue")
     </Header>
     <Body>
         <EditForm EditContext="_editContext" OnValidSubmit="SaveAsync">
@@ -23,29 +25,54 @@
                     <span class="form-check-label">Enabled</span>
                 </label>
             </div>
-            <button type="submit" class="kh-venue-edit__submit-hidden" style="display: none;"></button>
+            <button type="submit" class="kh-hidden"></button>
         </EditForm>
     </Body>
     <Footer>
-        <button class="kh-venue-edit__cancel-btn kh-button kh-button--secondary" @onclick="CloseAsync" type="button">Cancel</button>
-        <button class="kh-venue-edit__save-btn kh-button kh-button--primary" @onclick="SubmitAsync" type="button">Save</button>
+        <button class="@(_rootClassName)__cancel-btn kh-button kh-button--secondary" @onclick="CloseAsync" type="button">Cancel</button>
+        <button class="@(_rootClassName)__save-btn kh-button kh-button--primary" @onclick="SubmitAsync" type="button">Save</button>
     </Footer>
 </Dialog>
 
 @code {
+    private const string _rootClassName = "kh-venue-edit-dialog";
+
     [Parameter] public bool IsOpen { get; set; }
-    [Parameter] public EventCallback<VenueEditModel> OnSave { get; set; }
+    [Parameter] public Venue? Venue { get; set; }
+    [Parameter] public string Class { get; set; } = "";
+    [Parameter] public bool CloseOnScrimClick { get; set; }
+
+    [Parameter] public EventCallback<Venue> OnSave { get; set; }
     [Parameter] public EventCallback OnClose { get; set; }
     [Parameter] public EventCallback OnOpen { get; set; }
-    [Parameter] public string Class { get; set; } = "";
 
     private bool _isNew;
     private VenueEditModel _model = new();
     private EditContext _editContext = default!;
+    private bool _prevIsOpen;
 
     protected override void OnInitialized()
     {
         _editContext = new EditContext(_model);
+    }
+
+    protected override void OnParametersSet()
+    {
+        if (IsOpen && !_prevIsOpen)
+        {
+            _isNew = Venue is null;
+            _model = Venue is null
+                ? new VenueEditModel()
+                : new VenueEditModel
+                {
+                    Id = Venue.Id,
+                    Name = Venue.Name,
+                    Notes = Venue.Notes,
+                    Enabled = Venue.Enabled
+                };
+            _editContext = new EditContext(_model);
+        }
+        _prevIsOpen = IsOpen;
     }
 
     private async Task SubmitAsync()
@@ -56,7 +83,12 @@
 
     private async Task SaveAsync()
     {
-        await OnSave.InvokeAsync(_model);
+        var venue = Venue ?? new Venue { Id = _model.Id, Name = _model.Name };
+        venue.Name = _model.Name;
+        venue.Notes = _model.Notes;
+        venue.Enabled = _model.Enabled;
+
+        await OnSave.InvokeAsync(venue);
 
         await CloseAsync();
     }
@@ -68,40 +100,13 @@
         await OnClose.InvokeAsync();
     }
 
-    public async Task OpenAsync(Venue? venue = null)
+    private string GetClassString()
+        => $"kh-singer-edit-dialog {Class?.Trim()}".Trim();
+
+    public record DialogRequest : EditDialogRequest<Venue>
     {
-        _model = venue is null
-            ? new VenueEditModel()
-            : new VenueEditModel
-            {
-                Id = venue.Id,
-                Name = venue.Name,
-                Notes = venue.Notes,
-                Enabled = venue.Enabled
-            };
-
-        _editContext = new EditContext(_model);
-
-        _isNew = venue is null;
-
-        IsOpen = true;
-
-        await OnOpen.InvokeAsync();
-
-        StateHasChanged();
-    }
-
-    public class VenueEditModel
-    {
-        public Guid Id { get; set; } = Guid.NewGuid();
-
-        [Required(ErrorMessage = "Name is required.")]
-        [MaxLength(32, ErrorMessage = "Name cannot exceed 32 characters.")]
-        public string Name { get; set; } = "";
-
-        [MaxLength(255, ErrorMessage = "Notes cannot exceed 255 characters.")]
-        public string Notes { get; set; } = "";
-
-        public bool Enabled { get; set; } = true;
+        public DialogRequest(Venue? value, Action<Venue?> onSave, Action? onCancel, Action onClose) : base(value, onSave, onCancel, onClose)
+        {
+        }
     }
 }

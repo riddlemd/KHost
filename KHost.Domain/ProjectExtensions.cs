@@ -1,6 +1,7 @@
 ﻿using KHost.Abstractions.Services;
 using KHost.Domain.Services;
 using KHost.Domain.Services.MediaProviders;
+using KHost.LrcLib;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace KHost.Domain
@@ -9,6 +10,12 @@ namespace KHost.Domain
     {
         public static IServiceCollection AddDomain(this IServiceCollection serviceCollection)
         {
+            // Register dependent sub-libraries
+            serviceCollection.AddLrcLib(options =>
+            {
+                options.UserAgent = "KHost/2.0 (+https://github.com/riddlemd/KHost)";
+            });
+
             // Configure KHost Options
             serviceCollection.AddOptions<PlaybackService.ServiceOptions>()
                 .BindConfiguration(PlaybackService.ServiceOptions.SectionName);
@@ -27,6 +34,8 @@ namespace KHost.Domain
 
             // Configure KHost Services
             serviceCollection.AddSingleton(TimeProvider.System);
+            serviceCollection.AddSingleton<IMediaFileParsingService, MediaFileParsingService>();
+            serviceCollection.AddSingleton<IMediaImportService, MediaImportService>();
             serviceCollection.AddSingleton<ICacheService, JsonFileCacheService>();
             serviceCollection.AddSingleton<ISingerQueueService, SingerQueueService>();
             serviceCollection.AddSingleton<IPlaybackService, PlaybackService>();
@@ -35,6 +44,7 @@ namespace KHost.Domain
             serviceCollection.AddSingleton<ISingersService, SingersService>();
             serviceCollection.AddSingleton<IPerformanceService, PerformanceService>();
             serviceCollection.AddSingleton<IMediaService, MediaService>();
+            serviceCollection.AddSingleton<ILyricsService, LyricsService>();
 
             // Media Providers
             serviceCollection.AddSingleton<IMediaProvider, DefaultMediaProvider>();

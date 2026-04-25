@@ -1,0 +1,11 @@
+@code {
+    [Parameter]
+    public string Class { get; set; } = "";
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+}
+
+<div class="kh-control @(Class.Trim())">
+    @ChildContent
+</div>

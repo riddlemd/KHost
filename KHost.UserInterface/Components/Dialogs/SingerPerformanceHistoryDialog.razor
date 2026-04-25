@@ -1,15 +1,17 @@
 @using KHost.Abstractions.Models
 @using KHost.Abstractions.Services
+@using KHost.UserInterface.Models
+@using KHost.UserInterface.Services
 
-<Dialog IsOpen="IsOpen" CloseOnOverlayClick="true" Class="@($"kh-dialog__performance-history {Class}".TrimEnd())">
+<Dialog IsOpen="IsOpen" Class="@($"{_rootClassName} {Class?.Trim()}".Trim())" OnClose="OnClose" CloseOnScrimClick="CloseOnScrimClick">
     <Header>
-        <i class="bi bi-clock-history"></i> Performance History
+        <Icon Name="clock-history" /> Performance History
     </Header>
     <Body>
         @if (_paginatedPerformances?.Items.Count > 0)
         {
-            <div class="kh-dialog__performance-history__table-wrapper">
-                <table class="kh-dialog__performance-history__table">
+            <div class="@(_rootClassName)__table-wrapper">
+                <table class="kh-table">
                     <thead>
                         <tr>
                             <th>Media</th>
@@ -23,16 +25,31 @@
                         {
                             var media = _media.FirstOrDefault(m => m.Id == perf.MediaId);
                             var isReady = media?.Status == MediaStatus.Ready;
-                            var buttonText = isReady ? "Enqueue" : (media?.Status.ToString() ?? "Unknown");
+                            var enqueueDescription = isReady ? "Add to Singer's Queue" : (media?.Status.ToString() ?? "Unknown");
+
                             <tr>
-                                <td>@(media?.Title ?? "Unknown")</td>
-                                <td>@(media?.Artist ?? "Unknown")</td>
+                                <td class="kh-table__cell--fill">@(media?.Title ?? "Unknown")</td>
+                                <td class="kh-table__cell--fill">@(media?.Artist ?? "Unknown")</td>
                                 <td>@perf.CreatedDate.ToString("g")</td>
-                                <td>
-                                    <button class="kh-dialog__performance-history__enqueue-btn kh-button kh-button--primary"
+                                <td class="kh-table__cell--actions">
+                                    <SplitButton
                                             disabled="@(!isReady)"
-                                            @onclick="() => EnqueueAsync(perf.MediaId)"
-                                            type="button">@buttonText</button>
+                                            @onclick="() => EnqueueAsync(media)"
+                                            title="@enqueueDescription">
+                                        <Text><Icon Name="plus-lg" /></Text>
+                                        <Buttons>
+                                            <button class="@(_rootClassName)__edit-media-btn kh-button"
+                                                    @onclick="() => EditAsync(media)"
+                                                    title="Edit song associated with this performance">
+                                                <Icon Name="pencil-fill" /> Edit
+                                            </button>
+                                            <button class="@(_rootClassName)__enqueue-btn kh-button"
+                                                    @onclick="() => ConfirmDeleteAsync(perf.Id)"
+                                                    title="Delete this performance">
+                                                <Icon Name="x-lg" /> Delete
+                                            </button>
+                                        </Buttons>
+                                    </SplitButton>
                                 </td>
                             </tr>
                         }
@@ -40,24 +57,14 @@
                 </table>
             </div>
 
-            @if (TotalPages > 1)
-            {
-                <div class="kh-pagination__nav">
-                    <span class="kh-pagination__info">Page @_currentPage of @TotalPages</span>
-                    <div class="kh-pagination__buttons">
-                        <button class="kh-pagination__link" disabled="@(_currentPage <= 1)" @onclick="() => PreviousPage()" type="button" title="Previous page">
-                            &#8592; Prev
-                        </button>
-                        <button class="kh-pagination__link" disabled="@(!_paginatedPerformances.HasNextPage)" @onclick="() => NextPage()" type="button" title="Next page">
-                            Next &#8594;
-                        </button>
-                    </div>
-                </div>
-            }
+            <Pagination CurrentPage="_currentPage"
+                        TotalPages="TotalPages"
+                        OnPreviousPage="PreviousPage"
+                        OnNextPage="NextPage" />
         }
         else
         {
-            <p class="kh-dialog__performance-history__empty">No performances found.</p>
+            <p class="@(_rootClassName)__empty">No performances found.</p>
         }
     </Body>
     <Footer>
@@ -66,30 +73,35 @@
 </Dialog>
 
 @code {
-    private const int PageSize = 5;
+    private const string _rootClassName = "kh-singer-performance-history-dialog";
+    private const int _pageSize = 5;
 
     [Parameter] public bool IsOpen { get; set; }
+    [Parameter] public Guid SingerId { get; set; }
     [Parameter] public string Class { get; set; } = "";
+    [Parameter] public bool CloseOnScrimClick { get; set; }
+
     [Parameter] public EventCallback OnClose { get; set; }
 
     [Inject] private IPerformanceService? PerformanceService { get; set; }
     [Inject] private IMediaService? MediaService { get; set; }
+    [Inject] private IDialogService? DialogService { get; set; }
 
     private PaginatedResult<Performance>? _paginatedPerformances;
     private List<Media> _media = [];
     private int _currentPage = 1;
-    private Guid _currentSingerId = Guid.Empty;
+    private bool _prevIsOpen;
 
     private int TotalPages => _paginatedPerformances?.TotalPages ?? 0;
 
-    public async Task OpenAsync(Guid singerId)
+    protected override async Task OnParametersSetAsync()
     {
-        _currentSingerId = singerId;
-        _currentPage = 1;
-
-        await LoadPageAsync();
-
-        IsOpen = true;
+        if (IsOpen && !_prevIsOpen)
+        {
+            _currentPage = 1;
+            await LoadPageAsync();
+        }
+        _prevIsOpen = IsOpen;
     }
 
     private async Task PreviousPage()
@@ -115,7 +127,7 @@
         if (PerformanceService is null || MediaService is null)
             return;
 
-        _paginatedPerformances = await PerformanceService.GetBySingerIdAsync(_currentSingerId, pageNumber: _currentPage, pageSize: PageSize);
+        _paginatedPerformances = await PerformanceService.ReadBySingerIdAsync(SingerId, pageNumber: _currentPage, pageSize: _pageSize, PerformanceFilter.UnQueued);
 
         var mediaIds = _paginatedPerformances.Items.Select(p => p.MediaId).Distinct().ToList();
         var mediaResults = await Task.WhenAll(mediaIds.Select(id => MediaService.ReadAsync(id)));
@@ -128,18 +140,70 @@
     public async Task CloseAsync()
     {
         IsOpen = false;
+
         await OnClose.InvokeAsync();
     }
 
-    private async Task EnqueueAsync(Guid mediaId)
+    private async Task EnqueueAsync(Media media)
     {
         if (PerformanceService is null)
             return;
 
         await PerformanceService.CreateAndEnqueueAsync(new Performance
         {
-            SingerId = _currentSingerId,
-            MediaId = mediaId
+            SingerId = SingerId,
+            MediaId = media.Id
         });
+
+        await CloseAsync();
+    }
+
+    private async Task EditAsync(Media media)
+    {
+        if (DialogService is null) return;
+
+        await DialogService.RequestEditAsync(media, async (media) => await SaveMedia(media));
+    }
+
+    private async Task ConfirmDeleteAsync(Guid performanceId)
+    {
+        if (DialogService is null) return;
+
+        await DialogService.ShowConfirmationAsync("Are you sure youw want to delete this <span class=\"kh-emphasis\">performance</span> from the user's history?", async () =>
+        {
+            await DeleteAsync(performanceId);
+        },
+        "Delete Performance",
+        "Delete");
+    }
+
+    private async Task DeleteAsync(Guid performanceId)
+    {
+        if (PerformanceService is null)
+            return;
+
+        await PerformanceService.DeleteAsync(performanceId);
+
+        await LoadPageAsync();
+    }
+
+    private async Task SaveMedia(Media? media)
+    {
+        if (MediaService is null) return;
+        if (media is null) return;
+
+        await MediaService.UpdateAsync(media);
+
+        await LoadPageAsync();
+    }
+
+    public record DialogRequest : BaseDialogRequest
+    {
+        public DialogRequest(Guid singerId, Action? OnClose) : base(OnClose)
+        {
+            SingerId = singerId;
+        }
+        
+        public Guid SingerId { get; init; }
     }
 }

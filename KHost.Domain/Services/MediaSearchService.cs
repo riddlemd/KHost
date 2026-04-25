@@ -37,4 +37,7 @@ public class MediaSearchService : BaseService, IMediaSearchService
 
         return [.. results.SelectMany(r => r)];
     }
+
+    public string GetMediaProviderDisplayName(string source)
+        => _providers.FirstOrDefault(x => x.SourceName == source)?.DisplayName ?? "Unknown Source";
 }

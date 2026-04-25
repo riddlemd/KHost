@@ -1,3 +1,4 @@
+using KHost.Abstractions.Interactions;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Repositories;
 using KHost.Abstractions.Services;
@@ -12,6 +13,8 @@ public class DefaultMediaProviderTests
     private readonly IPerformanceService _performanceService = Substitute.For<IPerformanceService>();
     private readonly ISingerQueueService _singerQueueService = Substitute.For<ISingerQueueService>();
     private readonly IMediaRepository _repository = Substitute.For<IMediaRepository>();
+    private readonly IInteractionDispatcher _interactions = Substitute.For<IInteractionDispatcher>();
+    private readonly IMediaService _mediaService = Substitute.For<IMediaService>();
     private readonly DefaultMediaProvider _service;
     private readonly List<Media> _mediaStore = [];
 
@@ -40,7 +43,7 @@ public class DefaultMediaProviderTests
         _performanceService.CreateAndEnqueueAsync(Arg.Any<Performance>())
             .Returns(args => Task.FromResult((Performance)args[0]));
 
-        _service = new DefaultMediaProvider(_logger, _performanceService, _singerQueueService, _repository);
+        _service = new DefaultMediaProvider(_logger, _performanceService, _singerQueueService, _repository, _interactions, _mediaService);
     }
 
     [Fact]
@@ -117,7 +120,7 @@ public class DefaultMediaProviderTests
     {
         _singerQueueService.SelectedSingerId.Returns((Guid?)null);
 
-        await _service.EnqueueAsync(Guid.NewGuid().ToString());
+        await _service.EnqueueAsync(new MediaSearchEntity { SourceDisplayName = "test", Source = "test", ForeignKey = Guid.NewGuid().ToString(), DisplayName = "test" });
 
         await _performanceService.DidNotReceive().CreateAndEnqueueAsync(Arg.Any<Performance>());
     }
@@ -129,7 +132,7 @@ public class DefaultMediaProviderTests
         var mediaId = Guid.NewGuid();
         _singerQueueService.SelectedSingerId.Returns(singerId);
 
-        await _service.EnqueueAsync(mediaId.ToString());
+        await _service.EnqueueAsync(new MediaSearchEntity { SourceDisplayName = "test", Source = "test", ForeignKey = mediaId.ToString(), DisplayName = "test" });
 
         await _performanceService.Received(1)
             .CreateAndEnqueueAsync(Arg.Is<Performance>(p => p.MediaId == mediaId));
@@ -141,7 +144,7 @@ public class DefaultMediaProviderTests
         var singerId = Guid.NewGuid();
         _singerQueueService.SelectedSingerId.Returns(singerId);
 
-        await _service.EnqueueAsync(Guid.NewGuid().ToString());
+        await _service.EnqueueAsync(new MediaSearchEntity { SourceDisplayName = "test", Source = "test", ForeignKey = Guid.NewGuid().ToString(), DisplayName = "test" });
 
         await _performanceService.Received(1)
             .CreateAndEnqueueAsync(Arg.Is<Performance>(p => p.SingerId == singerId));

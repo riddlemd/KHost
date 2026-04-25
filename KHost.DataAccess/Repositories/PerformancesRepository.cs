@@ -12,26 +12,59 @@ internal class PerformancesRepository : BaseRepository<Performance>, IPerformanc
     {
     }
 
-    public async Task<int> GetNextQueuePositionForSingerAsync(Guid singerId)
+    public async Task<int> ReadNextQueuePositionForSingerAsync(Guid singerId)
         => (await GetContextAsync()).Set<Performance>()
             .Where(p => p.SingerId == singerId && p.QueuePosition.HasValue)
             .Max(p => p.QueuePosition + 1) ?? 0;
 
-    public async Task<Performance?> GetSingersNextPerformanceAsync(Guid singerId)
+    public async Task<Performance?> ReadSingersNextPerformanceAsync(Guid singerId)
         => (await GetContextAsync()).Set<Performance>()
             .Where(p => p.SingerId == singerId && p.QueuePosition.HasValue)
             .OrderBy(p => p.QueuePosition)
             .FirstOrDefault();
 
-    public async Task<PaginatedResult<Performance>> GetBySingerIdAsync(Guid singerId, int pageNumber = 1, int pageSize = 0, bool includeQueued = false)
+    public async Task<List<Performance>> ReadQueuedAsync()
+    {
+        using var context = await ContextFactory.CreateDbContextAsync();
+        return await context.Set<Performance>()
+            .Where(p => p.QueuePosition != null)
+            .OrderBy(p => p.QueuePosition)
+            .ToListAsync();
+    }
+
+    public override Task<PaginatedResult<Performance>> ReadAllAsync(int pageNumber = 0, int pageSize = 0)
+        => ReadAllAsync(pageNumber, pageSize, PerformanceFilter.All);
+
+    public async Task<PaginatedResult<Performance>> ReadAllAsync(int pageNumber = 1, int pageSize = 0, PerformanceFilter filter = PerformanceFilter.All)
+    {
+        using var context = await ContextFactory.CreateDbContextAsync();
+
+        var query = ApplyFilter(context.Set<Performance>(), filter)
+            .OrderBy(p => p.QueuePosition);
+
+        var totalCount = await query.CountAsync();
+
+        var items = await PaginationComponent
+            .Paginate(query, pageNumber, pageSize)
+            .ToListAsync();
+
+        return new PaginatedResult<Performance>
+        {
+            Items = items,
+            TotalCount = totalCount,
+            PageNumber = pageNumber,
+            PageSize = pageSize
+        };
+    }
+
+    public async Task<PaginatedResult<Performance>> ReadBySingerIdAsync(Guid singerId, int pageNumber = 1, int pageSize = 0, PerformanceFilter filter = PerformanceFilter.All)
     {
         using var context = await ContextFactory.CreateDbContextAsync();
 
         var query = context.Set<Performance>()
             .Where(p => p.SingerId == singerId);
 
-        if (!includeQueued)
-            query = query.Where(p => p.QueuePosition == null);
+        query = ApplyFilter(query, filter);
 
         query = query.OrderByDescending(p => p.CreatedDate);
 
@@ -50,15 +83,14 @@ internal class PerformancesRepository : BaseRepository<Performance>, IPerformanc
         };
     }
 
-    public async Task<PaginatedResult<Performance>> GetByMediaIdAsync(Guid mediaId, int pageNumber = 1, int pageSize = 0, bool includeQueued = false)
+    public async Task<PaginatedResult<Performance>> ReadByMediaIdAsync(Guid mediaId, int pageNumber = 1, int pageSize = 0, PerformanceFilter filter = PerformanceFilter.All)
     {
         using var context = await ContextFactory.CreateDbContextAsync();
 
         var query = context.Set<Performance>()
             .Where(p => p.MediaId == mediaId);
 
-        if (!includeQueued)
-            query = query.Where(p => !p.QueuePosition.HasValue);
+        query = ApplyFilter(query, filter);
 
         query = query.OrderByDescending(p => p.CreatedDate);
 
@@ -75,6 +107,29 @@ internal class PerformancesRepository : BaseRepository<Performance>, IPerformanc
             PageNumber = pageNumber,
             PageSize = pageSize
         };
+    }
+
+    public async Task DeleteAllQueuedAsync()
+    {
+        using var context = await ContextFactory.CreateDbContextAsync();
+        
+        await context.Set<Performance>()
+            .Where(p => p.QueuePosition.HasValue)
+            .ExecuteDeleteAsync();
+    }
+
+    private static IQueryable<Performance> ApplyFilter(IQueryable<Performance> query, PerformanceFilter filter)
+    {
+        bool wantQueued   = filter.HasFlag(PerformanceFilter.Queued);
+        bool wantUnQueued = filter.HasFlag(PerformanceFilter.UnQueued);
+
+        if (wantQueued && !wantUnQueued)
+            return query.Where(p => p.QueuePosition != null);
+
+        if (!wantQueued && wantUnQueued)
+            return query.Where(p => p.QueuePosition == null);
+
+        return query;
     }
 
     protected override IQueryable<Performance> ApplySearchFilters<TOptions>(IQueryable<Performance> queryable, string query, TOptions? options = null)

@@ -8,10 +8,10 @@ const KEYS = {
 
 export function init() {
     const colLeft    = document.querySelector('.kh-app__col--queue');
-    const nowPlaying = document.querySelector('.kh-app__nowplaying');
-    const MediaSearch = document.querySelector('.kh-app__search');
-    const vHandle    = document.querySelector('.kh-resize-handle--v');
-    const hHandle    = document.querySelector('.kh-resize-handle--h');
+    const nowPlaying = document.querySelector('.kh-now-playing-panel');
+    const MediaSearch = document.querySelector('.kh-media-search-panel');
+    const vHandle    = document.querySelector('.kh-vertical-handle');
+    const hHandle    = document.querySelector('.kh-horizontal-handle');
     const body       = document.querySelector('.kh-app__body');
 
     if (!colLeft || !nowPlaying || !MediaSearch || !vHandle || !hHandle || !body)
@@ -53,7 +53,7 @@ export function init() {
         mode       = 'v';
         startCoord = clientCoords(e).x;
         startSize  = colLeft.getBoundingClientRect().width;
-        vHandle.classList.add('kh-resize-handle--dragging');
+        vHandle.classList.add('kh-vertical-handle--dragging');
         lock('col-resize');
         e.preventDefault();
     }
@@ -62,7 +62,7 @@ export function init() {
         mode       = 'h';
         startCoord = clientCoords(e).y;
         startSize  = MediaSearch.getBoundingClientRect().height;
-        hHandle.classList.add('kh-resize-handle--dragging');
+        hHandle.classList.add('kh-horizontal-handle--dragging');
         lock('row-resize');
         e.preventDefault();
     }
@@ -91,8 +91,8 @@ export function init() {
 
     function end() {
         if (!mode) return;
-        vHandle.classList.remove('kh-resize-handle--dragging');
-        hHandle.classList.remove('kh-resize-handle--dragging');
+        vHandle.classList.remove('kh-vertical-handle--dragging');
+        hHandle.classList.remove('kh-horizontal-handle--dragging');
         mode = null;
         unlock();
     }

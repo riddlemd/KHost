@@ -32,7 +32,7 @@ internal class DatabaseInitializer : IDatabaseInitializer
 
         using var context = await _contextFactory.CreateDbContextAsync();
 
-        await context.Database.EnsureCreatedAsync();
+        await context.Database.MigrateAsync();
 
         await SeedVenuesAsync();
         await SeedMediaAsync();

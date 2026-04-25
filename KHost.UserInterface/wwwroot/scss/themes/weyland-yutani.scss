@@ -1,0 +1,101 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   KHost Weyland-Yutani Theme
+   Amber phosphor CRT terminal aesthetic
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ─── Design Tokens ──────────────────────────────────────────────────────── */
+:root {
+    --kh-primary: #FFB300;
+    --kh-primary-hover: #FFC233;
+    --kh-primary-bright: #FFD966;
+    --kh-primary-glow: rgba(255, 179, 0, 0.45);
+    --kh-primary-subtle: rgba(255, 179, 0, 0.14);
+    --kh-primary-dim: rgba(255, 179, 0, 0.08);
+    --kh-accent: #CC7700;
+    --kh-accent-hover: #B36600;
+    --kh-accent-bright: #FF9900;
+    --kh-accent-glow: rgba(204, 119, 0, 0.45);
+    --kh-accent-subtle: rgba(204, 119, 0, 0.14);
+    --kh-bg: #090700;
+    --kh-button-primary-text: #1A0E00;
+    --kh-bg-card: #110D00;
+    --kh-bg-card-dark: #0C0900;
+    --kh-bg-elevated: #1A1400;
+    --kh-bg-input: #0E0A00;
+    --kh-border: rgba(255, 179, 0, 0.25);
+    --kh-border-bright: rgba(255, 179, 0, 0.5);
+    --kh-text: #E8A820;
+    --kh-text-secondary: #A87020;
+    --kh-text-muted: #6B4810;
+    --kh-success: #22C55E;
+    --kh-warning: #F59E0B;
+    --kh-info: #2686e2;
+    --kh-danger: #EF4444;
+    --kh-danger-glow: rgba(239, 68, 68, 0.3);
+    --kh-radius: 8px;
+    --kh-radius-lg: 12px;
+    --kh-transition: 0.15s ease;
+    --kh-font: 'Consolas', 'Courier New', monospace;
+    --kh-font-display: 'Consolas', 'Courier New', monospace;
+
+    --bs-body-bg: var(--kh-bg);
+    --bs-body-color: var(--kh-text);
+    --bs-secondary-color: var(--kh-text-secondary);
+    --bs-tertiary-color: var(--kh-text-muted);
+    --bs-card-bg: var(--kh-bg-card);
+    --bs-card-border-color: var(--kh-border);
+    --bs-border-color: var(--kh-border);
+    --bs-border-color-translucent: var(--kh-border);
+    --bs-link-color: var(--kh-primary-bright);
+    --bs-link-hover-color: #FFE599;
+    --bs-primary: var(--kh-primary);
+    --bs-primary-rgb: 255, 179, 0;
+    --bs-table-hover-bg: var(--kh-primary-subtle);
+    --bs-table-striped-bg: var(--kh-primary-dim);
+
+    /* ─── Structural gradients ─────────────────────────────────────────────── */
+    --kh-bg-header: linear-gradient(180deg, #1A1200 0%, #110D00 100%);
+    --kh-logo-from: #FFD966;
+    --kh-logo-to: #FFB300;
+    --kh-np-gradient-from: #1A1200;
+    --kh-card-header-bg: rgba(255, 179, 0, 0.1);
+
+    /* ─── Primary alpha variants ────────────────────────────────────────────── */
+    --kh-primary-active: rgba(255, 179, 0, 0.3);
+    --kh-primary-glow-strong: rgba(255, 179, 0, 0.7);
+    --kh-primary-bright-glow: rgba(255, 217, 102, 0.7);
+
+    /* ─── Badge info colors ─────────────────────────────────────────────────── */
+    --kh-badge-info-bg: rgba(255, 217, 102, 0.15);
+    --kh-badge-info-text: #FFD966;
+    --kh-badge-info-border: rgba(255, 217, 102, 0.35);
+
+    /* ─── Overlays & neutral surfaces ───────────────────────────────────────── */
+    --kh-scrim: rgba(0, 0, 0, 0.7);
+    --kh-track-bg: rgba(255, 255, 255, 0.08);
+    --kh-table-stripe: rgba(0, 0, 0, 0.2);
+    --kh-badge-pending-bg: rgba(255, 255, 255, 0.04);
+    --kh-error-bg: linear-gradient(135deg, #2D0A0A, #1A0A0A);
+
+    /* ─── Danger alpha variants ─────────────────────────────────────────────── */
+    --kh-danger-bg-subtle: rgba(239, 68, 68, 0.1);
+    --kh-danger-bg-dim: rgba(239, 68, 68, 0.2);
+    --kh-danger-border-subtle: rgba(239, 68, 68, 0.35);
+    --kh-danger-text-subtle: rgba(239, 68, 68, 0.7);
+    --kh-danger-bright: #ff6b6b;
+    --kh-exit-bg: #c0392b;
+    --kh-exit-bg-hover: #a93226;
+    --kh-exit-glow: rgba(192, 57, 43, 0.45);
+
+    /* ─── Warning alpha variants ────────────────────────────────────────────── */
+    --kh-warning-subtle: rgba(245, 158, 11, 0.1);
+    --kh-warning-border-subtle: rgba(245, 158, 11, 0.3);
+
+    /* ─── Success alpha variants ────────────────────────────────────────────── */
+    --kh-success-subtle: rgba(34, 197, 94, 0.1);
+    --kh-success-border-subtle: rgba(34, 197, 94, 0.25);
+
+    /* ─── Singer flag colors ────────────────────────────────────────────────── */
+    --kh-flag-tipper: #FFD966;
+    --kh-flag-regular: #A87028;
+}

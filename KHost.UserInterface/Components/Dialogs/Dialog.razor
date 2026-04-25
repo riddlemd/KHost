@@ -1,48 +1,42 @@
-@if (IsOpen)
-{
-    <div class="kh-dialog__overlay @Class" @onclick="OnOverlayClick">
-        <div class="kh-dialog" @onclick:stopPropagation>
-            <div class="kh-dialog__header">
-                <span>@Header</span>
-                <button class="kh-dialog__close-btn kh-button--icon-minimal" @onclick="CloseAsync" type="button"><i class="bi bi-x-lg"></i></button>
-            </div>
-            <div class="kh-dialog__body">
-                @Body
-            </div>
-            <div class="kh-dialog__footer">
-                @Footer
-            </div>
+<Scrim IsOpen="IsOpen" OnClick="OnScrimClick">
+    <div class="@($"{_rootClassName} {Class?.Trim()}".Trim())" @onclick:stopPropagation>
+        <div class="@(_rootClassName)__header">
+            <span>@Header</span>
+            <button class="@(_rootClassName)__close-btn kh-button--icon-minimal" @onclick="CloseAsync" type="button"><Icon Name="x-lg" /></button>
+        </div>
+        <div class="@(_rootClassName)__body">
+            @Body
+        </div>
+        <div class="@(_rootClassName)__footer">
+            @Footer
         </div>
     </div>
-}
+</Scrim>
 
 @code {
+    private const string _rootClassName = "kh-dialog";
+
     [Parameter] public bool IsOpen { get; set; }
+    [Parameter] public bool CloseOnScrimClick { get; set; }
+    [Parameter] public string Class { get; set; } = "";
+
     [Parameter] public RenderFragment? Header { get; set; }
     [Parameter] public RenderFragment? Body { get; set; }
     [Parameter] public RenderFragment? Footer { get; set; }
+
     [Parameter] public EventCallback OnClose { get; set; }
-    [Parameter] public EventCallback OnOpen { get; set; }
-    [Parameter] public bool CloseOnOverlayClick { get; set; } = true;
-    [Parameter] public string Class { get; set; } = "";
 
     public async Task CloseAsync()
     {
         IsOpen = false;
+
         await OnClose.InvokeAsync();
     }
 
-    public async Task Open()
+    private async Task OnScrimClick()
     {
-        IsOpen = true;
-        await OnOpen.InvokeAsync();
-    }
+        if (!CloseOnScrimClick) return;
 
-    private async Task OnOverlayClick()
-    {
-        if (CloseOnOverlayClick)
-        {
-            await CloseAsync();
-        }
+        await CloseAsync();
     }
 }

@@ -1,0 +1,63 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   Resize Handles
+   Vertical and horizontal drag-to-resize handles
+   ═════════════════════════════════════════════════════════════════════════════ */
+
+.kh-vertical-handle,
+.kh-horizontal-handle {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    transition: background var(--kh-transition);
+    position: relative;
+    z-index: 10;
+}
+
+.kh-vertical-handle {
+    width: 8px;
+    cursor: col-resize;
+
+    &:hover,
+    &.kh-vertical-handle--dragging {
+        background: var(--kh-primary-subtle);
+
+        .kh-vertical-handle__grip {
+            background: repeating-linear-gradient(to bottom, var(--kh-primary-bright) 0, var(--kh-primary-bright) 3px, transparent 3px, transparent 6px);
+        }
+    }
+}
+
+.kh-horizontal-handle {
+    height: 8px;
+    cursor: row-resize;
+    margin: -0.5em 0;
+
+    &:hover,
+    &.kh-horizontal-handle--dragging {
+        background: var(--kh-primary-subtle);
+
+        .kh-horizontal-handle__grip {
+            background: repeating-linear-gradient(to right, var(--kh-primary-bright) 0, var(--kh-primary-bright) 3px, transparent 3px, transparent 6px);
+        }
+    }
+}
+
+.kh-vertical-handle__grip,
+.kh-horizontal-handle__grip {
+    border-radius: 1px;
+    transition: background var(--kh-transition);
+}
+
+.kh-vertical-handle__grip {
+    width: 2px;
+    height: 32px;
+    background: repeating-linear-gradient(to bottom, var(--kh-border-bright) 0, var(--kh-border-bright) 3px, transparent 3px, transparent 6px);
+}
+
+.kh-horizontal-handle__grip {
+    height: 2px;
+    width: 32px;
+    background: repeating-linear-gradient(to right, var(--kh-border-bright) 0, var(--kh-border-bright) 3px, transparent 3px, transparent 6px);
+}

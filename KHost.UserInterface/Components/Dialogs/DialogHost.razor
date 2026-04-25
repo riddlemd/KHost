@@ -1,0 +1,92 @@
+@rendermode InteractiveServer
+@inject IDialogService DialogService
+@using KHost.UserInterface.Models
+@using KHost.UserInterface.Services
+@implements IDisposable
+
+@foreach (var item in _stack)
+{
+    @switch (item)
+    {
+        case ConfirmationDialog.DialogRequest r:
+            <ConfirmationDialog @key="r.Id" IsOpen="true"
+                Title="@r.Title" Message="@r.Message" ConfirmText="@r.ConfirmText"
+                OnConfirm="@(() => { r.OnConfirm?.Invoke(); Close(r); })"
+                OnCancel="@(() => { r.OnCancel?.Invoke(); Close(r); })"
+                OnClose="@(() => { r.OnCancel?.Invoke(); Close(r); })" />
+            break;
+
+        case SingerEditDialog.DialogRequest r:
+            <SingerEditDialog @key="r.Id" IsOpen="true" Singer="@r.Value"
+                OnSave="@((singer) => { r.OnSave?.Invoke(singer); Close(r); })"
+                OnClose="@(() => { r.OnCancel?.Invoke(); Close(r); })" />
+            break;
+
+        case VenueEditDialog.DialogRequest r:
+            <VenueEditDialog @key="r.Id" IsOpen="true" Venue="@r.Value"
+                OnSave="@((venue) => { r.OnSave?.Invoke(venue); Close(r); })"
+                OnClose="@(() => { r.OnCancel?.Invoke(); Close(r); })" />
+            break;
+
+        case SingerPerformanceHistoryDialog.DialogRequest r:
+            <SingerPerformanceHistoryDialog @key="r.Id" IsOpen="true" SingerId="@r.SingerId"
+                OnClose="@(() => { r.OnClose?.Invoke(); Close(r); })" />
+            break;
+
+        case SettingsMenuDialog.DialogRequest r:
+            <SettingsMenuDialog @key="r.Id" IsOpen="true"
+                OnClose="@(() => { r.OnClose?.Invoke(); Close(r); })" />
+            break;
+
+        case MediaEditDialog.DialogRequest r:
+            <MediaEditDialog @key="r.Id" IsOpen="true" Media="@r.Value"
+                OnSave="@((media) => { r.OnSave?.Invoke(media); Close(r); })"
+                OnClose="@(() => { r.OnCancel?.Invoke(); Close(r); })" />
+            break;
+
+        case ShowLyricsDialog.DialogRequest r:
+            <ShowLyricsDialog @key="r.Id" IsOpen="true" Query="@r.Query"
+                OnClose="@(() => { r.OnClose?.Invoke(); Close(r); })" />
+            break;
+    }
+}
+
+@code {
+    private readonly List<BaseDialogRequest> _stack = [];
+
+    protected override void OnInitialized()
+    {
+        DialogService.ShowRequested += OnShowRequested;
+        DialogService.HideRequested += OnHideRequested;
+    }
+
+    private void OnShowRequested(object? sender, BaseDialogRequest request)
+    {
+        InvokeAsync(() =>
+        {
+            _stack.Add(request);
+            StateHasChanged();
+        });
+    }
+
+    private void OnHideRequested(object? sender, EventArgs e)
+    {
+        if (_stack.Count > 0)
+            Close(_stack[^1]);
+    }
+
+    private void Close(BaseDialogRequest request)
+    {
+        InvokeAsync(() =>
+        {
+            _stack.Remove(request);
+            StateHasChanged();
+        });
+    }
+
+    public void Dispose()
+    {
+        DialogService.ShowRequested -= OnShowRequested;
+        DialogService.HideRequested -= OnHideRequested;
+    }
+}

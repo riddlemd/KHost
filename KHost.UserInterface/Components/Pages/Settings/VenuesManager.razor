@@ -1,262 +1,198 @@
 @page "/settings/venues-manager"
 @rendermode InteractiveServer
 @implements IDisposable
-@using KHost.UserInterface.Components.Dialogs
+@using KHost.UserInterface.Models
+@using KHost.UserInterface.Services
 
 <PageTitle>KHost &mdash; Manage Venues</PageTitle>
 
-<div class="kh-app">
-    <header class="kh-app__header">
-        <i class="bi bi-headphones kh-app__logo-icon"></i>
-        <span class="kh-app__logo-text">KHost</span>
-        <span class="kh-app__logo-sep">|</span>
-        <span class="kh-app__logo-sub">Karaoke for the people, by the people.</span>
-        <span class="kh-app__manage-venues ms-auto">
-            <a href="/" class="kh-button kh-button--outline-secondary">&#8592; Back to Queue</a>
-        </span>
-    </header>
-
-    <div class="kh-app__body">
-        <div style="flex: 1; overflow: auto; display: flex; flex-direction: column;">
-            <div class="kh-card h-100">
-                <div class="kh-card__header d-flex align-items-center gap-2">
-                    <i class="bi bi-geo-alt-fill"></i>
-                    <span class="kh-card__title">Venues Manager</span>
-                    @if (FilteredVenues.Count > 0)
-                    {
-                        <span class="kh-badge kh-badge--secondary">@FilteredVenues.Count</span>
-                    }
-                    <button class="kh-venues__add-btn kh-button kh-button--primary ms-auto" @onclick="OpenAddDialogAsync" type="button">
-                        <i class="bi bi-plus-lg"></i> Add Venue
-                    </button>
-                </div>
-                <div class="kh-card__body">
-                    <form class="kh-panel__form-row mb-3" @onsubmit:preventDefault>
-                        <input type="text" class="form-control kh-panel__form-grow" placeholder="Search venues..."
-                               autocomplete="off" @bind="_searchQuery" @bind:event="oninput" />
-                        <button type="button" class="kh-venues__clear-search-btn kh-button kh-button--primary" @onclick="ClearSearch"
-                                disabled="@string.IsNullOrWhiteSpace(_searchQuery)">
-                            <i class="bi bi-search"></i>
-                        </button>
-                    </form>
-                </div>
-                <div class="kh-card__body">
-                    @if (_venues?.Count == 0)
-                    {
-                        <div class="kh-panel--empty kh-panel--empty-lg">
-                            <i class="bi bi-geo-alt"></i>
-                            <span>No venues yet. Add one using the button above to get started.</span>
-                        </div>
-                    }
-                    else if (FilteredVenues.Count == 0)
-                    {
-                        <div class="kh-panel--empty kh-panel--empty-lg">
-                            <i class="bi bi-search"></i>
-                            <span>No venues match your search.</span>
-                        </div>
-                    }
-                    else
-                    {
-                        <div class="kh-pagination__menu">
-                            <span>Page @_currentPage of @TotalPages (@FilteredVenues.Count filtered)</span>
-                            <span>10 per page</span>
-                        </div>
-
-                        <table class="kh-table">
-                            <thead>
-                                <tr>
-                                    <th>Name</th>
-                                    <th>Notes</th>
-                                    <th>Enabled</th>
-                                    <th>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @foreach (var venue in PagedVenues)
-                                {
-                                    <tr>
-                                        <td>@venue.Name</td>
-                                        <td>@venue.Notes</td>
-                                        <td class="kh-table__cell--shrink">
-                                            @if (venue.Enabled)
-                                            {
-                                                <span class="kh-badge kh-badge--success">Yes</span>
-                                            }
-                                            else
-                                            {
-                                                <span class="kh-badge kh-badge--secondary">No</span>
-                                            }
-                                        </td>
-                                        <td class="kh-table__cell--shrink">
-                                            <button class="kh-venues__edit-btn kh-button--icon-minimal" @onclick="() => OpenEditDialogAsync(venue)" type="button">
-                                                <i class="bi bi-pencil"></i>
-                                            </button>
-                                            <button class="kh-venues__delete-btn kh-button--icon-minimal" @onclick="() => StartDeleteAsync(venue)" type="button">
-                                                <i class="bi bi-trash"></i>
-                                            </button>
-                                        </td>
-                                    </tr>
-                                }
-                            </tbody>
-                        </table>
-
-                        @if (TotalPages > 1)
+<div class="kh-app__body">
+    <div class="kh-settings-page">
+        <div class="kh-card h-100">
+            <div class="kh-card__header d-flex align-items-center gap-2">
+                <span class="kh-card__title"><Icon Name="geo-alt-fill" /> Venues Manager</span>
+                <button class="kh-button kh-button--primary ms-auto" @onclick="OpenAddDialogAsync" type="button">
+                    <Icon Name="plus-lg" /> Add Venue
+                </button>
+            </div>
+            <div class="kh-card__body">
+                <form class="kh-panel__form-row mb-3" @onsubmit:preventDefault>
+                    <input type="text" class="form-control kh-panel__form-grow" placeholder="Search venues..."
+                            autocomplete="off" @bind="_searchQuery" @bind:event="oninput" @onchange="OnSearchChanged" />
+                </form>
+            </div>
+            <div class="kh-card__body">
+                @if (_paginatedResult?.Items.Count == 0)
+                {
+                    <div class="kh-panel--empty kh-panel--empty-lg">
+                        @if (string.IsNullOrWhiteSpace(_searchQuery))
                         {
-                            <div class="d-flex justify-content-center align-items-center gap-2 mt-2">
-                                <button class="kh-venues__prev-page-btn kh-button kh-button--outline-secondary" disabled="@(_currentPage <= 1)" @onclick="PreviousPage" type="button">
-                                    &#8592; Prev
-                                </button>
-                                <span class="px-2">@_currentPage</span>
-                                <button class="kh-venues__next-page-btn kh-button kh-button--outline-secondary" disabled="@(_currentPage >= TotalPages)" @onclick="NextPage" type="button">
-                                    Next &#8594;
-                                </button>
-                            </div>
+                            <Icon Name="geo-alt" />
+                            <span>No venues yet. Add one using the button above to get started.</span>
                         }
-                    }
-                </div>
+                        else
+                        {
+                            <Icon Name="search" />
+                            <span>No venues match your search.</span>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <table class="kh-table">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Notes</th>
+                                <th>Enabled</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var venue in _paginatedResult!.Items)
+                            {
+                                <tr>
+                                    <td>@venue.Name</td>
+                                    <td>@venue.Notes</td>
+                                    <td>
+                                        @if (venue.Enabled)
+                                        {
+                                            <span class="kh-badge kh-badge--success">Yes</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="kh-badge kh-badge--secondary">No</span>
+                                        }
+                                    </td>
+                                    <td>
+                                        <button class="kh-venues-manager__edit-btn kh-button--icon-minimal" @onclick="() => OpenEditDialogAsync(venue)" type="button">
+                                            <Icon Name="pencil" />
+                                        </button>
+                                        <button class="kh-venues-manager__delete-btn kh-button--icon-minimal" @onclick="@(async () => await StartDeleteAsync(venue))" type="button">
+                                            <Icon Name="trash" />
+                                        </button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+
+                    <Pagination
+                        CurrentPage="_currentPage"
+                        TotalPages="@(_paginatedResult?.TotalPages ?? 0)"
+                        OnPreviousPage="PreviousPage"
+                        OnNextPage="NextPage" />
+                }
             </div>
         </div>
     </div>
-
-    <VenueEditDialog @ref="_venueEditDialog" OnSave="SaveAsync" />
-    <ConfirmationDialog @ref="_deleteVenueDialog" Verb="Delete" Message="@_confirmationMessage" OnConfirm="DeleteAsync" />
 </div>
 
 @code {
     [Inject] private IVenuesService? VenuesService { get; set; }
+    [Inject] private IDialogService? DialogService { get; set; }
 
-    private VenueEditDialog? _venueEditDialog;
-    private ConfirmationDialog? _deleteVenueDialog;
     private const int PageSize = 10;
     private int _currentPage = 1;
     private string _searchQuery = "";
-    private Venue? _dialogVenue;
-    private string _confirmationMessage = "";
-    private IReadOnlyList<Venue>? _venues;
-
-    private List<Venue> FilteredVenues
-    {
-        get
-        {
-            if (_venues?.Count == 0)
-                return [];
-
-            if (string.IsNullOrWhiteSpace(_searchQuery))
-                return _venues?.ToList() ?? [];
-
-            var lowerQuery = _searchQuery.ToLowerInvariant();
-            return (_venues ?? [])
-                .Where(v => v.Name.Contains(lowerQuery, StringComparison.OrdinalIgnoreCase) ||
-                           v.Notes.Contains(lowerQuery, StringComparison.OrdinalIgnoreCase))
-                .ToList();
-        }
-    }
-
-    private int TotalPages => (int)Math.Ceiling(FilteredVenues.Count / (double)PageSize);
-
-    private IEnumerable<Venue> PagedVenues =>
-        FilteredVenues.Skip((_currentPage - 1) * PageSize).Take(PageSize);
+    private PaginatedResult<Venue>? _paginatedResult;
 
     protected override async Task OnInitializedAsync()
     {
-        var result = await VenuesService.ReadAllAsync(pageSize: 1000);
-        _venues = result.Items;
-        VenuesService.StateChanged += OnStateChanged;
+        await SearchAsync();
+        VenuesService!.StateChanged += OnStateChanged;
     }
 
-    protected override async Task OnAfterRenderAsync(bool firstRender)
-    {
-        if (firstRender)
-        {
-            await Task.Delay(100);
-            await InvokeAsync(StateHasChanged);
-        }
-    }
-
-    private async Task OpenAddDialogAsync()
-    {
-        if (_venueEditDialog is null)
-            return;
-
-        await _venueEditDialog.OpenAsync();
-    }
-
-    private async Task OpenEditDialogAsync(Venue venue)
-    {
-        if (_venueEditDialog is null)
-            return;
-
-        await _venueEditDialog.OpenAsync(venue);
-    }
-
-    private void ClearSearch()
-    {
-        _searchQuery = "";
-        _currentPage = 1;
-    }
-
-    private async Task SaveAsync(VenueEditDialog.VenueEditModel model)
+    private async Task SearchAsync()
     {
         if (VenuesService is null)
             return;
 
-        var existingVenue = await VenuesService.ReadAsync(model.Id);
+        _paginatedResult = await VenuesService.SearchAsync(_searchQuery, pageNumber: _currentPage, pageSize: PageSize);
+    }
 
-        var venue = new Venue
-        {
-            Id = model.Id,
-            Name = model.Name.Trim(),
-            Notes = model.Notes.Trim(),
-            Enabled = model.Enabled
-        };
+    private async Task OnSearchChanged()
+    {
+        _currentPage = 1;
+        await SearchAsync();
+    }
 
-        if (existingVenue is null)
-        {
+    private async Task OpenAddDialogAsync()
+    {
+        await DialogService!.RequestEditAsync(new Venue { Name = "" }, async venue => await SaveAsync(venue));
+    }
+
+    private async Task OpenEditDialogAsync(Venue venue)
+    {
+        await DialogService!.RequestEditAsync(venue, async updated => await SaveAsync(updated));
+    }
+
+    private async Task SaveAsync(Venue? venue)
+    {
+        if (VenuesService is null || venue is null)
+            return;
+
+        var existing = await VenuesService.ReadAsync(venue.Id);
+        if (existing is null)
             await VenuesService.CreateAsync(venue);
-        }
         else
-        {
             await VenuesService.UpdateAsync(venue);
-        }
     }
 
     private async Task StartDeleteAsync(Venue venue)
     {
-        if (_deleteVenueDialog is null)
-            return;
-
-        _dialogVenue = venue;
-        _confirmationMessage = $"Are you sure you want to delete {venue.Name}? This cannot be undone.";
-
-        await _deleteVenueDialog.OpenAsync();
-    }
-
-    private async Task DeleteAsync()
-    {
-        if (_dialogVenue is null) return;
+        if (DialogService is null) return;
         if (VenuesService is null) return;
 
-        await VenuesService.DeleteAsync(_dialogVenue.Id);
-        _dialogVenue = null;
-
-        if (_currentPage > TotalPages && TotalPages > 0)
-            _currentPage = TotalPages;
-        else if (TotalPages == 0)
-            _currentPage = 1;
+        bool confirmed = await DialogService.ShowConfirmationAsync(
+            $"Are you sure you want to delete <span class=\"kh-emphasis\">{venue.Name}</span>?",
+            async () => await VenuesService.DeleteAsync(venue.Id),
+            "Delete Venue",
+            "Delete"
+        );
     }
 
-    private void PreviousPage() { if (_currentPage > 1) _currentPage--; }
-    private void NextPage() { if (_currentPage < TotalPages) _currentPage++; }
+    private async Task ClearSearch()
+    {
+        _searchQuery = "";
+        _currentPage = 1;
+        await SearchAsync();
+    }
+
+    private async Task PreviousPage()
+    {
+        if (_currentPage > 1)
+        {
+            _currentPage--;
+            await SearchAsync();
+        }
+    }
+
+    private async Task NextPage()
+    {
+        if (_currentPage < (_paginatedResult?.TotalPages ?? 0))
+        {
+            _currentPage++;
+            await SearchAsync();
+        }
+    }
 
     private async void OnStateChanged(object? sender, EventArgs e)
     {
-        var result = await VenuesService.ReadAllAsync(pageSize: 1000);
-        _venues = result.Items;
+        await SearchAsync();
+
+        var totalPages = _paginatedResult?.TotalPages ?? 0;
+        if (_paginatedResult?.Items.Count == 0 && _currentPage > 1)
+        {
+            _currentPage = Math.Max(1, totalPages);
+            await SearchAsync();
+        }
+
         await InvokeAsync(StateHasChanged);
     }
 
     public void Dispose()
     {
-        VenuesService.StateChanged -= OnStateChanged;
+        VenuesService?.StateChanged -= OnStateChanged;
     }
 }

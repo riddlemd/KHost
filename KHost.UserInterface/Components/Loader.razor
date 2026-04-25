@@ -1,0 +1,73 @@
+<div class="kh-loader kh-loader--@Type.ToString().ToLower() @Class">
+    @switch (Type)
+    {
+        case LoaderType.Spinner:
+            <div class="kh-loader__spinner"></div>
+            break;
+
+        case LoaderType.Dots:
+            <div class="kh-loader__dots">
+                <span></span>
+                <span></span>
+                <span></span>
+            </div>
+            break;
+
+        case LoaderType.Bars:
+            <div class="kh-loader__bars">
+                <span></span>
+                <span></span>
+                <span></span>
+                <span></span>
+                <span></span>
+            </div>
+            break;
+
+        case LoaderType.Pulse:
+            <div class="kh-loader__pulse"></div>
+            break;
+
+        case LoaderType.Ripple:
+            <div class="kh-loader__ripple">
+                <span></span>
+                <span></span>
+            </div>
+            break;
+
+        case LoaderType.Vinyl:
+            <i class="bi bi-disc-fill kh-loader__vinyl"></i>
+            break;
+
+        case LoaderType.Typewriter:
+            <div class="kh-loader__typewriter">
+                <span></span>
+                <span></span>
+                <span></span>
+            </div>
+            break;
+
+        case LoaderType.Kh:
+            <div class="kh-loader__kh">
+                <span>K</span>
+                <span>H</span>
+            </div>
+            break;
+    }
+</div>
+
+@code {
+    public enum LoaderType
+    {
+        Spinner,
+        Dots,
+        Bars,
+        Pulse,
+        Ripple,
+        Vinyl,
+        Typewriter,
+        Kh
+    }
+
+    [Parameter] public LoaderType Type { get; set; } = LoaderType.Spinner;
+    [Parameter] public string Class { get; set; } = "";
+}

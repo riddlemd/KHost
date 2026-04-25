@@ -1,0 +1,21 @@
+<div class="kh-pagination__nav">
+    <span class="kh-pagination__info">Page @CurrentPage of @TotalPages</span>
+    @if (TotalPages > 1)
+    {
+        <div class="kh-pagination__buttons">
+            <button class="kh-pagination__link" disabled="@(CurrentPage <= 1)" @onclick="OnPreviousPage" type="button" title="Previous page">
+                &#8592; Prev
+            </button>
+            <button class="kh-pagination__link" disabled="@(TotalPages <= CurrentPage)" @onclick="OnNextPage" type="button" title="Next page">
+                Next &#8594;
+            </button>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public int CurrentPage { get; set; }
+    [Parameter] public int TotalPages { get; set; }
+    [Parameter] public EventCallback OnPreviousPage { get; set; }
+    [Parameter] public EventCallback OnNextPage { get; set; }
+}
