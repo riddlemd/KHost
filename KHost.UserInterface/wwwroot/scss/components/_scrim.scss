@@ -1,0 +1,18 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   Scrim
+   Full-screen fixed backdrop used to dim content behind dialogs
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.kh-scrim {
+    position: fixed;
+    inset: 0;
+    background: var(--kh-scrim);
+    display: flex;
+
+    &:has(~ .kh-scrim) {
+        background: transparent;
+    }
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}

@@ -1,0 +1,22 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   Singer Performance History Dialog
+   Styles for the performance history table and dialog
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.kh-singer-performance-history-dialog {
+
+    .kh-dialog__body {
+        padding: 0;
+    }
+
+    &__table-wrapper {
+        max-height: 500px;
+        overflow-y: auto;
+    }
+
+    &__empty {
+        text-align: center;
+        padding: 20px;
+        color: var(--kh-text-secondary);
+    }
+}

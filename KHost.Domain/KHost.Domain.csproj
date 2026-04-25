@@ -14,6 +14,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\KHost.Abstractions\KHost.Abstractions.csproj" />
+    <ProjectReference Include="..\KHost.LrcLib\KHost.LrcLib.csproj" />
   </ItemGroup>
 
 </Project>

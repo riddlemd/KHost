@@ -30,6 +30,27 @@
                         IsEnabled="False"
                         Click="BtnStop_Click" />
 
+                <!-- Pitch controls -->
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="2" Margin="8,0,0,0">
+                    <Button x:Name="BtnPitchDown"
+                            Content="&#x2212;"
+                            Width="28" Height="28"
+                            IsEnabled="False"
+                            Click="BtnPitchDown_Click" />
+                    <TextBlock x:Name="TxtPitch"
+                               Text="Key: 0"
+                               VerticalAlignment="Center"
+                               MinWidth="56"
+                               TextAlignment="Center"
+                               Foreground="#AAAAAA"
+                               FontSize="12" />
+                    <Button x:Name="BtnPitchUp"
+                            Content="&#x2B;"
+                            Width="28" Height="28"
+                            IsEnabled="False"
+                            Click="BtnPitchUp_Click" />
+                </StackPanel>
+
                 <!-- Spacer -->
                 <Border Width="1" Background="#3A3A3A" Margin="4,0" />
 

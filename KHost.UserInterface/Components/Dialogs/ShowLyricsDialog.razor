@@ -1,0 +1,81 @@
+@using KHost.Abstractions.Services
+@using KHost.UserInterface.Models
+
+<Dialog IsOpen="IsOpen" Class="@($"{_rootClassName} {Class?.Trim()}".Trim())" OnClose="CloseAsync" CloseOnScrimClick="CloseOnScrimClick">
+    <Header>
+        <Icon Name="file-text" />
+        @if (_loading)
+        {
+            <span>Lyrics</span>
+        }
+        else
+        {              
+            <span>Lyrics for @_lyrics?.Name</span>
+        }
+    </Header>
+    <Body>
+        @if (_loading)
+        {
+            <div class="kh-show-lyrics-dialog__loading">
+                <Loader Type="Loader.LoaderType.Vinyl"></Loader>
+                <div>Searching for lyrics for `@Query`...</div>
+            </div>
+        }
+        else if (_lyrics is null)
+        {
+            <span>No lyrics found.</span>
+        }
+        else
+        {
+            <pre class="@(_rootClassName)__content">@_lyrics?.Text</pre>
+        }
+    </Body>
+    <Footer>
+        @if(_loading)
+        {
+            <span>...</span>
+        }
+        else
+        {
+            <span>Lyrics provided by <a href="@_lyrics?.ProviderUrl" target="_blank">@_lyrics?.ProviderName</a></span>
+        }
+    </Footer>
+</Dialog>
+
+@code {
+    private const string _rootClassName = "kh-show-lyrics-dialog";
+
+    [Parameter] public bool IsOpen { get; set; }
+    [Parameter] public string Query { get; set; } = "";
+    [Parameter] public string Class { get; set; } = "";
+    [Parameter] public bool CloseOnScrimClick { get; set; }
+
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    [Inject] private ILyricsService LyricsService { get; set; } = default!;
+
+    private Lyrics? _lyrics;
+    private bool _loading;
+    private bool _prevIsOpen;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (IsOpen && !_prevIsOpen)
+        {
+            _loading = true;
+            StateHasChanged();
+
+            _lyrics = await LyricsService.SearchAsync(Query);
+            _loading = false;
+        }
+        _prevIsOpen = IsOpen;
+    }
+
+    public async Task CloseAsync()
+    {
+        IsOpen = false;
+        await OnClose.InvokeAsync();
+    }
+
+    public record DialogRequest(string Query, Action? OnClose) : BaseDialogRequest(OnClose);
+}

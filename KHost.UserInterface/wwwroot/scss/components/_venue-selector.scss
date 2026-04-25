@@ -1,0 +1,15 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   Venue Selector
+   Styles for VenueSelector.razor
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.kh-venue-selector {
+    display: flex;
+    align-items: center;
+    margin-right: 20px;
+    margin-left: auto;
+
+    .form-select {
+        padding: 0.35rem 0.6rem;
+    }
+}

@@ -133,7 +133,7 @@ public class VenuesServiceTests : IDisposable
         var result = await _service.ReadAllAsync();
         Assert.Empty(result.Items);
         Assert.Null(_service.SelectedVenueId);
-        Assert.Null(await _service.GetSelectedVenueAsync());
+        Assert.Null(await _service.ReadSelectedVenueAsync());
     }
 
     [Fact]
@@ -289,7 +289,7 @@ public class VenuesServiceTests : IDisposable
         await _service.SelectVenueAsync(created.Id);
 
         Assert.Equal(created.Id, _service.SelectedVenueId);
-        Assert.NotNull(await _service.GetSelectedVenueAsync());
+        Assert.NotNull(await _service.ReadSelectedVenueAsync());
     }
 
     [Fact]
@@ -302,7 +302,7 @@ public class VenuesServiceTests : IDisposable
         await _service.SelectVenueAsync(null);
 
         Assert.Null(_service.SelectedVenueId);
-        Assert.Null(await _service.GetSelectedVenueAsync());
+        Assert.Null(await _service.ReadSelectedVenueAsync());
     }
 
     [Fact]

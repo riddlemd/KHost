@@ -9,6 +9,7 @@ public interface ISingerQueueService
     IReadOnlyList<Singer> Singers { get; }
     Guid? SelectedSingerId { get; }
     Singer? SelectedSinger { get; }
+    bool IsTopSlotLocked { get; }
 
     Task SelectSingerAsync(Guid? singerId);
     Task AddSingerAsync(Guid singerId);
@@ -18,6 +19,10 @@ public interface ISingerQueueService
     Task MoveSingerDownAsync(Guid singerId);
     Task MoveSingerToStartAsync(Guid singerId);
     Task MoveSingerToEndAsync(Guid singerId);
+    Task MoveSingerToIndexAsync(Guid singerId, int newIndex);
     Task SelectFirstSingerInQueueAsync();
     Task RefreshAsync();
+    Task ClearAsync();
+    void LockTopSlot();
+    void UnlockTopSlot();
 }

@@ -17,6 +17,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\KHost.Abstractions\KHost.Abstractions.csproj" />
+    <ProjectReference Include="..\KHost.DataAccess\KHost.DataAccess.csproj" />
     <ProjectReference Include="..\KHost.Domain\KHost.Domain.csproj" />
   </ItemGroup>
 

@@ -1,6 +1,26 @@
 ﻿@inherits LayoutComponentBase
 
-@Body
+<ThemeLink />
+
+<header class="kh-header">
+    <Icon Name="headphones" Class="kh-app__logo-icon" />
+    <span class="kh-app__logo-text">KHost</span>
+    <span class="kh-app__logo-sep">|</span>
+    <span class="kh-app__logo-sub">Karaoke for the people, by the people.</span>
+    <VenueSelector />
+    <ThemeSelector />
+    <SettingsButton />
+</header>
+
+<div class="kh-app" tabindex="0">
+    @Body
+</div>
+
+<footer class="kh-footer">
+    <AppStatusBar />
+</footer>
+
+<DialogHost />
 
 <div id="blazor-error-ui" class="kh-blazor-error-ui" data-nosnippet>
     An unhandled error has occurred.

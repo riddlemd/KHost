@@ -1,0 +1,129 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   Base Styles
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+*:not(input) {
+    -webkit-touch-callout: none; /* iOS Safari */
+    -webkit-user-select: none; /* Safari */
+    -khtml-user-select: none; /* Konqueror HTML */
+    -moz-user-select: none; /* Old versions of Firefox */
+    -ms-user-select: none; /* Internet Explorer/Edge */
+    user-select: none; /* Non-prefixed version, currently
+                                  supported by Chrome, Edge, Opera and Firefox */
+}
+
+html, body {
+    font-family: var(--kh-font);
+    background: var(--kh-bg);
+    color: var(--kh-text);
+    font-size: 14px;
+    display: flex;
+    height: 100%;
+    flex-direction: column;
+}
+
+/* ─── Scrollbar ──────────────────────────────────────────────────────────── */
+::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--kh-border-bright);
+    border-radius: 3px;
+
+    &:hover {
+        background: var(--kh-primary-bright);
+    }
+}
+
+html {
+    scrollbar-color: var(--kh-border-bright) transparent;
+    scrollbar-width: thin;
+}
+
+/* ─── Form Controls ──────────────────────────────────────────────────────── */
+.form-control,
+.form-select {
+    background-color: var(--kh-bg-input);
+    border-color: var(--kh-border);
+    color: var(--kh-text);
+    border-radius: var(--kh-radius);
+    transition: border-color var(--kh-transition), box-shadow var(--kh-transition);
+    padding: 0.5rem 0.75rem;
+
+    &::placeholder {
+        color: var(--kh-text-muted);
+    }
+
+    &:focus {
+        background-color: var(--kh-bg-input);
+        border-color: var(--kh-border-bright);
+        box-shadow: none;
+        color: var(--kh-text);
+        outline: none;
+    }
+}
+
+.form-select option {
+    background-color: var(--kh-bg-elevated);
+    color: var(--kh-text);
+}
+
+.form-check {
+    display: inline;
+}
+
+.form-check-input {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 1.1em;
+    height: 1.1em;
+    border-radius: 3px;
+    border: 1px solid var(--kh-border-bright);
+    background-color: var(--kh-bg-input);
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: 0.75em;
+    vertical-align: middle;
+    flex-shrink: 0;
+    cursor: pointer;
+    transition: background-color var(--kh-transition), border-color var(--kh-transition), box-shadow var(--kh-transition);
+
+    &:checked {
+        background-color: var(--kh-primary);
+        border-color: var(--kh-primary);
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath fill='none' stroke='%23ffffff' stroke-linecap='round' stroke-linejoin='round' stroke-width='3' d='m6 10 3 3 6-6'/%3E%3C/svg%3E");
+    }
+
+    &:focus {
+        outline: none;
+        box-shadow: 0 0 0 3px var(--kh-primary-glow);
+    }
+}
+
+.form-label {
+    color: var(--kh-text-secondary);
+    font-size: 0.75rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+}
+
+.input {
+    display: flex;
+    align-items: center;
+}
+
+.kh-hidden {
+    display: none;
+}
+
+.kh-emphasis {
+    color: var(--kh-primary);
+    font-weight: 800;
+}

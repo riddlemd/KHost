@@ -4,8 +4,11 @@ namespace KHost.Abstractions.Repositories;
 
 public interface IPerformancesRepository : IRepository<Performance>
 {
-    Task<int> GetNextQueuePositionForSingerAsync(Guid singerId);
-    Task<Performance?> GetSingersNextPerformanceAsync(Guid singerId);
-    Task<PaginatedResult<Performance>> GetBySingerIdAsync(Guid singerId, int pageNumber = 0, int pageSize = 0, bool includeQueued = false);
-    Task<PaginatedResult<Performance>> GetByMediaIdAsync(Guid mediaId, int pageNumber = 0, int pageSize = 0, bool includeQueued = false);
+    Task<int> ReadNextQueuePositionForSingerAsync(Guid singerId);
+    Task<Performance?> ReadSingersNextPerformanceAsync(Guid singerId);
+    Task<List<Performance>> ReadQueuedAsync();
+    Task<PaginatedResult<Performance>> ReadAllAsync(int pageNumber = 0, int pageSize = 0, PerformanceFilter filter = PerformanceFilter.Queued);
+    Task<PaginatedResult<Performance>> ReadBySingerIdAsync(Guid singerId, int pageNumber = 0, int pageSize = 0, PerformanceFilter filter = PerformanceFilter.UnQueued);
+    Task<PaginatedResult<Performance>> ReadByMediaIdAsync(Guid mediaId, int pageNumber = 0, int pageSize = 0, PerformanceFilter filter = PerformanceFilter.UnQueued);
+    Task DeleteAllQueuedAsync();
 }

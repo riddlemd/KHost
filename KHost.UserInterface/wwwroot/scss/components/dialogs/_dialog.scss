@@ -1,0 +1,48 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   Dialog / Modal
+   Dialog card styles for modals and confirmation dialogs
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.kh-dialog {
+    background: var(--kh-bg-card);
+    border: 1px solid var(--kh-border-bright);
+    border-radius: var(--kh-radius-lg);
+    width: 60vw;
+    max-width: 90vw;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
+
+    &__header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 1em;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--kh-text-secondary);
+        border-bottom: 1px solid var(--kh-border);
+        background: var(--kh-border);
+        border-radius: var(--kh-radius-lg) var(--kh-radius-lg) 0 0;
+    }
+
+    &__body {
+        padding: 1em;
+        max-height: 60vh;
+        overflow: auto;
+
+        .form-control {
+            width: 100%;
+        }
+    }
+
+    &__footer {
+        display: flex;
+        justify-content: flex-end;
+        gap: 8px;
+        padding: 1em;
+        border-top: 1px solid var(--kh-border);
+    }
+}

@@ -1,0 +1,286 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   Now Playing Panel
+   Playback controls, progress bar, and now playing display
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.kh-now-playing-panel {
+    height: 20vh;
+    max-height: 20vh;
+    min-height: 72px;
+    flex-shrink: 0;
+    overflow: hidden;
+
+    > .kh-card {
+        height: 100%;
+        overflow: hidden;
+    }
+}
+
+.kh-now-playing {
+    &__body {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        padding: 10px 14px;
+        overflow: hidden;
+        height: 100%;
+        position: relative;
+    }
+
+    &__empty {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    &__empty-icon {
+        font-size: 22px;
+        color: var(--kh-text-muted);
+        opacity: 0.5;
+    }
+
+    &__empty-text {
+        color: var(--kh-text-muted);
+        font-size: 0.8rem;
+    }
+
+    &__top-row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        min-width: 0;
+    }
+
+    &__info {
+        flex: 1;
+        min-width: 0;
+    }
+
+    &__media-title {
+        font-size: 1rem;
+        font-weight: 600;
+        color: var(--kh-text);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    &__singer-name {
+        color: var(--kh-text-secondary);
+
+        i {
+            font-size: 0.65rem;
+        }
+    }
+
+    &__controls {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 14px;
+    }
+
+    /* ─── Play & Stop Buttons ─────────────────────────────────────────────── */
+    &__btn--play,
+    &__btn--stop {
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all var(--kh-transition);
+        cursor: pointer;
+        padding: 0;
+    }
+
+    &__btn--play {
+        width: 52px;
+        height: 52px;
+        background: linear-gradient(135deg, var(--kh-primary), var(--kh-primary-bright));
+        border: none;
+        color: #fff;
+        font-size: 20px;
+        box-shadow: 0 4px 20px var(--kh-primary-glow);
+
+        &:hover:not(:disabled) {
+            transform: scale(1.1);
+            box-shadow: 0 6px 28px var(--kh-primary-glow-strong);
+        }
+
+        &:active:not(:disabled) {
+            transform: scale(0.96);
+        }
+
+        .kh-now-playing__icon-nudge {
+            margin-left: 2px;
+        }
+    }
+
+    &__btn--stop {
+        width: 44px;
+        height: 44px;
+        background: var(--kh-danger-bg-subtle);
+        border: 1px solid var(--kh-danger-border-subtle);
+        color: var(--kh-danger);
+        font-size: 16px;
+
+        &:hover:not(:disabled) {
+            background: var(--kh-danger-bg-dim);
+            border-color: var(--kh-danger);
+            box-shadow: 0 4px 14px var(--kh-danger-glow);
+        }
+
+        &:active:not(:disabled) {
+            transform: scale(0.93);
+        }
+
+        &:disabled {
+            opacity: 0.25;
+            cursor: default;
+        }
+    }
+
+    /* ─── Progress Bar ────────────────────────────────────────────────────── */
+    &__progress-section {
+        position: absolute;
+        top: 100px;
+        left: 14px;
+        right: 14px;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+
+    &__progress-track {
+        height: 4px;
+        background: var(--kh-track-bg);
+        border-radius: 2px;
+        position: relative;
+        overflow: visible;
+        cursor: pointer;
+    }
+
+    &__progress-fill {
+        height: 100%;
+        background: linear-gradient(90deg, var(--kh-primary), var(--kh-primary-bright));
+        border-radius: 2px;
+        position: relative;
+        min-width: 4px;
+        transition: width 0.5s linear;
+
+        &::after {
+            content: '';
+            position: absolute;
+            right: -5px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 10px;
+            height: 10px;
+            background: var(--kh-primary-bright);
+            border-radius: 50%;
+            box-shadow: 0 0 8px var(--kh-primary-bright-glow);
+        }
+
+        &--playing::after {
+            animation: np-dot-pulse 1.5s ease-in-out infinite;
+        }
+
+        &--indeterminate {
+            height: 4px;
+            background: linear-gradient(90deg, transparent 0%, var(--kh-primary) 30%, var(--kh-primary-bright) 50%, var(--kh-primary) 70%, transparent 100%);
+            background-size: 200% 100%;
+            border-radius: 2px;
+            animation: np-progress-slide 1.8s linear infinite;
+        }
+    }
+
+    &__times {
+        display: flex;
+        justify-content: space-between;
+    }
+
+    &__time {
+        font-size: 0.72rem;
+        font-variant-numeric: tabular-nums;
+        color: var(--kh-text-secondary);
+    }
+
+    &__finished {
+        font-size: 0.72rem;
+        color: var(--kh-success);
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        margin-top: 4px;
+    }
+
+    /* ─── Playing Bars Indicator ──────────────────────────────────────────── */
+    &__bars {
+        display: flex;
+        align-items: flex-end;
+        gap: 3px;
+        height: 16px;
+
+        &--sm {
+            height: 12px;
+        }
+    }
+
+    &__bar {
+        width: 3px;
+        background: var(--kh-primary-bright);
+        border-radius: 2px;
+        animation: np-bar-bounce 0.8s ease-in-out infinite alternate;
+
+        &:nth-child(1) {
+            animation-delay: 0s;
+            height: 8px;
+        }
+
+        &:nth-child(2) {
+            animation-delay: 0.15s;
+            height: 14px;
+        }
+
+        &:nth-child(3) {
+            animation-delay: 0.3s;
+            height: 10px;
+        }
+
+        &:nth-child(4) {
+            animation-delay: 0.1s;
+            height: 6px;
+        }
+    }
+}
+
+.kh-card__header .kh-now-playing__bars {
+    margin-left: auto !important;
+}
+
+/* ─── Animations ──────────────────────────────────────────────────────────── */
+@keyframes np-bar-bounce {
+    from {
+        transform: scaleY(0.3);
+    }
+    to {
+        transform: scaleY(1);
+    }
+}
+
+@keyframes np-dot-pulse {
+    0%, 100% {
+        box-shadow: 0 0 6px var(--kh-primary-bright-glow);
+    }
+    50% {
+        box-shadow: 0 0 14px var(--kh-primary-bright);
+    }
+}
+
+@keyframes np-progress-slide {
+    from {
+        background-position: 100% 0;
+    }
+    to {
+        background-position: -100% 0;
+    }
+}

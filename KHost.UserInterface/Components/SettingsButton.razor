@@ -1,0 +1,54 @@
+@using KHost.UserInterface.Components.Dialogs
+@using KHost.UserInterface.Services
+@rendermode InteractiveServer
+@implements IDisposable
+
+<button class="kh-settings-btn kh-button--icon-minimal" title="@ButtonText" @onclick="OpenSettingsAsync">
+    <i class="bi @ButtonIcon"></i>
+</button>
+
+@code {
+    [Inject] private NavigationManager? NavigationManager { get; set; }
+    [Inject] private IDialogService? DialogService { get; set; }
+
+    private bool _isOnMainPage;
+
+    private string ButtonText => _isOnMainPage ? "Open Settings Menu" : "Return";
+    private string ButtonIcon => _isOnMainPage ? "bi-gear-fill" : "bi-arrow-return-left";
+
+    protected override void OnInitialized()
+    {
+        UpdateIsOnMainPage();
+
+        NavigationManager!.LocationChanged += OnLocationChanged;
+    }
+
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        UpdateIsOnMainPage();
+
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void UpdateIsOnMainPage()
+    {
+        _isOnMainPage = new Uri(NavigationManager?.Uri ?? "/").AbsolutePath == "/";
+    }
+
+    private async Task OpenSettingsAsync()
+    {
+        if (!_isOnMainPage)
+        {
+            NavigationManager?.NavigateTo("/");
+            return;
+        }
+
+        if (DialogService is not null)
+            await DialogService.ShowSettingsMenuAsync(async () => { });
+    }
+
+    public void Dispose()
+    {
+        NavigationManager!.LocationChanged -= OnLocationChanged;
+    }
+}

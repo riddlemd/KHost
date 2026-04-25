@@ -1,0 +1,120 @@
+@using System.ComponentModel.DataAnnotations
+@using KHost.Abstractions.Models
+@using KHost.UserInterface.Models
+@using KHost.UserInterface.Services
+
+<Dialog IsOpen="IsOpen" Class="@($"{_rootClassName} {Class.Trim()}".Trim())" OnClose="OnClose" CloseOnScrimClick="CloseOnScrimClick">
+    <Header>
+        <Icon Name="music-note-beamed" /> Edit Media
+    </Header>
+    <Body>
+        <EditForm EditContext="_editContext" OnValidSubmit="SaveAsync">
+            <DataAnnotationsValidator />
+            <div class="mb-3">
+                <label class="form-label">Title</label>
+                <InputText class="form-control" @bind-Value="_model.Title" autofocus />
+                <ValidationMessage For="() => _model.Title" />
+            </div>
+            <div class="mb-3">
+                <div class="@(_rootClassName)__label-row">
+                    <label class="form-label">Artist</label>
+                    <button type="button"
+                            class="@(_rootClassName)__swap-btn kh-button--icon-minimal"
+                            title="Swap Title and Artist"
+                            @onclick="SwapTitleAndArtist">
+                        <Icon Name="arrow-down-up" />
+                    </button>
+                </div>
+                <InputText class="form-control" @bind-Value="_model.Artist" />
+                <ValidationMessage For="() => _model.Artist" />
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Notes</label>
+                <InputTextArea class="form-control" @bind-Value="_model.Notes" rows="6" />
+                <ValidationMessage For="() => _model.Notes" />
+            </div>
+            <button type="submit" class="kh-hidden"></button>
+        </EditForm>
+    </Body>
+    <Footer>
+        <button class="@(_rootClassName)__cancel-btn kh-button kh-button--secondary" @onclick="CloseAsync" type="button">Cancel</button>
+        <button class="@(_rootClassName)__save-btn kh-button kh-button--primary" @onclick="SubmitAsync" type="button">Save</button>
+    </Footer>
+</Dialog>
+
+@code {
+    private const string _rootClassName = "kh-media-edit-dialog";
+
+    [Parameter] public bool IsOpen { get; set; }
+    [Parameter] public Media? Media { get; set; }
+    [Parameter] public string Class { get; set; } = "";
+    [Parameter] public bool CloseOnScrimClick { get; set; }
+
+    [Parameter] public EventCallback<Media> OnSave { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    private MediaEditModel _model = new();
+    private EditContext _editContext = default!;
+    private bool _prevIsOpen;
+
+    protected override void OnInitialized()
+    {
+        _editContext = new EditContext(_model);
+    }
+
+    protected override void OnParametersSet()
+    {
+        if (IsOpen && !_prevIsOpen)
+        {
+            _model = Media is null
+                ? new MediaEditModel()
+                : new MediaEditModel
+                {
+                    Id = Media.Id,
+                    Title = Media.Title,
+                    Artist = Media.Artist,
+                    Notes = Media.Notes
+                };
+            _editContext = new EditContext(_model);
+        }
+        _prevIsOpen = IsOpen;
+    }
+
+    private async Task SubmitAsync()
+    {
+        if (_editContext.Validate())
+            await SaveAsync();
+    }
+
+    private async Task SaveAsync()
+    {
+        if (Media is not null)
+        {
+            Media.Title = _model.Title;
+            Media.Artist = _model.Artist;
+            Media.Notes = _model.Notes;
+
+            await OnSave.InvokeAsync(Media);
+        }
+
+        await CloseAsync();
+    }
+
+    private void SwapTitleAndArtist()
+    {
+        (_model.Title, _model.Artist) = (_model.Artist, _model.Title);
+    }
+
+    public async Task CloseAsync()
+    {
+        IsOpen = false;
+        await OnClose.InvokeAsync();
+    }
+
+    public record DialogRequest : EditDialogRequest<Media>
+    {
+        public DialogRequest(Media? value, Action<Media?> onSave, Action? onCancel, Action? onClose) : base(value, onSave, onCancel, onClose)
+        {
+        }
+    }
+}

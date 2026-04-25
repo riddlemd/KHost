@@ -1,0 +1,218 @@
+@implements IDisposable
+@using KHost.Abstractions.Models
+@using KHost.Abstractions.Services
+@using KHost.Domain.Services.MediaProviders
+@using KHost.UserInterface.Services
+@using KHost.Domain.Chronography;
+
+<div class="kh-media-search-panel" tabindex="0">
+    <div class="kh-card">
+    <div class="kh-card__header d-flex align-items-center gap-2">
+        <Icon Name="search" />
+        <span class="kh-card__title">Media Search</span>
+    </div>
+
+    <div class="kh-card__body kh-media-search-panel__inputs">
+        <Control>
+            <label class="form-label">Search</label>
+            <input type="text" class="form-control form-control-sm" placeholder="Type a Media name or artist..."
+                    autocomplete="off"
+                    @bind="_query"
+                    @bind:event="oninput"
+                    @onkeydown="OnFilterKeyDownAsync" />
+        </Control>
+        <SplitButton
+            @onclick="RunSearchAsync"
+            disabled="@(_searching)"
+            Title="Search all Providers">
+                <Text>
+                    @if (_searching)
+                    {
+                        <span class="spinner-border spinner-border-sm" role="status"></span>
+                    }
+                    else
+                    {
+                        <Icon Name="search" />
+                    }
+                </Text>
+                <Buttons>
+                    <button>Local</button>
+                    <button>YouTube</button>
+                    <button>KaraFun</button>
+                </Buttons>
+        </SplitButton>
+    </div>
+
+    <div class="kh-card__body kh-card__body kh-media-search-panel__results">
+        @if (_errorMessage is not null)
+        {
+            <div class="kh-alert--warning py-2 mb-0">
+                <Icon Name="exclamation-triangle-fill" Class="me-1" />@_errorMessage
+            </div>
+        }
+
+        @if (_results is not null)
+        {
+            <div>
+                @if (SingerQueueService?.SelectedSingerId is null && _results.Count > 0)
+                {
+                    <span>
+                        <Icon Name="arrow-left" Class="me-1" />Select a singer in the queue to add media
+                    </span>
+                }
+            </div>
+
+            <div class="kh-media-search-panel__results">
+                @if (_results.Count == 0)
+                {
+                    <div class="kh-panel--empty">
+                        <Icon Name="folder-x" />
+                        <span>No compatible media files found in that directory.</span>
+                    </div>
+                }
+                else
+                {
+                    <table class="kh-table">
+                        <thead class="sticky-top">
+                            <tr>
+                                <th>Name</th>
+                                <th>Duration</th>
+                                @if (_multipleProvidersInResults)
+                                {
+                                    <th>Source</th>
+                                }
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var mediaSearchEntity in _results.Take(300))
+                            {
+                                    <tr class="kh-media-search-panel__results__result @(IsMediaInSelectedSingersQueue(mediaSearchEntity.ForeignKey, mediaSearchEntity.Source) ? "kh-media-search-panel__results__result--queued" : "")">
+                                    <td class="kh-table__cell--fill">
+                                        @mediaSearchEntity.DisplayName
+                                    </td>
+                                    <td>@(mediaSearchEntity.Duration?.ToTotalMinutesAndSeconds() ?? "--:--")</td>
+                                    @if (_multipleProvidersInResults) {
+                                        <td>
+                                            @mediaSearchEntity.SourceDisplayName
+                                        </td>
+                                    }
+                                    <td class="kh-table__cell--actions">
+                                        @foreach(var action in CombineWithGlobalActions(mediaSearchEntity.SupportedActions))
+                                        {
+                                            <SplitButton
+                                                    disabled="@(SingerQueueService?.SelectedSingerId is null)"
+                                                    @onclick="() => PerformActionAsync(action.PerformAsync, mediaSearchEntity)"
+                                                    title="@action.Description">
+                                                <Text><Icon Name="@action.Icon" /> @action.DisplayName</Text>
+                                                <Buttons>
+                                                    @foreach(var subAction in action.SubActions)
+                                                    {
+                                                        <button class="kh-button kh-button--primary"
+                                                            disabled="@(SingerQueueService?.SelectedSingerId is null)"
+                                                            @onclick="() => PerformActionAsync(subAction.PerformAsync, mediaSearchEntity)"
+                                                                title="@subAction.Description">
+                                                            <Icon Name="@subAction.Icon" /> @subAction.DisplayName
+                                                        </button>    
+                                                    }
+                                                </Buttons>
+                                            </SplitButton>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+            </div>
+        }
+        else {
+            <div class="kh-panel--empty">
+                <Icon Name="cassette" />
+                <span>No media has been searched for yet.</span>
+            </div>
+        }
+    </div>
+    </div>
+</div>
+
+@code {
+    [Inject] private IMediaSearchService? MediaSearchService { get; set; }
+    [Inject] private ISingerQueueService? SingerQueueService { get; set; }
+    [Inject] private IPerformanceService? PerformanceService { get; set; }
+    [Inject] private IDialogService? DialogService { get; set; }
+
+    private bool _searching;
+    private string _query = "";
+    private List<MediaSearchEntity>? _results;
+    private string? _errorMessage;
+    private IEnumerable<MediaProviderAction> _globalActions = [];
+    private bool _multipleProvidersInResults;
+    private IEnumerable<Performance> _selectedSingerPerformances = [];
+
+    protected override void OnInitialized()
+    {
+        SingerQueueService?.StateChanged += OnStateChanged;
+    }
+
+    private async Task RunSearchAsync()
+    {
+        if (MediaSearchService is null)
+            return;
+
+        _errorMessage = null;
+        _searching = true;
+        _results = null;
+
+        StateHasChanged();
+
+        _results = await MediaSearchService.SearchAsync(_query);
+
+        _searching = false;
+
+        _multipleProvidersInResults = _results.GroupBy(x => x.Source).Distinct().Count() > 1;
+    }
+
+    private async Task OnFilterKeyDownAsync(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !_searching)
+            await RunSearchAsync();
+    }
+
+    private async Task PerformActionAsync(Func<MediaSearchEntity, Task> func, MediaSearchEntity mediaSearchEntity)
+    {
+        await func(mediaSearchEntity);
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private MediaProviderAction[] CombineWithGlobalActions(IEnumerable<MediaProviderAction> actions)
+        => [.._globalActions, ..actions];
+
+    private void OnStateChanged(object? sender, EventArgs e) => InvokeAsync(async () =>
+    {
+        await UpdateSelectedSingerPerformances();
+        StateHasChanged();
+    });
+
+    private async Task UpdateSelectedSingerPerformances()
+    {
+        if (PerformanceService is null) return;
+        if (SingerQueueService?.SelectedSingerId is not { } selectedSingerId) return;
+
+        _selectedSingerPerformances = (await PerformanceService.ReadBySingerIdAsync(selectedSingerId, filter: PerformanceFilter.Queued)).Items;
+    }
+
+    private bool IsMediaInSelectedSingersQueue(string foreignKey, string source)
+    {
+        if (!source.Equals(nameof(DefaultMediaProvider), StringComparison.InvariantCultureIgnoreCase))
+            return false;
+
+        var guid = new Guid(foreignKey);
+
+        return _selectedSingerPerformances.Any(x => x.MediaId == guid);
+    }
+
+    public void Dispose() =>
+        SingerQueueService?.StateChanged -= OnStateChanged;
+}

@@ -111,6 +111,7 @@ public class SingerQueueServiceTests : IDisposable
         var mediaId = Guid.NewGuid();
         var entity = new MediaSearchEntity
         {
+            SourceDisplayName = "FileSystem",
             Source = "FileSystem",
             ForeignKey = Guid.NewGuid().ToString(),
             DisplayName = "My Media",
@@ -127,6 +128,7 @@ public class SingerQueueServiceTests : IDisposable
         var alice = await EnqueueAsync("Alice");
         var entity = new MediaSearchEntity
         {
+            SourceDisplayName = "FileSystem",
             Source = "FileSystem",
             ForeignKey = "/music/media.mp4",
             DisplayName = "My Media"
@@ -240,6 +242,96 @@ public class SingerQueueServiceTests : IDisposable
         await _service.SelectFirstSingerInQueueAsync();
 
         Assert.Equal(a.Id, _service.SelectedSingerId);
+    }
+
+    [Fact]
+    public async Task MoveSingerUpAsync_BlockedFromIndex1_WhenTopSlotLockedForOther()
+    {
+        var a = await EnqueueAsync("A");
+        var b = await EnqueueAsync("B");
+
+        _service.LockTopSlot();
+
+        await _service.MoveSingerUpAsync(b.Id);
+
+        Assert.Equal(a.Id, _service.Singers[0].Id);
+        Assert.Equal(b.Id, _service.Singers[1].Id);
+    }
+
+    [Fact]
+    public async Task MoveSingerUpAsync_AllowedFromIndex2_WhenTopSlotLocked()
+    {
+        var a = await EnqueueAsync("A");
+        var b = await EnqueueAsync("B");
+        var c = await EnqueueAsync("C");
+
+        _service.LockTopSlot();
+
+        await _service.MoveSingerUpAsync(c.Id);
+
+        Assert.Equal(a.Id, _service.Singers[0].Id);
+        Assert.Equal(c.Id, _service.Singers[1].Id);
+        Assert.Equal(b.Id, _service.Singers[2].Id);
+    }
+
+    [Fact]
+    public async Task MoveSingerUpAsync_BlockedForLockedSinger_Itself()
+    {
+        var a = await EnqueueAsync("A");
+        var b = await EnqueueAsync("B");
+
+        _service.LockTopSlot();
+
+        await _service.MoveSingerUpAsync(b.Id);
+
+        Assert.Equal(a.Id, _service.Singers[0].Id);
+        Assert.Equal(b.Id, _service.Singers[1].Id);
+    }
+
+    [Fact]
+    public async Task MoveSingerToStartAsync_Blocked_WhenTopSlotLockedForOther()
+    {
+        var a = await EnqueueAsync("A");
+        await EnqueueAsync("B");
+        var c = await EnqueueAsync("C");
+
+        _service.LockTopSlot();
+
+        await _service.MoveSingerToStartAsync(c.Id);
+
+        Assert.Equal(a.Id, _service.Singers[0].Id);
+        Assert.Equal(c.Id, _service.Singers[2].Id);
+    }
+
+    [Fact]
+    public async Task MoveSingerToStartAsync_BlockedForLockedSinger_Itself()
+    {
+        var a = await EnqueueAsync("A");
+        await EnqueueAsync("B");
+        var c = await EnqueueAsync("C");
+
+        _service.LockTopSlot();
+
+        await _service.MoveSingerToStartAsync(c.Id);
+
+        Assert.Equal(a.Id, _service.Singers[0].Id);
+        Assert.Equal(c.Id, _service.Singers[2].Id);
+    }
+
+    [Fact]
+    public async Task UnlockTopSlot_ReleasesGuard()
+    {
+        var a = await EnqueueAsync("A");
+        var b = await EnqueueAsync("B");
+
+        _service.LockTopSlot();
+        _service.UnlockTopSlot();
+
+        await _service.MoveSingerUpAsync(b.Id);
+
+        Assert.Equal(b.Id, _service.Singers[0].Id);
+        Assert.Equal(a.Id, _service.Singers[1].Id);
+        Assert.False(_service.IsTopSlotLocked);
     }
 
     private async Task<Singer> EnqueueAsync(string name)

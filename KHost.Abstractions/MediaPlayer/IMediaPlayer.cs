@@ -32,6 +32,13 @@ public interface IMediaPlayer : IDisposable
     /// </summary>
     float Volume { get; set; }
 
+    /// <summary>
+    /// Semitone offset applied to audio pitch without changing tempo.
+    /// 0 = no shift. Positive = higher pitch. Negative = lower pitch.
+    /// Always safe to set — takes effect on the next playback segment.
+    /// </summary>
+    int PitchSemitones { get; set; }
+
     // ── Events ─────────────────────────────────────────────────────────────
 
     /// <summary>
@@ -61,8 +68,12 @@ public interface IMediaPlayer : IDisposable
     /// <summary>Pauses playback, preserving the current position.</summary>
     void Pause();
 
-    /// <summary>Stops playback and resets the position to the beginning.</summary>
-    void Stop();
+    /// <summary>
+    /// Stops playback and resets the position to the beginning.
+    /// Audio and video fade out over <paramref name="fadeDuration"/> before the segment is torn down.
+    /// Defaults to 5 seconds when not specified.
+    /// </summary>
+    void Stop(TimeSpan? fadeDuration = null);
 
     /// <summary>
     /// Seeks to <paramref name="position"/>.
@@ -101,11 +112,15 @@ public interface IMediaPlayer : IDisposable
         public int Width { get; }
         public int Height { get; }
 
-        public FrameData(byte[] pixels, int width, int height)
+        /// <summary>Render opacity for this frame. 1.0 = fully opaque, 0.0 = fully transparent.</summary>
+        public float Alpha { get; }
+
+        public FrameData(byte[] pixels, int width, int height, float alpha = 1.0f)
         {
             Pixels = pixels;
             Width = width;
             Height = height;
+            Alpha = alpha;
         }
     }
 }

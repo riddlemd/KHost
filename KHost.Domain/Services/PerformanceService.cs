@@ -13,29 +13,24 @@ public class PerformanceService : BaseRepositoryService<Performance, IPerformanc
         //
     }
 
-    public async Task<PaginatedResult<Performance>> GetBySingerIdAsync(Guid singerId, int pageNumber = 1, int pageSize = 0, bool includeQueued = false)
-        => await Repository.GetBySingerIdAsync(singerId, pageNumber, pageSize, includeQueued);
+    public async Task<PaginatedResult<Performance>> ReadBySingerIdAsync(Guid singerId, int pageNumber = 1, int pageSize = 0, PerformanceFilter filter = PerformanceFilter.All)
+        => await Repository.ReadBySingerIdAsync(singerId, pageNumber, pageSize, filter);
 
-    public async Task<PaginatedResult<Performance>> GetByMediaIdAsync(Guid mediaId, int pageNumber = 1, int pageSize = 0, bool includeQueued = false)
-        => await Repository.GetByMediaIdAsync(mediaId, pageNumber, pageSize, includeQueued);
+    public async Task<PaginatedResult<Performance>> ReadByMediaIdAsync(Guid mediaId, int pageNumber = 1, int pageSize = 0, PerformanceFilter filter = PerformanceFilter.All)
+        => await Repository.ReadByMediaIdAsync(mediaId, pageNumber, pageSize, filter);
 
-    public async Task<IReadOnlyList<Performance>> GetSingerPerformances(Guid singerId, int pageNumber = 0, int pageSize = 0)
-    {
-        var allPerfs = await Repository.ReadAllAsync(pageNumber: pageNumber, pageSize: pageSize);
+    public async Task<Performance?> ReadSingersNextPerformanceAsync(Guid singerId)
+        => await Repository.ReadSingersNextPerformanceAsync(singerId);
 
-        return allPerfs.Items
-            .Where(p => p.SingerId == singerId && p.QueuePosition.HasValue)
-            .OrderBy(p => p.QueuePosition)
-            .ToList()
-            .AsReadOnly();
-    }
+    public async Task<List<Performance>> ReadQueuedAsync()
+        => await Repository.ReadQueuedAsync();
 
-    public async Task<Performance?> GetSingersNextPerformanceAsync(Guid singerId)
-        => await Repository.GetSingersNextPerformanceAsync(singerId);
+    public async Task<PaginatedResult<Performance>> ReadAllAsync(int pageNumber = 1, int pageSize = 0, PerformanceFilter filter = PerformanceFilter.All)
+        => await Repository.ReadAllAsync(pageNumber, pageSize, filter);
 
     public async Task<Performance> CreateAndEnqueueAsync(Performance performance)
     {
-        var nextPosition = await Repository.GetNextQueuePositionForSingerAsync(performance.SingerId);
+        var nextPosition = await Repository.ReadNextQueuePositionForSingerAsync(performance.SingerId);
 
         performance.QueuePosition = nextPosition;
 
@@ -68,13 +63,21 @@ public class PerformanceService : BaseRepositoryService<Performance, IPerformanc
         InvokeStateChanged();
     }
 
+    public async Task DeleteAllQueuedAsync()
+    {
+        await Repository.DeleteAllQueuedAsync();
+
+        Logger.LogInformation("All queued performances deleted");
+
+        InvokeStateChanged();
+    }
+
+
+
     public async Task MoveUpInQueueAsync(Guid singerId, Guid performanceId)
     {
-        var allPerfs = await Repository.ReadAllAsync(pageNumber: 1, pageSize: 1000);
-
-        var queue = allPerfs.Items
-            .Where(p => p.SingerId == singerId && p.QueuePosition.HasValue)
-            .OrderBy(p => p.QueuePosition)
+        var queue = (await Repository.ReadQueuedAsync())
+            .Where(p => p.SingerId == singerId)
             .ToList();
 
         var idx = queue.FindIndex(p => p.Id == performanceId);
@@ -96,11 +99,8 @@ public class PerformanceService : BaseRepositoryService<Performance, IPerformanc
 
     public async Task MoveDownInQueueAsync(Guid singerId, Guid performanceId)
     {
-        var allPerfs = await Repository.ReadAllAsync(pageNumber: 1, pageSize: 1000);
-
-        var queue = allPerfs.Items
-            .Where(p => p.SingerId == singerId && p.QueuePosition.HasValue)
-            .OrderBy(p => p.QueuePosition)
+        var queue = (await Repository.ReadQueuedAsync())
+            .Where(p => p.SingerId == singerId)
             .ToList();
 
         var idx = queue.FindIndex(p => p.Id == performanceId);
@@ -122,11 +122,8 @@ public class PerformanceService : BaseRepositoryService<Performance, IPerformanc
 
     public async Task MoveToEndOfQueueAsync(Guid singerId, Guid performanceId)
     {
-        var allPerfs = await Repository.ReadAllAsync(pageNumber: 1, pageSize: 1000);
-
-        var queue = allPerfs.Items
-            .Where(p => p.SingerId == singerId && p.QueuePosition.HasValue)
-            .OrderBy(p => p.QueuePosition)
+        var queue = (await Repository.ReadQueuedAsync())
+            .Where(p => p.SingerId == singerId)
             .ToList();
 
         var idx = queue.FindIndex(p => p.Id == performanceId);

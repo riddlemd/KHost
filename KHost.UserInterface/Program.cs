@@ -1,8 +1,15 @@
+using KHost.Abstractions.Interactions;
+using KHost.Abstractions.Interactions.Requests;
+using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using KHost.DataAccess;
 using KHost.Domain;
 using KHost.ServiceDefaults;
 using KHost.UserInterface.Components;
+using KHost.UserInterface.Interactions;
+using KHost.UserInterface.Middleware;
+using KHost.UserInterface.Interactions.Handlers;
+using KHost.UserInterface.Services;
 using Serilog;
 using Serilog.Events;
 
@@ -37,6 +44,14 @@ builder.Services.AddDataAccess();
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
+builder.Services.AddSingleton<IThemeService, ThemeService>();
+builder.Services.AddSingleton<IDialogService, DialogService>();
+builder.Services.AddSingleton<IStartupRedirectProvider, CliStartupRedirectProvider>();
+
+builder.Services.AddSingleton<IInteractionDispatcher, DialogInteractionDispatcher>();
+builder.Services.AddSingleton<IInteractionHandler<EditMediaRequest, Media?>, EditMediaDialogHandler>();
+builder.Services.AddSingleton<IInteractionHandler<ShowLyricsRequest>, ShowLyricsDialogHandler>();
+
 var app = builder.Build();
 
 // Initialize database with seed data
@@ -45,6 +60,8 @@ using (var scope = app.Services.CreateScope())
     var initializer = scope.ServiceProvider.GetRequiredService<IDatabaseInitializer>();
     await initializer.InitializeAsync();
 }
+
+await app.Services.GetRequiredService<IThemeService>().InitializeAsync();
 
 app.MapDefaultEndpoints();
 
@@ -56,19 +73,7 @@ if (!app.Environment.IsDevelopment())
 app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
 app.UseAntiforgery();
 
-app.MapGet("/api/themes", (IWebHostEnvironment env) =>
-{
-    var themesPath = Path.Combine(env.WebRootPath, "css", "themes");
-    if (!Directory.Exists(themesPath))
-        return Results.Ok(new List<string>());
-
-    var themes = Directory.GetFiles(themesPath, "*.css")
-        .Select(f => Path.GetFileNameWithoutExtension(f))
-        .OrderBy(t => t)
-        .ToList();
-
-    return Results.Ok(themes);
-});
+app.UseStartupRedirect();
 
 app.MapStaticAssets();
 app.MapRazorComponents<App>()

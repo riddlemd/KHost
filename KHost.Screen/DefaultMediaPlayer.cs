@@ -1,3 +1,4 @@
+using FFMpegCore;
 using KHost.Abstractions.MediaPlayer;
 using KHost.Screen.FFmpeg;
 using KHost.Screen.OpenAl;
@@ -14,6 +15,10 @@ namespace KHost.Screen;
 /// both the video-frame events and the OpenAL audio player.
 /// </summary>
 /// <remarks>
+/// Media probing uses <see cref="FFProbe"/> from FFMpegCore. The streaming
+/// playback pipeline is hand-built because FFMpegCore's encode-oriented API
+/// doesn't fit a killable, real-time pipe-to-demuxer scenario.
+///
 /// Audio playback requires an OpenAL-compatible device on the system
 /// (openal32 on Windows, built-in framework on macOS, libopenal on Linux).
 /// When unavailable the player still works — only video is rendered and
@@ -24,11 +29,11 @@ namespace KHost.Screen;
 public sealed class DefaultMediaPlayer : IMediaPlayer
 {
     private readonly ILogger<DefaultMediaPlayer> _logger;
-    private readonly IFfmpegService _ffmpeg;
     private readonly OpenAlAudioPlayer _audio = new();
     private IMediaPlayer.MediaInfo? _info;
     private State _state = State.Idle;
     private readonly object _lock = new();
+    private int _pitchSemitones;
 
     // Playback tracking
     private TimeSpan _startOffset;
@@ -39,6 +44,12 @@ public sealed class DefaultMediaPlayer : IMediaPlayer
     private Process? _process;
     private Thread? _demuxThread;
     private CancellationTokenSource? _cts;
+
+    // Fade-out state
+    private CancellationTokenSource? _fadeCts;
+    private float _preFadeVolume = 1.0f;
+    private volatile float _fadeAlpha = 1.0f;
+    private const int FadeStepMs = 50;
 
     public event EventHandler<IMediaPlayer.FrameData>? FrameAvailable;
     public event EventHandler? PlaybackEnded;
@@ -57,6 +68,30 @@ public sealed class DefaultMediaPlayer : IMediaPlayer
         set => _audio.Volume = value;
     }
 
+    /// <inheritdoc/>
+    public int PitchSemitones
+    {
+        get => _pitchSemitones;
+        set
+        {
+            if (_pitchSemitones == value) return;
+            _pitchSemitones = value;
+            lock (_lock)
+            {
+                if (_state == State.Playing)
+                {
+                    var pos = _firstFrameSeen
+                        ? TimeSpan.FromTicks(Math.Clamp(
+                            (_startOffset + (DateTime.UtcNow - _segmentWallStart)).Ticks,
+                            0, Duration.Ticks))
+                        : _startOffset;
+                    KillSegment();
+                    BeginSegment(pos);
+                }
+            }
+        }
+    }
+
     public TimeSpan Position
     {
         get
@@ -72,37 +107,36 @@ public sealed class DefaultMediaPlayer : IMediaPlayer
         }
     }
 
-    public DefaultMediaPlayer(IFfmpegService? ffmpegService = null, ILogger<DefaultMediaPlayer>? logger = null)
+    public DefaultMediaPlayer(ILogger<DefaultMediaPlayer>? logger = null)
     {
         _logger = logger ?? NullLogger<DefaultMediaPlayer>.Instance;
-        _ffmpeg = ffmpegService ?? new FfmpegService();
     }
 
     public async Task LoadAsync(string filePath, CancellationToken cancellationToken = default)
     {
         StopAndReset();
 
-        string json = await _ffmpeg
-            .ProbeAsync(filePath, cancellationToken: cancellationToken)
-            .ConfigureAwait(false);
-
-        _info = MediaInfoParser.Parse(filePath, json);
+        var analysis = await FFProbe.AnalyseAsync(filePath).ConfigureAwait(false);
+        _info = BuildMediaInfo(filePath, analysis);
 
         lock (_lock) _state = State.Stopped;
     }
 
     public void Play()
     {
+        CancelFade();
         lock (_lock)
         {
             if (_info is null) throw new InvalidOperationException("No file loaded. Call LoadAsync first.");
             if (_state == State.Playing) return;
+            if (_process is not null) KillSegment(); // clean up any ffmpeg left running by a fade
             BeginSegment(_startOffset);
         }
     }
 
     public void Pause()
     {
+        CancelFade();
         lock (_lock)
         {
             if (_state != State.Playing) return;
@@ -119,15 +153,24 @@ public sealed class DefaultMediaPlayer : IMediaPlayer
         }
     }
 
-    public void Stop()
+    public void Stop(TimeSpan? fadeDuration = null)
     {
-        StopAndReset();
+        CancelFade();
+        _fadeCts = new CancellationTokenSource();
+        var token = _fadeCts.Token;
+
         lock (_lock)
+        {
+            _preFadeVolume = _audio.Volume;
             _state = _info is not null ? State.Stopped : State.Idle;
+        }
+
+        _ = FadeAndStopAsync(fadeDuration ?? TimeSpan.FromSeconds(5), token);
     }
 
     public void Seek(TimeSpan position)
     {
+        CancelFade();
         lock (_lock)
         {
             bool wasPlaying = _state == State.Playing;
@@ -198,13 +241,18 @@ public sealed class DefaultMediaPlayer : IMediaPlayer
             args += " -vn";
 
         if (_info.HasAudio)
+        {
+            var pitchFilter = BuildAudioPitchFilter();
+            if (!string.IsNullOrEmpty(pitchFilter))
+                args += $" -af \"{pitchFilter}\"";
             args += " -c:a pcm_s16le";
+        }
         else
             args += " -an";
 
         args += " pipe:1";
 
-        var psi = new ProcessStartInfo(_ffmpeg.FfmpegPath, args)
+        var psi = new ProcessStartInfo(ResolveFfmpegPath(), args)
         {
             UseShellExecute = false,
             RedirectStandardOutput = true,
@@ -267,6 +315,7 @@ public sealed class DefaultMediaPlayer : IMediaPlayer
             _firstFrameSeen = false;
             _state = State.Idle;
         }
+        CancelFade(); // after KillSegment so _started = false; RestoreFadeState won't touch OpenAL
     }
 
     // ── Demux thread ────────────────────────────────────────────────────────
@@ -315,7 +364,7 @@ public sealed class DefaultMediaPlayer : IMediaPlayer
                         Thread.Sleep(remaining);
                     nextFrameAt += frameInterval;
 
-                    FrameAvailable?.Invoke(this, new IMediaPlayer.FrameData(chunk.Data, w, h));
+                    FrameAvailable?.Invoke(this, new IMediaPlayer.FrameData(chunk.Data, w, h, _fadeAlpha));
                 }
                 else if (chunk.IsAudio)
                 {
@@ -344,6 +393,117 @@ public sealed class DefaultMediaPlayer : IMediaPlayer
             }
             PlaybackEnded?.Invoke(this, EventArgs.Empty);
         }
+    }
+
+    // ── Helpers ─────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Maps FFMpegCore's probe result into the abstraction layer's MediaInfo and
+    /// applies KHost-specific rules (e.g. pairing a <c>.cdg</c> graphics file with
+    /// its companion <c>.mp3</c> audio file).
+    /// </summary>
+    private static IMediaPlayer.MediaInfo BuildMediaInfo(string filePath, IMediaAnalysis analysis)
+    {
+        var video = analysis.PrimaryVideoStream;
+        var audio = analysis.PrimaryAudioStream;
+
+        bool hasVideo = video is not null;
+        bool hasAudio = audio is not null;
+
+        var auxiliary = new List<string>();
+        bool statefulFormat = false;
+
+        string ext = Path.GetExtension(filePath);
+        if (ext.Equals(".cdg", StringComparison.OrdinalIgnoreCase))
+        {
+            string mp3 = Path.ChangeExtension(filePath, ".mp3");
+            if (File.Exists(mp3))
+            {
+                auxiliary.Add(mp3);
+                hasAudio = true;
+                // Input-seeking corrupts CDG decoding; decode from byte 0 and trust -ss on output.
+                statefulFormat = true;
+            }
+        }
+
+        double fps = video?.FrameRate ?? 0;
+
+        return new IMediaPlayer.MediaInfo
+        {
+            FilePath = filePath,
+            AuxiliaryFilePaths = [.. auxiliary],
+            Duration = analysis.Duration,
+            Width = video?.Width ?? 0,
+            Height = video?.Height ?? 0,
+            Fps = fps > 0 ? fps : 25,
+            AudioSampleRate = audio?.SampleRateHz ?? 44100,
+            AudioChannels = Math.Max(1, audio?.Channels ?? 2),
+            HasVideo = hasVideo,
+            HasAudio = hasAudio,
+            StatefulFormat = statefulFormat,
+        };
+    }
+
+    private string BuildAudioPitchFilter()
+    {
+        if (_pitchSemitones == 0) return string.Empty;
+        double ratio = Math.Pow(2.0, _pitchSemitones / 12.0);
+        int sr = _info!.AudioSampleRate > 0 ? _info.AudioSampleRate : 44100;
+        return string.Format(
+            System.Globalization.CultureInfo.InvariantCulture,
+            "asetrate={0}*{1:F6},aresample={0},atempo={2:F6}",
+            sr, ratio, 1.0 / ratio);
+    }
+
+    /// <summary>
+    /// Resolves the ffmpeg executable path, preferring the directory configured
+    /// via <see cref="GlobalFFOptions"/> (from <c>FFMPEG_PATH</c>) and falling back
+    /// to the OS <c>PATH</c>.
+    /// </summary>
+    private static string ResolveFfmpegPath()
+    {
+        string exeName = OperatingSystem.IsWindows() ? "ffmpeg.exe" : "ffmpeg";
+
+        string? folder = GlobalFFOptions.Current.BinaryFolder;
+        if (!string.IsNullOrEmpty(folder))
+        {
+            string candidate = Path.Combine(folder, exeName);
+            if (File.Exists(candidate)) return candidate;
+        }
+
+        return exeName; // let the OS resolve via PATH
+    }
+
+    private async Task FadeAndStopAsync(TimeSpan duration, CancellationToken token)
+    {
+        int steps = Math.Max(1, (int)(duration.TotalMilliseconds / FadeStepMs));
+        for (int i = 1; i <= steps; i++)
+        {
+            if (token.IsCancellationRequested) { RestoreFadeState(); return; }
+            float t = 1f - (float)i / steps;
+            _audio.Volume = _preFadeVolume * t;
+            _fadeAlpha = t;
+            try { await Task.Delay(FadeStepMs, token).ConfigureAwait(false); }
+            catch (OperationCanceledException) { RestoreFadeState(); return; }
+        }
+        _audio.Volume = 0f;
+        _fadeAlpha = 0f;
+        StopAndReset();
+        RestoreFadeState();
+    }
+
+    private void CancelFade()
+    {
+        _fadeCts?.Cancel();
+        _fadeCts?.Dispose();
+        _fadeCts = null;
+        RestoreFadeState();
+    }
+
+    private void RestoreFadeState()
+    {
+        _fadeAlpha = 1.0f;
+        _audio.Volume = _preFadeVolume;
     }
 
     private enum State { Idle, Stopped, Playing, Paused }
