@@ -1,6 +1,7 @@
 @page "/settings/media-importer"
 @rendermode InteractiveServer
 @using KHost.Abstractions.Repositories
+@using KHost.Abstractions.Services
 @implements IAsyncDisposable
 
 <PageTitle>KHost &mdash; Media Importer</PageTitle>
@@ -36,17 +37,24 @@
                 }
                 else if (_currentPath is not null)
                 {
-                    <button class="kh-button kh-button--primary"
-                            disabled="@(_selectedPaths.Count == 0 && _selectedFolderPaths.Count == 0)"
-                            @onclick="StartImportAsync"
-                            type="button">
-                        @{
-                            var _importParts = new List<string>();
-                            if (_selectedPaths.Count > 0) _importParts.Add($"{_selectedPaths.Count} file{(_selectedPaths.Count == 1 ? "" : "s")}");
-                            if (_selectedFolderPaths.Count > 0) _importParts.Add($"{_selectedFolderPaths.Count} folder{(_selectedFolderPaths.Count == 1 ? "" : "s")}");
-                        }
-                        <Icon Name="download" /> Import@(_importParts.Count > 0 ? $" ({string.Join(", ", _importParts)})" : "")
-                    </button>
+                    <div class="kh-media-importer__header-actions">
+                        <button class="kh-button kh-button--outline-secondary"
+                                @onclick="() => _hideImported = !_hideImported"
+                                type="button">
+                            <Icon Name="@(_hideImported ? "eye-slash" : "eye")" /> @(_hideImported ? "Show in-library" : "Hide in-library")
+                        </button>
+                        <button class="kh-button kh-button--primary"
+                                disabled="@(_selectedPaths.Count == 0 && _selectedFolderPaths.Count == 0)"
+                                @onclick="StartImportAsync"
+                                type="button">
+                            @{
+                                var _importParts = new List<string>();
+                                if (_selectedPaths.Count > 0) _importParts.Add($"{_selectedPaths.Count} file{(_selectedPaths.Count == 1 ? "" : "s")}");
+                                if (_selectedFolderPaths.Count > 0) _importParts.Add($"{_selectedFolderPaths.Count} folder{(_selectedFolderPaths.Count == 1 ? "" : "s")}");
+                            }
+                            <Icon Name="download" /> Import@(_importParts.Count > 0 ? $" ({string.Join(", ", _importParts)})" : "")
+                        </button>
+                    </div>
                 }
             </div>
 
@@ -58,14 +66,54 @@
                             <Icon Name="arrow-left" />
                         </button>
                     }
+                    @if (_breadcrumbEditMode)
+                    {
+                        <input type="text"
+                               class="kh-media-importer__path-input"
+                               placeholder="Enter a path..."
+                               autocomplete="off"
+                               spellcheck="false"
+                               @bind="_pathInput"
+                               @bind:event="oninput"
+                               @onkeydown="OnPathInputKeyDownAsync" />
+                    }
+                    else if (_currentPath is not null)
+                    {
+                        <div class="kh-media-importer__breadcrumb-path">
+                            @foreach (var (display, fullPath) in GetBreadcrumbSegments())
+                            {
+                                <button class="kh-media-importer__breadcrumb-segment"
+                                        @onclick="async () => await NavigateToAsync(fullPath)"
+                                        type="button">
+                                    @display
+                                </button>
+                                @if (fullPath != _currentPath)
+                                {
+                                    <span class="kh-media-importer__breadcrumb-separator">›</span>
+                                }
+                            }
+                        </div>
+                    }
+                    <button class="kh-button--icon-minimal"
+                            @onclick="() => _breadcrumbEditMode = !_breadcrumbEditMode"
+                            type="button"
+                            title="@(_breadcrumbEditMode ? "Done" : "Edit path")">
+                        <Icon Name="@(_breadcrumbEditMode ? "check-lg" : "pencil")" />
+                    </button>
+                    <button class="kh-button--icon-minimal"
+                            disabled="@(ImportService!.State != ImportState.Idle)"
+                            @onclick="RefreshAsync"
+                            type="button"
+                            title="Refresh">
+                        <Icon Name="arrow-clockwise" />
+                    </button>
                     <input type="text"
-                           class="kh-media-importer__path-input"
-                           placeholder="Enter a path..."
+                           class="kh-media-importer__filter-input"
+                           placeholder="Filter files..."
                            autocomplete="off"
                            spellcheck="false"
-                           @bind="_pathInput"
-                           @bind:event="oninput"
-                           @onkeydown="OnPathInputKeyDownAsync" />
+                           @bind="_filterQuery"
+                           @bind:event="oninput" />
                 </div>
             </div>
 
@@ -87,15 +135,43 @@
                                           class="@(!HasNewFiles && !HasSelectableFolders ? "kh-media-importer__check kh-media-importer__check--disabled" : "kh-media-importer__check")"
                                           @onclick="OnSelectAllClicked" />
                                 </th>
-                                <th>Name</th>
-                                <th class="kh-media-importer__col--status">Status</th>
+                                <th class="kh-media-importer__col--sortable" @onclick="() => OnSortColumnClicked(SortColumn.Name)" style="cursor: pointer;">
+                                    Name
+                                    @if (_sortColumn == SortColumn.Name)
+                                    {
+                                        <Icon Name="@(_sortAsc ? "sort-up" : "sort-down")" class="kh-media-importer__sort-indicator" />
+                                    }
+                                </th>
+                                <th class="kh-media-importer__col--size kh-media-importer__col--sortable" @onclick="() => OnSortColumnClicked(SortColumn.Size)" style="cursor: pointer;">
+                                    Size
+                                    @if (_sortColumn == SortColumn.Size)
+                                    {
+                                        <Icon Name="@(_sortAsc ? "sort-up" : "sort-down")" class="kh-media-importer__sort-indicator" />
+                                    }
+                                </th>
+                                <th class="kh-media-importer__col--modified kh-media-importer__col--sortable" @onclick="() => OnSortColumnClicked(SortColumn.Modified)" style="cursor: pointer;">
+                                    Modified
+                                    @if (_sortColumn == SortColumn.Modified)
+                                    {
+                                        <Icon Name="@(_sortAsc ? "sort-up" : "sort-down")" class="kh-media-importer__sort-indicator" />
+                                    }
+                                </th>
+                                <th class="kh-media-importer__col--status kh-media-importer__col--sortable" @onclick="() => OnSortColumnClicked(SortColumn.Status)" style="cursor: pointer;">
+                                    Status
+                                    @if (_sortColumn == SortColumn.Status)
+                                    {
+                                        <Icon Name="@(_sortAsc ? "sort-up" : "sort-down")" class="kh-media-importer__sort-indicator" />
+                                    }
+                                </th>
                             </tr>
                         </thead>
                         <tbody>
-                            @foreach (var entry in _entries)
+                            @foreach (var entry in FilteredEntries)
                             {
                                 <tr class="@(entry.IsDirectory ? "kh-media-importer__row--dir" : "") @(entry.IsDirectory && _selectedFolderPaths.Contains(entry.FullPath) ? "kh-media-importer__row--dir--selected" : "")"
-                                    @onclick="() => OnEntryClickAsync(entry)">
+                                    @onclick="() => OnEntryClickAsync(entry)"
+                                    @onmouseover="() => GetParsedMetadataTooltip(entry)"
+                                    title="@GetParsedMetadataTooltip(entry)">
                                     <td class="kh-media-importer__col--check" @onclick:stopPropagation>
                                         @if (entry.IsDirectory && entry.Name != "..")
                                         {
@@ -110,7 +186,7 @@
                                                   @onclick="() => ToggleSelection(entry)" />
                                         }
                                     </td>
-                                    <td class="kh-table__cell--fill text-truncate" title="@entry.Name">
+                                    <td class="kh-table__cell--fill text-truncate" title="@GetParsedMetadataTooltip(entry)">
                                         @if (entry.IsDirectory)
                                         {
                                             <Icon Name="folder-fill" />
@@ -120,6 +196,30 @@
                                             <Icon Name="file-earmark-music" />
                                         }
                                         @entry.Name
+                                        @if (entry.IsDirectory && entry.SupportedFileCount is not null)
+                                        {
+                                            <span class="kh-media-importer__folder-count"> (@entry.SupportedFileCount)</span>
+                                        }
+                                    </td>
+                                    <td class="kh-media-importer__col--size">
+                                        @if (entry.IsDirectory)
+                                        {
+                                            <span class="kh-text--muted">—</span>
+                                        }
+                                        else
+                                        {
+                                            <span>@FormatFileSize(entry.Size)</span>
+                                        }
+                                    </td>
+                                    <td class="kh-media-importer__col--modified">
+                                        @if (entry.ModifiedDate != DateTime.MinValue)
+                                        {
+                                            <span>@entry.ModifiedDate.ToString("yyyy-MM-dd HH:mm")</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="kh-text--muted">—</span>
+                                        }
                                     </td>
                                     <td class="kh-media-importer__col--status">
                                         @if (entry.AlreadyImported)
@@ -133,7 +233,7 @@
                                     </td>
                                 </tr>
                             }
-                            @if (!_entries.Any(e => !e.IsDirectory))
+                            @if (!FilteredEntries.Any(e => !e.IsDirectory))
                             {
                                 <tr class="kh-media-importer__row--empty">
                                     <td colspan="3">
@@ -153,25 +253,118 @@
 </div>
 
 @code {
+    private enum SortColumn { Name, Type, Status, Size, Modified }
+
     [Inject] private IMediaImportService? ImportService { get; set; }
     [Inject] private IMediaRepository? MediaRepository { get; set; }
+    [Inject] private IMediaFileParsingService? ParsingService { get; set; }
 
     private string? _currentPath;
     private string _pathInput = string.Empty;
+    private string _filterQuery = string.Empty;
+    private bool _hideImported = false;
+    private SortColumn _sortColumn = SortColumn.Name;
+    private bool _sortAsc = true;
+    private bool _breadcrumbEditMode = false;
+    private readonly Dictionary<string, (string Title, string? Artist)> _parsedMetadataCache = new(StringComparer.OrdinalIgnoreCase);
     private List<FileEntry> _entries = [];
     private readonly HashSet<string> _selectedPaths = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> _selectedFolderPaths = new(StringComparer.OrdinalIgnoreCase);
 
-    private bool HasNewFiles => _entries.Any(e => !e.IsDirectory && !e.AlreadyImported);
+    private List<(string Display, string FullPath)> GetBreadcrumbSegments()
+    {
+        if (_currentPath is null)
+            return [];
 
-    private bool HasSelectableFolders => _entries.Any(e => e.IsDirectory && e.Name != "..");
+        var segments = new List<(string Display, string FullPath)>();
+        var path = _currentPath;
+
+        // Add drive letter at the start
+        var root = Path.GetPathRoot(path);
+        if (!string.IsNullOrEmpty(root))
+        {
+            segments.Add((root.TrimEnd('\\'), root.TrimEnd('\\')));
+            path = path[root.Length..];
+        }
+
+        // Add each directory segment
+        var parts = path.Split(Path.DirectorySeparatorChar, StringSplitOptions.RemoveEmptyEntries);
+        var currentPath = root ?? string.Empty;
+
+        foreach (var part in parts)
+        {
+            currentPath = Path.Combine(currentPath, part);
+            segments.Add((part, currentPath));
+        }
+
+        return segments;
+    }
+
+    private bool HasNewFiles => FilteredEntries.Any(e => !e.IsDirectory && !e.AlreadyImported);
+
+    private bool HasSelectableFolders => FilteredEntries.Any(e => e.IsDirectory && e.Name != "..");
+
+    private List<FileEntry> FilteredEntries
+    {
+        get
+        {
+            var filtered = _entries.AsEnumerable();
+
+            // Apply name filter
+            if (!string.IsNullOrWhiteSpace(_filterQuery))
+            {
+                filtered = filtered
+                    .Where(e => e.Name == ".." || e.Name.Contains(_filterQuery, StringComparison.OrdinalIgnoreCase));
+            }
+
+            // Apply hide-imported filter (but always show folders and ..)
+            if (_hideImported)
+            {
+                filtered = filtered
+                    .Where(e => e.IsDirectory || !e.AlreadyImported);
+            }
+
+            // Apply sorting: .. first, then folders, then files
+            var parentEntry = filtered.FirstOrDefault(e => e.Name == "..");
+            var folders = filtered.Where(e => e.IsDirectory && e.Name != "..").ToList();
+            var files = filtered.Where(e => !e.IsDirectory).ToList();
+
+            folders = _sortColumn switch
+            {
+                SortColumn.Name => _sortAsc ? folders.OrderBy(e => e.Name).ToList() : folders.OrderByDescending(e => e.Name).ToList(),
+                SortColumn.Type => folders,
+                SortColumn.Status => folders,
+                SortColumn.Size => folders,
+                SortColumn.Modified => _sortAsc ? folders.OrderBy(e => e.ModifiedDate).ToList() : folders.OrderByDescending(e => e.ModifiedDate).ToList(),
+                _ => folders
+            };
+
+            files = _sortColumn switch
+            {
+                SortColumn.Name => _sortAsc ? files.OrderBy(e => e.Name).ToList() : files.OrderByDescending(e => e.Name).ToList(),
+                SortColumn.Type => _sortAsc ? files.OrderBy(e => e.Extension).ToList() : files.OrderByDescending(e => e.Extension).ToList(),
+                SortColumn.Status => _sortAsc ? files.OrderBy(e => e.AlreadyImported).ToList() : files.OrderByDescending(e => e.AlreadyImported).ToList(),
+                SortColumn.Size => _sortAsc ? files.OrderBy(e => e.Size).ToList() : files.OrderByDescending(e => e.Size).ToList(),
+                SortColumn.Modified => _sortAsc ? files.OrderBy(e => e.ModifiedDate).ToList() : files.OrderByDescending(e => e.ModifiedDate).ToList(),
+                _ => files
+            };
+
+            var result = new List<FileEntry>();
+            if (parentEntry is not null)
+                result.Add(parentEntry);
+            result.AddRange(folders);
+            result.AddRange(files);
+
+            return result;
+        }
+    }
 
     private bool AllNewSelected
     {
         get
         {
-            var files = _entries.Where(e => !e.IsDirectory && !e.AlreadyImported).ToList();
-            var folders = _entries.Where(e => e.IsDirectory && e.Name != "..").ToList();
+            var files = FilteredEntries.Where(e => !e.IsDirectory && !e.AlreadyImported).ToList();
+            var folders = FilteredEntries.Where(e => e.IsDirectory && e.Name != "..").ToList();
             if (files.Count == 0 && folders.Count == 0) return false;
             return files.All(e => _selectedPaths.Contains(e.FullPath))
                 && folders.All(e => _selectedFolderPaths.Contains(e.FullPath));
@@ -203,11 +396,12 @@
     {
         _currentPath = null;
         _pathInput = string.Empty;
+        _filterQuery = string.Empty;
         _selectedPaths.Clear();
         _selectedFolderPaths.Clear();
         _entries = DriveInfo.GetDrives()
             .Where(d => d.IsReady)
-            .Select(d => new FileEntry(d.RootDirectory.FullName, d.Name.TrimEnd('\\'), true, string.Empty, false))
+            .Select(d => new FileEntry(d.RootDirectory.FullName, d.Name.TrimEnd('\\'), true, string.Empty, false, 0, DateTime.MinValue, null, null, null, null))
             .ToList();
         return Task.CompletedTask;
     }
@@ -216,6 +410,7 @@
     {
         _currentPath = path;
         _pathInput = path;
+        _filterQuery = string.Empty;
         _selectedPaths.Clear();
         _selectedFolderPaths.Clear();
 
@@ -227,7 +422,29 @@
             var supportedExts = ImportService!.SupportedExtensions.ToHashSet(StringComparer.OrdinalIgnoreCase);
 
             dirs = Directory.GetDirectories(path)
-                .Select(d => new FileEntry(d, Path.GetFileName(d), true, string.Empty, false))
+                .Select(d =>
+                {
+                    int fileCount = 0;
+                    try
+                    {
+                        fileCount = Directory.EnumerateFiles(d)
+                            .Count(f => supportedExts.Contains(Path.GetExtension(f)));
+                    }
+                    catch { }
+
+                    return new FileEntry(
+                        d,
+                        Path.GetFileName(d),
+                        true,
+                        string.Empty,
+                        false,
+                        0,
+                        Directory.GetLastWriteTime(d),
+                        fileCount > 0 ? fileCount : null,
+                        null,
+                        null,
+                        null);
+                })
                 .OrderBy(e => e.Name)
                 .ToList();
 
@@ -244,17 +461,30 @@
         var existingInDb = await MediaRepository!.GetExistingFilePathsAsync(filePaths);
 
         var files = filePaths
-            .Select(f => new FileEntry(
-                f,
-                Path.GetFileName(f),
-                false,
-                Path.GetExtension(f).TrimStart('.'),
-                existingInDb.Contains(f)))
+            .Select(f =>
+            {
+                var fileInfo = new FileInfo(f);
+                return new FileEntry(
+                    f,
+                    Path.GetFileName(f),
+                    false,
+                    Path.GetExtension(f).TrimStart('.'),
+                    existingInDb.Contains(f),
+                    fileInfo.Length,
+                    fileInfo.LastWriteTime,
+                    null,
+                    null,
+                    null,
+                    null);
+            })
             .OrderBy(e => e.Name)
             .ToList();
 
         var parent = Directory.GetParent(path);
-        var parentEntry = new FileEntry(parent?.FullName ?? string.Empty, "..", true, string.Empty, false);
+        var parentEntry = new FileEntry(parent?.FullName ?? string.Empty, "..", true, string.Empty, false, 0, DateTime.MinValue, null, null, null, null);
+
+        // Group karaoke pairs
+        files = GroupKaraokePairs(files);
 
         _entries = [parentEntry, ..dirs, ..files];
     }
@@ -269,6 +499,118 @@
             await LoadDrivesAsync();
         else
             await NavigateToAsync(parent.FullName);
+    }
+
+    private List<FileEntry> GroupKaraokePairs(List<FileEntry> files)
+    {
+        var audioFormats = new[] { "mp3", "m4a", "wav", "aac", "flac", "ogg", "wma" };
+        var result = new List<FileEntry>();
+        var processedPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        // Group files by basename (without extension)
+        var groups = files
+            .GroupBy(f => Path.GetFileNameWithoutExtension(f.FullPath), StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        foreach (var group in groups)
+        {
+            var groupFiles = group.ToList();
+
+            // Check if this is a CDG pair
+            var cdgFile = groupFiles.FirstOrDefault(f => f.Extension.Equals("cdg", StringComparison.OrdinalIgnoreCase));
+            var audioFiles = groupFiles.Where(f => audioFormats.Contains(f.Extension.ToLower())).ToList();
+
+            if (cdgFile is not null && audioFiles.Count > 0)
+            {
+                // This is a karaoke pair - merge into one entry
+                var allPaths = new List<string> { cdgFile.FullPath };
+                allPaths.AddRange(audioFiles.Select(a => a.FullPath));
+
+                var pairedEntry = cdgFile with
+                {
+                    Name = $"{group.Key} ({cdgFile.Extension.ToUpper()} + {string.Join(", ", audioFiles.Select(a => a.Extension.ToUpper()))})",
+                    PairedPaths = allPaths
+                };
+
+                result.Add(pairedEntry);
+                foreach (var file in groupFiles)
+                    processedPaths.Add(file.FullPath);
+            }
+            else
+            {
+                // Not a pair, add files individually
+                foreach (var file in groupFiles)
+                {
+                    if (!processedPaths.Contains(file.FullPath))
+                    {
+                        result.Add(file);
+                        processedPaths.Add(file.FullPath);
+                    }
+                }
+            }
+        }
+
+        return result;
+    }
+
+    private async Task RefreshAsync()
+    {
+        if (_currentPath is null)
+            await LoadDrivesAsync();
+        else
+            await NavigateToAsync(_currentPath);
+    }
+
+    private static string FormatFileSize(long bytes)
+    {
+        string[] sizes = ["B", "KB", "MB", "GB"];
+        double len = bytes;
+        int order = 0;
+        while (len >= 1024 && order < sizes.Length - 1)
+        {
+            order++;
+            len = len / 1024;
+        }
+        return $"{len:0.##} {sizes[order]}";
+    }
+
+    private string GetParsedMetadataTooltip(FileEntry entry)
+    {
+        if (entry.IsDirectory)
+            return entry.SupportedFileCount is not null ? $"{entry.Name} ({entry.SupportedFileCount})" : entry.Name;
+
+        // Check cache first
+        if (_parsedMetadataCache.TryGetValue(entry.FullPath, out var cached))
+            return $"{cached.Title} — {cached.Artist ?? "Unknown"}";
+
+        // Not in cache yet, trigger async parsing in background
+        _ = Task.Run(async () =>
+        {
+            if (ParsingService is not null && !_parsedMetadataCache.ContainsKey(entry.FullPath))
+            {
+                try
+                {
+                    var (title, artist) = ParsingService.GetTitleAndArtistFromFilename(entry.FullPath);
+                    _parsedMetadataCache[entry.FullPath] = (title, artist);
+                    await InvokeAsync(StateHasChanged);
+                }
+                catch { }
+            }
+        });
+
+        // Return filename as placeholder while parsing
+        return entry.Name;
+    }
+
+    private void OnSortColumnClicked(SortColumn column)
+    {
+        if (_sortColumn == column)
+            _sortAsc = !_sortAsc;
+        else
+        {
+            _sortColumn = column;
+            _sortAsc = true;
+        }
     }
 
     private async Task OnPathInputKeyDownAsync(KeyboardEventArgs e)
@@ -313,8 +655,24 @@
         if (entry.AlreadyImported)
             return;
 
-        if (!_selectedPaths.Remove(entry.FullPath))
-            _selectedPaths.Add(entry.FullPath);
+        // Handle paired files
+        var pathsToToggle = entry.PairedPaths ?? new List<string> { entry.FullPath };
+
+        // Check if all paths are selected
+        bool allSelected = pathsToToggle.All(p => _selectedPaths.Contains(p));
+
+        if (allSelected)
+        {
+            // Remove all paths
+            foreach (var path in pathsToToggle)
+                _selectedPaths.Remove(path);
+        }
+        else
+        {
+            // Add all paths
+            foreach (var path in pathsToToggle)
+                _selectedPaths.Add(path);
+        }
     }
 
     private void OnSelectAllClicked()
@@ -326,9 +684,9 @@
         }
         else
         {
-            foreach (var entry in _entries.Where(e => !e.IsDirectory && !e.AlreadyImported))
+            foreach (var entry in FilteredEntries.Where(e => !e.IsDirectory && !e.AlreadyImported))
                 _selectedPaths.Add(entry.FullPath);
-            foreach (var entry in _entries.Where(e => e.IsDirectory && e.Name != ".."))
+            foreach (var entry in FilteredEntries.Where(e => e.IsDirectory && e.Name != ".."))
                 _selectedFolderPaths.Add(entry.FullPath);
         }
     }
@@ -395,8 +753,14 @@
         await ImportService.StartAsync(files);
     }
 
-    private void OnImportStateChanged(object? sender, EventArgs e)
-        => _ = InvokeAsync(StateHasChanged);
+    private void OnImportStateChanged(object? sender, EventArgs e) =>
+        _ = InvokeAsync(async () =>
+        {
+            if (ImportService!.State == ImportState.Idle && _currentPath is not null)
+                await NavigateToAsync(_currentPath);
+
+            StateHasChanged();
+        });
 
     async ValueTask IAsyncDisposable.DisposeAsync()
     {
@@ -411,5 +775,11 @@
         string Name,
         bool IsDirectory,
         string Extension,
-        bool AlreadyImported);
+        bool AlreadyImported,
+        long Size,
+        DateTime ModifiedDate,
+        int? SupportedFileCount,
+        List<string>? PairedPaths,
+        string? ParsedTitle,
+        string? ParsedArtist);
 }

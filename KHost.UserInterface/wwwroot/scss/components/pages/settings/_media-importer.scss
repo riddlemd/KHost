@@ -40,6 +40,65 @@
         }
     }
 
+    &__filter-input {
+        flex: 0 1 200px;
+        background: transparent;
+        border: none;
+        outline: none;
+        font-size: 0.82rem;
+        color: var(--kh-text-secondary);
+        font-family: inherit;
+
+        &::placeholder {
+            color: var(--kh-text-muted);
+        }
+
+        &:focus {
+            color: var(--kh-text);
+        }
+    }
+
+    &__breadcrumb-path {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        min-width: 0;
+        overflow-x: auto;
+    }
+
+    &__breadcrumb-segment {
+        background: transparent;
+        border: none;
+        outline: none;
+        color: var(--kh-primary);
+        font-size: 0.82rem;
+        font-family: inherit;
+        cursor: pointer;
+        padding: 0 4px;
+        white-space: nowrap;
+
+        &:hover {
+            text-decoration: underline;
+        }
+
+        &:focus-visible {
+            outline: 1px solid var(--kh-primary);
+            border-radius: 2px;
+        }
+    }
+
+    &__breadcrumb-separator {
+        color: var(--kh-text-muted);
+        font-size: 0.82rem;
+        flex-shrink: 0;
+    }
+
+    &__folder-count {
+        color: var(--kh-text-muted);
+        font-size: 0.85em;
+    }
+
     &__listing {
         flex: 1;
         overflow-y: auto;
@@ -58,6 +117,16 @@
         text-align: center;
     }
 
+    &__col--size {
+        width: 100px;
+        text-align: right;
+    }
+
+    &__col--modified {
+        width: 160px;
+        text-align: right;
+    }
+
     &__check {
         cursor: pointer;
         font-size: 1rem;
@@ -71,6 +140,16 @@
 
     &__col--status {
         width: 20em;
+    }
+
+    &__col--sortable {
+        user-select: none;
+    }
+
+    &__sort-indicator {
+        font-size: 0.85rem;
+        margin-left: 4px;
+        vertical-align: middle;
     }
 
     &__row--dir {
@@ -93,6 +172,17 @@
 
         td {
             padding: 0;
+        }
+    }
+
+    &__header-actions {
+        margin-left: auto;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+
+        .kh-button {
+            margin-left: 0;
         }
     }
 

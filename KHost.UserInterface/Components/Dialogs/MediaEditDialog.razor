@@ -33,6 +33,10 @@
                 <InputTextArea class="form-control" @bind-Value="_model.Notes" rows="6" />
                 <ValidationMessage For="() => _model.Notes" />
             </div>
+            <div class="mb-3">
+                <label class="form-label">File Path</label>
+                <input type="text" class="form-control" readonly value="@Media?.FilePath" />
+            </div>
             <button type="submit" class="kh-hidden"></button>
         </EditForm>
     </Body>
