@@ -2,7 +2,7 @@ using System.ComponentModel.DataAnnotations;
 
 namespace KHost.UserInterface.Models;
 
-public class MediaEditModel
+public class EditMediaModel
 {
     public Guid Id { get; set; }
 

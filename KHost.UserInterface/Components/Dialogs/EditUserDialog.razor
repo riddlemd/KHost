@@ -4,7 +4,7 @@
 
 <Dialog IsOpen="IsOpen" Class="@($"{_rootClassName} {Class?.Trim()}".Trim())" OnClose="OnClose" CloseOnScrimClick="CloseOnScrimClick">
     <Header>
-        <Icon Name="person-fill" /> Edit Singer
+        <Icon Name="person-fill" /> Edit User
     </Header>
     <Body>
         <EditForm EditContext="_editContext" OnSubmit="SaveAsync">
@@ -15,13 +15,13 @@
                 <InputText class="form-control" @bind-Value="_model.Name" autofocus />
                 <ValidationMessage For="() => _model.Name" />
             </div>
-            
+
             <div class="mb-3">
                 <label class="form-label">Notes</label>
                 <InputTextArea class="form-control" @bind-Value="_model.Notes" rows="5" />
                 <ValidationMessage For="() => _model.Notes" />
             </div>
-            
+
             <div class="mb-3 d-flex gap-4">
                 <label class="form-check">
                     <InputCheckbox class="form-check-input" @bind-Value="_model.IsRegular" />
@@ -43,17 +43,17 @@
 </Dialog>
 
 @code {
-    private const string _rootClassName = "kh-singer-edit-dialog";
+    private const string _rootClassName = "kh-user-edit-dialog";
 
     [Parameter] public bool IsOpen { get; set; }
-    [Parameter] public Singer? Singer { get; set; }
+    [Parameter] public KHostUser? User { get; set; }
     [Parameter] public bool CloseOnScrimClick { get; set; }
     [Parameter] public string Class { get; set; } = "";
 
-    [Parameter] public EventCallback<Singer> OnSave { get; set; }
+    [Parameter] public EventCallback<KHostUser> OnSave { get; set; }
     [Parameter] public EventCallback OnClose { get; set; }
 
-    private SingerEditModel _model = new();
+    private EditUserModel _model = new();
     private EditContext _editContext = default!;
     private bool _prevIsOpen;
 
@@ -66,15 +66,15 @@
     {
         if (IsOpen && !_prevIsOpen)
         {
-            _model = Singer is null
-                    ? new SingerEditModel()
-                    : new SingerEditModel
+            _model = User is null
+                    ? new EditUserModel()
+                    : new EditUserModel
                     {
-                        Id = Singer.Id,
-                        Name = Singer.Name,
-                        Notes = Singer.Notes,
-                        IsRegular = Singer.IsRegular,
-                        IsTipper = Singer.IsTipper
+                        Id = User.Id,
+                        Name = User.Name,
+                        Notes = User.Notes,
+                        IsRegular = User.IsRegular,
+                        IsTipper = User.IsTipper
                     };
 
             _editContext = new EditContext(_model);
@@ -100,20 +100,20 @@
     {
         if (!_editContext.Validate()) return;
 
-        var singer = Singer ?? new Singer { Id = _model.Id, Name = _model.Name };
-        singer.Name = _model.Name;
-        singer.Notes = _model.Notes;
-        singer.IsRegular = _model.IsRegular;
-        singer.IsTipper = _model.IsTipper;
+        var user = User ?? new KHostUser { Id = _model.Id, Name = _model.Name };
+        user.Name = _model.Name;
+        user.Notes = _model.Notes;
+        user.IsRegular = _model.IsRegular;
+        user.IsTipper = _model.IsTipper;
 
-        await OnSave.InvokeAsync(singer);
+        await OnSave.InvokeAsync(user);
 
         await CloseAsync();
     }
 
-    public record DialogRequest : EditDialogRequest<Singer>
+    public record DialogRequest : EditDialogRequest<KHostUser>
     {
-        public DialogRequest(Singer? value, Action<Singer?> onSave, Action? onCancel, Action? onClose) : base(value, onSave, onCancel, onClose)
+        public DialogRequest(KHostUser? value, Action<KHostUser?> onSave, Action? onCancel, Action? onClose) : base(value, onSave, onCancel, onClose)
         {
         }
     }

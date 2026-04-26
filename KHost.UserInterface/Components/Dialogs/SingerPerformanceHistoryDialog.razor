@@ -24,8 +24,11 @@
                         @foreach (var perf in _paginatedPerformances.Items.OrderByDescending(p => p.CreatedDate))
                         {
                             var media = _media.FirstOrDefault(m => m.Id == perf.MediaId);
-                            var isReady = media?.Status == MediaStatus.Ready;
-                            var enqueueDescription = isReady ? "Add to Singer's Queue" : (media?.Status.ToString() ?? "Unknown");
+
+                            if (media is null) continue;
+
+                            var isReady = media!.Status == MediaStatus.Ready;
+                            var enqueueDescription = isReady ? "Add to Singer's Queue" : (media!.Status.ToString());
 
                             <tr>
                                 <td class="kh-table__cell--fill">@(media?.Title ?? "Unknown")</td>
@@ -34,12 +37,12 @@
                                 <td class="kh-table__cell--actions">
                                     <SplitButton
                                             disabled="@(!isReady)"
-                                            @onclick="() => EnqueueAsync(media)"
+                                            @onclick="async () => await EnqueueAsync(media!)"
                                             title="@enqueueDescription">
                                         <Text><Icon Name="plus-lg" /></Text>
                                         <Buttons>
                                             <button class="@(_rootClassName)__edit-media-btn kh-button"
-                                                    @onclick="() => EditAsync(media)"
+                                                    @onclick="() => EditAsync(media!)"
                                                     title="Edit song associated with this performance">
                                                 <Icon Name="pencil-fill" /> Edit
                                             </button>
@@ -77,7 +80,7 @@
     private const int _pageSize = 5;
 
     [Parameter] public bool IsOpen { get; set; }
-    [Parameter] public Guid SingerId { get; set; }
+    [Parameter] public Guid UserId { get; set; }
     [Parameter] public string Class { get; set; } = "";
     [Parameter] public bool CloseOnScrimClick { get; set; }
 
@@ -127,7 +130,7 @@
         if (PerformanceService is null || MediaService is null)
             return;
 
-        _paginatedPerformances = await PerformanceService.ReadBySingerIdAsync(SingerId, pageNumber: _currentPage, pageSize: _pageSize, PerformanceFilter.UnQueued);
+        _paginatedPerformances = await PerformanceService.ReadBySingerIdAsync(UserId, pageNumber: _currentPage, pageSize: _pageSize, PerformanceFilter.UnQueued);
 
         var mediaIds = _paginatedPerformances.Items.Select(p => p.MediaId).Distinct().ToList();
         var mediaResults = await Task.WhenAll(mediaIds.Select(id => MediaService.ReadAsync(id)));
@@ -151,7 +154,7 @@
 
         await PerformanceService.CreateAndEnqueueAsync(new Performance
         {
-            SingerId = SingerId,
+            SingerId = UserId,
             MediaId = media.Id
         });
 
@@ -199,11 +202,11 @@
 
     public record DialogRequest : BaseDialogRequest
     {
-        public DialogRequest(Guid singerId, Action? OnClose) : base(OnClose)
+        public DialogRequest(Guid userId, Action? OnClose) : base(OnClose)
         {
-            SingerId = singerId;
+            UserId = userId;
         }
-        
-        public Guid SingerId { get; init; }
+
+        public Guid UserId { get; init; }
     }
 }

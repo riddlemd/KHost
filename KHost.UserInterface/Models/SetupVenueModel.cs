@@ -1,0 +1,10 @@
+using System.ComponentModel.DataAnnotations;
+
+namespace KHost.UserInterface.Models;
+
+public class SetupVenueModel
+{
+    [Required(ErrorMessage = "Venue name is required.")]
+    [MaxLength(32, ErrorMessage = "Venue name cannot exceed 32 characters.")]
+    public string Name { get; set; } = "Default Venue";
+}

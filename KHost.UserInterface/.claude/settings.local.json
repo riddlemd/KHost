@@ -8,7 +8,11 @@
       "Bash(rtk npm run sass *)",
       "Bash(rtk grep *)",
       "Bash(rtk dotnet *)",
-      "Bash(xargs grep *)"
+      "Bash(xargs grep *)",
+      "Bash(rtk tree *)",
+      "Bash(rtk ls *)",
+      "Bash(dotnet ef *)",
+      "Bash(dotnet add *)"
     ]
   }
 }

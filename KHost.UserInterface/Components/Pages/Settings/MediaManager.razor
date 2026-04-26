@@ -52,7 +52,7 @@
                             </tr>
                         </thead>
                         <tbody>
-                            @foreach (var media in _paginatedResult.Items)
+                            @foreach (var media in _paginatedResult?.Items ?? [])
                             {
                                 <tr>
                                     <td class="text-truncate kh-table__cell--fill" title="@media.FilePath">@media.Title</td>
@@ -85,8 +85,8 @@
                         </tbody>
                     </table>
 
-                    <Pagination CurrentPage="_paginatedResult.PageNumber"
-                                TotalPages="_paginatedResult.TotalPages"
+                    <Pagination CurrentPage="_paginatedResult?.PageNumber ?? 1"
+                                TotalPages="_paginatedResult?.TotalPages ?? 1"
                                 OnPreviousPage="PreviousPage"
                                 OnNextPage="NextPage" />
                 }

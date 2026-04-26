@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace KHost.DataAccess.Migrations
 {
     /// <inheritdoc />
-    public partial class InitialCreate : Migration
+    public partial class InitialSchema : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -46,18 +46,23 @@ namespace KHost.DataAccess.Migrations
                 });
 
             migrationBuilder.CreateTable(
-                name: "Singer",
+                name: "Users",
                 columns: table => new
                 {
                     Id = table.Column<Guid>(type: "TEXT", nullable: false),
                     Name = table.Column<string>(type: "TEXT", maxLength: 255, nullable: false),
                     IsTipper = table.Column<bool>(type: "INTEGER", nullable: false),
                     IsRegular = table.Column<bool>(type: "INTEGER", nullable: false),
-                    Notes = table.Column<string>(type: "TEXT", maxLength: 1000, nullable: false)
+                    IsAdmin = table.Column<bool>(type: "INTEGER", nullable: false),
+                    DefaultVenueId = table.Column<Guid>(type: "TEXT", nullable: true),
+                    Notes = table.Column<string>(type: "TEXT", maxLength: 1000, nullable: false),
+                    CreatedDate = table.Column<DateTime>(type: "TEXT", nullable: false),
+                    PasswordHash = table.Column<string>(type: "TEXT", maxLength: 512, nullable: true),
+                    LastLoginDate = table.Column<DateTime>(type: "TEXT", nullable: true)
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_Singer", x => x.Id);
+                    table.PrimaryKey("PK_Users", x => x.Id);
                 });
 
             migrationBuilder.CreateTable(
@@ -67,7 +72,13 @@ namespace KHost.DataAccess.Migrations
                     Id = table.Column<Guid>(type: "TEXT", nullable: false),
                     Enabled = table.Column<bool>(type: "INTEGER", nullable: false),
                     Name = table.Column<string>(type: "TEXT", maxLength: 255, nullable: false),
-                    Notes = table.Column<string>(type: "TEXT", maxLength: 1000, nullable: false)
+                    Notes = table.Column<string>(type: "TEXT", maxLength: 1000, nullable: false),
+                    Address = table.Column<string>(type: "TEXT", maxLength: 500, nullable: false),
+                    Phone = table.Column<string>(type: "TEXT", maxLength: 20, nullable: false),
+                    DefaultVolume = table.Column<int>(type: "INTEGER", nullable: false),
+                    MoveSingerToBottomAfterPerformance = table.Column<bool>(type: "INTEGER", nullable: false),
+                    PromptBeforeRemovingSinger = table.Column<bool>(type: "INTEGER", nullable: false),
+                    ClearQueueOnClose = table.Column<bool>(type: "INTEGER", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -116,9 +127,20 @@ namespace KHost.DataAccess.Migrations
                 column: "SingerId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_Singer_Name",
-                table: "Singer",
-                column: "Name");
+                name: "IX_Users_CreatedDate",
+                table: "Users",
+                column: "CreatedDate");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Users_IsAdmin",
+                table: "Users",
+                column: "IsAdmin");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Users_Name",
+                table: "Users",
+                column: "Name",
+                unique: true);
 
             migrationBuilder.CreateIndex(
                 name: "IX_Venues_Name",
@@ -136,7 +158,7 @@ namespace KHost.DataAccess.Migrations
                 name: "Performances");
 
             migrationBuilder.DropTable(
-                name: "Singer");
+                name: "Users");
 
             migrationBuilder.DropTable(
                 name: "Venues");

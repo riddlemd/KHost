@@ -9,10 +9,6 @@
     flex: 1 1 0;
     min-height: 0;
 
-    &:hover {
-        border-left-color: var(--kh-primary-hover);
-    }
-
     &__singer-count {
         padding: 0 0.5em;
         margin-left: 1em;

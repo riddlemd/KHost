@@ -47,7 +47,7 @@
     [Parameter] public EventCallback OnOpen { get; set; }
 
     private bool _isNew;
-    private VenueEditModel _model = new();
+    private EditVenueModel _model = new();
     private EditContext _editContext = default!;
     private bool _prevIsOpen;
 
@@ -62,8 +62,8 @@
         {
             _isNew = Venue is null;
             _model = Venue is null
-                ? new VenueEditModel()
-                : new VenueEditModel
+                ? new EditVenueModel()
+                : new EditVenueModel
                 {
                     Id = Venue.Id,
                     Name = Venue.Name,

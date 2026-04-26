@@ -63,4 +63,9 @@ public abstract class BaseRepositoryService<TClass, TRepository> : BaseService, 
     {
         return await Repository.SearchAsync(query, pageNumber, pageSize);
     }
+
+    public virtual async Task<bool> HasAnyAsync()
+    {
+        return await Repository.HasAnyAsync();
+    }
 }

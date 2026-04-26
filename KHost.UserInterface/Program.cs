@@ -12,6 +12,7 @@ using KHost.UserInterface.Interactions.Handlers;
 using KHost.UserInterface.Services;
 using Serilog;
 using Serilog.Events;
+using KHost.UserInterface.Services.RedirectProviders;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -46,6 +47,7 @@ builder.Services.AddRazorComponents()
 
 builder.Services.AddSingleton<IThemeService, ThemeService>();
 builder.Services.AddSingleton<IDialogService, DialogService>();
+builder.Services.AddSingleton<IStartupRedirectProvider, SetupRedirectProvider>();
 builder.Services.AddSingleton<IStartupRedirectProvider, CliStartupRedirectProvider>();
 
 builder.Services.AddSingleton<IInteractionDispatcher, DialogInteractionDispatcher>();
@@ -55,13 +57,29 @@ builder.Services.AddSingleton<IInteractionHandler<ShowLyricsRequest>, ShowLyrics
 var app = builder.Build();
 
 // Initialize database with seed data
-using (var scope = app.Services.CreateScope())
+try
 {
+    using var scope = app.Services.CreateScope();
     var initializer = scope.ServiceProvider.GetRequiredService<IDatabaseInitializer>();
     await initializer.InitializeAsync();
 }
+catch (Exception ex)
+{
+    Log.Fatal(ex, "Database initialization failed");
+    Log.CloseAndFlush();
+    throw;
+}
 
-await app.Services.GetRequiredService<IThemeService>().InitializeAsync();
+try
+{
+    await app.Services.GetRequiredService<IThemeService>().InitializeAsync();
+}
+catch (Exception ex)
+{
+    Log.Fatal(ex, "Theme service initialization failed");
+    Log.CloseAndFlush();
+    throw;
+}
 
 app.MapDefaultEndpoints();
 

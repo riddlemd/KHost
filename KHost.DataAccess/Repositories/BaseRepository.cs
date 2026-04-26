@@ -92,6 +92,12 @@ internal abstract class BaseRepository<T> : IRepository<T> where T : class
     public Task<PaginatedResult<T>> SearchAsync(string query, int pageNumber = 0, int pageSize = 0)
         => SearchAsync<object>(query, pageNumber, pageSize, null);
 
+    public virtual async Task<bool> HasAnyAsync()
+    {
+        using var context = await ContextFactory.CreateDbContextAsync();
+        return await context.Set<T>().AnyAsync();
+    }
+
     protected abstract IQueryable<T> ApplySearchFilters<TOptions>(IQueryable<T> queryable, string query, TOptions? options = null)
         where TOptions : class;
 }

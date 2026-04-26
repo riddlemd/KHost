@@ -8,7 +8,7 @@
     </div>
 
     <div class="kh-card__body kh-now-playing__body">
-        @if (PlaybackService.CurrentPerformance is null || PlaybackService.CurrentMedia is null)
+        @if (PlaybackService?.CurrentPerformance is null || PlaybackService?.CurrentMedia is null)
         {
             <div class="kh-now-playing__empty">
                 <Icon Name="mic" Class="kh-now-playing__empty-icon" />
@@ -21,7 +21,7 @@
         {
             var performance = PlaybackService.CurrentPerformance;
             var media = PlaybackService.CurrentMedia;
-            var singer = SingerQueueService.Singers.FirstOrDefault(s => s.Id == performance.SingerId);
+            var singer = SingerQueueService?.Users?.FirstOrDefault(u => u.Id == performance.SingerId);
             var isPlaying = PlaybackService.State == PlaybackState.Playing;
             var hasDur    = media.Duration is { TotalSeconds: > 0 };
             var pct       = hasDur

@@ -54,7 +54,7 @@
         @if (_results is not null)
         {
             <div>
-                @if (SingerQueueService?.SelectedSingerId is null && _results.Count > 0)
+                @if (SingerQueueService?.SelectedUserId is null && _results.Count > 0)
                 {
                     <span>
                         <Icon Name="arrow-left" Class="me-1" />Select a singer in the queue to add media
@@ -101,7 +101,7 @@
                                         @foreach(var action in CombineWithGlobalActions(mediaSearchEntity.SupportedActions))
                                         {
                                             <SplitButton
-                                                    disabled="@(SingerQueueService?.SelectedSingerId is null)"
+                                                    disabled="@(SingerQueueService?.SelectedUserId is null)"
                                                     @onclick="() => PerformActionAsync(action.PerformAsync, mediaSearchEntity)"
                                                     title="@action.Description">
                                                 <Text><Icon Name="@action.Icon" /> @action.DisplayName</Text>
@@ -109,7 +109,7 @@
                                                     @foreach(var subAction in action.SubActions)
                                                     {
                                                         <button class="kh-button kh-button--primary"
-                                                            disabled="@(SingerQueueService?.SelectedSingerId is null)"
+                                                            disabled="@(SingerQueueService?.SelectedUserId is null)"
                                                             @onclick="() => PerformActionAsync(subAction.PerformAsync, mediaSearchEntity)"
                                                                 title="@subAction.Description">
                                                             <Icon Name="@subAction.Icon" /> @subAction.DisplayName
@@ -198,7 +198,7 @@
     private async Task UpdateSelectedSingerPerformances()
     {
         if (PerformanceService is null) return;
-        if (SingerQueueService?.SelectedSingerId is not { } selectedSingerId) return;
+        if (SingerQueueService?.SelectedUserId is not { } selectedSingerId) return;
 
         _selectedSingerPerformances = (await PerformanceService.ReadBySingerIdAsync(selectedSingerId, filter: PerformanceFilter.Queued)).Items;
     }

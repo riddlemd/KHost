@@ -68,7 +68,7 @@ public class DefaultMediaProvider : BaseService, IMediaProvider
             return;
         }
 
-        if (_singerQueueService?.SelectedSingerId is not { } singerId)
+        if (_singerQueueService?.SelectedUserId is not { } singerId)
         {
             Logger.LogWarning("Cannot enqueue: no singer selected");
             return;

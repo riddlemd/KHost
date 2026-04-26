@@ -1,12 +1,11 @@
 @page "/"
+@using KHost.Abstractions.Services
 @using KHost.UserInterface.Components.Dialogs
 @using KHost.UserInterface.Services
 @implements IAsyncDisposable
 @rendermode InteractiveServer
 
 <PageTitle>KHost &mdash; Karaoke Queue</PageTitle>
-
-<ThemeLink />
 
 <div class="kh-app__body">
     <!-- Left column: Singer Queue -->
@@ -18,12 +17,20 @@
 
     <!-- Right column -->
     <div class="kh-app__col--detail">
-        @if (QueueService?.SelectedSinger is null)
+        @if (QueueService?.SelectedUser is null)
         {
             <div class="kh-panel--empty">
                 <Icon Name="arrow-left" />
-                <span>@(QueueService?.Singers.Count == 0 ? "Add a singer to the Singer Queue to continue." : "Select a singer in the Singer Queue to continue.")</span>
+                <span>@(QueueService?.Users.Count == 0 ? "Add a singer to the Singer Queue to continue." : "Select a singer in the Singer Queue to continue.")</span>
             </div>
+            @if (!_hasMedia)
+            {
+                <div class="kh-panel--empty">
+                    <Icon Name="music-note-list" />
+                    <span>Your media library is empty.</span>
+                    <a href="/settings/media-importer" class="kh-button kh-button--primary">Import media</a>
+                </div>
+            }
         }
         else
         {
@@ -40,15 +47,21 @@
 
 @code {
     [Inject] private ISingerQueueService? QueueService { get; set; }
+    [Inject] private IMediaService? MediaService { get; set; }
     [Inject] private IJSRuntime? JS { get; set; }
+
+    private bool _hasMedia;
 
     private IJSObjectReference? _module;
     private IJSObjectReference? _handle;
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
         if (QueueService is not null)
             QueueService.StateChanged += OnStateChanged;
+
+        if (MediaService is not null)
+            _hasMedia = await MediaService.HasAnyAsync();
     }
 
     private void OnStateChanged(object? sender, EventArgs e) => InvokeAsync(StateHasChanged);

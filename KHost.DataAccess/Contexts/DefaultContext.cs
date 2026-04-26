@@ -7,7 +7,7 @@ internal class DefaultContext : DbContext
 {
     public DbSet<Media> Media { get; set; }
     public DbSet<Venue> Venues { get; set; }
-    public DbSet<Singer> Singer { get; set; }
+    public DbSet<KHostUser> Users { get; set; }
     public DbSet<Performance> Performances { get; set; }
 
     public DefaultContext(DbContextOptions<DefaultContext> options) : base(options)
@@ -42,7 +42,6 @@ internal class DefaultContext : DbContext
             entity.Property(e => e.Notes)
                 .HasMaxLength(1000);
 
-            // Indexes for common queries
             entity.HasIndex(e => e.FilePath).IsUnique();
             entity.HasIndex(e => e.Title);
             entity.HasIndex(e => e.Artist);
@@ -61,10 +60,16 @@ internal class DefaultContext : DbContext
             entity.Property(e => e.Notes)
                 .HasMaxLength(1000);
 
+            entity.Property(e => e.Address)
+                .HasMaxLength(500);
+
+            entity.Property(e => e.Phone)
+                .HasMaxLength(20);
+
             entity.HasIndex(e => e.Name);
         });
 
-        modelBuilder.Entity<Singer>(entity =>
+        modelBuilder.Entity<KHostUser>(entity =>
         {
             entity.HasKey(e => e.Id);
 
@@ -75,7 +80,12 @@ internal class DefaultContext : DbContext
             entity.Property(e => e.Notes)
                 .HasMaxLength(1000);
 
-            entity.HasIndex(e => e.Name);
+            entity.Property(e => e.PasswordHash)
+                .HasMaxLength(512);
+
+            entity.HasIndex(e => e.Name).IsUnique();
+            entity.HasIndex(e => e.CreatedDate);
+            entity.HasIndex(e => e.IsAdmin);
         });
 
         modelBuilder.Entity<Performance>(entity =>

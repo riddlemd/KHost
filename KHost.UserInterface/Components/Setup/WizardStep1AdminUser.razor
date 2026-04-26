@@ -1,0 +1,113 @@
+@using System.ComponentModel.DataAnnotations
+@using KHost.Abstractions.Services
+@using KHost.UserInterface.Models
+
+<div class="kh-setup-wizard__step">
+    <div class="kh-setup-wizard__header">
+        <h2>Create Admin User</h2>
+        <p>Set up your karaoke admin account to get started.</p>
+    </div>
+
+    <EditForm EditContext="_editContext" OnValidSubmit="OnNextAsync">
+        <DataAnnotationsValidator />
+
+        <div class="kh-setup-wizard__form">
+            <div class="kh-form-group">
+                <label for="admin-username" class="kh-form-label">Username</label>
+                <span class="kh-form-hint">Between 3 and 64 characters.</span>
+                <InputText id="admin-username"
+                           class="kh-form-control"
+                           placeholder="Enter admin username"
+                           @bind-Value="_model.Username"
+                           disabled="@_isLoading" />
+                <ValidationMessage For="() => _model.Username" />
+            </div>
+
+            <div class="kh-form-group">
+                <label for="admin-password" class="kh-form-label">Password</label>
+                <span class="kh-form-hint">Must be at least 8 characters.</span>
+                <InputText id="admin-password"
+                           type="password"
+                           class="kh-form-control"
+                           placeholder="Enter password"
+                           @bind-Value="_model.Password"
+                           disabled="@_isLoading" />
+                <ValidationMessage For="() => _model.Password" />
+            </div>
+
+            <div class="kh-form-group">
+                <label for="admin-password-confirm" class="kh-form-label">Confirm Password</label>
+                <span class="kh-form-hint">Must match the password above.</span>
+                <InputText id="admin-password-confirm"
+                           type="password"
+                           class="kh-form-control"
+                           placeholder="Confirm password"
+                           @bind-Value="_model.PasswordConfirm"
+                           disabled="@_isLoading" />
+                <ValidationMessage For="() => _model.PasswordConfirm" />
+            </div>
+        </div>
+
+        @if (!string.IsNullOrEmpty(_serverError))
+        {
+            <div class="kh-alert kh-alert--danger">
+                @_serverError
+            </div>
+        }
+
+        <div class="kh-setup-wizard__actions">
+            <button class="kh-button kh-button--primary"
+                    disabled="@(!IsFormValid || _isLoading)"
+                    type="submit">
+                @if (_isLoading)
+                {
+                    <Icon Name="hourglass-split" /> <span>Hashing password...</span>
+                }
+                else
+                {
+                    <Icon Name="arrow-right" /> <span>Next</span>
+                }
+            </button>
+        </div>
+    </EditForm>
+</div>
+
+@code {
+    [Inject] private ISetupService? SetupService { get; set; }
+
+    [Parameter]
+    public EventCallback OnComplete { get; set; }
+
+    private SetupAdminUserModel _model = new();
+    private EditContext _editContext = default!;
+    private string _serverError = string.Empty;
+    private bool _isLoading = false;
+
+    private bool IsFormValid =>
+        Validator.TryValidateObject(_model, new ValidationContext(_model), null, validateAllProperties: true);
+
+    protected override void OnInitialized()
+    {
+        _editContext = new EditContext(_model);
+    }
+
+    private async Task OnNextAsync()
+    {
+        _serverError = string.Empty;
+        _isLoading = true;
+
+        try
+        {
+            await SetupService!.CreateAdminUserAsync(_model.Username, _model.Password);
+            await OnComplete.InvokeAsync();
+        }
+        catch (Exception ex)
+        {
+            _serverError = $"Failed to create admin user: {ex.Message}";
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+}

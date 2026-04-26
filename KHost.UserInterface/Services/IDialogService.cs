@@ -6,7 +6,7 @@ namespace KHost.UserInterface.Services;
 
 public interface IDialogService :
     IInteractiveEditor<Media>,
-    IInteractiveEditor<Singer>,
+    IInteractiveEditor<KHostUser>,
     IInteractiveEditor<Venue>
 {
     event EventHandler<BaseDialogRequest> ShowRequested;
@@ -14,6 +14,6 @@ public interface IDialogService :
 
     Task<bool> ShowConfirmationAsync(string message, Action onConfirm, string title = "Confirm", string confirmText = "Confirm", Action? onCancel = null, Action? onClose = null);
     Task ShowSettingsMenuAsync(Action? onClose = null);
-    Task ShowSingerPerformanceHistoryAsync(Guid singerId, Action? onClose = null);
+    Task ShowSingerPerformanceHistoryAsync(Guid userId, Action? onClose = null);
     Task ShowLyricsAsync(string query, Action? onClose = null);
 }

@@ -11,7 +11,6 @@ public class PlaybackServiceTests : IDisposable
     private readonly ILogger<PlaybackService> _logger = Substitute.For<ILogger<PlaybackService>>();
     private readonly ISingerQueueService _queueService = Substitute.For<ISingerQueueService>();
     private readonly IPerformanceService _performanceService = Substitute.For<IPerformanceService>();
-    private readonly ISingersService _singersService = Substitute.For<ISingersService>();
     private readonly IOptionsMonitor<PlaybackService.ServiceOptions> _options =
         Substitute.For<IOptionsMonitor<PlaybackService.ServiceOptions>>();
     private readonly PlaybackService _service;
@@ -23,7 +22,7 @@ public class PlaybackServiceTests : IDisposable
             MoveSingerToBottomAfterPerformance = false
         });
 
-        _service = new PlaybackService(_logger, _options, _queueService, _performanceService, _singersService);
+        _service = new PlaybackService(_logger, _options, _queueService, _performanceService);
     }
 
     public void Dispose() => _service.Dispose();
@@ -67,11 +66,11 @@ public class PlaybackServiceTests : IDisposable
         await _service.PlayAsync();
 
         Assert.Equal(PlaybackState.Stopped, _service.State);
-        await _queueService.DidNotReceive().MoveSingerToStartAsync(Arg.Any<Guid>());
+        await _queueService.DidNotReceive().MoveUserToStartAsync(Arg.Any<Guid>());
     }
 
     [Fact]
-    public async Task PlayAsync_TransitionsToPlaying_AndMarksSingerPerforming()
+    public async Task PlayAsync_TransitionsToPlaying_AndMarksUserPerforming()
     {
         var (performance, media) = CreatePerformance();
 
@@ -79,28 +78,28 @@ public class PlaybackServiceTests : IDisposable
         await _service.PlayAsync();
 
         Assert.Equal(PlaybackState.Playing, _service.State);
-        Assert.Equal(performance.SingerId, _service.CurrentlyPerformingSingerId);
+        Assert.Equal(performance.SingerId, _service.CurrentlyPerformingUserId);
     }
 
     [Fact]
-    public async Task PlayAsync_MovesSingerToStart()
+    public async Task PlayAsync_MovesUserToStart()
     {
         var (performance, media) = CreatePerformance();
-        var singer = new Singer { Id = performance.SingerId, Name = "Alice" };
-        _queueService.Singers.Returns(new[] { singer }.AsReadOnly());
+        var user = new KHostUser { Id = performance.SingerId, Name = "Alice" };
+        _queueService.Users.Returns(new[] { user }.AsReadOnly());
 
         await _service.LoadAsync(performance, media);
         await _service.PlayAsync();
 
-        await _queueService.Received(1).MoveSingerToStartAsync(performance.SingerId);
+        await _queueService.Received(1).MoveUserToStartAsync(performance.SingerId);
     }
 
     [Fact]
     public async Task PlayAsync_IsNoOp_WhenAlreadyPlaying()
     {
         var (performance, media) = CreatePerformance();
-        var singer = new Singer { Id = performance.SingerId, Name = "Alice" };
-        _queueService.Singers.Returns(new[] { singer }.AsReadOnly());
+        var user = new KHostUser { Id = performance.SingerId, Name = "Alice" };
+        _queueService.Users.Returns(new[] { user }.AsReadOnly());
 
         await _service.LoadAsync(performance, media);
         await _service.PlayAsync();
@@ -108,7 +107,7 @@ public class PlaybackServiceTests : IDisposable
 
         await _service.PlayAsync();
 
-        await _queueService.DidNotReceive().MoveSingerToStartAsync(Arg.Any<Guid>());
+        await _queueService.DidNotReceive().MoveUserToStartAsync(Arg.Any<Guid>());
     }
 
     [Fact]
@@ -122,7 +121,7 @@ public class PlaybackServiceTests : IDisposable
         await _service.PauseAsync();
 
         Assert.Equal(PlaybackState.Paused, _service.State);
-        Assert.Equal(performance.SingerId, _service.CurrentlyPerformingSingerId);
+        Assert.Equal(performance.SingerId, _service.CurrentlyPerformingUserId);
     }
 
     [Fact]
@@ -148,12 +147,12 @@ public class PlaybackServiceTests : IDisposable
 
         Assert.Equal(PlaybackState.Stopped, _service.State);
         Assert.Null(_service.CurrentPerformance);
-        Assert.Null(_service.CurrentlyPerformingSingerId);
+        Assert.Null(_service.CurrentlyPerformingUserId);
         Assert.Equal(TimeSpan.Zero, _service.Position);
     }
 
     [Fact]
-    public async Task Load_ResetsPerforming_OfPreviousSinger()
+    public async Task Load_ResetsPerforming_OfPreviousUser()
     {
         var (perf1, media1) = CreatePerformance();
         var (perf2, media2) = CreatePerformance();
@@ -163,28 +162,28 @@ public class PlaybackServiceTests : IDisposable
 
         await _service.LoadAsync(perf2, media2);
 
-        Assert.Null(_service.CurrentlyPerformingSingerId);
+        Assert.Null(_service.CurrentlyPerformingUserId);
         Assert.Same(perf2, _service.CurrentPerformance);
     }
 
     [Fact]
-    public async Task StopAsync_MovesSingerToEnd_WhenOptionEnabled()
+    public async Task StopAsync_MovesUserToEnd_WhenOptionEnabled()
     {
         _options.CurrentValue.Returns(new PlaybackService.ServiceOptions
         {
             MoveSingerToBottomAfterPerformance = true
         });
         var (performance, media) = CreatePerformance();
-        var singer = new Singer { Id = performance.SingerId, Name = "Alice" };
-        _queueService.Singers.Returns(new[] { singer }.AsReadOnly());
+        var user = new KHostUser { Id = performance.SingerId, Name = "Alice" };
+        _queueService.Users.Returns(new[] { user }.AsReadOnly());
 
         await _service.LoadAsync(performance, media);
         await _service.PlayAsync();
 
         await _service.StopAsync();
 
-        await _queueService.Received().MoveSingerToEndAsync(performance.SingerId);
-        await _queueService.Received().SelectFirstSingerInQueueAsync();
+        await _queueService.Received().MoveUserToEndAsync(performance.SingerId);
+        await _queueService.Received().SelectFirstUserInQueueAsync();
         await _performanceService.Received().DequeueAsync(performance.SingerId, performance.Id);
     }
 
@@ -192,8 +191,8 @@ public class PlaybackServiceTests : IDisposable
     public async Task StopAsync_DequeuesPerformance_WhenMoveToBottomDisabled()
     {
         var (performance, media) = CreatePerformance();
-        var singer = new Singer { Id = performance.SingerId, Name = "Alice" };
-        _queueService.Singers.Returns(new[] { singer }.AsReadOnly());
+        var user = new KHostUser { Id = performance.SingerId, Name = "Alice" };
+        _queueService.Users.Returns(new[] { user }.AsReadOnly());
 
         await _service.LoadAsync(performance, media);
         await _service.PlayAsync();
@@ -203,31 +202,31 @@ public class PlaybackServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task StopAsync_DoesNotCallMoveSingerToEnd_WhenMoveToBottomDisabled()
+    public async Task StopAsync_DoesNotCallMoveUserToEnd_WhenMoveToBottomDisabled()
     {
         var (performance, media) = CreatePerformance();
-        var singer = new Singer { Id = performance.SingerId, Name = "Alice" };
-        _queueService.Singers.Returns(new[] { singer }.AsReadOnly());
+        var user = new KHostUser { Id = performance.SingerId, Name = "Alice" };
+        _queueService.Users.Returns(new[] { user }.AsReadOnly());
 
         await _service.LoadAsync(performance, media);
         await _service.PlayAsync();
         await _service.StopAsync();
 
-        await _queueService.DidNotReceive().MoveSingerToEndAsync(Arg.Any<Guid>());
+        await _queueService.DidNotReceive().MoveUserToEndAsync(Arg.Any<Guid>());
     }
 
     [Fact]
     public async Task StopAsync_DoesNotCallSelectFirst_WhenMoveToBottomDisabled()
     {
         var (performance, media) = CreatePerformance();
-        var singer = new Singer { Id = performance.SingerId, Name = "Alice" };
-        _queueService.Singers.Returns(new[] { singer }.AsReadOnly());
+        var user = new KHostUser { Id = performance.SingerId, Name = "Alice" };
+        _queueService.Users.Returns(new[] { user }.AsReadOnly());
 
         await _service.LoadAsync(performance, media);
         await _service.PlayAsync();
         await _service.StopAsync();
 
-        await _queueService.DidNotReceive().SelectFirstSingerInQueueAsync();
+        await _queueService.DidNotReceive().SelectFirstUserInQueueAsync();
     }
 
     [Fact]

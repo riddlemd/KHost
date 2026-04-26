@@ -19,7 +19,7 @@ namespace KHost.DataAccess
                        .UseQueryTrackingBehavior(QueryTrackingBehavior.NoTracking));
 
             serviceCollection.AddSingleton<IMediaRepository, MediaRepository>();
-            serviceCollection.AddSingleton<ISingersRepository, SingersRepository>();
+            serviceCollection.AddSingleton<IUsersRepository, UsersRepository>();
             serviceCollection.AddSingleton<IVenuesRepository, VenuesRepository>();
             serviceCollection.AddSingleton<IPerformancesRepository, PerformancesRepository>();
             serviceCollection.AddSingleton<IDatabaseInitializer, DatabaseInitializer>();

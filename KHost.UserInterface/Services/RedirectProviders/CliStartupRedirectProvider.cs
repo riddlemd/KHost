@@ -1,4 +1,4 @@
-namespace KHost.UserInterface.Services;
+namespace KHost.UserInterface.Services.RedirectProviders;
 
 public class CliStartupRedirectProvider : IStartupRedirectProvider
 {
