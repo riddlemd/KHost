@@ -23,4 +23,13 @@
     &__col--date {
         width: 110px;
     }
+
+    &__col--actions {
+        width: 80px;
+        white-space: nowrap;
+
+        .kh-button + .kh-button {
+            margin-left: 4px;
+        }
+    }
 }

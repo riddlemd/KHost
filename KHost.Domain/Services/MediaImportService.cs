@@ -1,6 +1,7 @@
 using KHost.Abstractions.Repositories;
 using KHost.Abstractions.Services;
 using Microsoft.Extensions.Logging;
+using System.Runtime.Intrinsics.X86;
 
 namespace KHost.Domain.Services;
 
@@ -8,8 +9,11 @@ public class MediaImportService : BaseService, IMediaImportService
 {
     private static readonly string[] _supportedExtensions =
     [
-        ".mp3", ".ogg", ".flac", ".wav", ".wma", ".aac",
-        ".m4a", ".mp4", ".mkv", ".avi", ".cdg"
+        ".cdg",
+        ".mp4",
+        ".mkv",
+        ".avi",
+        ".flv"
     ];
 
     private readonly IMediaFileParsingService _parser;

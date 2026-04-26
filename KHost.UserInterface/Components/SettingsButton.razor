@@ -11,6 +11,9 @@
     [Inject] private NavigationManager? NavigationManager { get; set; }
     [Inject] private IDialogService? DialogService { get; set; }
 
+    private readonly Stack<string> _history = new();
+    private string _currentPath = "/";
+    private bool _isNavigatingBack;
     private bool _isOnMainPage;
 
     private string ButtonText => _isOnMainPage ? "Open Settings Menu" : "Return";
@@ -18,15 +21,20 @@
 
     protected override void OnInitialized()
     {
+        _currentPath = new Uri(NavigationManager!.Uri).AbsolutePath;
         UpdateIsOnMainPage();
-
-        NavigationManager!.LocationChanged += OnLocationChanged;
+        NavigationManager.LocationChanged += OnLocationChanged;
     }
 
     private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
     {
-        UpdateIsOnMainPage();
+        if (!_isNavigatingBack)
+            _history.Push(_currentPath);
+        else
+            _isNavigatingBack = false;
 
+        _currentPath = new Uri(e.Location).AbsolutePath;
+        UpdateIsOnMainPage();
         InvokeAsync(StateHasChanged);
     }
 
@@ -39,7 +47,8 @@
     {
         if (!_isOnMainPage)
         {
-            NavigationManager?.NavigateTo("/");
+            _isNavigatingBack = true;
+            NavigationManager!.NavigateTo(_history.Count > 0 ? _history.Pop() : "/");
             return;
         }
 

@@ -1,6 +1,7 @@
 @page "/settings/media-manager"
 @rendermode InteractiveServer
 @using KHost.Abstractions.Services
+@using KHost.UserInterface.Services
 @implements IAsyncDisposable
 
 <PageTitle>KHost &mdash; Media Library</PageTitle>
@@ -47,6 +48,7 @@
                                 <th class="kh-media-manager__col--duration">Duration</th>
                                 <th class="kh-media-manager__col--status">Status</th>
                                 <th class="kh-media-manager__col--date">Date Added</th>
+                                <th class="kh-media-manager__col--actions"></th>
                             </tr>
                         </thead>
                         <tbody>
@@ -70,6 +72,14 @@
                                         <span class="kh-badge @GetStatusBadgeClass(media.Status)">@media.Status</span>
                                     </td>
                                     <td>@media.DateAdded.ToString("yyyy-MM-dd")</td>
+                                    <td class="kh-media-manager__col--actions">
+                                        <button class="kh-button kh-button--outline-secondary kh-button--icon-minimal" title="Edit" @onclick="() => EditAsync(media)" type="button">
+                                            <Icon Name="pencil" />
+                                        </button>
+                                        <button class="kh-button kh-button--outline-danger kh-button--icon-minimal" title="Remove" @onclick="() => RemoveAsync(media)" type="button">
+                                            <Icon Name="trash" />
+                                        </button>
+                                    </td>
                                 </tr>
                             }
                         </tbody>
@@ -94,8 +104,24 @@
 
     [Inject] private IMediaService? MediaService { get; set; }
     [Inject] private NavigationManager? Navigation { get; set; }
+    [Inject] private IDialogService? DialogService { get; set; }
 
     private void NavigateToImporter() => Navigation!.NavigateTo("/settings/media-importer");
+
+    private Task EditAsync(Media media) =>
+        DialogService!.RequestEditAsync(media, onSave: updated =>
+        {
+            if (updated is not null)
+                _ = MediaService!.UpdateAsync(updated);
+        });
+
+    private Task RemoveAsync(Media media) =>
+        DialogService!.ShowConfirmationAsync(
+            $"Are you sure you want to remove <span class=\"kh-emphasis\">{media.Title}</span> from the library?",
+            onConfirm: () => _ = MediaService!.DeleteAsync(media.Id),
+            title: "Remove Media",
+            confirmText: "Remove"
+        );
 
     protected override async Task OnInitializedAsync()
     {
@@ -123,10 +149,12 @@
         }
     }
 
-    private void OnMediaStateChanged(object? sender, EventArgs e)
-    {
-        _ = SearchAsync();
-    }
+    private void OnMediaStateChanged(object? sender, EventArgs e) =>
+        _ = InvokeAsync(async () =>
+        {
+            await SearchAsync();
+            StateHasChanged();
+        });
 
     async ValueTask IAsyncDisposable.DisposeAsync()
     {
