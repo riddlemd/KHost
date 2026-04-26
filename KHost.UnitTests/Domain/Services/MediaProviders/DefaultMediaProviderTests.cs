@@ -118,7 +118,7 @@ public class DefaultMediaProviderTests
     [Fact]
     public async Task EnqueueAsync_DoesNothing_WhenNoSingerSelected()
     {
-        _singerQueueService.SelectedSingerId.Returns((Guid?)null);
+        _singerQueueService.SelectedUserId.Returns((Guid?)null);
 
         await _service.EnqueueAsync(new MediaSearchEntity { SourceDisplayName = "test", Source = "test", ForeignKey = Guid.NewGuid().ToString(), DisplayName = "test" });
 
@@ -130,7 +130,7 @@ public class DefaultMediaProviderTests
     {
         var singerId = Guid.NewGuid();
         var mediaId = Guid.NewGuid();
-        _singerQueueService.SelectedSingerId.Returns(singerId);
+        _singerQueueService.SelectedUserId.Returns(singerId);
 
         await _service.EnqueueAsync(new MediaSearchEntity { SourceDisplayName = "test", Source = "test", ForeignKey = mediaId.ToString(), DisplayName = "test" });
 
@@ -142,7 +142,7 @@ public class DefaultMediaProviderTests
     public async Task EnqueueAsync_CallsCreateAndEnqueue_WithCorrectSingerId()
     {
         var singerId = Guid.NewGuid();
-        _singerQueueService.SelectedSingerId.Returns(singerId);
+        _singerQueueService.SelectedUserId.Returns(singerId);
 
         await _service.EnqueueAsync(new MediaSearchEntity { SourceDisplayName = "test", Source = "test", ForeignKey = Guid.NewGuid().ToString(), DisplayName = "test" });
 

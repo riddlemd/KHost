@@ -1,0 +1,78 @@
+@using KHost.Abstractions.Services
+@using KHost.UserInterface.Models
+
+<div class="kh-setup-wizard__step">
+    <div class="kh-setup-wizard__header">
+        <h2>Configure Venue</h2>
+        <p>Set up your primary karaoke venue.</p>
+    </div>
+
+    <EditForm EditContext="_editContext" OnValidSubmit="OnNextAsync">
+        <DataAnnotationsValidator />
+
+        <div class="kh-setup-wizard__form">
+            <div class="kh-form-group">
+                <label for="venue-name" class="kh-form-label">Venue Name</label>
+                <span class="kh-form-hint">Up to 32 characters.</span>
+                <InputText id="venue-name"
+                           class="kh-form-control"
+                           placeholder="e.g., Main Hall, Karaoke Bar"
+                           @bind-Value="_model.Name"
+                           disabled="@_isLoading" />
+                <ValidationMessage For="() => _model.Name" />
+            </div>
+        </div>
+
+        @if (!string.IsNullOrEmpty(_serverError))
+        {
+            <div class="kh-alert kh-alert--danger">
+                @_serverError
+            </div>
+        }
+
+        <div class="kh-setup-wizard__actions">
+            <button class="kh-button kh-button--primary"
+                    disabled="@_isLoading"
+                    type="submit">
+                <Icon Name="arrow-right" /> Next
+            </button>
+        </div>
+    </EditForm>
+</div>
+
+@code {
+    [Inject] private ISetupService? SetupService { get; set; }
+
+    [Parameter]
+    public EventCallback OnComplete { get; set; }
+
+    private SetupVenueModel _model = new();
+    private EditContext _editContext = default!;
+    private string _serverError = string.Empty;
+    private bool _isLoading = false;
+
+    protected override void OnInitialized()
+    {
+        _editContext = new EditContext(_model);
+    }
+
+    private async Task OnNextAsync()
+    {
+        _serverError = string.Empty;
+        _isLoading = true;
+
+        try
+        {
+            await SetupService!.CreateDefaultVenueAsync(_model.Name);
+            await OnComplete.InvokeAsync();
+        }
+        catch (Exception ex)
+        {
+            _serverError = $"Failed to create venue: {ex.Message}";
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+}

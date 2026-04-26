@@ -1,0 +1,66 @@
+@page "/setup"
+@rendermode InteractiveServer
+@layout SetupLayout
+@using KHost.UserInterface.Components.Setup
+@inject IUsersService UsersService
+@inject IVenuesService VenuesService
+@inject NavigationManager NavigationManager
+
+<PageTitle>KHost &mdash; Setup Wizard</PageTitle>
+
+<div class="kh-setup-wizard">
+    <div class="kh-setup-wizard__progress">
+        <div class="kh-setup-wizard__progress-bar">
+            <div class="kh-setup-wizard__progress-fill" style="@($"width: {CurrentStepProgress}%")"></div>
+        </div>
+        <div class="kh-setup-wizard__progress-text">
+            Step @(_currentStep + 1) of 3
+        </div>
+    </div>
+
+    <div class="kh-setup-wizard__content">
+        @if (_currentStep == 0)
+        {
+            <WizardStep1AdminUser OnComplete="@(async () => await MoveToNextStepAsync())" />
+        }
+        else if (_currentStep == 1)
+        {
+            <WizardStep2VenueSetup OnComplete="@(async () => await MoveToNextStepAsync())" />
+        }
+        else if (_currentStep == 2)
+        {
+            <WizardStep3MediaImport OnComplete="@OnSetupCompleteAsync" />
+        }
+    </div>
+</div>
+
+@code {
+    private int _currentStep = 0;
+
+    private int CurrentStepProgress => ((_currentStep + 1) * 100) / 3;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var adminExists = await UsersService.HasAnyAsync();
+        if (adminExists)
+            _currentStep = 1;
+
+        var venueExists = await VenuesService.HasAnyAsync();
+        if (adminExists && venueExists)
+            _currentStep = 2;
+    }
+
+    private async Task MoveToNextStepAsync()
+    {
+        if (_currentStep < 2)
+        {
+            _currentStep++;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private void OnSetupCompleteAsync()
+    {
+        NavigationManager.NavigateTo("/");
+    }
+}

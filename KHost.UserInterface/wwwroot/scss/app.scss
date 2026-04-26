@@ -50,3 +50,6 @@
 /* ─── Components/Pages/Settings/ ──────────────────────────────────────────── */
 @use 'components/pages/settings/media-manager';
 @use 'components/pages/settings/media-importer';
+
+/* ─── Components/ (root) - Pages ──────────────────────────────────────────── */
+@use 'components/setup-wizard';

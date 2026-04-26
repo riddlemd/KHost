@@ -52,17 +52,10 @@
                             @foreach (var venue in _paginatedResult!.Items)
                             {
                                 <tr>
-                                    <td>@venue.Name</td>
+                                    <td class="kh-table__cell--fill">@venue.Name</td>
                                     <td>@venue.Notes</td>
-                                    <td>
-                                        @if (venue.Enabled)
-                                        {
-                                            <span class="kh-badge kh-badge--success">Yes</span>
-                                        }
-                                        else
-                                        {
-                                            <span class="kh-badge kh-badge--secondary">No</span>
-                                        }
+                                    <td class="kh-table__cell--centered">
+                                        <Icon Name="@(venue.Enabled ? "check" : "x")" />
                                     </td>
                                     <td>
                                         <button class="kh-venues-manager__edit-btn kh-button--icon-minimal" @onclick="() => OpenEditDialogAsync(venue)" type="button">

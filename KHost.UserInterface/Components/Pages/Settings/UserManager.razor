@@ -4,20 +4,20 @@
 @using KHost.UserInterface.Models
 @using KHost.UserInterface.Services
 
-<PageTitle>KHost &mdash; Manage Singers</PageTitle>
+<PageTitle>KHost &mdash; Manage Users</PageTitle>
 
 <div class="kh-app__body">
     <div class="kh-settings-page">
         <div class="kh-card h-100">
             <div class="kh-card__header d-flex align-items-center gap-2">
-                <span class="kh-card__title"><Icon Name="person-fill" /> Singers Manager</span>
+                <span class="kh-card__title"><Icon Name="person-fill" /> Users Manager</span>
                 <button class="kh-button kh-button--primary ms-auto" @onclick="OpenAddDialogAsync" type="button">
-                    <Icon Name="plus-lg" /> Add Singer
+                    <Icon Name="plus-lg" /> Add User
                 </button>
             </div>
             <div class="kh-card__body">
                 <form class="kh-panel__form-row mb-3" @onsubmit:preventDefault>
-                    <input type="text" class="form-control kh-panel__form-grow" placeholder="Search singers..."
+                    <input type="text" class="form-control kh-panel__form-grow" placeholder="Search Users..."
                             autocomplete="off" @bind="_searchQuery" @bind:event="oninput" @onchange="OnSearchChanged" />
                 </form>
             </div>
@@ -28,12 +28,12 @@
                         @if (string.IsNullOrWhiteSpace(_searchQuery))
                         {
                             <Icon Name="person" />
-                            <span>No singers yet. Add one using the button above to get started.</span>
+                            <span>No Users yet. Add one using the button above to get started.</span>
                         }
                         else
                         {
                             <Icon Name="search" />
-                            <span>No singers match your search.</span>
+                            <span>No Users match your search.</span>
                         }
                     </div>
                 }
@@ -50,21 +50,21 @@
                             </tr>
                         </thead>
                         <tbody>
-                            @foreach (var singer in _paginatedResult!.Items)
+                            @foreach (var user in _paginatedResult!.Items)
                             {
                                 <tr>
-                                    <td class="kh-table__cell--fill">@singer.Name</td>
-                                    <td class="kh-table__cell--fill">@singer.Notes</td>
-                                    <td class="kh-table__cell--centered"><Icon Name="@(singer.IsRegular ? "check" : "")" /></td>
-                                    <td class="kh-table__cell--centered"><Icon Name="@(singer.IsTipper ? "check" : "")" /></td>
+                                    <td class="kh-table__cell--fill">@user.Name</td>
+                                    <td class="kh-table__cell--fill">@user.Notes</td>
+                                    <td class="kh-table__cell--centered"><Icon Name="@(user.IsRegular ? "check" : "x")" /></td>
+                                    <td class="kh-table__cell--centered"><Icon Name="@(user.IsTipper ? "check" : "x")" /></td>
                                     <td class="kh-table__cell--actions">
-                                        <button class="kh-singer-manager__edit-btn kh-button--icon-minimal" title="Edit Singer" @onclick="() => OpenEditDialogAsync(singer)">
+                                        <button class="kh-singer-manager__edit-btn kh-button--icon-minimal" title="Edit User" @onclick="() => OpenEditDialogAsync(user)">
                                             <Icon Name="pencil" />
                                         </button>
-                                        <button class="kh-singer-manager__history-btn kh-button--icon-minimal" title="View Performance History" @onclick="() => OpenPerformanceHistoryAsync(singer)">
+                                        <button class="kh-singer-manager__history-btn kh-button--icon-minimal" title="View Performance History" @onclick="() => OpenPerformanceHistoryAsync(user)">
                                             <Icon Name="music-note-list" />
                                         </button>
-                                        <button class="kh-singer-manager__delete-btn kh-button--icon-minimal" title="Delete Singer" @onclick="@(async () => await StartDeleteAsync(singer))">
+                                        <button class="kh-singer-manager__delete-btn kh-button--icon-minimal" title="Delete User" @onclick="@(async () => await StartDeleteAsync(user))">
                                             <Icon Name="trash" />
                                         </button>
                                     </td>
@@ -85,27 +85,27 @@
 </div>
 
 @code {
-    [Inject] private ISingersService? SingersService { get; set; }
+    [Inject] private IUsersService? UsersService { get; set; }
     [Inject] private IDialogService? DialogService { get; set; }
 
     private const int PageSize = 2;
     private int _currentPage = 1;
     private string _searchQuery = "";
-    private PaginatedResult<Singer>? _paginatedResult;
+    private PaginatedResult<KHostUser>? _paginatedResult;
 
     protected override async Task OnInitializedAsync()
     {
         await SearchAsync();
 
-        SingersService!.StateChanged += OnStateChanged;
+        UsersService!.StateChanged += OnStateChanged;
     }
 
     private async Task SearchAsync()
     {
-        if (SingersService is null)
+        if (UsersService is null)
             return;
 
-        _paginatedResult = await SingersService.SearchAsync(_searchQuery, pageNumber: _currentPage, pageSize: PageSize);
+        _paginatedResult = await UsersService.SearchAsync(_searchQuery, pageNumber: _currentPage, pageSize: PageSize);
     }
 
     private async Task OnSearchChanged()
@@ -117,40 +117,40 @@
 
     private async Task OpenAddDialogAsync()
     {
-        await DialogService!.RequestEditAsync(new Singer { Name = "" }, async singer => await SaveAsync(singer));
+        await DialogService!.RequestEditAsync(new KHostUser { Name = "" }, async user => await SaveAsync(user));
     }
 
-    private async Task OpenEditDialogAsync(Singer singer)
+    private async Task OpenEditDialogAsync(KHostUser user)
     {
-        await DialogService!.RequestEditAsync(singer, async updated => await SaveAsync(updated));
+        await DialogService!.RequestEditAsync(user, async updated => await SaveAsync(updated));
     }
 
-    private async Task OpenPerformanceHistoryAsync(Singer singer)
+    private async Task OpenPerformanceHistoryAsync(KHostUser user)
     {
-        await DialogService!.ShowSingerPerformanceHistoryAsync(singer.Id);
+        await DialogService!.ShowSingerPerformanceHistoryAsync(user.Id);
     }
 
-    private async Task SaveAsync(Singer? singer)
+    private async Task SaveAsync(KHostUser? user)
     {
-        if (SingersService is null || singer is null)
+        if (UsersService is null || user is null)
             return;
 
-        var existing = await SingersService.ReadAsync(singer.Id);
+        var existing = await UsersService.ReadAsync(user.Id);
         if (existing is null)
-            await SingersService.CreateAsync(singer);
+            await UsersService.CreateAsync(user);
         else
-            await SingersService.UpdateAsync(singer);
+            await UsersService.UpdateAsync(user);
     }
 
-    private async Task StartDeleteAsync(Singer singer)
+    private async Task StartDeleteAsync(KHostUser user)
     {
         if (DialogService is null) return;
-        if (SingersService is null) return;
+        if (UsersService is null) return;
 
         bool confirmed = await DialogService.ShowConfirmationAsync(
-            $"Are you sure you want to delete <span class=\"kh-emphasis\">{singer.Name}</span>?",
-            async () => await SingersService.DeleteAsync(singer.Id),
-            "Delete Singer",
+            $"Are you sure you want to delete <span class=\"kh-emphasis\">{user.Name}</span>?",
+            async () => await UsersService.DeleteAsync(user.Id),
+            "Delete User",
             "Delete"
         );
     }
@@ -201,6 +201,6 @@
 
     public void Dispose()
     {
-        SingersService?.StateChanged -= OnStateChanged;
+        UsersService?.StateChanged -= OnStateChanged;
     }
 }

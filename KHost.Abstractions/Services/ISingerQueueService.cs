@@ -6,21 +6,21 @@ public interface ISingerQueueService
 {
     event EventHandler? StateChanged;
 
-    IReadOnlyList<Singer> Singers { get; }
-    Guid? SelectedSingerId { get; }
-    Singer? SelectedSinger { get; }
+    IReadOnlyList<KHostUser> Users { get; }
+    Guid? SelectedUserId { get; }
+    KHostUser? SelectedUser { get; }
     bool IsTopSlotLocked { get; }
 
-    Task SelectSingerAsync(Guid? singerId);
-    Task AddSingerAsync(Guid singerId);
-    Task RemoveSingerAsync(Guid singerId);
-    Task AddMediaAsync(Guid singerId, MediaSearchEntity media);
-    Task MoveSingerUpAsync(Guid singerId);
-    Task MoveSingerDownAsync(Guid singerId);
-    Task MoveSingerToStartAsync(Guid singerId);
-    Task MoveSingerToEndAsync(Guid singerId);
-    Task MoveSingerToIndexAsync(Guid singerId, int newIndex);
-    Task SelectFirstSingerInQueueAsync();
+    Task SelectUserAsync(Guid? userId);
+    Task AddUserAsync(Guid userId);
+    Task RemoveUserAsync(Guid userId);
+    Task AddMediaAsync(Guid userId, MediaSearchEntity media);
+    Task MoveUserUpAsync(Guid userId);
+    Task MoveUserDownAsync(Guid userId);
+    Task MoveUserToStartAsync(Guid userId);
+    Task MoveUserToEndAsync(Guid userId);
+    Task MoveUserToIndexAsync(Guid userId, int newIndex);
+    Task SelectFirstUserInQueueAsync();
     Task RefreshAsync();
     Task ClearAsync();
     void LockTopSlot();

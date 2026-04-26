@@ -8,9 +8,9 @@
     <div class="kh-card__header d-flex align-items-center gap-2">
         <Icon Name="queue-music" />
         <Icon Name="music-note-list" />
-        @if (SingerQueueService?.SelectedSinger is { } singer)
+        @if (SingerQueueService?.SelectedUser is { } user)
         {
-            <span class="kh-card__title">@singer.Name's Queue</span>
+            <span class="kh-card__title">@user.Name's Queue</span>
             <span class="kh-badge kh-badge--secondary kh-selected-singer-info-panel__song-count ms-auto" title="Number of songs in queue">@_performanceCount</span>
         }
         else
@@ -19,14 +19,14 @@
         }
         <div class="kh-selected-singer-info-panel__quick-menu">
             <span class="kh-selected-singer-info-panel__flags">
-                <button class="kh-selected-singer-info-panel__toggle-regular-btn kh-button--icon-minimal @(SingerQueueService?.SelectedSinger?.IsRegular == false ? " kh-button--off" : "")"
-                        title="@(SingerQueueService?.SelectedSinger?.IsRegular == true ? "This singer is a Regular!" : "Click to flag this singer as a Regular")"
+                <button class="kh-selected-singer-info-panel__toggle-regular-btn kh-button--icon-minimal @(SingerQueueService?.SelectedUser?.IsRegular == false ? " kh-button--off" : "")"
+                        title="@(SingerQueueService?.SelectedUser?.IsRegular == true ? "This singer is a Regular!" : "Click to flag this singer as a Regular")"
                         @onclick="() => ToggleIsRegularAsync()">
                     <Icon Name="heart-fill" Class="kh-selected-singer-info-panel__flag-icon--regular" />
                 </button>
 
-                <button class="kh-selected-singer-info-panel__toggle-tipper-btn kh-button--icon-minimal @(SingerQueueService?.SelectedSinger?.IsTipper == false ? " kh-button--off" : "")"
-                        title="@(SingerQueueService?.SelectedSinger?.IsTipper == true ? "This singer is a Tipper!" : "Click to flag this singer as a Tipper")"
+                <button class="kh-selected-singer-info-panel__toggle-tipper-btn kh-button--icon-minimal @(SingerQueueService?.SelectedUser?.IsTipper == false ? " kh-button--off" : "")"
+                        title="@(SingerQueueService?.SelectedUser?.IsTipper == true ? "This singer is a Tipper!" : "Click to flag this singer as a Tipper")"
                         @onclick="() => ToggleIsTipperAsync()">
                     <Icon Name="coin" Class="kh-selected-singer-info-panel__flag-icon--tipper" />
                 </button>
@@ -37,20 +37,20 @@
                 <Icon Name="music-note-list" />
             </button>
             <button class="kh-selected-singer-info-panel__menu-btn kh-button kh-button--primary" title="Click to edit Singer's Profile"
-                    @onclick="OpenSingerEditDialogAsync" @onclick:stopPropagation>
+                    @onclick="OpenUserEditDialogAsync" @onclick:stopPropagation>
                 <Icon Name="pencil-fill" />
             </button>
         </div>
     </div>
 
     <div class="kh-card__body kh-selected-singer-info-panel__body">
-        @if (SingerQueueService?.SelectedSinger is null)
+        @if (SingerQueueService?.SelectedUser is null)
         {
             // Do nothing, we should not see this.
         }
         else
         {
-            var selected = SingerQueueService.SelectedSinger!;
+            var selected = SingerQueueService.SelectedUser!;
 
             if (_performances.Count == 0)
             {
@@ -109,7 +109,7 @@
                             </td>
                             <td>@(rowMedia?.Status)</td>
                             <td>
-                                <SplitButton 
+                                <SplitButton
                                         Title="@(disablePlay ? "Cannot Load and Play while another Song is loaded" : "Load and Play Song")"
                                         disabled="@disablePlay"
                                         @onclick="() => LoadAndPlayAsync(performance)">
@@ -152,7 +152,7 @@
     [Inject] private IPerformanceService? PerformanceService { get; set; }
     [Inject] private IPlaybackService? PlaybackService { get; set; }
     [Inject] private IMediaSearchService? MediaSearchService { get; set; }
-    [Inject] private ISingersService? SingersService { get; set; }
+    [Inject] private IUsersService? UsersService { get; set; }
     [Inject] private IMediaService? MediaService { get; set; }
     [Inject] private IDialogService? DialogService { get; set; }
 
@@ -173,7 +173,7 @@
 
     private async Task OnKeyDownAsync(KeyboardEventArgs e)
     {
-        if (SingerQueueService?.SelectedSinger is null) return;
+        if (SingerQueueService?.SelectedUser is null) return;
 
         var currentIdx = _performances.FindIndex(s => s.Id == _selectedPerformanceId);
 
@@ -192,7 +192,6 @@
     {
         if (PlaybackService is null) return;
 
-        // Prevent loading a new media if one is already playing
         if (PlaybackService.State == PlaybackState.Playing && PlaybackService.CurrentPerformance?.Id != performance.Id)
             return;
 
@@ -205,31 +204,31 @@
 
     private async Task OpenPerformanceHistoryDialogAsync()
     {
-        if (SingerQueueService?.SelectedSinger is null) return;
-        await DialogService!.ShowSingerPerformanceHistoryAsync(SingerQueueService.SelectedSinger.Id);
+        if (SingerQueueService?.SelectedUser is null) return;
+        await DialogService!.ShowSingerPerformanceHistoryAsync(SingerQueueService.SelectedUser.Id);
     }
 
-    private async Task OpenSingerEditDialogAsync()
+    private async Task OpenUserEditDialogAsync()
     {
-        if (SingerQueueService?.SelectedSinger is null) return;
-        await DialogService!.RequestEditAsync(SingerQueueService.SelectedSinger, async singer => await SaveSingerAsync(singer));
+        if (SingerQueueService?.SelectedUser is null) return;
+        await DialogService!.RequestEditAsync(SingerQueueService.SelectedUser, async user => await SaveUserAsync(user));
     }
 
-    private async Task SaveSingerAsync(Singer? singer)
+    private async Task SaveUserAsync(KHostUser? user)
     {
-        if (SingerQueueService is null || SingersService is null || singer is null) return;
-        await SingersService.UpdateAsync(singer);
+        if (SingerQueueService is null || UsersService is null || user is null) return;
+        await UsersService.UpdateAsync(user);
         await SingerQueueService.RefreshAsync();
     }
 
     private async Task ToggleIsRegularAsync()
     {
         if (SingerQueueService is null) return;
-        if (SingersService is null) return;
+        if (UsersService is null) return;
 
-        if (SingerQueueService.SelectedSinger is { } singer)
+        if (SingerQueueService.SelectedUser is { } user)
         {
-            await SingersService.ToggleIsRegularAsync(singer.Id);
+            await UsersService.ToggleIsRegularAsync(user.Id);
             await SingerQueueService.RefreshAsync();
         }
     }
@@ -237,11 +236,11 @@
     private async Task ToggleIsTipperAsync()
     {
         if (SingerQueueService is null) return;
-        if (SingersService is null) return;
+        if (UsersService is null) return;
 
-        if (SingerQueueService.SelectedSinger is { } singer)
+        if (SingerQueueService.SelectedUser is { } user)
         {
-            await SingersService.ToggleIsTipperAsync(singer.Id);
+            await UsersService.ToggleIsTipperAsync(user.Id);
             await SingerQueueService.RefreshAsync();
         }
     }
@@ -263,14 +262,13 @@
         if (SingerQueueService is null) return;
         if (PerformanceService is null) return;
 
-        if (SingerQueueService.SelectedSinger is { } singer)
+        if (SingerQueueService.SelectedUser is { } user)
         {
-            _performances = (await PerformanceService.ReadQueuedAsync()).Where(p => p.SingerId == singer.Id).ToList();
+            _performances = (await PerformanceService.ReadQueuedAsync()).Where(p => p.SingerId == user.Id).ToList();
             _performanceCount = _performances.Count;
             if (!_performances.Any(p => p.Id == _selectedPerformanceId))
                 _selectedPerformanceId = null;
 
-            // Fetch all media for this singer's performances
             if (_performances.Count > 0 && MediaService is not null)
             {
                 var mediaIds = _performances.Select(p => p.MediaId).Distinct().ToList();

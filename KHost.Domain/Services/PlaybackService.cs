@@ -11,27 +11,24 @@ public class PlaybackService : BaseService, IPlaybackService
     private DateTime _lastTick;
     private readonly ISingerQueueService _singerQueueService;
     private readonly IPerformanceService _performanceService;
-    private readonly ISingersService _singersService;
 
     public Performance? CurrentPerformance { get; private set; }
     public Media? CurrentMedia { get; private set; }
     public PlaybackState State { get; private set; } = PlaybackState.Stopped;
     public TimeSpan Position { get; private set; }
-    public Guid? CurrentlyPerformingSingerId { get; private set; }
+    public Guid? CurrentlyPerformingUserId { get; private set; }
     public IOptionsMonitor<ServiceOptions> Options { get; set; }
 
     public PlaybackService(
         ILogger<PlaybackService> logger,
         IOptionsMonitor<ServiceOptions> options,
         ISingerQueueService singerQueueService,
-        IPerformanceService performanceService,
-        ISingersService singersService)
+        IPerformanceService performanceService)
         : base(logger)
     {
         Options = options;
         _singerQueueService = singerQueueService;
         _performanceService = performanceService;
-        _singersService = singersService;
     }
 
     public async Task LoadAsync(Performance performance, Media media)
@@ -42,7 +39,7 @@ public class PlaybackService : BaseService, IPlaybackService
         CurrentMedia = media;
         Position = TimeSpan.Zero;
 
-        await _singerQueueService.MoveSingerToStartAsync(performance.SingerId);
+        await _singerQueueService.MoveUserToStartAsync(performance.SingerId);
         _singerQueueService.LockTopSlot();
 
         Logger.LogInformation("Loading media '{Title}' for performance {PerformanceId}", media.Title, performance.Id);
@@ -54,14 +51,14 @@ public class PlaybackService : BaseService, IPlaybackService
     {
         if (CurrentPerformance is null || State == PlaybackState.Playing) return;
 
-        CurrentlyPerformingSingerId = CurrentPerformance.SingerId;
+        CurrentlyPerformingUserId = CurrentPerformance.SingerId;
 
         State = PlaybackState.Playing;
         _lastTick = DateTime.UtcNow;
         _timer?.Dispose();
         _timer = new Timer(OnTick, null, 500, 500);
 
-        Logger.LogInformation("Playback started for singer {SingerId}", CurrentPerformance.SingerId);
+        Logger.LogInformation("Playback started for user {UserId}", CurrentPerformance.SingerId);
 
         InvokeStateChanged();
     }
@@ -108,13 +105,12 @@ public class PlaybackService : BaseService, IPlaybackService
         }
     }
 
-
     private void ResetState()
     {
         _timer?.Dispose();
         _timer = null;
 
-        CurrentlyPerformingSingerId = null;
+        CurrentlyPerformingUserId = null;
 
         State = PlaybackState.Stopped;
         Position = TimeSpan.Zero;
@@ -132,12 +128,12 @@ public class PlaybackService : BaseService, IPlaybackService
         if (currentPerformance is null)
             return;
 
-        Logger.LogInformation("Performance {PerformanceId} ended for singer {SingerId}", currentPerformance.Id, currentPerformance.SingerId);
+        Logger.LogInformation("Performance {PerformanceId} ended for user {UserId}", currentPerformance.Id, currentPerformance.SingerId);
 
         if (Options.CurrentValue.MoveSingerToBottomAfterPerformance)
         {
-            await _singerQueueService.MoveSingerToEndAsync(currentPerformance.SingerId);
-            await _singerQueueService.SelectFirstSingerInQueueAsync();
+            await _singerQueueService.MoveUserToEndAsync(currentPerformance.SingerId);
+            await _singerQueueService.SelectFirstUserInQueueAsync();
         }
 
         await _performanceService.DequeueAsync(currentPerformance.SingerId, currentPerformance.Id);

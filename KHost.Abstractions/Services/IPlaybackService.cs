@@ -10,7 +10,7 @@ public interface IPlaybackService : IDisposable
     Media? CurrentMedia { get; }
     PlaybackState State { get; }
     TimeSpan Position { get; }
-    Guid? CurrentlyPerformingSingerId { get; }
+    Guid? CurrentlyPerformingUserId { get; }
 
     Task LoadAsync(Performance performance, Media media);
     Task PlayAsync();

@@ -2,17 +2,16 @@ using System.ComponentModel.DataAnnotations;
 
 namespace KHost.UserInterface.Models;
 
-public class SingerEditModel
+public class EditVenueModel
 {
-    public Guid Id { get; set; }
+    public Guid Id { get; set; } = Guid.NewGuid();
 
     [Required(ErrorMessage = "Name is required.")]
-    [MaxLength(64, ErrorMessage = "Name cannot exceed 64 characters.")]
+    [MaxLength(32, ErrorMessage = "Name cannot exceed 32 characters.")]
     public string Name { get; set; } = "";
 
     [MaxLength(255, ErrorMessage = "Notes cannot exceed 255 characters.")]
     public string Notes { get; set; } = "";
 
-    public bool IsRegular { get; set; }
-    public bool IsTipper { get; set; }
+    public bool Enabled { get; set; } = true;
 }

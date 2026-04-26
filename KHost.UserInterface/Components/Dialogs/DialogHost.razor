@@ -16,20 +16,20 @@
                 OnClose="@(() => { r.OnCancel?.Invoke(); Close(r); })" />
             break;
 
-        case SingerEditDialog.DialogRequest r:
-            <SingerEditDialog @key="r.Id" IsOpen="true" Singer="@r.Value"
-                OnSave="@((singer) => { r.OnSave?.Invoke(singer); Close(r); })"
+        case EditUserDialog.DialogRequest r:
+            <EditUserDialog @key="r.Id" IsOpen="true" User="@r.Value"
+                OnSave="@((user) => { r.OnSave?.Invoke(user); Close(r); })"
                 OnClose="@(() => { r.OnCancel?.Invoke(); Close(r); })" />
             break;
 
-        case VenueEditDialog.DialogRequest r:
-            <VenueEditDialog @key="r.Id" IsOpen="true" Venue="@r.Value"
+        case EditVenueDialog.DialogRequest r:
+            <EditVenueDialog @key="r.Id" IsOpen="true" Venue="@r.Value"
                 OnSave="@((venue) => { r.OnSave?.Invoke(venue); Close(r); })"
                 OnClose="@(() => { r.OnCancel?.Invoke(); Close(r); })" />
             break;
 
         case SingerPerformanceHistoryDialog.DialogRequest r:
-            <SingerPerformanceHistoryDialog @key="r.Id" IsOpen="true" SingerId="@r.SingerId"
+            <SingerPerformanceHistoryDialog @key="r.Id" IsOpen="true" UserId="@r.UserId"
                 OnClose="@(() => { r.OnClose?.Invoke(); Close(r); })" />
             break;
 
@@ -38,8 +38,8 @@
                 OnClose="@(() => { r.OnClose?.Invoke(); Close(r); })" />
             break;
 
-        case MediaEditDialog.DialogRequest r:
-            <MediaEditDialog @key="r.Id" IsOpen="true" Media="@r.Value"
+        case EditMediaDialog.DialogRequest r:
+            <EditMediaDialog @key="r.Id" IsOpen="true" Media="@r.Value"
                 OnSave="@((media) => { r.OnSave?.Invoke(media); Close(r); })"
                 OnClose="@(() => { r.OnCancel?.Invoke(); Close(r); })" />
             break;

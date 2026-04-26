@@ -1,0 +1,209 @@
+.kh-setup-layout {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    padding: 1rem;
+    background: var(--kh-bg);
+
+    &__header {
+        position: absolute;
+        top: 1rem;
+        right: 1rem;
+        z-index: 10;
+    }
+
+    &__container {
+        width: 100%;
+        max-width: 600px;
+        display: flex;
+        flex-direction: column;
+    }
+
+    &:has(.kh-setup-wizard__step--full-height) {
+        .kh-setup-layout__container {
+            width: 80%;
+            height: 80vh;
+            max-width: none;
+        }
+    }
+}
+
+.kh-setup-wizard {
+    &__progress {
+        margin-bottom: 2rem;
+    }
+
+    &__progress-bar {
+        height: 8px;
+        background-color: var(--kh-border);
+        border-radius: 4px;
+        overflow: hidden;
+        margin-bottom: 0.5rem;
+    }
+
+    &__progress-fill {
+        height: 100%;
+        background-color: var(--kh-success);
+        transition: width 0.3s ease;
+    }
+
+    &__progress-text {
+        font-size: 0.875rem;
+        color: var(--kh-text-secondary);
+        text-align: center;
+    }
+
+    &__content {
+        background: var(--kh-bg-card);
+        border: 1px solid var(--kh-border);
+        border-radius: var(--kh-radius);
+        padding: 2rem;
+        box-shadow: 0 8px 32px var(--kh-primary-glow);
+        display: flex;
+        flex-direction: column;
+
+        .kh-setup-wizard__step--full-height & {
+            height: 100%;
+        }
+    }
+
+    &__step {
+        display: flex;
+        flex-direction: column;
+        gap: 2rem;
+
+        &--full-height {
+            height: 100%;
+
+            .kh-setup-wizard__media-browser {
+                flex: 1;
+                overflow-y: auto;
+            }
+        }
+    }
+
+    &__header {
+        text-align: center;
+        padding-bottom: 1rem;
+        border-bottom: 1px solid var(--kh-border);
+
+        h2 {
+            font-size: 1.75rem;
+            font-weight: 600;
+            color: var(--kh-text);
+            margin: 0 0 0.5rem 0;
+        }
+
+        p {
+            color: var(--kh-text-secondary);
+            margin: 0;
+            font-size: 0.95rem;
+        }
+    }
+
+    &__form {
+        display: flex;
+        flex-direction: column;
+        gap: 1.5rem;
+    }
+
+    &__media-browser {
+        border: 1px solid var(--kh-border);
+        border-radius: var(--kh-radius);
+        overflow: hidden;
+    }
+
+    &__actions {
+        display: flex;
+        gap: 1rem;
+        justify-content: flex-end;
+        padding-top: 1rem;
+        border-top: 1px solid var(--kh-border);
+
+        button {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+    }
+}
+
+.kh-form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.kh-form-label {
+    font-size: 0.95rem;
+    font-weight: 500;
+    color: var(--kh-text);
+}
+
+.kh-form-hint {
+    font-size: 0.8rem;
+    color: var(--kh-text-secondary);
+}
+
+.kh-form-control {
+    padding: 0.75rem 1rem;
+    border: 1px solid var(--kh-border);
+    border-radius: var(--kh-radius);
+    font-size: 1rem;
+    background-color: var(--kh-bg-input);
+    color: var(--kh-text);
+    font-family: inherit;
+    transition: border-color var(--kh-transition);
+
+    &:focus {
+        outline: none;
+        border-color: var(--kh-primary);
+        box-shadow: 0 0 0 3px var(--kh-primary-glow);
+    }
+
+    &:disabled {
+        background-color: var(--kh-bg-elevated);
+        cursor: not-allowed;
+        opacity: 0.6;
+    }
+
+    &.invalid:not(:placeholder-shown) {
+        border-color: var(--kh-danger);
+
+        &:focus {
+            border-color: var(--kh-danger);
+            box-shadow: 0 0 0 3px var(--kh-danger-bg-subtle);
+        }
+    }
+
+    &:not(.invalid):not(:placeholder-shown) {
+        border-color: var(--kh-success);
+    }
+}
+
+.kh-alert {
+    padding: 1rem;
+    border-radius: var(--kh-radius);
+    font-size: 0.95rem;
+    border-left: 4px solid;
+
+    &--danger {
+        background-color: var(--kh-danger-bg-subtle);
+        color: var(--kh-danger);
+        border-left-color: var(--kh-danger);
+    }
+
+    &--success {
+        background-color: var(--kh-success-subtle);
+        color: var(--kh-success);
+        border-left-color: var(--kh-success);
+    }
+}
+
+.validation-message {
+    font-size: 0.8rem;
+    color: var(--kh-danger);
+    margin-top: 0.25rem;
+}

@@ -15,7 +15,57 @@ namespace KHost.DataAccess.Migrations
         protected override void BuildModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
-            modelBuilder.HasAnnotation("ProductVersion", "10.0.6");
+            modelBuilder.HasAnnotation("ProductVersion", "10.0.7");
+
+            modelBuilder.Entity("KHost.Abstractions.Models.KHostUser", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid?>("DefaultVenueId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsAdmin")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("IsRegular")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("IsTipper")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("LastLoginDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Notes")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("PasswordHash")
+                        .HasMaxLength(512)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedDate");
+
+                    b.HasIndex("IsAdmin");
+
+                    b.HasIndex("Name")
+                        .IsUnique();
+
+                    b.ToTable("Users");
+                });
 
             modelBuilder.Entity("KHost.Abstractions.Models.Media", b =>
                 {
@@ -102,42 +152,27 @@ namespace KHost.DataAccess.Migrations
                     b.ToTable("Performances");
                 });
 
-            modelBuilder.Entity("KHost.Abstractions.Models.Singer", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("TEXT");
-
-                    b.Property<bool>("IsRegular")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<bool>("IsTipper")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(255)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Notes")
-                        .IsRequired()
-                        .HasMaxLength(1000)
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Name");
-
-                    b.ToTable("Singer");
-                });
-
             modelBuilder.Entity("KHost.Abstractions.Models.Venue", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("Address")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("ClearQueueOnClose")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("DefaultVolume")
+                        .HasColumnType("INTEGER");
+
                     b.Property<bool>("Enabled")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("MoveSingerToBottomAfterPerformance")
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("Name")
@@ -149,6 +184,14 @@ namespace KHost.DataAccess.Migrations
                         .IsRequired()
                         .HasMaxLength(1000)
                         .HasColumnType("TEXT");
+
+                    b.Property<string>("Phone")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("PromptBeforeRemovingSinger")
+                        .HasColumnType("INTEGER");
 
                     b.HasKey("Id");
 

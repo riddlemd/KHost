@@ -24,9 +24,9 @@ public class DialogService : IDialogService
         return Task.FromResult(false);
     }
 
-    public Task ShowSingerPerformanceHistoryAsync(Guid singerId, Action? onClose)
+    public Task ShowSingerPerformanceHistoryAsync(Guid userId, Action? onClose = null)
     {
-        ShowRequested?.Invoke(this, new SingerPerformanceHistoryDialog.DialogRequest(singerId, onClose));
+        ShowRequested?.Invoke(this, new SingerPerformanceHistoryDialog.DialogRequest(userId, onClose));
 
         return Task.CompletedTask;
     }
@@ -39,13 +39,13 @@ public class DialogService : IDialogService
     }
 
     public async Task RequestEditAsync(Media item, Action<Media?> onSave, Action? onCancel = null, Action? onClose = null)
-        => await RequestEditAsync<MediaEditDialog.DialogRequest, Media>(item, onSave, onCancel, onClose);
+        => await RequestEditAsync<EditMediaDialog.DialogRequest, Media>(item, onSave, onCancel, onClose);
 
-    public async Task RequestEditAsync(Singer item, Action<Singer?> onSave, Action? onCancel = null, Action? onClose = null)
-        => await RequestEditAsync<SingerEditDialog.DialogRequest, Singer>(item, onSave, onCancel, onClose);
+    public async Task RequestEditAsync(KHostUser item, Action<KHostUser?> onSave, Action? onCancel = null, Action? onClose = null)
+        => await RequestEditAsync<EditUserDialog.DialogRequest, KHostUser>(item, onSave, onCancel, onClose);
 
     public async Task RequestEditAsync(Venue item, Action<Venue?> onSave, Action? onCancel = null, Action? onClose = null)
-        => await RequestEditAsync<VenueEditDialog.DialogRequest, Venue>(item, onSave, onCancel, onClose);
+        => await RequestEditAsync<EditVenueDialog.DialogRequest, Venue>(item, onSave, onCancel, onClose);
 
     public Task ShowLyricsAsync(string query, Action? onClose = null)
     {

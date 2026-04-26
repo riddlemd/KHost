@@ -1,6 +1,8 @@
 ﻿using KHost.Abstractions.Services;
 using KHost.Domain.Services;
+using KHost.Domain.Services.AuthProviders;
 using KHost.Domain.Services.MediaProviders;
+using KHost.Domain.Services.PasswordHashers;
 using KHost.LrcLib;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -26,8 +28,8 @@ namespace KHost.Domain
             serviceCollection.AddOptions<VenuesService.ServiceOptions>()
                 .BindConfiguration(VenuesService.ServiceOptions.SectionName);
 
-            serviceCollection.AddOptions<SingersService.ServiceOptions>()
-                .BindConfiguration(SingersService.ServiceOptions.SectionName);
+            serviceCollection.AddOptions<UsersService.ServiceOptions>()
+                .BindConfiguration(UsersService.ServiceOptions.SectionName);
 
             serviceCollection.AddOptions<JsonFileCacheService.ServiceOptions>()
                 .BindConfiguration(JsonFileCacheService.ServiceOptions.SectionName);
@@ -41,10 +43,14 @@ namespace KHost.Domain
             serviceCollection.AddSingleton<IPlaybackService, PlaybackService>();
             serviceCollection.AddSingleton<IMediaSearchService, MediaSearchService>();
             serviceCollection.AddSingleton<IVenuesService, VenuesService>();
-            serviceCollection.AddSingleton<ISingersService, SingersService>();
+            serviceCollection.AddSingleton<IUsersService, UsersService>();
             serviceCollection.AddSingleton<IPerformanceService, PerformanceService>();
             serviceCollection.AddSingleton<IMediaService, MediaService>();
             serviceCollection.AddSingleton<ILyricsService, LyricsService>();
+            serviceCollection.AddSingleton<IPasswordHasher, Argon2PasswordHasher>();
+            serviceCollection.AddSingleton<IAuthService, AuthService>();
+            serviceCollection.AddSingleton<IAuthProvider, LocalAuthProvider>();
+            serviceCollection.AddSingleton<ISetupService, SetupService>();
 
             // Media Providers
             serviceCollection.AddSingleton<IMediaProvider, DefaultMediaProvider>();

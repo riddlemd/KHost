@@ -57,7 +57,7 @@
     [Parameter] public EventCallback<Media> OnSave { get; set; }
     [Parameter] public EventCallback OnClose { get; set; }
 
-    private MediaEditModel _model = new();
+    private EditMediaModel _model = new();
     private EditContext _editContext = default!;
     private bool _prevIsOpen;
 
@@ -71,8 +71,8 @@
         if (IsOpen && !_prevIsOpen)
         {
             _model = Media is null
-                ? new MediaEditModel()
-                : new MediaEditModel
+                ? new EditMediaModel()
+                : new EditMediaModel
                 {
                     Id = Media.Id,
                     Title = Media.Title,

@@ -9,4 +9,5 @@ public interface IRepository<T> : ISearchable<T> where T : class
     Task UpdateAsync(T entity);
     Task<bool> DeleteAsync(Guid id);
     Task<PaginatedResult<T>> ReadAllAsync(int pageNumber = 1, int pageSize = 0);
+    Task<bool> HasAnyAsync();
 }

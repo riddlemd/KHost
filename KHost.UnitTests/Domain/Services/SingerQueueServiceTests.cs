@@ -13,8 +13,8 @@ public class SingerQueueServiceTests : IDisposable
         Substitute.For<IOptionsMonitor<SingerQueueService.ServiceOptions>>();
     private readonly ICacheService _cacheService;
     private readonly IPerformanceService _performanceService;
-    private readonly ISingersService _singersService;
-    private readonly Dictionary<Guid, Singer> _singerDb = [];
+    private readonly IUsersService _usersService;
+    private readonly Dictionary<Guid, KHostUser> _userDb = [];
     private readonly SingerQueueService _service;
 
     public SingerQueueServiceTests()
@@ -22,18 +22,18 @@ public class SingerQueueServiceTests : IDisposable
         var cacheOptions = Substitute.For<IOptionsMonitor<JsonFileCacheService.ServiceOptions>>();
         _cacheService = new JsonFileCacheService(NullLogger<JsonFileCacheService>.Instance, cacheOptions);
         _performanceService = Substitute.For<IPerformanceService>();
-        _singersService = Substitute.For<ISingersService>();
+        _usersService = Substitute.For<IUsersService>();
 
         _performanceService.CreateAndEnqueueAsync(Arg.Any<Performance>())
             .Returns(args => Task.FromResult((Performance)args[0]));
 
-        _singersService.ReadAsync(Arg.Any<Guid>())
-            .Returns(args => { _singerDb.TryGetValue((Guid)args[0], out var s); return Task.FromResult(s); });
+        _usersService.ReadAsync(Arg.Any<Guid>())
+            .Returns(args => { _userDb.TryGetValue((Guid)args[0], out var u); return Task.FromResult(u); });
 
-        _singersService.UpdateAsync(Arg.Any<Singer>())
-            .Returns(args => { var s = (Singer)args[0]; _singerDb[s.Id] = s; return Task.CompletedTask; });
+        _usersService.UpdateAsync(Arg.Any<KHostUser>())
+            .Returns(args => { var u = (KHostUser)args[0]; _userDb[u.Id] = u; return Task.CompletedTask; });
 
-        _service = new SingerQueueService(NullLogger<SingerQueueService>.Instance, _options, _cacheService, _performanceService, _singersService);
+        _service = new SingerQueueService(NullLogger<SingerQueueService>.Instance, _options, _cacheService, _performanceService, _usersService);
     }
 
     public void Dispose()
@@ -46,23 +46,23 @@ public class SingerQueueServiceTests : IDisposable
     [Fact]
     public void NewService_StartsEmpty()
     {
-        Assert.Empty(_service.Singers);
-        Assert.Null(_service.SelectedSingerId);
-        Assert.Null(_service.SelectedSinger);
+        Assert.Empty(_service.Users);
+        Assert.Null(_service.SelectedUserId);
+        Assert.Null(_service.SelectedUser);
     }
 
     [Fact]
-    public async Task AddSingerAsync_AddsSingerById()
+    public async Task AddUserAsync_AddsUserById()
     {
-        var singer = await EnqueueAsync("Alice");
+        var user = await EnqueueAsync("Alice");
 
-        Assert.Single(_service.Singers);
-        Assert.Equal("Alice", singer.Name);
-        Assert.NotEqual(Guid.Empty, singer.Id);
+        Assert.Single(_service.Users);
+        Assert.Equal("Alice", user.Name);
+        Assert.NotEqual(Guid.Empty, user.Id);
     }
 
     [Fact]
-    public async Task AddSingerAsync_RaisesStateChanged()
+    public async Task AddUserAsync_RaisesStateChanged()
     {
         var raised = false;
         _service.StateChanged += (_, _) => raised = true;
@@ -73,40 +73,40 @@ public class SingerQueueServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task RemoveSingerAsync_RemovesSinger()
+    public async Task RemoveUserAsync_RemovesUser()
     {
         var alice = await EnqueueAsync("Alice");
 
-        await _service.RemoveSingerAsync(alice.Id);
+        await _service.RemoveUserAsync(alice.Id);
 
-        Assert.Empty(_service.Singers);
+        Assert.Empty(_service.Users);
     }
 
     [Fact]
-    public async Task RemoveSingerAsync_ClearsSelection_IfRemovingSelected()
+    public async Task RemoveUserAsync_ClearsSelection_IfRemovingSelected()
     {
         var alice = await EnqueueAsync("Alice");
-        await _service.SelectSingerAsync(alice.Id);
+        await _service.SelectUserAsync(alice.Id);
 
-        await _service.RemoveSingerAsync(alice.Id);
+        await _service.RemoveUserAsync(alice.Id);
 
-        Assert.Null(_service.SelectedSingerId);
+        Assert.Null(_service.SelectedUserId);
     }
 
     [Fact]
-    public async Task SelectSingerAsync_SetsSelectedId()
+    public async Task SelectUserAsync_SetsSelectedId()
     {
         var alice = await EnqueueAsync("Alice");
         var bob = await EnqueueAsync("Bob");
 
-        await _service.SelectSingerAsync(bob.Id);
+        await _service.SelectUserAsync(bob.Id);
 
-        Assert.Equal(bob.Id, _service.SelectedSingerId);
-        Assert.Equal("Bob", _service.SelectedSinger!.Name);
+        Assert.Equal(bob.Id, _service.SelectedUserId);
+        Assert.Equal("Bob", _service.SelectedUser!.Name);
     }
 
     [Fact]
-    public async Task AddMediaAsync_DelegatesWithUnknownSinger()
+    public async Task AddMediaAsync_DelegatesWithUnknownUser()
     {
         var mediaId = Guid.NewGuid();
         var entity = new MediaSearchEntity
@@ -123,7 +123,7 @@ public class SingerQueueServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task AddMediaAsync_DelegatesWithKnownSinger()
+    public async Task AddMediaAsync_DelegatesWithKnownUser()
     {
         var alice = await EnqueueAsync("Alice");
         var entity = new MediaSearchEntity
@@ -140,126 +140,125 @@ public class SingerQueueServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task MoveSingerUpAsync_SwapsWithPrevious()
+    public async Task MoveUserUpAsync_SwapsWithPrevious()
     {
         var a = await EnqueueAsync("A");
         var b = await EnqueueAsync("B");
 
-        await _service.MoveSingerUpAsync(b.Id);
+        await _service.MoveUserUpAsync(b.Id);
 
-        Assert.Equal(b.Id, _service.Singers[0].Id);
-        Assert.Equal(a.Id, _service.Singers[1].Id);
+        Assert.Equal(b.Id, _service.Users[0].Id);
+        Assert.Equal(a.Id, _service.Users[1].Id);
     }
 
     [Fact]
-    public async Task MoveSingerUpAsync_DoesNothing_ForFirst()
+    public async Task MoveUserUpAsync_DoesNothing_ForFirst()
     {
         var a = await EnqueueAsync("A");
         var b = await EnqueueAsync("B");
 
-        await _service.MoveSingerUpAsync(a.Id);
+        await _service.MoveUserUpAsync(a.Id);
 
-        Assert.Equal(a.Id, _service.Singers[0].Id);
-        Assert.Equal(b.Id, _service.Singers[1].Id);
+        Assert.Equal(a.Id, _service.Users[0].Id);
+        Assert.Equal(b.Id, _service.Users[1].Id);
     }
 
     [Fact]
-    public async Task MoveSingerDownAsync_SwapsWithNext()
+    public async Task MoveUserDownAsync_SwapsWithNext()
     {
         var a = await EnqueueAsync("A");
         var b = await EnqueueAsync("B");
 
-        await _service.MoveSingerDownAsync(a.Id);
+        await _service.MoveUserDownAsync(a.Id);
 
-        Assert.Equal(b.Id, _service.Singers[0].Id);
-        Assert.Equal(a.Id, _service.Singers[1].Id);
+        Assert.Equal(b.Id, _service.Users[0].Id);
+        Assert.Equal(a.Id, _service.Users[1].Id);
     }
 
     [Fact]
-    public async Task MoveSingerDownAsync_DoesNothing_ForLast()
+    public async Task MoveUserDownAsync_DoesNothing_ForLast()
     {
         var a = await EnqueueAsync("A");
         var b = await EnqueueAsync("B");
 
-        await _service.MoveSingerDownAsync(b.Id);
+        await _service.MoveUserDownAsync(b.Id);
 
-        Assert.Equal(a.Id, _service.Singers[0].Id);
-        Assert.Equal(b.Id, _service.Singers[1].Id);
+        Assert.Equal(a.Id, _service.Users[0].Id);
+        Assert.Equal(b.Id, _service.Users[1].Id);
     }
 
     [Fact]
-    public async Task MoveSingerToStartAsync_MovesToFirst()
+    public async Task MoveUserToStartAsync_MovesToFirst()
     {
         await EnqueueAsync("A");
         await EnqueueAsync("B");
         var c = await EnqueueAsync("C");
 
-        await _service.MoveSingerToStartAsync(c.Id);
+        await _service.MoveUserToStartAsync(c.Id);
 
-        Assert.Equal(c.Id, _service.Singers[0].Id);
-        Assert.Equal(3, _service.Singers.Count);
+        Assert.Equal(c.Id, _service.Users[0].Id);
+        Assert.Equal(3, _service.Users.Count);
     }
 
     [Fact]
-    public async Task MoveSingerToEndAsync_MovesToLast()
+    public async Task MoveUserToEndAsync_MovesToLast()
     {
         var a = await EnqueueAsync("A");
         await EnqueueAsync("B");
         await EnqueueAsync("C");
 
-        await _service.MoveSingerToEndAsync(a.Id);
+        await _service.MoveUserToEndAsync(a.Id);
 
-        Assert.Equal(a.Id, _service.Singers[^1].Id);
-        Assert.Equal(3, _service.Singers.Count);
+        Assert.Equal(a.Id, _service.Users[^1].Id);
+        Assert.Equal(3, _service.Users.Count);
     }
 
     [Fact]
-    public async Task SelectFirstSingerInQueueAsync_DoesNothing_WhenEmpty()
+    public async Task SelectFirstUserInQueueAsync_DoesNothing_WhenEmpty()
     {
-        await _service.SelectFirstSingerInQueueAsync();
+        await _service.SelectFirstUserInQueueAsync();
 
-        Assert.Null(_service.SelectedSingerId);
+        Assert.Null(_service.SelectedUserId);
     }
 
     [Fact]
-    public async Task SelectFirstSingerInQueueAsync_SelectsFirst()
+    public async Task SelectFirstUserInQueueAsync_SelectsFirst()
     {
         var a = await EnqueueAsync("A");
         await EnqueueAsync("B");
 
-        await _service.SelectFirstSingerInQueueAsync();
+        await _service.SelectFirstUserInQueueAsync();
 
-        Assert.Equal(a.Id, _service.SelectedSingerId);
+        Assert.Equal(a.Id, _service.SelectedUserId);
     }
 
-
     [Fact]
-    public async Task SelectFirstSingerInQueueAsync_SelectsFirst_WhenMultipleSingersExist()
+    public async Task SelectFirstUserInQueueAsync_SelectsFirst_WhenMultipleUsersExist()
     {
         var a = await EnqueueAsync("A");
         var b = await EnqueueAsync("B");
 
-        await _service.SelectFirstSingerInQueueAsync();
+        await _service.SelectFirstUserInQueueAsync();
 
-        Assert.Equal(a.Id, _service.SelectedSingerId);
+        Assert.Equal(a.Id, _service.SelectedUserId);
     }
 
     [Fact]
-    public async Task MoveSingerUpAsync_BlockedFromIndex1_WhenTopSlotLockedForOther()
+    public async Task MoveUserUpAsync_BlockedFromIndex1_WhenTopSlotLockedForOther()
     {
         var a = await EnqueueAsync("A");
         var b = await EnqueueAsync("B");
 
         _service.LockTopSlot();
 
-        await _service.MoveSingerUpAsync(b.Id);
+        await _service.MoveUserUpAsync(b.Id);
 
-        Assert.Equal(a.Id, _service.Singers[0].Id);
-        Assert.Equal(b.Id, _service.Singers[1].Id);
+        Assert.Equal(a.Id, _service.Users[0].Id);
+        Assert.Equal(b.Id, _service.Users[1].Id);
     }
 
     [Fact]
-    public async Task MoveSingerUpAsync_AllowedFromIndex2_WhenTopSlotLocked()
+    public async Task MoveUserUpAsync_AllowedFromIndex2_WhenTopSlotLocked()
     {
         var a = await EnqueueAsync("A");
         var b = await EnqueueAsync("B");
@@ -267,29 +266,29 @@ public class SingerQueueServiceTests : IDisposable
 
         _service.LockTopSlot();
 
-        await _service.MoveSingerUpAsync(c.Id);
+        await _service.MoveUserUpAsync(c.Id);
 
-        Assert.Equal(a.Id, _service.Singers[0].Id);
-        Assert.Equal(c.Id, _service.Singers[1].Id);
-        Assert.Equal(b.Id, _service.Singers[2].Id);
+        Assert.Equal(a.Id, _service.Users[0].Id);
+        Assert.Equal(c.Id, _service.Users[1].Id);
+        Assert.Equal(b.Id, _service.Users[2].Id);
     }
 
     [Fact]
-    public async Task MoveSingerUpAsync_BlockedForLockedSinger_Itself()
+    public async Task MoveUserUpAsync_BlockedForLockedUser_Itself()
     {
         var a = await EnqueueAsync("A");
         var b = await EnqueueAsync("B");
 
         _service.LockTopSlot();
 
-        await _service.MoveSingerUpAsync(b.Id);
+        await _service.MoveUserUpAsync(b.Id);
 
-        Assert.Equal(a.Id, _service.Singers[0].Id);
-        Assert.Equal(b.Id, _service.Singers[1].Id);
+        Assert.Equal(a.Id, _service.Users[0].Id);
+        Assert.Equal(b.Id, _service.Users[1].Id);
     }
 
     [Fact]
-    public async Task MoveSingerToStartAsync_Blocked_WhenTopSlotLockedForOther()
+    public async Task MoveUserToStartAsync_Blocked_WhenTopSlotLockedForOther()
     {
         var a = await EnqueueAsync("A");
         await EnqueueAsync("B");
@@ -297,14 +296,14 @@ public class SingerQueueServiceTests : IDisposable
 
         _service.LockTopSlot();
 
-        await _service.MoveSingerToStartAsync(c.Id);
+        await _service.MoveUserToStartAsync(c.Id);
 
-        Assert.Equal(a.Id, _service.Singers[0].Id);
-        Assert.Equal(c.Id, _service.Singers[2].Id);
+        Assert.Equal(a.Id, _service.Users[0].Id);
+        Assert.Equal(c.Id, _service.Users[2].Id);
     }
 
     [Fact]
-    public async Task MoveSingerToStartAsync_BlockedForLockedSinger_Itself()
+    public async Task MoveUserToStartAsync_BlockedForLockedUser_Itself()
     {
         var a = await EnqueueAsync("A");
         await EnqueueAsync("B");
@@ -312,10 +311,10 @@ public class SingerQueueServiceTests : IDisposable
 
         _service.LockTopSlot();
 
-        await _service.MoveSingerToStartAsync(c.Id);
+        await _service.MoveUserToStartAsync(c.Id);
 
-        Assert.Equal(a.Id, _service.Singers[0].Id);
-        Assert.Equal(c.Id, _service.Singers[2].Id);
+        Assert.Equal(a.Id, _service.Users[0].Id);
+        Assert.Equal(c.Id, _service.Users[2].Id);
     }
 
     [Fact]
@@ -327,18 +326,18 @@ public class SingerQueueServiceTests : IDisposable
         _service.LockTopSlot();
         _service.UnlockTopSlot();
 
-        await _service.MoveSingerUpAsync(b.Id);
+        await _service.MoveUserUpAsync(b.Id);
 
-        Assert.Equal(b.Id, _service.Singers[0].Id);
-        Assert.Equal(a.Id, _service.Singers[1].Id);
+        Assert.Equal(b.Id, _service.Users[0].Id);
+        Assert.Equal(a.Id, _service.Users[1].Id);
         Assert.False(_service.IsTopSlotLocked);
     }
 
-    private async Task<Singer> EnqueueAsync(string name)
+    private async Task<KHostUser> EnqueueAsync(string name)
     {
-        var singer = new Singer { Name = name };
-        _singerDb[singer.Id] = singer;
-        await _service.AddSingerAsync(singer.Id);
-        return singer;
+        var user = new KHostUser { Name = name };
+        _userDb[user.Id] = user;
+        await _service.AddUserAsync(user.Id);
+        return user;
     }
 }
