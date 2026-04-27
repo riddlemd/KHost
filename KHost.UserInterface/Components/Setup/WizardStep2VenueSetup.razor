@@ -1,3 +1,4 @@
+@using KHost.Abstractions.Models
 @using KHost.Abstractions.Services
 @using KHost.UserInterface.Models
 
@@ -41,7 +42,7 @@
 </div>
 
 @code {
-    [Inject] private ISetupService? SetupService { get; set; }
+    [Inject] private IVenuesService? VenuesService { get; set; }
 
     [Parameter]
     public EventCallback OnComplete { get; set; }
@@ -63,7 +64,9 @@
 
         try
         {
-            await SetupService!.CreateDefaultVenueAsync(_model.Name);
+            var venue = new Venue { Name = _model.Name, Enabled = true };
+            var createdVenue = await VenuesService!.CreateAsync(venue);
+            await VenuesService.SelectVenueAsync(createdVenue.Id);
             await OnComplete.InvokeAsync();
         }
         catch (Exception ex)

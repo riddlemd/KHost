@@ -1,3 +1,4 @@
+@using KHost.Abstractions.Models
 @using KHost.Domain.Collections.Generics
 @using KHost.UserInterface.Models
 @using KHost.UserInterface.Services
@@ -8,39 +9,53 @@
     <div class="kh-card__header d-flex align-items-center gap-2">
         <Icon Name="queue-music" />
         <Icon Name="music-note-list" />
-        @if (SingerQueueService?.SelectedUser is { } user)
+        @if (SingerQueueService?.SelectedUser is { } selectedUser)
         {
-            <span class="kh-card__title">@user.Name's Queue</span>
+            var isRegular = selectedUser.Groups.Any(g => g.Id == KHostUserGroupDefaults.RegularGroupId);
+
+            <span class="kh-card__title">@selectedUser.Name's Queue</span>
             <span class="kh-badge kh-badge--secondary kh-selected-singer-info-panel__song-count ms-auto" title="Number of songs in queue">@_performanceCount</span>
+   
+            <span class="kh-selected-singer-info-panel__tip-totals">
+                Tips |
+                <span>
+                    <label>Tonight:</label> $@_tonightTotal.ToString("F2")
+                </span>
+                /
+                <span>
+                    <label>Lifetime:</label> $@_lifetimeTotal.ToString("F2")
+                </span>
+            </span>
+
+            <div class="kh-selected-singer-info-panel__quick-menu">
+   
+                <span class="kh-selected-singer-info-panel__flags">
+                    <button class="kh-selected-singer-info-panel__toggle-regular-btn kh-button--icon-minimal @(isRegular ? "" : " kh-button--off")"
+                        title="@(isRegular ? "This singer is a Regular!" : "Click to flag this singer as a Regular")"
+                        @onclick="() => ToggleIsRegularAsync()">
+                    <Icon Name="heart-fill" Class="kh-selected-singer-info-panel__flag-icon--regular" />
+                </button>
+                
+                </span>
+                <button class="kh-selected-singer-info-panel__menu-btn kh-button kh-button--primary" title="Click to view Singer's Performance history"
+                        @onclick="OpenPerformanceHistoryDialogAsync" @onclick:stopPropagation>
+                    <Icon Name="music-note-list" />
+                </button>
+                <button class="kh-selected-singer-info-panel__menu-btn kh-button kh-button--primary" title="Add a tip for this singer"
+                        disabled="@(SingerQueueService?.SelectedUser is null)"
+                        @onclick="OpenAddTipDialogAsync" @onclick:stopPropagation>
+                    <Icon Name="coin" />
+                </button>
+                <button class="kh-selected-singer-info-panel__menu-btn kh-button kh-button--primary" title="Click to edit Singer's Profile"
+                        @onclick="OpenUserEditDialogAsync" @onclick:stopPropagation>
+                    <Icon Name="pencil-fill" />
+                </button>
+            </div>
         }
         else
         {
             <span class="kh-card__title">Singer Media Queue</span>
         }
-        <div class="kh-selected-singer-info-panel__quick-menu">
-            <span class="kh-selected-singer-info-panel__flags">
-                <button class="kh-selected-singer-info-panel__toggle-regular-btn kh-button--icon-minimal @(SingerQueueService?.SelectedUser?.IsRegular == false ? " kh-button--off" : "")"
-                        title="@(SingerQueueService?.SelectedUser?.IsRegular == true ? "This singer is a Regular!" : "Click to flag this singer as a Regular")"
-                        @onclick="() => ToggleIsRegularAsync()">
-                    <Icon Name="heart-fill" Class="kh-selected-singer-info-panel__flag-icon--regular" />
-                </button>
-
-                <button class="kh-selected-singer-info-panel__toggle-tipper-btn kh-button--icon-minimal @(SingerQueueService?.SelectedUser?.IsTipper == false ? " kh-button--off" : "")"
-                        title="@(SingerQueueService?.SelectedUser?.IsTipper == true ? "This singer is a Tipper!" : "Click to flag this singer as a Tipper")"
-                        @onclick="() => ToggleIsTipperAsync()">
-                    <Icon Name="coin" Class="kh-selected-singer-info-panel__flag-icon--tipper" />
-                </button>
-            </span>
-
-            <button class="kh-selected-singer-info-panel__menu-btn kh-button kh-button--primary" title="Click to view Singer's Performance history"
-                    @onclick="OpenPerformanceHistoryDialogAsync" @onclick:stopPropagation>
-                <Icon Name="music-note-list" />
-            </button>
-            <button class="kh-selected-singer-info-panel__menu-btn kh-button kh-button--primary" title="Click to edit Singer's Profile"
-                    @onclick="OpenUserEditDialogAsync" @onclick:stopPropagation>
-                <Icon Name="pencil-fill" />
-            </button>
-        </div>
     </div>
 
     <div class="kh-card__body kh-selected-singer-info-panel__body">
@@ -153,13 +168,17 @@
     [Inject] private IPlaybackService? PlaybackService { get; set; }
     [Inject] private IMediaSearchService? MediaSearchService { get; set; }
     [Inject] private IUsersService? UsersService { get; set; }
+    [Inject] private IUserGroupsService? UserGroupsService { get; set; }
     [Inject] private IMediaService? MediaService { get; set; }
     [Inject] private IDialogService? DialogService { get; set; }
+    [Inject] private ITipsService? TipsService { get; set; }
 
     private List<Performance> _performances = [];
     private Dictionary<Guid, Media?> _mediaCache = [];
     private int _performanceCount = 0;
     private Guid? _selectedPerformanceId;
+    private decimal _tonightTotal;
+    private decimal _lifetimeTotal;
 
     protected override async Task OnInitializedAsync()
     {
@@ -221,26 +240,27 @@
         await SingerQueueService.RefreshAsync();
     }
 
-    private async Task ToggleIsRegularAsync()
+    private async Task OpenAddTipDialogAsync()
     {
-        if (SingerQueueService is null) return;
-        if (UsersService is null) return;
-
-        if (SingerQueueService.SelectedUser is { } user)
+        if (SingerQueueService?.SelectedUser is not { } user) return;
+        await DialogService!.RequestEditAsync(null, user.Id, async savedTip =>
         {
-            await UsersService.ToggleIsRegularAsync(user.Id);
-            await SingerQueueService.RefreshAsync();
-        }
+            if (savedTip is null) return;
+            await TipsService!.CreateAsync(savedTip);
+            await RefreshPerformancesAsync();
+            StateHasChanged();
+        });
     }
 
-    private async Task ToggleIsTipperAsync()
+    private async Task ToggleIsRegularAsync()
     {
-        if (SingerQueueService is null) return;
-        if (UsersService is null) return;
-
-        if (SingerQueueService.SelectedUser is { } user)
+        if (SingerQueueService?.SelectedUser is { } user && UserGroupsService is not null)
         {
-            await UsersService.ToggleIsTipperAsync(user.Id);
+            var isRegular = await UserGroupsService.IsUserInGroupAsync(user.Id, KHostUserGroupDefaults.RegularGroupId);
+            if (isRegular)
+                await UserGroupsService.RemoveUserFromGroupAsync(user.Id, KHostUserGroupDefaults.RegularGroupId);
+            else
+                await UserGroupsService.AddUserToGroupAsync(user.Id, KHostUserGroupDefaults.RegularGroupId);
             await SingerQueueService.RefreshAsync();
         }
     }
@@ -280,6 +300,14 @@
             {
                 _mediaCache = [];
             }
+
+            if (TipsService is not null)
+            {
+                var tips = await TipsService.GetByUserIdAsync(user.Id);
+                _lifetimeTotal = tips.Sum(t => t.Amount);
+                _tonightTotal = tips.Where(t => t.CreatedDate.Date == DateTime.UtcNow.Date)
+                                     .Sum(t => t.Amount);
+            }
         }
         else
         {
@@ -287,6 +315,8 @@
             _performanceCount = 0;
             _selectedPerformanceId = null;
             _mediaCache = [];
+            _tonightTotal = 0;
+            _lifetimeTotal = 0;
         }
     }
 

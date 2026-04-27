@@ -13,10 +13,11 @@
 </head>
 
 <body>
-    <Routes />
+    <Routes @rendermode="new InteractiveServerRenderMode(prerender: false)" />
     <ReconnectModal />
     <script src="@Assets["_framework/blazor.web.js"]"></script>
     <script src="js/scroll-utils.js"></script>
+    <script src="js/page-lifecycle.js"></script>
     <script src="/js/prevent-zoom.js"></script>
     <script src="js/Sortable.min.js"></script>
     <script src="js/sortable-interop.js"></script>

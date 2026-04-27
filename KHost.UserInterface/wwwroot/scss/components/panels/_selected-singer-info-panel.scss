@@ -100,9 +100,12 @@
         width: 0px;
     }
     /* ─── Quick Menu (singer flags + actions) ────────────────────────────── */
+    &__tip-totals {
+        margin: 0 1em 0 auto;
+    }
+
     &__quick-menu {
         display: flex;
-        margin-left: auto;
         font-size: 1.5em;
         align-items: center;
         gap: 0.5em;

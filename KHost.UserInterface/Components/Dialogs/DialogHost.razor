@@ -1,4 +1,3 @@
-@rendermode InteractiveServer
 @inject IDialogService DialogService
 @using KHost.UserInterface.Models
 @using KHost.UserInterface.Services
@@ -22,9 +21,21 @@
                 OnClose="@(() => { r.OnCancel?.Invoke(); Close(r); })" />
             break;
 
+        case EditUserGroupDialog.DialogRequest r:
+            <EditUserGroupDialog @key="r.Id" IsOpen="true" Group="@r.Value"
+                OnSave="@((group) => { r.OnSave?.Invoke(group); Close(r); })"
+                OnClose="@(() => { r.OnCancel?.Invoke(); Close(r); })" />
+            break;
+
         case EditVenueDialog.DialogRequest r:
             <EditVenueDialog @key="r.Id" IsOpen="true" Venue="@r.Value"
                 OnSave="@((venue) => { r.OnSave?.Invoke(venue); Close(r); })"
+                OnClose="@(() => { r.OnCancel?.Invoke(); Close(r); })" />
+            break;
+
+        case EditTipDialog.DialogRequest r:
+            <EditTipDialog @key="r.Id" IsOpen="true" Tip="@r.Value" UserId="@r.UserId"
+                OnSave="@((tip) => { r.OnSave?.Invoke(tip); Close(r); })"
                 OnClose="@(() => { r.OnCancel?.Invoke(); Close(r); })" />
             break;
 

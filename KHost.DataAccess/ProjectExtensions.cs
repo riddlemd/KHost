@@ -20,8 +20,10 @@ namespace KHost.DataAccess
 
             serviceCollection.AddSingleton<IMediaRepository, MediaRepository>();
             serviceCollection.AddSingleton<IUsersRepository, UsersRepository>();
+            serviceCollection.AddSingleton<IUserGroupsRepository, UserGroupsRepository>();
             serviceCollection.AddSingleton<IVenuesRepository, VenuesRepository>();
             serviceCollection.AddSingleton<IPerformancesRepository, PerformancesRepository>();
+            serviceCollection.AddSingleton<ITipsRepository, TipsRepository>();
             serviceCollection.AddSingleton<IDatabaseInitializer, DatabaseInitializer>();
 
             return serviceCollection;

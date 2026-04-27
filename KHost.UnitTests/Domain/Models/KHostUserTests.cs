@@ -22,19 +22,11 @@ public class KHostUserTests
     }
 
     [Fact]
-    public void KHostUser_DefaultIsTipperIsFalse()
+    public void KHostUser_DefaultGroupsIsEmpty()
     {
         var user = new KHostUser { Name = "Alice" };
 
-        Assert.False(user.IsTipper);
-    }
-
-    [Fact]
-    public void KHostUser_DefaultIsRegularIsFalse()
-    {
-        var user = new KHostUser { Name = "Alice" };
-
-        Assert.False(user.IsRegular);
+        Assert.Empty(user.Groups);
     }
 
     [Fact]

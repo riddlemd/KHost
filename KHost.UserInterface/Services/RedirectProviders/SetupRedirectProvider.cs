@@ -5,12 +5,14 @@ namespace KHost.UserInterface.Services.RedirectProviders;
 
 public class SetupRedirectProvider : IStartupRedirectProvider
 {
-    private readonly ISetupService _setupService;
+    private readonly IUsersService _usersService;
+    private readonly IVenuesService _venuesService;
     private readonly ILogger<SetupRedirectProvider> _logger;
 
-    public SetupRedirectProvider(ISetupService setupService, ILogger<SetupRedirectProvider> logger)
+    public SetupRedirectProvider(IUsersService usersService, IVenuesService venuesService, ILogger<SetupRedirectProvider> logger)
     {
-        _setupService = setupService;
+        _usersService = usersService;
+        _venuesService = venuesService;
         _logger = logger;
     }
 
@@ -22,7 +24,9 @@ public class SetupRedirectProvider : IStartupRedirectProvider
             return false;
 
         _logger.LogDebug("Checking setup status for path {Path}", path);
-        var setupComplete = await _setupService.IsSetupCompleteAsync();
+        var hasAdminUser = await _usersService.HasAdminUserAsync();
+        var hasVenue = await _venuesService.HasAnyAsync();
+        var setupComplete = hasAdminUser && hasVenue;
         _logger.LogDebug("Setup complete: {SetupComplete}", setupComplete);
         return !setupComplete;
     }

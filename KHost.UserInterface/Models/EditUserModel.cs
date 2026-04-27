@@ -13,6 +13,5 @@ public class EditUserModel
     [MaxLength(255, ErrorMessage = "Notes cannot exceed 255 characters.")]
     public string Notes { get; set; } = "";
 
-    public bool IsRegular { get; set; }
-    public bool IsTipper { get; set; }
+    public List<Guid> SelectedGroupIds { get; set; } = [];
 }

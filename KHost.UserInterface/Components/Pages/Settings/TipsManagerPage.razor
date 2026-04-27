@@ -1,23 +1,23 @@
-@page "/settings/singers-manager"
-@rendermode InteractiveServer
+@page "/settings/tips-manager"
 @implements IDisposable
+@using KHost.Abstractions.Models
 @using KHost.UserInterface.Models
 @using KHost.UserInterface.Services
 
-<PageTitle>KHost &mdash; Manage Users</PageTitle>
+<PageTitle>KHost &mdash; Manage Tips</PageTitle>
 
 <div class="kh-app__body">
     <div class="kh-settings-page">
         <div class="kh-card h-100">
             <div class="kh-card__header d-flex align-items-center gap-2">
-                <span class="kh-card__title"><Icon Name="person-fill" /> Users Manager</span>
+                <span class="kh-card__title"><Icon Name="coin" /> Tips Manager</span>
                 <button class="kh-button kh-button--primary ms-auto" @onclick="OpenAddDialogAsync" type="button">
-                    <Icon Name="plus-lg" /> Add User
+                    <Icon Name="plus-lg" /> Add Tip
                 </button>
             </div>
             <div class="kh-card__body">
                 <form class="kh-panel__form-row mb-3" @onsubmit:preventDefault>
-                    <input type="text" class="form-control kh-panel__form-grow" placeholder="Search Users..."
+                    <input type="text" class="form-control kh-panel__form-grow" placeholder="Search tips by notes..."
                             autocomplete="off" @bind="_searchQuery" @bind:event="oninput" @onchange="OnSearchChanged" />
                 </form>
             </div>
@@ -27,13 +27,13 @@
                     <div class="kh-panel--empty kh-panel--empty-lg">
                         @if (string.IsNullOrWhiteSpace(_searchQuery))
                         {
-                            <Icon Name="person" />
-                            <span>No Users yet. Add one using the button above to get started.</span>
+                            <Icon Name="coin" />
+                            <span>No tips recorded yet. Add one using the button above to get started.</span>
                         }
                         else
                         {
                             <Icon Name="search" />
-                            <span>No Users match your search.</span>
+                            <span>No tips match your search.</span>
                         }
                     </div>
                 }
@@ -42,29 +42,28 @@
                     <table class="kh-table">
                         <thead>
                             <tr>
-                                <th>Name</th>
+                                <th>Date</th>
+                                <th>Singer</th>
+                                <th>Amount</th>
+                                <th>Payment Method</th>
                                 <th>Notes</th>
-                                <th>Regular</th>
-                                <th>Tipper</th>
                                 <th>Actions</th>
                             </tr>
                         </thead>
                         <tbody>
-                            @foreach (var user in _paginatedResult!.Items)
+                            @foreach (var tip in _paginatedResult!.Items)
                             {
                                 <tr>
-                                    <td class="kh-table__cell--fill">@user.Name</td>
-                                    <td class="kh-table__cell--fill">@user.Notes</td>
-                                    <td class="kh-table__cell--centered"><Icon Name="@(user.IsRegular ? "check" : "x")" /></td>
-                                    <td class="kh-table__cell--centered"><Icon Name="@(user.IsTipper ? "check" : "x")" /></td>
+                                    <td>@tip.CreatedDate.ToString("MM/dd/yyyy HH:mm")</td>
+                                    <td>@GetSingerName(tip.UserId)</td>
+                                    <td>@tip.Amount.ToString("C")</td>
+                                    <td>@tip.PaymentMethod</td>
+                                    <td class="kh-table__cell--fill">@tip.Notes</td>
                                     <td class="kh-table__cell--actions">
-                                        <button class="kh-singer-manager__edit-btn kh-button--icon-minimal" title="Edit User" @onclick="() => OpenEditDialogAsync(user)">
+                                        <button class="kh-tips-manager__edit-btn kh-button--icon-minimal" @onclick="() => OpenEditDialogAsync(tip)" type="button">
                                             <Icon Name="pencil" />
                                         </button>
-                                        <button class="kh-singer-manager__history-btn kh-button--icon-minimal" title="View Performance History" @onclick="() => OpenPerformanceHistoryAsync(user)">
-                                            <Icon Name="music-note-list" />
-                                        </button>
-                                        <button class="kh-singer-manager__delete-btn kh-button--icon-minimal" title="Delete User" @onclick="@(async () => await StartDeleteAsync(user))">
+                                        <button class="kh-tips-manager__delete-btn kh-button--icon-minimal" @onclick="@(async () => await StartDeleteAsync(tip))" type="button">
                                             <Icon Name="trash" />
                                         </button>
                                     </td>
@@ -85,82 +84,84 @@
 </div>
 
 @code {
+    [Inject] private ITipsService? TipsService { get; set; }
     [Inject] private IUsersService? UsersService { get; set; }
     [Inject] private IDialogService? DialogService { get; set; }
 
-    private const int PageSize = 2;
+    private const int PageSize = 10;
     private int _currentPage = 1;
     private string _searchQuery = "";
-    private PaginatedResult<KHostUser>? _paginatedResult;
+    private PaginatedResult<Tip>? _paginatedResult;
+    private Dictionary<Guid, string> _userNames = [];
 
     protected override async Task OnInitializedAsync()
     {
+        await LoadUsers();
         await SearchAsync();
+        TipsService!.StateChanged += OnStateChanged;
+    }
 
-        UsersService!.StateChanged += OnStateChanged;
+    private async Task LoadUsers()
+    {
+        if (UsersService is null) return;
+
+        var result = await UsersService.ReadAllAsync(pageSize: 1000);
+        _userNames = result.Items.ToDictionary(u => u.Id, u => u.Name);
+    }
+
+    private string GetSingerName(Guid userId)
+    {
+        return _userNames.TryGetValue(userId, out var name) ? name : "Unknown Singer";
     }
 
     private async Task SearchAsync()
     {
-        if (UsersService is null)
+        if (TipsService is null)
             return;
 
-        _paginatedResult = await UsersService.SearchAsync(_searchQuery, pageNumber: _currentPage, pageSize: PageSize);
+        _paginatedResult = await TipsService.SearchAsync(_searchQuery, pageNumber: _currentPage, pageSize: PageSize);
     }
 
     private async Task OnSearchChanged()
     {
         _currentPage = 1;
-
         await SearchAsync();
     }
 
     private async Task OpenAddDialogAsync()
     {
-        await DialogService!.RequestEditAsync(new KHostUser { Name = "" }, async user => await SaveAsync(user));
+        await DialogService!.RequestEditAsync(new Tip { Amount = 0 }, async tip => await SaveAsync(tip));
     }
 
-    private async Task OpenEditDialogAsync(KHostUser user)
+    private async Task OpenEditDialogAsync(Tip tip)
     {
-        await DialogService!.RequestEditAsync(user, async updated => await SaveAsync(updated));
+        await DialogService!.RequestEditAsync(tip, async updated => await SaveAsync(updated));
     }
 
-    private async Task OpenPerformanceHistoryAsync(KHostUser user)
+    private async Task SaveAsync(Tip? tip)
     {
-        await DialogService!.ShowSingerPerformanceHistoryAsync(user.Id);
-    }
-
-    private async Task SaveAsync(KHostUser? user)
-    {
-        if (UsersService is null || user is null)
+        if (TipsService is null || tip is null)
             return;
 
-        var existing = await UsersService.ReadAsync(user.Id);
+        var existing = await TipsService.ReadAsync(tip.Id);
         if (existing is null)
-            await UsersService.CreateAsync(user);
+            await TipsService.CreateAsync(tip);
         else
-            await UsersService.UpdateAsync(user);
+            await TipsService.UpdateAsync(tip);
     }
 
-    private async Task StartDeleteAsync(KHostUser user)
+    private async Task StartDeleteAsync(Tip tip)
     {
         if (DialogService is null) return;
-        if (UsersService is null) return;
+        if (TipsService is null) return;
 
+        var singer = GetSingerName(tip.UserId);
         bool confirmed = await DialogService.ShowConfirmationAsync(
-            $"Are you sure you want to delete <span class=\"kh-emphasis\">{user.Name}</span>?",
-            async () => await UsersService.DeleteAsync(user.Id),
-            "Delete User",
+            $"Are you sure you want to delete the tip from <span class=\"kh-emphasis\">{singer}</span> for ${tip.Amount:F2}?",
+            async () => await TipsService.DeleteAsync(tip.Id),
+            "Delete Tip",
             "Delete"
         );
-    }
-
-    private async Task ClearSearch()
-    {
-        _searchQuery = "";
-        _currentPage = 1;
-
-        await SearchAsync();
     }
 
     private async Task PreviousPage()
@@ -168,7 +169,6 @@
         if (_currentPage > 1)
         {
             _currentPage--;
-
             await SearchAsync();
         }
     }
@@ -178,7 +178,6 @@
         if (_currentPage < (_paginatedResult?.TotalPages ?? 0))
         {
             _currentPage++;
-
             await SearchAsync();
         }
     }
@@ -188,11 +187,9 @@
         await SearchAsync();
 
         var totalPages = _paginatedResult?.TotalPages ?? 0;
-
         if (_paginatedResult?.Items.Count == 0 && _currentPage > 1)
         {
             _currentPage = Math.Max(1, totalPages);
-
             await SearchAsync();
         }
 
@@ -201,6 +198,6 @@
 
     public void Dispose()
     {
-        UsersService?.StateChanged -= OnStateChanged;
+        TipsService?.StateChanged -= OnStateChanged;
     }
 }

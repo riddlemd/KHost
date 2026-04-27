@@ -47,9 +47,13 @@
 @use 'components/dialogs/media-edit-dialog';
 @use 'components/dialogs/show-lyrics-dialog';
 
-/* ─── Components/Pages/Settings/ ──────────────────────────────────────────── */
-@use 'components/pages/settings/media-manager';
-@use 'components/pages/settings/media-importer';
+/* ─── Components/Pages/ ───────────────────────────────────────────────────── */
+@use 'components/pages/setup-page';
 
-/* ─── Components/ (root) - Pages ──────────────────────────────────────────── */
-@use 'components/setup-wizard';
+/* ─── Components/Pages/Settings/ ──────────────────────────────────────────── */
+@use 'components/pages/settings/media-manager-page';
+@use 'components/pages/settings/media-importer-page';
+@use 'components/pages/settings/user-manager-page';
+@use 'components/pages/settings/user-groups-manager-page';
+@use 'components/pages/settings/venues-manager-page';
+@use 'components/pages/settings/tips-manager-page';

@@ -40,8 +40,6 @@ public class SingerQueueService : ISingerQueueService
         _cacheService = cacheService;
         _performanceService = performanceService;
         _usersService = usersService;
-
-        Load();
     }
 
     public async Task SelectUserAsync(Guid? userId)
@@ -205,7 +203,7 @@ public class SingerQueueService : ISingerQueueService
         await _performanceService.DeleteAllQueuedAsync();
     }
 
-    private async void Load()
+    public async Task InitializeAsync()
     {
         var queueData = await _cacheService.LoadAsync<QueueCacheData>(_cacheKey);
 

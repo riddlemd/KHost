@@ -22,16 +22,7 @@
                 <ValidationMessage For="() => _model.Notes" />
             </div>
 
-            <div class="mb-3 d-flex gap-4">
-                <label class="form-check">
-                    <InputCheckbox class="form-check-input" @bind-Value="_model.IsRegular" />
-                    <span class="form-check-label">Regular</span>
-                </label>
-                <label class="form-check">
-                    <InputCheckbox class="form-check-input" @bind-Value="_model.IsTipper" />
-                    <span class="form-check-label">Tipper</span>
-                </label>
-            </div>
+            @* Group selection placeholder — will be replaced with full group CRUD *@
 
             <button type="submit" class="kh-hidden"></button>
         </EditForm>
@@ -73,8 +64,7 @@
                         Id = User.Id,
                         Name = User.Name,
                         Notes = User.Notes,
-                        IsRegular = User.IsRegular,
-                        IsTipper = User.IsTipper
+                        SelectedGroupIds = User.Groups.Select(g => g.Id).ToList()
                     };
 
             _editContext = new EditContext(_model);
@@ -103,8 +93,6 @@
         var user = User ?? new KHostUser { Id = _model.Id, Name = _model.Name };
         user.Name = _model.Name;
         user.Notes = _model.Notes;
-        user.IsRegular = _model.IsRegular;
-        user.IsTipper = _model.IsTipper;
 
         await OnSave.InvokeAsync(user);
 

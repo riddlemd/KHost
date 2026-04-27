@@ -16,24 +16,6 @@ public class UsersService : BaseRepositoryService<KHostUser, IUsersRepository>, 
         Options = options;
     }
 
-    public async Task ToggleIsRegularAsync(Guid userId)
-    {
-        var user = await ReadAsync(userId);
-        if (user is null) return;
-        user.IsRegular = !user.IsRegular;
-        await UpdateAsync(user);
-        Logger.LogInformation("User {UserId} IsRegular toggled to {Value}", userId, user.IsRegular);
-    }
-
-    public async Task ToggleIsTipperAsync(Guid userId)
-    {
-        var user = await ReadAsync(userId);
-        if (user is null) return;
-        user.IsTipper = !user.IsTipper;
-        await UpdateAsync(user);
-        Logger.LogInformation("User {UserId} IsTipper toggled to {Value}", userId, user.IsTipper);
-    }
-
     public async Task<bool> HasAdminUserAsync()
     {
         return await Repository.HasAdminUserAsync();
