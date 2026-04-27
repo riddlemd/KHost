@@ -1,0 +1,203 @@
+@page "/settings/user-groups-manager"
+@implements IDisposable
+@using KHost.UserInterface.Models
+@using KHost.UserInterface.Services
+
+<PageTitle>KHost &mdash; Manage User Groups</PageTitle>
+
+<div class="kh-app__body">
+    <div class="kh-settings-page">
+        <div class="kh-card h-100">
+            <div class="kh-card__header d-flex align-items-center gap-2">
+                <span class="kh-card__title"><Icon Name="people-fill" /> User Groups Manager</span>
+                <button class="kh-button kh-button--primary ms-auto" @onclick="OpenAddDialogAsync" type="button">
+                    <Icon Name="plus-lg" /> Add Group
+                </button>
+            </div>
+            <div class="kh-card__body">
+                <form class="kh-panel__form-row mb-3" @onsubmit:preventDefault>
+                    <input type="text" class="form-control kh-panel__form-grow" placeholder="Search Groups..."
+                            autocomplete="off" @bind="_searchQuery" @bind:event="oninput" @onchange="OnSearchChanged" />
+                </form>
+            </div>
+            <div class="kh-card__body">
+                @if (_paginatedResult?.Items.Count == 0)
+                {
+                    <div class="kh-panel--empty kh-panel--empty-lg">
+                        @if (string.IsNullOrWhiteSpace(_searchQuery))
+                        {
+                            <Icon Name="people" />
+                            <span>No Groups yet. Add one using the button above to get started.</span>
+                        }
+                        else
+                        {
+                            <Icon Name="search" />
+                            <span>No Groups match your search.</span>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <table class="kh-table">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Description</th>
+                                <th>Permissions</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var group in _paginatedResult!.Items)
+                            {
+                                <tr>
+                                    <td class="kh-table__cell--fill">@group.Name</td>
+                                    <td class="kh-table__cell--fill">@group.Description</td>
+                                    <td>
+                                        @if (group.IsAdmin)
+                                        {
+                                            <span class="kh-badge kh-badge--secondary">Admin</span>
+                                        }
+                                        else
+                                        {
+                                            @foreach (var permission in group.Permissions)
+                                            {
+                                                <span class="kh-badge kh-badge--secondary">@permission</span>
+                                            }
+                                            @if (group.Permissions.Count == 0)
+                                            {
+                                                <span class="text-muted">—</span>
+                                            }
+                                        }
+                                    </td>
+                                    <td class="kh-table__cell--actions">
+                                        <button class="kh-user-groups-manager__edit-btn kh-button--icon-minimal" title="Edit Group" @onclick="() => OpenEditDialogAsync(group)">
+                                            <Icon Name="pencil" />
+                                        </button>
+                                        <button class="kh-user-groups-manager__delete-btn kh-button--icon-minimal" title="Delete Group" @onclick="@(async () => await StartDeleteAsync(group))">
+                                            <Icon Name="trash" />
+                                        </button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+
+                    <Pagination
+                        CurrentPage="_currentPage"
+                        TotalPages="@(_paginatedResult?.TotalPages ?? 0)"
+                        OnPreviousPage="PreviousPage"
+                        OnNextPage="NextPage" />
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Inject] private IUserGroupsService? UserGroupsService { get; set; }
+    [Inject] private IDialogService? DialogService { get; set; }
+
+    private const int PageSize = 20;
+    private int _currentPage = 1;
+    private string _searchQuery = "";
+    private PaginatedResult<KHostUserGroup>? _paginatedResult;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await SearchAsync();
+
+        UserGroupsService!.StateChanged += OnStateChanged;
+    }
+
+    private async Task SearchAsync()
+    {
+        if (UserGroupsService is null)
+            return;
+
+        _paginatedResult = await UserGroupsService.SearchAsync(_searchQuery, pageNumber: _currentPage, pageSize: PageSize);
+    }
+
+    private async Task OnSearchChanged()
+    {
+        _currentPage = 1;
+
+        await SearchAsync();
+    }
+
+    private async Task OpenAddDialogAsync()
+    {
+        await DialogService!.RequestEditAsync(new KHostUserGroup { Name = "" }, async group => await SaveAsync(group));
+    }
+
+    private async Task OpenEditDialogAsync(KHostUserGroup group)
+    {
+        await DialogService!.RequestEditAsync(group, async updated => await SaveAsync(updated));
+    }
+
+    private async Task SaveAsync(KHostUserGroup? group)
+    {
+        if (UserGroupsService is null || group is null)
+            return;
+
+        var existing = await UserGroupsService.ReadAsync(group.Id);
+        if (existing is null)
+            await UserGroupsService.CreateAsync(group);
+        else
+            await UserGroupsService.UpdateAsync(group);
+    }
+
+    private async Task StartDeleteAsync(KHostUserGroup group)
+    {
+        if (DialogService is null) return;
+        if (UserGroupsService is null) return;
+
+        await DialogService.ShowConfirmationAsync(
+            $"Are you sure you want to delete <span class=\"kh-emphasis\">{group.Name}</span>?",
+            async () => await UserGroupsService.DeleteAsync(group.Id),
+            "Delete Group",
+            "Delete"
+        );
+    }
+
+    private async Task PreviousPage()
+    {
+        if (_currentPage > 1)
+        {
+            _currentPage--;
+
+            await SearchAsync();
+        }
+    }
+
+    private async Task NextPage()
+    {
+        if (_currentPage < (_paginatedResult?.TotalPages ?? 0))
+        {
+            _currentPage++;
+
+            await SearchAsync();
+        }
+    }
+
+    private async void OnStateChanged(object? sender, EventArgs e)
+    {
+        await SearchAsync();
+
+        var totalPages = _paginatedResult?.TotalPages ?? 0;
+
+        if (_paginatedResult?.Items.Count == 0 && _currentPage > 1)
+        {
+            _currentPage = Math.Max(1, totalPages);
+
+            await SearchAsync();
+        }
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        UserGroupsService?.StateChanged -= OnStateChanged;
+    }
+}

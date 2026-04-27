@@ -11,6 +11,7 @@ public interface ISingerQueueService
     KHostUser? SelectedUser { get; }
     bool IsTopSlotLocked { get; }
 
+    Task InitializeAsync();
     Task SelectUserAsync(Guid? userId);
     Task AddUserAsync(Guid userId);
     Task RemoveUserAsync(Guid userId);

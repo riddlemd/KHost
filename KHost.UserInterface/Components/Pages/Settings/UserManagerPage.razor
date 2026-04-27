@@ -1,0 +1,223 @@
+@page "/settings/users-manager"
+@implements IDisposable
+@using KHost.UserInterface.Models
+@using KHost.UserInterface.Services
+
+<PageTitle>KHost &mdash; Manage Users</PageTitle>
+
+<div class="kh-app__body">
+    <div class="kh-settings-page">
+        <div class="kh-card h-100">
+            <div class="kh-card__header d-flex align-items-center gap-2">
+                <span class="kh-card__title"><Icon Name="person-fill" /> Users Manager</span>
+                <button class="kh-button kh-button--primary ms-auto" @onclick="OpenAddDialogAsync" type="button">
+                    <Icon Name="plus-lg" /> Add User
+                </button>
+            </div>
+            <div class="kh-card__body">
+                <form class="kh-panel__form-row mb-3" @onsubmit:preventDefault>
+                    <input type="text" class="form-control kh-panel__form-grow" placeholder="Search Users..."
+                            autocomplete="off" @bind="_searchQuery" @bind:event="oninput" @onchange="OnSearchChanged" />
+                </form>
+            </div>
+            <div class="kh-card__body">
+                @if (_paginatedResult?.Items.Count == 0)
+                {
+                    <div class="kh-panel--empty kh-panel--empty-lg">
+                        @if (string.IsNullOrWhiteSpace(_searchQuery))
+                        {
+                            <Icon Name="person" />
+                            <span>No Users yet. Add one using the button above to get started.</span>
+                        }
+                        else
+                        {
+                            <Icon Name="search" />
+                            <span>No Users match your search.</span>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <table class="kh-table">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Notes</th>
+                                <th>Groups</th>
+                                <th>Total Tips</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var user in _paginatedResult!.Items)
+                            {
+                                <tr>
+                                    <td class="kh-table__cell--fill">@user.Name</td>
+                                    <td class="kh-table__cell--fill">@user.Notes</td>
+                                    <td>
+                                        @foreach (var group in user.Groups)
+                                        {
+                                            <span class="kh-badge kh-badge--secondary">@group.Name</span>
+                                        }
+                                        @if (user.Groups.Count == 0)
+                                        {
+                                            <span class="text-muted">—</span>
+                                        }
+                                    </td>
+                                    <td>$@_tipTotals.GetValueOrDefault(user.Id).ToString("F2")</td>
+                                    <td class="kh-table__cell--actions">
+                                        <button class="kh-singer-manager__edit-btn kh-button--icon-minimal" title="Edit User" @onclick="() => OpenEditDialogAsync(user)">
+                                            <Icon Name="pencil" />
+                                        </button>
+                                        <button class="kh-singer-manager__history-btn kh-button--icon-minimal" title="View Performance History" @onclick="() => OpenPerformanceHistoryAsync(user)">
+                                            <Icon Name="music-note-list" />
+                                        </button>
+                                        <button class="kh-singer-manager__delete-btn kh-button--icon-minimal" title="Delete User" @onclick="@(async () => await StartDeleteAsync(user))">
+                                            <Icon Name="trash" />
+                                        </button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+
+                    <Pagination
+                        CurrentPage="_currentPage"
+                        TotalPages="@(_paginatedResult?.TotalPages ?? 0)"
+                        OnPreviousPage="PreviousPage"
+                        OnNextPage="NextPage" />
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Inject] private IUsersService? UsersService { get; set; }
+    [Inject] private ITipsService? TipsService { get; set; }
+    [Inject] private IDialogService? DialogService { get; set; }
+
+    private const int PageSize = 2;
+    private int _currentPage = 1;
+    private string _searchQuery = "";
+    private PaginatedResult<KHostUser>? _paginatedResult;
+    private Dictionary<Guid, decimal> _tipTotals = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        await SearchAsync();
+
+        UsersService!.StateChanged += OnStateChanged;
+        TipsService!.StateChanged  += OnStateChanged;
+    }
+
+    private async Task SearchAsync()
+    {
+        if (UsersService is null || TipsService is null)
+            return;
+
+        _paginatedResult = await UsersService.SearchAsync(_searchQuery, pageNumber: _currentPage, pageSize: PageSize);
+
+        _tipTotals = [];
+        foreach (var user in _paginatedResult?.Items ?? [])
+        {
+            _tipTotals[user.Id] = await TipsService.GetTotalByUserIdAsync(user.Id);
+        }
+    }
+
+    private async Task OnSearchChanged()
+    {
+        _currentPage = 1;
+
+        await SearchAsync();
+    }
+
+    private async Task OpenAddDialogAsync()
+    {
+        await DialogService!.RequestEditAsync(new KHostUser { Name = "" }, async user => await SaveAsync(user));
+    }
+
+    private async Task OpenEditDialogAsync(KHostUser user)
+    {
+        await DialogService!.RequestEditAsync(user, async updated => await SaveAsync(updated));
+    }
+
+    private async Task OpenPerformanceHistoryAsync(KHostUser user)
+    {
+        await DialogService!.ShowSingerPerformanceHistoryAsync(user.Id);
+    }
+
+    private async Task SaveAsync(KHostUser? user)
+    {
+        if (UsersService is null || user is null)
+            return;
+
+        var existing = await UsersService.ReadAsync(user.Id);
+        if (existing is null)
+            await UsersService.CreateAsync(user);
+        else
+            await UsersService.UpdateAsync(user);
+    }
+
+    private async Task StartDeleteAsync(KHostUser user)
+    {
+        if (DialogService is null) return;
+        if (UsersService is null) return;
+
+        bool confirmed = await DialogService.ShowConfirmationAsync(
+            $"Are you sure you want to delete <span class=\"kh-emphasis\">{user.Name}</span>?",
+            async () => await UsersService.DeleteAsync(user.Id),
+            "Delete User",
+            "Delete"
+        );
+    }
+
+    private async Task ClearSearch()
+    {
+        _searchQuery = "";
+        _currentPage = 1;
+
+        await SearchAsync();
+    }
+
+    private async Task PreviousPage()
+    {
+        if (_currentPage > 1)
+        {
+            _currentPage--;
+
+            await SearchAsync();
+        }
+    }
+
+    private async Task NextPage()
+    {
+        if (_currentPage < (_paginatedResult?.TotalPages ?? 0))
+        {
+            _currentPage++;
+
+            await SearchAsync();
+        }
+    }
+
+    private async void OnStateChanged(object? sender, EventArgs e)
+    {
+        await SearchAsync();
+
+        var totalPages = _paginatedResult?.TotalPages ?? 0;
+
+        if (_paginatedResult?.Items.Count == 0 && _currentPage > 1)
+        {
+            _currentPage = Math.Max(1, totalPages);
+
+            await SearchAsync();
+        }
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        UsersService?.StateChanged -= OnStateChanged;
+    }
+}

@@ -44,8 +44,21 @@ public class DialogService : IDialogService
     public async Task RequestEditAsync(KHostUser item, Action<KHostUser?> onSave, Action? onCancel = null, Action? onClose = null)
         => await RequestEditAsync<EditUserDialog.DialogRequest, KHostUser>(item, onSave, onCancel, onClose);
 
+    public async Task RequestEditAsync(KHostUserGroup item, Action<KHostUserGroup?> onSave, Action? onCancel = null, Action? onClose = null)
+        => await RequestEditAsync<EditUserGroupDialog.DialogRequest, KHostUserGroup>(item, onSave, onCancel, onClose);
+
     public async Task RequestEditAsync(Venue item, Action<Venue?> onSave, Action? onCancel = null, Action? onClose = null)
         => await RequestEditAsync<EditVenueDialog.DialogRequest, Venue>(item, onSave, onCancel, onClose);
+
+    public async Task RequestEditAsync(Tip item, Action<Tip?> onSave, Action? onCancel = null, Action? onClose = null)
+        => await RequestEditAsync<EditTipDialog.DialogRequest, Tip>(item, onSave, onCancel, onClose);
+
+    public Task RequestEditAsync(Tip item, Guid userId, Action<Tip?> onSave, Action? onCancel = null, Action? onClose = null)
+    {
+        var request = new EditTipDialog.DialogRequest(item, userId, onSave, onCancel, onClose);
+        ShowRequested?.Invoke(this, request);
+        return Task.CompletedTask;
+    }
 
     public Task ShowLyricsAsync(string query, Action? onClose = null)
     {

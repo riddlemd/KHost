@@ -7,8 +7,13 @@ internal class DefaultContextDesignTimeFactory : IDesignTimeDbContextFactory<Def
 {
     public DefaultContext CreateDbContext(string[] args)
     {
+        var dbPath = Path.Combine(
+            Path.GetDirectoryName(typeof(DefaultContextDesignTimeFactory).Assembly.Location)!,
+            "khost_design.db"
+        );
+
         var options = new DbContextOptionsBuilder<DefaultContext>()
-            .UseSqlite("Data Source=khost_design.db")
+            .UseSqlite($"Data Source={dbPath}")
             .Options;
 
         return new DefaultContext(options);

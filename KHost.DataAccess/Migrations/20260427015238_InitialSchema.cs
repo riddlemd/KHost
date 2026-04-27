@@ -3,6 +3,8 @@ using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
+#pragma warning disable CA1814 // Prefer jagged arrays over multidimensional
+
 namespace KHost.DataAccess.Migrations
 {
     /// <inheritdoc />
@@ -46,14 +48,26 @@ namespace KHost.DataAccess.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "UserGroups",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "TEXT", nullable: false),
+                    Name = table.Column<string>(type: "TEXT", maxLength: 100, nullable: false),
+                    Description = table.Column<string>(type: "TEXT", maxLength: 500, nullable: false),
+                    IsAdmin = table.Column<bool>(type: "INTEGER", nullable: false, defaultValue: false),
+                    Permissions = table.Column<string>(type: "JSON", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_UserGroups", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "Users",
                 columns: table => new
                 {
                     Id = table.Column<Guid>(type: "TEXT", nullable: false),
                     Name = table.Column<string>(type: "TEXT", maxLength: 255, nullable: false),
-                    IsTipper = table.Column<bool>(type: "INTEGER", nullable: false),
-                    IsRegular = table.Column<bool>(type: "INTEGER", nullable: false),
-                    IsAdmin = table.Column<bool>(type: "INTEGER", nullable: false),
                     DefaultVenueId = table.Column<Guid>(type: "TEXT", nullable: true),
                     Notes = table.Column<string>(type: "TEXT", maxLength: 1000, nullable: false),
                     CreatedDate = table.Column<DateTime>(type: "TEXT", nullable: false),
@@ -83,6 +97,67 @@ namespace KHost.DataAccess.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_Venues", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "Tips",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "TEXT", nullable: false),
+                    CreatedDate = table.Column<DateTime>(type: "TEXT", nullable: false),
+                    UserId = table.Column<Guid>(type: "TEXT", nullable: false),
+                    VenueId = table.Column<Guid>(type: "TEXT", nullable: true),
+                    Amount = table.Column<decimal>(type: "TEXT", precision: 18, scale: 2, nullable: false),
+                    PaymentMethod = table.Column<int>(type: "INTEGER", nullable: false),
+                    Notes = table.Column<string>(type: "TEXT", maxLength: 1000, nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_Tips", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_Tips_Users_UserId",
+                        column: x => x.UserId,
+                        principalTable: "Users",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "UserGroupMemberships",
+                columns: table => new
+                {
+                    UserId = table.Column<Guid>(type: "TEXT", nullable: false),
+                    GroupId = table.Column<Guid>(type: "TEXT", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_UserGroupMemberships", x => new { x.GroupId, x.UserId });
+                    table.ForeignKey(
+                        name: "FK_UserGroupMemberships_UserGroups_GroupId",
+                        column: x => x.GroupId,
+                        principalTable: "UserGroups",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                    table.ForeignKey(
+                        name: "FK_UserGroupMemberships_Users_UserId",
+                        column: x => x.UserId,
+                        principalTable: "Users",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.InsertData(
+                table: "UserGroups",
+                columns: new[] { "Id", "Description", "IsAdmin", "Name", "Permissions" },
+                values: new object[] { new Guid("00000000-0000-0000-0000-000000000001"), "Full access to all management features", true, "Admin", "[]" });
+
+            migrationBuilder.InsertData(
+                table: "UserGroups",
+                columns: new[] { "Id", "Description", "Name", "Permissions" },
+                values: new object[,]
+                {
+                    { new Guid("00000000-0000-0000-0000-000000000002"), "Frequent singer", "Regular", "[]" },
+                    { new Guid("00000000-0000-0000-0000-000000000003"), "Singer who tips the host", "Tipper", "[]" }
                 });
 
             migrationBuilder.CreateIndex(
@@ -127,14 +202,30 @@ namespace KHost.DataAccess.Migrations
                 column: "SingerId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_Users_CreatedDate",
-                table: "Users",
+                name: "IX_Tips_CreatedDate",
+                table: "Tips",
                 column: "CreatedDate");
 
             migrationBuilder.CreateIndex(
-                name: "IX_Users_IsAdmin",
+                name: "IX_Tips_UserId",
+                table: "Tips",
+                column: "UserId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_UserGroupMemberships_UserId",
+                table: "UserGroupMemberships",
+                column: "UserId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_UserGroups_Name",
+                table: "UserGroups",
+                column: "Name",
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Users_CreatedDate",
                 table: "Users",
-                column: "IsAdmin");
+                column: "CreatedDate");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Users_Name",
@@ -158,10 +249,19 @@ namespace KHost.DataAccess.Migrations
                 name: "Performances");
 
             migrationBuilder.DropTable(
-                name: "Users");
+                name: "Tips");
+
+            migrationBuilder.DropTable(
+                name: "UserGroupMemberships");
 
             migrationBuilder.DropTable(
                 name: "Venues");
+
+            migrationBuilder.DropTable(
+                name: "UserGroups");
+
+            migrationBuilder.DropTable(
+                name: "Users");
         }
     }
 }

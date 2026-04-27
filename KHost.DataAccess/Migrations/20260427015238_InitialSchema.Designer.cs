@@ -11,7 +11,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace KHost.DataAccess.Migrations
 {
     [DbContext(typeof(DefaultContext))]
-    [Migration("20260426031853_InitialSchema")]
+    [Migration("20260427015238_InitialSchema")]
     partial class InitialSchema
     {
         /// <inheritdoc />
@@ -31,15 +31,6 @@ namespace KHost.DataAccess.Migrations
 
                     b.Property<Guid?>("DefaultVenueId")
                         .HasColumnType("TEXT");
-
-                    b.Property<bool>("IsAdmin")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<bool>("IsRegular")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<bool>("IsTipper")
-                        .HasColumnType("INTEGER");
 
                     b.Property<DateTime?>("LastLoginDate")
                         .HasColumnType("TEXT");
@@ -62,12 +53,69 @@ namespace KHost.DataAccess.Migrations
 
                     b.HasIndex("CreatedDate");
 
-                    b.HasIndex("IsAdmin");
-
                     b.HasIndex("Name")
                         .IsUnique();
 
                     b.ToTable("Users");
+                });
+
+            modelBuilder.Entity("KHost.Abstractions.Models.KHostUserGroup", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsAdmin")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(false);
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.PrimitiveCollection<string>("Permissions")
+                        .IsRequired()
+                        .HasColumnType("JSON");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Name")
+                        .IsUnique();
+
+                    b.ToTable("UserGroups");
+
+                    b.HasData(
+                        new
+                        {
+                            Id = new Guid("00000000-0000-0000-0000-000000000001"),
+                            Description = "Full access to all management features",
+                            IsAdmin = true,
+                            Name = "Admin",
+                            Permissions = "[]"
+                        },
+                        new
+                        {
+                            Id = new Guid("00000000-0000-0000-0000-000000000002"),
+                            Description = "Frequent singer",
+                            IsAdmin = false,
+                            Name = "Regular",
+                            Permissions = "[]"
+                        },
+                        new
+                        {
+                            Id = new Guid("00000000-0000-0000-0000-000000000003"),
+                            Description = "Singer who tips the host",
+                            IsAdmin = false,
+                            Name = "Tipper",
+                            Permissions = "[]"
+                        });
                 });
 
             modelBuilder.Entity("KHost.Abstractions.Models.Media", b =>
@@ -155,6 +203,42 @@ namespace KHost.DataAccess.Migrations
                     b.ToTable("Performances");
                 });
 
+            modelBuilder.Entity("KHost.Abstractions.Models.Tip", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Notes")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("PaymentMethod")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid?>("VenueId")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedDate");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("Tips");
+                });
+
             modelBuilder.Entity("KHost.Abstractions.Models.Venue", b =>
                 {
                     b.Property<Guid>("Id")
@@ -201,6 +285,50 @@ namespace KHost.DataAccess.Migrations
                     b.HasIndex("Name");
 
                     b.ToTable("Venues");
+                });
+
+            modelBuilder.Entity("KHost.DataAccess.Models.UserGroupMembership", b =>
+                {
+                    b.Property<Guid>("GroupId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("GroupId", "UserId");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("UserGroupMemberships", (string)null);
+                });
+
+            modelBuilder.Entity("KHost.Abstractions.Models.Tip", b =>
+                {
+                    b.HasOne("KHost.Abstractions.Models.KHostUser", null)
+                        .WithMany("Tips")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("KHost.DataAccess.Models.UserGroupMembership", b =>
+                {
+                    b.HasOne("KHost.Abstractions.Models.KHostUserGroup", null)
+                        .WithMany()
+                        .HasForeignKey("GroupId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("KHost.Abstractions.Models.KHostUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("KHost.Abstractions.Models.KHostUser", b =>
+                {
+                    b.Navigation("Tips");
                 });
 #pragma warning restore 612, 618
         }

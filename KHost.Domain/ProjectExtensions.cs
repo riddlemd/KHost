@@ -50,7 +50,8 @@ namespace KHost.Domain
             serviceCollection.AddSingleton<IPasswordHasher, Argon2PasswordHasher>();
             serviceCollection.AddSingleton<IAuthService, AuthService>();
             serviceCollection.AddSingleton<IAuthProvider, LocalAuthProvider>();
-            serviceCollection.AddSingleton<ISetupService, SetupService>();
+            serviceCollection.AddSingleton<IUserGroupsService, UserGroupsService>();
+            serviceCollection.AddSingleton<ITipsService, TipsService>();
 
             // Media Providers
             serviceCollection.AddSingleton<IMediaProvider, DefaultMediaProvider>();

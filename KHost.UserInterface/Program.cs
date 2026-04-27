@@ -72,6 +72,17 @@ catch (Exception ex)
 
 try
 {
+    await app.Services.GetRequiredService<ISingerQueueService>().InitializeAsync();
+}
+catch (Exception ex)
+{
+    Log.Fatal(ex, "Singer queue initialization failed");
+    Log.CloseAndFlush();
+    throw;
+}
+
+try
+{
     await app.Services.GetRequiredService<IThemeService>().InitializeAsync();
 }
 catch (Exception ex)

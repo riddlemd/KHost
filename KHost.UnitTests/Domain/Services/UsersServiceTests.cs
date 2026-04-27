@@ -20,67 +20,24 @@ public class UsersServiceTests
     }
 
     [Fact]
-    public async Task ToggleIsRegularAsync_TogglesFlag()
+    public async Task HasAdminUserAsync_ReturnsTrueWhenAdminExists()
     {
-        var user = new KHostUser { Name = "Alice", IsRegular = false };
-        var userId = user.Id;
+        _repository.HasAdminUserAsync().Returns(Task.FromResult(true));
 
-        _repository.ReadAsync(userId)
-            .Returns(Task.FromResult((KHostUser?)user));
+        var result = await _service.HasAdminUserAsync();
 
-        await _service.ToggleIsRegularAsync(userId);
-
-        Assert.True(user.IsRegular);
-        await _repository.Received(1).UpdateAsync(user);
-
-        _repository.ClearReceivedCalls();
-        _repository.ReadAsync(userId)
-            .Returns(Task.FromResult((KHostUser?)user));
-
-        await _service.ToggleIsRegularAsync(userId);
-
-        Assert.False(user.IsRegular);
-        await _repository.Received(1).UpdateAsync(user);
+        Assert.True(result);
+        await _repository.Received(1).HasAdminUserAsync();
     }
 
     [Fact]
-    public async Task ToggleIsTipperAsync_TogglesFlag()
+    public async Task HasAdminUserAsync_ReturnsFalseWhenNoAdminExists()
     {
-        var user = new KHostUser { Name = "Alice", IsTipper = false };
-        var userId = user.Id;
+        _repository.HasAdminUserAsync().Returns(Task.FromResult(false));
 
-        _repository.ReadAsync(userId)
-            .Returns(Task.FromResult((KHostUser?)user));
+        var result = await _service.HasAdminUserAsync();
 
-        await _service.ToggleIsTipperAsync(userId);
-
-        Assert.True(user.IsTipper);
-        await _repository.Received(1).UpdateAsync(user);
-    }
-
-    [Fact]
-    public async Task ToggleIsRegularAsync_DoesNothing_WhenUserNotFound()
-    {
-        var userId = Guid.NewGuid();
-
-        _repository.ReadAsync(userId)
-            .Returns(Task.FromResult((KHostUser?)null));
-
-        await _service.ToggleIsRegularAsync(userId);
-
-        await _repository.DidNotReceive().UpdateAsync(Arg.Any<KHostUser>());
-    }
-
-    [Fact]
-    public async Task ToggleIsTipperAsync_DoesNothing_WhenUserNotFound()
-    {
-        var userId = Guid.NewGuid();
-
-        _repository.ReadAsync(userId)
-            .Returns(Task.FromResult((KHostUser?)null));
-
-        await _service.ToggleIsTipperAsync(userId);
-
-        await _repository.DidNotReceive().UpdateAsync(Arg.Any<KHostUser>());
+        Assert.False(result);
+        await _repository.Received(1).HasAdminUserAsync();
     }
 }
