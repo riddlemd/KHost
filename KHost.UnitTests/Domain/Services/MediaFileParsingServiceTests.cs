@@ -1,0 +1,204 @@
+using KHost.Domain.Services;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+
+namespace KHost.UnitTests.Domain.Services;
+
+public class MediaFileParsingServiceTests
+{
+    private static MediaFileParsingService CreateService(MediaFileParsingService.ServiceOptions? opts = null)
+    {
+        var logger = Substitute.For<ILogger<MediaFileParsingService>>();
+        var monitor = Substitute.For<IOptionsMonitor<MediaFileParsingService.ServiceOptions>>();
+        monitor.CurrentValue.Returns(opts ?? new MediaFileParsingService.ServiceOptions());
+        return new MediaFileParsingService(logger, monitor);
+    }
+
+    [Fact]
+    public void ArtistFirst_DefaultFormat_SplitsCorrectly()
+    {
+        var svc = CreateService();
+
+        var (title, artist) = svc.GetTitleAndArtistFromFilename(@"C:\karaoke\Bruno Mars - Finesse.mp4");
+
+        Assert.Equal("Finesse", title);
+        Assert.Equal("Bruno Mars", artist);
+    }
+
+    [Fact]
+    public void TitleFirst_FormatOption_SwapsSides()
+    {
+        var svc = CreateService(new MediaFileParsingService.ServiceOptions
+        {
+            Format = FilenameFormat.TitleFirst
+        });
+
+        var (title, artist) = svc.GetTitleAndArtistFromFilename(@"C:\karaoke\Finesse - Bruno Mars.mp4");
+
+        Assert.Equal("Finesse", title);
+        Assert.Equal("Bruno Mars", artist);
+    }
+
+    [Fact]
+    public void LabelPrefix_IsStrippedBeforeSplit()
+    {
+        var svc = CreateService();
+
+        var (title, artist) = svc.GetTitleAndArtistFromFilename(@"[SBI-1234] Bruno Mars - Finesse.mp4");
+
+        Assert.Equal("Finesse", title);
+        Assert.Equal("Bruno Mars", artist);
+    }
+
+    [Fact]
+    public void TrackNumberPrefix_IsStrippedBeforeSplit()
+    {
+        var svc = CreateService();
+
+        var (title, artist) = svc.GetTitleAndArtistFromFilename(@"01 - Bruno Mars - Finesse.mp4");
+
+        Assert.Equal("Finesse", title);
+        Assert.Equal("Bruno Mars", artist);
+    }
+
+    [Fact]
+    public void TitleParenArtist_FallbackPattern_IsAlwaysTitleFirst()
+    {
+        // "Title (Artist)" form is unambiguous and not affected by Format.
+        var svc = CreateService(new MediaFileParsingService.ServiceOptions
+        {
+            Format = FilenameFormat.ArtistFirst
+        });
+
+        var (title, artist) = svc.GetTitleAndArtistFromFilename(@"Finesse (Bruno Mars).mp4");
+
+        Assert.Equal("Finesse", title);
+        Assert.Equal("Bruno Mars", artist);
+    }
+
+    [Fact]
+    public void Underscore_FallbackPattern_IsAlwaysTitleFirst()
+    {
+        var svc = CreateService();
+
+        var (title, artist) = svc.GetTitleAndArtistFromFilename(@"Finesse_Bruno Mars.mp4");
+
+        Assert.Equal("Finesse", title);
+        Assert.Equal("Bruno Mars", artist);
+    }
+
+    [Fact]
+    public void NoSeparator_FallsBackToWholeNameAsTitle()
+    {
+        var svc = CreateService();
+
+        var (title, artist) = svc.GetTitleAndArtistFromFilename(@"JustATitle.mp4");
+
+        Assert.Equal("JustATitle", title);
+        Assert.Null(artist);
+    }
+
+    [Fact]
+    public async Task LoadAndParse_NoArtist_UsesFallbackArtistName()
+    {
+        var svc = CreateService(new MediaFileParsingService.ServiceOptions
+        {
+            FallbackArtistName = "No Artist"
+        });
+
+        // Use a path that does not exist so FFprobe fails and we exercise the fallback branch.
+        var media = await svc.LoadAndParse(@"Z:\does-not-exist\JustATitle.mp4");
+
+        Assert.Equal("JustATitle", media.Title);
+        Assert.Equal("No Artist", media.Artist);
+    }
+
+    [Fact]
+    public async Task LoadAndParse_StripsKaraokeNoiseSuffix()
+    {
+        var svc = CreateService();
+
+        var media = await svc.LoadAndParse(@"Z:\does-not-exist\Bruno Mars - Finesse (Karaoke Version).cdg");
+
+        Assert.Equal("Finesse", media.Title);
+        Assert.Equal("Bruno Mars", media.Artist);
+        Assert.Equal("CDG", media.Format);
+    }
+
+    [Fact]
+    public async Task LoadAndParse_StripsMultipleStackedNoiseSuffixes()
+    {
+        var svc = CreateService();
+
+        var media = await svc.LoadAndParse(@"Z:\does-not-exist\Bruno Mars - Finesse (Karaoke) (HD).mp4");
+
+        Assert.Equal("Finesse", media.Title);
+    }
+
+    [Fact]
+    public async Task LoadAndParse_FeatInArtistField_AppendsToArtist()
+    {
+        var svc = CreateService();
+
+        var media = await svc.LoadAndParse(@"Z:\does-not-exist\Bruno Mars feat. Cardi B - Finesse.mp4");
+
+        // "feat. Cardi B" appears on the Artist side after the split, so it is preserved verbatim.
+        Assert.Equal("Bruno Mars feat. Cardi B", media.Artist);
+        Assert.Equal("Finesse", media.Title);
+    }
+
+    [Fact]
+    public async Task LoadAndParse_FeatInTitleField_AppendsToArtist()
+    {
+        var svc = CreateService();
+
+        var media = await svc.LoadAndParse(@"Z:\does-not-exist\Bruno Mars - Finesse (feat. Cardi B).mp4");
+
+        Assert.Equal("Finesse", media.Title);
+        Assert.Equal("Bruno Mars feat. Cardi B", media.Artist);
+    }
+
+    [Fact]
+    public async Task LoadAndParse_FeatHandlingMoveToNotes_PopulatesNotes()
+    {
+        var svc = CreateService(new MediaFileParsingService.ServiceOptions
+        {
+            FeaturingHandling = FeaturingHandling.MoveToNotes
+        });
+
+        var media = await svc.LoadAndParse(@"Z:\does-not-exist\Bruno Mars - Finesse (feat. Cardi B).mp4");
+
+        Assert.Equal("Finesse", media.Title);
+        Assert.Equal("Bruno Mars", media.Artist);
+        Assert.Equal("feat. Cardi B", media.Notes);
+    }
+
+    [Fact]
+    public async Task LoadAndParse_FeatHandlingIgnore_LeavesTitleAlone()
+    {
+        var svc = CreateService(new MediaFileParsingService.ServiceOptions
+        {
+            FeaturingHandling = FeaturingHandling.Ignore
+        });
+
+        var media = await svc.LoadAndParse(@"Z:\does-not-exist\Bruno Mars - Finesse (feat. Cardi B).mp4");
+
+        Assert.Equal("Finesse (feat. Cardi B)", media.Title);
+    }
+
+    [Fact]
+    public void Constructor_InvalidPrefixRegex_DoesNotThrow_AndSkipsBadPattern()
+    {
+        // A bad regex in user config must not crash construction; the bad pattern is logged and skipped.
+        var svc = CreateService(new MediaFileParsingService.ServiceOptions
+        {
+            PrefixStripPatterns = ["(unclosed", @"^\[.*?\]\s*"]
+        });
+
+        // The valid pattern still works.
+        var (title, artist) = svc.GetTitleAndArtistFromFilename(@"[SBI-1234] Bruno Mars - Finesse.mp4");
+
+        Assert.Equal("Finesse", title);
+        Assert.Equal("Bruno Mars", artist);
+    }
+}

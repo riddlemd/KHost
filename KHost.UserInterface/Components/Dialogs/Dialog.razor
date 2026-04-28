@@ -1,5 +1,7 @@
+@inject IJSRuntime JS
+
 <Scrim IsOpen="IsOpen" OnClick="OnScrimClick">
-    <div class="@($"{_rootClassName} {Class?.Trim()}".Trim())" @onclick:stopPropagation>
+    <div class="@($"{_rootClassName} {Class?.Trim()}".Trim())" @ref="_dialogRef" @onclick:stopPropagation>
         <div class="@(_rootClassName)__header">
             <span>@Header</span>
             <button class="@(_rootClassName)__close-btn kh-button--icon-minimal" @onclick="CloseAsync" type="button"><Icon Name="x-lg" /></button>
@@ -15,6 +17,8 @@
 
 @code {
     private const string _rootClassName = "kh-dialog";
+    private ElementReference _dialogRef;
+    private bool _prevIsOpen;
 
     [Parameter] public bool IsOpen { get; set; }
     [Parameter] public bool CloseOnScrimClick { get; set; }
@@ -38,5 +42,13 @@
         if (!CloseOnScrimClick) return;
 
         await CloseAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (IsOpen && !_prevIsOpen)
+            await JS.InvokeVoidAsync("focusFirstInput", _dialogRef);
+
+        _prevIsOpen = IsOpen;
     }
 }

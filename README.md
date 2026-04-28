@@ -41,12 +41,17 @@ Both are orchestrated for local development by `KHost.AppHost`, a [.NET Aspire](
 - **Now-playing panel with playback controls** — play, stop, and track position.
 - **Selected singer info** — view and edit the currently highlighted performer.
 - **Library managers** — dedicated Settings pages for Media, Singers, and Venues.
+- **Bulk media editor** — multi-select songs in the Media Manager to bulk edit artist names or swap title/artist, and bulk delete with confirmation.
 - **Dialogs** — edit dialogs for singers/venues/media, performance history viewer, confirmation dialogs, and a settings menu.
 - **Themeable UI** — CSS themes served via `/api/themes` and bootstrapped by an `IThemeService`.
 - **Persistent song library** — SQLite via Entity Framework Core.
 - **Durable queue state** — JSON-backed cache on disk (via `JsonFileCacheService`), so the queue survives restarts.
 - **Second-screen karaoke output** — FFmpeg-decoded BGRA video frames + OpenAL audio, rendered by Avalonia.
 - **First-class observability** — Serilog (console + daily-rolling file, 7-day retention) and OpenTelemetry with OTLP export.
+- **First-run setup wizard** — 3-step wizard at `/setup` that walks through creating an admin user, configuring the first venue, and importing an initial media library. Auto-skips completed steps on reload.
+- **User accounts with role-based access** — user management with named groups (`Admin`, `Regular`, `Tipper`), granular permissions (`AddToQueue`, `ReorderQueue`, `ImportLibrary`, etc.), and Argon2id password hashing via `LocalAuthProvider`.
+- **Tip tracking** — record tips per singer with amount, payment method, and notes; paginated tips manager in Settings; per-singer tip totals shown in the singers manager.
+- **Lyrics lookup** — `ShowLyricsDialog` fetches plain-text lyrics from [LRCLIB.NET](https://lrclib.net) for any song in the queue.
 
 ---
 
@@ -58,13 +63,13 @@ Both are orchestrated for local development by `KHost.AppHost`, a [.NET Aspire](
 | Orchestration | .NET Aspire AppHost SDK | `13.1.0` |
 | Web UI | ASP.NET Core / Blazor Server (Interactive Server) | built-in to net10.0 |
 | Desktop UI | Avalonia (`Desktop`, `Themes.Fluent`, `Fonts.Inter`) | `12.0.1` |
-| ORM | Entity Framework Core | `10.0.6` |
-| Database | SQLite (`Microsoft.EntityFrameworkCore.Sqlite`) | `10.0.6` |
+| ORM | Entity Framework Core | `10.0.7` |
+| Database | SQLite (`Microsoft.EntityFrameworkCore.Sqlite`) | `10.0.7` |
 | Audio | `Silk.NET.OpenAL.Soft.Native` | `1.23.1` |
 | Media metadata | `TagLibSharp` | `2.3.0` |
 | FFmpeg integration | [`FFMpegCore`](https://github.com/rosenbjerg/FFMpegCore) | `5.4.0` |
 | Video decode | FFmpeg (invoked as a child process) | external binary |
-| Logging | Serilog + `Serilog.Sinks.File` | `9.0.0` / `6.0.0` |
+| Logging | Serilog + `Serilog.Sinks.File` | `10.0.0` / `7.0.0` |
 | Telemetry | OpenTelemetry + OTLP exporter | `1.14.0` |
 | HTTP resilience | `Microsoft.Extensions.Http.Resilience` | `10.1.0` |
 | Service discovery | `Microsoft.Extensions.ServiceDiscovery` | `10.1.0` |
@@ -118,10 +123,10 @@ The solution uses the newer `.slnx` (XML) format — open `KHost.slnx`, not a `.
 | `KHost.ServiceDefaults` | Shared Aspire defaults — OpenTelemetry, HTTP resilience, service discovery. Consumed via `builder.AddServiceDefaults()`. |
 | `KHost.Abstractions` | All interfaces and abstraction-layer models. No project references. |
 | `KHost.Domain` | Business logic, concrete models, and services (queue, playback, venues, singers, media, media search, metadata parsing, cache). Uses `TagLibSharp`. |
+| `KHost.LrcLib` | Standalone HTTP client library for the [LRCLIB.NET](https://lrclib.net) lyrics API. No project references; consumed by `KHost.Domain` via `AddLrcLib()`. |
 | `KHost.DataAccess` | EF Core 10 + SQLite persistence for the song library. |
 | `KHost.UserInterface` | Blazor Server app — the host console. Razor components live under `Components/`. Also exposes `/api/themes`. |
 | `KHost.Screen` | Avalonia desktop app (WinExe) for karaoke video/audio output. Custom FFmpeg + OpenAL wrappers. |
-| `KHost.Common` | Placeholder utility library (currently minimal). |
 | `KHost.UnitTests` | xUnit + NSubstitute tests covering domain services. |
 | `KHost.IntegrationTests` | xUnit integration test skeleton (no tests yet). |
 
@@ -307,13 +312,10 @@ Brainstorm of features a full-featured karaoke hosting application should suppor
 |---|---|---|
 | ~~Drag-and-drop reorder of the queue~~ | Low | Done |
 | Fair rotation algorithm (round-robin by singer, not by song) | Medium | |
-| Skip current singer (with reason note) | Low | |
 | VIP / priority slots that jump the rotation | Low | |
-| Pause / resume the queue without stopping playback | Low | |
-| Restore a previously skipped singer back into rotation | Low | |
-| Duet / group performance support (multiple names on one slLetot) | Low | |
+| Restore a previously skipped singer back into rotation (Some kind of out of placeholder?) | Low | |
+| Duet / group performance support (multiple names on one slot) | Low | |
 | Mark a singer as "on deck" / warming up | Low | |
-| Cooldown rule (a singer can't sing again within N minutes or N rotations) | Low | |
 | Auto-remove singers who've been absent for X turns | Low | |
 
 ### Song Library & Search
@@ -321,12 +323,10 @@ Brainstorm of features a full-featured karaoke hosting application should suppor
 |---|---|---|
 | Search by title with fuzzy / typo-tolerant matching | High | SQLite FTS5 with BM25 ranking in place; fuzzy/typo-tolerant layer not yet added |
 | ~~Search by artist~~ | High | Done |
-| Multi-folder / multi-drive library sources | High | |
-| Background library scan with progress and cancel | High | |
+| ~~Multi-folder~~ / multi-drive library sources | High | Done |
+| ~~Background library scan with progress and cancel~~ | High | Done |
 | Search by genre, decade, or language | Low | |
-| Duplicate detection (same artist + title) | Medium | |
-| Missing-file detection and report | Medium | |
-| Bulk metadata editor (artist, title, album, year) | Medium | Single-item `MediaEditDialog` exists; bulk selection not yet wired up |
+| ~~Bulk metadata editor (artist, title, album, year)~~ | Medium | Done — artist field and title/artist swap; can extend to more fields |
 
 ### Playback Engine
 | Feature | Priority | Notes |
@@ -372,9 +372,9 @@ Brainstorm of features a full-featured karaoke hosting application should suppor
 ### Host / KJ Tools
 | Feature | Priority | Notes |
 |---|---|---|
-| KJ admin login / lock-screen | Medium | |
-| Multiple host accounts | Low | |
-| Tip tracking per singer / per night | Low | |
+| KJ admin login / lock-screen | Medium | Auth service, provider, and Argon2 hasher implemented; login UI page not yet wired |
+| ~~Multiple host accounts~~ | Low | Done |
+| ~~Tip tracking per singer / per night~~ | Low | TipsService, TipsManagerPage, and per-singer totals in UsersManager fully implemented |
 
 ### Venue / Show Management
 | Feature | Priority | Notes |
@@ -382,7 +382,7 @@ Brainstorm of features a full-featured karaoke hosting application should suppor
 | Auto-save show state every N seconds; crash recovery | Medium | Queue and venues written to JSON on every mutation; periodic time-based snapshots not yet added |
 | ~~Multiple venue profiles with distinct settings~~ | Medium | Done |
 | Export show recap (songs played, singers, durations) | Low | |
-| Per-venue rotation, cooldown, and branding rules | Low | |
+| Per-venue rotation, cooldown, and branding rules | Low | Partial -- started moving configs to venues |
 | Email or print end-of-night summary | Low | |
 | Multi-show historical stats per venue | Low | |
 
@@ -398,4 +398,5 @@ Brainstorm of features a full-featured karaoke hosting application should suppor
 ### Integrations & External Sources
 | Feature | Priority | Notes |
 |---|---|---|
+| ~~Lyrics lookup via LRCLIB.NET~~ | Low | `KHost.LrcLib` + `ShowLyricsDialog` |
 | YouTube / online karaoke source fetch with caching | Low | |

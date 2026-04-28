@@ -1,3 +1,4 @@
+using FFMpegCore;
 using KHost.Abstractions.Interactions;
 using KHost.Abstractions.Interactions.Requests;
 using KHost.Abstractions.Models;
@@ -40,6 +41,11 @@ builder.AddServiceDefaults();
 
 builder.Services.AddDomain();
 builder.Services.AddDataAccess();
+
+// Configure FFmpeg
+var ffmpegPath = builder.Configuration["FFmpegPath"];
+if (!string.IsNullOrWhiteSpace(ffmpegPath))
+    GlobalFFOptions.Configure(opts => opts.BinaryFolder = ffmpegPath);
 
 // Add services to the container.
 builder.Services.AddRazorComponents()

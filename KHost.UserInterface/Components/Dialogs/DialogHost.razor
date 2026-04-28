@@ -55,6 +55,12 @@
                 OnClose="@(() => { r.OnCancel?.Invoke(); Close(r); })" />
             break;
 
+        case BulkEditMediaDialog.DialogRequest r:
+            <BulkEditMediaDialog @key="r.Id" IsOpen="true" Items="@r.Items"
+                OnSave="@(async (model) => { await r.OnSave(model); Close(r); })"
+                OnClose="@(() => { r.OnCancel?.Invoke(); Close(r); })" />
+            break;
+
         case ShowLyricsDialog.DialogRequest r:
             <ShowLyricsDialog @key="r.Id" IsOpen="true" Query="@r.Query"
                 OnClose="@(() => { r.OnClose?.Invoke(); Close(r); })" />

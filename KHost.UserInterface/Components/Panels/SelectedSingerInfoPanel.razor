@@ -44,7 +44,7 @@
                 <button class="kh-selected-singer-info-panel__menu-btn kh-button kh-button--primary" title="Add a tip for this singer"
                         disabled="@(SingerQueueService?.SelectedUser is null)"
                         @onclick="OpenAddTipDialogAsync" @onclick:stopPropagation>
-                    <Icon Name="coin" />
+                    <Icon Name="currency-dollar" />
                 </button>
                 <button class="kh-selected-singer-info-panel__menu-btn kh-button kh-button--primary" title="Click to edit Singer's Profile"
                         @onclick="OpenUserEditDialogAsync" @onclick:stopPropagation>
@@ -131,9 +131,9 @@
                                      <Text><Icon Name="play-fill" /></Text>
                                      <Buttons>
                                         <button class="kh-button kh-button--primary"
-                                                @onclick="() => {}"
+                                                @onclick="() => OpenMediaEditDialogAsync(rowMedia)"
                                                 title="Edit Song">
-                                            <Icon Name="pencil-fil" /> Edit
+                                            <Icon Name="pencil-fill" /> Edit
                                         </button>
                                     </Buttons>
                                 </SplitButton>
@@ -149,7 +149,7 @@
                                 </button>
                                 <button class="kh-selected-singer-info-panel__remove-btn kh-button--icon-danger" title="Remove from Queue"
                                         disabled="@disableRemove"
-                                        @onclick="() => PerformanceService?.DeleteAsync(performance.Id) ?? Task.CompletedTask">
+                                        @onclick="() => RemoveWithConfirmAsync(performance)">
                                     <Icon Name="x" />
                                 </button>
                             </td>
@@ -172,6 +172,7 @@
     [Inject] private IMediaService? MediaService { get; set; }
     [Inject] private IDialogService? DialogService { get; set; }
     [Inject] private ITipsService? TipsService { get; set; }
+    [Inject] private IVenuesService? VenuesService { get; set; }
 
     private List<Performance> _performances = [];
     private Dictionary<Guid, Media?> _mediaCache = [];
@@ -249,6 +250,38 @@
             await TipsService!.CreateAsync(savedTip);
             await RefreshPerformancesAsync();
             StateHasChanged();
+        });
+    }
+
+    private async Task RemoveWithConfirmAsync(Performance performance)
+    {
+        if (PerformanceService is null) return;
+
+        var venue = VenuesService is not null ? await VenuesService.ReadSelectedVenueAsync() : null;
+        if (venue?.Settings.PromptBeforeRemovingPerformance == true)
+        {
+            if (DialogService is null) return;
+
+            await DialogService.ShowConfirmationAsync(
+                $"Are you sure you want to remove this song from the queue?",
+                () => PerformanceService.DeleteAsync(performance.Id),
+                title: "Remove Song",
+                confirmText: "Remove"
+            );
+        }
+        else
+        {
+            await PerformanceService.DeleteAsync(performance.Id);
+        }
+    }
+
+    private async Task OpenMediaEditDialogAsync(Media? media)
+    {
+        if (media is null || MediaService is null || DialogService is null) return;
+        await DialogService.RequestEditAsync(media, async updated =>
+        {
+            if (updated is not null)
+                await MediaService.UpdateAsync(updated);
         });
     }
 

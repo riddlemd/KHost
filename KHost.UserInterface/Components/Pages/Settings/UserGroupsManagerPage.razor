@@ -41,7 +41,9 @@
                     <table class="kh-table">
                         <thead>
                             <tr>
-                                <th>Name</th>
+                                <th class="kh-table__col--sortable" @onclick='() => OnSortColumnClicked("name")'>
+                                    Name @if (_sortColumn == "name") { <Icon Name="@(_sortDescending ? "sort-down" : "sort-up")" class="kh-table__sort-indicator" /> }
+                                </th>
                                 <th>Description</th>
                                 <th>Permissions</th>
                                 <th>Actions</th>
@@ -97,10 +99,13 @@
 @code {
     [Inject] private IUserGroupsService? UserGroupsService { get; set; }
     [Inject] private IDialogService? DialogService { get; set; }
+    [Inject] private IVenuesService? VenuesService { get; set; }
 
     private const int PageSize = 20;
     private int _currentPage = 1;
     private string _searchQuery = "";
+    private string? _sortColumn;
+    private bool _sortDescending;
     private PaginatedResult<KHostUserGroup>? _paginatedResult;
 
     protected override async Task OnInitializedAsync()
@@ -115,7 +120,21 @@
         if (UserGroupsService is null)
             return;
 
-        _paginatedResult = await UserGroupsService.SearchAsync(_searchQuery, pageNumber: _currentPage, pageSize: PageSize);
+        var sort = _sortColumn is not null ? new SortDescriptor(_sortColumn, _sortDescending) : null;
+        _paginatedResult = await UserGroupsService.SearchAsync(_searchQuery, _currentPage, PageSize, sort);
+    }
+
+    private void OnSortColumnClicked(string column)
+    {
+        if (_sortColumn == column)
+            _sortDescending = !_sortDescending;
+        else
+        {
+            _sortColumn = column;
+            _sortDescending = false;
+        }
+        _currentPage = 1;
+        _ = SearchAsync();
     }
 
     private async Task OnSearchChanged()
@@ -149,15 +168,24 @@
 
     private async Task StartDeleteAsync(KHostUserGroup group)
     {
-        if (DialogService is null) return;
         if (UserGroupsService is null) return;
 
-        await DialogService.ShowConfirmationAsync(
-            $"Are you sure you want to delete <span class=\"kh-emphasis\">{group.Name}</span>?",
-            async () => await UserGroupsService.DeleteAsync(group.Id),
-            "Delete Group",
-            "Delete"
-        );
+        var venue = VenuesService is not null ? await VenuesService.ReadSelectedVenueAsync() : null;
+        if (venue?.Settings.PromptBeforeRemovingUserGroup == true)
+        {
+            if (DialogService is null) return;
+
+            await DialogService.ShowConfirmationAsync(
+                $"Are you sure you want to delete <span class=\"kh-emphasis\">{group.Name}</span>?",
+                async () => await UserGroupsService.DeleteAsync(group.Id),
+                "Delete Group",
+                "Delete"
+            );
+        }
+        else
+        {
+            await UserGroupsService.DeleteAsync(group.Id);
+        }
     }
 
     private async Task PreviousPage()

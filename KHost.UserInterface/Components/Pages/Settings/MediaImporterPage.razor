@@ -1,9 +1,12 @@
 @page "/settings/media-importer"
-@using KHost.UserInterface.Components.Karaoke
 
 <PageTitle>KHost &mdash; Media Importer</PageTitle>
 
-<MediaBrowser OnImportCompleted="@OnImportCompletedAsync" />
+<div class="kh-app__body">
+    <div class="kh-settings-page">
+        <MediaBrowser OnImportCompleted="@OnImportCompletedAsync" />
+    </div>
+</div>
 
 @code {
     private async Task OnImportCompletedAsync()

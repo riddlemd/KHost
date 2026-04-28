@@ -42,10 +42,16 @@
                     <table class="kh-table">
                         <thead>
                             <tr>
-                                <th>Date</th>
+                                <th class="kh-table__col--sortable" @onclick='() => OnSortColumnClicked("createdDate")'>
+                                    Date @if (_sortColumn == "createdDate") { <Icon Name="@(_sortDescending ? "sort-down" : "sort-up")" class="kh-table__sort-indicator" /> }
+                                </th>
                                 <th>Singer</th>
-                                <th>Amount</th>
-                                <th>Payment Method</th>
+                                <th class="kh-table__col--sortable" @onclick='() => OnSortColumnClicked("amount")'>
+                                    Amount @if (_sortColumn == "amount") { <Icon Name="@(_sortDescending ? "sort-down" : "sort-up")" class="kh-table__sort-indicator" /> }
+                                </th>
+                                <th class="kh-table__col--sortable" @onclick='() => OnSortColumnClicked("paymentMethod")'>
+                                    Payment Method @if (_sortColumn == "paymentMethod") { <Icon Name="@(_sortDescending ? "sort-down" : "sort-up")" class="kh-table__sort-indicator" /> }
+                                </th>
                                 <th>Notes</th>
                                 <th>Actions</th>
                             </tr>
@@ -87,10 +93,13 @@
     [Inject] private ITipsService? TipsService { get; set; }
     [Inject] private IUsersService? UsersService { get; set; }
     [Inject] private IDialogService? DialogService { get; set; }
+    [Inject] private IVenuesService? VenuesService { get; set; }
 
     private const int PageSize = 10;
     private int _currentPage = 1;
     private string _searchQuery = "";
+    private string? _sortColumn;
+    private bool _sortDescending;
     private PaginatedResult<Tip>? _paginatedResult;
     private Dictionary<Guid, string> _userNames = [];
 
@@ -119,7 +128,21 @@
         if (TipsService is null)
             return;
 
-        _paginatedResult = await TipsService.SearchAsync(_searchQuery, pageNumber: _currentPage, pageSize: PageSize);
+        var sort = _sortColumn is not null ? new SortDescriptor(_sortColumn, _sortDescending) : null;
+        _paginatedResult = await TipsService.SearchAsync(_searchQuery, _currentPage, PageSize, sort);
+    }
+
+    private void OnSortColumnClicked(string column)
+    {
+        if (_sortColumn == column)
+            _sortDescending = !_sortDescending;
+        else
+        {
+            _sortColumn = column;
+            _sortDescending = false;
+        }
+        _currentPage = 1;
+        _ = SearchAsync();
     }
 
     private async Task OnSearchChanged()
@@ -152,16 +175,25 @@
 
     private async Task StartDeleteAsync(Tip tip)
     {
-        if (DialogService is null) return;
         if (TipsService is null) return;
 
-        var singer = GetSingerName(tip.UserId);
-        bool confirmed = await DialogService.ShowConfirmationAsync(
-            $"Are you sure you want to delete the tip from <span class=\"kh-emphasis\">{singer}</span> for ${tip.Amount:F2}?",
-            async () => await TipsService.DeleteAsync(tip.Id),
-            "Delete Tip",
-            "Delete"
-        );
+        var venue = VenuesService is not null ? await VenuesService.ReadSelectedVenueAsync() : null;
+        if (venue?.Settings.PromptBeforeRemovingTip == true)
+        {
+            if (DialogService is null) return;
+
+            var singer = GetSingerName(tip.UserId);
+            bool confirmed = await DialogService.ShowConfirmationAsync(
+                $"Are you sure you want to delete the tip from <span class=\"kh-emphasis\">{singer}</span> for ${tip.Amount:F2}?",
+                async () => await TipsService.DeleteAsync(tip.Id),
+                "Delete Tip",
+                "Delete"
+            );
+        }
+        else
+        {
+            await TipsService.DeleteAsync(tip.Id);
+        }
     }
 
     private async Task PreviousPage()

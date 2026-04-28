@@ -51,6 +51,38 @@
             color: var(--kh-danger);
         }
     }
+    /* ─── Secondary Button (ghost/outline) ───────────────────────────────── */
+    &--secondary {
+        background: transparent;
+        border-color: var(--kh-border-bright);
+        color: var(--kh-text-secondary);
+
+        &:hover:not(:disabled) {
+            background: var(--kh-primary-subtle);
+            border-color: var(--kh-primary);
+            color: var(--kh-text);
+        }
+
+        &:disabled {
+            opacity: 0.3;
+            border-color: var(--kh-border);
+        }
+    }
+    /* ─── Danger Button (solid red) ──────────────────────────────────────── */
+    &--danger {
+        background: var(--kh-danger);
+        border-color: var(--kh-danger);
+        color: #fff;
+
+        &:hover:not(:disabled) {
+            background: var(--kh-danger-bright);
+            border-color: var(--kh-danger-bright);
+        }
+
+        &:disabled {
+            opacity: 0.3;
+        }
+    }
     /* ─── Icon Button — Small (26x26) ─────────────────────────────────────── */
     &--icon-sm {
         width: 26px;

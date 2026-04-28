@@ -89,6 +89,7 @@
     [Inject] private IPerformanceService? PerformanceService { get; set; }
     [Inject] private IMediaService? MediaService { get; set; }
     [Inject] private IDialogService? DialogService { get; set; }
+    [Inject] private IVenuesService? VenuesService { get; set; }
 
     private PaginatedResult<Performance>? _paginatedPerformances;
     private List<Media> _media = [];
@@ -170,14 +171,22 @@
 
     private async Task ConfirmDeleteAsync(Guid performanceId)
     {
-        if (DialogService is null) return;
+        var venue = VenuesService is not null ? await VenuesService.ReadSelectedVenueAsync() : null;
+        if (venue?.Settings.PromptBeforeRemovingPerformanceHistory == true)
+        {
+            if (DialogService is null) return;
 
-        await DialogService.ShowConfirmationAsync("Are you sure youw want to delete this <span class=\"kh-emphasis\">performance</span> from the user's history?", async () =>
+            await DialogService.ShowConfirmationAsync("Are you sure you want to delete this <span class=\"kh-emphasis\">performance</span> from the user's history?", async () =>
+            {
+                await DeleteAsync(performanceId);
+            },
+            "Delete Performance",
+            "Delete");
+        }
+        else
         {
             await DeleteAsync(performanceId);
-        },
-        "Delete Performance",
-        "Delete");
+        }
     }
 
     private async Task DeleteAsync(Guid performanceId)
