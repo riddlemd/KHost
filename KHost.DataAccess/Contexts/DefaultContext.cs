@@ -71,6 +71,8 @@ internal class DefaultContext : DbContext
             entity.Property(e => e.Phone)
                 .HasMaxLength(20);
 
+            entity.OwnsOne(e => e.Settings, settings => settings.ToJson());
+
             entity.HasIndex(e => e.Name);
         });
 

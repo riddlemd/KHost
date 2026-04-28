@@ -22,6 +22,7 @@ public class MediaImportService : BaseService, IMediaImportService
 
     private CancellationTokenSource? _cts;
     private readonly Lock _startLock = new();
+    private long _lastNotifyMs;
 
     public ImportState State { get; private set; } = ImportState.Idle;
     public int TotalCount { get; private set; }
@@ -59,10 +60,18 @@ public class MediaImportService : BaseService, IMediaImportService
             FailedCount = 0;
             CurrentFilePath = null;
             State = ImportState.Running;
+            _lastNotifyMs = 0;
         }
 
         InvokeStateChanged();
-        _ = Task.Run(() => RunImportAsync(paths, _cts!.Token));
+        var cts = _cts!;
+        var thread = new Thread(() => RunImportAsync(paths, cts.Token).GetAwaiter().GetResult())
+        {
+            IsBackground = true,
+            Priority = ThreadPriority.BelowNormal,
+            Name = "MediaImport"
+        };
+        thread.Start();
 
         return Task.CompletedTask;
     }
@@ -74,6 +83,16 @@ public class MediaImportService : BaseService, IMediaImportService
 
         State = ImportState.Cancelling;
         _cts?.Cancel();
+        InvokeStateChanged();
+    }
+
+    private void InvokeStateChangedThrottled()
+    {
+        var now = Environment.TickCount64;
+        if (now - _lastNotifyMs < 250)
+            return;
+
+        _lastNotifyMs = now;
         InvokeStateChanged();
     }
 
@@ -93,11 +112,11 @@ public class MediaImportService : BaseService, IMediaImportService
                     break;
 
                 CurrentFilePath = path;
-                InvokeStateChanged();
+                InvokeStateChangedThrottled();
 
                 try
                 {
-                    var media = await Task.Run(() => _parser.LoadAndParse(path), ct);
+                    var media = await _parser.LoadAndParse(path);
                     await _mediaService.CreateAsync(media);
                     ImportedCount++;
                 }
@@ -111,7 +130,7 @@ public class MediaImportService : BaseService, IMediaImportService
                     Logger.LogWarning(ex, "Failed to import {FilePath}", path);
                 }
 
-                InvokeStateChanged();
+                InvokeStateChangedThrottled();
             }
         }
         catch (Exception ex)

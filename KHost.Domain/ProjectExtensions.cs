@@ -19,12 +19,6 @@ namespace KHost.Domain
             });
 
             // Configure KHost Options
-            serviceCollection.AddOptions<PlaybackService.ServiceOptions>()
-                .BindConfiguration(PlaybackService.ServiceOptions.SectionName);
-
-            serviceCollection.AddOptions<SingerQueueService.ServiceOptions>()
-                .BindConfiguration(SingerQueueService.ServiceOptions.SectionName);
-
             serviceCollection.AddOptions<VenuesService.ServiceOptions>()
                 .BindConfiguration(VenuesService.ServiceOptions.SectionName);
 
@@ -33,6 +27,9 @@ namespace KHost.Domain
 
             serviceCollection.AddOptions<JsonFileCacheService.ServiceOptions>()
                 .BindConfiguration(JsonFileCacheService.ServiceOptions.SectionName);
+
+            serviceCollection.AddOptions<MediaFileParsingService.ServiceOptions>()
+                .BindConfiguration(MediaFileParsingService.ServiceOptions.SectionName);
 
             // Configure KHost Services
             serviceCollection.AddSingleton(TimeProvider.System);

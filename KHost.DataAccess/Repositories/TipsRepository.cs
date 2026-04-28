@@ -1,5 +1,6 @@
 namespace KHost.DataAccess.Repositories;
 
+using System.Linq.Expressions;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Repositories;
 using KHost.DataAccess.Contexts;
@@ -7,6 +8,14 @@ using Microsoft.EntityFrameworkCore;
 
 internal class TipsRepository : BaseRepository<Tip>, ITipsRepository
 {
+    private static readonly IReadOnlyDictionary<string, Expression<Func<Tip, object>>> _sortColumns =
+        new Dictionary<string, Expression<Func<Tip, object>>>
+        {
+            ["createdDate"] = t => t.CreatedDate,
+            ["amount"] = t => t.Amount,
+            ["paymentMethod"] = t => t.PaymentMethod,
+        };
+
     public TipsRepository(IDbContextFactory<DefaultContext> contextFactory)
         : base(contextFactory)
     {
@@ -30,6 +39,10 @@ internal class TipsRepository : BaseRepository<Tip>, ITipsRepository
         return await query.SumAsync(t => t.Amount);
     }
 
+    protected override IReadOnlyDictionary<string, Expression<Func<Tip, object>>> SortColumns => _sortColumns;
+    protected override Expression<Func<Tip, object>> DefaultSortExpression => t => t.CreatedDate;
+    protected override bool DefaultSortDescending => true;
+
     protected override IQueryable<Tip> ApplySearchFilters<TOptions>(
         IQueryable<Tip> queryable, string query, TOptions? options = null)
         where TOptions : class
@@ -37,7 +50,6 @@ internal class TipsRepository : BaseRepository<Tip>, ITipsRepository
         if (string.IsNullOrWhiteSpace(query))
             return queryable;
 
-        queryable = queryable.Where(t => t.Notes.ToLower().Contains(query.ToLower()));
-        return queryable.OrderByDescending(t => t.CreatedDate);
+        return queryable.Where(t => t.Notes.ToLower().Contains(query.ToLower()));
     }
 }

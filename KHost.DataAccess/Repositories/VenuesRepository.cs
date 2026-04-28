@@ -1,3 +1,4 @@
+using System.Linq.Expressions;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Repositories;
 using KHost.DataAccess.Contexts;
@@ -7,10 +8,20 @@ namespace KHost.DataAccess.Repositories;
 
 internal class VenuesRepository : BaseRepository<Venue>, IVenuesRepository
 {
+    private static readonly IReadOnlyDictionary<string, Expression<Func<Venue, object>>> _sortColumns =
+        new Dictionary<string, Expression<Func<Venue, object>>>
+        {
+            ["name"] = v => v.Name,
+            ["enabled"] = v => v.Enabled,
+        };
+
     public VenuesRepository(IDbContextFactory<DefaultContext> contextFactory)
         : base(contextFactory)
     {
     }
+
+    protected override IReadOnlyDictionary<string, Expression<Func<Venue, object>>> SortColumns => _sortColumns;
+    protected override Expression<Func<Venue, object>> DefaultSortExpression => v => v.Name;
 
     protected override IQueryable<Venue> ApplySearchFilters<TOptions>(IQueryable<Venue> queryable, string query, TOptions? options = null)
         where TOptions : class
@@ -18,8 +29,6 @@ internal class VenuesRepository : BaseRepository<Venue>, IVenuesRepository
         if (string.IsNullOrWhiteSpace(query))
             return queryable;
 
-        queryable = queryable.Where(v => v.Name.ToLower().Contains(query.ToLower()));
-
-        return queryable.OrderBy(v => v.Name);
+        return queryable.Where(v => v.Name.ToLower().Contains(query.ToLower()));
     }
 }

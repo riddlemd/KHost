@@ -1,3 +1,4 @@
+using System.Linq.Expressions;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Repositories;
 using KHost.DataAccess.Contexts;
@@ -7,6 +8,13 @@ namespace KHost.DataAccess.Repositories;
 
 internal class UsersRepository : BaseRepository<KHostUser>, IUsersRepository
 {
+    private static readonly IReadOnlyDictionary<string, Expression<Func<KHostUser, object>>> _sortColumns =
+        new Dictionary<string, Expression<Func<KHostUser, object>>>
+        {
+            ["name"] = u => u.Name,
+            ["createdDate"] = u => u.CreatedDate,
+        };
+
     public UsersRepository(IDbContextFactory<DefaultContext> contextFactory)
         : base(contextFactory)
     {
@@ -31,6 +39,9 @@ internal class UsersRepository : BaseRepository<KHostUser>, IUsersRepository
         return await context.Set<KHostUser>().Include(u => u.Groups.OrderBy(g => g.Name)).FirstOrDefaultAsync(u => u.Id == id);
     }
 
+    protected override IReadOnlyDictionary<string, Expression<Func<KHostUser, object>>> SortColumns => _sortColumns;
+    protected override Expression<Func<KHostUser, object>> DefaultSortExpression => u => u.Name;
+
     protected override IQueryable<KHostUser> ApplySearchFilters<TOptions>(IQueryable<KHostUser> queryable, string query, TOptions? options = null)
         where TOptions : class
     {
@@ -39,8 +50,6 @@ internal class UsersRepository : BaseRepository<KHostUser>, IUsersRepository
         if (string.IsNullOrWhiteSpace(query))
             return queryable;
 
-        queryable = queryable.Where(u => u.Name.ToLower().Contains(query.ToLower()));
-
-        return queryable.OrderBy(u => u.Name);
+        return queryable.Where(u => u.Name.ToLower().Contains(query.ToLower()));
     }
 }

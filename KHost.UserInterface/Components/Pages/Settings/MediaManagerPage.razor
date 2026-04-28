@@ -1,5 +1,6 @@
 @page "/settings/media-manager"
 @using KHost.Abstractions.Services
+@using KHost.UserInterface.Models
 @using KHost.UserInterface.Services
 @implements IAsyncDisposable
 
@@ -41,19 +42,39 @@
                     <table class="kh-table kh-media-manager__table">
                         <thead>
                             <tr>
-                                <th>Title</th>
-                                <th>Artist</th>
-                                <th class="kh-media-manager__col--format">Format</th>
-                                <th class="kh-media-manager__col--duration">Duration</th>
-                                <th class="kh-media-manager__col--status">Status</th>
-                                <th class="kh-media-manager__col--date">Date Added</th>
+                                <th class="kh-media-manager__col--check">
+                                    <Icon Name="@SelectAllIconName" class="kh-media-manager__select-icon" @onclick="OnSelectAllClicked" />
+                                </th>
+                                <th class="kh-table__col--sortable" @onclick='() => OnSortColumnClicked("title")'>
+                                    Title @if (_sortColumn == "title") { <Icon Name="@(_sortDescending ? "sort-down" : "sort-up")" class="kh-table__sort-indicator" /> }
+                                </th>
+                                <th class="kh-table__col--sortable" @onclick='() => OnSortColumnClicked("artist")'>
+                                    Artist @if (_sortColumn == "artist") { <Icon Name="@(_sortDescending ? "sort-down" : "sort-up")" class="kh-table__sort-indicator" /> }
+                                </th>
+                                <th class="kh-media-manager__col--format kh-table__col--sortable" @onclick='() => OnSortColumnClicked("format")'>
+                                    Format @if (_sortColumn == "format") { <Icon Name="@(_sortDescending ? "sort-down" : "sort-up")" class="kh-table__sort-indicator" /> }
+                                </th>
+                                <th class="kh-media-manager__col--duration kh-table__col--sortable" @onclick='() => OnSortColumnClicked("duration")'>
+                                    Duration @if (_sortColumn == "duration") { <Icon Name="@(_sortDescending ? "sort-down" : "sort-up")" class="kh-table__sort-indicator" /> }
+                                </th>
+                                <th class="kh-media-manager__col--status kh-table__col--sortable" @onclick='() => OnSortColumnClicked("status")'>
+                                    Status @if (_sortColumn == "status") { <Icon Name="@(_sortDescending ? "sort-down" : "sort-up")" class="kh-table__sort-indicator" /> }
+                                </th>
+                                <th class="kh-media-manager__col--date kh-table__col--sortable" @onclick='() => OnSortColumnClicked("dateAdded")'>
+                                    Date Added @if (_sortColumn == "dateAdded") { <Icon Name="@(_sortDescending ? "sort-down" : "sort-up")" class="kh-table__sort-indicator" /> }
+                                </th>
                                 <th class="kh-media-manager__col--actions"></th>
                             </tr>
                         </thead>
                         <tbody>
                             @foreach (var media in _paginatedResult?.Items ?? [])
                             {
-                                <tr>
+                                <tr class="@(_selectedIds.Contains(media.Id) ? "kh-media-manager__row--selected" : "")">
+                                    <td class="kh-media-manager__col--check">
+                                        <Icon Name="@(_selectedIds.Contains(media.Id) ? "check-square" : "square")"
+                                              class="kh-media-manager__select-icon"
+                                              @onclick="() => ToggleSelection(media.Id)" />
+                                    </td>
                                     <td class="text-truncate kh-table__cell--fill" title="@media.FilePath">@media.Title</td>
                                     <td>@media.Artist</td>
                                     <td>@media.Format</td>
@@ -84,6 +105,24 @@
                         </tbody>
                     </table>
 
+                    @if (_selectedIds.Count > 0)
+                    {
+                        <div class="kh-media-manager__bulk-edit-menu">
+                            <div class="d-flex align-items-center gap-2">
+                                <SplitButton OnClick="EditSelectedAsync">
+                                    <Text>
+                                        <Icon Name="pencil" /> Edit @_selectedIds.Count Selected
+                                    </Text>
+                                    <Buttons>
+                                        <button class="kh-button kh-button--danger" @onclick="DeleteSelectedAsync" type="button">
+                                            <Icon Name="trash" /> Delete Selected
+                                        </button>
+                                    </Buttons>
+                                </SplitButton>
+                            </div>
+                        </div>
+                    }
+
                     <Pagination CurrentPage="_paginatedResult?.PageNumber ?? 1"
                                 TotalPages="_paginatedResult?.TotalPages ?? 1"
                                 OnPreviousPage="PreviousPage"
@@ -99,11 +138,15 @@
 
     private int _currentPage = 1;
     private string _searchQuery = "";
+    private string? _sortColumn;
+    private bool _sortDescending;
     private PaginatedResult<Media>? _paginatedResult;
+    private HashSet<Guid> _selectedIds = [];
 
     [Inject] private IMediaService? MediaService { get; set; }
     [Inject] private NavigationManager? Navigation { get; set; }
     [Inject] private IDialogService? DialogService { get; set; }
+    [Inject] private IVenuesService? VenuesService { get; set; }
 
     private void NavigateToImporter() => Navigation!.NavigateTo("/settings/media-importer");
 
@@ -114,13 +157,23 @@
                 _ = MediaService!.UpdateAsync(updated);
         });
 
-    private Task RemoveAsync(Media media) =>
-        DialogService!.ShowConfirmationAsync(
-            $"Are you sure you want to remove <span class=\"kh-emphasis\">{media.Title}</span> from the library?",
-            onConfirm: () => _ = MediaService!.DeleteAsync(media.Id),
-            title: "Remove Media",
-            confirmText: "Remove"
-        );
+    private async Task RemoveAsync(Media media)
+    {
+        var venue = VenuesService is not null ? await VenuesService.ReadSelectedVenueAsync() : null;
+        if (venue?.Settings.PromptBeforeRemovingMedia == true)
+        {
+            await DialogService!.ShowConfirmationAsync(
+                $"Are you sure you want to remove <span class=\"kh-emphasis\">{media.Title}</span> from the library?",
+                onConfirm: () => _ = MediaService!.DeleteAsync(media.Id),
+                title: "Remove Media",
+                confirmText: "Remove"
+            );
+        }
+        else
+        {
+            await MediaService!.DeleteAsync(media.Id);
+        }
+    }
 
     protected override async Task OnInitializedAsync()
     {
@@ -136,7 +189,21 @@
         if (MediaService is null)
             return;
 
-        _paginatedResult = await MediaService.SearchAsync(_searchQuery, pageNumber: _currentPage, pageSize: _pageSize);
+        var sort = _sortColumn is not null ? new SortDescriptor(_sortColumn, _sortDescending) : null;
+        _paginatedResult = await MediaService.SearchAsync(_searchQuery, _currentPage, _pageSize, sort);
+    }
+
+    private void OnSortColumnClicked(string column)
+    {
+        if (_sortColumn == column)
+            _sortDescending = !_sortDescending;
+        else
+        {
+            _sortColumn = column;
+            _sortDescending = false;
+        }
+        _currentPage = 1;
+        _ = SearchAsync();
     }
 
     private async Task OnSearchKeyDownAsync(KeyboardEventArgs e)
@@ -174,6 +241,7 @@
         if (_currentPage > 1)
         {
             _currentPage--;
+            _selectedIds.Clear();
             await SearchAsync();
         }
     }
@@ -183,8 +251,96 @@
         if (_paginatedResult?.HasNextPage ?? false)
         {
             _currentPage++;
+            _selectedIds.Clear();
             await SearchAsync();
         }
+    }
+
+    private void ToggleSelection(Guid mediaId)
+    {
+        if (_selectedIds.Contains(mediaId))
+            _selectedIds.Remove(mediaId);
+        else
+            _selectedIds.Add(mediaId);
+    }
+
+    private void OnSelectAllClicked()
+    {
+        if (_selectedIds.Count == _paginatedResult?.Items.Count)
+            _selectedIds.Clear();
+        else
+        {
+            _selectedIds.Clear();
+            foreach (var media in _paginatedResult?.Items ?? [])
+                _selectedIds.Add(media.Id);
+        }
+    }
+
+    private string SelectAllIconName =>
+        _selectedIds.Count == 0 ? "square"
+        : _selectedIds.Count == _paginatedResult?.Items.Count ? "check-square"
+        : "slash-square";
+
+    private async Task EditSelectedAsync()
+    {
+        var items = _paginatedResult?.Items
+            .Where(m => _selectedIds.Contains(m.Id))
+            .ToList() ?? [];
+
+        if (items.Count == 0)
+            return;
+
+        await DialogService!.RequestBulkEditAsync(items, ApplyBulkEditAsync);
+    }
+
+    private async Task ApplyBulkEditAsync(BulkEditMediaModel model)
+    {
+        var items = _paginatedResult?.Items
+            .Where(m => _selectedIds.Contains(m.Id))
+            .ToList() ?? [];
+
+        foreach (var media in items)
+        {
+            if (model.SwapTitleAndArtist)
+                (media.Title, media.Artist) = (media.Artist, media.Title);
+            if (model.UpdateArtist)
+                media.Artist = model.Artist;
+
+            await MediaService!.UpdateAsync(media);
+        }
+
+        _selectedIds.Clear();
+    }
+
+    private async Task DeleteSelectedAsync()
+    {
+        var items = _paginatedResult?.Items
+            .Where(m => _selectedIds.Contains(m.Id))
+            .ToList() ?? [];
+
+        if (items.Count == 0)
+            return;
+
+        await DialogService!.ShowConfirmationAsync(
+            $"Are you sure you want to remove {items.Count} item(s) from the library?",
+            onConfirm: () => _ = DeleteSelectedItemsAsync(items),
+            title: "Remove Media",
+            confirmText: "Remove"
+        );
+    }
+
+    private async Task DeleteSelectedItemsAsync(List<Media> items)
+    {
+        foreach (var media in items)
+            await MediaService!.DeleteAsync(media.Id);
+
+        _selectedIds.Clear();
+    }
+
+    private async Task ClearSelectionAsync()
+    {
+        _selectedIds.Clear();
+        await Task.CompletedTask;
     }
 
     private static string GetStatusBadgeClass(MediaStatus status) => status switch

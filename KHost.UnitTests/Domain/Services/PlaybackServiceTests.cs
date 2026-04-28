@@ -2,7 +2,6 @@ using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using KHost.Domain.Services;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 
 namespace KHost.UnitTests.Domain.Services;
 
@@ -11,18 +10,15 @@ public class PlaybackServiceTests : IDisposable
     private readonly ILogger<PlaybackService> _logger = Substitute.For<ILogger<PlaybackService>>();
     private readonly ISingerQueueService _queueService = Substitute.For<ISingerQueueService>();
     private readonly IPerformanceService _performanceService = Substitute.For<IPerformanceService>();
-    private readonly IOptionsMonitor<PlaybackService.ServiceOptions> _options =
-        Substitute.For<IOptionsMonitor<PlaybackService.ServiceOptions>>();
+    private readonly IVenuesService _venuesService = Substitute.For<IVenuesService>();
     private readonly PlaybackService _service;
 
     public PlaybackServiceTests()
     {
-        _options.CurrentValue.Returns(new PlaybackService.ServiceOptions
-        {
-            MoveSingerToBottomAfterPerformance = false
-        });
+        _venuesService.ReadSelectedVenueAsync()
+            .Returns(new Venue { Id = Guid.NewGuid(), Name = "Test Venue", Settings = new Venue.VenueSettings { MoveSingerToBottomAfterPerformance = false } });
 
-        _service = new PlaybackService(_logger, _options, _queueService, _performanceService);
+        _service = new PlaybackService(_logger, _queueService, _performanceService, _venuesService);
     }
 
     public void Dispose() => _service.Dispose();
@@ -169,10 +165,14 @@ public class PlaybackServiceTests : IDisposable
     [Fact]
     public async Task StopAsync_MovesUserToEnd_WhenOptionEnabled()
     {
-        _options.CurrentValue.Returns(new PlaybackService.ServiceOptions
+        var venue = new Venue
         {
-            MoveSingerToBottomAfterPerformance = true
-        });
+            Id = Guid.NewGuid(),
+            Name = "Test Venue",
+            Settings = new Venue.VenueSettings { MoveSingerToBottomAfterPerformance = true }
+        };
+        _venuesService.ReadSelectedVenueAsync().Returns(venue);
+
         var (performance, media) = CreatePerformance();
         var user = new KHostUser { Id = performance.SingerId, Name = "Alice" };
         _queueService.Users.Returns(new[] { user }.AsReadOnly());

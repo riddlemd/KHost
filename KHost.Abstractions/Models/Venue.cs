@@ -8,8 +8,20 @@ public class Venue
     public string Notes { get; set; } = "";
     public string Address { get; set; } = "";
     public string Phone { get; set; } = "";
-    public int DefaultVolume { get; set; } = 75;
-    public bool MoveSingerToBottomAfterPerformance { get; set; }
-    public bool PromptBeforeRemovingSinger { get; set; }
-    public bool ClearQueueOnClose { get; set; }
+    public VenueSettings Settings { get; set; } = new();
+
+    public class VenueSettings
+    {
+        public int DefaultVolume { get; set; } = 100;
+        public bool MoveSingerToBottomAfterPerformance { get; set; } = true;
+        public bool PromptBeforeRemovingSinger { get; set; } = true;
+        public bool PromptBeforeRemovingPerformance { get; set; } = true;
+        public bool PromptBeforeRemovingPerformanceHistory { get; set; } = true;
+        public bool PromptBeforeRemovingMedia { get; set; } = true;
+        public bool PromptBeforeRemovingUser { get; set; } = true;
+        public bool PromptBeforeRemovingUserGroup { get; set; } = true;
+        public bool PromptBeforeRemovingVenue { get; set; } = true;
+        public bool PromptBeforeRemovingTip { get; set; } = true;
+        public bool ClearQueueOnClose { get; set; } = true;
+    }
 }

@@ -1,7 +1,6 @@
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 
 namespace KHost.Domain.Services;
 
@@ -11,24 +10,24 @@ public class PlaybackService : BaseService, IPlaybackService
     private DateTime _lastTick;
     private readonly ISingerQueueService _singerQueueService;
     private readonly IPerformanceService _performanceService;
+    private readonly IVenuesService _venuesService;
 
     public Performance? CurrentPerformance { get; private set; }
     public Media? CurrentMedia { get; private set; }
     public PlaybackState State { get; private set; } = PlaybackState.Stopped;
     public TimeSpan Position { get; private set; }
     public Guid? CurrentlyPerformingUserId { get; private set; }
-    public IOptionsMonitor<ServiceOptions> Options { get; set; }
 
     public PlaybackService(
         ILogger<PlaybackService> logger,
-        IOptionsMonitor<ServiceOptions> options,
         ISingerQueueService singerQueueService,
-        IPerformanceService performanceService)
+        IPerformanceService performanceService,
+        IVenuesService venuesService)
         : base(logger)
     {
-        Options = options;
         _singerQueueService = singerQueueService;
         _performanceService = performanceService;
+        _venuesService = venuesService;
     }
 
     public async Task LoadAsync(Performance performance, Media media)
@@ -130,7 +129,8 @@ public class PlaybackService : BaseService, IPlaybackService
 
         Logger.LogInformation("Performance {PerformanceId} ended for user {UserId}", currentPerformance.Id, currentPerformance.SingerId);
 
-        if (Options.CurrentValue.MoveSingerToBottomAfterPerformance)
+        var venue = await _venuesService.ReadSelectedVenueAsync();
+        if (venue?.Settings.MoveSingerToBottomAfterPerformance == true)
         {
             await _singerQueueService.MoveUserToEndAsync(currentPerformance.SingerId);
             await _singerQueueService.SelectFirstUserInQueueAsync();
@@ -169,10 +169,4 @@ public class PlaybackService : BaseService, IPlaybackService
         InvokeStateChanged();
     }
 
-    public class ServiceOptions
-    {
-        public const string SectionName = nameof(PlaybackService);
-
-        public bool MoveSingerToBottomAfterPerformance { get; init; }
-    }
 }

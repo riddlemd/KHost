@@ -1,7 +1,6 @@
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 
 namespace KHost.Domain.Services;
 
@@ -13,6 +12,7 @@ public class SingerQueueService : ISingerQueueService
     private readonly ICacheService _cacheService;
     private readonly IPerformanceService _performanceService;
     private readonly IUsersService _usersService;
+    private readonly IVenuesService _venuesService;
     private readonly List<Guid> _userIds = [];
     private List<KHostUser> _cachedUsers = [];
 
@@ -26,20 +26,18 @@ public class SingerQueueService : ISingerQueueService
 
     private bool _isTopSlotLocked;
 
-    public IOptionsMonitor<ServiceOptions> Options { get; set; }
-
     public SingerQueueService(
         ILogger<SingerQueueService> logger,
-        IOptionsMonitor<ServiceOptions> options,
         ICacheService cacheService,
         IPerformanceService performanceService,
-        IUsersService usersService)
+        IUsersService usersService,
+        IVenuesService venuesService)
     {
         _logger = logger;
-        Options = options;
         _cacheService = cacheService;
         _performanceService = performanceService;
         _usersService = usersService;
+        _venuesService = venuesService;
     }
 
     public async Task SelectUserAsync(Guid? userId)
@@ -189,7 +187,8 @@ public class SingerQueueService : ISingerQueueService
 
     public async Task ClearAsync()
     {
-        if (!Options.CurrentValue.ClearOnClose)
+        var venue = await _venuesService.ReadSelectedVenueAsync();
+        if (venue?.Settings.ClearQueueOnClose != true)
             return;
 
         _userIds.Clear();
@@ -252,13 +251,6 @@ public class SingerQueueService : ISingerQueueService
         await SaveAsync();
 
         StateChanged?.Invoke(this, EventArgs.Empty);
-    }
-
-    public class ServiceOptions
-    {
-        public const string SectionName = nameof(SingerQueueService);
-        public bool PromptBeforeRemovingSinger { get; init; }
-        public bool ClearOnClose { get; set; }
     }
 
     private class QueueCacheData

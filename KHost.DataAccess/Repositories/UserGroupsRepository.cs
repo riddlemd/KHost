@@ -1,3 +1,4 @@
+using System.Linq.Expressions;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Repositories;
 using KHost.DataAccess.Contexts;
@@ -8,6 +9,13 @@ namespace KHost.DataAccess.Repositories;
 
 internal class UserGroupsRepository : BaseRepository<KHostUserGroup>, IUserGroupsRepository
 {
+    private static readonly IReadOnlyDictionary<string, Expression<Func<KHostUserGroup, object>>> _sortColumns =
+        new Dictionary<string, Expression<Func<KHostUserGroup, object>>>
+        {
+            ["name"] = g => g.Name,
+            ["isAdmin"] = g => g.IsAdmin,
+        };
+
     public UserGroupsRepository(IDbContextFactory<DefaultContext> contextFactory)
         : base(contextFactory)
     {
@@ -48,13 +56,15 @@ internal class UserGroupsRepository : BaseRepository<KHostUserGroup>, IUserGroup
             .ToListAsync();
     }
 
+    protected override IReadOnlyDictionary<string, Expression<Func<KHostUserGroup, object>>> SortColumns => _sortColumns;
+    protected override Expression<Func<KHostUserGroup, object>> DefaultSortExpression => g => g.Name;
+
     protected override IQueryable<KHostUserGroup> ApplySearchFilters<TOptions>(IQueryable<KHostUserGroup> queryable, string query, TOptions? options = null)
         where TOptions : class
     {
         if (string.IsNullOrWhiteSpace(query))
             return queryable;
 
-        queryable = queryable.Where(g => g.Name.ToLower().Contains(query.ToLower()));
-        return queryable.OrderBy(g => g.Name);
+        return queryable.Where(g => g.Name.ToLower().Contains(query.ToLower()));
     }
 }

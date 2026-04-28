@@ -41,7 +41,9 @@
                     <table class="kh-table">
                         <thead>
                             <tr>
-                                <th>Name</th>
+                                <th class="kh-table__col--sortable" @onclick='() => OnSortColumnClicked("name")'>
+                                    Name @if (_sortColumn == "name") { <Icon Name="@(_sortDescending ? "sort-down" : "sort-up")" class="kh-table__sort-indicator" /> }
+                                </th>
                                 <th>Notes</th>
                                 <th>Groups</th>
                                 <th>Total Tips</th>
@@ -96,10 +98,13 @@
     [Inject] private IUsersService? UsersService { get; set; }
     [Inject] private ITipsService? TipsService { get; set; }
     [Inject] private IDialogService? DialogService { get; set; }
+    [Inject] private IVenuesService? VenuesService { get; set; }
 
     private const int PageSize = 2;
     private int _currentPage = 1;
     private string _searchQuery = "";
+    private string? _sortColumn;
+    private bool _sortDescending;
     private PaginatedResult<KHostUser>? _paginatedResult;
     private Dictionary<Guid, decimal> _tipTotals = [];
 
@@ -116,13 +121,27 @@
         if (UsersService is null || TipsService is null)
             return;
 
-        _paginatedResult = await UsersService.SearchAsync(_searchQuery, pageNumber: _currentPage, pageSize: PageSize);
+        var sort = _sortColumn is not null ? new SortDescriptor(_sortColumn, _sortDescending) : null;
+        _paginatedResult = await UsersService.SearchAsync(_searchQuery, _currentPage, PageSize, sort);
 
         _tipTotals = [];
         foreach (var user in _paginatedResult?.Items ?? [])
         {
             _tipTotals[user.Id] = await TipsService.GetTotalByUserIdAsync(user.Id);
         }
+    }
+
+    private void OnSortColumnClicked(string column)
+    {
+        if (_sortColumn == column)
+            _sortDescending = !_sortDescending;
+        else
+        {
+            _sortColumn = column;
+            _sortDescending = false;
+        }
+        _currentPage = 1;
+        _ = SearchAsync();
     }
 
     private async Task OnSearchChanged()
@@ -161,15 +180,24 @@
 
     private async Task StartDeleteAsync(KHostUser user)
     {
-        if (DialogService is null) return;
         if (UsersService is null) return;
 
-        bool confirmed = await DialogService.ShowConfirmationAsync(
-            $"Are you sure you want to delete <span class=\"kh-emphasis\">{user.Name}</span>?",
-            async () => await UsersService.DeleteAsync(user.Id),
-            "Delete User",
-            "Delete"
-        );
+        var venue = VenuesService is not null ? await VenuesService.ReadSelectedVenueAsync() : null;
+        if (venue?.Settings.PromptBeforeRemovingUser == true)
+        {
+            if (DialogService is null) return;
+
+            bool confirmed = await DialogService.ShowConfirmationAsync(
+                $"Are you sure you want to delete <span class=\"kh-emphasis\">{user.Name}</span>?",
+                async () => await UsersService.DeleteAsync(user.Id),
+                "Delete User",
+                "Delete"
+            );
+        }
+        else
+        {
+            await UsersService.DeleteAsync(user.Id);
+        }
     }
 
     private async Task ClearSearch()

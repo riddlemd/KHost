@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Linq.Expressions;
 using System.Text;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Repositories;
@@ -11,6 +12,17 @@ internal class MediaRepository : BaseRepository<Media>, IMediaRepository
 {
     private static readonly char[] _ftsMetaChars = ['"', '*', ':', '^', '(', ')', '+', '-'];
 
+    private static readonly IReadOnlyDictionary<string, Expression<Func<Media, object>>> _sortColumns =
+        new Dictionary<string, Expression<Func<Media, object>>>
+        {
+            ["title"] = m => m.Title,
+            ["artist"] = m => m.Artist,
+            ["format"] = m => m.Format,
+            ["dateAdded"] = m => m.DateAdded,
+            ["status"] = m => m.Status,
+            ["duration"] = m => (object)(m.Duration ?? TimeSpan.Zero),
+        };
+
     public MediaRepository(IDbContextFactory<DefaultContext> contextFactory)
         : base(contextFactory)
     {
@@ -19,26 +31,25 @@ internal class MediaRepository : BaseRepository<Media>, IMediaRepository
 
     public async Task<HashSet<string>> GetExistingFilePathsAsync(IEnumerable<string> filePaths)
     {
-        var paths = filePaths.ToList();
+        var paths = filePaths.Select(p => p.ToLowerInvariant()).ToList();
         if (paths.Count == 0)
             return [];
 
         using var context = await ContextFactory.CreateDbContextAsync();
         var existing = await context.Media
-            .Where(m => paths.Contains(m.FilePath))
+            .Where(m => paths.Contains(m.FilePath.ToLower()))
             .Select(m => m.FilePath)
             .ToListAsync();
 
-        return [..existing];
+        return new HashSet<string>(existing, StringComparer.OrdinalIgnoreCase);
     }
+
+    protected override IReadOnlyDictionary<string, Expression<Func<Media, object>>> SortColumns => _sortColumns;
+    protected override Expression<Func<Media, object>> DefaultSortExpression => m => m.Title;
 
     protected override IQueryable<Media> ApplySearchFilters<TOptions>(IQueryable<Media> queryable, string query, TOptions? options = null)
         where TOptions : class
     {
-        queryable = queryable
-            .OrderBy(m => m.Title)
-            .ThenBy(m => m.Artist);
-
         var statusesToReturn = options as HashSet<MediaStatus>;
         if (statusesToReturn?.Count > 0)
             queryable = queryable.Where(m => statusesToReturn.Contains(m.Status));
@@ -54,13 +65,11 @@ internal class MediaRepository : BaseRepository<Media>, IMediaRepository
         if (match is null)
             return await base.SearchAsync(query, pageNumber, pageSize, options);
 
-        var statusFilterSql = "";
-
         var sql = $$"""
             SELECT m.*
             FROM "Media" AS m
             INNER JOIN "media_fts" AS f ON f."media_id" = m."Id"
-            WHERE "media_fts" MATCH {0}{{statusFilterSql}}
+            WHERE "media_fts" MATCH {0}
             ORDER BY bm25("media_fts")
             """;
 
@@ -69,6 +78,54 @@ internal class MediaRepository : BaseRepository<Media>, IMediaRepository
         var queryable = context.Media
             .FromSqlRaw(sql, match)
             .AsNoTracking();
+
+        var totalCount = await queryable.CountAsync();
+
+        var items = await PaginationComponent
+            .Paginate(queryable, pageNumber, pageSize)
+            .ToListAsync();
+
+        return new PaginatedResult<Media>
+        {
+            Items = items,
+            TotalCount = totalCount,
+            PageNumber = pageNumber,
+            PageSize = pageSize
+        };
+    }
+
+    public override async Task<PaginatedResult<Media>> SearchAsync(string query, int pageNumber, int pageSize, SortDescriptor? sort)
+    {
+        var match = BuildFtsMatchExpression(query);
+
+        if (match is null)
+            return await base.SearchAsync(query, pageNumber, pageSize, sort);
+
+        // FTS path: when sort is provided, override bm25 ordering
+        var includeBm25InSql = sort is null;
+        var sql = includeBm25InSql
+            ? $$"""
+                SELECT m.*
+                FROM "Media" AS m
+                INNER JOIN "media_fts" AS f ON f."media_id" = m."Id"
+                WHERE "media_fts" MATCH {0}
+                ORDER BY bm25("media_fts")
+                """
+            : $$"""
+                SELECT m.*
+                FROM "Media" AS m
+                INNER JOIN "media_fts" AS f ON f."media_id" = m."Id"
+                WHERE "media_fts" MATCH {0}
+                """;
+
+        using var context = await ContextFactory.CreateDbContextAsync();
+
+        IQueryable<Media> queryable = context.Media
+            .FromSqlRaw(sql, match)
+            .AsNoTracking();
+
+        if (sort is not null)
+            queryable = ApplySort(queryable, sort);
 
         var totalCount = await queryable.CountAsync();
 

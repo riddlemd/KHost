@@ -104,6 +104,7 @@
     [Inject] private IUsersService? UsersService { get; set; }
     [Inject] private IDialogService? DialogService { get; set; }
     [Inject] private IJSRuntime? JS { get; set; }
+    [Inject] private IVenuesService? VenuesService { get; set; }
 
     private string _newSingerName = string.Empty;
     private List<Performance> _allQueuedPerformances = [];
@@ -239,15 +240,24 @@
 
     private async Task ConfirmRemoveUserAsync(KHostUser user)
     {
-        if (DialogService is null) return;
         if (SingerQueueService is null) return;
 
-        bool confirmed = await DialogService.ShowConfirmationAsync(
-            $"Are you sure you want to remove <span class=\"kh-emphasis\">{user.Name}</span> from the queue?",
-            async () => await SingerQueueService.RemoveUserAsync(user.Id),
-            "Remove Singer From Queue",
-            "Remove"
-        );
+        var venue = VenuesService is not null ? await VenuesService.ReadSelectedVenueAsync() : null;
+        if (venue?.Settings.PromptBeforeRemovingSinger == true)
+        {
+            if (DialogService is null) return;
+
+            bool confirmed = await DialogService.ShowConfirmationAsync(
+                $"Are you sure you want to remove <span class=\"kh-emphasis\">{user.Name}</span> from the queue?",
+                async () => await SingerQueueService.RemoveUserAsync(user.Id),
+                "Remove Singer From Queue",
+                "Remove"
+            );
+        }
+        else
+        {
+            await SingerQueueService.RemoveUserAsync(user.Id);
+        }
     }
 
     private void OnStateChanged(object? sender, EventArgs e) => InvokeAsync(async () =>

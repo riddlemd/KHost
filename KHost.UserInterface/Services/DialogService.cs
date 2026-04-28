@@ -60,6 +60,13 @@ public class DialogService : IDialogService
         return Task.CompletedTask;
     }
 
+    public Task RequestBulkEditAsync(IReadOnlyList<Media> items, Func<BulkEditMediaModel, Task> onSave, Action? onCancel = null, Action? onClose = null)
+    {
+        var request = new BulkEditMediaDialog.DialogRequest(items, onSave, onCancel, onClose);
+        ShowRequested?.Invoke(this, request);
+        return Task.CompletedTask;
+    }
+
     public Task ShowLyricsAsync(string query, Action? onClose = null)
     {
         ShowRequested?.Invoke(this, new ShowLyricsDialog.DialogRequest(query, onClose));

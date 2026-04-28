@@ -74,6 +74,17 @@ html {
     color: var(--kh-text);
 }
 
+input[type='number'] {
+    -moz-appearance: textfield;
+    appearance: textfield;
+
+    &::-webkit-inner-spin-button,
+    &::-webkit-outer-spin-button {
+        -webkit-appearance: none;
+        margin: 0;
+    }
+}
+
 .form-check {
     display: inline;
 }

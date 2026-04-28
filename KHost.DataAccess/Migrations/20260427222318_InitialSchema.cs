@@ -89,10 +89,7 @@ namespace KHost.DataAccess.Migrations
                     Notes = table.Column<string>(type: "TEXT", maxLength: 1000, nullable: false),
                     Address = table.Column<string>(type: "TEXT", maxLength: 500, nullable: false),
                     Phone = table.Column<string>(type: "TEXT", maxLength: 20, nullable: false),
-                    DefaultVolume = table.Column<int>(type: "INTEGER", nullable: false),
-                    MoveSingerToBottomAfterPerformance = table.Column<bool>(type: "INTEGER", nullable: false),
-                    PromptBeforeRemovingSinger = table.Column<bool>(type: "INTEGER", nullable: false),
-                    ClearQueueOnClose = table.Column<bool>(type: "INTEGER", nullable: false)
+                    Settings = table.Column<string>(type: "TEXT", nullable: false)
                 },
                 constraints: table =>
                 {

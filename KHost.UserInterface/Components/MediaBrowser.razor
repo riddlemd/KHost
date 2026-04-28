@@ -3,9 +3,7 @@
 @using System.Collections.Concurrent
 @implements IAsyncDisposable
 
-<div class="kh-app__body">
-    <div class="kh-settings-page">
-        <div class="kh-card h-100">
+<div class="kh-card h-100">
             <div class="kh-card__header d-flex align-items-center gap-2">
                 <span class="kh-card__title"><Icon Name="folder2-open" /> Media Importer</span>
                 @if (ImportService!.State != ImportState.Idle)
@@ -32,14 +30,17 @@
                         <Icon Name="x-lg" /> Cancel
                     </button>
                 }
-                else if (_currentPath is not null)
+                else if (_currentPath is not null || _selectedPaths.Count > 0 || _selectedFolderPaths.Count > 0)
                 {
                     <div class="kh-media-importer__header-actions">
-                        <button class="kh-button kh-button--outline-secondary"
-                                @onclick="() => _hideImported = !_hideImported"
-                                type="button">
-                            <Icon Name="@(_hideImported ? "eye-slash" : "eye")" /> @(_hideImported ? "Show in-library" : "Hide in-library")
-                        </button>
+                        @if (_currentPath is not null)
+                        {
+                            <button class="kh-button kh-button--outline-secondary"
+                                    @onclick="() => _hideImported = !_hideImported"
+                                    type="button">
+                                <Icon Name="@(_hideImported ? "eye-slash" : "eye")" /> @(_hideImported ? "Show in-library" : "Hide in-library")
+                            </button>
+                        }
                         <button class="kh-button kh-button--primary"
                                 disabled="@(_selectedPaths.Count == 0 && _selectedFolderPaths.Count == 0)"
                                 @onclick="StartImportAsync"
@@ -246,8 +247,6 @@
                 }
             </div>
         </div>
-    </div>
-</div>
 
 @code {
     private enum SortColumn { Name, Type, Status, Size, Modified }
@@ -270,6 +269,7 @@
     private List<FileEntry> _entries = [];
     private readonly HashSet<string> _selectedPaths = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> _selectedFolderPaths = new(StringComparer.OrdinalIgnoreCase);
+    private ImportState _prevImportState = ImportState.Idle;
 
     private List<(string Display, string FullPath)> GetBreadcrumbSegments()
     {
@@ -371,7 +371,10 @@
         get
         {
             if (AllNewSelected) return "check-square";
-            if (_selectedPaths.Count > 0 || _selectedFolderPaths.Count > 0) return "slash-square";
+            bool anyCurrentFolderSelected = FilteredEntries.Any(e =>
+                (!e.IsDirectory && _selectedPaths.Contains(e.FullPath)) ||
+                (e.IsDirectory && e.Name != ".." && _selectedFolderPaths.Contains(e.FullPath)));
+            if (anyCurrentFolderSelected) return "slash-square";
             return "square";
         }
     }
@@ -392,8 +395,6 @@
         _currentPath = null;
         _pathInput = string.Empty;
         _filterQuery = string.Empty;
-        _selectedPaths.Clear();
-        _selectedFolderPaths.Clear();
         _entries = DriveInfo.GetDrives()
             .Where(d => d.IsReady)
             .Select(d => new FileEntry(d.RootDirectory.FullName, d.Name.TrimEnd('\\'), true, string.Empty, false, 0, DateTime.MinValue, null, null, null, null))
@@ -406,8 +407,6 @@
         _currentPath = path;
         _pathInput = path;
         _filterQuery = string.Empty;
-        _selectedPaths.Clear();
-        _selectedFolderPaths.Clear();
 
         List<string> filePaths;
         List<FileEntry> dirs;
@@ -662,8 +661,11 @@
     {
         if (AllNewSelected)
         {
-            _selectedPaths.Clear();
-            _selectedFolderPaths.Clear();
+            foreach (var entry in FilteredEntries.Where(e => !e.IsDirectory))
+                foreach (var path in (entry.PairedPaths ?? [entry.FullPath]))
+                    _selectedPaths.Remove(path);
+            foreach (var entry in FilteredEntries.Where(e => e.IsDirectory && e.Name != ".."))
+                _selectedFolderPaths.Remove(entry.FullPath);
         }
         else
         {
@@ -714,10 +716,17 @@
     private void OnImportStateChanged(object? sender, EventArgs e) =>
         _ = InvokeAsync(async () =>
         {
-            if (ImportService!.State == ImportState.Idle && _currentPath is not null)
+            var state = ImportService!.State;
+
+            if (_prevImportState != ImportState.Idle && state == ImportState.Idle && _currentPath is not null)
             {
+                _prevImportState = state;
                 await NavigateToAsync(_currentPath);
                 await OnImportCompleted.InvokeAsync();
+            }
+            else
+            {
+                _prevImportState = state;
             }
 
             StateHasChanged();

@@ -18,6 +18,9 @@ namespace KHost.DataAccess
                 options.UseSqlite($"Data Source={databaseFilePath}")
                        .UseQueryTrackingBehavior(QueryTrackingBehavior.NoTracking));
 
+            serviceCollection.AddOptions<DatabaseInitializer.ServiceOptions>()
+                .BindConfiguration(DatabaseInitializer.ServiceOptions.SectionName);
+
             serviceCollection.AddSingleton<IMediaRepository, MediaRepository>();
             serviceCollection.AddSingleton<IUsersRepository, UsersRepository>();
             serviceCollection.AddSingleton<IUserGroupsRepository, UserGroupsRepository>();

@@ -9,11 +9,10 @@ namespace KHost.UnitTests.Domain.Services;
 public class SingerQueueServiceTests : IDisposable
 {
     private const string _cacheDir = "./cache";
-    private readonly IOptionsMonitor<SingerQueueService.ServiceOptions> _options =
-        Substitute.For<IOptionsMonitor<SingerQueueService.ServiceOptions>>();
     private readonly ICacheService _cacheService;
     private readonly IPerformanceService _performanceService;
     private readonly IUsersService _usersService;
+    private readonly IVenuesService _venuesService;
     private readonly Dictionary<Guid, KHostUser> _userDb = [];
     private readonly SingerQueueService _service;
 
@@ -23,6 +22,7 @@ public class SingerQueueServiceTests : IDisposable
         _cacheService = new JsonFileCacheService(NullLogger<JsonFileCacheService>.Instance, cacheOptions);
         _performanceService = Substitute.For<IPerformanceService>();
         _usersService = Substitute.For<IUsersService>();
+        _venuesService = Substitute.For<IVenuesService>();
 
         _performanceService.CreateAndEnqueueAsync(Arg.Any<Performance>())
             .Returns(args => Task.FromResult((Performance)args[0]));
@@ -33,7 +33,7 @@ public class SingerQueueServiceTests : IDisposable
         _usersService.UpdateAsync(Arg.Any<KHostUser>())
             .Returns(args => { var u = (KHostUser)args[0]; _userDb[u.Id] = u; return Task.CompletedTask; });
 
-        _service = new SingerQueueService(NullLogger<SingerQueueService>.Instance, _options, _cacheService, _performanceService, _usersService);
+        _service = new SingerQueueService(NullLogger<SingerQueueService>.Instance, _cacheService, _performanceService, _usersService, _venuesService);
     }
 
     public void Dispose()

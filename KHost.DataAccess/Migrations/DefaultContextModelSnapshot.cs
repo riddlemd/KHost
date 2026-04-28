@@ -247,16 +247,7 @@ namespace KHost.DataAccess.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("TEXT");
 
-                    b.Property<bool>("ClearQueueOnClose")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<int>("DefaultVolume")
-                        .HasColumnType("INTEGER");
-
                     b.Property<bool>("Enabled")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<bool>("MoveSingerToBottomAfterPerformance")
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("Name")
@@ -273,9 +264,6 @@ namespace KHost.DataAccess.Migrations
                         .IsRequired()
                         .HasMaxLength(20)
                         .HasColumnType("TEXT");
-
-                    b.Property<bool>("PromptBeforeRemovingSinger")
-                        .HasColumnType("INTEGER");
 
                     b.HasKey("Id");
 
@@ -305,6 +293,50 @@ namespace KHost.DataAccess.Migrations
                         .WithMany("Tips")
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("KHost.Abstractions.Models.Venue", b =>
+                {
+                    b.OwnsOne("KHost.Abstractions.Models.Venue+VenueSettings", "Settings", b1 =>
+                        {
+                            b1.Property<Guid>("VenueId");
+
+                            b1.Property<bool>("ClearQueueOnClose");
+
+                            b1.Property<int>("DefaultVolume");
+
+                            b1.Property<bool>("MoveSingerToBottomAfterPerformance");
+
+                            b1.Property<bool>("PromptBeforeRemovingMedia");
+
+                            b1.Property<bool>("PromptBeforeRemovingPerformance");
+
+                            b1.Property<bool>("PromptBeforeRemovingPerformanceHistory");
+
+                            b1.Property<bool>("PromptBeforeRemovingSinger");
+
+                            b1.Property<bool>("PromptBeforeRemovingTip");
+
+                            b1.Property<bool>("PromptBeforeRemovingUser");
+
+                            b1.Property<bool>("PromptBeforeRemovingUserGroup");
+
+                            b1.Property<bool>("PromptBeforeRemovingVenue");
+
+                            b1.HasKey("VenueId");
+
+                            b1.ToTable("Venues");
+
+                            b1
+                                .ToJson("Settings")
+                                .HasColumnType("TEXT");
+
+                            b1.WithOwner()
+                                .HasForeignKey("VenueId");
+                        });
+
+                    b.Navigation("Settings")
                         .IsRequired();
                 });
 

@@ -1,3 +1,4 @@
+using System.Linq.Expressions;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Repositories;
 using KHost.DataAccess.Contexts;
@@ -7,6 +8,13 @@ namespace KHost.DataAccess.Repositories;
 
 internal class PerformancesRepository : BaseRepository<Performance>, IPerformancesRepository
 {
+    private static readonly IReadOnlyDictionary<string, Expression<Func<Performance, object>>> _sortColumns =
+        new Dictionary<string, Expression<Func<Performance, object>>>
+        {
+            ["createdDate"] = p => p.CreatedDate,
+            ["queuePosition"] = p => p.QueuePosition,
+        };
+
     public PerformancesRepository(IDbContextFactory<DefaultContext> contextFactory)
         : base(contextFactory)
     {
@@ -112,7 +120,7 @@ internal class PerformancesRepository : BaseRepository<Performance>, IPerformanc
     public async Task DeleteAllQueuedAsync()
     {
         using var context = await ContextFactory.CreateDbContextAsync();
-        
+
         await context.Set<Performance>()
             .Where(p => p.QueuePosition.HasValue)
             .ExecuteDeleteAsync();
@@ -132,9 +140,13 @@ internal class PerformancesRepository : BaseRepository<Performance>, IPerformanc
         return query;
     }
 
+    protected override IReadOnlyDictionary<string, Expression<Func<Performance, object>>> SortColumns => _sortColumns;
+    protected override Expression<Func<Performance, object>> DefaultSortExpression => p => p.CreatedDate;
+    protected override bool DefaultSortDescending => true;
+
     protected override IQueryable<Performance> ApplySearchFilters<TOptions>(IQueryable<Performance> queryable, string query, TOptions? options = null)
         where TOptions : class
     {
-        return queryable.OrderByDescending(p => p.CreatedDate);
+        return queryable;
     }
 }
