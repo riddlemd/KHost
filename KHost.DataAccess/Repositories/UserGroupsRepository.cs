@@ -4,6 +4,7 @@ using KHost.Abstractions.Repositories;
 using KHost.DataAccess.Contexts;
 using KHost.DataAccess.Models;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace KHost.DataAccess.Repositories;
 
@@ -16,8 +17,8 @@ internal class UserGroupsRepository : BaseRepository<KHostUserGroup>, IUserGroup
             ["isAdmin"] = g => g.IsAdmin,
         };
 
-    public UserGroupsRepository(IDbContextFactory<DefaultContext> contextFactory)
-        : base(contextFactory)
+    public UserGroupsRepository(IDbContextFactory<DefaultContext> contextFactory, ILogger<BaseRepository<KHostUserGroup>> logger)
+        : base(contextFactory, logger)
     {
     }
 

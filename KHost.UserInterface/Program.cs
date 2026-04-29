@@ -5,7 +5,9 @@ using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using KHost.DataAccess;
 using KHost.Domain;
+using KHost.IPC.SignalR;
 using KHost.ServiceDefaults;
+using KHost.Telemetry;
 using KHost.UserInterface.Components;
 using KHost.UserInterface.Interactions;
 using KHost.UserInterface.Middleware;
@@ -39,8 +41,10 @@ builder.Host.UseSerilog((_, _, cfg) => cfg
 
 builder.AddServiceDefaults();
 
+builder.Services.AddTelemetry();
 builder.Services.AddDomain();
 builder.Services.AddDataAccess();
+builder.Services.AddSignalRIPCServer();
 
 // Configure FFmpeg
 var ffmpegPath = builder.Configuration["FFmpegPath"];
@@ -99,6 +103,7 @@ catch (Exception ex)
 }
 
 app.MapDefaultEndpoints();
+app.MapIPCServer();
 
 // Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment())

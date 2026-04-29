@@ -7,6 +7,9 @@ using Avalonia.Platform;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using KHost.Abstractions.MediaPlayer;
+using KHost.Screen.OpenAl;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using System.Runtime.InteropServices;
 
 namespace KHost.Screen.Views;
@@ -14,6 +17,8 @@ namespace KHost.Screen.Views;
 public partial class MainWindow : Window
 {
     private readonly IMediaPlayer _player;
+    internal IMediaPlayer Player => _player;
+
     private readonly DispatcherTimer _positionTimer;
 
     // Double-buffered bitmap swap: background thread writes _pendingBitmap;
@@ -24,11 +29,16 @@ public partial class MainWindow : Window
     // Prevents position timer from fighting with manual slider drags.
     private bool _userDraggingSlider;
 
-    public MainWindow()
+    public MainWindow() : this(NullLoggerFactory.Instance)
+    {
+    }
+
+    public MainWindow(ILoggerFactory loggerFactory)
     {
         InitializeComponent();
 
-        _player = new DefaultMediaPlayer();
+        var audio = new OpenAlAudioPlayer(loggerFactory.CreateLogger<OpenAlAudioPlayer>());
+        _player = new DefaultMediaPlayer(audio, loggerFactory.CreateLogger<DefaultMediaPlayer>());
         _player.FrameAvailable += OnFrameAvailable;
         _player.PlaybackEnded += OnPlaybackEnded;
         _player.ErrorOccurred += OnErrorOccurred;

@@ -3,7 +3,6 @@ using KHost.Abstractions.MediaPlayer;
 using KHost.Screen.FFmpeg;
 using KHost.Screen.OpenAl;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
 using System.Diagnostics;
 
 namespace KHost.Screen;
@@ -26,10 +25,10 @@ namespace KHost.Screen;
 ///
 /// Seeking kills and restarts the ffmpeg process from the nearest keyframe.
 /// </remarks>
-public sealed class DefaultMediaPlayer : IMediaPlayer
+internal sealed class DefaultMediaPlayer : IMediaPlayer
 {
     private readonly ILogger<DefaultMediaPlayer> _logger;
-    private readonly OpenAlAudioPlayer _audio = new();
+    private readonly OpenAlAudioPlayer _audio;
     private IMediaPlayer.MediaInfo? _info;
     private State _state = State.Idle;
     private readonly object _lock = new();
@@ -107,9 +106,10 @@ public sealed class DefaultMediaPlayer : IMediaPlayer
         }
     }
 
-    public DefaultMediaPlayer(ILogger<DefaultMediaPlayer>? logger = null)
+    public DefaultMediaPlayer(OpenAlAudioPlayer audio, ILogger<DefaultMediaPlayer> logger)
     {
-        _logger = logger ?? NullLogger<DefaultMediaPlayer>.Instance;
+        _audio = audio;
+        _logger = logger;
     }
 
     public async Task LoadAsync(string filePath, CancellationToken cancellationToken = default)
@@ -202,7 +202,10 @@ public sealed class DefaultMediaPlayer : IMediaPlayer
     private void BeginSegment(TimeSpan from)
     {
         if (_info!.FilePath == null || !File.Exists(_info!.FilePath))
+        {
+            _logger.LogWarning("BeginSegment skipped — file missing: {FilePath}", _info?.FilePath);
             return;
+        }
 
         _startOffset = from;
         _firstFrameSeen = false;

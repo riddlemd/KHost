@@ -65,6 +65,11 @@
             <ShowLyricsDialog @key="r.Id" IsOpen="true" Query="@r.Query"
                 OnClose="@(() => { r.OnClose?.Invoke(); Close(r); })" />
             break;
+
+        case ScreensDialog.DialogRequest r:
+            <ScreensDialog @key="r.Id" IsOpen="true"
+                OnClose="@(() => { r.OnClose?.Invoke(); Close(r); })" />
+            break;
     }
 }
 

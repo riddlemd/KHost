@@ -3,6 +3,7 @@ using KHost.Abstractions.Models;
 using KHost.Abstractions.Repositories;
 using KHost.DataAccess.Contexts;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace KHost.DataAccess.Repositories;
 
@@ -15,15 +16,20 @@ internal class PerformancesRepository : BaseRepository<Performance>, IPerformanc
             ["queuePosition"] = p => p.QueuePosition,
         };
 
-    public PerformancesRepository(IDbContextFactory<DefaultContext> contextFactory)
-        : base(contextFactory)
+    public PerformancesRepository(IDbContextFactory<DefaultContext> contextFactory, ILogger<BaseRepository<Performance>> logger)
+        : base(contextFactory, logger)
     {
     }
 
     public async Task<int> ReadNextQueuePositionForSingerAsync(Guid singerId)
-        => (await GetContextAsync()).Set<Performance>()
+    {
+        var context = await GetContextAsync();
+        var positions = await context.Set<Performance>()
             .Where(p => p.SingerId == singerId && p.QueuePosition.HasValue)
-            .Max(p => p.QueuePosition + 1) ?? 0;
+            .Select(p => p.QueuePosition!.Value)
+            .ToListAsync();
+        return (positions.DefaultIfEmpty(0).Max()) + 1;
+    }
 
     public async Task<Performance?> ReadSingersNextPerformanceAsync(Guid singerId)
         => (await GetContextAsync()).Set<Performance>()

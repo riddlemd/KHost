@@ -3,6 +3,7 @@ using KHost.DataAccess.Contexts;
 using KHost.DataAccess.Repositories;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace KHost.UnitTests.DataAccess.Repositories;
 
@@ -27,7 +28,7 @@ public class MediaRepositoryFtsTests : IDisposable
         using var context = _factory.CreateDbContext();
         context.Database.Migrate();
 
-        _repository = new MediaRepository(_factory);
+        _repository = new MediaRepository(_factory, NullLogger<BaseRepository<Media>>.Instance);
     }
 
     public void Dispose()

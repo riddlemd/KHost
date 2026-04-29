@@ -19,18 +19,25 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="FFMpegCore" Version="5.4.0" />
-    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.7" />
-    <PackageReference Include="Avalonia.Desktop" Version="12.0.1" />
-	<PackageReference Include="Avalonia.Themes.Fluent" Version="12.0.1">
+    <PackageReference Include="FFMpegCore" />
+    <PackageReference Include="Microsoft.Extensions.Logging" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Console" />
+    <PackageReference Include="Serilog" />
+    <PackageReference Include="Serilog.Extensions.Logging" />
+    <PackageReference Include="Serilog.Sinks.File" />
+    <PackageReference Include="Avalonia.Desktop" />
+	<PackageReference Include="Avalonia.Themes.Fluent">
 	  <TreatAsUsed>true</TreatAsUsed>
 	</PackageReference>
-    <PackageReference Include="Avalonia.Fonts.Inter" Version="12.0.1" />
-    <PackageReference Include="Silk.NET.OpenAL.Soft.Native" Version="1.23.1" />
+    <PackageReference Include="Avalonia.Fonts.Inter" />
+    <PackageReference Include="Silk.NET.OpenAL.Soft.Native" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\KHost.Abstractions\KHost.Abstractions.csproj" />
+    <ProjectReference Include="..\KHost.Telemetry\KHost.Telemetry.csproj" />
+    <ProjectReference Include="..\KHost.IPC.SignalR\KHost.IPC.SignalR.csproj" />
   </ItemGroup>
 
 </Project>

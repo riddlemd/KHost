@@ -1,3 +1,4 @@
+using KHost.Abstractions.Services;
 using KHost.Domain.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -16,7 +17,8 @@ public class JsonFileCacheServiceTests : IDisposable
             Directory.CreateDirectory(_cacheDir);
 
         var options = Substitute.For<IOptionsMonitor<JsonFileCacheService.ServiceOptions>>();
-        _service = new JsonFileCacheService(NullLogger<JsonFileCacheService>.Instance, options);
+        var analytics = Substitute.For<IAnalyticsService>();
+        _service = new JsonFileCacheService(NullLogger<JsonFileCacheService>.Instance, options, analytics);
     }
 
     public void Dispose()

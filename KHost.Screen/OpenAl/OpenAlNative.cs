@@ -27,6 +27,12 @@ internal static class OpenAlNative
     /// <summary>True when an OpenAL library was loaded successfully.</summary>
     internal static readonly bool IsLoaded;
 
+    /// <summary>
+    /// The exception thrown during static initialization, if any. Captured here so the
+    /// first instance with an injected logger can surface it.
+    /// </summary>
+    internal static readonly Exception? LoadException;
+
     // The handle to the loaded library, used by the resolver.
     private static IntPtr _libHandle;
 
@@ -42,7 +48,11 @@ internal static class OpenAlNative
             NativeLibrary.SetDllImportResolver(asm, Resolve);
             IsLoaded = true;
         }
-        catch { IsLoaded = false; }
+        catch (Exception ex)
+        {
+            LoadException = ex;
+            IsLoaded = false;
+        }
     }
 
     /// <summary>

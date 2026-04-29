@@ -19,6 +19,7 @@ public class MediaImportService : BaseService, IMediaImportService
     private readonly IMediaFileParsingService _parser;
     private readonly IMediaRepository _repository;
     private readonly IMediaService _mediaService;
+    private readonly IAnalyticsService _analytics;
 
     private CancellationTokenSource? _cts;
     private readonly Lock _startLock = new();
@@ -35,12 +36,14 @@ public class MediaImportService : BaseService, IMediaImportService
         ILogger<MediaImportService> logger,
         IMediaFileParsingService parser,
         IMediaRepository repository,
-        IMediaService mediaService)
+        IMediaService mediaService,
+        IAnalyticsService analytics)
         : base(logger)
     {
         _parser = parser;
         _repository = repository;
         _mediaService = mediaService;
+        _analytics = analytics;
     }
 
     public Task StartAsync(IEnumerable<string> filePaths)
@@ -98,11 +101,19 @@ public class MediaImportService : BaseService, IMediaImportService
 
     private async Task RunImportAsync(List<string> paths, CancellationToken ct)
     {
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        using var activity = _analytics.StartActivity(AnalyticActivities.ImportBatch);
+
         try
         {
             var existing = await _repository.GetExistingFilePathsAsync(paths);
             var toImport = paths.Where(p => !existing.Contains(p)).ToList();
+            var skippedCount = paths.Count - toImport.Count;
 
+            if (skippedCount > 0)
+                _analytics.RecordImportFilesProcessed(skippedCount, "skipped");
+
+            activity.SetTag("total_files", paths.Count);
             TotalCount = toImport.Count;
             InvokeStateChanged();
 
@@ -119,6 +130,7 @@ public class MediaImportService : BaseService, IMediaImportService
                     var media = await _parser.LoadAndParse(path);
                     await _mediaService.CreateAsync(media);
                     ImportedCount++;
+                    _analytics.RecordImportFilesProcessed(1, "imported");
                 }
                 catch (OperationCanceledException)
                 {
@@ -127,6 +139,7 @@ public class MediaImportService : BaseService, IMediaImportService
                 catch (Exception ex)
                 {
                     FailedCount++;
+                    _analytics.RecordImportFilesProcessed(1, "failed");
                     Logger.LogWarning(ex, "Failed to import {FilePath}", path);
                 }
 
@@ -139,11 +152,17 @@ public class MediaImportService : BaseService, IMediaImportService
         }
         finally
         {
+            _analytics.RecordImportDuration(sw.Elapsed.TotalMilliseconds);
             State = ImportState.Idle;
             CurrentFilePath = null;
             _cts?.Dispose();
             _cts = null;
             InvokeStateChanged();
         }
+    }
+
+    private static class AnalyticActivities
+    {
+        public const string ImportBatch = "media.import.batch";
     }
 }

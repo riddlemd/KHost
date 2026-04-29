@@ -7,9 +7,8 @@ namespace KHost.UnitTests.Domain.Services;
 
 public class BaseRepositoryServiceTests
 {
-    public sealed class TestEntity
+    public sealed class TestEntity : RepositoryModel
     {
-        public Guid Id { get; set; } = Guid.NewGuid();
     }
 
     public sealed class TestRepositoryService(ILogger logger, IRepository<TestEntity> repository)

@@ -16,15 +16,16 @@
     <FileVersion>2.0.0.0</FileVersion>
     <EnforceCodeStyleInBuild>False</EnforceCodeStyleInBuild>
     <UserSecretsId>3cc5ab26-24c3-4200-8c4f-9035c6d49c07</UserSecretsId>
+    <RunWorkingDirectory>$(OutputPath)</RunWorkingDirectory>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.7">
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
-    <PackageReference Include="Serilog.AspNetCore" Version="10.0.0" />
-    <PackageReference Include="Serilog.Sinks.File" Version="7.0.0" />
+    <PackageReference Include="Serilog.AspNetCore" />
+    <PackageReference Include="Serilog.Sinks.File" />
   </ItemGroup>
 
   <ItemGroup>
@@ -32,6 +33,9 @@
     <ProjectReference Include="..\KHost.ServiceDefaults\KHost.ServiceDefaults.csproj" />
     <ProjectReference Include="..\KHost.Abstractions\KHost.Abstractions.csproj" />
     <ProjectReference Include="..\KHost.Domain\KHost.Domain.csproj" />
+    <ProjectReference Include="..\KHost.Telemetry\KHost.Telemetry.csproj" />
+    <ProjectReference Include="..\KHost.IPC.SignalR\KHost.IPC.SignalR.csproj" />
+    <ProjectReference Include="..\KHost.Screen\KHost.Screen.csproj" ReferenceOutputAssembly="false" />
   </ItemGroup>
 
   <ItemGroup>
@@ -50,6 +54,23 @@
       <WwwrootFiles Include="wwwroot\**\*" />
     </ItemGroup>
     <Copy SourceFiles="@(WwwrootFiles)" DestinationFiles="@(WwwrootFiles->'$(OutputPath)wwwroot\%(RecursiveDir)%(Filename)%(Extension)')" />
+  </Target>
+
+  <!-- Copy Screen executable and all dependencies into output directory -->
+  <Target Name="CopyScreenToOutput" AfterTargets="Build">
+    <MSBuild Projects="$(MSBuildProjectDirectory)\..\KHost.Screen\KHost.Screen.csproj"
+             Targets="GetTargetPath"
+             Properties="Configuration=$(Configuration);Platform=$(Platform);BaseOutputPath=$(BaseOutputPath)">
+      <Output TaskParameter="TargetOutputs" ItemName="_ScreenExe" />
+    </MSBuild>
+    <PropertyGroup>
+      <ScreenOutputDir>@(_ScreenExe->'%(RootDir)%(Directory)')</ScreenOutputDir>
+    </PropertyGroup>
+    <ItemGroup>
+      <ScreenFiles Include="$(ScreenOutputDir)**\*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(ScreenFiles)"
+          DestinationFiles="@(ScreenFiles->'$(OutputPath)%(RecursiveDir)%(Filename)%(Extension)')" />
   </Target>
 
 </Project>

@@ -1,0 +1,13 @@
+@using KHost.UserInterface.Services
+
+<button class="kh-screens-btn kh-button--icon-minimal"
+        title="Screens"
+        @onclick="OpenAsync">
+    <i class="bi bi-display"></i>
+</button>
+
+@code {
+    [Inject] private IDialogService? DialogService { get; set; }
+
+    private Task OpenAsync() => DialogService!.ShowScreensAsync();
+}
