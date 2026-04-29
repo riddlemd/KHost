@@ -2,14 +2,22 @@ using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using KHost.UserInterface.Components.Dialogs;
 using KHost.UserInterface.Models;
+using Microsoft.Extensions.Logging;
 
 
 namespace KHost.UserInterface.Services;
 
 public class DialogService : IDialogService
 {
+    private readonly ILogger<DialogService> _logger;
+
     public event EventHandler<BaseDialogRequest>? ShowRequested;
     public event EventHandler? HideRequested;
+
+    public DialogService(ILogger<DialogService> logger)
+    {
+        _logger = logger;
+    }
 
     public Task<bool> ShowConfirmationAsync(
         string message,
@@ -19,13 +27,16 @@ public class DialogService : IDialogService
         Action? onCancel = null,
         Action? onClose = null)
     {
-        ShowRequested?.Invoke(this, new ConfirmationDialog.DialogRequest(title, message, confirmText, onConfirm, onCancel, onClose));
+        var request = new ConfirmationDialog.DialogRequest(title, message, confirmText, onConfirm, onCancel, onClose);
+        _logger.LogDebug("Dialog requested: {DialogType} title={Title}", nameof(ConfirmationDialog), title);
+        ShowRequested?.Invoke(this, request);
 
         return Task.FromResult(false);
     }
 
     public Task ShowSingerPerformanceHistoryAsync(Guid userId, Action? onClose = null)
     {
+        _logger.LogDebug("Dialog requested: {DialogType} userId={UserId}", nameof(SingerPerformanceHistoryDialog), userId);
         ShowRequested?.Invoke(this, new SingerPerformanceHistoryDialog.DialogRequest(userId, onClose));
 
         return Task.CompletedTask;
@@ -33,6 +44,7 @@ public class DialogService : IDialogService
 
     public Task ShowSettingsMenuAsync(Action? onClose = null)
     {
+        _logger.LogDebug("Dialog requested: {DialogType}", nameof(SettingsMenuDialog));
         ShowRequested?.Invoke(this, new SettingsMenuDialog.DialogRequest(onClose));
 
         return Task.CompletedTask;
@@ -56,6 +68,7 @@ public class DialogService : IDialogService
     public Task RequestEditAsync(Tip item, Guid userId, Action<Tip?> onSave, Action? onCancel = null, Action? onClose = null)
     {
         var request = new EditTipDialog.DialogRequest(item, userId, onSave, onCancel, onClose);
+        _logger.LogDebug("Dialog requested: {DialogType} userId={UserId}", nameof(EditTipDialog), userId);
         ShowRequested?.Invoke(this, request);
         return Task.CompletedTask;
     }
@@ -63,13 +76,23 @@ public class DialogService : IDialogService
     public Task RequestBulkEditAsync(IReadOnlyList<Media> items, Func<BulkEditMediaModel, Task> onSave, Action? onCancel = null, Action? onClose = null)
     {
         var request = new BulkEditMediaDialog.DialogRequest(items, onSave, onCancel, onClose);
+        _logger.LogDebug("Dialog requested: {DialogType} count={Count}", nameof(BulkEditMediaDialog), items.Count);
         ShowRequested?.Invoke(this, request);
         return Task.CompletedTask;
     }
 
     public Task ShowLyricsAsync(string query, Action? onClose = null)
     {
+        _logger.LogDebug("Dialog requested: {DialogType} query={Query}", nameof(ShowLyricsDialog), query);
         ShowRequested?.Invoke(this, new ShowLyricsDialog.DialogRequest(query, onClose));
+
+        return Task.CompletedTask;
+    }
+
+    public Task ShowScreensAsync(Action? onClose = null)
+    {
+        _logger.LogDebug("Dialog requested: {DialogType}", nameof(ScreensDialog));
+        ShowRequested?.Invoke(this, new ScreensDialog.DialogRequest(onClose));
 
         return Task.CompletedTask;
     }
@@ -79,8 +102,12 @@ public class DialogService : IDialogService
         where TRequest : EditDialogRequest<TInput>
     {
         if (Activator.CreateInstance(typeof(TRequest), item, onSave, onCancel, onClose) is not TRequest output)
+        {
+            _logger.LogWarning("Dialog request construction failed for {RequestType}", typeof(TRequest).Name);
             return Task.CompletedTask;
+        }
 
+        _logger.LogDebug("Dialog requested: {DialogType}", typeof(TRequest).Name);
         ShowRequested?.Invoke(this, output);
 
         return Task.CompletedTask;

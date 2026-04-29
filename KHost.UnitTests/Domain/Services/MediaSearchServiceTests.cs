@@ -15,7 +15,8 @@ public class MediaSearchServiceTests
     public MediaSearchServiceTests()
     {
         _provider = Substitute.For<IMediaProvider>();
-        _service = new MediaSearchService(_logger, [_provider]);
+        var analytics = Substitute.For<IAnalyticsService>();
+        _service = new MediaSearchService(_logger, [_provider], analytics);
     }
 
     [Fact]

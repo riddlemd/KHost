@@ -13,6 +13,7 @@ public class SingerQueueService : ISingerQueueService
     private readonly IPerformanceService _performanceService;
     private readonly IUsersService _usersService;
     private readonly IVenuesService _venuesService;
+    private readonly IAnalyticsService _analytics;
     private readonly List<Guid> _userIds = [];
     private List<KHostUser> _cachedUsers = [];
 
@@ -31,13 +32,15 @@ public class SingerQueueService : ISingerQueueService
         ICacheService cacheService,
         IPerformanceService performanceService,
         IUsersService usersService,
-        IVenuesService venuesService)
+        IVenuesService venuesService,
+        IAnalyticsService analytics)
     {
         _logger = logger;
         _cacheService = cacheService;
         _performanceService = performanceService;
         _usersService = usersService;
         _venuesService = venuesService;
+        _analytics = analytics;
     }
 
     public async Task SelectUserAsync(Guid? userId)
@@ -247,6 +250,7 @@ public class SingerQueueService : ISingerQueueService
 
     private async Task NotifyAsync()
     {
+        _analytics.RecordQueueMutation();
         await ResolveAsync();
         await SaveAsync();
 

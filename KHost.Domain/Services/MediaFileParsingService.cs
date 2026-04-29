@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text.RegularExpressions;
 using FFMpegCore;
 using KHost.Abstractions.Models;
@@ -15,6 +16,7 @@ namespace KHost.Domain.Services
 
         private readonly ILogger<MediaFileParsingService> _logger;
         private readonly IOptionsMonitor<ServiceOptions> _options;
+        private readonly IAnalyticsService _analytics;
 
         private Regex[] _prefixStrippers = [];
         private Regex[] _titleNoiseStrippers = [];
@@ -22,10 +24,12 @@ namespace KHost.Domain.Services
 
         public MediaFileParsingService(
             ILogger<MediaFileParsingService> logger,
-            IOptionsMonitor<ServiceOptions> options)
+            IOptionsMonitor<ServiceOptions> options,
+            IAnalyticsService analytics)
         {
             _logger = logger;
             _options = options;
+            _analytics = analytics;
             Rebuild(options.CurrentValue);
             options.OnChange(Rebuild);
         }
@@ -39,6 +43,7 @@ namespace KHost.Domain.Services
             string title = parsedTitle;
             string artist = parsedArtist ?? opts.FallbackArtistName;
 
+            var sw = Stopwatch.StartNew();
             try
             {
                 // For .cdg files, probe the companion .mp3
@@ -57,7 +62,14 @@ namespace KHost.Domain.Services
                 if (probe.Format.Tags?.TryGetValue("artist", out var probeArtist) == true && !string.IsNullOrWhiteSpace(probeArtist))
                     artist = probeArtist;
             }
-            catch { }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "FFProbe failed for {FilePath}; falling back to filename-derived metadata", filePath);
+            }
+            finally
+            {
+                _analytics.RecordMediaParseDuration(sw.Elapsed.TotalMilliseconds);
+            }
 
             var media = new Media
             {

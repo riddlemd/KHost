@@ -4,7 +4,7 @@ using KHost.Abstractions.Repositories;
 namespace KHost.Abstractions.Services;
 
 public interface IRepositoryService<T> : IKHostService, ISearchable<T>
-    where T : class
+    where T : RepositoryModel
 {
     Task<T> CreateAsync(T entity);
     Task<T?> ReadAsync(Guid id);

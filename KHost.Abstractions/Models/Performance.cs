@@ -1,8 +1,7 @@
 ﻿namespace KHost.Abstractions.Models;
 
-public class Performance
+public class Performance : RepositoryModel
 {
-    public Guid Id { get; set; } = Guid.NewGuid();
     public Guid SingerId { get; set; }
     public Guid MediaId { get; set; }
     public int? QueuePosition { get; set; }

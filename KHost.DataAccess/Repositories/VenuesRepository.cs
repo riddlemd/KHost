@@ -3,6 +3,7 @@ using KHost.Abstractions.Models;
 using KHost.Abstractions.Repositories;
 using KHost.DataAccess.Contexts;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace KHost.DataAccess.Repositories;
 
@@ -15,8 +16,8 @@ internal class VenuesRepository : BaseRepository<Venue>, IVenuesRepository
             ["enabled"] = v => v.Enabled,
         };
 
-    public VenuesRepository(IDbContextFactory<DefaultContext> contextFactory)
-        : base(contextFactory)
+    public VenuesRepository(IDbContextFactory<DefaultContext> contextFactory, ILogger<BaseRepository<Venue>> logger)
+        : base(contextFactory, logger)
     {
     }
 

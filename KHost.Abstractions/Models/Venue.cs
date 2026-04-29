@@ -1,8 +1,7 @@
 namespace KHost.Abstractions.Models;
 
-public class Venue
+public class Venue : RepositoryModel
 {
-    public Guid Id { get; set; } = Guid.NewGuid();
     public bool Enabled { get; set; } = true;
     public required string Name { get; set; }
     public string Notes { get; set; } = "";

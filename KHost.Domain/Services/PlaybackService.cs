@@ -8,9 +8,11 @@ public class PlaybackService : BaseService, IPlaybackService
 {
     private Timer? _timer;
     private DateTime _lastTick;
+    private IAnalyticsActivity? _sessionActivity;
     private readonly ISingerQueueService _singerQueueService;
     private readonly IPerformanceService _performanceService;
     private readonly IVenuesService _venuesService;
+    private readonly IAnalyticsService _analytics;
 
     public Performance? CurrentPerformance { get; private set; }
     public Media? CurrentMedia { get; private set; }
@@ -22,12 +24,14 @@ public class PlaybackService : BaseService, IPlaybackService
         ILogger<PlaybackService> logger,
         ISingerQueueService singerQueueService,
         IPerformanceService performanceService,
-        IVenuesService venuesService)
+        IVenuesService venuesService,
+        IAnalyticsService analytics)
         : base(logger)
     {
         _singerQueueService = singerQueueService;
         _performanceService = performanceService;
         _venuesService = venuesService;
+        _analytics = analytics;
     }
 
     public async Task LoadAsync(Performance performance, Media media)
@@ -37,6 +41,9 @@ public class PlaybackService : BaseService, IPlaybackService
         CurrentPerformance = performance;
         CurrentMedia = media;
         Position = TimeSpan.Zero;
+
+        _sessionActivity = _analytics.StartActivity(AnalyticActivities.Session);
+        _sessionActivity.SetTag("media_id", media.Id);
 
         await _singerQueueService.MoveUserToStartAsync(performance.SingerId);
         _singerQueueService.LockTopSlot();
@@ -57,6 +64,8 @@ public class PlaybackService : BaseService, IPlaybackService
         _timer?.Dispose();
         _timer = new Timer(OnTick, null, 500, 500);
 
+        _analytics.RecordPlaybackStateTransition(PlaybackState.Playing);
+
         Logger.LogInformation("Playback started for user {UserId}", CurrentPerformance.SingerId);
 
         InvokeStateChanged();
@@ -71,6 +80,8 @@ public class PlaybackService : BaseService, IPlaybackService
         _timer?.Dispose();
         _timer = null;
 
+        _analytics.RecordPlaybackStateTransition(PlaybackState.Paused);
+
         Logger.LogInformation("Playback paused at {Position}", Position);
 
         InvokeStateChanged();
@@ -80,6 +91,8 @@ public class PlaybackService : BaseService, IPlaybackService
 
     public async Task StopAsync()
     {
+        _analytics.RecordPlaybackStateTransition(PlaybackState.Stopped);
+
         ResetState();
 
         Logger.LogInformation("Playback stopped");
@@ -108,6 +121,9 @@ public class PlaybackService : BaseService, IPlaybackService
     {
         _timer?.Dispose();
         _timer = null;
+
+        _sessionActivity?.Dispose();
+        _sessionActivity = null;
 
         CurrentlyPerformingUserId = null;
 
@@ -169,4 +185,8 @@ public class PlaybackService : BaseService, IPlaybackService
         InvokeStateChanged();
     }
 
+    private static class AnalyticActivities
+    {
+        public const string Session = "playback.session";
+    }
 }

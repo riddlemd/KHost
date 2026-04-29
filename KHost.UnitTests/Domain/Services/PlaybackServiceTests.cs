@@ -18,7 +18,8 @@ public class PlaybackServiceTests : IDisposable
         _venuesService.ReadSelectedVenueAsync()
             .Returns(new Venue { Id = Guid.NewGuid(), Name = "Test Venue", Settings = new Venue.VenueSettings { MoveSingerToBottomAfterPerformance = false } });
 
-        _service = new PlaybackService(_logger, _queueService, _performanceService, _venuesService);
+        var analytics = Substitute.For<IAnalyticsService>();
+        _service = new PlaybackService(_logger, _queueService, _performanceService, _venuesService, analytics);
     }
 
     public void Dispose() => _service.Dispose();

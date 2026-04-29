@@ -1,0 +1,95 @@
+.kh-screens-dialog {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+
+    h3 {
+        margin: 0 0 12px 0;
+        font-size: 0.95rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--kh-text-secondary);
+    }
+
+    &__connected {
+        border-bottom: 1px solid var(--kh-border);
+        padding-bottom: 16px;
+    }
+
+    &__empty {
+        margin: 0;
+        padding: 12px 0;
+        color: var(--kh-text-secondary);
+        font-size: 0.9rem;
+        text-align: center;
+    }
+
+    &__list {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    &__item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 12px;
+        background: var(--kh-surface-secondary);
+        border-radius: var(--kh-radius);
+        font-size: 0.95rem;
+
+        span {
+            flex: 1;
+            word-break: break-all;
+        }
+    }
+
+    &__status--connected {
+        flex-shrink: 0;
+        color: var(--kh-success, #4caf50);
+        font-size: 0.6em;
+    }
+
+    &__launch {
+        // padding for visual separation
+    }
+
+    &__launch-form {
+        display: grid;
+        grid-template-columns: 1fr 150px 100px;
+        gap: 8px;
+        align-items: flex-end;
+
+        .kh-input,
+        .kh-select {
+            padding: 8px 12px;
+            background: var(--kh-input-bg);
+            color: var(--kh-text);
+            border: 1px solid var(--kh-border);
+            border-radius: var(--kh-radius);
+            font: inherit;
+            font-size: 0.9rem;
+
+            &:focus {
+                outline: none;
+                border-color: var(--kh-primary);
+                box-shadow: 0 0 0 2px var(--kh-primary-dim, rgba(100, 100, 255, 0.1));
+            }
+        }
+
+        .kh-button {
+            padding: 8px 16px;
+            font-size: 0.9rem;
+
+            &:disabled {
+                opacity: 0.5;
+                cursor: not-allowed;
+            }
+        }
+    }
+}

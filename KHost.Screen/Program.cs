@@ -1,6 +1,8 @@
 using Avalonia;
 using FFMpegCore;
 using KHost.Screen;
+using Microsoft.Extensions.Logging;
+using Serilog;
 
 class Program
 {
@@ -8,7 +10,27 @@ class Program
     public static void Main(string[] args)
     {
         ConfigureFFMpeg();
+
+        var logPath = $"logs/{DateTime.Now:yyyyMMddHHmmss}.Screen.log";
+        var serilog = new LoggerConfiguration()
+            .MinimumLevel.Information()
+            .WriteTo.File(logPath, outputTemplate: "{Timestamp:HH:mm:ss} [{Level:u3}] {Message:lj}{NewLine}{Exception}")
+            .CreateLogger();
+
+        App.LoggerFactory = LoggerFactory.Create(b => b
+            .SetMinimumLevel(LogLevel.Information)
+            .AddSerilog(serilog, dispose: true));
+
+        App.IpcServerUri = GetArg(args, "--server-uri") ?? "http://localhost:5000/ipc/screen";
+        App.IpcScreenId = GetArg(args, "--screen-id") ?? Environment.MachineName;
+
         BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
+    }
+
+    private static string? GetArg(string[] args, string name)
+    {
+        int i = Array.IndexOf(args, name);
+        return i >= 0 && i + 1 < args.Length ? args[i + 1] : null;
     }
 
     public static AppBuilder BuildAvaloniaApp() =>

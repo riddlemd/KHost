@@ -10,6 +10,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\KHost.UserInterface\KHost.UserInterface.csproj" />
+    <ProjectReference Include="..\KHost.Telemetry\KHost.Telemetry.csproj" IsAspireProjectResource="false" />
   </ItemGroup>
 
 </Project>

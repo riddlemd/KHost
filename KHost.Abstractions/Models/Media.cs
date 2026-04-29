@@ -2,9 +2,8 @@ namespace KHost.Abstractions.Models;
 
 public enum MediaStatus { Unknown, Ready, Downloading, Processing, Broken }
 
-public class Media
+public class Media : RepositoryModel
 {
-    public Guid Id { get; set; } = Guid.NewGuid();
     public required string FilePath { get; set; }
     public TimeSpan? Duration { get; set; }
     public MediaStatus Status { get; set; }

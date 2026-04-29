@@ -6,7 +6,7 @@ using Microsoft.Extensions.Logging;
 namespace KHost.Domain.Services;
 
 public abstract class BaseRepositoryService<TClass, TRepository> : BaseService, IRepositoryService<TClass>
-    where TClass : class
+    where TClass : RepositoryModel
     where TRepository : IRepository<TClass>
 {
     protected readonly TRepository Repository;

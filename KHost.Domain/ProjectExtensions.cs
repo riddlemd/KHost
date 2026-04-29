@@ -1,4 +1,5 @@
 ﻿using KHost.Abstractions.Services;
+using KHost.Abstractions.Services.IPC;
 using KHost.Domain.Services;
 using KHost.Domain.Services.AuthProviders;
 using KHost.Domain.Services.MediaProviders;
@@ -31,6 +32,9 @@ namespace KHost.Domain
             serviceCollection.AddOptions<MediaFileParsingService.ServiceOptions>()
                 .BindConfiguration(MediaFileParsingService.ServiceOptions.SectionName);
 
+            serviceCollection.AddOptions<LocalScreenProvider.ServiceOptions>()
+                .BindConfiguration(LocalScreenProvider.ServiceOptions.SectionName);
+
             // Configure KHost Services
             serviceCollection.AddSingleton(TimeProvider.System);
             serviceCollection.AddSingleton<IMediaFileParsingService, MediaFileParsingService>();
@@ -49,6 +53,9 @@ namespace KHost.Domain
             serviceCollection.AddSingleton<IAuthProvider, LocalAuthProvider>();
             serviceCollection.AddSingleton<IUserGroupsService, UserGroupsService>();
             serviceCollection.AddSingleton<ITipsService, TipsService>();
+
+            // Screen Providers
+            serviceCollection.AddSingleton<IScreenProvider, LocalScreenProvider>();
 
             // Media Providers
             serviceCollection.AddSingleton<IMediaProvider, DefaultMediaProvider>();

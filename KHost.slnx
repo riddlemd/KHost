@@ -7,6 +7,9 @@
   <Project Path="KHost.LrcLib/KHost.LrcLib.csproj" />
   <Project Path="KHost.Screen/KHost.Screen.csproj" />
   <Project Path="KHost.ServiceDefaults/KHost.ServiceDefaults.csproj" />
+  <Project Path="KHost.Telemetry/KHost.Telemetry.csproj" />
+  <Project Path="KHost.IPC.SignalR/KHost.IPC.SignalR.csproj" />
+
   <Project Path="KHost.UnitTests/KHost.UnitTests.csproj" Id="c60047ab-adb0-484d-b5c2-5c153c037c07" />
   <Project Path="KHost.UserInterface/KHost.UserInterface.csproj" />
 </Solution>

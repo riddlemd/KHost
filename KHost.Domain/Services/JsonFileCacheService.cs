@@ -9,18 +9,22 @@ public class JsonFileCacheService : ICacheService
 {
     private readonly SemaphoreSlim _lock = new(1, 1);
     private readonly ILogger<JsonFileCacheService> _logger;
+    private readonly IAnalyticsService _analytics;
 
     public IOptionsMonitor<ServiceOptions> Options { get; }
 
-    public JsonFileCacheService(ILogger<JsonFileCacheService> logger, IOptionsMonitor<ServiceOptions> options)
+    public JsonFileCacheService(ILogger<JsonFileCacheService> logger, IOptionsMonitor<ServiceOptions> options, IAnalyticsService analytics)
     {
         _logger = logger;
         Options = options;
+        _analytics = analytics;
     }
 
     public async Task<T?> LoadAsync<T>(string key)
     {
         var filePath = GetCacheLocation(key);
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        bool hit = false;
 
         try
         {
@@ -28,19 +32,25 @@ public class JsonFileCacheService : ICacheService
                 return default;
 
             var json = await File.ReadAllTextAsync(filePath);
-
-            return JsonSerializer.Deserialize<T>(json, JsonSerializerOptions.Web);
+            var result = JsonSerializer.Deserialize<T>(json, JsonSerializerOptions.Web);
+            hit = result is not null;
+            return result;
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to load cache from {FilePath}", filePath);
             return default;
         }
+        finally
+        {
+            _analytics.RecordCacheLoadDuration(sw.Elapsed.TotalMilliseconds, key, hit);
+        }
     }
 
     public async Task SaveAsync<T>(string key, T state)
     {
         var filePath = GetCacheLocation(key);
+        var sw = System.Diagnostics.Stopwatch.StartNew();
 
         await _lock.WaitAsync();
 
@@ -60,6 +70,7 @@ public class JsonFileCacheService : ICacheService
         }
         finally
         {
+            _analytics.RecordCacheSaveDuration(sw.Elapsed.TotalMilliseconds, key);
             _lock.Release();
         }
     }

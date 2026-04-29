@@ -3,6 +3,7 @@ using KHost.Abstractions.Models;
 using KHost.Abstractions.Repositories;
 using KHost.DataAccess.Contexts;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace KHost.DataAccess.Repositories;
 
@@ -15,8 +16,8 @@ internal class UsersRepository : BaseRepository<KHostUser>, IUsersRepository
             ["createdDate"] = u => u.CreatedDate,
         };
 
-    public UsersRepository(IDbContextFactory<DefaultContext> contextFactory)
-        : base(contextFactory)
+    public UsersRepository(IDbContextFactory<DefaultContext> contextFactory, ILogger<BaseRepository<KHostUser>> logger)
+        : base(contextFactory, logger)
     {
     }
 

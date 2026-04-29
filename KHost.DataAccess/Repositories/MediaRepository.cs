@@ -1,10 +1,13 @@
+using System.Diagnostics;
 using System.Globalization;
 using System.Linq.Expressions;
 using System.Text;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Repositories;
 using KHost.DataAccess.Contexts;
+using KHost.Telemetry;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace KHost.DataAccess.Repositories;
 
@@ -23,8 +26,8 @@ internal class MediaRepository : BaseRepository<Media>, IMediaRepository
             ["duration"] = m => (object)(m.Duration ?? TimeSpan.Zero),
         };
 
-    public MediaRepository(IDbContextFactory<DefaultContext> contextFactory)
-        : base(contextFactory)
+    public MediaRepository(IDbContextFactory<DefaultContext> contextFactory, ILogger<BaseRepository<Media>> logger)
+        : base(contextFactory, logger)
     {
 
     }
@@ -65,33 +68,45 @@ internal class MediaRepository : BaseRepository<Media>, IMediaRepository
         if (match is null)
             return await base.SearchAsync(query, pageNumber, pageSize, options);
 
-        var sql = $$"""
-            SELECT m.*
-            FROM "Media" AS m
-            INNER JOIN "media_fts" AS f ON f."media_id" = m."Id"
-            WHERE "media_fts" MATCH {0}
-            ORDER BY bm25("media_fts")
-            """;
-
-        using var context = await ContextFactory.CreateDbContextAsync();
-
-        var queryable = context.Media
-            .FromSqlRaw(sql, match)
-            .AsNoTracking();
-
-        var totalCount = await queryable.CountAsync();
-
-        var items = await PaginationComponent
-            .Paginate(queryable, pageNumber, pageSize)
-            .ToListAsync();
-
-        return new PaginatedResult<Media>
+        var sw = Stopwatch.StartNew();
+        try
         {
-            Items = items,
-            TotalCount = totalCount,
-            PageNumber = pageNumber,
-            PageSize = pageSize
-        };
+            var sql = $$"""
+                SELECT m.*
+                FROM "Media" AS m
+                INNER JOIN "media_fts" AS f ON f."media_id" = m."Id"
+                WHERE "media_fts" MATCH {0}
+                ORDER BY bm25("media_fts")
+                """;
+
+            using var context = await ContextFactory.CreateDbContextAsync();
+
+            var queryable = context.Media
+                .FromSqlRaw(sql, match)
+                .AsNoTracking();
+
+            var totalCount = await queryable.CountAsync();
+
+            var items = await PaginationComponent
+                .Paginate(queryable, pageNumber, pageSize)
+                .ToListAsync();
+
+            Logger.LogDebug("MediaRepository.SearchAsync q={Query} match={Match} elapsed={ElapsedMs}ms results={ResultCount} usedFts=true",
+                query, match, sw.ElapsedMilliseconds, totalCount);
+
+            return new PaginatedResult<Media>
+            {
+                Items = items,
+                TotalCount = totalCount,
+                PageNumber = pageNumber,
+                PageSize = pageSize
+            };
+        }
+        finally
+        {
+            KHostMetrics.MediaSearchDuration.Record(sw.ElapsedMilliseconds,
+                new KeyValuePair<string, object?>("used_fts", true));
+        }
     }
 
     public override async Task<PaginatedResult<Media>> SearchAsync(string query, int pageNumber, int pageSize, SortDescriptor? sort)
@@ -101,45 +116,57 @@ internal class MediaRepository : BaseRepository<Media>, IMediaRepository
         if (match is null)
             return await base.SearchAsync(query, pageNumber, pageSize, sort);
 
-        // FTS path: when sort is provided, override bm25 ordering
-        var includeBm25InSql = sort is null;
-        var sql = includeBm25InSql
-            ? $$"""
-                SELECT m.*
-                FROM "Media" AS m
-                INNER JOIN "media_fts" AS f ON f."media_id" = m."Id"
-                WHERE "media_fts" MATCH {0}
-                ORDER BY bm25("media_fts")
-                """
-            : $$"""
-                SELECT m.*
-                FROM "Media" AS m
-                INNER JOIN "media_fts" AS f ON f."media_id" = m."Id"
-                WHERE "media_fts" MATCH {0}
-                """;
-
-        using var context = await ContextFactory.CreateDbContextAsync();
-
-        IQueryable<Media> queryable = context.Media
-            .FromSqlRaw(sql, match)
-            .AsNoTracking();
-
-        if (sort is not null)
-            queryable = ApplySort(queryable, sort);
-
-        var totalCount = await queryable.CountAsync();
-
-        var items = await PaginationComponent
-            .Paginate(queryable, pageNumber, pageSize)
-            .ToListAsync();
-
-        return new PaginatedResult<Media>
+        var sw = Stopwatch.StartNew();
+        try
         {
-            Items = items,
-            TotalCount = totalCount,
-            PageNumber = pageNumber,
-            PageSize = pageSize
-        };
+            // FTS path: when sort is provided, override bm25 ordering
+            var includeBm25InSql = sort is null;
+            var sql = includeBm25InSql
+                ? $$"""
+                    SELECT m.*
+                    FROM "Media" AS m
+                    INNER JOIN "media_fts" AS f ON f."media_id" = m."Id"
+                    WHERE "media_fts" MATCH {0}
+                    ORDER BY bm25("media_fts")
+                    """
+                : $$"""
+                    SELECT m.*
+                    FROM "Media" AS m
+                    INNER JOIN "media_fts" AS f ON f."media_id" = m."Id"
+                    WHERE "media_fts" MATCH {0}
+                    """;
+
+            using var context = await ContextFactory.CreateDbContextAsync();
+
+            IQueryable<Media> queryable = context.Media
+                .FromSqlRaw(sql, match)
+                .AsNoTracking();
+
+            if (sort is not null)
+                queryable = ApplySort(queryable, sort);
+
+            var totalCount = await queryable.CountAsync();
+
+            var items = await PaginationComponent
+                .Paginate(queryable, pageNumber, pageSize)
+                .ToListAsync();
+
+            Logger.LogDebug("MediaRepository.SearchAsync q={Query} match={Match} sort={Sort} elapsed={ElapsedMs}ms results={ResultCount} usedFts=true",
+                query, match, sort?.Column, sw.ElapsedMilliseconds, totalCount);
+
+            return new PaginatedResult<Media>
+            {
+                Items = items,
+                TotalCount = totalCount,
+                PageNumber = pageNumber,
+                PageSize = pageSize
+            };
+        }
+        finally
+        {
+            KHostMetrics.MediaSearchDuration.Record(sw.ElapsedMilliseconds,
+                new KeyValuePair<string, object?>("used_fts", true));
+        }
     }
 
     private static string? BuildFtsMatchExpression(string? query)

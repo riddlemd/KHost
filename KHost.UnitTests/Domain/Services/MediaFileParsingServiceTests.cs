@@ -1,3 +1,4 @@
+using KHost.Abstractions.Services;
 using KHost.Domain.Services;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -11,7 +12,8 @@ public class MediaFileParsingServiceTests
         var logger = Substitute.For<ILogger<MediaFileParsingService>>();
         var monitor = Substitute.For<IOptionsMonitor<MediaFileParsingService.ServiceOptions>>();
         monitor.CurrentValue.Returns(opts ?? new MediaFileParsingService.ServiceOptions());
-        return new MediaFileParsingService(logger, monitor);
+        var analytics = Substitute.For<IAnalyticsService>();
+        return new MediaFileParsingService(logger, monitor, analytics);
     }
 
     [Fact]

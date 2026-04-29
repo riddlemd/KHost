@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using static KHost.Screen.OpenAl.OpenAlNative;
 
 namespace KHost.Screen.OpenAl;
@@ -13,6 +14,8 @@ internal sealed class OpenAlAudioPlayer : IDisposable
 {
     private const int RingSize = 4;
     private const int StagingSamples = 4096; // samples per channel per staging flush
+
+    private readonly ILogger<OpenAlAudioPlayer> _logger;
 
     // OpenAL handles
     private readonly IntPtr _device;
@@ -56,15 +59,33 @@ internal sealed class OpenAlAudioPlayer : IDisposable
 
     // ── Construction ────────────────────────────────────────────────────────
 
-    public OpenAlAudioPlayer()
+    public OpenAlAudioPlayer(ILogger<OpenAlAudioPlayer> logger)
     {
-        if (!OpenAlNative.IsLoaded) return;
+        _logger = logger;
+
+        if (!OpenAlNative.IsLoaded)
+        {
+            if (OpenAlNative.LoadException is not null)
+                _logger.LogWarning(OpenAlNative.LoadException, "OpenAL native load failed; audio will be disabled");
+            else
+                _logger.LogInformation("OpenAL native library not present; audio will be disabled");
+            return;
+        }
+
         try
         {
             _device = alcOpenDevice(null);
-            if (_device == IntPtr.Zero) return;
+            if (_device == IntPtr.Zero)
+            {
+                _logger.LogWarning("alcOpenDevice returned null; audio disabled");
+                return;
+            }
             _context = alcCreateContext(_device, IntPtr.Zero);
-            if (_context == IntPtr.Zero) return;
+            if (_context == IntPtr.Zero)
+            {
+                _logger.LogWarning("alcCreateContext returned null; audio disabled");
+                return;
+            }
             alcMakeContextCurrent(_context);
 
             alGenSources(1, out _source);
@@ -73,7 +94,10 @@ internal sealed class OpenAlAudioPlayer : IDisposable
 
             IsAvailable = true;
         }
-        catch { /* audio is optional */ }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "OpenAL device init failed; audio disabled");
+        }
     }
 
     // ── Streaming lifecycle ─────────────────────────────────────────────────
@@ -199,7 +223,11 @@ internal sealed class OpenAlAudioPlayer : IDisposable
                 alSourceUnqueueBuffers(_source, 1, out int bid);
                 _free.Enqueue(bid);
             }
-            catch { break; }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "alSourceUnqueueBuffers threw during UnqueueAll");
+                break;
+            }
         }
         // Return any pool buffers that were never queued.
         foreach (int bid in _bufferPool)

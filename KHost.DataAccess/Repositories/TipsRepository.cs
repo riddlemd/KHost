@@ -5,6 +5,7 @@ using KHost.Abstractions.Models;
 using KHost.Abstractions.Repositories;
 using KHost.DataAccess.Contexts;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 internal class TipsRepository : BaseRepository<Tip>, ITipsRepository
 {
@@ -16,8 +17,8 @@ internal class TipsRepository : BaseRepository<Tip>, ITipsRepository
             ["paymentMethod"] = t => t.PaymentMethod,
         };
 
-    public TipsRepository(IDbContextFactory<DefaultContext> contextFactory)
-        : base(contextFactory)
+    public TipsRepository(IDbContextFactory<DefaultContext> contextFactory, ILogger<BaseRepository<Tip>> logger)
+        : base(contextFactory, logger)
     {
     }
 

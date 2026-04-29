@@ -1,8 +1,7 @@
 namespace KHost.Abstractions.Models;
 
-public class Tip
+public class Tip : RepositoryModel
 {
-    public Guid Id { get; set; } = Guid.NewGuid();
     public DateTime CreatedDate { get; set; } = DateTime.UtcNow;
     public Guid UserId { get; set; }
     public Guid? VenueId { get; set; }

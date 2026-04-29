@@ -1,0 +1,155 @@
+@using KHost.Abstractions.Services.IPC
+@using KHost.UserInterface.Models
+@implements IDisposable
+
+<Dialog IsOpen="IsOpen" OnClose="OnClose" Class="kh-dialog__screens">
+    <Header>Screens</Header>
+    <Body>
+        <div class="kh-screens-dialog">
+
+            <section class="kh-screens-dialog__connected">
+                <h3>Connected</h3>
+                @if (!_connectedScreens.Any())
+                {
+                    <p class="kh-screens-dialog__empty">No screens connected.</p>
+                }
+                else
+                {
+                    <ul class="kh-screens-dialog__list">
+                        @foreach (var screen in _connectedScreens)
+                        {
+                            var state = _screenStates.TryGetValue(screen.ScreenId, out var s) ? s : null;
+                            <li class="kh-screens-dialog__item">
+                                <i class="bi bi-circle-fill kh-screens-dialog__status--connected"></i>
+                                <div class="kh-screens-dialog__item-content">
+                                    <div class="kh-screens-dialog__screen-name">@screen.ScreenId</div>
+                                    @if (state is not null)
+                                    {
+                                        <div class="kh-screens-dialog__screen-state">
+                                            @if (!string.IsNullOrEmpty(state.LoadedFilePath))
+                                            {
+                                                <span class="kh-screens-dialog__file">@Path.GetFileName(state.LoadedFilePath)</span>
+                                            }
+                                            <span class="kh-screens-dialog__playback">
+                                                @if (state.IsPlaying)
+                                                {
+                                                    <i class="bi bi-play-fill"></i> <span>Playing</span>
+                                                }
+                                                else if (!string.IsNullOrEmpty(state.LoadedFilePath))
+                                                {
+                                                    <i class="bi bi-pause-fill"></i> <span>Paused</span>
+                                                }
+                                            </span>
+                                            @if (state.Duration > TimeSpan.Zero)
+                                            {
+                                                <span class="kh-screens-dialog__time">@state.Position.ToString(@"hh\:mm\:ss") / @state.Duration.ToString(@"hh\:mm\:ss")</span>
+                                            }
+                                        </div>
+                                    }
+                                </div>
+                            </li>
+                        }
+                    </ul>
+                }
+            </section>
+
+            <section class="kh-screens-dialog__launch">
+                <h3>Launch New Screen</h3>
+                <div class="kh-screens-dialog__launch-form">
+                    <input class="kh-input"
+                           type="text"
+                           placeholder="Screen name"
+                           @bind="_screenName"
+                           @bind:event="oninput" />
+                    <select class="kh-select" @bind="_selectedProviderName">
+                        @foreach (var provider in _providers)
+                        {
+                            <option value="@provider.Name" disabled="@(!provider.IsAvailable)">
+                                @provider.Name@(!provider.IsAvailable ? " (unavailable)" : "")
+                            </option>
+                        }
+                    </select>
+                    <button class="kh-button btn-primary"
+                            disabled="@(!CanLaunch)"
+                            @onclick="LaunchAsync">
+                        Launch
+                    </button>
+                </div>
+            </section>
+
+        </div>
+    </Body>
+</Dialog>
+
+@code {
+    [Inject] private IScreenServer? ScreenServer { get; set; }
+    [Inject] private IEnumerable<IScreenProvider>? ScreenProviders { get; set; }
+
+    [Parameter] public bool IsOpen { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    private List<IScreenConnection> _connectedScreens = [];
+    private List<IScreenProvider> _providers = [];
+    private Dictionary<string, ScreenPlaybackState> _screenStates = [];
+    private string _screenName = "";
+    private string _selectedProviderName = "";
+
+    private bool CanLaunch =>
+        !string.IsNullOrWhiteSpace(_screenName) &&
+        _providers.FirstOrDefault(p => p.Name == _selectedProviderName)?.IsAvailable == true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _providers = ScreenProviders!.ToList();
+        _selectedProviderName = _providers.FirstOrDefault()?.Name ?? "";
+
+        await foreach (var screen in ScreenServer!.GetConnectedScreensAsync())
+            _connectedScreens.Add(screen);
+
+        ScreenServer.ScreenConnected += OnScreenConnected;
+        ScreenServer.ScreenDisconnected += OnScreenDisconnected;
+        ScreenServer.StateReceived += OnStateReceived;
+    }
+
+    private void OnScreenConnected(object? sender, ScreenConnectionEventArgs e)
+    {
+        _connectedScreens.Add(e.Connection);
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void OnScreenDisconnected(object? sender, ScreenConnectionEventArgs e)
+    {
+        _connectedScreens.RemoveAll(s => s.ScreenId == e.Connection.ScreenId);
+        _screenStates.Remove(e.Connection.ScreenId);
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void OnStateReceived(object? sender, ScreenStateReceivedEventArgs e)
+    {
+        if (e.State is ScreenPlaybackState state)
+            _screenStates[e.ScreenId] = state;
+        InvokeAsync(StateHasChanged);
+    }
+
+    private async Task LaunchAsync()
+    {
+        var provider = _providers.FirstOrDefault(p => p.Name == _selectedProviderName);
+        if (provider is null) return;
+
+        await provider.LaunchAsync(_screenName.Trim());
+        _screenName = "";
+    }
+
+    public void Dispose()
+    {
+        if (ScreenServer is null) return;
+        ScreenServer.ScreenConnected -= OnScreenConnected;
+        ScreenServer.ScreenDisconnected -= OnScreenDisconnected;
+        ScreenServer.StateReceived -= OnStateReceived;
+    }
+
+    public record DialogRequest : BaseDialogRequest
+    {
+        public DialogRequest(Action? onClose) : base(onClose) { }
+    }
+}
