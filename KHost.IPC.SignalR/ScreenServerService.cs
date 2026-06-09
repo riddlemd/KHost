@@ -67,11 +67,11 @@ internal sealed class ScreenServerService : IScreenServer, IHubCallback
         finally { _lock.Release(); }
 
         if (connectionId is not null)
-            await _hubContext.Clients.Client(connectionId).SendAsync("ReceiveCommand", command);
+            await _hubContext.Clients.Client(connectionId).SendAsync("ReceiveCommand", ScreenIpcSerializer.SerializeCommand(command));
     }
 
     public Task BroadcastCommandAsync(IScreenCommand command) =>
-        _hubContext.Clients.All.SendAsync("ReceiveCommand", command);
+        _hubContext.Clients.All.SendAsync("ReceiveCommand", ScreenIpcSerializer.SerializeCommand(command));
 
     public Task StartAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
     public Task StopAsync() => Task.CompletedTask;

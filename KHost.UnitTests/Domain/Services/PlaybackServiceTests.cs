@@ -1,5 +1,6 @@
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
+using KHost.Abstractions.Services.IPC;
 using KHost.Domain.Services;
 using Microsoft.Extensions.Logging;
 
@@ -11,6 +12,7 @@ public class PlaybackServiceTests : IDisposable
     private readonly ISingerQueueService _queueService = Substitute.For<ISingerQueueService>();
     private readonly IPerformanceService _performanceService = Substitute.For<IPerformanceService>();
     private readonly IVenuesService _venuesService = Substitute.For<IVenuesService>();
+    private readonly IScreenServer _screenServer = Substitute.For<IScreenServer>();
     private readonly PlaybackService _service;
 
     public PlaybackServiceTests()
@@ -19,7 +21,7 @@ public class PlaybackServiceTests : IDisposable
             .Returns(new Venue { Id = Guid.NewGuid(), Name = "Test Venue", Settings = new Venue.VenueSettings { MoveSingerToBottomAfterPerformance = false } });
 
         var analytics = Substitute.For<IAnalyticsService>();
-        _service = new PlaybackService(_logger, _queueService, _performanceService, _venuesService, analytics);
+        _service = new PlaybackService(_logger, _queueService, _performanceService, _venuesService, analytics, _screenServer);
     }
 
     public void Dispose() => _service.Dispose();
@@ -236,6 +238,41 @@ public class PlaybackServiceTests : IDisposable
         await _service.StopAsync();
 
         await _performanceService.DidNotReceive().DequeueAsync(Arg.Any<Guid>(), Arg.Any<Guid>());
+    }
+
+    [Fact]
+    public async Task LoadAsync_BroadcastsLoadMediaCommand_WithMediaFilePath()
+    {
+        var (performance, media) = CreatePerformance();
+
+        await _service.LoadAsync(performance, media);
+
+        await _screenServer.Received(1).BroadcastCommandAsync(
+            Arg.Is<LoadMediaCommand>(c => c.FilePath == media.FilePath));
+    }
+
+    [Fact]
+    public async Task PlayAsync_BroadcastsPlayCommand()
+    {
+        var (performance, media) = CreatePerformance();
+
+        await _service.LoadAsync(performance, media);
+        await _service.PlayAsync();
+
+        await _screenServer.Received(1).BroadcastCommandAsync(Arg.Any<PlayCommand>());
+    }
+
+    [Fact]
+    public async Task StopAsync_BroadcastsStopCommand()
+    {
+        var (performance, media) = CreatePerformance();
+
+        await _service.LoadAsync(performance, media);
+        await _service.PlayAsync();
+
+        await _service.StopAsync();
+
+        await _screenServer.Received(1).BroadcastCommandAsync(Arg.Any<StopCommand>());
     }
 
     private static (Performance, Media) CreatePerformance()

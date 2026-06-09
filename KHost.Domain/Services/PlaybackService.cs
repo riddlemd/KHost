@@ -1,5 +1,6 @@
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
+using KHost.Abstractions.Services.IPC;
 using Microsoft.Extensions.Logging;
 
 namespace KHost.Domain.Services;
@@ -13,6 +14,7 @@ public class PlaybackService : BaseService, IPlaybackService
     private readonly IPerformanceService _performanceService;
     private readonly IVenuesService _venuesService;
     private readonly IAnalyticsService _analytics;
+    private readonly IScreenServer _screenServer;
 
     public Performance? CurrentPerformance { get; private set; }
     public Media? CurrentMedia { get; private set; }
@@ -25,13 +27,15 @@ public class PlaybackService : BaseService, IPlaybackService
         ISingerQueueService singerQueueService,
         IPerformanceService performanceService,
         IVenuesService venuesService,
-        IAnalyticsService analytics)
+        IAnalyticsService analytics,
+        IScreenServer screenServer)
         : base(logger)
     {
         _singerQueueService = singerQueueService;
         _performanceService = performanceService;
         _venuesService = venuesService;
         _analytics = analytics;
+        _screenServer = screenServer;
     }
 
     public async Task LoadAsync(Performance performance, Media media)
@@ -49,6 +53,8 @@ public class PlaybackService : BaseService, IPlaybackService
         _singerQueueService.LockTopSlot();
 
         Logger.LogInformation("Loading media '{Title}' for performance {PerformanceId}", media.Title, performance.Id);
+
+        await SendToScreensAsync(new LoadMediaCommand { FilePath = media.FilePath });
 
         InvokeStateChanged();
     }
@@ -68,6 +74,8 @@ public class PlaybackService : BaseService, IPlaybackService
 
         Logger.LogInformation("Playback started for user {UserId}", CurrentPerformance.SingerId);
 
+        await SendToScreensAsync(new PlayCommand());
+
         InvokeStateChanged();
     }
 
@@ -84,6 +92,8 @@ public class PlaybackService : BaseService, IPlaybackService
 
         Logger.LogInformation("Playback paused at {Position}", Position);
 
+        await SendToScreensAsync(new PauseCommand());
+
         InvokeStateChanged();
 
         return;
@@ -96,6 +106,8 @@ public class PlaybackService : BaseService, IPlaybackService
         ResetState();
 
         Logger.LogInformation("Playback stopped");
+
+        await SendToScreensAsync(new StopCommand());
 
         await EndedAsync();
 
@@ -153,6 +165,18 @@ public class PlaybackService : BaseService, IPlaybackService
         }
 
         await _performanceService.DequeueAsync(currentPerformance.SingerId, currentPerformance.Id);
+    }
+
+    private async Task SendToScreensAsync(IScreenCommand command)
+    {
+        try
+        {
+            await _screenServer.BroadcastCommandAsync(command);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Failed to send {Command} to screens", command.GetType().Name);
+        }
     }
 
     private async void OnTick(object? state)

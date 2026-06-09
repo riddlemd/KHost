@@ -47,7 +47,8 @@ Both are orchestrated for local development by `KHost.AppHost`, a [.NET Aspire](
 - **Persistent song library** — SQLite via Entity Framework Core.
 - **Durable queue state** — JSON-backed cache on disk (via `JsonFileCacheService`), so the queue survives restarts.
 - **Second-screen karaoke output** — FFmpeg-decoded BGRA video frames + OpenAL audio, rendered by Avalonia.
-- **First-class observability** — Serilog (console + daily-rolling file, 7-day retention) and OpenTelemetry with OTLP export.
+- **Host ⇄ screen IPC over SignalR** — the host console hosts a SignalR hub at `/ipc/screen`; the Avalonia screen app connects back as a client and is driven remotely (load media, play/pause/stop-with-fade, seek, volume, pitch) while streaming its playback state back to the host. The **Screens dialog** lists connected screens and can launch a local screen process on demand.
+- **First-class observability** — Serilog (console + daily-rolling file, 7-day retention) and OpenTelemetry with OTLP export, plus a dedicated `KHost.Telemetry` layer exposing custom KHost metrics (media parse/search/import/cache durations, queue mutations, playback state transitions) and trace activities through an `IAnalyticsService` / `IAnalyticsActivity` abstraction.
 - **First-run setup wizard** — 3-step wizard at `/setup` that walks through creating an admin user, configuring the first venue, and importing an initial media library. Auto-skips completed steps on reload.
 - **User accounts with role-based access** — user management with named groups (`Admin`, `Regular`, `Tipper`), granular permissions (`AddToQueue`, `ReorderQueue`, `ImportLibrary`, etc.), and Argon2id password hashing via `LocalAuthProvider`.
 - **Tip tracking** — record tips per singer with amount, payment method, and notes; paginated tips manager in Settings; per-singer tip totals shown in the singers manager.
@@ -62,6 +63,7 @@ Both are orchestrated for local development by `KHost.AppHost`, a [.NET Aspire](
 | Runtime | .NET | `net10.0` |
 | Orchestration | .NET Aspire AppHost SDK | `13.1.0` |
 | Web UI | ASP.NET Core / Blazor Server (Interactive Server) | built-in to net10.0 |
+| Real-time IPC | `Microsoft.AspNetCore.SignalR.Client` (host ⇄ screen) | `8.0.0` |
 | Desktop UI | Avalonia (`Desktop`, `Themes.Fluent`, `Fonts.Inter`) | `12.0.1` |
 | ORM | Entity Framework Core | `10.0.7` |
 | Database | SQLite (`Microsoft.EntityFrameworkCore.Sqlite`) | `10.0.7` |
@@ -69,10 +71,11 @@ Both are orchestrated for local development by `KHost.AppHost`, a [.NET Aspire](
 | Media metadata | `TagLibSharp` | `2.3.0` |
 | FFmpeg integration | [`FFMpegCore`](https://github.com/rosenbjerg/FFMpegCore) | `5.4.0` |
 | Video decode | FFmpeg (invoked as a child process) | external binary |
-| Logging | Serilog + `Serilog.Sinks.File` | `10.0.0` / `7.0.0` |
-| Telemetry | OpenTelemetry + OTLP exporter | `1.14.0` |
-| HTTP resilience | `Microsoft.Extensions.Http.Resilience` | `10.1.0` |
-| Service discovery | `Microsoft.Extensions.ServiceDiscovery` | `10.1.0` |
+| Password hashing | `Konscious.Security.Cryptography.Argon2` | `1.3.1` |
+| Logging | Serilog + `Serilog.Sinks.File` | `4.3.0` / `7.0.0` |
+| Telemetry | OpenTelemetry + OTLP exporter | `1.15.3` |
+| HTTP resilience | `Microsoft.Extensions.Http.Resilience` | `10.5.0` |
+| Service discovery | `Microsoft.Extensions.ServiceDiscovery` | `10.5.0` |
 | Styling | Sass (SCSS) | `1.69.5` |
 | Testing | xUnit / NSubstitute / coverlet | `2.9.3` / `5.3.0` / `6.0.4` |
 
@@ -103,11 +106,15 @@ Data flow at runtime:
         │
         ▼
   KHost.UserInterface ── Domain services ──► EF Core / SQLite   (song library)
-                                        └─► JsonFileCacheService (./cache/*.json)
-                                                                 (queue, venues)
-
+        │     ▲                           └─► JsonFileCacheService (./cache/*.json)
+        │     │                                                    (queue, venues)
+        │     │  SignalR hub  /ipc/screen
+   commands  state
+        ▼     │
   KHost.Screen (Avalonia)  ── FFmpeg (video) / Silk.NET OpenAL (audio) ──► second display
 ```
+
+> **Host ⇄ screen interop.** The UI hosts a SignalR hub (`KHost.IPC.SignalR`) at `/ipc/screen`. The Avalonia screen app connects back as a SignalR client (`--server-uri` / `--screen-id`), receives playback commands, and pushes its current `ScreenPlaybackState` back to the host. The host's `LocalScreenProvider` (an `IScreenProvider`) can spawn the screen process locally from the Screens dialog. So while `KHost.Screen` is a separate executable, it is no longer isolated — it is remote-controlled by the host console.
 
 > **Why two persistence strategies?** The song library is large, relational, and benefits from SQL indexes on `FilePath`, `Title`, `Artist`, `Status`, and `DateAdded`. The queue and venue selection are small, frequently-mutated bits of "session" state; serializing them as JSON blobs is simpler and keeps the host running even if the DB is momentarily unavailable.
 
@@ -124,9 +131,11 @@ The solution uses the newer `.slnx` (XML) format — open `KHost.slnx`, not a `.
 | `KHost.Abstractions` | All interfaces and abstraction-layer models. No project references. |
 | `KHost.Domain` | Business logic, concrete models, and services (queue, playback, venues, singers, media, media search, metadata parsing, cache). Uses `TagLibSharp`. |
 | `KHost.LrcLib` | Standalone HTTP client library for the [LRCLIB.NET](https://lrclib.net) lyrics API. No project references; consumed by `KHost.Domain` via `AddLrcLib()`. |
+| `KHost.IPC.SignalR` | SignalR-based host ⇄ screen IPC: `ScreenHub`, `ScreenServerService` (`IScreenServer`), and `ScreenClient` (`IScreenClient`). Registered via `AddSignalRIPCServer()` + `MapIPCServer()` (host) and `AddSignalRIPCClient()` / `CreateScreenClient()` (screen). |
+| `KHost.Telemetry` | OpenTelemetry metrics and trace activities (`KHostMetrics`, `KHostActivitySource`) plus the `IAnalyticsService` / `IAnalyticsActivity` implementation. Registered via `AddTelemetry()`. |
 | `KHost.DataAccess` | EF Core 10 + SQLite persistence for the song library. |
-| `KHost.UserInterface` | Blazor Server app — the host console. Razor components live under `Components/`. Also exposes `/api/themes`. |
-| `KHost.Screen` | Avalonia desktop app (WinExe) for karaoke video/audio output. Custom FFmpeg + OpenAL wrappers. |
+| `KHost.UserInterface` | Blazor Server app — the host console. Razor components live under `Components/`. Hosts the IPC hub at `/ipc/screen` and exposes `/api/themes`. |
+| `KHost.Screen` | Avalonia desktop app (WinExe on Windows, Exe elsewhere) for karaoke video/audio output. Custom FFmpeg + OpenAL wrappers. References `KHost.Abstractions`, `KHost.Telemetry`, and `KHost.IPC.SignalR`; connects to the host hub as a SignalR client (`--server-uri` / `--screen-id`). |
 | `KHost.UnitTests` | xUnit + NSubstitute tests covering domain services. |
 | `KHost.IntegrationTests` | xUnit integration test skeleton (no tests yet). |
 
@@ -169,8 +178,12 @@ Alternative entry points:
 # Run the Blazor UI directly (no Aspire)
 dotnet run --project KHost.UserInterface
 
-# Run the Avalonia screen app
-dotnet run --project KHost.Screen
+# Run the Avalonia screen app (normally launched for you from the host's Screens dialog,
+# which injects the host's live listening address as --server-uri).
+# When run manually, point --server-uri at the URL the host is actually listening on
+# (e.g. http://localhost:5251/ipc/screen for the UI's default http profile).
+# --screen-id defaults to the machine name.
+dotnet run --project KHost.Screen -- --server-uri http://localhost:5251/ipc/screen --screen-id main
 
 # Build the whole solution
 dotnet build KHost.slnx
@@ -223,6 +236,10 @@ npm run sass:watch    # continuous
 | `PlaybackService.MoveSingerToBottomAfterPerformance` | When true, moves the just-performed singer to the bottom of the queue. |
 | `SingerQueueService.PromptBeforeRemovingSinger` | Confirmation prompt when removing a singer. |
 | `SingerQueueService.ClearOnClose` | Clears the queue when the app shuts down. |
+| `LocalScreen.ExePath` | Optional override for the `KHost.Screen` executable path. Defaults to `KHost.Screen.exe` next to the host binary. |
+| `LocalScreen.ServerUri` | SignalR hub URI passed to a launched screen process. When unset, the host injects its own live listening address at startup (handles dynamic/Aspire-assigned ports); set this only to force a specific URI. |
+| `FFmpegPath` | Optional path to the FFmpeg binary directory when it isn't on `PATH`. |
+| `MediaFileParsingService.*` | Filename-to-metadata parsing rules: `Format` (artist-first / title-first), `Separators`, `PrefixStripPatterns`, `TitleNoisePatterns`, `FeaturingPattern`, `FeaturingHandling`, and `FallbackArtistName`. |
 
 Environment-specific overrides live in `appsettings.Development.json`.
 
@@ -344,7 +361,8 @@ Brainstorm of features a full-featured karaoke hosting application should suppor
 ### Display / Screen Output
 | Feature | Priority | Notes |
 |---|---|---|
-| Multi-monitor support with independent output config | Low | |
+| ~~Remote-controlled screen output from the host console~~ | High | Done — host ⇄ screen IPC over SignalR (`KHost.IPC.SignalR`); load/play/pause/stop/seek/volume/pitch commands and state feedback |
+| Multi-monitor support with independent output config | Low | IPC supports multiple screens by `screen-id`; per-screen output config not yet built |
 | True fullscreen video output (no taskbar / chrome) | High | |
 | Scrolling marquee with next-up singers | Medium | |
 | Idle/attract loop with background video, slides, or playlist | Medium | |

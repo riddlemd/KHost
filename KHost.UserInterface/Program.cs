@@ -1,4 +1,8 @@
 using FFMpegCore;
+using Microsoft.AspNetCore.Hosting.Server;
+using Microsoft.AspNetCore.Hosting.Server.Features;
+using Microsoft.Extensions.Options;
+using KHost.Domain.Services;
 using KHost.Abstractions.Interactions;
 using KHost.Abstractions.Interactions.Requests;
 using KHost.Abstractions.Models;
@@ -104,6 +108,36 @@ catch (Exception ex)
 
 app.MapDefaultEndpoints();
 app.MapIPCServer();
+
+// Point launched screen processes at this host's live listening address, so they
+// connect regardless of the (possibly dynamic, e.g. Aspire-assigned) port.
+// An explicit LocalScreen:ServerUri config value always wins.
+if (string.IsNullOrWhiteSpace(app.Configuration["LocalScreen:ServerUri"]))
+{
+    app.Lifetime.ApplicationStarted.Register(() =>
+    {
+        var addresses = app.Services.GetRequiredService<IServer>()
+            .Features.Get<IServerAddressesFeature>()?.Addresses;
+        var httpAddress = addresses?.FirstOrDefault(a => a.StartsWith("http://", StringComparison.OrdinalIgnoreCase))
+            ?? addresses?.FirstOrDefault();
+        if (string.IsNullOrWhiteSpace(httpAddress))
+        {
+            Log.Warning("Could not resolve a host listening address; screens will use the LocalScreen.ServerUri default");
+            return;
+        }
+
+        // Normalize wildcard hosts (http://*:5251, http://[::]:5251, http://0.0.0.0:5251) to localhost.
+        var baseUri = httpAddress
+            .Replace("://*", "://localhost", StringComparison.OrdinalIgnoreCase)
+            .Replace("://[::]", "://localhost", StringComparison.OrdinalIgnoreCase)
+            .Replace("://0.0.0.0", "://localhost", StringComparison.OrdinalIgnoreCase)
+            .TrimEnd('/');
+
+        var options = app.Services.GetRequiredService<IOptions<LocalScreenProvider.ServiceOptions>>().Value;
+        options.ServerUri = $"{baseUri}/ipc/screen";
+        Log.Information("Local screen IPC URI resolved to {ServerUri}", options.ServerUri);
+    });
+}
 
 // Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment())

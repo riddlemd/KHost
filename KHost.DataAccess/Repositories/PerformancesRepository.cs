@@ -13,7 +13,7 @@ internal class PerformancesRepository : BaseRepository<Performance>, IPerformanc
         new Dictionary<string, Expression<Func<Performance, object>>>
         {
             ["createdDate"] = p => p.CreatedDate,
-            ["queuePosition"] = p => p.QueuePosition,
+            ["queuePosition"] = p => p.QueuePosition ?? 0,
         };
 
     public PerformancesRepository(IDbContextFactory<DefaultContext> contextFactory, ILogger<BaseRepository<Performance>> logger)
