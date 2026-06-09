@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace KHost.IPC.SignalR;
 
@@ -33,4 +34,6 @@ public static class ProjectExtensions
     }
 
     public static IScreenClient CreateScreenClient() => new ScreenClient();
+
+    public static IScreenClient CreateScreenClient(ILoggerFactory? loggerFactory) => new ScreenClient(loggerFactory);
 }

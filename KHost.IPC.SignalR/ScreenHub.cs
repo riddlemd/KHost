@@ -21,9 +21,11 @@ internal sealed class ScreenHub : Hub
         return Task.CompletedTask;
     }
 
-    public Task ReceiveState(string screenId, ScreenStateBase state)
+    public Task ReceiveState(string screenId, string stateJson)
     {
-        _callback.OnStateReceived(screenId, state);
+        var state = ScreenIpcSerializer.DeserializeState(stateJson);
+        if (state is not null)
+            _callback.OnStateReceived(screenId, state);
         return Task.CompletedTask;
     }
 }

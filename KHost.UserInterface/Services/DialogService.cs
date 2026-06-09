@@ -65,7 +65,7 @@ public class DialogService : IDialogService
     public async Task RequestEditAsync(Tip item, Action<Tip?> onSave, Action? onCancel = null, Action? onClose = null)
         => await RequestEditAsync<EditTipDialog.DialogRequest, Tip>(item, onSave, onCancel, onClose);
 
-    public Task RequestEditAsync(Tip item, Guid userId, Action<Tip?> onSave, Action? onCancel = null, Action? onClose = null)
+    public Task RequestEditAsync(Tip? item, Guid userId, Action<Tip?> onSave, Action? onCancel = null, Action? onClose = null)
     {
         var request = new EditTipDialog.DialogRequest(item, userId, onSave, onCancel, onClose);
         _logger.LogDebug("Dialog requested: {DialogType} userId={UserId}", nameof(EditTipDialog), userId);

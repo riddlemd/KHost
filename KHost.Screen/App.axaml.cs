@@ -34,8 +34,13 @@ public partial class App : Application
     private void OnStartup(MainWindow mainWindow)
     {
         var logger = LoggerFactory.CreateLogger<App>();
+
+        var client = ProjectExtensions.CreateScreenClient(LoggerFactory);
+        client.StateChanged += (_, e) => mainWindow.SetConnectionState(e.NewState);
+        mainWindow.SetConnectionState(client.State); // initial paint
+
         _ipc = new ScreenIpcController(
-            ProjectExtensions.CreateScreenClient(),
+            client,
             mainWindow.Player,
             LoggerFactory.CreateLogger<ScreenIpcController>());
 
@@ -56,5 +61,10 @@ public partial class App : Application
         }
     }
 
-    private void OnExit() => _ = _ipc?.DisposeAsync().AsTask();
+    private void OnExit()
+    {
+        var logger = LoggerFactory.CreateLogger<App>();
+        logger.LogInformation("Application exiting, disconnecting IPC");
+        _ = _ipc?.DisposeAsync().AsTask();
+    }
 }

@@ -7,6 +7,7 @@ using Avalonia.Platform;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using KHost.Abstractions.MediaPlayer;
+using KHost.Abstractions.Services.IPC;
 using KHost.Screen.OpenAl;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -19,6 +20,7 @@ public partial class MainWindow : Window
     private readonly IMediaPlayer _player;
     internal IMediaPlayer Player => _player;
 
+    private readonly ILogger<MainWindow> _logger;
     private readonly DispatcherTimer _positionTimer;
 
     // Double-buffered bitmap swap: background thread writes _pendingBitmap;
@@ -37,6 +39,7 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
 
+        _logger = loggerFactory.CreateLogger<MainWindow>();
         var audio = new OpenAlAudioPlayer(loggerFactory.CreateLogger<OpenAlAudioPlayer>());
         _player = new DefaultMediaPlayer(audio, loggerFactory.CreateLogger<DefaultMediaPlayer>());
         _player.FrameAvailable += OnFrameAvailable;
@@ -57,6 +60,14 @@ public partial class MainWindow : Window
         _positionTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
         _positionTimer.Tick += PositionTimer_Tick;
         _positionTimer.Start();
+    }
+
+    // ── Connection indicator ────────────────────────────────────────────────
+
+    internal void SetConnectionState(ScreenClientState state)
+    {
+        bool connected = state == ScreenClientState.Connected;
+        Dispatcher.UIThread.Post(() => ConnDot.IsVisible = !connected);
     }
 
     // ── Player event handlers (arrive on background threads) ────────────────
@@ -114,7 +125,10 @@ public partial class MainWindow : Window
         => Dispatcher.UIThread.Post(UpdateControlState);
 
     private void OnErrorOccurred(object? sender, string message)
-        => Dispatcher.UIThread.Post(() => ShowError(message));
+    {
+        _logger.LogError("Player error: {Message}", message);
+        Dispatcher.UIThread.Post(() => ShowError(message));
+    }
 
     // ── Toolbar button handlers ──────────────────────────────────────────────
 
@@ -218,6 +232,7 @@ public partial class MainWindow : Window
 
     private async Task LoadFileAsync(string filePath)
     {
+        _logger.LogInformation("Loading file {FilePath}", filePath);
         BtnLoad.IsEnabled = false;
         BtnPlay.IsEnabled = false;
         BtnStop.IsEnabled = false;
@@ -241,6 +256,7 @@ public partial class MainWindow : Window
 
             var name = Path.GetFileName(filePath);
             var info = _player.Info;
+            _logger.LogInformation("File loaded successfully: {FileName}", name);
             Title = $"KHost.Screen — {name}";
             TxtStatus.Text = info is not null
                 ? $"{info.Width}×{info.Height}  {info.Fps:F2} fps  {FormatTime(info.Duration)}"
@@ -250,6 +266,7 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
+            _logger.LogError(ex, "LoadFileAsync failed for {FilePath}", filePath);
             Title = "KHost.Screen";
             TxtStatus.Text = "Load failed";
             ShowError($"Could not open file:\n{ex.Message}");

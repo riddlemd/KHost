@@ -79,6 +79,7 @@ internal sealed class DefaultMediaPlayer : IMediaPlayer
             {
                 if (_state == State.Playing)
                 {
+                    _logger.LogDebug("PitchSemitones changed to {Value}, restarting segment", value);
                     var pos = _firstFrameSeen
                         ? TimeSpan.FromTicks(Math.Clamp(
                             (_startOffset + (DateTime.UtcNow - _segmentWallStart)).Ticks,
@@ -115,11 +116,21 @@ internal sealed class DefaultMediaPlayer : IMediaPlayer
     public async Task LoadAsync(string filePath, CancellationToken cancellationToken = default)
     {
         StopAndReset();
+        _logger.LogInformation("Loading {FilePath}", filePath);
 
-        var analysis = await FFProbe.AnalyseAsync(filePath).ConfigureAwait(false);
-        _info = BuildMediaInfo(filePath, analysis);
+        try
+        {
+            var analysis = await FFProbe.AnalyseAsync(filePath).ConfigureAwait(false);
+            _info = BuildMediaInfo(filePath, analysis);
 
-        lock (_lock) _state = State.Stopped;
+            lock (_lock) _state = State.Stopped;
+            _logger.LogInformation("Loaded {FilePath} — {Width}x{Height} {Duration}", filePath, _info.Width, _info.Height, _info.Duration);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "LoadAsync failed for {FilePath}", filePath);
+            throw;
+        }
     }
 
     public void Play()
@@ -130,6 +141,7 @@ internal sealed class DefaultMediaPlayer : IMediaPlayer
             if (_info is null) throw new InvalidOperationException("No file loaded. Call LoadAsync first.");
             if (_state == State.Playing) return;
             if (_process is not null) KillSegment(); // clean up any ffmpeg left running by a fade
+            _logger.LogInformation("Play (offset={Offset})", _startOffset);
             BeginSegment(_startOffset);
         }
     }
@@ -147,6 +159,7 @@ internal sealed class DefaultMediaPlayer : IMediaPlayer
                     0, Duration.Ticks))
                 : _startOffset;
 
+            _logger.LogInformation("Pause at {Position}", captured);
             KillSegment();
             _startOffset = captured;
             _state = State.Paused;
@@ -165,12 +178,15 @@ internal sealed class DefaultMediaPlayer : IMediaPlayer
             _state = _info is not null ? State.Stopped : State.Idle;
         }
 
-        _ = FadeAndStopAsync(fadeDuration ?? TimeSpan.FromSeconds(5), token);
+        var duration = fadeDuration ?? TimeSpan.FromSeconds(5);
+        _logger.LogInformation("Stop (fade={Fade})", duration);
+        _ = FadeAndStopAsync(duration, token);
     }
 
     public void Seek(TimeSpan position)
     {
         CancelFade();
+        _logger.LogInformation("Seek to {Position}", position);
         lock (_lock)
         {
             bool wasPlaying = _state == State.Playing;
@@ -255,6 +271,8 @@ internal sealed class DefaultMediaPlayer : IMediaPlayer
 
         args += " pipe:1";
 
+        _logger.LogInformation("BeginSegment starting ffmpeg (args: {Args})", args);
+
         var psi = new ProcessStartInfo(ResolveFfmpegPath(), args)
         {
             UseShellExecute = false,
@@ -265,6 +283,7 @@ internal sealed class DefaultMediaPlayer : IMediaPlayer
 
         _process = new Process { StartInfo = psi };
         _process.Start();
+        _logger.LogInformation("ffmpeg started PID={Pid}", _process.Id);
         _process.BeginErrorReadLine();
 
         // Prepare the audio player for the new stream's format.
@@ -291,6 +310,9 @@ internal sealed class DefaultMediaPlayer : IMediaPlayer
     /// </summary>
     private void KillSegment()
     {
+        int? pid = _process?.Id;
+        _logger.LogDebug("KillSegment (segment PID={Pid})", pid);
+
         _cts?.Cancel();
         try { _process?.Kill(entireProcessTree: true); }
         catch (Exception ex) { _logger.LogWarning(ex, "Exception killing ffmpeg process"); }
@@ -302,15 +324,23 @@ internal sealed class DefaultMediaPlayer : IMediaPlayer
         try { _demuxThread?.Join(2000); }
         finally { System.Threading.Monitor.Enter(_lock); }
 
+        int? exitCode = null;
+        try { exitCode = _process?.ExitCode; }
+        catch { /* process may not have exited yet */ }
+
         _process?.Dispose();
         _process = null;
         _demuxThread = null;
         _cts?.Dispose();
         _cts = null;
+
+        if (exitCode.HasValue)
+            _logger.LogDebug("ffmpeg PID={Pid} exited {Code}", pid, exitCode.Value);
     }
 
     private void StopAndReset()
     {
+        _logger.LogDebug("StopAndReset");
         lock (_lock)
         {
             KillSegment();
@@ -336,6 +366,9 @@ internal sealed class DefaultMediaPlayer : IMediaPlayer
         var stream = _process!.StandardOutput.BaseStream;
         var sw = Stopwatch.StartNew();
         TimeSpan nextFrameAt = TimeSpan.Zero;
+
+        int pid = _process.Id;
+        _logger.LogInformation("DemuxProc started (PID={Pid})", pid);
 
         try
         {
@@ -379,6 +412,7 @@ internal sealed class DefaultMediaPlayer : IMediaPlayer
         catch (EndOfStreamException) { /* normal pipe close after kill */ }
         catch (Exception ex) when (!token.IsCancellationRequested)
         {
+            _logger.LogError(ex, "DemuxProc exception");
             ErrorOccurred?.Invoke(this, ex.Message);
             return;
         }
@@ -389,6 +423,7 @@ internal sealed class DefaultMediaPlayer : IMediaPlayer
 
         if (!token.IsCancellationRequested)
         {
+            _logger.LogInformation("DemuxProc ended naturally");
             lock (_lock)
             {
                 _startOffset = TimeSpan.Zero;
@@ -479,6 +514,7 @@ internal sealed class DefaultMediaPlayer : IMediaPlayer
 
     private async Task FadeAndStopAsync(TimeSpan duration, CancellationToken token)
     {
+        _logger.LogDebug("Fade start duration={Duration}", duration);
         int steps = Math.Max(1, (int)(duration.TotalMilliseconds / FadeStepMs));
         for (int i = 1; i <= steps; i++)
         {
@@ -491,6 +527,7 @@ internal sealed class DefaultMediaPlayer : IMediaPlayer
         }
         _audio.Volume = 0f;
         _fadeAlpha = 0f;
+        _logger.LogDebug("Fade complete");
         StopAndReset();
         RestoreFadeState();
     }
