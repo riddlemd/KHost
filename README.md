@@ -418,3 +418,24 @@ Brainstorm of features a full-featured karaoke hosting application should suppor
 |---|---|---|
 | ~~Lyrics lookup via LRCLIB.NET~~ | Low | `KHost.LrcLib` + `ShowLyricsDialog` |
 | YouTube / online karaoke source fetch with caching | Low | |
+
+---
+
+## License
+
+KHost is licensed under the [PolyForm Shield License 1.0.0](LICENSE).
+
+You may use, modify, and self-host KHost for any purpose, **including commercial
+use** (for example, running it to host your own karaoke events). You may **not**
+use it to provide a product or service that competes with KHost — including
+offering KHost or a derivative as a hosted/managed service (SaaS), or
+redistributing it under a different brand — without a separate license.
+
+**Commercial, SaaS, and OEM licenses are available** for those uses — contact
+Michael Riddle <riddlemd@gmail.com>.
+
+Third-party components are listed in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md),
+with full license texts under [`licenses/`](licenses). FFmpeg is **not** distributed
+with KHost; it is obtained by the user (see that file).
+
+Contributions are accepted under the terms in [CONTRIBUTING.md](CONTRIBUTING.md).
