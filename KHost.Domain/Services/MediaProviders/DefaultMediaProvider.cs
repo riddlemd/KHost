@@ -113,7 +113,7 @@ public class DefaultMediaProvider : BaseService, IMediaProvider
         return [.. result.Items
             .Select(media => new MediaSearchEntity
             {
-                DisplayName = $"{media.Title} - {media.Artist}",
+                DisplayName = $"{media.Artist} - {media.Title}",
                 SourceDisplayName = DisplayName,
                 Source = SourceName,
                 Duration = media.Duration,
