@@ -157,14 +157,18 @@ public class PlaybackService : BaseService, IPlaybackService
 
         Logger.LogInformation("Performance {PerformanceId} ended for user {UserId}", currentPerformance.Id, currentPerformance.SingerId);
 
-        var venue = await _venuesService.ReadSelectedVenueAsync();
-        if (venue?.Settings.MoveSingerToBottomAfterPerformance == true)
-        {
-            await _singerQueueService.MoveUserToEndAsync(currentPerformance.SingerId);
-            await _singerQueueService.SelectFirstUserInQueueAsync();
-        }
-
+        await MoveQueueAfterPerformanceAsync(currentPerformance.SingerId);
         await _performanceService.DequeueAsync(currentPerformance.SingerId, currentPerformance.Id);
+    }
+
+    private async Task MoveQueueAfterPerformanceAsync(Guid singerId)
+    {
+        var venue = await _venuesService.ReadSelectedVenueAsync();
+        if (venue?.Settings.MoveSingerToBottomAfterPerformance != true)
+            return;
+
+        await _singerQueueService.MoveUserToEndAsync(singerId);
+        await _singerQueueService.SelectFirstUserInQueueAsync();
     }
 
     private async Task SendToScreensAsync(IScreenCommand command)
@@ -197,7 +201,7 @@ public class PlaybackService : BaseService, IPlaybackService
         Position += now - _lastTick;
         _lastTick = now;
 
-        if (CurrentMedia?.Duration is { } duration && Position >= duration)
+        if (HasPlaybackEnded())
         {
             ResetState();
 
@@ -208,6 +212,9 @@ public class PlaybackService : BaseService, IPlaybackService
 
         InvokeStateChanged();
     }
+
+    private bool HasPlaybackEnded() =>
+        CurrentMedia?.Duration is { } duration && Position >= duration;
 
     private static class AnalyticActivities
     {

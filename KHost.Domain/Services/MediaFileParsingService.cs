@@ -38,45 +38,14 @@ namespace KHost.Domain.Services
         {
             var opts = _options.CurrentValue;
             var (parsedTitle, parsedArtist) = GetTitleAndArtistFromFilename(filePath);
-
-            TimeSpan? duration = null;
-            string title = parsedTitle;
-            string artist = parsedArtist ?? opts.FallbackArtistName;
-
-            var sw = Stopwatch.StartNew();
-            try
-            {
-                // For .cdg files, probe the companion .mp3
-                var probeFilePath = Path.GetExtension(filePath).Equals(".cdg", StringComparison.OrdinalIgnoreCase)
-                    ? Path.ChangeExtension(filePath, ".mp3")
-                    : filePath;
-
-                var probe = await FFProbe.AnalyseAsync(probeFilePath);
-
-                if (probe.Format.Duration > TimeSpan.Zero)
-                    duration = probe.Format.Duration;
-
-                if (probe.Format.Tags?.TryGetValue("title", out var probeTitle) == true && !string.IsNullOrWhiteSpace(probeTitle))
-                    title = probeTitle;
-
-                if (probe.Format.Tags?.TryGetValue("artist", out var probeArtist) == true && !string.IsNullOrWhiteSpace(probeArtist))
-                    artist = probeArtist;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogDebug(ex, "FFProbe failed for {FilePath}; falling back to filename-derived metadata", filePath);
-            }
-            finally
-            {
-                _analytics.RecordMediaParseDuration(sw.Elapsed.TotalMilliseconds);
-            }
+            var probe = await TryProbeAsync(filePath);
 
             var media = new Media
             {
                 FilePath = filePath,
-                Title = title,
-                Artist = artist,
-                Duration = duration,
+                Title = probe?.Title ?? parsedTitle,
+                Artist = probe?.Artist ?? parsedArtist ?? opts.FallbackArtistName,
+                Duration = probe?.Duration,
                 Format = Path.GetExtension(filePath).TrimStart('.').ToUpperInvariant(),
                 Status = MediaStatus.Ready,
                 DateAdded = DateTime.UtcNow,
@@ -96,34 +65,10 @@ namespace KHost.Domain.Services
             foreach (var stripper in _prefixStrippers)
                 name = stripper.Replace(name, "").Trim();
 
-            foreach (var sep in opts.Separators)
-            {
-                if (string.IsNullOrEmpty(sep))
-                    continue;
-
-                var idx = name.IndexOf(sep, StringComparison.Ordinal);
-                if (idx <= 0)
-                    continue;
-
-                var left = name[..idx].Trim();
-                var right = name[(idx + sep.Length)..].Trim();
-
-                return opts.Format == FilenameFormat.ArtistFirst
-                    ? (Title: right, Artist: left)
-                    : (Title: left, Artist: right);
-            }
-
-            // "Title (Artist)" / "Title [Artist]" — order is unambiguous, ignore Format.
-            var match = _trailingParenthetical.Match(name);
-            if (match.Success && !string.IsNullOrWhiteSpace(match.Groups[2].Value))
-                return (match.Groups[1].Value.Trim(), match.Groups[2].Value.Trim());
-
-            // "Title_Artist" — single underscore. Order is conventionally fixed.
-            var underscoreIdx = name.IndexOf('_');
-            if (underscoreIdx > 0 && underscoreIdx == name.LastIndexOf('_'))
-                return (name[..underscoreIdx].Trim(), name[(underscoreIdx + 1)..].Trim());
-
-            return (name.Trim(), null);
+            return TrySeparatorParse(name, opts)
+                ?? TryParentheticalParse(name)
+                ?? TryUnderscoreParse(name)
+                ?? (name.Trim(), null);
         }
 
         private void Rebuild(ServiceOptions opts)
@@ -169,6 +114,75 @@ namespace KHost.Domain.Services
             }
         }
 
+        private async Task<ProbeResult?> TryProbeAsync(string filePath)
+        {
+            var probeFilePath = Path.GetExtension(filePath).Equals(".cdg", StringComparison.OrdinalIgnoreCase)
+                ? Path.ChangeExtension(filePath, ".mp3")
+                : filePath;
+
+            var sw = Stopwatch.StartNew();
+            try
+            {
+                var probe = await FFProbe.AnalyseAsync(probeFilePath);
+
+                string? probeTitle = null;
+                string? probeArtist = null;
+                probe.Format.Tags?.TryGetValue("title", out probeTitle);
+                probe.Format.Tags?.TryGetValue("artist", out probeArtist);
+
+                return new ProbeResult(
+                    probe.Format.Duration > TimeSpan.Zero ? probe.Format.Duration : null,
+                    string.IsNullOrWhiteSpace(probeTitle) ? null : probeTitle,
+                    string.IsNullOrWhiteSpace(probeArtist) ? null : probeArtist);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "FFProbe failed for {FilePath}; falling back to filename-derived metadata", filePath);
+                return null;
+            }
+            finally
+            {
+                _analytics.RecordMediaParseDuration(sw.Elapsed.TotalMilliseconds);
+            }
+        }
+
+        private (string Title, string? Artist)? TrySeparatorParse(string name, ServiceOptions opts)
+        {
+            foreach (var sep in opts.Separators)
+            {
+                if (string.IsNullOrEmpty(sep))
+                    continue;
+
+                var idx = name.IndexOf(sep, StringComparison.Ordinal);
+                if (idx <= 0)
+                    continue;
+
+                var left = name[..idx].Trim();
+                var right = name[(idx + sep.Length)..].Trim();
+
+                return opts.Format == FilenameFormat.ArtistFirst
+                    ? (Title: right, Artist: left)
+                    : (Title: left, Artist: right);
+            }
+            return null;
+        }
+
+        private (string Title, string? Artist)? TryParentheticalParse(string name)
+        {
+            var match = _trailingParenthetical.Match(name);
+            if (!match.Success || string.IsNullOrWhiteSpace(match.Groups[2].Value))
+                return null;
+            return (match.Groups[1].Value.Trim(), match.Groups[2].Value.Trim());
+        }
+
+        private static (string Title, string? Artist)? TryUnderscoreParse(string name)
+        {
+            var idx = name.IndexOf('_');
+            if (idx <= 0 || idx != name.LastIndexOf('_'))
+                return null;
+            return (name[..idx].Trim(), name[(idx + 1)..].Trim());
+        }
+
         private void ApplyFeaturingHandling(Media media, ServiceOptions opts)
         {
             if (_featuringRegex is null || opts.FeaturingHandling == FeaturingHandling.Ignore)
@@ -182,9 +196,12 @@ namespace KHost.Domain.Services
             if (string.IsNullOrWhiteSpace(featured))
                 return;
 
-            var cleanedTitle = media.Title[..m.Index].TrimEnd();
+            ApplyFeaturedArtistToMedia(media, media.Title[..m.Index].TrimEnd(), featured, opts.FeaturingHandling);
+        }
 
-            switch (opts.FeaturingHandling)
+        private static void ApplyFeaturedArtistToMedia(Media media, string cleanedTitle, string featured, FeaturingHandling handling)
+        {
+            switch (handling)
             {
                 case FeaturingHandling.AppendToArtist:
                     media.Title = cleanedTitle;
@@ -252,6 +269,8 @@ namespace KHost.Domain.Services
 
             public string FallbackArtistName { get; init; } = "Unknown Artist";
         }
+
+        private sealed record ProbeResult(TimeSpan? Duration, string? Title, string? Artist);
     }
 
     public enum FilenameFormat

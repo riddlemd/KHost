@@ -209,18 +209,17 @@ public class SingerQueueService : ISingerQueueService
     {
         var queueData = await _cacheService.LoadAsync<QueueCacheData>(_cacheKey);
 
-        if (queueData?.UserIds is { Count: > 0 })
-        {
-            _userIds.AddRange(queueData.UserIds);
-            SelectedUserId = queueData.SelectedUserId;
-            await ResolveAsync();
-            _logger.LogInformation("Singer queue loaded ({Count} users)", queueData.UserIds.Count);
-            StateChanged?.Invoke(this, EventArgs.Empty);
-        }
-        else
+        if (queueData is null || queueData.UserIds.Count == 0)
         {
             _logger.LogWarning("Singer queue cache was empty or missing");
+            return;
         }
+
+        _userIds.AddRange(queueData.UserIds);
+        SelectedUserId = queueData.SelectedUserId;
+        await ResolveAsync();
+        _logger.LogInformation("Singer queue loaded ({Count} users)", queueData.UserIds.Count);
+        StateChanged?.Invoke(this, EventArgs.Empty);
     }
 
     private async Task SaveAsync()

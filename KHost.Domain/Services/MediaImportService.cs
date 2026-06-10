@@ -99,6 +99,27 @@ public class MediaImportService : BaseService, IMediaImportService
         InvokeStateChanged();
     }
 
+    private async Task ImportOneFileAsync(string path)
+    {
+        try
+        {
+            var media = await _parser.LoadAndParse(path);
+            await _mediaService.CreateAsync(media);
+            ImportedCount++;
+            _analytics.RecordImportFilesProcessed(1, "imported");
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            FailedCount++;
+            _analytics.RecordImportFilesProcessed(1, "failed");
+            Logger.LogWarning(ex, "Failed to import {FilePath}", path);
+        }
+    }
+
     private async Task RunImportAsync(List<string> paths, CancellationToken ct)
     {
         var sw = System.Diagnostics.Stopwatch.StartNew();
@@ -125,27 +146,12 @@ public class MediaImportService : BaseService, IMediaImportService
                 CurrentFilePath = path;
                 InvokeStateChangedThrottled();
 
-                try
-                {
-                    var media = await _parser.LoadAndParse(path);
-                    await _mediaService.CreateAsync(media);
-                    ImportedCount++;
-                    _analytics.RecordImportFilesProcessed(1, "imported");
-                }
-                catch (OperationCanceledException)
-                {
-                    break;
-                }
-                catch (Exception ex)
-                {
-                    FailedCount++;
-                    _analytics.RecordImportFilesProcessed(1, "failed");
-                    Logger.LogWarning(ex, "Failed to import {FilePath}", path);
-                }
+                await ImportOneFileAsync(path);
 
                 InvokeStateChangedThrottled();
             }
         }
+        catch (OperationCanceledException) { }
         catch (Exception ex)
         {
             Logger.LogError(ex, "Unhandled error in import background task");
