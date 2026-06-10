@@ -127,29 +127,8 @@ public class MediaImportService : BaseService, IMediaImportService
 
         try
         {
-            var existing = await _repository.GetExistingFilePathsAsync(paths);
-            var toImport = paths.Where(p => !existing.Contains(p)).ToList();
-            var skippedCount = paths.Count - toImport.Count;
-
-            if (skippedCount > 0)
-                _analytics.RecordImportFilesProcessed(skippedCount, "skipped");
-
-            activity.SetTag("total_files", paths.Count);
-            TotalCount = toImport.Count;
-            InvokeStateChanged();
-
-            foreach (var path in toImport)
-            {
-                if (ct.IsCancellationRequested)
-                    break;
-
-                CurrentFilePath = path;
-                InvokeStateChangedThrottled();
-
-                await ImportOneFileAsync(path);
-
-                InvokeStateChangedThrottled();
-            }
+            var toImport = await FilterNewPathsAsync(paths, activity);
+            await ImportBatchAsync(toImport, ct);
         }
         catch (OperationCanceledException) { }
         catch (Exception ex)
@@ -164,6 +143,38 @@ public class MediaImportService : BaseService, IMediaImportService
             _cts?.Dispose();
             _cts = null;
             InvokeStateChanged();
+        }
+    }
+
+    private async Task<List<string>> FilterNewPathsAsync(List<string> paths, IAnalyticsActivity activity)
+    {
+        var existing = await _repository.GetExistingFilePathsAsync(paths);
+        var toImport = paths.Where(p => !existing.Contains(p)).ToList();
+        var skippedCount = paths.Count - toImport.Count;
+
+        if (skippedCount > 0)
+            _analytics.RecordImportFilesProcessed(skippedCount, "skipped");
+
+        activity.SetTag("total_files", paths.Count);
+        TotalCount = toImport.Count;
+        InvokeStateChanged();
+
+        return toImport;
+    }
+
+    private async Task ImportBatchAsync(List<string> toImport, CancellationToken ct)
+    {
+        foreach (var path in toImport)
+        {
+            if (ct.IsCancellationRequested)
+                break;
+
+            CurrentFilePath = path;
+            InvokeStateChangedThrottled();
+
+            await ImportOneFileAsync(path);
+
+            InvokeStateChangedThrottled();
         }
     }
 

@@ -415,6 +415,50 @@ public class SingerQueueServiceTests : IDisposable
         await _performanceService.DidNotReceive().DeleteAllQueuedAsync();
     }
 
+    [Fact]
+    public async Task InitializeAsync_DoesNothing_WhenCacheIsEmpty()
+    {
+        var fresh = CreateFreshService();
+
+        await fresh.InitializeAsync();
+
+        Assert.Empty(fresh.Users);
+        Assert.Null(fresh.SelectedUserId);
+    }
+
+    [Fact]
+    public async Task InitializeAsync_RestoresQueueFromCache()
+    {
+        await EnqueueAsync("Alice");
+        await EnqueueAsync("Bob");
+
+        var fresh = CreateFreshService();
+        await fresh.InitializeAsync();
+
+        Assert.Equal(2, fresh.Users.Count);
+    }
+
+    [Fact]
+    public async Task InitializeAsync_RestoresSelectedUserFromCache()
+    {
+        var alice = await EnqueueAsync("Alice");
+        await EnqueueAsync("Bob");
+        await _service.SelectUserAsync(alice.Id);
+
+        var fresh = CreateFreshService();
+        await fresh.InitializeAsync();
+
+        Assert.Equal(alice.Id, fresh.SelectedUserId);
+    }
+
+    private SingerQueueService CreateFreshService() => new(
+        NullLogger<SingerQueueService>.Instance,
+        _cacheService,
+        _performanceService,
+        _usersService,
+        _venuesService,
+        Substitute.For<IAnalyticsService>());
+
     private async Task<KHostUser> EnqueueAsync(string name)
     {
         var user = new KHostUser { Name = name };

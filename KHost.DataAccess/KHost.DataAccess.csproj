@@ -23,6 +23,7 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="KHost.UnitTests" />
+    <InternalsVisibleTo Include="DynamicProxyGenAssembly2" />
   </ItemGroup>
 
 </Project>

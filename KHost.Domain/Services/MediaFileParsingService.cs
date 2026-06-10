@@ -60,15 +60,19 @@ namespace KHost.Domain.Services
         public (string Title, string? Artist) GetTitleAndArtistFromFilename(string filePath)
         {
             var opts = _options.CurrentValue;
-            var name = Path.GetFileNameWithoutExtension(filePath);
-
-            foreach (var stripper in _prefixStrippers)
-                name = stripper.Replace(name, "").Trim();
+            var name = StripPrefixes(Path.GetFileNameWithoutExtension(filePath));
 
             return TrySeparatorParse(name, opts)
                 ?? TryParentheticalParse(name)
                 ?? TryUnderscoreParse(name)
                 ?? (name.Trim(), null);
+        }
+
+        private string StripPrefixes(string name)
+        {
+            foreach (var stripper in _prefixStrippers)
+                name = stripper.Replace(name, "").Trim();
+            return name;
         }
 
         private void Rebuild(ServiceOptions opts)
@@ -124,16 +128,11 @@ namespace KHost.Domain.Services
             try
             {
                 var probe = await FFProbe.AnalyseAsync(probeFilePath);
-
-                string? probeTitle = null;
-                string? probeArtist = null;
-                probe.Format.Tags?.TryGetValue("title", out probeTitle);
-                probe.Format.Tags?.TryGetValue("artist", out probeArtist);
-
+                var (title, artist) = ExtractProbeTags(probe.Format.Tags);
                 return new ProbeResult(
                     probe.Format.Duration > TimeSpan.Zero ? probe.Format.Duration : null,
-                    string.IsNullOrWhiteSpace(probeTitle) ? null : probeTitle,
-                    string.IsNullOrWhiteSpace(probeArtist) ? null : probeArtist);
+                    title,
+                    artist);
             }
             catch (Exception ex)
             {
@@ -144,6 +143,17 @@ namespace KHost.Domain.Services
             {
                 _analytics.RecordMediaParseDuration(sw.Elapsed.TotalMilliseconds);
             }
+        }
+
+        internal static (string? title, string? artist) ExtractProbeTags(IReadOnlyDictionary<string, string>? tags)
+        {
+            string? probeTitle = null;
+            string? probeArtist = null;
+            tags?.TryGetValue("title", out probeTitle);
+            tags?.TryGetValue("artist", out probeArtist);
+            return (
+                string.IsNullOrWhiteSpace(probeTitle) ? null : probeTitle,
+                string.IsNullOrWhiteSpace(probeArtist) ? null : probeArtist);
         }
 
         private (string Title, string? Artist)? TrySeparatorParse(string name, ServiceOptions opts)
@@ -188,15 +198,28 @@ namespace KHost.Domain.Services
             if (_featuringRegex is null || opts.FeaturingHandling == FeaturingHandling.Ignore)
                 return;
 
-            var m = _featuringRegex.Match(media.Title);
+            if (!TryExtractFeatured(media.Title, out var featured, out var cleanedTitle))
+                return;
+
+            ApplyFeaturedArtistToMedia(media, cleanedTitle, featured, opts.FeaturingHandling);
+        }
+
+        private bool TryExtractFeatured(string title, out string featured, out string cleanedTitle)
+        {
+            featured = string.Empty;
+            cleanedTitle = title;
+
+            var m = _featuringRegex!.Match(title);
             if (!m.Success)
-                return;
+                return false;
 
-            var featured = m.Groups[1].Value.Trim();
-            if (string.IsNullOrWhiteSpace(featured))
-                return;
+            var candidate = m.Groups[1].Value.Trim();
+            if (string.IsNullOrWhiteSpace(candidate))
+                return false;
 
-            ApplyFeaturedArtistToMedia(media, media.Title[..m.Index].TrimEnd(), featured, opts.FeaturingHandling);
+            featured = candidate;
+            cleanedTitle = title[..m.Index].TrimEnd();
+            return true;
         }
 
         private static void ApplyFeaturedArtistToMedia(Media media, string cleanedTitle, string featured, FeaturingHandling handling)

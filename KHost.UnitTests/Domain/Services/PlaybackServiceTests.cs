@@ -288,6 +288,52 @@ public class PlaybackServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task TickAsync_AdvancesPosition()
+    {
+        var (performance, media) = CreatePerformance();
+        media.Duration = TimeSpan.FromHours(1);
+
+        await _service.LoadAsync(performance, media);
+        await _service.PlayAsync();
+        await Task.Delay(10);
+
+        await _service.TickAsync();
+
+        Assert.True(_service.Position > TimeSpan.Zero);
+    }
+
+    [Fact]
+    public async Task TickAsync_EndsPlayback_WhenDurationExceeded()
+    {
+        var (performance, media) = CreatePerformance();
+        media.Duration = TimeSpan.FromMilliseconds(1);
+
+        await _service.LoadAsync(performance, media);
+        await _service.PlayAsync();
+        await Task.Delay(10);
+
+        await _service.TickAsync();
+
+        Assert.Equal(PlaybackState.Stopped, _service.State);
+        await _performanceService.Received().DequeueAsync(performance.SingerId, performance.Id);
+    }
+
+    [Fact]
+    public async Task TickAsync_DoesNotEnd_WhenDurationNotExceeded()
+    {
+        var (performance, media) = CreatePerformance();
+        media.Duration = TimeSpan.FromHours(1);
+
+        await _service.LoadAsync(performance, media);
+        await _service.PlayAsync();
+        await Task.Delay(10);
+
+        await _service.TickAsync();
+
+        Assert.Equal(PlaybackState.Playing, _service.State);
+    }
+
+    [Fact]
     public async Task TickAsync_StopsPlayback_WhenPositionExceedsDuration()
     {
         var (performance, media) = CreatePerformance();

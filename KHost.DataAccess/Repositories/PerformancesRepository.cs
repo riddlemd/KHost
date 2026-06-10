@@ -132,7 +132,7 @@ internal class PerformancesRepository : BaseRepository<Performance>, IPerformanc
             .ExecuteDeleteAsync();
     }
 
-    private static IQueryable<Performance> ApplyFilter(IQueryable<Performance> query, PerformanceFilter filter)
+    internal static IQueryable<Performance> ApplyFilter(IQueryable<Performance> query, PerformanceFilter filter)
     {
         bool wantQueued   = filter.HasFlag(PerformanceFilter.Queued);
         bool wantUnQueued = filter.HasFlag(PerformanceFilter.UnQueued);
