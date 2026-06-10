@@ -189,4 +189,14 @@ public class PerformanceServiceTests
         Assert.Equal(perf3.Id, queued.Items[1].Id);
         Assert.Equal(perf1.Id, queued.Items[2].Id);
     }
+
+    [Fact]
+    public async Task DeleteAllQueuedAsync_DelegatesToRepository()
+    {
+        _repository.DeleteAllQueuedAsync().Returns(Task.CompletedTask);
+
+        await _service.DeleteAllQueuedAsync();
+
+        await _repository.Received(1).DeleteAllQueuedAsync();
+    }
 }

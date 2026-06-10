@@ -275,6 +275,33 @@ public class PlaybackServiceTests : IDisposable
         await _screenServer.Received(1).BroadcastCommandAsync(Arg.Any<StopCommand>());
     }
 
+    [Fact]
+    public async Task PauseAsync_BroadcastsPauseCommand()
+    {
+        var (performance, media) = CreatePerformance();
+        await _service.LoadAsync(performance, media);
+        await _service.PlayAsync();
+
+        await _service.PauseAsync();
+
+        await _screenServer.Received(1).BroadcastCommandAsync(Arg.Any<PauseCommand>());
+    }
+
+    [Fact]
+    public async Task TickAsync_StopsPlayback_WhenPositionExceedsDuration()
+    {
+        var (performance, media) = CreatePerformance();
+        media.Duration = TimeSpan.FromMilliseconds(1);
+
+        await _service.LoadAsync(performance, media);
+        await _service.PlayAsync();
+
+        await Task.Delay(750);
+
+        Assert.Equal(PlaybackState.Stopped, _service.State);
+        await _performanceService.Received().DequeueAsync(performance.SingerId, performance.Id);
+    }
+
     private static (Performance, Media) CreatePerformance()
     {
         var singerId = Guid.NewGuid();
