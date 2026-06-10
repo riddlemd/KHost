@@ -14,6 +14,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
+      <_Parameter1>KHost.UnitTests</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\KHost.Abstractions\KHost.Abstractions.csproj" />
     <ProjectReference Include="..\KHost.LrcLib\KHost.LrcLib.csproj" />
     <ProjectReference Include="..\KHost.Telemetry\KHost.Telemetry.csproj" />

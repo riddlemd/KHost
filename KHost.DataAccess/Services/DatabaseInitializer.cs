@@ -63,7 +63,7 @@ internal class DatabaseInitializer : IDatabaseInitializer
         _logger.LogInformation("Database initialization complete");
     }
 
-    private async Task SeedDefaultAdminUserAsync()
+    internal async Task SeedDefaultAdminUserAsync()
     {
         var options = _options.CurrentValue;
         if (options.DefaultAdminUser is null)
@@ -84,7 +84,7 @@ internal class DatabaseInitializer : IDatabaseInitializer
         _logger.LogInformation("Default admin user created: {Username}", options.DefaultAdminUser.Username);
     }
 
-    private async Task SeedDefaultVenueAsync()
+    internal async Task SeedDefaultVenueAsync()
     {
         var options = _options.CurrentValue;
         if (options.DefaultVenue is null)
@@ -104,7 +104,7 @@ internal class DatabaseInitializer : IDatabaseInitializer
         _logger.LogInformation("Default venue created: {VenueName}", options.DefaultVenue.Name);
     }
 
-    private async Task SeedDefaultMediaAsync()
+    internal async Task SeedDefaultMediaAsync()
     {
         var options = _options.CurrentValue;
         if (options.DefaultMedia is null || options.DefaultMedia.Count == 0)
@@ -119,17 +119,20 @@ internal class DatabaseInitializer : IDatabaseInitializer
 
         _logger.LogInformation("Seeding default media ({Count} files)", options.DefaultMedia.Count);
         foreach (var entry in options.DefaultMedia)
+            await SeedOneMediaFileAsync(entry);
+    }
+
+    private async Task SeedOneMediaFileAsync(ServiceOptions.DefaultMediaOptions entry)
+    {
+        try
         {
-            try
-            {
-                var media = await _mediaFileParsingService.LoadAndParse(entry.FilePath);
-                await _mediaService.CreateAsync(media);
-                _logger.LogInformation("Seeded media: {FilePath}", entry.FilePath);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Failed to seed media file: {FilePath}", entry.FilePath);
-            }
+            var media = await _mediaFileParsingService.LoadAndParse(entry.FilePath);
+            await _mediaService.CreateAsync(media);
+            _logger.LogInformation("Seeded media: {FilePath}", entry.FilePath);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to seed media file: {FilePath}", entry.FilePath);
         }
     }
 

@@ -15,8 +15,50 @@ public class MediaSearchServiceTests
     public MediaSearchServiceTests()
     {
         _provider = Substitute.For<IMediaProvider>();
+        _provider.SourceName.Returns("FileSystem");
+        _provider.DisplayName.Returns("File System");
         var analytics = Substitute.For<IAnalyticsService>();
+        analytics.StartActivity(Arg.Any<string>()).Returns(Substitute.For<IAnalyticsActivity>());
         _service = new MediaSearchService(_logger, [_provider], analytics);
+    }
+
+    [Fact]
+    public void GetMediaProviderDisplayName_ReturnsDisplayName_WhenProviderFound()
+    {
+        var result = _service.GetMediaProviderDisplayName("FileSystem");
+
+        Assert.Equal("File System", result);
+    }
+
+    [Fact]
+    public void GetMediaProviderDisplayName_ReturnsUnknownSource_WhenProviderNotFound()
+    {
+        var result = _service.GetMediaProviderDisplayName("YouTube");
+
+        Assert.Equal("Unknown Source", result);
+    }
+
+    [Fact]
+    public async Task SearchAsync_ReturnsEmptyList_WhenNoProviders()
+    {
+        var analytics = Substitute.For<IAnalyticsService>();
+        analytics.StartActivity(Arg.Any<string>()).Returns(Substitute.For<IAnalyticsActivity>());
+        var emptyService = new MediaSearchService(_logger, [], analytics);
+
+        var results = await emptyService.SearchAsync("test");
+
+        Assert.Empty(results);
+    }
+
+    [Fact]
+    public async Task SearchAsync_ContinuesAfterProviderException()
+    {
+        _provider.SearchAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<int>())
+            .Returns(Task.FromException<List<MediaSearchEntity>>(new HttpRequestException("network error")));
+
+        var results = await _service.SearchAsync("song");
+
+        Assert.Empty(results);
     }
 
     [Fact]

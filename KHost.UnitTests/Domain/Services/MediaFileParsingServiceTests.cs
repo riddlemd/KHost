@@ -189,6 +189,46 @@ public class MediaFileParsingServiceTests
     }
 
     [Fact]
+    public void ExtractProbeTags_ReturnsNulls_WhenTagsIsNull()
+    {
+        var (title, artist) = MediaFileParsingService.ExtractProbeTags(null);
+
+        Assert.Null(title);
+        Assert.Null(artist);
+    }
+
+    [Fact]
+    public void ExtractProbeTags_ReturnsTitleAndArtist_WhenBothPresent()
+    {
+        var tags = new Dictionary<string, string> { { "title", "My Song" }, { "artist", "My Artist" } };
+
+        var (title, artist) = MediaFileParsingService.ExtractProbeTags(tags);
+
+        Assert.Equal("My Song", title);
+        Assert.Equal("My Artist", artist);
+    }
+
+    [Fact]
+    public void ExtractProbeTags_ReturnsNull_WhenTagValueIsWhitespace()
+    {
+        var tags = new Dictionary<string, string> { { "title", "   " }, { "artist", "" } };
+
+        var (title, artist) = MediaFileParsingService.ExtractProbeTags(tags);
+
+        Assert.Null(title);
+        Assert.Null(artist);
+    }
+
+    [Fact]
+    public void ExtractProbeTags_ReturnsNulls_WhenTagsIsEmpty()
+    {
+        var (title, artist) = MediaFileParsingService.ExtractProbeTags(new Dictionary<string, string>());
+
+        Assert.Null(title);
+        Assert.Null(artist);
+    }
+
+    [Fact]
     public void Constructor_InvalidPrefixRegex_DoesNotThrow_AndSkipsBadPattern()
     {
         // A bad regex in user config must not crash construction; the bad pattern is logged and skipped.

@@ -195,7 +195,7 @@ public class PlaybackService : BaseService, IPlaybackService
         }
     }
 
-    private async Task TickAsync()
+    internal async Task TickAsync()
     {
         var now = DateTime.UtcNow;
         Position += now - _lastTick;
