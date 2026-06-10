@@ -28,21 +28,26 @@ namespace KHost.Domain.Services
                 if (results.Count <= 0)
                     return null;
 
-                var firstResult = results[0];
-
-                return new()
-                {
-                    Name = $"{firstResult?.TrackName ?? "Unknown"} - {firstResult?.ArtistName ?? "Unknown"}".Trim(),
-                    Text = firstResult?.PlainLyrics ?? "",
-                    ProviderName = "LRCLIB.NET",
-                    ProviderUrl = "https://lrclib.net"
-                };
+                return MapLyricsResult(results[0]);
             }
             catch (HttpRequestException ex)
             {
                 Logger.LogWarning(ex, "Lyrics lookup failed for '{Query}'", query);
                 return null;
             }
+        }
+
+        private static Lyrics MapLyricsResult(LyricsRecord? record)
+        {
+            var track = record?.TrackName ?? "Unknown";
+            var artist = record?.ArtistName ?? "Unknown";
+            return new Lyrics
+            {
+                Name = $"{track} - {artist}".Trim(),
+                Text = record?.PlainLyrics ?? "",
+                ProviderName = "LRCLIB.NET",
+                ProviderUrl = "https://lrclib.net"
+            };
         }
     }
 }
