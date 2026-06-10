@@ -335,6 +335,86 @@ public class SingerQueueServiceTests : IDisposable
         Assert.False(_service.IsTopSlotLocked);
     }
 
+    [Fact]
+    public async Task MoveUserToIndexAsync_MovesUserToSpecifiedPosition()
+    {
+        var a = await EnqueueAsync("A");
+        var b = await EnqueueAsync("B");
+        var c = await EnqueueAsync("C");
+
+        await _service.MoveUserToIndexAsync(c.Id, 0);
+
+        Assert.Equal(c.Id, _service.Users[0].Id);
+        Assert.Equal(a.Id, _service.Users[1].Id);
+        Assert.Equal(b.Id, _service.Users[2].Id);
+    }
+
+    [Fact]
+    public async Task MoveUserToIndexAsync_ClampsIndexToValidRange()
+    {
+        var a = await EnqueueAsync("A");
+        var b = await EnqueueAsync("B");
+
+        await _service.MoveUserToIndexAsync(a.Id, 99);
+
+        Assert.Equal(b.Id, _service.Users[0].Id);
+        Assert.Equal(a.Id, _service.Users[1].Id);
+    }
+
+    [Fact]
+    public async Task MoveUserToIndexAsync_DoesNothing_WhenUserNotInQueue()
+    {
+        var a = await EnqueueAsync("A");
+        var b = await EnqueueAsync("B");
+
+        await _service.MoveUserToIndexAsync(Guid.NewGuid(), 0);
+
+        Assert.Equal(a.Id, _service.Users[0].Id);
+        Assert.Equal(b.Id, _service.Users[1].Id);
+    }
+
+    [Fact]
+    public async Task MoveUserToIndexAsync_DoesNotMoveToZero_WhenTopSlotLocked()
+    {
+        var a = await EnqueueAsync("A");
+        var b = await EnqueueAsync("B");
+
+        _service.LockTopSlot();
+        await _service.MoveUserToIndexAsync(b.Id, 0);
+
+        Assert.Equal(a.Id, _service.Users[0].Id);
+        Assert.Equal(b.Id, _service.Users[1].Id);
+    }
+
+    [Fact]
+    public async Task ClearAsync_ClearsQueueAndDelegatesPerformanceDelete_WhenVenueSettingIsTrue()
+    {
+        _venuesService.ReadSelectedVenueAsync()
+            .Returns(new Venue { Name = "Test", Settings = new Venue.VenueSettings { ClearQueueOnClose = true } });
+
+        await EnqueueAsync("Alice");
+        await EnqueueAsync("Bob");
+
+        await _service.ClearAsync();
+
+        Assert.Null(_service.SelectedUserId);
+        await _performanceService.Received(1).DeleteAllQueuedAsync();
+    }
+
+    [Fact]
+    public async Task ClearAsync_DoesNothing_WhenVenueSettingIsFalse()
+    {
+        _venuesService.ReadSelectedVenueAsync()
+            .Returns(new Venue { Name = "Test", Settings = new Venue.VenueSettings { ClearQueueOnClose = false } });
+
+        await EnqueueAsync("Alice");
+
+        await _service.ClearAsync();
+
+        Assert.Single(_service.Users);
+        await _performanceService.DidNotReceive().DeleteAllQueuedAsync();
+    }
+
     private async Task<KHostUser> EnqueueAsync(string name)
     {
         var user = new KHostUser { Name = name };

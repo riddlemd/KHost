@@ -1,5 +1,7 @@
 # CLAUDE.md
 
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
 **KHost** — karaoke host app. .NET 10 + Blazor Server UI, Avalonia desktop screen app. Solution file: `KHost.slnx` (no `.sln`).
 
 ## Commands
@@ -8,7 +10,9 @@
 dotnet run --project KHost.UserInterface   # run UI directly
 dotnet run --project KHost.AppHost         # run via Aspire
 dotnet build KHost.slnx "-p:BaseOutputPath=./obj/_build"  # build whole solution (redirects output to avoid locking VS's bin/ folder)
-dotnet test KHost.UnitTests                # run unit tests
+dotnet test KHost.UnitTests                # run all unit tests
+dotnet test KHost.UnitTests --filter "FullyQualifiedName~ServiceName"  # run tests for one class
+dotnet test KHost.UnitTests --filter "DisplayName~MethodName"          # run a single test by method
 ```
 
 SCSS only — no full rebuild needed:
@@ -26,7 +30,12 @@ Dependency direction: **UI → Domain / DataAccess → Abstractions**. `KHost.Ab
 | `KHost.Domain` | Business logic, services, domain models. Registered via `AddDomain()`. |
 | `KHost.DataAccess` | EF Core 10 + SQLite. `DefaultContext`, `BaseRepository<T>`. Registered via `AddDataAccess()`. |
 | `KHost.UserInterface` | Blazor Server app. Interactive Server render mode. |
-| `KHost.Screen` | Avalonia desktop app for video output. Self-contained, not wired to UI. |
+| `KHost.Screen` | Avalonia desktop app for video output. Launched with `--server-uri` and `--screen-id` args. |
+| `KHost.IPC.SignalR` | SignalR hub + client for UI↔Screen command/state exchange. |
+| `KHost.LrcLib` | HTTP client for lrclib.net lyrics lookup. |
+| `KHost.Telemetry` | OpenTelemetry metrics/activities via `KHostMetrics` and `KHostActivitySource`. |
+| `KHost.ServiceDefaults` | Aspire service defaults (logging, health checks). |
+| `KHost.AppHost` | Aspire orchestration host. |
 | `KHost.UnitTests` | xUnit + NSubstitute. |
 
 ## Conventions
@@ -39,7 +48,7 @@ Dependency direction: **UI → Domain / DataAccess → Abstractions**. `KHost.Ab
 
 **State persistence** — SQL (`DefaultContext`) for library/users/groups. JSON cache under `./cache/` (`ICacheService`) for queue and venue state.
 
-**Events** — stateful services expose `StateChanged`; Blazor components subscribe in `OnInitialized` and call `StateHasChanged`.
+**Events** — stateful services expose `StateChanged`; Blazor components subscribe in `OnInitialized` and call `StateHasChanged`. Services inherit `BaseService` (provides `ILogger Logger` and `protected void InvokeStateChanged()`). CRUD services inherit `BaseRepositoryService<TService, TRepository>` which wraps the repository and calls `InvokeStateChanged()` after mutations.
 
 **EF Core join entities** — use `UsingEntity<T>(l => ..., r => ..., j => { ... })` (no string name argument). Add `j.ToTable(...)` explicitly if the table name needs to differ from the CLR type name. Using a string name makes it a shared-type entity and breaks `context.Set<T>()`.
 
@@ -63,6 +72,41 @@ Explicit interface implementations: place immediately after the public overload 
 ## Git
 
 Do NOT commit unless explicitly asked.
+
+## Adding a new repository
+
+1. Create interface in `KHost.Abstractions/Repositories/`.
+2. Create concrete class in `KHost.DataAccess/Repositories/` extending `BaseRepository<T>`.
+3. Implement `SortColumns` (maps string keys to `Expression<Func<T, object>>` for sort), `DefaultSortExpression`, `DefaultSortDescending`, and `ApplySearchFilters<TOptions>` (add WHERE clauses before search executes).
+4. Register in `KHost.DataAccess/ProjectExtensions.cs`.
+
+## Adding a new domain service
+
+1. Create interface in `KHost.Abstractions/Services/`.
+2. Create class in `KHost.Domain/Services/` extending `BaseService` (or `BaseRepositoryService<,>` for CRUD wrappers).
+3. Register as singleton in `KHost.Domain/ProjectExtensions.cs`.
+
+## IPC (UI ↔ Screen)
+
+Commands flow **UI → Screen**; state flows **Screen → UI**.
+
+- `KHost.IPC.SignalR` provides `ScreenHub` (ASP.NET Core SignalR hub) and `ScreenClient` (Avalonia-side client).
+- Commands (`LoadMediaCommand`, `PlayCommand`, `PauseCommand`, `StopCommand`, `SeekCommand`, `SetVolumeCommand`, `SetPitchCommand`) inherit `ScreenCommandBase` and are serialized as JSON strings with a `$type` discriminator via `[JsonPolymorphic]` / `[JsonDerivedType]` attributes on the base — **adding a new command requires adding a `[JsonDerivedType]` attribute**.
+- `IScreenServer.BroadcastCommandAsync(IScreenCommand)` sends to all connected screens.
+- `ScreenIpcController` in `KHost.Screen` dispatches received commands to `IMediaPlayer` via a `switch` on the concrete command type, then sends updated `ScreenPlaybackState` back.
+- Server registered via `AddSignalRIPCServer()` + `MapIPCServer("/ipc/screen")`.
+
+## Dialog/Interaction system
+
+`IInteractionDispatcher.HandleAsync<TRequest, TResponse>()` resolves the matching `IInteractionHandler<TRequest, TResponse>` from DI and invokes it. Handlers use `TaskCompletionSource` to bridge event-driven UI dialogs into awaitable calls. Register handlers as singletons in `Program.cs`.
+
+## Unit test conventions
+
+- **Framework:** xUnit + NSubstitute. Global usings: `using NSubstitute;` and `using Xunit;`.
+- **Naming:** `MethodUnderTest_Scenario_ExpectedBehavior` (e.g., `DeleteAsync_InvokesStateChanged_WhenRepositoryReturnsTrue`).
+- **Structure:** Dependencies created with `Substitute.For<IInterface>()` in the test class constructor or field initializers; `NullLogger<T>.Instance` for loggers.
+- **Events:** Test `StateChanged` by attaching a counter lambda: `service.StateChanged += (_, _) => count++;`.
+- Mirror the source project layout — tests for `KHost.Domain/Services/Foo.cs` go in `KHost.UnitTests/Domain/Services/FooTests.cs`.
 
 ## Gotchas
 
