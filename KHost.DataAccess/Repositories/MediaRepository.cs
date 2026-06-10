@@ -85,6 +85,10 @@ internal class MediaRepository : BaseRepository<Media>, IMediaRepository
                 .FromSqlRaw(sql, match)
                 .AsNoTracking();
 
+            // The raw FTS query bypasses the base SearchAsync pipeline, so apply
+            // the same option-based filters (e.g. status) here.
+            queryable = ApplySearchFilters(queryable, query, options);
+
             var totalCount = await queryable.CountAsync();
 
             var items = await PaginationComponent
