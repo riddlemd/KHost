@@ -9,9 +9,7 @@ the terms of the PolyForm Shield License covering KHost's own code.
 > Full verbatim texts of the licenses that require inclusion in binary
 > distributions are bundled under [`licenses/`](licenses): Apache-2.0, GNU
 > LGPL v2.1, and SIL OFL 1.1. MIT and BSD-3-Clause are reproduced inline in
-> [§4](#4-common-license-texts). For a formal release, regenerate the inventory
-> with a tool such as `dotnet-project-licenses` to confirm exact license
-> identifiers and versions.
+> [§4](#4-common-license-texts).
 
 ---
 
