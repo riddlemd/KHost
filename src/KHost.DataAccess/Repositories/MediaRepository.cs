@@ -15,6 +15,10 @@ internal class MediaRepository : BaseRepository<Media>, IMediaRepository
 {
     private static readonly char[] _ftsMetaChars = ['"', '*', ':', '^', '(', ')', '+', '-'];
 
+    // Linux filesystems are case-sensitive; Windows and default macOS volumes are not. Folding case
+    // on Linux would treat Song.mp4 and song.mp4 as the same file and silently drop one on import.
+    private static readonly bool _caseSensitivePaths = OperatingSystem.IsLinux();
+
     private static readonly IReadOnlyDictionary<string, Expression<Func<Media, object>>> _sortColumns =
         new Dictionary<string, Expression<Func<Media, object>>>
         {
@@ -34,17 +38,38 @@ internal class MediaRepository : BaseRepository<Media>, IMediaRepository
 
     public async Task<HashSet<string>> GetExistingFilePathsAsync(IEnumerable<string> filePaths)
     {
-        var paths = filePaths.Select(p => p.ToLowerInvariant()).ToList();
-        if (paths.Count == 0)
+        var comparer = _caseSensitivePaths ? StringComparer.Ordinal : StringComparer.OrdinalIgnoreCase;
+        var wanted = new HashSet<string>(filePaths, comparer);
+        if (wanted.Count == 0)
             return [];
 
         using var context = await ContextFactory.CreateDbContextAsync();
-        var existing = await context.Media
-            .Where(m => paths.Contains(m.FilePath.ToLower()))
-            .Select(m => m.FilePath)
-            .ToListAsync();
 
-        return new HashSet<string>(existing, StringComparer.OrdinalIgnoreCase);
+        // Byte-exact is both what a case-sensitive filesystem means and what SQLite's default
+        // BINARY collation does, so the unique index on FilePath serves this query directly.
+        if (_caseSensitivePaths)
+        {
+            var lookup = wanted.ToList();
+            var exact = await context.Media
+                .Where(m => lookup.Contains(m.FilePath))
+                .Select(m => m.FilePath)
+                .ToListAsync();
+
+            return new HashSet<string>(exact, comparer);
+        }
+
+        // The bundled SQLite (e_sqlite3, no ICU) folds ASCII only in both lower() and NOCASE, so a
+        // stored "SÖNG.mp4" would not match a scanned "söng.mp4" and the unique index would then
+        // reject the re-import. Scan the column and let the .NET comparer decide; only hits are
+        // retained, so peak memory is O(matches) rather than O(table).
+        var found = new HashSet<string>(comparer);
+        await foreach (var stored in context.Media.Select(m => m.FilePath).AsAsyncEnumerable())
+        {
+            if (wanted.Contains(stored))
+                found.Add(stored);
+        }
+
+        return found;
     }
 
     protected override IReadOnlyDictionary<string, Expression<Func<Media, object>>> SortColumns => _sortColumns;
