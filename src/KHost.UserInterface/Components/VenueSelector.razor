@@ -2,7 +2,7 @@
 
 <span class="kh-venue-selector input">
     Venue
-    <select class="form-select" @onchange="OnVenueChanged">
+    <select class="kh-form-select" @onchange="OnVenueChanged">
         @if (_venues?.Count > 0)
         {
             @foreach (var venue in _venues)

@@ -47,8 +47,8 @@ html {
 }
 
 /* ─── Form Controls ──────────────────────────────────────────────────────── */
-.form-control,
-.form-select {
+.kh-form-control,
+.kh-form-select {
     background-color: var(--kh-bg-input);
     border-color: var(--kh-border);
     color: var(--kh-text);
@@ -69,7 +69,7 @@ html {
     }
 }
 
-.form-select option {
+.kh-form-select option {
     background-color: var(--kh-bg-elevated);
     color: var(--kh-text);
 }
@@ -85,11 +85,11 @@ input[type='number'] {
     }
 }
 
-.form-check {
+.kh-form-check {
     display: inline;
 }
 
-.form-check-input {
+.kh-form-check-input {
     appearance: none;
     -webkit-appearance: none;
     width: 1.1em;
@@ -117,7 +117,7 @@ input[type='number'] {
     }
 }
 
-.form-label {
+.kh-form-label {
     color: var(--kh-text-secondary);
     font-size: 0.75rem;
     letter-spacing: 0.04em;

@@ -11,20 +11,20 @@
         <EditForm EditContext="_editContext" OnValidSubmit="SaveAsync">
             <DataAnnotationsValidator />
             <div >
-                <div class="form-check">
-                    <InputCheckbox class="form-check-input" id="updateArtistCheck" @bind-Value="_model.UpdateArtist" />
-                    <label class="form-check-label" for="updateArtistCheck">Update Artist</label>
+                <div class="kh-form-check">
+                    <InputCheckbox class="kh-form-check-input" id="updateArtistCheck" @bind-Value="_model.UpdateArtist" />
+                    <label class="kh-form-check-label" for="updateArtistCheck">Update Artist</label>
                 </div>
-                <InputText class="@($"form-control {(_model.UpdateArtist ? "" : "disabled")}".Trim())"
+                <InputText class="@($"kh-form-control {(_model.UpdateArtist ? "" : "disabled")}".Trim())"
                            disabled="@(!_model.UpdateArtist)"
                            @bind-Value="_model.Artist"
                            placeholder="Artist name" />
                 <ValidationMessage For="() => _model.Artist" />
             </div>
             <div >
-                <div class="form-check">
-                    <InputCheckbox class="form-check-input" id="swapCheck" @bind-Value="_model.SwapTitleAndArtist" />
-                    <label class="form-check-label" for="swapCheck">Swap Title and Artist</label>
+                <div class="kh-form-check">
+                    <InputCheckbox class="kh-form-check-input" id="swapCheck" @bind-Value="_model.SwapTitleAndArtist" />
+                    <label class="kh-form-check-label" for="swapCheck">Swap Title and Artist</label>
                 </div>
             </div>
             <button type="submit" class="kh-hidden"></button>
