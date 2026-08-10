@@ -178,8 +178,7 @@
             await UsersService.UpdateAsync(user);
     }
 
-    // Always prompts: deleting a user is destructive and must not depend on which venue
-    // happens to be selected.
+    // Unconditional: a destructive action must not hinge on which venue is selected.
     private async Task StartDeleteAsync(KHostUser user)
     {
         if (UsersService is null || DialogService is null) return;

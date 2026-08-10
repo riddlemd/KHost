@@ -151,8 +151,7 @@
             await VenuesService.UpdateAsync(venue);
     }
 
-    // Always prompts: deleting a venue is destructive and must not depend on which venue
-    // happens to be selected.
+    // Unconditional: a destructive action must not hinge on which venue is selected.
     private async Task StartDeleteAsync(Venue venue)
     {
         if (VenuesService is null || DialogService is null) return;

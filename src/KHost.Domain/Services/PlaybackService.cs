@@ -199,9 +199,8 @@ public class PlaybackService : BaseService, IPlaybackService
         }
     }
 
-    // ScreenServerService raises these while holding its connection lock, and
-    // GetConnectedScreensAsync waits on that same non-reentrant lock — so the work has to run
-    // off this thread or it deadlocks the hub.
+    // Raised while ScreenServerService holds the same non-reentrant lock GetConnectedScreensAsync
+    // waits on, so this work must leave the hub thread or it deadlocks.
     private void OnScreenConnected(object? sender, ScreenConnectionEventArgs e) =>
         _ = Task.Run(SyncNewScreenAsync);
 

@@ -173,8 +173,7 @@
             await TipsService.UpdateAsync(tip);
     }
 
-    // Always prompts: deleting a tip is destructive and must not depend on which venue
-    // happens to be selected.
+    // Unconditional: a destructive action must not hinge on which venue is selected.
     private async Task StartDeleteAsync(Tip tip)
     {
         if (TipsService is null || DialogService is null) return;

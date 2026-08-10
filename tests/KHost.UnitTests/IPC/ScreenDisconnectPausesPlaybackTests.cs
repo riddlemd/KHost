@@ -9,9 +9,8 @@ using Microsoft.Extensions.Options;
 
 namespace KHost.UnitTests.IPC;
 
-// Wires the real ScreenServerService to the real PlaybackService. ScreenServerService raises
-// ScreenDisconnected while holding a non-reentrant SemaphoreSlim that GetConnectedScreensAsync
-// also waits on, so a handler that queries screens inline would deadlock the hub thread.
+// Uses the real ScreenServerService: it raises ScreenDisconnected while holding the same
+// non-reentrant lock GetConnectedScreensAsync waits on, so an inline handler deadlocks the hub.
 public class ScreenDisconnectPausesPlaybackTests : IDisposable
 {
     private readonly ScreenServerService _screenServer;

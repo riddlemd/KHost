@@ -4,20 +4,15 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace KHost.UnitTests.Screen;
 
-// Play/Pause/Seek all call CancelFade() before they touch player state, and CancelFade used to
-// restore _preFadeVolume unconditionally. Since _preFadeVolume was only ever assigned inside
-// Stop(), any transport command reset the host's chosen volume back to the 1.0 default.
-//
-// OpenAlAudioPlayer.Volume stores its value whether or not an OpenAL device is present, so these
-// assertions hold on a machine with no audio device.
+// Play/Pause/Seek all run CancelFade() first, so the fade baseline must never be written back
+// unless a fade ran. Volume round-trips without OpenAL, so these pass with no audio device.
 public class DefaultMediaPlayerVolumeTests
 {
     private static DefaultMediaPlayer MakePlayer() => new(
         new OpenAlAudioPlayer(NullLogger<OpenAlAudioPlayer>.Instance),
         NullLogger<DefaultMediaPlayer>.Instance);
 
-    // No media is loaded, so these throw after CancelFade() has already run — which is the
-    // moment the volume used to be clobbered.
+    // With no media loaded these throw, but only after CancelFade() has already run.
     private static void InvokeIgnoringNoMedia(Action transportCommand)
     {
         try
