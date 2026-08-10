@@ -37,12 +37,6 @@ internal class SearchableDbSetComponent<TClass, TContext>
             .Paginate(queryable, pageNumber, pageSize)
             .ToListAsync();
 
-        return new PaginatedResult<TClass>
-        {
-            Items = items,
-            TotalCount = totalCount,
-            PageNumber = pageNumber,
-            PageSize = pageSize
-        };
+        return _paginationComponent.BuildResult(items, totalCount, pageNumber, pageSize);
     }
 }

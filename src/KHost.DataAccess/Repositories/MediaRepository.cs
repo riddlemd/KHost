@@ -98,13 +98,7 @@ internal class MediaRepository : BaseRepository<Media>, IMediaRepository
             Logger.LogDebug("MediaRepository.SearchAsync q={Query} match={Match} elapsed={ElapsedMs}ms results={ResultCount} usedFts=true",
                 query, match, sw.ElapsedMilliseconds, totalCount);
 
-            return new PaginatedResult<Media>
-            {
-                Items = items,
-                TotalCount = totalCount,
-                PageNumber = pageNumber,
-                PageSize = pageSize
-            };
+            return PaginationComponent.BuildResult(items, totalCount, pageNumber, pageSize);
         }
         finally
         {
@@ -158,13 +152,7 @@ internal class MediaRepository : BaseRepository<Media>, IMediaRepository
             Logger.LogDebug("MediaRepository.SearchAsync q={Query} match={Match} sort={Sort} elapsed={ElapsedMs}ms results={ResultCount} usedFts=true",
                 query, match, sort?.Column, sw.ElapsedMilliseconds, totalCount);
 
-            return new PaginatedResult<Media>
-            {
-                Items = items,
-                TotalCount = totalCount,
-                PageNumber = pageNumber,
-                PageSize = pageSize
-            };
+            return PaginationComponent.BuildResult(items, totalCount, pageNumber, pageSize);
         }
         finally
         {

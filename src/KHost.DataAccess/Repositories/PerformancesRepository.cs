@@ -62,13 +62,7 @@ internal class PerformancesRepository : BaseRepository<Performance>, IPerformanc
             .Paginate(query, pageNumber, pageSize)
             .ToListAsync();
 
-        return new PaginatedResult<Performance>
-        {
-            Items = items,
-            TotalCount = totalCount,
-            PageNumber = pageNumber,
-            PageSize = pageSize
-        };
+        return PaginationComponent.BuildResult(items, totalCount, pageNumber, pageSize);
     }
 
     public async Task<PaginatedResult<Performance>> ReadBySingerIdAsync(Guid singerId, int pageNumber = 1, int pageSize = 0, PerformanceFilter filter = PerformanceFilter.All)
@@ -88,13 +82,7 @@ internal class PerformancesRepository : BaseRepository<Performance>, IPerformanc
             .Paginate(query, pageNumber, pageSize)
             .ToListAsync();
 
-        return new PaginatedResult<Performance>
-        {
-            Items = items,
-            TotalCount = totalCount,
-            PageNumber = pageNumber,
-            PageSize = pageSize
-        };
+        return PaginationComponent.BuildResult(items, totalCount, pageNumber, pageSize);
     }
 
     public async Task<PaginatedResult<Performance>> ReadByMediaIdAsync(Guid mediaId, int pageNumber = 1, int pageSize = 0, PerformanceFilter filter = PerformanceFilter.All)
@@ -114,13 +102,7 @@ internal class PerformancesRepository : BaseRepository<Performance>, IPerformanc
             .Paginate(query, pageNumber, pageSize)
             .ToListAsync();
 
-        return new PaginatedResult<Performance>
-        {
-            Items = items,
-            TotalCount = totalCount,
-            PageNumber = pageNumber,
-            PageSize = pageSize
-        };
+        return PaginationComponent.BuildResult(items, totalCount, pageNumber, pageSize);
     }
 
     public async Task DeleteAllQueuedAsync()
