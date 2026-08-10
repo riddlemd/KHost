@@ -3,17 +3,10 @@
   "version": "1.0.0",
   "description": "KHost Karaoke Queue UI",
   "scripts": {
-    "sass": "npm run sass:app && npm run sass:themes",
-    "sass:app": "sass wwwroot/scss/app.scss:wwwroot/css/app.css",
-    "sass:themes": "sass wwwroot/scss/themes:wwwroot/css/themes",
-    "sass:watch": "sass --watch wwwroot/scss:wwwroot/css",
-    "sass:dev": "sass --watch --style=expanded wwwroot/scss:wwwroot/css",
-    "dev": "concurrently \"dotnet watch\" \"npm run sass:watch\"",
+    "dev": "dotnet watch",
     "copy:vendors": "node -e \"const fs=require('fs');fs.copyFileSync('node_modules/sortablejs/Sortable.min.js','wwwroot/js/Sortable.min.js')\""
   },
   "devDependencies": {
-    "concurrently": "^9.2.1",
-    "sass": "^1.69.5",
     "sortablejs": "^1.15.6"
   }
 }
