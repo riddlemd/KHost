@@ -92,6 +92,7 @@
                 }
                 <div class="kh-now-playing__times">
                     <span class="kh-now-playing__time">@FormatTime(PlaybackService.Position)</span>
+                    <span class="kh-now-playing__time-separator">/</span>
                     <span class="kh-now-playing__time">@(hasDur ? FormatTime(media.Duration!.Value) : "--:--")</span>
                 </div>
             </div>
