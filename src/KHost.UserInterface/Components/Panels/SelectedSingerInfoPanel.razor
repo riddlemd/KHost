@@ -6,7 +6,7 @@
 @implements IDisposable
 
 <div class="kh-selected-singer-info-panel kh-card">
-    <div class="kh-card__header d-flex align-items-center gap-2">
+    <div class="kh-card__header">
         <Icon Name="queue-music" />
         <Icon Name="music-note-list" />
         @if (SingerQueueService?.SelectedUser is { } selectedUser)
@@ -14,7 +14,7 @@
             var isRegular = selectedUser.Groups.Any(g => g.Id == KHostUserGroupDefaults.RegularGroupId);
 
             <span class="kh-card__title">@selectedUser.Name's Queue</span>
-            <span class="kh-badge kh-badge--secondary kh-selected-singer-info-panel__song-count ms-auto" title="Number of songs in queue">@_performanceCount</span>
+            <span class="kh-badge kh-badge--secondary kh-selected-singer-info-panel__song-count" title="Number of songs in queue">@_performanceCount</span>
    
             <span class="kh-selected-singer-info-panel__tip-totals">
                 Tips |
@@ -77,7 +77,7 @@
             else
             {
             <table class="kh-table kh-selected-singer-info-panel__table">
-                <thead class="sticky-top">
+                <thead >
                     <tr>
                         <th class="kh-selected-singer-info-panel__col--number">#</th>
                         <th>Title</th>
@@ -115,7 +115,7 @@
                                 }
                             </td>
                             @{ _mediaCache.TryGetValue(performance.MediaId, out var rowMedia); }
-                            <td class="text-truncate kh-selected-singer-info-panel__name kh-table__cell--fill">
+                            <td class="kh-selected-singer-info-panel__name kh-table__cell--fill">
                                 <span class="@nameClass">@(rowMedia?.Title ?? "—")</span>
                             </td>
                             <td>@(rowMedia?.Artist ?? "")</td>

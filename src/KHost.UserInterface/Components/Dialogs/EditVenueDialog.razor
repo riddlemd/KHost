@@ -9,12 +9,12 @@
     <Body>
         <EditForm EditContext="_editContext" OnValidSubmit="SaveAsync">
             <DataAnnotationsValidator />
-            <div class="mb-3">
+            <div >
                 <label class="form-label">Name</label>
                 <InputText class="form-control" @bind-Value="_model.Name" autofocus />
                 <ValidationMessage For="() => _model.Name" />
             </div>
-            <div class="mb-3">
+            <div >
                 <label class="form-label">Notes</label>
                 <InputTextArea class="form-control" @bind-Value="_model.Notes" rows="10" />
                 <ValidationMessage For="() => _model.Notes" />
@@ -29,11 +29,11 @@
             <div class="kh-venue-settings__section">
                 <span class="kh-venue-settings__section-title">Playback</span>
                 <div class="kh-venue-settings__row">
-                    <label for="default-volume" class="form-label mb-0">Default Volume</label>
+                    <label for="default-volume" class="form-label">Default Volume</label>
                     <InputNumber id="default-volume" class="form-control" @bind-Value="_model.DefaultVolume" min="0" max="100" />
                 </div>
                 <div class="kh-venue-settings__row">
-                    <label for="on-screen-disconnect" class="form-label mb-0">When a screen disconnects</label>
+                    <label for="on-screen-disconnect" class="form-label">When a screen disconnects</label>
                     <InputSelect id="on-screen-disconnect" class="form-select" @bind-Value="_model.OnScreenDisconnect">
                         <option value="@ScreenDisconnectBehavior.ResumeOnReconnect">Resume when a screen returns</option>
                         <option value="@ScreenDisconnectBehavior.RestartFromStart">Pause and restart the song</option>
@@ -45,7 +45,7 @@
             <div class="kh-venue-settings__section">
                 <span class="kh-venue-settings__section-title">Queue behavior</span>
 
-                <label class="kh-venue-settings__row form-check mb-2">
+                <label class="kh-venue-settings__row form-check">
                     <span class="form-check-label">Move singer to bottom after performance</span>
                     <InputCheckbox class="form-check-input" @bind-Value="_model.MoveSingerToBottomAfterPerformance" />
                 </label>

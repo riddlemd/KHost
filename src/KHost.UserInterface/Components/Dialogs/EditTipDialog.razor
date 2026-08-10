@@ -16,7 +16,7 @@
 
             @if (UserId is null)
             {
-                <div class="mb-3">
+                <div >
                     <label class="form-label">Singer</label>
                     <InputSelect class="form-control" @bind-Value="_model.UserId">
                         <option value="">-- Select a singer --</option>
@@ -29,14 +29,14 @@
                 </div>
             }
 
-            <div class="mb-3">
+            <div >
                 <label class="form-label">Amount</label>
                 <input type="text" @ref="_amountRef" class="form-control"
                        inputmode="numeric" @onchange="OnAmountChangedAsync" />
                 <ValidationMessage For="() => _model.Amount" />
             </div>
 
-            <div class="mb-3">
+            <div >
                 <label class="form-label">Payment Method</label>
                 <InputSelect class="form-control" @bind-Value="_model.PaymentMethod">
                     @foreach (var method in Enum.GetValues<TipPaymentMethod>())
@@ -47,7 +47,7 @@
                 <ValidationMessage For="() => _model.PaymentMethod" />
             </div>
 
-            <div class="mb-3">
+            <div >
                 <label class="form-label">Notes</label>
                 <InputTextArea class="form-control" @bind-Value="_model.Notes" rows="5" />
                 <ValidationMessage For="() => _model.Notes" />

@@ -3,12 +3,12 @@
 @using System.Collections.Concurrent
 @implements IAsyncDisposable
 
-<div class="kh-card h-100">
-            <div class="kh-card__header d-flex align-items-center gap-2">
+<div class="kh-card">
+            <div class="kh-card__header">
                 <span class="kh-card__title"><Icon Name="folder2-open" /> Media Importer</span>
                 @if (ImportService!.State != ImportState.Idle)
                 {
-                    <span class="kh-media-importer__progress ms-auto">
+                    <span class="kh-media-importer__progress">
                         @if (ImportService.State == ImportState.Cancelling)
                         {
                             <span>Cancelling...</span>
@@ -184,7 +184,7 @@
                                                   @onclick="() => ToggleSelection(entry)" />
                                         }
                                     </td>
-                                    <td class="kh-table__cell--fill text-truncate" title="@GetParsedMetadataTooltip(entry)">
+                                    <td class="kh-table__cell--fill" title="@GetParsedMetadataTooltip(entry)">
                                         @if (entry.IsDirectory)
                                         {
                                             <Icon Name="folder-fill" />

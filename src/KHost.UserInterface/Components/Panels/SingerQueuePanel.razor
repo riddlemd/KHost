@@ -4,16 +4,16 @@
 @implements IDisposable
 
 <div class="kh-singer-queue-panel kh-card">
-    <div class="kh-card__header d-flex align-items-center gap-2">
+    <div class="kh-card__header">
         <Icon Name="people-fill" />
         <span class="kh-card__title">Singer Queue</span>
         @if (SingerQueueService?.Users.Count > 0)
         {
-            <span class="kh-badge kh-badge--secondary kh-singer-queue-panel__singer-count ms-auto" title="Number of singers in queue">@SingerQueueService.Users.Count</span>
+            <span class="kh-badge kh-badge--secondary kh-singer-queue-panel__singer-count" title="Number of singers in queue">@SingerQueueService.Users.Count</span>
         }
         <span class="kh-card__shortcut">ctrl+1</span>
     </div>
-    <div class="kh-card__body d-flex flex-column gap-3">
+    <div class="kh-card__body">
         <form name="add-singer-form" class="kh-panel__form-row" @onsubmit="AddUserAsync" @onsubmit:preventDefault>
             <input type="text" class="form-control kh-panel__form-grow" placeholder="Type New Singer's Name..."
                     autocomplete="off" @bind="_newSingerName" @bind:event="oninput" />
@@ -23,7 +23,7 @@
             </button>
         </form>
     </div>
-    <div class="kh-singer-queue-panel__singer-queue kh-card__body d-flex flex-column gap-3">
+    <div class="kh-singer-queue-panel__singer-queue kh-card__body">
         @if (!SingerQueueService?.Users.Any() == true)
         {
             <div class="kh-panel--empty kh-panel--empty-lg">

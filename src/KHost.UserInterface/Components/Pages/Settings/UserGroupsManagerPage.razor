@@ -7,15 +7,15 @@
 
 <div class="kh-app__body">
     <div class="kh-settings-page">
-        <div class="kh-card h-100">
-            <div class="kh-card__header d-flex align-items-center gap-2">
+        <div class="kh-card">
+            <div class="kh-card__header">
                 <span class="kh-card__title"><Icon Name="people-fill" /> User Groups Manager</span>
-                <button class="kh-button kh-button--primary ms-auto" @onclick="OpenAddDialogAsync" type="button">
+                <button class="kh-button kh-button--primary" @onclick="OpenAddDialogAsync" type="button">
                     <Icon Name="plus-lg" /> Add Group
                 </button>
             </div>
             <div class="kh-card__body">
-                <form class="kh-panel__form-row mb-3" @onsubmit:preventDefault>
+                <form class="kh-panel__form-row" @onsubmit:preventDefault>
                     <input type="text" class="form-control kh-panel__form-grow" placeholder="Search Groups..."
                             autocomplete="off" @bind="_searchQuery" @bind:event="oninput" @onchange="OnSearchChanged" />
                 </form>
@@ -68,7 +68,7 @@
                                             }
                                             @if (group.Permissions.Count == 0)
                                             {
-                                                <span class="text-muted">—</span>
+                                                <span >—</span>
                                             }
                                         }
                                     </td>
