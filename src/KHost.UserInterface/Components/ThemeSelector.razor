@@ -3,7 +3,7 @@
 
 <span class="kh-theme-selector input">
     Theme
-    <select class="form-select" @onchange="OnThemeChanged">
+    <select class="kh-form-select" @onchange="OnThemeChanged">
         @foreach (var theme in ThemeService?.AvailableThemes ?? [])
         {
             <option value="@theme" selected="@(ThemeService?.CurrentTheme == theme)">

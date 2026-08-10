@@ -11,13 +11,13 @@
         <EditForm EditContext="_editContext" OnValidSubmit="SaveAsync">
             <DataAnnotationsValidator />
             <div >
-                <label class="form-label">Title</label>
-                <InputText class="form-control" @bind-Value="_model.Title" autofocus />
+                <label class="kh-form-label">Title</label>
+                <InputText class="kh-form-control" @bind-Value="_model.Title" autofocus />
                 <ValidationMessage For="() => _model.Title" />
             </div>
             <div >
                 <div class="@(_rootClassName)__label-row">
-                    <label class="form-label">Artist</label>
+                    <label class="kh-form-label">Artist</label>
                     <button type="button"
                             class="@(_rootClassName)__swap-btn kh-button--icon-minimal"
                             title="Swap Title and Artist"
@@ -25,17 +25,17 @@
                         <Icon Name="arrow-down-up" />
                     </button>
                 </div>
-                <InputText class="form-control" @bind-Value="_model.Artist" />
+                <InputText class="kh-form-control" @bind-Value="_model.Artist" />
                 <ValidationMessage For="() => _model.Artist" />
             </div>
             <div >
-                <label class="form-label">Notes</label>
-                <InputTextArea class="form-control" @bind-Value="_model.Notes" rows="6" />
+                <label class="kh-form-label">Notes</label>
+                <InputTextArea class="kh-form-control" @bind-Value="_model.Notes" rows="6" />
                 <ValidationMessage For="() => _model.Notes" />
             </div>
             <div >
-                <label class="form-label">File Path</label>
-                <input type="text" class="form-control" readonly value="@Media?.FilePath" />
+                <label class="kh-form-label">File Path</label>
+                <input type="text" class="kh-form-control" readonly value="@Media?.FilePath" />
             </div>
             <button type="submit" class="kh-hidden"></button>
         </EditForm>

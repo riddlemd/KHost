@@ -17,7 +17,7 @@
             </div>
             <div class="kh-card__body">
                 <form class="kh-panel__form-row" @onsubmit:preventDefault>
-                    <input type="text" class="form-control kh-panel__form-grow" placeholder="Search by title or artist (press Enter)..."
+                    <input type="text" class="kh-form-control kh-panel__form-grow" placeholder="Search by title or artist (press Enter)..."
                             autocomplete="off" @bind="_searchQuery" @bind:event="oninput" @onkeydown="OnSearchKeyDownAsync" />
                 </form>
             </div>

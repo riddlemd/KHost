@@ -20,8 +20,8 @@
         margin-bottom: 0.75rem;
     }
 
-    .form-label,
-    .form-check-label {
+    .kh-form-label,
+    .kh-form-check-label {
         white-space: nowrap;
     }
 
@@ -33,13 +33,13 @@
         cursor: pointer;
         margin-bottom: 1em;
 
-        .form-control {
+        .kh-form-control {
             flex: 0 0 10rem;
             width: 5rem;
             text-align: right;
         }
 
-        .form-check-input {
+        .kh-form-check-input {
             margin: 0;
             flex-shrink: 0;
         }
@@ -59,7 +59,7 @@
         margin: 0;
         cursor: pointer;
 
-        .form-check-input {
+        .kh-form-check-input {
             margin: 0;
             flex-shrink: 0;
         }

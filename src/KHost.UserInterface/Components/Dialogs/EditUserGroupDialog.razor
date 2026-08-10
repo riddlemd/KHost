@@ -13,14 +13,14 @@
             <DataAnnotationsValidator />
 
             <div >
-                <label class="form-label">Name</label>
-                <InputText class="form-control" @bind-Value="_model.Name" autofocus />
+                <label class="kh-form-label">Name</label>
+                <InputText class="kh-form-control" @bind-Value="_model.Name" autofocus />
                 <ValidationMessage For="() => _model.Name" />
             </div>
 
             <div >
-                <label class="form-label">Description</label>
-                <InputTextArea class="form-control" @bind-Value="_model.Description" rows="3" />
+                <label class="kh-form-label">Description</label>
+                <InputTextArea class="kh-form-control" @bind-Value="_model.Description" rows="3" />
                 <ValidationMessage For="() => _model.Description" />
             </div>
 

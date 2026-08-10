@@ -17,8 +17,8 @@
             @if (UserId is null)
             {
                 <div >
-                    <label class="form-label">Singer</label>
-                    <InputSelect class="form-control" @bind-Value="_model.UserId">
+                    <label class="kh-form-label">Singer</label>
+                    <InputSelect class="kh-form-control" @bind-Value="_model.UserId">
                         <option value="">-- Select a singer --</option>
                         @foreach (var user in _users)
                         {
@@ -30,15 +30,15 @@
             }
 
             <div >
-                <label class="form-label">Amount</label>
-                <input type="text" @ref="_amountRef" class="form-control"
+                <label class="kh-form-label">Amount</label>
+                <input type="text" @ref="_amountRef" class="kh-form-control"
                        inputmode="numeric" @onchange="OnAmountChangedAsync" />
                 <ValidationMessage For="() => _model.Amount" />
             </div>
 
             <div >
-                <label class="form-label">Payment Method</label>
-                <InputSelect class="form-control" @bind-Value="_model.PaymentMethod">
+                <label class="kh-form-label">Payment Method</label>
+                <InputSelect class="kh-form-control" @bind-Value="_model.PaymentMethod">
                     @foreach (var method in Enum.GetValues<TipPaymentMethod>())
                     {
                         <option value="@method">@method</option>
@@ -48,8 +48,8 @@
             </div>
 
             <div >
-                <label class="form-label">Notes</label>
-                <InputTextArea class="form-control" @bind-Value="_model.Notes" rows="5" />
+                <label class="kh-form-label">Notes</label>
+                <InputTextArea class="kh-form-control" @bind-Value="_model.Notes" rows="5" />
                 <ValidationMessage For="() => _model.Notes" />
             </div>
 
