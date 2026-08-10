@@ -15,10 +15,8 @@ dotnet test tests/KHost.UnitTests --filter "FullyQualifiedName~ServiceName"  # r
 dotnet test tests/KHost.UnitTests --filter "DisplayName~MethodName"          # run a single test by method
 ```
 
-SCSS only — no full rebuild needed:
-```bash
-cd src/KHost.UserInterface && npm run sass     # one-shot compile
-```
+SCSS is compiled by `AspNetCore.SassCompiler` as part of the .NET build, so a normal
+`dotnet build` picks up style changes. There is no separate sass command.
 
 ## Architecture
 
@@ -67,9 +65,31 @@ Explicit interface implementations: place immediately after the public overload 
 ## CSS/SCSS
 
 - No inline styles. No `<style>` elements. All styles go in `.scss` files.
-- Bootstrap Icons only — no Bootstrap CSS or JS.
-- BEM naming. Top-level classes prefix: `kh-`. Button classes prefix: `btn-`.
+- Bootstrap Icons only — no Bootstrap CSS or JS. No Bootstrap utility classes (`d-flex`,
+  `mb-3`, …); they resolve to nothing.
+- BEM naming. Top-level classes prefix: `kh-`. Buttons are `kh-button` plus a modifier
+  (`kh-button--danger`), not `btn-`.
 - Use SCSS nesting, not flat CSS.
+
+**A component's styles live beside it** as `Foo.razor.scss`, compiled to `Foo.razor.css` and
+scoped by Blazor. Generated `.razor.css` is build output and gitignored — never edit or commit it.
+
+Global styles stay under `wwwroot/scss` and are imported by `app.scss`: `shared/` for blocks used
+across components (`.kh-card`, `.kh-table`, `.kh-button`, `.kh-form-*`), `themes/` for the
+per-theme custom properties, and a handful of `components/` partials that still declare shared
+blocks. A partial only becomes co-located once its block is used by exactly one component.
+
+**Scoped CSS reaches HTML elements, never child components.** A class handed to a child — most
+often `<Icon Class="kh-foo__icon" />` — lands on that child's element and needs `::deep`:
+
+```scss
+.kh-foo {
+    ::deep &__icon { ... }   // compiles to [b-hash] .kh-foo__icon
+}
+```
+
+`::deep` needs a real descendant relationship, so the child must sit inside an element the
+component itself renders.
 
 ## Git
 
@@ -112,10 +132,13 @@ Commands flow **UI → Screen**; state flows **Screen → UI**.
 
 ## Gotchas
 
-- SCSS-only changes: run `npm run sass`, do not rebuild the .NET project.
 - `src/KHost.Domain/Services/` — plural. Path `Servies` does not exist.
-- `CompileSCSS` build target fails if `node_modules` is missing — run `npm install` first.
-- Cache DB lives at `src/KHost.UserInterface/bin/Debug/net10.0/cache/` at runtime.
+- The build runs `npm run copy:vendors`, so it still fails without `node_modules` — run
+  `npm install` first. npm no longer compiles any SCSS.
+- A new `wwwroot/scss` file without a `_` prefix compiles to its own stylesheet; everything
+  except `app.scss` and `themes/*` must be a partial.
+- Cache DB lives at `src/KHost.UserInterface/bin/Debug/net10.0/cache/` at runtime — deleting
+  `bin/` to force a clean build destroys the local library, users and queue.
 - All domain services are singletons — guard mutable state with `SemaphoreSlim`.
 - `BlazorDisableThrowNavigationException` is set; navigation failures won't throw.
 - `DefaultContext` tracking behaviour is set to `QueryTrackingBehavior.NoTracking`, so Saves/Updates will not update related models unless explicitly programmed to.
