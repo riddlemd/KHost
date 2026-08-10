@@ -54,10 +54,22 @@
         cursor: pointer;
 
         &--selected td {
-            background: var(--kh-primary-dim) !important;
-            border-left: 2px solid var(--kh-primary);
+            // Must out-tint the hover background, otherwise selecting a row reads as weaker
+            // than merely pointing at one.
+            background: var(--kh-primary-active) !important;
             color: var(--kh-primary-bright);
             font-weight: 600;
+        }
+
+        // `.kh-table tbody tr:hover td` is more specific than the rule above, so without this
+        // the selection is invisible while the pointer is still on the row you just clicked.
+        &--selected:hover td {
+            color: var(--kh-primary-bright);
+        }
+
+        // Marks the row's leading edge — on every cell it renders as column dividers.
+        &--selected td:first-child {
+            border-left: 2px solid var(--kh-primary);
         }
 
         &--current td {
@@ -109,6 +121,8 @@
         font-size: 1.5em;
         align-items: center;
         gap: 0.5em;
+        // Everything on this row is square except the flags pill, which widens per flag.
+        --kh-quick-menu-size: 32px;
 
         > i {
             margin: 0 0.33em;
@@ -117,14 +131,26 @@
 
     &__flags {
         display: flex;
-        padding: 0.20em 0.33em;
+        align-items: center;
+        height: var(--kh-quick-menu-size);
+        padding: 0 0.33em;
         background: rgba(0, 0, 0, 0.5);
         border-radius: 0.5em;
         margin-left: auto;
     }
 
-    // Handed to <Icon>, so it renders on that component's element, not ours.
-    ::deep &__flag-icon {
+    &__toggle-regular-btn {
+        // `.kh-button--icon-minimal i` pins its icon at 12px, well under the quick menu's 1.5em
+        // neighbours; the full 1.5em in turn crowds the flags pill, so sit between the two.
+        ::deep i {
+            font-size: 0.7em;
+        }
+    }
+
+    // Handed to <Icon>, so it renders on that component's element, not ours. The leading `&`
+    // is load-bearing: `::deep &__x` makes ::deep the first token, which Blazor can't rewrite,
+    // and the browser then drops the whole rule.
+    & ::deep &__flag-icon {
         &--tipper {
             color: var(--kh-flag-tipper);
         }
@@ -135,8 +161,10 @@
     }
 
     &__menu-btn {
-        height: 32px;
-        width: 32px;
-        margin: 0 0 0 1em;
+        height: var(--kh-quick-menu-size);
+        width: var(--kh-quick-menu-size);
+        // Spacing is the quick-menu's gap. Needs to beat `.kh-card__header .kh-button`'s
+        // margin-left:auto, which would otherwise spread these across the free space.
+        margin: 0;
     }
 }

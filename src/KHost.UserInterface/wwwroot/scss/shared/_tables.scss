@@ -55,7 +55,11 @@
         &--actions {
             display: flex;
             flex: 0 0;
+            align-items: center;
             gap: 0.5em;
+            // Row actions sit beside 26px icon buttons, so drop the full-size control
+            // height here rather than letting a split button stretch the row.
+            --kh-control-height: var(--kh-control-height-sm);
         }
     }
 

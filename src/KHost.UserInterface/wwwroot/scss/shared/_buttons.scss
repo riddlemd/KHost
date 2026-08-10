@@ -8,7 +8,17 @@
     font-weight: 500;
     transition: all var(--kh-transition);
     white-space: nowrap;
-    padding: 0.5em 1em;
+    // Centering an icon+label pair by baseline puts the icon a few px off; flex centers
+    // both regardless of which glyph is taller.
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4em;
+    // Height is the token, not padding+content — otherwise a taller glyph silently grows the
+    // button and it stops matching the input or icon buttons beside it. Horizontal padding only.
+    height: var(--kh-control-height);
+    line-height: 1;
+    padding: 0 1em;
     background: linear-gradient(135deg, var(--kh-primary), var(--kh-primary-hover));
     border-color: var(--kh-primary-hover);
     color: var(--kh-button-primary-text);

@@ -26,7 +26,9 @@ h1, h2, h3, h4, h5, h6 {
 button {
   border: none;
   background: none;
-  font-family: inherit;
+  // Buttons don't inherit font-size by default — without this they render at the UA's
+  // 13.33px, so em-based padding lands smaller than on inputs sitting beside them.
+  font: inherit;
   cursor: pointer;
 
   &:disabled {
