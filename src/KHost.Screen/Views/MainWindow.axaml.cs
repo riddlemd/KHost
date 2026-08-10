@@ -122,7 +122,22 @@ public partial class MainWindow : Window
     }
 
     private void OnPlaybackEnded(object? sender, EventArgs e)
-        => Dispatcher.UIThread.Post(UpdateControlState);
+        => Dispatcher.UIThread.Post(() =>
+        {
+            ClearFrame();
+            UpdateControlState();
+        });
+
+    // The player stops feeding frames on stop, so the last one would otherwise stay on screen —
+    // and after a fade it lingers as a fully transparent image rather than a blanked one.
+    private void ClearFrame()
+    {
+        ImgVideo.Source = null;
+        ImgVideo.Opacity = 1;
+        _displayBitmap?.Dispose();
+        _displayBitmap = null;
+        TxtPlaceholder.IsVisible = true;
+    }
 
     private void OnErrorOccurred(object? sender, string message)
     {
@@ -243,11 +258,7 @@ public partial class MainWindow : Window
         {
             _player.Stop();
 
-            // Clear the current frame while loading
-            ImgVideo.Source = null;
-            _displayBitmap?.Dispose();
-            _displayBitmap = null;
-            TxtPlaceholder.IsVisible = true;
+            ClearFrame();
 
             _player.PitchSemitones = 0;
             UpdatePitchLabel();

@@ -18,6 +18,7 @@ public class PlaybackService : BaseService, IPlaybackService
 
     private Timer? _timer;
     private DateTime _lastTick;
+    private bool _resumeWhenScreenReturns;
     private IAnalyticsActivity? _sessionActivity;
     private readonly ISingerQueueService _singerQueueService;
     private readonly IPerformanceService _performanceService;
@@ -50,6 +51,7 @@ public class PlaybackService : BaseService, IPlaybackService
         _screenServer = screenServer;
         _options = options.Value;
 
+        _screenServer.ScreenConnected += OnScreenConnected;
         _screenServer.ScreenDisconnected += OnScreenDisconnected;
     }
 
@@ -144,7 +146,9 @@ public class PlaybackService : BaseService, IPlaybackService
         if (State == PlaybackState.Stopping)
             return;
 
-        var fade = _options.StopFadeDuration;
+        // Screens can only fade while frames are flowing, so a paused stop is instant on the
+        // screen — showing "Fading out…" here would just stall the UI over a blanked screen.
+        var fade = State == PlaybackState.Playing ? _options.StopFadeDuration : TimeSpan.Zero;
 
         // Hold CurrentPerformance/CurrentMedia until the screens have finished fading, so the
         // UI can show the song winding down instead of blanking while it is still audible.
@@ -187,6 +191,7 @@ public class PlaybackService : BaseService, IPlaybackService
     {
         if (disposing)
         {
+            _screenServer.ScreenConnected -= OnScreenConnected;
             _screenServer.ScreenDisconnected -= OnScreenDisconnected;
 
             _timer?.Dispose();
@@ -194,13 +199,47 @@ public class PlaybackService : BaseService, IPlaybackService
         }
     }
 
-    // ScreenServerService raises this while holding its connection lock, and
-    // GetConnectedScreensAsync waits on that same non-reentrant lock — so the check has to run
+    // ScreenServerService raises these while holding its connection lock, and
+    // GetConnectedScreensAsync waits on that same non-reentrant lock — so the work has to run
     // off this thread or it deadlocks the hub.
-    private void OnScreenDisconnected(object? sender, ScreenConnectionEventArgs e) =>
-        _ = Task.Run(PauseIfNoScreensRemainAsync);
+    private void OnScreenConnected(object? sender, ScreenConnectionEventArgs e) =>
+        _ = Task.Run(SyncNewScreenAsync);
 
-    private async Task PauseIfNoScreensRemainAsync()
+    private void OnScreenDisconnected(object? sender, ScreenConnectionEventArgs e) =>
+        _ = Task.Run(HandleScreenLossAsync);
+
+    /// <summary>
+    /// A screen that connects mid-session has nothing loaded, so a bare PlayCommand would be
+    /// rejected by the player while the UI happily showed playback running.
+    /// </summary>
+    private async Task SyncNewScreenAsync()
+    {
+        try
+        {
+            var media = CurrentMedia;
+            if (media is null)
+                return;
+
+            Logger.LogInformation("Screen connected; reloading '{Title}' at {Position}", media.Title, Position);
+
+            await SendToScreensAsync(new LoadMediaCommand { FilePath = media.FilePath });
+
+            if (Position > TimeSpan.Zero)
+                await SendToScreensAsync(new SeekCommand { Position = Position });
+
+            if (_resumeWhenScreenReturns && State == PlaybackState.Paused)
+            {
+                _resumeWhenScreenReturns = false;
+                await PlayAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to sync a newly connected screen");
+        }
+    }
+
+    private async Task HandleScreenLossAsync()
     {
         try
         {
@@ -210,14 +249,40 @@ public class PlaybackService : BaseService, IPlaybackService
             if (await HasConnectedScreenAsync())
                 return;
 
-            Logger.LogWarning("Last screen disconnected mid-performance; pausing playback");
+            var behavior = await GetScreenDisconnectBehaviorAsync();
 
-            await PauseAsync();
+            Logger.LogWarning("Last screen disconnected mid-performance; applying {Behavior}", behavior);
+
+            switch (behavior)
+            {
+                case ScreenDisconnectBehavior.CancelPerformance:
+                    ResetState();
+                    await EndedAsync();
+                    InvokeStateChanged();
+                    break;
+
+                case ScreenDisconnectBehavior.RestartFromStart:
+                    await PauseAsync();
+                    Position = TimeSpan.Zero;
+                    InvokeStateChanged();
+                    break;
+
+                default:
+                    _resumeWhenScreenReturns = true;
+                    await PauseAsync();
+                    break;
+            }
         }
         catch (Exception ex)
         {
             Logger.LogError(ex, "Failed to handle screen disconnect");
         }
+    }
+
+    private async Task<ScreenDisconnectBehavior> GetScreenDisconnectBehaviorAsync()
+    {
+        var venue = await _venuesService.ReadSelectedVenueAsync();
+        return venue?.Settings.OnScreenDisconnect ?? ScreenDisconnectBehavior.ResumeOnReconnect;
     }
 
     private void ResetState()
@@ -229,6 +294,7 @@ public class PlaybackService : BaseService, IPlaybackService
         _sessionActivity = null;
 
         CurrentlyPerformingUserId = null;
+        _resumeWhenScreenReturns = false;
 
         State = PlaybackState.Stopped;
         StopFadeDuration = null;
