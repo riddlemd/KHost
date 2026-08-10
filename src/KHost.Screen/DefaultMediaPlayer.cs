@@ -47,8 +47,10 @@ internal sealed class DefaultMediaPlayer : IMediaPlayer
     // Fade-out state
     private CancellationTokenSource? _fadeCts;
     private float _preFadeVolume = 1.0f;
+    private volatile bool _isFading;
     private volatile float _fadeAlpha = 1.0f;
     private const int FadeStepMs = 50;
+    private static readonly TimeSpan DefaultFadeDuration = TimeSpan.FromSeconds(5);
 
     public event EventHandler<IMediaPlayer.FrameData>? FrameAvailable;
     public event EventHandler? PlaybackEnded;
@@ -64,7 +66,14 @@ internal sealed class DefaultMediaPlayer : IMediaPlayer
     public float Volume
     {
         get => _audio.Volume;
-        set => _audio.Volume = value;
+        set
+        {
+            _audio.Volume = value;
+
+            // A running fade owns the volume and restores _preFadeVolume when cancelled;
+            // outside one this keeps that baseline on the level the host actually asked for.
+            if (!_isFading) _preFadeVolume = value;
+        }
     }
 
     /// <inheritdoc/>
@@ -169,18 +178,33 @@ internal sealed class DefaultMediaPlayer : IMediaPlayer
     public void Stop(TimeSpan? fadeDuration = null)
     {
         CancelFade();
-        _fadeCts = new CancellationTokenSource();
-        var token = _fadeCts.Token;
 
         lock (_lock)
         {
+            if (_info is null)
+            {
+                _state = State.Idle;
+                return;
+            }
+
             _preFadeVolume = _audio.Volume;
-            _state = _info is not null ? State.Stopped : State.Idle;
+            _state = State.Stopped;
         }
 
-        var duration = fadeDuration ?? TimeSpan.FromSeconds(5);
+        var duration = fadeDuration ?? DefaultFadeDuration;
+
+        if (duration <= TimeSpan.Zero)
+        {
+            _logger.LogInformation("Stop (no fade)");
+            StopAndReset();
+            return;
+        }
+
+        _fadeCts = new CancellationTokenSource();
+        _isFading = true;
+
         _logger.LogInformation("Stop (fade={Fade})", duration);
-        _ = FadeAndStopAsync(duration, token);
+        _ = FadeAndStopAsync(duration, _fadeCts.Token);
     }
 
     public void Seek(TimeSpan position)
@@ -516,27 +540,48 @@ internal sealed class DefaultMediaPlayer : IMediaPlayer
     {
         _logger.LogDebug("Fade start duration={Duration}", duration);
         int steps = Math.Max(1, (int)(duration.TotalMilliseconds / FadeStepMs));
-        for (int i = 1; i <= steps; i++)
+
+        try
         {
-            if (token.IsCancellationRequested) { RestoreFadeState(); return; }
-            float t = 1f - (float)i / steps;
-            _audio.Volume = _preFadeVolume * t;
-            _fadeAlpha = t;
-            try { await Task.Delay(FadeStepMs, token).ConfigureAwait(false); }
-            catch (OperationCanceledException) { RestoreFadeState(); return; }
+            for (int i = 1; i <= steps; i++)
+            {
+                token.ThrowIfCancellationRequested();
+                float t = 1f - (float)i / steps;
+                _audio.Volume = _preFadeVolume * t;
+                _fadeAlpha = t;
+                await Task.Delay(FadeStepMs, token).ConfigureAwait(false);
+            }
         }
+        catch (OperationCanceledException)
+        {
+            // CancelFade already restored volume and alpha.
+            return;
+        }
+
         _audio.Volume = 0f;
         _fadeAlpha = 0f;
         _logger.LogDebug("Fade complete");
+
+        _isFading = false;
         StopAndReset();
         RestoreFadeState();
     }
 
     private void CancelFade()
     {
+        if (!_isFading)
+        {
+            // Nothing faded the volume down, so there is nothing to put back — restoring here
+            // would overwrite the host's chosen volume with a stale baseline.
+            _fadeAlpha = 1.0f;
+            return;
+        }
+
         _fadeCts?.Cancel();
         _fadeCts?.Dispose();
         _fadeCts = null;
+        _isFading = false;
+
         RestoreFadeState();
     }
 

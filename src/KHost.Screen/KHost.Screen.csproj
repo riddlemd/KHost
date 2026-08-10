@@ -40,4 +40,8 @@
     <ProjectReference Include="..\KHost.IPC.SignalR\KHost.IPC.SignalR.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="KHost.UnitTests" />
+  </ItemGroup>
+
 </Project>
