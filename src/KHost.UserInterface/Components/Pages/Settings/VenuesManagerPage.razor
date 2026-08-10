@@ -151,26 +151,18 @@
             await VenuesService.UpdateAsync(venue);
     }
 
+    // Always prompts: deleting a venue is destructive and must not depend on which venue
+    // happens to be selected.
     private async Task StartDeleteAsync(Venue venue)
     {
-        if (VenuesService is null) return;
+        if (VenuesService is null || DialogService is null) return;
 
-        var selectedVenue = await VenuesService.ReadSelectedVenueAsync();
-        if (selectedVenue?.Settings.PromptBeforeRemovingVenue == true)
-        {
-            if (DialogService is null) return;
-
-            bool confirmed = await DialogService.ShowConfirmationAsync(
-                $"Are you sure you want to delete <span class=\"kh-emphasis\">{venue.Name}</span>?",
-                async () => await VenuesService.DeleteAsync(venue.Id),
-                "Delete Venue",
-                "Delete"
-            );
-        }
-        else
-        {
-            await VenuesService.DeleteAsync(venue.Id);
-        }
+        await DialogService.ShowConfirmationAsync(
+            $"Are you sure you want to delete <span class=\"kh-emphasis\">{venue.Name}</span>?",
+            async () => await VenuesService.DeleteAsync(venue.Id),
+            "Delete Venue",
+            "Delete"
+        );
     }
 
     private async Task ClearSearch()
