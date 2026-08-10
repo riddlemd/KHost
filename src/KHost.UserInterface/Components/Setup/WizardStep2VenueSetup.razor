@@ -23,11 +23,11 @@
                 <ValidationMessage For="() => _model.Name" />
             </div>
 
-            <div class="kh-form-group mt-5">
+            <div class="kh-form-group">
                 <div class="kh-venue-settings__section">
                     <span class="kh-venue-settings__section-title">Playback</span>
                     <div class="kh-venue-settings__row">
-                        <label for="default-volume" class="kh-form-label mb-0">Default Volume</label>
+                        <label for="default-volume" class="kh-form-label">Default Volume</label>
                         <InputNumber id="default-volume"
                                      class="kh-form-control"
                                      @bind-Value="_model.DefaultVolume"
@@ -40,7 +40,7 @@
                 <div class="kh-venue-settings__section">
                     <span class="kh-venue-settings__section-title">Queue behavior</span>
 
-                    <label class="kh-venue-settings__row form-check mb-2">
+                    <label class="kh-venue-settings__row form-check">
                         <span class="form-check-label">Move singer to bottom after performance</span>
                         <InputCheckbox class="form-check-input" @bind-Value="_model.MoveSingerToBottomAfterPerformance" />
                     </label>

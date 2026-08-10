@@ -7,7 +7,7 @@
 
 <div class="kh-media-search-panel" tabindex="0">
     <div class="kh-card">
-    <div class="kh-card__header d-flex align-items-center gap-2">
+    <div class="kh-card__header">
         <Icon Name="search" />
         <span class="kh-card__title">Media Search</span>
     </div>
@@ -15,7 +15,7 @@
     <div class="kh-card__body kh-media-search-panel__inputs">
         <Control>
             <label class="form-label">Search</label>
-            <input type="text" class="form-control form-control-sm" placeholder="Type a Media name or artist..."
+            <input type="text" class="form-control" placeholder="Type a Media name or artist..."
                     autocomplete="off"
                     @bind="_query"
                     @bind:event="oninput"
@@ -28,7 +28,7 @@
                 <Text>
                     @if (_searching)
                     {
-                        <span class="spinner-border spinner-border-sm" role="status"></span>
+                        <Loader Type="Loader.LoaderType.Spinner" />
                     }
                     else
                     {
@@ -46,7 +46,7 @@
     <div class="kh-card__body kh-card__body kh-media-search-panel__results">
         @if (_errorMessage is not null)
         {
-            <div class="kh-alert--warning py-2 mb-0">
+            <div class="kh-alert--warning">
                 <Icon Name="exclamation-triangle-fill" Class="me-1" />@_errorMessage
             </div>
         }
@@ -73,7 +73,7 @@
                 else
                 {
                     <table class="kh-table">
-                        <thead class="sticky-top">
+                        <thead >
                             <tr>
                                 <th>Name</th>
                                 <th>Duration</th>

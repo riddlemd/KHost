@@ -10,7 +10,7 @@
     <Body>
         <EditForm EditContext="_editContext" OnValidSubmit="SaveAsync">
             <DataAnnotationsValidator />
-            <div class="mb-3">
+            <div >
                 <div class="form-check">
                     <InputCheckbox class="form-check-input" id="updateArtistCheck" @bind-Value="_model.UpdateArtist" />
                     <label class="form-check-label" for="updateArtistCheck">Update Artist</label>
@@ -21,7 +21,7 @@
                            placeholder="Artist name" />
                 <ValidationMessage For="() => _model.Artist" />
             </div>
-            <div class="mb-3">
+            <div >
                 <div class="form-check">
                     <InputCheckbox class="form-check-input" id="swapCheck" @bind-Value="_model.SwapTitleAndArtist" />
                     <label class="form-check-label" for="swapCheck">Swap Title and Artist</label>

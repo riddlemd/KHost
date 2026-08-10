@@ -10,13 +10,13 @@
         <EditForm EditContext="_editContext" OnSubmit="SaveAsync">
             <DataAnnotationsValidator />
 
-            <div class="mb-3">
+            <div >
                 <label class="form-label">Name</label>
                 <InputText class="form-control" @bind-Value="_model.Name" autofocus />
                 <ValidationMessage For="() => _model.Name" />
             </div>
 
-            <div class="mb-3">
+            <div >
                 <label class="form-label">Notes</label>
                 <InputTextArea class="form-control" @bind-Value="_model.Notes" rows="5" />
                 <ValidationMessage For="() => _model.Notes" />

@@ -10,12 +10,12 @@
     <Body>
         <EditForm EditContext="_editContext" OnValidSubmit="SaveAsync">
             <DataAnnotationsValidator />
-            <div class="mb-3">
+            <div >
                 <label class="form-label">Title</label>
                 <InputText class="form-control" @bind-Value="_model.Title" autofocus />
                 <ValidationMessage For="() => _model.Title" />
             </div>
-            <div class="mb-3">
+            <div >
                 <div class="@(_rootClassName)__label-row">
                     <label class="form-label">Artist</label>
                     <button type="button"
@@ -28,12 +28,12 @@
                 <InputText class="form-control" @bind-Value="_model.Artist" />
                 <ValidationMessage For="() => _model.Artist" />
             </div>
-            <div class="mb-3">
+            <div >
                 <label class="form-label">Notes</label>
                 <InputTextArea class="form-control" @bind-Value="_model.Notes" rows="6" />
                 <ValidationMessage For="() => _model.Notes" />
             </div>
-            <div class="mb-3">
+            <div >
                 <label class="form-label">File Path</label>
                 <input type="text" class="form-control" readonly value="@Media?.FilePath" />
             </div>
