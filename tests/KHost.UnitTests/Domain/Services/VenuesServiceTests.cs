@@ -1,5 +1,6 @@
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Repositories;
+using KHost.Abstractions.Services;
 using KHost.Domain.Services;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -12,6 +13,7 @@ public class VenuesServiceTests : IDisposable
     private readonly IOptionsMonitor<VenuesService.ServiceOptions> _options =
         Substitute.For<IOptionsMonitor<VenuesService.ServiceOptions>>();
     private readonly IVenuesRepository _repository;
+    private readonly ICacheService _cacheService = Substitute.For<ICacheService>();
     private readonly VenuesService _service;
     private readonly List<Venue> _venueStore = new();
 
@@ -19,7 +21,7 @@ public class VenuesServiceTests : IDisposable
     {
         _repository = Substitute.For<IVenuesRepository>();
         SetupRepositoryDefaults();
-        _service = new VenuesService(_logger, _options, _repository);
+        _service = new VenuesService(_logger, _options, _repository, _cacheService);
     }
 
     private void SetupRepositoryDefaults()
@@ -304,6 +306,82 @@ public class VenuesServiceTests : IDisposable
         Assert.Null(_service.SelectedVenueId);
         Assert.Null(await _service.ReadSelectedVenueAsync());
     }
+
+    [Fact]
+    public async Task SelectVenueAsync_PersistsTheSelection()
+    {
+        var created = await _service.CreateAsync(new Venue { Name = "The Pub", Notes = "", Enabled = true });
+
+        await _service.SelectVenueAsync(created.Id);
+
+        await _cacheService.Received().SaveAsync<Guid?>("selected-venue", created.Id);
+    }
+
+    [Fact]
+    public async Task InitializeAsync_RestoresThePersistedSelection()
+    {
+        var created = await _service.CreateAsync(new Venue { Name = "The Pub", Notes = "", Enabled = true });
+        await _service.SelectVenueAsync(created.Id);
+        CacheReturns(created.Id);
+
+        var restored = MakeService();
+        await restored.InitializeAsync();
+
+        // Without this, everything keyed off the selected venue is inert after a restart.
+        Assert.Equal(created.Id, restored.SelectedVenueId);
+    }
+
+    [Fact]
+    public async Task InitializeAsync_FallsBackToFirstVenue_WhenNothingPersisted()
+    {
+        var created = await _service.CreateAsync(new Venue { Name = "The Pub", Notes = "", Enabled = true });
+
+        var restored = MakeService();
+        await restored.InitializeAsync();
+
+        Assert.Equal(created.Id, restored.SelectedVenueId);
+    }
+
+    [Fact]
+    public async Task InitializeAsync_FallsBack_WhenThePersistedVenueWasDeleted()
+    {
+        var kept = await _service.CreateAsync(new Venue { Name = "The Pub", Notes = "", Enabled = true });
+        CacheReturns(Guid.NewGuid());
+
+        var restored = MakeService();
+        await restored.InitializeAsync();
+
+        Assert.Equal(kept.Id, restored.SelectedVenueId);
+    }
+
+    [Fact]
+    public async Task DeleteAsync_ReselectsAnotherVenue_WhenTheSelectedOneIsRemoved()
+    {
+        var first = await _service.CreateAsync(new Venue { Name = "The Pub", Notes = "", Enabled = true });
+        var second = await _service.CreateAsync(new Venue { Name = "The Club", Notes = "", Enabled = true });
+        await _service.SelectVenueAsync(first.Id);
+
+        await _service.DeleteAsync(first.Id);
+
+        Assert.Equal(second.Id, _service.SelectedVenueId);
+    }
+
+    [Fact]
+    public async Task DeleteAsync_LeavesSelectionAlone_WhenADifferentVenueIsRemoved()
+    {
+        var first = await _service.CreateAsync(new Venue { Name = "The Pub", Notes = "", Enabled = true });
+        var second = await _service.CreateAsync(new Venue { Name = "The Club", Notes = "", Enabled = true });
+        await _service.SelectVenueAsync(first.Id);
+
+        await _service.DeleteAsync(second.Id);
+
+        Assert.Equal(first.Id, _service.SelectedVenueId);
+    }
+
+    private VenuesService MakeService() => new(_logger, _options, _repository, _cacheService);
+
+    private void CacheReturns(Guid id) =>
+        _cacheService.LoadAsync<Guid?>("selected-venue").Returns(id);
 
     [Fact]
     public async Task SelectVenueAsync_RaisesStateChanged()
