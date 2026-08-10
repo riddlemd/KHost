@@ -12,7 +12,6 @@ public class DialogService : IDialogService
     private readonly ILogger<DialogService> _logger;
 
     public event EventHandler<BaseDialogRequest>? ShowRequested;
-    public event EventHandler? HideRequested;
 
     public DialogService(ILogger<DialogService> logger)
     {

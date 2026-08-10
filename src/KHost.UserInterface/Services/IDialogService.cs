@@ -12,7 +12,6 @@ public interface IDialogService :
     IInteractiveEditor<Tip>
 {
     event EventHandler<BaseDialogRequest> ShowRequested;
-    event EventHandler HideRequested;
 
     Task<bool> ShowConfirmationAsync(string message, Action onConfirm, string title = "Confirm", string confirmText = "Confirm", Action? onCancel = null, Action? onClose = null);
     Task ShowSettingsMenuAsync(Action? onClose = null);
