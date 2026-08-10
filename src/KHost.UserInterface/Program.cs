@@ -84,6 +84,18 @@ catch (Exception ex)
     throw;
 }
 
+// Before the queue: anything venue-scoped is inert until a venue is selected.
+try
+{
+    await app.Services.GetRequiredService<IVenuesService>().InitializeAsync();
+}
+catch (Exception ex)
+{
+    Log.Fatal(ex, "Venue initialization failed");
+    Log.CloseAndFlush();
+    throw;
+}
+
 try
 {
     await app.Services.GetRequiredService<ISingerQueueService>().InitializeAsync();
