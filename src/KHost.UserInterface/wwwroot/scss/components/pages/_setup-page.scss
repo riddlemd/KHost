@@ -133,80 +133,84 @@
     }
 }
 
-.kh-form-group {
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-}
-
-.kh-form-label {
-    font-size: 0.95rem;
-    font-weight: 500;
-    color: var(--kh-text);
-}
-
-.kh-form-hint {
-    font-size: 0.8rem;
-    color: var(--kh-text-secondary);
-}
-
-.kh-form-control {
-    padding: 0.75rem 1rem;
-    border: 1px solid var(--kh-border);
-    border-radius: var(--kh-radius);
-    font-size: 1rem;
-    background-color: var(--kh-bg-input);
-    color: var(--kh-text);
-    font-family: inherit;
-    transition: border-color var(--kh-transition);
-
-    &:focus {
-        outline: none;
-        border-color: var(--kh-primary);
-        box-shadow: 0 0 0 3px var(--kh-primary-glow);
+/* The wizard wants roomier form styling than the rest of the app. Everything below must
+   stay nested — this partial is imported last, so unnested rules here beat shared/. */
+.kh-setup-wizard {
+    .kh-form-group {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
     }
 
-    &:disabled {
-        background-color: var(--kh-bg-elevated);
-        cursor: not-allowed;
-        opacity: 0.6;
+    .kh-form-label {
+        font-size: 0.95rem;
+        font-weight: 500;
+        color: var(--kh-text);
     }
 
-    &.invalid:not(:placeholder-shown) {
-        border-color: var(--kh-danger);
+    .kh-form-hint {
+        font-size: 0.8rem;
+        color: var(--kh-text-secondary);
+    }
+
+    .kh-form-control {
+        padding: 0.75rem 1rem;
+        border: 1px solid var(--kh-border);
+        border-radius: var(--kh-radius);
+        font-size: 1rem;
+        background-color: var(--kh-bg-input);
+        color: var(--kh-text);
+        font-family: inherit;
+        transition: border-color var(--kh-transition);
 
         &:focus {
+            outline: none;
+            border-color: var(--kh-primary);
+            box-shadow: 0 0 0 3px var(--kh-primary-glow);
+        }
+
+        &:disabled {
+            background-color: var(--kh-bg-elevated);
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
+
+        &.invalid:not(:placeholder-shown) {
             border-color: var(--kh-danger);
-            box-shadow: 0 0 0 3px var(--kh-danger-bg-subtle);
+
+            &:focus {
+                border-color: var(--kh-danger);
+                box-shadow: 0 0 0 3px var(--kh-danger-bg-subtle);
+            }
+        }
+
+        &:not(.invalid):not(:placeholder-shown) {
+            border-color: var(--kh-success);
         }
     }
 
-    &:not(.invalid):not(:placeholder-shown) {
-        border-color: var(--kh-success);
+    .kh-alert {
+        padding: 1rem;
+        border-radius: var(--kh-radius);
+        font-size: 0.95rem;
+        border-left: 4px solid;
+
+        &--danger {
+            background-color: var(--kh-danger-bg-subtle);
+            color: var(--kh-danger);
+            border-left-color: var(--kh-danger);
+        }
+
+        &--success {
+            background-color: var(--kh-success-subtle);
+            color: var(--kh-success);
+            border-left-color: var(--kh-success);
+        }
     }
-}
 
-.kh-alert {
-    padding: 1rem;
-    border-radius: var(--kh-radius);
-    font-size: 0.95rem;
-    border-left: 4px solid;
-
-    &--danger {
-        background-color: var(--kh-danger-bg-subtle);
+    .validation-message {
+        font-size: 0.8rem;
         color: var(--kh-danger);
-        border-left-color: var(--kh-danger);
+        margin-top: 0.25rem;
     }
-
-    &--success {
-        background-color: var(--kh-success-subtle);
-        color: var(--kh-success);
-        border-left-color: var(--kh-success);
-    }
-}
-
-.validation-message {
-    font-size: 0.8rem;
-    color: var(--kh-danger);
-    margin-top: 0.25rem;
 }

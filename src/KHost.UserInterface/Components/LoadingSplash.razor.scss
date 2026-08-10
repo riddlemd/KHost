@@ -25,8 +25,10 @@
         gap: 2rem;
     }
 
-    // Handed to <Icon>, so it renders on that component's element, not ours.
-    ::deep &__icon {
+    // Handed to <Icon>, so it renders on that component's element, not ours. The leading `&`
+    // is load-bearing: `::deep &__x` makes ::deep the first token, which Blazor can't rewrite,
+    // and the browser then drops the whole rule.
+    & ::deep &__icon {
         font-size: 4rem;
         color: #CC5500;
         animation: pulse 1.5s ease-in-out infinite;

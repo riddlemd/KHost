@@ -12,6 +12,14 @@
                                   supported by Chrome, Edge, Opera and Firefox */
 }
 
+:root {
+    // Shared row height for anything that can sit next to anything else on a form line
+    // (inputs, selects, buttons). Keep new controls on this or they won't line up.
+    --kh-control-height: 36px;
+    // Compact variant for dense contexts; matches the fixed 26px icon buttons.
+    --kh-control-height-sm: 26px;
+}
+
 html, body {
     font-family: var(--kh-font);
     background: var(--kh-bg);
@@ -55,6 +63,7 @@ html {
     border-radius: var(--kh-radius);
     transition: border-color var(--kh-transition), box-shadow var(--kh-transition);
     padding: 0.5rem 0.75rem;
+    min-height: var(--kh-control-height);
 
     &::placeholder {
         color: var(--kh-text-muted);

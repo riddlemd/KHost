@@ -19,9 +19,8 @@
         align-items: end;
         gap: 1em;
 
-        button {
-            flex: 0 0;
-            height: fit-content;
+        ::deep .kh-split-btn {
+            flex: 0 0 auto;
         }
     }
 

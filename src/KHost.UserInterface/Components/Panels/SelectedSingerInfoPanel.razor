@@ -123,7 +123,7 @@
                                     @rowMedia?.Duration?.ToTotalMinutesAndSeconds()
                             </td>
                             <td>@(rowMedia?.Status)</td>
-                            <td>
+                            <td class="kh-table__cell--actions">
                                 <SplitButton
                                         Title="@(disablePlay ? "Cannot Load and Play while another Song is loaded" : "Load and Play Song")"
                                         disabled="@disablePlay"

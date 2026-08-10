@@ -15,7 +15,7 @@
 
     &__toggle {
         border-radius: 0 var(--kh-radius) var(--kh-radius) 0;
-        padding: 0.5em 0.6em;
+        padding: 0 0.6em;
         border-left: 1px solid var(--kh-primary-bright);
     }
 
@@ -41,6 +41,8 @@
         button {
             display: block;
             width: 100%;
+            // Menu rows are list items, not controls — opt out of the fixed control height.
+            height: auto;
             padding: 0.75em 1em;
             text-align: left;
             background: none;

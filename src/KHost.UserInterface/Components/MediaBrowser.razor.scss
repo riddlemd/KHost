@@ -146,8 +146,10 @@
         user-select: none;
     }
 
-    // Handed to <Icon>, so it renders on that component's element, not ours.
-    ::deep &__sort-indicator {
+    // Handed to <Icon>, so it renders on that component's element, not ours. The leading `&`
+    // is load-bearing: `::deep &__x` makes ::deep the first token, which Blazor can't rewrite,
+    // and the browser then drops the whole rule.
+    & ::deep &__sort-indicator {
         font-size: 0.85rem;
         margin-left: 4px;
         vertical-align: middle;
