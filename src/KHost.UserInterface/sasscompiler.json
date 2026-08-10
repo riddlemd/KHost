@@ -1,5 +1,7 @@
 {
-  "$comment": "Scoped css only. Co-located *.razor.scss must be compiled before Blazor rewrites scoped selectors, which a plain MSBuild target cannot do. Global stylesheets stay on the npm sass scripts.",
+  "$comment": "Directory mode compiles app.scss and each themes/*.scss; everything else is a _partial and is skipped. Scoped css must be generated here rather than from an MSBuild target, because Blazor discovers it from evaluation-time items.",
+  "Source": "wwwroot/scss",
+  "Target": "wwwroot/css",
   "GenerateScopedCss": true,
   "ScopedCssFolders": [ "Components" ],
   "Arguments": "--style=compressed --no-source-map"

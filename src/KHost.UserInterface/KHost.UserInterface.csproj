@@ -45,9 +45,8 @@
     <Folder Include="wwwroot\css\themes\" />
   </ItemGroup>
 
-  <!-- Compile SCSS before build -->
-  <Target Name="CompileSCSS" BeforeTargets="Build">
-    <Exec Command="npm run sass" ContinueOnError="false" />
+  <!-- SCSS is compiled by AspNetCore.SassCompiler; npm only stages vendor scripts. -->
+  <Target Name="CopyVendorScripts" BeforeTargets="Build">
     <Exec Command="npm run copy:vendors" ContinueOnError="false" />
   </Target>
 
