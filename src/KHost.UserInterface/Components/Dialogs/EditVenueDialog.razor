@@ -82,38 +82,10 @@
                     </label>
                     <label class="kh-venue-settings__prompt-item kh-form-check">
                         <span class="kh-venue-settings__prompt-item-label">
-                            <Icon Name="person-fill" />
-                            <span class="kh-form-check-label">User</span>
-                        </span>
-                        <InputCheckbox class="kh-form-check-input" @bind-Value="_model.PromptBeforeRemovingUser" />
-                    </label>
-                    <label class="kh-venue-settings__prompt-item kh-form-check">
-                        <span class="kh-venue-settings__prompt-item-label">
                             <Icon Name="people-fill" />
                             <span class="kh-form-check-label">User group</span>
                         </span>
                         <InputCheckbox class="kh-form-check-input" @bind-Value="_model.PromptBeforeRemovingUserGroup" />
-                    </label>
-                    <label class="kh-venue-settings__prompt-item kh-form-check">
-                        <span class="kh-venue-settings__prompt-item-label">
-                            <Icon Name="building" />
-                            <span class="kh-form-check-label">Venue</span>
-                        </span>
-                        <InputCheckbox class="kh-form-check-input" @bind-Value="_model.PromptBeforeRemovingVenue" />
-                    </label>
-                    <label class="kh-venue-settings__prompt-item kh-form-check">
-                        <span class="kh-venue-settings__prompt-item-label">
-                            <Icon Name="film" />
-                            <span class="kh-form-check-label">Media</span>
-                        </span>
-                        <InputCheckbox class="kh-form-check-input" @bind-Value="_model.PromptBeforeRemovingMedia" />
-                    </label>
-                    <label class="kh-venue-settings__prompt-item kh-form-check">
-                        <span class="kh-venue-settings__prompt-item-label">
-                            <Icon Name="cash-coin" />
-                            <span class="kh-form-check-label">Tip</span>
-                        </span>
-                        <InputCheckbox class="kh-form-check-input" @bind-Value="_model.PromptBeforeRemovingTip" />
                     </label>
                 </div>
             </div>
@@ -168,11 +140,7 @@
                     PromptBeforeRemovingSinger = Venue.Settings.PromptBeforeRemovingSinger,
                     PromptBeforeRemovingPerformance = Venue.Settings.PromptBeforeRemovingPerformance,
                     PromptBeforeRemovingPerformanceHistory = Venue.Settings.PromptBeforeRemovingPerformanceHistory,
-                    PromptBeforeRemovingMedia = Venue.Settings.PromptBeforeRemovingMedia,
-                    PromptBeforeRemovingUser = Venue.Settings.PromptBeforeRemovingUser,
                     PromptBeforeRemovingUserGroup = Venue.Settings.PromptBeforeRemovingUserGroup,
-                    PromptBeforeRemovingVenue = Venue.Settings.PromptBeforeRemovingVenue,
-                    PromptBeforeRemovingTip = Venue.Settings.PromptBeforeRemovingTip,
                     ClearQueueOnClose = Venue.Settings.ClearQueueOnClose,
                 };
             _editContext = new EditContext(_model);
@@ -198,11 +166,7 @@
         venue.Settings.PromptBeforeRemovingSinger = _model.PromptBeforeRemovingSinger;
         venue.Settings.PromptBeforeRemovingPerformance = _model.PromptBeforeRemovingPerformance;
         venue.Settings.PromptBeforeRemovingPerformanceHistory = _model.PromptBeforeRemovingPerformanceHistory;
-        venue.Settings.PromptBeforeRemovingMedia = _model.PromptBeforeRemovingMedia;
-        venue.Settings.PromptBeforeRemovingUser = _model.PromptBeforeRemovingUser;
         venue.Settings.PromptBeforeRemovingUserGroup = _model.PromptBeforeRemovingUserGroup;
-        venue.Settings.PromptBeforeRemovingVenue = _model.PromptBeforeRemovingVenue;
-        venue.Settings.PromptBeforeRemovingTip = _model.PromptBeforeRemovingTip;
         venue.Settings.ClearQueueOnClose = _model.ClearQueueOnClose;
 
         await OnSave.InvokeAsync(venue);

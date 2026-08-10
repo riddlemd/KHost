@@ -157,22 +157,18 @@
                 _ = MediaService!.UpdateAsync(updated);
         });
 
+    // Always prompts: removing media is destructive and must not depend on which venue
+    // happens to be selected.
     private async Task RemoveAsync(Media media)
     {
-        var venue = VenuesService is not null ? await VenuesService.ReadSelectedVenueAsync() : null;
-        if (venue?.Settings.PromptBeforeRemovingMedia == true)
-        {
-            await DialogService!.ShowConfirmationAsync(
-                $"Are you sure you want to remove <span class=\"kh-emphasis\">{media.Title}</span> from the library?",
-                onConfirm: () => _ = MediaService!.DeleteAsync(media.Id),
-                title: "Remove Media",
-                confirmText: "Remove"
-            );
-        }
-        else
-        {
-            await MediaService!.DeleteAsync(media.Id);
-        }
+        if (MediaService is null || DialogService is null) return;
+
+        await DialogService.ShowConfirmationAsync(
+            $"Are you sure you want to remove <span class=\"kh-emphasis\">{media.Title}</span> from the library?",
+            onConfirm: () => _ = MediaService.DeleteAsync(media.Id),
+            title: "Remove Media",
+            confirmText: "Remove"
+        );
     }
 
     protected override async Task OnInitializedAsync()

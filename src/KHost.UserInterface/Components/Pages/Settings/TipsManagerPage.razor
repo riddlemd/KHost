@@ -173,27 +173,20 @@
             await TipsService.UpdateAsync(tip);
     }
 
+    // Always prompts: deleting a tip is destructive and must not depend on which venue
+    // happens to be selected.
     private async Task StartDeleteAsync(Tip tip)
     {
-        if (TipsService is null) return;
+        if (TipsService is null || DialogService is null) return;
 
-        var venue = VenuesService is not null ? await VenuesService.ReadSelectedVenueAsync() : null;
-        if (venue?.Settings.PromptBeforeRemovingTip == true)
-        {
-            if (DialogService is null) return;
+        var singer = GetSingerName(tip.UserId);
 
-            var singer = GetSingerName(tip.UserId);
-            bool confirmed = await DialogService.ShowConfirmationAsync(
-                $"Are you sure you want to delete the tip from <span class=\"kh-emphasis\">{singer}</span> for ${tip.Amount:F2}?",
-                async () => await TipsService.DeleteAsync(tip.Id),
-                "Delete Tip",
-                "Delete"
-            );
-        }
-        else
-        {
-            await TipsService.DeleteAsync(tip.Id);
-        }
+        await DialogService.ShowConfirmationAsync(
+            $"Are you sure you want to delete the tip from <span class=\"kh-emphasis\">{singer}</span> for ${tip.Amount:F2}?",
+            async () => await TipsService.DeleteAsync(tip.Id),
+            "Delete Tip",
+            "Delete"
+        );
     }
 
     private async Task PreviousPage()

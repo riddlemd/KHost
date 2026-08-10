@@ -178,26 +178,18 @@
             await UsersService.UpdateAsync(user);
     }
 
+    // Always prompts: deleting a user is destructive and must not depend on which venue
+    // happens to be selected.
     private async Task StartDeleteAsync(KHostUser user)
     {
-        if (UsersService is null) return;
+        if (UsersService is null || DialogService is null) return;
 
-        var venue = VenuesService is not null ? await VenuesService.ReadSelectedVenueAsync() : null;
-        if (venue?.Settings.PromptBeforeRemovingUser == true)
-        {
-            if (DialogService is null) return;
-
-            bool confirmed = await DialogService.ShowConfirmationAsync(
-                $"Are you sure you want to delete <span class=\"kh-emphasis\">{user.Name}</span>?",
-                async () => await UsersService.DeleteAsync(user.Id),
-                "Delete User",
-                "Delete"
-            );
-        }
-        else
-        {
-            await UsersService.DeleteAsync(user.Id);
-        }
+        await DialogService.ShowConfirmationAsync(
+            $"Are you sure you want to delete <span class=\"kh-emphasis\">{user.Name}</span>?",
+            async () => await UsersService.DeleteAsync(user.Id),
+            "Delete User",
+            "Delete"
+        );
     }
 
     private async Task ClearSearch()

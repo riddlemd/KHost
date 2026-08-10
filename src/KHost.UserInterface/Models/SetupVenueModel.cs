@@ -13,10 +13,6 @@ public class SetupVenueModel
     public bool PromptBeforeRemovingSinger { get; set; } = true;
     public bool PromptBeforeRemovingPerformance { get; set; } = true;
     public bool PromptBeforeRemovingPerformanceHistory { get; set; } = true;
-    public bool PromptBeforeRemovingMedia { get; set; } = true;
-    public bool PromptBeforeRemovingUser { get; set; } = true;
     public bool PromptBeforeRemovingUserGroup { get; set; } = true;
-    public bool PromptBeforeRemovingVenue { get; set; } = true;
-    public bool PromptBeforeRemovingTip { get; set; } = true;
     public bool ClearQueueOnClose { get; set; } = true;
 }
