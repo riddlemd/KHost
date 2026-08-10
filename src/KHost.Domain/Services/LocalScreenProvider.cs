@@ -32,15 +32,17 @@ public sealed class LocalScreenProvider : IScreenProvider, IDisposable
     public Task LaunchAsync(string screenId, CancellationToken cancellationToken = default)
     {
         var exePath = ResolvedExePath;
-        var args = $"--server-uri {_options.ServerUri} --screen-id {screenId}";
 
         _logger.LogInformation("Launching local screen '{ScreenId}' via {ExePath}", screenId, exePath);
 
-        var psi = new ProcessStartInfo(exePath, args)
+        var psi = new ProcessStartInfo(exePath)
         {
             UseShellExecute = false,
             CreateNoWindow = false,
         };
+
+        foreach (var argument in BuildArguments(_options.ServerUri, screenId))
+            psi.ArgumentList.Add(argument);
 
         var process = Process.Start(psi)
             ?? throw new InvalidOperationException($"Failed to start process: {exePath}");
@@ -75,8 +77,18 @@ public sealed class LocalScreenProvider : IScreenProvider, IDisposable
         _processes.Clear();
     }
 
+    // The .NET apphost only carries a .exe extension on Windows; on macOS/Linux it is
+    // extensionless, so a hardcoded name makes IsAvailable false everywhere but Windows.
+    internal static string ResolveExePath(string? configuredExePath, string baseDirectory, bool isWindows)
+        => string.IsNullOrWhiteSpace(configuredExePath)
+            ? Path.Combine(baseDirectory, isWindows ? "KHost.Screen.exe" : "KHost.Screen")
+            : configuredExePath;
+
+    // Must stay one element per argument: screen ids are generated as "Screen 1", and a single
+    // concatenated argument string would split that in two, leaving every screen named "Screen".
+    internal static string[] BuildArguments(string serverUri, string screenId)
+        => ["--server-uri", serverUri, "--screen-id", screenId];
+
     private string ResolvedExePath =>
-        string.IsNullOrWhiteSpace(_options.ExePath)
-            ? Path.Combine(AppContext.BaseDirectory, "KHost.Screen.exe")
-            : _options.ExePath;
+        ResolveExePath(_options.ExePath, AppContext.BaseDirectory, OperatingSystem.IsWindows());
 }
