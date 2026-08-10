@@ -79,7 +79,6 @@
     protected override void OnInitialized()
     {
         DialogService.ShowRequested += OnShowRequested;
-        DialogService.HideRequested += OnHideRequested;
     }
 
     private void OnShowRequested(object? sender, BaseDialogRequest request)
@@ -89,12 +88,6 @@
             _stack.Add(request);
             StateHasChanged();
         });
-    }
-
-    private void OnHideRequested(object? sender, EventArgs e)
-    {
-        if (_stack.Count > 0)
-            Close(_stack[^1]);
     }
 
     private void Close(BaseDialogRequest request)
@@ -109,6 +102,5 @@
     public void Dispose()
     {
         DialogService.ShowRequested -= OnShowRequested;
-        DialogService.HideRequested -= OnHideRequested;
     }
 }
