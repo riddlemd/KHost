@@ -179,6 +179,8 @@ internal sealed class DefaultMediaPlayer : IMediaPlayer
     {
         CancelFade();
 
+        bool wasPlaying;
+
         lock (_lock)
         {
             if (_info is null)
@@ -187,15 +189,19 @@ internal sealed class DefaultMediaPlayer : IMediaPlayer
                 return;
             }
 
+            wasPlaying = _state == State.Playing;
             _preFadeVolume = _audio.Volume;
             _state = State.Stopped;
         }
 
         var duration = fadeDuration ?? DefaultFadeDuration;
 
-        if (duration <= TimeSpan.Zero)
+        // The fade is only visible while frames are flowing: _fadeAlpha reaches the window
+        // through FrameData. Paused playback has no demux thread, so a fade would sit on a
+        // frozen frame for its whole duration and then cut.
+        if (!wasPlaying || duration <= TimeSpan.Zero)
         {
-            _logger.LogInformation("Stop (no fade)");
+            _logger.LogInformation("Stop (no fade, wasPlaying={WasPlaying})", wasPlaying);
             StopAndReset();
             return;
         }
@@ -373,6 +379,9 @@ internal sealed class DefaultMediaPlayer : IMediaPlayer
             _state = State.Idle;
         }
         CancelFade(); // after KillSegment so _started = false; RestoreFadeState won't touch OpenAL
+
+        // No more frames will arrive, so the view keeps showing the last one until told.
+        PlaybackEnded?.Invoke(this, EventArgs.Empty);
     }
 
     // ── Demux thread ────────────────────────────────────────────────────────

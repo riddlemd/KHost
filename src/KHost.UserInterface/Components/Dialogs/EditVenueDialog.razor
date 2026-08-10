@@ -32,6 +32,14 @@
                     <label for="default-volume" class="form-label mb-0">Default Volume</label>
                     <InputNumber id="default-volume" class="form-control" @bind-Value="_model.DefaultVolume" min="0" max="100" />
                 </div>
+                <div class="kh-venue-settings-editor__row">
+                    <label for="on-screen-disconnect" class="form-label mb-0">When a screen disconnects</label>
+                    <InputSelect id="on-screen-disconnect" class="form-select" @bind-Value="_model.OnScreenDisconnect">
+                        <option value="@ScreenDisconnectBehavior.ResumeOnReconnect">Resume when a screen returns</option>
+                        <option value="@ScreenDisconnectBehavior.RestartFromStart">Pause and restart the song</option>
+                        <option value="@ScreenDisconnectBehavior.CancelPerformance">Cancel the song</option>
+                    </InputSelect>
+                </div>
             </div>
 
             <div class="kh-venue-settings-editor__section">
@@ -155,6 +163,7 @@
                     Notes = Venue.Notes,
                     Enabled = Venue.Enabled,
                     DefaultVolume = Venue.Settings.DefaultVolume,
+                    OnScreenDisconnect = Venue.Settings.OnScreenDisconnect,
                     MoveSingerToBottomAfterPerformance = Venue.Settings.MoveSingerToBottomAfterPerformance,
                     PromptBeforeRemovingSinger = Venue.Settings.PromptBeforeRemovingSinger,
                     PromptBeforeRemovingPerformance = Venue.Settings.PromptBeforeRemovingPerformance,
@@ -184,6 +193,7 @@
         venue.Notes = _model.Notes;
         venue.Enabled = _model.Enabled;
         venue.Settings.DefaultVolume = _model.DefaultVolume;
+        venue.Settings.OnScreenDisconnect = _model.OnScreenDisconnect;
         venue.Settings.MoveSingerToBottomAfterPerformance = _model.MoveSingerToBottomAfterPerformance;
         venue.Settings.PromptBeforeRemovingSinger = _model.PromptBeforeRemovingSinger;
         venue.Settings.PromptBeforeRemovingPerformance = _model.PromptBeforeRemovingPerformance;
