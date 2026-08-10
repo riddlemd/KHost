@@ -119,13 +119,7 @@ internal abstract class BaseRepository<T> : IRepository<T> where T : RepositoryM
             .Paginate(ApplySort(context.Set<T>(), sort), pageNumber, pageSize)
             .ToListAsync();
 
-        return new PaginatedResult<T>
-        {
-            Items = items,
-            TotalCount = totalCount,
-            PageNumber = pageNumber,
-            PageSize = pageSize
-        };
+        return PaginationComponent.BuildResult(items, totalCount, pageNumber, pageSize);
     }
 
     public virtual async Task<PaginatedResult<T>> SearchAsync<TOptions>(string query, int pageNumber = 0, int pageSize = 0, TOptions? options = null)

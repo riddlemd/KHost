@@ -28,6 +28,32 @@ public class PaginatedResultTests
         Assert.Equal(expected, result.TotalPages);
     }
 
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-5)]
+    public void TotalPages_IsZero_WhenPageSizeIsNotPositive(int pageSize)
+    {
+        var result = new PaginatedResult<string> { TotalCount = 5, PageSize = pageSize, PageNumber = 1 };
+
+        Assert.Equal(0, result.TotalPages);
+    }
+
+    [Fact]
+    public void HasNextPage_DoesNotThrow_WhenPageSizeIsZero()
+    {
+        var result = new PaginatedResult<string> { TotalCount = 5, PageSize = 0, PageNumber = 1 };
+
+        Assert.False(result.HasNextPage);
+    }
+
+    [Fact]
+    public void DefaultConstruction_TotalPagesDoesNotThrow()
+    {
+        var result = new PaginatedResult<string>();
+
+        Assert.Equal(0, result.TotalPages);
+    }
+
     [Fact]
     public void HasPreviousPage_IsFalse_OnFirstPage()
     {
