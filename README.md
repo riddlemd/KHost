@@ -122,7 +122,9 @@ Data flow at runtime:
 
 ## Project Layout
 
-The solution uses the newer `.slnx` (XML) format — open `KHost.slnx`, not a `.sln` file.
+The solution uses the newer `.slnx` (XML) format — open `KHost.slnx`, not a `.sln` file. Application projects live under `src/` and test projects live under `tests/`; `KHost.slnx` and the other solution-level files stay at the repo root.
+
+### `src/`
 
 | Project | Role |
 |---|---|
@@ -136,6 +138,11 @@ The solution uses the newer `.slnx` (XML) format — open `KHost.slnx`, not a `.
 | `KHost.DataAccess` | EF Core 10 + SQLite persistence for the song library. |
 | `KHost.UserInterface` | Blazor Server app — the host console. Razor components live under `Components/`. Hosts the IPC hub at `/ipc/screen` and exposes `/api/themes`. |
 | `KHost.Screen` | Avalonia desktop app (WinExe on Windows, Exe elsewhere) for karaoke video/audio output. Custom FFmpeg + OpenAL wrappers. References `KHost.Abstractions`, `KHost.Telemetry`, and `KHost.IPC.SignalR`; connects to the host hub as a SignalR client (`--server-uri` / `--screen-id`). |
+
+### `tests/`
+
+| Project | Role |
+|---|---|
 | `KHost.UnitTests` | xUnit + NSubstitute tests covering domain services. |
 | `KHost.IntegrationTests` | xUnit integration test skeleton (no tests yet). |
 
@@ -164,32 +171,32 @@ cd KHost
 dotnet restore KHost.slnx
 
 # 3. Install the UI's npm packages (required by the SCSS build step)
-cd KHost.UserInterface
+cd src/KHost.UserInterface
 npm install
-cd ..
+cd ../..
 
 # 4. Run with Aspire (primary dev entry point)
-dotnet run --project KHost.AppHost
+dotnet run --project src/KHost.AppHost
 ```
 
 Alternative entry points:
 
 ```bash
 # Run the Blazor UI directly (no Aspire)
-dotnet run --project KHost.UserInterface
+dotnet run --project src/KHost.UserInterface
 
 # Run the Avalonia screen app (normally launched for you from the host's Screens dialog,
 # which injects the host's live listening address as --server-uri).
 # When run manually, point --server-uri at the URL the host is actually listening on
 # (e.g. http://localhost:5251/ipc/screen for the UI's default http profile).
 # --screen-id defaults to the machine name.
-dotnet run --project KHost.Screen -- --server-uri http://localhost:5251/ipc/screen --screen-id main
+dotnet run --project src/KHost.Screen -- --server-uri http://localhost:5251/ipc/screen --screen-id main
 
 # Build the whole solution
 dotnet build KHost.slnx
 ```
 
-> **First build failing on SCSS?** The `KHost.UserInterface` project has a `CompileSCSS` MSBuild target that runs `npm run sass` before every build. If `node_modules` is missing, the build fails fast — run `npm install` inside `KHost.UserInterface/` and retry.
+> **First build failing on SCSS?** The `KHost.UserInterface` project has a `CompileSCSS` MSBuild target that runs `npm run sass` before every build. If `node_modules` is missing, the build fails fast — run `npm install` inside `src/KHost.UserInterface/` and retry.
 
 ---
 
@@ -198,7 +205,7 @@ dotnet build KHost.slnx
 ### Hot reload (C# + SCSS together)
 
 ```bash
-cd KHost.UserInterface
+cd src/KHost.UserInterface
 npm run dev
 ```
 
@@ -209,7 +216,7 @@ This runs `dotnet watch` and `sass --watch` concurrently, so both Razor/C# edits
 You don't need to rebuild the .NET project for a pure style change — just recompile the stylesheets:
 
 ```bash
-cd KHost.UserInterface
+cd src/KHost.UserInterface
 npm run sass          # one-shot
 npm run sass:watch    # continuous
 ```
@@ -226,7 +233,7 @@ npm run sass:watch    # continuous
 
 ## Configuration
 
-`KHost.UserInterface/appsettings.json` exposes these sections:
+`src/KHost.UserInterface/appsettings.json` exposes these sections:
 
 | Section | Purpose |
 |---|---|
@@ -257,7 +264,7 @@ Unit tests use **xUnit** and **NSubstitute**:
 
 ```bash
 # Just the unit tests
-dotnet test KHost.UnitTests
+dotnet test tests/KHost.UnitTests
 
 # Everything in the solution
 dotnet test KHost.slnx

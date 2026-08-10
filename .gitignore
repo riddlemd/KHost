@@ -364,10 +364,13 @@ MigrationBackup/
 FodyWeavers.xsd
 
 # SCSS/CSS (compiled output - do not commit)
-/KHost.UserInterface/wwwroot/css/*
-!/KHost.UserInterface/wwwroot/css/fonts/
-!/KHost.UserInterface/wwwroot/css/fonts/*
+/src/KHost.UserInterface/wwwroot/css/*
+!/src/KHost.UserInterface/wwwroot/css/fonts/
+!/src/KHost.UserInterface/wwwroot/css/fonts/*
 
 # KHost Caches
-/KHost.UserInterface/cache/*
+/src/KHost.UserInterface/cache/*
+
+# macOS
+.DS_Store
 
