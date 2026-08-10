@@ -1,3 +1,7 @@
+@* REVIEW: nothing renders this today. Home.razor showed it behind a _showingSplash flag until
+   bc92435 rewrote that page and dropped it — incidental to the refactor, not a decision, and
+   nothing replaced it. _loading-splash.scss is still imported, so the styles ship regardless.
+   Restore or delete deliberately; it is a dropped feature, not dead code. *@
 <div class="kh-loading-splash">
     <div class="kh-loading-splash__content">
         <Icon Name="headphones" Class="kh-loading-splash__icon" />
