@@ -26,13 +26,13 @@
                 </label>
             </div>
 
-            <div class="kh-venue-settings-editor__section">
-                <span class="kh-venue-settings-editor__section-title">Playback</span>
-                <div class="kh-venue-settings-editor__row">
+            <div class="kh-venue-settings__section">
+                <span class="kh-venue-settings__section-title">Playback</span>
+                <div class="kh-venue-settings__row">
                     <label for="default-volume" class="form-label mb-0">Default Volume</label>
                     <InputNumber id="default-volume" class="form-control" @bind-Value="_model.DefaultVolume" min="0" max="100" />
                 </div>
-                <div class="kh-venue-settings-editor__row">
+                <div class="kh-venue-settings__row">
                     <label for="on-screen-disconnect" class="form-label mb-0">When a screen disconnects</label>
                     <InputSelect id="on-screen-disconnect" class="form-select" @bind-Value="_model.OnScreenDisconnect">
                         <option value="@ScreenDisconnectBehavior.ResumeOnReconnect">Resume when a screen returns</option>
@@ -42,74 +42,74 @@
                 </div>
             </div>
 
-            <div class="kh-venue-settings-editor__section">
-                <span class="kh-venue-settings-editor__section-title">Queue behavior</span>
+            <div class="kh-venue-settings__section">
+                <span class="kh-venue-settings__section-title">Queue behavior</span>
 
-                <label class="kh-venue-settings-editor__row form-check mb-2">
+                <label class="kh-venue-settings__row form-check mb-2">
                     <span class="form-check-label">Move singer to bottom after performance</span>
                     <InputCheckbox class="form-check-input" @bind-Value="_model.MoveSingerToBottomAfterPerformance" />
                 </label>
-                <label class="kh-venue-settings-editor__row form-check">
+                <label class="kh-venue-settings__row form-check">
                     <span class="form-check-label">Clear queue when closing</span>
                     <InputCheckbox class="form-check-input" @bind-Value="_model.ClearQueueOnClose" />
                 </label>
             </div>
 
-            <div class="kh-venue-settings-editor__section">
-                <span class="kh-venue-settings-editor__section-title">Require confirmation when removing</span>
+            <div class="kh-venue-settings__section">
+                <span class="kh-venue-settings__section-title">Require confirmation when removing</span>
 
-                <div class="kh-venue-settings-editor__prompt-grid">
-                    <label class="kh-venue-settings-editor__prompt-item form-check">
-                        <span class="kh-venue-settings-editor__prompt-item-label">
+                <div class="kh-venue-settings__prompt-grid">
+                    <label class="kh-venue-settings__prompt-item form-check">
+                        <span class="kh-venue-settings__prompt-item-label">
                             <Icon Name="person-x-fill" />
                             <span class="form-check-label">Singer from queue</span>
                         </span>
                         <InputCheckbox class="form-check-input" @bind-Value="_model.PromptBeforeRemovingSinger" />
                     </label>
-                    <label class="kh-venue-settings-editor__prompt-item form-check">
-                        <span class="kh-venue-settings-editor__prompt-item-label">
+                    <label class="kh-venue-settings__prompt-item form-check">
+                        <span class="kh-venue-settings__prompt-item-label">
                             <Icon Name="music-note-beamed" />
                             <span class="form-check-label">Song from queue</span>
                         </span>
                         <InputCheckbox class="form-check-input" @bind-Value="_model.PromptBeforeRemovingPerformance" />
                     </label>
-                    <label class="kh-venue-settings-editor__prompt-item form-check">
-                        <span class="kh-venue-settings-editor__prompt-item-label">
+                    <label class="kh-venue-settings__prompt-item form-check">
+                        <span class="kh-venue-settings__prompt-item-label">
                             <Icon Name="clock-history" />
                             <span class="form-check-label">Performance history</span>
                         </span>
                         <InputCheckbox class="form-check-input" @bind-Value="_model.PromptBeforeRemovingPerformanceHistory" />
                     </label>
-                    <label class="kh-venue-settings-editor__prompt-item form-check">
-                        <span class="kh-venue-settings-editor__prompt-item-label">
+                    <label class="kh-venue-settings__prompt-item form-check">
+                        <span class="kh-venue-settings__prompt-item-label">
                             <Icon Name="person-fill" />
                             <span class="form-check-label">User</span>
                         </span>
                         <InputCheckbox class="form-check-input" @bind-Value="_model.PromptBeforeRemovingUser" />
                     </label>
-                    <label class="kh-venue-settings-editor__prompt-item form-check">
-                        <span class="kh-venue-settings-editor__prompt-item-label">
+                    <label class="kh-venue-settings__prompt-item form-check">
+                        <span class="kh-venue-settings__prompt-item-label">
                             <Icon Name="people-fill" />
                             <span class="form-check-label">User group</span>
                         </span>
                         <InputCheckbox class="form-check-input" @bind-Value="_model.PromptBeforeRemovingUserGroup" />
                     </label>
-                    <label class="kh-venue-settings-editor__prompt-item form-check">
-                        <span class="kh-venue-settings-editor__prompt-item-label">
+                    <label class="kh-venue-settings__prompt-item form-check">
+                        <span class="kh-venue-settings__prompt-item-label">
                             <Icon Name="building" />
                             <span class="form-check-label">Venue</span>
                         </span>
                         <InputCheckbox class="form-check-input" @bind-Value="_model.PromptBeforeRemovingVenue" />
                     </label>
-                    <label class="kh-venue-settings-editor__prompt-item form-check">
-                        <span class="kh-venue-settings-editor__prompt-item-label">
+                    <label class="kh-venue-settings__prompt-item form-check">
+                        <span class="kh-venue-settings__prompt-item-label">
                             <Icon Name="film" />
                             <span class="form-check-label">Media</span>
                         </span>
                         <InputCheckbox class="form-check-input" @bind-Value="_model.PromptBeforeRemovingMedia" />
                     </label>
-                    <label class="kh-venue-settings-editor__prompt-item form-check">
-                        <span class="kh-venue-settings-editor__prompt-item-label">
+                    <label class="kh-venue-settings__prompt-item form-check">
+                        <span class="kh-venue-settings__prompt-item-label">
                             <Icon Name="cash-coin" />
                             <span class="form-check-label">Tip</span>
                         </span>
