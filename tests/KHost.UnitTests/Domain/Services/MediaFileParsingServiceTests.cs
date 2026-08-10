@@ -16,12 +16,18 @@ public class MediaFileParsingServiceTests
         return new MediaFileParsingService(logger, monitor, analytics);
     }
 
+    // Separator must match the host OS: on Unix a literal "C:\dir\x.mp4" is one long
+    // filename, so the directory would survive into the parsed artist/title.
+    // The file need not exist — TryProbeAsync treats a failed probe as "no metadata".
+    private static string MediaPath(string fileName) =>
+        Path.Combine(Path.GetTempPath(), "khost-parsing-tests", fileName);
+
     [Fact]
     public void ArtistFirst_DefaultFormat_SplitsCorrectly()
     {
         var svc = CreateService();
 
-        var (title, artist) = svc.GetTitleAndArtistFromFilename(@"C:\karaoke\Bruno Mars - Finesse.mp4");
+        var (title, artist) = svc.GetTitleAndArtistFromFilename(MediaPath("Bruno Mars - Finesse.mp4"));
 
         Assert.Equal("Finesse", title);
         Assert.Equal("Bruno Mars", artist);
@@ -35,7 +41,7 @@ public class MediaFileParsingServiceTests
             Format = FilenameFormat.TitleFirst
         });
 
-        var (title, artist) = svc.GetTitleAndArtistFromFilename(@"C:\karaoke\Finesse - Bruno Mars.mp4");
+        var (title, artist) = svc.GetTitleAndArtistFromFilename(MediaPath("Finesse - Bruno Mars.mp4"));
 
         Assert.Equal("Finesse", title);
         Assert.Equal("Bruno Mars", artist);
@@ -109,7 +115,7 @@ public class MediaFileParsingServiceTests
         });
 
         // Use a path that does not exist so FFprobe fails and we exercise the fallback branch.
-        var media = await svc.LoadAndParse(@"Z:\does-not-exist\JustATitle.mp4");
+        var media = await svc.LoadAndParse(MediaPath("JustATitle.mp4"));
 
         Assert.Equal("JustATitle", media.Title);
         Assert.Equal("No Artist", media.Artist);
@@ -120,7 +126,7 @@ public class MediaFileParsingServiceTests
     {
         var svc = CreateService();
 
-        var media = await svc.LoadAndParse(@"Z:\does-not-exist\Bruno Mars - Finesse (Karaoke Version).cdg");
+        var media = await svc.LoadAndParse(MediaPath("Bruno Mars - Finesse (Karaoke Version).cdg"));
 
         Assert.Equal("Finesse", media.Title);
         Assert.Equal("Bruno Mars", media.Artist);
@@ -132,7 +138,7 @@ public class MediaFileParsingServiceTests
     {
         var svc = CreateService();
 
-        var media = await svc.LoadAndParse(@"Z:\does-not-exist\Bruno Mars - Finesse (Karaoke) (HD).mp4");
+        var media = await svc.LoadAndParse(MediaPath("Bruno Mars - Finesse (Karaoke) (HD).mp4"));
 
         Assert.Equal("Finesse", media.Title);
     }
@@ -142,7 +148,7 @@ public class MediaFileParsingServiceTests
     {
         var svc = CreateService();
 
-        var media = await svc.LoadAndParse(@"Z:\does-not-exist\Bruno Mars feat. Cardi B - Finesse.mp4");
+        var media = await svc.LoadAndParse(MediaPath("Bruno Mars feat. Cardi B - Finesse.mp4"));
 
         // "feat. Cardi B" appears on the Artist side after the split, so it is preserved verbatim.
         Assert.Equal("Bruno Mars feat. Cardi B", media.Artist);
@@ -154,7 +160,7 @@ public class MediaFileParsingServiceTests
     {
         var svc = CreateService();
 
-        var media = await svc.LoadAndParse(@"Z:\does-not-exist\Bruno Mars - Finesse (feat. Cardi B).mp4");
+        var media = await svc.LoadAndParse(MediaPath("Bruno Mars - Finesse (feat. Cardi B).mp4"));
 
         Assert.Equal("Finesse", media.Title);
         Assert.Equal("Bruno Mars feat. Cardi B", media.Artist);
@@ -168,7 +174,7 @@ public class MediaFileParsingServiceTests
             FeaturingHandling = FeaturingHandling.MoveToNotes
         });
 
-        var media = await svc.LoadAndParse(@"Z:\does-not-exist\Bruno Mars - Finesse (feat. Cardi B).mp4");
+        var media = await svc.LoadAndParse(MediaPath("Bruno Mars - Finesse (feat. Cardi B).mp4"));
 
         Assert.Equal("Finesse", media.Title);
         Assert.Equal("Bruno Mars", media.Artist);
@@ -183,7 +189,7 @@ public class MediaFileParsingServiceTests
             FeaturingHandling = FeaturingHandling.Ignore
         });
 
-        var media = await svc.LoadAndParse(@"Z:\does-not-exist\Bruno Mars - Finesse (feat. Cardi B).mp4");
+        var media = await svc.LoadAndParse(MediaPath("Bruno Mars - Finesse (feat. Cardi B).mp4"));
 
         Assert.Equal("Finesse (feat. Cardi B)", media.Title);
     }
