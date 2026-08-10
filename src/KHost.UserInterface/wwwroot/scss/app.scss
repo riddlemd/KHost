@@ -20,43 +20,19 @@
 @use 'shared/resize-handles';
 @use 'shared/layout';
 @use 'shared/validation';
-@use 'components/scrim';
 
 /* ─── Components/ (root) ──────────────────────────────────────────────────── */
-@use 'components/control';
-@use 'components/loader';
-@use 'components/split-button';
-@use 'components/loading-splash';
 
 /* ─── Components/Panels/ ──────────────────────────────────────────────────── */
-@use 'components/panels/singer-queue-panel';
 @use 'components/panels/now-playing-panel';
-@use 'components/panels/selected-singer-info-panel';
-@use 'components/panels/media-search-panel';
 
 /* ─── Components/ (root) - UI Controls ────────────────────────────────────── */
-@use 'components/theme-selector';
-@use 'components/venue-selector';
-@use 'components/settings-btn';
-@use 'components/screens-btn';
 @use 'components/venue-settings';
 
 /* ─── Components/Dialogs/ ─────────────────────────────────────────────────── */
 @use 'components/dialogs/dialog';
-@use 'components/dialogs/confirmation-dialog';
-@use 'components/dialogs/settings-menu-dialog';
-@use 'components/dialogs/singer-performance-history-dialog';
-@use 'components/dialogs/media-edit-dialog';
-@use 'components/dialogs/show-lyrics-dialog';
-@use 'components/dialogs/screens-dialog';
 
 /* ─── Components/Pages/ ───────────────────────────────────────────────────── */
 @use 'components/pages/setup-page';
 
 /* ─── Components/Pages/Settings/ ──────────────────────────────────────────── */
-@use 'components/pages/settings/media-manager-page';
-@use 'components/pages/settings/media-importer-page';
-@use 'components/pages/settings/user-manager-page';
-@use 'components/pages/settings/user-groups-manager-page';
-@use 'components/pages/settings/venues-manager-page';
-@use 'components/pages/settings/tips-manager-page';

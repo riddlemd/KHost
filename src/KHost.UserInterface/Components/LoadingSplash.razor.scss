@@ -25,7 +25,8 @@
         gap: 2rem;
     }
 
-    &__icon {
+    // Handed to <Icon>, so it renders on that component's element, not ours.
+    ::deep &__icon {
         font-size: 4rem;
         color: #CC5500;
         animation: pulse 1.5s ease-in-out infinite;
