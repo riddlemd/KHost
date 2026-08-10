@@ -123,7 +123,8 @@
         margin-left: auto;
     }
 
-    &__flag-icon {
+    // Handed to <Icon>, so it renders on that component's element, not ours.
+    ::deep &__flag-icon {
         &--tipper {
             color: var(--kh-flag-tipper);
         }

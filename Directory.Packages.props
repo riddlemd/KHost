@@ -53,5 +53,8 @@
 
     <!-- Real-time Communication -->
     <PackageVersion Include="Microsoft.AspNetCore.SignalR.Client" Version="8.0.0" />
+
+    <!-- Build -->
+    <PackageVersion Include="AspNetCore.SassCompiler" Version="1.102.0" />
   </ItemGroup>
 </Project>

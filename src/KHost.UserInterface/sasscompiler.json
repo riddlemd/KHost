@@ -1,0 +1,6 @@
+{
+  "$comment": "Scoped css only. Co-located *.razor.scss must be compiled before Blazor rewrites scoped selectors, which a plain MSBuild target cannot do. Global stylesheets stay on the npm sass scripts.",
+  "GenerateScopedCss": true,
+  "ScopedCssFolders": [ "Components" ],
+  "Arguments": "--style=compressed --no-source-map"
+}

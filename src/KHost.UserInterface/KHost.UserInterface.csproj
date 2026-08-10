@@ -26,6 +26,9 @@
     </PackageReference>
     <PackageReference Include="Serilog.AspNetCore" />
     <PackageReference Include="Serilog.Sinks.File" />
+    <!-- Compiles co-located *.razor.scss before Blazor rewrites scoped selectors; a plain
+         MSBuild target is too late, since scoped css is discovered from evaluation-time items. -->
+    <PackageReference Include="AspNetCore.SassCompiler" PrivateAssets="all" />
   </ItemGroup>
 
   <ItemGroup>
@@ -47,6 +50,7 @@
     <Exec Command="npm run sass" ContinueOnError="false" />
     <Exec Command="npm run copy:vendors" ContinueOnError="false" />
   </Target>
+
 
   <!-- Copy wwwroot to output directory to mimic standalone release -->
   <Target Name="CopyWwwrootToOutput" AfterTargets="Build">

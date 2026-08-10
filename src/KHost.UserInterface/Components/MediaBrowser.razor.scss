@@ -146,7 +146,8 @@
         user-select: none;
     }
 
-    &__sort-indicator {
+    // Handed to <Icon>, so it renders on that component's element, not ours.
+    ::deep &__sort-indicator {
         font-size: 0.85rem;
         margin-left: 4px;
         vertical-align: middle;
