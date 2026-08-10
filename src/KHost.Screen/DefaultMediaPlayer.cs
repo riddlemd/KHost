@@ -70,8 +70,7 @@ internal sealed class DefaultMediaPlayer : IMediaPlayer
         {
             _audio.Volume = value;
 
-            // A running fade owns the volume and restores _preFadeVolume when cancelled;
-            // outside one this keeps that baseline on the level the host actually asked for.
+            // A fade owns the volume while it runs; outside one this is the level to restore to.
             if (!_isFading) _preFadeVolume = value;
         }
     }
@@ -196,9 +195,8 @@ internal sealed class DefaultMediaPlayer : IMediaPlayer
 
         var duration = fadeDuration ?? DefaultFadeDuration;
 
-        // The fade is only visible while frames are flowing: _fadeAlpha reaches the window
-        // through FrameData. Paused playback has no demux thread, so a fade would sit on a
-        // frozen frame for its whole duration and then cut.
+        // _fadeAlpha only reaches the window on a frame, and a paused player emits none — so a
+        // fade from paused would sit invisibly on a frozen image and then cut.
         if (!wasPlaying || duration <= TimeSpan.Zero)
         {
             _logger.LogInformation("Stop (no fade, wasPlaying={WasPlaying})", wasPlaying);
@@ -580,8 +578,7 @@ internal sealed class DefaultMediaPlayer : IMediaPlayer
     {
         if (!_isFading)
         {
-            // Nothing faded the volume down, so there is nothing to put back — restoring here
-            // would overwrite the host's chosen volume with a stale baseline.
+            // Nothing lowered the volume, so restoring would overwrite the host's own setting.
             _fadeAlpha = 1.0f;
             return;
         }
