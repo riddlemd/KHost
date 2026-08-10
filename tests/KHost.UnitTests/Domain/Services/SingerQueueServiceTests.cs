@@ -6,9 +6,10 @@ using Microsoft.Extensions.Options;
 
 namespace KHost.UnitTests.Domain.Services;
 
+[Collection(FileCacheCollection.Name)]
 public class SingerQueueServiceTests : IDisposable
 {
-    private const string _cacheDir = "./cache";
+    private static readonly string _cacheDir = Path.Combine(AppContext.BaseDirectory, "cache");
     private readonly ICacheService _cacheService;
     private readonly IPerformanceService _performanceService;
     private readonly IUsersService _usersService;
