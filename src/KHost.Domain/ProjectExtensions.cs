@@ -35,6 +35,9 @@ namespace KHost.Domain
             serviceCollection.AddOptions<LocalScreenProvider.ServiceOptions>()
                 .BindConfiguration(LocalScreenProvider.ServiceOptions.SectionName);
 
+            serviceCollection.AddOptions<PlaybackService.ServiceOptions>()
+                .BindConfiguration(PlaybackService.ServiceOptions.SectionName);
+
             // Configure KHost Services
             serviceCollection.AddSingleton(TimeProvider.System);
             serviceCollection.AddSingleton<IMediaFileParsingService, MediaFileParsingService>();

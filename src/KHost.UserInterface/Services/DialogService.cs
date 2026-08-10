@@ -96,6 +96,13 @@ public class DialogService : IDialogService
         return Task.CompletedTask;
     }
 
+    public Task ShowNoScreensAsync()
+        => ShowConfirmationAsync(
+            "Playback needs a screen for audio and video output.",
+            onConfirm: () => _ = ShowScreensAsync(),
+            title: "No screens connected",
+            confirmText: "Launch Screen");
+
     private Task RequestEditAsync<TRequest, TInput>(TInput item, Action<TInput?> onSave, Action? onCancel = null, Action? onClose = null)
         where TInput : class
         where TRequest : EditDialogRequest<TInput>

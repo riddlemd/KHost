@@ -18,6 +18,9 @@ public interface IDialogService :
     Task ShowSingerPerformanceHistoryAsync(Guid userId, Action? onClose = null);
     Task ShowLyricsAsync(string query, Action? onClose = null);
     Task ShowScreensAsync(Action? onClose = null);
+
+    /// <summary>Tells the host playback needs a screen, offering to open the Screens dialog.</summary>
+    Task ShowNoScreensAsync();
     Task RequestEditAsync(Tip? item, Guid userId, Action<Tip?> onSave, Action? onCancel = null, Action? onClose = null);
     Task RequestBulkEditAsync(IReadOnlyList<Media> items, Func<BulkEditMediaModel, Task> onSave, Action? onCancel = null, Action? onClose = null);
 }

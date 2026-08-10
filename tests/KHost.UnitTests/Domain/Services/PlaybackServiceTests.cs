@@ -3,6 +3,7 @@ using KHost.Abstractions.Services;
 using KHost.Abstractions.Services.IPC;
 using KHost.Domain.Services;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace KHost.UnitTests.Domain.Services;
 
@@ -20,9 +21,43 @@ public class PlaybackServiceTests : IDisposable
         _venuesService.ReadSelectedVenueAsync()
             .Returns(new Venue { Id = Guid.NewGuid(), Name = "Test Venue", Settings = new Venue.VenueSettings { MoveSingerToBottomAfterPerformance = false } });
 
-        var analytics = Substitute.For<IAnalyticsService>();
-        _service = new PlaybackService(_logger, _queueService, _performanceService, _venuesService, analytics, _screenServer);
+        // Playback refuses to start with no screen attached, so the default fixture has one.
+        ConnectScreens(1);
+
+        // Zero fade keeps stop synchronous; the fading behaviour has its own tests below.
+        _service = MakeService(TimeSpan.Zero);
     }
+
+    private void ConnectScreens(int count)
+    {
+        var screens = Enumerable.Range(1, count).Select(i =>
+        {
+            var screen = Substitute.For<IScreenConnection>();
+            screen.ScreenId.Returns($"Screen {i}");
+            screen.ConnectionId.Returns($"conn-{i}");
+            screen.IsConnected.Returns(true);
+            return screen;
+        }).ToArray();
+
+        _screenServer.GetConnectedScreensAsync().Returns(_ => ToAsyncEnumerable(screens));
+    }
+
+    private static async IAsyncEnumerable<IScreenConnection> ToAsyncEnumerable(IScreenConnection[] screens)
+    {
+        foreach (var screen in screens)
+            yield return screen;
+
+        await Task.CompletedTask;
+    }
+
+    private PlaybackService MakeService(TimeSpan stopFadeDuration) => new(
+        _logger,
+        _queueService,
+        _performanceService,
+        _venuesService,
+        Substitute.For<IAnalyticsService>(),
+        _screenServer,
+        Options.Create(new PlaybackService.ServiceOptions { StopFadeDuration = stopFadeDuration }));
 
     public void Dispose() => _service.Dispose();
 
@@ -273,6 +308,280 @@ public class PlaybackServiceTests : IDisposable
         await _service.StopAsync();
 
         await _screenServer.Received(1).BroadcastCommandAsync(Arg.Any<StopCommand>());
+    }
+
+    [Fact]
+    public async Task HasConnectedScreenAsync_IsTrue_WhenAScreenIsAttached()
+    {
+        Assert.True(await _service.HasConnectedScreenAsync());
+    }
+
+    [Fact]
+    public async Task HasConnectedScreenAsync_IsFalse_WhenNoScreensAreAttached()
+    {
+        ConnectScreens(0);
+
+        Assert.False(await _service.HasConnectedScreenAsync());
+    }
+
+    [Fact]
+    public async Task PlayAsync_DoesNotStart_WhenNoScreensAreConnected()
+    {
+        var (performance, media) = CreatePerformance();
+        await _service.LoadAsync(performance, media);
+
+        ConnectScreens(0);
+
+        await _service.PlayAsync();
+
+        Assert.Equal(PlaybackState.Stopped, _service.State);
+        Assert.Null(_service.CurrentlyPerformingUserId);
+    }
+
+    [Fact]
+    public async Task PlayAsync_DoesNotBroadcast_WhenNoScreensAreConnected()
+    {
+        var (performance, media) = CreatePerformance();
+        await _service.LoadAsync(performance, media);
+
+        ConnectScreens(0);
+
+        await _service.PlayAsync();
+
+        await _screenServer.DidNotReceive().BroadcastCommandAsync(Arg.Any<PlayCommand>());
+    }
+
+    [Fact]
+    public async Task PlayAsync_WithNoScreens_LeavesThePerformanceQueued()
+    {
+        var (performance, media) = CreatePerformance();
+        await _service.LoadAsync(performance, media);
+
+        ConnectScreens(0);
+
+        await _service.PlayAsync();
+
+        // The position timer never starts, so nothing can run the turn out and dequeue it.
+        await _performanceService.DidNotReceive().DequeueAsync(Arg.Any<Guid>(), Arg.Any<Guid>());
+        Assert.Same(performance, _service.CurrentPerformance);
+    }
+
+    [Fact]
+    public async Task PlayAsync_Starts_OnceAScreenConnects()
+    {
+        var (performance, media) = CreatePerformance();
+        await _service.LoadAsync(performance, media);
+
+        ConnectScreens(0);
+        await _service.PlayAsync();
+        Assert.Equal(PlaybackState.Stopped, _service.State);
+
+        ConnectScreens(1);
+        await _service.PlayAsync();
+
+        Assert.Equal(PlaybackState.Playing, _service.State);
+    }
+
+    [Fact]
+    public async Task HasConnectedScreenAsync_IsFalse_WhenEnumerationThrows()
+    {
+        _screenServer.GetConnectedScreensAsync().Returns(_ => throw new InvalidOperationException("hub down"));
+
+        Assert.False(await _service.HasConnectedScreenAsync());
+    }
+
+    [Fact]
+    public async Task ScreenDisconnect_PausesPlayback_WhenNoScreensRemain()
+    {
+        var (performance, media) = CreatePerformance();
+        await _service.LoadAsync(performance, media);
+        await _service.PlayAsync();
+
+        ConnectScreens(0);
+        RaiseScreenDisconnected();
+
+        Assert.True(await WaitForStateAsync(PlaybackState.Paused));
+        Assert.Same(performance, _service.CurrentPerformance);
+    }
+
+    [Fact]
+    public async Task ScreenDisconnect_KeepsPlaying_WhenAnotherScreenRemains()
+    {
+        ConnectScreens(2);
+        var (performance, media) = CreatePerformance();
+        await _service.LoadAsync(performance, media);
+        await _service.PlayAsync();
+
+        ConnectScreens(1);
+        RaiseScreenDisconnected();
+
+        Assert.False(await WaitForStateAsync(PlaybackState.Paused));
+        Assert.Equal(PlaybackState.Playing, _service.State);
+    }
+
+    [Fact]
+    public async Task ScreenDisconnect_IsIgnored_WhenNotPlaying()
+    {
+        var (performance, media) = CreatePerformance();
+        await _service.LoadAsync(performance, media);
+
+        ConnectScreens(0);
+        RaiseScreenDisconnected();
+
+        Assert.False(await WaitForStateAsync(PlaybackState.Paused));
+        Assert.Equal(PlaybackState.Stopped, _service.State);
+    }
+
+    [Fact]
+    public async Task ScreenDisconnect_AfterDispose_DoesNotPause()
+    {
+        var service = MakeService(TimeSpan.Zero);
+        var (performance, media) = CreatePerformance();
+        await service.LoadAsync(performance, media);
+        await service.PlayAsync();
+
+        service.Dispose();
+
+        ConnectScreens(0);
+        RaiseScreenDisconnected();
+
+        await Task.Delay(150);
+        Assert.Equal(PlaybackState.Playing, service.State);
+    }
+
+    private void RaiseScreenDisconnected()
+    {
+        var connection = Substitute.For<IScreenConnection>();
+        connection.ScreenId.Returns("Screen 1");
+        connection.ConnectionId.Returns("conn-1");
+
+        _screenServer.ScreenDisconnected += Raise.EventWith(
+            _screenServer, new ScreenConnectionEventArgs { Connection = connection });
+    }
+
+    // The disconnect handler runs detached so it cannot deadlock the hub lock.
+    private async Task<bool> WaitForStateAsync(PlaybackState expected)
+    {
+        for (var i = 0; i < 50; i++)
+        {
+            if (_service.State == expected) return true;
+            await Task.Delay(10);
+        }
+
+        return false;
+    }
+
+    [Fact]
+    public async Task StopAsync_BroadcastsConfiguredFadeDuration()
+    {
+        var service = MakeService(TimeSpan.FromMilliseconds(80));
+        var (performance, media) = CreatePerformance();
+
+        await service.LoadAsync(performance, media);
+        await service.PlayAsync();
+
+        await service.StopAsync();
+
+        await _screenServer.Received(1).BroadcastCommandAsync(
+            Arg.Is<StopCommand>(c => c.FadeDuration == TimeSpan.FromMilliseconds(80)));
+    }
+
+    [Fact]
+    public async Task StopAsync_BroadcastsZeroFadeDuration_WhenFadeDisabled()
+    {
+        var (performance, media) = CreatePerformance();
+
+        await _service.LoadAsync(performance, media);
+        await _service.PlayAsync();
+
+        await _service.StopAsync();
+
+        await _screenServer.Received(1).BroadcastCommandAsync(
+            Arg.Is<StopCommand>(c => c.FadeDuration == TimeSpan.Zero));
+    }
+
+    [Fact]
+    public async Task StopAsync_EntersStoppingAndKeepsMediaVisible_WhileFading()
+    {
+        var service = MakeService(TimeSpan.FromMilliseconds(400));
+        var (performance, media) = CreatePerformance();
+
+        await service.LoadAsync(performance, media);
+        await service.PlayAsync();
+
+        var stop = service.StopAsync();
+
+        // The fade is still running, so the panel must still have something to render.
+        Assert.Equal(PlaybackState.Stopping, service.State);
+        Assert.Same(media, service.CurrentMedia);
+        Assert.Same(performance, service.CurrentPerformance);
+        Assert.Equal(TimeSpan.FromMilliseconds(400), service.StopFadeDuration);
+
+        await stop;
+
+        Assert.Equal(PlaybackState.Stopped, service.State);
+        Assert.Null(service.CurrentMedia);
+        Assert.Null(service.StopFadeDuration);
+    }
+
+    [Fact]
+    public async Task StopAsync_RaisesStateChanged_WhenEnteringStopping()
+    {
+        var service = MakeService(TimeSpan.FromMilliseconds(200));
+        var (performance, media) = CreatePerformance();
+
+        await service.LoadAsync(performance, media);
+        await service.PlayAsync();
+
+        var changes = 0;
+        service.StateChanged += (_, _) => changes++;
+
+        var stop = service.StopAsync();
+
+        // The UI needs a render before the fade finishes, not just after.
+        Assert.True(changes >= 1);
+
+        await stop;
+
+        Assert.True(changes >= 2);
+    }
+
+    [Fact]
+    public async Task StopAsync_IsIgnored_WhenAlreadyStopping()
+    {
+        var service = MakeService(TimeSpan.FromMilliseconds(200));
+        var (performance, media) = CreatePerformance();
+
+        await service.LoadAsync(performance, media);
+        await service.PlayAsync();
+
+        var first = service.StopAsync();
+        await service.StopAsync();
+
+        await first;
+
+        await _screenServer.Received(1).BroadcastCommandAsync(Arg.Any<StopCommand>());
+    }
+
+    [Fact]
+    public async Task PlayAsync_DuringFade_CancelsTheStopCompletion()
+    {
+        var service = MakeService(TimeSpan.FromMilliseconds(300));
+        var (performance, media) = CreatePerformance();
+
+        await service.LoadAsync(performance, media);
+        await service.PlayAsync();
+
+        var stop = service.StopAsync();
+        Assert.Equal(PlaybackState.Stopping, service.State);
+
+        await service.PlayAsync();
+        await stop;
+
+        // Resuming mid-fade must not let the pending stop tear the performance down afterwards.
+        Assert.Equal(PlaybackState.Playing, service.State);
+        Assert.Same(media, service.CurrentMedia);
+        Assert.Null(service.StopFadeDuration);
     }
 
     [Fact]

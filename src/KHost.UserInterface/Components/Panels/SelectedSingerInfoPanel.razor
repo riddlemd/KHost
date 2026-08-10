@@ -218,6 +218,14 @@
         if (!_mediaCache.TryGetValue(performance.MediaId, out var media) || media is null)
             return;
 
+        // Checked before Load so a refused play leaves the queue untouched — Load already
+        // moves the singer to the top and locks the slot.
+        if (!await PlaybackService.HasConnectedScreenAsync())
+        {
+            await DialogService!.ShowNoScreensAsync();
+            return;
+        }
+
         await PlaybackService.LoadAsync(performance, media);
         await PlaybackService.PlayAsync();
     }
