@@ -22,11 +22,11 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\KHost.Abstractions\KHost.Abstractions.csproj" />
-    <ProjectReference Include="..\KHost.DataAccess\KHost.DataAccess.csproj" />
-    <ProjectReference Include="..\KHost.Domain\KHost.Domain.csproj" />
-    <ProjectReference Include="..\KHost.LrcLib\KHost.LrcLib.csproj" />
-    <ProjectReference Include="..\KHost.Telemetry\KHost.Telemetry.csproj" />
+    <ProjectReference Include="..\..\src\KHost.Abstractions\KHost.Abstractions.csproj" />
+    <ProjectReference Include="..\..\src\KHost.DataAccess\KHost.DataAccess.csproj" />
+    <ProjectReference Include="..\..\src\KHost.Domain\KHost.Domain.csproj" />
+    <ProjectReference Include="..\..\src\KHost.LrcLib\KHost.LrcLib.csproj" />
+    <ProjectReference Include="..\..\src\KHost.Telemetry\KHost.Telemetry.csproj" />
   </ItemGroup>
 
   <ItemGroup>

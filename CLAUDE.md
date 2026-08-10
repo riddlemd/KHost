@@ -7,22 +7,24 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Commands
 
 ```bash
-dotnet run --project KHost.UserInterface   # run UI directly
-dotnet run --project KHost.AppHost         # run via Aspire
+dotnet run --project src/KHost.UserInterface   # run UI directly
+dotnet run --project src/KHost.AppHost         # run via Aspire
 dotnet build KHost.slnx "-p:BaseOutputPath=./obj/_build"  # build whole solution (redirects output to avoid locking VS's bin/ folder)
-dotnet test KHost.UnitTests                # run all unit tests
-dotnet test KHost.UnitTests --filter "FullyQualifiedName~ServiceName"  # run tests for one class
-dotnet test KHost.UnitTests --filter "DisplayName~MethodName"          # run a single test by method
+dotnet test tests/KHost.UnitTests                # run all unit tests
+dotnet test tests/KHost.UnitTests --filter "FullyQualifiedName~ServiceName"  # run tests for one class
+dotnet test tests/KHost.UnitTests --filter "DisplayName~MethodName"          # run a single test by method
 ```
 
 SCSS only — no full rebuild needed:
 ```bash
-cd KHost.UserInterface && npm run sass     # one-shot compile
+cd src/KHost.UserInterface && npm run sass     # one-shot compile
 ```
 
 ## Architecture
 
 Dependency direction: **UI → Domain / DataAccess → Abstractions**. `KHost.Abstractions` has no project references.
+
+Source projects live under `src/`; test projects live under `tests/`.
 
 | Project | Role |
 |---|---|
@@ -40,7 +42,7 @@ Dependency direction: **UI → Domain / DataAccess → Abstractions**. `KHost.Ab
 
 ## Conventions
 
-**Interfaces → `KHost.Abstractions/Services/` or `KHost.Abstractions/Models/`.** Concrete implementations go in `KHost.Domain/` or `KHost.DataAccess/`.
+**Interfaces → `src/KHost.Abstractions/Services/` or `src/KHost.Abstractions/Models/`.** Concrete implementations go in `src/KHost.Domain/` or `src/KHost.DataAccess/`.
 
 **DI registration** — each project exposes a `ProjectExtensions` method (`AddDomain()`, `AddDataAccess()`). All domain services are singletons.
 
@@ -75,16 +77,16 @@ Do NOT commit unless explicitly asked.
 
 ## Adding a new repository
 
-1. Create interface in `KHost.Abstractions/Repositories/`.
-2. Create concrete class in `KHost.DataAccess/Repositories/` extending `BaseRepository<T>`.
+1. Create interface in `src/KHost.Abstractions/Repositories/`.
+2. Create concrete class in `src/KHost.DataAccess/Repositories/` extending `BaseRepository<T>`.
 3. Implement `SortColumns` (maps string keys to `Expression<Func<T, object>>` for sort), `DefaultSortExpression`, `DefaultSortDescending`, and `ApplySearchFilters<TOptions>` (add WHERE clauses before search executes).
-4. Register in `KHost.DataAccess/ProjectExtensions.cs`.
+4. Register in `src/KHost.DataAccess/ProjectExtensions.cs`.
 
 ## Adding a new domain service
 
-1. Create interface in `KHost.Abstractions/Services/`.
-2. Create class in `KHost.Domain/Services/` extending `BaseService` (or `BaseRepositoryService<,>` for CRUD wrappers).
-3. Register as singleton in `KHost.Domain/ProjectExtensions.cs`.
+1. Create interface in `src/KHost.Abstractions/Services/`.
+2. Create class in `src/KHost.Domain/Services/` extending `BaseService` (or `BaseRepositoryService<,>` for CRUD wrappers).
+3. Register as singleton in `src/KHost.Domain/ProjectExtensions.cs`.
 
 ## IPC (UI ↔ Screen)
 
@@ -106,15 +108,15 @@ Commands flow **UI → Screen**; state flows **Screen → UI**.
 - **Naming:** `MethodUnderTest_Scenario_ExpectedBehavior` (e.g., `DeleteAsync_InvokesStateChanged_WhenRepositoryReturnsTrue`).
 - **Structure:** Dependencies created with `Substitute.For<IInterface>()` in the test class constructor or field initializers; `NullLogger<T>.Instance` for loggers.
 - **Events:** Test `StateChanged` by attaching a counter lambda: `service.StateChanged += (_, _) => count++;`.
-- Mirror the source project layout — tests for `KHost.Domain/Services/Foo.cs` go in `KHost.UnitTests/Domain/Services/FooTests.cs`.
+- Mirror the source project layout — tests for `src/KHost.Domain/Services/Foo.cs` go in `tests/KHost.UnitTests/Domain/Services/FooTests.cs`.
 
 ## Gotchas
 
 - SCSS-only changes: run `npm run sass`, do not rebuild the .NET project.
-- `KHost.Domain/Services/` — plural. Path `Servies` does not exist.
+- `src/KHost.Domain/Services/` — plural. Path `Servies` does not exist.
 - `CompileSCSS` build target fails if `node_modules` is missing — run `npm install` first.
-- Cache DB lives at `KHost.UserInterface/bin/Debug/net10.0/cache/` at runtime.
+- Cache DB lives at `src/KHost.UserInterface/bin/Debug/net10.0/cache/` at runtime.
 - All domain services are singletons — guard mutable state with `SemaphoreSlim`.
 - `BlazorDisableThrowNavigationException` is set; navigation failures won't throw.
 - `DefaultContext` tracking behaviour is set to `QueryTrackingBehavior.NoTracking`, so Saves/Updates will not update related models unless explicitly programmed to.
-- **Migration reset**: any time a model that has a `DbSet<T>` in `DefaultContext` changes, delete all files in `KHost.DataAccess/Migrations/`, delete the runtime DB at `KHost.UserInterface/bin/Debug/net10.0/cache/khost.db`, then run `dotnet ef migrations add InitialSchema --project KHost.DataAccess`. **Then recreate the `AddMediaFts` migration** — the `media_fts` FTS5 virtual table and its sync triggers are raw SQL (not part of the EF model), so `dotnet ef` will NOT regenerate them and `MediaRepository` search will throw `no such table: media_fts`. Run `dotnet ef migrations add AddMediaFts --project KHost.DataAccess --startup-project KHost.UserInterface` and copy the `Up`/`Down` SQL from a prior `AddMediaFts.cs`.
+- **Migration reset**: any time a model that has a `DbSet<T>` in `DefaultContext` changes, delete all files in `src/KHost.DataAccess/Migrations/`, delete the runtime DB at `src/KHost.UserInterface/bin/Debug/net10.0/cache/khost.db`, then run `dotnet ef migrations add InitialSchema --project src/KHost.DataAccess`. **Then recreate the `AddMediaFts` migration** — the `media_fts` FTS5 virtual table and its sync triggers are raw SQL (not part of the EF model), so `dotnet ef` will NOT regenerate them and `MediaRepository` search will throw `no such table: media_fts`. Run `dotnet ef migrations add AddMediaFts --project src/KHost.DataAccess --startup-project src/KHost.UserInterface` and copy the `Up`/`Down` SQL from a prior `AddMediaFts.cs`.

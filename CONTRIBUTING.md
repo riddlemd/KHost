@@ -11,7 +11,7 @@ welcome — bug reports, fixes, features, docs, and tests.
 3. Build and test before opening a pull request:
    ```bash
    dotnet build KHost.slnx
-   dotnet test KHost.UnitTests
+   dotnet test tests/KHost.UnitTests
    ```
 4. Match the existing code style and conventions (see `CLAUDE.md` for the
    project's structure, naming, and member-ordering rules).
