@@ -4,14 +4,15 @@ using KHost.UserInterface.Models;
 
 namespace KHost.UserInterface.Services;
 
-public interface IDialogService :
-    IInteractiveEditor<Media>,
-    IInteractiveEditor<KHostUser>,
-    IInteractiveEditor<KHostUserGroup>,
-    IInteractiveEditor<Venue>,
-    IInteractiveEditor<Tip>
+public interface IDialogService
 {
     event EventHandler<BaseDialogRequest> ShowRequested;
+
+    Task RequestEditAsync(Media item, Action<Media?> onSave, Action? onCancel = null, Action? onClose = null);
+    Task RequestEditAsync(KHostUser item, Action<KHostUser?> onSave, Action? onCancel = null, Action? onClose = null);
+    Task RequestEditAsync(KHostUserGroup item, Action<KHostUserGroup?> onSave, Action? onCancel = null, Action? onClose = null);
+    Task RequestEditAsync(Venue item, Action<Venue?> onSave, Action? onCancel = null, Action? onClose = null);
+    Task RequestEditAsync(Tip item, Action<Tip?> onSave, Action? onCancel = null, Action? onClose = null);
 
     Task<bool> ShowConfirmationAsync(string message, Action onConfirm, string title = "Confirm", string confirmText = "Confirm", Action? onCancel = null, Action? onClose = null);
     Task ShowSettingsMenuAsync(Action? onClose = null);
