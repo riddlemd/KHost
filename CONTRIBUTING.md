@@ -13,7 +13,7 @@ welcome — bug reports, fixes, features, docs, and tests.
    dotnet build KHost.slnx
    dotnet test tests/KHost.UnitTests
    ```
-4. Match the existing code style and conventions (see `CLAUDE.md` for the
+4. Match the existing code style and conventions (see `AGENTS.md` for the
    project's structure, naming, and member-ordering rules).
 5. Open a pull request describing **what** changed and **why**.
 
