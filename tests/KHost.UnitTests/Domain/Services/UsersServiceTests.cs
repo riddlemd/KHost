@@ -142,4 +142,41 @@ public class UsersServiceTests
         Assert.Empty(groupsAtSave);
         Assert.Equal([hosts], edited.Groups);
     }
+
+    [Fact]
+    public async Task CreateAsync_RaisesStateChangedOnlyAfterMembershipIsWritten()
+    {
+        var hosts = new KHostUserGroup { Id = Guid.NewGuid(), Name = "Hosts" };
+        var user = new KHostUser { Name = "Dana", Groups = [hosts] };
+        _repository.CreateAsync(user).Returns(Task.FromResult(user));
+
+        var membershipWrites = 0;
+        var writesWhenNotified = -1;
+        _userGroupsRepository.AddUserToGroupAsync(Arg.Any<Guid>(), Arg.Any<Guid>())
+            .Returns(_ => { membershipWrites++; return Task.CompletedTask; });
+        _service.StateChanged += (_, _) => writesWhenNotified = membershipWrites;
+
+        await _service.CreateAsync(user);
+
+        Assert.Equal(1, writesWhenNotified);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_RaisesStateChangedOnlyAfterMembershipIsWritten()
+    {
+        var hosts = new KHostUserGroup { Id = Guid.NewGuid(), Name = "Hosts" };
+        var userId = Guid.NewGuid();
+        _repository.ReadAsync(userId).Returns(Task.FromResult<KHostUser?>(
+            new KHostUser { Id = userId, Name = "Dana", Groups = [] }));
+
+        var membershipWrites = 0;
+        var writesWhenNotified = -1;
+        _userGroupsRepository.AddUserToGroupAsync(Arg.Any<Guid>(), Arg.Any<Guid>())
+            .Returns(_ => { membershipWrites++; return Task.CompletedTask; });
+        _service.StateChanged += (_, _) => writesWhenNotified = membershipWrites;
+
+        await _service.UpdateAsync(new KHostUser { Id = userId, Name = "Dana", Groups = [hosts] });
+
+        Assert.Equal(1, writesWhenNotified);
+    }
 }
