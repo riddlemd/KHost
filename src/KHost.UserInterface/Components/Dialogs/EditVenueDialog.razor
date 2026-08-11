@@ -56,6 +56,15 @@
             </div>
 
             <div class="kh-venue-settings__section">
+                <span class="kh-venue-settings__section-title">Tipping</span>
+
+                <label class="kh-venue-settings__row kh-form-check">
+                    <span class="kh-form-check-label">Track tips for singers</span>
+                    <InputCheckbox class="kh-form-check-input" @bind-Value="_model.TippingEnabled" />
+                </label>
+            </div>
+
+            <div class="kh-venue-settings__section">
                 <span class="kh-venue-settings__section-title">Require confirmation when removing</span>
 
                 <div class="kh-venue-settings__prompt-grid">
@@ -131,6 +140,7 @@
                     OnScreenDisconnect = Venue.Settings.OnScreenDisconnect,
                     MoveSingerToBottomAfterPerformance = Venue.Settings.MoveSingerToBottomAfterPerformance,
                     ShowEstimatedWaitTime = Venue.Settings.ShowEstimatedWaitTime,
+                    TippingEnabled = Venue.Settings.TippingEnabled,
                     PromptBeforeRemovingSinger = Venue.Settings.PromptBeforeRemovingSinger,
                     PromptBeforeRemovingPerformance = Venue.Settings.PromptBeforeRemovingPerformance,
                     ClearQueueOnClose = Venue.Settings.ClearQueueOnClose,
@@ -156,6 +166,7 @@
         venue.Settings.OnScreenDisconnect = _model.OnScreenDisconnect;
         venue.Settings.MoveSingerToBottomAfterPerformance = _model.MoveSingerToBottomAfterPerformance;
         venue.Settings.ShowEstimatedWaitTime = _model.ShowEstimatedWaitTime;
+        venue.Settings.TippingEnabled = _model.TippingEnabled;
         venue.Settings.PromptBeforeRemovingSinger = _model.PromptBeforeRemovingSinger;
         venue.Settings.PromptBeforeRemovingPerformance = _model.PromptBeforeRemovingPerformance;
         venue.Settings.ClearQueueOnClose = _model.ClearQueueOnClose;

@@ -16,16 +16,19 @@
             <span class="kh-card__title">@selectedUser.Name's Queue</span>
             <span class="kh-badge kh-badge--secondary kh-selected-singer-info-panel__song-count" title="Number of songs in queue">@_performanceCount</span>
    
-            <span class="kh-selected-singer-info-panel__tip-totals">
-                Tips |
-                <span>
-                    <label>Tonight:</label> $@_tonightTotal.ToString("F2")
+            @if (_tippingEnabled)
+            {
+                <span class="kh-selected-singer-info-panel__tip-totals">
+                    Tips |
+                    <span>
+                        <label>Tonight:</label> $@_tonightTotal.ToString("F2")
+                    </span>
+                    /
+                    <span>
+                        <label>Lifetime:</label> $@_lifetimeTotal.ToString("F2")
+                    </span>
                 </span>
-                /
-                <span>
-                    <label>Lifetime:</label> $@_lifetimeTotal.ToString("F2")
-                </span>
-            </span>
+            }
 
             <div class="kh-selected-singer-info-panel__quick-menu">
    
@@ -41,11 +44,14 @@
                         @onclick="OpenPerformanceHistoryDialogAsync" @onclick:stopPropagation>
                     <Icon Name="music-note-list" />
                 </button>
-                <button class="kh-selected-singer-info-panel__menu-btn kh-button kh-button--primary" title="Add a tip for this singer"
-                        disabled="@(SingerQueueService?.SelectedUser is null)"
-                        @onclick="OpenAddTipDialogAsync" @onclick:stopPropagation>
-                    <Icon Name="currency-dollar" />
-                </button>
+                @if (_tippingEnabled)
+                {
+                    <button class="kh-selected-singer-info-panel__menu-btn kh-button kh-button--primary" title="Add a tip for this singer"
+                            disabled="@(SingerQueueService?.SelectedUser is null)"
+                            @onclick="OpenAddTipDialogAsync" @onclick:stopPropagation>
+                        <Icon Name="currency-dollar" />
+                    </button>
+                }
                 <button class="kh-selected-singer-info-panel__menu-btn kh-button kh-button--primary" title="Click to edit Singer's Profile"
                         @onclick="OpenUserEditDialogAsync" @onclick:stopPropagation>
                     <Icon Name="pencil-fill" />
@@ -180,6 +186,7 @@
     private Guid? _selectedPerformanceId;
     private decimal _tonightTotal;
     private decimal _lifetimeTotal;
+    private bool _tippingEnabled = true;
 
     protected override async Task OnInitializedAsync()
     {
@@ -187,7 +194,9 @@
         PerformanceService?.StateChanged += OnStateChanged;
         PlaybackService?.StateChanged += OnStateChanged;
         MediaService?.StateChanged += OnStateChanged;
+        VenuesService?.StateChanged += OnStateChanged;
 
+        await RefreshVenueSettingsAsync();
         await RefreshPerformancesAsync();
     }
 
@@ -313,9 +322,21 @@
 
     private void OnStateChanged(object? sender, EventArgs e) => InvokeAsync(async () =>
     {
+        await RefreshVenueSettingsAsync();
         await RefreshPerformancesAsync();
         StateHasChanged();
     });
+
+    // Rendering needs this synchronously, and the venue read is async — cache it and refresh
+    // on venue state changes so toggling tipping takes effect without a reload.
+    private async Task RefreshVenueSettingsAsync()
+    {
+        if (VenuesService is null) return;
+
+        var venue = await VenuesService.ReadSelectedVenueAsync();
+
+        _tippingEnabled = venue?.Settings.TippingEnabled ?? true;
+    }
 
     private async Task RefreshPerformancesAsync()
     {
@@ -341,12 +362,17 @@
                 _mediaCache = [];
             }
 
-            if (TipsService is not null)
+            if (_tippingEnabled && TipsService is not null)
             {
                 var tips = await TipsService.GetByUserIdAsync(user.Id);
                 _lifetimeTotal = tips.Sum(t => t.Amount);
                 _tonightTotal = tips.Where(t => t.CreatedDate.Date == DateTime.UtcNow.Date)
                                      .Sum(t => t.Amount);
+            }
+            else
+            {
+                _tonightTotal = 0;
+                _lifetimeTotal = 0;
             }
         }
         else
@@ -366,5 +392,6 @@
         PerformanceService?.StateChanged    -= OnStateChanged;
         PlaybackService?.StateChanged -= OnStateChanged;
         MediaService?.StateChanged -= OnStateChanged;
+        VenuesService?.StateChanged -= OnStateChanged;
     }
 }
