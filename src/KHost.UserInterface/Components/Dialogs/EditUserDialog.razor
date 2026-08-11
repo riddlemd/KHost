@@ -30,16 +30,6 @@
                 }
                 else
                 {
-                    <div class="@(_rootClassName)__group-chips">
-                        @foreach (var group in _availableGroups.Where(g => _model.SelectedGroupIds.Contains(g.Id)))
-                        {
-                            <span class="kh-badge kh-badge--secondary">@group.Name</span>
-                        }
-                        @if (_model.SelectedGroupIds.Count == 0)
-                        {
-                            <span class="@(_rootClassName)__groups-empty">No groups selected.</span>
-                        }
-                    </div>
                     <div class="@(_rootClassName)__groups">
                         @foreach (var group in _availableGroups)
                         {
