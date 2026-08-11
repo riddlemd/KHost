@@ -1,0 +1,44 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   Edit User Dialog
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.kh-user-edit-dialog {
+    &__groups {
+        max-height: 200px;
+        overflow-y: auto;
+        background: var(--kh-bg-input);
+        border: 1px solid var(--kh-border);
+        border-radius: var(--kh-radius);
+        padding: 0.25em;
+    }
+
+    &__group {
+        display: flex;
+        align-items: baseline;
+        gap: 0.5em;
+        padding: 0.35em 0.5em;
+        border-radius: var(--kh-radius);
+        cursor: pointer;
+
+        &:hover {
+            background: var(--kh-primary-subtle);
+        }
+    }
+
+    &__group-name {
+        color: var(--kh-text);
+    }
+
+    &__group-description {
+        color: var(--kh-text-muted);
+        font-size: 0.8rem;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    &__groups-empty {
+        color: var(--kh-text-muted);
+        font-size: 0.85rem;
+    }
+}

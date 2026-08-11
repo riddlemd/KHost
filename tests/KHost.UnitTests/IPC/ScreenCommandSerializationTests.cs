@@ -5,18 +5,14 @@ using KHost.Abstractions.Services.IPC;
 
 namespace KHost.UnitTests.IPC;
 
-// Guards the serialization contract that ScreenIpcSerializer (KHost.IPC.SignalR) depends on:
-// polymorphic screen commands MUST be serialized through their base type so the $type
-// discriminator is written. SignalR serializes invocation arguments by their concrete runtime
-// type, which omits the discriminator and makes the receiver's base-typed deserialize throw —
-// which is exactly why commands/state are sent across the wire as base-typed JSON strings.
+// Guards ScreenIpcSerializer's contract: commands must serialize through their base type or the
+// $type discriminator is dropped and the receiver's base-typed deserialize throws.
 public class ScreenCommandSerializationTests
 {
     private static readonly JsonSerializerOptions Options = new(JsonSerializerDefaults.Web);
 
-    // Every concrete command must appear here. The RegisteredCommands_… tests fail if this
-    // drifts from the [JsonDerivedType] list, so a new command cannot be added without
-    // getting both an attribute and round-trip coverage.
+    // Every concrete command must appear here — the RegisteredCommands_… tests fail if this
+    // drifts from the [JsonDerivedType] list.
     private static readonly Dictionary<string, ScreenCommandBase> Samples = new()
     {
         [nameof(LoadMediaCommand)] = new LoadMediaCommand { FilePath = "/music/x.mp4" },

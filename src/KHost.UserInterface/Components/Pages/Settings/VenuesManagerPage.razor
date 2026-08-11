@@ -67,7 +67,13 @@
                                         <button class="kh-venues-manager__clone-btn kh-button--icon-minimal" title="Clone this venue" @onclick="() => CloneAsync(venue)" type="button">
                                             <Icon Name="copy" />
                                         </button>
-                                        <button class="kh-venues-manager__delete-btn kh-button--icon-minimal" @onclick="@(async () => await StartDeleteAsync(venue))" type="button">
+                                        @{
+                                            var isSelectedVenue = VenuesService?.SelectedVenueId == venue.Id;
+                                        }
+                                        <button class="kh-venues-manager__delete-btn kh-button--icon-minimal"
+                                                title="@(isSelectedVenue ? "Switch to another venue before deleting this one" : "Delete Venue")"
+                                                disabled="@isSelectedVenue"
+                                                @onclick="@(async () => await StartDeleteAsync(venue))" type="button">
                                             <Icon Name="trash" />
                                         </button>
                                     </td>
@@ -188,7 +194,6 @@
             await VenuesService.UpdateAsync(venue);
     }
 
-    // Unconditional: a destructive action must not hinge on which venue is selected.
     private async Task StartDeleteAsync(Venue venue)
     {
         if (VenuesService is null || DialogService is null) return;

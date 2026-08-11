@@ -70,16 +70,16 @@ public class VenuesService : BaseRepositoryService<Venue, IVenuesRepository>, IV
 
         InvokeStateChanged();
     }
-
+    
     public override async Task<bool> DeleteAsync(Guid id)
     {
-        var deleted = await base.DeleteAsync(id);
+        if (SelectedVenueId == id)
+        {
+            Logger.LogWarning("Refused to delete venue {VenueId} because it is currently selected", id);
+            return false;
+        }
 
-        // Leaving a dangling selection silently disables everything keyed off the current venue.
-        if (deleted && SelectedVenueId == id)
-            await SelectFirstAvailableVenueAsync();
-
-        return deleted;
+        return await base.DeleteAsync(id);
     }
 
     private async Task SelectFirstAvailableVenueAsync()
