@@ -23,12 +23,6 @@ public class QueueRotationStrategyFactory : IQueueRotationStrategyFactory
 
         var result = (IQueueRotationStrategy)strategy;
 
-        if (config.NoShowDemoteSlots > 0)
-            result = new NoShowPenaltyModifier(result);
-        if (config.TimeBoxMinutes > 0)
-            result = new TimeBoxedSlotsModifier(result);
-        if (config.TipBumpWindowMinutes > 0)
-            result = new TipBumpModifier(result);
         if (config.FirstTimeBoostEnabled)
             result = new FirstTimeBoostModifier(result);
         if (config.VipGroupId.HasValue)

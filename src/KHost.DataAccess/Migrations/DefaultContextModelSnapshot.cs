@@ -350,16 +350,8 @@ namespace KHost.DataAccess.Migrations
 
                                     b2.Property<int>("FirstTimeBoostSlots");
 
-                                    b2.Property<int>("NoShowDemoteSlots");
-
-                                    b2.Property<int>("NoShowMaxMisses");
-
                                     b2.Property<string>("StrategyId")
                                         .IsRequired();
-
-                                    b2.Property<int>("TimeBoxMinutes");
-
-                                    b2.Property<int>("TipBumpWindowMinutes");
 
                                     b2.Property<Guid?>("VipGroupId");
 

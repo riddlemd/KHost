@@ -13,6 +13,5 @@ public sealed record QueueRotationContext
 
     public QueueRotationConfig Config { get; init; } = new();
     public IReadOnlyDictionary<Guid, int> SongsSungTonight { get; init; } = new Dictionary<Guid, int>();
-    public IReadOnlyDictionary<Guid, int> MissedCalls { get; init; } = new Dictionary<Guid, int>();
     public DateTime Now { get; init; } = DateTime.UtcNow;
 }
