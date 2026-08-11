@@ -12,7 +12,7 @@ internal class IdentityInnerStrategy : IQueueRotationStrategy
 internal static class QueueRotationTestHelpers
 {
     // The name is just a debugging label; RotationSinger snapshots carry no display name.
-    public static RotationSinger User(string name, DateTime? lastSangOn = null, DateTime? lastCheckinOn = null, DateTime? lastTippedOn = null, params Guid[] groupIds)
+    public static RotationSinger User(string name, DateTime? lastSangOn = null, DateTime? lastTippedOn = null, params Guid[] groupIds)
     {
         _ = name;
 
@@ -20,7 +20,6 @@ internal static class QueueRotationTestHelpers
         {
             Id = Guid.NewGuid(),
             LastSangOn = lastSangOn,
-            LastCheckinOn = lastCheckinOn,
             LastTippedOn = lastTippedOn,
             GroupIds = groupIds,
         };

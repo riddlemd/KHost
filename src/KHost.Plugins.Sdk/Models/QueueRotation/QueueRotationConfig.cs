@@ -22,9 +22,6 @@ public class QueueRotationConfig
 
     public int CoolDownSlots { get; set; } = 0;
 
-    public bool PresenceRequired { get; set; } = false;
-    public int PresenceWindowMinutes { get; set; } = 30;
-
     public double WeightedFairWaitWeight { get; set; } = 1.0;
     public double WeightedFairSongCountWeight { get; set; } = 1.0;
 

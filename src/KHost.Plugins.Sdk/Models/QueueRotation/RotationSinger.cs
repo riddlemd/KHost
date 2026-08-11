@@ -8,7 +8,6 @@ public sealed record RotationSinger
 {
     public required Guid Id { get; init; }
     public DateTime? LastSangOn { get; init; }
-    public DateTime? LastCheckinOn { get; init; }
     public DateTime? LastTippedOn { get; init; }
     public IReadOnlyList<Guid> GroupIds { get; init; } = [];
 }
