@@ -9,15 +9,16 @@
     <Body>
         <EditForm EditContext="_editContext" OnValidSubmit="SaveAsync">
             <DataAnnotationsValidator />
-            <div >
-                <label class="kh-form-label">Name</label>
-                <InputText class="kh-form-control" @bind-Value="_model.Name" autofocus />
-                <ValidationMessage For="() => _model.Name" />
-            </div>
-            <div>
-                <label class="kh-form-check">
-                    <InputCheckbox class="kh-form-check-input" @bind-Value="_model.Enabled" />
+            <div class="kh-venue-settings__section kh-venue-settings__section--head">
+                <div class="kh-venue-settings__field">
+                    <label class="kh-form-label">Name</label>
+                    <InputText class="kh-form-control" @bind-Value="_model.Name" autofocus />
+                    <ValidationMessage For="() => _model.Name" />
+                </div>
+
+                <label class="kh-venue-settings__row kh-form-check">
                     <span class="kh-form-check-label">Enabled</span>
+                    <InputCheckbox class="kh-form-check-input" @bind-Value="_model.Enabled" />
                 </label>
             </div>
 
