@@ -1,0 +1,1188 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KHost — User Groups Mockups</title>
+<style>
+
+/* ============================================================
+   1. DESIGN TOKENS  (KHost "grape" theme)
+   ============================================================ */
+:root {
+  --kh-primary: #5D2B90;
+  --kh-primary-hover: #7B3CB8;
+  --kh-primary-bright: #A86AD4;
+  --kh-primary-glow: rgba(93,43,144,0.45);
+  --kh-primary-subtle: rgba(93,43,144,0.14);
+  --kh-primary-dim: rgba(93,43,144,0.08);
+  --kh-primary-active: rgba(93,43,144,0.3);
+  --kh-accent: #CC5500;
+  --kh-accent-bright: #FF6B1A;
+  --kh-bg: #0B0814;
+  --kh-bg-card: #131025;
+  --kh-bg-card-dark: #0f0b1f;
+  --kh-bg-elevated: #1C1836;
+  --kh-bg-input: #0E0C1C;
+  --kh-border: rgba(93,43,144,0.28);
+  --kh-border-bright: rgba(93,43,144,0.55);
+  --kh-text: #DDD4F0;
+  --kh-text-secondary: #8878A8;
+  --kh-text-muted: #6b5a82;
+  --kh-button-primary-text: #DDD4F0;
+  --kh-success: #22C55E;
+  --kh-warning: #F59E0B;
+  --kh-info: #2686e2;
+  --kh-danger: #EF4444;
+  --kh-success-subtle: rgba(34,197,94,0.1);
+  --kh-success-border-subtle: rgba(34,197,94,0.25);
+  --kh-danger-bg-subtle: rgba(239,68,68,0.1);
+  --kh-danger-border-subtle: rgba(239,68,68,0.35);
+  --kh-badge-info-bg: rgba(168,106,212,0.2);
+  --kh-badge-info-text: #C59AE8;
+  --kh-badge-info-border: rgba(168,106,212,0.4);
+  --kh-card-header-bg: rgba(93,43,144,0.12);
+  --kh-table-stripe: rgba(0,0,0,0.2);
+  --kh-scrim: rgba(0,0,0,0.6);
+  --kh-bg-header: linear-gradient(180deg,#271649 0%,#131025 100%);
+  --kh-radius: 8px;
+  --kh-radius-lg: 12px;
+  --kh-transition: 0.15s ease;
+  --kh-font: 'Segoe UI', sans-serif;
+}
+
+/* ============================================================
+   2. RESET & BASE
+   ============================================================ */
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--kh-bg);
+  color: var(--kh-text);
+  font-family: var(--kh-font);
+  line-height: 1.45;
+}
+
+h1, h2, h3, p { margin: 0; }
+
+button {
+  font-family: inherit;
+  font-size: inherit;
+}
+
+input, textarea {
+  font-family: inherit;
+  font-size: inherit;
+}
+
+input[type="checkbox"] {
+  accent-color: var(--kh-primary-bright);
+  width: 1.05em;
+  height: 1.05em;
+  flex: none;
+}
+
+/* ============================================================
+   3. MOCKUP CHROME  (page shell, tabs, captions — not app classes)
+   ============================================================ */
+.mockup-page {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 1.5em 1.5em 4em;
+}
+
+.mockup-page__title {
+  font-size: 1.4rem;
+  font-weight: 600;
+  color: var(--kh-text);
+  margin-bottom: .15em;
+}
+
+.mockup-page__subtitle {
+  color: var(--kh-text-secondary);
+  font-size: .9rem;
+  margin-bottom: 1.25em;
+}
+
+.mockup-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .4em;
+  border-bottom: 1px solid var(--kh-border);
+  padding-bottom: .75em;
+  margin-bottom: 1.75em;
+}
+
+.mockup-tab {
+  background: var(--kh-bg-card);
+  border: 1px solid var(--kh-border);
+  color: var(--kh-text-secondary);
+  border-radius: var(--kh-radius);
+  padding: .55em 1em;
+  cursor: pointer;
+  font-weight: 500;
+  transition: background var(--kh-transition), color var(--kh-transition), border-color var(--kh-transition);
+}
+
+.mockup-tab:hover {
+  color: var(--kh-text);
+  border-color: var(--kh-border-bright);
+}
+
+.mockup-tab.is-active {
+  background: var(--kh-primary);
+  color: var(--kh-button-primary-text);
+  border-color: var(--kh-border-bright);
+}
+
+.mockup-screen {
+  display: none;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.mockup-screen.is-active {
+  display: block;
+}
+
+.mockup-caption {
+  color: var(--kh-text-secondary);
+  font-size: .88rem;
+  margin: 0 0 1em;
+  padding: .6em .9em;
+  background: var(--kh-primary-dim);
+  border-left: 3px solid var(--kh-border-bright);
+  border-radius: 0 var(--kh-radius) var(--kh-radius) 0;
+}
+
+.mockup-caption code {
+  background: var(--kh-bg-input);
+  border: 1px solid var(--kh-border);
+  border-radius: 4px;
+  padding: .1em .35em;
+  font-size: .85em;
+  color: var(--kh-primary-bright);
+}
+
+.mockup-caption--secondary {
+  margin-top: 2.5em;
+}
+
+.mockup-note {
+  color: var(--kh-text-muted);
+  font-size: .82rem;
+  margin: .6em 0 0;
+  padding-top: .6em;
+  border-top: 1px dashed var(--kh-border);
+}
+
+.mockup-note strong {
+  color: var(--kh-text-secondary);
+  font-weight: 600;
+}
+
+.mockup-notes {
+  margin-top: 1em;
+  display: flex;
+  flex-direction: column;
+  gap: .5em;
+}
+
+.mockup-dialog-stage {
+  background:
+    linear-gradient(var(--kh-scrim), var(--kh-scrim)),
+    var(--kh-bg-header);
+  border: 1px solid var(--kh-border);
+  border-radius: var(--kh-radius-lg);
+  padding: 2.5em 1.5em;
+  display: flex;
+  justify-content: center;
+}
+
+/* ============================================================
+   4. CARD
+   ============================================================ */
+.kh-card {
+  background: linear-gradient(160deg, var(--kh-bg-card) 0%, var(--kh-bg-card-dark) 100%);
+  border: 1px solid var(--kh-border);
+  border-radius: var(--kh-radius-lg);
+  display: flex;
+  flex-direction: column;
+  overflow: clip;
+}
+
+.kh-card__header {
+  background: var(--kh-card-header-bg);
+  border-bottom: 1px solid var(--kh-border);
+  padding: 6px 12px;
+  font-weight: 600;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--kh-text-secondary);
+  display: flex;
+  align-items: center;
+  gap: .5em;
+}
+
+.kh-card__header .kh-icon {
+  color: var(--kh-primary-bright);
+}
+
+.kh-card__header .kh-button {
+  margin-left: auto;
+}
+
+.kh-card__title {
+  color: var(--kh-text-secondary);
+  margin: 0 0 0 1em;
+}
+
+.kh-card__body {
+  padding: .85em 1em;
+}
+
+.kh-card__body + .kh-card__body {
+  border-top: 1px solid var(--kh-border);
+}
+
+.kh-card--empty-example {
+  margin-top: .5em;
+}
+
+.kh-card--nested {
+  margin-top: 1.25em;
+}
+
+/* ============================================================
+   5. TABLE
+   ============================================================ */
+.kh-table-scroll {
+  overflow-x: auto;
+}
+
+.kh-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.kh-table thead th {
+  background: var(--kh-primary-subtle);
+  color: var(--kh-text-secondary);
+  border-bottom: 1px solid var(--kh-border-bright);
+  font-size: .7rem;
+  font-weight: 600;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  padding: 10px 12px;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.kh-table tbody td {
+  padding: 8px 12px;
+  vertical-align: middle;
+  border-bottom: 1px solid var(--kh-border);
+  color: var(--kh-text);
+  font-size: .9rem;
+}
+
+.kh-table tbody tr:nth-child(even) {
+  background: var(--kh-table-stripe);
+}
+
+.kh-table tbody tr:hover td {
+  background: var(--kh-primary-subtle);
+}
+
+.kh-table__cell--fill {
+  width: 100%;
+  color: var(--kh-text-secondary);
+}
+
+.kh-table__cell--actions {
+  display: flex;
+  gap: .5em;
+  white-space: nowrap;
+}
+
+.kh-table__cell--checkbox {
+  width: 2.2em;
+}
+
+.kh-table__cell--muted {
+  color: var(--kh-text-muted);
+}
+
+.kh-table__group-header td {
+  background: var(--kh-primary-subtle);
+  font-weight: 600;
+  color: var(--kh-text-secondary);
+  padding: 8px 12px;
+  text-transform: uppercase;
+  font-size: .75rem;
+  letter-spacing: .05em;
+}
+
+.kh-table__col--sortable {
+  cursor: pointer;
+  user-select: none;
+}
+
+.kh-sort-caret {
+  color: var(--kh-primary-bright);
+  font-size: .7em;
+  margin-left: .3em;
+}
+
+.kh-table--permissions-scroll {
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+/* ============================================================
+   6. BADGE
+   ============================================================ */
+.kh-badge {
+  padding: .2em .5em;
+  margin: .2em;
+  border-radius: var(--kh-radius);
+  font-size: .75rem;
+  display: inline-block;
+  line-height: 1.4;
+}
+
+.kh-badge--secondary {
+  background: var(--kh-primary-active);
+  color: var(--kh-primary-bright);
+  border: 1px solid var(--kh-border-bright);
+  font-weight: 500;
+}
+
+.kh-badge--success {
+  background: var(--kh-success-subtle);
+  color: var(--kh-success);
+  border: 1px solid var(--kh-success-border-subtle);
+  font-weight: 500;
+}
+
+.kh-badge--danger {
+  background: var(--kh-danger-bg-subtle);
+  color: var(--kh-danger);
+  border: 1px solid var(--kh-danger-border-subtle);
+  font-weight: 500;
+}
+
+.kh-badge--info {
+  background: var(--kh-badge-info-bg);
+  color: var(--kh-badge-info-text);
+  border: 1px solid var(--kh-badge-info-border);
+  font-weight: 500;
+}
+
+/* Without a width floor the description column squeezes the badges into a
+   one-per-line stack that inflates the row height. */
+.kh-badge-list {
+  margin: -0.2em;
+  min-width: 280px;
+  white-space: normal;
+}
+
+.kh-cell-dash {
+  color: var(--kh-text-muted);
+}
+
+/* ============================================================
+   7. BUTTON
+   ============================================================ */
+.kh-button {
+  border-radius: var(--kh-radius);
+  padding: .5em 1em;
+  border: 1px solid transparent;
+  cursor: pointer;
+  font-family: inherit;
+  display: inline-flex;
+  align-items: center;
+  gap: .4em;
+  transition: background var(--kh-transition), color var(--kh-transition), border-color var(--kh-transition);
+  font-size: .88rem;
+}
+
+.kh-button--primary {
+  background: var(--kh-primary);
+  color: var(--kh-button-primary-text);
+  border-color: var(--kh-border-bright);
+}
+
+.kh-button--primary:hover {
+  background: var(--kh-primary-hover);
+}
+
+.kh-button--secondary {
+  background: transparent;
+  color: var(--kh-text-secondary);
+  border: 1px solid var(--kh-border);
+}
+
+.kh-button--secondary:hover {
+  color: var(--kh-text);
+  border-color: var(--kh-border-bright);
+}
+
+.kh-button--icon-minimal {
+  background: transparent;
+  border: none;
+  color: var(--kh-text-secondary);
+  padding: .25em;
+}
+
+.kh-button--icon-minimal:hover {
+  color: var(--kh-text);
+}
+
+.kh-button:disabled {
+  opacity: .4;
+  cursor: default;
+  pointer-events: none;
+}
+
+/* ============================================================
+   8. FORM CONTROLS
+   ============================================================ */
+.kh-form-control {
+  width: 100%;
+  background: var(--kh-bg-input);
+  border: 1px solid var(--kh-border);
+  border-radius: var(--kh-radius);
+  color: var(--kh-text);
+  padding: .5em .75em;
+  font-family: inherit;
+}
+
+.kh-form-control:focus {
+  border-color: var(--kh-border-bright);
+  outline: none;
+}
+
+.kh-form-control::placeholder {
+  color: var(--kh-text-muted);
+}
+
+textarea.kh-form-control {
+  resize: vertical;
+  min-height: 4.5em;
+}
+
+.kh-form-label {
+  display: block;
+  color: var(--kh-text-secondary);
+  font-size: .75rem;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  margin-bottom: .35em;
+}
+
+.kh-form-group {
+  margin-bottom: 1em;
+}
+
+.kh-form-row--checkbox {
+  display: flex;
+  align-items: center;
+}
+
+.kh-form-row--checkbox label {
+  display: flex;
+  align-items: center;
+  gap: .55em;
+  color: var(--kh-text);
+  cursor: default;
+  font-size: .92rem;
+}
+
+/* ============================================================
+   9. EMPTY PANEL
+   ============================================================ */
+.kh-panel--empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: var(--kh-text-muted);
+  gap: .5em;
+  padding: 3em;
+  text-align: center;
+}
+
+.kh-panel--empty .kh-icon {
+  width: 2.4em;
+  height: 2.4em;
+  color: var(--kh-text-muted);
+}
+
+/* ============================================================
+   10. DIALOG
+   ============================================================ */
+.kh-dialog__scrim {
+  width: 100%;
+  max-width: 640px;
+}
+
+.kh-dialog {
+  background: var(--kh-bg-card);
+  border: 1px solid var(--kh-border-bright);
+  border-radius: var(--kh-radius-lg);
+  box-shadow: 0 12px 40px var(--kh-primary-glow);
+  display: flex;
+  flex-direction: column;
+  max-height: 85vh;
+}
+
+.kh-dialog__header {
+  background: var(--kh-card-header-bg);
+  border-bottom: 1px solid var(--kh-border);
+  padding: .85em 1em;
+  display: flex;
+  align-items: center;
+  font-weight: 600;
+  font-size: 1rem;
+  color: var(--kh-text);
+  border-radius: var(--kh-radius-lg) var(--kh-radius-lg) 0 0;
+}
+
+.kh-dialog__header .kh-button {
+  margin-left: auto;
+}
+
+.kh-dialog__body {
+  padding: 1em;
+  overflow-y: auto;
+}
+
+.kh-dialog__footer {
+  border-top: 1px solid var(--kh-border);
+  padding: .75em 1em;
+  display: flex;
+  justify-content: flex-end;
+  gap: .5em;
+}
+
+/* ============================================================
+   11. PAGINATION  (mockup-only helper, reuses app tokens)
+   ============================================================ */
+.kh-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: .75em;
+  padding: .7em 1em;
+  border-top: 1px solid var(--kh-border);
+  color: var(--kh-text-secondary);
+  font-size: .85rem;
+}
+
+/* ============================================================
+   12. USER EDIT DIALOG — GROUPS PICKER
+   ============================================================ */
+.kh-user-edit-dialog__selected {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .3em;
+  margin: -0.2em 0 .6em;
+  min-height: 1.6em;
+}
+
+.kh-user-edit-dialog__groups {
+  max-height: 200px;
+  overflow-y: auto;
+  border: 1px solid var(--kh-border);
+  border-radius: var(--kh-radius);
+  background: var(--kh-bg-input);
+  padding: .25em;
+}
+
+.kh-user-edit-dialog__group-row {
+  display: flex;
+  align-items: center;
+  gap: .65em;
+  padding: .45em .55em;
+  border-radius: calc(var(--kh-radius) - 2px);
+  cursor: default;
+}
+
+.kh-user-edit-dialog__group-row:hover {
+  background: var(--kh-primary-subtle);
+}
+
+.kh-user-edit-dialog__group-name {
+  color: var(--kh-text);
+  font-weight: 500;
+  font-size: .92rem;
+  white-space: nowrap;
+}
+
+.kh-user-edit-dialog__group-desc {
+  color: var(--kh-text-muted);
+  font-size: .8rem;
+  margin-left: auto;
+  text-align: right;
+  padding-left: 1em;
+}
+
+.kh-user-edit-dialog__groups--empty {
+  padding: 1.4em .5em;
+  display: flex;
+  justify-content: center;
+}
+
+.kh-user-edit-dialog__empty {
+  color: var(--kh-text-muted);
+  font-size: .88rem;
+  margin: 0;
+}
+
+/* ============================================================
+   13. ICONS
+   ============================================================ */
+.kh-icon {
+  width: 1em;
+  height: 1em;
+  vertical-align: -0.15em;
+  flex: none;
+  overflow: hidden;
+}
+
+.mockup-page__title .kh-icon {
+  width: 1.1em;
+  height: 1.1em;
+}
+
+</style>
+</head>
+<body>
+
+<!-- ============================================================
+     SVG ICON SPRITE — inline, no external icon font
+     ============================================================ -->
+<svg style="display:none" aria-hidden="true">
+  <defs>
+    <symbol id="icon-people" viewBox="0 0 16 16">
+      <circle cx="5.3" cy="5.2" r="2" fill="currentColor"/>
+      <rect x="1.6" y="8.6" width="7.4" height="4.9" rx="3.2" fill="currentColor"/>
+      <circle cx="11" cy="5.8" r="1.7" fill="currentColor" opacity=".7"/>
+      <rect x="8.1" y="8.9" width="6.3" height="4.3" rx="2.8" fill="currentColor" opacity=".7"/>
+    </symbol>
+    <symbol id="icon-person" viewBox="0 0 16 16">
+      <circle cx="8" cy="5.3" r="2.6" fill="currentColor"/>
+      <rect x="2.4" y="9.3" width="11.2" height="5.4" rx="3.5" fill="currentColor"/>
+    </symbol>
+    <symbol id="icon-plus" viewBox="0 0 16 16">
+      <rect x="7.1" y="2" width="1.8" height="12" rx=".5" fill="currentColor"/>
+      <rect x="2" y="7.1" width="12" height="1.8" rx=".5" fill="currentColor"/>
+    </symbol>
+    <symbol id="icon-pencil" viewBox="0 0 16 16">
+      <path d="M11.8 1.5a1.7 1.7 0 0 1 2.4 2.4l-1.2 1.2-2.4-2.4 1.2-1.2zM9.8 3.5l2.4 2.4-7 7-2.9.6.6-2.9 6.9-7.1z" fill="currentColor"/>
+    </symbol>
+    <symbol id="icon-trash" viewBox="0 0 16 16">
+      <rect x="3" y="4.6" width="10" height="9.2" rx="1.4" fill="currentColor" opacity=".85"/>
+      <rect x="1.8" y="2.8" width="12.4" height="1.6" rx=".8" fill="currentColor"/>
+      <rect x="6" y="1.2" width="4" height="1.4" rx=".6" fill="currentColor"/>
+    </symbol>
+    <symbol id="icon-search" viewBox="0 0 16 16">
+      <circle cx="6.6" cy="6.6" r="4.1" fill="none" stroke="currentColor" stroke-width="1.6"/>
+      <rect x="10.1" y="10.6" width="1.8" height="5.4" rx=".9" transform="rotate(45 10.1 10.6)" fill="currentColor"/>
+    </symbol>
+    <symbol id="icon-music" viewBox="0 0 16 16">
+      <circle cx="5" cy="12" r="1.8" fill="currentColor"/>
+      <circle cx="11" cy="10.6" r="1.8" fill="currentColor"/>
+      <rect x="6.6" y="3" width="1.2" height="9" fill="currentColor"/>
+      <rect x="12.2" y="1.8" width="1.2" height="8.8" fill="currentColor"/>
+      <path d="M6.6 3 12.2 1.8v2.4L6.6 5.4V3z" fill="currentColor"/>
+    </symbol>
+    <symbol id="icon-empty" viewBox="0 0 24 24">
+      <path d="M4 4.5h16l3 7.5v7a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2v-7l3-7.5z" fill="currentColor" opacity=".18"/>
+      <path d="M1 12h6.2l1 2.4h7.6l1-2.4H23" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="icon-chevron-left" viewBox="0 0 16 16">
+      <path d="M10 2.5 4.5 8l5.5 5.5 1.1-1.1L6.7 8l4.4-4.4z" fill="currentColor"/>
+    </symbol>
+    <symbol id="icon-chevron-right" viewBox="0 0 16 16">
+      <path d="M6 2.5 11.5 8 6 13.5 4.9 12.4 9.3 8 4.9 3.6z" fill="currentColor"/>
+    </symbol>
+    <symbol id="icon-close" viewBox="0 0 16 16">
+      <path d="M3.3 2.2 8 6.9l4.7-4.7 1.1 1.1L9.1 8l4.7 4.7-1.1 1.1L8 9.1l-4.7 4.7-1.1-1.1L6.9 8 2.2 3.3z" fill="currentColor"/>
+    </symbol>
+  </defs>
+</svg>
+
+<div class="mockup-page">
+  <h1 class="mockup-page__title">KHost — User Groups Mockups</h1>
+  <p class="mockup-page__subtitle">Static, non-interactive reference for the user groups and permissions feature. Switch tabs to browse each screen.</p>
+
+  <nav class="mockup-tabs">
+    <button class="mockup-tab is-active" data-target="screen1">1. User Groups Manager</button>
+    <button class="mockup-tab" data-target="screen2">2. Edit Group Dialog</button>
+    <button class="mockup-tab" data-target="screen3">3. Edit User Dialog (Groups)</button>
+    <button class="mockup-tab" data-target="screen4">4. Users Manager</button>
+  </nav>
+
+  <!-- ============================================================
+       SCREEN 1 — User Groups Manager page
+       ============================================================ -->
+  <section id="screen1" class="mockup-screen is-active">
+    <p class="mockup-caption">
+      <code>/settings/user-groups-manager</code> — lists every user group defined for the venue, its description, and the permission badges it grants. The search box filters rows client-side; the pencil/trash actions open the edit dialog (Screen 2) or a delete confirmation.
+    </p>
+
+    <div class="kh-card">
+      <div class="kh-card__header">
+        <svg class="kh-icon"><use href="#icon-people"></use></svg>
+        <span class="kh-card__title">User Groups Manager</span>
+        <button class="kh-button kh-button--primary">
+          <svg class="kh-icon"><use href="#icon-plus"></use></svg>
+          Add Group
+        </button>
+      </div>
+
+      <div class="kh-card__body">
+        <input class="kh-form-control" type="text" placeholder="Search Groups...">
+      </div>
+
+      <div class="kh-card__body">
+        <div class="kh-table-scroll">
+          <table class="kh-table">
+            <thead>
+              <tr>
+                <th class="kh-table__col--sortable">Name <span class="kh-sort-caret">▲</span></th>
+                <th>Description</th>
+                <th>Permissions</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Administrators</td>
+                <td class="kh-table__cell--fill">Full access to everything</td>
+                <td><span class="kh-badge kh-badge--secondary">Admin</span></td>
+                <td class="kh-table__cell--actions">
+                  <button class="kh-button kh-button--icon-minimal" title="Edit"><svg class="kh-icon"><use href="#icon-pencil"></use></svg></button>
+                  <button class="kh-button kh-button--icon-minimal" title="Delete"><svg class="kh-icon"><use href="#icon-trash"></use></svg></button>
+                </td>
+              </tr>
+              <tr>
+                <td>Hosts</td>
+                <td class="kh-table__cell--fill">Run the show: queue and playback control</td>
+                <td class="kh-badge-list">
+                  <span class="kh-badge kh-badge--secondary">AddToQueue</span>
+                  <span class="kh-badge kh-badge--secondary">RemoveFromQueue</span>
+                  <span class="kh-badge kh-badge--secondary">ReorderQueue</span>
+                  <span class="kh-badge kh-badge--secondary">SkipQueue</span>
+                </td>
+                <td class="kh-table__cell--actions">
+                  <button class="kh-button kh-button--icon-minimal" title="Edit"><svg class="kh-icon"><use href="#icon-pencil"></use></svg></button>
+                  <button class="kh-button kh-button--icon-minimal" title="Delete"><svg class="kh-icon"><use href="#icon-trash"></use></svg></button>
+                </td>
+              </tr>
+              <tr>
+                <td>Library Managers</td>
+                <td class="kh-table__cell--fill">Curate the song library</td>
+                <td class="kh-badge-list">
+                  <span class="kh-badge kh-badge--secondary">ImportLibrary</span>
+                  <span class="kh-badge kh-badge--secondary">DeleteMedia</span>
+                </td>
+                <td class="kh-table__cell--actions">
+                  <button class="kh-button kh-button--icon-minimal" title="Edit"><svg class="kh-icon"><use href="#icon-pencil"></use></svg></button>
+                  <button class="kh-button kh-button--icon-minimal" title="Delete"><svg class="kh-icon"><use href="#icon-trash"></use></svg></button>
+                </td>
+              </tr>
+              <tr>
+                <td>Regulars</td>
+                <td class="kh-table__cell--fill">Trusted singers</td>
+                <td class="kh-badge-list">
+                  <span class="kh-badge kh-badge--secondary">AddToQueue</span>
+                </td>
+                <td class="kh-table__cell--actions">
+                  <button class="kh-button kh-button--icon-minimal" title="Edit"><svg class="kh-icon"><use href="#icon-pencil"></use></svg></button>
+                  <button class="kh-button kh-button--icon-minimal" title="Delete"><svg class="kh-icon"><use href="#icon-trash"></use></svg></button>
+                </td>
+              </tr>
+              <tr>
+                <td>Guests</td>
+                <td class="kh-table__cell--fill">Default for new singers</td>
+                <td><span class="kh-cell-dash">—</span></td>
+                <td class="kh-table__cell--actions">
+                  <button class="kh-button kh-button--icon-minimal" title="Edit"><svg class="kh-icon"><use href="#icon-pencil"></use></svg></button>
+                  <button class="kh-button kh-button--icon-minimal" title="Delete"><svg class="kh-icon"><use href="#icon-trash"></use></svg></button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="kh-pagination">
+        <button class="kh-button kh-button--icon-minimal" disabled><svg class="kh-icon"><use href="#icon-chevron-left"></use></svg></button>
+        <span>Page 1 of 1</span>
+        <button class="kh-button kh-button--icon-minimal" disabled><svg class="kh-icon"><use href="#icon-chevron-right"></use></svg></button>
+      </div>
+    </div>
+
+    <p class="mockup-caption mockup-caption--secondary">Empty state — shown in place of the table and pagination when the venue has no groups yet.</p>
+    <div class="kh-card kh-card--empty-example">
+      <div class="kh-panel--empty">
+        <svg class="kh-icon"><use href="#icon-empty"></use></svg>
+        <span>No Groups yet. Add one using the button above to get started.</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       SCREEN 2 — Edit Group dialog
+       ============================================================ -->
+  <section id="screen2" class="mockup-screen">
+    <p class="mockup-caption">
+      Editing the <strong>Hosts</strong> group from Screen 1. Name and description are plain fields; permissions are granted per-checkbox, grouped by the area of the app they affect.
+    </p>
+
+    <div class="mockup-dialog-stage">
+      <div class="kh-dialog__scrim">
+        <div class="kh-dialog">
+          <div class="kh-dialog__header">
+            Edit Group
+            <button class="kh-button kh-button--icon-minimal" title="Close"><svg class="kh-icon"><use href="#icon-close"></use></svg></button>
+          </div>
+
+          <div class="kh-dialog__body">
+            <div class="kh-form-group">
+              <label class="kh-form-label">Name</label>
+              <input class="kh-form-control" type="text" value="Hosts">
+            </div>
+
+            <div class="kh-form-group">
+              <label class="kh-form-label">Description</label>
+              <textarea class="kh-form-control">Run the show: queue and playback control</textarea>
+            </div>
+
+            <div class="kh-form-group kh-form-row--checkbox">
+              <label><input type="checkbox"> Admin (all permissions)</label>
+            </div>
+
+            <div class="kh-card kh-card--nested">
+              <div class="kh-card__header">
+                <span class="kh-card__title" style="margin-left:0;">Permissions</span>
+              </div>
+              <div class="kh-card__body kh-table--permissions-scroll">
+                <table class="kh-table">
+                  <tbody>
+                    <tr class="kh-table__group-header"><td colspan="3">Users</td></tr>
+                    <tr>
+                      <td class="kh-table__cell--checkbox"><input type="checkbox"></td>
+                      <td>EditUser</td>
+                      <td class="kh-table__cell--fill">Edit user profiles and settings</td>
+                    </tr>
+                    <tr>
+                      <td class="kh-table__cell--checkbox"><input type="checkbox"></td>
+                      <td>DeleteUser</td>
+                      <td class="kh-table__cell--fill">Delete user accounts</td>
+                    </tr>
+
+                    <tr class="kh-table__group-header"><td colspan="3">Groups</td></tr>
+                    <tr>
+                      <td class="kh-table__cell--checkbox"><input type="checkbox"></td>
+                      <td>EditGroup</td>
+                      <td class="kh-table__cell--fill">Edit user group properties</td>
+                    </tr>
+                    <tr>
+                      <td class="kh-table__cell--checkbox"><input type="checkbox"></td>
+                      <td>DeleteGroup</td>
+                      <td class="kh-table__cell--fill">Delete user groups</td>
+                    </tr>
+
+                    <tr class="kh-table__group-header"><td colspan="3">Venues</td></tr>
+                    <tr>
+                      <td class="kh-table__cell--checkbox"><input type="checkbox"></td>
+                      <td>EditVenue</td>
+                      <td class="kh-table__cell--fill">Edit venue settings</td>
+                    </tr>
+                    <tr>
+                      <td class="kh-table__cell--checkbox"><input type="checkbox"></td>
+                      <td>DeleteVenue</td>
+                      <td class="kh-table__cell--fill">Delete venues</td>
+                    </tr>
+
+                    <tr class="kh-table__group-header"><td colspan="3">Library</td></tr>
+                    <tr>
+                      <td class="kh-table__cell--checkbox"><input type="checkbox"></td>
+                      <td>ImportLibrary</td>
+                      <td class="kh-table__cell--fill">Import songs into the library</td>
+                    </tr>
+                    <tr>
+                      <td class="kh-table__cell--checkbox"><input type="checkbox"></td>
+                      <td>DeleteMedia</td>
+                      <td class="kh-table__cell--fill">Delete songs from the library</td>
+                    </tr>
+
+                    <tr class="kh-table__group-header"><td colspan="3">Queue</td></tr>
+                    <tr>
+                      <td class="kh-table__cell--checkbox"><input type="checkbox" checked></td>
+                      <td>AddToQueue</td>
+                      <td class="kh-table__cell--fill">Add songs to the performance queue</td>
+                    </tr>
+                    <tr>
+                      <td class="kh-table__cell--checkbox"><input type="checkbox" checked></td>
+                      <td>RemoveFromQueue</td>
+                      <td class="kh-table__cell--fill">Remove songs from the queue</td>
+                    </tr>
+                    <tr>
+                      <td class="kh-table__cell--checkbox"><input type="checkbox" checked></td>
+                      <td>ReorderQueue</td>
+                      <td class="kh-table__cell--fill">Reorder songs in the queue</td>
+                    </tr>
+                    <tr>
+                      <td class="kh-table__cell--checkbox"><input type="checkbox" checked></td>
+                      <td>SkipQueue</td>
+                      <td class="kh-table__cell--fill">Skip the current song</td>
+                    </tr>
+
+                    <tr class="kh-table__group-header"><td colspan="3">History</td></tr>
+                    <tr>
+                      <td class="kh-table__cell--checkbox"><input type="checkbox"></td>
+                      <td>ViewPerformanceHistory</td>
+                      <td class="kh-table__cell--fill">View user performance history</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <div class="kh-dialog__footer">
+            <button class="kh-button kh-button--secondary">Cancel</button>
+            <button class="kh-button kh-button--primary">Save</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="mockup-notes">
+      <p class="mockup-note">Ticking <strong>Admin (all permissions)</strong> dims and disables the entire permissions table below it — an admin group implicitly has every permission, so the individual checkboxes stop mattering.</p>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       SCREEN 3 — Edit User dialog with group assignment
+       ============================================================ -->
+  <section id="screen3" class="mockup-screen">
+    <p class="mockup-caption">
+      The new work: assigning a singer to one or more groups directly from their user record. Editing <strong>Dana Whitlock</strong>, currently a member of Hosts and Regulars.
+    </p>
+
+    <div class="mockup-dialog-stage">
+      <div class="kh-dialog__scrim">
+        <div class="kh-dialog">
+          <div class="kh-dialog__header">
+            Edit User
+            <button class="kh-button kh-button--icon-minimal" title="Close"><svg class="kh-icon"><use href="#icon-close"></use></svg></button>
+          </div>
+
+          <div class="kh-dialog__body">
+            <div class="kh-form-group">
+              <label class="kh-form-label">Name</label>
+              <input class="kh-form-control" type="text" value="Dana Whitlock">
+            </div>
+
+            <div class="kh-form-group">
+              <label class="kh-form-label">Notes</label>
+              <textarea class="kh-form-control">Prefers 90s country. Always tips.</textarea>
+            </div>
+
+            <div class="kh-form-group">
+              <label class="kh-form-label">Groups</label>
+
+              <div class="kh-user-edit-dialog__selected">
+                <span class="kh-badge kh-badge--secondary">Hosts</span>
+                <span class="kh-badge kh-badge--secondary">Regulars</span>
+              </div>
+
+              <div class="kh-user-edit-dialog__groups">
+                <label class="kh-user-edit-dialog__group-row">
+                  <input type="checkbox">
+                  <span class="kh-user-edit-dialog__group-name">Administrators</span>
+                  <span class="kh-user-edit-dialog__group-desc">Full access to everything</span>
+                </label>
+                <label class="kh-user-edit-dialog__group-row">
+                  <input type="checkbox" checked>
+                  <span class="kh-user-edit-dialog__group-name">Hosts</span>
+                  <span class="kh-user-edit-dialog__group-desc">Run the show: queue and playback control</span>
+                </label>
+                <label class="kh-user-edit-dialog__group-row">
+                  <input type="checkbox">
+                  <span class="kh-user-edit-dialog__group-name">Library Managers</span>
+                  <span class="kh-user-edit-dialog__group-desc">Curate the song library</span>
+                </label>
+                <label class="kh-user-edit-dialog__group-row">
+                  <input type="checkbox" checked>
+                  <span class="kh-user-edit-dialog__group-name">Regulars</span>
+                  <span class="kh-user-edit-dialog__group-desc">Trusted singers</span>
+                </label>
+                <label class="kh-user-edit-dialog__group-row">
+                  <input type="checkbox">
+                  <span class="kh-user-edit-dialog__group-name">Guests</span>
+                  <span class="kh-user-edit-dialog__group-desc">Default for new singers</span>
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <div class="kh-dialog__footer">
+            <button class="kh-button kh-button--secondary">Cancel</button>
+            <button class="kh-button kh-button--primary">Save</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="mockup-notes">
+      <p class="mockup-note">The group list scrolls independently once it grows past a handful of rows — the dialog itself doesn't grow unbounded.</p>
+      <p class="mockup-note">Membership is saved as a <strong>diff</strong> against the user's original groups: only the memberships that were actually added or removed get written, not the full set.</p>
+    </div>
+
+    <p class="mockup-caption mockup-caption--secondary">Empty variant — when the venue has no groups defined at all, the checklist is replaced by a single muted line.</p>
+    <div class="kh-user-edit-dialog__groups kh-user-edit-dialog__groups--empty" style="max-width:640px;">
+      <p class="kh-user-edit-dialog__empty">No groups defined yet.</p>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       SCREEN 4 — Users Manager page, with Groups column
+       ============================================================ -->
+  <section id="screen4" class="mockup-screen">
+    <p class="mockup-caption">
+      <code>/settings/users-manager</code> — the Groups column surfaces each singer's group membership at a glance; editing a row opens the Screen 3 dialog.
+    </p>
+
+    <div class="kh-card">
+      <div class="kh-card__header">
+        <svg class="kh-icon"><use href="#icon-person"></use></svg>
+        <span class="kh-card__title">Users Manager</span>
+        <button class="kh-button kh-button--primary">
+          <svg class="kh-icon"><use href="#icon-plus"></use></svg>
+          Add User
+        </button>
+      </div>
+
+      <div class="kh-card__body">
+        <input class="kh-form-control" type="text" placeholder="Search Users...">
+      </div>
+
+      <div class="kh-card__body">
+        <div class="kh-table-scroll">
+          <table class="kh-table">
+            <thead>
+              <tr>
+                <th class="kh-table__col--sortable">Name <span class="kh-sort-caret">▲</span></th>
+                <th>Notes</th>
+                <th>Groups</th>
+                <th>Total Tips</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Dana Whitlock</td>
+                <td class="kh-table__cell--fill">Prefers 90s country. Always tips.</td>
+                <td class="kh-badge-list">
+                  <span class="kh-badge kh-badge--secondary">Hosts</span>
+                  <span class="kh-badge kh-badge--secondary">Regulars</span>
+                </td>
+                <td>$128.00</td>
+                <td class="kh-table__cell--actions">
+                  <button class="kh-button kh-button--icon-minimal" title="Edit"><svg class="kh-icon"><use href="#icon-pencil"></use></svg></button>
+                  <button class="kh-button kh-button--icon-minimal" title="Performance History"><svg class="kh-icon"><use href="#icon-music"></use></svg></button>
+                  <button class="kh-button kh-button--icon-minimal" title="Delete"><svg class="kh-icon"><use href="#icon-trash"></use></svg></button>
+                </td>
+              </tr>
+              <tr>
+                <td>Marcus Yee</td>
+                <td class="kh-table__cell--fill">Great with ballads, always requests Journey.</td>
+                <td class="kh-badge-list">
+                  <span class="kh-badge kh-badge--secondary">Regulars</span>
+                </td>
+                <td>$42.00</td>
+                <td class="kh-table__cell--actions">
+                  <button class="kh-button kh-button--icon-minimal" title="Edit"><svg class="kh-icon"><use href="#icon-pencil"></use></svg></button>
+                  <button class="kh-button kh-button--icon-minimal" title="Performance History"><svg class="kh-icon"><use href="#icon-music"></use></svg></button>
+                  <button class="kh-button kh-button--icon-minimal" title="Delete"><svg class="kh-icon"><use href="#icon-trash"></use></svg></button>
+                </td>
+              </tr>
+              <tr>
+                <td>Priya Chandrasekaran</td>
+                <td class="kh-table__cell--fill">Library volunteer, tags new imports.</td>
+                <td class="kh-badge-list">
+                  <span class="kh-badge kh-badge--secondary">Library Managers</span>
+                </td>
+                <td>$0.00</td>
+                <td class="kh-table__cell--actions">
+                  <button class="kh-button kh-button--icon-minimal" title="Edit"><svg class="kh-icon"><use href="#icon-pencil"></use></svg></button>
+                  <button class="kh-button kh-button--icon-minimal" title="Performance History"><svg class="kh-icon"><use href="#icon-music"></use></svg></button>
+                  <button class="kh-button kh-button--icon-minimal" title="Delete"><svg class="kh-icon"><use href="#icon-trash"></use></svg></button>
+                </td>
+              </tr>
+              <tr>
+                <td>Jordan Ames</td>
+                <td class="kh-table__cell--fill">New singer, still learning the app.</td>
+                <td><span class="kh-cell-dash">—</span></td>
+                <td>$15.00</td>
+                <td class="kh-table__cell--actions">
+                  <button class="kh-button kh-button--icon-minimal" title="Edit"><svg class="kh-icon"><use href="#icon-pencil"></use></svg></button>
+                  <button class="kh-button kh-button--icon-minimal" title="Performance History"><svg class="kh-icon"><use href="#icon-music"></use></svg></button>
+                  <button class="kh-button kh-button--icon-minimal" title="Delete"><svg class="kh-icon"><use href="#icon-trash"></use></svg></button>
+                </td>
+              </tr>
+              <tr>
+                <td>Sam O'Rourke</td>
+                <td class="kh-table__cell--fill">Runs karaoke night on Tuesdays.</td>
+                <td class="kh-badge-list">
+                  <span class="kh-badge kh-badge--secondary">Administrators</span>
+                  <span class="kh-badge kh-badge--secondary">Hosts</span>
+                </td>
+                <td>$310.50</td>
+                <td class="kh-table__cell--actions">
+                  <button class="kh-button kh-button--icon-minimal" title="Edit"><svg class="kh-icon"><use href="#icon-pencil"></use></svg></button>
+                  <button class="kh-button kh-button--icon-minimal" title="Performance History"><svg class="kh-icon"><use href="#icon-music"></use></svg></button>
+                  <button class="kh-button kh-button--icon-minimal" title="Delete"><svg class="kh-icon"><use href="#icon-trash"></use></svg></button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="kh-pagination">
+        <button class="kh-button kh-button--icon-minimal" disabled><svg class="kh-icon"><use href="#icon-chevron-left"></use></svg></button>
+        <span>Page 1 of 1</span>
+        <button class="kh-button kh-button--icon-minimal" disabled><svg class="kh-icon"><use href="#icon-chevron-right"></use></svg></button>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<script>
+  // Tab strip: the only interactive behavior in this static mockup.
+  document.querySelectorAll('.mockup-tab').forEach(function (tab) {
+    tab.addEventListener('click', function () {
+      document.querySelectorAll('.mockup-tab').forEach(function (t) { t.classList.remove('is-active'); });
+      document.querySelectorAll('.mockup-screen').forEach(function (s) { s.classList.remove('is-active'); });
+      tab.classList.add('is-active');
+      document.getElementById(tab.dataset.target).classList.add('is-active');
+    });
+  });
+</script>
+
+</body>
+</html>
