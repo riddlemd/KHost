@@ -18,7 +18,7 @@ public interface IPerformanceService : IRepositoryService<Performance>
     /// Distinct venues the singer has sung at, most recently visited first. Performances recorded
     /// before venue tracking carry no venue and are skipped.
     /// </summary>
-    Task<IReadOnlyList<Guid>> ReadRecentVenueIdsBySingerAsync(Guid singerId, int count);
+    Task<IReadOnlyList<RecentVenueVisit>> ReadRecentVenueVisitsBySingerAsync(Guid singerId, int count);
     Task<PaginatedResult<Performance>> ReadByMediaIdAsync(Guid mediaId, int pageNumber = 1, int pageSize = 0, PerformanceFilter filter = PerformanceFilter.UnQueued);
 
     Task<Performance?> ReadSingersNextPerformanceAsync(Guid singerId);
