@@ -69,7 +69,7 @@
                     <div class="kh-singer-queue-panel__singer-queue__singer__name">@user.Name</div>
                     <div class="kh-singer-queue-panel__singer-queue__singer__info">
                         <span class="@(mediaCount <= 0 ? "kh-singer-queue-panel__empty-queue" : null)">@mediaCount media queued</span>
-                        @if (ewt > TimeSpan.Zero)
+                        @if (_showEwt && ewt > TimeSpan.Zero)
                         {
                             <span>EWT: @FormatEwt(ewt)</span>
                         }
@@ -116,17 +116,20 @@
     private Dictionary<Guid, Media?> _mediaCache = [];
     private Dictionary<Guid, int> _performanceCounts = [];
     private DotNetObjectReference<SingerQueuePanel>? _dotNetRef;
+    private bool _showEwt = true;
 
     protected override void OnInitialized()
     {
         SingerQueueService?.StateChanged  += OnStateChanged;
         PerformanceService?.StateChanged  += OnStateChanged;
         PlaybackService?.StateChanged += OnStateChanged;
+        VenuesService?.StateChanged += OnStateChanged;
     }
 
     protected override async Task OnParametersSetAsync()
     {
         await RefreshPerformanceCountsAsync();
+        await RefreshVenueSettingsAsync();
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -254,9 +257,21 @@
     private void OnStateChanged(object? sender, EventArgs e) => InvokeAsync(async () =>
     {
         await RefreshPerformanceCountsAsync();
+        await RefreshVenueSettingsAsync();
 
         StateHasChanged();
     });
+
+    // Rendering needs this synchronously, and the venue read is async — cache it and refresh
+    // on venue state changes so saving the setting takes effect without a reload.
+    private async Task RefreshVenueSettingsAsync()
+    {
+        if (VenuesService is null) return;
+
+        var venue = await VenuesService.ReadSelectedVenueAsync();
+
+        _showEwt = venue?.Settings.ShowEstimatedWaitTime ?? true;
+    }
 
     private string GetSingerRowClasses(Guid userId, bool isFirst)
     {
@@ -300,6 +315,7 @@
         SingerQueueService?.StateChanged -= OnStateChanged;
         PerformanceService?.StateChanged -= OnStateChanged;
         PlaybackService?.StateChanged -= OnStateChanged;
+        VenuesService?.StateChanged -= OnStateChanged;
         _dotNetRef?.Dispose();
         JS?.InvokeVoidAsync("singerQueueSortable.destroy");
     }
