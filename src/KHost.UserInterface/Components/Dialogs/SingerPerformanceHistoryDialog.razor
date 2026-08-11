@@ -23,25 +23,38 @@
                     <tbody>
                         @foreach (var perf in _paginatedPerformances.Items.OrderByDescending(p => p.CreatedDate))
                         {
+                            // Kept even when the song is gone from the library — the performance is
+                            // still real history, and hiding the row leaves no way to delete it.
                             var media = _media.FirstOrDefault(m => m.Id == perf.MediaId);
-
-                            if (media is null) continue;
-
-                            var isReady = media!.Status == MediaStatus.Ready;
-                            var enqueueDescription = isReady ? "Add to Singer's Queue" : (media!.Status.ToString());
+                            var isReady = media?.Status == MediaStatus.Ready;
+                            var enqueueDescription = media is null
+                                ? "This song is no longer in the library"
+                                : isReady ? "Add to Singer's Queue" : media.Status.ToString();
 
                             <tr>
-                                <td class="kh-table__cell--fill">@(media?.Title ?? "Unknown")</td>
-                                <td class="kh-table__cell--fill">@(media?.Artist ?? "Unknown")</td>
+                                <td class="kh-table__cell--fill">
+                                    @if (media is null)
+                                    {
+                                        <span class="@(_rootClassName)__missing-media">
+                                            <Icon Name="exclamation-triangle-fill" /> Song no longer in library
+                                        </span>
+                                    }
+                                    else
+                                    {
+                                        @media.Title
+                                    }
+                                </td>
+                                <td class="kh-table__cell--fill">@(media?.Artist ?? "—")</td>
                                 <td>@perf.CreatedDate.ToString("g")</td>
                                 <td class="kh-table__cell--actions">
                                     <SplitButton
-                                            disabled="@(!isReady)"
+                                            PrimaryDisabled="@(!isReady)"
                                             @onclick="async () => await EnqueueAsync(media!)"
                                             title="@enqueueDescription">
                                         <Text><Icon Name="plus-lg" /></Text>
                                         <Buttons>
                                             <button class="@(_rootClassName)__edit-media-btn kh-button"
+                                                    disabled="@(media is null)"
                                                     @onclick="() => EditAsync(media!)"
                                                     title="Edit song associated with this performance">
                                                 <Icon Name="pencil-fill" /> Edit

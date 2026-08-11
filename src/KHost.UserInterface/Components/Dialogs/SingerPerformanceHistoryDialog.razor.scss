@@ -19,4 +19,12 @@
         padding: 20px;
         color: var(--kh-text-secondary);
     }
+
+    &__missing-media {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4em;
+        color: var(--kh-warning);
+        font-style: italic;
+    }
 }
