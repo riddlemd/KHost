@@ -145,7 +145,7 @@ public class PerformancesRepositoryQueryTests : IDisposable
         => new() { SingerId = singerId, MediaId = Guid.NewGuid(), VenueId = venueId, CreatedDate = on, QueuePosition = null };
 
     [Fact]
-    public async Task ReadRecentVenueIdsBySingerAsync_ReturnsMostRecentlyVisitedFirst()
+    public async Task ReadRecentVenueVisitsBySingerAsync_ReturnsMostRecentlyVisitedFirst()
     {
         var alice = Guid.NewGuid();
         var pub = Guid.NewGuid();
@@ -154,14 +154,14 @@ public class PerformancesRepositoryQueryTests : IDisposable
             SungAt(alice, pub, Midnight.AddHours(20)),
             SungAt(alice, club, Midnight.AddHours(22)));
 
-        var result = await _repository.ReadRecentVenueIdsBySingerAsync(alice, 5);
+        var result = await _repository.ReadRecentVenueVisitsBySingerAsync(alice, 5);
 
-        Assert.Equal([club, pub], result);
+        Assert.Equal([club, pub], result.Select(v => v.VenueId));
     }
 
     // A venue sung at repeatedly must occupy one slot, or it crowds the others out of the list.
     [Fact]
-    public async Task ReadRecentVenueIdsBySingerAsync_ReturnsEachVenueOnce()
+    public async Task ReadRecentVenueVisitsBySingerAsync_ReturnsEachVenueOnce()
     {
         var alice = Guid.NewGuid();
         var pub = Guid.NewGuid();
@@ -170,27 +170,42 @@ public class PerformancesRepositoryQueryTests : IDisposable
             SungAt(alice, pub, Midnight.AddHours(21)),
             SungAt(alice, pub, Midnight.AddHours(22)));
 
-        var result = await _repository.ReadRecentVenueIdsBySingerAsync(alice, 5);
+        var result = await _repository.ReadRecentVenueVisitsBySingerAsync(alice, 5);
 
         Assert.Single(result);
-        Assert.Equal(pub, result[0]);
+        Assert.Equal(pub, result[0].VenueId);
     }
 
     [Fact]
-    public async Task ReadRecentVenueIdsBySingerAsync_HonoursTheCount()
+    public async Task ReadRecentVenueVisitsBySingerAsync_ReportsTheLatestVisitPerVenue()
+    {
+        var alice = Guid.NewGuid();
+        var pub = Guid.NewGuid();
+        Seed(
+            SungAt(alice, pub, Midnight.AddHours(20)),
+            SungAt(alice, pub, Midnight.AddHours(23)),
+            SungAt(alice, pub, Midnight.AddHours(21)));
+
+        var result = await _repository.ReadRecentVenueVisitsBySingerAsync(alice, 5);
+
+        Assert.Equal(Midnight.AddHours(23), result[0].LastSungOn);
+    }
+
+    [Fact]
+    public async Task ReadRecentVenueVisitsBySingerAsync_HonoursTheCount()
     {
         var alice = Guid.NewGuid();
         var venues = Enumerable.Range(0, 4).Select(_ => Guid.NewGuid()).ToList();
         Seed([.. venues.Select((v, i) => SungAt(alice, v, Midnight.AddHours(20 + i)))]);
 
-        var result = await _repository.ReadRecentVenueIdsBySingerAsync(alice, 2);
+        var result = await _repository.ReadRecentVenueVisitsBySingerAsync(alice, 2);
 
         Assert.Equal(2, result.Count);
-        Assert.Equal([venues[3], venues[2]], result);
+        Assert.Equal([venues[3], venues[2]], result.Select(v => v.VenueId));
     }
 
     [Fact]
-    public async Task ReadRecentVenueIdsBySingerAsync_SkipsPerformancesWithNoVenue()
+    public async Task ReadRecentVenueVisitsBySingerAsync_SkipsPerformancesWithNoVenue()
     {
         var alice = Guid.NewGuid();
         var pub = Guid.NewGuid();
@@ -198,13 +213,13 @@ public class PerformancesRepositoryQueryTests : IDisposable
             Sung(alice, Midnight.AddHours(22)),
             SungAt(alice, pub, Midnight.AddHours(20)));
 
-        var result = await _repository.ReadRecentVenueIdsBySingerAsync(alice, 5);
+        var result = await _repository.ReadRecentVenueVisitsBySingerAsync(alice, 5);
 
-        Assert.Equal([pub], result);
+        Assert.Equal([pub], result.Select(v => v.VenueId));
     }
 
     [Fact]
-    public async Task ReadRecentVenueIdsBySingerAsync_ExcludesOtherSingersVenues()
+    public async Task ReadRecentVenueVisitsBySingerAsync_ExcludesOtherSingersVenues()
     {
         var alice = Guid.NewGuid();
         var bob = Guid.NewGuid();
@@ -214,14 +229,14 @@ public class PerformancesRepositoryQueryTests : IDisposable
             SungAt(alice, pub, Midnight.AddHours(20)),
             SungAt(bob, club, Midnight.AddHours(22)));
 
-        var result = await _repository.ReadRecentVenueIdsBySingerAsync(alice, 5);
+        var result = await _repository.ReadRecentVenueVisitsBySingerAsync(alice, 5);
 
-        Assert.Equal([pub], result);
+        Assert.Equal([pub], result.Select(v => v.VenueId));
     }
 
     // Still queued means not yet sung, so the venue should not appear from a pending performance.
     [Fact]
-    public async Task ReadRecentVenueIdsBySingerAsync_IgnoresStillQueuedPerformances()
+    public async Task ReadRecentVenueVisitsBySingerAsync_IgnoresStillQueuedPerformances()
     {
         var alice = Guid.NewGuid();
         var pub = Guid.NewGuid();
@@ -234,7 +249,7 @@ public class PerformancesRepositoryQueryTests : IDisposable
             QueuePosition = 0,
         });
 
-        var result = await _repository.ReadRecentVenueIdsBySingerAsync(alice, 5);
+        var result = await _repository.ReadRecentVenueVisitsBySingerAsync(alice, 5);
 
         Assert.Empty(result);
     }

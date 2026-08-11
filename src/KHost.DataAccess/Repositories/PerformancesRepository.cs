@@ -111,7 +111,7 @@ internal class PerformancesRepository : BaseRepository<Performance>, IPerformanc
         return counts.ToDictionary(c => c.SingerId, c => c.Count);
     }
 
-    public async Task<IReadOnlyList<Guid>> ReadRecentVenueIdsBySingerAsync(Guid singerId, int count)
+    public async Task<IReadOnlyList<RecentVenueVisit>> ReadRecentVenueVisitsBySingerAsync(Guid singerId, int count)
     {
         if (count <= 0)
             return [];
@@ -125,13 +125,16 @@ internal class PerformancesRepository : BaseRepository<Performance>, IPerformanc
 
         // Ordered by each venue's most recent visit, not by the raw performance dates, so a venue
         // sung at often does not push the others out of the list.
-        return await query
+        // Projecting straight into RecentVenueVisit does not translate over a GroupBy — the
+        // anonymous type does, so the grouping and Take still run in SQL.
+        var visits = await query
             .GroupBy(p => p.VenueId!.Value)
             .Select(g => new { VenueId = g.Key, LastSungOn = g.Max(p => p.CreatedDate) })
-            .OrderByDescending(x => x.LastSungOn)
+            .OrderByDescending(v => v.LastSungOn)
             .Take(count)
-            .Select(x => x.VenueId)
             .ToListAsync();
+
+        return [.. visits.Select(v => new RecentVenueVisit(v.VenueId, v.LastSungOn))];
     }
 
     public async Task<PaginatedResult<Performance>> ReadByMediaIdAsync(Guid mediaId, int pageNumber = 1, int pageSize = 0, PerformanceFilter filter = PerformanceFilter.All)
