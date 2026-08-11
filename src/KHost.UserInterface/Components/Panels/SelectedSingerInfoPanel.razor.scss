@@ -114,6 +114,10 @@
     /* ─── Quick Menu (singer flags + actions) ────────────────────────────── */
     &__tip-totals {
         margin: 0 1em 0 auto;
+
+        + .kh-selected-singer-info-panel__quick-menu {
+            margin-left: 0;
+        }
     }
 
     &__quick-menu {
@@ -121,6 +125,10 @@
         font-size: 1.5em;
         align-items: center;
         gap: 0.5em;
+        // The totals normally carry the auto margin that pushes this row right, but a venue can
+        // hide them — so own it here, and hand it back when they are present so the two stay
+        // together as one right-aligned cluster rather than splitting the free space.
+        margin-left: auto;
         // Everything on this row is square except the flags pill, which widens per flag.
         --kh-quick-menu-size: 32px;
 
