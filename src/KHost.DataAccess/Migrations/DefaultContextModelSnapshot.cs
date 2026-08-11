@@ -340,10 +340,6 @@ namespace KHost.DataAccess.Migrations
                                 {
                                     b2.Property<Guid>("VenueSettingsVenueId");
 
-                                    b2.Property<int>("AnchorEveryN");
-
-                                    b2.Property<Guid?>("AnchorSingerId");
-
                                     b2.Property<int>("CoolDownSlots");
 
                                     b2.Property<int>("DropFixedIndex");
