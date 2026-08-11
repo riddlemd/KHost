@@ -1,10 +1,13 @@
 using System.ComponentModel.DataAnnotations;
+using KHost.Abstractions.Models;
 
 namespace KHost.UserInterface.Models;
 
 public class EditMediaModel
 {
     public Guid Id { get; set; }
+
+    public MediaStatus Status { get; set; }
 
     [Required(ErrorMessage = "Title is required.")]
     [MaxLength(255, ErrorMessage = "Title cannot exceed 255 characters.")]
