@@ -42,6 +42,40 @@ public class UsersServiceTests
         await _repository.Received(1).HasAdminUserAsync();
     }
 
+    [Theory]
+    [InlineData("00000000-0000-0000-0000-000000000001")]
+    [InlineData("00000000-0000-0000-0000-00000000009f")]
+    public async Task DeleteAsync_RefusesToDeleteBuiltInUsers(string userId)
+    {
+        var result = await _service.DeleteAsync(new Guid(userId));
+
+        Assert.False(result);
+        await _repository.DidNotReceive().DeleteAsync(Arg.Any<Guid>());
+    }
+
+    [Fact]
+    public async Task DeleteAsync_DoesNotRaiseStateChangedForBuiltInUsers()
+    {
+        var notifications = 0;
+        _service.StateChanged += (_, _) => notifications++;
+
+        await _service.DeleteAsync(new Guid("00000000-0000-0000-0000-000000000001"));
+
+        Assert.Equal(0, notifications);
+    }
+
+    [Fact]
+    public async Task DeleteAsync_DeletesRegularUsers()
+    {
+        var userId = Guid.NewGuid();
+        _repository.DeleteAsync(userId).Returns(Task.FromResult(true));
+
+        var result = await _service.DeleteAsync(userId);
+
+        Assert.True(result);
+        await _repository.Received(1).DeleteAsync(userId);
+    }
+
     [Fact]
     public async Task CreateAsync_AddsMembershipForEachSelectedGroup()
     {
