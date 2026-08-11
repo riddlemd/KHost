@@ -14,6 +14,7 @@ public class Venue : RepositoryModel
         public int DefaultVolume { get; set; } = 100;
         public ScreenDisconnectBehavior OnScreenDisconnect { get; set; } = ScreenDisconnectBehavior.ResumeOnReconnect;
         public bool MoveSingerToBottomAfterPerformance { get; set; } = true;
+        public bool ShowEstimatedWaitTime { get; set; } = true;
         public bool PromptBeforeRemovingSinger { get; set; } = true;
         public bool PromptBeforeRemovingPerformance { get; set; } = true;
         public bool PromptBeforeRemovingPerformanceHistory { get; set; } = true;

@@ -14,11 +14,6 @@
                 <InputText class="kh-form-control" @bind-Value="_model.Name" autofocus />
                 <ValidationMessage For="() => _model.Name" />
             </div>
-            <div >
-                <label class="kh-form-label">Notes</label>
-                <InputTextArea class="kh-form-control" @bind-Value="_model.Notes" rows="10" />
-                <ValidationMessage For="() => _model.Notes" />
-            </div>
             <div>
                 <label class="kh-form-check">
                     <InputCheckbox class="kh-form-check-input" @bind-Value="_model.Enabled" />
@@ -52,6 +47,10 @@
                 <label class="kh-venue-settings__row kh-form-check">
                     <span class="kh-form-check-label">Clear queue when closing</span>
                     <InputCheckbox class="kh-form-check-input" @bind-Value="_model.ClearQueueOnClose" />
+                </label>
+                <label class="kh-venue-settings__row kh-form-check">
+                    <span class="kh-form-check-label">Show estimated wait time in the singer queue</span>
+                    <InputCheckbox class="kh-form-check-input" @bind-Value="_model.ShowEstimatedWaitTime" />
                 </label>
             </div>
 
@@ -88,6 +87,13 @@
                         <InputCheckbox class="kh-form-check-input" @bind-Value="_model.PromptBeforeRemovingUserGroup" />
                     </label>
                 </div>
+            </div>
+
+            <div class="kh-venue-settings__section">
+                <span class="kh-venue-settings__section-title">Notes</span>
+                <InputTextArea class="kh-form-control" @bind-Value="_model.Notes" rows="3"
+                               placeholder="Anything worth remembering about this venue…" />
+                <ValidationMessage For="() => _model.Notes" />
             </div>
 
             <button type="submit" class="kh-hidden"></button>
@@ -137,6 +143,7 @@
                     DefaultVolume = Venue.Settings.DefaultVolume,
                     OnScreenDisconnect = Venue.Settings.OnScreenDisconnect,
                     MoveSingerToBottomAfterPerformance = Venue.Settings.MoveSingerToBottomAfterPerformance,
+                    ShowEstimatedWaitTime = Venue.Settings.ShowEstimatedWaitTime,
                     PromptBeforeRemovingSinger = Venue.Settings.PromptBeforeRemovingSinger,
                     PromptBeforeRemovingPerformance = Venue.Settings.PromptBeforeRemovingPerformance,
                     PromptBeforeRemovingPerformanceHistory = Venue.Settings.PromptBeforeRemovingPerformanceHistory,
@@ -163,6 +170,7 @@
         venue.Settings.DefaultVolume = _model.DefaultVolume;
         venue.Settings.OnScreenDisconnect = _model.OnScreenDisconnect;
         venue.Settings.MoveSingerToBottomAfterPerformance = _model.MoveSingerToBottomAfterPerformance;
+        venue.Settings.ShowEstimatedWaitTime = _model.ShowEstimatedWaitTime;
         venue.Settings.PromptBeforeRemovingSinger = _model.PromptBeforeRemovingSinger;
         venue.Settings.PromptBeforeRemovingPerformance = _model.PromptBeforeRemovingPerformance;
         venue.Settings.PromptBeforeRemovingPerformanceHistory = _model.PromptBeforeRemovingPerformanceHistory;
