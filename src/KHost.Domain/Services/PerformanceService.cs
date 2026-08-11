@@ -35,8 +35,8 @@ public class PerformanceService : BaseRepositoryService<Performance, IPerformanc
     public async Task<IReadOnlyDictionary<Guid, int>> CountSungSinceAsync(IEnumerable<Guid> singerIds, DateTime since)
         => await Repository.CountSungSinceAsync(singerIds, since);
 
-    public async Task<IReadOnlyList<Guid>> ReadRecentVenueIdsBySingerAsync(Guid singerId, int count)
-        => await Repository.ReadRecentVenueIdsBySingerAsync(singerId, count);
+    public async Task<IReadOnlyList<RecentVenueVisit>> ReadRecentVenueVisitsBySingerAsync(Guid singerId, int count)
+        => await Repository.ReadRecentVenueVisitsBySingerAsync(singerId, count);
 
     public async Task<Performance?> ReadSingersNextPerformanceAsync(Guid singerId)
         => await Repository.ReadSingersNextPerformanceAsync(singerId);

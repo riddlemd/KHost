@@ -71,6 +71,7 @@
                             {
                                 <li class="@(_rootClassName)__stats-item">
                                     <span class="@(_rootClassName)__stats-primary">@venue.Name</span>
+                                    <span class="@(_rootClassName)__stats-secondary">@venue.LastSungOn.ToString("d MMM yyyy")</span>
                                 </li>
                             }
                         </ul>
@@ -132,9 +133,10 @@
     private List<KHostUserGroup> _availableGroups = [];
     private bool _isExistingUser;
     private decimal _totalTips;
-    private List<Venue> _recentVenues = [];
+    private List<RecentVenue> _recentVenues = [];
     private List<RecentSong> _recentSongs = [];
 
+    private sealed record RecentVenue(string Name, DateTime LastSungOn);
     private sealed record RecentSong(string Title, string Artist, DateTime SungOn);
 
     protected override void OnInitialized()
@@ -186,9 +188,14 @@
 
         if (VenuesService is not null)
         {
-            var venueIds = await PerformanceService.ReadRecentVenueIdsBySingerAsync(User.Id, StatsCount);
-            var venues = await Task.WhenAll(venueIds.Select(id => VenuesService.ReadAsync(id)));
-            _recentVenues = [.. venues.Where(v => v is not null).Cast<Venue>()];
+            var visits = await PerformanceService.ReadRecentVenueVisitsBySingerAsync(User.Id, StatsCount);
+            var venues = await Task.WhenAll(visits.Select(v => VenuesService.ReadAsync(v.VenueId)));
+
+            // A deleted venue leaves the visit unresolvable, so drop it rather than showing a blank row.
+            _recentVenues = [.. visits
+                .Select((visit, i) => (Venue: venues[i], visit.LastSungOn))
+                .Where(x => x.Venue is not null)
+                .Select(x => new RecentVenue(x.Venue!.Name, x.LastSungOn))];
         }
 
         if (MediaService is not null)
