@@ -104,6 +104,8 @@
                         var rowClass = isSelected ? "kh-selected-singer-info-panel__row--selected" : isCurrent ? "kh-selected-singer-info-panel__row--current" : "";
                         var nameClass = isCurrent ? "kh-selected-singer-info-panel__name--current" : "";
                         var disablePlay = PlaybackService?.CurrentPerformance != null;
+                        _mediaCache.TryGetValue(performance.MediaId, out var rowMedia);
+                        var isBroken = rowMedia?.Status == MediaStatus.Broken;
 
                         <tr class="kh-selected-singer-info-panel__row @rowClass" @onclick="() => SelectPerformance(performance.Id)">
                             <td class="kh-selected-singer-info-panel__pos">
@@ -120,7 +122,6 @@
                                     <span>@(idx + 1)</span>
                                 }
                             </td>
-                            @{ _mediaCache.TryGetValue(performance.MediaId, out var rowMedia); }
                             <td class="kh-selected-singer-info-panel__name kh-table__cell--fill">
                                 <span class="@nameClass">@(rowMedia?.Title ?? "—")</span>
                             </td>
@@ -128,11 +129,18 @@
                             <td class="kh-selected-singer-info-panel__duration">
                                     @rowMedia?.Duration?.ToTotalMinutesAndSeconds()
                             </td>
-                            <td>@(rowMedia?.Status)</td>
+                            <td>
+                                @if (rowMedia is not null)
+                                {
+                                    <span class="kh-badge @MediaStatusDisplay.BadgeClass(rowMedia.Status)">@rowMedia.Status</span>
+                                }
+                            </td>
                             <td class="kh-table__cell--actions">
                                 <SplitButton
-                                        Title="@(disablePlay ? "Cannot Load and Play while another Song is loaded" : "Load and Play Song")"
-                                        disabled="@disablePlay"
+                                        Title="@(isBroken
+                                            ? "This song is marked broken and can't be played"
+                                            : disablePlay ? "Cannot Load and Play while another Song is loaded" : "Load and Play Song")"
+                                        PrimaryDisabled="@(disablePlay || isBroken)"
                                         @onclick="() => LoadAndPlayAsync(performance)">
                                      <Text><Icon Name="play-fill" /></Text>
                                      <Buttons>
@@ -225,6 +233,11 @@
             return;
 
         if (!_mediaCache.TryGetValue(performance.MediaId, out var media) || media is null)
+            return;
+
+        // Not just the disabled button: the row's cached media can be a render behind a status
+        // change made elsewhere, so refuse the play here too.
+        if (media.Status == MediaStatus.Broken)
             return;
 
         // Before Load, which already moves the singer to the top and locks the slot.
