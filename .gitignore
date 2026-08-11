@@ -369,6 +369,7 @@ FodyWeavers.xsd
 !/src/KHost.UserInterface/wwwroot/css/fonts/*
 
 # KHost Caches
+/cache/
 /src/KHost.UserInterface/cache/*
 
 # macOS
