@@ -53,4 +53,39 @@ public class UserGroupsServiceTests
         Assert.True(result);
         await _repository.Received(1).IsUserInGroupAsync(userId, groupId);
     }
+
+    [Theory]
+    [InlineData("00000000-0000-0000-0000-000000000001")]
+    [InlineData("00000000-0000-0000-0000-000000000002")]
+    [InlineData("00000000-0000-0000-0000-000000000003")]
+    public async Task DeleteAsync_RefusesToDeleteBuiltInGroups(string groupId)
+    {
+        var result = await _service.DeleteAsync(new Guid(groupId));
+
+        Assert.False(result);
+        await _repository.DidNotReceive().DeleteAsync(Arg.Any<Guid>());
+    }
+
+    [Fact]
+    public async Task DeleteAsync_DoesNotRaiseStateChangedForBuiltInGroups()
+    {
+        var notifications = 0;
+        _service.StateChanged += (_, _) => notifications++;
+
+        await _service.DeleteAsync(KHostUserGroup.Defaults.AdminGroupId);
+
+        Assert.Equal(0, notifications);
+    }
+
+    [Fact]
+    public async Task DeleteAsync_DeletesCustomGroups()
+    {
+        var groupId = Guid.NewGuid();
+        _repository.DeleteAsync(groupId).Returns(Task.FromResult(true));
+
+        var result = await _service.DeleteAsync(groupId);
+
+        Assert.True(result);
+        await _repository.Received(1).DeleteAsync(groupId);
+    }
 }

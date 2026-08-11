@@ -11,7 +11,7 @@
         <Icon Name="music-note-list" />
         @if (SingerQueueService?.SelectedUser is { } selectedUser)
         {
-            var isRegular = selectedUser.Groups.Any(g => g.Id == KHostUserGroupDefaults.RegularGroupId);
+            var isRegular = selectedUser.Groups.Any(g => g.Id == KHostUserGroup.Defaults.RegularGroupId);
 
             <span class="kh-card__title">@selectedUser.Name's Queue</span>
             <span class="kh-badge kh-badge--secondary kh-selected-singer-info-panel__song-count" title="Number of songs in queue">@_performanceCount</span>
@@ -318,11 +318,11 @@
     {
         if (SingerQueueService?.SelectedUser is { } user && UserGroupsService is not null)
         {
-            var isRegular = await UserGroupsService.IsUserInGroupAsync(user.Id, KHostUserGroupDefaults.RegularGroupId);
+            var isRegular = await UserGroupsService.IsUserInGroupAsync(user.Id, KHostUserGroup.Defaults.RegularGroupId);
             if (isRegular)
-                await UserGroupsService.RemoveUserFromGroupAsync(user.Id, KHostUserGroupDefaults.RegularGroupId);
+                await UserGroupsService.RemoveUserFromGroupAsync(user.Id, KHostUserGroup.Defaults.RegularGroupId);
             else
-                await UserGroupsService.AddUserToGroupAsync(user.Id, KHostUserGroupDefaults.RegularGroupId);
+                await UserGroupsService.AddUserToGroupAsync(user.Id, KHostUserGroup.Defaults.RegularGroupId);
             await SingerQueueService.RefreshAsync();
         }
     }
