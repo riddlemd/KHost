@@ -58,10 +58,8 @@ internal class MediaRepository : BaseRepository<Media>, IMediaRepository
             return new HashSet<string>(exact, comparer);
         }
 
-        // The bundled SQLite (e_sqlite3, no ICU) folds ASCII only in both lower() and NOCASE, so a
-        // stored "SÖNG.mp4" would not match a scanned "söng.mp4" and the unique index would then
-        // reject the re-import. Scan the column and let the .NET comparer decide; only hits are
-        // retained, so peak memory is O(matches) rather than O(table).
+        // Bundled SQLite (e_sqlite3, no ICU) folds ASCII only, so "SÖNG.mp4" would not match a
+        // scanned "söng.mp4" and the re-import would trip the unique index. Let .NET compare.
         var found = new HashSet<string>(comparer);
         await foreach (var stored in context.Media.Select(m => m.FilePath).AsAsyncEnumerable())
         {
