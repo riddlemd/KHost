@@ -32,6 +32,9 @@ public class PerformanceService : BaseRepositoryService<Performance, IPerformanc
     public async Task<PaginatedResult<Performance>> ReadByMediaIdAsync(Guid mediaId, int pageNumber = 1, int pageSize = 0, PerformanceFilter filter = PerformanceFilter.All)
         => await Repository.ReadByMediaIdAsync(mediaId, pageNumber, pageSize, filter);
 
+    public async Task<IReadOnlyDictionary<Guid, int>> CountSungSinceAsync(IEnumerable<Guid> singerIds, DateTime since)
+        => await Repository.CountSungSinceAsync(singerIds, since);
+
     public async Task<Performance?> ReadSingersNextPerformanceAsync(Guid singerId)
         => await Repository.ReadSingersNextPerformanceAsync(singerId);
 

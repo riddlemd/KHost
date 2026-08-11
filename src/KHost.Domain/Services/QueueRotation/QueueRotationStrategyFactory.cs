@@ -23,22 +23,12 @@ public class QueueRotationStrategyFactory : IQueueRotationStrategyFactory
 
         var result = (IQueueRotationStrategy)strategy;
 
-        if (config.NoShowDemoteSlots > 0)
-            result = new NoShowPenaltyModifier(result);
-        if (config.TimeBoxMinutes > 0)
-            result = new TimeBoxedSlotsModifier(result);
-        if (config.TipBumpWindowMinutes > 0)
-            result = new TipBumpModifier(result);
         if (config.FirstTimeBoostEnabled)
             result = new FirstTimeBoostModifier(result);
-        if (config.AnchorEveryN > 0 && config.AnchorSingerId.HasValue)
-            result = new LockedAnchorModifier(result);
         if (config.VipGroupId.HasValue)
             result = new VipTierModifier(result);
         if (config.CoolDownSlots > 0)
             result = new CoolDownModifier(result);
-        if (config.PresenceRequired)
-            result = new PresenceGatedModifier(result);
 
         return result;
     }

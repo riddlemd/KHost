@@ -70,7 +70,6 @@ namespace KHost.Domain
             serviceCollection.AddSingleton<IMediaProvider, DefaultMediaProvider>();
 
             // Queue Rotation (built-in modes register before plugins so their ids win)
-            serviceCollection.AddSingleton<IQueueRotationStateService, QueueRotationStateService>();
             serviceCollection.AddSingleton<IQueueRotationStrategyFactory, QueueRotationStrategyFactory>();
             serviceCollection.AddSingleton<IQueueRotationMode, FifoStrategy>();
             serviceCollection.AddSingleton<IQueueRotationMode, RoundRobinStrategy>();
