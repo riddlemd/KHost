@@ -74,9 +74,12 @@
                                         <button class="kh-singer-manager__history-btn kh-button--icon-minimal" title="View Performance History" @onclick="() => OpenPerformanceHistoryAsync(user)">
                                             <Icon Name="music-note-list" />
                                         </button>
-                                        <button class="kh-singer-manager__delete-btn kh-button--icon-minimal" title="Delete User" @onclick="@(async () => await StartDeleteAsync(user))">
-                                            <Icon Name="trash" />
-                                        </button>
+                                        @if (!KHostUser.IsBuiltIn(user.Id))
+                                        {
+                                            <button class="kh-singer-manager__delete-btn kh-button--icon-minimal" title="Delete User" @onclick="@(async () => await StartDeleteAsync(user))">
+                                                <Icon Name="trash" />
+                                            </button>
+                                        }
                                     </td>
                                 </tr>
                             }
