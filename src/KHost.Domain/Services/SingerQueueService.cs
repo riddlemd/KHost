@@ -19,7 +19,6 @@ public class SingerQueueService : ISingerQueueService
     private readonly IVenuesService _venuesService;
     private readonly IAnalyticsService _analytics;
     private readonly IQueueRotationStrategyFactory _rotationStrategyFactory;
-    private readonly IQueueRotationStateService _rotationStateService;
     private readonly List<Guid> _userIds = [];
     private List<KHostUser> _cachedUsers = [];
 
@@ -40,8 +39,7 @@ public class SingerQueueService : ISingerQueueService
         IUsersService usersService,
         IVenuesService venuesService,
         IAnalyticsService analytics,
-        IQueueRotationStrategyFactory rotationStrategyFactory,
-        IQueueRotationStateService rotationStateService)
+        IQueueRotationStrategyFactory rotationStrategyFactory)
     {
         _logger = logger;
         _cacheService = cacheService;
@@ -50,7 +48,6 @@ public class SingerQueueService : ISingerQueueService
         _venuesService = venuesService;
         _analytics = analytics;
         _rotationStrategyFactory = rotationStrategyFactory;
-        _rotationStateService = rotationStateService;
     }
 
     public async Task SelectUserAsync(Guid? userId)
@@ -261,7 +258,9 @@ public class SingerQueueService : ISingerQueueService
                 FinishedSingerId = finishedSingerId,
                 JoiningSingerId = joiningSingerId,
                 Config = config,
-                SongsSungTonight = await _rotationStateService.GetSongsSungTonightAsync(_userIds),
+                // "Tonight" is midnight UTC — a show running past midnight resets, which matches
+                // how the counts are described to the host rather than session length.
+                SongsSungTonight = await _performanceService.CountSungSinceAsync(_userIds, DateTime.UtcNow.Date),
                 Now = DateTime.UtcNow,
             };
 
