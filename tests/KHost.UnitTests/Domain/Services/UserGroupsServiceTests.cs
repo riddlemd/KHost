@@ -55,9 +55,10 @@ public class UserGroupsServiceTests
     }
 
     [Theory]
-    [InlineData("00000000-0000-0000-0000-000000000001")]
-    [InlineData("00000000-0000-0000-0000-000000000002")]
-    [InlineData("00000000-0000-0000-0000-000000000003")]
+    [InlineData("00000000-0000-0000-0000-000000000001")] // Admin
+    [InlineData("00000000-0000-0000-0000-000000000002")] // Regular
+    [InlineData("00000000-0000-0000-0000-000000000003")] // Tipper
+    [InlineData("00000000-0000-0000-0000-00000000009f")] // any future seeded group
     public async Task DeleteAsync_RefusesToDeleteBuiltInGroups(string groupId)
     {
         var result = await _service.DeleteAsync(new Guid(groupId));
@@ -66,13 +67,26 @@ public class UserGroupsServiceTests
         await _repository.DidNotReceive().DeleteAsync(Arg.Any<Guid>());
     }
 
+    // Only the trailing node is free; a group sharing just the leading zeros is still deletable.
+    [Fact]
+    public async Task DeleteAsync_DeletesGroupsThatOnlyPartiallyMatchTheBuiltInPrefix()
+    {
+        var groupId = new Guid("00000000-0000-0000-0001-000000000001");
+        _repository.DeleteAsync(groupId).Returns(Task.FromResult(true));
+
+        var result = await _service.DeleteAsync(groupId);
+
+        Assert.True(result);
+        await _repository.Received(1).DeleteAsync(groupId);
+    }
+
     [Fact]
     public async Task DeleteAsync_DoesNotRaiseStateChangedForBuiltInGroups()
     {
         var notifications = 0;
         _service.StateChanged += (_, _) => notifications++;
 
-        await _service.DeleteAsync(KHostUserGroup.Defaults.AdminGroupId);
+        await _service.DeleteAsync(KHostUserGroup.AdminGroupId);
 
         Assert.Equal(0, notifications);
     }

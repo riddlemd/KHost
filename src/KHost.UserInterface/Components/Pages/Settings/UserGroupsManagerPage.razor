@@ -76,7 +76,7 @@
                                         <button class="kh-user-groups-manager__edit-btn kh-button--icon-minimal" title="Edit Group" @onclick="() => OpenEditDialogAsync(group)">
                                             <Icon Name="pencil" />
                                         </button>
-                                        @if (!KHostUserGroup.Defaults.IsDefault(group.Id))
+                                        @if (!KHostUserGroup.IsBuiltIn(group.Id))
                                         {
                                             <button class="kh-user-groups-manager__delete-btn kh-button--icon-minimal" title="Delete Group" @onclick="@(async () => await StartDeleteAsync(group))">
                                                 <Icon Name="trash" />
