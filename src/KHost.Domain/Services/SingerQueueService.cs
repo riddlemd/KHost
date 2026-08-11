@@ -20,7 +20,6 @@ public class SingerQueueService : ISingerQueueService
     private readonly IAnalyticsService _analytics;
     private readonly IQueueRotationStrategyFactory _rotationStrategyFactory;
     private readonly IQueueRotationStateService _rotationStateService;
-    private readonly ITipsService _tipsService;
     private readonly List<Guid> _userIds = [];
     private List<KHostUser> _cachedUsers = [];
 
@@ -42,8 +41,7 @@ public class SingerQueueService : ISingerQueueService
         IVenuesService venuesService,
         IAnalyticsService analytics,
         IQueueRotationStrategyFactory rotationStrategyFactory,
-        IQueueRotationStateService rotationStateService,
-        ITipsService tipsService)
+        IQueueRotationStateService rotationStateService)
     {
         _logger = logger;
         _cacheService = cacheService;
@@ -53,7 +51,6 @@ public class SingerQueueService : ISingerQueueService
         _analytics = analytics;
         _rotationStrategyFactory = rotationStrategyFactory;
         _rotationStateService = rotationStateService;
-        _tipsService = tipsService;
     }
 
     public async Task SelectUserAsync(Guid? userId)
@@ -265,7 +262,6 @@ public class SingerQueueService : ISingerQueueService
                 JoiningSingerId = joiningSingerId,
                 Config = config,
                 SongsSungTonight = await _rotationStateService.GetSongsSungTonightAsync(_userIds),
-                MissedCalls = await _rotationStateService.GetMissedCallsAsync(),
                 Now = DateTime.UtcNow,
             };
 
@@ -291,10 +287,6 @@ public class SingerQueueService : ISingerQueueService
             var lastPerformance = await _performanceService.ReadBySingerIdAsync(
                 id, pageNumber: 1, pageSize: 1, filter: PerformanceFilter.UnQueued);
 
-            DateTime? lastTipped = null;
-            if (config.TipBumpWindowMinutes > 0)
-                lastTipped = (await _tipsService.GetByUserIdAsync(id)).MaxBy(t => t.CreatedDate)?.CreatedDate;
-
             IReadOnlyList<Guid> groupIds = [];
             if (config.VipGroupId.HasValue)
                 groupIds = (await _usersService.ReadAsync(id))?.Groups.Select(g => g.Id).ToList() ?? [];
@@ -303,7 +295,6 @@ public class SingerQueueService : ISingerQueueService
             {
                 Id = id,
                 LastSangOn = lastPerformance.Items.FirstOrDefault()?.CreatedDate,
-                LastTippedOn = lastTipped,
                 GroupIds = groupIds,
             });
         }
