@@ -1,6 +1,13 @@
+using KHost.Plugins.Sdk.Models;
+using KHost.Plugins.Sdk.Models.QueueRotation;
+using KHost.Plugins.Sdk.Services;
+using KHost.Plugins.Sdk.Services.QueueRotation;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
+using KHost.Abstractions.Services.QueueRotation;
 using KHost.Domain.Services;
+using KHost.Domain.Services.QueueRotation;
+using KHost.Domain.Services.QueueRotation.Modes;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
@@ -14,6 +21,9 @@ public class SingerQueueServiceTests : IDisposable
     private readonly IPerformanceService _performanceService;
     private readonly IUsersService _usersService;
     private readonly IVenuesService _venuesService;
+    private readonly IQueueRotationStrategyFactory _rotationFactory;
+    private readonly IQueueRotationStateService _rotationState;
+    private readonly ITipsService _tipsService;
     private readonly Dictionary<Guid, KHostUser> _userDb = [];
     private readonly SingerQueueService _service;
 
@@ -35,8 +45,31 @@ public class SingerQueueServiceTests : IDisposable
         _usersService.UpdateAsync(Arg.Any<KHostUser>())
             .Returns(args => { var u = (KHostUser)args[0]; _userDb[u.Id] = u; return Task.CompletedTask; });
 
+        _rotationFactory = Substitute.For<IQueueRotationStrategyFactory>();
+        _rotationState = Substitute.For<IQueueRotationStateService>();
+        _tipsService = Substitute.For<ITipsService>();
+
+        _rotationState.GetSongsSungTonightAsync(Arg.Any<IEnumerable<Guid>>())
+            .Returns(new Dictionary<Guid, int>());
+        _rotationState.GetMissedCallsAsync().Returns(new Dictionary<Guid, int>());
+        _tipsService.GetByUserIdAsync(Arg.Any<Guid>()).Returns([]);
+        _performanceService.ReadBySingerIdAsync(Arg.Any<Guid>(), Arg.Any<int>(), Arg.Any<int>(), Arg.Any<PerformanceFilter>(), Arg.Any<DateTime?>())
+            .Returns(new PaginatedResult<Performance>());
+
+        // Rotation runs on every add and finish; identity keeps non-rotation tests order-stable.
+        StubStrategy(ctx => ctx.Queue.Select(u => u.Id).ToList());
+
         var analyticsQueue = Substitute.For<IAnalyticsService>();
-        _service = new SingerQueueService(NullLogger<SingerQueueService>.Instance, _cacheService, _performanceService, _usersService, _venuesService, analyticsQueue);
+        _service = new SingerQueueService(NullLogger<SingerQueueService>.Instance, _cacheService, _performanceService, _usersService, _venuesService, analyticsQueue, _rotationFactory, _rotationState, _tipsService);
+    }
+
+    private void StubStrategy(Func<QueueRotationContext, IReadOnlyList<Guid>> strategy)
+    {
+        var stub = Substitute.For<IQueueRotationStrategy>();
+        stub.ApplyAsync(Arg.Any<QueueRotationContext>())
+            .Returns(args => Task.FromResult(strategy((QueueRotationContext)args[0])));
+
+        _rotationFactory.Resolve(Arg.Any<QueueRotationConfig>()).Returns(stub);
     }
 
     public void Dispose()
@@ -458,7 +491,134 @@ public class SingerQueueServiceTests : IDisposable
         _performanceService,
         _usersService,
         _venuesService,
-        Substitute.For<IAnalyticsService>());
+        Substitute.For<IAnalyticsService>(),
+        _rotationFactory,
+        _rotationState,
+        _tipsService);
+
+    [Fact]
+    public async Task RotateQueueAsync_DefaultConfig_MovesFinishedSingerToEndAndSelectsFirst()
+    {
+        // Real fifo strategy: no venue config at all must behave like classic rotation.
+        var service = CreateServiceWithRealFifo();
+        var alice = await EnqueueUserOnAsync(service, "Alice");
+        var bob = await EnqueueUserOnAsync(service, "Bob");
+
+        await service.RotateQueueAsync(alice.Id);
+
+        Assert.Equal([bob.Id, alice.Id], service.Users.Select(u => u.Id));
+        Assert.Equal(bob.Id, service.SelectedUserId);
+    }
+
+    [Fact]
+    public async Task RotateQueueAsync_FifoLeavesQueueDropPosition_RemovesFinishedSinger()
+    {
+        _venuesService.ReadSelectedVenueAsync().Returns(new Venue
+        {
+            Id = Guid.NewGuid(),
+            Name = "Test Venue",
+            Settings = new Venue.VenueSettings
+            {
+                QueueRotation = new QueueRotationConfig { DropPosition = DropPositionMode.LeavesQueue },
+            },
+        });
+        var service = CreateServiceWithRealFifo();
+        var alice = await EnqueueUserOnAsync(service, "Alice");
+        var bob = await EnqueueUserOnAsync(service, "Bob");
+
+        await service.RotateQueueAsync(alice.Id);
+
+        Assert.Equal([bob.Id], service.Users.Select(u => u.Id));
+        Assert.Equal(bob.Id, service.SelectedUserId);
+    }
+
+    [Fact]
+    public async Task RotateQueueAsync_AppliesStrategyOrderAndSelectsFirst()
+    {
+        var alice = await EnqueueAsync("Alice");
+        var bob = await EnqueueAsync("Bob");
+        var carol = await EnqueueAsync("Carol");
+        StubStrategy(ctx => ctx.Queue.Select(u => u.Id).Reverse().ToList());
+
+        await _service.RotateQueueAsync(alice.Id);
+
+        Assert.Equal([carol.Id, bob.Id, alice.Id], _service.Users.Select(u => u.Id));
+        Assert.Equal(carol.Id, _service.SelectedUserId);
+    }
+
+    [Fact]
+    public async Task RotateQueueAsync_StrategyDropsFinishedSinger_SingerLeavesQueue()
+    {
+        var alice = await EnqueueAsync("Alice");
+        var bob = await EnqueueAsync("Bob");
+        StubStrategy(ctx => ctx.Queue.Select(u => u.Id).Where(id => id != ctx.FinishedSingerId).ToList());
+
+        await _service.RotateQueueAsync(alice.Id);
+
+        Assert.Equal([bob.Id], _service.Users.Select(u => u.Id));
+    }
+
+    [Fact]
+    public async Task RotateQueueAsync_StrategyDropsOtherSingerAndInventsIds_QueueSanitized()
+    {
+        var alice = await EnqueueAsync("Alice");
+        var bob = await EnqueueAsync("Bob");
+        var carol = await EnqueueAsync("Carol");
+        // Keeps the finished singer but drops Carol, duplicates Bob, and invents an id.
+        StubStrategy(_ => [Guid.NewGuid(), bob.Id, bob.Id, alice.Id]);
+
+        await _service.RotateQueueAsync(alice.Id);
+
+        Assert.Equal([bob.Id, alice.Id, carol.Id], _service.Users.Select(u => u.Id));
+    }
+
+    [Fact]
+    public async Task RotateQueueAsync_StrategyThrows_OrderUnchanged()
+    {
+        var alice = await EnqueueAsync("Alice");
+        var bob = await EnqueueAsync("Bob");
+        var stub = Substitute.For<IQueueRotationStrategy>();
+        stub.ApplyAsync(Arg.Any<QueueRotationContext>())
+            .Returns<Task<IReadOnlyList<Guid>>>(_ => throw new InvalidOperationException("plugin bug"));
+        _rotationFactory.Resolve(Arg.Any<QueueRotationConfig>()).Returns(stub);
+
+        await _service.RotateQueueAsync(alice.Id);
+
+        Assert.Equal([alice.Id, bob.Id], _service.Users.Select(u => u.Id));
+    }
+
+    [Fact]
+    public async Task AddUserAsync_AppliesJoinPlacement()
+    {
+        var alice = await EnqueueAsync("Alice");
+        var bob = await EnqueueAsync("Bob");
+        StubStrategy(ctx => ctx.JoiningSingerId is { } joiner
+            ? [joiner, .. ctx.Queue.Select(u => u.Id).Where(id => id != joiner)]
+            : ctx.Queue.Select(u => u.Id).ToList());
+
+        var carol = await EnqueueAsync("Carol");
+
+        Assert.Equal([carol.Id, alice.Id, bob.Id], _service.Users.Select(u => u.Id));
+    }
+
+    private SingerQueueService CreateServiceWithRealFifo() => new(
+        NullLogger<SingerQueueService>.Instance,
+        _cacheService,
+        _performanceService,
+        _usersService,
+        _venuesService,
+        Substitute.For<IAnalyticsService>(),
+        new QueueRotationStrategyFactory([new FifoStrategy()]),
+        _rotationState,
+        _tipsService);
+
+    private async Task<KHostUser> EnqueueUserOnAsync(SingerQueueService service, string name)
+    {
+        var user = new KHostUser { Name = name };
+        _userDb[user.Id] = user;
+        await service.AddUserAsync(user.Id);
+        return user;
+    }
 
     private async Task<KHostUser> EnqueueAsync(string name)
     {

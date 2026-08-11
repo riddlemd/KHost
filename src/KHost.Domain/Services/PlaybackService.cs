@@ -314,18 +314,9 @@ public class PlaybackService : BaseService, IPlaybackService
 
         Logger.LogInformation("Performance {PerformanceId} ended for user {UserId}", currentPerformance.Id, currentPerformance.SingerId);
 
-        await MoveQueueAfterPerformanceAsync(currentPerformance.SingerId);
+        // Dequeue first so rotation's songs-sung-tonight count includes the finished song.
         await _performanceService.DequeueAsync(currentPerformance.SingerId, currentPerformance.Id);
-    }
-
-    private async Task MoveQueueAfterPerformanceAsync(Guid singerId)
-    {
-        var venue = await _venuesService.ReadSelectedVenueAsync();
-        if (venue?.Settings.MoveSingerToBottomAfterPerformance != true)
-            return;
-
-        await _singerQueueService.MoveUserToEndAsync(singerId);
-        await _singerQueueService.SelectFirstUserInQueueAsync();
+        await _singerQueueService.RotateQueueAsync(currentPerformance.SingerId);
     }
 
     private async Task SendToScreensAsync(IScreenCommand command)

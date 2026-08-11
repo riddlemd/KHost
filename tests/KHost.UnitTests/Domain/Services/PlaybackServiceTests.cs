@@ -19,7 +19,7 @@ public class PlaybackServiceTests : IDisposable
     public PlaybackServiceTests()
     {
         _venuesService.ReadSelectedVenueAsync()
-            .Returns(new Venue { Id = Guid.NewGuid(), Name = "Test Venue", Settings = new Venue.VenueSettings { MoveSingerToBottomAfterPerformance = false } });
+            .Returns(new Venue { Id = Guid.NewGuid(), Name = "Test Venue", Settings = new Venue.VenueSettings() });
 
         // Playback refuses to start with no screen attached, so the default fixture has one.
         ConnectScreens(1);
@@ -201,16 +201,8 @@ public class PlaybackServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task StopAsync_MovesUserToEnd_WhenOptionEnabled()
+    public async Task StopAsync_RotatesQueueForFinishedSinger()
     {
-        var venue = new Venue
-        {
-            Id = Guid.NewGuid(),
-            Name = "Test Venue",
-            Settings = new Venue.VenueSettings { MoveSingerToBottomAfterPerformance = true }
-        };
-        _venuesService.ReadSelectedVenueAsync().Returns(venue);
-
         var (performance, media) = CreatePerformance();
         var user = new KHostUser { Id = performance.SingerId, Name = "Alice" };
         _queueService.Users.Returns(new[] { user }.AsReadOnly());
@@ -220,13 +212,13 @@ public class PlaybackServiceTests : IDisposable
 
         await _service.StopAsync();
 
-        await _queueService.Received().MoveUserToEndAsync(performance.SingerId);
-        await _queueService.Received().SelectFirstUserInQueueAsync();
+        // Which rotation applies is the queue service's call; playback only reports who finished.
+        await _queueService.Received().RotateQueueAsync(performance.SingerId);
         await _performanceService.Received().DequeueAsync(performance.SingerId, performance.Id);
     }
 
     [Fact]
-    public async Task StopAsync_DequeuesPerformance_WhenMoveToBottomDisabled()
+    public async Task StopAsync_DequeuesPerformance()
     {
         var (performance, media) = CreatePerformance();
         var user = new KHostUser { Id = performance.SingerId, Name = "Alice" };
@@ -560,7 +552,6 @@ public class PlaybackServiceTests : IDisposable
             Name = "Test Venue",
             Settings = new Venue.VenueSettings
             {
-                MoveSingerToBottomAfterPerformance = false,
                 OnScreenDisconnect = behavior,
             },
         });

@@ -1,0 +1,15 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   Edit Venue Dialog
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.kh-venue-edit-dialog {
+    &__rotation-row {
+        display: flex;
+        justify-content: center;
+        margin-top: 1.25em;
+    }
+
+    &__rotation-btn {
+        width: auto;
+    }
+}

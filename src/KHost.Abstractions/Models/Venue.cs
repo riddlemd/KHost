@@ -1,3 +1,5 @@
+using KHost.Plugins.Sdk.Models.QueueRotation;
+
 namespace KHost.Abstractions.Models;
 
 public class Venue : RepositoryModel
@@ -28,7 +30,6 @@ public class Venue : RepositoryModel
     {
         public int DefaultVolume { get; set; } = 100;
         public ScreenDisconnectBehavior OnScreenDisconnect { get; set; } = ScreenDisconnectBehavior.ResumeOnReconnect;
-        public bool MoveSingerToBottomAfterPerformance { get; set; } = true;
         public bool ShowEstimatedWaitTime { get; set; } = true;
         public bool TippingEnabled { get; set; } = true;
         // Off by default — it adds a prompt, so venues opt in rather than inherit one.
@@ -38,7 +39,18 @@ public class Venue : RepositoryModel
         public bool PromptBeforeRemovingPerformance { get; set; } = true;
         public bool ClearQueueOnClose { get; set; } = true;
 
-        /// <summary>Every member is a value type, so a memberwise copy is a full copy.</summary>
-        public VenueSettings Clone() => (VenueSettings)MemberwiseClone();
+        // Nullable: EF reads venue rows saved before this key existed as null (initializers
+        // are ignored for missing JSON keys) — callers fall back to a default config.
+        public QueueRotationConfig? QueueRotation { get; set; }
+
+        /// <summary>Memberwise copy plus a deep copy of the one reference-type member.</summary>
+        public VenueSettings Clone()
+        {
+            var clone = (VenueSettings)MemberwiseClone();
+
+            clone.QueueRotation = QueueRotation?.Clone();
+
+            return clone;
+        }
     }
 }

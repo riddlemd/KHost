@@ -1,3 +1,5 @@
+using KHost.Plugins.Sdk.Models;
+using KHost.Plugins.Sdk.Services;
 using KHost.Abstractions.Interactions;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Repositories;

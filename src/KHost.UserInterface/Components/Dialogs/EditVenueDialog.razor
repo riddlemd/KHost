@@ -42,10 +42,6 @@
                 <span class="kh-venue-settings__section-title">Queue behavior</span>
 
                 <label class="kh-venue-settings__row kh-form-check">
-                    <span class="kh-form-check-label">Move singer to bottom after performance</span>
-                    <InputCheckbox class="kh-form-check-input" @bind-Value="_model.MoveSingerToBottomAfterPerformance" />
-                </label>
-                <label class="kh-venue-settings__row kh-form-check">
                     <span class="kh-form-check-label">Clear queue when closing</span>
                     <InputCheckbox class="kh-form-check-input" @bind-Value="_model.ClearQueueOnClose" />
                 </label>
@@ -69,6 +65,13 @@
                         </InputSelect>
                     </div>
                 }
+
+                <div class="@(_rootClassName)__rotation-row">
+                    <button type="button" class="@(_rootClassName)__rotation-btn kh-button kh-button--secondary"
+                            @onclick="() => _rotationDialogOpen = true">
+                        <Icon Name="people-fill" /> Edit Singer Queue Rotation Strategy
+                    </button>
+                </div>
             </div>
 
             <div class="kh-venue-settings__section">
@@ -117,6 +120,8 @@
     </Footer>
 </Dialog>
 
+<SingerQueueDialog IsOpen="_rotationDialogOpen" Config="_model.QueueRotation" OnClose="CloseRotationDialog" />
+
 @code {
     private const string _rootClassName = "kh-venue-edit-dialog";
 
@@ -135,6 +140,7 @@
     private EditVenueModel _model = new();
     private EditContext _editContext = default!;
     private bool _prevIsOpen;
+    private bool _rotationDialogOpen;
 
     protected override void OnInitialized()
     {
@@ -156,7 +162,6 @@
                     Enabled = Venue.Enabled,
                     DefaultVolume = Venue.Settings.DefaultVolume,
                     OnScreenDisconnect = Venue.Settings.OnScreenDisconnect,
-                    MoveSingerToBottomAfterPerformance = Venue.Settings.MoveSingerToBottomAfterPerformance,
                     ShowEstimatedWaitTime = Venue.Settings.ShowEstimatedWaitTime,
                     TippingEnabled = Venue.Settings.TippingEnabled,
                     WarnOnDuplicateSong = Venue.Settings.WarnOnDuplicateSong,
@@ -167,6 +172,8 @@
                     PromptBeforeRemovingSinger = Venue.Settings.PromptBeforeRemovingSinger,
                     PromptBeforeRemovingPerformance = Venue.Settings.PromptBeforeRemovingPerformance,
                     ClearQueueOnClose = Venue.Settings.ClearQueueOnClose,
+                    // Clone so Cancel discards rotation edits along with the rest of the model.
+                    QueueRotation = Venue.Settings.QueueRotation?.Clone() ?? new(),
                 };
             _editContext = new EditContext(_model);
         }
@@ -187,7 +194,6 @@
         venue.Enabled = _model.Enabled;
         venue.Settings.DefaultVolume = _model.DefaultVolume;
         venue.Settings.OnScreenDisconnect = _model.OnScreenDisconnect;
-        venue.Settings.MoveSingerToBottomAfterPerformance = _model.MoveSingerToBottomAfterPerformance;
         venue.Settings.ShowEstimatedWaitTime = _model.ShowEstimatedWaitTime;
         venue.Settings.TippingEnabled = _model.TippingEnabled;
         venue.Settings.WarnOnDuplicateSong = _model.WarnOnDuplicateSong;
@@ -195,6 +201,7 @@
         venue.Settings.PromptBeforeRemovingSinger = _model.PromptBeforeRemovingSinger;
         venue.Settings.PromptBeforeRemovingPerformance = _model.PromptBeforeRemovingPerformance;
         venue.Settings.ClearQueueOnClose = _model.ClearQueueOnClose;
+        venue.Settings.QueueRotation = _model.QueueRotation;
 
         await OnSave.InvokeAsync(venue);
 
@@ -207,6 +214,8 @@
 
         await OnClose.InvokeAsync();
     }
+
+    private void CloseRotationDialog() => _rotationDialogOpen = false;
 
     private string GetClassString()
         => $"kh-singer-edit-dialog {Class?.Trim()}".Trim();
