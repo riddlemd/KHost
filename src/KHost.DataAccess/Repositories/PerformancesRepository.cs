@@ -111,6 +111,32 @@ internal class PerformancesRepository : BaseRepository<Performance>, IPerformanc
         return counts.ToDictionary(c => c.SingerId, c => c.Count);
     }
 
+    public async Task<IReadOnlyList<RecentVenueVisit>> ReadRecentVenueVisitsBySingerAsync(Guid singerId, int count)
+    {
+        if (count <= 0)
+            return [];
+
+        using var context = await ContextFactory.CreateDbContextAsync();
+
+        var query = context.Set<Performance>()
+            .Where(p => p.SingerId == singerId && p.VenueId != null);
+
+        query = ApplyFilter(query, PerformanceFilter.UnQueued);
+
+        // Ordered by each venue's most recent visit, not by the raw performance dates, so a venue
+        // sung at often does not push the others out of the list.
+        // Projecting straight into RecentVenueVisit does not translate over a GroupBy — the
+        // anonymous type does, so the grouping and Take still run in SQL.
+        var visits = await query
+            .GroupBy(p => p.VenueId!.Value)
+            .Select(g => new { VenueId = g.Key, LastSungOn = g.Max(p => p.CreatedDate) })
+            .OrderByDescending(v => v.LastSungOn)
+            .Take(count)
+            .ToListAsync();
+
+        return [.. visits.Select(v => new RecentVenueVisit(v.VenueId, v.LastSungOn))];
+    }
+
     public async Task<PaginatedResult<Performance>> ReadByMediaIdAsync(Guid mediaId, int pageNumber = 1, int pageSize = 0, PerformanceFilter filter = PerformanceFilter.All)
     {
         using var context = await ContextFactory.CreateDbContextAsync();
