@@ -1,145 +1,48 @@
 # AGENTS.md
 
-This file provides guidance to coding agents working in this repository.
+**KHost** — karaoke host app. .NET 10 + Blazor Server UI, Avalonia screen app. Solution: `KHost.slnx` (no `.sln`).
 
-**KHost** — karaoke host app. .NET 10 + Blazor Server UI, Avalonia desktop screen app. Solution file: `KHost.slnx` (no `.sln`).
+Projects (`src/`): `Abstractions` (all interfaces + shared models, no project refs) ← `Domain` (services) / `DataAccess` (EF Core 10 + SQLite) ← `UserInterface` (Blazor Server) and `Screen` (Avalonia video output), plus `IPC.SignalR` (UI↔Screen), `LrcLib`, `Telemetry`, `ServiceDefaults`/`AppHost` (Aspire), and `tests/KHost.UnitTests`.
 
 ## Commands
 
 ```bash
-dotnet run --project src/KHost.UserInterface   # run UI directly
-dotnet run --project src/KHost.AppHost         # run via Aspire
-dotnet build KHost.slnx "-p:BaseOutputPath=./obj/_build"  # build whole solution (redirects output to avoid locking VS's bin/ folder)
-dotnet test tests/KHost.UnitTests                # run all unit tests
-dotnet test tests/KHost.UnitTests --filter "FullyQualifiedName~ServiceName"  # run tests for one class
-dotnet test tests/KHost.UnitTests --filter "DisplayName~MethodName"          # run a single test by method
+dotnet run --project src/KHost.UserInterface                # run the app
+dotnet build KHost.slnx "-p:BaseOutputPath=./obj/_build"    # build (redirected so VS's bin/ isn't locked)
+dotnet test tests/KHost.UnitTests                           # add --filter "FullyQualifiedName~Name" to narrow
 ```
 
-SCSS is compiled by `AspNetCore.SassCompiler` as part of the .NET build, so a normal
-`dotnet build` picks up style changes. There is no separate sass command.
+SCSS compiles inside `dotnet build` (AspNetCore.SassCompiler) — no separate sass step. The build needs `node_modules` (`npm install`) for `copy:vendors`.
 
-## Architecture
+## Rules
 
-Dependency direction: **UI → Domain / DataAccess → Abstractions**. `KHost.Abstractions` has no project references.
-
-Source projects live under `src/`; test projects live under `tests/`.
-
-| Project | Role |
-|---|---|
-| `KHost.Abstractions` | All interfaces and shared models. File-scoped namespaces. |
-| `KHost.Domain` | Business logic, services, domain models. Registered via `AddDomain()`. |
-| `KHost.DataAccess` | EF Core 10 + SQLite. `DefaultContext`, `BaseRepository<T>`. Registered via `AddDataAccess()`. |
-| `KHost.UserInterface` | Blazor Server app. Interactive Server render mode. |
-| `KHost.Screen` | Avalonia desktop app for video output. Launched with `--server-uri` and `--screen-id` args. |
-| `KHost.IPC.SignalR` | SignalR hub + client for UI↔Screen command/state exchange. |
-| `KHost.LrcLib` | HTTP client for lrclib.net lyrics lookup. |
-| `KHost.Telemetry` | OpenTelemetry metrics/activities via `KHostMetrics` and `KHostActivitySource`. |
-| `KHost.ServiceDefaults` | Aspire service defaults (logging, health checks). |
-| `KHost.AppHost` | Aspire orchestration host. |
-| `KHost.UnitTests` | xUnit + NSubstitute. |
-
-## Conventions
-
-**Interfaces → `src/KHost.Abstractions/Services/` or `src/KHost.Abstractions/Models/`.** Concrete implementations go in `src/KHost.Domain/` or `src/KHost.DataAccess/`.
-
-**DI registration** — each project exposes a `ProjectExtensions` method (`AddDomain()`, `AddDataAccess()`). All domain services are singletons.
-
-**Repositories** — `BaseRepository<T>` takes `IDbContextFactory<DefaultContext>`. Always `using var context = await ContextFactory.CreateDbContextAsync();` per operation — never store a context.
-
-**State persistence** — SQL (`DefaultContext`) for library/users/groups. JSON cache under `./cache/` (`ICacheService`) for queue and venue state.
-
-**Events** — stateful services expose `StateChanged`; Blazor components subscribe in `OnInitialized` and call `StateHasChanged`. Services inherit `BaseService` (provides `ILogger Logger` and `protected void InvokeStateChanged()`). CRUD services inherit `BaseRepositoryService<TService, TRepository>` which wraps the repository and calls `InvokeStateChanged()` after mutations.
-
-**EF Core join entities** — use `UsingEntity<T>(l => ..., r => ..., j => { ... })` (no string name argument). Add `j.ToTable(...)` explicitly if the table name needs to differ from the CLR type name. Using a string name makes it a shared-type entity and breaks `context.Set<T>()`.
-
-## C# Member Order
-
-Fields → Events → Properties (auto-props first) → Public methods → Internal/Protected methods → Private methods → Nested types.
-
-`IDisposable`: place `Dispose()` and `protected virtual Dispose(bool)` at the end of public methods.
-
-Explicit interface implementations: place immediately after the public overload of the same method.
-
-**Events:** use `EventHandler` / `EventHandler<T>`, never `event Action` or `event Func`.
+- Put interfaces in `src/KHost.Abstractions` (`Services/`, `Repositories/`, `Models/`) and implementations in `src/KHost.Domain` or `src/KHost.DataAccess`. Register in the project's `ProjectExtensions` (`AddDomain()` / `AddDataAccess()`); UI-only services in `Program.cs`. All domain services are singletons — guard mutable state with `SemaphoreSlim`.
+- Do NOT add "gate" services: put behaviour that guards an existing call on the service that owns the call (enqueue rules belong in `PerformanceService.CreateAndEnqueueAsync`, not an `IEnqueueGuard` around it).
+- When adding a repository/service, copy the shape of an existing one. Repositories extend `BaseRepository<T>` and implement `SortColumns` / `ApplySearchFilters`; services extend `BaseService` (or `BaseRepositoryService<,>` for CRUD).
+- In repositories, `using var context = await ContextFactory.CreateDbContextAsync();` per operation — never store a context.
+- Raise `StateChanged` from stateful services (`EventHandler`/`EventHandler<T>`, never `event Action`); components subscribe in `OnInitialized`, unsubscribe in `Dispose`, call `StateHasChanged`.
+- Order members: fields → events → properties → public → protected → private → nested types.
+- Persist library/users/groups in SQL; queue and venue state in the JSON cache (`ICacheService`, `./cache/`).
+- Route dialogs through `IInteractionDispatcher`, which resolves `IInteractionHandler<TReq, TRes>` from DI; handlers bridge dialogs into awaitable calls with `TaskCompletionSource` and are registered in `Program.cs`.
+- Do NOT commit unless explicitly asked.
 
 ## CSS/SCSS
 
-- No inline styles. No `<style>` elements. All styles go in `.scss` files.
-- Bootstrap Icons only — no Bootstrap CSS or JS. No Bootstrap utility classes (`d-flex`,
-  `mb-3`, …); they resolve to nothing.
-- BEM naming. Top-level classes prefix: `kh-`. Buttons are `kh-button` plus a modifier
-  (`kh-button--danger`), not `btn-`.
-- Use SCSS nesting, not flat CSS.
+- No inline styles or `<style>` elements. BEM with `kh-` prefix (`kh-button--danger`). SCSS nesting. Bootstrap Icons only — no Bootstrap CSS/JS; its utility classes (`d-flex`, `mb-3`, …) resolve to nothing.
+- Component styles live beside the component (`Foo.razor.scss` → scoped `Foo.razor.css`; that output is gitignored — never edit or commit it). Shared blocks stay under `wwwroot/scss` via `app.scss`; a partial co-locates only once exactly one component uses its block. A `wwwroot/scss` file without a `_` prefix compiles to its own stylesheet — only `app.scss` and `themes/*` should.
+- Scoped CSS reaches only elements the component itself renders. Markup handed to a child (`<Icon Class="..." />`, RenderFragment content) carries the CHILD's scope id — style it via `::deep` with a real descendant: `.kh-foo { ::deep &__icon { ... } }`. Never lead with `::deep &__x` — the `&` swallows the parent, `::deep` ends up first, and the browser drops the rule.
 
-**A component's styles live beside it** as `Foo.razor.scss`, compiled to `Foo.razor.css` and
-scoped by Blazor. Generated `.razor.css` is build output and gitignored — never edit or commit it.
+## Tests
 
-Global styles stay under `wwwroot/scss` and are imported by `app.scss`: `shared/` for blocks used
-across components (`.kh-card`, `.kh-table`, `.kh-button`, `.kh-form-*`), `themes/` for the
-per-theme custom properties, and a handful of `components/` partials that still declare shared
-blocks. A partial only becomes co-located once its block is used by exactly one component.
-
-**Scoped CSS reaches HTML elements, never child components.** A class handed to a child — most
-often `<Icon Class="kh-foo__icon" />` — lands on that child's element and needs `::deep`:
-
-```scss
-.kh-foo {
-    ::deep &__icon { ... }   // compiles to [b-hash] .kh-foo__icon
-}
-```
-
-`::deep` needs a real descendant relationship, so the child must sit inside an element the
-component itself renders.
-
-## Git
-
-Do NOT commit unless explicitly asked.
-
-## Adding a new repository
-
-1. Create interface in `src/KHost.Abstractions/Repositories/`.
-2. Create concrete class in `src/KHost.DataAccess/Repositories/` extending `BaseRepository<T>`.
-3. Implement `SortColumns` (maps string keys to `Expression<Func<T, object>>` for sort), `DefaultSortExpression`, `DefaultSortDescending`, and `ApplySearchFilters<TOptions>` (add WHERE clauses before search executes).
-4. Register in `src/KHost.DataAccess/ProjectExtensions.cs`.
-
-## Adding a new domain service
-
-1. Create interface in `src/KHost.Abstractions/Services/`.
-2. Create class in `src/KHost.Domain/Services/` extending `BaseService` (or `BaseRepositoryService<,>` for CRUD wrappers).
-3. Register as singleton in `src/KHost.Domain/ProjectExtensions.cs`.
-
-## IPC (UI ↔ Screen)
-
-Commands flow **UI → Screen**; state flows **Screen → UI**.
-
-- `KHost.IPC.SignalR` provides `ScreenHub` (ASP.NET Core SignalR hub) and `ScreenClient` (Avalonia-side client).
-- Commands (`LoadMediaCommand`, `PlayCommand`, `PauseCommand`, `StopCommand`, `SeekCommand`, `SetVolumeCommand`, `SetPitchCommand`) inherit `ScreenCommandBase` and are serialized as JSON strings with a `$type` discriminator via `[JsonPolymorphic]` / `[JsonDerivedType]` attributes on the base — **adding a new command requires adding a `[JsonDerivedType]` attribute**.
-- `IScreenServer.BroadcastCommandAsync(IScreenCommand)` sends to all connected screens.
-- `ScreenIpcController` in `KHost.Screen` dispatches received commands to `IMediaPlayer` via a `switch` on the concrete command type, then sends updated `ScreenPlaybackState` back.
-- Server registered via `AddSignalRIPCServer()` + `MapIPCServer("/ipc/screen")`.
-
-## Dialog/Interaction system
-
-`IInteractionDispatcher.HandleAsync<TRequest, TResponse>()` resolves the matching `IInteractionHandler<TRequest, TResponse>` from DI and invokes it. Handlers use `TaskCompletionSource` to bridge event-driven UI dialogs into awaitable calls. Register handlers as singletons in `Program.cs`.
-
-## Unit test conventions
-
-- **Framework:** xUnit + NSubstitute. Global usings: `using NSubstitute;` and `using Xunit;`.
-- **Naming:** `MethodUnderTest_Scenario_ExpectedBehavior` (e.g., `DeleteAsync_InvokesStateChanged_WhenRepositoryReturnsTrue`).
-- **Structure:** Dependencies created with `Substitute.For<IInterface>()` in the test class constructor or field initializers; `NullLogger<T>.Instance` for loggers.
-- **Events:** Test `StateChanged` by attaching a counter lambda: `service.StateChanged += (_, _) => count++;`.
-- Mirror the source project layout — tests for `src/KHost.Domain/Services/Foo.cs` go in `tests/KHost.UnitTests/Domain/Services/FooTests.cs`.
+xUnit + NSubstitute. `MethodUnderTest_Scenario_ExpectedBehavior`; substitutes in field initializers; mirror the source layout (`Domain/Services/Foo.cs` → `Domain/Services/FooTests.cs`). Test `StateChanged` with a counter lambda.
 
 ## Gotchas
 
-- `src/KHost.Domain/Services/` — plural. Path `Servies` does not exist.
-- The build runs `npm run copy:vendors`, so it still fails without `node_modules` — run
-  `npm install` first. npm no longer compiles any SCSS.
-- A new `wwwroot/scss` file without a `_` prefix compiles to its own stylesheet; everything
-  except `app.scss` and `themes/*` must be a partial.
-- Cache DB lives at `src/KHost.UserInterface/bin/Debug/net10.0/cache/` at runtime — deleting
-  `bin/` to force a clean build destroys the local library, users and queue.
-- All domain services are singletons — guard mutable state with `SemaphoreSlim`.
+- Services dir is `Services/` — a past typo created `Servies`; don't recreate it.
+- Runtime DB lives at `src/KHost.UserInterface/bin/Debug/net10.0/cache/` — deleting `bin/` destroys the local library, users and queue.
+- `DefaultContext` is `NoTracking` — saves/updates won't touch related models unless explicitly programmed to.
 - `BlazorDisableThrowNavigationException` is set; navigation failures won't throw.
-- `DefaultContext` tracking behaviour is set to `QueryTrackingBehavior.NoTracking`, so Saves/Updates will not update related models unless explicitly programmed to.
-- **Migration reset**: any time a model that has a `DbSet<T>` in `DefaultContext` changes, delete all files in `src/KHost.DataAccess/Migrations/`, delete the runtime DB at `src/KHost.UserInterface/bin/Debug/net10.0/cache/khost.db`, then run `dotnet ef migrations add InitialSchema --project src/KHost.DataAccess`. **Then recreate the `AddMediaFts` migration** — the `media_fts` FTS5 virtual table and its sync triggers are raw SQL (not part of the EF model), so `dotnet ef` will NOT regenerate them and `MediaRepository` search will throw `no such table: media_fts`. Run `dotnet ef migrations add AddMediaFts --project src/KHost.DataAccess --startup-project src/KHost.UserInterface` and copy the `Up`/`Down` SQL from a prior `AddMediaFts.cs`.
+- EF join entities: `UsingEntity<T>(l => ..., r => ..., j => ...)` with no string name — a string name makes a shared-type entity and breaks `context.Set<T>()`.
+- IPC screen commands are `[JsonPolymorphic]` on `ScreenCommandBase` — adding a command requires a `[JsonDerivedType]` attribute on the base.
+- `Venue.Settings` is a JSON column (`OwnsOne(...ToJson())`): adding/removing properties is NOT a schema change and needs no migration reset — but EF reads keys missing from stored rows as `default`, ignoring property initializers, so a new setting that defaults true needs a data-only `json_set` backfill migration.
+- Real schema changes (any `DbSet<T>` model): delete `src/KHost.DataAccess/Migrations/`, delete the runtime DB, run `dotnet ef migrations add InitialSchema --project src/KHost.DataAccess`, then recreate `AddMediaFts` by hand — the FTS5 table and its triggers are raw SQL EF won't regenerate (search throws `no such table: media_fts` without it); copy the `Up`/`Down` SQL from a prior `AddMediaFts.cs`.
