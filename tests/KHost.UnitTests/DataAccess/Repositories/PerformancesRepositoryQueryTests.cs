@@ -7,7 +7,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace KHost.UnitTests.DataAccess.Repositories;
 
-public class PerformancesRepositoryCountSungSinceTests : IDisposable
+public class PerformancesRepositoryQueryTests : IDisposable
 {
     private static readonly DateTime Midnight = new(2026, 8, 11, 0, 0, 0, DateTimeKind.Utc);
 
@@ -15,7 +15,7 @@ public class PerformancesRepositoryCountSungSinceTests : IDisposable
     private readonly IDbContextFactory<DefaultContext> _factory;
     private readonly PerformancesRepository _repository;
 
-    public PerformancesRepositoryCountSungSinceTests()
+    public PerformancesRepositoryQueryTests()
     {
         _dbPath = Path.Combine(Path.GetTempPath(), $"khost-sung-{Guid.NewGuid():N}.db");
 
@@ -137,6 +137,104 @@ public class PerformancesRepositoryCountSungSinceTests : IDisposable
     public async Task CountSungSinceAsync_ReturnsEmptyForNoSingers()
     {
         var result = await _repository.CountSungSinceAsync([], Midnight);
+
+        Assert.Empty(result);
+    }
+
+    private static Performance SungAt(Guid singerId, Guid venueId, DateTime on)
+        => new() { SingerId = singerId, MediaId = Guid.NewGuid(), VenueId = venueId, CreatedDate = on, QueuePosition = null };
+
+    [Fact]
+    public async Task ReadRecentVenueIdsBySingerAsync_ReturnsMostRecentlyVisitedFirst()
+    {
+        var alice = Guid.NewGuid();
+        var pub = Guid.NewGuid();
+        var club = Guid.NewGuid();
+        Seed(
+            SungAt(alice, pub, Midnight.AddHours(20)),
+            SungAt(alice, club, Midnight.AddHours(22)));
+
+        var result = await _repository.ReadRecentVenueIdsBySingerAsync(alice, 5);
+
+        Assert.Equal([club, pub], result);
+    }
+
+    // A venue sung at repeatedly must occupy one slot, or it crowds the others out of the list.
+    [Fact]
+    public async Task ReadRecentVenueIdsBySingerAsync_ReturnsEachVenueOnce()
+    {
+        var alice = Guid.NewGuid();
+        var pub = Guid.NewGuid();
+        Seed(
+            SungAt(alice, pub, Midnight.AddHours(20)),
+            SungAt(alice, pub, Midnight.AddHours(21)),
+            SungAt(alice, pub, Midnight.AddHours(22)));
+
+        var result = await _repository.ReadRecentVenueIdsBySingerAsync(alice, 5);
+
+        Assert.Single(result);
+        Assert.Equal(pub, result[0]);
+    }
+
+    [Fact]
+    public async Task ReadRecentVenueIdsBySingerAsync_HonoursTheCount()
+    {
+        var alice = Guid.NewGuid();
+        var venues = Enumerable.Range(0, 4).Select(_ => Guid.NewGuid()).ToList();
+        Seed([.. venues.Select((v, i) => SungAt(alice, v, Midnight.AddHours(20 + i)))]);
+
+        var result = await _repository.ReadRecentVenueIdsBySingerAsync(alice, 2);
+
+        Assert.Equal(2, result.Count);
+        Assert.Equal([venues[3], venues[2]], result);
+    }
+
+    [Fact]
+    public async Task ReadRecentVenueIdsBySingerAsync_SkipsPerformancesWithNoVenue()
+    {
+        var alice = Guid.NewGuid();
+        var pub = Guid.NewGuid();
+        Seed(
+            Sung(alice, Midnight.AddHours(22)),
+            SungAt(alice, pub, Midnight.AddHours(20)));
+
+        var result = await _repository.ReadRecentVenueIdsBySingerAsync(alice, 5);
+
+        Assert.Equal([pub], result);
+    }
+
+    [Fact]
+    public async Task ReadRecentVenueIdsBySingerAsync_ExcludesOtherSingersVenues()
+    {
+        var alice = Guid.NewGuid();
+        var bob = Guid.NewGuid();
+        var pub = Guid.NewGuid();
+        var club = Guid.NewGuid();
+        Seed(
+            SungAt(alice, pub, Midnight.AddHours(20)),
+            SungAt(bob, club, Midnight.AddHours(22)));
+
+        var result = await _repository.ReadRecentVenueIdsBySingerAsync(alice, 5);
+
+        Assert.Equal([pub], result);
+    }
+
+    // Still queued means not yet sung, so the venue should not appear from a pending performance.
+    [Fact]
+    public async Task ReadRecentVenueIdsBySingerAsync_IgnoresStillQueuedPerformances()
+    {
+        var alice = Guid.NewGuid();
+        var pub = Guid.NewGuid();
+        Seed(new Performance
+        {
+            SingerId = alice,
+            MediaId = Guid.NewGuid(),
+            VenueId = pub,
+            CreatedDate = Midnight.AddHours(21),
+            QueuePosition = 0,
+        });
+
+        var result = await _repository.ReadRecentVenueIdsBySingerAsync(alice, 5);
 
         Assert.Empty(result);
     }

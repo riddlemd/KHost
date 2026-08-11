@@ -7,6 +7,8 @@
         <Icon Name="person-fill" /> Edit User
     </Header>
     <Body>
+        <div class="@(_rootClassName)__layout">
+        <div class="@(_rootClassName)__main">
         <EditForm EditContext="_editContext" OnSubmit="SaveAsync">
             <DataAnnotationsValidator />
 
@@ -46,6 +48,54 @@
 
             <button type="submit" class="kh-hidden"></button>
         </EditForm>
+        </div>
+
+        @if (_isExistingUser)
+        {
+            <aside class="@(_rootClassName)__stats">
+                <section class="@(_rootClassName)__stats-section">
+                    <span class="@(_rootClassName)__stats-title">Recent venues</span>
+                    @if (_recentVenues.Count == 0)
+                    {
+                        <span class="@(_rootClassName)__stats-empty">No venues recorded yet.</span>
+                    }
+                    else
+                    {
+                        <ul class="@(_rootClassName)__stats-list">
+                            @foreach (var venue in _recentVenues)
+                            {
+                                <li class="@(_rootClassName)__stats-item">
+                                    <span class="@(_rootClassName)__stats-primary">@venue.Name</span>
+                                </li>
+                            }
+                        </ul>
+                    }
+                </section>
+
+                <section class="@(_rootClassName)__stats-section">
+                    <span class="@(_rootClassName)__stats-title">Recent songs</span>
+                    @if (_recentSongs.Count == 0)
+                    {
+                        <span class="@(_rootClassName)__stats-empty">No songs sung yet.</span>
+                    }
+                    else
+                    {
+                        <ul class="@(_rootClassName)__stats-list">
+                            @foreach (var song in _recentSongs)
+                            {
+                                <li class="@(_rootClassName)__stats-item">
+                                    <span class="@(_rootClassName)__stats-primary">@song.Title</span>
+                                    <span class="@(_rootClassName)__stats-secondary">
+                                        @(string.IsNullOrWhiteSpace(song.Artist) ? song.SungOn.ToString("d MMM") : $"{song.Artist} · {song.SungOn:d MMM}")
+                                    </span>
+                                </li>
+                            }
+                        </ul>
+                    }
+                </section>
+            </aside>
+        }
+        </div>
     </Body>
     <Footer>
         <button class="@(_rootClassName)__cancel-btn kh-button kh-button--secondary" @onclick="CancelAsync">Cancel</button>
@@ -57,6 +107,10 @@
     private const string _rootClassName = "kh-user-edit-dialog";
 
     [Inject] private IUserGroupsService? UserGroupsService { get; set; }
+    [Inject] private IUsersService? UsersService { get; set; }
+    [Inject] private IPerformanceService? PerformanceService { get; set; }
+    [Inject] private IMediaService? MediaService { get; set; }
+    [Inject] private IVenuesService? VenuesService { get; set; }
 
     [Parameter] public bool IsOpen { get; set; }
     [Parameter] public KHostUser? User { get; set; }
@@ -70,6 +124,11 @@
     private EditContext _editContext = default!;
     private bool _prevIsOpen;
     private List<KHostUserGroup> _availableGroups = [];
+    private bool _isExistingUser;
+    private List<Venue> _recentVenues = [];
+    private List<RecentSong> _recentSongs = [];
+
+    private sealed record RecentSong(string Title, string Artist, DateTime SungOn);
 
     protected override void OnInitialized()
     {
@@ -93,8 +152,48 @@
             _editContext = new EditContext(_model);
 
             await LoadGroupsAsync();
+            await LoadStatsAsync();
         }
         _prevIsOpen = IsOpen;
+    }
+
+    private const int StatsCount = 5;
+
+    private async Task LoadStatsAsync()
+    {
+        _isExistingUser = false;
+        _recentVenues = [];
+        _recentSongs = [];
+
+        if (User is null || UsersService is null || PerformanceService is null) return;
+
+        // The add flow hands us an unsaved KHostUser, so identity alone cannot tell the two apart —
+        // only a round trip can, and stats would be empty for a user who does not exist yet.
+        if (await UsersService.ReadAsync(User.Id) is null) return;
+
+        _isExistingUser = true;
+
+        if (VenuesService is not null)
+        {
+            var venueIds = await PerformanceService.ReadRecentVenueIdsBySingerAsync(User.Id, StatsCount);
+            var venues = await Task.WhenAll(venueIds.Select(id => VenuesService.ReadAsync(id)));
+            _recentVenues = [.. venues.Where(v => v is not null).Cast<Venue>()];
+        }
+
+        if (MediaService is not null)
+        {
+            var performances = await PerformanceService.ReadBySingerIdAsync(
+                User.Id, pageNumber: 1, pageSize: StatsCount, PerformanceFilter.UnQueued);
+
+            var media = await Task.WhenAll(performances.Items.Select(p => MediaService.ReadAsync(p.MediaId)));
+
+            // A performance outlives the song being removed from the library, so the row stays and
+            // says so rather than vanishing from the singer's history.
+            _recentSongs = [.. performances.Items.Select((p, i) => new RecentSong(
+                media[i]?.Title ?? "Song no longer in library",
+                media[i]?.Artist ?? "",
+                p.CreatedDate))];
+        }
     }
 
     // pageSize 0 is not "unpaged" — it falls back to the repository default of 50 and would
