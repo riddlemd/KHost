@@ -21,6 +21,8 @@ public class EditVenueModel
     public bool MoveSingerToBottomAfterPerformance { get; set; } = true;
     public bool ShowEstimatedWaitTime { get; set; } = true;
     public bool TippingEnabled { get; set; } = true;
+    public bool WarnOnDuplicateSong { get; set; }
+    public int DuplicateSongWindowHours { get; set; } = 4;
     public bool PromptBeforeRemovingSinger { get; set; } = true;
     public bool PromptBeforeRemovingPerformance { get; set; } = true;
     public bool ClearQueueOnClose { get; set; } = true;

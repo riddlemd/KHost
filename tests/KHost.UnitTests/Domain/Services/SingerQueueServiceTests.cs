@@ -27,7 +27,7 @@ public class SingerQueueServiceTests : IDisposable
         _venuesService = Substitute.For<IVenuesService>();
 
         _performanceService.CreateAndEnqueueAsync(Arg.Any<Performance>())
-            .Returns(args => Task.FromResult((Performance)args[0]));
+            .Returns(args => Task.FromResult<Performance?>((Performance)args[0]));
 
         _usersService.ReadAsync(Arg.Any<Guid>())
             .Returns(args => { _userDb.TryGetValue((Guid)args[0], out var u); return Task.FromResult(u); });

@@ -1,5 +1,8 @@
+using KHost.Abstractions.Interactions;
+using KHost.Abstractions.Interactions.Requests;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Repositories;
+using KHost.Abstractions.Services;
 using KHost.Domain.Services;
 using Microsoft.Extensions.Logging;
 
@@ -10,6 +13,10 @@ public class PerformanceServiceTests
     private readonly List<Performance> _performanceDb = [];
     private readonly IPerformancesRepository _repository = Substitute.For<IPerformancesRepository>();
     private readonly ILogger<PerformanceService> _logger = Substitute.For<ILogger<PerformanceService>>();
+    private readonly IMediaService _mediaService = Substitute.For<IMediaService>();
+    private readonly IVenuesService _venuesService = Substitute.For<IVenuesService>();
+    private readonly IInteractionDispatcher _interactions = Substitute.For<IInteractionDispatcher>();
+    private readonly Venue _venue = new() { Name = "Test Venue" };
     private readonly PerformanceService _service;
 
     public PerformanceServiceTests()
@@ -93,7 +100,32 @@ public class PerformanceServiceTests
                 });
             });
 
-        _service = new PerformanceService(_logger, _repository);
+        _repository.ReadByMediaIdAsync(Arg.Any<Guid>(), Arg.Any<int>(), Arg.Any<int>(), Arg.Any<PerformanceFilter>())
+            .Returns(args =>
+            {
+                var mediaId = (Guid)args[0];
+                var filter = (PerformanceFilter)args[3];
+
+                var query = _performanceDb.Where(p => p.MediaId == mediaId);
+
+                if (filter.HasFlag(PerformanceFilter.Queued) && !filter.HasFlag(PerformanceFilter.UnQueued))
+                    query = query.Where(p => p.QueuePosition.HasValue);
+                else if (!filter.HasFlag(PerformanceFilter.Queued) && filter.HasFlag(PerformanceFilter.UnQueued))
+                    query = query.Where(p => !p.QueuePosition.HasValue);
+
+                var items = query.ToList();
+                return Task.FromResult(new PaginatedResult<Performance>
+                {
+                    Items = items,
+                    TotalCount = items.Count,
+                    PageNumber = 1,
+                    PageSize = 0
+                });
+            });
+
+        _venuesService.ReadSelectedVenueAsync().Returns(_venue);
+
+        _service = new PerformanceService(_logger, _repository, _mediaService, _venuesService, _interactions);
     }
 
     [Fact]
@@ -111,7 +143,8 @@ public class PerformanceServiceTests
         var singerId = Guid.NewGuid();
         var mediaId = Guid.NewGuid();
 
-        var performance = await _service.CreateAndEnqueueAsync(new Performance { Id = Guid.NewGuid(), SingerId = singerId, MediaId = mediaId });
+        var performance = Assert.IsType<Performance>(
+            await _service.CreateAndEnqueueAsync(new Performance { Id = Guid.NewGuid(), SingerId = singerId, MediaId = mediaId }));
 
         var queued = await _service.ReadBySingerIdAsync(singerId, filter: PerformanceFilter.Queued);
         Assert.Single(queued.Items);
@@ -136,8 +169,8 @@ public class PerformanceServiceTests
     public async Task DequeueAsync_RemovesMedia()
     {
         var singerId = Guid.NewGuid();
-        var perf1 = await _service.CreateAndEnqueueAsync(new Performance { Id = Guid.NewGuid(), SingerId = singerId, MediaId = Guid.NewGuid() });
-        var perf2 = await _service.CreateAndEnqueueAsync(new Performance { Id = Guid.NewGuid(), SingerId = singerId, MediaId = Guid.NewGuid() });
+        var perf1 = await EnqueueForAsync(singerId);
+        var perf2 = await EnqueueForAsync(singerId);
 
         await _service.DequeueAsync(singerId, perf1.Id);
 
@@ -150,8 +183,8 @@ public class PerformanceServiceTests
     public async Task MoveUpInQueueAsync_SwapsWithPrevious()
     {
         var singerId = Guid.NewGuid();
-        var perf1 = await _service.CreateAndEnqueueAsync(new Performance { Id = Guid.NewGuid(), SingerId = singerId, MediaId = Guid.NewGuid() });
-        var perf2 = await _service.CreateAndEnqueueAsync(new Performance { Id = Guid.NewGuid(), SingerId = singerId, MediaId = Guid.NewGuid() });
+        var perf1 = await EnqueueForAsync(singerId);
+        var perf2 = await EnqueueForAsync(singerId);
 
         await _service.MoveUpInQueueAsync(singerId, perf2.Id);
 
@@ -164,8 +197,8 @@ public class PerformanceServiceTests
     public async Task MoveDownInQueueAsync_SwapsWithNext()
     {
         var singerId = Guid.NewGuid();
-        var perf1 = await _service.CreateAndEnqueueAsync(new Performance { Id = Guid.NewGuid(), SingerId = singerId, MediaId = Guid.NewGuid() });
-        var perf2 = await _service.CreateAndEnqueueAsync(new Performance { Id = Guid.NewGuid(), SingerId = singerId, MediaId = Guid.NewGuid() });
+        var perf1 = await EnqueueForAsync(singerId);
+        var perf2 = await EnqueueForAsync(singerId);
 
         await _service.MoveDownInQueueAsync(singerId, perf1.Id);
 
@@ -178,9 +211,9 @@ public class PerformanceServiceTests
     public async Task MoveToEndOfQueueAsync_MovesToEnd()
     {
         var singerId = Guid.NewGuid();
-        var perf1 = await _service.CreateAndEnqueueAsync(new Performance { Id = Guid.NewGuid(), SingerId = singerId, MediaId = Guid.NewGuid() });
-        var perf2 = await _service.CreateAndEnqueueAsync(new Performance { Id = Guid.NewGuid(), SingerId = singerId, MediaId = Guid.NewGuid() });
-        var perf3 = await _service.CreateAndEnqueueAsync(new Performance { Id = Guid.NewGuid(), SingerId = singerId, MediaId = Guid.NewGuid() });
+        var perf1 = await EnqueueForAsync(singerId);
+        var perf2 = await EnqueueForAsync(singerId);
+        var perf3 = await EnqueueForAsync(singerId);
 
         await _service.MoveToEndOfQueueAsync(singerId, perf1.Id);
 
@@ -199,4 +232,104 @@ public class PerformanceServiceTests
 
         await _repository.Received(1).DeleteAllQueuedAsync();
     }
+
+    [Fact]
+    public async Task CreateAndEnqueueAsync_DoesNotWarn_WhenVenueHasWarningDisabled()
+    {
+        var singerId = Guid.NewGuid();
+        var mediaId = Guid.NewGuid();
+        await EnqueueMediaAsync(singerId, mediaId);
+
+        await EnqueueMediaAsync(Guid.NewGuid(), mediaId);
+
+        await _interactions.DidNotReceive().RequestAsync(Arg.Any<ConfirmDuplicateSongRequest>());
+    }
+
+    [Fact]
+    public async Task CreateAndEnqueueAsync_Warns_WhenSongIsAlreadyQueued()
+    {
+        _venue.Settings.WarnOnDuplicateSong = true;
+        var mediaId = Guid.NewGuid();
+        await EnqueueMediaAsync(Guid.NewGuid(), mediaId);
+
+        await EnqueueMediaAsync(Guid.NewGuid(), mediaId);
+
+        await _interactions.Received(1).RequestAsync(
+            Arg.Is<ConfirmDuplicateSongRequest>(r => r.TimesAlreadyQueued == 1 && r.SungWithinHours == null));
+    }
+
+    [Fact]
+    public async Task CreateAndEnqueueAsync_DoesNotWarn_WhenSongIsNotADuplicate()
+    {
+        _venue.Settings.WarnOnDuplicateSong = true;
+
+        await EnqueueMediaAsync(Guid.NewGuid(), Guid.NewGuid());
+
+        await _interactions.DidNotReceive().RequestAsync(Arg.Any<ConfirmDuplicateSongRequest>());
+    }
+
+    [Fact]
+    public async Task CreateAndEnqueueAsync_ReturnsNullAndQueuesNothing_WhenWarningDeclined()
+    {
+        _venue.Settings.WarnOnDuplicateSong = true;
+        var mediaId = Guid.NewGuid();
+        var singerId = Guid.NewGuid();
+        await EnqueueMediaAsync(singerId, mediaId);
+
+        _interactions.RequestAsync(Arg.Any<ConfirmDuplicateSongRequest>()).Returns(false);
+        var declined = await EnqueueMediaAsync(singerId, mediaId);
+
+        Assert.Null(declined);
+        Assert.Single((await _service.ReadBySingerIdAsync(singerId, filter: PerformanceFilter.Queued)).Items);
+    }
+
+    [Fact]
+    public async Task CreateAndEnqueueAsync_Warns_WhenSongWasSungInsideTheWindow()
+    {
+        _venue.Settings.WarnOnDuplicateSong = true;
+        _venue.Settings.DuplicateSongWindowHours = 4;
+        var mediaId = Guid.NewGuid();
+
+        _performanceDb.Add(new Performance
+        {
+            Id = Guid.NewGuid(),
+            SingerId = Guid.NewGuid(),
+            MediaId = mediaId,
+            QueuePosition = null,
+            CreatedDate = DateTime.Now.AddHours(-2)
+        });
+
+        await EnqueueMediaAsync(Guid.NewGuid(), mediaId);
+
+        await _interactions.Received(1).RequestAsync(
+            Arg.Is<ConfirmDuplicateSongRequest>(r => r.SungWithinHours == 2));
+    }
+
+    [Fact]
+    public async Task CreateAndEnqueueAsync_DoesNotWarn_WhenSongWasSungOutsideTheWindow()
+    {
+        _venue.Settings.WarnOnDuplicateSong = true;
+        _venue.Settings.DuplicateSongWindowHours = 4;
+        var mediaId = Guid.NewGuid();
+
+        _performanceDb.Add(new Performance
+        {
+            Id = Guid.NewGuid(),
+            SingerId = Guid.NewGuid(),
+            MediaId = mediaId,
+            QueuePosition = null,
+            CreatedDate = DateTime.Now.AddHours(-9)
+        });
+
+        await EnqueueMediaAsync(Guid.NewGuid(), mediaId);
+
+        await _interactions.DidNotReceive().RequestAsync(Arg.Any<ConfirmDuplicateSongRequest>());
+    }
+
+    private async Task<Performance> EnqueueForAsync(Guid singerId)
+        => Assert.IsType<Performance>(await EnqueueMediaAsync(singerId, Guid.NewGuid()));
+
+    private async Task<Performance?> EnqueueMediaAsync(Guid singerId, Guid mediaId)
+        => await _service.CreateAndEnqueueAsync(
+            new Performance { Id = Guid.NewGuid(), SingerId = singerId, MediaId = mediaId });
 }

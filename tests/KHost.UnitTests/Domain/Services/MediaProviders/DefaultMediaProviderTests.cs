@@ -49,7 +49,7 @@ public class DefaultMediaProviderTests
             });
 
         _performanceService.CreateAndEnqueueAsync(Arg.Any<Performance>())
-            .Returns(args => Task.FromResult((Performance)args[0]));
+            .Returns(args => Task.FromResult<Performance?>((Performance)args[0]));
 
         _service = new DefaultMediaProvider(_logger, _performanceService, _singerQueueService, _repository, _interactions, _mediaService);
     }

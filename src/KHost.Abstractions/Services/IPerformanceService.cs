@@ -12,7 +12,8 @@ public interface IPerformanceService : IRepositoryService<Performance>
     Task<Performance?> ReadSingersNextPerformanceAsync(Guid singerId);
     Task<List<Performance>> ReadQueuedAsync();
 
-    Task<Performance> CreateAndEnqueueAsync(Performance performance);
+    /// <summary>Null when the venue's duplicate-song warning was shown and declined.</summary>
+    Task<Performance?> CreateAndEnqueueAsync(Performance performance);
     Task DequeueAsync(Guid singerId, Guid performanceId);
     Task MoveUpInQueueAsync(Guid singerId, Guid performanceId);
     Task MoveDownInQueueAsync(Guid singerId, Guid performanceId);

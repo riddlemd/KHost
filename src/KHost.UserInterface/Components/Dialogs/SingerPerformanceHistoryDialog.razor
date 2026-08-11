@@ -166,13 +166,15 @@
         if (PerformanceService is null)
             return;
 
-        await PerformanceService.CreateAndEnqueueAsync(new Performance
+        var enqueued = await PerformanceService.CreateAndEnqueueAsync(new Performance
         {
             SingerId = UserId,
             MediaId = media.Id
         });
 
-        await CloseAsync();
+        // Stay open when the duplicate warning was declined, so the choice isn't lost.
+        if (enqueued is not null)
+            await CloseAsync();
     }
 
     private async Task EditAsync(Media media)
