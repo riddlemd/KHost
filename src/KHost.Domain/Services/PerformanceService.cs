@@ -1,3 +1,5 @@
+using KHost.Abstractions.Interactions;
+using KHost.Abstractions.Interactions.Requests;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Repositories;
 using KHost.Abstractions.Services;
@@ -7,10 +9,21 @@ namespace KHost.Domain.Services;
 
 public class PerformanceService : BaseRepositoryService<Performance, IPerformancesRepository>, IPerformanceService
 {
-    public PerformanceService(ILogger<PerformanceService> logger, IPerformancesRepository repository)
+    private readonly IMediaService _mediaService;
+    private readonly IVenuesService _venuesService;
+    private readonly IInteractionDispatcher _interactions;
+
+    public PerformanceService(
+        ILogger<PerformanceService> logger,
+        IPerformancesRepository repository,
+        IMediaService mediaService,
+        IVenuesService venuesService,
+        IInteractionDispatcher interactions)
         : base(logger, repository)
     {
-        //
+        _mediaService = mediaService;
+        _venuesService = venuesService;
+        _interactions = interactions;
     }
 
     public async Task<PaginatedResult<Performance>> ReadBySingerIdAsync(Guid singerId, int pageNumber = 1, int pageSize = 0, PerformanceFilter filter = PerformanceFilter.All)
@@ -28,8 +41,14 @@ public class PerformanceService : BaseRepositoryService<Performance, IPerformanc
     public async Task<PaginatedResult<Performance>> ReadAllAsync(int pageNumber = 1, int pageSize = 0, PerformanceFilter filter = PerformanceFilter.All)
         => await Repository.ReadAllAsync(pageNumber, pageSize, filter);
 
-    public async Task<Performance> CreateAndEnqueueAsync(Performance performance)
+    public async Task<Performance?> CreateAndEnqueueAsync(Performance performance)
     {
+        if (!await ConfirmNotADuplicateAsync(performance.MediaId))
+        {
+            Logger.LogInformation("Enqueue of media {MediaId} declined at the duplicate warning", performance.MediaId);
+            return null;
+        }
+
         var nextPosition = await Repository.ReadNextQueuePositionForSingerAsync(performance.SingerId);
 
         performance.QueuePosition = nextPosition;
@@ -41,6 +60,45 @@ public class PerformanceService : BaseRepositoryService<Performance, IPerformanc
         InvokeStateChanged();
 
         return performance;
+    }
+
+    private async Task<bool> ConfirmNotADuplicateAsync(Guid mediaId)
+    {
+        var settings = (await _venuesService.ReadSelectedVenueAsync())?.Settings;
+
+        if (settings?.WarnOnDuplicateSong != true)
+            return true;
+
+        var timesQueued = (await ReadQueuedAsync()).Count(p => p.MediaId == mediaId);
+        var sungWithinHours = await GetHoursSinceLastSungAsync(mediaId, settings.DuplicateSongWindowHours);
+
+        if (timesQueued == 0 && sungWithinHours is null)
+            return true;
+
+        var title = (await _mediaService.ReadAsync(mediaId))?.Title ?? "This song";
+
+        return await _interactions.RequestAsync(new ConfirmDuplicateSongRequest(title, timesQueued, sungWithinHours));
+    }
+
+    // Performance only records when it was queued, not when it was sung, so this is the closest
+    // signal available without adding a column.
+    private async Task<int?> GetHoursSinceLastSungAsync(Guid mediaId, int windowHours)
+    {
+        if (windowHours <= 0)
+            return null;
+
+        var sung = await ReadByMediaIdAsync(mediaId, filter: PerformanceFilter.UnQueued);
+
+        var mostRecent = sung.Items.Select(p => p.CreatedDate).DefaultIfEmpty().Max();
+
+        if (mostRecent == default)
+            return null;
+
+        var elapsed = DateTime.Now - mostRecent;
+
+        return elapsed <= TimeSpan.FromHours(windowHours)
+            ? (int)Math.Floor(Math.Max(elapsed.TotalHours, 0))
+            : null;
     }
 
     public async Task DequeueAsync(Guid singerId, Guid performanceId)

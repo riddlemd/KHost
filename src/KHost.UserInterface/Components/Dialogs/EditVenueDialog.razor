@@ -53,6 +53,22 @@
                     <span class="kh-form-check-label">Show estimated wait time in the singer queue</span>
                     <InputCheckbox class="kh-form-check-input" @bind-Value="_model.ShowEstimatedWaitTime" />
                 </label>
+                <label class="kh-venue-settings__row kh-form-check">
+                    <span class="kh-form-check-label">Warn when queueing a song already queued or recently sung</span>
+                    <InputCheckbox class="kh-form-check-input" @bind-Value="_model.WarnOnDuplicateSong" />
+                </label>
+                @if (_model.WarnOnDuplicateSong)
+                {
+                    <div class="kh-venue-settings__row">
+                        <label for="duplicate-window" class="kh-form-label">Consider a song recently sung within</label>
+                        <InputSelect id="duplicate-window" class="kh-form-select" @bind-Value="_model.DuplicateSongWindowHours">
+                            @foreach (var hours in DuplicateWindowOptions)
+                            {
+                                <option value="@hours">@hours @(hours == 1 ? "hour" : "hours")</option>
+                            }
+                        </InputSelect>
+                    </div>
+                }
             </div>
 
             <div class="kh-venue-settings__section">
@@ -104,6 +120,8 @@
 @code {
     private const string _rootClassName = "kh-venue-edit-dialog";
 
+    private static readonly int[] DuplicateWindowOptions = [1, 2, 4, 8, 12];
+
     [Parameter] public bool IsOpen { get; set; }
     [Parameter] public Venue? Venue { get; set; }
     [Parameter] public string Class { get; set; } = "";
@@ -141,6 +159,11 @@
                     MoveSingerToBottomAfterPerformance = Venue.Settings.MoveSingerToBottomAfterPerformance,
                     ShowEstimatedWaitTime = Venue.Settings.ShowEstimatedWaitTime,
                     TippingEnabled = Venue.Settings.TippingEnabled,
+                    WarnOnDuplicateSong = Venue.Settings.WarnOnDuplicateSong,
+                    // Venues saved before this setting existed read back 0, which is not an option.
+                    DuplicateSongWindowHours = DuplicateWindowOptions.Contains(Venue.Settings.DuplicateSongWindowHours)
+                        ? Venue.Settings.DuplicateSongWindowHours
+                        : 4,
                     PromptBeforeRemovingSinger = Venue.Settings.PromptBeforeRemovingSinger,
                     PromptBeforeRemovingPerformance = Venue.Settings.PromptBeforeRemovingPerformance,
                     ClearQueueOnClose = Venue.Settings.ClearQueueOnClose,
@@ -167,6 +190,8 @@
         venue.Settings.MoveSingerToBottomAfterPerformance = _model.MoveSingerToBottomAfterPerformance;
         venue.Settings.ShowEstimatedWaitTime = _model.ShowEstimatedWaitTime;
         venue.Settings.TippingEnabled = _model.TippingEnabled;
+        venue.Settings.WarnOnDuplicateSong = _model.WarnOnDuplicateSong;
+        venue.Settings.DuplicateSongWindowHours = _model.DuplicateSongWindowHours;
         venue.Settings.PromptBeforeRemovingSinger = _model.PromptBeforeRemovingSinger;
         venue.Settings.PromptBeforeRemovingPerformance = _model.PromptBeforeRemovingPerformance;
         venue.Settings.ClearQueueOnClose = _model.ClearQueueOnClose;

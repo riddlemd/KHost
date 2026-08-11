@@ -67,6 +67,7 @@ builder.Services.AddSingleton<IStartupRedirectProvider, CliStartupRedirectProvid
 builder.Services.AddSingleton<IInteractionDispatcher, DialogInteractionDispatcher>();
 builder.Services.AddSingleton<IInteractionHandler<EditMediaRequest, Media?>, EditMediaDialogHandler>();
 builder.Services.AddSingleton<IInteractionHandler<ShowLyricsRequest>, ShowLyricsDialogHandler>();
+builder.Services.AddSingleton<IInteractionHandler<ConfirmDuplicateSongRequest, bool>, ConfirmDuplicateSongHandler>();
 
 var app = builder.Build();
 
