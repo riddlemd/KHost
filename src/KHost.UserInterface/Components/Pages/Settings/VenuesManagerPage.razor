@@ -64,6 +64,9 @@
                                         <button class="kh-venues-manager__edit-btn kh-button--icon-minimal" @onclick="() => OpenEditDialogAsync(venue)" type="button">
                                             <Icon Name="pencil" />
                                         </button>
+                                        <button class="kh-venues-manager__clone-btn kh-button--icon-minimal" title="Clone this venue" @onclick="() => CloneAsync(venue)" type="button">
+                                            <Icon Name="copy" />
+                                        </button>
                                         <button class="kh-venues-manager__delete-btn kh-button--icon-minimal" @onclick="@(async () => await StartDeleteAsync(venue))" type="button">
                                             <Icon Name="trash" />
                                         </button>
@@ -89,6 +92,8 @@
     [Inject] private IDialogService? DialogService { get; set; }
 
     private const int PageSize = 10;
+    // Mirrors EditVenueModel's [MaxLength] so a generated name can't fail validation later.
+    private const int NameMaxLength = 32;
     private int _currentPage = 1;
     private string _searchQuery = "";
     private string? _sortColumn;
@@ -137,6 +142,38 @@
     private async Task OpenEditDialogAsync(Venue venue)
     {
         await DialogService!.RequestEditAsync(venue, async updated => await SaveAsync(updated));
+    }
+
+    private async Task CloneAsync(Venue venue)
+    {
+        if (VenuesService is null) return;
+
+        var taken = (await VenuesService.ReadAllAsync(pageSize: 1000)).Items
+            .Select(v => v.Name)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        await VenuesService.CreateAsync(venue.CloneAs(BuildCopyName(venue.Name, taken)));
+    }
+
+    private static string BuildCopyName(string baseName, HashSet<string> taken)
+    {
+        for (var attempt = 1; attempt <= 1000; attempt++)
+        {
+            var suffix = attempt == 1 ? " (copy)" : $" (copy {attempt})";
+
+            // Trim the stem, not the suffix — an over-length name fails the editor's validation
+            // the moment someone opens the clone.
+            var stem = baseName.Length + suffix.Length > NameMaxLength
+                ? baseName[..Math.Max(0, NameMaxLength - suffix.Length)].TrimEnd()
+                : baseName;
+
+            var candidate = stem + suffix;
+
+            if (!taken.Contains(candidate))
+                return candidate;
+        }
+
+        return $"{Guid.NewGuid()}"[..NameMaxLength];
     }
 
     private async Task SaveAsync(Venue? venue)

@@ -4,6 +4,7 @@
 
 .kh-venues-manager {
     &__edit-btn,
+    &__clone-btn,
     &__delete-btn {
         & + & {
             margin-left: 4px;
