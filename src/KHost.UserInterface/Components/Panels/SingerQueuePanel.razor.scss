@@ -76,6 +76,9 @@
             &__info {
                 font-size: 0.9rem;
                 color: var(--kh-text-muted);
+                // Stacked rather than inline — the two together wrap mid-phrase at this width.
+                display: flex;
+                flex-direction: column;
             }
         }
     }
