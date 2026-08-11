@@ -22,7 +22,37 @@
                 <ValidationMessage For="() => _model.Notes" />
             </div>
 
-            @* Group selection placeholder — will be replaced with full group CRUD *@
+            <div>
+                <label class="kh-form-label">Groups</label>
+                @if (_availableGroups.Count == 0)
+                {
+                    <div class="@(_rootClassName)__groups-empty">No groups defined yet.</div>
+                }
+                else
+                {
+                    <div class="@(_rootClassName)__group-chips">
+                        @foreach (var group in _availableGroups.Where(g => _model.SelectedGroupIds.Contains(g.Id)))
+                        {
+                            <span class="kh-badge kh-badge--secondary">@group.Name</span>
+                        }
+                        @if (_model.SelectedGroupIds.Count == 0)
+                        {
+                            <span class="@(_rootClassName)__groups-empty">No groups selected.</span>
+                        }
+                    </div>
+                    <div class="@(_rootClassName)__groups">
+                        @foreach (var group in _availableGroups)
+                        {
+                            <label class="@(_rootClassName)__group">
+                                <input type="checkbox" checked="@_model.SelectedGroupIds.Contains(group.Id)"
+                                       @onchange="e => ToggleGroup(group.Id, (bool)(e.Value ?? false))" />
+                                <span class="@(_rootClassName)__group-name">@group.Name</span>
+                                <span class="@(_rootClassName)__group-description">@group.Description</span>
+                            </label>
+                        }
+                    </div>
+                }
+            </div>
 
             <button type="submit" class="kh-hidden"></button>
         </EditForm>
@@ -36,6 +66,8 @@
 @code {
     private const string _rootClassName = "kh-user-edit-dialog";
 
+    [Inject] private IUserGroupsService? UserGroupsService { get; set; }
+
     [Parameter] public bool IsOpen { get; set; }
     [Parameter] public KHostUser? User { get; set; }
     [Parameter] public bool CloseOnScrimClick { get; set; }
@@ -47,13 +79,14 @@
     private EditUserModel _model = new();
     private EditContext _editContext = default!;
     private bool _prevIsOpen;
+    private List<KHostUserGroup> _availableGroups = [];
 
     protected override void OnInitialized()
     {
         _editContext = new EditContext(_model);
     }
 
-    protected override void OnParametersSet()
+    protected override async Task OnParametersSetAsync()
     {
         if (IsOpen && !_prevIsOpen)
         {
@@ -68,8 +101,35 @@
                     };
 
             _editContext = new EditContext(_model);
+
+            await LoadGroupsAsync();
         }
         _prevIsOpen = IsOpen;
+    }
+
+    // There is no unpaged read — pageSize 0 falls back to the repository default of 50, which
+    // would silently hide groups from the picker. Ask for the repository's max page size instead.
+    private const int GroupPageSize = 1000;
+
+    private async Task LoadGroupsAsync()
+    {
+        if (UserGroupsService is null) return;
+
+        var result = await UserGroupsService.ReadAllAsync(1, GroupPageSize);
+        _availableGroups = [.. result.Items];
+    }
+
+    private void ToggleGroup(Guid groupId, bool selected)
+    {
+        if (selected)
+        {
+            if (!_model.SelectedGroupIds.Contains(groupId))
+                _model.SelectedGroupIds.Add(groupId);
+        }
+        else
+        {
+            _model.SelectedGroupIds.Remove(groupId);
+        }
     }
 
     public async Task CloseAsync()
@@ -93,6 +153,7 @@
         var user = User ?? new KHostUser { Id = _model.Id, Name = _model.Name };
         user.Name = _model.Name;
         user.Notes = _model.Notes;
+        user.Groups = [.. _availableGroups.Where(g => _model.SelectedGroupIds.Contains(g.Id))];
 
         await OnSave.InvokeAsync(user);
 
