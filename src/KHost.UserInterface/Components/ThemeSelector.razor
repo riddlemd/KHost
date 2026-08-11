@@ -3,14 +3,26 @@
 
 <span class="kh-theme-selector input">
     Theme
-    <select class="kh-form-select" @onchange="OnThemeChanged">
-        @foreach (var theme in ThemeService?.AvailableThemes ?? [])
-        {
-            <option value="@theme" selected="@(ThemeService?.CurrentTheme == theme)">
-                @(char.ToUpper(theme[0]) + theme[1..])
-            </option>
-        }
-    </select>
+    <DropdownMenu Class="kh-theme-selector__dropdown" Title="Change the app theme">
+        <Trigger>@DisplayName(ThemeService?.CurrentTheme)</Trigger>
+        <Items>
+            @foreach (var theme in ThemeService?.AvailableThemes ?? [])
+            {
+                var isCurrent = ThemeService?.CurrentTheme == theme;
+
+                <button class="kh-dropdown__item @(isCurrent ? "kh-dropdown__item--selected" : "")"
+                        @onclick="() => SetThemeAsync(theme)">
+                    <span class="kh-dropdown__check">
+                        @if (isCurrent)
+                        {
+                            <Icon Name="check2" />
+                        }
+                    </span>
+                    @DisplayName(theme)
+                </button>
+            }
+        </Items>
+    </DropdownMenu>
 </span>
 
 @code {
@@ -21,12 +33,14 @@
         ThemeService?.StateChanged += OnStateChanged;
     }
 
-    private async Task OnThemeChanged(ChangeEventArgs e)
+    private async Task SetThemeAsync(string theme)
     {
-        if (ThemeService is null) return;
-        if (e.Value is string theme)
+        if (ThemeService is not null)
             await ThemeService.SetThemeAsync(theme);
     }
+
+    private static string DisplayName(string? theme)
+        => string.IsNullOrEmpty(theme) ? "" : char.ToUpper(theme[0]) + theme[1..];
 
     private async void OnStateChanged(object? sender, EventArgs e)
     {
