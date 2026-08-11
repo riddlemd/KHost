@@ -26,17 +26,23 @@ public class UsersService : BaseRepositoryService<KHostUser, IUsersRepository>, 
     // Groups is detached before saving: BaseRepository uses Add/Update, which cascade the whole
     // graph, so attached KHostUserGroups would be re-inserted or rewritten. Membership goes
     // through the join table instead, and the collection is restored for the caller afterwards.
+    //
+    // These go to the repository directly rather than through base: the base overloads raise
+    // StateChanged as soon as the user row lands, so subscribers would re-query and render the
+    // old membership. StateChanged is raised here once the join table is settled.
     public override async Task<KHostUser> CreateAsync(KHostUser entity)
     {
         var groups = entity.Groups.ToArray();
 
         entity.Groups = [];
-        var saved = await base.CreateAsync(entity);
+        var saved = await Repository.CreateAsync(entity);
 
         foreach (var group in groups)
             await _userGroupsRepository.AddUserToGroupAsync(saved.Id, group.Id);
 
         saved.Groups = groups;
+
+        InvokeStateChanged();
         return saved;
     }
 
@@ -47,7 +53,7 @@ public class UsersService : BaseRepositoryService<KHostUser, IUsersRepository>, 
         var currentGroupIds = (await Repository.ReadAsync(entity.Id))?.Groups.Select(g => g.Id).ToHashSet() ?? [];
 
         entity.Groups = [];
-        await base.UpdateAsync(entity);
+        await Repository.UpdateAsync(entity);
         entity.Groups = groups;
 
         foreach (var groupId in desiredGroupIds.Except(currentGroupIds))
@@ -55,6 +61,8 @@ public class UsersService : BaseRepositoryService<KHostUser, IUsersRepository>, 
 
         foreach (var groupId in currentGroupIds.Except(desiredGroupIds))
             await _userGroupsRepository.RemoveUserFromGroupAsync(entity.Id, groupId);
+
+        InvokeStateChanged();
     }
 
     public async Task<bool> HasAdminUserAsync()
