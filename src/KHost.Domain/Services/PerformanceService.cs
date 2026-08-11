@@ -52,6 +52,9 @@ public class PerformanceService : BaseRepositoryService<Performance, IPerformanc
         var nextPosition = await Repository.ReadNextQueuePositionForSingerAsync(performance.SingerId);
 
         performance.QueuePosition = nextPosition;
+        // Stamped at enqueue: the performance belongs to the venue it was sung at, so it must not
+        // follow the host to whatever venue is selected when the history is read back.
+        performance.VenueId ??= _venuesService.SelectedVenueId;
 
         await Repository.CreateAsync(performance);
 

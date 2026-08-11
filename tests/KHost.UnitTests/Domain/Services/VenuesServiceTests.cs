@@ -355,14 +355,31 @@ public class VenuesServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task DeleteAsync_ReselectsAnotherVenue_WhenTheSelectedOneIsRemoved()
+    public async Task DeleteAsync_RefusesToRemoveTheSelectedVenue()
+    {
+        var first = await _service.CreateAsync(new Venue { Name = "The Pub", Notes = "", Enabled = true });
+        await _service.CreateAsync(new Venue { Name = "The Club", Notes = "", Enabled = true });
+        await _service.SelectVenueAsync(first.Id);
+
+        var deleted = await _service.DeleteAsync(first.Id);
+
+        Assert.False(deleted);
+        Assert.Equal(first.Id, _service.SelectedVenueId);
+        var result = await _service.ReadAllAsync();
+        Assert.Contains(result.Items, v => v.Id == first.Id);
+    }
+
+    [Fact]
+    public async Task DeleteAsync_RemovesTheVenueOnceTheHostSwitchesAway()
     {
         var first = await _service.CreateAsync(new Venue { Name = "The Pub", Notes = "", Enabled = true });
         var second = await _service.CreateAsync(new Venue { Name = "The Club", Notes = "", Enabled = true });
         await _service.SelectVenueAsync(first.Id);
+        await _service.SelectVenueAsync(second.Id);
 
-        await _service.DeleteAsync(first.Id);
+        var deleted = await _service.DeleteAsync(first.Id);
 
+        Assert.True(deleted);
         Assert.Equal(second.Id, _service.SelectedVenueId);
     }
 
