@@ -54,6 +54,11 @@
         {
             <aside class="@(_rootClassName)__stats">
                 <section class="@(_rootClassName)__stats-section">
+                    <span class="@(_rootClassName)__stats-title">Total tips</span>
+                    <span class="@(_rootClassName)__stats-figure">$@_totalTips.ToString("F2")</span>
+                </section>
+
+                <section class="@(_rootClassName)__stats-section">
                     <span class="@(_rootClassName)__stats-title">Recent venues</span>
                     @if (_recentVenues.Count == 0)
                     {
@@ -111,6 +116,7 @@
     [Inject] private IPerformanceService? PerformanceService { get; set; }
     [Inject] private IMediaService? MediaService { get; set; }
     [Inject] private IVenuesService? VenuesService { get; set; }
+    [Inject] private ITipsService? TipsService { get; set; }
 
     [Parameter] public bool IsOpen { get; set; }
     [Parameter] public KHostUser? User { get; set; }
@@ -125,6 +131,7 @@
     private bool _prevIsOpen;
     private List<KHostUserGroup> _availableGroups = [];
     private bool _isExistingUser;
+    private decimal _totalTips;
     private List<Venue> _recentVenues = [];
     private List<RecentSong> _recentSongs = [];
 
@@ -162,6 +169,7 @@
     private async Task LoadStatsAsync()
     {
         _isExistingUser = false;
+        _totalTips = 0;
         _recentVenues = [];
         _recentSongs = [];
 
@@ -172,6 +180,9 @@
         if (await UsersService.ReadAsync(User.Id) is null) return;
 
         _isExistingUser = true;
+
+        if (TipsService is not null)
+            _totalTips = await TipsService.GetTotalByUserIdAsync(User.Id);
 
         if (VenuesService is not null)
         {

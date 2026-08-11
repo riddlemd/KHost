@@ -38,6 +38,14 @@
         margin-bottom: 0.5em;
     }
 
+    &__stats-figure {
+        display: block;
+        color: var(--kh-text);
+        font-size: 1.35rem;
+        font-weight: 600;
+        line-height: 1.1;
+    }
+
     &__stats-empty {
         color: var(--kh-text-muted);
         font-size: 0.85rem;
