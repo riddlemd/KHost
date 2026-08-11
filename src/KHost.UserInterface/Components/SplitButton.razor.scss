@@ -38,7 +38,9 @@
         box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
         animation: kh-split-btn-open 0.1s ease-out;
 
-        button {
+        // Items are supplied by the consumer, so they carry ITS scope id, not ours. Without
+        // ::deep the scope attribute lands on the button and the rule can never match.
+        ::deep button {
             display: block;
             width: 100%;
             // Menu rows are list items, not controls — opt out of the fixed control height.
