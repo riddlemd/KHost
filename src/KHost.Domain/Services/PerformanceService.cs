@@ -26,8 +26,8 @@ public class PerformanceService : BaseRepositoryService<Performance, IPerformanc
         _interactions = interactions;
     }
 
-    public async Task<PaginatedResult<Performance>> ReadBySingerIdAsync(Guid singerId, int pageNumber = 1, int pageSize = 0, PerformanceFilter filter = PerformanceFilter.All)
-        => await Repository.ReadBySingerIdAsync(singerId, pageNumber, pageSize, filter);
+    public async Task<PaginatedResult<Performance>> ReadBySingerIdAsync(Guid singerId, int pageNumber = 1, int pageSize = 0, PerformanceFilter filter = PerformanceFilter.All, DateTime? startDate = null)
+        => await Repository.ReadBySingerIdAsync(singerId, pageNumber, pageSize, filter, startDate);
 
     public async Task<PaginatedResult<Performance>> ReadByMediaIdAsync(Guid mediaId, int pageNumber = 1, int pageSize = 0, PerformanceFilter filter = PerformanceFilter.All)
         => await Repository.ReadByMediaIdAsync(mediaId, pageNumber, pageSize, filter);

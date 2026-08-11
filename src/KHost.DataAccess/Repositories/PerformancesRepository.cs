@@ -65,12 +65,15 @@ internal class PerformancesRepository : BaseRepository<Performance>, IPerformanc
         return PaginationComponent.BuildResult(items, totalCount, pageNumber, pageSize);
     }
 
-    public async Task<PaginatedResult<Performance>> ReadBySingerIdAsync(Guid singerId, int pageNumber = 1, int pageSize = 0, PerformanceFilter filter = PerformanceFilter.All)
+    public async Task<PaginatedResult<Performance>> ReadBySingerIdAsync(Guid singerId, int pageNumber = 1, int pageSize = 0, PerformanceFilter filter = PerformanceFilter.All, DateTime? startDate = null)
     {
         using var context = await ContextFactory.CreateDbContextAsync();
 
         var query = context.Set<Performance>()
             .Where(p => p.SingerId == singerId);
+
+        if (startDate is { } from)
+            query = query.Where(p => p.CreatedDate >= from);
 
         query = ApplyFilter(query, filter);
 

@@ -47,6 +47,7 @@ builder.AddServiceDefaults();
 
 builder.Services.AddTelemetry();
 builder.Services.AddDomain();
+builder.Services.AddPlugins();
 builder.Services.AddDataAccess();
 builder.Services.AddSignalRIPCServer();
 

@@ -1,0 +1,13 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   Queue Rotation Settings Editor
+   Layout comes from the shared kh-venue-settings block; only the hint text is local.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.kh-queue-rotation {
+    &__hint {
+        font-size: 0.85rem;
+        color: var(--kh-text-muted);
+        // Tuck under the row above (rows carry 1em bottom margin of their own).
+        margin: -0.5em 0 1em;
+    }
+}

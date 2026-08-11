@@ -69,20 +69,12 @@
            anchors it to this project otherwise. -->
       <_HostPublishDir>$([System.IO.Path]::GetFullPath('$(PublishDir)', '$(MSBuildProjectDirectory)'))</_HostPublishDir>
     </PropertyGroup>
-    <MSBuild Projects="$(MSBuildProjectDirectory)\..\KHost.Screen\KHost.Screen.csproj"
-             Targets="Publish"
-             Properties="Configuration=$(Configuration);
-                         TargetFramework=$(TargetFramework);
-                         RuntimeIdentifier=$(RuntimeIdentifier);
-                         SelfContained=$(SelfContained);
-                         PublishDir=$(_HostPublishDir)" />
+    <MSBuild Projects="$(MSBuildProjectDirectory)\..\KHost.Screen\KHost.Screen.csproj" Targets="Publish" Properties="Configuration=$(Configuration);&#xA;                         TargetFramework=$(TargetFramework);&#xA;                         RuntimeIdentifier=$(RuntimeIdentifier);&#xA;                         SelfContained=$(SelfContained);&#xA;                         PublishDir=$(_HostPublishDir)" />
   </Target>
 
   <!-- Copy Screen executable and all dependencies into output directory -->
   <Target Name="CopyScreenToOutput" AfterTargets="Build">
-    <MSBuild Projects="$(MSBuildProjectDirectory)\..\KHost.Screen\KHost.Screen.csproj"
-             Targets="GetTargetPath"
-             Properties="Configuration=$(Configuration);Platform=$(Platform);BaseOutputPath=$(BaseOutputPath)">
+    <MSBuild Projects="$(MSBuildProjectDirectory)\..\KHost.Screen\KHost.Screen.csproj" Targets="GetTargetPath" Properties="Configuration=$(Configuration);Platform=$(Platform);BaseOutputPath=$(BaseOutputPath)">
       <Output TaskParameter="TargetOutputs" ItemName="_ScreenExe" />
     </MSBuild>
     <PropertyGroup>
@@ -91,8 +83,7 @@
     <ItemGroup>
       <ScreenFiles Include="$(ScreenOutputDir)**\*" />
     </ItemGroup>
-    <Copy SourceFiles="@(ScreenFiles)"
-          DestinationFiles="@(ScreenFiles->'$(OutputPath)%(RecursiveDir)%(Filename)%(Extension)')" />
+    <Copy SourceFiles="@(ScreenFiles)" DestinationFiles="@(ScreenFiles->'$(OutputPath)%(RecursiveDir)%(Filename)%(Extension)')" />
   </Target>
 
 </Project>

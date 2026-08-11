@@ -3,8 +3,14 @@ using KHost.Abstractions.Services.IPC;
 using KHost.Domain.Services;
 using KHost.Domain.Services.AuthProviders;
 using KHost.Domain.Services.MediaProviders;
+using KHost.Abstractions.Services.QueueRotation;
 using KHost.Domain.Services.PasswordHashers;
+using KHost.Domain.Services.Plugins;
+using KHost.Domain.Services.QueueRotation;
+using KHost.Domain.Services.QueueRotation.Modes;
 using KHost.LrcLib;
+using KHost.Plugins.Sdk.Services;
+using KHost.Plugins.Sdk.Services.QueueRotation;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace KHost.Domain
@@ -62,6 +68,36 @@ namespace KHost.Domain
 
             // Media Providers
             serviceCollection.AddSingleton<IMediaProvider, DefaultMediaProvider>();
+
+            // Queue Rotation (built-in modes register before plugins so their ids win)
+            serviceCollection.AddSingleton<IQueueRotationStateService, QueueRotationStateService>();
+            serviceCollection.AddSingleton<IQueueRotationStrategyFactory, QueueRotationStrategyFactory>();
+            serviceCollection.AddSingleton<IQueueRotationMode, FifoStrategy>();
+            serviceCollection.AddSingleton<IQueueRotationMode, RoundRobinStrategy>();
+            serviceCollection.AddSingleton<IQueueRotationMode, ReverseStrategy>();
+            serviceCollection.AddSingleton<IQueueRotationMode, LongestWaitFirstStrategy>();
+            serviceCollection.AddSingleton<IQueueRotationMode, FewestSongsFirstStrategy>();
+            serviceCollection.AddSingleton<IQueueRotationMode, WeightedFairStrategy>();
+            serviceCollection.AddSingleton<IQueueRotationMode, WeightedLotteryStrategy>();
+            serviceCollection.AddSingleton<IQueueRotationMode, PureLotteryStrategy>();
+            serviceCollection.AddSingleton<IQueueRotationMode, ShuffleBucketStrategy>();
+
+            return serviceCollection;
+        }
+
+        /// <summary>
+        /// Discovers and loads enabled plugins. Must run before the container is built;
+        /// changes to the plugins folder or enabled list apply on restart.
+        /// </summary>
+        public static IServiceCollection AddPlugins(this IServiceCollection serviceCollection)
+        {
+            var state = PluginLoader.ReadState(Path.Combine(AppContext.BaseDirectory, "cache"));
+            var plugins = PluginLoader.Discover(Path.Combine(AppContext.BaseDirectory, "plugins"), state);
+
+            PluginLoader.LoadAndRegister(serviceCollection, plugins, state);
+
+            serviceCollection.AddSingleton<IPluginRegistry>(new PluginRegistry(plugins));
+            serviceCollection.AddSingleton<IPluginsService, PluginsService>();
 
             return serviceCollection;
         }

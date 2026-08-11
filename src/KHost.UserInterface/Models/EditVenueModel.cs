@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using KHost.Abstractions.Models;
+using KHost.Plugins.Sdk.Models.QueueRotation;
 
 namespace KHost.UserInterface.Models;
 
@@ -18,7 +19,6 @@ public class EditVenueModel
 
     public int DefaultVolume { get; set; } = 100;
     public ScreenDisconnectBehavior OnScreenDisconnect { get; set; } = ScreenDisconnectBehavior.ResumeOnReconnect;
-    public bool MoveSingerToBottomAfterPerformance { get; set; } = true;
     public bool ShowEstimatedWaitTime { get; set; } = true;
     public bool TippingEnabled { get; set; } = true;
     public bool WarnOnDuplicateSong { get; set; }
@@ -26,4 +26,5 @@ public class EditVenueModel
     public bool PromptBeforeRemovingSinger { get; set; } = true;
     public bool PromptBeforeRemovingPerformance { get; set; } = true;
     public bool ClearQueueOnClose { get; set; } = true;
+    public QueueRotationConfig QueueRotation { get; set; } = new();
 }
