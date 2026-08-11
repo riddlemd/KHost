@@ -11,8 +11,8 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace KHost.DataAccess.Migrations
 {
     [DbContext(typeof(DefaultContext))]
-    [Migration("20260811182740_RemoveMoveSingerToBottomSetting")]
-    partial class RemoveMoveSingerToBottomSetting
+    [Migration("20260811210308_AddMediaFts")]
+    partial class AddMediaFts
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -192,6 +192,9 @@ namespace KHost.DataAccess.Migrations
                     b.Property<Guid>("SingerId")
                         .HasColumnType("TEXT");
 
+                    b.Property<Guid?>("VenueId")
+                        .HasColumnType("TEXT");
+
                     b.HasKey("Id");
 
                     b.HasIndex("CreatedDate");
@@ -199,6 +202,8 @@ namespace KHost.DataAccess.Migrations
                     b.HasIndex("MediaId");
 
                     b.HasIndex("SingerId");
+
+                    b.HasIndex("VenueId");
 
                     b.ToTable("Performances");
                 });

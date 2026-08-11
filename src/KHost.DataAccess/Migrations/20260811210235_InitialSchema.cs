@@ -39,6 +39,7 @@ namespace KHost.DataAccess.Migrations
                     Id = table.Column<Guid>(type: "TEXT", nullable: false),
                     SingerId = table.Column<Guid>(type: "TEXT", nullable: false),
                     MediaId = table.Column<Guid>(type: "TEXT", nullable: false),
+                    VenueId = table.Column<Guid>(type: "TEXT", nullable: true),
                     QueuePosition = table.Column<int>(type: "INTEGER", nullable: true),
                     CreatedDate = table.Column<DateTime>(type: "TEXT", nullable: false)
                 },
@@ -197,6 +198,11 @@ namespace KHost.DataAccess.Migrations
                 name: "IX_Performances_SingerId",
                 table: "Performances",
                 column: "SingerId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Performances_VenueId",
+                table: "Performances",
+                column: "VenueId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Tips_CreatedDate",
