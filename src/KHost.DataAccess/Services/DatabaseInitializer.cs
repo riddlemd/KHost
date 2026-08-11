@@ -80,7 +80,7 @@ internal class DatabaseInitializer : IDatabaseInitializer
         var passwordHash = await _passwordHasher.HashAsync(options.DefaultAdminUser.Password);
         var adminUser = new KHostUser { Name = options.DefaultAdminUser.Username, PasswordHash = passwordHash };
         var createdUser = await _usersService.CreateAsync(adminUser);
-        await _userGroupsService.AddUserToGroupAsync(createdUser.Id, KHostUserGroup.Defaults.AdminGroupId);
+        await _userGroupsService.AddUserToGroupAsync(createdUser.Id, KHostUserGroup.AdminGroupId);
         _logger.LogInformation("Default admin user created: {Username}", options.DefaultAdminUser.Username);
     }
 

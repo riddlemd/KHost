@@ -74,7 +74,7 @@ public class DatabaseInitializerTests
         await sut.SeedDefaultAdminUserAsync();
 
         await _usersService.Received(1).CreateAsync(Arg.Is<KHostUser>(u => u.Name == "admin" && u.PasswordHash == "hashed"));
-        await _userGroupsService.Received(1).AddUserToGroupAsync(created.Id, KHostUserGroup.Defaults.AdminGroupId);
+        await _userGroupsService.Received(1).AddUserToGroupAsync(created.Id, KHostUserGroup.AdminGroupId);
     }
 
     // --- SeedDefaultVenueAsync ---
