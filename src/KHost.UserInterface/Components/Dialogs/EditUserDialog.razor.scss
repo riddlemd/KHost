@@ -3,14 +3,6 @@
    ═══════════════════════════════════════════════════════════════════════════ */
 
 .kh-user-edit-dialog {
-    &__group-chips {
-        display: flex;
-        flex-wrap: wrap;
-        align-items: center;
-        margin-bottom: 0.4em;
-        min-height: 1.8em;
-    }
-
     &__groups {
         max-height: 200px;
         overflow-y: auto;
