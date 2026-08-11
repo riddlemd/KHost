@@ -111,19 +111,6 @@
             <p class="kh-queue-rotation__hint">Once a singer has missed this many calls they stop being demoted.</p>
         }
 
-        <label class="kh-venue-settings__row kh-form-check">
-            <span class="kh-form-check-label">Only rotate singers seen recently (presence)</span>
-            <input type="checkbox" class="kh-form-check-input" @bind="Config.PresenceRequired" />
-        </label>
-        <p class="kh-queue-rotation__hint">Sorts singers seen within the window ahead of everyone else. Nothing records check-ins yet, so this has no effect today.</p>
-        @if (Config.PresenceRequired)
-        {
-            <div class="kh-venue-settings__row">
-                <label class="kh-form-label" for="presence-window">Presence window (minutes)</label>
-                <input id="presence-window" type="number" min="1" class="kh-form-control" @bind="Config.PresenceWindowMinutes" />
-            </div>
-            <p class="kh-queue-rotation__hint">How recently a singer must have been seen to count as present.</p>
-        }
     </div>
 </div>
 

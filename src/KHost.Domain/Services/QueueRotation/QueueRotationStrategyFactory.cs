@@ -35,8 +35,6 @@ public class QueueRotationStrategyFactory : IQueueRotationStrategyFactory
             result = new VipTierModifier(result);
         if (config.CoolDownSlots > 0)
             result = new CoolDownModifier(result);
-        if (config.PresenceRequired)
-            result = new PresenceGatedModifier(result);
 
         return result;
     }

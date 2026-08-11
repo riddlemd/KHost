@@ -7,7 +7,8 @@
     &__hint {
         font-size: 0.85rem;
         color: var(--kh-text-muted);
-        // Tuck under the row above (rows carry 1em bottom margin of their own).
-        margin: -0.5em 0 1em;
+        // Cancels most of the row's own 1em bottom margin so the hint reads as part of the
+        // setting above it rather than as a separate line. rem, so it does not scale with 0.85rem.
+        margin: -0.8rem 0 1em;
     }
 }

@@ -354,10 +354,6 @@ namespace KHost.DataAccess.Migrations
 
                                     b2.Property<int>("NoShowMaxMisses");
 
-                                    b2.Property<bool>("PresenceRequired");
-
-                                    b2.Property<int>("PresenceWindowMinutes");
-
                                     b2.Property<string>("StrategyId")
                                         .IsRequired();
 

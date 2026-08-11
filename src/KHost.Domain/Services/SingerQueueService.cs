@@ -303,8 +303,6 @@ public class SingerQueueService : ISingerQueueService
             {
                 Id = id,
                 LastSangOn = lastPerformance.Items.FirstOrDefault()?.CreatedDate,
-                // No check-in concept yet; the presence modifier stays inert until one exists.
-                LastCheckinOn = null,
                 LastTippedOn = lastTipped,
                 GroupIds = groupIds,
             });
