@@ -23,13 +23,8 @@ public class UsersService : BaseRepositoryService<KHostUser, IUsersRepository>, 
         _userGroupsRepository = userGroupsRepository;
     }
 
-    // Groups is detached before saving: BaseRepository uses Add/Update, which cascade the whole
-    // graph, so attached KHostUserGroups would be re-inserted or rewritten. Membership goes
-    // through the join table instead, and the collection is restored for the caller afterwards.
-    //
-    // These go to the repository directly rather than through base: the base overloads raise
-    // StateChanged as soon as the user row lands, so subscribers would re-query and render the
-    // old membership. StateChanged is raised here once the join table is settled.
+    // Groups is detached first: BaseRepository's Add/Update cascade the graph and would rewrite
+    // the group rows. Repository directly, not base — base notifies before membership lands.
     public override async Task<KHostUser> CreateAsync(KHostUser entity)
     {
         var groups = entity.Groups.ToArray();

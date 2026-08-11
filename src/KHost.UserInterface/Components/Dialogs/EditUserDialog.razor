@@ -97,8 +97,8 @@
         _prevIsOpen = IsOpen;
     }
 
-    // There is no unpaged read — pageSize 0 falls back to the repository default of 50, which
-    // would silently hide groups from the picker. Ask for the repository's max page size instead.
+    // pageSize 0 is not "unpaged" — it falls back to the repository default of 50 and would
+    // silently hide groups from the picker.
     private const int GroupPageSize = 1000;
 
     private async Task LoadGroupsAsync()
