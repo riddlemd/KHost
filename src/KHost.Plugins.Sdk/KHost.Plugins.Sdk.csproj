@@ -1,0 +1,15 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <!-- Plugin authors compile against this assembly alone; keep it free of project references. -->
+    <Description>Contracts for building KHost plugins.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="manifest.schema.json" Pack="true" PackagePath="content" />
+  </ItemGroup>
+
+</Project>

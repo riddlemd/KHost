@@ -1,4 +1,4 @@
-namespace KHost.Abstractions.Models;
+namespace KHost.Plugins.Sdk.Models;
 
 public record MediaSearchEntity
 {

@@ -9,7 +9,6 @@ public class SetupVenueModel
     public string Name { get; set; } = "Default Venue";
 
     public int DefaultVolume { get; set; } = 100;
-    public bool MoveSingerToBottomAfterPerformance { get; set; } = true;
     public bool PromptBeforeRemovingSinger { get; set; } = true;
     public bool PromptBeforeRemovingPerformance { get; set; } = true;
     public bool ClearQueueOnClose { get; set; } = true;

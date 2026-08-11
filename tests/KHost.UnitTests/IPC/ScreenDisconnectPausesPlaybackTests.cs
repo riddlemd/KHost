@@ -31,7 +31,7 @@ public class ScreenDisconnectPausesPlaybackTests : IDisposable
         {
             Id = Guid.NewGuid(),
             Name = "Test Venue",
-            Settings = new Venue.VenueSettings { MoveSingerToBottomAfterPerformance = false },
+            Settings = new Venue.VenueSettings(),
         });
 
         _playbackService = new PlaybackService(

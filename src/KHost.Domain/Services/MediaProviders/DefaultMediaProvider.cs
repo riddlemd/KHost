@@ -1,6 +1,8 @@
 using KHost.Abstractions.Interactions;
 using KHost.Abstractions.Interactions.Requests;
 using KHost.Abstractions.Models;
+using KHost.Plugins.Sdk.Models;
+using KHost.Plugins.Sdk.Services;
 using KHost.Abstractions.Repositories;
 using KHost.Abstractions.Services;
 using Microsoft.Extensions.Logging;
