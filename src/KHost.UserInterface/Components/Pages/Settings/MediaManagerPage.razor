@@ -338,11 +338,5 @@
         await Task.CompletedTask;
     }
 
-    private static string GetStatusBadgeClass(MediaStatus status) => status switch
-    {
-        MediaStatus.Ready       => "kh-badge--success",
-        MediaStatus.Downloading => "kh-badge--info",
-        MediaStatus.Broken      => "kh-badge--danger",
-        _                       => "kh-badge--secondary",
-    };
+    private static string GetStatusBadgeClass(MediaStatus status) => MediaStatusDisplay.BadgeClass(status);
 }

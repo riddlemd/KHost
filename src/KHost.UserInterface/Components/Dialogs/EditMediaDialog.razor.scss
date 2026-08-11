@@ -8,4 +8,11 @@
         align-items: center;
         justify-content: space-between;
     }
+
+    &__status {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+    }
 }

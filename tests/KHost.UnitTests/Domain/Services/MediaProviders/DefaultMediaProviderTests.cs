@@ -20,17 +20,25 @@ public class DefaultMediaProviderTests
 
     public DefaultMediaProviderTests()
     {
-        _repository.SearchAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<int>())
+        _repository.SearchAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<int>(), Arg.Any<HashSet<MediaStatus>>())
             .Returns(call =>
             {
                 var query = call.ArgAt<string>(0);
                 var pageNumber = call.ArgAt<int>(1);
                 var pageSize = call.ArgAt<int>(2);
+                var statuses = call.ArgAt<HashSet<MediaStatus>?>(3);
+
                 var filtered = string.IsNullOrWhiteSpace(query)
                     ? _mediaStore
                     : _mediaStore.Where(m =>
                         m.Title.Contains(query, StringComparison.OrdinalIgnoreCase) ||
                         m.Artist.Contains(query, StringComparison.OrdinalIgnoreCase)).ToList();
+
+                // Mirrors MediaRepository.ApplySearchFilters, so the status filter is exercised
+                // here rather than assumed.
+                if (statuses?.Count > 0)
+                    filtered = [.. filtered.Where(m => statuses.Contains(m.Status))];
+
                 return Task.FromResult(new PaginatedResult<Media>
                 {
                     Items = filtered,
@@ -61,7 +69,7 @@ public class DefaultMediaProviderTests
 
         await _service.SearchAsync("rock");
 
-        await _repository.Received(1).SearchAsync("rock", Arg.Any<int>(), Arg.Any<int>());
+        await _repository.Received(1).SearchAsync("rock", Arg.Any<int>(), Arg.Any<int>(), Arg.Any<HashSet<MediaStatus>>());
     }
 
     [Fact]
@@ -69,7 +77,7 @@ public class DefaultMediaProviderTests
     {
         await _service.SearchAsync("any", pageNumber: 2, pageSize: 25);
 
-        await _repository.Received(1).SearchAsync(Arg.Any<string>(), 2, 25);
+        await _repository.Received(1).SearchAsync(Arg.Any<string>(), 2, 25, Arg.Any<HashSet<MediaStatus>>());
     }
 
     [Fact]
@@ -113,6 +121,28 @@ public class DefaultMediaProviderTests
         var result = await _service.SearchAsync("Band");
 
         Assert.Equal(3, result.Count);
+    }
+
+    [Fact]
+    public async Task SearchAsync_ExcludesBrokenMedia()
+    {
+        _mediaStore.Add(new Media { Title = "Playable", Artist = "Band", FilePath = "/a.mp3", Status = MediaStatus.Ready });
+        _mediaStore.Add(new Media { Title = "Busted", Artist = "Band", FilePath = "/b.mp3", Status = MediaStatus.Broken });
+
+        var result = await _service.SearchAsync("Band");
+
+        Assert.Equal("Band - Playable", Assert.Single(result).DisplayName);
+    }
+
+    [Fact]
+    public async Task SearchAsync_IncludesMedia_WhoseStatusIsNotBroken()
+    {
+        _mediaStore.Add(new Media { Title = "Fetching", Artist = "Band", FilePath = "/a.mp3", Status = MediaStatus.Downloading });
+        _mediaStore.Add(new Media { Title = "Unset", Artist = "Band", FilePath = "/b.mp3", Status = MediaStatus.Unknown });
+
+        var result = await _service.SearchAsync("Band");
+
+        Assert.Equal(2, result.Count);
     }
 
     [Fact]

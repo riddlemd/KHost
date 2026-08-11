@@ -81,6 +81,20 @@
         font-weight: 500;
     }
 
+    &--danger {
+        background: var(--kh-danger-bg-subtle) !important;
+        color: var(--kh-danger);
+        border: 1px solid var(--kh-danger-border-subtle);
+        font-weight: 500;
+    }
+
+    &--info {
+        background: var(--kh-badge-info-bg) !important;
+        color: var(--kh-badge-info-text);
+        border: 1px solid var(--kh-badge-info-border);
+        font-weight: 500;
+    }
+
     &--cdg {
         background: var(--kh-badge-info-bg) !important;
         color: var(--kh-badge-info-text);
