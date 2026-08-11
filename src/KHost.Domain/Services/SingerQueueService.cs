@@ -19,8 +19,6 @@ public class SingerQueueService : ISingerQueueService
     private readonly IVenuesService _venuesService;
     private readonly IAnalyticsService _analytics;
     private readonly IQueueRotationStrategyFactory _rotationStrategyFactory;
-    private readonly IQueueRotationStateService _rotationStateService;
-    private readonly ITipsService _tipsService;
     private readonly List<Guid> _userIds = [];
     private List<KHostUser> _cachedUsers = [];
 
@@ -41,9 +39,7 @@ public class SingerQueueService : ISingerQueueService
         IUsersService usersService,
         IVenuesService venuesService,
         IAnalyticsService analytics,
-        IQueueRotationStrategyFactory rotationStrategyFactory,
-        IQueueRotationStateService rotationStateService,
-        ITipsService tipsService)
+        IQueueRotationStrategyFactory rotationStrategyFactory)
     {
         _logger = logger;
         _cacheService = cacheService;
@@ -52,8 +48,6 @@ public class SingerQueueService : ISingerQueueService
         _venuesService = venuesService;
         _analytics = analytics;
         _rotationStrategyFactory = rotationStrategyFactory;
-        _rotationStateService = rotationStateService;
-        _tipsService = tipsService;
     }
 
     public async Task SelectUserAsync(Guid? userId)
@@ -264,8 +258,9 @@ public class SingerQueueService : ISingerQueueService
                 FinishedSingerId = finishedSingerId,
                 JoiningSingerId = joiningSingerId,
                 Config = config,
-                SongsSungTonight = await _rotationStateService.GetSongsSungTonightAsync(_userIds),
-                MissedCalls = await _rotationStateService.GetMissedCallsAsync(),
+                // "Tonight" is midnight UTC — a show running past midnight resets, which matches
+                // how the counts are described to the host rather than session length.
+                SongsSungTonight = await _performanceService.CountSungSinceAsync(_userIds, DateTime.UtcNow.Date),
                 Now = DateTime.UtcNow,
             };
 
@@ -291,10 +286,6 @@ public class SingerQueueService : ISingerQueueService
             var lastPerformance = await _performanceService.ReadBySingerIdAsync(
                 id, pageNumber: 1, pageSize: 1, filter: PerformanceFilter.UnQueued);
 
-            DateTime? lastTipped = null;
-            if (config.TipBumpWindowMinutes > 0)
-                lastTipped = (await _tipsService.GetByUserIdAsync(id)).MaxBy(t => t.CreatedDate)?.CreatedDate;
-
             IReadOnlyList<Guid> groupIds = [];
             if (config.VipGroupId.HasValue)
                 groupIds = (await _usersService.ReadAsync(id))?.Groups.Select(g => g.Id).ToList() ?? [];
@@ -303,9 +294,6 @@ public class SingerQueueService : ISingerQueueService
             {
                 Id = id,
                 LastSangOn = lastPerformance.Items.FirstOrDefault()?.CreatedDate,
-                // No check-in concept yet; the presence modifier stays inert until one exists.
-                LastCheckinOn = null,
-                LastTippedOn = lastTipped,
                 GroupIds = groupIds,
             });
         }

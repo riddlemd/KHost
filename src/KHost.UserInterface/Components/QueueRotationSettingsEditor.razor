@@ -53,8 +53,11 @@
         <span class="kh-venue-settings__section-title">Modifiers</span>
         <p class="kh-queue-rotation__hint">A value of 0 or (none) leaves a modifier off.</p>
 
-        <div class="kh-venue-settings__row">
-            <label class="kh-form-label" for="vip-group">VIP group (always sorted first)</label>
+        <div class="kh-venue-settings__row kh-queue-rotation__setting">
+            <span class="kh-queue-rotation__setting-text">
+                <label class="kh-form-label" for="vip-group">VIP group</label>
+                <span class="kh-queue-rotation__hint">Everyone in this group sorts ahead of everyone else, keeping their order among themselves.</span>
+            </span>
             <select id="vip-group" class="kh-form-select" @bind="VipGroupIdString">
                 <option value="">(none)</option>
                 @foreach (var group in _groups)
@@ -64,87 +67,42 @@
             </select>
         </div>
 
-        <label class="kh-venue-settings__row kh-form-check">
-            <span class="kh-form-check-label">Boost first-time singers</span>
+        <label class="kh-venue-settings__row kh-queue-rotation__setting kh-form-check">
+            <span class="kh-queue-rotation__setting-text">
+                <span class="kh-form-check-label">Boost first-time singers</span>
+                <span class="kh-queue-rotation__hint">Moves anyone who has not sung yet tonight closer to the front.</span>
+            </span>
             <input type="checkbox" class="kh-form-check-input" @bind="Config.FirstTimeBoostEnabled" />
         </label>
         @if (Config.FirstTimeBoostEnabled)
         {
-            <div class="kh-venue-settings__row">
-                <label class="kh-form-label" for="boost-slots">Boost by slots</label>
+            <div class="kh-venue-settings__row kh-queue-rotation__setting kh-queue-rotation__setting--nested">
+                <span class="kh-queue-rotation__setting-text">
+                    <label class="kh-form-label" for="boost-slots">Boost by slots</label>
+                    <span class="kh-queue-rotation__hint">How many places forward each first-timer jumps.</span>
+                </span>
                 <input id="boost-slots" type="number" min="1" class="kh-form-control" @bind="Config.FirstTimeBoostSlots" />
             </div>
         }
 
-        <div class="kh-venue-settings__row">
-            <label class="kh-form-label" for="cooldown">Cool-down slots after singing</label>
+        <div class="kh-venue-settings__row kh-queue-rotation__setting">
+            <span class="kh-queue-rotation__setting-text">
+                <label class="kh-form-label" for="cooldown">Cool-down slots after singing</label>
+                <span class="kh-queue-rotation__hint">After finishing, a singer cannot sit closer to the front than this position.</span>
+            </span>
             <input id="cooldown" type="number" min="0" class="kh-form-control" @bind="Config.CoolDownSlots" />
         </div>
-
-        <div class="kh-venue-settings__row">
-            <label class="kh-form-label" for="tip-bump">Tip bump window (minutes)</label>
-            <input id="tip-bump" type="number" min="0" class="kh-form-control" @bind="Config.TipBumpWindowMinutes" />
-        </div>
-
-        <div class="kh-venue-settings__row">
-            <label class="kh-form-label" for="time-box">Time-box per singer (minutes)</label>
-            <input id="time-box" type="number" min="0" class="kh-form-control" @bind="Config.TimeBoxMinutes" />
-        </div>
-
-        <div class="kh-venue-settings__row">
-            <label class="kh-form-label" for="no-show-demote">No-show demotion (slots)</label>
-            <input id="no-show-demote" type="number" min="0" class="kh-form-control" @bind="Config.NoShowDemoteSlots" />
-        </div>
-        @if (Config.NoShowDemoteSlots > 0)
-        {
-            <div class="kh-venue-settings__row">
-                <label class="kh-form-label" for="no-show-max">No-show max misses</label>
-                <input id="no-show-max" type="number" min="1" class="kh-form-control" @bind="Config.NoShowMaxMisses" />
-            </div>
-        }
-
-        <div class="kh-venue-settings__row">
-            <label class="kh-form-label" for="anchor-singer">Anchor singer</label>
-            <select id="anchor-singer" class="kh-form-select" @bind="AnchorSingerIdString">
-                <option value="">(none)</option>
-                @foreach (var user in _users)
-                {
-                    <option value="@user.Id">@user.Name</option>
-                }
-            </select>
-        </div>
-        @if (Config.AnchorSingerId is not null)
-        {
-            <div class="kh-venue-settings__row">
-                <label class="kh-form-label" for="anchor-every">Anchor every Nth slot</label>
-                <input id="anchor-every" type="number" min="0" class="kh-form-control" @bind="Config.AnchorEveryN" />
-            </div>
-        }
-
-        <label class="kh-venue-settings__row kh-form-check">
-            <span class="kh-form-check-label">Only rotate singers seen recently (presence)</span>
-            <input type="checkbox" class="kh-form-check-input" @bind="Config.PresenceRequired" />
-        </label>
-        @if (Config.PresenceRequired)
-        {
-            <div class="kh-venue-settings__row">
-                <label class="kh-form-label" for="presence-window">Presence window (minutes)</label>
-                <input id="presence-window" type="number" min="1" class="kh-form-control" @bind="Config.PresenceWindowMinutes" />
-            </div>
-        }
     </div>
 </div>
 
 @code {
     [Inject] private IQueueRotationStrategyFactory? StrategyFactory { get; set; }
     [Inject] private IUserGroupsService? UserGroupsService { get; set; }
-    [Inject] private IUsersService? UsersService { get; set; }
 
     [Parameter, EditorRequired] public QueueRotationConfig Config { get; set; } = new();
 
     private IReadOnlyList<IQueueRotationMode> _modes = [];
     private List<KHostUserGroup> _groups = [];
-    private List<KHostUser> _users = [];
 
     private string ModeDescription => _modes.FirstOrDefault(m => m.Id == Config.StrategyId)?.Description ?? "";
 
@@ -154,23 +112,14 @@
         set => Config.VipGroupId = Guid.TryParse(value, out var id) ? id : null;
     }
 
-    private string AnchorSingerIdString
-    {
-        get => Config.AnchorSingerId?.ToString() ?? "";
-        set => Config.AnchorSingerId = Guid.TryParse(value, out var id) ? id : null;
-    }
-
     protected override async Task OnInitializedAsync()
     {
-        if (StrategyFactory is null || UserGroupsService is null || UsersService is null)
+        if (StrategyFactory is null || UserGroupsService is null)
             return;
 
         _modes = StrategyFactory.GetAllModes();
 
         var groups = await UserGroupsService.ReadAllAsync(pageSize: 1000);
         _groups = groups.Items.OrderBy(g => g.Name).ToList();
-
-        var users = await UsersService.ReadAllAsync(pageSize: 1000);
-        _users = users.Items.OrderBy(u => u.Name).ToList();
     }
 }

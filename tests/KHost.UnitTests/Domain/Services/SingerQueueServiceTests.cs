@@ -22,8 +22,6 @@ public class SingerQueueServiceTests : IDisposable
     private readonly IUsersService _usersService;
     private readonly IVenuesService _venuesService;
     private readonly IQueueRotationStrategyFactory _rotationFactory;
-    private readonly IQueueRotationStateService _rotationState;
-    private readonly ITipsService _tipsService;
     private readonly Dictionary<Guid, KHostUser> _userDb = [];
     private readonly SingerQueueService _service;
 
@@ -46,13 +44,9 @@ public class SingerQueueServiceTests : IDisposable
             .Returns(args => { var u = (KHostUser)args[0]; _userDb[u.Id] = u; return Task.CompletedTask; });
 
         _rotationFactory = Substitute.For<IQueueRotationStrategyFactory>();
-        _rotationState = Substitute.For<IQueueRotationStateService>();
-        _tipsService = Substitute.For<ITipsService>();
 
-        _rotationState.GetSongsSungTonightAsync(Arg.Any<IEnumerable<Guid>>())
+        _performanceService.CountSungSinceAsync(Arg.Any<IEnumerable<Guid>>(), Arg.Any<DateTime>())
             .Returns(new Dictionary<Guid, int>());
-        _rotationState.GetMissedCallsAsync().Returns(new Dictionary<Guid, int>());
-        _tipsService.GetByUserIdAsync(Arg.Any<Guid>()).Returns([]);
         _performanceService.ReadBySingerIdAsync(Arg.Any<Guid>(), Arg.Any<int>(), Arg.Any<int>(), Arg.Any<PerformanceFilter>(), Arg.Any<DateTime?>())
             .Returns(new PaginatedResult<Performance>());
 
@@ -60,7 +54,7 @@ public class SingerQueueServiceTests : IDisposable
         StubStrategy(ctx => ctx.Queue.Select(u => u.Id).ToList());
 
         var analyticsQueue = Substitute.For<IAnalyticsService>();
-        _service = new SingerQueueService(NullLogger<SingerQueueService>.Instance, _cacheService, _performanceService, _usersService, _venuesService, analyticsQueue, _rotationFactory, _rotationState, _tipsService);
+        _service = new SingerQueueService(NullLogger<SingerQueueService>.Instance, _cacheService, _performanceService, _usersService, _venuesService, analyticsQueue, _rotationFactory);
     }
 
     private void StubStrategy(Func<QueueRotationContext, IReadOnlyList<Guid>> strategy)
@@ -492,9 +486,7 @@ public class SingerQueueServiceTests : IDisposable
         _usersService,
         _venuesService,
         Substitute.For<IAnalyticsService>(),
-        _rotationFactory,
-        _rotationState,
-        _tipsService);
+        _rotationFactory);
 
     [Fact]
     public async Task RotateQueueAsync_DefaultConfig_MovesFinishedSingerToEndAndSelectsFirst()
@@ -608,9 +600,7 @@ public class SingerQueueServiceTests : IDisposable
         _usersService,
         _venuesService,
         Substitute.For<IAnalyticsService>(),
-        new QueueRotationStrategyFactory([new FifoStrategy()]),
-        _rotationState,
-        _tipsService);
+        new QueueRotationStrategyFactory([new FifoStrategy()]));
 
     private async Task<KHostUser> EnqueueUserOnAsync(SingerQueueService service, string name)
     {

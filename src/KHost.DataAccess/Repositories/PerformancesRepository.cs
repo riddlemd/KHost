@@ -88,6 +88,29 @@ internal class PerformancesRepository : BaseRepository<Performance>, IPerformanc
         return PaginationComponent.BuildResult(items, totalCount, pageNumber, pageSize);
     }
 
+    // One grouped query rather than one per singer: rotation asks for the whole queue on every
+    // finish, so a per-singer read was a round trip per person each time.
+    public async Task<IReadOnlyDictionary<Guid, int>> CountSungSinceAsync(IEnumerable<Guid> singerIds, DateTime since)
+    {
+        var ids = singerIds.Distinct().ToList();
+        if (ids.Count == 0)
+            return new Dictionary<Guid, int>();
+
+        using var context = await ContextFactory.CreateDbContextAsync();
+
+        var query = context.Set<Performance>()
+            .Where(p => ids.Contains(p.SingerId) && p.CreatedDate >= since);
+
+        query = ApplyFilter(query, PerformanceFilter.UnQueued);
+
+        var counts = await query
+            .GroupBy(p => p.SingerId)
+            .Select(g => new { SingerId = g.Key, Count = g.Count() })
+            .ToListAsync();
+
+        return counts.ToDictionary(c => c.SingerId, c => c.Count);
+    }
+
     public async Task<PaginatedResult<Performance>> ReadByMediaIdAsync(Guid mediaId, int pageNumber = 1, int pageSize = 0, PerformanceFilter filter = PerformanceFilter.All)
     {
         using var context = await ContextFactory.CreateDbContextAsync();
