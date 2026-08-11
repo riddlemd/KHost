@@ -11,7 +11,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace KHost.DataAccess.Migrations
 {
     [DbContext(typeof(DefaultContext))]
-    [Migration("20260427222318_InitialSchema")]
+    [Migration("20260811210235_InitialSchema")]
     partial class InitialSchema
     {
         /// <inheritdoc />
@@ -192,6 +192,9 @@ namespace KHost.DataAccess.Migrations
                     b.Property<Guid>("SingerId")
                         .HasColumnType("TEXT");
 
+                    b.Property<Guid?>("VenueId")
+                        .HasColumnType("TEXT");
+
                     b.HasKey("Id");
 
                     b.HasIndex("CreatedDate");
@@ -199,6 +202,8 @@ namespace KHost.DataAccess.Migrations
                     b.HasIndex("MediaId");
 
                     b.HasIndex("SingerId");
+
+                    b.HasIndex("VenueId");
 
                     b.ToTable("Performances");
                 });
@@ -309,23 +314,19 @@ namespace KHost.DataAccess.Migrations
 
                             b1.Property<int>("DefaultVolume");
 
-                            b1.Property<bool>("MoveSingerToBottomAfterPerformance");
+                            b1.Property<int>("DuplicateSongWindowHours");
 
-                            b1.Property<bool>("PromptBeforeRemovingMedia");
+                            b1.Property<int>("OnScreenDisconnect");
 
                             b1.Property<bool>("PromptBeforeRemovingPerformance");
 
-                            b1.Property<bool>("PromptBeforeRemovingPerformanceHistory");
-
                             b1.Property<bool>("PromptBeforeRemovingSinger");
 
-                            b1.Property<bool>("PromptBeforeRemovingTip");
+                            b1.Property<bool>("ShowEstimatedWaitTime");
 
-                            b1.Property<bool>("PromptBeforeRemovingUser");
+                            b1.Property<bool>("TippingEnabled");
 
-                            b1.Property<bool>("PromptBeforeRemovingUserGroup");
-
-                            b1.Property<bool>("PromptBeforeRemovingVenue");
+                            b1.Property<bool>("WarnOnDuplicateSong");
 
                             b1.HasKey("VenueId");
 
@@ -337,6 +338,55 @@ namespace KHost.DataAccess.Migrations
 
                             b1.WithOwner()
                                 .HasForeignKey("VenueId");
+
+                            b1.OwnsOne("KHost.Plugins.Sdk.Models.QueueRotation.QueueRotationConfig", "QueueRotation", b2 =>
+                                {
+                                    b2.Property<Guid>("VenueSettingsVenueId");
+
+                                    b2.Property<int>("AnchorEveryN");
+
+                                    b2.Property<Guid?>("AnchorSingerId");
+
+                                    b2.Property<int>("CoolDownSlots");
+
+                                    b2.Property<int>("DropFixedIndex");
+
+                                    b2.Property<int>("DropPosition");
+
+                                    b2.Property<bool>("FirstTimeBoostEnabled");
+
+                                    b2.Property<int>("FirstTimeBoostSlots");
+
+                                    b2.Property<int>("NoShowDemoteSlots");
+
+                                    b2.Property<int>("NoShowMaxMisses");
+
+                                    b2.Property<bool>("PresenceRequired");
+
+                                    b2.Property<int>("PresenceWindowMinutes");
+
+                                    b2.Property<string>("StrategyId")
+                                        .IsRequired();
+
+                                    b2.Property<int>("TimeBoxMinutes");
+
+                                    b2.Property<int>("TipBumpWindowMinutes");
+
+                                    b2.Property<Guid?>("VipGroupId");
+
+                                    b2.Property<double>("WeightedFairSongCountWeight");
+
+                                    b2.Property<double>("WeightedFairWaitWeight");
+
+                                    b2.HasKey("VenueSettingsVenueId");
+
+                                    b2.ToTable("Venues");
+
+                                    b2.WithOwner()
+                                        .HasForeignKey("VenueSettingsVenueId");
+                                });
+
+                            b1.Navigation("QueueRotation");
                         });
 
                     b.Navigation("Settings")

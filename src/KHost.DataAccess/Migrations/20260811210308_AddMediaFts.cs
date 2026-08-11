@@ -10,8 +10,11 @@ namespace KHost.DataAccess.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            // Idempotent: an earlier (since-deleted) AddMediaFts migration may have already
-            // created these objects on existing databases, so guard every statement.
+            // Hand-written: EF scaffolds neither the FTS5 virtual table nor its triggers, so this
+            // body has to be re-authored whenever the schema is regenerated. Without it, search
+            // throws "no such table: media_fts".
+            // Idempotent, because an earlier (since-deleted) AddMediaFts migration may have
+            // already created these objects on existing databases.
             migrationBuilder.Sql("""
                 CREATE VIRTUAL TABLE IF NOT EXISTS "media_fts" USING fts5(
                     media_id UNINDEXED,

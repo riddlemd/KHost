@@ -189,6 +189,9 @@ namespace KHost.DataAccess.Migrations
                     b.Property<Guid>("SingerId")
                         .HasColumnType("TEXT");
 
+                    b.Property<Guid?>("VenueId")
+                        .HasColumnType("TEXT");
+
                     b.HasKey("Id");
 
                     b.HasIndex("CreatedDate");
@@ -196,6 +199,8 @@ namespace KHost.DataAccess.Migrations
                     b.HasIndex("MediaId");
 
                     b.HasIndex("SingerId");
+
+                    b.HasIndex("VenueId");
 
                     b.ToTable("Performances");
                 });
