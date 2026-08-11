@@ -86,9 +86,20 @@
                         <tbody>
                             @foreach (var mediaSearchEntity in _results.Take(300))
                             {
-                                    <tr class="kh-media-search-panel__results__result @(IsMediaInSelectedSingersQueue(mediaSearchEntity.ForeignKey, mediaSearchEntity.Source) ? "kh-media-search-panel__results__result--queued" : "")">
+                                    var queuedBy = GetSingersWithMediaQueued(mediaSearchEntity.ForeignKey, mediaSearchEntity.Source);
+
+                                    <tr class="kh-media-search-panel__results__result @(queuedBy.Count > 0 ? "kh-media-search-panel__results__result--queued" : "")">
                                     <td class="kh-table__cell--fill">
                                         @mediaSearchEntity.DisplayName
+
+                                        @if (queuedBy.Count > 0)
+                                        {
+                                            <span class="kh-badge kh-badge--info kh-media-search-panel__queued-badge"
+                                                  title="@($"Already queued by {string.Join(", ", queuedBy)}")">
+                                                <Icon Name="person-check-fill" />
+                                                @(queuedBy.Count == 1 ? queuedBy[0] : $"{queuedBy[0]} +{queuedBy.Count - 1}")
+                                            </span>
+                                        }
                                     </td>
                                     <td>@(mediaSearchEntity.Duration?.ToTotalMinutesAndSeconds() ?? "--:--")</td>
                                     @if (_multipleProvidersInResults) {
@@ -147,11 +158,14 @@
     private string? _errorMessage;
     private IEnumerable<MediaProviderAction> _globalActions = [];
     private bool _multipleProvidersInResults;
-    private IEnumerable<Performance> _selectedSingerPerformances = [];
+    private Dictionary<Guid, List<string>> _queuedBySinger = [];
 
     protected override void OnInitialized()
     {
         SingerQueueService?.StateChanged += OnStateChanged;
+        // Someone else queueing a song changes this panel's badges without touching the singer
+        // list, so the performance service has to be listened to as well.
+        PerformanceService?.StateChanged += OnStateChanged;
     }
 
     private async Task RunSearchAsync()
@@ -190,28 +204,42 @@
 
     private void OnStateChanged(object? sender, EventArgs e) => InvokeAsync(async () =>
     {
-        await UpdateSelectedSingerPerformances();
+        await UpdateQueuedMediaAsync();
         StateHasChanged();
     });
 
-    private async Task UpdateSelectedSingerPerformances()
+    /// <summary>
+    /// Every singer's queue, not just the selected one — a song already claimed by anyone in the
+    /// room is worth knowing about before handing it to someone else.
+    /// </summary>
+    private async Task UpdateQueuedMediaAsync()
     {
-        if (PerformanceService is null) return;
-        if (SingerQueueService?.SelectedUserId is not { } selectedSingerId) return;
+        if (PerformanceService is null || SingerQueueService is null) return;
 
-        _selectedSingerPerformances = (await PerformanceService.ReadBySingerIdAsync(selectedSingerId, filter: PerformanceFilter.Queued)).Items;
+        var singerNames = SingerQueueService.Users.ToDictionary(user => user.Id, user => user.Name);
+        var queued = await PerformanceService.ReadQueuedAsync();
+
+        _queuedBySinger = queued
+            .Where(performance => singerNames.ContainsKey(performance.SingerId))
+            .GroupBy(performance => performance.MediaId)
+            .ToDictionary(
+                group => group.Key,
+                group => group.Select(performance => singerNames[performance.SingerId]).Distinct().ToList());
     }
 
-    private bool IsMediaInSelectedSingersQueue(string foreignKey, string source)
+    private List<string> GetSingersWithMediaQueued(string foreignKey, string source)
     {
         if (!source.Equals(nameof(DefaultMediaProvider), StringComparison.InvariantCultureIgnoreCase))
-            return false;
+            return [];
 
-        var guid = new Guid(foreignKey);
-
-        return _selectedSingerPerformances.Any(x => x.MediaId == guid);
+        return Guid.TryParse(foreignKey, out var mediaId) && _queuedBySinger.TryGetValue(mediaId, out var singers)
+            ? singers
+            : [];
     }
 
-    public void Dispose() =>
+    public void Dispose()
+    {
         SingerQueueService?.StateChanged -= OnStateChanged;
+        PerformanceService?.StateChanged -= OnStateChanged;
+    }
 }

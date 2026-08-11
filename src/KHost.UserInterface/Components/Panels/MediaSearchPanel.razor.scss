@@ -34,18 +34,25 @@
         width: 100%;
 
         &__result {
-
-            td:first-of-type {
-                position: relative;
+            &--queued td {
+                background: var(--kh-primary-dim);
             }
+        }
+    }
 
-            &--queued {
-                td:first-of-type::after {
-                    content: " (Already Queued)";
-                    position: absolute;
-                    right: 0.5em;
-                }
-            }
+    &__queued-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4em;
+        margin-left: 0.75em;
+        padding: 0.15em 0.6em;
+        border-radius: 999px;
+        font-size: 0.72rem;
+        vertical-align: middle;
+
+        // Handed to <Icon>, so it lands on that component's element rather than ours.
+        & ::deep .bi {
+            font-size: 0.9em;
         }
     }
 
