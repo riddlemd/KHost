@@ -68,20 +68,6 @@
                             </span>
                             <InputCheckbox class="kh-form-check-input" @bind-Value="_model.PromptBeforeRemovingPerformance" />
                         </label>
-                        <label class="kh-venue-settings__prompt-item kh-form-check">
-                            <span class="kh-venue-settings__prompt-item-label">
-                                <Icon Name="clock-history" />
-                                <span class="kh-form-check-label">Performance history</span>
-                            </span>
-                            <InputCheckbox class="kh-form-check-input" @bind-Value="_model.PromptBeforeRemovingPerformanceHistory" />
-                        </label>
-                        <label class="kh-venue-settings__prompt-item kh-form-check">
-                            <span class="kh-venue-settings__prompt-item-label">
-                                <Icon Name="people-fill" />
-                                <span class="kh-form-check-label">User group</span>
-                            </span>
-                            <InputCheckbox class="kh-form-check-input" @bind-Value="_model.PromptBeforeRemovingUserGroup" />
-                        </label>
                     </div>
                 </div>
             </div>
@@ -137,8 +123,6 @@
                     MoveSingerToBottomAfterPerformance = _model.MoveSingerToBottomAfterPerformance,
                     PromptBeforeRemovingSinger = _model.PromptBeforeRemovingSinger,
                     PromptBeforeRemovingPerformance = _model.PromptBeforeRemovingPerformance,
-                    PromptBeforeRemovingPerformanceHistory = _model.PromptBeforeRemovingPerformanceHistory,
-                    PromptBeforeRemovingUserGroup = _model.PromptBeforeRemovingUserGroup,
                     ClearQueueOnClose = _model.ClearQueueOnClose,
                 }
             };

@@ -32,8 +32,6 @@ public class Venue : RepositoryModel
         public bool ShowEstimatedWaitTime { get; set; } = true;
         public bool PromptBeforeRemovingSinger { get; set; } = true;
         public bool PromptBeforeRemovingPerformance { get; set; } = true;
-        public bool PromptBeforeRemovingPerformanceHistory { get; set; } = true;
-        public bool PromptBeforeRemovingUserGroup { get; set; } = true;
         public bool ClearQueueOnClose { get; set; } = true;
 
         /// <summary>Every member is a value type, so a memberwise copy is a full copy.</summary>

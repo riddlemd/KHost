@@ -166,26 +166,17 @@
             await UserGroupsService.UpdateAsync(group);
     }
 
+    // Always confirmed: deleting a group affects every user in it, not just the row clicked.
     private async Task StartDeleteAsync(KHostUserGroup group)
     {
-        if (UserGroupsService is null) return;
+        if (UserGroupsService is null || DialogService is null) return;
 
-        var venue = VenuesService is not null ? await VenuesService.ReadSelectedVenueAsync() : null;
-        if (venue?.Settings.PromptBeforeRemovingUserGroup == true)
-        {
-            if (DialogService is null) return;
-
-            await DialogService.ShowConfirmationAsync(
-                $"Are you sure you want to delete <span class=\"kh-emphasis\">{group.Name}</span>?",
-                async () => await UserGroupsService.DeleteAsync(group.Id),
-                "Delete Group",
-                "Delete"
-            );
-        }
-        else
-        {
-            await UserGroupsService.DeleteAsync(group.Id);
-        }
+        await DialogService.ShowConfirmationAsync(
+            $"Are you sure you want to delete <span class=\"kh-emphasis\">{group.Name}</span>?",
+            async () => await UserGroupsService.DeleteAsync(group.Id),
+            "Delete Group",
+            "Delete"
+        );
     }
 
     private async Task PreviousPage()

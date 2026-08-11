@@ -73,20 +73,6 @@
                         </span>
                         <InputCheckbox class="kh-form-check-input" @bind-Value="_model.PromptBeforeRemovingPerformance" />
                     </label>
-                    <label class="kh-venue-settings__prompt-item kh-form-check">
-                        <span class="kh-venue-settings__prompt-item-label">
-                            <Icon Name="clock-history" />
-                            <span class="kh-form-check-label">Performance history</span>
-                        </span>
-                        <InputCheckbox class="kh-form-check-input" @bind-Value="_model.PromptBeforeRemovingPerformanceHistory" />
-                    </label>
-                    <label class="kh-venue-settings__prompt-item kh-form-check">
-                        <span class="kh-venue-settings__prompt-item-label">
-                            <Icon Name="people-fill" />
-                            <span class="kh-form-check-label">User group</span>
-                        </span>
-                        <InputCheckbox class="kh-form-check-input" @bind-Value="_model.PromptBeforeRemovingUserGroup" />
-                    </label>
                 </div>
             </div>
 
@@ -147,8 +133,6 @@
                     ShowEstimatedWaitTime = Venue.Settings.ShowEstimatedWaitTime,
                     PromptBeforeRemovingSinger = Venue.Settings.PromptBeforeRemovingSinger,
                     PromptBeforeRemovingPerformance = Venue.Settings.PromptBeforeRemovingPerformance,
-                    PromptBeforeRemovingPerformanceHistory = Venue.Settings.PromptBeforeRemovingPerformanceHistory,
-                    PromptBeforeRemovingUserGroup = Venue.Settings.PromptBeforeRemovingUserGroup,
                     ClearQueueOnClose = Venue.Settings.ClearQueueOnClose,
                 };
             _editContext = new EditContext(_model);
@@ -174,8 +158,6 @@
         venue.Settings.ShowEstimatedWaitTime = _model.ShowEstimatedWaitTime;
         venue.Settings.PromptBeforeRemovingSinger = _model.PromptBeforeRemovingSinger;
         venue.Settings.PromptBeforeRemovingPerformance = _model.PromptBeforeRemovingPerformance;
-        venue.Settings.PromptBeforeRemovingPerformanceHistory = _model.PromptBeforeRemovingPerformanceHistory;
-        venue.Settings.PromptBeforeRemovingUserGroup = _model.PromptBeforeRemovingUserGroup;
         venue.Settings.ClearQueueOnClose = _model.ClearQueueOnClose;
 
         await OnSave.InvokeAsync(venue);

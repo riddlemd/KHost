@@ -12,7 +12,5 @@ public class SetupVenueModel
     public bool MoveSingerToBottomAfterPerformance { get; set; } = true;
     public bool PromptBeforeRemovingSinger { get; set; } = true;
     public bool PromptBeforeRemovingPerformance { get; set; } = true;
-    public bool PromptBeforeRemovingPerformanceHistory { get; set; } = true;
-    public bool PromptBeforeRemovingUserGroup { get; set; } = true;
     public bool ClearQueueOnClose { get; set; } = true;
 }
