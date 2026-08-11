@@ -1,0 +1,112 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   Dropdown
+   Trigger + anchored menu for DropdownMenu.razor. Global rather than co-located
+   because consumers supply the menu items, so the item classes are theirs to use.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.kh-dropdown {
+    position: relative;
+
+    &__trigger {
+        display: flex;
+        align-items: center;
+        gap: 0.75em;
+        height: var(--kh-control-height);
+        padding: 0 0.75rem;
+        background: var(--kh-bg-input);
+        border: 1px solid var(--kh-border);
+        border-radius: var(--kh-radius);
+        color: var(--kh-text);
+        transition: border-color var(--kh-transition);
+
+        &:hover:not(:disabled) {
+            border-color: var(--kh-border-bright);
+        }
+
+        &:disabled {
+            opacity: 0.4;
+            cursor: default;
+        }
+    }
+
+    &__trigger-label {
+        margin-right: auto;
+    }
+
+    &__caret {
+        color: var(--kh-text-muted);
+    }
+
+    &__overlay {
+        position: fixed;
+        inset: 0;
+        z-index: 100;
+    }
+
+    // Fixed so an overflow:clip ancestor can't crop it; placed by dropdown-menu.js.
+    &__menu {
+        position: fixed;
+        z-index: 101;
+        display: flex;
+        flex-direction: column;
+        padding: 0.35em 0;
+        min-width: max-content;
+        background: var(--kh-bg-card);
+        border: 1px solid var(--kh-border-bright);
+        border-radius: var(--kh-radius);
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+    }
+
+    &__heading {
+        padding: 0.5em 1em 0.25em;
+        color: var(--kh-text-muted);
+        font-size: 0.72rem;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        white-space: nowrap;
+    }
+
+    &__divider {
+        margin: 0.35em 0;
+        border-top: 1px solid var(--kh-border);
+    }
+
+    &__item {
+        display: flex;
+        align-items: center;
+        gap: 0.5em;
+        width: 100%;
+        padding: 0.5em 1em;
+        color: var(--kh-text);
+        white-space: nowrap;
+        transition: background var(--kh-transition);
+
+        &:hover:not(:disabled) {
+            background: var(--kh-primary-subtle);
+        }
+
+        &:disabled {
+            opacity: 0.4;
+            cursor: default;
+        }
+
+        &--selected {
+            color: var(--kh-primary-bright);
+            font-weight: 600;
+        }
+    }
+
+    // Reserves the tick column so labels stay aligned whether or not a row is ticked.
+    &__check {
+        display: flex;
+        justify-content: center;
+        min-width: 1em;
+        color: var(--kh-primary-bright);
+    }
+
+    &__empty {
+        padding: 0.5em 1em;
+        color: var(--kh-text-muted);
+        white-space: nowrap;
+    }
+}
