@@ -59,6 +59,25 @@
     <Copy SourceFiles="@(WwwrootFiles)" DestinationFiles="@(WwwrootFiles->'$(OutputPath)wwwroot\%(RecursiveDir)%(Filename)%(Extension)')" />
   </Target>
 
+  <!-- CopyScreenToOutput only runs after Build, so publish emitted a KHost.Screen apphost with no
+       managed dll and no Avalonia/Skia natives — IsAvailable saw the apphost and offered a screen
+       that died on launch. A file copy cannot fix it: a self-contained publish pulls natives from
+       runtime packs that never appear in Screen's build output, so Screen publishes itself here. -->
+  <Target Name="PublishScreenWithHost" AfterTargets="Publish">
+    <PropertyGroup>
+      <!-- Two-arg GetFullPath leaves PublishDir alone when already rooted (dotnet publish -o) and
+           anchors it to this project otherwise. -->
+      <_HostPublishDir>$([System.IO.Path]::GetFullPath('$(PublishDir)', '$(MSBuildProjectDirectory)'))</_HostPublishDir>
+    </PropertyGroup>
+    <MSBuild Projects="$(MSBuildProjectDirectory)\..\KHost.Screen\KHost.Screen.csproj"
+             Targets="Publish"
+             Properties="Configuration=$(Configuration);
+                         TargetFramework=$(TargetFramework);
+                         RuntimeIdentifier=$(RuntimeIdentifier);
+                         SelfContained=$(SelfContained);
+                         PublishDir=$(_HostPublishDir)" />
+  </Target>
+
   <!-- Copy Screen executable and all dependencies into output directory -->
   <Target Name="CopyScreenToOutput" AfterTargets="Build">
     <MSBuild Projects="$(MSBuildProjectDirectory)\..\KHost.Screen\KHost.Screen.csproj"

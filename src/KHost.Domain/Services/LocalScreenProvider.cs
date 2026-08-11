@@ -33,6 +33,10 @@ public sealed class LocalScreenProvider : IScreenProvider, IDisposable
     {
         var exePath = ResolvedExePath;
 
+        // Process.Start would otherwise surface a bare Win32Exception that names nothing.
+        if (!File.Exists(exePath))
+            throw new FileNotFoundException($"KHost.Screen executable not found at '{exePath}'.", exePath);
+
         _logger.LogInformation("Launching local screen '{ScreenId}' via {ExePath}", screenId, exePath);
 
         var psi = new ProcessStartInfo(exePath)
@@ -79,10 +83,12 @@ public sealed class LocalScreenProvider : IScreenProvider, IDisposable
 
     // The .NET apphost only carries a .exe extension on Windows; on macOS/Linux it is
     // extensionless, so a hardcoded name makes IsAvailable false everywhere but Windows.
+    // Path.Combine returns a rooted second argument unchanged, so an absolute configured path still
+    // wins while a relative one anchors to the app directory rather than the process CWD.
     internal static string ResolveExePath(string? configuredExePath, string baseDirectory, bool isWindows)
-        => string.IsNullOrWhiteSpace(configuredExePath)
-            ? Path.Combine(baseDirectory, isWindows ? "KHost.Screen.exe" : "KHost.Screen")
-            : configuredExePath;
+        => Path.Combine(baseDirectory, string.IsNullOrWhiteSpace(configuredExePath)
+            ? isWindows ? "KHost.Screen.exe" : "KHost.Screen"
+            : configuredExePath);
 
     // Must stay one element per argument: screen ids are generated as "Screen 1", and a single
     // concatenated argument string would split that in two, leaving every screen named "Screen".
