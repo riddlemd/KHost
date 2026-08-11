@@ -31,8 +31,6 @@ public class QueueRotationStrategyFactory : IQueueRotationStrategyFactory
             result = new TipBumpModifier(result);
         if (config.FirstTimeBoostEnabled)
             result = new FirstTimeBoostModifier(result);
-        if (config.AnchorEveryN > 0 && config.AnchorSingerId.HasValue)
-            result = new LockedAnchorModifier(result);
         if (config.VipGroupId.HasValue)
             result = new VipTierModifier(result);
         if (config.CoolDownSlots > 0)

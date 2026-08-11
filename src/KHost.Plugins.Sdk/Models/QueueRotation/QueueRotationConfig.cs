@@ -18,9 +18,6 @@ public class QueueRotationConfig
     public int NoShowDemoteSlots { get; set; } = 0;
     public int NoShowMaxMisses { get; set; } = 3;
 
-    public Guid? AnchorSingerId { get; set; }
-    public int AnchorEveryN { get; set; } = 0;
-
     public int TipBumpWindowMinutes { get; set; } = 0;
 
     public int CoolDownSlots { get; set; } = 0;
