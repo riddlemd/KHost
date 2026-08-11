@@ -178,6 +178,7 @@ internal class DefaultContext : DbContext
 
             entity.HasIndex(e => e.SingerId);
             entity.HasIndex(e => e.MediaId);
+            entity.HasIndex(e => e.VenueId);
             entity.HasIndex(e => e.CreatedDate);
         });
 

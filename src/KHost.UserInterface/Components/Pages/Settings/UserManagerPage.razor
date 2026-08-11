@@ -74,9 +74,12 @@
                                         <button class="kh-singer-manager__history-btn kh-button--icon-minimal" title="View Performance History" @onclick="() => OpenPerformanceHistoryAsync(user)">
                                             <Icon Name="music-note-list" />
                                         </button>
-                                        <button class="kh-singer-manager__delete-btn kh-button--icon-minimal" title="Delete User" @onclick="@(async () => await StartDeleteAsync(user))">
-                                            <Icon Name="trash" />
-                                        </button>
+                                        @if (!KHostUser.IsBuiltIn(user.Id))
+                                        {
+                                            <button class="kh-singer-manager__delete-btn kh-button--icon-minimal" title="Delete User" @onclick="@(async () => await StartDeleteAsync(user))">
+                                                <Icon Name="trash" />
+                                            </button>
+                                        }
                                     </td>
                                 </tr>
                             }
@@ -100,7 +103,7 @@
     [Inject] private IDialogService? DialogService { get; set; }
     [Inject] private IVenuesService? VenuesService { get; set; }
 
-    private const int PageSize = 2;
+    private const int PageSize = 20;
     private int _currentPage = 1;
     private string _searchQuery = "";
     private string? _sortColumn;

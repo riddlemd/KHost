@@ -260,11 +260,8 @@ internal sealed class DefaultMediaPlayer : IMediaPlayer
 
         if (_info.StatefulFormat)
         {
-            // Stateful formats (e.g. CDG) must decode from byte 0 on every input —
-            // input-seeking jumps to a raw byte offset and corrupts the decoder.
-            // All inputs decode from 0 (timestamps naturally 0-based), then output -ss
-            // discards both streams inside ffmpeg before they reach the pipe so both
-            // arrive aligned at T with no manual frame counting needed.
+            // Stateful formats (e.g. CDG) must decode from byte 0 — input -ss jumps to a raw byte
+            // offset and corrupts the decoder, so seek with output -ss, which keeps streams aligned.
             foreach (var filePath in new[] { _info.FilePath }.Concat(_info.AuxiliaryFilePaths))
                 args += $" -i \"{filePath}\"";
 

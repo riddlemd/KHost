@@ -81,10 +81,8 @@ public sealed class LocalScreenProvider : IScreenProvider, IDisposable
         _processes.Clear();
     }
 
-    // The .NET apphost only carries a .exe extension on Windows; on macOS/Linux it is
-    // extensionless, so a hardcoded name makes IsAvailable false everywhere but Windows.
-    // Path.Combine returns a rooted second argument unchanged, so an absolute configured path still
-    // wins while a relative one anchors to the app directory rather than the process CWD.
+    // The apphost is only .exe on Windows, so a hardcoded name makes IsAvailable false elsewhere.
+    // Path.Combine leaves a rooted second argument alone, so an absolute configured path still wins.
     internal static string ResolveExePath(string? configuredExePath, string baseDirectory, bool isWindows)
         => Path.Combine(baseDirectory, string.IsNullOrWhiteSpace(configuredExePath)
             ? isWindows ? "KHost.Screen.exe" : "KHost.Screen"
