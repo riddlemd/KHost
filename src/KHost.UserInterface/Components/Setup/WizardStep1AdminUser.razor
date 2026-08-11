@@ -104,7 +104,7 @@
             var passwordHash = await PasswordHasher!.HashAsync(_model.Password);
             var adminUser = new KHostUser { Name = _model.Username, PasswordHash = passwordHash };
             await UsersService!.CreateAsync(adminUser);
-            await UserGroupsService!.AddUserToGroupAsync(adminUser.Id, KHostUserGroupDefaults.AdminGroupId);
+            await UserGroupsService!.AddUserToGroupAsync(adminUser.Id, KHostUserGroup.Defaults.AdminGroupId);
             await OnComplete.InvokeAsync();
         }
         catch (Exception ex)

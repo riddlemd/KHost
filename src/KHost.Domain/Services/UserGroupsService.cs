@@ -12,6 +12,17 @@ public class UserGroupsService : BaseRepositoryService<KHostUserGroup, IUserGrou
     {
     }
 
+    public override async Task<bool> DeleteAsync(Guid id)
+    {
+        if (KHostUserGroup.Defaults.IsDefault(id))
+        {
+            Logger.LogWarning("Refused to delete built-in user group {GroupId}", id);
+            return false;
+        }
+
+        return await base.DeleteAsync(id);
+    }
+
     public async Task AddUserToGroupAsync(Guid userId, Guid groupId)
     {
         await Repository.AddUserToGroupAsync(userId, groupId);
