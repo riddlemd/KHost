@@ -40,6 +40,15 @@ public class LocalScreenProviderTests
     }
 
     [Fact]
+    public void ResolveExePath_AnchorsRelativeConfiguredPath_ToBaseDirectory()
+    {
+        // Anchoring to the process CWD instead would resolve somewhere else entirely.
+        var path = LocalScreenProvider.ResolveExePath("screens/KHost.Screen", "/app", isWindows: false);
+
+        Assert.Equal(Path.Combine("/app", "screens/KHost.Screen"), path);
+    }
+
+    [Fact]
     public void BuildArguments_KeepsScreenIdWithSpacesAsOneArgument()
     {
         var args = LocalScreenProvider.BuildArguments("http://localhost:5251/ipc/screen", "Screen 1");
