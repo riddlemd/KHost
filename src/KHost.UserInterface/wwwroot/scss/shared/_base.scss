@@ -18,6 +18,9 @@
     --kh-control-height: 36px;
     // Compact variant for dense contexts; matches the fixed 26px icon buttons.
     --kh-control-height-sm: 26px;
+    // Deliberately outside themes/: "inactive" must not read as the theme accent, and must
+    // not read as an alert either — alerts get --kh-danger.
+    --kh-neutral: #6b7280;
 }
 
 html, body {

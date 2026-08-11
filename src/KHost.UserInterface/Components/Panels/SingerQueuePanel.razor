@@ -39,6 +39,8 @@
             var disableMoveUp = isFirst || isCurrentlyPerforming || (userIdx == 1 && SingerQueueService?.IsTopSlotLocked == true);
             var disableMoveDown = userIdx == SingerQueueService?.Users.Count - 1 || isCurrentlyPerforming;
             var disableRemove = isCurrentlyPerforming;
+            var mediaCount = _performanceCounts.GetValueOrDefault(user.Id, 0);
+            var ewt = CalculateEwt(userIdx);
 
             <div class="@GetSingerRowClasses(user.Id, isFirst)"
                  @key="user.Id"
@@ -66,8 +68,11 @@
                 <div>
                     <div class="kh-singer-queue-panel__singer-queue__singer__name">@user.Name</div>
                     <div class="kh-singer-queue-panel__singer-queue__singer__info">
-                        @((MarkupString)FormatMediaCount(_performanceCounts.GetValueOrDefault(user.Id, 0)))
-                        @FormatEwt(CalculateEwt(userIdx))
+                        <span class="@(mediaCount <= 0 ? "kh-singer-queue-panel__empty-queue" : null)">@mediaCount media queued</span>
+                        @if (ewt > TimeSpan.Zero)
+                        {
+                            <span>EWT: @FormatEwt(ewt)</span>
+                        }
                     </div>
                 </div>
 
@@ -211,21 +216,7 @@
     }
 
     private string FormatEwt(TimeSpan duration)
-    {
-        if (duration.TotalSeconds == 0) return string.Empty;
-
-        return $", EWT: {((int)Math.Floor(duration.TotalMinutes)):D2}:{duration.Seconds:D2}";
-    }
-
-    private string FormatMediaCount(int mediaCount)
-    {
-        var className = "";
-
-        if (mediaCount <= 0)
-            className = "kh-singer-queue-panel__empty-queue";
-
-        return $"<span class=\"{className}\">{mediaCount} media queued<span>";
-    }
+        => $"{((int)Math.Floor(duration.TotalMinutes)):D2}:{duration.Seconds:D2}";
 
     private async Task ScrollToSelectedSingerAsync()
     {
