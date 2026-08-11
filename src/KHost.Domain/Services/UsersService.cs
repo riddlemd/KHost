@@ -65,6 +65,17 @@ public class UsersService : BaseRepositoryService<KHostUser, IUsersRepository>, 
         InvokeStateChanged();
     }
 
+    public override async Task<bool> DeleteAsync(Guid id)
+    {
+        if (KHostUser.IsBuiltIn(id))
+        {
+            Logger.LogWarning("Refused to delete built-in user {UserId}", id);
+            return false;
+        }
+
+        return await base.DeleteAsync(id);
+    }
+
     public async Task<bool> HasAdminUserAsync()
     {
         return await Repository.HasAdminUserAsync();
