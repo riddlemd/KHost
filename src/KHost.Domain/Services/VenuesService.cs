@@ -70,9 +70,7 @@ public class VenuesService : BaseRepositoryService<Venue, IVenuesRepository>, IV
 
         InvokeStateChanged();
     }
-
-    // Falling back to another venue would leave the live queue in place under a different venue's
-    // rotation and close-out rules, so the caller has to switch away before deleting.
+    
     public override async Task<bool> DeleteAsync(Guid id)
     {
         if (SelectedVenueId == id)
