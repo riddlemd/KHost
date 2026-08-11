@@ -4,10 +4,36 @@
    ═══════════════════════════════════════════════════════════════════════════ */
 
 .kh-queue-rotation {
+    &__setting {
+        // Rows centre their control by default; these carry two lines of text, so the control
+        // has to line up with the label rather than the middle of the pair.
+        align-items: flex-start;
+
+        &--nested {
+            margin-left: 1.5em;
+        }
+    }
+
+    &__setting-text {
+        // Claims the leftover width so the controls stay in a fixed column on the right and the
+        // description wraps under its own label instead of spanning the whole dialog.
+        flex: 1 1 auto;
+        min-width: 0;
+    }
+
     &__hint {
+        display: block;
         font-size: 0.85rem;
         color: var(--kh-text-muted);
-        // Tuck under the row above (rows carry 1em bottom margin of their own).
-        margin: -0.5em 0 1em;
+        margin: 0.2em 0 0;
+        text-transform: none;
+        letter-spacing: normal;
     }
+
+}
+
+// Standalone hints (the mode description, the section note) sit between rows rather than inside
+// a setting's text column, so they pull up against the row above instead.
+p.kh-queue-rotation__hint {
+    margin: -0.8rem 0 1em;
 }

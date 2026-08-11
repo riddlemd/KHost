@@ -3,6 +3,7 @@ using System;
 using KHost.DataAccess.Contexts;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -10,9 +11,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace KHost.DataAccess.Migrations
 {
     [DbContext(typeof(DefaultContext))]
-    partial class DefaultContextModelSnapshot : ModelSnapshot
+    [Migration("20260811224736_RemovePresenceSetting")]
+    partial class RemovePresenceSetting
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.7");
@@ -350,8 +353,16 @@ namespace KHost.DataAccess.Migrations
 
                                     b2.Property<int>("FirstTimeBoostSlots");
 
+                                    b2.Property<int>("NoShowDemoteSlots");
+
+                                    b2.Property<int>("NoShowMaxMisses");
+
                                     b2.Property<string>("StrategyId")
                                         .IsRequired();
+
+                                    b2.Property<int>("TimeBoxMinutes");
+
+                                    b2.Property<int>("TipBumpWindowMinutes");
 
                                     b2.Property<Guid?>("VipGroupId");
 

@@ -39,35 +39,34 @@ public class RotationStrategyFactoryTests
     }
 
     [Fact]
-    public async Task PresenceWrapsCoolDownWrapsVipWrapsBase_OutermostWins()
+    public async Task CoolDownWrapsVipWrapsBase_OutermostWins()
     {
         var now = new DateTime(2026, 4, 28, 20, 0, 0, DateTimeKind.Utc);
         var vipGroupId = Guid.NewGuid();
 
-        var aliceVipPresent = QueueRotationTestHelpers.User("AliceVip", lastCheckinOn: now.AddMinutes(-5), groupIds: vipGroupId);
-        var bobPresent = QueueRotationTestHelpers.User("BobPresent", lastCheckinOn: now.AddMinutes(-5));
-        var carolAbsent = QueueRotationTestHelpers.User("CarolAbsent", lastCheckinOn: now.AddMinutes(-60));
+        var aliceVip = QueueRotationTestHelpers.User("AliceVip", groupIds: vipGroupId);
+        var bob = QueueRotationTestHelpers.User("Bob");
+        var carol = QueueRotationTestHelpers.User("Carol");
 
         var config = new QueueRotationConfig
         {
             StrategyId = "fifo",
             VipGroupId = vipGroupId,
             CoolDownSlots = 1,
-            PresenceRequired = true,
-            PresenceWindowMinutes = 30,
         };
 
         var ctx = QueueRotationTestHelpers.Context(
-            [aliceVipPresent, bobPresent, carolAbsent],
-            finishedSingerId: aliceVipPresent.Id,
+            [aliceVip, bob, carol],
+            finishedSingerId: aliceVip.Id,
             config: config,
             now: now);
 
         var strategy = BuildFactory().Resolve(config);
         var result = await strategy.ApplyAsync(ctx);
 
-        Assert.Equal(carolAbsent.Id, result[^1]);
-        Assert.NotEqual(aliceVipPresent.Id, result[0]);
+        // VIP alone would sort Alice to the front; cool-down wraps it and holds the singer
+        // who just finished away from it.
+        Assert.NotEqual(aliceVip.Id, result[0]);
     }
 
     [Fact]
