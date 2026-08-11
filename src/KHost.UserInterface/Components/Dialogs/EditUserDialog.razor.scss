@@ -3,6 +3,78 @@
    ═══════════════════════════════════════════════════════════════════════════ */
 
 .kh-user-edit-dialog {
+    &__layout {
+        display: flex;
+        align-items: flex-start;
+        gap: 1.5em;
+    }
+
+    // 2:1 against the stats column. Without a stats panel this is the only child, so the form
+    // takes the full width rather than sitting in two thirds of it.
+    &__main {
+        flex: 2 1 0;
+        min-width: 0;
+    }
+
+    &__stats {
+        flex: 1 1 0;
+        min-width: 0;
+        border-left: 1px solid var(--kh-border);
+        padding-left: 1.25em;
+        align-self: stretch;
+    }
+
+    &__stats-section + &__stats-section {
+        margin-top: 1.25em;
+    }
+
+    &__stats-title {
+        display: block;
+        color: var(--kh-text-secondary);
+        font-size: 0.7rem;
+        font-weight: 600;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        margin-bottom: 0.5em;
+    }
+
+    &__stats-empty {
+        color: var(--kh-text-muted);
+        font-size: 0.85rem;
+    }
+
+    &__stats-list {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+    }
+
+    &__stats-item {
+        padding: 0.35em 0;
+
+        & + & {
+            border-top: 1px solid var(--kh-border);
+        }
+    }
+
+    &__stats-primary {
+        display: block;
+        color: var(--kh-text);
+        font-size: 0.9rem;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    &__stats-secondary {
+        display: block;
+        color: var(--kh-text-muted);
+        font-size: 0.78rem;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
     &__groups {
         max-height: 200px;
         overflow-y: auto;
