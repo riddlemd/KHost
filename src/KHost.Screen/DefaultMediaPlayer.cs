@@ -236,8 +236,6 @@ internal sealed class DefaultMediaPlayer : IMediaPlayer
         _info = null;
     }
 
-    // ── Segment management ───────────────────────────────────────────────────
-
     /// <summary>
     /// Starts a single ffmpeg process that outputs interleaved AVI
     /// (rawvideo BGRA + pcm_s16le) to stdout, then launches the demux thread.
@@ -379,8 +377,6 @@ internal sealed class DefaultMediaPlayer : IMediaPlayer
         PlaybackEnded?.Invoke(this, EventArgs.Empty);
     }
 
-    // ── Demux thread ────────────────────────────────────────────────────────
-
     /// <summary>
     /// Reads interleaved AVI chunks from the single ffmpeg process and
     /// dispatches video frames and audio PCM to their respective consumers.
@@ -410,7 +406,6 @@ internal sealed class DefaultMediaPlayer : IMediaPlayer
 
                 if (chunk.IsVideo && chunk.Data.Length == frameBytes)
                 {
-                    // ── Video frame ─────────────────────────────────────────
                     if (!_firstFrameSeen)
                     {
                         lock (_lock)
@@ -432,7 +427,6 @@ internal sealed class DefaultMediaPlayer : IMediaPlayer
                 }
                 else if (chunk.IsAudio)
                 {
-                    // ── Audio chunk → OpenAL ────────────────────────────────
                     _audio.FeedPcm(chunk.Data, chunk.Data.Length);
                 }
             }
@@ -460,8 +454,6 @@ internal sealed class DefaultMediaPlayer : IMediaPlayer
             PlaybackEnded?.Invoke(this, EventArgs.Empty);
         }
     }
-
-    // ── Helpers ─────────────────────────────────────────────────────────────
 
     /// <summary>
     /// Maps FFMpegCore's probe result into the abstraction layer's MediaInfo and

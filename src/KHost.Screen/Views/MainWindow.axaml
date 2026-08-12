@@ -4,12 +4,14 @@
         Title="KHost.Screen"
         Width="900" Height="600"
         MinWidth="480" MinHeight="360"
-        Background="#1C1C1C">
+        Background="#1C1C1C"
+        Focusable="True">
 
     <DockPanel>
 
         <!-- ── Toolbar ── -->
-        <Border DockPanel.Dock="Top"
+        <Border x:Name="TopToolbar"
+                DockPanel.Dock="Top"
                 Background="#2A2A2A"
                 BorderBrush="#3A3A3A"
                 BorderThickness="0,0,0,1"
@@ -64,7 +66,8 @@
         </Border>
 
         <!-- ── Status bar ── -->
-        <Border DockPanel.Dock="Bottom"
+        <Border x:Name="BottomToolbar"
+                DockPanel.Dock="Bottom"
                 Background="#222222"
                 BorderBrush="#3A3A3A"
                 BorderThickness="0,1,0,0"
@@ -88,7 +91,9 @@
         </Border>
 
         <!-- ── Video area ── -->
-        <Border Background="#111111">
+        <!-- Handled here rather than on the window so the toolbar's own controls do not
+             trigger it. -->
+        <Border Background="#111111" DoubleTapped="VideoArea_DoubleTapped">
             <Panel>
                 <!-- Decoded video frames -->
                 <Image x:Name="ImgVideo"
