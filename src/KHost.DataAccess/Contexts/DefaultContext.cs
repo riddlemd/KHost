@@ -151,14 +151,6 @@ internal class DefaultContext : DbContext
                     Description = "Frequent singer",
                     IsAdmin = false,
                     Permissions = []
-                },
-                new KHostUserGroup
-                {
-                    Id = new Guid("00000000-0000-0000-0000-000000000003"),
-                    Name = "Tipper",
-                    Description = "Singer who tips the host",
-                    IsAdmin = false,
-                    Permissions = []
                 }
             );
         });

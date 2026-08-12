@@ -57,7 +57,6 @@ public class UserGroupsServiceTests
     [Theory]
     [InlineData("00000000-0000-0000-0000-000000000001")] // Admin
     [InlineData("00000000-0000-0000-0000-000000000002")] // Regular
-    [InlineData("00000000-0000-0000-0000-000000000003")] // Tipper
     [InlineData("00000000-0000-0000-0000-00000000009f")] // any future seeded group
     public async Task DeleteAsync_RefusesToDeleteBuiltInGroups(string groupId)
     {
