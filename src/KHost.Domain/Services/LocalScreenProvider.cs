@@ -15,10 +15,10 @@ public sealed class LocalScreenProvider : IScreenProvider, IDisposable
         public string ServerUri { get; set; } = "http://localhost:5000/ipc/screen";
 
         /// <summary>
-        /// False launches screens with <c>--no-controls</c>, showing only the video. Suits a
-        /// display driven entirely by the host, where the screen's own toolbar is a liability.
+        /// Off by default: a host-launched screen is driven entirely from here, so its own
+        /// toolbar only gets in the way. Set true to get the controls back for debugging.
         /// </summary>
-        public bool ShowControls { get; set; } = true;
+        public bool ShowControls { get; set; }
     }
 
     private readonly ServiceOptions _options;
