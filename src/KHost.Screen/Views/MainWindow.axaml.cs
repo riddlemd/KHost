@@ -70,8 +70,6 @@ public partial class MainWindow : Window
         _positionTimer.Start();
     }
 
-    // ── Chrome ──────────────────────────────────────────────────────────────
-
     private void VideoArea_DoubleTapped(object? sender, TappedEventArgs e)
     {
         _isFullScreen = !_isFullScreen;
@@ -104,10 +102,19 @@ public partial class MainWindow : Window
         // touching separately.
         WindowState = _isFullScreen ? WindowState.FullScreen : WindowState.Normal;
 
+        // Re-gate rather than set: the placeholder starts visible from the XAML, and whether it
+        // should be showing at all depends on playback rather than on the chrome.
+        SetPlaceholderVisible(TxtPlaceholder.IsVisible);
+
         // Key input routes through the focused element, and hiding the toolbars leaves nothing
         // else focusable — without this Escape stops reaching OnKeyDown.
         Focus();
     }
+
+    // The placeholder points at the Load button, so it has nothing to say on a screen that has
+    // no controls and takes its media from the host.
+    private void SetPlaceholderVisible(bool visible)
+        => TxtPlaceholder.IsVisible = visible && _showControls;
 
     // ── Connection indicator ────────────────────────────────────────────────
 
@@ -164,7 +171,7 @@ public partial class MainWindow : Window
 
             ImgVideo.Opacity = alpha;
             ImgVideo.Source = _displayBitmap;
-            TxtPlaceholder.IsVisible = false;
+            SetPlaceholderVisible(false);
         }, DispatcherPriority.Render);
     }
 
@@ -183,7 +190,7 @@ public partial class MainWindow : Window
         ImgVideo.Opacity = 1;
         _displayBitmap?.Dispose();
         _displayBitmap = null;
-        TxtPlaceholder.IsVisible = true;
+        SetPlaceholderVisible(true);
     }
 
     private void OnErrorOccurred(object? sender, string message)
@@ -350,7 +357,7 @@ public partial class MainWindow : Window
 
         if (!loaded)
         {
-            TxtPlaceholder.IsVisible = true;
+            SetPlaceholderVisible(true);
             TxtStatus.Text = "No file loaded";
         }
     }

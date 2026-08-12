@@ -14,7 +14,6 @@ public partial class App : Application
     public static string IpcServerUri { get; set; } = "http://localhost:5000/ipc/screen";
     public static string IpcScreenId { get; set; } = Environment.MachineName;
 
-    /// <summary>False when launched with <c>--no-controls</c>: the window shows only the video.</summary>
     public static bool ShowControls { get; set; } = true;
 
     private ScreenIpcController? _ipc;
