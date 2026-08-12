@@ -104,14 +104,6 @@ namespace KHost.DataAccess.Migrations
                             IsAdmin = false,
                             Name = "Regular",
                             Permissions = "[]"
-                        },
-                        new
-                        {
-                            Id = new Guid("00000000-0000-0000-0000-000000000003"),
-                            Description = "Singer who tips the host",
-                            IsAdmin = false,
-                            Name = "Tipper",
-                            Permissions = "[]"
                         });
                 });
 
