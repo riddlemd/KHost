@@ -89,8 +89,6 @@ internal sealed class AviDemuxer
         }
     }
 
-    // ── helpers ──────────────────────────────────────────────────────────────
-
     private string ReadFourCC()
     {
         ReadExact(_hdr, 0, 4);
