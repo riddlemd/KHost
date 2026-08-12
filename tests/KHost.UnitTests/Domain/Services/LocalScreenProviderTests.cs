@@ -105,9 +105,10 @@ public class LocalScreenProviderTests
         Assert.Equal("Screen 1", args[Array.IndexOf(args, "--screen-id") + 1]);
     }
 
+    // A screen launched from the host is driven from there, so it starts without its own toolbar.
     [Fact]
-    public void ShowControls_DefaultsToTrue()
+    public void ShowControls_DefaultsToFalse()
     {
-        Assert.True(new LocalScreenProvider.ServiceOptions().ShowControls);
+        Assert.False(new LocalScreenProvider.ServiceOptions().ShowControls);
     }
 }
