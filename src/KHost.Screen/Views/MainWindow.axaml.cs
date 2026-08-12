@@ -116,15 +116,11 @@ public partial class MainWindow : Window
     private void SetPlaceholderVisible(bool visible)
         => TxtPlaceholder.IsVisible = visible && _showControls;
 
-    // ── Connection indicator ────────────────────────────────────────────────
-
     internal void SetConnectionState(ScreenClientState state)
     {
         bool connected = state == ScreenClientState.Connected;
         Dispatcher.UIThread.Post(() => ConnDot.IsVisible = !connected);
     }
-
-    // ── Player event handlers (arrive on background threads) ────────────────
 
     private void OnFrameAvailable(object? sender, IMediaPlayer.FrameData frame)
     {
@@ -199,8 +195,6 @@ public partial class MainWindow : Window
         Dispatcher.UIThread.Post(() => ShowError(message));
     }
 
-    // ── Toolbar button handlers ──────────────────────────────────────────────
-
     private async void BtnLoad_Click(object? sender, RoutedEventArgs e)
     {
         var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
@@ -267,8 +261,6 @@ public partial class MainWindow : Window
         };
     }
 
-    // ── Slider seek ──────────────────────────────────────────────────────────
-
     private void SldPosition_PointerPressed(object? sender, PointerPressedEventArgs e)
         => _userDraggingSlider = true;
 
@@ -282,8 +274,6 @@ public partial class MainWindow : Window
         _player.Seek(TimeSpan.FromTicks((long)(fraction * _player.Duration.Ticks)));
     }
 
-    // ── Position timer ────────────────────────────────────────────────────────
-
     private void PositionTimer_Tick(object? sender, EventArgs e)
     {
         if (!_player.IsLoaded) return;
@@ -296,8 +286,6 @@ public partial class MainWindow : Window
         if (!_userDraggingSlider && dur > TimeSpan.Zero)
             SldPosition.Value = pos.TotalSeconds / dur.TotalSeconds * SldPosition.Maximum;
     }
-
-    // ── Helpers ───────────────────────────────────────────────────────────────
 
     private async Task LoadFileAsync(string filePath)
     {
