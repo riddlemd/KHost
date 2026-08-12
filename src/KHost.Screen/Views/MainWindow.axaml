@@ -91,8 +91,8 @@
         </Border>
 
         <!-- ── Video area ── -->
-        <!-- Double-tap toggles full screen. Handled here rather than on the window so the
-             toolbar's own controls do not trigger it. -->
+        <!-- Handled here rather than on the window so the toolbar's own controls do not
+             trigger it. -->
         <Border Background="#111111" DoubleTapped="VideoArea_DoubleTapped">
             <Panel>
                 <!-- Decoded video frames -->
