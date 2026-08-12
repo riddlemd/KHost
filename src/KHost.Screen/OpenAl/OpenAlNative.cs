@@ -77,8 +77,6 @@ internal static class OpenAlNative
     private static IntPtr Resolve(string name, Assembly asm, DllImportSearchPath? path) =>
         name == Lib ? _libHandle : IntPtr.Zero;
 
-    // ── ALC ─────────────────────────────────────────────────────────────────
-
     [DllImport(Lib, EntryPoint = "alcOpenDevice")]
     internal static extern IntPtr alcOpenDevice(string? name);
 
@@ -95,8 +93,6 @@ internal static class OpenAlNative
     [DllImport(Lib, EntryPoint = "alcCloseDevice")]
     [return: MarshalAs(UnmanagedType.U1)]
     internal static extern bool alcCloseDevice(IntPtr device);
-
-    // ── AL ──────────────────────────────────────────────────────────────────
 
     [DllImport(Lib, EntryPoint = "alGenSources")]
     internal static extern void alGenSources(int n, out int source);

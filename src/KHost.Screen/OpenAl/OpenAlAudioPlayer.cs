@@ -38,8 +38,6 @@ internal sealed class OpenAlAudioPlayer : IDisposable
 
     private volatile float _volume = 1.0f;
 
-    // ── Public API ──────────────────────────────────────────────────────────
-
     public bool IsAvailable { get; }
 
     /// <summary>
@@ -56,8 +54,6 @@ internal sealed class OpenAlAudioPlayer : IDisposable
                 alSourcef(_source, AL_GAIN, _volume);
         }
     }
-
-    // ── Construction ────────────────────────────────────────────────────────
 
     public OpenAlAudioPlayer(ILogger<OpenAlAudioPlayer> logger)
     {
@@ -99,8 +95,6 @@ internal sealed class OpenAlAudioPlayer : IDisposable
             _logger.LogWarning(ex, "OpenAL device init failed; audio disabled");
         }
     }
-
-    // ── Streaming lifecycle ─────────────────────────────────────────────────
 
     /// <summary>
     /// Prepares the player for a new stream of PCM data at the given format.
@@ -174,8 +168,6 @@ internal sealed class OpenAlAudioPlayer : IDisposable
         alcDestroyContext(_context);
         alcCloseDevice(_device);
     }
-
-    // ── Internal ────────────────────────────────────────────────────────────
 
     private void FlushStaging()
     {

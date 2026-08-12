@@ -14,6 +14,8 @@ public partial class App : Application
     public static string IpcServerUri { get; set; } = "http://localhost:5000/ipc/screen";
     public static string IpcScreenId { get; set; } = Environment.MachineName;
 
+    public static bool ShowControls { get; set; } = true;
+
     private ScreenIpcController? _ipc;
 
     public override void Initialize() => AvaloniaXamlLoader.Load(this);
@@ -22,7 +24,7 @@ public partial class App : Application
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
-            var mainWindow = new MainWindow(LoggerFactory);
+            var mainWindow = new MainWindow(LoggerFactory, ShowControls);
             desktop.MainWindow = mainWindow;
             desktop.Startup += (_, _) => OnStartup(mainWindow);
             desktop.Exit += (_, _) => OnExit();

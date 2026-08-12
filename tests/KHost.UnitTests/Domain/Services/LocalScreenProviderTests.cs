@@ -78,4 +78,37 @@ public class LocalScreenProviderTests
         Assert.Equal("http://host/ipc", args[Array.IndexOf(args, "--server-uri") + 1]);
         Assert.Equal("Screen 1", args[Array.IndexOf(args, "--screen-id") + 1]);
     }
+
+    [Fact]
+    public void BuildArguments_OmitsNoControls_WhenControlsAreShown()
+    {
+        var args = LocalScreenProvider.BuildArguments("http://host/ipc", "Screen 1", showControls: true);
+
+        Assert.DoesNotContain("--no-controls", args);
+    }
+
+    [Fact]
+    public void BuildArguments_AddsNoControls_WhenControlsAreHidden()
+    {
+        var args = LocalScreenProvider.BuildArguments("http://host/ipc", "Screen 1", showControls: false);
+
+        Assert.Contains("--no-controls", args);
+    }
+
+    // The flag takes no value, so it must not land between a flag and its value.
+    [Fact]
+    public void BuildArguments_KeepsFlagPairsIntact_WhenControlsAreHidden()
+    {
+        var args = LocalScreenProvider.BuildArguments("http://host/ipc", "Screen 1", showControls: false);
+
+        Assert.Equal("http://host/ipc", args[Array.IndexOf(args, "--server-uri") + 1]);
+        Assert.Equal("Screen 1", args[Array.IndexOf(args, "--screen-id") + 1]);
+    }
+
+    // A screen launched from the host is driven from there, so it starts without its own toolbar.
+    [Fact]
+    public void ShowControls_DefaultsToFalse()
+    {
+        Assert.False(new LocalScreenProvider.ServiceOptions().ShowControls);
+    }
 }
