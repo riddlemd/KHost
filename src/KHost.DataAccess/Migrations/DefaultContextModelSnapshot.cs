@@ -26,12 +26,6 @@ namespace KHost.DataAccess.Migrations
                     b.Property<DateTime>("CreatedDate")
                         .HasColumnType("TEXT");
 
-                    b.Property<Guid?>("DefaultVenueId")
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime?>("LastLoginDate")
-                        .HasColumnType("TEXT");
-
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(255)
