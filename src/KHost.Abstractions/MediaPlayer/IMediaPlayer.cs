@@ -6,7 +6,6 @@ namespace KHost.Abstractions.MediaPlayer;
 /// </summary>
 public interface IMediaPlayer : IDisposable
 {
-    // ── State ──────────────────────────────────────────────────────────────
 
     /// <summary>Metadata for the currently loaded file, or null if nothing is loaded.</summary>
     MediaInfo? Info { get; }
@@ -15,15 +14,11 @@ public interface IMediaPlayer : IDisposable
     bool IsPlaying { get; }
     bool IsPaused { get; }
 
-    // ── Timing ─────────────────────────────────────────────────────────────
-
     /// <summary>Current playback position, updated in real time while playing.</summary>
     TimeSpan Position { get; }
 
     /// <summary>Total duration of the loaded media. Zero if nothing is loaded.</summary>
     TimeSpan Duration { get; }
-
-    // ── Audio ──────────────────────────────────────────────────────────────
 
     /// <summary>
     /// Audio output gain.  0.0 = silent, 1.0 = unity (full volume).
@@ -39,8 +34,6 @@ public interface IMediaPlayer : IDisposable
     /// </summary>
     int PitchSemitones { get; set; }
 
-    // ── Events ─────────────────────────────────────────────────────────────
-
     /// <summary>
     /// Raised on a background thread each time a decoded video frame is ready.
     /// The <see cref="FrameData"/> carries raw BGRA pixels; the handler must not
@@ -53,8 +46,6 @@ public interface IMediaPlayer : IDisposable
 
     /// <summary>Raised when a playback error occurs. The string contains the error message.</summary>
     event EventHandler<string>? ErrorOccurred;
-
-    // ── Commands ───────────────────────────────────────────────────────────
 
     /// <summary>
     /// Probes <paramref name="filePath"/> with ffprobe and prepares it for playback.
