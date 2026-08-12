@@ -11,7 +11,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace KHost.DataAccess.Migrations
 {
     [DbContext(typeof(DefaultContext))]
-    [Migration("20260811210235_InitialSchema")]
+    [Migration("20260812024015_InitialSchema")]
     partial class InitialSchema
     {
         /// <inheritdoc />
@@ -27,12 +27,6 @@ namespace KHost.DataAccess.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<DateTime>("CreatedDate")
-                        .HasColumnType("TEXT");
-
-                    b.Property<Guid?>("DefaultVenueId")
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime?>("LastLoginDate")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Name")
@@ -106,14 +100,6 @@ namespace KHost.DataAccess.Migrations
                             Description = "Frequent singer",
                             IsAdmin = false,
                             Name = "Regular",
-                            Permissions = "[]"
-                        },
-                        new
-                        {
-                            Id = new Guid("00000000-0000-0000-0000-000000000003"),
-                            Description = "Singer who tips the host",
-                            IsAdmin = false,
-                            Name = "Tipper",
                             Permissions = "[]"
                         });
                 });
@@ -343,10 +329,6 @@ namespace KHost.DataAccess.Migrations
                                 {
                                     b2.Property<Guid>("VenueSettingsVenueId");
 
-                                    b2.Property<int>("AnchorEveryN");
-
-                                    b2.Property<Guid?>("AnchorSingerId");
-
                                     b2.Property<int>("CoolDownSlots");
 
                                     b2.Property<int>("DropFixedIndex");
@@ -357,20 +339,8 @@ namespace KHost.DataAccess.Migrations
 
                                     b2.Property<int>("FirstTimeBoostSlots");
 
-                                    b2.Property<int>("NoShowDemoteSlots");
-
-                                    b2.Property<int>("NoShowMaxMisses");
-
-                                    b2.Property<bool>("PresenceRequired");
-
-                                    b2.Property<int>("PresenceWindowMinutes");
-
                                     b2.Property<string>("StrategyId")
                                         .IsRequired();
-
-                                    b2.Property<int>("TimeBoxMinutes");
-
-                                    b2.Property<int>("TipBumpWindowMinutes");
 
                                     b2.Property<Guid?>("VipGroupId");
 

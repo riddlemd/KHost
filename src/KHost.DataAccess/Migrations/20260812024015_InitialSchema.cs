@@ -3,8 +3,6 @@ using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
-#pragma warning disable CA1814 // Prefer jagged arrays over multidimensional
-
 namespace KHost.DataAccess.Migrations
 {
     /// <inheritdoc />
@@ -69,11 +67,9 @@ namespace KHost.DataAccess.Migrations
                 {
                     Id = table.Column<Guid>(type: "TEXT", nullable: false),
                     Name = table.Column<string>(type: "TEXT", maxLength: 255, nullable: false),
-                    DefaultVenueId = table.Column<Guid>(type: "TEXT", nullable: true),
                     Notes = table.Column<string>(type: "TEXT", maxLength: 1000, nullable: false),
                     CreatedDate = table.Column<DateTime>(type: "TEXT", nullable: false),
-                    PasswordHash = table.Column<string>(type: "TEXT", maxLength: 512, nullable: true),
-                    LastLoginDate = table.Column<DateTime>(type: "TEXT", nullable: true)
+                    PasswordHash = table.Column<string>(type: "TEXT", maxLength: 512, nullable: true)
                 },
                 constraints: table =>
                 {
@@ -152,11 +148,7 @@ namespace KHost.DataAccess.Migrations
             migrationBuilder.InsertData(
                 table: "UserGroups",
                 columns: new[] { "Id", "Description", "Name", "Permissions" },
-                values: new object[,]
-                {
-                    { new Guid("00000000-0000-0000-0000-000000000002"), "Frequent singer", "Regular", "[]" },
-                    { new Guid("00000000-0000-0000-0000-000000000003"), "Singer who tips the host", "Tipper", "[]" }
-                });
+                values: new object[] { new Guid("00000000-0000-0000-0000-000000000002"), "Frequent singer", "Regular", "[]" });
 
             migrationBuilder.CreateIndex(
                 name: "IX_Media_Artist",
