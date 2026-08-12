@@ -31,13 +31,21 @@ public partial class MainWindow : Window
     // Prevents position timer from fighting with manual slider drags.
     private bool _userDraggingSlider;
 
+    // The launch preference; full screen hides the chrome on top of this rather than replacing
+    // it, so leaving full screen restores whatever the screen started with.
+    private readonly bool _showControls;
+    private bool _isFullScreen;
+
     public MainWindow() : this(NullLoggerFactory.Instance)
     {
     }
 
-    public MainWindow(ILoggerFactory loggerFactory)
+    public MainWindow(ILoggerFactory loggerFactory, bool showControls = true)
     {
         InitializeComponent();
+
+        _showControls = showControls;
+        ApplyChrome();
 
         _logger = loggerFactory.CreateLogger<MainWindow>();
         var audio = new OpenAlAudioPlayer(loggerFactory.CreateLogger<OpenAlAudioPlayer>());
@@ -62,15 +70,57 @@ public partial class MainWindow : Window
         _positionTimer.Start();
     }
 
-    // ── Connection indicator ────────────────────────────────────────────────
+    private void VideoArea_DoubleTapped(object? sender, TappedEventArgs e)
+    {
+        _isFullScreen = !_isFullScreen;
+        ApplyChrome();
+        e.Handled = true;
+    }
+
+    // Escape is the way back out when the toolbars are hidden and there is no title bar to
+    // grab — without it a screen started with --no-controls has no visible exit.
+    protected override void OnKeyDown(KeyEventArgs e)
+    {
+        if (e.Key == Key.Escape && _isFullScreen)
+        {
+            _isFullScreen = false;
+            ApplyChrome();
+            e.Handled = true;
+        }
+
+        base.OnKeyDown(e);
+    }
+
+    private void ApplyChrome()
+    {
+        bool chromeVisible = _showControls && !_isFullScreen;
+
+        TopToolbar.IsVisible = chromeVisible;
+        BottomToolbar.IsVisible = chromeVisible;
+
+        // FullScreen drops the border and title bar itself, so the decorations do not need
+        // touching separately.
+        WindowState = _isFullScreen ? WindowState.FullScreen : WindowState.Normal;
+
+        // Re-gate rather than set: the placeholder starts visible from the XAML, and whether it
+        // should be showing at all depends on playback rather than on the chrome.
+        SetPlaceholderVisible(TxtPlaceholder.IsVisible);
+
+        // Key input routes through the focused element, and hiding the toolbars leaves nothing
+        // else focusable — without this Escape stops reaching OnKeyDown.
+        Focus();
+    }
+
+    // The placeholder points at the Load button, so it has nothing to say on a screen that has
+    // no controls and takes its media from the host.
+    private void SetPlaceholderVisible(bool visible)
+        => TxtPlaceholder.IsVisible = visible && _showControls;
 
     internal void SetConnectionState(ScreenClientState state)
     {
         bool connected = state == ScreenClientState.Connected;
         Dispatcher.UIThread.Post(() => ConnDot.IsVisible = !connected);
     }
-
-    // ── Player event handlers (arrive on background threads) ────────────────
 
     private void OnFrameAvailable(object? sender, IMediaPlayer.FrameData frame)
     {
@@ -117,7 +167,7 @@ public partial class MainWindow : Window
 
             ImgVideo.Opacity = alpha;
             ImgVideo.Source = _displayBitmap;
-            TxtPlaceholder.IsVisible = false;
+            SetPlaceholderVisible(false);
         }, DispatcherPriority.Render);
     }
 
@@ -136,7 +186,7 @@ public partial class MainWindow : Window
         ImgVideo.Opacity = 1;
         _displayBitmap?.Dispose();
         _displayBitmap = null;
-        TxtPlaceholder.IsVisible = true;
+        SetPlaceholderVisible(true);
     }
 
     private void OnErrorOccurred(object? sender, string message)
@@ -144,8 +194,6 @@ public partial class MainWindow : Window
         _logger.LogError("Player error: {Message}", message);
         Dispatcher.UIThread.Post(() => ShowError(message));
     }
-
-    // ── Toolbar button handlers ──────────────────────────────────────────────
 
     private async void BtnLoad_Click(object? sender, RoutedEventArgs e)
     {
@@ -213,8 +261,6 @@ public partial class MainWindow : Window
         };
     }
 
-    // ── Slider seek ──────────────────────────────────────────────────────────
-
     private void SldPosition_PointerPressed(object? sender, PointerPressedEventArgs e)
         => _userDraggingSlider = true;
 
@@ -228,8 +274,6 @@ public partial class MainWindow : Window
         _player.Seek(TimeSpan.FromTicks((long)(fraction * _player.Duration.Ticks)));
     }
 
-    // ── Position timer ────────────────────────────────────────────────────────
-
     private void PositionTimer_Tick(object? sender, EventArgs e)
     {
         if (!_player.IsLoaded) return;
@@ -242,8 +286,6 @@ public partial class MainWindow : Window
         if (!_userDraggingSlider && dur > TimeSpan.Zero)
             SldPosition.Value = pos.TotalSeconds / dur.TotalSeconds * SldPosition.Maximum;
     }
-
-    // ── Helpers ───────────────────────────────────────────────────────────────
 
     private async Task LoadFileAsync(string filePath)
     {
@@ -303,7 +345,7 @@ public partial class MainWindow : Window
 
         if (!loaded)
         {
-            TxtPlaceholder.IsVisible = true;
+            SetPlaceholderVisible(true);
             TxtStatus.Text = "No file loaded";
         }
     }
