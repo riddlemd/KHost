@@ -23,6 +23,7 @@ class Program
 
         App.IpcServerUri = GetArg(args, "--server-uri") ?? "http://localhost:5000/ipc/screen";
         App.IpcScreenId = GetArg(args, "--screen-id") ?? Environment.MachineName;
+        App.ShowControls = !HasFlag(args, "--no-controls");
 
         BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
     }
@@ -32,6 +33,9 @@ class Program
         int i = Array.IndexOf(args, name);
         return i >= 0 && i + 1 < args.Length ? args[i + 1] : null;
     }
+
+    private static bool HasFlag(string[] args, string name)
+        => Array.IndexOf(args, name) >= 0;
 
     public static AppBuilder BuildAvaloniaApp() =>
         AppBuilder.Configure<App>()

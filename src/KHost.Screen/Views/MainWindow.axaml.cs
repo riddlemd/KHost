@@ -31,13 +31,21 @@ public partial class MainWindow : Window
     // Prevents position timer from fighting with manual slider drags.
     private bool _userDraggingSlider;
 
+    // The launch preference; full screen hides the chrome on top of this rather than replacing
+    // it, so leaving full screen restores whatever the screen started with.
+    private readonly bool _showControls;
+    private bool _isFullScreen;
+
     public MainWindow() : this(NullLoggerFactory.Instance)
     {
     }
 
-    public MainWindow(ILoggerFactory loggerFactory)
+    public MainWindow(ILoggerFactory loggerFactory, bool showControls = true)
     {
         InitializeComponent();
+
+        _showControls = showControls;
+        ApplyChrome();
 
         _logger = loggerFactory.CreateLogger<MainWindow>();
         var audio = new OpenAlAudioPlayer(loggerFactory.CreateLogger<OpenAlAudioPlayer>());
@@ -60,6 +68,45 @@ public partial class MainWindow : Window
         _positionTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
         _positionTimer.Tick += PositionTimer_Tick;
         _positionTimer.Start();
+    }
+
+    // ── Chrome ──────────────────────────────────────────────────────────────
+
+    private void VideoArea_DoubleTapped(object? sender, TappedEventArgs e)
+    {
+        _isFullScreen = !_isFullScreen;
+        ApplyChrome();
+        e.Handled = true;
+    }
+
+    // Escape is the way back out when the toolbars are hidden and there is no title bar to
+    // grab — without it a screen started with --no-controls has no visible exit.
+    protected override void OnKeyDown(KeyEventArgs e)
+    {
+        if (e.Key == Key.Escape && _isFullScreen)
+        {
+            _isFullScreen = false;
+            ApplyChrome();
+            e.Handled = true;
+        }
+
+        base.OnKeyDown(e);
+    }
+
+    private void ApplyChrome()
+    {
+        bool chromeVisible = _showControls && !_isFullScreen;
+
+        TopToolbar.IsVisible = chromeVisible;
+        BottomToolbar.IsVisible = chromeVisible;
+
+        // FullScreen drops the border and title bar itself, so the decorations do not need
+        // touching separately.
+        WindowState = _isFullScreen ? WindowState.FullScreen : WindowState.Normal;
+
+        // Key input routes through the focused element, and hiding the toolbars leaves nothing
+        // else focusable — without this Escape stops reaching OnKeyDown.
+        Focus();
     }
 
     // ── Connection indicator ────────────────────────────────────────────────
