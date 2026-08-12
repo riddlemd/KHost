@@ -13,6 +13,12 @@ public sealed class LocalScreenProvider : IScreenProvider, IDisposable
         public const string SectionName = "LocalScreen";
         public string? ExePath { get; set; }
         public string ServerUri { get; set; } = "http://localhost:5000/ipc/screen";
+
+        /// <summary>
+        /// False launches screens with <c>--no-controls</c>, showing only the video. Suits a
+        /// display driven entirely by the host, where the screen's own toolbar is a liability.
+        /// </summary>
+        public bool ShowControls { get; set; } = true;
     }
 
     private readonly ServiceOptions _options;
@@ -45,7 +51,7 @@ public sealed class LocalScreenProvider : IScreenProvider, IDisposable
             CreateNoWindow = false,
         };
 
-        foreach (var argument in BuildArguments(_options.ServerUri, screenId))
+        foreach (var argument in BuildArguments(_options.ServerUri, screenId, _options.ShowControls))
             psi.ArgumentList.Add(argument);
 
         var process = Process.Start(psi)
@@ -90,8 +96,10 @@ public sealed class LocalScreenProvider : IScreenProvider, IDisposable
 
     // Must stay one element per argument: screen ids are generated as "Screen 1", and a single
     // concatenated argument string would split that in two, leaving every screen named "Screen".
-    internal static string[] BuildArguments(string serverUri, string screenId)
-        => ["--server-uri", serverUri, "--screen-id", screenId];
+    internal static string[] BuildArguments(string serverUri, string screenId, bool showControls = true)
+        => showControls
+            ? ["--server-uri", serverUri, "--screen-id", screenId]
+            : ["--server-uri", serverUri, "--screen-id", screenId, "--no-controls"];
 
     private string ResolvedExePath =>
         ResolveExePath(_options.ExePath, AppContext.BaseDirectory, OperatingSystem.IsWindows());
