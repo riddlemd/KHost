@@ -21,7 +21,14 @@ using Serilog;
 using Serilog.Events;
 using KHost.UserInterface.Services.RedirectProviders;
 
-var builder = WebApplication.CreateBuilder(args);
+var builder = WebApplication.CreateBuilder(new WebApplicationOptions
+{
+    Args = args,
+
+    // Content root defaults to the working directory, which a launcher sets to anywhere —
+    // leaving WebRootPath null and ThemeService dead on startup.
+    ContentRootPath = AppContext.BaseDirectory,
+});
 
 var logDirectory = Path.Combine(AppContext.BaseDirectory, "logs");
 Directory.CreateDirectory(logDirectory);
