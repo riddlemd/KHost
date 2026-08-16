@@ -16,7 +16,7 @@
             <div class="kh-card__body">
                 <form class="kh-panel__form-row" @onsubmit:preventDefault>
                     <input type="text" class="kh-form-control kh-panel__form-grow" placeholder="Search Users..."
-                            autocomplete="off" @bind="_searchQuery" @bind:event="oninput" @onchange="OnSearchChanged" />
+                            autocomplete="off" @bind="_searchQuery" @bind:event="oninput" @onchange="OnSearchChangedAsync" />
                 </form>
             </div>
             <div class="kh-card__body">
@@ -88,8 +88,8 @@
                     <Pagination
                         CurrentPage="_currentPage"
                         TotalPages="@(_paginatedResult?.TotalPages ?? 0)"
-                        OnPreviousPage="PreviousPage"
-                        OnNextPage="NextPage" />
+                        OnPreviousPage="PreviousPageAsync"
+                        OnNextPage="NextPageAsync" />
                 }
             </div>
         </div>

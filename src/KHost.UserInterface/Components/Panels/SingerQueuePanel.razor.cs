@@ -46,10 +46,13 @@ public partial class SingerQueuePanel : IDisposable
         if (firstRender && JS is not null)
         {
             _dotNetRef = DotNetObjectReference.Create(this);
+            // The name reaches JS as a string; nameof turns a missed rename into a compile
+            // error instead of a callback that silently stops firing.
             await JS.InvokeVoidAsync(
                 "singerQueueSortable.init",
                 ".kh-singer-queue-panel__singer-queue",
-                _dotNetRef);
+                _dotNetRef,
+                nameof(OnSortEndAsync));
         }
 
         if (SingerQueueService?.SelectedUserId is not null)
@@ -57,7 +60,7 @@ public partial class SingerQueuePanel : IDisposable
     }
 
     [JSInvokable]
-    public async Task OnSortEnd(string userIdStr, int newIndex)
+    public async Task OnSortEndAsync(string userIdStr, int newIndex)
     {
         if (Guid.TryParse(userIdStr, out var userId) && SingerQueueService is not null)
             await SingerQueueService.MoveUserToIndexAsync(userId, newIndex);
