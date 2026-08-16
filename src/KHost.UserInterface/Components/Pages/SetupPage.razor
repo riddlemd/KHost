@@ -2,11 +2,6 @@
 @layout SetupLayout
 @using KHost.UserInterface.Components.Setup
 @using KHost.Abstractions.Models
-@inject IUsersService UsersService
-@inject IUserGroupsService UserGroupsService
-@inject IVenuesService VenuesService
-@inject NavigationManager NavigationManager
-@inject IJSRuntime JS
 
 <PageTitle>KHost &mdash; Setup Wizard</PageTitle>
 
@@ -35,44 +30,3 @@
         }
     </div>
 </div>
-
-@code {
-    private int _currentStep = 0;
-    private int _renderedStep = -1;
-
-    private int CurrentStepProgress => ((_currentStep + 1) * 100) / 3;
-
-    protected override async Task OnInitializedAsync()
-    {
-        var adminExists = await UsersService.HasAdminUserAsync();
-        if (adminExists)
-            _currentStep = 1;
-
-        var venueExists = await VenuesService.HasAnyAsync();
-        if (adminExists && venueExists)
-            _currentStep = 2;
-    }
-
-    protected override async Task OnAfterRenderAsync(bool firstRender)
-    {
-        if (!firstRender && _renderedStep != _currentStep)
-        {
-            _renderedStep = _currentStep;
-            await JS.InvokeVoidAsync("onPageOpen");
-        }
-    }
-
-    private async Task MoveToNextStepAsync()
-    {
-        if (_currentStep < 2)
-        {
-            _currentStep++;
-            await InvokeAsync(StateHasChanged);
-        }
-    }
-
-    private void OnSetupCompleteAsync()
-    {
-        NavigationManager.NavigateTo("/");
-    }
-}
