@@ -29,11 +29,20 @@ internal static class Program
     /// <summary>Skips the native shell and runs as a plain web host — browser-based development.</summary>
     private const string HeadlessFlag = "--headless";
 
+    private const string InstanceLockFileName = ".instance.lock";
+
     // Top-level statements cannot carry [STAThread], which Photino needs on Windows, and the
     // attribute only holds on a synchronous Main — an async one resumes off the STA thread.
     [STAThread]
-    private static void Main(string[] args)
+    private static int Main(string[] args)
     {
+        using var instanceLock = AcquireInstanceLock();
+        if (instanceLock is null)
+        {
+            Console.Error.WriteLine("KHost is already running from this location.");
+            return 1;
+        }
+
         var headless = args.Contains(HeadlessFlag);
 
         var builder = WebApplication.CreateBuilder(new WebApplicationOptions
@@ -41,8 +50,8 @@ internal static class Program
             // The command-line config provider rejects a valueless switch, so our own flags never reach it.
             Args = args.Where(a => a != HeadlessFlag).ToArray(),
 
-            // Content root defaults to the working directory, which a launcher sets to anywhere —
-            // leaving WebRootPath null and ThemeService dead on startup.
+            // Content root defaults to the working directory, which a desktop launcher sets to
+            // anywhere — leaving WebRootPath null and ThemeService dead on startup.
             ContentRootPath = AppContext.BaseDirectory,
         });
 
@@ -183,10 +192,33 @@ internal static class Program
         if (headless)
         {
             app.Run();
-            return;
+            return 0;
         }
 
         RunWithNativeShell(app);
+        return 0;
+    }
+
+    /// <summary>
+    /// Holds an exclusive handle on a lock file, or null when another instance already has it.
+    /// Scoped to the install directory because that is what a second instance would collide over —
+    /// the SQLite file under <c>cache/</c> and the configured port. Separate installs may coexist.
+    /// </summary>
+    private static FileStream? AcquireInstanceLock()
+    {
+        try
+        {
+            // FileShare.None, and the OS drops the handle even on a kill, so the lock cannot go stale.
+            return new FileStream(
+                Path.Combine(AppContext.BaseDirectory, InstanceLockFileName),
+                FileMode.OpenOrCreate,
+                FileAccess.ReadWrite,
+                FileShare.None);
+        }
+        catch (IOException)
+        {
+            return null;
+        }
     }
 
     /// <summary>
