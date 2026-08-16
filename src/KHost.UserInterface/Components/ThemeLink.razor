@@ -1,23 +1,3 @@
 @using KHost.UserInterface.Services
-@implements IDisposable
 
 <link rel="stylesheet" href="/css/themes/@(ThemeService?.CurrentTheme ?? "grape").css" />
-
-@code {
-    [Inject] private IThemeService? ThemeService { get; set; }
-
-    protected override void OnInitialized()
-    {
-        ThemeService?.StateChanged += OnThemeStateChanged;
-    }
-
-    private async void OnThemeStateChanged(object? sender, EventArgs e)
-    {
-        await InvokeAsync(StateHasChanged);
-    }
-
-    public void Dispose()
-    {
-        ThemeService?.StateChanged -= OnThemeStateChanged;
-    }
-}

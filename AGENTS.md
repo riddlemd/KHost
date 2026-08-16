@@ -26,6 +26,12 @@ SCSS compiles inside `dotnet build` (AspNetCore.SassCompiler) — no separate sa
 - Route dialogs through `IInteractionDispatcher`, which resolves `IInteractionHandler<TReq, TRes>` from DI; handlers bridge dialogs into awaitable calls with `TaskCompletionSource` and are registered in `Program.cs`.
 - Do NOT commit unless explicitly asked.
 
+## Components
+
+- Component logic lives in a code-behind partial (`Foo.razor.cs`, `public partial class Foo`), never an inline `@code` block. `@inject` becomes an `[Inject]` property; `@implements` becomes an interface on the partial. `@page`, `@using`, `@inherits`, `@layout` and `@attribute` stay in the `.razor`.
+- Never give the code-behind partial a base class — the generated razor partial already supplies `ComponentBase` (or whatever `@inherits` names), and a second base clause won't compile.
+- `_Imports.razor` does not reach `.razor.cs`, so code-behind needs its own `using` directives.
+
 ## CSS/SCSS
 
 - No inline styles or `<style>` elements. BEM with `kh-` prefix (`kh-button--danger`). SCSS nesting. Bootstrap Icons only — no Bootstrap CSS/JS; its utility classes (`d-flex`, `mb-3`, …) resolve to nothing.

@@ -1,5 +1,4 @@
 @using KHost.Abstractions.Services
-@inject IMediaService MediaService
 
 <div class="kh-setup-wizard__step kh-setup-wizard__step--full-height">
     <div class="kh-setup-wizard__header">
@@ -27,28 +26,3 @@
         </button>
     </div>
 </div>
-
-@code {
-    [Parameter]
-    public EventCallback OnComplete { get; set; }
-
-    private bool _isLoading = false;
-
-    private async Task OnImportCompletedAsync()
-    {
-        await InvokeAsync(StateHasChanged);
-    }
-
-    private async Task OnCompleteAsync()
-    {
-        _isLoading = true;
-        try
-        {
-            await OnComplete.InvokeAsync();
-        }
-        finally
-        {
-            _isLoading = false;
-        }
-    }
-}
