@@ -31,6 +31,8 @@ internal static class Program
 
     private const string InstanceLockFileName = ".instance.lock";
 
+    private const int AlreadyRunningExitCode = 1;
+
     // Top-level statements cannot carry [STAThread], which Photino needs on Windows, and the
     // attribute only holds on a synchronous Main — an async one resumes off the STA thread.
     [STAThread]
@@ -42,7 +44,7 @@ internal static class Program
         if (instanceLock is null)
         {
             ReportAlreadyRunning(headless);
-            return 1;
+            return AlreadyRunningExitCode;
         }
 
         var builder = WebApplication.CreateBuilder(new WebApplicationOptions
@@ -223,7 +225,10 @@ internal static class Program
             .RegisterWindowCreatedHandler((_, _) =>
             {
                 window!.ShowMessage("KHost", Message, PhotinoDialogButtons.Ok, PhotinoDialogIcon.Warning);
-                window.Close();
+
+                // Close() here does not break out of WaitForClose, which would leave the process
+                // pumping an invisible window forever. Showing the dialog is all this process does.
+                Environment.Exit(AlreadyRunningExitCode);
             })
             .LoadRawString("<html><body></body></html>");
 
