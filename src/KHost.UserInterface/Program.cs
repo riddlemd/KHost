@@ -36,14 +36,14 @@ internal static class Program
     [STAThread]
     private static int Main(string[] args)
     {
+        var headless = args.Contains(HeadlessFlag);
+
         using var instanceLock = AcquireInstanceLock();
         if (instanceLock is null)
         {
-            Console.Error.WriteLine("KHost is already running from this location.");
+            ReportAlreadyRunning(headless);
             return 1;
         }
-
-        var headless = args.Contains(HeadlessFlag);
 
         var builder = WebApplication.CreateBuilder(new WebApplicationOptions
         {
@@ -197,6 +197,37 @@ internal static class Program
 
         RunWithNativeShell(app);
         return 0;
+    }
+
+    /// <summary>
+    /// Tells the user why this launch is stopping. A shell launch has no console to read, so it
+    /// gets a native dialog instead.
+    /// </summary>
+    private static void ReportAlreadyRunning(bool headless)
+    {
+        const string Message = "Only one instance of KHost can run at a time.";
+
+        if (headless)
+        {
+            Console.Error.WriteLine(Message);
+            return;
+        }
+
+        // ShowMessage crashes on a window the native layer has not built yet, so the dialog has to
+        // be raised from inside the created handler — hence the throwaway window hosting it.
+        PhotinoWindow? window = null;
+        window = new PhotinoWindow()
+            .SetTitle("KHost")
+            .SetUseOsDefaultSize(false)
+            .SetSize(1, 1)
+            .RegisterWindowCreatedHandler((_, _) =>
+            {
+                window!.ShowMessage("KHost", Message, PhotinoDialogButtons.Ok, PhotinoDialogIcon.Warning);
+                window.Close();
+            })
+            .LoadRawString("<html><body></body></html>");
+
+        window.WaitForClose();
     }
 
     /// <summary>
