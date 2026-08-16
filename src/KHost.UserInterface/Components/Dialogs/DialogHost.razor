@@ -1,7 +1,5 @@
-@inject IDialogService DialogService
 @using KHost.UserInterface.Models
 @using KHost.UserInterface.Services
-@implements IDisposable
 
 @foreach (var item in _stack)
 {
@@ -70,37 +68,5 @@
             <ScreensDialog @key="r.Id" IsOpen="true"
                 OnClose="@(() => { r.OnClose?.Invoke(); Close(r); })" />
             break;
-    }
-}
-
-@code {
-    private readonly List<BaseDialogRequest> _stack = [];
-
-    protected override void OnInitialized()
-    {
-        DialogService.ShowRequested += OnShowRequested;
-    }
-
-    private void OnShowRequested(object? sender, BaseDialogRequest request)
-    {
-        InvokeAsync(() =>
-        {
-            _stack.Add(request);
-            StateHasChanged();
-        });
-    }
-
-    private void Close(BaseDialogRequest request)
-    {
-        InvokeAsync(() =>
-        {
-            _stack.Remove(request);
-            StateHasChanged();
-        });
-    }
-
-    public void Dispose()
-    {
-        DialogService.ShowRequested -= OnShowRequested;
     }
 }
