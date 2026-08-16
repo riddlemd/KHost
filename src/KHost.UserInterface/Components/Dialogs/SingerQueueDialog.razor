@@ -11,9 +11,3 @@
         <button class="kh-button kh-button--primary" @onclick="OnClose" type="button">Done</button>
     </Footer>
 </Dialog>
-
-@code {
-    [Parameter] public bool IsOpen { get; set; }
-    [Parameter, EditorRequired] public QueueRotationConfig Config { get; set; } = new();
-    [Parameter] public EventCallback OnClose { get; set; }
-}

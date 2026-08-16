@@ -1,7 +1,7 @@
 window.singerQueueSortable = {
     instance: null,
 
-    init(containerSelector, dotNetRef) {
+    init(containerSelector, dotNetRef, sortEndMethod) {
         const el = document.querySelector(containerSelector);
         if (!el) return;
 
@@ -25,7 +25,7 @@ window.singerQueueSortable = {
                     }
                 }
 
-                dotNetRef.invokeMethodAsync('OnSortEnd', singerId, evt.newIndex);
+                dotNetRef.invokeMethodAsync(sortEndMethod, singerId, evt.newIndex);
             }
         });
     },

@@ -40,7 +40,7 @@ public class MediaImportServiceTests
     [Fact]
     public async Task StartAsync_SetsRunningState_ThenIdleWhenDone()
     {
-        _parser.LoadAndParse(Arg.Any<string>())
+        _parser.LoadAndParseAsync(Arg.Any<string>())
             .Returns(new Media { FilePath = "/a.mp4", Title = "A" });
 
         await _service.StartAsync(["/a.mp4"]);
@@ -53,7 +53,7 @@ public class MediaImportServiceTests
     public async Task Cancel_SetsCancellingState()
     {
         var tcs = new TaskCompletionSource<Media>();
-        _parser.LoadAndParse(Arg.Any<string>()).Returns(_ => tcs.Task);
+        _parser.LoadAndParseAsync(Arg.Any<string>()).Returns(_ => tcs.Task);
 
         await _service.StartAsync(["/a.mp4", "/b.mp4"]);
 
@@ -76,7 +76,7 @@ public class MediaImportServiceTests
     public async Task RunImportAsync_ImportsAllFiles_WhenNoExistingFiles()
     {
         var paths = new List<string> { "/a.mp4", "/b.mp4" };
-        _parser.LoadAndParse(Arg.Any<string>())
+        _parser.LoadAndParseAsync(Arg.Any<string>())
             .Returns(args => new Media { FilePath = (string)args[0], Title = "T" });
 
         await _service.StartAsync(paths);
@@ -92,23 +92,23 @@ public class MediaImportServiceTests
         var paths = new List<string> { "/a.mp4", "/b.mp4" };
         _repository.GetExistingFilePathsAsync(Arg.Any<IEnumerable<string>>())
             .Returns(new HashSet<string> { "/a.mp4" });
-        _parser.LoadAndParse("/b.mp4")
+        _parser.LoadAndParseAsync("/b.mp4")
             .Returns(new Media { FilePath = "/b.mp4", Title = "B" });
 
         await _service.StartAsync(paths);
         await WaitForIdleAsync();
 
         Assert.Equal(1, _service.ImportedCount);
-        await _parser.DidNotReceive().LoadAndParse("/a.mp4");
+        await _parser.DidNotReceive().LoadAndParseAsync("/a.mp4");
     }
 
     [Fact]
     public async Task RunImportAsync_ContinuesAfterIndividualFileFailure()
     {
         var paths = new List<string> { "/bad.mp4", "/good.mp4" };
-        _parser.LoadAndParse("/bad.mp4")
+        _parser.LoadAndParseAsync("/bad.mp4")
             .Returns(Task.FromException<Media>(new InvalidOperationException("parse failed")));
-        _parser.LoadAndParse("/good.mp4")
+        _parser.LoadAndParseAsync("/good.mp4")
             .Returns(new Media { FilePath = "/good.mp4", Title = "Good" });
 
         await _service.StartAsync(paths);

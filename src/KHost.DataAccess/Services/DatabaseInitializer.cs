@@ -126,7 +126,7 @@ internal class DatabaseInitializer : IDatabaseInitializer
     {
         try
         {
-            var media = await _mediaFileParsingService.LoadAndParse(entry.FilePath);
+            var media = await _mediaFileParsingService.LoadAndParseAsync(entry.FilePath);
             await _mediaService.CreateAsync(media);
             _logger.LogInformation("Seeded media: {FilePath}", entry.FilePath);
         }
