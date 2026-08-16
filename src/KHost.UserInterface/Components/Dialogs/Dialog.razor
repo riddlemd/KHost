@@ -1,4 +1,4 @@
-<Scrim IsOpen="IsOpen" OnClick="OnScrimClick">
+<Scrim IsOpen="IsOpen" OnClick="OnScrimClickAsync">
     <div class="@($"{_rootClassName} {Class?.Trim()}".Trim())" @ref="_dialogRef" @onclick:stopPropagation>
         <div class="@(_rootClassName)__header">
             <span>@Header</span>

@@ -103,7 +103,7 @@ public class MediaImportService : BaseService, IMediaImportService
     {
         try
         {
-            var media = await _parser.LoadAndParse(path);
+            var media = await _parser.LoadAndParseAsync(path);
             await _mediaService.CreateAsync(media);
             ImportedCount++;
             _analytics.RecordImportFilesProcessed(1, "imported");

@@ -56,7 +56,7 @@ public partial class UserManagerPage : IDisposable
         _ = SearchAsync();
     }
 
-    private async Task OnSearchChanged()
+    private async Task OnSearchChangedAsync()
     {
         _currentPage = 1;
 
@@ -103,7 +103,7 @@ public partial class UserManagerPage : IDisposable
         );
     }
 
-    private async Task ClearSearch()
+    private async Task ClearSearchAsync()
     {
         _searchQuery = "";
         _currentPage = 1;
@@ -111,7 +111,7 @@ public partial class UserManagerPage : IDisposable
         await SearchAsync();
     }
 
-    private async Task PreviousPage()
+    private async Task PreviousPageAsync()
     {
         if (_currentPage > 1)
         {
@@ -121,7 +121,7 @@ public partial class UserManagerPage : IDisposable
         }
     }
 
-    private async Task NextPage()
+    private async Task NextPageAsync()
     {
         if (_currentPage < (_paginatedResult?.TotalPages ?? 0))
         {
