@@ -23,12 +23,12 @@ public partial class TipsManagerPage : IDisposable
 
     protected override async Task OnInitializedAsync()
     {
-        await LoadUsers();
+        await LoadUsersAsync();
         await SearchAsync();
         TipsService!.StateChanged += OnStateChanged;
     }
 
-    private async Task LoadUsers()
+    private async Task LoadUsersAsync()
     {
         if (UsersService is null) return;
 
@@ -63,7 +63,7 @@ public partial class TipsManagerPage : IDisposable
         _ = SearchAsync();
     }
 
-    private async Task OnSearchChanged()
+    private async Task OnSearchChangedAsync()
     {
         _currentPage = 1;
         await SearchAsync();
@@ -106,7 +106,7 @@ public partial class TipsManagerPage : IDisposable
         );
     }
 
-    private async Task PreviousPage()
+    private async Task PreviousPageAsync()
     {
         if (_currentPage > 1)
         {
@@ -115,7 +115,7 @@ public partial class TipsManagerPage : IDisposable
         }
     }
 
-    private async Task NextPage()
+    private async Task NextPageAsync()
     {
         if (_currentPage < (_paginatedResult?.TotalPages ?? 0))
         {

@@ -15,13 +15,13 @@ internal sealed class ScreenHub : Hub
         return base.OnDisconnectedAsync(exception);
     }
 
-    public Task RegisterScreen(string screenId)
+    public Task RegisterScreenAsync(string screenId)
     {
         _callback.OnScreenConnected(screenId, Context.ConnectionId);
         return Task.CompletedTask;
     }
 
-    public Task ReceiveState(string screenId, string stateJson)
+    public Task ReceiveStateAsync(string screenId, string stateJson)
     {
         var state = ScreenIpcSerializer.DeserializeState(stateJson);
         if (state is not null)

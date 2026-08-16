@@ -28,7 +28,7 @@ public partial class Dialog
         await OnClose.InvokeAsync();
     }
 
-    private async Task OnScrimClick()
+    private async Task OnScrimClickAsync()
     {
         if (!CloseOnScrimClick) return;
 

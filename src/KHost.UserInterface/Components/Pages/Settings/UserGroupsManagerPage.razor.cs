@@ -47,7 +47,7 @@ public partial class UserGroupsManagerPage : IDisposable
         _ = SearchAsync();
     }
 
-    private async Task OnSearchChanged()
+    private async Task OnSearchChangedAsync()
     {
         _currentPage = 1;
 
@@ -89,7 +89,7 @@ public partial class UserGroupsManagerPage : IDisposable
         );
     }
 
-    private async Task PreviousPage()
+    private async Task PreviousPageAsync()
     {
         if (_currentPage > 1)
         {
@@ -99,7 +99,7 @@ public partial class UserGroupsManagerPage : IDisposable
         }
     }
 
-    private async Task NextPage()
+    private async Task NextPageAsync()
     {
         if (_currentPage < (_paginatedResult?.TotalPages ?? 0))
         {

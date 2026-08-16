@@ -154,7 +154,7 @@ public class DatabaseInitializerTests
 
         await sut.SeedDefaultMediaAsync();
 
-        await _mediaFileParsingService.DidNotReceive().LoadAndParse(Arg.Any<string>());
+        await _mediaFileParsingService.DidNotReceive().LoadAndParseAsync(Arg.Any<string>());
     }
 
     [Fact]
@@ -163,8 +163,8 @@ public class DatabaseInitializerTests
         _mediaService.HasAnyAsync().Returns(false);
         var mediaA = new Media { Title = "A", FilePath = "a.mp4" };
         var mediaB = new Media { Title = "B", FilePath = "b.mp4" };
-        _mediaFileParsingService.LoadAndParse("a.mp4").Returns(mediaA);
-        _mediaFileParsingService.LoadAndParse("b.mp4").Returns(mediaB);
+        _mediaFileParsingService.LoadAndParseAsync("a.mp4").Returns(mediaA);
+        _mediaFileParsingService.LoadAndParseAsync("b.mp4").Returns(mediaB);
         _mediaService.CreateAsync(Arg.Any<Media>()).Returns(c => c.Arg<Media>());
 
         var sut = CreateSut(new ServiceOptions
@@ -186,9 +186,9 @@ public class DatabaseInitializerTests
     public async Task SeedDefaultMediaAsync_ContinuesAfterOneFileFailure()
     {
         _mediaService.HasAnyAsync().Returns(false);
-        _mediaFileParsingService.LoadAndParse("bad.mp4").Returns(Task.FromException<Media>(new Exception("parse error")));
+        _mediaFileParsingService.LoadAndParseAsync("bad.mp4").Returns(Task.FromException<Media>(new Exception("parse error")));
         var mediaB = new Media { Title = "B", FilePath = "good.mp4" };
-        _mediaFileParsingService.LoadAndParse("good.mp4").Returns(mediaB);
+        _mediaFileParsingService.LoadAndParseAsync("good.mp4").Returns(mediaB);
         _mediaService.CreateAsync(Arg.Any<Media>()).Returns(c => c.Arg<Media>());
 
         var sut = CreateSut(new ServiceOptions

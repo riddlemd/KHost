@@ -100,13 +100,13 @@ public partial class MediaManagerPage : IAsyncDisposable
         await Task.CompletedTask;
     }
 
-    private async Task ClearSearch()
+    private async Task ClearSearchAsync()
     {
         _searchQuery = "";
         await SearchAsync();
     }
 
-    private async Task PreviousPage()
+    private async Task PreviousPageAsync()
     {
         if (_currentPage > 1)
         {
@@ -116,7 +116,7 @@ public partial class MediaManagerPage : IAsyncDisposable
         }
     }
 
-    private async Task NextPage()
+    private async Task NextPageAsync()
     {
         if (_paginatedResult?.HasNextPage ?? false)
         {

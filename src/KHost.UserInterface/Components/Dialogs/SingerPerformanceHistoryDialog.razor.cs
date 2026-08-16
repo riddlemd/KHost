@@ -40,7 +40,7 @@ public partial class SingerPerformanceHistoryDialog
         _prevIsOpen = IsOpen;
     }
 
-    private async Task PreviousPage()
+    private async Task PreviousPageAsync()
     {
         if (_currentPage > 1)
         {
@@ -49,7 +49,7 @@ public partial class SingerPerformanceHistoryDialog
         }
     }
 
-    private async Task NextPage()
+    private async Task NextPageAsync()
     {
         if (_paginatedPerformances?.HasNextPage ?? false)
         {
@@ -100,7 +100,7 @@ public partial class SingerPerformanceHistoryDialog
     {
         if (DialogService is null) return;
 
-        await DialogService.RequestEditAsync(media, async (media) => await SaveMedia(media));
+        await DialogService.RequestEditAsync(media, async (media) => await SaveMediaAsync(media));
     }
 
     // Always confirmed: history is not recoverable from anywhere else in the app.
@@ -126,7 +126,7 @@ public partial class SingerPerformanceHistoryDialog
         await LoadPageAsync();
     }
 
-    private async Task SaveMedia(Media? media)
+    private async Task SaveMediaAsync(Media? media)
     {
         if (MediaService is null) return;
         if (media is null) return;
