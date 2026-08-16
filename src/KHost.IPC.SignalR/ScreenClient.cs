@@ -102,7 +102,7 @@ internal sealed class ScreenClient : IScreenClient, IAsyncDisposable
 
             await _connection.StartAsync(cancellationToken);
             _logger.LogInformation("RegisterScreen sent for {ScreenId}", screenId);
-            await _connection.InvokeAsync("RegisterScreen", screenId, cancellationToken);
+            await _connection.InvokeAsync(nameof(ScreenHub.RegisterScreenAsync), screenId, cancellationToken);
             State = ScreenClientState.Connected;
         }
         catch (Exception)
@@ -145,7 +145,7 @@ internal sealed class ScreenClient : IScreenClient, IAsyncDisposable
             throw new InvalidOperationException("Not connected to server");
         }
 
-        await _connection.InvokeAsync("ReceiveState", ScreenId, ScreenIpcSerializer.SerializeState(state));
+        await _connection.InvokeAsync(nameof(ScreenHub.ReceiveStateAsync), ScreenId, ScreenIpcSerializer.SerializeState(state));
     }
 
     public async ValueTask DisposeAsync()

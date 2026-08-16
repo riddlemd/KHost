@@ -22,9 +22,17 @@ SCSS compiles inside `dotnet build` (AspNetCore.SassCompiler) — no separate sa
 - In repositories, `using var context = await ContextFactory.CreateDbContextAsync();` per operation — never store a context.
 - Raise `StateChanged` from stateful services (`EventHandler`/`EventHandler<T>`, never `event Action`); components subscribe in `OnInitialized`, unsubscribe in `Dispose`, call `StateHasChanged`.
 - Order members: fields → events → properties → public → protected → private → nested types.
+- Every `Task`/`ValueTask`-returning method ends in `Async`, whether or not it uses the `async` keyword — `AsyncNamingConventionTests` enforces this by reflection because `.editorconfig` naming rules cannot see return types. A new project needs a `ProjectReference` from `KHost.UnitTests` to be covered.
+- A method name that crosses a string boundary — `[JSInvokable]` called from JS, a SignalR hub method invoked by name — breaks silently at runtime when renamed. Pass the name as `nameof(...)` from the C# side and take it as a parameter on the JS side (see `SingerQueuePanel` / `sortable-interop.js`, `ScreenClient` / `ScreenHub`).
 - Persist library/users/groups in SQL; queue and venue state in the JSON cache (`ICacheService`, `./cache/`).
 - Route dialogs through `IInteractionDispatcher`, which resolves `IInteractionHandler<TReq, TRes>` from DI; handlers bridge dialogs into awaitable calls with `TaskCompletionSource` and are registered in `Program.cs`.
 - Do NOT commit unless explicitly asked.
+
+## Components
+
+- Component logic lives in a code-behind partial (`Foo.razor.cs`, `public partial class Foo`), never an inline `@code` block. `@inject` becomes an `[Inject]` property; `@implements` becomes an interface on the partial. `@page`, `@using`, `@inherits`, `@layout` and `@attribute` stay in the `.razor`.
+- Never give the code-behind partial a base class — the generated razor partial already supplies `ComponentBase` (or whatever `@inherits` names), and a second base clause won't compile.
+- `_Imports.razor` does not reach `.razor.cs`, so code-behind needs its own `using` directives.
 
 ## CSS/SCSS
 

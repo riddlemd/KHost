@@ -107,7 +107,7 @@ public class MediaFileParsingServiceTests
     }
 
     [Fact]
-    public async Task LoadAndParse_NoArtist_UsesFallbackArtistName()
+    public async Task LoadAndParseAsync_NoArtist_UsesFallbackArtistName()
     {
         var svc = CreateService(new MediaFileParsingService.ServiceOptions
         {
@@ -115,18 +115,18 @@ public class MediaFileParsingServiceTests
         });
 
         // Use a path that does not exist so FFprobe fails and we exercise the fallback branch.
-        var media = await svc.LoadAndParse(MediaPath("JustATitle.mp4"));
+        var media = await svc.LoadAndParseAsync(MediaPath("JustATitle.mp4"));
 
         Assert.Equal("JustATitle", media.Title);
         Assert.Equal("No Artist", media.Artist);
     }
 
     [Fact]
-    public async Task LoadAndParse_StripsKaraokeNoiseSuffix()
+    public async Task LoadAndParseAsync_StripsKaraokeNoiseSuffix()
     {
         var svc = CreateService();
 
-        var media = await svc.LoadAndParse(MediaPath("Bruno Mars - Finesse (Karaoke Version).cdg"));
+        var media = await svc.LoadAndParseAsync(MediaPath("Bruno Mars - Finesse (Karaoke Version).cdg"));
 
         Assert.Equal("Finesse", media.Title);
         Assert.Equal("Bruno Mars", media.Artist);
@@ -134,21 +134,21 @@ public class MediaFileParsingServiceTests
     }
 
     [Fact]
-    public async Task LoadAndParse_StripsMultipleStackedNoiseSuffixes()
+    public async Task LoadAndParseAsync_StripsMultipleStackedNoiseSuffixes()
     {
         var svc = CreateService();
 
-        var media = await svc.LoadAndParse(MediaPath("Bruno Mars - Finesse (Karaoke) (HD).mp4"));
+        var media = await svc.LoadAndParseAsync(MediaPath("Bruno Mars - Finesse (Karaoke) (HD).mp4"));
 
         Assert.Equal("Finesse", media.Title);
     }
 
     [Fact]
-    public async Task LoadAndParse_FeatInArtistField_AppendsToArtist()
+    public async Task LoadAndParseAsync_FeatInArtistField_AppendsToArtist()
     {
         var svc = CreateService();
 
-        var media = await svc.LoadAndParse(MediaPath("Bruno Mars feat. Cardi B - Finesse.mp4"));
+        var media = await svc.LoadAndParseAsync(MediaPath("Bruno Mars feat. Cardi B - Finesse.mp4"));
 
         // "feat. Cardi B" appears on the Artist side after the split, so it is preserved verbatim.
         Assert.Equal("Bruno Mars feat. Cardi B", media.Artist);
@@ -156,25 +156,25 @@ public class MediaFileParsingServiceTests
     }
 
     [Fact]
-    public async Task LoadAndParse_FeatInTitleField_AppendsToArtist()
+    public async Task LoadAndParseAsync_FeatInTitleField_AppendsToArtist()
     {
         var svc = CreateService();
 
-        var media = await svc.LoadAndParse(MediaPath("Bruno Mars - Finesse (feat. Cardi B).mp4"));
+        var media = await svc.LoadAndParseAsync(MediaPath("Bruno Mars - Finesse (feat. Cardi B).mp4"));
 
         Assert.Equal("Finesse", media.Title);
         Assert.Equal("Bruno Mars feat. Cardi B", media.Artist);
     }
 
     [Fact]
-    public async Task LoadAndParse_FeatHandlingMoveToNotes_PopulatesNotes()
+    public async Task LoadAndParseAsync_FeatHandlingMoveToNotes_PopulatesNotes()
     {
         var svc = CreateService(new MediaFileParsingService.ServiceOptions
         {
             FeaturingHandling = FeaturingHandling.MoveToNotes
         });
 
-        var media = await svc.LoadAndParse(MediaPath("Bruno Mars - Finesse (feat. Cardi B).mp4"));
+        var media = await svc.LoadAndParseAsync(MediaPath("Bruno Mars - Finesse (feat. Cardi B).mp4"));
 
         Assert.Equal("Finesse", media.Title);
         Assert.Equal("Bruno Mars", media.Artist);
@@ -182,14 +182,14 @@ public class MediaFileParsingServiceTests
     }
 
     [Fact]
-    public async Task LoadAndParse_FeatHandlingIgnore_LeavesTitleAlone()
+    public async Task LoadAndParseAsync_FeatHandlingIgnore_LeavesTitleAlone()
     {
         var svc = CreateService(new MediaFileParsingService.ServiceOptions
         {
             FeaturingHandling = FeaturingHandling.Ignore
         });
 
-        var media = await svc.LoadAndParse(MediaPath("Bruno Mars - Finesse (feat. Cardi B).mp4"));
+        var media = await svc.LoadAndParseAsync(MediaPath("Bruno Mars - Finesse (feat. Cardi B).mp4"));
 
         Assert.Equal("Finesse (feat. Cardi B)", media.Title);
     }

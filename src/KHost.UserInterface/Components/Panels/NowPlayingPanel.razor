@@ -1,5 +1,4 @@
 @using KHost.UserInterface.Services
-@implements IDisposable
 
 <div class="kh-now-playing-panel" tabindex="0">
     <div class="kh-card kh-now-playing">
@@ -100,31 +99,3 @@
     </div>
     </div>
 </div>
-
-@code {
-    [Inject] private IPlaybackService? PlaybackService { get; set; }
-    [Inject] private ISingerQueueService? SingerQueueService { get; set; }
-    [Inject] private IDialogService? DialogService { get; set; }
-
-    protected override void OnInitialized() =>
-        PlaybackService?.StateChanged += OnStateChanged;
-
-    private async Task PlayAsync()
-    {
-        if (!await PlaybackService!.HasConnectedScreenAsync())
-        {
-            await DialogService!.ShowNoScreensAsync();
-            return;
-        }
-
-        await PlaybackService.PlayAsync();
-    }
-
-    private void OnStateChanged(object? sender, EventArgs e) => InvokeAsync(StateHasChanged);
-
-    private static string FormatTime(TimeSpan ts) =>
-        $"{(int)ts.TotalMinutes}:{ts.Seconds:D2}";
-
-    public void Dispose() =>
-        PlaybackService?.StateChanged -= OnStateChanged;
-}

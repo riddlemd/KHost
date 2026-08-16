@@ -34,7 +34,7 @@ namespace KHost.Domain.Services
             options.OnChange(Rebuild);
         }
 
-        public async Task<Media> LoadAndParse(string filePath)
+        public async Task<Media> LoadAndParseAsync(string filePath)
         {
             var opts = _options.CurrentValue;
             var (parsedTitle, parsedArtist) = GetTitleAndArtistFromFilename(filePath);
