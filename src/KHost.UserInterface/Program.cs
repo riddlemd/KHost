@@ -17,161 +17,234 @@ using KHost.UserInterface.Interactions;
 using KHost.UserInterface.Middleware;
 using KHost.UserInterface.Interactions.Handlers;
 using KHost.UserInterface.Services;
+using Photino.NET;
 using Serilog;
 using Serilog.Events;
 using KHost.UserInterface.Services.RedirectProviders;
 
-var builder = WebApplication.CreateBuilder(new WebApplicationOptions
+namespace KHost.UserInterface;
+
+internal static class Program
 {
-    Args = args,
+    /// <summary>Skips the native shell and runs as a plain web host — browser-based development.</summary>
+    private const string HeadlessFlag = "--headless";
 
-    // Content root defaults to the working directory, which a launcher sets to anywhere —
-    // leaving WebRootPath null and ThemeService dead on startup.
-    ContentRootPath = AppContext.BaseDirectory,
-});
+    // Top-level statements cannot carry [STAThread], which Photino needs on Windows, and the
+    // attribute only holds on a synchronous Main — an async one resumes off the STA thread.
+    [STAThread]
+    private static void Main(string[] args)
+    {
+        var headless = args.Contains(HeadlessFlag);
 
-var logDirectory = Path.Combine(AppContext.BaseDirectory, "logs");
-Directory.CreateDirectory(logDirectory);
+        var builder = WebApplication.CreateBuilder(new WebApplicationOptions
+        {
+            // The command-line config provider rejects a valueless switch, so our own flags never reach it.
+            Args = args.Where(a => a != HeadlessFlag).ToArray(),
 
-foreach (var staleLog in new DirectoryInfo(logDirectory).GetFiles("*.log")
-    .Where(f => f.LastWriteTimeUtc < DateTime.UtcNow.AddDays(-7)))
-{
-    staleLog.Delete();
-}
+            // Content root defaults to the working directory, which a launcher sets to anywhere —
+            // leaving WebRootPath null and ThemeService dead on startup.
+            ContentRootPath = AppContext.BaseDirectory,
+        });
 
-builder.Host.UseSerilog((_, _, cfg) => cfg
-    .MinimumLevel.Information()
-    .MinimumLevel.Override("Microsoft", LogEventLevel.Warning)
-    .MinimumLevel.Override("Microsoft.AspNetCore", LogEventLevel.Warning)
-    .WriteTo.Console()
-    .WriteTo.File(
-        path: Path.Combine(logDirectory, ".log"),
-        rollingInterval: RollingInterval.Day,
-        retainedFileCountLimit: null,
-        outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] {Message:lj}{NewLine}{Exception}"));
+        var logDirectory = Path.Combine(AppContext.BaseDirectory, "logs");
+        Directory.CreateDirectory(logDirectory);
 
-builder.AddServiceDefaults();
+        foreach (var staleLog in new DirectoryInfo(logDirectory).GetFiles("*.log")
+            .Where(f => f.LastWriteTimeUtc < DateTime.UtcNow.AddDays(-7)))
+        {
+            staleLog.Delete();
+        }
 
-builder.Services.AddTelemetry();
-builder.Services.AddDomain();
-builder.Services.AddPlugins();
-builder.Services.AddDataAccess();
-builder.Services.AddSignalRIPCServer();
+        builder.Host.UseSerilog((_, _, cfg) => cfg
+            .MinimumLevel.Information()
+            .MinimumLevel.Override("Microsoft", LogEventLevel.Warning)
+            .MinimumLevel.Override("Microsoft.AspNetCore", LogEventLevel.Warning)
+            .WriteTo.Console()
+            .WriteTo.File(
+                path: Path.Combine(logDirectory, ".log"),
+                rollingInterval: RollingInterval.Day,
+                retainedFileCountLimit: null,
+                outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] {Message:lj}{NewLine}{Exception}"));
 
-// Configure FFmpeg
-var ffmpegPath = builder.Configuration["FFmpegPath"];
-if (!string.IsNullOrWhiteSpace(ffmpegPath))
-    GlobalFFOptions.Configure(opts => opts.BinaryFolder = ffmpegPath);
+        builder.AddServiceDefaults();
 
-// Add services to the container.
-builder.Services.AddRazorComponents()
-    .AddInteractiveServerComponents();
+        builder.Services.AddTelemetry();
+        builder.Services.AddDomain();
+        builder.Services.AddPlugins();
+        builder.Services.AddDataAccess();
+        builder.Services.AddSignalRIPCServer();
 
-builder.Services.AddSingleton<IThemeService, ThemeService>();
-builder.Services.AddSingleton<IDialogService, DialogService>();
-builder.Services.AddSingleton<IStartupRedirectProvider, SetupRedirectProvider>();
-builder.Services.AddSingleton<IStartupRedirectProvider, CliStartupRedirectProvider>();
+        // Configure FFmpeg
+        var ffmpegPath = builder.Configuration["FFmpegPath"];
+        if (!string.IsNullOrWhiteSpace(ffmpegPath))
+            GlobalFFOptions.Configure(opts => opts.BinaryFolder = ffmpegPath);
 
-builder.Services.AddSingleton<IInteractionDispatcher, DialogInteractionDispatcher>();
-builder.Services.AddSingleton<IInteractionHandler<EditMediaRequest, Media?>, EditMediaDialogHandler>();
-builder.Services.AddSingleton<IInteractionHandler<ShowLyricsRequest>, ShowLyricsDialogHandler>();
-builder.Services.AddSingleton<IInteractionHandler<ConfirmDuplicateSongRequest, bool>, ConfirmDuplicateSongHandler>();
+        // Add services to the container.
+        builder.Services.AddRazorComponents()
+            .AddInteractiveServerComponents();
 
-var app = builder.Build();
+        builder.Services.AddSingleton<IThemeService, ThemeService>();
+        builder.Services.AddSingleton<IDialogService, DialogService>();
+        builder.Services.AddSingleton<IStartupRedirectProvider, SetupRedirectProvider>();
+        builder.Services.AddSingleton<IStartupRedirectProvider, CliStartupRedirectProvider>();
 
-// Initialize database with seed data
-try
-{
-    using var scope = app.Services.CreateScope();
-    var initializer = scope.ServiceProvider.GetRequiredService<IDatabaseInitializer>();
-    await initializer.InitializeAsync();
-}
-catch (Exception ex)
-{
-    Log.Fatal(ex, "Database initialization failed");
-    Log.CloseAndFlush();
-    throw;
-}
+        builder.Services.AddSingleton<IInteractionDispatcher, DialogInteractionDispatcher>();
+        builder.Services.AddSingleton<IInteractionHandler<EditMediaRequest, Media?>, EditMediaDialogHandler>();
+        builder.Services.AddSingleton<IInteractionHandler<ShowLyricsRequest>, ShowLyricsDialogHandler>();
+        builder.Services.AddSingleton<IInteractionHandler<ConfirmDuplicateSongRequest, bool>, ConfirmDuplicateSongHandler>();
 
-// Before the queue: anything venue-scoped is inert until a venue is selected.
-try
-{
-    await app.Services.GetRequiredService<IVenuesService>().InitializeAsync();
-}
-catch (Exception ex)
-{
-    Log.Fatal(ex, "Venue initialization failed");
-    Log.CloseAndFlush();
-    throw;
-}
+        var app = builder.Build();
 
-try
-{
-    await app.Services.GetRequiredService<ISingerQueueService>().InitializeAsync();
-}
-catch (Exception ex)
-{
-    Log.Fatal(ex, "Singer queue initialization failed");
-    Log.CloseAndFlush();
-    throw;
-}
+        // Initialize database with seed data
+        try
+        {
+            using var scope = app.Services.CreateScope();
+            var initializer = scope.ServiceProvider.GetRequiredService<IDatabaseInitializer>();
+            initializer.InitializeAsync().GetAwaiter().GetResult();
+        }
+        catch (Exception ex)
+        {
+            Log.Fatal(ex, "Database initialization failed");
+            Log.CloseAndFlush();
+            throw;
+        }
 
-try
-{
-    await app.Services.GetRequiredService<IThemeService>().InitializeAsync();
-}
-catch (Exception ex)
-{
-    Log.Fatal(ex, "Theme service initialization failed");
-    Log.CloseAndFlush();
-    throw;
-}
+        // Before the queue: anything venue-scoped is inert until a venue is selected.
+        try
+        {
+            app.Services.GetRequiredService<IVenuesService>().InitializeAsync().GetAwaiter().GetResult();
+        }
+        catch (Exception ex)
+        {
+            Log.Fatal(ex, "Venue initialization failed");
+            Log.CloseAndFlush();
+            throw;
+        }
 
-app.MapDefaultEndpoints();
-app.MapIPCServer();
+        try
+        {
+            app.Services.GetRequiredService<ISingerQueueService>().InitializeAsync().GetAwaiter().GetResult();
+        }
+        catch (Exception ex)
+        {
+            Log.Fatal(ex, "Singer queue initialization failed");
+            Log.CloseAndFlush();
+            throw;
+        }
 
-// Point launched screen processes at this host's live listening address, so they
-// connect regardless of the (possibly dynamic, e.g. Aspire-assigned) port.
-// An explicit LocalScreen:ServerUri config value always wins.
-if (string.IsNullOrWhiteSpace(app.Configuration["LocalScreen:ServerUri"]))
-{
-    app.Lifetime.ApplicationStarted.Register(() =>
+        try
+        {
+            app.Services.GetRequiredService<IThemeService>().InitializeAsync().GetAwaiter().GetResult();
+        }
+        catch (Exception ex)
+        {
+            Log.Fatal(ex, "Theme service initialization failed");
+            Log.CloseAndFlush();
+            throw;
+        }
+
+        app.MapDefaultEndpoints();
+        app.MapIPCServer();
+
+        // Point launched screen processes at this host's live listening address, so they
+        // connect regardless of the (possibly dynamic, e.g. Aspire-assigned) port.
+        // An explicit LocalScreen:ServerUri config value always wins.
+        if (string.IsNullOrWhiteSpace(app.Configuration["LocalScreen:ServerUri"]))
+        {
+            app.Lifetime.ApplicationStarted.Register(() =>
+            {
+                var baseUri = ResolveBaseAddress(app);
+                if (baseUri is null)
+                {
+                    Log.Warning("Could not resolve a host listening address; screens will use the LocalScreen.ServerUri default");
+                    return;
+                }
+
+                var options = app.Services.GetRequiredService<IOptions<LocalScreenProvider.ServiceOptions>>().Value;
+                options.ServerUri = $"{baseUri}/ipc/screen";
+                Log.Information("Local screen IPC URI resolved to {ServerUri}", options.ServerUri);
+            });
+        }
+
+        // Configure the HTTP request pipeline.
+        if (!app.Environment.IsDevelopment())
+        {
+            app.UseExceptionHandler("/Error", createScopeForErrors: true);
+        }
+        app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
+        app.UseAntiforgery();
+
+        app.UseStartupRedirect();
+
+        app.MapStaticAssets();
+        app.MapRazorComponents<App>()
+            .AddInteractiveServerRenderMode();
+
+        if (headless)
+        {
+            app.Run();
+            return;
+        }
+
+        RunWithNativeShell(app);
+    }
+
+    /// <summary>
+    /// Serves the UI to a Photino window on this thread. Kestrel keeps listening throughout, so
+    /// screens and (later) network clients reach the same host the window is showing.
+    /// </summary>
+    private static void RunWithNativeShell(WebApplication app)
+    {
+        app.StartAsync().GetAwaiter().GetResult();
+
+        var baseUri = ResolveBaseAddress(app);
+        if (baseUri is null)
+        {
+            Log.Fatal("Could not resolve a listening address to open the window on");
+            Log.CloseAndFlush();
+            app.StopAsync().GetAwaiter().GetResult();
+            return;
+        }
+
+        Log.Information("Opening native shell at {BaseUri}", baseUri);
+
+        var window = new PhotinoWindow()
+            .SetTitle("KHost")
+            .SetUseOsDefaultSize(false)
+            .SetSize(1440, 900)
+            .Load(baseUri);
+
+        // Either side can initiate shutdown; whichever gets there first owns it.
+        var shuttingDown = 0;
+        app.Lifetime.ApplicationStopped.Register(() =>
+        {
+            if (Interlocked.Exchange(ref shuttingDown, 1) == 0)
+                window.Invoke(window.Close);
+        });
+
+        window.WaitForClose();
+
+        if (Interlocked.Exchange(ref shuttingDown, 1) == 0)
+            app.StopAsync().GetAwaiter().GetResult();
+
+        Log.CloseAndFlush();
+    }
+
+    /// <summary>The host's live base address, or null if Kestrel reported none.</summary>
+    private static string? ResolveBaseAddress(WebApplication app)
     {
         var addresses = app.Services.GetRequiredService<IServer>()
             .Features.Get<IServerAddressesFeature>()?.Addresses;
         var httpAddress = addresses?.FirstOrDefault(a => a.StartsWith("http://", StringComparison.OrdinalIgnoreCase))
             ?? addresses?.FirstOrDefault();
-        if (string.IsNullOrWhiteSpace(httpAddress))
-        {
-            Log.Warning("Could not resolve a host listening address; screens will use the LocalScreen.ServerUri default");
-            return;
-        }
+
+        if (string.IsNullOrWhiteSpace(httpAddress)) return null;
 
         // Normalize wildcard hosts (http://*:5251, http://[::]:5251, http://0.0.0.0:5251) to localhost.
-        var baseUri = httpAddress
+        return httpAddress
             .Replace("://*", "://localhost", StringComparison.OrdinalIgnoreCase)
             .Replace("://[::]", "://localhost", StringComparison.OrdinalIgnoreCase)
             .Replace("://0.0.0.0", "://localhost", StringComparison.OrdinalIgnoreCase)
             .TrimEnd('/');
-
-        var options = app.Services.GetRequiredService<IOptions<LocalScreenProvider.ServiceOptions>>().Value;
-        options.ServerUri = $"{baseUri}/ipc/screen";
-        Log.Information("Local screen IPC URI resolved to {ServerUri}", options.ServerUri);
-    });
+    }
 }
-
-// Configure the HTTP request pipeline.
-if (!app.Environment.IsDevelopment())
-{
-    app.UseExceptionHandler("/Error", createScopeForErrors: true);
-}
-app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
-app.UseAntiforgery();
-
-app.UseStartupRedirect();
-
-app.MapStaticAssets();
-app.MapRazorComponents<App>()
-    .AddInteractiveServerRenderMode();
-
-app.Run();
