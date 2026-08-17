@@ -9,6 +9,7 @@ public partial class ScreensDialog : IDisposable
 {
     [Inject] private IScreenServer? ScreenServer { get; set; }
     [Inject] private IScreenCoordinationService? ScreenCoordination { get; set; }
+    [Inject] private ICastScreenService? CastScreens { get; set; }
     [Inject] private IEnumerable<IScreenProvider>? ScreenProviders { get; set; }
 
     [Parameter] public bool IsOpen { get; set; }
@@ -19,6 +20,9 @@ public partial class ScreensDialog : IDisposable
     private Dictionary<string, ScreenPlaybackState> _screenStates = [];
     private string _screenName = "";
     private string _selectedProviderName = "";
+
+    private string? _busyCastDevice;
+    private string? _castError;
 
     private bool _isLaunching;
     private string? _pendingScreenId;
@@ -40,6 +44,44 @@ public partial class ScreensDialog : IDisposable
         ScreenServer.ScreenDisconnected += OnScreenDisconnected;
         ScreenServer.StateReceived += OnStateReceived;
         ScreenCoordination!.StateChanged += OnScreenCoordinationChanged;
+        CastScreens!.StateChanged += OnScreenCoordinationChanged;
+    }
+
+    /// <summary>
+    /// Only devices that are not already listed above as connected screens — an attached device
+    /// appears in both collections, and showing it twice would read as two televisions.
+    /// </summary>
+    private IReadOnlyList<CastDevice> CastDevices =>
+        [.. (CastScreens?.Devices ?? []).Where(d => !d.IsAttached
+            || _connectedScreens.All(s => s.ScreenId != d.Name))];
+
+    private async Task AttachCastAsync(CastDevice device)
+    {
+        _castError = null;
+        _busyCastDevice = device.Id;
+
+        try
+        {
+            if (!await CastScreens!.AttachAsync(device.Id))
+                _castError = $"Could not reach {device.Name}.";
+        }
+        finally
+        {
+            _busyCastDevice = null;
+            StateHasChanged();
+        }
+    }
+
+    private async Task DetachCastAsync(CastDevice device)
+    {
+        _busyCastDevice = device.Id;
+
+        try { await CastScreens!.DetachAsync(device.Id); }
+        finally
+        {
+            _busyCastDevice = null;
+            StateHasChanged();
+        }
     }
 
     private bool IsAudioScreen(IScreenConnection screen) => ScreenCoordination!.AudioScreenId == screen.ScreenId;
@@ -160,6 +202,7 @@ public partial class ScreensDialog : IDisposable
         _launchCts?.Dispose();
 
         if (ScreenCoordination is not null) ScreenCoordination.StateChanged -= OnScreenCoordinationChanged;
+        if (CastScreens is not null) CastScreens.StateChanged -= OnScreenCoordinationChanged;
 
         if (ScreenServer is null) return;
         ScreenServer.ScreenConnected -= OnScreenConnected;

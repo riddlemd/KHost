@@ -133,6 +133,17 @@
         line-height: 1.4;
     }
 
+    &__status--cast {
+        flex-shrink: 0;
+        color: var(--kh-text-secondary);
+        font-size: 0.9em;
+    }
+
+    &__cast {
+        border-bottom: 1px solid var(--kh-border);
+        padding-bottom: 16px;
+    }
+
     &__status--connected {
         flex-shrink: 0;
         color: var(--kh-success, #4caf50);
