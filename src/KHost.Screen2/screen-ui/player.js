@@ -77,7 +77,7 @@ const REALIGN_CONFIRMATIONS = 3;
 
 let clockOffsetMs = 0;
 let timeline = null;
-let isPrimary = false;
+let isTimingReference = false;
 
 let driftConfirmations = 0;
 
@@ -96,9 +96,9 @@ function expectedStreamTime() {
 }
 
 function correct() {
-    // The primary is the screen the room hears. It defines the timeline rather than chasing one,
-    // so it always plays at true speed — any trim here would be a permanent pitch error.
-    if (isPrimary) {
+    // The timing reference defines the timeline rather than chasing one, so it is never
+    // corrected — there is nothing for it to be corrected towards.
+    if (isTimingReference) {
         video.playbackRate = 1;
         return;
     }
@@ -154,7 +154,7 @@ function handleCommand(raw) {
                 playing: message.playing === true,
             };
 
-            isPrimary = message.primary === true;
+            isTimingReference = message.timingReference === true;
 
             timeline = next;
             break;

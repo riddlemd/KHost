@@ -34,11 +34,12 @@ public sealed class SetTimelineCommand : ScreenCommandBase
     public required bool IsPlaying { get; init; }
 
     /// <summary>
-    /// The primary defines the timeline instead of chasing it, and must never trim its playback
-    /// rate: it is the screen the room hears, and a permanent trim is a permanent pitch error.
-    /// Exactly one screen in a group is the primary; the rest converge onto what it actually plays.
+    /// The timing reference defines the timeline instead of chasing it, so it is never corrected.
+    /// Exactly one screen holds this; the rest converge onto what it actually plays. It is the
+    /// audio screen wherever that screen can sync, because correcting a screen means seeking it
+    /// and seeking the one the room hears is an audible glitch.
     /// </summary>
-    public bool IsPrimary { get; init; }
+    public bool IsTimingReference { get; init; }
 }
 
 public sealed class LoadMediaCommand : ScreenCommandBase

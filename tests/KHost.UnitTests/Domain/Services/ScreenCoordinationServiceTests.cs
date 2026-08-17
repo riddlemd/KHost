@@ -15,7 +15,7 @@ public class ScreenCoordinationServiceTests : IDisposable
     public void Dispose() => _service.Dispose();
 
     [Fact]
-    public async Task EnsurePrimary_PrefersAScreenThatRendersAudio()
+    public async Task EnsureRoles_PrefersAScreenThatRendersAudio()
     {
         // A silent screen leading would make the room's audio a follower, and a follower is the
         // thing that gets corrected — which must never happen to what the room hears.
@@ -23,42 +23,99 @@ public class ScreenCoordinationServiceTests : IDisposable
             Screen("Lyrics", sync: true, audio: false),
             Screen("Main", sync: true, audio: true));
 
-        Assert.Equal("Main", await _service.EnsurePrimaryAsync());
+        Assert.Equal("Main", await _service.EnsureRolesAsync());
     }
 
     [Fact]
-    public async Task EnsurePrimary_KeepsTheIncumbent()
+    public async Task EnsureRoles_KeepsTheIncumbent()
     {
         Connect(Screen("A", sync: true, audio: true), Screen("B", sync: true, audio: true));
-        var first = await _service.EnsurePrimaryAsync();
+        var first = await _service.EnsureRolesAsync();
 
-        // Moving the primary mid-song makes every follower re-align on a different reference,
+        // Moving a role mid-song makes every follower re-align on a different reference,
         // which is a visible jump on all of them at once.
-        Assert.Equal(first, await _service.EnsurePrimaryAsync());
+        Assert.Equal(first, await _service.EnsureRolesAsync());
     }
 
     [Fact]
-    public async Task EnsurePrimary_IgnoresScreensThatCannotSync()
+    public async Task EnsureRoles_PrefersASyncableScreenForAudio_SoBothRolesStayTogether()
     {
-        // A Cast device renders audio but plays on its own schedule, so it cannot define one.
+        // Correcting a screen means seeking it, and seeking the one the room hears is audible.
+        // Keeping audio on a screen that can also anchor avoids ever needing to.
         Connect(Screen("Chromecast", sync: false, audio: true), Screen("Local", sync: true, audio: true));
 
-        Assert.Equal("Local", await _service.EnsurePrimaryAsync());
+        Assert.Equal("Local", await _service.EnsureRolesAsync());
+        Assert.Equal("Local", _service.TimingScreenId);
+        Assert.False(_service.RolesAreSplit);
     }
 
     [Fact]
-    public async Task EnsurePrimary_IsNull_WhenNothingCanSync()
+    public async Task EnsureRoles_TakesAnUnsyncableAudioScreen_WhenNothingElseRendersAudio()
+    {
+        // The Cast device is the only thing the room can hear, so it gets the audio role even
+        // though it can never hold the timing one.
+        Connect(Screen("Chromecast", sync: false, audio: true), Screen("Lyrics", sync: true, audio: false));
+
+        Assert.Equal("Chromecast", await _service.EnsureRolesAsync());
+        Assert.Equal("Lyrics", _service.TimingScreenId);
+        Assert.True(_service.RolesAreSplit);
+    }
+
+    [Fact]
+    public async Task EnsureRoles_LeavesTimingVacant_WhenNothingCanSync()
     {
         Connect(Screen("Chromecast", sync: false, audio: true));
 
-        Assert.Null(await _service.EnsurePrimaryAsync());
+        Assert.Equal("Chromecast", await _service.EnsureRolesAsync());
+        Assert.Null(_service.TimingScreenId);
     }
 
     [Fact]
-    public async Task Primary_IsTheOnlyAudibleScreen_ByDefault()
+    public async Task SetAudioScreen_ToACastDevice_SplitsTheRolesRatherThanRefusing()
+    {
+        // The whole point of the split: the room's audio can live somewhere that cannot sync.
+        Connect(Screen("Chromecast", sync: false, audio: true), Screen("Local", sync: true, audio: true));
+        await _service.EnsureRolesAsync();
+
+        Assert.True(await _service.SetAudioScreenAsync("Chromecast"));
+
+        Assert.Equal("Chromecast", _service.AudioScreenId);
+        Assert.Equal("Local", _service.TimingScreenId);
+        Assert.True(_service.RolesAreSplit);
+
+        // And the audio actually moves — the local screen goes quiet.
+        Assert.True(_service.IsAudioEnabled("Chromecast"));
+        Assert.False(_service.IsAudioEnabled("Local"));
+    }
+
+    [Fact]
+    public async Task SetAudioScreen_IsRefused_ForAScreenThatRendersNoAudio()
+    {
+        Connect(Screen("Main", sync: true, audio: true), Screen("Lyrics", sync: true, audio: false));
+        await _service.EnsureRolesAsync();
+
+        Assert.False(await _service.SetAudioScreenAsync("Lyrics"));
+        Assert.Equal("Main", _service.AudioScreenId);
+    }
+
+    [Fact]
+    public async Task TimingReference_FollowsTheAudioScreen_WhenItCanSync()
+    {
+        Connect(Screen("A", sync: true, audio: true), Screen("B", sync: true, audio: true));
+        await _service.EnsureRolesAsync();
+
+        await _service.SetAudioScreenAsync("B");
+
+        // Both roles move together, so the audible screen is never the one being corrected.
+        Assert.Equal("B", _service.TimingScreenId);
+        Assert.False(_service.RolesAreSplit);
+    }
+
+    [Fact]
+    public async Task AudioScreen_IsTheOnlyAudibleScreen_ByDefault()
     {
         Connect(Screen("Main", sync: true, audio: true), Screen("Lyrics", sync: true, audio: true));
-        await _service.EnsurePrimaryAsync();
+        await _service.EnsureRolesAsync();
 
         Assert.True(_service.IsAudioEnabled("Main"));
 
@@ -67,11 +124,11 @@ public class ScreenCoordinationServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task Primary_MutesTheOthersOnTheScreensThemselves()
+    public async Task AudioScreen_MutesTheOthersOnTheScreensThemselves()
     {
         Connect(Screen("Main", sync: true, audio: true), Screen("Lyrics", sync: true, audio: true));
 
-        await _service.EnsurePrimaryAsync();
+        await _service.EnsureRolesAsync();
 
         await _screenServer.Received().SendCommandAsync("Lyrics",
             Arg.Is<SetVolumeCommand>(c => c.Volume == 0f));
@@ -80,15 +137,15 @@ public class ScreenCoordinationServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task SetPrimary_MovesTheAudioWithTheRole()
+    public async Task SetAudioScreen_MovesTheAudioWithTheRole()
     {
         Connect(Screen("Main", sync: true, audio: true), Screen("Lyrics", sync: true, audio: true));
-        await _service.EnsurePrimaryAsync();
+        await _service.EnsureRolesAsync();
         _screenServer.ClearReceivedCalls();
 
-        await _service.SetPrimaryAsync("Lyrics");
+        await _service.SetAudioScreenAsync("Lyrics");
 
-        Assert.Equal("Lyrics", _service.PrimaryScreenId);
+        Assert.Equal("Lyrics", _service.AudioScreenId);
         Assert.True(_service.IsAudioEnabled("Lyrics"));
         Assert.False(_service.IsAudioEnabled("Main"));
 
@@ -97,36 +154,25 @@ public class ScreenCoordinationServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task SetPrimary_IsRefused_ForAScreenThatCannotSync()
-    {
-        Connect(Screen("Chromecast", sync: false, audio: true), Screen("Local", sync: true, audio: true));
-        await _service.EnsurePrimaryAsync();
-
-        // It would be defining a timeline it cannot itself be held to.
-        Assert.False(await _service.SetPrimaryAsync("Chromecast"));
-        Assert.Equal("Local", _service.PrimaryScreenId);
-    }
-
-    [Fact]
     public async Task SetAudioEnabled_UnmutesASecondScreen_AndKeepsItUnmutedAcrossElections()
     {
         Connect(Screen("Main", sync: true, audio: true), Screen("Overflow", sync: true, audio: true));
-        await _service.EnsurePrimaryAsync();
+        await _service.EnsureRolesAsync();
 
         await _service.SetAudioEnabledAsync("Overflow", true);
 
         Assert.True(_service.IsAudioEnabled("Overflow"));
         Assert.True(_service.HasAudioOverride("Overflow"));
 
-        await _service.EnsurePrimaryAsync();
+        await _service.EnsureRolesAsync();
         Assert.True(_service.IsAudioEnabled("Overflow"));
     }
 
     [Fact]
-    public async Task SetAudioEnabled_CanSilenceEvenThePrimary()
+    public async Task SetAudioEnabled_CanSilenceEvenTheAudioScreen()
     {
         Connect(Screen("Main", sync: true, audio: true));
-        await _service.EnsurePrimaryAsync();
+        await _service.EnsureRolesAsync();
 
         await _service.SetAudioEnabledAsync("Main", false);
 
@@ -136,10 +182,10 @@ public class ScreenCoordinationServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task ClearAudioOverride_ReturnsTheScreenToFollowingThePrimary()
+    public async Task ClearAudioOverride_ReturnsTheScreenToFollowingTheAudioRole()
     {
         Connect(Screen("Main", sync: true, audio: true), Screen("Overflow", sync: true, audio: true));
-        await _service.EnsurePrimaryAsync();
+        await _service.EnsureRolesAsync();
         await _service.SetAudioEnabledAsync("Overflow", true);
 
         await _service.ClearAudioOverrideAsync("Overflow");
@@ -149,15 +195,15 @@ public class ScreenCoordinationServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task SetPrimary_RaisesStateChanged()
+    public async Task SetAudioScreen_RaisesStateChanged()
     {
         Connect(Screen("Main", sync: true, audio: true), Screen("Lyrics", sync: true, audio: true));
-        await _service.EnsurePrimaryAsync();
+        await _service.EnsureRolesAsync();
 
         var raised = 0;
         _service.StateChanged += (_, _) => raised++;
 
-        await _service.SetPrimaryAsync("Lyrics");
+        await _service.SetAudioScreenAsync("Lyrics");
 
         Assert.Equal(1, raised);
     }

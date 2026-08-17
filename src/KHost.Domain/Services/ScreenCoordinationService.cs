@@ -5,8 +5,8 @@ using Microsoft.Extensions.Logging;
 namespace KHost.Domain.Services;
 
 /// <summary>
-/// Decides which screen the room hears and which screen the others follow — the same screen, since
-/// the primary is the one that is never rate-corrected. Everything else is muted by default.
+/// Decides which screen the room hears and which screen the others are held to. Everything else
+/// is muted, because two screens playing the same song into one room fight each other.
 /// </summary>
 public sealed class ScreenCoordinationService : BaseService, IScreenCoordinationService, IDisposable
 {
@@ -16,10 +16,11 @@ public sealed class ScreenCoordinationService : BaseService, IScreenCoordination
     private readonly IScreenServer _screenServer;
     private readonly SemaphoreSlim _lock = new(1, 1);
 
-    // Screens the user has pinned on or off. Absent means "follow the primary".
+    // Screens the user has pinned on or off. Absent means "follow the audio role".
     private readonly Dictionary<string, bool> _audioOverrides = [];
 
-    private string? _primaryScreenId;
+    private string? _audioScreenId;
+    private string? _timingScreenId;
 
     public ScreenCoordinationService(ILogger<ScreenCoordinationService> logger, IScreenServer screenServer)
         : base(logger)
@@ -34,63 +35,71 @@ public sealed class ScreenCoordinationService : BaseService, IScreenCoordination
     /// on a restart a screen can register before this service is first resolved.
     /// </summary>
     public Task InitializeAsync(CancellationToken cancellationToken = default)
-        => EnsurePrimaryAsync(cancellationToken);
+        => EnsureRolesAsync(cancellationToken);
 
-    public string? PrimaryScreenId => _primaryScreenId;
+    public string? AudioScreenId => _audioScreenId;
+
+    public string? TimingScreenId => _timingScreenId;
+
+    public bool RolesAreSplit => _audioScreenId is not null && _audioScreenId != _timingScreenId;
 
     public bool IsAudioEnabled(string screenId)
         => _audioOverrides.TryGetValue(screenId, out var enabled)
             ? enabled
-            : screenId == _primaryScreenId;
+            : screenId == _audioScreenId;
 
     public bool HasAudioOverride(string screenId) => _audioOverrides.ContainsKey(screenId);
 
-    public async Task<string?> EnsurePrimaryAsync(CancellationToken cancellationToken = default)
+    public async Task<string?> EnsureRolesAsync(CancellationToken cancellationToken = default)
     {
         await _lock.WaitAsync(cancellationToken);
         try
         {
-            var group = await SyncCapableScreensAsync();
-            if (group.Count == 0) return _primaryScreenId = null;
+            var screens = await ConnectedAsync();
+            var previousAudio = _audioScreenId;
 
-            // Keep the incumbent: moving the primary mid-song makes every follower re-align on a
-            // different reference, which is a visible jump on all of them at once.
-            if (group.Any(s => s.ScreenId == _primaryScreenId)) return _primaryScreenId;
+            // Keep the incumbent while it is still present: moving either role mid-song makes
+            // every follower re-align on a different reference, a visible jump on all at once.
+            if (screens.All(s => s.ScreenId != _audioScreenId))
+                _audioScreenId = ElectAudioScreen(screens);
 
-            var elected = group.FirstOrDefault(s => s.Capabilities.SupportsAudio) ?? group[0];
-            if (!elected.Capabilities.SupportsAudio)
-                Logger.LogWarning("No audio-capable screen in the sync-capable screens; {ScreenId} leads silently",
-                    elected.ScreenId);
+            var timing = DeriveTimingScreen(screens);
+            var changed = _audioScreenId != previousAudio || timing != _timingScreenId;
+            _timingScreenId = timing;
 
-            _primaryScreenId = elected.ScreenId;
-            Logger.LogInformation("Primary screen is {ScreenId}", _primaryScreenId);
+            // Only when a role actually moved: this runs on every connect, and re-pushing volume
+            // to screens whose answer has not changed is pure chatter.
+            if (changed) await ApplyAudioAsync(screens);
 
-            await ApplyAudioAsync();
-            return _primaryScreenId;
+            LogRoles();
+            return _audioScreenId;
         }
         finally { _lock.Release(); }
     }
 
-    public async Task<bool> SetPrimaryAsync(string screenId, CancellationToken cancellationToken = default)
+    public async Task<bool> SetAudioScreenAsync(string screenId, CancellationToken cancellationToken = default)
     {
         await _lock.WaitAsync(cancellationToken);
         try
         {
-            var group = await SyncCapableScreensAsync();
+            var screens = await ConnectedAsync();
+            var target = screens.FirstOrDefault(s => s.ScreenId == screenId);
 
-            // A loose consumer plays on its own schedule, so it cannot define one for anyone else.
-            if (group.All(s => s.ScreenId != screenId))
+            if (target is null || !target.Capabilities.SupportsAudio)
             {
-                Logger.LogWarning("Refused to make {ScreenId} primary: not in the sync-capable screens", screenId);
+                Logger.LogWarning("Refused to send audio to {ScreenId}: it renders no audio", screenId);
                 return false;
             }
 
-            if (_primaryScreenId == screenId) return true;
+            if (_audioScreenId == screenId) return true;
 
-            _primaryScreenId = screenId;
-            Logger.LogInformation("Primary screen set to {ScreenId}", screenId);
+            _audioScreenId = screenId;
 
-            await ApplyAudioAsync();
+            // Timing follows the audio wherever it can, so this move usually takes it along.
+            _timingScreenId = DeriveTimingScreen(screens);
+
+            LogRoles();
+            await ApplyAudioAsync(screens);
         }
         finally { _lock.Release(); }
 
@@ -104,7 +113,7 @@ public sealed class ScreenCoordinationService : BaseService, IScreenCoordination
         try
         {
             _audioOverrides[screenId] = enabled;
-            await ApplyAudioAsync();
+            await ApplyAudioAsync(await ConnectedAsync());
         }
         finally { _lock.Release(); }
 
@@ -117,17 +126,53 @@ public sealed class ScreenCoordinationService : BaseService, IScreenCoordination
         try
         {
             if (!_audioOverrides.Remove(screenId)) return;
-            await ApplyAudioAsync();
+            await ApplyAudioAsync(await ConnectedAsync());
         }
         finally { _lock.Release(); }
 
         InvokeStateChanged();
     }
 
-    /// <summary>Pushes every connected screen's volume to match the current rules. Caller holds the lock.</summary>
-    private async Task ApplyAudioAsync()
+    /// <summary>
+    /// Prefers a screen that can also sync, so the common case keeps both roles together and the
+    /// audible screen is never corrected. A Cast device wins only when nothing else renders audio.
+    /// </summary>
+    private static string? ElectAudioScreen(List<IScreenConnection> screens)
+        => (screens.FirstOrDefault(s => s.Capabilities is { SupportsAudio: true, SupportsSync: true })
+            ?? screens.FirstOrDefault(s => s.Capabilities.SupportsAudio))?.ScreenId;
+
+    /// <summary>
+    /// The audio screen anchors the timeline whenever it can sync. Correction is a seek, and
+    /// seeking the screen the room hears is an audible glitch — so the two roles are kept on one
+    /// screen unless the audio lives somewhere that cannot be held to a schedule at all.
+    /// </summary>
+    private string? DeriveTimingScreen(List<IScreenConnection> screens)
     {
-        await foreach (var screen in _screenServer.GetConnectedScreensAsync())
+        var audio = screens.FirstOrDefault(s => s.ScreenId == _audioScreenId);
+        if (audio?.Capabilities.SupportsSync == true) return audio.ScreenId;
+
+        var incumbent = screens.FirstOrDefault(
+            s => s.ScreenId == _timingScreenId && s.Capabilities.SupportsSync);
+        if (incumbent is not null) return incumbent.ScreenId;
+
+        return screens.FirstOrDefault(s => s.Capabilities.SupportsSync)?.ScreenId;
+    }
+
+    private void LogRoles()
+    {
+        if (RolesAreSplit)
+            Logger.LogWarning(
+                "Audio is on {AudioScreenId} but timing follows {TimingScreenId}; the synced screens "
+                + "are tracking a clock the room cannot hear and may drift from it",
+                _audioScreenId, _timingScreenId);
+        else
+            Logger.LogInformation("Audio and timing are both on {ScreenId}", _audioScreenId ?? "(none)");
+    }
+
+    /// <summary>Pushes every connected screen's volume to match the current rules. Caller holds the lock.</summary>
+    private async Task ApplyAudioAsync(List<IScreenConnection> screens)
+    {
+        foreach (var screen in screens)
         {
             var volume = IsAudioEnabled(screen.ScreenId) ? AudibleVolume : MutedVolume;
 
@@ -142,22 +187,21 @@ public sealed class ScreenCoordinationService : BaseService, IScreenCoordination
         }
     }
 
-    private async Task<List<IScreenConnection>> SyncCapableScreensAsync()
+    private async Task<List<IScreenConnection>> ConnectedAsync()
     {
-        var group = new List<IScreenConnection>();
+        var screens = new List<IScreenConnection>();
 
         try
         {
             await foreach (var screen in _screenServer.GetConnectedScreensAsync())
-                if (screen.Capabilities.SupportsSync)
-                    group.Add(screen);
+                screens.Add(screen);
         }
         catch (Exception ex)
         {
-            Logger.LogWarning(ex, "Failed to enumerate the sync-capable screens");
+            Logger.LogWarning(ex, "Failed to enumerate connected screens");
         }
 
-        return group;
+        return screens;
     }
 
     // Raised while ScreenServerService holds the same lock GetConnectedScreensAsync waits on, so
@@ -166,7 +210,7 @@ public sealed class ScreenCoordinationService : BaseService, IScreenCoordination
         _ = Task.Run(async () =>
         {
             // A new screen arrives unmuted; without this it would add a second voice to the room.
-            await EnsurePrimaryAsync();
+            await EnsureRolesAsync();
             await MuteUnlessPermittedAsync(e.Connection.ScreenId);
             InvokeStateChanged();
         });
@@ -177,12 +221,10 @@ public sealed class ScreenCoordinationService : BaseService, IScreenCoordination
             // A screen that comes back should not inherit a mute the user set on a past session.
             await ClearAudioOverrideAsync(e.Connection.ScreenId);
 
-            if (e.Connection.ScreenId == _primaryScreenId)
-            {
-                _primaryScreenId = null;
-                await EnsurePrimaryAsync();
-            }
+            if (e.Connection.ScreenId == _audioScreenId) _audioScreenId = null;
+            if (e.Connection.ScreenId == _timingScreenId) _timingScreenId = null;
 
+            await EnsureRolesAsync();
             InvokeStateChanged();
         });
 

@@ -55,9 +55,8 @@
         }
     }
 
-    &__item--primary {
-        // The primary carries the room's audio and the group's timing, so it should be findable
-        // at a glance rather than by reading every row.
+    &__item--role {
+        // A screen holding a role should be findable at a glance rather than by reading every row.
         border-left: 3px solid var(--kh-primary);
         padding-left: 9px;
     }
@@ -85,10 +84,15 @@
         letter-spacing: 0.04em;
         white-space: nowrap;
 
-        &--primary {
+        &--audio {
             background: var(--kh-primary);
             border-color: var(--kh-primary);
             color: var(--kh-on-primary, #fff);
+        }
+
+        &--timing {
+            border-color: var(--kh-primary);
+            color: var(--kh-primary);
         }
     }
 
@@ -106,6 +110,20 @@
 
     &__audio--off {
         opacity: 0.55;
+    }
+
+    &__warning {
+        display: flex;
+        align-items: flex-start;
+        gap: 6px;
+        margin: 12px 0 0 0;
+        padding: 8px 10px;
+        border-radius: var(--kh-radius);
+        background: var(--kh-surface-secondary);
+        border-left: 3px solid var(--kh-warning, #d98324);
+        color: var(--kh-text);
+        font-size: 0.82rem;
+        line-height: 1.4;
     }
 
     &__hint {
