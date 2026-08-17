@@ -14,7 +14,9 @@ public class PlaybackServiceTests : IDisposable
     private readonly IPerformanceService _performanceService = Substitute.For<IPerformanceService>();
     private readonly IVenuesService _venuesService = Substitute.For<IVenuesService>();
     private readonly IScreenServer _screenServer = Substitute.For<IScreenServer>();
+    private readonly IMediaStreamService _mediaStreams = Substitute.For<IMediaStreamService>();
     private readonly PlaybackService _service;
+    private int _streamsOpened;
 
     public PlaybackServiceTests()
     {
@@ -24,11 +26,22 @@ public class PlaybackServiceTests : IDisposable
         // Playback refuses to start with no screen attached, so the default fixture has one.
         ConnectScreens(1);
 
+        _mediaStreams
+            .OpenAsync(Arg.Any<string>(), Arg.Any<TimeSpan>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(call => new MediaStreamSession
+            {
+                Id = $"stream-{Interlocked.Increment(ref _streamsOpened)}",
+                SourcePath = call.ArgAt<string>(0),
+                PlaylistUrl = $"http://host/media/stream-{_streamsOpened}/stream.m3u8",
+                StartOffset = call.ArgAt<TimeSpan>(1),
+                PitchSemitones = call.ArgAt<int>(2),
+            });
+
         // Zero fade keeps stop synchronous; the fading behaviour has its own tests below.
         _service = MakeService(TimeSpan.Zero);
     }
 
-    private void ConnectScreens(int count)
+    private void ConnectScreens(int count, bool supportsSync = true)
     {
         var screens = Enumerable.Range(1, count).Select(i =>
         {
@@ -36,10 +49,29 @@ public class PlaybackServiceTests : IDisposable
             screen.ScreenId.Returns($"Screen {i}");
             screen.ConnectionId.Returns($"conn-{i}");
             screen.IsConnected.Returns(true);
+            screen.Capabilities.Returns(new ScreenCapabilities { SupportsSync = supportsSync });
             return screen;
         }).ToArray();
 
         _screenServer.GetConnectedScreensAsync().Returns(_ => ToAsyncEnumerable(screens));
+    }
+
+    /// <summary>Mixed group: sync-capable screens plus loose consumers such as a Cast device.</summary>
+    private void ConnectMixedScreens()
+    {
+        var synced = Substitute.For<IScreenConnection>();
+        synced.ScreenId.Returns("Screen 1");
+        synced.ConnectionId.Returns("conn-1");
+        synced.IsConnected.Returns(true);
+        synced.Capabilities.Returns(new ScreenCapabilities { SupportsSync = true });
+
+        var loose = Substitute.For<IScreenConnection>();
+        loose.ScreenId.Returns("Chromecast");
+        loose.ConnectionId.Returns("conn-cast");
+        loose.IsConnected.Returns(true);
+        loose.Capabilities.Returns(ScreenCapabilities.None);
+
+        _screenServer.GetConnectedScreensAsync().Returns(_ => ToAsyncEnumerable([synced, loose]));
     }
 
     private static async IAsyncEnumerable<IScreenConnection> ToAsyncEnumerable(IScreenConnection[] screens)
@@ -57,6 +89,7 @@ public class PlaybackServiceTests : IDisposable
         _venuesService,
         Substitute.For<IAnalyticsService>(),
         _screenServer,
+        _mediaStreams,
         Options.Create(new PlaybackService.ServiceOptions { StopFadeDuration = stopFadeDuration }));
 
     public void Dispose() => _service.Dispose();
@@ -470,6 +503,230 @@ public class PlaybackServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task Play_MakesAnAudioCapableScreenThePrimary()
+    {
+        // A silent screen leading would make the room's audio a follower, and a follower is the
+        // thing that gets corrected — which must never happen to what the room hears.
+        var silent = Substitute.For<IScreenConnection>();
+        silent.ScreenId.Returns("Lyrics");
+        silent.IsConnected.Returns(true);
+        silent.Capabilities.Returns(new ScreenCapabilities { SupportsSync = true, SupportsVideo = true });
+
+        var audible = Substitute.For<IScreenConnection>();
+        audible.ScreenId.Returns("Main");
+        audible.IsConnected.Returns(true);
+        audible.Capabilities.Returns(new ScreenCapabilities
+        {
+            SupportsSync = true,
+            SupportsAudio = true,
+            SupportsVideo = true,
+        });
+
+        _screenServer.GetConnectedScreensAsync().Returns(_ => ToAsyncEnumerable([silent, audible]));
+
+        var (performance, media) = CreatePerformance();
+        await _service.LoadAsync(performance, media);
+        await _service.PlayAsync();
+
+        Assert.Equal("Main", PrimaryScreenId());
+    }
+
+    [Fact]
+    public async Task Play_KeepsThePrimary_AcrossRepublishes()
+    {
+        var (performance, media) = CreatePerformance();
+        await _service.LoadAsync(performance, media);
+        await _service.PlayAsync();
+
+        var first = PrimaryScreenId();
+        await _service.PauseAsync();
+
+        // Moving the primary mid-song would make every follower re-align on a new reference.
+        Assert.Equal(first, PrimaryScreenId());
+    }
+
+    [Fact]
+    public async Task Play_PublishesATimeline_ToSyncCapableScreensOnly()
+    {
+        ConnectMixedScreens();
+
+        var (performance, media) = CreatePerformance();
+        await _service.LoadAsync(performance, media);
+        await _service.PlayAsync();
+
+        await _screenServer.Received().SendCommandAsync("Screen 1", Arg.Any<SetTimelineCommand>());
+
+        // A Cast device cannot be held to a schedule, so sending it one would only invite it to try.
+        await _screenServer.DidNotReceive().SendCommandAsync("Chromecast", Arg.Any<SetTimelineCommand>());
+    }
+
+    [Fact]
+    public async Task Play_AnchorsTheTimelineSlightlyAhead_SoEveryScreenStartsOnTheSameInstant()
+    {
+        var (performance, media) = CreatePerformance();
+        await _service.LoadAsync(performance, media);
+
+        var before = DateTime.UtcNow;
+        await _service.PlayAsync();
+
+        var timeline = LastTimeline();
+        Assert.NotNull(timeline);
+        Assert.True(timeline.IsPlaying);
+
+        // Starting on arrival is what puts screens seconds apart; the anchor is the shared instant.
+        Assert.True(timeline.AnchorUtc > before,
+            $"anchor {timeline.AnchorUtc:O} should be ahead of {before:O}");
+    }
+
+    [Fact]
+    public async Task Pause_PublishesAFrozenTimeline()
+    {
+        var (performance, media) = CreatePerformance();
+        await _service.LoadAsync(performance, media);
+        await _service.PlayAsync();
+        await _service.PauseAsync();
+
+        var timeline = LastTimeline();
+        Assert.NotNull(timeline);
+        Assert.False(timeline.IsPlaying);
+    }
+
+    [Fact]
+    public async Task ScreenReconnect_RepublishesTheTimeline_SoTheJoinerLandsOnTheGroupPosition()
+    {
+        var (performance, media) = CreatePerformance();
+        await _service.LoadAsync(performance, media);
+        await _service.PlayAsync();
+        await _service.TickAsync();
+        _screenServer.ClearReceivedCalls();
+
+        RaiseScreenConnected();
+        Assert.True(await WaitForBroadcastAsync<PlayCommand>());
+
+        // Without this the joiner starts at the top of the song while the group is mid-verse.
+        var timeline = LastTimeline();
+        Assert.NotNull(timeline);
+        Assert.True(timeline.IsPlaying);
+        Assert.True(timeline.Position > TimeSpan.Zero);
+    }
+
+    [Fact]
+    public async Task Load_OpensAHostStream_AndSendsItsUrlToTheScreens()
+    {
+        var (performance, media) = CreatePerformance();
+
+        await _service.LoadAsync(performance, media);
+
+        await _mediaStreams.Received(1).OpenAsync(media.FilePath, TimeSpan.Zero, 0, Arg.Any<CancellationToken>());
+
+        var command = LastBroadcast<LoadMediaCommand>();
+        Assert.NotNull(command);
+        Assert.Equal("http://host/media/stream-1/stream.m3u8", command.StreamUrl);
+
+        // FilePath stays populated: KHost.Screen decodes locally and cannot consume the stream.
+        Assert.Equal(media.FilePath, command.FilePath);
+    }
+
+    [Fact]
+    public async Task ScreenReconnect_ReusesTheRunningTranscode_RatherThanStartingASecond()
+    {
+        var (performance, media) = CreatePerformance();
+        await _service.LoadAsync(performance, media);
+        await _service.PlayAsync();
+
+        RaiseScreenConnected();
+        Assert.True(await WaitForBroadcastAsync<PlayCommand>());
+
+        // One host transcode feeding every screen is the whole reason ffmpeg moved off the screens.
+        await _mediaStreams.Received(1).OpenAsync(
+            Arg.Any<string>(), Arg.Any<TimeSpan>(), Arg.Any<int>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Stop_ClosesTheHostStream()
+    {
+        var (performance, media) = CreatePerformance();
+        await _service.LoadAsync(performance, media);
+        await _service.PlayAsync();
+
+        await _service.StopAsync();
+
+        // An orphaned ffmpeg would keep transcoding a song nobody is playing.
+        await _mediaStreams.Received().CloseAsync("stream-1");
+    }
+
+    [Fact]
+    public async Task Load_ClosesThePreviousStream_BeforeOpeningTheNext()
+    {
+        var (firstPerformance, firstMedia) = CreatePerformance();
+        await _service.LoadAsync(firstPerformance, firstMedia);
+
+        var (secondPerformance, secondMedia) = CreatePerformance();
+        await _service.LoadAsync(secondPerformance, secondMedia);
+
+        await _mediaStreams.Received().CloseAsync("stream-1");
+        Assert.Equal(2, _streamsOpened);
+    }
+
+    [Fact]
+    public async Task Load_StillReachesTheScreens_WhenTheTranscodeCannotStart()
+    {
+        _mediaStreams
+            .OpenAsync(Arg.Any<string>(), Arg.Any<TimeSpan>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns<MediaStreamSession>(_ => throw new FileNotFoundException("gone"));
+
+        var (performance, media) = CreatePerformance();
+        await _service.LoadAsync(performance, media);
+
+        // A screen sharing the filesystem can still play from FilePath, so a failed transcode
+        // must not take the performance down with it.
+        var command = LastBroadcast<LoadMediaCommand>();
+        Assert.NotNull(command);
+        Assert.Null(command.StreamUrl);
+        Assert.Equal(media.FilePath, command.FilePath);
+    }
+
+    [Fact]
+    public async Task ScreenReconnect_WhileStillPlaying_ResumesTheScreen()
+    {
+        var (performance, media) = CreatePerformance();
+        await _service.LoadAsync(performance, media);
+        await _service.PlayAsync();
+        _screenServer.ClearReceivedCalls();
+
+        // A screen returning under the same id supersedes its own tracked connection, so the
+        // stale socket's disconnect is discarded and no resume is ever pending.
+        RaiseScreenConnected();
+
+        Assert.True(await WaitForBroadcastAsync<PlayCommand>());
+        Assert.Equal(PlaybackState.Playing, _service.State);
+    }
+
+    [Fact]
+    public async Task ScreenReconnect_WhileStillPlaying_HoldsThePositionUntilTheScreenHasLoaded()
+    {
+        var (performance, media) = CreatePerformance();
+        await _service.LoadAsync(performance, media);
+        await _service.PlayAsync();
+        await _service.TickAsync();
+
+        var loading = new TaskCompletionSource();
+        _screenServer.BroadcastCommandAsync(Arg.Any<LoadMediaCommand>()).Returns(_ => loading.Task);
+        _screenServer.ClearReceivedCalls();
+
+        RaiseScreenConnected();
+        Assert.True(await WaitForBroadcastAsync<LoadMediaCommand>());
+
+        // The load is still in flight. A clock left running here is what makes the screen resume
+        // behind the UI, because the seek was aimed at where the song was when it started loading.
+        var held = _service.Position;
+        await Task.Delay(700);
+        Assert.Equal(held, _service.Position);
+
+        loading.SetResult();
+    }
+
+    [Fact]
     public async Task ScreenReconnect_DoesNothing_WhenNoMediaIsLoaded()
     {
         RaiseScreenConnected();
@@ -570,6 +827,25 @@ public class PlaybackServiceTests : IDisposable
 
         return performance;
     }
+
+    private TCommand? LastBroadcast<TCommand>() where TCommand : class, IScreenCommand
+        => _screenServer.ReceivedCalls()
+            .Where(c => c.GetMethodInfo().Name == nameof(IScreenServer.BroadcastCommandAsync))
+            .Select(c => c.GetArguments().FirstOrDefault() as TCommand)
+            .LastOrDefault(c => c is not null);
+
+    /// <summary>The screen the most recent timeline named as primary.</summary>
+    private string? PrimaryScreenId()
+        => _screenServer.ReceivedCalls()
+            .Where(c => c.GetMethodInfo().Name == nameof(IScreenServer.SendCommandAsync))
+            .Select(c => (Id: c.GetArguments()[0] as string, Command: c.GetArguments()[1] as SetTimelineCommand))
+            .LastOrDefault(x => x.Command?.IsPrimary == true).Id;
+
+    private SetTimelineCommand? LastTimeline()
+        => _screenServer.ReceivedCalls()
+            .Where(c => c.GetMethodInfo().Name == nameof(IScreenServer.SendCommandAsync))
+            .Select(c => c.GetArguments().ElementAtOrDefault(1) as SetTimelineCommand)
+            .LastOrDefault(c => c is not null);
 
     private async Task<bool> WaitForBroadcastAsync<TCommand>() where TCommand : IScreenCommand
     {

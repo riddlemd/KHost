@@ -15,11 +15,23 @@ internal sealed class ScreenHub : Hub
         return base.OnDisconnectedAsync(exception);
     }
 
-    public Task RegisterScreenAsync(string screenId)
+    public Task RegisterScreenAsync(string screenId, bool supportsSync, bool supportsAudio, bool supportsVideo)
     {
-        _callback.OnScreenConnected(screenId, Context.ConnectionId);
+        _callback.OnScreenConnected(screenId, Context.ConnectionId, new ScreenCapabilities
+        {
+            SupportsSync = supportsSync,
+            SupportsAudio = supportsAudio,
+            SupportsVideo = supportsVideo,
+        });
+
         return Task.CompletedTask;
     }
+
+    /// <summary>
+    /// Echoes the host clock so a screen can work out its own offset. Deliberately does nothing
+    /// else: any work here would land inside the round trip the caller is measuring.
+    /// </summary>
+    public long EchoClock() => DateTime.UtcNow.Ticks;
 
     public Task ReceiveStateAsync(string screenId, string stateJson)
     {

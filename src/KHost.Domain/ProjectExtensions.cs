@@ -44,12 +44,16 @@ namespace KHost.Domain
             serviceCollection.AddOptions<PlaybackService.ServiceOptions>()
                 .BindConfiguration(PlaybackService.ServiceOptions.SectionName);
 
+            serviceCollection.AddOptions<HlsMediaStreamService.ServiceOptions>()
+                .BindConfiguration(HlsMediaStreamService.ServiceOptions.SectionName);
+
             // Configure KHost Services
             serviceCollection.AddSingleton(TimeProvider.System);
             serviceCollection.AddSingleton<IMediaFileParsingService, MediaFileParsingService>();
             serviceCollection.AddSingleton<IMediaImportService, MediaImportService>();
             serviceCollection.AddSingleton<ICacheService, JsonFileCacheService>();
             serviceCollection.AddSingleton<ISingerQueueService, SingerQueueService>();
+            serviceCollection.AddSingleton<IMediaStreamService, HlsMediaStreamService>();
             serviceCollection.AddSingleton<IPlaybackService, PlaybackService>();
             serviceCollection.AddSingleton<IMediaSearchService, MediaSearchService>();
             serviceCollection.AddSingleton<IVenuesService, VenuesService>();

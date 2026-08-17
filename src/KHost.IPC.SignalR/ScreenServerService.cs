@@ -15,7 +15,7 @@ internal sealed class ScreenServerService : IScreenServer, IHubCallback
 
     public ScreenServerService(IHubContext<ScreenHub> hubContext) => _hubContext = hubContext;
 
-    void IHubCallback.OnScreenConnected(string screenId, string connectionId)
+    void IHubCallback.OnScreenConnected(string screenId, string connectionId, ScreenCapabilities capabilities)
     {
         _lock.Wait();
         try
@@ -24,7 +24,8 @@ internal sealed class ScreenServerService : IScreenServer, IHubCallback
             {
                 ScreenId = screenId,
                 ConnectionId = connectionId,
-                ConnectedAt = DateTime.UtcNow
+                ConnectedAt = DateTime.UtcNow,
+                Capabilities = capabilities,
             };
             _connections[screenId] = conn;
             ScreenConnected?.Invoke(this, new ScreenConnectionEventArgs { Connection = conn });
@@ -82,5 +83,6 @@ internal sealed class ScreenServerService : IScreenServer, IHubCallback
         public required string ConnectionId { get; init; }
         public DateTime ConnectedAt { get; init; }
         public bool IsConnected => true;
+        public ScreenCapabilities Capabilities { get; init; } = ScreenCapabilities.None;
     }
 }

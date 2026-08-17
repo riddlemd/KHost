@@ -40,7 +40,7 @@ public class ScreenServerServiceTests
     [Fact]
     public async Task OnScreenConnected_TracksTheConnection()
     {
-        Callback.OnScreenConnected("Screen 1", "conn-a");
+        Callback.OnScreenConnected("Screen 1", "conn-a", ScreenCapabilities.None);
 
         var screens = await ConnectedScreensAsync();
 
@@ -56,7 +56,7 @@ public class ScreenServerServiceTests
         ScreenConnectionEventArgs? captured = null;
         _service.ScreenConnected += (_, e) => captured = e;
 
-        Callback.OnScreenConnected("Screen 1", "conn-a");
+        Callback.OnScreenConnected("Screen 1", "conn-a", ScreenCapabilities.None);
 
         Assert.NotNull(captured);
         Assert.Equal("Screen 1", captured.Connection.ScreenId);
@@ -65,8 +65,8 @@ public class ScreenServerServiceTests
     [Fact]
     public async Task OnScreenConnected_WithDuplicateScreenId_CollapsesToOneConnection()
     {
-        Callback.OnScreenConnected("Screen", "conn-a");
-        Callback.OnScreenConnected("Screen", "conn-b");
+        Callback.OnScreenConnected("Screen", "conn-a", ScreenCapabilities.None);
+        Callback.OnScreenConnected("Screen", "conn-b", ScreenCapabilities.None);
 
         var screens = await ConnectedScreensAsync();
 
@@ -79,8 +79,8 @@ public class ScreenServerServiceTests
     [Fact]
     public async Task OnScreenDisconnected_RemovesTheMatchingConnection()
     {
-        Callback.OnScreenConnected("Screen 1", "conn-a");
-        Callback.OnScreenConnected("Screen 2", "conn-b");
+        Callback.OnScreenConnected("Screen 1", "conn-a", ScreenCapabilities.None);
+        Callback.OnScreenConnected("Screen 2", "conn-b", ScreenCapabilities.None);
 
         Callback.OnScreenDisconnected("conn-a");
 
@@ -93,7 +93,7 @@ public class ScreenServerServiceTests
     [Fact]
     public void OnScreenDisconnected_RaisesScreenDisconnected()
     {
-        Callback.OnScreenConnected("Screen 1", "conn-a");
+        Callback.OnScreenConnected("Screen 1", "conn-a", ScreenCapabilities.None);
 
         ScreenConnectionEventArgs? captured = null;
         _service.ScreenDisconnected += (_, e) => captured = e;
@@ -107,7 +107,7 @@ public class ScreenServerServiceTests
     [Fact]
     public async Task OnScreenDisconnected_IsANoOp_ForUnknownConnectionId()
     {
-        Callback.OnScreenConnected("Screen 1", "conn-a");
+        Callback.OnScreenConnected("Screen 1", "conn-a", ScreenCapabilities.None);
 
         var raised = false;
         _service.ScreenDisconnected += (_, _) => raised = true;
@@ -121,8 +121,8 @@ public class ScreenServerServiceTests
     [Fact]
     public async Task OnScreenDisconnected_ForStaleConnectionId_LeavesReconnectedScreenTracked()
     {
-        Callback.OnScreenConnected("Screen 1", "conn-old");
-        Callback.OnScreenConnected("Screen 1", "conn-new");
+        Callback.OnScreenConnected("Screen 1", "conn-old", ScreenCapabilities.None);
+        Callback.OnScreenConnected("Screen 1", "conn-new", ScreenCapabilities.None);
 
         // A late disconnect for the superseded connection must not evict the live one.
         Callback.OnScreenDisconnected("conn-old");
@@ -155,7 +155,7 @@ public class ScreenServerServiceTests
     [Fact]
     public async Task SendCommandAsync_SendsSerializedCommandToTheMatchingConnection()
     {
-        Callback.OnScreenConnected("Screen 1", "conn-a");
+        Callback.OnScreenConnected("Screen 1", "conn-a", ScreenCapabilities.None);
 
         await _service.SendCommandAsync("Screen 1", new PlayCommand());
 
@@ -178,7 +178,7 @@ public class ScreenServerServiceTests
     [Fact]
     public async Task SendCommandAsync_DoesNotSend_AfterTheScreenDisconnects()
     {
-        Callback.OnScreenConnected("Screen 1", "conn-a");
+        Callback.OnScreenConnected("Screen 1", "conn-a", ScreenCapabilities.None);
         Callback.OnScreenDisconnected("conn-a");
 
         await _service.SendCommandAsync("Screen 1", new PlayCommand());

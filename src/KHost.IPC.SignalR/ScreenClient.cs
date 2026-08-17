@@ -45,7 +45,11 @@ internal sealed class ScreenClient : IScreenClient, IAsyncDisposable
         }
     }
 
-    public async Task ConnectAsync(string serverUri, string screenId, CancellationToken cancellationToken = default)
+    public async Task ConnectAsync(
+        string serverUri,
+        string screenId,
+        ScreenCapabilities? capabilities = null,
+        CancellationToken cancellationToken = default)
     {
         await _stateLock.WaitAsync(cancellationToken);
         try
@@ -101,8 +105,16 @@ internal sealed class ScreenClient : IScreenClient, IAsyncDisposable
             };
 
             await _connection.StartAsync(cancellationToken);
-            _logger.LogInformation("RegisterScreen sent for {ScreenId}", screenId);
-            await _connection.InvokeAsync(nameof(ScreenHub.RegisterScreenAsync), screenId, cancellationToken);
+
+            var declared = capabilities ?? ScreenCapabilities.None;
+            _logger.LogInformation(
+                "RegisterScreen sent for {ScreenId} (sync={SupportsSync} audio={SupportsAudio} video={SupportsVideo})",
+                screenId, declared.SupportsSync, declared.SupportsAudio, declared.SupportsVideo);
+
+            await _connection.InvokeAsync(
+                nameof(ScreenHub.RegisterScreenAsync),
+                screenId, declared.SupportsSync, declared.SupportsAudio, declared.SupportsVideo, cancellationToken);
+
             State = ScreenClientState.Connected;
         }
         catch (Exception)
@@ -135,6 +147,37 @@ internal sealed class ScreenClient : IScreenClient, IAsyncDisposable
         {
             _stateLock.Release();
         }
+    }
+
+    /// <summary>
+    /// NTP's estimator: probe repeatedly and keep the sample with the shortest round trip, because
+    /// that is the one whose "half the round trip" assumption is least wrong. Averaging instead
+    /// would let one delayed probe drag the estimate off.
+    /// </summary>
+    public async Task<TimeSpan> EstimateClockOffsetAsync(CancellationToken cancellationToken = default)
+    {
+        if (_connection is null || State != ScreenClientState.Connected)
+            throw new InvalidOperationException("Not connected to server");
+
+        var bestRoundTrip = TimeSpan.MaxValue;
+        var offset = TimeSpan.Zero;
+
+        for (var i = 0; i < 5; i++)
+        {
+            var sentAt = DateTime.UtcNow;
+            var hostTicks = await _connection.InvokeAsync<long>(nameof(ScreenHub.EchoClock), cancellationToken);
+            var receivedAt = DateTime.UtcNow;
+
+            var roundTrip = receivedAt - sentAt;
+            if (roundTrip >= bestRoundTrip) continue;
+
+            bestRoundTrip = roundTrip;
+            offset = new DateTime(hostTicks, DateTimeKind.Utc) - (sentAt + roundTrip / 2);
+        }
+
+        _logger.LogInformation("Clock offset to host: {Offset} (best round trip {RoundTrip})", offset, bestRoundTrip);
+
+        return offset;
     }
 
     public async Task SendStateAsync(IScreenState state)

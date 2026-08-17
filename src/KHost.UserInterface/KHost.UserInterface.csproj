@@ -40,6 +40,7 @@
     <ProjectReference Include="..\KHost.Telemetry\KHost.Telemetry.csproj" />
     <ProjectReference Include="..\KHost.IPC.SignalR\KHost.IPC.SignalR.csproj" />
     <ProjectReference Include="..\KHost.Screen\KHost.Screen.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\KHost.Screen2\KHost.Screen2.csproj" ReferenceOutputAssembly="false" />
   </ItemGroup>
 
   <ItemGroup>
@@ -71,6 +72,21 @@
       <_HostPublishDir>$([System.IO.Path]::GetFullPath('$(PublishDir)', '$(MSBuildProjectDirectory)'))</_HostPublishDir>
     </PropertyGroup>
     <MSBuild Projects="$(MSBuildProjectDirectory)\..\KHost.Screen\KHost.Screen.csproj" Targets="Publish" Properties="Configuration=$(Configuration);&#xA;                         TargetFramework=$(TargetFramework);&#xA;                         RuntimeIdentifier=$(RuntimeIdentifier);&#xA;                         SelfContained=$(SelfContained);&#xA;                         PublishDir=$(_HostPublishDir)" />
+  </Target>
+
+  <!-- Screen2 is the Photino/MSE screen; it ships alongside Screen so either can be selected
+       at runtime via LocalScreen:ExePath. -->
+  <Target Name="CopyScreen2ToOutput" AfterTargets="Build">
+    <MSBuild Projects="$(MSBuildProjectDirectory)\..\KHost.Screen2\KHost.Screen2.csproj" Targets="GetTargetPath" Properties="Configuration=$(Configuration);Platform=$(Platform);BaseOutputPath=$(BaseOutputPath)">
+      <Output TaskParameter="TargetOutputs" ItemName="_Screen2Exe" />
+    </MSBuild>
+    <PropertyGroup>
+      <Screen2OutputDir>@(_Screen2Exe->'%(RootDir)%(Directory)')</Screen2OutputDir>
+    </PropertyGroup>
+    <ItemGroup>
+      <Screen2Files Include="$(Screen2OutputDir)**\*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(Screen2Files)" DestinationFiles="@(Screen2Files->'$(OutputPath)%(RecursiveDir)%(Filename)%(Extension)')" />
   </Target>
 
   <!-- Copy Screen executable and all dependencies into output directory -->
