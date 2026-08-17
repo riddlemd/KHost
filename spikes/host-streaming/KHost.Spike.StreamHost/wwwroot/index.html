@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>KHost host-streaming spike</title>
+    <style>
+        :root { color-scheme: dark; }
+        body { margin: 0; padding: 24px; background: #0d0d10; color: #e8e8ee;
+               font: 14px/1.5 system-ui, sans-serif; }
+        h1 { font-size: 18px; margin: 0 0 16px; }
+        fieldset { border: 1px solid #2c2c36; border-radius: 8px; margin: 0 0 16px; padding: 12px 16px; }
+        legend { color: #9a9aa8; padding: 0 6px; }
+        input[type=text], input[type=number] { background: #16161c; color: #e8e8ee;
+               border: 1px solid #2c2c36; border-radius: 5px; padding: 6px 8px; }
+        input[type=text] { width: min(560px, 100%); }
+        button { background: #2f6fed; color: #fff; border: 0; border-radius: 5px;
+                 padding: 7px 14px; cursor: pointer; }
+        button.secondary { background: #2c2c36; }
+        video { width: 100%; max-width: 960px; background: #000; border-radius: 8px; }
+        pre { background: #16161c; border: 1px solid #2c2c36; border-radius: 6px;
+              padding: 10px 12px; overflow-x: auto; }
+        code { color: #7fd1a6; }
+        .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+    </style>
+</head>
+<body>
+    <h1>KHost host-streaming spike — one transcode, many consumers</h1>
+
+    <fieldset>
+        <legend>1. Start a transcode on the host</legend>
+        <div class="row">
+            <input type="text" id="path" placeholder="/absolute/path/to/song.mp4" />
+            <label>offset <input type="number" id="offset" value="0" min="0" style="width:70px" /></label>
+            <label>pitch <input type="number" id="pitch" value="0" min="-12" max="12" style="width:60px" /></label>
+            <button id="start">Start</button>
+            <button id="refresh" class="secondary">List sessions</button>
+        </div>
+    </fieldset>
+
+    <fieldset>
+        <legend>2. The URL every consumer gets</legend>
+        <pre id="url">—</pre>
+        <p>Paste this into a Chromecast sender, a smart TV, VLC, or another browser. It is the same
+           URL this page plays, which is the whole point of the spike.</p>
+    </fieldset>
+
+    <fieldset>
+        <legend>3. This browser as a consumer</legend>
+        <video id="video" controls playsinline></video>
+        <p id="support"></p>
+    </fieldset>
+
+    <fieldset>
+        <legend>Sessions</legend>
+        <pre id="sessions">—</pre>
+    </fieldset>
+
+    <script>
+        const $ = (id) => document.getElementById(id);
+        const video = $('video');
+
+        // Safari and WKWebView play HLS from a bare src; Chromium (WebView2, Chrome) does not and
+        // needs hls.js. That split decides how much of Screen2's MSE code can actually be deleted.
+        const nativeHls = video.canPlayType('application/vnd.apple.mpegurl') !== '';
+        $('support').textContent = nativeHls
+            ? 'Native HLS: yes — a plain <video src> is enough here.'
+            : 'Native HLS: no — this engine (Chromium) would need hls.js to play the same URL.';
+
+        async function start() {
+            const body = {
+                filePath: $('path').value.trim(),
+                offset: Number($('offset').value) || 0,
+                pitch: Number($('pitch').value) || 0,
+            };
+
+            const response = await fetch('/api/session', {
+                method: 'POST',
+                headers: { 'content-type': 'application/json' },
+                body: JSON.stringify(body),
+            });
+
+            const result = await response.json();
+            if (!response.ok) { $('url').textContent = result.error || 'failed'; return; }
+
+            $('url').textContent = result.playlistUrl;
+            video.src = result.playlistUrl;
+            video.play().catch(() => { /* autoplay policy; the controls still work */ });
+            list();
+        }
+
+        async function list() {
+            const response = await fetch('/api/session');
+            $('sessions').textContent = JSON.stringify(await response.json(), null, 2);
+        }
+
+        $('start').addEventListener('click', start);
+        $('refresh').addEventListener('click', list);
+        list();
+    </script>
+</body>
+</html>
