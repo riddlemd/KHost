@@ -116,7 +116,7 @@ internal sealed class StreamMediaPlayer : IMediaPlayer
     /// Hands the page the group's timeline. Positions are converted to stream time here so the
     /// page never has to know the song offset the current transcode started at.
     /// </summary>
-    public void SetTimeline(TimeSpan position, DateTime anchorUtc, bool isPlaying, bool isPrimary)
+    public void SetTimeline(TimeSpan position, DateTime anchorUtc, bool isPlaying, bool isTimingReference)
     {
         TimeSpan offset;
         lock (_lock) offset = _streamStartOffset;
@@ -129,7 +129,7 @@ internal sealed class StreamMediaPlayer : IMediaPlayer
             position = Math.Max(0, withinStream.TotalSeconds),
             anchorEpochMs = (anchorUtc - DateTime.UnixEpoch).TotalMilliseconds,
             playing = isPlaying,
-            primary = isPrimary,
+            timingReference = isTimingReference,
         });
     }
 

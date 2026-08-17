@@ -18,20 +18,28 @@
                         @foreach (var screen in _connectedScreens)
                         {
                             var state = _screenStates.TryGetValue(screen.ScreenId, out var s) ? s : null;
-                            var isPrimary = IsPrimary(screen);
-                            <li class="kh-screens-dialog__item @(isPrimary ? "kh-screens-dialog__item--primary" : "")">
+                            var hasAudioRole = IsAudioScreen(screen);
+                            var hasTimingRole = IsTimingScreen(screen);
+                            <li class="kh-screens-dialog__item @(hasAudioRole || hasTimingRole ? "kh-screens-dialog__item--role" : "")">
                                 <i class="bi bi-circle-fill kh-screens-dialog__status--connected"></i>
                                 <div class="kh-screens-dialog__item-content">
                                     <div class="kh-screens-dialog__screen-name">
                                         <span>@screen.ScreenId</span>
-                                        @if (isPrimary)
+                                        @if (hasAudioRole)
                                         {
-                                            <span class="kh-screens-dialog__badge kh-screens-dialog__badge--primary"
-                                                  title="Defines the timeline every other screen follows, and is never speed-corrected.">
-                                                <i class="bi bi-star-fill"></i> Primary
+                                            <span class="kh-screens-dialog__badge kh-screens-dialog__badge--audio"
+                                                  title="The screen the room hears.">
+                                                <i class="bi bi-volume-up-fill"></i> Audio
                                             </span>
                                         }
-                                        else if (!screen.Capabilities.SupportsSync)
+                                        @if (hasTimingRole)
+                                        {
+                                            <span class="kh-screens-dialog__badge kh-screens-dialog__badge--timing"
+                                                  title="Its position sets the timeline the other synced screens are held to. Never corrected itself.">
+                                                <i class="bi bi-clock-fill"></i> Timing
+                                            </span>
+                                        }
+                                        @if (!screen.Capabilities.SupportsSync)
                                         {
                                             <span class="kh-screens-dialog__badge"
                                                   title="Plays on its own schedule, so it cannot be kept in sync with the others.">
@@ -73,21 +81,30 @@
                                             <i class="bi @(IsAudible(screen) ? "bi-volume-up-fill" : "bi-volume-mute")"></i>
                                         </button>
                                     }
-                                    @if (!isPrimary && screen.Capabilities.SupportsSync)
+                                    @if (!hasAudioRole && screen.Capabilities.SupportsAudio)
                                     {
                                         <button class="kh-button kh-button--secondary"
-                                                title="Make this the screen the room hears and the others follow."
-                                                @onclick="() => MakePrimaryAsync(screen)">
-                                            Make primary
+                                                title="Make this the screen the room hears. Timing follows it too, unless it cannot sync."
+                                                @onclick="() => SendAudioToAsync(screen)">
+                                            Send audio here
                                         </button>
                                     }
                                 </div>
                             </li>
                         }
                     </ul>
+                    @if (ScreenCoordination!.RolesAreSplit)
+                    {
+                        <p class="kh-screens-dialog__warning">
+                            <i class="bi bi-exclamation-triangle-fill"></i>
+                            The audio screen cannot be synced, so the other screens are following
+                            <strong>@ScreenCoordination.TimingScreenId</strong> instead. Lyrics may
+                            drift away from what the room hears.
+                        </p>
+                    }
                     <p class="kh-screens-dialog__hint">
-                        Only the primary is audible by default — two screens playing the same song
-                        into one room fight each other. Unmute another only if it is somewhere else.
+                        Only the audio screen is audible by default — two screens playing the same
+                        song into one room fight each other. Unmute another only if it is elsewhere.
                     </p>
                 }
             </section>

@@ -43,23 +43,23 @@ public sealed class ScreenCapabilities
     };
 
     /// <summary>
-    /// True when the screen can follow a scheduled start and trim its own playback rate to stay
-    /// on it. Only such screens can be kept frame-close to each other; everything else is a loose
-    /// consumer that plays the same media whenever it manages to.
+    /// True when the screen can follow a scheduled start and correct itself onto the group's
+    /// timeline. Only such screens can be kept frame-close to each other; everything else is a
+    /// loose consumer that plays the same media whenever it manages to.
     /// </summary>
     public bool SupportsSync { get; init; }
 
     /// <summary>
-    /// True when the screen renders audio. The group's primary is drawn from these: the primary is
-    /// the screen the room actually hears, which is exactly why it must never have its playback
-    /// rate trimmed — a permanent trim is a permanent pitch error.
+    /// True when the screen renders audio. The audio role is drawn from these, and deliberately
+    /// does not require <see cref="SupportsSync"/> — a Cast device can carry the room's sound
+    /// without ever being holdable to a schedule.
     /// </summary>
     public bool SupportsAudio { get; init; }
 
     /// <summary>
-    /// True when the screen renders video. Independent of <see cref="SupportsAudio"/>, because the
-    /// primary may be an audio-only output — the lyrics displays following it would then be the
-    /// only things showing video, while still taking their timing from something silent to them.
+    /// True when the screen renders video. Independent of <see cref="SupportsAudio"/>: the screen
+    /// the room hears may be an audio-only output, leaving the lyrics displays as the only things
+    /// showing video while still taking their timing from elsewhere.
     /// </summary>
     public bool SupportsVideo { get; init; }
 }
