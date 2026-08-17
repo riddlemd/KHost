@@ -42,6 +42,7 @@ public class ScreenDisconnectPausesPlaybackTests : IDisposable
             Substitute.For<IAnalyticsService>(),
             _screenServer,
             Substitute.For<IMediaStreamService>(),
+            new ScreenCoordinationService(NullLogger<ScreenCoordinationService>.Instance, _screenServer),
             Options.Create(new PlaybackService.ServiceOptions { StopFadeDuration = TimeSpan.Zero }));
     }
 
