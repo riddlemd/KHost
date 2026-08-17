@@ -149,9 +149,57 @@ Worth doing, sequenced so that casting is last and optional:
 1. ✅ Move ffmpeg and HLS generation into the host behind an `IMediaStreamService`.
 2. ✅ Give `LoadMediaCommand` a stream URL. Done additively rather than as a replacement — see below.
 3. ✅ Strip Screen2 to the consumer shape.
-4. ⬜ Make `PlaybackService.Position` follow a designated clock-master output instead of a local
-   timer. Do this before any network output exists, not after.
-5. ⬜ Only then add casting, as a push-style control adapter rather than an `IScreenProvider`.
+4. ✅ Make `PlaybackService.Position` follow the timing reference instead of a local timer.
+5. ✅ Casting, as a transport rather than an `IScreenProvider`.
+
+---
+
+## Casting — landed
+
+A Cast receiver is not an `IScreenServer` connection and never will be: it does not dial in over
+SignalR. So `IScreenServer` became a **composite over `IScreenTransport`s** — SignalR is one, the
+Cast sender is another — and everything above it is unchanged. `PlaybackService`, the coordination
+service and the screens page never learned what a Chromecast is.
+
+| Piece | Where |
+|---|---|
+| `IScreenTransport` | `KHost.Abstractions` — enumerate, send, events; `SendCommandAsync` returns false for "not mine" |
+| `CompositeScreenServer` | `KHost.Domain` — routes per screen, broadcasts per connection |
+| `ScreenServerService` | now an `IScreenTransport` rather than the `IScreenServer` |
+| `CastScreenTransport` | `KHost.Cast`, on Sharpcaster 3.0.0 |
+
+**Discovery is not attachment.** Every Chromecast on the network is listed; taking one over
+uninvited would hijack whatever the household is watching. The screens page lists them and the user
+presses Use, which connects, launches `CC1AD845`, and publishes the device as a screen. Casting is
+off by default (`Cast:Enabled`) because discovery browses the network.
+
+**A Cast device declares `SupportsAudio` and `SupportsVideo` but not `SupportsSync`**, so the role
+split does the rest on its own: it can hold the audio role, never the timing one, and it is muted
+by default like any other non-audio screen.
+
+### Things that bit, and where they are handled
+
+- **The host resolves its own base address to `localhost`.** On a television that means the
+  television. `CastScreenTransport.MakeReachableFromDevice` swaps in a LAN address and leaves an
+  already-routable one alone.
+- **`MediaChannel.SetVolumeAsync` is unusable** — Sharpcaster throws `MediaSessionID is not
+  available` even with a live session. Muting goes through `ReceiverChannel.SetMute`, which is
+  device-wide rather than scoped to our stream. A fixed-volume receiver can refuse outright; that
+  is the device declining, and the transport logs it rather than pretending.
+- **`StopCommand`'s fade is dropped.** Cast has no volume ramp, and faking one would move the TV's
+  own level.
+- **`SampledAtUtc` is deliberately null** on Cast state reports, so the host cannot accidentally
+  anchor the group on a clock it has no business trusting.
+
+### Verified
+
+`tests/KHost.UnitTests/Cast/` drives the emulator at `~/Developer/riddlemd/Chromecast-Emulator`
+for real — discovery, attach, load, play, position reports, mute, detach, and the transport
+routing and role assignment on top. They skip when nothing is listening on `127.0.0.1:8009`.
+
+Still open: nothing casts a *fade*, pitch still needs host-side restreaming, and the emulator
+cannot exercise the one thing that most distinguishes a real device — the Eureka certificate
+chain, which stock senders verify and this one cannot present.
 
 Steps 1–3 stand on their own merits even if casting is never built.
 

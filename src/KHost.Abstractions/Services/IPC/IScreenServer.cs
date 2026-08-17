@@ -9,8 +9,6 @@ public interface IScreenServer
     IAsyncEnumerable<IScreenConnection> GetConnectedScreensAsync();
     Task SendCommandAsync(string screenId, IScreenCommand command);
     Task BroadcastCommandAsync(IScreenCommand command);
-    Task StartAsync(CancellationToken cancellationToken = default);
-    Task StopAsync();
 }
 
 public interface IScreenConnection

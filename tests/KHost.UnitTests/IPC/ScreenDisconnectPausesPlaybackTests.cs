@@ -14,6 +14,7 @@ namespace KHost.UnitTests.IPC;
 public class ScreenDisconnectPausesPlaybackTests : IDisposable
 {
     private readonly ScreenServerService _screenServer;
+    private readonly CompositeScreenServer _screens;
     private readonly PlaybackService _playbackService;
 
     public ScreenDisconnectPausesPlaybackTests()
@@ -25,6 +26,7 @@ public class ScreenDisconnectPausesPlaybackTests : IDisposable
         hubContext.Clients.Returns(clients);
 
         _screenServer = new ScreenServerService(hubContext);
+        _screens = new CompositeScreenServer([_screenServer], NullLogger<CompositeScreenServer>.Instance);
 
         var venues = Substitute.For<IVenuesService>();
         venues.ReadSelectedVenueAsync().Returns(new Venue
@@ -40,9 +42,9 @@ public class ScreenDisconnectPausesPlaybackTests : IDisposable
             Substitute.For<IPerformanceService>(),
             venues,
             Substitute.For<IAnalyticsService>(),
-            _screenServer,
+            _screens,
             Substitute.For<IMediaStreamService>(),
-            new ScreenCoordinationService(NullLogger<ScreenCoordinationService>.Instance, _screenServer),
+            new ScreenCoordinationService(NullLogger<ScreenCoordinationService>.Instance, _screens),
             Options.Create(new PlaybackService.ServiceOptions { StopFadeDuration = TimeSpan.Zero }));
     }
 
@@ -146,7 +148,7 @@ public class ScreenDisconnectPausesPlaybackTests : IDisposable
 
     private async Task<bool> AnyScreensAsync()
     {
-        await foreach (var _ in _screenServer.GetConnectedScreensAsync())
+        await foreach (var _ in _screens.GetConnectedScreensAsync())
             return true;
 
         return false;

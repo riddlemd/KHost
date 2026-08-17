@@ -188,30 +188,30 @@ public class ScreenServerServiceTests
     }
 
     [Fact]
-    public async Task BroadcastCommandAsync_SendsToAllClients_EvenWithNoTrackedConnections()
+    public async Task SendCommandAsync_SerializesThroughTheBaseType()
     {
-        await _service.BroadcastCommandAsync(new PauseCommand());
+        Callback.OnScreenConnected("Screen 1", "conn-a", ScreenCapabilities.None);
 
-        await _allClients.Received(1).SendCoreAsync(
-            "ReceiveCommand",
-            Arg.Is<object?[]>(args => args.Length == 1 && ((string)args[0]!).Contains("$type")),
-            Arg.Any<CancellationToken>());
-    }
-
-    [Fact]
-    public async Task BroadcastCommandAsync_SerializesThroughTheBaseType()
-    {
         string? payload = null;
-        await _allClients.SendCoreAsync(
+        await _singleClient.SendCoreAsync(
             Arg.Any<string>(),
             Arg.Do<object?[]>(args => payload = args[0] as string),
             Arg.Any<CancellationToken>());
 
-        await _service.BroadcastCommandAsync(new SeekCommand { Position = TimeSpan.FromSeconds(30) });
+        await _service.SendCommandAsync("Screen 1", new SeekCommand { Position = TimeSpan.FromSeconds(30) });
 
+        // Serializing by runtime type would drop the $type discriminator and the screen's
+        // base-typed deserialize would throw.
         Assert.NotNull(payload);
         var back = System.Text.Json.JsonSerializer.Deserialize<ScreenCommandBase>(
             payload, new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web));
         Assert.Equal(TimeSpan.FromSeconds(30), Assert.IsType<SeekCommand>(back).Position);
+    }
+
+    [Fact]
+    public async Task SendCommandAsync_ReturnsFalse_ForAScreenOnAnotherTransport()
+    {
+        // False rather than throwing is what lets the server try the next transport.
+        Assert.False(await _service.SendCommandAsync("Chromecast", new PauseCommand()));
     }
 }

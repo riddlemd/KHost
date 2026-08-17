@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.SignalR;
 
 namespace KHost.IPC.SignalR;
 
-internal sealed class ScreenServerService : IScreenServer, IHubCallback
+internal sealed class ScreenServerService : IScreenTransport, IHubCallback
 {
     private readonly IHubContext<ScreenHub> _hubContext;
     private readonly Dictionary<string, ScreenConnection> _connections = [];
@@ -60,22 +60,21 @@ internal sealed class ScreenServerService : IScreenServer, IHubCallback
             yield return conn;
     }
 
-    public async Task SendCommandAsync(string screenId, IScreenCommand command)
+    public async Task<bool> SendCommandAsync(string screenId, IScreenCommand command)
     {
         string? connectionId;
         await _lock.WaitAsync();
         try { _connections.TryGetValue(screenId, out var conn); connectionId = conn?.ConnectionId; }
         finally { _lock.Release(); }
 
-        if (connectionId is not null)
-            await _hubContext.Clients.Client(connectionId).SendAsync("ReceiveCommand", ScreenIpcSerializer.SerializeCommand(command));
+        // Not ours: the screen is on another transport, and the server will try that one next.
+        if (connectionId is null) return false;
+
+        await _hubContext.Clients.Client(connectionId)
+            .SendAsync("ReceiveCommand", ScreenIpcSerializer.SerializeCommand(command));
+
+        return true;
     }
-
-    public Task BroadcastCommandAsync(IScreenCommand command) =>
-        _hubContext.Clients.All.SendAsync("ReceiveCommand", ScreenIpcSerializer.SerializeCommand(command));
-
-    public Task StartAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
-    public Task StopAsync() => Task.CompletedTask;
 
     private sealed class ScreenConnection : IScreenConnection
     {

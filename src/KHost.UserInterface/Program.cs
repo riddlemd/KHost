@@ -9,6 +9,7 @@ using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using KHost.DataAccess;
 using KHost.Domain;
+using KHost.Cast;
 using KHost.IPC.SignalR;
 using KHost.ServiceDefaults;
 using KHost.Telemetry;
@@ -85,6 +86,7 @@ internal static class Program
         builder.Services.AddPlugins();
         builder.Services.AddDataAccess();
         builder.Services.AddSignalRIPCServer();
+        builder.Services.AddCast();
 
         // Configure FFmpeg
         var ffmpegPath = builder.Configuration["FFmpegPath"];
@@ -167,6 +169,10 @@ internal static class Program
             Log.CloseAndFlush();
             throw;
         }
+
+        // Detached: a discovery sweep listens for seconds, and nothing should wait on finding a
+        // television before the app will start.
+        _ = app.Services.GetRequiredService<ICastScreenService>().InitializeAsync();
 
         app.MapDefaultEndpoints();
         app.MapIPCServer();
