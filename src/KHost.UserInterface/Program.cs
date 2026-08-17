@@ -13,6 +13,7 @@ using KHost.IPC.SignalR;
 using KHost.ServiceDefaults;
 using KHost.Telemetry;
 using KHost.UserInterface.Components;
+using KHost.UserInterface.Endpoints;
 using KHost.UserInterface.Interactions;
 using KHost.UserInterface.Middleware;
 using KHost.UserInterface.Interactions.Handlers;
@@ -156,6 +157,7 @@ internal static class Program
 
         app.MapDefaultEndpoints();
         app.MapIPCServer();
+        app.MapMediaStream();
 
         // Point launched screen processes at this host's live listening address, so they
         // connect regardless of the (possibly dynamic, e.g. Aspire-assigned) port.
@@ -176,6 +178,29 @@ internal static class Program
                 Log.Information("Local screen IPC URI resolved to {ServerUri}", options.ServerUri);
             });
         }
+
+        // Same treatment for the media base: a screen fetches HLS from this address, so it has to
+        // be the live one rather than a configured guess.
+        if (string.IsNullOrWhiteSpace(app.Configuration["MediaStream:BaseAddress"]))
+        {
+            app.Lifetime.ApplicationStarted.Register(() =>
+            {
+                var baseUri = ResolveBaseAddress(app);
+                if (baseUri is null)
+                {
+                    Log.Warning("Could not resolve a host listening address; screens will use the MediaStream.BaseAddress default");
+                    return;
+                }
+
+                var options = app.Services.GetRequiredService<IOptions<HlsMediaStreamService.ServiceOptions>>().Value;
+                options.BaseAddress = baseUri;
+                Log.Information("Media stream base address resolved to {BaseAddress}", options.BaseAddress);
+            });
+        }
+
+        // Segments outlive the process if ffmpeg is killed with it, so sweep them on the way down.
+        app.Lifetime.ApplicationStopping.Register(() =>
+            app.Services.GetRequiredService<IMediaStreamService>().CloseAllAsync().GetAwaiter().GetResult());
 
         // Configure the HTTP request pipeline.
         if (!app.Environment.IsDevelopment())

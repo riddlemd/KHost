@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <title>KHost Screen</title>
+    <style>
+        html, body {
+            margin: 0;
+            height: 100%;
+            background: #000;
+            overflow: hidden;
+            /* Double-click toggles full screen; without this it also selects the placeholder text. */
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        #video {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            background: #000;
+            transition: opacity 120ms linear;
+        }
+
+        #placeholder {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #4a4a52;
+            font: 600 28px system-ui, sans-serif;
+            pointer-events: none;
+        }
+
+        #placeholder[hidden] { display: none; }
+    </style>
+</head>
+<body>
+    <video id="video" playsinline></video>
+    <div id="placeholder">KHost</div>
+    <script src="player.js"></script>
+</body>
+</html>

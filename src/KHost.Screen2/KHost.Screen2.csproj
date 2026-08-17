@@ -1,0 +1,50 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
+    <AssemblyName>KHost.Screen2</AssemblyName>
+    <RootNamespace>KHost.Screen2</RootNamespace>
+  </PropertyGroup>
+
+  <!-- Windows-only: WinExe so no console window appears behind the screen output. -->
+  <PropertyGroup Condition="$([MSBuild]::IsOSPlatform('Windows'))">
+    <OutputType>WinExe</OutputType>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="!$([MSBuild]::IsOSPlatform('Windows'))">
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Logging comes with the AspNetCore framework reference above. -->
+    <PackageReference Include="Photino.NET" />
+    <PackageReference Include="Serilog" />
+    <PackageReference Include="Serilog.Extensions.Logging" />
+    <PackageReference Include="Serilog.Sinks.File" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\KHost.Abstractions\KHost.Abstractions.csproj" />
+    <ProjectReference Include="..\KHost.Telemetry\KHost.Telemetry.csproj" />
+    <ProjectReference Include="..\KHost.IPC.SignalR\KHost.IPC.SignalR.csproj" />
+  </ItemGroup>
+
+  <!-- Not a Web SDK project, so the player page needs copying explicitly. Deliberately not
+       "wwwroot": this output is copied flat into the UI's output, where a wwwroot/index.html
+       would shadow the Blazor app at /. -->
+  <ItemGroup>
+    <Content Include="screen-ui\**\*" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="KHost.UnitTests" />
+  </ItemGroup>
+
+</Project>
