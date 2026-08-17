@@ -3,6 +3,7 @@ using KHost.Abstractions.Services;
 using KHost.Abstractions.Services.IPC;
 using KHost.Domain.Services;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
 namespace KHost.UnitTests.Domain.Services;
@@ -15,11 +16,17 @@ public class PlaybackServiceTests : IDisposable
     private readonly IVenuesService _venuesService = Substitute.For<IVenuesService>();
     private readonly IScreenServer _screenServer = Substitute.For<IScreenServer>();
     private readonly IMediaStreamService _mediaStreams = Substitute.For<IMediaStreamService>();
+
+    // The real one: primary election is what decides IsPrimary on the timelines asserted below,
+    // and a substitute would make those assertions test nothing.
+    private readonly ScreenCoordinationService _screenCoordination;
     private readonly PlaybackService _service;
     private int _streamsOpened;
 
     public PlaybackServiceTests()
     {
+        _screenCoordination = new ScreenCoordinationService(NullLogger<ScreenCoordinationService>.Instance, _screenServer);
+
         _venuesService.ReadSelectedVenueAsync()
             .Returns(new Venue { Id = Guid.NewGuid(), Name = "Test Venue", Settings = new Venue.VenueSettings() });
 
@@ -90,6 +97,7 @@ public class PlaybackServiceTests : IDisposable
         Substitute.For<IAnalyticsService>(),
         _screenServer,
         _mediaStreams,
+        _screenCoordination,
         Options.Create(new PlaybackService.ServiceOptions { StopFadeDuration = stopFadeDuration }));
 
     public void Dispose() => _service.Dispose();
@@ -503,49 +511,6 @@ public class PlaybackServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task Play_MakesAnAudioCapableScreenThePrimary()
-    {
-        // A silent screen leading would make the room's audio a follower, and a follower is the
-        // thing that gets corrected — which must never happen to what the room hears.
-        var silent = Substitute.For<IScreenConnection>();
-        silent.ScreenId.Returns("Lyrics");
-        silent.IsConnected.Returns(true);
-        silent.Capabilities.Returns(new ScreenCapabilities { SupportsSync = true, SupportsVideo = true });
-
-        var audible = Substitute.For<IScreenConnection>();
-        audible.ScreenId.Returns("Main");
-        audible.IsConnected.Returns(true);
-        audible.Capabilities.Returns(new ScreenCapabilities
-        {
-            SupportsSync = true,
-            SupportsAudio = true,
-            SupportsVideo = true,
-        });
-
-        _screenServer.GetConnectedScreensAsync().Returns(_ => ToAsyncEnumerable([silent, audible]));
-
-        var (performance, media) = CreatePerformance();
-        await _service.LoadAsync(performance, media);
-        await _service.PlayAsync();
-
-        Assert.Equal("Main", PrimaryScreenId());
-    }
-
-    [Fact]
-    public async Task Play_KeepsThePrimary_AcrossRepublishes()
-    {
-        var (performance, media) = CreatePerformance();
-        await _service.LoadAsync(performance, media);
-        await _service.PlayAsync();
-
-        var first = PrimaryScreenId();
-        await _service.PauseAsync();
-
-        // Moving the primary mid-song would make every follower re-align on a new reference.
-        Assert.Equal(first, PrimaryScreenId());
-    }
-
-    [Fact]
     public async Task Play_PublishesATimeline_ToSyncCapableScreensOnly()
     {
         ConnectMixedScreens();
@@ -833,13 +798,6 @@ public class PlaybackServiceTests : IDisposable
             .Where(c => c.GetMethodInfo().Name == nameof(IScreenServer.BroadcastCommandAsync))
             .Select(c => c.GetArguments().FirstOrDefault() as TCommand)
             .LastOrDefault(c => c is not null);
-
-    /// <summary>The screen the most recent timeline named as primary.</summary>
-    private string? PrimaryScreenId()
-        => _screenServer.ReceivedCalls()
-            .Where(c => c.GetMethodInfo().Name == nameof(IScreenServer.SendCommandAsync))
-            .Select(c => (Id: c.GetArguments()[0] as string, Command: c.GetArguments()[1] as SetTimelineCommand))
-            .LastOrDefault(x => x.Command?.IsPrimary == true).Id;
 
     private SetTimelineCommand? LastTimeline()
         => _screenServer.ReceivedCalls()

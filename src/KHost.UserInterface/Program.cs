@@ -155,6 +155,19 @@ internal static class Program
             throw;
         }
 
+        // Before the hub is mapped: screens register the moment it is, and a service nobody has
+        // resolved yet cannot mute the first one to arrive.
+        try
+        {
+            app.Services.GetRequiredService<IScreenCoordinationService>().InitializeAsync().GetAwaiter().GetResult();
+        }
+        catch (Exception ex)
+        {
+            Log.Fatal(ex, "Screen coordination initialization failed");
+            Log.CloseAndFlush();
+            throw;
+        }
+
         app.MapDefaultEndpoints();
         app.MapIPCServer();
         app.MapMediaStream();
