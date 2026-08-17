@@ -42,25 +42,27 @@ public partial class ScreensDialog : IDisposable
         ScreenCoordination!.StateChanged += OnScreenCoordinationChanged;
     }
 
-    private bool IsPrimary(IScreenConnection screen) => ScreenCoordination!.PrimaryScreenId == screen.ScreenId;
+    private bool IsAudioScreen(IScreenConnection screen) => ScreenCoordination!.AudioScreenId == screen.ScreenId;
+
+    private bool IsTimingScreen(IScreenConnection screen) => ScreenCoordination!.TimingScreenId == screen.ScreenId;
 
     private bool IsAudible(IScreenConnection screen) => ScreenCoordination!.IsAudioEnabled(screen.ScreenId);
 
-    private async Task MakePrimaryAsync(IScreenConnection screen)
+    private async Task SendAudioToAsync(IScreenConnection screen)
     {
-        await ScreenCoordination!.SetPrimaryAsync(screen.ScreenId);
+        await ScreenCoordination!.SetAudioScreenAsync(screen.ScreenId);
         StateHasChanged();
     }
 
     /// <summary>
     /// Toggling back to what the screen would do on its own drops the override, so it resumes
-    /// following the primary instead of being pinned to a value that happens to match today.
+    /// following the audio role instead of being pinned to a value that happens to match today.
     /// </summary>
     private async Task ToggleAudioAsync(IScreenConnection screen)
     {
         var wanted = !IsAudible(screen);
 
-        if (wanted == (screen.ScreenId == ScreenCoordination!.PrimaryScreenId))
+        if (wanted == (screen.ScreenId == ScreenCoordination!.AudioScreenId))
             await ScreenCoordination.ClearAudioOverrideAsync(screen.ScreenId);
         else
             await ScreenCoordination.SetAudioEnabledAsync(screen.ScreenId, wanted);
