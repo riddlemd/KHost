@@ -46,6 +46,9 @@
     <PackageVersion Include="OpenTelemetry.Instrumentation.Http" Version="1.15.1" />
     <PackageVersion Include="OpenTelemetry.Instrumentation.Runtime" Version="1.15.1" />
 
+    <!-- Cast - CASTV2 sender (discovery, receiver control, media control) -->
+    <PackageVersion Include="Sharpcaster" Version="3.0.0" />
+
     <!-- UI - Photino (native shell hosting the Blazor UI) -->
     <PackageVersion Include="Photino.NET" Version="4.0.16" />
 

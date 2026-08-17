@@ -10,6 +10,15 @@ using Sharpcaster.Models.Media;
 //   dotnet run -- [--host 127.0.0.1] [--url <media url>]
 
 if (args.Contains("--api")) return DumpApi();
+if (args.Contains("--enums"))
+{
+    var a = typeof(ChromecastClient).Assembly;
+    foreach (var t in a.GetExportedTypes().Where(t => t.IsEnum && (t.Name.Contains("Player") || t.Name.Contains("Stream"))))
+        Console.WriteLine($"{t.FullName}: {string.Join(", ", Enum.GetNames(t))}");
+    var ms = a.GetType("Sharpcaster.Models.Media.MediaStatus");
+    foreach (var pr in ms!.GetProperties()) Console.WriteLine($"MediaStatus.{pr.Name} : {pr.PropertyType.Name}");
+    return 0;
+}
 
 var host = Arg("--host") ?? "127.0.0.1";
 var mediaUrl = Arg("--url") ?? "http://example.com/video.mp4";

@@ -109,6 +109,57 @@
                 }
             </section>
 
+            @if (CastDevices.Any())
+            {
+                <section class="kh-screens-dialog__cast">
+                    <h3>Cast devices</h3>
+                    <ul class="kh-screens-dialog__list">
+                        @foreach (var device in CastDevices)
+                        {
+                            <li class="kh-screens-dialog__item">
+                                <i class="bi bi-cast kh-screens-dialog__status--cast"></i>
+                                <div class="kh-screens-dialog__item-content">
+                                    <div class="kh-screens-dialog__screen-name">
+                                        <span>@device.Name</span>
+                                        <span class="kh-screens-dialog__badge" title="Plays on its own schedule.">
+                                            Unsynced
+                                        </span>
+                                    </div>
+                                    <div class="kh-screens-dialog__screen-state">
+                                        <span>@(device.Model ?? "Cast receiver") @device.Address</span>
+                                    </div>
+                                </div>
+                                <div class="kh-screens-dialog__item-actions">
+                                    @if (device.IsAttached)
+                                    {
+                                        <button class="kh-button kh-button--secondary"
+                                                disabled="@(_busyCastDevice == device.Id)"
+                                                @onclick="() => DetachCastAsync(device)">
+                                            Detach
+                                        </button>
+                                    }
+                                    else
+                                    {
+                                        <button class="kh-button"
+                                                disabled="@(_busyCastDevice == device.Id)"
+                                                title="Connect and use it as a screen. It cannot be synced with the others."
+                                                @onclick="() => AttachCastAsync(device)">
+                                            @(_busyCastDevice == device.Id ? "Connecting…" : "Use")
+                                        </button>
+                                    }
+                                </div>
+                            </li>
+                        }
+                    </ul>
+                    @if (_castError is not null)
+                    {
+                        <p class="kh-screens-dialog__warning">
+                            <i class="bi bi-exclamation-triangle-fill"></i> @_castError
+                        </p>
+                    }
+                </section>
+            }
+
             <section class="kh-screens-dialog__launch">
                 <h3>Launch New Screen</h3>
                 <div class="kh-screens-dialog__launch-form">

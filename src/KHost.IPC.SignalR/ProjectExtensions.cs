@@ -16,7 +16,7 @@ public static class ProjectExtensions
                 options.PayloadSerializerOptions.TypeInfoResolverChain.Insert(0, ScreenCommandJsonContext.Default));
 
         services.AddSingleton<ScreenServerService>();
-        services.AddSingleton<IScreenServer>(sp => sp.GetRequiredService<ScreenServerService>());
+        services.AddSingleton<IScreenTransport>(sp => sp.GetRequiredService<ScreenServerService>());
         services.AddSingleton<IHubCallback>(sp => sp.GetRequiredService<ScreenServerService>());
 
         return services;
