@@ -36,15 +36,13 @@ public class PlaybackService : BaseService, IPlaybackService
     // The host-side transcode currently feeding the screens, if any.
     private MediaStreamSession? _stream;
 
-    /// <summary>The screen the group follows — the one the room hears, which never trims its rate.</summary>
-    private string? _primaryScreenId;
-
     private readonly ISingerQueueService _singerQueueService;
     private readonly IPerformanceService _performanceService;
     private readonly IVenuesService _venuesService;
     private readonly IAnalyticsService _analytics;
     private readonly IScreenServer _screenServer;
     private readonly IMediaStreamService _mediaStreams;
+    private readonly IScreenCoordinationService _screenCoordination;
     private readonly ServiceOptions _options;
 
     public Performance? CurrentPerformance { get; private set; }
@@ -62,6 +60,7 @@ public class PlaybackService : BaseService, IPlaybackService
         IAnalyticsService analytics,
         IScreenServer screenServer,
         IMediaStreamService mediaStreams,
+        IScreenCoordinationService screenGroup,
         IOptions<ServiceOptions> options)
         : base(logger)
     {
@@ -71,6 +70,7 @@ public class PlaybackService : BaseService, IPlaybackService
         _analytics = analytics;
         _screenServer = screenServer;
         _mediaStreams = mediaStreams;
+        _screenCoordination = screenGroup;
         _options = options.Value;
 
         _screenServer.ScreenConnected += OnScreenConnected;
@@ -230,14 +230,8 @@ public class PlaybackService : BaseService, IPlaybackService
     private void OnScreenConnected(object? sender, ScreenConnectionEventArgs e) =>
         _ = Task.Run(SyncNewScreenAsync);
 
-    private void OnScreenDisconnected(object? sender, ScreenConnectionEventArgs e)
-    {
-        // Losing the primary would otherwise leave the group following a screen that is gone, and
-        // no follower would ever be promoted to define the timeline.
-        if (e.Connection.ScreenId == _primaryScreenId) _primaryScreenId = null;
-
+    private void OnScreenDisconnected(object? sender, ScreenConnectionEventArgs e) =>
         _ = Task.Run(HandleScreenLossAsync);
-    }
 
     /// <summary>
     /// A screen that connects mid-session has nothing loaded, so a bare PlayCommand would be
@@ -388,7 +382,6 @@ public class PlaybackService : BaseService, IPlaybackService
 
         CurrentlyPerformingUserId = null;
         _resumeWhenScreenReturns = false;
-        _primaryScreenId = null;
 
         State = PlaybackState.Stopped;
         StopFadeDuration = null;
@@ -489,7 +482,7 @@ public class PlaybackService : BaseService, IPlaybackService
             var screens = await SyncCapableScreensAsync();
             if (screens.Count == 0) return;
 
-            _primaryScreenId = ElectPrimary(screens);
+            var primary = await _screenCoordination.EnsurePrimaryAsync();
 
             // Addressed per screen rather than broadcast: a loose consumer cannot honour a
             // schedule, and sending it one would only invite it to try.
@@ -499,7 +492,7 @@ public class PlaybackService : BaseService, IPlaybackService
                     Position = position,
                     AnchorUtc = anchorUtc,
                     IsPlaying = isPlaying,
-                    IsPrimary = screen.ScreenId == _primaryScreenId,
+                    IsPrimary = screen.ScreenId == primary,
                 });
         }
         catch (Exception ex)
@@ -518,7 +511,7 @@ public class PlaybackService : BaseService, IPlaybackService
     private void OnScreenStateReceived(object? sender, ScreenStateReceivedEventArgs e)
     {
         if (State != PlaybackState.Playing) return;
-        if (e.ScreenId != _primaryScreenId) return;
+        if (e.ScreenId != _screenCoordination.PrimaryScreenId) return;
         if (e.State is not ScreenPlaybackState state) return;
         if (!state.IsPlaying || state.SampledAtUtc is not { } sampledAt) return;
 
@@ -528,26 +521,6 @@ public class PlaybackService : BaseService, IPlaybackService
         _lastTick = DateTime.UtcNow;
 
         _ = PublishTimelineAsync(state.Position, sampledAt, isPlaying: true);
-    }
-
-    /// <summary>
-    /// Keeps the existing leader while it is still present — moving it mid-song would make every
-    /// follower re-align against a different reference. A screen that renders audio wins the
-    /// election, because the primary is by definition the one the room hears.
-    /// </summary>
-    private string ElectPrimary(List<IScreenConnection> screens)
-    {
-        var incumbent = screens.FirstOrDefault(s => s.ScreenId == _primaryScreenId);
-        if (incumbent is not null) return incumbent.ScreenId;
-
-        var audible = screens.FirstOrDefault(s => s.Capabilities.SupportsAudio);
-        if (audible is not null) return audible.ScreenId;
-
-        // No synced screen renders audio, so the room is hearing a loose consumer or nothing at
-        // all. The group still needs a reference to converge on; any member will do.
-        Logger.LogWarning("No audio-capable screen in the synced group; leading with {ScreenId}", screens[0].ScreenId);
-
-        return screens[0].ScreenId;
     }
 
     private async Task<List<IScreenConnection>> SyncCapableScreensAsync()

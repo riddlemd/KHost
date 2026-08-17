@@ -1,3 +1,4 @@
+using KHost.Abstractions.Services;
 using KHost.Abstractions.Services.IPC;
 using KHost.UserInterface.Models;
 using Microsoft.AspNetCore.Components;
@@ -7,6 +8,7 @@ namespace KHost.UserInterface.Components.Dialogs;
 public partial class ScreensDialog : IDisposable
 {
     [Inject] private IScreenServer? ScreenServer { get; set; }
+    [Inject] private IScreenCoordinationService? ScreenCoordination { get; set; }
     [Inject] private IEnumerable<IScreenProvider>? ScreenProviders { get; set; }
 
     [Parameter] public bool IsOpen { get; set; }
@@ -37,7 +39,36 @@ public partial class ScreensDialog : IDisposable
         ScreenServer.ScreenConnected += OnScreenConnected;
         ScreenServer.ScreenDisconnected += OnScreenDisconnected;
         ScreenServer.StateReceived += OnStateReceived;
+        ScreenCoordination!.StateChanged += OnScreenCoordinationChanged;
     }
+
+    private bool IsPrimary(IScreenConnection screen) => ScreenCoordination!.PrimaryScreenId == screen.ScreenId;
+
+    private bool IsAudible(IScreenConnection screen) => ScreenCoordination!.IsAudioEnabled(screen.ScreenId);
+
+    private async Task MakePrimaryAsync(IScreenConnection screen)
+    {
+        await ScreenCoordination!.SetPrimaryAsync(screen.ScreenId);
+        StateHasChanged();
+    }
+
+    /// <summary>
+    /// Toggling back to what the screen would do on its own drops the override, so it resumes
+    /// following the primary instead of being pinned to a value that happens to match today.
+    /// </summary>
+    private async Task ToggleAudioAsync(IScreenConnection screen)
+    {
+        var wanted = !IsAudible(screen);
+
+        if (wanted == (screen.ScreenId == ScreenCoordination!.PrimaryScreenId))
+            await ScreenCoordination.ClearAudioOverrideAsync(screen.ScreenId);
+        else
+            await ScreenCoordination.SetAudioEnabledAsync(screen.ScreenId, wanted);
+
+        StateHasChanged();
+    }
+
+    private void OnScreenCoordinationChanged(object? sender, EventArgs e) => InvokeAsync(StateHasChanged);
 
     private void OnScreenConnected(object? sender, ScreenConnectionEventArgs e)
     {
@@ -125,6 +156,8 @@ public partial class ScreensDialog : IDisposable
     public void Dispose()
     {
         _launchCts?.Dispose();
+
+        if (ScreenCoordination is not null) ScreenCoordination.StateChanged -= OnScreenCoordinationChanged;
 
         if (ScreenServer is null) return;
         ScreenServer.ScreenConnected -= OnScreenConnected;

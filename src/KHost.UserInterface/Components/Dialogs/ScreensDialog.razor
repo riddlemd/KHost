@@ -18,10 +18,27 @@
                         @foreach (var screen in _connectedScreens)
                         {
                             var state = _screenStates.TryGetValue(screen.ScreenId, out var s) ? s : null;
-                            <li class="kh-screens-dialog__item">
+                            var isPrimary = IsPrimary(screen);
+                            <li class="kh-screens-dialog__item @(isPrimary ? "kh-screens-dialog__item--primary" : "")">
                                 <i class="bi bi-circle-fill kh-screens-dialog__status--connected"></i>
                                 <div class="kh-screens-dialog__item-content">
-                                    <div class="kh-screens-dialog__screen-name">@screen.ScreenId</div>
+                                    <div class="kh-screens-dialog__screen-name">
+                                        <span>@screen.ScreenId</span>
+                                        @if (isPrimary)
+                                        {
+                                            <span class="kh-screens-dialog__badge kh-screens-dialog__badge--primary"
+                                                  title="Defines the timeline every other screen follows, and is never speed-corrected.">
+                                                <i class="bi bi-star-fill"></i> Primary
+                                            </span>
+                                        }
+                                        else if (!screen.Capabilities.SupportsSync)
+                                        {
+                                            <span class="kh-screens-dialog__badge"
+                                                  title="Plays on its own schedule, so it cannot be kept in sync with the others.">
+                                                Unsynced
+                                            </span>
+                                        }
+                                    </div>
                                     @if (state is not null)
                                     {
                                         <div class="kh-screens-dialog__screen-state">
@@ -46,9 +63,32 @@
                                         </div>
                                     }
                                 </div>
+
+                                <div class="kh-screens-dialog__item-actions">
+                                    @if (screen.Capabilities.SupportsAudio)
+                                    {
+                                        <button class="kh-button kh-button--icon-minimal kh-screens-dialog__audio @(IsAudible(screen) ? "kh-screens-dialog__audio--on" : "kh-screens-dialog__audio--off")"
+                                                title="@(IsAudible(screen) ? "Audible — click to mute" : "Muted — click to unmute")"
+                                                @onclick="() => ToggleAudioAsync(screen)">
+                                            <i class="bi @(IsAudible(screen) ? "bi-volume-up-fill" : "bi-volume-mute")"></i>
+                                        </button>
+                                    }
+                                    @if (!isPrimary && screen.Capabilities.SupportsSync)
+                                    {
+                                        <button class="kh-button kh-button--secondary"
+                                                title="Make this the screen the room hears and the others follow."
+                                                @onclick="() => MakePrimaryAsync(screen)">
+                                            Make primary
+                                        </button>
+                                    }
+                                </div>
                             </li>
                         }
                     </ul>
+                    <p class="kh-screens-dialog__hint">
+                        Only the primary is audible by default — two screens playing the same song
+                        into one room fight each other. Unmute another only if it is somewhere else.
+                    </p>
                 }
             </section>
 
