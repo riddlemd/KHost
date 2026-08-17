@@ -27,8 +27,11 @@ internal sealed class ScreenIpcController : IAsyncDisposable
         _player.PlaybackEnded += OnPlaybackEnded;
     }
 
+    // Plays audio, but decodes locally with no way to be held to a shared schedule — the same
+    // shape a Cast receiver reports, so the host treats it as a loose consumer either way.
     public Task ConnectAsync(string serverUri, string screenId, CancellationToken cancellationToken = default) =>
-        _client.ConnectAsync(serverUri, screenId, cancellationToken);
+        _client.ConnectAsync(
+            serverUri, screenId, new ScreenCapabilities { SupportsAudio = true, SupportsVideo = true }, cancellationToken);
 
     private void OnClientStateChanged(object? sender, ScreenClientStateChangedEventArgs e) =>
         _logger.LogInformation("IPC state: {Old} -> {New}", e.OldState, e.NewState);

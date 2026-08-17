@@ -22,6 +22,12 @@ public class ScreenCommandSerializationTests
         [nameof(SeekCommand)] = new SeekCommand { Position = TimeSpan.FromSeconds(42) },
         [nameof(SetVolumeCommand)] = new SetVolumeCommand { Volume = 0.75f },
         [nameof(SetPitchCommand)] = new SetPitchCommand { Semitones = -3 },
+        [nameof(SetTimelineCommand)] = new SetTimelineCommand
+        {
+            Position = TimeSpan.FromSeconds(42),
+            AnchorUtc = new DateTime(2026, 8, 17, 20, 30, 0, DateTimeKind.Utc),
+            IsPlaying = true,
+        },
     };
 
     public static TheoryData<string> CommandNames => [.. Samples.Keys];
