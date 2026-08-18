@@ -15,9 +15,7 @@ public class CastServiceSeparationTests
     {
         var implemented = typeof(CastService).GetInterfaces();
 
-        // The separation is the point: a receiver cannot be held to the group timeline, so it can
-        // never be the primary and must not quietly inherit whatever the screens gain next. If it
-        // ever implements a screen interface again, it is back in the role system by accident.
+        // If it implements a screen interface again it is back in the role system by accident.
         Assert.DoesNotContain(typeof(IScreenServer), implemented);
         Assert.DoesNotContain(typeof(IScreenConnection), implemented);
         Assert.DoesNotContain(typeof(IScreenProvider), implemented);
@@ -30,8 +28,7 @@ public class CastServiceSeparationTests
             .Where(m => m.GetParameters().Any(p => typeof(IScreenCommand).IsAssignableFrom(p.ParameterType)))
             .Select(m => m.Name);
 
-        // Casting has its own small vocabulary. Accepting IScreenCommand would be the doorway
-        // through which every future screen feature leaked onto a device that cannot honour it.
+        // Accepting IScreenCommand is the doorway every future screen feature leaks through.
         Assert.True(!takesCommands.Any(), $"ICastService takes screen commands: {string.Join(", ", takesCommands)}");
     }
 }
@@ -43,8 +40,7 @@ public class CastServiceUrlTests
     [InlineData("http://127.0.0.1:5251/media/a/stream.m3u8", "192.168.1.10", "http://192.168.1.10:5251/media/a/stream.m3u8")]
     public void MakeReachableFromDevice_ReplacesLoopback(string url, string lan, string expected)
     {
-        // The host resolves its own base address to localhost, which on a television means the
-        // television — the single most likely way for casting to silently fetch nothing.
+        // localhost on a television means the television.
         Assert.Equal(expected, CastService.MakeReachableFromDevice(url, lan));
     }
 
@@ -68,9 +64,7 @@ public class CastServiceUrlTests
 /// </summary>
 public class CastServiceTests : IAsyncLifetime
 {
-    // Resolved from discovery rather than hard-coded: the emulator can be started under any
-    // --name, and pinning one turns "a differently named emulator is running" into failures
-    // instead of skips.
+    // The emulator can be started under any --name; pinning one turns that into failures.
     private string DeviceName => _cast.Devices.FirstOrDefault()?.Name
         ?? throw new InvalidOperationException(
             "Port 8009 is listening but no Cast device was discovered — is mDNS blocked?");
@@ -121,8 +115,7 @@ public class CastServiceTests : IAsyncLifetime
     {
         await _cast.ConnectAsync(DeviceName);
 
-        // The host has one song to play; a second receiver would be a second room hearing it out
-        // of step. Connecting elsewhere replaces rather than adds.
+        // Connecting elsewhere replaces rather than adds.
         Assert.Single(_cast.Devices, d => d.IsConnected);
     }
 
@@ -143,8 +136,7 @@ public class CastServiceTests : IAsyncLifetime
     [RequiresCastEmulatorFact]
     public async Task Transport_IsSilentlyIgnored_WhenNothingIsConnected()
     {
-        // A song plays whether or not anyone is casting, so these must be no-ops rather than
-        // throwing into the middle of a performance.
+        // A song plays whether or not anyone is casting.
         await _cast.LoadAsync("http://192.168.1.10:5251/media/abc/stream.m3u8", TimeSpan.Zero);
         await _cast.PlayAsync();
         await _cast.StopAsync();
@@ -164,10 +156,7 @@ public class CastServiceTests : IAsyncLifetime
     }
 }
 
-/// <summary>
-/// xUnit 2 cannot skip at runtime from inside a test, so the decision is made while the attribute
-/// is constructed.
-/// </summary>
+/// <summary>xUnit 2 cannot skip at runtime, so the decision is made in the constructor.</summary>
 public sealed class RequiresCastEmulatorFactAttribute : FactAttribute
 {
     public RequiresCastEmulatorFactAttribute()

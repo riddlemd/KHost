@@ -157,8 +157,7 @@ internal static class Program
             throw;
         }
 
-        // Before the hub is mapped: screens register the moment it is, and a service nobody has
-        // resolved yet cannot mute the first one to arrive.
+        // Before the hub is mapped: a service nobody has resolved cannot mute the first screen.
         try
         {
             app.Services.GetRequiredService<IScreenCoordinationService>().InitializeAsync().GetAwaiter().GetResult();
@@ -170,8 +169,7 @@ internal static class Program
             throw;
         }
 
-        // Detached: a discovery sweep listens for seconds, and nothing should wait on finding a
-        // television before the app will start.
+        // Detached: nothing should wait on finding a television before the app starts.
         _ = app.Services.GetRequiredService<ICastService>().InitializeAsync();
 
         app.MapDefaultEndpoints();
@@ -198,8 +196,7 @@ internal static class Program
             });
         }
 
-        // Same treatment for the media base: a screen fetches HLS from this address, so it has to
-        // be the live one rather than a configured guess.
+        // A screen fetches HLS from this address, so it has to be the live one.
         if (string.IsNullOrWhiteSpace(app.Configuration["MediaStream:BaseAddress"]))
         {
             app.Lifetime.ApplicationStarted.Register(() =>
@@ -217,7 +214,7 @@ internal static class Program
             });
         }
 
-        // Segments outlive the process if ffmpeg is killed with it, so sweep them on the way down.
+        // Segments outlive the process, so sweep them on the way down.
         app.Lifetime.ApplicationStopping.Register(() =>
             app.Services.GetRequiredService<IMediaStreamService>().CloseAllAsync().GetAwaiter().GetResult());
 

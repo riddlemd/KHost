@@ -5,10 +5,7 @@ using Microsoft.Extensions.Options;
 
 namespace KHost.UnitTests.Domain.Services;
 
-/// <summary>
-/// Drives real ffmpeg. Kept apart from <see cref="HlsMediaStreamServiceTests"/>, which only builds
-/// argument strings, because these skip wherever ffmpeg is not installed.
-/// </summary>
+/// <summary>Drives real ffmpeg, and skips where it is not installed.</summary>
 public class HlsMediaStreamServiceTranscodeTests : IDisposable
 {
     private readonly string _workingDirectory =
@@ -116,8 +113,7 @@ public class HlsMediaStreamServiceTranscodeTests : IDisposable
         Directory.CreateDirectory(_workingDirectory);
         var path = Path.Combine(_workingDirectory, "sample.mp4");
 
-        // Synthetic rather than a fixture: no karaoke media is checked in, and this exercises the
-        // same decode path a real file would.
+        // Synthetic: no karaoke media is checked in.
         var arguments = $"-hide_banner -loglevel error -y -f lavfi -i testsrc2=size=320x240:rate=15 "
                       + $"-f lavfi -i sine=frequency=440:sample_rate=44100 -t {seconds} "
                       + $"-c:v libx264 -preset ultrafast -pix_fmt yuv420p -c:a aac \"{path}\"";
@@ -142,10 +138,7 @@ public class HlsMediaStreamServiceTranscodeTests : IDisposable
     }
 }
 
-/// <summary>
-/// xUnit 2 cannot skip at runtime from inside a test, so the decision has to be made here, while
-/// the attribute is constructed.
-/// </summary>
+/// <summary>xUnit 2 cannot skip at runtime, so the decision is made in the constructor.</summary>
 public sealed class RequiresFfmpegFactAttribute : FactAttribute
 {
     public RequiresFfmpegFactAttribute()

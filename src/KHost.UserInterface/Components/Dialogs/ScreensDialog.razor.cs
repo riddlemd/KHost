@@ -47,8 +47,7 @@ public partial class ScreensDialog : IDisposable
         Cast!.StateChanged += OnScreenCoordinationChanged;
     }
 
-    // A receiver stays in this list whether or not it is connected: it is never a screen, so it
-    // never moves up into the connected screens above.
+    // A receiver is never a screen, so it never moves up into the connected screens.
     private IReadOnlyList<CastDevice> CastDevices => Cast?.Devices ?? [];
 
     private async Task ConnectCastAsync(CastDevice device)
@@ -92,10 +91,7 @@ public partial class ScreensDialog : IDisposable
         StateHasChanged();
     }
 
-    /// <summary>
-    /// Toggling back to what the screen would do on its own drops the override, so it resumes
-    /// following the audio role instead of being pinned to a value that happens to match today.
-    /// </summary>
+    /// <summary>Toggling back to the default drops the override rather than pinning it.</summary>
     private async Task ToggleAudioAsync(IScreenConnection screen)
     {
         var wanted = !IsAudible(screen);

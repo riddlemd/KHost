@@ -4,9 +4,8 @@ using KHost.IPC.SignalR;
 
 namespace KHost.UnitTests.IPC;
 
-// The SignalR payload serializer resolves through ScreenCommandJsonContext alone, so a hub method
-// whose argument or return type is not in that context aborts the connection at call time rather
-// than failing to compile. These tests turn that into a build-time-ish failure instead.
+// ScreenCommandJsonContext is the only resolver, so a hub method whose types are missing from it
+// aborts the connection at call time rather than failing to compile.
 public class ScreenHubContractTests
 {
     private static readonly JsonSerializerOptions PayloadOptions = new()
@@ -24,8 +23,7 @@ public class ScreenHubContractTests
             foreach (var method in typeof(ScreenHub).GetMethods(BindingFlags.Public | BindingFlags.Instance
                          | BindingFlags.DeclaredOnly))
             {
-                // Overrides of Hub's own lifecycle methods are called by SignalR, not by a client,
-                // so their payloads never cross the wire.
+                // Hub lifecycle overrides are called by SignalR, not a client.
                 if (method.GetBaseDefinition().DeclaringType != method.DeclaringType) continue;
 
                 foreach (var type in method.GetParameters().Select(p => p.ParameterType).Append(method.ReturnType))
