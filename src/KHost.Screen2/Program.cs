@@ -41,6 +41,9 @@ internal static class Program
         PhotinoWindow? window = null;
         window = new PhotinoWindow()
             .SetTitle("KHost Screen")
+            // Photino logs every SendWebMessage, and a timeline goes out once a second — into the
+            // host's stdout, because a launched screen inherits it.
+            .SetLogVerbosity(0)
             // Chromeless cannot be changed after creation, and a chromeless window has no title
             // bar to drag — so the screen keeps its chrome and fakes full screen by resizing.
             .SetChromeless(false)

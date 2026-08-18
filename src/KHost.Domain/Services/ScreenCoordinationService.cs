@@ -69,9 +69,15 @@ public sealed class ScreenCoordinationService : BaseService, IScreenCoordination
 
             // Only when a role actually moved: this runs on every connect, and re-pushing volume
             // to screens whose answer has not changed is pure chatter.
-            if (changed) await ApplyAudioAsync(screens);
+            if (changed)
+            {
+                await ApplyAudioAsync(screens);
 
-            LogRoles();
+                // Only on a move: this runs on every re-anchor, which is once a second, and a
+                // line a second is what buries the entries that matter.
+                LogRoles();
+            }
+
             return _audioScreenId;
         }
         finally { _lock.Release(); }
