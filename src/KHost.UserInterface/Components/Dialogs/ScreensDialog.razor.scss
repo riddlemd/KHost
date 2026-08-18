@@ -4,7 +4,11 @@
     gap: 24px;
 
     h3 {
+        display: flex;
+        align-items: center;
+        gap: 8px;
         margin: 0 0 12px 0;
+        min-height: 26px;
         font-size: 0.95rem;
         font-weight: 600;
         text-transform: uppercase;
@@ -20,11 +24,35 @@
 
     // Sits on the section heading, which inherits uppercase and letter-spacing — both are undone
     // here so it reads as an aside rather than part of the title.
+    &__search {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        margin-left: auto;
+        padding: 3px 10px;
+        border: 1px solid var(--kh-border);
+        border-radius: 999px;
+        background: transparent;
+        color: var(--kh-text-secondary);
+        font: inherit;
+        font-size: 0.68rem;
+        letter-spacing: 0.06em;
+        cursor: pointer;
+
+        &:hover:not(:disabled) { border-color: var(--kh-border-bright); color: var(--kh-text); }
+
+        &:disabled { opacity: 0.5; cursor: default; }
+    }
+
+    &__search--on {
+        border-color: var(--kh-success);
+        color: var(--kh-success);
+    }
+
     // Dashed, so a cast target never reads as one of the solid-bordered screen rows above it.
     &__note {
         display: inline-flex;
         align-items: center;
-        margin-left: 8px;
         padding: 3px 9px;
         border: 1px dashed var(--kh-border);
         border-radius: 999px;

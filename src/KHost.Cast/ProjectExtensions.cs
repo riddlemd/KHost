@@ -7,8 +7,7 @@ public static class ProjectExtensions
 {
     public static IServiceCollection AddCast(this IServiceCollection serviceCollection)
     {
-        serviceCollection.AddOptions<CastService.ServiceOptions>()
-            .BindConfiguration(CastService.ServiceOptions.SectionName);
+        serviceCollection.AddOptions<CastService.ServiceOptions>();
 
         serviceCollection.AddSingleton<ICastService, CastService>();
 
