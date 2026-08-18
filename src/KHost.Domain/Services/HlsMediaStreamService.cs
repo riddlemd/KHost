@@ -240,25 +240,19 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, ID
         return arguments + $" {PlaylistFileName}";
     }
 
-    /// <summary>A .cdg holds only graphics; its audio is a same-named file beside it.</summary>
-    private static readonly string[] CompanionAudioExtensions =
-        [".mp3", ".m4a", ".wav", ".aac", ".flac", ".ogg", ".wma"];
-
     internal static bool IsGraphicsOnly(string filePath)
         => Path.GetExtension(filePath).Equals(".cdg", StringComparison.OrdinalIgnoreCase);
 
+    /// <summary>
+    /// A .cdg holds only graphics; its audio is the same-named .mp3 beside it. Only .mp3 — CD+G
+    /// rips have always shipped that way, so a same-named file in any other format is not the pair.
+    /// </summary>
     internal static string? ResolveCompanionAudio(string filePath)
     {
         if (!IsGraphicsOnly(filePath)) return null;
 
-        // .mp3 first: it is what CD+G rips ship with, and a stray .wav should not win over it.
-        foreach (var extension in CompanionAudioExtensions)
-        {
-            var candidate = Path.ChangeExtension(filePath, extension);
-            if (File.Exists(candidate)) return candidate;
-        }
-
-        return null;
+        var companion = Path.ChangeExtension(filePath, ".mp3");
+        return File.Exists(companion) ? companion : null;
     }
 
     private static string BuildPitchFilter(int semitones)
