@@ -77,7 +77,7 @@ const REALIGN_CONFIRMATIONS = 3;
 
 let clockOffsetMs = 0;
 let timeline = null;
-let isTimingReference = false;
+let isPrimary = false;
 
 let driftConfirmations = 0;
 
@@ -96,9 +96,9 @@ function expectedStreamTime() {
 }
 
 function correct() {
-    // The timing reference defines the timeline rather than chasing one, so it is never
+    // The primary defines the timeline rather than chasing one, so it is never
     // corrected — there is nothing for it to be corrected towards.
-    if (isTimingReference) {
+    if (isPrimary) {
         video.playbackRate = 1;
         return;
     }
@@ -154,7 +154,7 @@ function handleCommand(raw) {
                 playing: message.playing === true,
             };
 
-            isTimingReference = message.timingReference === true;
+            isPrimary = message.primary === true;
 
             timeline = next;
             break;

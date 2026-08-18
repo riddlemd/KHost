@@ -33,10 +33,10 @@ public interface IScreenCoordinationService
     /// is a screen being seeked, and seeking the one the room hears is an audible glitch.
     /// Falls back to any sync-capable screen when the audio is somewhere unsyncable.
     /// </summary>
-    string? TimingScreenId { get; }
+    string? PrimaryScreenId { get; }
 
     /// <summary>
-    /// True when audio and timing have landed on different screens — the lyrics displays are then
+    /// True when audio and primary have landed on different screens — the lyrics displays are then
     /// following a clock that is not what the room hears, and can drift away from it.
     /// </summary>
     bool RolesAreSplit { get; }
@@ -45,7 +45,7 @@ public interface IScreenCoordinationService
     Task<string?> EnsureRolesAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Moves the room's audio to a specific screen, re-deriving the timing reference to match.
+    /// Moves the room's audio to a specific screen, re-deriving the primary to match.
     /// Refused for a screen that renders no audio.
     /// </summary>
     Task<bool> SetAudioScreenAsync(string screenId, CancellationToken cancellationToken = default);

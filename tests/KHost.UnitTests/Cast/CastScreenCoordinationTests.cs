@@ -13,7 +13,10 @@ namespace KHost.UnitTests.Cast;
 /// </summary>
 public class CastScreenCoordinationTests : IAsyncLifetime
 {
-    private const string CastName = "KHost Test Cast";
+    // Resolved from discovery — see the note in CastScreenTransportTests.
+    private string CastName => _cast.Devices.FirstOrDefault()?.Name
+        ?? throw new InvalidOperationException(
+            "Port 8009 is listening but no Cast device was discovered — is mDNS blocked?");
 
     private readonly CastScreenTransport _cast = new(
         NullLogger<CastScreenTransport>.Instance,
@@ -45,14 +48,14 @@ public class CastScreenCoordinationTests : IAsyncLifetime
     }
 
     [RequiresCastEmulatorFact]
-    public async Task ACastDeviceAlone_TakesTheAudioRole_AndLeavesTimingVacant()
+    public async Task ACastDeviceAlone_TakesTheAudioRole_AndLeavesThePrimaryVacant()
     {
         await _cast.AttachAsync(CastName);
 
         Assert.Equal(CastName, await _coordination.EnsureRolesAsync());
 
-        // Nothing present can be held to a schedule, so there is no timing reference to elect.
-        Assert.Null(_coordination.TimingScreenId);
+        // Nothing present can be held to a schedule, so there is no primary screen to elect.
+        Assert.Null(_coordination.PrimaryScreenId);
         Assert.True(_coordination.IsAudioEnabled(CastName));
     }
 
@@ -67,7 +70,7 @@ public class CastScreenCoordinationTests : IAsyncLifetime
 
         // Correcting a screen means seeking it, so audio stays where it can also anchor.
         Assert.Equal("Laptop", _coordination.AudioScreenId);
-        Assert.Equal("Laptop", _coordination.TimingScreenId);
+        Assert.Equal("Laptop", _coordination.PrimaryScreenId);
         Assert.False(_coordination.RolesAreSplit);
     }
 
@@ -81,11 +84,11 @@ public class CastScreenCoordinationTests : IAsyncLifetime
         _local.Add("Laptop", sync: true, audio: true);
         await _coordination.EnsureRolesAsync();
 
-        // The incumbent keeps the role even though the newcomer could unite audio and timing:
+        // The incumbent keeps the role even though the newcomer could unite audio and primary:
         // moving the room's audio out from under a song in progress is worse than a split, and
         // the screens page offers "Send audio here" for when the user actually wants it moved.
         Assert.Equal(CastName, _coordination.AudioScreenId);
-        Assert.Equal("Laptop", _coordination.TimingScreenId);
+        Assert.Equal("Laptop", _coordination.PrimaryScreenId);
         Assert.True(_coordination.RolesAreSplit);
     }
 
@@ -99,7 +102,7 @@ public class CastScreenCoordinationTests : IAsyncLifetime
         Assert.True(await _coordination.SetAudioScreenAsync(CastName));
 
         Assert.Equal(CastName, _coordination.AudioScreenId);
-        Assert.Equal("Laptop", _coordination.TimingScreenId);
+        Assert.Equal("Laptop", _coordination.PrimaryScreenId);
         Assert.True(_coordination.RolesAreSplit);
 
         // The mute has to have actually left the host — this is the whole point of the transport.

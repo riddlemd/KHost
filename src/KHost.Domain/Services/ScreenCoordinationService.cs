@@ -20,7 +20,7 @@ public sealed class ScreenCoordinationService : BaseService, IScreenCoordination
     private readonly Dictionary<string, bool> _audioOverrides = [];
 
     private string? _audioScreenId;
-    private string? _timingScreenId;
+    private string? _primaryScreenId;
 
     public ScreenCoordinationService(ILogger<ScreenCoordinationService> logger, IScreenServer screenServer)
         : base(logger)
@@ -39,9 +39,9 @@ public sealed class ScreenCoordinationService : BaseService, IScreenCoordination
 
     public string? AudioScreenId => _audioScreenId;
 
-    public string? TimingScreenId => _timingScreenId;
+    public string? PrimaryScreenId => _primaryScreenId;
 
-    public bool RolesAreSplit => _audioScreenId is not null && _audioScreenId != _timingScreenId;
+    public bool RolesAreSplit => _audioScreenId is not null && _audioScreenId != _primaryScreenId;
 
     public bool IsAudioEnabled(string screenId)
         => _audioOverrides.TryGetValue(screenId, out var enabled)
@@ -63,9 +63,9 @@ public sealed class ScreenCoordinationService : BaseService, IScreenCoordination
             if (screens.All(s => s.ScreenId != _audioScreenId))
                 _audioScreenId = ElectAudioScreen(screens);
 
-            var timing = DeriveTimingScreen(screens);
-            var changed = _audioScreenId != previousAudio || timing != _timingScreenId;
-            _timingScreenId = timing;
+            var primary = DerivePrimaryScreen(screens);
+            var changed = _audioScreenId != previousAudio || primary != _primaryScreenId;
+            _primaryScreenId = primary;
 
             // Only when a role actually moved: this runs on every connect, and re-pushing volume
             // to screens whose answer has not changed is pure chatter.
@@ -95,8 +95,8 @@ public sealed class ScreenCoordinationService : BaseService, IScreenCoordination
 
             _audioScreenId = screenId;
 
-            // Timing follows the audio wherever it can, so this move usually takes it along.
-            _timingScreenId = DeriveTimingScreen(screens);
+            // The primary follows the audio wherever it can, so this move usually takes it along.
+            _primaryScreenId = DerivePrimaryScreen(screens);
 
             LogRoles();
             await ApplyAudioAsync(screens);
@@ -142,17 +142,17 @@ public sealed class ScreenCoordinationService : BaseService, IScreenCoordination
             ?? screens.FirstOrDefault(s => s.Capabilities.SupportsAudio))?.ScreenId;
 
     /// <summary>
-    /// The audio screen anchors the timeline whenever it can sync. Correction is a seek, and
+    /// The audio screen becomes the primary whenever it can sync. Correction is a seek, and
     /// seeking the screen the room hears is an audible glitch — so the two roles are kept on one
     /// screen unless the audio lives somewhere that cannot be held to a schedule at all.
     /// </summary>
-    private string? DeriveTimingScreen(List<IScreenConnection> screens)
+    private string? DerivePrimaryScreen(List<IScreenConnection> screens)
     {
         var audio = screens.FirstOrDefault(s => s.ScreenId == _audioScreenId);
         if (audio?.Capabilities.SupportsSync == true) return audio.ScreenId;
 
         var incumbent = screens.FirstOrDefault(
-            s => s.ScreenId == _timingScreenId && s.Capabilities.SupportsSync);
+            s => s.ScreenId == _primaryScreenId && s.Capabilities.SupportsSync);
         if (incumbent is not null) return incumbent.ScreenId;
 
         return screens.FirstOrDefault(s => s.Capabilities.SupportsSync)?.ScreenId;
@@ -162,11 +162,11 @@ public sealed class ScreenCoordinationService : BaseService, IScreenCoordination
     {
         if (RolesAreSplit)
             Logger.LogWarning(
-                "Audio is on {AudioScreenId} but timing follows {TimingScreenId}; the synced screens "
+                "Audio is on {AudioScreenId} but primary follows {PrimaryScreenId}; the synced screens "
                 + "are tracking a clock the room cannot hear and may drift from it",
-                _audioScreenId, _timingScreenId);
+                _audioScreenId, _primaryScreenId);
         else
-            Logger.LogInformation("Audio and timing are both on {ScreenId}", _audioScreenId ?? "(none)");
+            Logger.LogInformation("Audio and primary are both on {ScreenId}", _audioScreenId ?? "(none)");
     }
 
     /// <summary>Pushes every connected screen's volume to match the current rules. Caller holds the lock.</summary>
@@ -222,7 +222,7 @@ public sealed class ScreenCoordinationService : BaseService, IScreenCoordination
             await ClearAudioOverrideAsync(e.Connection.ScreenId);
 
             if (e.Connection.ScreenId == _audioScreenId) _audioScreenId = null;
-            if (e.Connection.ScreenId == _timingScreenId) _timingScreenId = null;
+            if (e.Connection.ScreenId == _primaryScreenId) _primaryScreenId = null;
 
             await EnsureRolesAsync();
             InvokeStateChanged();

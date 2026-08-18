@@ -312,7 +312,7 @@ public sealed class CastScreenTransport : IScreenTransport, ICastScreenService, 
                 Position = connection.StreamStartOffset + TimeSpan.FromSeconds(status.CurrentTime),
                 Duration = TimeSpan.FromSeconds(status.Media?.Duration ?? 0),
 
-                // Deliberately null: a Cast device is never the timing reference, and offering a
+                // Deliberately null: a Cast device is never the primary, and offering a
                 // sample time would invite the host to anchor the group on a report it cannot trust.
                 SampledAtUtc = null,
             },

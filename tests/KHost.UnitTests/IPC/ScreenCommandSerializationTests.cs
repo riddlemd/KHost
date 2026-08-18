@@ -27,7 +27,7 @@ public class ScreenCommandSerializationTests
             Position = TimeSpan.FromSeconds(42),
             AnchorUtc = new DateTime(2026, 8, 17, 20, 30, 0, DateTimeKind.Utc),
             IsPlaying = true,
-            IsTimingReference = true,
+            IsPrimary = true,
         },
     };
 
