@@ -112,6 +112,59 @@ public class ScreenCoordinationServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task Video_IsOnByDefault()
+    {
+        Connect(Screen("Main", sync: true, audio: true));
+        await _service.EnsureRolesAsync();
+
+        Assert.True(_service.IsVideoEnabled("Main"));
+    }
+
+    [Fact]
+    public async Task BlankingVideo_ReachesTheScreen_AndLeavesAudioAlone()
+    {
+        Connect(Screen("Main", sync: true, audio: true));
+        await _service.EnsureRolesAsync();
+
+        await _service.SetVideoEnabledAsync("Main", false);
+
+        Assert.False(_service.IsVideoEnabled("Main"));
+        await _screenServer.Received().SendCommandAsync("Main",
+            Arg.Is<SetVideoCommand>(c => !c.Enabled));
+
+        // Blanking the picture must not silence the room.
+        Assert.True(_service.IsAudioEnabled("Main"));
+    }
+
+    [Fact]
+    public async Task BlankingVideo_LeavesTheScreenHoldingItsRoles()
+    {
+        Connect(Screen("Main", sync: true, audio: true), Screen("Lyrics", sync: true, audio: false));
+        await _service.EnsureRolesAsync();
+
+        await _service.SetVideoEnabledAsync("Main", false);
+
+        // A blanked screen still runs, so it stays on the timeline and keeps the primary.
+        Assert.Equal("Main", _service.AudioScreenId);
+        Assert.Equal("Main", _service.PrimaryScreenId);
+    }
+
+    [Fact]
+    public async Task AReconnectingScreen_ComesBackRendering()
+    {
+        var main = Screen("Main", sync: true, audio: true);
+        Connect(main);
+        await _service.EnsureRolesAsync();
+        await _service.SetVideoEnabledAsync("Main", false);
+
+        Disconnect(main);
+        await WaitForAsync(() => _service.IsVideoEnabled("Main"));
+
+        // A screen that comes back should not inherit a blanking from a past session.
+        Assert.True(_service.IsVideoEnabled("Main"));
+    }
+
+    [Fact]
     public async Task LosingTheAudioScreen_PromotesAnother()
     {
         var main = Screen("Main", sync: true, audio: true);

@@ -11,6 +11,7 @@ namespace KHost.Abstractions.Services.IPC;
 [JsonDerivedType(typeof(SetVolumeCommand), "setVolume")]
 [JsonDerivedType(typeof(SetPitchCommand), "setPitch")]
 [JsonDerivedType(typeof(SetTimelineCommand), "setTimeline")]
+[JsonDerivedType(typeof(SetVideoCommand), "setVideo")]
 public abstract class ScreenCommandBase : IScreenCommand { }
 
 /// <summary>
@@ -65,6 +66,15 @@ public sealed class SetVolumeCommand : ScreenCommandBase
 public sealed class SetPitchCommand : ScreenCommandBase
 {
     public required int Semitones { get; init; }
+}
+
+/// <summary>
+/// Blanks the picture without stopping playback — a screen driving speakers in another room has
+/// no reason to render, and a blanked one still has to stay on the group timeline.
+/// </summary>
+public sealed class SetVideoCommand : ScreenCommandBase
+{
+    public required bool Enabled { get; init; }
 }
 
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "$type")]

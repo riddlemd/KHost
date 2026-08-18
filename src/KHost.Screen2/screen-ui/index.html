@@ -34,11 +34,25 @@
         }
 
         #placeholder[hidden] { display: none; }
+
+        #blanked {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #3a3a42;
+            font: 600 20px system-ui, sans-serif;
+            pointer-events: none;
+        }
+
+        #blanked[hidden] { display: none; }
     </style>
 </head>
 <body>
     <video id="video" playsinline></video>
     <div id="placeholder">KHost</div>
+    <div id="blanked" hidden>Video off</div>
     <script src="player.js"></script>
 </body>
 </html>
