@@ -42,7 +42,12 @@ public class CastScreenTransportUrlTests
 /// </summary>
 public class CastScreenTransportTests : IAsyncLifetime
 {
-    private const string DeviceName = "KHost Test Cast";
+    // Resolved from discovery rather than hard-coded: the emulator can be started under any
+    // --name, and pinning one turned "a differently named emulator is running" into ten confusing
+    // failures instead of a skip.
+    private string DeviceName => _transport.Devices.FirstOrDefault()?.Name
+        ?? throw new InvalidOperationException(
+            "Port 8009 is listening but no Cast device was discovered — is mDNS blocked?");
 
     private readonly CastScreenTransport _transport = new(
         NullLogger<CastScreenTransport>.Instance,
@@ -109,7 +114,7 @@ public class CastScreenTransportTests : IAsyncLifetime
         Assert.NotNull(reported);
         Assert.True(reported.IsPlaying);
 
-        // Null on purpose: a Cast device is never the timing reference, and offering a sample time
+        // Null on purpose: a Cast device is never the primary, and offering a sample time
         // would invite the host to anchor the whole group on a report it cannot trust.
         Assert.Null(reported.SampledAtUtc);
     }

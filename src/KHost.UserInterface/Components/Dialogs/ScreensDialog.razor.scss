@@ -12,9 +12,21 @@
         color: var(--kh-text-secondary);
     }
 
-    &__connected {
+    &__connected,
+    &__cast {
         border-bottom: 1px solid var(--kh-border);
         padding-bottom: 16px;
+    }
+
+    // Sits on the section heading, which inherits uppercase and letter-spacing — both are undone
+    // here so it reads as an aside rather than part of the title.
+    &__note {
+        margin-left: 8px;
+        color: var(--kh-text-muted, var(--kh-text-secondary));
+        font-size: 0.78rem;
+        font-weight: 400;
+        text-transform: none;
+        letter-spacing: 0;
     }
 
     &__empty {
@@ -37,63 +49,53 @@
     &__item {
         display: flex;
         align-items: center;
-        gap: 8px;
+        gap: 10px;
         padding: 8px 12px;
-        background: var(--kh-surface-secondary);
+        background: var(--kh-bg-card-dark);
+        border: 1px solid var(--kh-border);
         border-radius: var(--kh-radius);
         font-size: 0.95rem;
 
-        span {
-            flex: 1;
-            word-break: break-all;
-        }
-
-        // The rule above makes every span a flex child; the badges and the actions must not
-        // stretch, and nesting here outweighs it on specificity without touching it.
-        .kh-screens-dialog__badge {
-            flex: 0 0 auto;
-        }
+        // Every row the same height whether or not it carries a second line, so the controls
+        // down the right edge form a column instead of stepping in and out.
+        min-height: calc(var(--kh-control-height) + 16px);
     }
 
     &__item--role {
-        // A screen holding a role should be findable at a glance rather than by reading every row.
         border-left: 3px solid var(--kh-primary);
-        padding-left: 9px;
+        padding-left: 10px;
+    }
+
+    // Takes the slack so the actions sit against the right edge. Without it the whole row packs
+    // left and the buttons float in the middle of the dialog.
+    &__item-content {
+        flex: 1;
+        min-width: 0;
     }
 
     &__screen-name {
         display: flex;
         align-items: center;
         flex-wrap: wrap;
-        gap: 4px;
+        gap: 6px;
+        font-weight: 500;
     }
 
-    &__badge {
-        display: inline-flex;
+    &__screen-state {
+        display: flex;
         align-items: center;
-        gap: 4px;
-        margin-left: 8px;
-        padding: 1px 8px;
-        border-radius: 999px;
-        background: var(--kh-surface);
-        border: 1px solid var(--kh-border);
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 2px;
         color: var(--kh-text-secondary);
-        font-size: 0.72rem;
-        font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: 0.04em;
+        font-size: 0.82rem;
+    }
+
+    &__file {
+        overflow: hidden;
+        text-overflow: ellipsis;
         white-space: nowrap;
-
-        &--audio {
-            background: var(--kh-primary);
-            border-color: var(--kh-primary);
-            color: var(--kh-on-primary, #fff);
-        }
-
-        &--timing {
-            border-color: var(--kh-primary);
-            color: var(--kh-primary);
-        }
+        max-width: 40ch;
     }
 
     &__item-actions {
@@ -101,25 +103,37 @@
         align-items: center;
         gap: 6px;
         flex-shrink: 0;
-
-        .kh-button {
-            font-size: 0.85rem;
-            white-space: nowrap;
-        }
+        margin-left: auto;
     }
 
-    &__audio--off {
-        opacity: 0.55;
+    // Square, and the same height as the text button beside it — an icon variant sized to 26px
+    // next to a 36px button is what made the row look thrown together. Muted takes the outline
+    // treatment rather than a solid fill, so on and off read at a glance.
+    &__audio {
+        width: var(--kh-control-height);
+        padding: 0;
+        flex-shrink: 0;
+    }
+
+    &__status--connected {
+        flex-shrink: 0;
+        color: var(--kh-success, #4caf50);
+        font-size: 0.6em;
+    }
+
+    &__status--cast {
+        flex-shrink: 0;
+        color: var(--kh-text-secondary);
     }
 
     &__warning {
         display: flex;
         align-items: flex-start;
-        gap: 6px;
+        gap: 8px;
         margin: 12px 0 0 0;
         padding: 8px 10px;
         border-radius: var(--kh-radius);
-        background: var(--kh-surface-secondary);
+        background: var(--kh-bg-card-dark);
         border-left: 3px solid var(--kh-warning, #d98324);
         color: var(--kh-text);
         font-size: 0.82rem;
@@ -133,58 +147,13 @@
         line-height: 1.4;
     }
 
-    &__status--cast {
-        flex-shrink: 0;
-        color: var(--kh-text-secondary);
-        font-size: 0.9em;
-    }
-
-    &__cast {
-        border-bottom: 1px solid var(--kh-border);
-        padding-bottom: 16px;
-    }
-
-    &__status--connected {
-        flex-shrink: 0;
-        color: var(--kh-success, #4caf50);
-        font-size: 0.6em;
-    }
-
-    &__launch {
-        // padding for visual separation
-    }
-
     &__launch-form {
         display: grid;
-        grid-template-columns: 1fr 150px 100px;
+        grid-template-columns: 1fr 170px auto;
         gap: 8px;
-        align-items: flex-end;
 
-        .kh-input,
-        .kh-select {
-            padding: 8px 12px;
-            background: var(--kh-input-bg);
-            color: var(--kh-text);
-            border: 1px solid var(--kh-border);
-            border-radius: var(--kh-radius);
-            font: inherit;
-            font-size: 0.9rem;
-
-            &:focus {
-                outline: none;
-                border-color: var(--kh-primary);
-                box-shadow: 0 0 0 2px var(--kh-primary-dim, rgba(100, 100, 255, 0.1));
-            }
-        }
-
-        .kh-button {
-            padding: 8px 16px;
-            font-size: 0.9rem;
-
-            &:disabled {
-                opacity: 0.5;
-                cursor: not-allowed;
-            }
-        }
+        // center, not flex-end: the controls share a height token, and aligning on the baseline
+        // left each one sitting a couple of pixels off the others.
+        align-items: center;
     }
 }

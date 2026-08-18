@@ -45,7 +45,7 @@ public class ScreenCoordinationServiceTests : IDisposable
         Connect(Screen("Chromecast", sync: false, audio: true), Screen("Local", sync: true, audio: true));
 
         Assert.Equal("Local", await _service.EnsureRolesAsync());
-        Assert.Equal("Local", _service.TimingScreenId);
+        Assert.Equal("Local", _service.PrimaryScreenId);
         Assert.False(_service.RolesAreSplit);
     }
 
@@ -53,21 +53,21 @@ public class ScreenCoordinationServiceTests : IDisposable
     public async Task EnsureRoles_TakesAnUnsyncableAudioScreen_WhenNothingElseRendersAudio()
     {
         // The Cast device is the only thing the room can hear, so it gets the audio role even
-        // though it can never hold the timing one.
+        // though it can never hold the primary one.
         Connect(Screen("Chromecast", sync: false, audio: true), Screen("Lyrics", sync: true, audio: false));
 
         Assert.Equal("Chromecast", await _service.EnsureRolesAsync());
-        Assert.Equal("Lyrics", _service.TimingScreenId);
+        Assert.Equal("Lyrics", _service.PrimaryScreenId);
         Assert.True(_service.RolesAreSplit);
     }
 
     [Fact]
-    public async Task EnsureRoles_LeavesTimingVacant_WhenNothingCanSync()
+    public async Task EnsureRoles_LeavesThePrimaryVacant_WhenNothingCanSync()
     {
         Connect(Screen("Chromecast", sync: false, audio: true));
 
         Assert.Equal("Chromecast", await _service.EnsureRolesAsync());
-        Assert.Null(_service.TimingScreenId);
+        Assert.Null(_service.PrimaryScreenId);
     }
 
     [Fact]
@@ -80,7 +80,7 @@ public class ScreenCoordinationServiceTests : IDisposable
         Assert.True(await _service.SetAudioScreenAsync("Chromecast"));
 
         Assert.Equal("Chromecast", _service.AudioScreenId);
-        Assert.Equal("Local", _service.TimingScreenId);
+        Assert.Equal("Local", _service.PrimaryScreenId);
         Assert.True(_service.RolesAreSplit);
 
         // And the audio actually moves — the local screen goes quiet.
@@ -99,7 +99,7 @@ public class ScreenCoordinationServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task TimingReference_FollowsTheAudioScreen_WhenItCanSync()
+    public async Task Primary_FollowsTheAudioScreen_WhenItCanSync()
     {
         Connect(Screen("A", sync: true, audio: true), Screen("B", sync: true, audio: true));
         await _service.EnsureRolesAsync();
@@ -107,7 +107,7 @@ public class ScreenCoordinationServiceTests : IDisposable
         await _service.SetAudioScreenAsync("B");
 
         // Both roles move together, so the audible screen is never the one being corrected.
-        Assert.Equal("B", _service.TimingScreenId);
+        Assert.Equal("B", _service.PrimaryScreenId);
         Assert.False(_service.RolesAreSplit);
     }
 

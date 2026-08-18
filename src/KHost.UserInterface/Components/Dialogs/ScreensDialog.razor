@@ -2,7 +2,7 @@
 @using KHost.UserInterface.Models
 
 <Dialog IsOpen="IsOpen" OnClose="OnClose" Class="kh-dialog__screens">
-    <Header>Screens</Header>
+    <Header><Icon Name="display-fill" /> Screens</Header>
     <Body>
         <div class="kh-screens-dialog">
 
@@ -19,29 +19,28 @@
                         {
                             var state = _screenStates.TryGetValue(screen.ScreenId, out var s) ? s : null;
                             var hasAudioRole = IsAudioScreen(screen);
-                            var hasTimingRole = IsTimingScreen(screen);
-                            <li class="kh-screens-dialog__item @(hasAudioRole || hasTimingRole ? "kh-screens-dialog__item--role" : "")">
+                            var hasPrimaryRole = IsPrimaryScreen(screen);
+                            <li class="kh-screens-dialog__item @(hasAudioRole || hasPrimaryRole ? "kh-screens-dialog__item--role" : "")">
                                 <i class="bi bi-circle-fill kh-screens-dialog__status--connected"></i>
                                 <div class="kh-screens-dialog__item-content">
                                     <div class="kh-screens-dialog__screen-name">
                                         <span>@screen.ScreenId</span>
                                         @if (hasAudioRole)
                                         {
-                                            <span class="kh-screens-dialog__badge kh-screens-dialog__badge--audio"
-                                                  title="The screen the room hears.">
+                                            <span class="kh-badge kh-badge--secondary" title="The screen the room hears.">
                                                 <i class="bi bi-volume-up-fill"></i> Audio
                                             </span>
                                         }
-                                        @if (hasTimingRole)
+                                        @if (hasPrimaryRole)
                                         {
-                                            <span class="kh-screens-dialog__badge kh-screens-dialog__badge--timing"
+                                            <span class="kh-badge kh-badge--info"
                                                   title="Its position sets the timeline the other synced screens are held to. Never corrected itself.">
-                                                <i class="bi bi-clock-fill"></i> Timing
+                                                <i class="bi bi-broadcast-pin"></i> Primary
                                             </span>
                                         }
                                         @if (!screen.Capabilities.SupportsSync)
                                         {
-                                            <span class="kh-screens-dialog__badge"
+                                            <span class="kh-badge kh-badge--ext"
                                                   title="Plays on its own schedule, so it cannot be kept in sync with the others.">
                                                 Unsynced
                                             </span>
@@ -73,20 +72,20 @@
                                 </div>
 
                                 <div class="kh-screens-dialog__item-actions">
-                                    @if (screen.Capabilities.SupportsAudio)
-                                    {
-                                        <button class="kh-button kh-button--icon-minimal kh-screens-dialog__audio @(IsAudible(screen) ? "kh-screens-dialog__audio--on" : "kh-screens-dialog__audio--off")"
-                                                title="@(IsAudible(screen) ? "Audible — click to mute" : "Muted — click to unmute")"
-                                                @onclick="() => ToggleAudioAsync(screen)">
-                                            <i class="bi @(IsAudible(screen) ? "bi-volume-up-fill" : "bi-volume-mute")"></i>
-                                        </button>
-                                    }
                                     @if (!hasAudioRole && screen.Capabilities.SupportsAudio)
                                     {
                                         <button class="kh-button kh-button--secondary"
-                                                title="Make this the screen the room hears. Timing follows it too, unless it cannot sync."
-                                                @onclick="() => SendAudioToAsync(screen)">
-                                            Send audio here
+                                                title="Make this the screen the room hears. It becomes the primary too, unless it cannot sync — a Cast device takes the audio without the primary role."
+                                                @onclick="() => SetAsPrimaryAsync(screen)">
+                                            Set As Primary
+                                        </button>
+                                    }
+                                    @if (screen.Capabilities.SupportsAudio)
+                                    {
+                                        <button class="kh-button kh-screens-dialog__audio @(IsAudible(screen) ? "" : "kh-button--secondary")"
+                                                title="@(IsAudible(screen) ? "Audible — click to mute" : "Muted — click to unmute")"
+                                                @onclick="() => ToggleAudioAsync(screen)">
+                                            <i class="bi @(IsAudible(screen) ? "bi-volume-up-fill" : "bi-volume-mute")"></i>
                                         </button>
                                     }
                                 </div>
@@ -98,7 +97,7 @@
                         <p class="kh-screens-dialog__warning">
                             <i class="bi bi-exclamation-triangle-fill"></i>
                             The audio screen cannot be synced, so the other screens are following
-                            <strong>@ScreenCoordination.TimingScreenId</strong> instead. Lyrics may
+                            <strong>@ScreenCoordination.PrimaryScreenId</strong> instead. Lyrics may
                             drift away from what the room hears.
                         </p>
                     }
@@ -112,7 +111,13 @@
             @if (CastDevices.Any())
             {
                 <section class="kh-screens-dialog__cast">
-                    <h3>Cast devices</h3>
+                    <h3>
+                        Cast devices
+                        <span class="kh-screens-dialog__note"
+                              title="A Cast receiver plays on its own schedule and cannot be held to the group's timeline.">
+                            always unsynced
+                        </span>
+                    </h3>
                     <ul class="kh-screens-dialog__list">
                         @foreach (var device in CastDevices)
                         {
@@ -121,9 +126,6 @@
                                 <div class="kh-screens-dialog__item-content">
                                     <div class="kh-screens-dialog__screen-name">
                                         <span>@device.Name</span>
-                                        <span class="kh-screens-dialog__badge" title="Plays on its own schedule.">
-                                            Unsynced
-                                        </span>
                                     </div>
                                     <div class="kh-screens-dialog__screen-state">
                                         <span>@(device.Model ?? "Cast receiver") @device.Address</span>
@@ -163,13 +165,13 @@
             <section class="kh-screens-dialog__launch">
                 <h3>Launch New Screen</h3>
                 <div class="kh-screens-dialog__launch-form">
-                    <input class="kh-input"
+                    <input class="kh-form-control"
                            type="text"
                            placeholder="Screen name (auto if blank)"
                            disabled="@_isLaunching"
                            @bind="_screenName"
                            @bind:event="oninput" />
-                    <select class="kh-select" disabled="@_isLaunching" @bind="_selectedProviderName">
+                    <select class="kh-form-select" disabled="@_isLaunching" @bind="_selectedProviderName">
                         @foreach (var provider in _providers)
                         {
                             <option value="@provider.Name" disabled="@(!provider.IsAvailable)">
