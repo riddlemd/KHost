@@ -172,7 +172,7 @@ internal static class Program
 
         // Detached: a discovery sweep listens for seconds, and nothing should wait on finding a
         // television before the app will start.
-        _ = app.Services.GetRequiredService<ICastScreenService>().InitializeAsync();
+        _ = app.Services.GetRequiredService<ICastService>().InitializeAsync();
 
         app.MapDefaultEndpoints();
         app.MapIPCServer();

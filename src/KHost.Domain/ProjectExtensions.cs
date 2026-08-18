@@ -53,10 +53,6 @@ namespace KHost.Domain
             serviceCollection.AddSingleton<IMediaImportService, MediaImportService>();
             serviceCollection.AddSingleton<ICacheService, JsonFileCacheService>();
             serviceCollection.AddSingleton<ISingerQueueService, SingerQueueService>();
-            // Fans out over every registered IScreenTransport, so SignalR screens and Cast
-            // devices are both just screens to everything above it.
-            serviceCollection.AddSingleton<IScreenServer, CompositeScreenServer>();
-
             serviceCollection.AddSingleton<IMediaStreamService, HlsMediaStreamService>();
             serviceCollection.AddSingleton<IScreenCoordinationService, ScreenCoordinationService>();
             serviceCollection.AddSingleton<IPlaybackService, PlaybackService>();

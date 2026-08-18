@@ -112,7 +112,11 @@ internal sealed class ScreenIpcController : IAsyncDisposable
                 break;
         }
 
-        await SendCurrentStateAsync();
+        // Everything except a timeline reports back. A timeline is the host telling us where to
+        // be, not a change to what we are doing — and answering one with a state report makes the
+        // host re-anchor, which sends another timeline, forever.
+        if (command is not SetTimelineCommand)
+            await SendCurrentStateAsync();
     }
 
     private void OnPlaybackEnded(object? sender, EventArgs e) => _ = SendCurrentStateAsync();

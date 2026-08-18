@@ -25,6 +25,11 @@ public class PlaybackService : BaseService, IPlaybackService
 
     private Timer? _timer;
     private DateTime _lastTick;
+
+    // Re-anchoring is driven by screen reports, so it has to be bounded independently of how
+    // often those arrive — a screen that chatters must not turn into a command storm.
+    private static readonly TimeSpan ReanchorInterval = TimeSpan.FromSeconds(1);
+    private DateTime _lastReanchorUtc;
     private bool _resumeWhenScreenReturns;
 
     // Connect and disconnect both arrive as fire-and-forget continuations, so without this they
@@ -43,6 +48,7 @@ public class PlaybackService : BaseService, IPlaybackService
     private readonly IScreenServer _screenServer;
     private readonly IMediaStreamService _mediaStreams;
     private readonly IScreenCoordinationService _screenCoordination;
+    private readonly ICastService _cast;
     private readonly ServiceOptions _options;
 
     public Performance? CurrentPerformance { get; private set; }
@@ -60,7 +66,8 @@ public class PlaybackService : BaseService, IPlaybackService
         IAnalyticsService analytics,
         IScreenServer screenServer,
         IMediaStreamService mediaStreams,
-        IScreenCoordinationService screenGroup,
+        IScreenCoordinationService screenCoordination,
+        ICastService cast,
         IOptions<ServiceOptions> options)
         : base(logger)
     {
@@ -70,16 +77,22 @@ public class PlaybackService : BaseService, IPlaybackService
         _analytics = analytics;
         _screenServer = screenServer;
         _mediaStreams = mediaStreams;
-        _screenCoordination = screenGroup;
+        _screenCoordination = screenCoordination;
+        _cast = cast;
         _options = options.Value;
 
         _screenServer.ScreenConnected += OnScreenConnected;
         _screenServer.ScreenDisconnected += OnScreenDisconnected;
         _screenServer.StateReceived += OnScreenStateReceived;
+        _cast.PlaybackStatusChanged += OnCastStatusReceived;
     }
 
     public async Task<bool> HasConnectedScreenAsync()
     {
+        // A Cast receiver is not a screen, but it is somewhere the song comes out — refusing to
+        // play with only a television attached is refusing the setup casting exists for.
+        if (_cast.ConnectedDeviceId is { Length: > 0 }) return true;
+
         try
         {
             await foreach (var _ in _screenServer.GetConnectedScreensAsync())
@@ -118,6 +131,10 @@ public class PlaybackService : BaseService, IPlaybackService
     {
         if (CurrentPerformance is null || State == PlaybackState.Playing) return;
 
+        // Playing during a stop's fade supersedes it, but the screens have already been told to
+        // fade out and drop the media — so they need it handed back before being told to play.
+        var supersedesStop = State == PlaybackState.Stopping;
+
         // Without a screen there is no audio or video, but the position timer would still run
         // the performance to completion and rotate the singer away — burning their turn.
         if (!await HasConnectedScreenAsync())
@@ -137,7 +154,18 @@ public class PlaybackService : BaseService, IPlaybackService
 
         Logger.LogInformation("Playback started for user {UserId}", CurrentPerformance.SingerId);
 
+        if (supersedesStop && CurrentMedia is { } resumed)
+        {
+            Logger.LogInformation("Play superseded a stop; reloading the screens at {Position}", Position);
+
+            await SendToScreensAsync(DescribeStream(resumed));
+
+            if (Position > TimeSpan.Zero)
+                await SendToScreensAsync(new SeekCommand { Position = Position });
+        }
+
         await SendToScreensAsync(new PlayCommand());
+        await CastAsync(c => c.PlayAsync());
 
         // After the play command, so a synced screen already has the stream open when it is told
         // which instant to start on.
@@ -159,6 +187,7 @@ public class PlaybackService : BaseService, IPlaybackService
         Logger.LogInformation("Playback paused at {Position}", Position);
 
         await SendToScreensAsync(new PauseCommand());
+        await CastAsync(c => c.PauseAsync());
         await PublishTimelineAsync(isPlaying: false);
 
         InvokeStateChanged();
@@ -186,6 +215,7 @@ public class PlaybackService : BaseService, IPlaybackService
         InvokeStateChanged();
 
         await SendToScreensAsync(new StopCommand { FadeDuration = fade });
+        await CastAsync(c => c.StopAsync());
 
         if (fade > TimeSpan.Zero)
             await Task.Delay(fade);
@@ -218,6 +248,7 @@ public class PlaybackService : BaseService, IPlaybackService
             _screenServer.ScreenConnected -= OnScreenConnected;
             _screenServer.ScreenDisconnected -= OnScreenDisconnected;
             _screenServer.StateReceived -= OnScreenStateReceived;
+            _cast.PlaybackStatusChanged -= OnCastStatusReceived;
 
             // _screenSyncLock is deliberately not disposed: a detached sync may still be holding
             // it at shutdown, and its Release would then throw.
@@ -270,7 +301,10 @@ public class PlaybackService : BaseService, IPlaybackService
                 : await BuildLoadCommandAsync(media, TimeSpan.Zero));
 
             if (position > TimeSpan.Zero)
+            {
                 await SendToScreensAsync(new SeekCommand { Position = position });
+                await CastAsync(c => c.SeekAsync(position));
+            }
 
             if (!resume)
             {
@@ -407,7 +441,12 @@ public class PlaybackService : BaseService, IPlaybackService
             Logger.LogError(ex, "Could not open a host stream for '{FilePath}'", media.FilePath);
         }
 
-        return DescribeStream(media);
+        var command = DescribeStream(media);
+
+        if (command.StreamUrl is { Length: > 0 } url)
+            await CastAsync(c => c.LoadAsync(url, command.StreamStartOffset));
+
+        return command;
     }
 
     private LoadMediaCommand DescribeStream(Media media) => new()
@@ -449,6 +488,19 @@ public class PlaybackService : BaseService, IPlaybackService
         // Dequeue first so rotation's songs-sung-tonight count includes the finished song.
         await _performanceService.DequeueAsync(currentPerformance.SingerId, currentPerformance.Id);
         await _singerQueueService.RotateQueueAsync(currentPerformance.SingerId);
+    }
+
+    /// <summary>
+    /// Mirrors a transition onto the connected Cast receiver, if there is one. Deliberately a
+    /// separate call rather than another screen: a receiver holds no role, takes no timeline, and
+    /// must not silently inherit whatever the screens gain next.
+    /// </summary>
+    private async Task CastAsync(Func<ICastService, Task> action)
+    {
+        if (_cast.ConnectedDeviceId is not { Length: > 0 }) return;
+
+        try { await action(_cast); }
+        catch (Exception ex) { Logger.LogWarning(ex, "Failed to drive the Cast receiver"); }
     }
 
     private async Task SendToScreensAsync(IScreenCommand command)
@@ -518,10 +570,33 @@ public class PlaybackService : BaseService, IPlaybackService
 
         // The primary defines the song position, so the host's own clock follows it rather than
         // free-running — the timer is only an interpolator between these reports now.
-        Position = state.Position + (DateTime.UtcNow - sampledAt);
-        _lastTick = DateTime.UtcNow;
+        var now = DateTime.UtcNow;
+
+        // The position always follows the primary; only the republish is rate-limited.
+        Position = state.Position + (now - sampledAt);
+        _lastTick = now;
+
+        if (now - _lastReanchorUtc < ReanchorInterval) return;
+        _lastReanchorUtc = now;
 
         _ = PublishTimelineAsync(state.Position, sampledAt, isPlaying: true);
+    }
+
+    /// <summary>
+    /// Follows the receiver's own clock when there is no primary to follow instead. A receiver
+    /// buffers seconds, so a free-running timer reaches the end of the song while the room is
+    /// still hearing it — and rotates the singer away mid-chorus.
+    /// </summary>
+    private void OnCastStatusReceived(object? sender, CastPlaybackStatus status)
+    {
+        if (State != PlaybackState.Playing || !status.IsPlaying) return;
+
+        // A real primary is the better clock: its reports are timestamped against a measured
+        // offset, where a receiver's are only timestamped on arrival.
+        if (_screenCoordination.PrimaryScreenId is not null) return;
+
+        Position = status.Position + (DateTime.UtcNow - status.SampledAtUtc);
+        _lastTick = DateTime.UtcNow;
     }
 
     private async Task<List<IScreenConnection>> SyncCapableScreensAsync()

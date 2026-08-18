@@ -1,0 +1,288 @@
+using System.Net;
+using System.Net.NetworkInformation;
+using System.Net.Sockets;
+using KHost.Abstractions.Services;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using Sharpcaster;
+using Sharpcaster.Models;
+using Sharpcaster.Models.Media;
+
+namespace KHost.Cast;
+
+/// <summary>
+/// Drives one Cast receiver at a time. Kept apart from the screens on purpose — see
+/// <see cref="ICastService"/> for why a receiver is not a screen.
+/// </summary>
+public sealed class CastService : ICastService, IDisposable
+{
+    public sealed class ServiceOptions
+    {
+        public const string SectionName = "Cast";
+
+        /// <summary>Off by default: discovery browses the whole network, which is not free.</summary>
+        public bool Enabled { get; set; }
+
+        /// <summary>Google's Default Media Receiver — plays a plain URL with no receiver app of our own.</summary>
+        public string ReceiverAppId { get; set; } = "CC1AD845";
+
+        /// <summary>How long a discovery sweep listens before reporting what it heard.</summary>
+        public TimeSpan DiscoveryTimeout { get; set; } = TimeSpan.FromSeconds(5);
+    }
+
+    private readonly ServiceOptions _options;
+    private readonly ILogger<CastService> _logger;
+    private readonly SemaphoreSlim _lock = new(1, 1);
+    private readonly Dictionary<string, ChromecastReceiver> _discovered = [];
+
+    private ChromecastLocator? _locator;
+    private ChromecastClient? _client;
+    private string? _connectedDeviceId;
+    private TimeSpan _streamStartOffset;
+
+    public event EventHandler? StateChanged;
+    public event EventHandler<CastPlaybackStatus>? PlaybackStatusChanged;
+
+    public CastService(ILogger<CastService> logger, IOptions<ServiceOptions> options)
+    {
+        _logger = logger;
+        _options = options.Value;
+    }
+
+    public string? ConnectedDeviceId => _connectedDeviceId;
+
+    public IReadOnlyList<CastDevice> Devices
+    {
+        get
+        {
+            _lock.Wait();
+            try
+            {
+                return [.. _discovered.Select(entry => new CastDevice
+                {
+                    Id = entry.Key,
+                    Name = entry.Value.Name ?? entry.Key,
+                    Model = entry.Value.Model,
+                    Address = entry.Value.DeviceUri?.Host,
+                    IsConnected = entry.Key == _connectedDeviceId,
+                })];
+            }
+            finally { _lock.Release(); }
+        }
+    }
+
+    public async Task InitializeAsync(CancellationToken cancellationToken = default)
+    {
+        if (!_options.Enabled)
+        {
+            _logger.LogInformation("Cast is disabled; set Cast:Enabled to browse for receivers");
+            return;
+        }
+
+        _locator = new ChromecastLocator();
+        _locator.ChromecastReceiverFound += OnReceiverFound;
+
+        // One sweep now so the screens page has something immediately, then keep listening.
+        try
+        {
+            foreach (var receiver in await _locator.FindReceiversAsync(_options.DiscoveryTimeout))
+                Remember(receiver);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Cast discovery sweep failed");
+        }
+
+        _locator.StartContinuousDiscovery(TimeSpan.FromSeconds(30));
+        RaiseStateChanged();
+    }
+
+    public async Task<bool> ConnectAsync(string deviceId, CancellationToken cancellationToken = default)
+    {
+        if (_connectedDeviceId == deviceId) return true;
+
+        // One at a time: the host has one song, and a second receiver would be a second room
+        // hearing it a few seconds out of step with the first.
+        if (_connectedDeviceId is not null) await DisconnectAsync(cancellationToken);
+
+        ChromecastReceiver? receiver;
+        await _lock.WaitAsync(cancellationToken);
+        try
+        {
+            if (!_discovered.TryGetValue(deviceId, out receiver)) return false;
+        }
+        finally { _lock.Release(); }
+
+        var name = receiver!.Name ?? deviceId;
+        _logger.LogInformation("Connecting to Cast device {Name} at {Address}", name, receiver.DeviceUri);
+
+        var client = new ChromecastClient();
+
+        try
+        {
+            await client.ConnectChromecast(receiver);
+            await client.LaunchApplicationAsync(_options.ReceiverAppId, false);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Could not connect to Cast device {Name}", name);
+            try { await client.DisconnectAsync(); } catch { /* already gone */ }
+            return false;
+        }
+
+        client.MediaChannel.StatusChanged += (_, status) => OnMediaStatus(status);
+        client.Disconnected += (_, _) => OnDeviceDropped(deviceId);
+
+        _client = client;
+        _connectedDeviceId = deviceId;
+        _streamStartOffset = TimeSpan.Zero;
+
+        RaiseStateChanged();
+        return true;
+    }
+
+    public async Task DisconnectAsync(CancellationToken cancellationToken = default)
+    {
+        var client = _client;
+        var name = _connectedDeviceId;
+
+        _client = null;
+        _connectedDeviceId = null;
+
+        if (client is null) return;
+
+        _logger.LogInformation("Disconnecting from Cast device {Name}", name);
+
+        try
+        {
+            await client.ReceiverChannel.StopApplication();
+            await client.DisconnectAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Untidy disconnect from {Name}", name);
+        }
+
+        RaiseStateChanged();
+    }
+
+    public async Task LoadAsync(string streamUrl, TimeSpan startOffset, CancellationToken cancellationToken = default)
+    {
+        if (_client is not { } client) return;
+
+        var reachable = MakeReachableFromDevice(streamUrl, LanAddress());
+        _streamStartOffset = startOffset;
+
+        _logger.LogInformation("Casting {Url} to {Name}", reachable, _connectedDeviceId);
+
+        await GuardAsync(() => client.MediaChannel.LoadAsync(
+            new Media { ContentUrl = reachable, StreamType = StreamType.Buffered }, autoPlay: false));
+    }
+
+    public Task PlayAsync(CancellationToken cancellationToken = default)
+        => _client is { } c ? GuardAsync(c.MediaChannel.PlayAsync) : Task.CompletedTask;
+
+    public Task PauseAsync(CancellationToken cancellationToken = default)
+        => _client is { } c ? GuardAsync(c.MediaChannel.PauseAsync) : Task.CompletedTask;
+
+    // No fade: Cast has no volume ramp, and faking one would move the TV's own level.
+    public Task StopAsync(CancellationToken cancellationToken = default)
+        => _client is { } c ? GuardAsync(c.MediaChannel.StopAsync) : Task.CompletedTask;
+
+    public Task SeekAsync(TimeSpan position, CancellationToken cancellationToken = default)
+        => _client is { } c
+            ? GuardAsync(() => c.MediaChannel.SeekAsync((position - _streamStartOffset).TotalSeconds))
+            : Task.CompletedTask;
+
+    /// <summary>
+    /// A receiver drops out, refuses a command, or is simply switched off mid-song. None of that
+    /// should surface as a failed performance, so it is logged and swallowed.
+    /// </summary>
+    private async Task GuardAsync(Func<Task> action)
+    {
+        try { await action(); }
+        catch (Exception ex) { _logger.LogWarning(ex, "Cast device {Name} refused a command", _connectedDeviceId); }
+    }
+
+    /// <summary>
+    /// The host resolves its own base address to localhost, which on a television means the
+    /// television — it would be fetching itself. Swap in a LAN address; anything already routable
+    /// is left alone so a configured address still wins.
+    /// </summary>
+    internal static string MakeReachableFromDevice(string url, string? lanAddress)
+    {
+        if (lanAddress is null || !Uri.TryCreate(url, UriKind.Absolute, out var uri)) return url;
+        if (!uri.IsLoopback) return url;
+
+        return new UriBuilder(uri) { Host = lanAddress }.Uri.ToString();
+    }
+
+    private static string? LanAddress()
+        => NetworkInterface.GetAllNetworkInterfaces()
+            .Where(n => n.OperationalStatus == OperationalStatus.Up
+                        && n.NetworkInterfaceType != NetworkInterfaceType.Loopback)
+            .SelectMany(n => n.GetIPProperties().UnicastAddresses)
+            .Select(a => a.Address)
+            .FirstOrDefault(a => a.AddressFamily == AddressFamily.InterNetwork && !IPAddress.IsLoopback(a))
+            ?.ToString();
+
+    private void OnMediaStatus(MediaStatus? status)
+    {
+        if (status is null) return;
+
+        PlaybackStatusChanged?.Invoke(this, new CastPlaybackStatus
+        {
+            Position = _streamStartOffset + TimeSpan.FromSeconds(status.CurrentTime),
+            IsPlaying = status.PlayerState == PlayerStateType.Playing,
+            SampledAtUtc = DateTime.UtcNow,
+        });
+    }
+
+    private void OnDeviceDropped(string deviceId)
+    {
+        if (_connectedDeviceId != deviceId) return;
+
+        _logger.LogWarning("Cast device {Name} dropped its connection", deviceId);
+
+        _client = null;
+        _connectedDeviceId = null;
+        RaiseStateChanged();
+    }
+
+    private void OnReceiverFound(object? sender, ChromecastReceiverEventArgs e)
+    {
+        if (Remember(e.Receiver)) RaiseStateChanged();
+    }
+
+    private bool Remember(ChromecastReceiver receiver)
+    {
+        // Discovery does not always carry a stable device id, and the friendly name is what the
+        // user recognises anyway.
+        if (receiver.Name is not { Length: > 0 } id) return false;
+
+        _lock.Wait();
+        try
+        {
+            if (!_discovered.TryAdd(id, receiver)) return false;
+        }
+        finally { _lock.Release(); }
+
+        _logger.LogInformation("Found Cast device {Name} at {Address}", receiver.Name, receiver.DeviceUri);
+        return true;
+    }
+
+    private void RaiseStateChanged() => StateChanged?.Invoke(this, EventArgs.Empty);
+
+    public void Dispose()
+    {
+        if (_locator is not null)
+        {
+            _locator.ChromecastReceiverFound -= OnReceiverFound;
+            try { _locator.StopContinuousDiscovery(); } catch { /* never started */ }
+            _locator.Dispose();
+        }
+
+        try { _client?.DisconnectAsync().GetAwaiter().GetResult(); } catch { /* shutting down */ }
+        _client = null;
+    }
+}
