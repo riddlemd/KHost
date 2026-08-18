@@ -57,7 +57,7 @@ public sealed class ScreenCapabilities
     /// <summary>
     /// True when the screen renders video. Independent of <see cref="SupportsAudio"/>: the screen
     /// the room hears may be an audio-only output, leaving the lyrics displays as the only things
-    /// showing video while still taking their timing from elsewhere.
+    /// showing video while still taking their timing cue from elsewhere.
     /// </summary>
     public bool SupportsVideo { get; init; }
 }

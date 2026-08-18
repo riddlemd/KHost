@@ -86,11 +86,11 @@ public partial class ScreensDialog : IDisposable
 
     private bool IsAudioScreen(IScreenConnection screen) => ScreenCoordination!.AudioScreenId == screen.ScreenId;
 
-    private bool IsTimingScreen(IScreenConnection screen) => ScreenCoordination!.TimingScreenId == screen.ScreenId;
+    private bool IsPrimaryScreen(IScreenConnection screen) => ScreenCoordination!.PrimaryScreenId == screen.ScreenId;
 
     private bool IsAudible(IScreenConnection screen) => ScreenCoordination!.IsAudioEnabled(screen.ScreenId);
 
-    private async Task SendAudioToAsync(IScreenConnection screen)
+    private async Task SetAsPrimaryAsync(IScreenConnection screen)
     {
         await ScreenCoordination!.SetAudioScreenAsync(screen.ScreenId);
         StateHasChanged();

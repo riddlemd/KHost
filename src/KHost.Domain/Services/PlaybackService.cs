@@ -483,7 +483,7 @@ public class PlaybackService : BaseService, IPlaybackService
             if (screens.Count == 0) return;
 
             await _screenCoordination.EnsureRolesAsync();
-            var timingScreenId = _screenCoordination.TimingScreenId;
+            var primaryScreenId = _screenCoordination.PrimaryScreenId;
 
             // Addressed per screen rather than broadcast: a loose consumer cannot honour a
             // schedule, and sending it one would only invite it to try.
@@ -493,7 +493,7 @@ public class PlaybackService : BaseService, IPlaybackService
                     Position = position,
                     AnchorUtc = anchorUtc,
                     IsPlaying = isPlaying,
-                    IsTimingReference = screen.ScreenId == timingScreenId,
+                    IsPrimary = screen.ScreenId == primaryScreenId,
                 });
         }
         catch (Exception ex)
@@ -503,7 +503,7 @@ public class PlaybackService : BaseService, IPlaybackService
     }
 
     /// <summary>
-    /// Re-anchors the group onto what the timing reference is actually playing. Without this the host holds
+    /// Re-anchors the group onto what the primary is actually playing. Without this the host holds
     /// the followers to a clock they cannot reach — an HLS seek lands on a segment boundary, so a
     /// screen settles behind the anchor and trims its rate forever to chase it. A permanent trim
     /// is a permanent pitch error, which a karaoke screen cannot have; anchoring on a position a
@@ -512,7 +512,7 @@ public class PlaybackService : BaseService, IPlaybackService
     private void OnScreenStateReceived(object? sender, ScreenStateReceivedEventArgs e)
     {
         if (State != PlaybackState.Playing) return;
-        if (e.ScreenId != _screenCoordination.TimingScreenId) return;
+        if (e.ScreenId != _screenCoordination.PrimaryScreenId) return;
         if (e.State is not ScreenPlaybackState state) return;
         if (!state.IsPlaying || state.SampledAtUtc is not { } sampledAt) return;
 

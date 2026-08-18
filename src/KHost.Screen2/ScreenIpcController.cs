@@ -102,7 +102,7 @@ internal sealed class ScreenIpcController : IAsyncDisposable
                 _player.Volume = cmd.Volume;
                 break;
             case SetTimelineCommand cmd:
-                _player.SetTimeline(cmd.Position, cmd.AnchorUtc, cmd.IsPlaying, cmd.IsTimingReference);
+                _player.SetTimeline(cmd.Position, cmd.AnchorUtc, cmd.IsPlaying, cmd.IsPrimary);
                 break;
             case SetPitchCommand cmd:
                 _player.PitchSemitones = cmd.Semitones;
