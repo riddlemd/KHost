@@ -112,6 +112,89 @@ public class ScreenCoordinationServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task LosingTheAudioScreen_PromotesAnother()
+    {
+        var main = Screen("Main", sync: true, audio: true);
+        var spare = Screen("Spare", sync: true, audio: true);
+        Connect(main, spare);
+        await _service.EnsureRolesAsync();
+        Assert.Equal("Main", _service.AudioScreenId);
+
+        Connect(spare);
+        Disconnect(main);
+
+        // The room cannot be left silent because one screen went away.
+        await WaitForAsync(() => _service.AudioScreenId == "Spare");
+        Assert.Equal("Spare", _service.PrimaryScreenId);
+    }
+
+    [Fact]
+    public async Task ThePromotedScreen_BecomesAudible()
+    {
+        var main = Screen("Main", sync: true, audio: true);
+        var spare = Screen("Spare", sync: true, audio: true);
+        Connect(main, spare);
+        await _service.EnsureRolesAsync();
+        _screenServer.ClearReceivedCalls();
+
+        Connect(spare);
+        Disconnect(main);
+        await WaitForAsync(() => _service.AudioScreenId == "Spare");
+
+        // Promotion has to reach the screen, not just the host's bookkeeping — it was muted.
+        Assert.True(_service.IsAudioEnabled("Spare"));
+        await _screenServer.Received().SendCommandAsync("Spare",
+            Arg.Is<SetVolumeCommand>(c => c.Volume > 0f));
+    }
+
+    [Fact]
+    public async Task LosingANonRoleScreen_LeavesTheRolesAlone()
+    {
+        var main = Screen("Main", sync: true, audio: true);
+        var other = Screen("Other", sync: true, audio: true);
+        Connect(main, other);
+        await _service.EnsureRolesAsync();
+
+        Connect(main);
+        Disconnect(other);
+        await Task.Delay(100);
+
+        // Moving a role that did not need moving is a visible jump on every follower.
+        Assert.Equal("Main", _service.AudioScreenId);
+        Assert.Equal("Main", _service.PrimaryScreenId);
+    }
+
+    [Fact]
+    public async Task LosingTheLastScreen_LeavesBothRolesVacant()
+    {
+        var main = Screen("Main", sync: true, audio: true);
+        Connect(main);
+        await _service.EnsureRolesAsync();
+
+        Connect();
+        Disconnect(main);
+
+        await WaitForAsync(() => _service.AudioScreenId is null);
+        Assert.Null(_service.PrimaryScreenId);
+    }
+
+    [Fact]
+    public async Task LosingTheAudioScreen_FallsBackToASilentScreenForThePrimary()
+    {
+        var main = Screen("Main", sync: true, audio: true);
+        var lyrics = Screen("Lyrics", sync: true, audio: false);
+        Connect(main, lyrics);
+        await _service.EnsureRolesAsync();
+
+        Connect(lyrics);
+        Disconnect(main);
+
+        // Nothing left renders audio, but the synced screens still need something to follow.
+        await WaitForAsync(() => _service.PrimaryScreenId == "Lyrics");
+        Assert.Null(_service.AudioScreenId);
+    }
+
+    [Fact]
     public async Task AudioScreen_IsTheOnlyAudibleScreen_ByDefault()
     {
         Connect(Screen("Main", sync: true, audio: true), Screen("Lyrics", sync: true, audio: true));
@@ -206,6 +289,16 @@ public class ScreenCoordinationServiceTests : IDisposable
         await _service.SetAudioScreenAsync("Lyrics");
 
         Assert.Equal(1, raised);
+    }
+
+    private void Disconnect(IScreenConnection screen)
+        => _screenServer.ScreenDisconnected += Raise.EventWith(
+            _screenServer, new ScreenConnectionEventArgs { Connection = screen });
+
+    // The disconnect handler runs detached so it cannot deadlock the hub lock.
+    private static async Task WaitForAsync(Func<bool> condition)
+    {
+        for (var i = 0; i < 100 && !condition(); i++) await Task.Delay(10);
     }
 
     private static IScreenConnection Screen(string id, bool sync, bool audio)
