@@ -59,7 +59,12 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, ID
         var directory = Path.Combine(_root, id);
         Directory.CreateDirectory(directory);
 
-        var arguments = BuildArguments(filePath, startOffset, pitchSemitones, _options.SegmentSeconds);
+        var companionAudio = ResolveCompanionAudio(filePath);
+        if (companionAudio is null && IsGraphicsOnly(filePath))
+            Logger.LogWarning("No companion audio beside '{FilePath}'; the stream will be silent", filePath);
+
+        var arguments = BuildArguments(
+            filePath, startOffset, pitchSemitones, _options.SegmentSeconds, companionAudio);
 
         Logger.LogInformation("Opening stream {SessionId} for '{FilePath}' at {Offset}", id, filePath, startOffset);
         Logger.LogDebug("ffmpeg {Arguments}", arguments);
@@ -188,14 +193,33 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, ID
     /// EVENT so a consumer can start on the first segment. H.264 Main@4.1 with AAC-LC is the
     /// intersection of what browsers, WKWebView and every Chromecast generation decode.
     /// </summary>
-    internal static string BuildArguments(string filePath, TimeSpan startOffset, int pitchSemitones, int segmentSeconds)
+    internal static string BuildArguments(
+        string filePath,
+        TimeSpan startOffset,
+        int pitchSemitones,
+        int segmentSeconds,
+        string? companionAudioPath = null)
     {
         var arguments = "-hide_banner -loglevel error";
 
-        if (startOffset > TimeSpan.Zero)
+        // CDG decoding is stateful, so an input seek lands mid-packet and the graphics decode to
+        // garbage. A paired source seeks on the output instead and eats the frames.
+        var seekOnOutput = companionAudioPath is not null;
+
+        if (startOffset > TimeSpan.Zero && !seekOnOutput)
             arguments += string.Format(CultureInfo.InvariantCulture, " -ss {0:F3}", startOffset.TotalSeconds);
 
         arguments += $" -i \"{filePath}\"";
+
+        if (companionAudioPath is not null)
+        {
+            // Without the mapping ffmpeg picks one stream per type from the first input that has
+            // one, and a .cdg carries no audio at all.
+            arguments += $" -i \"{companionAudioPath}\" -map 0:v:0 -map 1:a:0";
+        }
+
+        if (startOffset > TimeSpan.Zero && seekOnOutput)
+            arguments += string.Format(CultureInfo.InvariantCulture, " -ss {0:F3}", startOffset.TotalSeconds);
 
         // Fixed GOP with no scene-cut detection, so every segment starts on a keyframe.
         arguments += " -c:v libx264 -preset veryfast -profile:v main -level 4.1 -pix_fmt yuv420p"
@@ -214,6 +238,27 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, ID
             Math.Max(1, segmentSeconds));
 
         return arguments + $" {PlaylistFileName}";
+    }
+
+    /// <summary>A .cdg holds only graphics; its audio is a same-named file beside it.</summary>
+    private static readonly string[] CompanionAudioExtensions =
+        [".mp3", ".m4a", ".wav", ".aac", ".flac", ".ogg", ".wma"];
+
+    internal static bool IsGraphicsOnly(string filePath)
+        => Path.GetExtension(filePath).Equals(".cdg", StringComparison.OrdinalIgnoreCase);
+
+    internal static string? ResolveCompanionAudio(string filePath)
+    {
+        if (!IsGraphicsOnly(filePath)) return null;
+
+        // .mp3 first: it is what CD+G rips ship with, and a stray .wav should not win over it.
+        foreach (var extension in CompanionAudioExtensions)
+        {
+            var candidate = Path.ChangeExtension(filePath, extension);
+            if (File.Exists(candidate)) return candidate;
+        }
+
+        return null;
     }
 
     private static string BuildPitchFilter(int semitones)

@@ -63,6 +63,42 @@ public class HlsMediaStreamServiceTests : IDisposable
     }
 
     [Fact]
+    public void BuildArguments_PairsGraphicsWithTheirCompanionAudio()
+    {
+        var arguments = HlsMediaStreamService.BuildArguments(
+            "/songs/a.cdg", TimeSpan.Zero, 0, 2, "/songs/a.mp3");
+
+        Assert.Contains("-i \"/songs/a.cdg\"", arguments);
+        Assert.Contains("-i \"/songs/a.mp3\"", arguments);
+
+        // Without the mapping ffmpeg takes both streams from the first input, which has no audio.
+        Assert.Contains("-map 0:v:0 -map 1:a:0", arguments);
+    }
+
+    [Fact]
+    public void BuildArguments_SeeksOnTheOutput_ForAPairedSource()
+    {
+        var arguments = HlsMediaStreamService.BuildArguments(
+            "/songs/a.cdg", TimeSpan.FromSeconds(42), 0, 2, "/songs/a.mp3");
+
+        // An input seek lands mid-packet and CDG decodes to garbage from there.
+        var seek = arguments.IndexOf("-ss 42.000", StringComparison.Ordinal);
+        var lastInput = arguments.LastIndexOf("-i \"", StringComparison.Ordinal);
+        Assert.True(seek > lastInput, $"seek must follow both inputs: {arguments}");
+    }
+
+    [Fact]
+    public void BuildArguments_KeepsTheFastInputSeek_ForAnOrdinaryFile()
+    {
+        var arguments = HlsMediaStreamService.BuildArguments("/songs/a.mp4", TimeSpan.FromSeconds(42), 0, 2);
+
+        Assert.True(
+            arguments.IndexOf("-ss 42.000", StringComparison.Ordinal)
+                < arguments.IndexOf("-i \"", StringComparison.Ordinal),
+            arguments);
+    }
+
+    [Fact]
     public void BuildArguments_AddsAPitchFilter_OnlyWhenShifted()
     {
         Assert.DoesNotContain("asetrate", HlsMediaStreamService.BuildArguments("/songs/a.mp4", TimeSpan.Zero, 0, 2));
