@@ -96,6 +96,60 @@ public class HlsMediaStreamServiceTranscodeTests : IDisposable
         Assert.NotNull(_service.ResolveArtifact(second.Id, "stream.m3u8"));
     }
 
+    [RequiresFfmpegFact]
+    public async Task OpenAsync_GivesACdgTheAudioFromTheFileBesideIt()
+    {
+        var cdg = await CreateCdgPairAsync(seconds: 4);
+
+        var session = await _service.OpenAsync(cdg);
+
+        var segment = await WaitForArtifactAsync(session.Id, "seg_00000.ts");
+        Assert.NotNull(segment);
+
+        // A .cdg carries only graphics, so without the companion the song plays silent.
+        Assert.Contains("audio", await ProbeStreamTypesAsync(segment));
+        Assert.Contains("video", await ProbeStreamTypesAsync(segment));
+    }
+
+    [RequiresFfmpegFact]
+    public async Task OpenAsync_StillStreamsACdgWithNoCompanionAudio()
+    {
+        var cdg = await CreateCdgPairAsync(seconds: 4);
+        File.Delete(Path.ChangeExtension(cdg, ".mp3"));
+
+        // Silent, but it must not take the whole stream down with it.
+        var session = await _service.OpenAsync(cdg);
+
+        Assert.NotNull(await WaitForArtifactAsync(session.Id, "seg_00000.ts"));
+    }
+
+    private async Task<string> ProbeStreamTypesAsync(string path)
+    {
+        using var process = Process.Start(new ProcessStartInfo("ffprobe",
+            $"-hide_banner -v error -show_entries stream=codec_type -of csv \"{path}\"")
+        {
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+        })!;
+
+        var output = await process.StandardOutput.ReadToEndAsync();
+        await process.WaitForExitAsync();
+        return output;
+    }
+
+    /// <summary>Writes a blank but structurally valid .cdg next to a real .mp3.</summary>
+    private async Task<string> CreateCdgPairAsync(int seconds)
+    {
+        var audio = await CreateSampleAsync(seconds, audioOnly: true);
+        var cdg = Path.ChangeExtension(audio, ".cdg");
+
+        // CD+G is 24-byte packets at 300 per second; all-zero packets decode to an empty screen.
+        await File.WriteAllBytesAsync(cdg, new byte[24 * 300 * seconds]);
+
+        return cdg;
+    }
+
     private async Task<string?> WaitForArtifactAsync(string sessionId, string fileName)
     {
         for (var i = 0; i < 200; i++)
@@ -108,15 +162,18 @@ public class HlsMediaStreamServiceTranscodeTests : IDisposable
         return null;
     }
 
-    private async Task<string> CreateSampleAsync(int seconds)
+    private async Task<string> CreateSampleAsync(int seconds, bool audioOnly = false)
     {
         Directory.CreateDirectory(_workingDirectory);
-        var path = Path.Combine(_workingDirectory, "sample.mp4");
+        var path = Path.Combine(_workingDirectory, audioOnly ? "sample.mp3" : "sample.mp4");
 
         // Synthetic: no karaoke media is checked in.
-        var arguments = $"-hide_banner -loglevel error -y -f lavfi -i testsrc2=size=320x240:rate=15 "
-                      + $"-f lavfi -i sine=frequency=440:sample_rate=44100 -t {seconds} "
-                      + $"-c:v libx264 -preset ultrafast -pix_fmt yuv420p -c:a aac \"{path}\"";
+        var arguments = audioOnly
+            ? $"-hide_banner -loglevel error -y -f lavfi -i sine=frequency=440:sample_rate=44100 "
+              + $"-t {seconds} -c:a libmp3lame \"{path}\""
+            : $"-hide_banner -loglevel error -y -f lavfi -i testsrc2=size=320x240:rate=15 "
+              + $"-f lavfi -i sine=frequency=440:sample_rate=44100 -t {seconds} "
+              + $"-c:v libx264 -preset ultrafast -pix_fmt yuv420p -c:a aac \"{path}\"";
 
         using var process = Process.Start(new ProcessStartInfo("ffmpeg", arguments)
         {
