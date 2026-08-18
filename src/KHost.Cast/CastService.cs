@@ -15,11 +15,6 @@ public sealed class CastService : ICastService, IDisposable
 {
     public sealed class ServiceOptions
     {
-        public const string SectionName = "Cast";
-
-        /// <summary>Off by default: discovery browses the whole network, which is not free.</summary>
-        public bool Enabled { get; set; }
-
         /// <summary>Google's Default Media Receiver — plays a plain URL, no app of our own.</summary>
         public string ReceiverAppId { get; set; } = "CC1AD845";
 
@@ -67,21 +62,22 @@ public sealed class CastService : ICastService, IDisposable
         }
     }
 
-    public async Task InitializeAsync(CancellationToken cancellationToken = default)
-    {
-        if (!_options.Enabled)
-        {
-            _logger.LogInformation("Cast is disabled; set Cast:Enabled to browse for receivers");
-            return;
-        }
+    public bool IsDiscovering => _locator is not null;
 
-        _locator = new ChromecastLocator();
-        _locator.ChromecastReceiverFound += OnReceiverFound;
+    public async Task StartDiscoveryAsync(CancellationToken cancellationToken = default)
+    {
+        if (_locator is not null) return;
+
+        var locator = new ChromecastLocator();
+        locator.ChromecastReceiverFound += OnReceiverFound;
+        _locator = locator;
+
+        _logger.LogInformation("Browsing for Cast receivers");
 
         // One sweep now so the page has something immediately, then keep listening.
         try
         {
-            foreach (var receiver in await _locator.FindReceiversAsync(_options.DiscoveryTimeout))
+            foreach (var receiver in await locator.FindReceiversAsync(_options.DiscoveryTimeout))
                 Remember(receiver);
         }
         catch (Exception ex)
@@ -89,8 +85,33 @@ public sealed class CastService : ICastService, IDisposable
             _logger.LogWarning(ex, "Cast discovery sweep failed");
         }
 
-        _locator.StartContinuousDiscovery(TimeSpan.FromSeconds(30));
+        locator.StartContinuousDiscovery(TimeSpan.FromSeconds(30));
         RaiseStateChanged();
+    }
+
+    public Task StopDiscoveryAsync(CancellationToken cancellationToken = default)
+    {
+        var locator = _locator;
+        _locator = null;
+
+        if (locator is not null)
+        {
+            locator.ChromecastReceiverFound -= OnReceiverFound;
+            try { locator.StopContinuousDiscovery(); } catch { /* never started */ }
+            _logger.LogInformation("Stopped browsing for Cast receivers");
+        }
+
+        _lock.Wait(cancellationToken);
+        try
+        {
+            // The receiver being cast to stays listed, or there would be no way to stop it.
+            foreach (var id in _discovered.Keys.Where(id => id != _connectedDeviceId).ToList())
+                _discovered.Remove(id);
+        }
+        finally { _lock.Release(); }
+
+        RaiseStateChanged();
+        return Task.CompletedTask;
     }
 
     public async Task<bool> ConnectAsync(string deviceId, CancellationToken cancellationToken = default)

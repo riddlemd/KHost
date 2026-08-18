@@ -73,11 +73,10 @@ public class CastServiceTests : IAsyncLifetime
         NullLogger<CastService>.Instance,
         Options.Create(new CastService.ServiceOptions
         {
-            Enabled = true,
             DiscoveryTimeout = TimeSpan.FromSeconds(5),
         }));
 
-    public async Task InitializeAsync() => await _cast.InitializeAsync();
+    public async Task InitializeAsync() => await _cast.StartDiscoveryAsync();
 
     public Task DisposeAsync()
     {
@@ -86,7 +85,7 @@ public class CastServiceTests : IAsyncLifetime
     }
 
     [RequiresCastEmulatorFact]
-    public void Initialize_DiscoversTheReceiver() => Assert.NotEmpty(_cast.Devices);
+    public void StartDiscovery_DiscoversTheReceiver() => Assert.NotEmpty(_cast.Devices);
 
     [RequiresCastEmulatorFact]
     public async Task Connect_MarksTheDeviceConnected_WithoutMakingItAScreen()

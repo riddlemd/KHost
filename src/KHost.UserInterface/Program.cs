@@ -170,9 +170,6 @@ internal static class Program
             throw;
         }
 
-        // Detached: nothing should wait on finding a television before the app starts.
-        _ = app.Services.GetRequiredService<ICastService>().InitializeAsync();
-
         app.MapDefaultEndpoints();
         app.MapIPCServer();
         app.MapMediaStream();
