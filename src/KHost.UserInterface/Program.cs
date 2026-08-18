@@ -19,6 +19,7 @@ using KHost.UserInterface.Interactions;
 using KHost.UserInterface.Middleware;
 using KHost.UserInterface.Interactions.Handlers;
 using KHost.UserInterface.Services;
+using KHost.UserInterface.Http;
 using Photino.NET;
 using Serilog;
 using Serilog.Events;
@@ -217,6 +218,19 @@ internal static class Program
         // Segments outlive the process, so sweep them on the way down.
         app.Lifetime.ApplicationStopping.Register(() =>
             app.Services.GetRequiredService<IMediaStreamService>().CloseAllAsync().GetAwaiter().GetResult());
+
+        // Ahead of everything else, including static files: an off-box request must not reach the
+        // UI, its assets, or its error pages.
+        app.Use(async (context, next) =>
+        {
+            if (!LanAccessPolicy.IsAllowed(context.Connection.RemoteIpAddress, context.Request.Path))
+            {
+                context.Response.StatusCode = StatusCodes.Status404NotFound;
+                return;
+            }
+
+            await next();
+        });
 
         // Configure the HTTP request pipeline.
         if (!app.Environment.IsDevelopment())
