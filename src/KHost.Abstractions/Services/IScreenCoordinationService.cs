@@ -43,4 +43,12 @@ public interface IScreenCoordinationService
     Task ClearAudioOverrideAsync(string screenId, CancellationToken cancellationToken = default);
 
     bool HasAudioOverride(string screenId);
+
+    /// <summary>
+    /// Whether the screen is rendering a picture. On by default for anything that can; blanking
+    /// one does not take it off the timeline, so it stays in step and can be turned back on.
+    /// </summary>
+    bool IsVideoEnabled(string screenId);
+
+    Task SetVideoEnabledAsync(string screenId, bool enabled, CancellationToken cancellationToken = default);
 }

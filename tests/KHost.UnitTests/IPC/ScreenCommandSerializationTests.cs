@@ -22,6 +22,7 @@ public class ScreenCommandSerializationTests
         [nameof(SeekCommand)] = new SeekCommand { Position = TimeSpan.FromSeconds(42) },
         [nameof(SetVolumeCommand)] = new SetVolumeCommand { Volume = 0.75f },
         [nameof(SetPitchCommand)] = new SetPitchCommand { Semitones = -3 },
+        [nameof(SetVideoCommand)] = new SetVideoCommand { Enabled = false },
         [nameof(SetTimelineCommand)] = new SetTimelineCommand
         {
             Position = TimeSpan.FromSeconds(42),

@@ -123,6 +123,13 @@ internal sealed class StreamMediaPlayer : IMediaPlayer
         });
     }
 
+    /// <summary>Blanks the picture. Playback continues, so the screen stays on the timeline.</summary>
+    public void SetVideoEnabled(bool enabled)
+    {
+        _logger.LogInformation("Video {State}", enabled ? "on" : "blanked");
+        Send(new { type = "video", enabled });
+    }
+
     public Task LoadAsync(string filePath, CancellationToken cancellationToken = default)
     {
         // Reaching here means the host sent a load with no StreamUrl. A streamed screen has no

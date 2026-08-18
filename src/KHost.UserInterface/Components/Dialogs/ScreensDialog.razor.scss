@@ -20,13 +20,18 @@
 
     // Sits on the section heading, which inherits uppercase and letter-spacing — both are undone
     // here so it reads as an aside rather than part of the title.
+    // Dashed, so a cast target never reads as one of the solid-bordered screen rows above it.
     &__note {
+        display: inline-flex;
+        align-items: center;
         margin-left: 8px;
-        color: var(--kh-text-muted, var(--kh-text-secondary));
-        font-size: 0.78rem;
+        padding: 3px 9px;
+        border: 1px dashed var(--kh-border);
+        border-radius: 999px;
+        color: var(--kh-text-muted);
+        font-size: 0.66rem;
         font-weight: 400;
-        text-transform: none;
-        letter-spacing: 0;
+        letter-spacing: 0.06em;
     }
 
     &__empty {
@@ -37,39 +42,291 @@
         text-align: center;
     }
 
-    &__list {
-        list-style: none;
-        margin: 0;
-        padding: 0;
-        display: flex;
-        flex-direction: column;
-        gap: 8px;
+    // A grid, not a row of buttons per screen: the columns are what let you read down to answer
+    // "which screen has the audio?" instead of scanning across every row.
+    &__matrix {
+        display: grid;
+        grid-template-columns: 1fr 56px 56px 56px 56px;
+
+        // No column gap: the cells carry the row's background, so any gap between them cuts the
+        // row into four floating boxes instead of one continuous strip.
+        gap: 8px 0;
+        align-items: stretch;
     }
 
-    &__item {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        padding: 8px 12px;
-        background: var(--kh-bg-card-dark);
-        border: 1px solid var(--kh-border);
-        border-radius: var(--kh-radius);
-        font-size: 0.95rem;
+    &__matrix-head {
+        display: contents;
 
-        // Every row the same height whether or not it carries a second line, so the controls
-        // down the right edge form a column instead of stepping in and out.
-        min-height: calc(var(--kh-control-height) + 16px);
+        span {
+            padding-bottom: 6px;
+            border-bottom: 1px solid var(--kh-border);
+            color: var(--kh-text-secondary);
+            font-size: 0.68rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            text-align: center;
+        }
+
+        span:first-child { text-align: left; }
     }
 
-    &__item--role {
-        border-left: 3px solid var(--kh-primary);
+    &__matrix-row {
+        display: contents;
+
+        > * {
+            padding: 9px 0;
+            background: var(--kh-bg-card-dark);
+            border-block: 1px solid var(--kh-border);
+        }
+
+        > *:first-child {
+            padding-left: 12px;
+            border-left: 1px solid var(--kh-border);
+            border-radius: var(--kh-radius) 0 0 var(--kh-radius);
+            min-width: 0;
+        }
+
+        > *:last-child {
+            padding-right: 8px;
+            border-right: 1px solid var(--kh-border);
+            border-radius: 0 var(--kh-radius) var(--kh-radius) 0;
+        }
+
+        &:hover > * { border-color: var(--kh-border-bright); }
+    }
+
+    // The accent replaces the left border rather than adding to it, so the row keeps its width and
+    // the column below stays aligned.
+    &__matrix-row--primary > *:first-child {
+        border-left: 3px solid var(--kh-accent);
         padding-left: 10px;
     }
 
-    // Takes the slack so the actions sit against the right edge. Without it the whole row packs
-    // left and the buttons float in the middle of the dialog.
-    &__item-content {
+    &__cell {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    // Indicator, not a control: sync is a fact about the screen, not something you can set.
+    &__sync {
+        font-size: 0.95rem;
+        line-height: 1;
+    }
+
+    &__sync--ok { color: var(--kh-success); }
+
+    &__sync--drifting { color: var(--kh-warning); }
+
+    &__sync--idle {
+        color: var(--kh-text-secondary);
+        opacity: 0.5;
+    }
+
+    // Deliberately not .kh-button: a filled chip per cell turns the column into a wall of grey
+    // boxes. State reads as brightness instead, which leaves red free to mean "primary".
+    &__toggle {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 30px;
+        height: 30px;
+        padding: 0;
+        border: none;
+        border-radius: var(--kh-radius);
+        background: transparent;
+        color: var(--kh-text);
+        font-size: 1rem;
+        line-height: 1;
+        cursor: pointer;
+
+        &:hover:not(:disabled) { background: var(--kh-bg-card); }
+
+        &:disabled { opacity: 0.22; cursor: not-allowed; }
+    }
+
+    &__toggle--off {
+        color: var(--kh-text-secondary);
+        opacity: 0.6;
+    }
+
+    // A radio, because exactly one screen can hold the role — the shape states the rule.
+    &__radio {
+        width: 18px;
+        height: 18px;
+        padding: 0;
+        border: 2px solid var(--kh-border-bright);
+        border-radius: 50%;
+        background: transparent;
+        cursor: pointer;
+        position: relative;
+
+        &:hover:not(:disabled) { border-color: var(--kh-accent-bright); }
+
+        &:disabled { opacity: 0.22; cursor: not-allowed; }
+    }
+
+    &__radio--on {
+        border-color: var(--kh-accent);
+
+        &::after {
+            content: "";
+            position: absolute;
+            inset: 2px;
+            border-radius: 50%;
+            background: var(--kh-accent);
+        }
+    }
+
+    &__picker {
+        position: relative;
+    }
+
+    &__picker-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    &__picker-trigger {
         flex: 1;
+        min-width: 0;
+        height: var(--kh-control-height);
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 0 12px;
+        background: var(--kh-bg-card-dark);
+        border: 1px solid var(--kh-border);
+        border-radius: var(--kh-radius);
+        color: var(--kh-text);
+        font: inherit;
+        text-align: left;
+        cursor: pointer;
+
+        &:hover {
+            border-color: var(--kh-border-bright);
+        }
+    }
+
+    &__picker-icon--on {
+        color: var(--kh-success);
+    }
+
+    &__picker-label {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    &__picker-chev {
+        margin-left: auto;
+        color: var(--kh-text-secondary);
+        font-size: 0.72rem;
+    }
+
+    &__picker-trigger[aria-expanded="true"] &__picker-chev {
+        transform: rotate(180deg);
+    }
+
+    // Catches the click that dismisses the popover. Fixed rather than absolute so it covers the
+    // dialog behind it, and below the popover in the stack so the options stay clickable.
+    &__picker-backdrop {
+        position: fixed;
+        inset: 0;
+        z-index: 4;
+    }
+
+    &__picker-popover {
+        position: absolute;
+        top: calc(100% + 6px);
+        left: 0;
+        right: 0;
+        z-index: 5;
+        overflow: hidden;
+        background: var(--kh-bg-card-dark);
+        border: 1px solid var(--kh-border-bright);
+        border-radius: var(--kh-radius);
+        box-shadow: 0 12px 28px rgba(0, 0, 0, 0.45);
+    }
+
+    &__picker-item {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        width: 100%;
+        padding: 10px 12px;
+        background: none;
+        border: none;
+        border-radius: 0;
+        color: var(--kh-text);
+        font: inherit;
+        text-align: left;
+        cursor: pointer;
+
+        &:hover:not(:disabled) {
+            background: var(--kh-bg-card);
+        }
+
+        &:disabled {
+            cursor: default;
+            opacity: 0.55;
+        }
+    }
+
+    &__picker-radio {
+        position: relative;
+        width: 14px;
+        height: 14px;
+        flex-shrink: 0;
+        border: 1px solid var(--kh-border-bright);
+        border-radius: 50%;
+    }
+
+    &__picker-item--on &__picker-radio {
+        border-color: var(--kh-success);
+
+        &::after {
+            content: "";
+            position: absolute;
+            inset: 2px;
+            border-radius: 50%;
+            background: var(--kh-success);
+        }
+    }
+
+    &__picker-text {
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+    }
+
+    &__picker-name {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    &__picker-meta {
+        color: var(--kh-text-secondary);
+        font-size: 0.78rem;
+    }
+
+    &__picker-state {
+        margin-left: auto;
+        padding-left: 8px;
+        color: var(--kh-text-secondary);
+        font-size: 0.7rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        white-space: nowrap;
+    }
+
+    &__item-content {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
         min-width: 0;
     }
 
@@ -98,32 +355,10 @@
         max-width: 40ch;
     }
 
-    &__item-actions {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        flex-shrink: 0;
-        margin-left: auto;
-    }
-
-    // Square, and the same height as the text button beside it — an icon variant sized to 26px
-    // next to a 36px button is what made the row look thrown together. Muted takes the outline
-    // treatment rather than a solid fill, so on and off read at a glance.
-    &__audio {
-        width: var(--kh-control-height);
-        padding: 0;
-        flex-shrink: 0;
-    }
-
     &__status--connected {
         flex-shrink: 0;
-        color: var(--kh-success, #4caf50);
+        color: var(--kh-success);
         font-size: 0.6em;
-    }
-
-    &__status--cast {
-        flex-shrink: 0;
-        color: var(--kh-text-secondary);
     }
 
     &__warning {
@@ -134,7 +369,7 @@
         padding: 8px 10px;
         border-radius: var(--kh-radius);
         background: var(--kh-bg-card-dark);
-        border-left: 3px solid var(--kh-warning, #d98324);
+        border-left: 3px solid var(--kh-warning);
         color: var(--kh-text);
         font-size: 0.82rem;
         line-height: 1.4;

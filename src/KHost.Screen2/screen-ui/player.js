@@ -3,6 +3,7 @@
 
 const video = document.getElementById('video');
 const placeholder = document.getElementById('placeholder');
+const blanked = document.getElementById('blanked');
 
 function send(payload) {
     if (window.external && window.external.sendMessage) {
@@ -176,6 +177,14 @@ function handleCommand(raw) {
         case 'seek':
             // Seeking within a stream the page already holds, rather than restarting a transcode.
             try { video.currentTime = message.position || 0; } catch (e) { reportError(`seek: ${e}`); }
+            break;
+        case 'video':
+            // Hidden, not paused: the screen has to keep running to stay on the timeline, and a
+            // paused element would drift the moment it was turned back on. visibility, not display:
+            // display:none drops the element from the rendering tree, which lets WebKit suspend the
+            // decoder and stall on catch-up when the picture comes back.
+            video.style.visibility = message.enabled === false ? 'hidden' : '';
+            blanked.hidden = message.enabled !== false;
             break;
         case 'volume':
             currentVolume = Math.max(0, Math.min(1, message.value));
