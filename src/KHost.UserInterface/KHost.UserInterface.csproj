@@ -104,4 +104,10 @@
     <Copy SourceFiles="@(ScreenFiles)" DestinationFiles="@(ScreenFiles->'$(OutputPath)%(RecursiveDir)%(Filename)%(Extension)')" />
   </Target>
 
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
+      <_Parameter1>KHost.UnitTests</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
+
 </Project>

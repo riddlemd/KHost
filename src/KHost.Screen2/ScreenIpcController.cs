@@ -95,6 +95,9 @@ internal sealed class ScreenIpcController : IAsyncDisposable
             case SetTimelineCommand cmd:
                 _player.SetTimeline(cmd.Position, cmd.AnchorUtc, cmd.IsPlaying, cmd.IsPrimary);
                 break;
+            case SetVideoCommand cmd:
+                _player.SetVideoEnabled(cmd.Enabled);
+                break;
             case SetPitchCommand cmd:
                 _player.PitchSemitones = cmd.Semitones;
                 break;

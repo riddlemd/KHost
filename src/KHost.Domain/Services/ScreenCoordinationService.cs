@@ -1,6 +1,7 @@
 using KHost.Abstractions.Services;
 using KHost.Abstractions.Services.IPC;
 using Microsoft.Extensions.Logging;
+using System.Collections.Concurrent;
 
 namespace KHost.Domain.Services;
 
@@ -17,7 +18,12 @@ public sealed class ScreenCoordinationService : BaseService, IScreenCoordination
     private readonly SemaphoreSlim _lock = new(1, 1);
 
     // Screens the user has pinned on or off. Absent means "follow the audio role".
-    private readonly Dictionary<string, bool> _audioOverrides = [];
+    // Concurrent, not plain: the writers below hold _lock, but IsAudioEnabled/IsVideoEnabled are
+    // synchronous and read straight from a Razor render while a disconnect mutates on a hub thread.
+    private readonly ConcurrentDictionary<string, bool> _audioOverrides = new();
+
+    // Only the blanked ones are tracked; a screen that can render is rendering unless told not to.
+    private readonly ConcurrentDictionary<string, bool> _videoDisabled = new();
 
     private string? _audioScreenId;
     private string? _primaryScreenId;
@@ -46,6 +52,30 @@ public sealed class ScreenCoordinationService : BaseService, IScreenCoordination
             : screenId == _audioScreenId;
 
     public bool HasAudioOverride(string screenId) => _audioOverrides.ContainsKey(screenId);
+
+    public bool IsVideoEnabled(string screenId) => !_videoDisabled.ContainsKey(screenId);
+
+    public async Task SetVideoEnabledAsync(string screenId, bool enabled, CancellationToken cancellationToken = default)
+    {
+        await _lock.WaitAsync(cancellationToken);
+        try
+        {
+            if (enabled) _videoDisabled.TryRemove(screenId, out _);
+            else _videoDisabled[screenId] = true;
+
+            try
+            {
+                await _screenServer.SendCommandAsync(screenId, new SetVideoCommand { Enabled = enabled });
+            }
+            catch (Exception ex)
+            {
+                Logger.LogWarning(ex, "Failed to set video on {ScreenId}", screenId);
+            }
+        }
+        finally { _lock.Release(); }
+
+        InvokeStateChanged();
+    }
 
     public async Task<string?> EnsureRolesAsync(CancellationToken cancellationToken = default)
     {
@@ -128,7 +158,7 @@ public sealed class ScreenCoordinationService : BaseService, IScreenCoordination
         await _lock.WaitAsync(cancellationToken);
         try
         {
-            if (!_audioOverrides.Remove(screenId)) return;
+            if (!_audioOverrides.TryRemove(screenId, out _)) return;
             await ApplyAudioAsync(await ConnectedAsync());
         }
         finally { _lock.Release(); }
@@ -219,6 +249,7 @@ public sealed class ScreenCoordinationService : BaseService, IScreenCoordination
         {
             // A screen that comes back should not inherit a mute the user set on a past session.
             await ClearAudioOverrideAsync(e.Connection.ScreenId);
+            _videoDisabled.TryRemove(e.Connection.ScreenId, out _);
 
             if (e.Connection.ScreenId == _audioScreenId) _audioScreenId = null;
             if (e.Connection.ScreenId == _primaryScreenId) _primaryScreenId = null;
