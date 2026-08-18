@@ -150,9 +150,8 @@ internal sealed class ScreenClient : IScreenClient, IAsyncDisposable
     }
 
     /// <summary>
-    /// NTP's estimator: probe repeatedly and keep the sample with the shortest round trip, because
-    /// that is the one whose "half the round trip" assumption is least wrong. Averaging instead
-    /// would let one delayed probe drag the estimate off.
+    /// NTP's estimator: keep the shortest round trip, whose "half of it" assumption is least
+    /// wrong. Averaging lets one delayed probe drag the estimate off.
     /// </summary>
     public async Task<TimeSpan> EstimateClockOffsetAsync(CancellationToken cancellationToken = default)
     {

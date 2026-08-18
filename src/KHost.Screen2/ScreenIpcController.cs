@@ -7,14 +7,12 @@ internal sealed class ScreenIpcController : IAsyncDisposable
 {
     private readonly IScreenClient _client;
 
-    // Concrete rather than IMediaPlayer: loading a host stream is not a file load, so it has no
-    // place on the shared interface that KHost.Screen's local decoder also implements.
+    // Concrete: loading a host stream is not a file load, so it has no place on IMediaPlayer.
     private readonly StreamMediaPlayer _player;
 
     private readonly ILogger<ScreenIpcController> _logger;
 
-    // Commands arrive as independent async invocations; serialize them so a load settles before
-    // a following Play runs, rather than the two racing on the page.
+    // Serialized so a load settles before a following Play, rather than racing on the page.
     private readonly SemaphoreSlim _commandGate = new(1, 1);
 
     public ScreenIpcController(IScreenClient client, StreamMediaPlayer player, ILogger<ScreenIpcController> logger)
@@ -28,10 +26,7 @@ internal sealed class ScreenIpcController : IAsyncDisposable
         _player.PlaybackEnded += OnPlaybackEnded;
     }
 
-    /// <summary>
-    /// Registers as sync-capable and audio-capable: this screen holds a scheduled start, trims its
-    /// playback rate to stay on the group timeline, and can be the screen the room hears.
-    /// </summary>
+    /// <summary>Holds a scheduled start, and can be the screen the room hears.</summary>
     public async Task ConnectAsync(string serverUri, string screenId, CancellationToken cancellationToken = default)
     {
         await _client.ConnectAsync(
@@ -43,10 +38,7 @@ internal sealed class ScreenIpcController : IAsyncDisposable
         await ResyncClockAsync(cancellationToken);
     }
 
-    /// <summary>
-    /// Re-estimated periodically: machine clocks drift apart over a long night, and a stale offset
-    /// silently biases every screen's idea of where the group is.
-    /// </summary>
+    /// <summary>Clocks drift over a long night, and a stale offset biases the whole group.</summary>
     public async Task ResyncClockAsync(CancellationToken cancellationToken = default)
     {
         try
@@ -79,8 +71,7 @@ internal sealed class ScreenIpcController : IAsyncDisposable
         switch (command)
         {
             case LoadMediaCommand cmd:
-                // This screen has no decoder, so a load without a stream URL cannot be served —
-                // LoadAsync reports that rather than silently doing nothing.
+                // No decoder here, so LoadAsync reports the missing URL rather than no-oping.
                 if (cmd.StreamUrl is { Length: > 0 } url)
                     _player.LoadStream(url, cmd.StreamStartOffset);
                 else
@@ -112,9 +103,8 @@ internal sealed class ScreenIpcController : IAsyncDisposable
                 break;
         }
 
-        // Everything except a timeline reports back. A timeline is the host telling us where to
-        // be, not a change to what we are doing — and answering one with a state report makes the
-        // host re-anchor, which sends another timeline, forever.
+        // A timeline says where to be, not what changed. Answering one makes the host re-anchor,
+        // which sends another timeline, forever.
         if (command is not SetTimelineCommand)
             await SendCurrentStateAsync();
     }

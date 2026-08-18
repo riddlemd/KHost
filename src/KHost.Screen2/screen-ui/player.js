@@ -1,7 +1,5 @@
-// Plays the host's HLS stream. There is no MediaSource pump, no buffer eviction and no quota
-// handling here any more: the host transcodes and this page just points <video> at a URL.
-// WKWebView plays HLS from a bare src; a Chromium-based webview (WebView2 on Windows) does not
-// and will need hls.js bundling before this screen works there.
+// Plays the host's HLS stream. WKWebView plays HLS from a bare src; a Chromium webview
+// (WebView2 on Windows) does not, and will need hls.js before this screen works there.
 
 const video = document.getElementById('video');
 const placeholder = document.getElementById('placeholder');
@@ -37,8 +35,7 @@ function teardown() {
     try { video.removeAttribute('src'); video.load(); } catch { /* ignore */ }
 }
 
-// Bumped whenever playback is (re)started, so a fade that is still running knows it has been
-// superseded and must not tear down the video the new play just started.
+// Bumped on every (re)start, so a running fade knows not to tear down what just started.
 let playbackGeneration = 0;
 
 async function fadeOutAndStop(fadeMs) {
@@ -68,16 +65,9 @@ async function fadeOutAndStop(fadeMs) {
     send({ type: 'state', position: 0, duration: 0, playing: false });
 }
 
-// --- Sync group -------------------------------------------------------------------------------
-// Screens receive the same stream but attach at different moments, so left alone they play the
-// same song several seconds apart forever. The host publishes where the song should be against
-// its own clock; each screen steers itself onto that instead of onto its own start time.
-
-// Correction is by seeking, never by trimming playbackRate. Two things force that: a trim is a
-// pitch error, which a music app cannot carry even on a muted screen if it might ever be unmuted;
-// and measurably, WKWebView's HLS pipeline walks currentTime *backwards* when the rate is off 1.0,
-// so trimming destabilises the very thing it is meant to settle. Left at 1.0 two screens hold a
-// constant offset to about 1ms/s, so one accurate alignment lasts minutes.
+// Screens attach at different moments, so each steers onto the host's timeline rather than its
+// own start time. Never by trimming playbackRate: that is a pitch error, and WKWebView walks
+// currentTime *backwards* when the rate is off 1.0. At 1.0 the drift is ~1ms/s.
 const REALIGN_THRESHOLD = 0.15;
 
 // A seek costs a rebuffer, so the drift has to be genuine rather than one noisy sample.
@@ -135,8 +125,8 @@ function correct() {
     try { video.currentTime = expected; } catch { /* outside the buffered range yet */ }
 }
 
-// setInterval, not requestAnimationFrame: rAF stops being serviced while the window is occluded,
-// which silently freezes the correction exactly when a screen is most likely to have drifted.
+// setInterval, not rAF: rAF stops while the window is occluded, freezing the correction exactly
+// when a screen is most likely to have drifted.
 setInterval(correct, 200);
 
 function handleCommand(raw) {
@@ -147,8 +137,7 @@ function handleCommand(raw) {
         case 'load':
             playbackGeneration++;
             placeholder.hidden = false;
-            // The old timeline described the previous stream; keeping it would seek the new one
-            // to a position that means nothing in it.
+            // The old timeline would seek the new stream to a position that means nothing in it.
             timeline = null;
             driftConfirmations = 0;
             load(message.url, message.autoplay === true);
@@ -171,8 +160,7 @@ function handleCommand(raw) {
         case 'play':
             playbackGeneration++;
             placeholder.hidden = true;
-            // A fade leaves these mid-ramp; a play has to undo them or the picture stays dimmed
-            // and the sound stays down.
+            // A fade leaves these mid-ramp.
             video.style.transition = 'opacity 120ms linear';
             video.style.opacity = '1';
             video.volume = currentVolume;
@@ -198,7 +186,7 @@ function handleCommand(raw) {
     }
 }
 
-// The window has no controls of its own, so the page is the only place these gestures can live.
+// The window has no controls, so the page is the only place for these gestures.
 document.addEventListener('dblclick', () => send({ type: 'toggle-fullscreen' }));
 window.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') send({ type: 'exit-fullscreen' });
@@ -220,10 +208,9 @@ setInterval(() => {
         position: Number.isFinite(video.currentTime) ? video.currentTime : 0,
         duration: Number.isFinite(video.duration) ? video.duration : 0,
         playing: !video.paused && !video.ended && video.readyState > 2,
-        // Stamped at sample time, not send time: the host builds the group timeline from the
-        // leader's reports, and any latency it had to guess at would bias that timeline forever.
+        // Sample time, not send time: guessed latency would bias the timeline forever.
         sampledAtEpochMs: Date.now(),
-        // Sync telemetry: without it a screen drifting off the group is invisible to the host.
+        // Without this a screen drifting off the group is invisible to the host.
         expected: expected === null ? -1 : expected,
         rate: video.playbackRate,
         readyState: video.readyState,

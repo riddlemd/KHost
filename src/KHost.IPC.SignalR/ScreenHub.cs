@@ -27,10 +27,7 @@ internal sealed class ScreenHub : Hub
         return Task.CompletedTask;
     }
 
-    /// <summary>
-    /// Echoes the host clock so a screen can work out its own offset. Deliberately does nothing
-    /// else: any work here would land inside the round trip the caller is measuring.
-    /// </summary>
+    /// <summary>Does nothing else: any work lands inside the round trip being measured.</summary>
     public long EchoClock() => DateTime.UtcNow.Ticks;
 
     public Task ReceiveStateAsync(string screenId, string stateJson)

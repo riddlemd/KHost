@@ -10,10 +10,7 @@ using Sharpcaster.Models.Media;
 
 namespace KHost.Cast;
 
-/// <summary>
-/// Drives one Cast receiver at a time. Kept apart from the screens on purpose — see
-/// <see cref="ICastService"/> for why a receiver is not a screen.
-/// </summary>
+/// <summary>Drives one Cast receiver at a time.</summary>
 public sealed class CastService : ICastService, IDisposable
 {
     public sealed class ServiceOptions
@@ -23,10 +20,9 @@ public sealed class CastService : ICastService, IDisposable
         /// <summary>Off by default: discovery browses the whole network, which is not free.</summary>
         public bool Enabled { get; set; }
 
-        /// <summary>Google's Default Media Receiver — plays a plain URL with no receiver app of our own.</summary>
+        /// <summary>Google's Default Media Receiver — plays a plain URL, no app of our own.</summary>
         public string ReceiverAppId { get; set; } = "CC1AD845";
 
-        /// <summary>How long a discovery sweep listens before reporting what it heard.</summary>
         public TimeSpan DiscoveryTimeout { get; set; } = TimeSpan.FromSeconds(5);
     }
 
@@ -82,7 +78,7 @@ public sealed class CastService : ICastService, IDisposable
         _locator = new ChromecastLocator();
         _locator.ChromecastReceiverFound += OnReceiverFound;
 
-        // One sweep now so the screens page has something immediately, then keep listening.
+        // One sweep now so the page has something immediately, then keep listening.
         try
         {
             foreach (var receiver in await _locator.FindReceiversAsync(_options.DiscoveryTimeout))
@@ -101,8 +97,7 @@ public sealed class CastService : ICastService, IDisposable
     {
         if (_connectedDeviceId == deviceId) return true;
 
-        // One at a time: the host has one song, and a second receiver would be a second room
-        // hearing it a few seconds out of step with the first.
+        // One song, one receiver — a second would be a room hearing it seconds out of step.
         if (_connectedDeviceId is not null) await DisconnectAsync(cancellationToken);
 
         ChromecastReceiver? receiver;
@@ -194,10 +189,7 @@ public sealed class CastService : ICastService, IDisposable
             ? GuardAsync(() => c.MediaChannel.SeekAsync((position - _streamStartOffset).TotalSeconds))
             : Task.CompletedTask;
 
-    /// <summary>
-    /// A receiver drops out, refuses a command, or is simply switched off mid-song. None of that
-    /// should surface as a failed performance, so it is logged and swallowed.
-    /// </summary>
+    /// <summary>A television switched off mid-song must not fail the performance.</summary>
     private async Task GuardAsync(Func<Task> action)
     {
         try { await action(); }
@@ -205,9 +197,8 @@ public sealed class CastService : ICastService, IDisposable
     }
 
     /// <summary>
-    /// The host resolves its own base address to localhost, which on a television means the
-    /// television — it would be fetching itself. Swap in a LAN address; anything already routable
-    /// is left alone so a configured address still wins.
+    /// The host resolves its base address to localhost, which on a television means the
+    /// television. Anything already routable is left alone so a configured address wins.
     /// </summary>
     internal static string MakeReachableFromDevice(string url, string? lanAddress)
     {
@@ -256,8 +247,7 @@ public sealed class CastService : ICastService, IDisposable
 
     private bool Remember(ChromecastReceiver receiver)
     {
-        // Discovery does not always carry a stable device id, and the friendly name is what the
-        // user recognises anyway.
+        // Discovery has no stable device id, and the friendly name is what the user recognises.
         if (receiver.Name is not { Length: > 0 } id) return false;
 
         _lock.Wait();

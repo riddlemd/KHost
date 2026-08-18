@@ -15,19 +15,14 @@ public class PlaybackService : BaseService, IPlaybackService
         /// <summary>How long screens fade audio and video out for on stop. Zero stops instantly.</summary>
         public TimeSpan StopFadeDuration { get; set; } = TimeSpan.FromSeconds(5);
 
-        /// <summary>
-        /// How far ahead a scheduled start is placed. Every synced screen begins on this one
-        /// instant instead of on whenever its own command arrived, so it has to be long enough to
-        /// cover the slowest screen's command latency.
-        /// </summary>
+        /// <summary>Must cover the slowest screen's command latency.</summary>
         public TimeSpan SyncStartLead { get; set; } = TimeSpan.FromMilliseconds(400);
     }
 
     private Timer? _timer;
     private DateTime _lastTick;
 
-    // Re-anchoring is driven by screen reports, so it has to be bounded independently of how
-    // often those arrive — a screen that chatters must not turn into a command storm.
+    // Bounded independently of report rate: a chatty screen must not become a command storm.
     private static readonly TimeSpan ReanchorInterval = TimeSpan.FromSeconds(1);
     private DateTime _lastReanchorUtc;
     private bool _resumeWhenScreenReturns;
@@ -264,10 +259,7 @@ public class PlaybackService : BaseService, IPlaybackService
     private void OnScreenDisconnected(object? sender, ScreenConnectionEventArgs e) =>
         _ = Task.Run(HandleScreenLossAsync);
 
-    /// <summary>
-    /// A screen that connects mid-session has nothing loaded, so a bare PlayCommand would be
-    /// rejected by the player while the UI happily showed playback running.
-    /// </summary>
+    /// <summary>A screen joining mid-session has nothing loaded, so PlayCommand alone is rejected.</summary>
     private async Task SyncNewScreenAsync()
     {
         await _screenSyncLock.WaitAsync();
@@ -278,16 +270,12 @@ public class PlaybackService : BaseService, IPlaybackService
                 return;
 
             // A screen reconnecting under the same id overwrites its own tracked connection, so
-            // the stale socket's disconnect is discarded and HandleScreenLossAsync never runs —
-            // leaving State at Playing with nothing pending. Resume on either signal, not just
-            // the flag, or the screen sits paused on the seek point while the UI plays on.
+            // the stale disconnect is discarded and nothing is pending. Resume on either signal.
             bool resume = State == PlaybackState.Playing
                 || (_resumeWhenScreenReturns && State == PlaybackState.Paused);
             _resumeWhenScreenReturns = false;
 
-            // Reloading costs an FFProbe plus an ffmpeg spin-up. The clock is the only source of
-            // truth for position, so letting it run across that gap resumes the screen behind
-            // where the UI already is.
+            // Reloading costs an ffmpeg spin-up; a running clock resumes the screen behind the UI.
             StopClock();
 
             var position = Position;
@@ -334,8 +322,7 @@ public class PlaybackService : BaseService, IPlaybackService
         }
         finally
         {
-            // Restarting here rather than beside the PlayCommand also covers the throwing path:
-            // a stopped clock under a Playing state would freeze the UI for the rest of the song.
+            // Also covers the throwing path: a stopped clock under Playing freezes the UI.
             if (State == PlaybackState.Playing && _timer is null)
                 StartClock();
 
@@ -422,10 +409,7 @@ public class PlaybackService : BaseService, IPlaybackService
         Position = TimeSpan.Zero;
     }
 
-    /// <summary>
-    /// Opens a host-side transcode and describes it for the screens. <c>FilePath</c> stays
-    /// populated because KHost.Screen decodes locally and cannot consume the stream.
-    /// </summary>
+    /// <summary>FilePath stays populated: KHost.Screen decodes locally and cannot use the stream.</summary>
     private async Task<LoadMediaCommand> BuildLoadCommandAsync(Media media, TimeSpan startOffset)
     {
         await CloseStreamAsync();
@@ -491,9 +475,8 @@ public class PlaybackService : BaseService, IPlaybackService
     }
 
     /// <summary>
-    /// Mirrors a transition onto the connected Cast receiver, if there is one. Deliberately a
-    /// separate call rather than another screen: a receiver holds no role, takes no timeline, and
-    /// must not silently inherit whatever the screens gain next.
+    /// Separate from the screens on purpose: a receiver holds no role and must not inherit
+    /// whatever the screens gain next.
     /// </summary>
     private async Task CastAsync(Func<ICastService, Task> action)
     {
@@ -515,11 +498,7 @@ public class PlaybackService : BaseService, IPlaybackService
         }
     }
 
-    /// <summary>
-    /// Publishes where the song should be, against the host clock, to the screens that can hold
-    /// themselves to it. A start is anchored slightly ahead so every synced screen begins on the
-    /// same instant rather than on whenever its own command landed.
-    /// </summary>
+    /// <summary>A start is anchored ahead so every synced screen begins on the same instant.</summary>
     private async Task PublishTimelineAsync(bool isPlaying, TimeSpan? position = null, bool scheduleAhead = false)
     {
         var anchor = DateTime.UtcNow + (scheduleAhead ? _options.SyncStartLead : TimeSpan.Zero);
@@ -555,11 +534,8 @@ public class PlaybackService : BaseService, IPlaybackService
     }
 
     /// <summary>
-    /// Re-anchors the group onto what the primary is actually playing. Without this the host holds
-    /// the followers to a clock they cannot reach — an HLS seek lands on a segment boundary, so a
-    /// screen settles behind the anchor and trims its rate forever to chase it. A permanent trim
-    /// is a permanent pitch error, which a karaoke screen cannot have; anchoring on a position a
-    /// real screen has actually reached lets the followers converge and return to true speed.
+    /// Anchors on a position a real screen reached. Asserting one instead holds the followers to
+    /// a clock they cannot reach — an HLS seek lands on a segment boundary, so they never arrive.
     /// </summary>
     private void OnScreenStateReceived(object? sender, ScreenStateReceivedEventArgs e)
     {
@@ -583,9 +559,8 @@ public class PlaybackService : BaseService, IPlaybackService
     }
 
     /// <summary>
-    /// Follows the receiver's own clock when there is no primary to follow instead. A receiver
-    /// buffers seconds, so a free-running timer reaches the end of the song while the room is
-    /// still hearing it — and rotates the singer away mid-chorus.
+    /// A receiver buffers seconds, so a free-running timer ends the song — and rotates the singer
+    /// away — while the room is still hearing it.
     /// </summary>
     private void OnCastStatusReceived(object? sender, CastPlaybackStatus status)
     {

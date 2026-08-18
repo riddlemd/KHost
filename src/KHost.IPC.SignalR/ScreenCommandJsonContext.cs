@@ -14,8 +14,7 @@ namespace KHost.IPC.SignalR;
 [JsonSerializable(typeof(SetTimelineCommand))]
 [JsonSerializable(typeof(ScreenStateBase))]
 [JsonSerializable(typeof(ScreenPlaybackState))]
-// This context is the only resolver in SignalR's chain, so a hub method's own argument and return
-// types need entries too — they are not covered unless some command property already uses them.
-// ScreenHub.EchoClock returns this one; without it the hub aborts the connection mid-call.
+// The only resolver in SignalR's chain, so a hub method's own argument and return types need
+// entries too. ScreenHub.EchoClock returns this one.
 [JsonSerializable(typeof(long))]
 internal sealed partial class ScreenCommandJsonContext : JsonSerializerContext { }

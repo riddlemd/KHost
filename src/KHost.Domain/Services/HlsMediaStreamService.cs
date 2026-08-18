@@ -8,26 +8,17 @@ using Microsoft.Extensions.Options;
 
 namespace KHost.Domain.Services;
 
-/// <summary>
-/// Transcodes to HLS here on the host, so every screen is only an HTTP consumer of the result.
-/// One ffmpeg run feeds any number of consumers; the previous design ran one per screen.
-/// </summary>
+/// <summary>One ffmpeg run feeds any number of consumers, all of them plain HTTP clients.</summary>
 public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IDisposable
 {
     public sealed class ServiceOptions
     {
         public const string SectionName = "MediaStream";
 
-        /// <summary>
-        /// Base URL consumers fetch from. Program.cs overwrites this with the host's live
-        /// listening address at startup, so a dynamic port still produces reachable URLs.
-        /// </summary>
+        /// <summary>Overwritten at startup with the live listening address, so a dynamic port works.</summary>
         public string BaseAddress { get; set; } = "http://localhost:5000";
 
-        /// <summary>
-        /// Scratch space. Defaults under the temp directory rather than <c>cache/</c>, which holds
-        /// real state — segments are rebuilt per session and deleted with it.
-        /// </summary>
+        /// <summary>Scratch: under temp, not cache/, which holds real state.</summary>
         public string? WorkingDirectory { get; set; }
 
         /// <summary>Shorter segments start sooner; longer ones survive a worse network.</summary>
@@ -95,8 +86,8 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, ID
         try { _sessions[id] = session; }
         finally { _lock.Release(); }
 
-        // ffmpeg needs a moment to write the playlist. Handing out the URL before then gives the
-        // screen a 404, which a media element reports as "source not supported" and never retries.
+        // A URL handed out early 404s, which a media element reports as "source not supported"
+        // and never retries.
         if (!await WaitForPlaylistAsync(directory, cancellationToken))
         {
             await CloseAsync(id);
@@ -114,10 +105,7 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, ID
         };
     }
 
-    /// <summary>
-    /// Waits for a playlist that names at least one segment. The playlist file appears before the
-    /// first segment is listed in it, so the file existing is not enough to be playable.
-    /// </summary>
+    /// <summary>The file appears before a segment is listed in it, so existing is not playable.</summary>
     private static async Task<bool> WaitForPlaylistAsync(string directory, CancellationToken cancellationToken)
     {
         var playlist = Path.Combine(directory, PlaylistFileName);
@@ -197,9 +185,8 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, ID
     }
 
     /// <summary>
-    /// EVENT rather than VOD: transcoding outruns playback, but a consumer should be able to start
-    /// on the first segment instead of waiting for the whole song. H.264 Main@4.1 with AAC-LC is
-    /// the intersection of what browsers, WKWebView and every Chromecast generation will decode.
+    /// EVENT so a consumer can start on the first segment. H.264 Main@4.1 with AAC-LC is the
+    /// intersection of what browsers, WKWebView and every Chromecast generation decode.
     /// </summary>
     internal static string BuildArguments(string filePath, TimeSpan startOffset, int pitchSemitones, int segmentSeconds)
     {

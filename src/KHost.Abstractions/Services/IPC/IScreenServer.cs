@@ -20,45 +20,26 @@ public interface IScreenConnection
     ScreenCapabilities Capabilities { get; }
 }
 
-/// <summary>
-/// What a screen can do, declared when it registers. Screens differ enough that the host cannot
-/// infer this: a Cast device takes a URL and plays it on its own schedule, with no way to be held
-/// to someone else's.
-/// </summary>
+/// <summary>Declared at registration — the host cannot infer it.</summary>
 public sealed class ScreenCapabilities
 {
-    /// <summary>Conservative default — an unknown screen neither syncs nor is trusted with audio.</summary>
+    /// <summary>Conservative default for an unknown screen.</summary>
     public static readonly ScreenCapabilities None = new();
 
-    /// <summary>
-    /// What a Cast receiver reports: it renders both tracks for the room, but plays on its own
-    /// schedule with no way to be held to anyone else's, so it can never join the synced group.
-    /// </summary>
+    /// <summary>What a Cast receiver reports: both tracks, but never syncable.</summary>
     public static readonly ScreenCapabilities CastDevice = new()
     {
         SupportsAudio = true,
         SupportsVideo = true,
     };
 
-    /// <summary>
-    /// True when the screen can follow a scheduled start and correct itself onto the group's
-    /// timeline. Only such screens can be kept frame-close to each other; everything else is a
-    /// loose consumer that plays the same media whenever it manages to.
-    /// </summary>
+    /// <summary>Only these can be kept frame-close; everything else is a loose consumer.</summary>
     public bool SupportsSync { get; init; }
 
-    /// <summary>
-    /// True when the screen renders audio. The audio role is drawn from these, and deliberately
-    /// does not require <see cref="SupportsSync"/> — a Cast device can carry the room's sound
-    /// without ever being holdable to a schedule.
-    /// </summary>
+    /// <summary>The audio role is drawn from these, and does not require sync.</summary>
     public bool SupportsAudio { get; init; }
 
-    /// <summary>
-    /// True when the screen renders video. Independent of <see cref="SupportsAudio"/>: the screen
-    /// the room hears may be an audio-only output, leaving the lyrics displays as the only things
-    /// showing video while still taking their timing cue from elsewhere.
-    /// </summary>
+    /// <summary>Independent of audio: the screen the room hears may be audio-only.</summary>
     public bool SupportsVideo { get; init; }
 }
 

@@ -18,16 +18,14 @@ public class PlaybackServiceTests : IDisposable
     private readonly IMediaStreamService _mediaStreams = Substitute.For<IMediaStreamService>();
     private readonly ICastService _cast = Substitute.For<ICastService>();
 
-    // The real one: primary election is what decides IsPrimary on the timelines asserted below,
-    // and a substitute would make those assertions test nothing.
+    // Real: a substitute would make the IsPrimary assertions below test nothing.
     private readonly ScreenCoordinationService _screenCoordination;
     private readonly PlaybackService _service;
     private int _streamsOpened;
 
     public PlaybackServiceTests()
     {
-        // NSubstitute hands back string.Empty rather than null for unstubbed string members, so
-        // "no receiver" has to be said out loud or every no-screen test sees one.
+        // NSubstitute returns string.Empty for unstubbed strings, so "no receiver" must be said.
         _cast.ConnectedDeviceId.Returns((string?)null);
 
         _screenCoordination = new ScreenCoordinationService(NullLogger<ScreenCoordinationService>.Instance, _screenServer);

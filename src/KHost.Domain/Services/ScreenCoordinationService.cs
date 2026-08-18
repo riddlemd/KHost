@@ -5,8 +5,8 @@ using Microsoft.Extensions.Logging;
 namespace KHost.Domain.Services;
 
 /// <summary>
-/// Decides which screen the room hears and which screen the others are held to. Everything else
-/// is muted, because two screens playing the same song into one room fight each other.
+/// Decides which screen the room hears and which the others are held to. Everything else is
+/// muted: two screens playing the same song into one room fight each other.
 /// </summary>
 public sealed class ScreenCoordinationService : BaseService, IScreenCoordinationService, IDisposable
 {
@@ -30,10 +30,7 @@ public sealed class ScreenCoordinationService : BaseService, IScreenCoordination
         _screenServer.ScreenDisconnected += OnScreenDisconnected;
     }
 
-    /// <summary>
-    /// Picks up anything already connected. The constructor covers screens that arrive later, but
-    /// on a restart a screen can register before this service is first resolved.
-    /// </summary>
+    /// <summary>A screen can register before this service is first resolved.</summary>
     public Task InitializeAsync(CancellationToken cancellationToken = default)
         => EnsureRolesAsync(cancellationToken);
 
@@ -139,18 +136,14 @@ public sealed class ScreenCoordinationService : BaseService, IScreenCoordination
         InvokeStateChanged();
     }
 
-    /// <summary>
-    /// Prefers a screen that can also sync, so the common case keeps both roles together and the
-    /// audible screen is never corrected. A Cast device wins only when nothing else renders audio.
-    /// </summary>
+    /// <summary>Prefers a syncable screen, so the audible one is never the corrected one.</summary>
     private static string? ElectAudioScreen(List<IScreenConnection> screens)
         => (screens.FirstOrDefault(s => s.Capabilities is { SupportsAudio: true, SupportsSync: true })
             ?? screens.FirstOrDefault(s => s.Capabilities.SupportsAudio))?.ScreenId;
 
     /// <summary>
-    /// The audio screen becomes the primary whenever it can sync. Correction is a seek, and
-    /// seeking the screen the room hears is an audible glitch — so the two roles are kept on one
-    /// screen unless the audio lives somewhere that cannot be held to a schedule at all.
+    /// The audio screen whenever it can sync: correction is a seek, and seeking the screen the
+    /// room hears is audible.
     /// </summary>
     private string? DerivePrimaryScreen(List<IScreenConnection> screens)
     {
@@ -175,7 +168,7 @@ public sealed class ScreenCoordinationService : BaseService, IScreenCoordination
             Logger.LogInformation("Audio and primary are both on {ScreenId}", _audioScreenId ?? "(none)");
     }
 
-    /// <summary>Pushes every connected screen's volume to match the current rules. Caller holds the lock.</summary>
+    /// <summary>Caller holds the lock.</summary>
     private async Task ApplyAudioAsync(List<IScreenConnection> screens)
     {
         foreach (var screen in screens)

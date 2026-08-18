@@ -41,11 +41,10 @@ internal static class Program
         PhotinoWindow? window = null;
         window = new PhotinoWindow()
             .SetTitle("KHost Screen")
-            // Photino logs every SendWebMessage, and a timeline goes out once a second — into the
-            // host's stdout, because a launched screen inherits it.
+            // Photino logs every SendWebMessage into the host's inherited stdout.
             .SetLogVerbosity(0)
-            // Chromeless cannot be changed after creation, and a chromeless window has no title
-            // bar to drag — so the screen keeps its chrome and fakes full screen by resizing.
+            // Chromeless cannot change after creation and has no title bar to drag, so full
+            // screen is faked by resizing instead.
             .SetChromeless(false)
             .SetUseOsDefaultSize(false)
             .SetUseOsDefaultLocation(false)
@@ -65,8 +64,7 @@ internal static class Program
                 _ = PublishStateAsync();
                 _ = ResyncClockAsync();
             })
-            // A local file, not a loopback server: the only thing this screen serves now is its
-            // own page, and the media it plays comes from the host over the network.
+            // A local file: this screen serves nothing, the media comes from the host.
             .Load(new Uri(Path.Combine(AppContext.BaseDirectory, "screen-ui", "index.html")));
 
         logger.LogInformation("Screen2 starting: server={ServerUri} screen={ScreenId}", serverUri, screenId);
@@ -103,9 +101,8 @@ internal static class Program
     }
 
     /// <summary>
-    /// Stands in for real fullscreen, which Photino's SetFullScreen does not deliver on macOS:
-    /// the window is grown to cover the monitor instead. Note that macOS clamps the top edge
-    /// below the menu bar on a display that has one.
+    /// Photino's SetFullScreen does nothing on macOS, so the window is grown to cover the monitor.
+    /// macOS clamps the top edge below the menu bar.
     /// </summary>
     private static void SetFullScreen(PhotinoWindow window, bool fullScreen, Microsoft.Extensions.Logging.ILogger logger)
     {
@@ -119,8 +116,8 @@ internal static class Program
                 var monitors = window.Monitors;
                 var area = (monitors.Count > 0 ? monitors[0] : window.MainMonitor).MonitorArea;
 
-                // Deliberately not SetTopMost: a floating window on macOS never becomes key, so
-                // the page stops receiving keydown and Escape can no longer leave full screen.
+                // Not SetTopMost: a floating window on macOS never becomes key, so Escape stops
+                // reaching the page.
                 window.SetLeft(area.X);
                 window.SetTop(area.Y);
                 window.SetSize(area.Width, area.Height);
