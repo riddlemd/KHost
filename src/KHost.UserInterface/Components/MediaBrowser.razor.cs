@@ -253,9 +253,8 @@ public partial class MediaBrowser : IAsyncDisposable
             await NavigateToAsync(parent.FullName);
     }
 
-    private List<FileEntry> GroupKaraokePairs(List<FileEntry> files)
+    internal static List<FileEntry> GroupKaraokePairs(List<FileEntry> files)
     {
-        var audioFormats = new[] { "mp3", "m4a", "wav", "aac", "flac", "ogg", "wma" };
         var result = new List<FileEntry>();
         var processedPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
@@ -268,33 +267,27 @@ public partial class MediaBrowser : IAsyncDisposable
             var groupFiles = group.ToList();
 
             var cdgFile = groupFiles.FirstOrDefault(f => f.Extension.Equals("cdg", StringComparison.OrdinalIgnoreCase));
-            var audioFiles = groupFiles.Where(f => audioFormats.Contains(f.Extension.ToLower())).ToList();
 
-            if (cdgFile is not null && audioFiles.Count > 0)
+            // .mp3 only: CD+G rips have always shipped that way, so a same-named file in another
+            // format is a different track and keeps its own row rather than joining the pair.
+            var mp3File = groupFiles.FirstOrDefault(f => f.Extension.Equals("mp3", StringComparison.OrdinalIgnoreCase));
+
+            if (cdgFile is not null && mp3File is not null)
             {
-                var allPaths = new List<string> { cdgFile.FullPath };
-                allPaths.AddRange(audioFiles.Select(a => a.FullPath));
-
-                var pairedEntry = cdgFile with
+                result.Add(cdgFile with
                 {
-                    Name = $"{group.Key} ({cdgFile.Extension.ToUpper()} + {string.Join(", ", audioFiles.Select(a => a.Extension.ToUpper()))})",
-                    PairedPaths = allPaths
-                };
+                    Name = $"{group.Key} (CDG + MP3)",
+                    PairedPaths = [cdgFile.FullPath, mp3File.FullPath],
+                });
 
-                result.Add(pairedEntry);
-                foreach (var file in groupFiles)
-                    processedPaths.Add(file.FullPath);
+                processedPaths.Add(cdgFile.FullPath);
+                processedPaths.Add(mp3File.FullPath);
             }
-            else
+
+            foreach (var file in groupFiles)
             {
-                foreach (var file in groupFiles)
-                {
-                    if (!processedPaths.Contains(file.FullPath))
-                    {
-                        result.Add(file);
-                        processedPaths.Add(file.FullPath);
-                    }
-                }
+                if (processedPaths.Add(file.FullPath))
+                    result.Add(file);
             }
         }
 
@@ -499,7 +492,7 @@ public partial class MediaBrowser : IAsyncDisposable
         await Task.CompletedTask;
     }
 
-    private sealed record FileEntry(
+    internal sealed record FileEntry(
         string FullPath,
         string Name,
         bool IsDirectory,
