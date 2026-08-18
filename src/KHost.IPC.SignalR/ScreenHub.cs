@@ -17,7 +17,11 @@ internal sealed class ScreenHub : Hub
 
     public Task RegisterScreenAsync(string screenId, bool supportsSync, bool supportsAudio, bool supportsVideo)
     {
-        _callback.OnScreenConnected(screenId, Context.ConnectionId, new ScreenCapabilities
+        // The address this screen connected to, not one we pick: a host with several interfaces
+        // must hand each screen the one it already routed to.
+        var hostAddress = Context.GetHttpContext()?.Connection.LocalIpAddress?.ToString();
+
+        _callback.OnScreenConnected(screenId, Context.ConnectionId, hostAddress, new ScreenCapabilities
         {
             SupportsSync = supportsSync,
             SupportsAudio = supportsAudio,
