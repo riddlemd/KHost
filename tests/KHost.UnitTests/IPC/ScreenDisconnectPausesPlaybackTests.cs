@@ -84,7 +84,7 @@ public class ScreenDisconnectPausesPlaybackTests : IDisposable
     [Fact]
     public async Task Disconnect_ReturnsPromptly_AndDoesNotDeadlockTheHubThread()
     {
-        Callback.OnScreenConnected("Screen 1", "conn-1", ScreenCapabilities.None);
+        Callback.OnScreenConnected("Screen 1", "conn-1", hostAddress: null, ScreenCapabilities.None);
         await StartPlayingAsync();
 
         // Runs on the hub's calling thread while the connection lock is held.
@@ -100,7 +100,7 @@ public class ScreenDisconnectPausesPlaybackTests : IDisposable
     [Fact]
     public async Task LastScreenDisconnecting_PausesPlayback()
     {
-        Callback.OnScreenConnected("Screen 1", "conn-1", ScreenCapabilities.None);
+        Callback.OnScreenConnected("Screen 1", "conn-1", hostAddress: null, ScreenCapabilities.None);
         await StartPlayingAsync();
 
         Callback.OnScreenDisconnected("conn-1");
@@ -111,8 +111,8 @@ public class ScreenDisconnectPausesPlaybackTests : IDisposable
     [Fact]
     public async Task OneOfTwoScreensDisconnecting_KeepsPlaying()
     {
-        Callback.OnScreenConnected("Screen 1", "conn-1", ScreenCapabilities.None);
-        Callback.OnScreenConnected("Screen 2", "conn-2", ScreenCapabilities.None);
+        Callback.OnScreenConnected("Screen 1", "conn-1", hostAddress: null, ScreenCapabilities.None);
+        Callback.OnScreenConnected("Screen 2", "conn-2", hostAddress: null, ScreenCapabilities.None);
         await StartPlayingAsync();
 
         Callback.OnScreenDisconnected("conn-1");
@@ -139,7 +139,7 @@ public class ScreenDisconnectPausesPlaybackTests : IDisposable
 
         Assert.Equal(PlaybackState.Stopped, _playbackService.State);
 
-        Callback.OnScreenConnected("Screen 1", "conn-1", ScreenCapabilities.None);
+        Callback.OnScreenConnected("Screen 1", "conn-1", hostAddress: null, ScreenCapabilities.None);
         await _playbackService.PlayAsync();
 
         Assert.Equal(PlaybackState.Playing, _playbackService.State);
