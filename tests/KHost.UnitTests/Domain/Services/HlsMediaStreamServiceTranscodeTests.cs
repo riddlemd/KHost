@@ -112,6 +112,21 @@ public class HlsMediaStreamServiceTranscodeTests : IDisposable
     }
 
     [RequiresFfmpegFact]
+    public async Task OpenAsync_DoesNotTreatANonMp3NeighbourAsTheCompanion()
+    {
+        var cdg = await CreateCdgPairAsync(seconds: 4);
+        var mp3 = Path.ChangeExtension(cdg, ".mp3");
+        File.Move(mp3, Path.ChangeExtension(cdg, ".wav"));
+
+        var session = await _service.OpenAsync(cdg);
+        var segment = await WaitForArtifactAsync(session.Id, "seg_00000.ts");
+
+        // CD+G pairs with .mp3 and nothing else, so a same-named .wav is a different track.
+        Assert.NotNull(segment);
+        Assert.DoesNotContain("audio", await ProbeStreamTypesAsync(segment));
+    }
+
+    [RequiresFfmpegFact]
     public async Task OpenAsync_StillStreamsACdgWithNoCompanionAudio()
     {
         var cdg = await CreateCdgPairAsync(seconds: 4);
