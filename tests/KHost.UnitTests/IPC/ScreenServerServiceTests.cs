@@ -208,10 +208,4 @@ public class ScreenServerServiceTests
         Assert.Equal(TimeSpan.FromSeconds(30), Assert.IsType<SeekCommand>(back).Position);
     }
 
-    [Fact]
-    public async Task SendCommandAsync_ReturnsFalse_ForAScreenOnAnotherTransport()
-    {
-        // False rather than throwing is what lets the server try the next transport.
-        Assert.False(await _service.SendCommandAsync("Chromecast", new PauseCommand()));
-    }
 }

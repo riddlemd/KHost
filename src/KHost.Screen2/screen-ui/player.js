@@ -37,7 +37,12 @@ function teardown() {
     try { video.removeAttribute('src'); video.load(); } catch { /* ignore */ }
 }
 
+// Bumped whenever playback is (re)started, so a fade that is still running knows it has been
+// superseded and must not tear down the video the new play just started.
+let playbackGeneration = 0;
+
 async function fadeOutAndStop(fadeMs) {
+    const generation = playbackGeneration;
     const startVolume = video.volume;
     const startedAt = performance.now();
 
@@ -52,6 +57,9 @@ async function fadeOutAndStop(fadeMs) {
         };
         tick();
     });
+
+    // Superseded: the host started playing again during the fade, so leave everything alone.
+    if (generation !== playbackGeneration) return;
 
     teardown();
     video.style.transition = 'opacity 120ms linear';
@@ -137,6 +145,7 @@ function handleCommand(raw) {
 
     switch (message.type) {
         case 'load':
+            playbackGeneration++;
             placeholder.hidden = false;
             // The old timeline described the previous stream; keeping it would seek the new one
             // to a position that means nothing in it.
@@ -160,7 +169,13 @@ function handleCommand(raw) {
             break;
         }
         case 'play':
+            playbackGeneration++;
             placeholder.hidden = true;
+            // A fade leaves these mid-ramp; a play has to undo them or the picture stays dimmed
+            // and the sound stays down.
+            video.style.transition = 'opacity 120ms linear';
+            video.style.opacity = '1';
+            video.volume = currentVolume;
             video.play().catch((e) => reportError(`play: ${e}`));
             break;
         case 'pause':

@@ -126,26 +126,33 @@
                                 <div class="kh-screens-dialog__item-content">
                                     <div class="kh-screens-dialog__screen-name">
                                         <span>@device.Name</span>
+                                        @if (device.IsConnected)
+                                        {
+                                            <span class="kh-badge kh-badge--success"
+                                                  title="Casting to this receiver. Only one at a time.">
+                                                Connected
+                                            </span>
+                                        }
                                     </div>
                                     <div class="kh-screens-dialog__screen-state">
                                         <span>@(device.Model ?? "Cast receiver") @device.Address</span>
                                     </div>
                                 </div>
                                 <div class="kh-screens-dialog__item-actions">
-                                    @if (device.IsAttached)
+                                    @if (device.IsConnected)
                                     {
                                         <button class="kh-button kh-button--secondary"
                                                 disabled="@(_busyCastDevice == device.Id)"
-                                                @onclick="() => DetachCastAsync(device)">
-                                            Detach
+                                                @onclick="() => DisconnectCastAsync(device)">
+                                            Disconnect
                                         </button>
                                     }
                                     else
                                     {
                                         <button class="kh-button"
                                                 disabled="@(_busyCastDevice == device.Id)"
-                                                title="Connect and use it as a screen. It cannot be synced with the others."
-                                                @onclick="() => AttachCastAsync(device)">
+                                                title="Cast the song to this receiver. Only one receiver is driven at a time."
+                                                @onclick="() => ConnectCastAsync(device)">
                                             @(_busyCastDevice == device.Id ? "Connecting…" : "Use")
                                         </button>
                                     }

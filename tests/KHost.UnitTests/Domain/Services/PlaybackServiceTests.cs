@@ -16,6 +16,7 @@ public class PlaybackServiceTests : IDisposable
     private readonly IVenuesService _venuesService = Substitute.For<IVenuesService>();
     private readonly IScreenServer _screenServer = Substitute.For<IScreenServer>();
     private readonly IMediaStreamService _mediaStreams = Substitute.For<IMediaStreamService>();
+    private readonly ICastService _cast = Substitute.For<ICastService>();
 
     // The real one: primary election is what decides IsPrimary on the timelines asserted below,
     // and a substitute would make those assertions test nothing.
@@ -25,6 +26,10 @@ public class PlaybackServiceTests : IDisposable
 
     public PlaybackServiceTests()
     {
+        // NSubstitute hands back string.Empty rather than null for unstubbed string members, so
+        // "no receiver" has to be said out loud or every no-screen test sees one.
+        _cast.ConnectedDeviceId.Returns((string?)null);
+
         _screenCoordination = new ScreenCoordinationService(NullLogger<ScreenCoordinationService>.Instance, _screenServer);
 
         _venuesService.ReadSelectedVenueAsync()
@@ -98,6 +103,7 @@ public class PlaybackServiceTests : IDisposable
         _screenServer,
         _mediaStreams,
         _screenCoordination,
+        _cast,
         Options.Create(new PlaybackService.ServiceOptions { StopFadeDuration = stopFadeDuration }));
 
     public void Dispose() => _service.Dispose();
@@ -576,6 +582,184 @@ public class PlaybackServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task PrimaryStateReports_DoNotPublishATimelinePerReport()
+    {
+        var (performance, media) = CreatePerformance();
+        await _service.LoadAsync(performance, media);
+        await _service.PlayAsync();
+        _screenServer.ClearReceivedCalls();
+
+        // A screen answers every command with a state report, so an unthrottled re-anchor turned
+        // one report into a timeline into another report — a command storm that aborted play().
+        for (var i = 0; i < 25; i++) RaisePrimaryState(TimeSpan.FromSeconds(i));
+
+        var timelines = _screenServer.ReceivedCalls()
+            .Count(c => c.GetMethodInfo().Name == nameof(IScreenServer.SendCommandAsync)
+                        && c.GetArguments().ElementAtOrDefault(1) is SetTimelineCommand);
+
+        Assert.True(timelines <= 2, $"25 reports produced {timelines} timelines");
+    }
+
+    [Fact]
+    public async Task PrimaryStateReports_StillMoveThePosition_EvenWhenTheRepublishIsSkipped()
+    {
+        var (performance, media) = CreatePerformance();
+        await _service.LoadAsync(performance, media);
+        await _service.PlayAsync();
+
+        RaisePrimaryState(TimeSpan.FromSeconds(40));
+        RaisePrimaryState(TimeSpan.FromSeconds(41));
+
+        // Throttling the republish must not throttle following the primary.
+        Assert.InRange(_service.Position, TimeSpan.FromSeconds(40.5), TimeSpan.FromSeconds(41.5));
+    }
+
+    [Fact]
+    public async Task Play_DuringAStopFade_ReloadsTheScreens()
+    {
+        var service = MakeService(TimeSpan.FromSeconds(5));
+
+        var (performance, media) = CreatePerformance();
+        await service.LoadAsync(performance, media);
+        await service.PlayAsync();
+        await service.TickAsync();
+
+        var stopping = service.StopAsync();
+        await WaitForAsync(() => service.State == PlaybackState.Stopping);
+        _screenServer.ClearReceivedCalls();
+
+        await service.PlayAsync();
+
+        // The screens were told to fade out and drop the media; flipping our own state back to
+        // Playing does not undo that for them, so the media has to be handed back.
+        Assert.Contains(_screenServer.ReceivedCalls(),
+            c => c.GetMethodInfo().Name == nameof(IScreenServer.BroadcastCommandAsync)
+                 && c.GetArguments().FirstOrDefault() is LoadMediaCommand);
+
+        Assert.Equal(PlaybackState.Playing, service.State);
+        await stopping;
+        service.Dispose();
+    }
+
+    [Fact]
+    public async Task Play_IsAllowed_WithOnlyACastReceiverConnected()
+    {
+        ConnectScreens(0);
+        _cast.ConnectedDeviceId.Returns("Living Room TV");
+
+        var (performance, media) = CreatePerformance();
+        await _service.LoadAsync(performance, media);
+        await _service.PlayAsync();
+
+        // Casting to the television with nothing else attached is the setup casting is for.
+        Assert.Equal(PlaybackState.Playing, _service.State);
+    }
+
+    [Fact]
+    public async Task Play_IsStillRefused_WithNoScreenAndNoReceiver()
+    {
+        ConnectScreens(0);
+        _cast.ConnectedDeviceId.Returns((string?)null);
+
+        var (performance, media) = CreatePerformance();
+        await _service.LoadAsync(performance, media);
+        await _service.PlayAsync();
+
+        // Nothing is playing the song, so the clock must not run the singer's turn away.
+        Assert.Equal(PlaybackState.Stopped, _service.State);
+    }
+
+    [Fact]
+    public async Task Position_FollowsTheReceiver_WhenThereIsNoPrimaryScreen()
+    {
+        ConnectScreens(0);
+        _cast.ConnectedDeviceId.Returns("Living Room TV");
+
+        var (performance, media) = CreatePerformance();
+        await _service.LoadAsync(performance, media);
+        await _service.PlayAsync();
+
+        // The receiver is seconds behind the host's own clock; the host has to take its word.
+        _cast.PlaybackStatusChanged += Raise.Event<EventHandler<CastPlaybackStatus>>(_cast,
+            new CastPlaybackStatus
+            {
+                Position = TimeSpan.FromSeconds(12),
+                IsPlaying = true,
+                SampledAtUtc = DateTime.UtcNow,
+            });
+
+        Assert.InRange(_service.Position, TimeSpan.FromSeconds(11.5), TimeSpan.FromSeconds(12.5));
+    }
+
+    [Fact]
+    public async Task Position_IgnoresTheReceiver_WhenAPrimaryScreenIsPresent()
+    {
+        ConnectScreens(1);
+        _cast.ConnectedDeviceId.Returns("Living Room TV");
+
+        var (performance, media) = CreatePerformance();
+        await _service.LoadAsync(performance, media);
+        await _service.PlayAsync();
+
+        _cast.PlaybackStatusChanged += Raise.Event<EventHandler<CastPlaybackStatus>>(_cast,
+            new CastPlaybackStatus
+            {
+                Position = TimeSpan.FromMinutes(3),
+                IsPlaying = true,
+                SampledAtUtc = DateTime.UtcNow,
+            });
+
+        // A primary's reports are timestamped against a measured clock offset; a receiver's are
+        // only timestamped on arrival, so the better clock wins.
+        Assert.True(_service.Position < TimeSpan.FromSeconds(5), $"position jumped to {_service.Position}");
+    }
+
+    [Fact]
+    public async Task Playback_IsMirroredToAConnectedCastReceiver()
+    {
+        _cast.ConnectedDeviceId.Returns("Living Room TV");
+
+        var (performance, media) = CreatePerformance();
+        await _service.LoadAsync(performance, media);
+        await _service.PlayAsync();
+
+        // A receiver is not a screen, so nothing broadcasts to it — playback has to drive it.
+        await _cast.Received(1).LoadAsync(
+            "http://host/media/stream-1/stream.m3u8", TimeSpan.Zero, Arg.Any<CancellationToken>());
+        await _cast.Received(1).PlayAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Playback_TouchesNothing_WhenNoCastReceiverIsConnected()
+    {
+        _cast.ConnectedDeviceId.Returns((string?)null);
+
+        var (performance, media) = CreatePerformance();
+        await _service.LoadAsync(performance, media);
+        await _service.PlayAsync();
+        await _service.PauseAsync();
+
+        await _cast.DidNotReceive().LoadAsync(
+            Arg.Any<string>(), Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>());
+        await _cast.DidNotReceive().PlayAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Playback_SurvivesAReceiverThatRefuses()
+    {
+        _cast.ConnectedDeviceId.Returns("Living Room TV");
+        _cast.PlayAsync(Arg.Any<CancellationToken>())
+            .Returns<Task>(_ => throw new InvalidOperationException("receiver went away"));
+
+        var (performance, media) = CreatePerformance();
+        await _service.LoadAsync(performance, media);
+        await _service.PlayAsync();
+
+        // A television switched off mid-song must not take the performance down with it.
+        Assert.Equal(PlaybackState.Playing, _service.State);
+    }
+
+    [Fact]
     public async Task Load_OpensAHostStream_AndSendsItsUrlToTheScreens()
     {
         var (performance, media) = CreatePerformance();
@@ -798,6 +982,25 @@ public class PlaybackServiceTests : IDisposable
             .Where(c => c.GetMethodInfo().Name == nameof(IScreenServer.BroadcastCommandAsync))
             .Select(c => c.GetArguments().FirstOrDefault() as TCommand)
             .LastOrDefault(c => c is not null);
+
+    private void RaisePrimaryState(TimeSpan position)
+        => _screenServer.StateReceived += Raise.EventWith(_screenServer, new ScreenStateReceivedEventArgs
+        {
+            ScreenId = _screenCoordination.PrimaryScreenId!,
+            State = new ScreenPlaybackState
+            {
+                LoadedFilePath = "/library/song.mp4",
+                IsPlaying = true,
+                Position = position,
+                Duration = TimeSpan.FromMinutes(4),
+                SampledAtUtc = DateTime.UtcNow,
+            },
+        });
+
+    private static async Task WaitForAsync(Func<bool> condition)
+    {
+        for (var i = 0; i < 100 && !condition(); i++) await Task.Delay(10);
+    }
 
     private SetTimelineCommand? LastTimeline()
         => _screenServer.ReceivedCalls()
