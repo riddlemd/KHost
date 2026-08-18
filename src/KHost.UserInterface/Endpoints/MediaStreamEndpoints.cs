@@ -3,9 +3,8 @@ using KHost.Abstractions.Services;
 namespace KHost.UserInterface.Endpoints;
 
 /// <summary>
-/// Serves the host's transcoded HLS to screens. Deliberately plain HTTP with no antiforgery or
-/// auth: consumers include devices that cannot authenticate, and sessions are addressed by an
-/// unguessable id that only lives as long as the song.
+/// Plain HTTP, no auth: consumers include devices that cannot authenticate, and a session id is
+/// unguessable and lives only as long as the song.
 /// </summary>
 public static class MediaStreamEndpoints
 {
@@ -35,9 +34,8 @@ public static class MediaStreamEndpoints
                 // An EVENT playlist grows while the song transcodes, so it must never be cached.
                 context.Response.Headers.CacheControl = "no-cache, no-store";
 
-                // Transcoding outruns playback, so by the time a screen attaches the playlist
-                // already holds a minute of segments and the player would join at the live edge —
-                // starting the song part-way in. EXT-X-START pins every consumer to the top.
+                // Transcoding outruns playback, so a player would join at the live edge and start
+                // the song part-way in. EXT-X-START pins every consumer to the top.
                 var playlist = File.ReadAllText(path);
                 if (!playlist.Contains("#EXT-X-START", StringComparison.Ordinal))
                     playlist = playlist.Replace(

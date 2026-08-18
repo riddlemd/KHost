@@ -5,9 +5,8 @@ using Microsoft.Extensions.Logging;
 namespace KHost.Screen2;
 
 /// <summary>
-/// <see cref="IMediaPlayer"/> backed by an HTML <c>&lt;video&gt;</c> pointed at the host's HLS
-/// stream. This screen no longer transcodes, probes, or reads the media file — the host does all
-/// three — so every property here is just a cache of what the page last reported.
+/// <see cref="IMediaPlayer"/> over an HTML <c>&lt;video&gt;</c> on the host's HLS stream. Nothing
+/// is decoded here, so every property is a cache of what the page last reported.
 /// </summary>
 internal sealed class StreamMediaPlayer : IMediaPlayer
 {
@@ -64,10 +63,7 @@ internal sealed class StreamMediaPlayer : IMediaPlayer
         }
     }
 
-    /// <summary>
-    /// Pitch is an ffmpeg filter and ffmpeg now runs on the host, so this screen cannot apply it
-    /// on its own — the host has to open a new stream and send another load.
-    /// </summary>
+    /// <summary>ffmpeg runs on the host now, so a pitch change needs a new stream from it.</summary>
     public int PitchSemitones
     {
         get { lock (_lock) return _pitchSemitones; }
@@ -100,10 +96,7 @@ internal sealed class StreamMediaPlayer : IMediaPlayer
         Send(new { type = "load", url, autoplay = false });
     }
 
-    /// <summary>
-    /// Records how far this machine's clock sits from the host's. Applied in the page rather than
-    /// here, because the correction runs per animation frame and the IPC only ticks once a second.
-    /// </summary>
+    /// <summary>Applied in the page: correction runs far more often than the IPC ticks.</summary>
     public void SetClockOffset(TimeSpan offset)
     {
         lock (_lock) _clockOffset = offset;
@@ -112,10 +105,7 @@ internal sealed class StreamMediaPlayer : IMediaPlayer
         Send(new { type = "clock", offsetMs = offset.TotalMilliseconds });
     }
 
-    /// <summary>
-    /// Hands the page the group's timeline. Positions are converted to stream time here so the
-    /// page never has to know the song offset the current transcode started at.
-    /// </summary>
+    /// <summary>Converted to stream time here, so the page never needs the song offset.</summary>
     public void SetTimeline(TimeSpan position, DateTime anchorUtc, bool isPlaying, bool isPrimary)
     {
         TimeSpan offset;
@@ -150,10 +140,7 @@ internal sealed class StreamMediaPlayer : IMediaPlayer
     public void Stop(TimeSpan? fadeDuration = null)
         => Send(new { type = "stop", fadeMs = (fadeDuration ?? TimeSpan.FromSeconds(5)).TotalMilliseconds });
 
-    /// <summary>
-    /// A seek is now just a move within the stream the page already holds — no reload, and no
-    /// transcode restart, which is what every seek used to cost.
-    /// </summary>
+    /// <summary>A move within the stream the page already holds — no transcode restart.</summary>
     public void Seek(TimeSpan position)
     {
         TimeSpan offset;
@@ -183,14 +170,12 @@ internal sealed class StreamMediaPlayer : IMediaPlayer
                         _isPlaying = root.GetProperty("playing").GetBoolean();
                         _isPaused = !_isPlaying && reported > TimeSpan.Zero;
 
-                        // The page stamps in its own clock; the offset makes it comparable with
-                        // the host's, which is what the group timeline is expressed in.
+                        // The page stamps in its own clock; the offset makes it host-comparable.
                         _sampledAtUtc = root.TryGetProperty("sampledAtEpochMs", out var stamp)
                             ? DateTime.UnixEpoch.AddMilliseconds(stamp.GetDouble()) + _clockOffset
                             : null;
 
-                        // Unknown until the transcode finishes and the playlist gains an ENDLIST,
-                        // so a zero here means "not yet", never "empty".
+                        // Unknown until the playlist gains an ENDLIST, so zero means "not yet".
                         if (root.TryGetProperty("duration", out var d) && d.GetDouble() > 0)
                             _duration = _streamStartOffset + TimeSpan.FromSeconds(d.GetDouble());
                     }
