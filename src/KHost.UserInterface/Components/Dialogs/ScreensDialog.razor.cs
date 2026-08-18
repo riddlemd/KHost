@@ -25,6 +25,7 @@ public partial class ScreensDialog : IDisposable
     private string? _busyCastDevice;
     private string? _castError;
     private bool _castPickerOpen;
+    private bool _castSearchBusy;
 
     private bool _isLaunching;
     private string? _pendingScreenId;
@@ -51,6 +52,42 @@ public partial class ScreensDialog : IDisposable
 
     // A receiver is never a screen, so it never moves up into the connected screens.
     private IReadOnlyList<CastDevice> CastDevices => Cast?.Devices ?? [];
+
+    internal bool IsSearchingForCast => Cast?.IsDiscovering == true;
+
+    /// <summary>
+    /// Discovery is off at startup and lives only for this run — browsing sweeps the whole network,
+    /// so it should be something the host turns on for as long as they need it.
+    /// </summary>
+    internal async Task ToggleCastSearchAsync()
+    {
+        if (_castSearchBusy) return;
+
+        _castSearchBusy = true;
+        _castError = null;
+
+        try
+        {
+            if (IsSearchingForCast)
+            {
+                _castPickerOpen = false;
+                await Cast!.StopDiscoveryAsync();
+            }
+            else
+            {
+                await Cast!.StartDiscoveryAsync();
+            }
+        }
+        catch (Exception)
+        {
+            _castError = "Could not search for Cast receivers.";
+        }
+        finally
+        {
+            _castSearchBusy = false;
+            StateHasChanged();
+        }
+    }
 
     private CastDevice? ConnectedCastDevice => CastDevices.FirstOrDefault(d => d.IsConnected);
 

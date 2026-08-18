@@ -113,16 +113,33 @@
                 }
             </section>
 
-            @if (CastDevices.Any())
-            {
-                <section class="kh-screens-dialog__cast">
-                    <h3>
-                        Cast devices
-                        <span class="kh-screens-dialog__note"
-                              title="A Cast receiver plays on its own schedule and cannot be held to the group's timeline.">
-                            always unsynced
-                        </span>
-                    </h3>
+            <section class="kh-screens-dialog__cast">
+                <h3>
+                    Cast devices
+                    <span class="kh-screens-dialog__note"
+                          title="A Cast receiver plays on its own schedule and cannot be held to the group's timeline.">
+                        always unsynced
+                    </span>
+                    <button class="kh-screens-dialog__search @(IsSearchingForCast ? "kh-screens-dialog__search--on" : "")"
+                            aria-pressed="@(IsSearchingForCast ? "true" : "false")"
+                            disabled="@_castSearchBusy"
+                            title="@(IsSearchingForCast
+                                ? "Searching the network for receivers. Click to stop."
+                                : "Browsing sweeps the whole network, so it stays off until you ask.")"
+                            @onclick="ToggleCastSearchAsync">
+                        <i class="bi @(IsSearchingForCast ? "bi-broadcast" : "bi-search")"></i>
+                        <span>@(IsSearchingForCast ? "Searching" : "Search")</span>
+                    </button>
+                </h3>
+
+                @if (CastDevices.Count == 0)
+                {
+                    <p class="kh-screens-dialog__empty">
+                        @(IsSearchingForCast ? "Looking for receivers…" : "Not searching for receivers.")
+                    </p>
+                }
+                else
+                {
                     <div class="kh-screens-dialog__picker" @onkeydown="OnCastPickerKeyDownAsync">
                         <div class="kh-screens-dialog__picker-row">
                             <button class="kh-screens-dialog__picker-trigger"
@@ -176,14 +193,15 @@
                             </div>
                         }
                     </div>
-                    @if (_castError is not null)
-                    {
-                        <p class="kh-screens-dialog__warning">
-                            <i class="bi bi-exclamation-triangle-fill"></i> @_castError
-                        </p>
-                    }
-                </section>
-            }
+                }
+
+                @if (_castError is not null)
+                {
+                    <p class="kh-screens-dialog__warning">
+                        <i class="bi bi-exclamation-triangle-fill"></i> @_castError
+                    </p>
+                }
+            </section>
 
             <section class="kh-screens-dialog__launch">
                 <h3>Launch New Screen</h3>

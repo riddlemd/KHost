@@ -14,8 +14,16 @@ public interface ICastService
     /// </summary>
     event EventHandler<CastPlaybackStatus>? PlaybackStatusChanged;
 
-    /// <summary>Begins browsing for receivers. Safe to call when casting is disabled — it no-ops.</summary>
-    Task InitializeAsync(CancellationToken cancellationToken = default);
+    /// <summary>Browsing sweeps the whole network, so it is off until someone asks for it.</summary>
+    bool IsDiscovering { get; }
+
+    Task StartDiscoveryAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Stops browsing and forgets what it found. An active cast is left alone — discovery is how
+    /// receivers are found, not what keeps one playing.
+    /// </summary>
+    Task StopDiscoveryAsync(CancellationToken cancellationToken = default);
 
     IReadOnlyList<CastDevice> Devices { get; }
 
