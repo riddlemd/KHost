@@ -190,6 +190,7 @@ internal class DefaultContext : DbContext
                 .HasMaxLength(1000);
 
             entity.HasIndex(e => e.UserId);
+            entity.HasIndex(e => e.VenueId);
             entity.HasIndex(e => e.CreatedDate);
         });
     }

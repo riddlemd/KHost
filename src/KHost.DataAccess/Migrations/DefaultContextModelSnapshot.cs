@@ -224,6 +224,8 @@ namespace KHost.DataAccess.Migrations
 
                     b.HasIndex("UserId");
 
+                    b.HasIndex("VenueId");
+
                     b.ToTable("Tips");
                 });
 
