@@ -61,8 +61,9 @@ internal static class Program
                 _ = PublishStateAsync();
                 _ = ResyncClockAsync();
             })
-            // A local file: this screen serves nothing, the media comes from the host.
-            .Load(new Uri(Path.Combine(AppContext.BaseDirectory, "screen-ui", "index.html")));
+            // Handed to the web view as a string: this screen serves nothing and has no files
+            // on disk, the media comes from the host.
+            .LoadRawString(BuildPlayerPage());
 
         logger.LogInformation("Screen2 starting: server={ServerUri} screen={ScreenId}", serverUri, screenId);
 
@@ -70,6 +71,30 @@ internal static class Program
 
         _ipc.DisposeAsync().AsTask().GetAwaiter().GetResult();
         Log.CloseAndFlush();
+    }
+
+    /// <summary>Builds the player page with its script inlined, from the embedded resources.</summary>
+    internal static string BuildPlayerPage()
+    {
+        var html = ReadResource("screen-ui/index.html");
+        var script = ReadResource("screen-ui/player.js");
+
+        // Without this guard, renaming the tag in index.html yields a page with no player at all:
+        // a black window, no error, and nothing in the log to say why.
+        const string scriptTag = "<script src=\"player.js\"></script>";
+        if (!html.Contains(scriptTag, StringComparison.Ordinal))
+            throw new InvalidOperationException($"index.html no longer contains {scriptTag} for player.js to be inlined into.");
+
+        return html.Replace(scriptTag, $"<script>{script}</script>", StringComparison.Ordinal);
+    }
+
+    private static string ReadResource(string name)
+    {
+        using var stream = typeof(Program).Assembly.GetManifestResourceStream(name)
+            ?? throw new InvalidOperationException($"Embedded resource '{name}' is missing.");
+
+        using var reader = new StreamReader(stream);
+        return reader.ReadToEnd();
     }
 
     /// <summary>Handles the page messages that drive the window rather than the player.</summary>
