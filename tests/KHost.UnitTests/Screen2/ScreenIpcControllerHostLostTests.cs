@@ -74,7 +74,7 @@ public class ScreenIpcControllerHostLostTests : IAsyncDisposable
         Transition(ScreenClientState.Connected, ScreenClientState.Disconnected);
         Transition(ScreenClientState.Disconnected, ScreenClientState.Error);
 
-        Assert.Single(_sentToPage.Where(m => m.Contains("hostLost")));
+        Assert.Single(_sentToPage, m => m.Contains("hostLost"));
     }
 
     private void Transition(ScreenClientState from, ScreenClientState to)
