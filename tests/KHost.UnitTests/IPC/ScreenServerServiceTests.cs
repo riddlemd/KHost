@@ -139,7 +139,7 @@ public class ScreenServerServiceTests
 
         var state = new ScreenPlaybackState
         {
-            LoadedFilePath = "/music/x.mp4",
+            StreamUrl = "http://192.168.1.10:5251/media/abc123/stream.m3u8",
             IsPlaying = true,
             Position = TimeSpan.Zero,
             Duration = TimeSpan.FromMinutes(3),

@@ -9,6 +9,7 @@ namespace KHost.UserInterface.Components.Dialogs;
 public partial class ScreensDialog : IDisposable
 {
     [Inject] private IScreenServer? ScreenServer { get; set; }
+    [Inject] private IPlaybackService? Playback { get; set; }
     [Inject] private IScreenCoordinationService? ScreenCoordination { get; set; }
     [Inject] private ICastService? Cast { get; set; }
     [Inject] private IEnumerable<IScreenProvider>? ScreenProviders { get; set; }
@@ -30,6 +31,12 @@ public partial class ScreensDialog : IDisposable
     private bool _isLaunching;
     private string? _pendingScreenId;
     private CancellationTokenSource? _launchCts;
+
+    // A screen only ever reports the stream it was pointed at, so the title comes from the host,
+    // which is the side that knows which performance it loaded.
+    private string NowPlayingLabel => Playback?.CurrentMedia is { } media
+        ? $"{media.Artist} - {media.Title}"
+        : "Streaming";
 
     private bool CanLaunch =>
         !_isLaunching &&

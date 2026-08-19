@@ -983,7 +983,7 @@ public class PlaybackServiceTests : IDisposable
             ScreenId = _screenCoordination.PrimaryScreenId!,
             State = new ScreenPlaybackState
             {
-                LoadedFilePath = "/library/song.mp4",
+                StreamUrl = "http://192.168.1.10:5251/media/abc123/stream.m3u8",
                 IsPlaying = true,
                 Position = position,
                 Duration = TimeSpan.FromMinutes(4),
