@@ -43,8 +43,7 @@ internal class DatabaseInitializer : IDatabaseInitializer
 
     public async Task InitializeAsync()
     {
-        var databaseFilePath = Path.Combine(AppContext.BaseDirectory, "cache", "khost.db");
-        var databaseDirectory = Path.GetDirectoryName(databaseFilePath);
+        var databaseDirectory = DatabaseLocation.DirectoryPath;
 
         _logger.LogInformation("Ensuring database directory exists at {Path}", databaseDirectory);
         if (!Directory.Exists(databaseDirectory))

@@ -12,10 +12,8 @@ namespace KHost.DataAccess
     {
         public static IServiceCollection AddDataAccess(this IServiceCollection serviceCollection)
         {
-            var databaseFilePath = Path.Combine(AppContext.BaseDirectory, "cache", "khost.db");
-
             serviceCollection.AddDbContextFactory<DefaultContext>(options =>
-                options.UseSqlite($"Data Source={databaseFilePath}")
+                options.UseSqlite($"Data Source={DatabaseLocation.FilePath}")
                        .UseQueryTrackingBehavior(QueryTrackingBehavior.NoTracking));
 
             serviceCollection.AddOptions<DatabaseInitializer.ServiceOptions>()
