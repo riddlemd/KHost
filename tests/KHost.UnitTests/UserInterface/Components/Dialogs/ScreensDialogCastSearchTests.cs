@@ -49,6 +49,27 @@ public class ScreensDialogCastSearchTests
     }
 
     [Fact]
+    public void Disposing_StopsBrowsing_SoItDoesNotSweepAllNight()
+    {
+        _cast.IsDiscovering.Returns(true);
+
+        _dialog.Dispose();
+
+        // Nothing outside this dialog shows that the network is being swept.
+        _cast.Received(1).StopDiscoveryAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public void Disposing_DoesNotTouchTheCastService_WhenItWasNeverSearching()
+    {
+        _cast.IsDiscovering.Returns(false);
+
+        _dialog.Dispose();
+
+        _cast.DidNotReceive().StopDiscoveryAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task ToggleCastSearch_SurfacesAFailureInsteadOfThrowing()
     {
         _cast.IsDiscovering.Returns(false);
