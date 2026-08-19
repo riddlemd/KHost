@@ -216,6 +216,21 @@ internal static class Program
         app.Lifetime.ApplicationStopping.Register(() =>
             app.Services.GetRequiredService<IMediaStreamService>().CloseAllAsync().GetAwaiter().GetResult());
 
+        // Every graceful exit lands here — the Exit menu, the window's close button, Ctrl+C when
+        // headless — so the venue's clear-on-close setting is honoured however KHost was quit.
+        // Swallowed because a queue that will not clear must not also block the shutdown.
+        app.Lifetime.ApplicationStopping.Register(() =>
+        {
+            try
+            {
+                app.Services.GetRequiredService<ISingerQueueService>().ClearAsync().GetAwaiter().GetResult();
+            }
+            catch (Exception ex)
+            {
+                Log.Warning(ex, "Could not clear the singer queue while shutting down");
+            }
+        });
+
         // Ahead of everything else, including static files: an off-box request must not reach the
         // UI, its assets, or its error pages.
         app.Use(async (context, next) =>
