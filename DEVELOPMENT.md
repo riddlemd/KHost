@@ -96,7 +96,7 @@ Everything the [README lists](README.md#prerequisites) — the .NET 10 SDK, Node
 
 - (Optional) **[Docker Desktop](https://www.docker.com/products/docker-desktop/)** — for the Aspire dashboard's local telemetry when running via `KHost.AppHost`.
 - (Optional) **ffprobe** — ships with FFmpeg; the transcode tests use it to assert a segment really carries audio.
-- (Optional) **Chromecast emulator** listening on `127.0.0.1:8009` — the Cast tests skip without it.
+- (Optional) **[Chromecast-Emulator](https://github.com/riddlemd/Chromecast-Emulator)** listening on `127.0.0.1:8009` — the Cast tests skip without it.
 
 ## Running for Development
 
@@ -175,7 +175,7 @@ Two suites drive real external tools and guard their own presence:
 - The transcode tests run real **ffmpeg**; the repository tests run against real in-memory **SQLite**.
 - If ffmpeg/ffprobe are missing, `EnvironmentCoverageTests` fails the run in plain words rather than
   letting the skipped coverage read as a pass. Set `KHOST_SKIP_ENVIRONMENT_TESTS=1` to accept the gap.
-- The Cast tests need the Chromecast emulator listening on `127.0.0.1:8009` and skip without it.
+- The Cast tests need the [Chromecast-Emulator](https://github.com/riddlemd/Chromecast-Emulator) listening on `127.0.0.1:8009` and skip without it.
 
 ## Learn More
 
