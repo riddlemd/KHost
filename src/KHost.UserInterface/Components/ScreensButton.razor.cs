@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Components;
+using KHost.Abstractions.Services;
 using KHost.Abstractions.Services.IPC;
 using KHost.UserInterface.Services;
 
@@ -8,20 +9,38 @@ public partial class ScreensButton : IDisposable
 {
     [Inject] private IDialogService? DialogService { get; set; }
     [Inject] private IScreenServer? ScreenServer { get; set; }
+    [Inject] private ICastService? Cast { get; set; }
 
-    private int _screenCount;
+    internal int _screenCount;
 
-    private string Title => _screenCount switch
+    /// <summary>A Cast receiver is not a screen, but the room is still watching something.</summary>
+    internal bool IsCasting => Cast?.ConnectedDeviceId is { Length: > 0 };
+
+    internal bool IsActive => _screenCount > 0 || IsCasting;
+
+    internal string Title
     {
-        0 => "Screens — none connected",
-        1 => "Screens — 1 connected",
-        _ => $"Screens — {_screenCount} connected",
-    };
+        get
+        {
+            var screens = _screenCount switch
+            {
+                0 => "none connected",
+                1 => "1 connected",
+                _ => $"{_screenCount} connected",
+            };
+
+            if (!IsCasting) return $"Screens — {screens}";
+
+            var receiver = Cast!.Devices.FirstOrDefault(d => d.IsConnected)?.Name ?? "a Cast receiver";
+            return $"Screens — {screens}, casting to {receiver}";
+        }
+    }
 
     protected override async Task OnInitializedAsync()
     {
         ScreenServer!.ScreenConnected += OnScreensChanged;
         ScreenServer.ScreenDisconnected += OnScreensChanged;
+        Cast!.StateChanged += OnCastChanged;
 
         await RefreshCountAsync();
     }
@@ -29,6 +48,9 @@ public partial class ScreensButton : IDisposable
     // Hub callbacks arrive off the render thread, so re-count and marshal back.
     private void OnScreensChanged(object? sender, ScreenConnectionEventArgs e) =>
         _ = InvokeAsync(RefreshCountAsync);
+
+    // Connecting a receiver changes no screen, so the colour needs its own trigger.
+    private void OnCastChanged(object? sender, EventArgs e) => _ = InvokeAsync(StateHasChanged);
 
     private async Task RefreshCountAsync()
     {
@@ -44,6 +66,8 @@ public partial class ScreensButton : IDisposable
 
     public void Dispose()
     {
+        if (Cast is not null) Cast.StateChanged -= OnCastChanged;
+
         if (ScreenServer is null) return;
 
         ScreenServer.ScreenConnected -= OnScreensChanged;

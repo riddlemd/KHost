@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
+using KHost.Abstractions.Exceptions;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using KHost.UserInterface.Services;
@@ -78,8 +79,20 @@ public partial class SelectedSingerInfoPanel : IDisposable
             return;
         }
 
-        await PlaybackService.LoadAsync(performance, media);
-        await PlaybackService.PlayAsync();
+        try
+        {
+            await PlaybackService.LoadAsync(performance, media);
+            await PlaybackService.PlayAsync();
+        }
+        catch (KHostException ex)
+        {
+            // Nothing reached the screens, so the host has to be told rather than left watching a
+            // queue that looks like it started.
+            await DialogService!.ShowErrorAsync(
+                ex,
+                title: "Couldn't start this song",
+                onRetry: () => _ = LoadAndPlayAsync(performance));
+        }
     }
 
     private async Task OpenPerformanceHistoryDialogAsync()

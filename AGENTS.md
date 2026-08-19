@@ -1,8 +1,8 @@
 # AGENTS.md
 
-**KHost** — karaoke host app. .NET 10 + Blazor Server UI, Avalonia screen app. Solution: `KHost.slnx` (no `.sln`).
+**KHost** — karaoke host app. .NET 10 + Blazor Server UI, Photino screen app. Solution: `KHost.slnx` (no `.sln`).
 
-Projects (`src/`): `Abstractions` (all interfaces + shared models, no project refs) ← `Domain` (services) / `DataAccess` (EF Core 10 + SQLite) ← `UserInterface` (Blazor Server) and `Screen` (Avalonia video output), plus `IPC.SignalR` (UI↔Screen), `LrcLib`, `Telemetry`, `ServiceDefaults`/`AppHost` (Aspire), and `tests/KHost.UnitTests`.
+Projects (`src/`): `Abstractions` (all interfaces + shared models, no project refs) ← `Domain` (services) / `DataAccess` (EF Core 10 + SQLite) ← `UserInterface` (Blazor Server) and `Screen2` (Photino video output), plus `IPC.SignalR` (UI↔Screen), `LrcLib`, `Telemetry`, `ServiceDefaults`/`AppHost` (Aspire), and `tests/KHost.UnitTests`.
 
 ## Commands
 

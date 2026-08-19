@@ -61,7 +61,9 @@ html {
 .kh-form-control,
 .kh-form-select {
     background-color: var(--kh-bg-input);
-    border-color: var(--kh-border);
+
+    // The reset strips borders from every input, so border-color on its own paints nothing.
+    border: 1px solid var(--kh-border);
     color: var(--kh-text);
     border-radius: var(--kh-radius);
     transition: border-color var(--kh-transition), box-shadow var(--kh-transition);
@@ -79,6 +81,19 @@ html {
         color: var(--kh-text);
         outline: none;
     }
+}
+
+// WebKit draws the native macOS pop-up for a menulist select and ignores the background and border
+// set above; Chromium honours them. The app runs in a Photino WKWebView, so without this the control
+// looks native and unthemed there while looking fine in a browser.
+.kh-form-select {
+    appearance: none;
+    -webkit-appearance: none;
+    padding-right: 2rem;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23b5b5b5' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 6l5 5 5-5'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.6rem center;
+    background-size: 12px;
 }
 
 .kh-form-select option {

@@ -15,13 +15,21 @@ public class ScreenCommandSerializationTests
     // drifts from the [JsonDerivedType] list.
     private static readonly Dictionary<string, ScreenCommandBase> Samples = new()
     {
-        [nameof(LoadMediaCommand)] = new LoadMediaCommand { FilePath = "/music/x.mp4" },
+        [nameof(LoadMediaCommand)] = new LoadMediaCommand { StreamUrl = "/music/x.mp4" },
         [nameof(PlayCommand)] = new PlayCommand(),
         [nameof(PauseCommand)] = new PauseCommand(),
         [nameof(StopCommand)] = new StopCommand { FadeDuration = TimeSpan.FromSeconds(2) },
         [nameof(SeekCommand)] = new SeekCommand { Position = TimeSpan.FromSeconds(42) },
         [nameof(SetVolumeCommand)] = new SetVolumeCommand { Volume = 0.75f },
         [nameof(SetPitchCommand)] = new SetPitchCommand { Semitones = -3 },
+        [nameof(SetVideoCommand)] = new SetVideoCommand { Enabled = false },
+        [nameof(SetTimelineCommand)] = new SetTimelineCommand
+        {
+            Position = TimeSpan.FromSeconds(42),
+            AnchorUtc = new DateTime(2026, 8, 17, 20, 30, 0, DateTimeKind.Utc),
+            IsPlaying = true,
+            IsPrimary = true,
+        },
     };
 
     public static TheoryData<string> CommandNames => [.. Samples.Keys];
@@ -37,7 +45,7 @@ public class ScreenCommandSerializationTests
     [Fact]
     public void SerializeByRuntimeType_OmitsDiscriminator()
     {
-        IScreenCommand cmd = new LoadMediaCommand { FilePath = "/music/x.mp4" };
+        IScreenCommand cmd = new LoadMediaCommand { StreamUrl = "/music/x.mp4" };
 
         // Mimics SignalR passing the argument as its concrete runtime type.
         var json = JsonSerializer.Serialize(cmd, cmd.GetType(), Options);
@@ -65,10 +73,11 @@ public class ScreenCommandSerializationTests
     public void RoundTrip_PreservesLoadMediaPayload()
     {
         var json = JsonSerializer.Serialize(
-            (ScreenCommandBase)new LoadMediaCommand { FilePath = "/music/x.mp4" }, typeof(ScreenCommandBase), Options);
+            (ScreenCommandBase)new LoadMediaCommand { StreamUrl = "http://host/media/a/stream.m3u8" },
+            typeof(ScreenCommandBase), Options);
 
         var back = Assert.IsType<LoadMediaCommand>(JsonSerializer.Deserialize<ScreenCommandBase>(json, Options));
-        Assert.Equal("/music/x.mp4", back.FilePath);
+        Assert.Equal("http://host/media/a/stream.m3u8", back.StreamUrl);
     }
 
     [Fact]

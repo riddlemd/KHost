@@ -5,6 +5,14 @@
 {
     @switch (item)
     {
+        case ErrorDialog.DialogRequest r:
+            <ErrorDialog @key="r.Id" IsOpen="true"
+                Title="@r.Title" WhatHappened="@r.WhatHappened" Suggestion="@r.Suggestion"
+                ReferenceCode="@r.ReferenceCode" Detail="@r.Detail"
+                OnRetry="@(r.OnRetry is null ? null : EventCallback.Factory.Create(this, () => { r.OnRetry.Invoke(); Close(r); }))"
+                OnClose="@(() => Close(r))" />
+            break;
+
         case ConfirmationDialog.DialogRequest r:
             <ConfirmationDialog @key="r.Id" IsOpen="true"
                 Title="@r.Title" Message="@r.Message" ConfirmText="@r.ConfirmText"

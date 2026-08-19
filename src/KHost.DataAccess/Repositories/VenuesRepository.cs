@@ -12,7 +12,7 @@ internal class VenuesRepository : BaseRepository<Venue>, IVenuesRepository
     private static readonly IReadOnlyDictionary<string, Expression<Func<Venue, object>>> _sortColumns =
         new Dictionary<string, Expression<Func<Venue, object>>>
         {
-            ["name"] = v => v.Name,
+            ["name"] = v => v.Name.ToLower(),
             ["enabled"] = v => v.Enabled,
         };
 
@@ -22,7 +22,7 @@ internal class VenuesRepository : BaseRepository<Venue>, IVenuesRepository
     }
 
     protected override IReadOnlyDictionary<string, Expression<Func<Venue, object>>> SortColumns => _sortColumns;
-    protected override Expression<Func<Venue, object>> DefaultSortExpression => v => v.Name;
+    protected override Expression<Func<Venue, object>> DefaultSortExpression => v => v.Name.ToLower();
 
     protected override IQueryable<Venue> ApplySearchFilters<TOptions>(IQueryable<Venue> queryable, string query, TOptions? options = null)
         where TOptions : class

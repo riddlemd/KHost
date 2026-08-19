@@ -41,7 +41,7 @@ public sealed class LocalScreenProvider : IScreenProvider, IDisposable
 
         // Process.Start would otherwise surface a bare Win32Exception that names nothing.
         if (!File.Exists(exePath))
-            throw new FileNotFoundException($"KHost.Screen executable not found at '{exePath}'.", exePath);
+            throw new FileNotFoundException($"Screen executable not found at '{exePath}'.", exePath);
 
         _logger.LogInformation("Launching local screen '{ScreenId}' via {ExePath}", screenId, exePath);
 
@@ -91,7 +91,7 @@ public sealed class LocalScreenProvider : IScreenProvider, IDisposable
     // Path.Combine leaves a rooted second argument alone, so an absolute configured path still wins.
     internal static string ResolveExePath(string? configuredExePath, string baseDirectory, bool isWindows)
         => Path.Combine(baseDirectory, string.IsNullOrWhiteSpace(configuredExePath)
-            ? isWindows ? "KHost.Screen.exe" : "KHost.Screen"
+            ? isWindows ? "KHost.Screen2.exe" : "KHost.Screen2"
             : configuredExePath);
 
     // Must stay one element per argument: screen ids are generated as "Screen 1", and a single

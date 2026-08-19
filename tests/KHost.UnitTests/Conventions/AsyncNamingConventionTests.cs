@@ -16,7 +16,6 @@ public class AsyncNamingConventionTests
         typeof(global::KHost.IPC.SignalR.ProjectExtensions).Assembly,
         typeof(global::KHost.LrcLib.ILrcLibClient).Assembly,
         typeof(global::KHost.Plugins.Sdk.PluginApi).Assembly,
-        typeof(global::KHost.Screen.App).Assembly,
         typeof(global::KHost.Telemetry.KHostActivitySource).Assembly,
         typeof(global::KHost.UserInterface.Services.ThemeService).Assembly,
     ];
