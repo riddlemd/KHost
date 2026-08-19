@@ -130,6 +130,18 @@ internal sealed class StreamMediaPlayer : IMediaPlayer
         Send(new { type = "video", enabled });
     }
 
+    /// <summary>
+    /// The host is the clock and the only way to stop this screen, so losing it pauses rather than
+    /// letting the song run on unattended, and says so on the screen instead of looking frozen.
+    /// </summary>
+    public void SetHostLost(bool lost)
+    {
+        _logger.LogWarning("Host {State}", lost ? "lost" : "back");
+
+        if (lost) Pause();
+        Send(new { type = "hostLost", lost });
+    }
+
     public Task LoadAsync(string filePath, CancellationToken cancellationToken = default)
     {
         // Reaching here means the host sent a load with no StreamUrl. A streamed screen has no

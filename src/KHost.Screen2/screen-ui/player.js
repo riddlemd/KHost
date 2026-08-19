@@ -4,6 +4,7 @@
 const video = document.getElementById('video');
 const placeholder = document.getElementById('placeholder');
 const blanked = document.getElementById('blanked');
+const hostLost = document.getElementById('hostlost');
 
 function send(payload) {
     if (window.external && window.external.sendMessage) {
@@ -177,6 +178,9 @@ function handleCommand(raw) {
         case 'seek':
             // Seeking within a stream the page already holds, rather than restarting a transcode.
             try { video.currentTime = message.position || 0; } catch (e) { reportError(`seek: ${e}`); }
+            break;
+        case 'hostLost':
+            hostLost.hidden = message.lost !== true;
             break;
         case 'video':
             // Hidden, not paused: the screen has to keep running to stay on the timeline, and a
