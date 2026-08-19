@@ -187,6 +187,12 @@ internal class PerformancesRepository : BaseRepository<Performance>, IPerformanc
     protected override IQueryable<Performance> ApplySearchFilters<TOptions>(IQueryable<Performance> queryable, string query, TOptions? options = null)
         where TOptions : class
     {
-        return queryable;
+        if (string.IsNullOrWhiteSpace(query))
+            return queryable;
+
+        // A performance holds only ids and dates, so nothing here can match a text query. Passing
+        // the queryable straight through would return the whole table and read as "everything
+        // matched"; search the singer or the media instead.
+        return queryable.Where(_ => false);
     }
 }
