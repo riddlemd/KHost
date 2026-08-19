@@ -473,6 +473,7 @@ public class PlaybackServiceTests : IDisposable
         ConnectScreens(0);
         RaiseScreenDisconnected();
 
+        // Same again: a disposed service must not react at all, so there is nothing to poll for.
         await Task.Delay(150);
         Assert.Equal(PlaybackState.Playing, service.State);
     }
@@ -859,6 +860,9 @@ public class PlaybackServiceTests : IDisposable
         // The load is still in flight. A clock left running here is what makes the screen resume
         // behind the UI, because the seek was aimed at where the song was when it started loading.
         var held = _service.Position;
+
+        // Waited out rather than polled: the assertion is that the clock does *not* advance, and
+        // there is no state to wait for. Comfortably longer than the tick it must outlive.
         await Task.Delay(700);
         Assert.Equal(held, _service.Position);
 
@@ -1273,7 +1277,7 @@ public class PlaybackServiceTests : IDisposable
         await _service.LoadAsync(performance, media);
         await _service.PlayAsync();
 
-        await Task.Delay(750);
+        await WaitForAsync(() => _service.State == PlaybackState.Stopped);
 
         Assert.Equal(PlaybackState.Stopped, _service.State);
         await _performanceService.Received().DequeueAsync(performance.SingerId, performance.Id);
