@@ -1,0 +1,318 @@
+# Developing KHost
+
+Everything contributor-facing: architecture, project layout, workflow, testing, and the roadmap. For what KHost is and how to run it, see the [README](README.md).
+
+## Table of Contents
+
+- [Architecture](#architecture)
+- [Project Layout](#project-layout)
+- [Running for Development](#running-for-development)
+- [Development Workflow](#development-workflow)
+- [Testing](#testing)
+- [Learn More](#learn-more)
+- [Roadmap](#roadmap)
+
+## Architecture
+
+KHost follows a layered architecture. Dependencies only point inward:
+
+```
+UI (KHost.UserInterface, KHost.Screen2)
+        │
+        ▼
+Domain  ──►  DataAccess
+        │         │
+        ▼         ▼
+          Abstractions
+```
+
+- **`KHost.Abstractions`** is the innermost project — it defines *every* interface and has no project references. Both `Domain` and `DataAccess` reference it; the UI projects reference all three.
+- **`KHost.Domain`** owns business logic and stateful services registered as singletons in DI. Stateful services (queue, venues, playback) raise a `StateChanged` event so Blazor components can call `StateHasChanged()` and re-render.
+- **`KHost.DataAccess`** owns EF Core persistence for the song library.
+
+Data flow at runtime:
+
+```
+  Browser (Blazor circuit)
+        │
+        ▼
+  KHost.UserInterface ── Domain services ──► EF Core / SQLite   (song library)
+        │     ▲                           └─► JsonFileCacheService (./cache/*.json)
+        │     │                                                    (queue, venues)
+        │     │  SignalR hub  /ipc/screen
+   commands  state
+        ▼     │
+  KHost.Screen2 (Photino)  ── HLS stream served by the host ──► second display
+```
+
+> **Host ⇄ screen interop.** The UI hosts a SignalR hub (`KHost.IPC.SignalR`) at `/ipc/screen`. The screen app connects as a SignalR client (`--server-uri` / `--screen-id`), receives playback commands, and pushes its `ScreenPlaybackState` back to the host. The host's `LocalScreenProvider` (an `IScreenProvider`) spawns screen processes from the Screens dialog, so a screen is a separate executable that is remote-controlled by the host console.
+
+> **Why the host transcodes.** The host runs one ffmpeg per song and serves the result as an HLS
+> playlist under `/media/{session}/`. Screens fetch that stream instead of decoding the file, which
+> is what lets several of them share a decode, keeps them on a common timeline, and makes it
+> possible to hand the same URL to a Cast receiver that has no access to the library at all.
+
+> **Reachable, without exposing the console.** Kestrel binds every interface so a receiver or an
+> off-machine screen can fetch the stream, and each screen is handed the host address it actually
+> connected on rather than one the host guesses. Since the UI has no authentication, `LanAccessPolicy`
+> answers only `/media` and `/ipc/screen` off-box and 404s everything else — the queue, the library
+> and venue settings stay on the host machine. The port is declared once, in `appsettings.json`
+> (`Urls`); the launch profile intentionally sets no `applicationUrl`.
+
+> **Why two persistence strategies?** The song library is large, relational, and benefits from SQL indexes on `FilePath`, `Title`, `Artist`, `Status`, and `DateAdded`. The queue and venue selection are small, frequently-mutated bits of "session" state; serializing them as JSON blobs is simpler and keeps the host running even if the DB is momentarily unavailable.
+
+## Project Layout
+
+The solution uses the `.slnx` (XML) format — open `KHost.slnx`; there is no `.sln`. Application projects live under `src/` and test projects under `tests/`.
+
+### `src/`
+
+| Project | Role |
+|---|---|
+| `KHost.AppHost` | .NET Aspire orchestrator. Launches `KHost.UserInterface` as an Aspire resource with the dashboard. |
+| `KHost.ServiceDefaults` | Shared Aspire defaults — OpenTelemetry, HTTP resilience, service discovery. Consumed via `builder.AddServiceDefaults()`. |
+| `KHost.Abstractions` | All interfaces and abstraction-layer models. No project references. |
+| `KHost.Domain` | Business logic, concrete models, and services (queue, playback, venues, singers, media, media search, metadata parsing, cache). Uses `TagLibSharp`. |
+| `KHost.LrcLib` | Standalone HTTP client library for the [LRCLIB.NET](https://lrclib.net) lyrics API. No project references; consumed by `KHost.Domain` via `AddLrcLib()`. |
+| `KHost.IPC.SignalR` | SignalR-based host ⇄ screen IPC: `ScreenHub`, `ScreenServerService` (`IScreenServer`), and `ScreenClient` (`IScreenClient`). Registered via `AddSignalRIPCServer()` + `MapIPCServer()` (host) and `AddSignalRIPCClient()` / `CreateScreenClient()` (screen). |
+| `KHost.Telemetry` | OpenTelemetry metrics and trace activities (`KHostMetrics`, `KHostActivitySource`) plus the `IAnalyticsService` / `IAnalyticsActivity` implementation. Registered via `AddTelemetry()`. |
+| `KHost.Cast` | Chromecast sender built on Sharpcaster — discovery, connection and transport for a single receiver at a time. Deliberately separate from the screen abstractions. Registered via `AddCast()`. |
+| `KHost.Plugins.Sdk` | Contracts a drop-in plugin implements; loaded from `src/Plugins`. |
+| `KHost.DataAccess` | EF Core 10 + SQLite persistence for the song library. |
+| `KHost.UserInterface` | Blazor Server app — the host console. Razor components live under `Components/`. Hosts the IPC hub at `/ipc/screen` and exposes `/api/themes`. |
+| `KHost.Screen2` | Photino desktop app for karaoke video/audio output. Plays an HLS stream the host transcodes. References `KHost.Abstractions`, `KHost.Telemetry`, and `KHost.IPC.SignalR`; connects to the host hub as a SignalR client. |
+
+### `tests/`
+
+| Project | Role |
+|---|---|
+| `KHost.UnitTests` | xUnit + NSubstitute tests. Repositories run against a real in-memory SQLite database (`SqliteTestDatabase`). |
+| `KHost.IntegrationTests` | Skeleton — new integration tests belong here. |
+
+## Running for Development
+
+```bash
+# With the Aspire dashboard (telemetry, resource view)
+dotnet run --project src/KHost.AppHost
+
+# The Blazor UI directly
+dotnet run --project src/KHost.UserInterface
+
+# Headless (no native window; serve the console to a browser)
+dotnet run --project src/KHost.UserInterface -- --headless
+```
+
+Screens are normally launched from the host's Screens dialog, which injects the host's live
+listening address as `--server-uri`. To run one by hand:
+
+```bash
+# --screen-id defaults to the machine name.
+dotnet run --project src/KHost.Screen2 -- --server-uri http://localhost:5251/ipc/screen --screen-id main
+
+# --log-level debug adds the state the page reports each tick (position, expected position,
+# readyState), which is how you tell a screen that is behind from one that never started.
+dotnet run --project src/KHost.Screen2 -- --server-uri http://localhost:5251/ipc/screen --log-level debug
+```
+
+Screen logs land in `logs/` beside the screen executable, one file per screen id per day.
+
+## Development Workflow
+
+### Hot reload
+
+```bash
+cd src/KHost.UserInterface
+npm run dev           # runs dotnet watch
+```
+
+### SCSS
+
+SCSS compiles inside `dotnet build` (AspNetCore.SassCompiler) — there is no separate sass step.
+Component styles live beside their component (`Foo.razor.scss` → scoped `Foo.razor.css`; the
+generated `.css` is gitignored — never edit or commit it). Shared blocks live under
+`wwwroot/scss` and are pulled in via `app.scss`.
+
+Building from the CLI while Visual Studio has the solution open? Redirect the output so the IDE's
+`bin/` isn't locked:
+
+```bash
+dotnet build KHost.slnx "-p:BaseOutputPath=./obj/_build"
+```
+
+### Code style conventions
+
+- Interfaces live in **`KHost.Abstractions`**, concrete types in their implementation project.
+- Services that expose configuration use the `ServiceOptions` nested-class pattern with `BindConfiguration(ServiceOptions.SectionName)` and `IOptionsMonitor<ServiceOptions>` for live reload.
+- Disposable services follow the standard `Dispose()` / `protected virtual Dispose(bool disposing)` pattern.
+- CSS: top-level class names are prefixed `kh-`, [BEM](https://getbem.com/introduction/) naming is used. No inline `style` attributes, no `<style>` blocks — all styles go in `.scss` files.
+- Events use `EventHandler`-style delegates, not `event Action`/`event Func`.
+
+See [AGENTS.md](AGENTS.md) for the full conventions, including the gotchas.
+
+## Testing
+
+Unit tests use **xUnit** and **NSubstitute**:
+
+```bash
+# Just the unit tests
+dotnet test tests/KHost.UnitTests
+
+# Everything in the solution
+dotnet test KHost.slnx
+```
+
+Two suites drive real external tools and guard their own presence:
+
+- The transcode tests run real **ffmpeg**; the repository tests run against real in-memory **SQLite**.
+- If ffmpeg/ffprobe are missing, `EnvironmentCoverageTests` fails the run in plain words rather than
+  letting the skipped coverage read as a pass. Set `KHOST_SKIP_ENVIRONMENT_TESTS=1` to accept the gap.
+- The Cast tests need the Chromecast emulator listening on `127.0.0.1:8009` and skip without it.
+
+## Learn More
+
+New to any of the technologies KHost uses? These are good starting points.
+
+### .NET & C#
+- [.NET documentation](https://learn.microsoft.com/dotnet/)
+- [C# language guide](https://learn.microsoft.com/dotnet/csharp/)
+- [What's new in .NET 10](https://learn.microsoft.com/dotnet/core/whats-new/dotnet-10/overview)
+
+### .NET Aspire (orchestration)
+- [Aspire overview](https://learn.microsoft.com/dotnet/aspire/get-started/aspire-overview)
+- [Aspire AppHost](https://learn.microsoft.com/dotnet/aspire/fundamentals/app-host-overview)
+- [Aspire samples](https://github.com/dotnet/aspire-samples)
+
+### Blazor Server (the host console UI)
+- [Blazor documentation](https://learn.microsoft.com/aspnet/core/blazor/)
+- [Blazor component lifecycle](https://learn.microsoft.com/aspnet/core/blazor/components/lifecycle)
+- [Interactive render modes](https://learn.microsoft.com/aspnet/core/blazor/components/render-modes)
+
+### Photino (the screen app)
+- [Photino documentation](https://www.tryphotino.io/docs)
+- [Photino.NET](https://github.com/tryphotino/photino.NET)
+- [HLS specification](https://datatracker.ietf.org/doc/html/rfc8216)
+
+### Entity Framework Core + SQLite
+- [EF Core documentation](https://learn.microsoft.com/ef/core/)
+- [EF Core with SQLite](https://learn.microsoft.com/ef/core/providers/sqlite/)
+- [SQLite documentation](https://www.sqlite.org/docs.html)
+
+### Media playback
+- [FFmpeg documentation](https://ffmpeg.org/documentation.html) / [FFmpeg wiki](https://trac.ffmpeg.org/wiki)
+- [FFMpegCore](https://github.com/rosenbjerg/FFMpegCore) (the .NET wrapper KHost uses to probe and invoke ffmpeg)
+- [TagLib#](https://github.com/mono/taglib-sharp) (audio metadata)
+
+### Observability
+- [Serilog](https://serilog.net/)
+- [OpenTelemetry for .NET](https://opentelemetry.io/docs/languages/net/)
+- [HTTP resilience in .NET](https://learn.microsoft.com/dotnet/core/resilience/http-resilience)
+
+### Testing
+- [xUnit](https://xunit.net/)
+- [NSubstitute](https://nsubstitute.github.io/)
+- [coverlet (code coverage)](https://github.com/coverlet-coverage/coverlet)
+
+### Styling
+- [Sass guide](https://sass-lang.com/guide/)
+- [BEM naming convention](https://getbem.com/introduction/)
+- [Bootstrap Icons](https://icons.getbootstrap.com/) (only icons from Bootstrap are used; no Bootstrap CSS/JS is included)
+
+## Roadmap
+
+Backlog of features a full-featured karaoke hosting application should support, grouped by functional area. ~~Struck-through~~ rows are done.
+
+### Singer Queue Management
+| Feature | Priority | Notes |
+|---|---|---|
+| ~~Drag-and-drop reorder of the queue~~ | Low | Done |
+| Fair rotation algorithm (round-robin by singer, not by song) | Medium | |
+| VIP / priority slots that jump the rotation | Low | |
+| Restore a previously skipped singer back into rotation (Some kind of out of placeholder?) | Low | |
+| Duet / group performance support (multiple names on one slot) | Low | |
+| Mark a singer as "on deck" / warming up | Low | |
+| Auto-remove singers who've been absent for X turns | Low | |
+
+### Song Library & Search
+| Feature | Priority | Notes |
+|---|---|---|
+| Search by title with fuzzy / typo-tolerant matching | High | SQLite FTS5 with BM25 ranking in place; fuzzy/typo-tolerant layer not in place |
+| ~~Search by artist~~ | High | Done |
+| ~~Multi-folder~~ / multi-drive library sources | High | Done |
+| ~~Background library scan with progress and cancel~~ | High | Done |
+| Search by genre, decade, or language | Low | |
+| ~~Bulk metadata editor (artist, title, album, year)~~ | Medium | Done — artist field and title/artist swap; can extend to more fields |
+
+### Playback Engine
+| Feature | Priority | Notes |
+|---|---|---|
+| Pitch / key adjustment (±N semitones) without tempo change | High | The transcoder accepts a semitone offset and builds the filter, but nothing passes one and there is no UI control — unreachable end to end |
+| Audio device selection per output (mains vs. headphone cue) | Low | |
+| Volume control with smooth fade in/out | Medium | Stop fades the screens out; per-screen mute is in the Screens dialog; master volume is a startup config value (`Audio.Volume`) with no runtime slider |
+| Tempo adjustment without pitch change | Low | |
+| ~~Wide format support: CDG+MP3, MP4, MKV, AVI, WebM, WMV~~ | Medium | Done |
+| ~~Mid-song cut ("kill song") with graceful fade~~ | Medium | Done — Stop fades over a configurable duration (`PlaybackService.StopFadeDuration`) |
+| Per-song saved key / tempo overrides remembered next time | Medium | |
+| Crossfade or hard cut between songs | Low | |
+| Vocal removal / karaoke-mode toggle for source tracks with vocals | Low | |
+
+### Display / Screen Output
+| Feature | Priority | Notes |
+|---|---|---|
+| ~~Remote-controlled screen output from the host console~~ | High | Done — host ⇄ screen IPC over SignalR (`KHost.IPC.SignalR`); load/play/pause/stop/seek/volume/timeline commands and state feedback |
+| ~~Multi-monitor support with independent output config~~ | Low | Done — screens are addressed by `screen-id`, each with its own audio, video and primary state, held on a shared timeline |
+| True fullscreen video output (no taskbar / chrome) | High | Double-click toggles fullscreen; the window keeps its chrome otherwise so it can be moved between displays |
+| Scrolling marquee with next-up singers | Medium | |
+| Idle/attract loop with background video, slides, or playlist | Medium | |
+| Big "Up Next: <Name>" announcement card before each song | Medium | |
+| Resolution / aspect-ratio scaling for any display | Medium | |
+| ~~Cast the output to a Chromecast receiver~~ | Medium | Done — discovery from the Screens dialog, one receiver at a time; a receiver cannot hold the group timeline |
+| Custom branding / logo / watermark overlay | Low | |
+| Promotional / sponsor slides rotated between songs | Low | |
+| Birthday / anniversary / special-occasion shoutouts | Low | |
+| Safe-area guides for projectors and TVs | Low | |
+
+### Singer-Facing (Mobile)
+| Feature | Priority | Notes |
+|---|---|---|
+| QR code on screen so singers can join from their phone | Low | Requires Online Service |
+| Mobile web app for browsing the library | Low | Requires Online Service |
+| Self-serve add-to-queue from phone | Low | Requires Online Service |
+| See own queue position in real time | Low | Requires Online Service |
+| Estimated wait time | Low | Requires Online Service |
+| Push / browser notification when "you're up next" | Low | Requires Online Service |
+| Optional singer accounts with persistent history | Low | Requires Online Service |
+| Per-singer favorites and "my songs" list | Low | Requires Online Service |
+| Request a song that's not in the library | Low | Requires Online Service |
+| Tip the KJ from the phone | Low | Requires Online Service |
+
+### Host / KJ Tools
+| Feature | Priority | Notes |
+|---|---|---|
+| KJ admin login / lock-screen | Medium | Auth service, provider, and Argon2 hasher implemented; login UI page not wired |
+| ~~Multiple host accounts~~ | Low | Done |
+| ~~Tip tracking per singer / per night~~ | Low | Done — TipsService, TipsManagerPage, and per-singer totals in UsersManager |
+
+### Venue / Show Management
+| Feature | Priority | Notes |
+|---|---|---|
+| Auto-save show state every N seconds; crash recovery | Medium | Queue and venues written to JSON on every mutation; periodic time-based snapshots not in place |
+| ~~Multiple venue profiles with distinct settings~~ | Medium | Done |
+| Export show recap (songs played, singers, durations) | Low | |
+| Per-venue rotation, cooldown, and branding rules | Low | Partial — some configs live on venues |
+| Email or print end-of-night summary | Low | |
+| Multi-show historical stats per venue | Low | |
+
+### Reporting & Analytics
+| Feature | Priority | Notes |
+|---|---|---|
+| Songs played per session and all-time | Medium | `PerformanceService` stores records in the DB; analytics/reporting UI not built |
+| Most-requested songs and trending songs | Low | Requires Online Service |
+| Most-active singers and new-singer count | Low | |
+| Peak-hour analysis across nights | Low | |
+| Per-genre and per-decade play distribution | Low | |
+
+### Integrations & External Sources
+| Feature | Priority | Notes |
+|---|---|---|
+| ~~Lyrics lookup via LRCLIB.NET~~ | Low | Done — `KHost.LrcLib` + `ShowLyricsDialog` |
+| YouTube / online karaoke source fetch with caching | Low | |
