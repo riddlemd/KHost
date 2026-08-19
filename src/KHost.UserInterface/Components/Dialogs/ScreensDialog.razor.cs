@@ -352,6 +352,11 @@ public partial class ScreensDialog : IDisposable
     {
         _launchCts?.Dispose();
 
+        // Browsing sweeps the network continuously, and nothing outside this dialog shows that it
+        // is happening. Closing the dialog is the point at which nobody is looking at the results.
+        // An established cast is unaffected — StopDiscoveryAsync leaves the connection alone.
+        if (Cast?.IsDiscovering == true) _ = Cast.StopDiscoveryAsync();
+
         if (ScreenCoordination is not null) ScreenCoordination.StateChanged -= OnScreenCoordinationChanged;
         if (Cast is not null) Cast.StateChanged -= OnScreenCoordinationChanged;
 
