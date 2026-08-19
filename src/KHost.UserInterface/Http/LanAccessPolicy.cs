@@ -12,7 +12,14 @@ internal static class LanAccessPolicy
     private static readonly string[] ReachableOffBox = ["/media", "/ipc/screen"];
 
     internal static bool IsAllowed(IPAddress? remote, PathString path)
-        => IsLocal(remote) || ReachableOffBox.Any(p => path.StartsWithSegments(p, StringComparison.OrdinalIgnoreCase));
+        => IsLocal(remote) || IsMachineFacing(path);
+
+    /// <summary>
+    /// These paths answer a screen or a Cast receiver, never a browser, so no UI-level gate may
+    /// intercept them: a redirect reaches something that cannot follow one and reads as a stream.
+    /// </summary>
+    internal static bool IsMachineFacing(PathString path)
+        => ReachableOffBox.Any(p => path.StartsWithSegments(p, StringComparison.OrdinalIgnoreCase));
 
     /// <summary>
     /// A null address means the request never crossed a socket (in-process), so it is as local as
