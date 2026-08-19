@@ -10,7 +10,6 @@ namespace KHost.IPC.SignalR;
 [JsonSerializable(typeof(StopCommand))]
 [JsonSerializable(typeof(SeekCommand))]
 [JsonSerializable(typeof(SetVolumeCommand))]
-[JsonSerializable(typeof(SetPitchCommand))]
 [JsonSerializable(typeof(SetTimelineCommand))]
 [JsonSerializable(typeof(SetVideoCommand))]
 [JsonSerializable(typeof(ScreenStateBase))]

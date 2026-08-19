@@ -9,7 +9,6 @@ namespace KHost.Abstractions.Services.IPC;
 [JsonDerivedType(typeof(StopCommand), "stop")]
 [JsonDerivedType(typeof(SeekCommand), "seek")]
 [JsonDerivedType(typeof(SetVolumeCommand), "setVolume")]
-[JsonDerivedType(typeof(SetPitchCommand), "setPitch")]
 [JsonDerivedType(typeof(SetTimelineCommand), "setTimeline")]
 [JsonDerivedType(typeof(SetVideoCommand), "setVideo")]
 public abstract class ScreenCommandBase : IScreenCommand { }
@@ -61,11 +60,6 @@ public sealed class SeekCommand : ScreenCommandBase
 public sealed class SetVolumeCommand : ScreenCommandBase
 {
     public required float Volume { get; init; }
-}
-
-public sealed class SetPitchCommand : ScreenCommandBase
-{
-    public required int Semitones { get; init; }
 }
 
 /// <summary>

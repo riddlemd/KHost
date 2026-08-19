@@ -28,13 +28,6 @@ public interface IMediaPlayer : IDisposable
     float Volume { get; set; }
 
     /// <summary>
-    /// Semitone offset applied to audio pitch without changing tempo.
-    /// 0 = no shift. Positive = higher pitch. Negative = lower pitch.
-    /// Always safe to set — takes effect on the next playback segment.
-    /// </summary>
-    int PitchSemitones { get; set; }
-
-    /// <summary>
     /// Raised on a background thread each time a decoded video frame is ready.
     /// The <see cref="FrameData"/> carries raw BGRA pixels; the handler must not
     /// hold a reference beyond the event call (the buffer may be reused).
