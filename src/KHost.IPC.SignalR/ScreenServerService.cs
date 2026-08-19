@@ -115,7 +115,6 @@ internal sealed class ScreenServerService : IScreenServer, IHubCallback
 
         return new LoadMediaCommand
         {
-            FilePath = load.FilePath,
             StreamUrl = url,
             StreamStartOffset = load.StreamStartOffset,
         };

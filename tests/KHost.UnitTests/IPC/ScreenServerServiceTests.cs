@@ -225,7 +225,6 @@ public class ScreenServerServiceTests
 
         await _service.BroadcastCommandAsync(new LoadMediaCommand
         {
-            FilePath = "/songs/a.mp4",
             StreamUrl = "http://localhost:5251/media/abc/stream.m3u8",
         });
 
@@ -259,7 +258,6 @@ public class ScreenServerServiceTests
 
         await _service.SendCommandAsync("Across", new LoadMediaCommand
         {
-            FilePath = "/songs/a.mp4",
             StreamUrl = "http://localhost:5251/media/abc/stream.m3u8",
         });
 
@@ -267,7 +265,7 @@ public class ScreenServerServiceTests
     }
 
     [Fact]
-    public async Task BroadcastCommandAsync_LeavesTheFilePathAlone()
+    public async Task BroadcastCommandAsync_CarriesTheRestOfTheCommandAcross()
     {
         Callback.OnScreenConnected("Across", "conn-across", "192.168.0.99", ScreenCapabilities.None);
 
@@ -277,13 +275,11 @@ public class ScreenServerServiceTests
 
         await _service.BroadcastCommandAsync(new LoadMediaCommand
         {
-            FilePath = "/songs/a.mp4",
             StreamUrl = "http://localhost:5251/media/abc/stream.m3u8",
             StreamStartOffset = TimeSpan.FromSeconds(12),
         });
 
-        // Rebuilding the command must carry the rest of it across, not just the URL.
-        Assert.Contains("/songs/a.mp4", payload);
+        // Rebuilding the command to rewrite the host must not drop what came with it.
         Assert.Contains("12", payload);
     }
 }
