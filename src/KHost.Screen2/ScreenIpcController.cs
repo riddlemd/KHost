@@ -170,7 +170,7 @@ internal sealed class ScreenIpcController : IAsyncDisposable
     {
         var state = new ScreenPlaybackState
         {
-            LoadedFilePath = _player.Info?.FilePath,
+            StreamUrl = _player.Info?.FilePath,
             IsPlaying = _player.IsPlaying,
             Position = _player.Position,
             Duration = _player.Duration,

@@ -83,7 +83,8 @@ public abstract class ScreenStateBase : IScreenState { }
 
 public sealed class ScreenPlaybackState : ScreenStateBase
 {
-    public required string? LoadedFilePath { get; init; }
+    /// <summary>The stream the screen is playing, not a file — a screen opens nothing local.</summary>
+    public required string? StreamUrl { get; init; }
     public required bool IsPlaying { get; init; }
     public required TimeSpan Position { get; init; }
     public required TimeSpan Duration { get; init; }
