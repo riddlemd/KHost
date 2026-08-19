@@ -140,7 +140,8 @@ internal class MediaRepository : BaseRepository<Media>, IMediaRepository
         var sw = Stopwatch.StartNew();
         try
         {
-            // FTS path: when sort is provided, override bm25 ordering
+            // An explicit sort supersedes relevance rather than combining with it: the caller asked
+            // for that column's order, and bm25 could only break ties within it.
             var includeBm25InSql = sort is null;
             var sql = includeBm25InSql
                 ? $$"""
