@@ -1,4 +1,3 @@
-using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 
 namespace KHost.Telemetry.Services;
@@ -7,11 +6,6 @@ internal sealed class OtelAnalyticsService : IAnalyticsService
 {
     public void RecordMediaParseDuration(double milliseconds) =>
         KHostMetrics.MediaParseDuration.Record(milliseconds);
-
-    public void RecordMediaSearchDuration(double milliseconds, bool usedFts) =>
-        KHostMetrics.SearchDuration.Record(milliseconds,
-            new KeyValuePair<string, object?>("entity", nameof(Media)),
-            new KeyValuePair<string, object?>("used_fts", usedFts));
 
     public void RecordImportDuration(double milliseconds) =>
         KHostMetrics.ImportDuration.Record(milliseconds);

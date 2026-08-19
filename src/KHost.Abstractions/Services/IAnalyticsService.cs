@@ -5,7 +5,6 @@ namespace KHost.Abstractions.Services;
 public interface IAnalyticsService
 {
     void RecordMediaParseDuration(double milliseconds);
-    void RecordMediaSearchDuration(double milliseconds, bool usedFts);
     void RecordImportDuration(double milliseconds);
     void RecordCacheSaveDuration(double milliseconds, string key);
     void RecordCacheLoadDuration(double milliseconds, string key, bool hit);
