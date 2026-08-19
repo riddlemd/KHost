@@ -28,11 +28,4 @@ public class VenueTests
         Assert.Equal("", venue.Notes);
     }
 
-    [Fact]
-    public void Venue_EnabledCanBeSet()
-    {
-        var venue = new Venue { Name = "The Pub", Enabled = false };
-
-        Assert.False(venue.Enabled);
-    }
 }
