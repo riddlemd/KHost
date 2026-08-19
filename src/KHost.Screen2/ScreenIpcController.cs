@@ -15,6 +15,16 @@ internal sealed class ScreenIpcController : IAsyncDisposable
     // Serialized so a load settles before a following Play, rather than racing on the page.
     private readonly SemaphoreSlim _commandGate = new(1, 1);
 
+    /// <summary>
+    /// Long enough to ride out the first couple of automatic reconnect attempts, which recover in
+    /// seconds — a screen that blanked on every blip would be worse than one that waits.
+    /// </summary>
+    private static readonly TimeSpan HostLostGrace = TimeSpan.FromSeconds(5);
+
+    private readonly Lock _hostLostLock = new();
+    private Timer? _hostLostTimer;
+    private bool _hostLost;
+
     public ScreenIpcController(IScreenClient client, StreamMediaPlayer player, ILogger<ScreenIpcController> logger)
     {
         _client = client;
@@ -51,8 +61,54 @@ internal sealed class ScreenIpcController : IAsyncDisposable
         }
     }
 
-    private void OnClientStateChanged(object? sender, ScreenClientStateChangedEventArgs e) =>
+    private void OnClientStateChanged(object? sender, ScreenClientStateChangedEventArgs e)
+    {
         _logger.LogInformation("IPC state: {Old} -> {New}", e.OldState, e.NewState);
+
+        switch (e.NewState)
+        {
+            // Terminal: the client has stopped retrying, so there is nothing left to wait for.
+            case ScreenClientState.Disconnected:
+            case ScreenClientState.Error:
+                SetHostLost(true);
+                break;
+
+            case ScreenClientState.Reconnecting:
+                StartHostLostCountdown();
+                break;
+
+            case ScreenClientState.Connected:
+                SetHostLost(false);
+                break;
+        }
+    }
+
+    private void StartHostLostCountdown()
+    {
+        lock (_hostLostLock)
+        {
+            _hostLostTimer?.Dispose();
+            _hostLostTimer = new Timer(_ => SetHostLost(true), null, HostLostGrace, Timeout.InfiniteTimeSpan);
+        }
+    }
+
+    /// <summary>
+    /// The host is this screen's clock and its only stop button, so losing it has to pause the song
+    /// rather than leave it running where nobody can reach it.
+    /// </summary>
+    private void SetHostLost(bool lost)
+    {
+        lock (_hostLostLock)
+        {
+            _hostLostTimer?.Dispose();
+            _hostLostTimer = null;
+
+            if (_hostLost == lost) return;
+            _hostLost = lost;
+        }
+
+        _player.SetHostLost(lost);
+    }
 
     private async void OnCommandReceived(object? sender, ScreenCommandReceivedEventArgs e)
     {
@@ -139,6 +195,12 @@ internal sealed class ScreenIpcController : IAsyncDisposable
     {
         _client.CommandReceived -= OnCommandReceived;
         _client.StateChanged -= OnClientStateChanged;
+
+        lock (_hostLostLock)
+        {
+            _hostLostTimer?.Dispose();
+            _hostLostTimer = null;
+        }
         _player.PlaybackEnded -= OnPlaybackEnded;
         await _client.DisconnectAsync();
         if (_client is IAsyncDisposable disposable) await disposable.DisposeAsync();
