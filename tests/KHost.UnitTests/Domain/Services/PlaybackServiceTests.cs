@@ -1,3 +1,4 @@
+using KHost.Abstractions.Exceptions;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using KHost.Abstractions.Services.IPC;
@@ -312,16 +313,6 @@ public class PlaybackServiceTests : IDisposable
         await _performanceService.DidNotReceive().DequeueAsync(Arg.Any<Guid>(), Arg.Any<Guid>());
     }
 
-    [Fact]
-    public async Task LoadAsync_BroadcastsLoadMediaCommand_WithMediaFilePath()
-    {
-        var (performance, media) = CreatePerformance();
-
-        await _service.LoadAsync(performance, media);
-
-        await _screenServer.Received(1).BroadcastCommandAsync(
-            Arg.Is<LoadMediaCommand>(c => c.FilePath == media.FilePath));
-    }
 
     [Fact]
     public async Task PlayAsync_BroadcastsPlayCommand()
@@ -769,9 +760,6 @@ public class PlaybackServiceTests : IDisposable
         var command = LastBroadcast<LoadMediaCommand>();
         Assert.NotNull(command);
         Assert.Equal("http://host/media/stream-1/stream.m3u8", command.StreamUrl);
-
-        // FilePath stays populated: KHost.Screen decodes locally and cannot consume the stream.
-        Assert.Equal(media.FilePath, command.FilePath);
     }
 
     [Fact]
@@ -816,21 +804,25 @@ public class PlaybackServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task Load_StillReachesTheScreens_WhenTheTranscodeCannotStart()
+    public async Task Load_FailsPresentably_WhenTheTranscodeCannotStart()
     {
         _mediaStreams
             .OpenAsync(Arg.Any<string>(), Arg.Any<TimeSpan>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
             .Returns<MediaStreamSession>(_ => throw new FileNotFoundException("gone"));
 
         var (performance, media) = CreatePerformance();
-        await _service.LoadAsync(performance, media);
 
-        // A screen sharing the filesystem can still play from FilePath, so a failed transcode
-        // must not take the performance down with it.
-        var command = LastBroadcast<LoadMediaCommand>();
-        Assert.NotNull(command);
-        Assert.Null(command.StreamUrl);
-        Assert.Equal(media.FilePath, command.FilePath);
+        // No stream means no playback: every screen plays the host's transcode, so a load that
+        // could not start one has nothing to send and must not be passed off as success.
+        var error = await Assert.ThrowsAsync<KHostException>(() => _service.LoadAsync(performance, media));
+
+        Assert.Null(LastBroadcast<LoadMediaCommand>());
+
+        // Presentable, because this one reaches the host rather than only the log.
+        Assert.Contains(media.Title, error.WhatHappened);
+        Assert.NotEmpty(error.Suggestion);
+        Assert.Equal("KH-STREAM-OPEN", error.ReferenceCode);
+        Assert.IsType<FileNotFoundException>(error.InnerException);
     }
 
     [Fact]

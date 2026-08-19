@@ -34,6 +34,20 @@ public class ScreenDisconnectPausesPlaybackTests : IDisposable
             Settings = new Venue.VenueSettings(),
         });
 
+        // Playback needs a host stream now: without one a load throws rather than sending a
+        // command no screen could act on.
+        var mediaStreams = Substitute.For<IMediaStreamService>();
+        mediaStreams
+            .OpenAsync(Arg.Any<string>(), Arg.Any<TimeSpan>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(call => new MediaStreamSession
+            {
+                Id = "stream-1",
+                SourcePath = call.ArgAt<string>(0),
+                PlaylistUrl = "http://host/media/stream-1/stream.m3u8",
+                StartOffset = call.ArgAt<TimeSpan>(1),
+                PitchSemitones = 0,
+            });
+
         _playbackService = new PlaybackService(
             NullLogger<PlaybackService>.Instance,
             Substitute.For<ISingerQueueService>(),
@@ -41,7 +55,7 @@ public class ScreenDisconnectPausesPlaybackTests : IDisposable
             venues,
             Substitute.For<IAnalyticsService>(),
             _screenServer,
-            Substitute.For<IMediaStreamService>(),
+            mediaStreams,
             new ScreenCoordinationService(NullLogger<ScreenCoordinationService>.Instance, _screenServer),
             Substitute.For<ICastService>(),
             Options.Create(new PlaybackService.ServiceOptions { StopFadeDuration = TimeSpan.Zero }));

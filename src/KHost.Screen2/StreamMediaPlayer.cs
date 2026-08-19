@@ -142,10 +142,9 @@ internal sealed class StreamMediaPlayer : IMediaPlayer
         Send(new { type = "hostLost", lost });
     }
 
+    /// <summary>Unused: IMediaPlayer declares it, but the host only ever sends a stream URL.</summary>
     public Task LoadAsync(string filePath, CancellationToken cancellationToken = default)
     {
-        // Reaching here means the host sent a load with no StreamUrl. A streamed screen has no
-        // decoder of its own, so there is nothing sensible to fall back to.
         _logger.LogError("Cannot load '{FilePath}': this screen only plays host streams", filePath);
         ErrorOccurred?.Invoke(this, "screen requires a host stream URL");
 

@@ -1,3 +1,4 @@
+using KHost.Abstractions.Exceptions;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using KHost.Abstractions.Services.IPC;
@@ -409,20 +410,24 @@ public class PlaybackService : BaseService, IPlaybackService
         Position = TimeSpan.Zero;
     }
 
-    /// <summary>FilePath stays populated: KHost.Screen decodes locally and cannot use the stream.</summary>
+    /// <summary>Throws when the transcode will not start: there is no playback without it.</summary>
     private async Task<LoadMediaCommand> BuildLoadCommandAsync(Media media, TimeSpan startOffset)
     {
         await CloseStreamAsync();
 
+        // Not swallowed: every screen plays the host's stream, so without one there is nothing to
+        // send and pretending otherwise leaves the room staring at a screen that never starts.
         try
         {
             _stream = await _mediaStreams.OpenAsync(media.FilePath, startOffset);
         }
         catch (Exception ex)
         {
-            // A screen sharing the host's filesystem can still play from FilePath, so a failed
-            // transcode degrades the performance rather than ending it.
-            Logger.LogError(ex, "Could not open a host stream for '{FilePath}'", media.FilePath);
+            throw new KHostException(
+                $"KHost couldn't prepare \u201c{media.Title}\u201d for the screens, so nothing was sent to them.",
+                "Check the file is still on the drive, then try again.",
+                "KH-STREAM-OPEN",
+                ex);
         }
 
         var command = DescribeStream(media);
@@ -435,8 +440,8 @@ public class PlaybackService : BaseService, IPlaybackService
 
     private LoadMediaCommand DescribeStream(Media media) => new()
     {
-        FilePath = media.FilePath,
-        StreamUrl = _stream?.PlaylistUrl,
+        StreamUrl = _stream?.PlaylistUrl
+            ?? throw new InvalidOperationException($"No host stream is open for '{media.Title}'."),
         StreamStartOffset = _stream?.StartOffset ?? TimeSpan.Zero,
     };
 
