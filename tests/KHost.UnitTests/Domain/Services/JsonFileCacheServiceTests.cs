@@ -17,9 +17,8 @@ public class JsonFileCacheServiceTests : IDisposable
         if (!Directory.Exists(_cacheDir))
             Directory.CreateDirectory(_cacheDir);
 
-        var options = Substitute.For<IOptionsMonitor<JsonFileCacheService.ServiceOptions>>();
         var analytics = Substitute.For<IAnalyticsService>();
-        _service = new JsonFileCacheService(NullLogger<JsonFileCacheService>.Instance, options, analytics);
+        _service = new JsonFileCacheService(NullLogger<JsonFileCacheService>.Instance, analytics);
     }
 
     public void Dispose()

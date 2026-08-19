@@ -10,16 +10,12 @@ public class UsersService : BaseRepositoryService<KHostUser, IUsersRepository>, 
 {
     private readonly IUserGroupsRepository _userGroupsRepository;
 
-    public IOptionsMonitor<ServiceOptions> Options { get; }
-
     public UsersService(
         ILogger<UsersService> logger,
-        IOptionsMonitor<ServiceOptions> options,
         IUsersRepository repository,
         IUserGroupsRepository userGroupsRepository)
         : base(logger, repository)
     {
-        Options = options;
         _userGroupsRepository = userGroupsRepository;
     }
 
@@ -76,8 +72,4 @@ public class UsersService : BaseRepositoryService<KHostUser, IUsersRepository>, 
         return await Repository.HasAdminUserAsync();
     }
 
-    public class ServiceOptions
-    {
-        public const string SectionName = nameof(UsersService);
-    }
 }
