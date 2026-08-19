@@ -4,8 +4,5 @@
 <button class="kh-screens-btn kh-button--icon-minimal"
         title="@Title"
         @onclick="OpenAsync">
-    <i class="bi bi-display"></i>
-    <span class="kh-screens-btn__badge @(_screenCount == 0 ? "kh-screens-btn__badge--none" : "")">
-        @_screenCount
-    </span>
+    <i class="bi bi-display @(IsActive ? "kh-screens-btn__icon--active" : "")"></i>
 </button>

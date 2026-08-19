@@ -6,23 +6,9 @@
 .kh-screens-btn {
     position: relative;
 
-    &__badge {
-        position: absolute;
-        top: -2px;
-        right: -4px;
-        min-width: 16px;
-        height: 16px;
-        padding: 0 4px;
-        border-radius: 8px;
-        background: var(--kh-primary);
-        color: #fff;
-        font-size: 0.65rem;
-        font-weight: 600;
-        line-height: 16px;
-        text-align: center;
-
-        &--none {
-            background: var(--kh-neutral);
-        }
+    // Colour rather than a count: the toolbar only has to answer "is anything showing this?",
+    // and the dialog is where the screens are named.
+    &__icon--active {
+        color: var(--kh-success);
     }
 }

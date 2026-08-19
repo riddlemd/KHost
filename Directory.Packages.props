@@ -33,6 +33,7 @@
     <PackageVersion Include="Serilog" Version="4.3.0" />
     <PackageVersion Include="Serilog.AspNetCore" Version="10.0.0" />
     <PackageVersion Include="Serilog.Extensions.Logging" Version="10.0.0" />
+    <PackageVersion Include="Serilog.Sinks.Console" Version="6.1.1" />
     <PackageVersion Include="Serilog.Sinks.File" Version="7.0.0" />
 
     <!-- Resilience & Service Discovery -->
@@ -45,6 +46,12 @@
     <PackageVersion Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.15.2" />
     <PackageVersion Include="OpenTelemetry.Instrumentation.Http" Version="1.15.1" />
     <PackageVersion Include="OpenTelemetry.Instrumentation.Runtime" Version="1.15.1" />
+
+    <!-- Cast - CASTV2 sender (discovery, receiver control, media control) -->
+    <PackageVersion Include="Sharpcaster" Version="3.0.0" />
+
+    <!-- UI - Photino (native shell hosting the Blazor UI) -->
+    <PackageVersion Include="Photino.NET" Version="4.0.16" />
 
     <!-- UI - Avalonia -->
     <PackageVersion Include="Avalonia.Desktop" Version="12.0.1" />

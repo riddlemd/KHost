@@ -1,3 +1,4 @@
+using KHost.Abstractions.Exceptions;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using KHost.UserInterface.Components.Dialogs;
@@ -92,6 +93,21 @@ public class DialogService : IDialogService
     {
         _logger.LogDebug("Dialog requested: {DialogType}", nameof(ScreensDialog));
         ShowRequested?.Invoke(this, new ScreensDialog.DialogRequest(onClose));
+
+        return Task.CompletedTask;
+    }
+
+    public Task ShowErrorAsync(
+        KHostException error,
+        string title = "Something went wrong",
+        Action? onRetry = null,
+        Action? onClose = null)
+    {
+        // The stack trace is for the collapsed section, so it never reaches the host unless asked.
+        var request = new ErrorDialog.DialogRequest(error, title, error.ToString(), onRetry, onClose);
+
+        _logger.LogError(error, "Error shown to the host: {Reference}", error.ReferenceCode);
+        ShowRequested?.Invoke(this, request);
 
         return Task.CompletedTask;
     }
