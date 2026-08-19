@@ -9,10 +9,12 @@ namespace KHost.DataAccess.Repositories;
 
 internal class UsersRepository : BaseRepository<KHostUser>, IUsersRepository
 {
+    // Lowercased because SQLite orders with binary collation: without it every lowercase name
+    // sorts below every uppercase one, and a singer called "mike" lands under the Vs.
     private static readonly IReadOnlyDictionary<string, Expression<Func<KHostUser, object>>> _sortColumns =
         new Dictionary<string, Expression<Func<KHostUser, object>>>
         {
-            ["name"] = u => u.Name,
+            ["name"] = u => u.Name.ToLower(),
             ["createdDate"] = u => u.CreatedDate,
         };
 
@@ -41,7 +43,7 @@ internal class UsersRepository : BaseRepository<KHostUser>, IUsersRepository
     }
 
     protected override IReadOnlyDictionary<string, Expression<Func<KHostUser, object>>> SortColumns => _sortColumns;
-    protected override Expression<Func<KHostUser, object>> DefaultSortExpression => u => u.Name;
+    protected override Expression<Func<KHostUser, object>> DefaultSortExpression => u => u.Name.ToLower();
 
     protected override IQueryable<KHostUser> ApplySearchFilters<TOptions>(IQueryable<KHostUser> queryable, string query, TOptions? options = null)
         where TOptions : class

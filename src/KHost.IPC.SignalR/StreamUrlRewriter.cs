@@ -9,7 +9,7 @@ namespace KHost.IPC.SignalR;
 /// </summary>
 internal static class StreamUrlRewriter
 {
-    internal static string? ForScreen(string? streamUrl, string? hostAddress)
+    internal static string ForScreen(string streamUrl, string? hostAddress)
     {
         if (string.IsNullOrEmpty(streamUrl) || string.IsNullOrEmpty(hostAddress)) return streamUrl;
         if (!Uri.TryCreate(streamUrl, UriKind.Absolute, out var uri) || !uri.IsLoopback) return streamUrl;
