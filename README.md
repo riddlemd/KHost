@@ -64,10 +64,11 @@ Exact package versions live in [`Directory.Packages.props`](Directory.Packages.p
 
 ## Prerequisites
 
-- **[.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)**
-- **[Node.js 18+](https://nodejs.org/)** and npm — the build stages vendor scripts via `npm run copy:vendors`.
+- **[.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)** — KHost runs from source, so the SDK builds it on first run.
+- **[Node.js 18+](https://nodejs.org/)** and npm — the build stages vendor scripts from `node_modules`.
 - **[FFmpeg](https://ffmpeg.org/download.html)** on your `PATH` — the host transcodes each song to HLS for the screens. A custom install can be pointed to via the `FFmpegPath` setting or the `FFMPEG_PATH` environment variable.
-- (Optional) **[Docker Desktop](https://www.docker.com/products/docker-desktop/)** — for the Aspire dashboard's local telemetry.
+
+Tooling for working *on* KHost is listed in [DEVELOPMENT.md](DEVELOPMENT.md#prerequisites).
 
 ## Getting Started
 
