@@ -123,7 +123,7 @@ Runtime files on disk:
 
 ## Development
 
-Architecture, project layout, development workflow, testing, and the roadmap live in [DEVELOPMENT.md](DEVELOPMENT.md).
+Architecture, project layout, development workflow, and testing live in [DEVELOPMENT.md](DEVELOPMENT.md).
 
 Contributions are accepted under the terms in [CONTRIBUTING.md](CONTRIBUTING.md).
 

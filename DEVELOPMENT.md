@@ -1,6 +1,6 @@
 # Developing KHost
 
-Everything contributor-facing: architecture, project layout, workflow, testing, and the roadmap. For what KHost is and how to run it, see the [README](README.md).
+Everything contributor-facing: architecture, project layout, workflow, and testing. For what KHost is and how to run it, see the [README](README.md).
 
 ## Table of Contents
 
@@ -11,7 +11,6 @@ Everything contributor-facing: architecture, project layout, workflow, testing, 
 - [Development Workflow](#development-workflow)
 - [Testing](#testing)
 - [Learn More](#learn-more)
-- [Roadmap](#roadmap)
 
 ## Architecture
 
@@ -225,103 +224,3 @@ New to any of the technologies KHost uses? These are good starting points.
 - [Sass guide](https://sass-lang.com/guide/)
 - [BEM naming convention](https://getbem.com/introduction/)
 - [Bootstrap Icons](https://icons.getbootstrap.com/) (only icons from Bootstrap are used; no Bootstrap CSS/JS is included)
-
-## Roadmap
-
-Backlog of features a full-featured karaoke hosting application should support, grouped by functional area. ~~Struck-through~~ rows are done.
-
-### Singer Queue Management
-| Feature | Priority | Notes |
-|---|---|---|
-| ~~Drag-and-drop reorder of the queue~~ | Low | Done |
-| Fair rotation algorithm (round-robin by singer, not by song) | Medium | |
-| VIP / priority slots that jump the rotation | Low | |
-| Restore a previously skipped singer back into rotation (Some kind of out of placeholder?) | Low | |
-| Duet / group performance support (multiple names on one slot) | Low | |
-| Mark a singer as "on deck" / warming up | Low | |
-| Auto-remove singers who've been absent for X turns | Low | |
-
-### Song Library & Search
-| Feature | Priority | Notes |
-|---|---|---|
-| Search by title with fuzzy / typo-tolerant matching | High | SQLite FTS5 with BM25 ranking in place; fuzzy/typo-tolerant layer not in place |
-| ~~Search by artist~~ | High | Done |
-| ~~Multi-folder~~ / multi-drive library sources | High | Done |
-| ~~Background library scan with progress and cancel~~ | High | Done |
-| Search by genre, decade, or language | Low | |
-| ~~Bulk metadata editor (artist, title, album, year)~~ | Medium | Done — artist field and title/artist swap; can extend to more fields |
-
-### Playback Engine
-| Feature | Priority | Notes |
-|---|---|---|
-| Pitch / key adjustment (±N semitones) without tempo change | High | The transcoder accepts a semitone offset and builds the filter, but nothing passes one and there is no UI control — unreachable end to end |
-| Audio device selection per output (mains vs. headphone cue) | Low | |
-| Volume control with smooth fade in/out | Medium | Stop fades the screens out; per-screen mute is in the Screens dialog; master volume is a startup config value (`Audio.Volume`) with no runtime slider |
-| Tempo adjustment without pitch change | Low | |
-| ~~Wide format support: CDG+MP3, MP4, MKV, AVI, WebM, WMV~~ | Medium | Done |
-| ~~Mid-song cut ("kill song") with graceful fade~~ | Medium | Done — Stop fades over a configurable duration (`PlaybackService.StopFadeDuration`) |
-| Per-song saved key / tempo overrides remembered next time | Medium | |
-| Crossfade or hard cut between songs | Low | |
-| Vocal removal / karaoke-mode toggle for source tracks with vocals | Low | |
-
-### Display / Screen Output
-| Feature | Priority | Notes |
-|---|---|---|
-| ~~Remote-controlled screen output from the host console~~ | High | Done — host ⇄ screen IPC over SignalR (`KHost.IPC.SignalR`); load/play/pause/stop/seek/volume/timeline commands and state feedback |
-| ~~Multi-monitor support with independent output config~~ | Low | Done — screens are addressed by `screen-id`, each with its own audio, video and primary state, held on a shared timeline |
-| True fullscreen video output (no taskbar / chrome) | High | Double-click toggles fullscreen; the window keeps its chrome otherwise so it can be moved between displays |
-| Scrolling marquee with next-up singers | Medium | |
-| Idle/attract loop with background video, slides, or playlist | Medium | |
-| Big "Up Next: <Name>" announcement card before each song | Medium | |
-| Resolution / aspect-ratio scaling for any display | Medium | |
-| ~~Cast the output to a Chromecast receiver~~ | Medium | Done — discovery from the Screens dialog, one receiver at a time; a receiver cannot hold the group timeline |
-| Custom branding / logo / watermark overlay | Low | |
-| Promotional / sponsor slides rotated between songs | Low | |
-| Birthday / anniversary / special-occasion shoutouts | Low | |
-| Safe-area guides for projectors and TVs | Low | |
-
-### Singer-Facing (Mobile)
-| Feature | Priority | Notes |
-|---|---|---|
-| QR code on screen so singers can join from their phone | Low | Requires Online Service |
-| Mobile web app for browsing the library | Low | Requires Online Service |
-| Self-serve add-to-queue from phone | Low | Requires Online Service |
-| See own queue position in real time | Low | Requires Online Service |
-| Estimated wait time | Low | Requires Online Service |
-| Push / browser notification when "you're up next" | Low | Requires Online Service |
-| Optional singer accounts with persistent history | Low | Requires Online Service |
-| Per-singer favorites and "my songs" list | Low | Requires Online Service |
-| Request a song that's not in the library | Low | Requires Online Service |
-| Tip the KJ from the phone | Low | Requires Online Service |
-
-### Host / KJ Tools
-| Feature | Priority | Notes |
-|---|---|---|
-| KJ admin login / lock-screen | Medium | Auth service, provider, and Argon2 hasher implemented; login UI page not wired |
-| ~~Multiple host accounts~~ | Low | Done |
-| ~~Tip tracking per singer / per night~~ | Low | Done — TipsService, TipsManagerPage, and per-singer totals in UsersManager |
-
-### Venue / Show Management
-| Feature | Priority | Notes |
-|---|---|---|
-| Auto-save show state every N seconds; crash recovery | Medium | Queue and venues written to JSON on every mutation; periodic time-based snapshots not in place |
-| ~~Multiple venue profiles with distinct settings~~ | Medium | Done |
-| Export show recap (songs played, singers, durations) | Low | |
-| Per-venue rotation, cooldown, and branding rules | Low | Partial — some configs live on venues |
-| Email or print end-of-night summary | Low | |
-| Multi-show historical stats per venue | Low | |
-
-### Reporting & Analytics
-| Feature | Priority | Notes |
-|---|---|---|
-| Songs played per session and all-time | Medium | `PerformanceService` stores records in the DB; analytics/reporting UI not built |
-| Most-requested songs and trending songs | Low | Requires Online Service |
-| Most-active singers and new-singer count | Low | |
-| Peak-hour analysis across nights | Low | |
-| Per-genre and per-decade play distribution | Low | |
-
-### Integrations & External Sources
-| Feature | Priority | Notes |
-|---|---|---|
-| ~~Lyrics lookup via LRCLIB.NET~~ | Low | Done — `KHost.LrcLib` + `ShowLyricsDialog` |
-| YouTube / online karaoke source fetch with caching | Low | |
