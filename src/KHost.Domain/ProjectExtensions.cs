@@ -85,6 +85,8 @@ namespace KHost.Domain
             serviceCollection.AddSingleton<IQueueRotationMode, WeightedLotteryStrategy>();
             serviceCollection.AddSingleton<IQueueRotationMode, PureLotteryStrategy>();
             serviceCollection.AddSingleton<IQueueRotationMode, ShuffleBucketStrategy>();
+            // The modifiers are missing on purpose, not overlooked: they decorate whichever mode a
+            // venue picked, so QueueRotationStrategyFactory.Resolve composes them from its config.
 
             return serviceCollection;
         }
