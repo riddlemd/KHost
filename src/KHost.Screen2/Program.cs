@@ -16,20 +16,14 @@ internal static class Program
     [STAThread]
     private static void Main(string[] args)
     {
-        var logPath = $"logs/{DateTime.Now:yyyyMMddHHmmss}.Screen2.log";
-        var serilog = new LoggerConfiguration()
-            .MinimumLevel.Information()
-            .WriteTo.File(logPath, outputTemplate: "{Timestamp:HH:mm:ss} [{Level:u3}] {Message:lj}{NewLine}{Exception}")
-            .CreateLogger();
+        var serverUri = GetArg(args, "--server-uri") ?? "http://localhost:5000/ipc/screen";
+        var screenId = GetArg(args, "--screen-id") ?? Environment.MachineName;
 
         using var loggerFactory = LoggerFactory.Create(b => b
             .SetMinimumLevel(LogLevel.Information)
-            .AddSerilog(serilog, dispose: true));
+            .AddSerilog(CreateSerilog(screenId), dispose: true));
 
         var logger = loggerFactory.CreateLogger("Screen2");
-
-        var serverUri = GetArg(args, "--server-uri") ?? "http://localhost:5000/ipc/screen";
-        var screenId = GetArg(args, "--screen-id") ?? Environment.MachineName;
 
         var player = new StreamMediaPlayer(loggerFactory.CreateLogger<StreamMediaPlayer>());
 
@@ -174,6 +168,35 @@ internal static class Program
             if (_ipc is null) return;
             await _ipc.ResyncClockAsync();
         }
+    }
+
+    /// <summary>
+    /// Anchored to the executable, not the working directory: a screen the host launches inherits
+    /// whatever directory the host happened to be in, and its log would land somewhere nobody looks.
+    /// The screen id is in the name because a venue runs several at once.
+    /// </summary>
+    private static Serilog.Core.Logger CreateSerilog(string screenId)
+    {
+        var logDirectory = Path.Combine(AppContext.BaseDirectory, "logs");
+        Directory.CreateDirectory(logDirectory);
+
+        foreach (var staleLog in new DirectoryInfo(logDirectory).GetFiles("*.log")
+            .Where(f => f.LastWriteTimeUtc < DateTime.UtcNow.AddDays(-7)))
+        {
+            try { staleLog.Delete(); } catch (IOException) { /* another screen still holds it */ }
+        }
+
+        var safeId = string.Join("_", screenId.Split(Path.GetInvalidFileNameChars()));
+
+        return new LoggerConfiguration()
+            .MinimumLevel.Information()
+            .WriteTo.Console()
+            .WriteTo.File(
+                path: Path.Combine(logDirectory, $"{safeId}-.log"),
+                rollingInterval: RollingInterval.Day,
+                retainedFileCountLimit: null,
+                outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] {Message:lj}{NewLine}{Exception}")
+            .CreateLogger();
     }
 
     private static string? GetArg(string[] args, string name)
