@@ -260,7 +260,8 @@ namespace KHost.DataAccess.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("Name");
+                    b.HasIndex("Name")
+                        .IsUnique();
 
                     b.ToTable("Venues");
                 });
