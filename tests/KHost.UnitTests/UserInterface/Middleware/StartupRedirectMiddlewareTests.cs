@@ -76,6 +76,24 @@ public class StartupRedirectMiddlewareTests
         await provider.DidNotReceive().ShouldRedirectAsync(Arg.Any<HttpContext>());
     }
 
+    [Theory]
+    [InlineData("/media/abc123/stream.m3u8")]
+    [InlineData("/media/abc123/seg_00001.ts")]
+    [InlineData("/ipc/screen")]
+    [InlineData("/IPC/Screen")]
+    public async Task InvokeAsync_SkipsRedirect_ForMachineFacingPaths(string path)
+    {
+        var provider = MakeProvider(shouldRedirect: true);
+        var (context, nextCalled, middleware) = Arrange(path, provider);
+
+        await middleware.InvokeAsync(context);
+
+        // A Cast receiver cannot follow a 302 to /setup; it renders the HTML as a broken stream.
+        Assert.True(nextCalled());
+        Assert.NotEqual(StatusCodes.Status302Found, context.Response.StatusCode);
+        await provider.DidNotReceive().ShouldRedirectAsync(Arg.Any<HttpContext>());
+    }
+
     [Fact]
     public async Task InvokeAsync_StaticContentMatchIsCaseInsensitive()
     {
