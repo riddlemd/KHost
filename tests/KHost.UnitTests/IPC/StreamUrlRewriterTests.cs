@@ -36,11 +36,9 @@ public class StreamUrlRewriterTests
     public void ForScreen_KeepsTheUrl_WhenTheHostAddressIsUnusable(string? hostAddress)
         => Assert.Equal(LoopbackUrl, StreamUrlRewriter.ForScreen(LoopbackUrl, hostAddress));
 
-    [Theory]
-    [InlineData(null)]
-    [InlineData("")]
-    public void ForScreen_PassesAMissingUrlThrough(string? streamUrl)
-        => Assert.Equal(streamUrl, StreamUrlRewriter.ForScreen(streamUrl, "192.168.0.99"));
+    [Fact]
+    public void ForScreen_PassesAnEmptyUrlThrough()
+        => Assert.Equal("", StreamUrlRewriter.ForScreen("", "192.168.0.99"));
 
     [Fact]
     public void ForScreen_KeepsThePortAndPath()

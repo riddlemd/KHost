@@ -73,10 +73,21 @@ public class UsersRepositoryTests : IDisposable
 
         var result = await _repository.SearchAsync("");
 
-        // Documents a trap rather than an intention: SQLite orders with binary collation, so every
-        // lowercase name sorts after every uppercase one and "mike" lands last. Give the column a
-        // NOCASE collation to change it — and change this test with it.
-        Assert.Equal(["Steve", "Vaun", "mike"], result.Items.Select(u => u.Name));
+        // Case-insensitively: SQLite orders with binary collation, so without lowering the sort
+        // key "mike" would land below "Vaun" instead of at the top of the list.
+        Assert.Equal(["mike", "Steve", "Vaun"], result.Items.Select(u => u.Name));
+    }
+
+    [Fact]
+    public async Task Search_SortedByNameExplicitly_IgnoresCaseToo()
+    {
+        await _database.SeedAsync(User("Vaun"), User("mike"), User("Steve"));
+
+        // The named column and the default have to agree, or the list reorders when a host clicks
+        // the header it is already sorted by.
+        var result = await _repository.SearchAsync("", 1, 10, new SortDescriptor("name", Descending: false));
+
+        Assert.Equal(["mike", "Steve", "Vaun"], result.Items.Select(u => u.Name));
     }
 
     [Fact]
