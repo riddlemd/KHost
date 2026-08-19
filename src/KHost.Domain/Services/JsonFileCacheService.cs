@@ -11,12 +11,9 @@ public class JsonFileCacheService : ICacheService
     private readonly ILogger<JsonFileCacheService> _logger;
     private readonly IAnalyticsService _analytics;
 
-    public IOptionsMonitor<ServiceOptions> Options { get; }
-
-    public JsonFileCacheService(ILogger<JsonFileCacheService> logger, IOptionsMonitor<ServiceOptions> options, IAnalyticsService analytics)
+    public JsonFileCacheService(ILogger<JsonFileCacheService> logger, IAnalyticsService analytics)
     {
         _logger = logger;
-        Options = options;
         _analytics = analytics;
     }
 
@@ -78,8 +75,4 @@ public class JsonFileCacheService : ICacheService
     private string GetCacheLocation(string key)
         => Path.Combine(AppContext.BaseDirectory, "cache", JsonNamingPolicy.KebabCaseLower.ConvertName(key) + ".json");
 
-    public class ServiceOptions
-    {
-        public const string SectionName = nameof(JsonFileCacheService);
-    }
 }

@@ -10,8 +10,6 @@ namespace KHost.UnitTests.Domain.Services;
 public class VenuesServiceTests : IDisposable
 {
     private readonly ILogger<VenuesService> _logger = Substitute.For<ILogger<VenuesService>>();
-    private readonly IOptionsMonitor<VenuesService.ServiceOptions> _options =
-        Substitute.For<IOptionsMonitor<VenuesService.ServiceOptions>>();
     private readonly IVenuesRepository _repository;
     private readonly ICacheService _cacheService = Substitute.For<ICacheService>();
     private readonly VenuesService _service;
@@ -21,7 +19,7 @@ public class VenuesServiceTests : IDisposable
     {
         _repository = Substitute.For<IVenuesRepository>();
         SetupRepositoryDefaults();
-        _service = new VenuesService(_logger, _options, _repository, _cacheService);
+        _service = new VenuesService(_logger, _repository, _cacheService);
     }
 
     private void SetupRepositoryDefaults()
@@ -395,7 +393,7 @@ public class VenuesServiceTests : IDisposable
         Assert.Equal(first.Id, _service.SelectedVenueId);
     }
 
-    private VenuesService MakeService() => new(_logger, _options, _repository, _cacheService);
+    private VenuesService MakeService() => new(_logger, _repository, _cacheService);
 
     private void CacheReturns(Guid id) =>
         _cacheService.LoadAsync<Guid?>("selected-venue").Returns(id);
