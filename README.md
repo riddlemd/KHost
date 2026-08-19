@@ -1,6 +1,6 @@
 # KHost
 
-Open-source karaoke hosting software built on **.NET 10** and **.NET Aspire**. KHost pairs a Blazor Server "host console" for managing singers, songs, and playback with a separate Avalonia desktop "screen" app that renders karaoke video and audio to a second display.
+Open-source karaoke hosting software built on **.NET 10** and **.NET Aspire**. KHost pairs a Blazor Server "host console" for managing singers, songs, and playback with a separate Photino desktop "screen" app that renders karaoke video and audio to a second display.
 
 > Repository: <https://github.com/riddlemd/KHost>
 
@@ -28,7 +28,7 @@ Open-source karaoke hosting software built on **.NET 10** and **.NET Aspire**. K
 KHost is a two-part application for running a karaoke night:
 
 1. **The host console** (`KHost.UserInterface`) — a Blazor Server web app used by the host (KJ) to queue up singers, search the song library, edit performer and venue info, and control playback in real time.
-2. **The screen app** (`KHost.Screen`) — an Avalonia desktop application that renders the karaoke video output (typically on a projector or second monitor). It decodes video frames with FFmpeg and plays audio through OpenAL.
+2. **The screen app** (`KHost.Screen2`) — a Photino desktop application that renders the karaoke video output (typically on a projector or second monitor). It plays an HLS stream the host transcodes, so it decodes nothing itself.
 
 Both are orchestrated for local development by `KHost.AppHost`, a [.NET Aspire](https://learn.microsoft.com/dotnet/aspire/) app host that wires up service discovery, OpenTelemetry, logging, and HTTP resilience out of the box.
 
@@ -46,8 +46,8 @@ Both are orchestrated for local development by `KHost.AppHost`, a [.NET Aspire](
 - **Themeable UI** — CSS themes served via `/api/themes` and bootstrapped by an `IThemeService`.
 - **Persistent song library** — SQLite via Entity Framework Core.
 - **Durable queue state** — JSON-backed cache on disk (via `JsonFileCacheService`), so the queue survives restarts.
-- **Second-screen karaoke output** — FFmpeg-decoded BGRA video frames + OpenAL audio, rendered by Avalonia.
-- **Host ⇄ screen IPC over SignalR** — the host console hosts a SignalR hub at `/ipc/screen`; the Avalonia screen app connects back as a client and is driven remotely (load media, play/pause/stop-with-fade, seek, volume, pitch) while streaming its playback state back to the host. The **Screens dialog** lists connected screens and can launch a local screen process on demand.
+- **Second-screen karaoke output** — the host transcodes each song to HLS once and every screen plays that stream, so they share one decode and one timeline.
+- **Host ⇄ screen IPC over SignalR** — the host console hosts a SignalR hub at `/ipc/screen`; the screen app connects back as a client and is driven remotely (load media, play/pause/stop-with-fade, seek, volume, pitch) while streaming its playback state back to the host. The **Screens dialog** lists connected screens and can launch a local screen process on demand.
 - **First-class observability** — Serilog (console + daily-rolling file, 7-day retention) and OpenTelemetry with OTLP export, plus a dedicated `KHost.Telemetry` layer exposing custom KHost metrics (media parse/search/import/cache durations, queue mutations, playback state transitions) and trace activities through an `IAnalyticsService` / `IAnalyticsActivity` abstraction.
 - **First-run setup wizard** — 3-step wizard at `/setup` that walks through creating an admin user, configuring the first venue, and importing an initial media library. Auto-skips completed steps on reload.
 - **User accounts with role-based access** — user management with named groups (`Admin`, `Regular`, `Tipper`), granular permissions (`AddToQueue`, `ReorderQueue`, `ImportLibrary`, etc.), and Argon2id password hashing via `LocalAuthProvider`.
@@ -64,10 +64,9 @@ Both are orchestrated for local development by `KHost.AppHost`, a [.NET Aspire](
 | Orchestration | .NET Aspire AppHost SDK | `13.1.0` |
 | Web UI | ASP.NET Core / Blazor Server (Interactive Server) | built-in to net10.0 |
 | Real-time IPC | `Microsoft.AspNetCore.SignalR.Client` (host ⇄ screen) | `8.0.0` |
-| Desktop UI | Avalonia (`Desktop`, `Themes.Fluent`, `Fonts.Inter`) | `12.0.1` |
+| Desktop shell | Photino.NET | see `Directory.Packages.props` |
 | ORM | Entity Framework Core | `10.0.7` |
 | Database | SQLite (`Microsoft.EntityFrameworkCore.Sqlite`) | `10.0.7` |
-| Audio | `Silk.NET.OpenAL.Soft.Native` | `1.23.1` |
 | Media metadata | `TagLibSharp` | `2.3.0` |
 | FFmpeg integration | [`FFMpegCore`](https://github.com/rosenbjerg/FFMpegCore) | `5.4.0` |
 | Video decode | FFmpeg (invoked as a child process) | external binary |
@@ -86,7 +85,7 @@ Both are orchestrated for local development by `KHost.AppHost`, a [.NET Aspire](
 KHost follows a layered architecture. Dependencies only point inward:
 
 ```
-UI (KHost.UserInterface, KHost.Screen)
+UI (KHost.UserInterface, KHost.Screen2)
         │
         ▼
 Domain  ──►  DataAccess
@@ -111,10 +110,10 @@ Data flow at runtime:
         │     │  SignalR hub  /ipc/screen
    commands  state
         ▼     │
-  KHost.Screen (Avalonia)  ── FFmpeg (video) / Silk.NET OpenAL (audio) ──► second display
+  KHost.Screen2 (Photino)  ── HLS stream served by the host ──► second display
 ```
 
-> **Host ⇄ screen interop.** The UI hosts a SignalR hub (`KHost.IPC.SignalR`) at `/ipc/screen`. The Avalonia screen app connects back as a SignalR client (`--server-uri` / `--screen-id`), receives playback commands, and pushes its current `ScreenPlaybackState` back to the host. The host's `LocalScreenProvider` (an `IScreenProvider`) can spawn the screen process locally from the Screens dialog. So while `KHost.Screen` is a separate executable, it is no longer isolated — it is remote-controlled by the host console.
+> **Host ⇄ screen interop.** The UI hosts a SignalR hub (`KHost.IPC.SignalR`) at `/ipc/screen`. The screen app connects back as a SignalR client (`--server-uri` / `--screen-id`), receives playback commands, and pushes its current `ScreenPlaybackState` back to the host. The host's `LocalScreenProvider` (an `IScreenProvider`) can spawn the screen process locally from the Screens dialog. So while `KHost.Screen2` is a separate executable, it is no longer isolated — it is remote-controlled by the host console.
 
 > **Why two persistence strategies?** The song library is large, relational, and benefits from SQL indexes on `FilePath`, `Title`, `Artist`, `Status`, and `DateAdded`. The queue and venue selection are small, frequently-mutated bits of "session" state; serializing them as JSON blobs is simpler and keeps the host running even if the DB is momentarily unavailable.
 
@@ -137,7 +136,7 @@ The solution uses the newer `.slnx` (XML) format — open `KHost.slnx`, not a `.
 | `KHost.Telemetry` | OpenTelemetry metrics and trace activities (`KHostMetrics`, `KHostActivitySource`) plus the `IAnalyticsService` / `IAnalyticsActivity` implementation. Registered via `AddTelemetry()`. |
 | `KHost.DataAccess` | EF Core 10 + SQLite persistence for the song library. |
 | `KHost.UserInterface` | Blazor Server app — the host console. Razor components live under `Components/`. Hosts the IPC hub at `/ipc/screen` and exposes `/api/themes`. |
-| `KHost.Screen` | Avalonia desktop app (WinExe on Windows, Exe elsewhere) for karaoke video/audio output. Custom FFmpeg + OpenAL wrappers. References `KHost.Abstractions`, `KHost.Telemetry`, and `KHost.IPC.SignalR`; connects to the host hub as a SignalR client (`--server-uri` / `--screen-id`). |
+| `KHost.Screen2` | Photino desktop app for karaoke video/audio output. Plays an HLS stream the host transcodes, so several screens can share one decode and stay on a common timeline. References `KHost.Abstractions`, `KHost.Telemetry`, and `KHost.IPC.SignalR`; connects to the host hub as a SignalR client (`--server-uri` / `--screen-id`). |
 
 ### `tests/`
 
@@ -154,8 +153,8 @@ Install these before your first build:
 
 - **[.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)** — required by every project.
 - **[Node.js 18+](https://nodejs.org/)** and npm — the UI compiles SCSS with Sass as part of the build.
-- **[FFmpeg](https://ffmpeg.org/download.html)** available on your `PATH` — required at runtime by `KHost.Screen` for video decoding. You can also point to a custom install via the `FFMPEG_PATH` environment variable.
-- **Cross-platform** — `KHost.Screen` builds and runs on Windows, Linux, and macOS. On Windows it targets the `WinExe` subsystem (no console window) and enables COM interop for Avalonia; on Linux/macOS it builds as a plain `Exe`. OpenAL is loaded from the bundled `Silk.NET.OpenAL.Soft.Native` package when available and falls back to the system library (`soft_oal`/`openal32` on Windows, `libopenal` on Linux/macOS).
+- **[FFmpeg](https://ffmpeg.org/download.html)** available on your `PATH` — required at runtime by the host, which transcodes each song to HLS for the screens. You can also point to a custom install via the `FFMPEG_PATH` environment variable.
+- **Cross-platform** — `KHost.Screen2` builds and runs on Windows, Linux, and macOS, rendering through the platform's own web view.
 - (Optional) **[Docker Desktop](https://www.docker.com/products/docker-desktop/)** — if you want the full Aspire dashboard experience for local telemetry.
 
 ---
@@ -185,12 +184,12 @@ Alternative entry points:
 # Run the Blazor UI directly (no Aspire)
 dotnet run --project src/KHost.UserInterface
 
-# Run the Avalonia screen app (normally launched for you from the host's Screens dialog,
+# Run the screen app (normally launched for you from the host's Screens dialog,
 # which injects the host's live listening address as --server-uri).
 # When run manually, point --server-uri at the URL the host is actually listening on
 # (e.g. http://localhost:5251/ipc/screen for the UI's default http profile).
 # --screen-id defaults to the machine name.
-dotnet run --project src/KHost.Screen -- --server-uri http://localhost:5251/ipc/screen --screen-id main
+dotnet run --project src/KHost.Screen2 -- --server-uri http://localhost:5251/ipc/screen --screen-id main
 
 # Build the whole solution
 dotnet build KHost.slnx
@@ -243,7 +242,7 @@ npm run sass:watch    # continuous
 | `PlaybackService.MoveSingerToBottomAfterPerformance` | When true, moves the just-performed singer to the bottom of the queue. |
 | `SingerQueueService.PromptBeforeRemovingSinger` | Confirmation prompt when removing a singer. |
 | `SingerQueueService.ClearOnClose` | Clears the queue when the app shuts down. |
-| `LocalScreen.ExePath` | Optional override for the `KHost.Screen` executable path. Defaults to `KHost.Screen.exe` next to the host binary. |
+| `LocalScreen.ExePath` | Optional override for the `KHost.Screen2` executable path. Defaults to `KHost.Screen2.exe` next to the host binary. |
 | `LocalScreen.ServerUri` | SignalR hub URI passed to a launched screen process. When unset, the host injects its own live listening address at startup (handles dynamic/Aspire-assigned ports); set this only to force a specific URI. |
 | `FFmpegPath` | Optional path to the FFmpeg binary directory when it isn't on `PATH`. |
 | `MediaFileParsingService.*` | Filename-to-metadata parsing rules: `Format` (artist-first / title-first), `Separators`, `PrefixStripPatterns`, `TitleNoisePatterns`, `FeaturingPattern`, `FeaturingHandling`, and `FallbackArtistName`. |
@@ -293,10 +292,10 @@ New to any of the technologies KHost uses? These resources are a good starting p
 - [Blazor component lifecycle](https://learn.microsoft.com/aspnet/core/blazor/components/lifecycle)
 - [Interactive render modes](https://learn.microsoft.com/aspnet/core/blazor/components/render-modes)
 
-### Avalonia (the screen app)
-- [Avalonia documentation](https://docs.avaloniaui.net/)
-- [Avalonia tutorial](https://docs.avaloniaui.net/docs/tutorials/todo-list-app/)
-- [Avalonia samples](https://github.com/AvaloniaUI/Avalonia.Samples)
+### Photino (the screen app)
+- [Photino documentation](https://www.tryphotino.io/docs)
+- [Photino.NET](https://github.com/tryphotino/photino.NET)
+- [HLS specification](https://datatracker.ietf.org/doc/html/rfc8216)
 
 ### Entity Framework Core + SQLite
 - [EF Core documentation](https://learn.microsoft.com/ef/core/)
@@ -306,8 +305,6 @@ New to any of the technologies KHost uses? These resources are a good starting p
 ### Media playback
 - [FFmpeg documentation](https://ffmpeg.org/documentation.html) / [FFmpeg wiki](https://trac.ffmpeg.org/wiki)
 - [FFMpegCore](https://github.com/rosenbjerg/FFMpegCore) (the .NET wrapper KHost uses to probe and invoke ffmpeg)
-- [OpenAL Soft](https://openal-soft.org/)
-- [Silk.NET](https://dotnet.github.io/Silk.NET/) (cross-platform bindings for OpenAL, etc.)
 - [TagLib#](https://github.com/mono/taglib-sharp) (audio metadata)
 
 ### Observability

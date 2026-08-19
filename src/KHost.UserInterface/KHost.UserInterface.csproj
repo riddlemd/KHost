@@ -40,7 +40,6 @@
     <ProjectReference Include="..\KHost.Telemetry\KHost.Telemetry.csproj" />
     <ProjectReference Include="..\KHost.Cast\KHost.Cast.csproj" />
     <ProjectReference Include="..\KHost.IPC.SignalR\KHost.IPC.SignalR.csproj" />
-    <ProjectReference Include="..\KHost.Screen\KHost.Screen.csproj" ReferenceOutputAssembly="false" />
     <ProjectReference Include="..\KHost.Screen2\KHost.Screen2.csproj" ReferenceOutputAssembly="false" />
   </ItemGroup>
 
@@ -62,21 +61,20 @@
     <Copy SourceFiles="@(WwwrootFiles)" DestinationFiles="@(WwwrootFiles->'$(OutputPath)wwwroot\%(RecursiveDir)%(Filename)%(Extension)')" />
   </Target>
 
-  <!-- CopyScreenToOutput only runs after Build, so publish emitted a KHost.Screen apphost with no
-       managed dll and no Avalonia/Skia natives — IsAvailable saw the apphost and offered a screen
-       that died on launch. A file copy cannot fix it: a self-contained publish pulls natives from
-       runtime packs that never appear in Screen's build output, so Screen publishes itself here. -->
+  <!-- CopyScreen2ToOutput only runs after Build, so publish emitted an apphost with no managed dll
+       and none of the natives — IsAvailable saw the apphost and offered a screen that died on
+       launch. A file copy cannot fix it: a self-contained publish pulls natives from runtime packs
+       that never appear in the screen's build output, so the screen publishes itself here. -->
   <Target Name="PublishScreenWithHost" AfterTargets="Publish">
     <PropertyGroup>
       <!-- Two-arg GetFullPath leaves PublishDir alone when already rooted (dotnet publish -o) and
            anchors it to this project otherwise. -->
       <_HostPublishDir>$([System.IO.Path]::GetFullPath('$(PublishDir)', '$(MSBuildProjectDirectory)'))</_HostPublishDir>
     </PropertyGroup>
-    <MSBuild Projects="$(MSBuildProjectDirectory)\..\KHost.Screen\KHost.Screen.csproj" Targets="Publish" Properties="Configuration=$(Configuration);&#xA;                         TargetFramework=$(TargetFramework);&#xA;                         RuntimeIdentifier=$(RuntimeIdentifier);&#xA;                         SelfContained=$(SelfContained);&#xA;                         PublishDir=$(_HostPublishDir)" />
+    <MSBuild Projects="$(MSBuildProjectDirectory)\..\KHost.Screen2\KHost.Screen2.csproj" Targets="Publish" Properties="Configuration=$(Configuration);&#xA;                         TargetFramework=$(TargetFramework);&#xA;                         RuntimeIdentifier=$(RuntimeIdentifier);&#xA;                         SelfContained=$(SelfContained);&#xA;                         PublishDir=$(_HostPublishDir)" />
   </Target>
 
-  <!-- Screen2 is the Photino/MSE screen; it ships alongside Screen so either can be selected
-       at runtime via LocalScreen:ExePath. -->
+  <!-- The screen is a separate executable, so the host has to carry a copy of it. -->
   <Target Name="CopyScreen2ToOutput" AfterTargets="Build">
     <MSBuild Projects="$(MSBuildProjectDirectory)\..\KHost.Screen2\KHost.Screen2.csproj" Targets="GetTargetPath" Properties="Configuration=$(Configuration);Platform=$(Platform);BaseOutputPath=$(BaseOutputPath)">
       <Output TaskParameter="TargetOutputs" ItemName="_Screen2Exe" />
@@ -90,19 +88,6 @@
     <Copy SourceFiles="@(Screen2Files)" DestinationFiles="@(Screen2Files->'$(OutputPath)%(RecursiveDir)%(Filename)%(Extension)')" />
   </Target>
 
-  <!-- Copy Screen executable and all dependencies into output directory -->
-  <Target Name="CopyScreenToOutput" AfterTargets="Build">
-    <MSBuild Projects="$(MSBuildProjectDirectory)\..\KHost.Screen\KHost.Screen.csproj" Targets="GetTargetPath" Properties="Configuration=$(Configuration);Platform=$(Platform);BaseOutputPath=$(BaseOutputPath)">
-      <Output TaskParameter="TargetOutputs" ItemName="_ScreenExe" />
-    </MSBuild>
-    <PropertyGroup>
-      <ScreenOutputDir>@(_ScreenExe->'%(RootDir)%(Directory)')</ScreenOutputDir>
-    </PropertyGroup>
-    <ItemGroup>
-      <ScreenFiles Include="$(ScreenOutputDir)**\*" />
-    </ItemGroup>
-    <Copy SourceFiles="@(ScreenFiles)" DestinationFiles="@(ScreenFiles->'$(OutputPath)%(RecursiveDir)%(Filename)%(Extension)')" />
-  </Target>
 
   <ItemGroup>
     <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
