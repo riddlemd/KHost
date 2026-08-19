@@ -26,15 +26,6 @@ namespace KHost.Domain
             });
 
             // Configure KHost Options
-            serviceCollection.AddOptions<VenuesService.ServiceOptions>()
-                .BindConfiguration(VenuesService.ServiceOptions.SectionName);
-
-            serviceCollection.AddOptions<UsersService.ServiceOptions>()
-                .BindConfiguration(UsersService.ServiceOptions.SectionName);
-
-            serviceCollection.AddOptions<JsonFileCacheService.ServiceOptions>()
-                .BindConfiguration(JsonFileCacheService.ServiceOptions.SectionName);
-
             serviceCollection.AddOptions<MediaFileParsingService.ServiceOptions>()
                 .BindConfiguration(MediaFileParsingService.ServiceOptions.SectionName);
 

@@ -14,12 +14,9 @@ public class VenuesService : BaseRepositoryService<Venue, IVenuesRepository>, IV
 
     public Guid? SelectedVenueId { get; private set; }
 
-    public IOptionsMonitor<ServiceOptions> Options { get; }
-
-    public VenuesService(ILogger<VenuesService> logger, IOptionsMonitor<ServiceOptions> options, IVenuesRepository repository, ICacheService cacheService)
+    public VenuesService(ILogger<VenuesService> logger, IVenuesRepository repository, ICacheService cacheService)
         : base(logger, repository)
     {
-        Options = options;
         _cacheService = cacheService;
     }
 
@@ -90,9 +87,4 @@ public class VenuesService : BaseRepositoryService<Venue, IVenuesRepository>, IV
         await SelectVenueAsync(first?.Id);
     }
 
-    public class ServiceOptions
-    {
-        public const string SectionName = nameof(VenuesService);
-
-    }
 }

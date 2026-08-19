@@ -11,13 +11,11 @@ public class UsersServiceTests
     private readonly ILogger<UsersService> _logger = Substitute.For<ILogger<UsersService>>();
     private readonly IUsersRepository _repository = Substitute.For<IUsersRepository>();
     private readonly IUserGroupsRepository _userGroupsRepository = Substitute.For<IUserGroupsRepository>();
-    private readonly IOptionsMonitor<UsersService.ServiceOptions> _options =
-        Substitute.For<IOptionsMonitor<UsersService.ServiceOptions>>();
     private readonly UsersService _service;
 
     public UsersServiceTests()
     {
-        _service = new UsersService(_logger, _options, _repository, _userGroupsRepository);
+        _service = new UsersService(_logger, _repository, _userGroupsRepository);
     }
 
     [Fact]

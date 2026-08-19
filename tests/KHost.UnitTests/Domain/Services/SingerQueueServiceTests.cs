@@ -27,9 +27,8 @@ public class SingerQueueServiceTests : IDisposable
 
     public SingerQueueServiceTests()
     {
-        var cacheOptions = Substitute.For<IOptionsMonitor<JsonFileCacheService.ServiceOptions>>();
         var analyticsCache = Substitute.For<IAnalyticsService>();
-        _cacheService = new JsonFileCacheService(NullLogger<JsonFileCacheService>.Instance, cacheOptions, analyticsCache);
+        _cacheService = new JsonFileCacheService(NullLogger<JsonFileCacheService>.Instance, analyticsCache);
         _performanceService = Substitute.For<IPerformanceService>();
         _usersService = Substitute.For<IUsersService>();
         _venuesService = Substitute.For<IVenuesService>();
