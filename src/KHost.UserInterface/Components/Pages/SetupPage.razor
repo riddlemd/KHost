@@ -11,20 +11,20 @@
             <div class="kh-setup-wizard__progress-fill" style="@($"width: {CurrentStepProgress}%")"></div>
         </div>
         <div class="kh-setup-wizard__progress-text">
-            Step @(_currentStep + 1) of 3
+            Step @(_currentStep + 1) of @StepCount
         </div>
     </div>
 
     <div class="kh-setup-wizard__content">
-        @if (_currentStep == 0)
+        @if (_currentStep == AdminStep)
         {
             <WizardStep1AdminUser OnComplete="@(async () => await MoveToNextStepAsync())" />
         }
-        else if (_currentStep == 1)
+        else if (_currentStep == VenueStep)
         {
             <WizardStep2VenueSetup OnComplete="@(async () => await MoveToNextStepAsync())" />
         }
-        else if (_currentStep == 2)
+        else if (_currentStep == MediaStep)
         {
             <WizardStep3MediaImport OnComplete="@OnSetupCompleteAsync" />
         }
