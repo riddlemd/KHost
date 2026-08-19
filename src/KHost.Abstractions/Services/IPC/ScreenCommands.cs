@@ -35,11 +35,11 @@ public sealed class SetTimelineCommand : ScreenCommandBase
 
 public sealed class LoadMediaCommand : ScreenCommandBase
 {
-    /// <summary>Only usable by a screen sharing the host's filesystem; KHost.Screen still does.</summary>
-    public required string FilePath { get; init; }
-
-    /// <summary>Preferred: needs no access to the file and no local transcode.</summary>
-    public string? StreamUrl { get; init; }
+    /// <summary>
+    /// The host transcodes once and every screen plays that stream, so there is no file path here:
+    /// no screen has a decoder, and none can reach the host's filesystem.
+    /// </summary>
+    public required string StreamUrl { get; init; }
 
     /// <summary>Song position the stream's zero maps to; add it before reporting a position.</summary>
     public TimeSpan StreamStartOffset { get; init; }

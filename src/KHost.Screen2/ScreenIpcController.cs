@@ -127,11 +127,7 @@ internal sealed class ScreenIpcController : IAsyncDisposable
         switch (command)
         {
             case LoadMediaCommand cmd:
-                // No decoder here, so LoadAsync reports the missing URL rather than no-oping.
-                if (cmd.StreamUrl is { Length: > 0 } url)
-                    _player.LoadStream(url, cmd.StreamStartOffset);
-                else
-                    await _player.LoadAsync(cmd.FilePath);
+                _player.LoadStream(cmd.StreamUrl, cmd.StreamStartOffset);
                 break;
             case PlayCommand:
                 _player.Play();
