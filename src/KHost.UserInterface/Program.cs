@@ -343,8 +343,8 @@ internal static class Program
 
         Log.Information("Opening native shell at {BaseUri}", baseUri);
 
-        // Either side can initiate shutdown; whichever gets there first owns it.
-        var shuttingDown = 0;
+        // Either side can initiate the close; whichever gets there first owns it.
+        var closing = 0;
 
         var window = new PhotinoWindow()
             .SetTitle("KHost")
@@ -355,22 +355,32 @@ internal static class Program
             // is allowed to proceed.
             .RegisterWindowClosingHandler((_, _) =>
             {
-                if (Interlocked.Exchange(ref shuttingDown, 1) == 0)
+                if (Interlocked.Exchange(ref closing, 1) == 0)
                     app.StopAsync().GetAwaiter().GetResult();
                 return false;
             })
             .Load(baseUri);
 
-        app.Lifetime.ApplicationStopped.Register(() =>
+        // On Stopping, not Stopped: with no Run/WaitForShutdown in this mode, a SIGTERM only
+        // signals the stopping token — nothing performs the stop, so Stopped never comes. The
+        // stop must FINISH before the window is touched: on macOS closing it kills the process,
+        // and these token callbacks run before the other registered shutdown work.
+        app.Lifetime.ApplicationStopping.Register(() =>
         {
-            if (Interlocked.Exchange(ref shuttingDown, 1) == 0)
+            if (Interlocked.CompareExchange(ref closing, 1, 0) != 0) return;
+
+            _ = Task.Run(async () =>
+            {
+                await app.StopAsync();
                 window.Invoke(window.Close);
+            });
         });
 
         window.WaitForClose();
 
-        if (Interlocked.Exchange(ref shuttingDown, 1) == 0)
-            app.StopAsync().GetAwaiter().GetResult();
+        // Unconditional: stopping an already-stopped host is a no-op, and on the paths that get
+        // here without one this is the only stop there is.
+        app.StopAsync().GetAwaiter().GetResult();
 
         Log.CloseAndFlush();
     }
