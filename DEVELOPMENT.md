@@ -6,6 +6,7 @@ Everything contributor-facing: architecture, project layout, workflow, testing, 
 
 - [Architecture](#architecture)
 - [Project Layout](#project-layout)
+- [Prerequisites](#prerequisites)
 - [Running for Development](#running-for-development)
 - [Development Workflow](#development-workflow)
 - [Testing](#testing)
@@ -88,6 +89,14 @@ The solution uses the `.slnx` (XML) format — open `KHost.slnx`; there is no `.
 |---|---|
 | `KHost.UnitTests` | xUnit + NSubstitute tests. Repositories run against a real in-memory SQLite database (`SqliteTestDatabase`). |
 | `KHost.IntegrationTests` | Skeleton — new integration tests belong here. |
+
+## Prerequisites
+
+Everything the [README lists](README.md#prerequisites) — the .NET 10 SDK, Node.js 18+ with npm, and FFmpeg on `PATH` — plus:
+
+- (Optional) **[Docker Desktop](https://www.docker.com/products/docker-desktop/)** — for the Aspire dashboard's local telemetry when running via `KHost.AppHost`.
+- (Optional) **ffprobe** — ships with FFmpeg; the transcode tests use it to assert a segment really carries audio.
+- (Optional) **Chromecast emulator** listening on `127.0.0.1:8009` — the Cast tests skip without it.
 
 ## Running for Development
 
