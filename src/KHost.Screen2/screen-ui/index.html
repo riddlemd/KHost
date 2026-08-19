@@ -47,12 +47,34 @@
         }
 
         #blanked[hidden] { display: none; }
+
+        #hostlost {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            background: rgba(0, 0, 0, 0.72);
+            color: #d8d8dc;
+            font: 600 26px system-ui, sans-serif;
+            pointer-events: none;
+        }
+
+        #hostlost small {
+            color: #7a7a82;
+            font: 400 15px system-ui, sans-serif;
+        }
+
+        #hostlost[hidden] { display: none; }
     </style>
 </head>
 <body>
     <video id="video" playsinline></video>
     <div id="placeholder">KHost</div>
     <div id="blanked" hidden>Video off</div>
+    <div id="hostlost" hidden>Lost the host<small>Paused until KHost comes back</small></div>
     <script src="player.js"></script>
 </body>
 </html>
