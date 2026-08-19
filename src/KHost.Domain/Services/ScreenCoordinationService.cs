@@ -25,8 +25,10 @@ public sealed class ScreenCoordinationService : BaseService, IScreenCoordination
     // Only the blanked ones are tracked; a screen that can render is rendering unless told not to.
     private readonly ConcurrentDictionary<string, bool> _videoDisabled = new();
 
-    private string? _audioScreenId;
-    private string? _primaryScreenId;
+    // One reference, swapped whole: readers poll these lock-free from other threads (Razor
+    // renders, PlaybackService), and two separate fields let them observe one role vacated
+    // while the other still names a screen that just left.
+    private volatile RoleSnapshot _roles = new(null, null);
 
     public ScreenCoordinationService(ILogger<ScreenCoordinationService> logger, IScreenServer screenServer)
         : base(logger)
@@ -40,16 +42,16 @@ public sealed class ScreenCoordinationService : BaseService, IScreenCoordination
     public Task InitializeAsync(CancellationToken cancellationToken = default)
         => EnsureRolesAsync(cancellationToken);
 
-    public string? AudioScreenId => _audioScreenId;
+    public string? AudioScreenId => _roles.Audio;
 
-    public string? PrimaryScreenId => _primaryScreenId;
+    public string? PrimaryScreenId => _roles.Primary;
 
-    public bool RolesAreSplit => _audioScreenId is not null && _audioScreenId != _primaryScreenId;
+    public bool RolesAreSplit => _roles is { Audio: not null } r && r.Audio != r.Primary;
 
     public bool IsAudioEnabled(string screenId)
         => _audioOverrides.TryGetValue(screenId, out var enabled)
             ? enabled
-            : screenId == _audioScreenId;
+            : screenId == _roles.Audio;
 
     public bool HasAudioOverride(string screenId) => _audioOverrides.ContainsKey(screenId);
 
@@ -83,16 +85,17 @@ public sealed class ScreenCoordinationService : BaseService, IScreenCoordination
         try
         {
             var screens = await ConnectedAsync();
-            var previousAudio = _audioScreenId;
+            var previous = _roles;
 
             // Keep the incumbent while it is still present: moving either role mid-song makes
             // every follower re-align on a different reference, a visible jump on all at once.
-            if (screens.All(s => s.ScreenId != _audioScreenId))
-                _audioScreenId = ElectAudioScreen(screens);
+            var audio = screens.Any(s => s.ScreenId == previous.Audio)
+                ? previous.Audio
+                : ElectAudioScreen(screens);
 
-            var primary = DerivePrimaryScreen(screens);
-            var changed = _audioScreenId != previousAudio || primary != _primaryScreenId;
-            _primaryScreenId = primary;
+            var primary = DerivePrimaryScreen(screens, audio, previous.Primary);
+            var changed = audio != previous.Audio || primary != previous.Primary;
+            _roles = new RoleSnapshot(audio, primary);
 
             // Only when a role actually moved: this runs on every connect, and re-pushing volume
             // to screens whose answer has not changed is pure chatter.
@@ -105,7 +108,7 @@ public sealed class ScreenCoordinationService : BaseService, IScreenCoordination
                 LogRoles();
             }
 
-            return _audioScreenId;
+            return _roles.Audio;
         }
         finally { _lock.Release(); }
     }
@@ -124,12 +127,10 @@ public sealed class ScreenCoordinationService : BaseService, IScreenCoordination
                 return false;
             }
 
-            if (_audioScreenId == screenId) return true;
-
-            _audioScreenId = screenId;
+            if (_roles.Audio == screenId) return true;
 
             // The primary follows the audio wherever it can, so this move usually takes it along.
-            _primaryScreenId = DerivePrimaryScreen(screens);
+            _roles = new RoleSnapshot(screenId, DerivePrimaryScreen(screens, screenId, _roles.Primary));
 
             LogRoles();
             await ApplyAudioAsync(screens);
@@ -175,17 +176,19 @@ public sealed class ScreenCoordinationService : BaseService, IScreenCoordination
     /// The audio screen whenever it can sync: correction is a seek, and seeking the screen the
     /// room hears is audible.
     /// </summary>
-    private string? DerivePrimaryScreen(List<IScreenConnection> screens)
+    private static string? DerivePrimaryScreen(List<IScreenConnection> screens, string? audioScreenId, string? incumbentPrimaryId)
     {
-        var audio = screens.FirstOrDefault(s => s.ScreenId == _audioScreenId);
+        var audio = screens.FirstOrDefault(s => s.ScreenId == audioScreenId);
         if (audio?.Capabilities.SupportsSync == true) return audio.ScreenId;
 
         var incumbent = screens.FirstOrDefault(
-            s => s.ScreenId == _primaryScreenId && s.Capabilities.SupportsSync);
+            s => s.ScreenId == incumbentPrimaryId && s.Capabilities.SupportsSync);
         if (incumbent is not null) return incumbent.ScreenId;
 
         return screens.FirstOrDefault(s => s.Capabilities.SupportsSync)?.ScreenId;
     }
+
+    private sealed record RoleSnapshot(string? Audio, string? Primary);
 
     private void LogRoles()
     {
@@ -193,9 +196,9 @@ public sealed class ScreenCoordinationService : BaseService, IScreenCoordination
             Logger.LogWarning(
                 "Audio is on {AudioScreenId} but primary follows {PrimaryScreenId}; the synced screens "
                 + "are tracking a clock the room cannot hear and may drift from it",
-                _audioScreenId, _primaryScreenId);
+                _roles.Audio, _roles.Primary);
         else
-            Logger.LogInformation("Audio and primary are both on {ScreenId}", _audioScreenId ?? "(none)");
+            Logger.LogInformation("Audio and primary are both on {ScreenId}", _roles.Audio ?? "(none)");
     }
 
     /// <summary>Caller holds the lock.</summary>
@@ -251,9 +254,8 @@ public sealed class ScreenCoordinationService : BaseService, IScreenCoordination
             await ClearAudioOverrideAsync(e.Connection.ScreenId);
             _videoDisabled.TryRemove(e.Connection.ScreenId, out _);
 
-            if (e.Connection.ScreenId == _audioScreenId) _audioScreenId = null;
-            if (e.Connection.ScreenId == _primaryScreenId) _primaryScreenId = null;
-
+            // No role write here: EnsureRolesAsync drops a departed screen under the lock, and
+            // a shortcut outside it is how a reader once saw audio vacated with primary still set.
             await EnsureRolesAsync();
             InvokeStateChanged();
         });
