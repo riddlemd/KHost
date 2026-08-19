@@ -77,7 +77,8 @@ internal class DefaultContext : DbContext
                 settings.OwnsOne(s => s.QueueRotation);
             });
 
-            entity.HasIndex(e => e.Name);
+            entity.HasIndex(e => e.Name)
+                .IsUnique();
         });
 
         modelBuilder.Entity<KHostUser>(entity =>
