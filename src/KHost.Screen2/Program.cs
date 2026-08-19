@@ -3,6 +3,7 @@ using KHost.IPC.SignalR;
 using Microsoft.Extensions.Logging;
 using Photino.NET;
 using Serilog;
+using Serilog.Events;
 
 namespace KHost.Screen2;
 
@@ -19,9 +20,11 @@ internal static class Program
         var serverUri = GetArg(args, "--server-uri") ?? "http://localhost:5000/ipc/screen";
         var screenId = GetArg(args, "--screen-id") ?? Environment.MachineName;
 
+        var logLevel = ParseLogLevel(GetArg(args, "--log-level"));
+
         using var loggerFactory = LoggerFactory.Create(b => b
-            .SetMinimumLevel(LogLevel.Information)
-            .AddSerilog(CreateSerilog(screenId), dispose: true));
+            .SetMinimumLevel(logLevel)
+            .AddSerilog(CreateSerilog(screenId, logLevel), dispose: true));
 
         var logger = loggerFactory.CreateLogger("Screen2");
 
@@ -175,7 +178,7 @@ internal static class Program
     /// whatever directory the host happened to be in, and its log would land somewhere nobody looks.
     /// The screen id is in the name because a venue runs several at once.
     /// </summary>
-    private static Serilog.Core.Logger CreateSerilog(string screenId)
+    private static Serilog.Core.Logger CreateSerilog(string screenId, LogLevel minimum)
     {
         var logDirectory = Path.Combine(AppContext.BaseDirectory, "logs");
         Directory.CreateDirectory(logDirectory);
@@ -189,7 +192,7 @@ internal static class Program
         var safeId = string.Join("_", screenId.Split(Path.GetInvalidFileNameChars()));
 
         return new LoggerConfiguration()
-            .MinimumLevel.Information()
+            .MinimumLevel.Is(ToSerilog(minimum))
             .WriteTo.Console()
             .WriteTo.File(
                 path: Path.Combine(logDirectory, $"{safeId}-.log"),
@@ -198,6 +201,23 @@ internal static class Program
                 outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] {Message:lj}{NewLine}{Exception}")
             .CreateLogger();
     }
+
+    /// <summary>
+    /// Debug carries the raw state the page reports each tick, which is the only way to see what a
+    /// screen thinks its playhead is doing.
+    /// </summary>
+    private static LogLevel ParseLogLevel(string? value)
+        => Enum.TryParse<LogLevel>(value, ignoreCase: true, out var level) ? level : LogLevel.Information;
+
+    private static LogEventLevel ToSerilog(LogLevel level) => level switch
+    {
+        LogLevel.Trace => LogEventLevel.Verbose,
+        LogLevel.Debug => LogEventLevel.Debug,
+        LogLevel.Warning => LogEventLevel.Warning,
+        LogLevel.Error => LogEventLevel.Error,
+        LogLevel.Critical => LogEventLevel.Fatal,
+        _ => LogEventLevel.Information,
+    };
 
     private static string? GetArg(string[] args, string name)
     {

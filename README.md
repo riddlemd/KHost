@@ -191,6 +191,10 @@ dotnet run --project src/KHost.UserInterface
 # --screen-id defaults to the machine name.
 dotnet run --project src/KHost.Screen2 -- --server-uri http://localhost:5251/ipc/screen --screen-id main
 
+# --log-level debug adds the state the page reports each tick (position, expected position,
+# readyState), which is how you tell a screen that is behind from one that never started.
+dotnet run --project src/KHost.Screen2 -- --server-uri http://localhost:5251/ipc/screen --log-level debug
+
 # Build the whole solution
 dotnet build KHost.slnx
 ```
