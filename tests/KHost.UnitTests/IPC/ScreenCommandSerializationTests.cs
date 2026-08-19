@@ -21,7 +21,6 @@ public class ScreenCommandSerializationTests
         [nameof(StopCommand)] = new StopCommand { FadeDuration = TimeSpan.FromSeconds(2) },
         [nameof(SeekCommand)] = new SeekCommand { Position = TimeSpan.FromSeconds(42) },
         [nameof(SetVolumeCommand)] = new SetVolumeCommand { Volume = 0.75f },
-        [nameof(SetPitchCommand)] = new SetPitchCommand { Semitones = -3 },
         [nameof(SetVideoCommand)] = new SetVideoCommand { Enabled = false },
         [nameof(SetTimelineCommand)] = new SetTimelineCommand
         {
@@ -91,7 +90,6 @@ public class ScreenCommandSerializationTests
 
         Assert.Equal(TimeSpan.FromSeconds(42), RoundTrip(new SeekCommand { Position = TimeSpan.FromSeconds(42) }).Position);
         Assert.Equal(0.75f, RoundTrip(new SetVolumeCommand { Volume = 0.75f }).Volume);
-        Assert.Equal(-3, RoundTrip(new SetPitchCommand { Semitones = -3 }).Semitones);
         Assert.Equal(TimeSpan.FromSeconds(2), RoundTrip(new StopCommand { FadeDuration = TimeSpan.FromSeconds(2) }).FadeDuration);
         Assert.Null(RoundTrip(new StopCommand()).FadeDuration);
     }

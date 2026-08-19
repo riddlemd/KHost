@@ -19,7 +19,6 @@ internal sealed class StreamMediaPlayer : IMediaPlayer
     private bool _isPlaying;
     private bool _isPaused;
     private float _volume = 1.0f;
-    private int _pitchSemitones;
 
     /// <summary>Song position the current stream's zero maps to; added to reported positions.</summary>
     private TimeSpan _streamStartOffset;
@@ -60,22 +59,6 @@ internal sealed class StreamMediaPlayer : IMediaPlayer
         {
             lock (_lock) _volume = value;
             Send(new { type = "volume", value });
-        }
-    }
-
-    /// <summary>ffmpeg runs on the host now, so a pitch change needs a new stream from it.</summary>
-    public int PitchSemitones
-    {
-        get { lock (_lock) return _pitchSemitones; }
-        set
-        {
-            lock (_lock)
-            {
-                if (_pitchSemitones == value) return;
-                _pitchSemitones = value;
-            }
-
-            _logger.LogWarning("Pitch {Semitones} ignored: a streamed screen needs the host to restream", value);
         }
     }
 

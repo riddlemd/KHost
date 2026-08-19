@@ -150,9 +150,6 @@ internal sealed class ScreenIpcController : IAsyncDisposable
             case SetVideoCommand cmd:
                 _player.SetVideoEnabled(cmd.Enabled);
                 break;
-            case SetPitchCommand cmd:
-                _player.PitchSemitones = cmd.Semitones;
-                break;
             default:
                 _logger.LogWarning("Unhandled command: {Type}", command.GetType().Name);
                 break;
