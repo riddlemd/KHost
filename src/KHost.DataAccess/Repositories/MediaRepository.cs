@@ -125,7 +125,8 @@ internal class MediaRepository : BaseRepository<Media>, IMediaRepository
         }
         finally
         {
-            KHostMetrics.MediaSearchDuration.Record(sw.ElapsedMilliseconds,
+            KHostMetrics.SearchDuration.Record(sw.ElapsedMilliseconds,
+                new KeyValuePair<string, object?>("entity", nameof(Media)),
                 new KeyValuePair<string, object?>("used_fts", true));
         }
     }
@@ -180,7 +181,8 @@ internal class MediaRepository : BaseRepository<Media>, IMediaRepository
         }
         finally
         {
-            KHostMetrics.MediaSearchDuration.Record(sw.ElapsedMilliseconds,
+            KHostMetrics.SearchDuration.Record(sw.ElapsedMilliseconds,
+                new KeyValuePair<string, object?>("entity", nameof(Media)),
                 new KeyValuePair<string, object?>("used_fts", true));
         }
     }
