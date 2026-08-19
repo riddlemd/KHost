@@ -36,15 +36,5 @@
             opacity: 0.3;
             cursor: default;
         }
-
-        &--exit {
-            background: var(--kh-exit-bg);
-            color: #fff;
-
-            &:hover {
-                background: var(--kh-exit-bg-hover);
-                box-shadow: 0 4px 16px var(--kh-exit-glow);
-            }
-        }
     }
 }
