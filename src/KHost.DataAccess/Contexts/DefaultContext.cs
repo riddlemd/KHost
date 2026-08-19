@@ -168,6 +168,8 @@ internal class DefaultContext : DbContext
             entity.Property(e => e.CreatedDate)
                 .IsRequired();
 
+            // Indexed, deliberately without foreign keys: deleting a song, a singer or a venue
+            // must leave the record of who sang what standing rather than cascade it away.
             entity.HasIndex(e => e.SingerId);
             entity.HasIndex(e => e.MediaId);
             entity.HasIndex(e => e.VenueId);
