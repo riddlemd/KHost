@@ -9,7 +9,8 @@ internal sealed class OtelAnalyticsService : IAnalyticsService
         KHostMetrics.MediaParseDuration.Record(milliseconds);
 
     public void RecordMediaSearchDuration(double milliseconds, bool usedFts) =>
-        KHostMetrics.MediaSearchDuration.Record(milliseconds,
+        KHostMetrics.SearchDuration.Record(milliseconds,
+            new KeyValuePair<string, object?>("entity", nameof(Media)),
             new KeyValuePair<string, object?>("used_fts", usedFts));
 
     public void RecordImportDuration(double milliseconds) =>

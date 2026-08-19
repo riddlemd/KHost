@@ -9,8 +9,8 @@ public static class KHostMetrics
     public static readonly Histogram<double> MediaParseDuration =
         _meter.CreateHistogram<double>("khost.media.parse.duration", "ms", "FFProbe parse duration per file");
 
-    public static readonly Histogram<double> MediaSearchDuration =
-        _meter.CreateHistogram<double>("khost.media.search.duration", "ms", "Media search query duration");
+    public static readonly Histogram<double> SearchDuration =
+        _meter.CreateHistogram<double>("khost.search.duration", "ms", "Repository search query duration, tagged by entity");
 
     public static readonly Counter<long> ImportFilesProcessed =
         _meter.CreateCounter<long>("khost.import.files.processed", "{file}", "Files processed during a media import");

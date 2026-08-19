@@ -136,7 +136,8 @@ internal abstract class BaseRepository<T> : IRepository<T> where T : RepositoryM
         }
         finally
         {
-            KHostMetrics.MediaSearchDuration.Record(sw.ElapsedMilliseconds,
+            KHostMetrics.SearchDuration.Record(sw.ElapsedMilliseconds,
+                new KeyValuePair<string, object?>("entity", _entityTypeName),
                 new KeyValuePair<string, object?>("used_fts", false));
         }
     }
@@ -157,7 +158,8 @@ internal abstract class BaseRepository<T> : IRepository<T> where T : RepositoryM
         }
         finally
         {
-            KHostMetrics.MediaSearchDuration.Record(sw.ElapsedMilliseconds,
+            KHostMetrics.SearchDuration.Record(sw.ElapsedMilliseconds,
+                new KeyValuePair<string, object?>("entity", _entityTypeName),
                 new KeyValuePair<string, object?>("used_fts", false));
         }
     }
