@@ -47,7 +47,12 @@ Both are orchestrated for local development by `KHost.AppHost`, a [.NET Aspire](
 - **Persistent song library** — SQLite via Entity Framework Core.
 - **Durable queue state** — JSON-backed cache on disk (via `JsonFileCacheService`), so the queue survives restarts.
 - **Second-screen karaoke output** — the host transcodes each song to HLS once and every screen plays that stream, so they share one decode and one timeline.
-- **Host ⇄ screen IPC over SignalR** — the host console hosts a SignalR hub at `/ipc/screen`; the screen app connects back as a client and is driven remotely (load media, play/pause/stop-with-fade, seek, volume, pitch) while streaming its playback state back to the host. The **Screens dialog** lists connected screens and can launch a local screen process on demand.
+- **Multiple screens, one timeline** — the host anchors playback to a scheduled start and every screen corrects its own playhead towards it, seeking rather than trimming playback rate, so nothing is pitch-shifted to catch up.
+- **Screen roles** — each screen can be muted or unmuted independently, have its picture blanked while it keeps running on the timeline, and one screen holds the *primary* role that the others are measured against. The Screens dialog shows live drift per screen.
+- **Chromecast output** — receivers are discovered on demand from the Screens dialog and driven over CASTV2. A receiver is deliberately not a screen: it cannot hold the group timeline, only one is driven at a time, and the host connects out to it rather than the other way round.
+- **Screens survive a lost host** — if the host goes away, a screen pauses and says so rather than playing on where nobody can stop it.
+- **Host ⇄ screen IPC over SignalR** — the host console hosts a SignalR hub at `/ipc/screen`; the screen app connects back as a client and is driven remotely (load, play/pause/stop-with-fade, seek, volume, timeline) while streaming its playback state back to the host. The **Screens dialog** lists connected screens and can launch a local screen process on demand.
+- **Errors a host can act on** — failures that a KJ can do something about are raised as a `KHostException` carrying what happened, what to try and a reference code, and shown in a dialog with the stack trace collapsed.
 - **First-class observability** — Serilog (console + daily-rolling file, 7-day retention) and OpenTelemetry with OTLP export, plus a dedicated `KHost.Telemetry` layer exposing custom KHost metrics (media parse/search/import/cache durations, queue mutations, playback state transitions) and trace activities through an `IAnalyticsService` / `IAnalyticsActivity` abstraction.
 - **First-run setup wizard** — 3-step wizard at `/setup` that walks through creating an admin user, configuring the first venue, and importing an initial media library. Auto-skips completed steps on reload.
 - **User accounts with role-based access** — user management with named groups (`Admin`, `Regular`, `Tipper`), granular permissions (`AddToQueue`, `ReorderQueue`, `ImportLibrary`, etc.), and Argon2id password hashing via `LocalAuthProvider`.
@@ -69,7 +74,8 @@ Both are orchestrated for local development by `KHost.AppHost`, a [.NET Aspire](
 | Database | SQLite (`Microsoft.EntityFrameworkCore.Sqlite`) | `10.0.7` |
 | Media metadata | `TagLibSharp` | `2.3.0` |
 | FFmpeg integration | [`FFMpegCore`](https://github.com/rosenbjerg/FFMpegCore) | `5.4.0` |
-| Video decode | FFmpeg (invoked as a child process) | external binary |
+| Transcoding | FFmpeg (invoked as a child process, one per song, output as HLS) | external binary |
+| Chromecast | [`Sharpcaster`](https://github.com/Tapanila/SharpCaster) (CASTV2 over TLS 8009) | `3.0.0` |
 | Password hashing | `Konscious.Security.Cryptography.Argon2` | `1.3.1` |
 | Logging | Serilog + `Serilog.Sinks.File` | `4.3.0` / `7.0.0` |
 | Telemetry | OpenTelemetry + OTLP exporter | `1.15.3` |
@@ -115,6 +121,17 @@ Data flow at runtime:
 
 > **Host ⇄ screen interop.** The UI hosts a SignalR hub (`KHost.IPC.SignalR`) at `/ipc/screen`. The screen app connects back as a SignalR client (`--server-uri` / `--screen-id`), receives playback commands, and pushes its current `ScreenPlaybackState` back to the host. The host's `LocalScreenProvider` (an `IScreenProvider`) can spawn the screen process locally from the Screens dialog. So while `KHost.Screen2` is a separate executable, it is no longer isolated — it is remote-controlled by the host console.
 
+> **Why the host transcodes.** The host runs one ffmpeg per song and serves the result as an HLS
+> playlist under `/media/{session}/`. Screens fetch that stream instead of decoding the file, which
+> is what lets several of them share a decode, keeps them on a common timeline, and makes it
+> possible to hand the same URL to a Cast receiver that has no access to the library at all.
+
+> **Reachable, without exposing the console.** Kestrel binds every interface so a receiver or an
+> off-machine screen can fetch the stream, and each screen is handed the host address it actually
+> connected on rather than one the host guesses. Since the UI has no authentication, `LanAccessPolicy`
+> answers only `/media` and `/ipc/screen` off-box and 404s everything else — the queue, the library
+> and venue settings stay on the host machine.
+
 > **Why two persistence strategies?** The song library is large, relational, and benefits from SQL indexes on `FilePath`, `Title`, `Artist`, `Status`, and `DateAdded`. The queue and venue selection are small, frequently-mutated bits of "session" state; serializing them as JSON blobs is simpler and keeps the host running even if the DB is momentarily unavailable.
 
 ---
@@ -134,6 +151,8 @@ The solution uses the newer `.slnx` (XML) format — open `KHost.slnx`, not a `.
 | `KHost.LrcLib` | Standalone HTTP client library for the [LRCLIB.NET](https://lrclib.net) lyrics API. No project references; consumed by `KHost.Domain` via `AddLrcLib()`. |
 | `KHost.IPC.SignalR` | SignalR-based host ⇄ screen IPC: `ScreenHub`, `ScreenServerService` (`IScreenServer`), and `ScreenClient` (`IScreenClient`). Registered via `AddSignalRIPCServer()` + `MapIPCServer()` (host) and `AddSignalRIPCClient()` / `CreateScreenClient()` (screen). |
 | `KHost.Telemetry` | OpenTelemetry metrics and trace activities (`KHostMetrics`, `KHostActivitySource`) plus the `IAnalyticsService` / `IAnalyticsActivity` implementation. Registered via `AddTelemetry()`. |
+| `KHost.Cast` | Chromecast sender built on Sharpcaster — discovery, connection and transport for a single receiver at a time. Deliberately separate from the screen abstractions. Registered via `AddCast()`. |
+| `KHost.Plugins.Sdk` | Contracts a drop-in plugin implements; loaded from `src/Plugins`. |
 | `KHost.DataAccess` | EF Core 10 + SQLite persistence for the song library. |
 | `KHost.UserInterface` | Blazor Server app — the host console. Razor components live under `Components/`. Hosts the IPC hub at `/ipc/screen` and exposes `/api/themes`. |
 | `KHost.Screen2` | Photino desktop app for karaoke video/audio output. Plays an HLS stream the host transcodes, so several screens can share one decode and stay on a common timeline. References `KHost.Abstractions`, `KHost.Telemetry`, and `KHost.IPC.SignalR`; connects to the host hub as a SignalR client (`--server-uri` / `--screen-id`). |
@@ -242,6 +261,7 @@ npm run sass:watch    # continuous
 |---|---|
 | `Logging` | Standard `Microsoft.Extensions.Logging` levels. Serilog is layered on top in `Program.cs`. |
 | `AllowedHosts` | ASP.NET Core host filter (defaults to `*`). |
+| `Urls` | Where Kestrel listens; a semicolon-separated list. Defaults to `http://0.0.0.0:5251` so Cast receivers and off-machine screens can reach the stream. This is the only place the port is declared — the launch profile deliberately does not set `applicationUrl`. |
 | `Audio.Volume` | Master audio volume (`0.0`–`1.0`). |
 | `PlaybackService.MoveSingerToBottomAfterPerformance` | When true, moves the just-performed singer to the bottom of the queue. |
 | `SingerQueueService.PromptBeforeRemovingSinger` | Confirmation prompt when removing a singer. |
@@ -250,6 +270,9 @@ npm run sass:watch    # continuous
 | `LocalScreen.ServerUri` | SignalR hub URI passed to a launched screen process. When unset, the host injects its own live listening address at startup (handles dynamic/Aspire-assigned ports); set this only to force a specific URI. |
 | `FFmpegPath` | Optional path to the FFmpeg binary directory when it isn't on `PATH`. |
 | `MediaFileParsingService.*` | Filename-to-metadata parsing rules: `Format` (artist-first / title-first), `Separators`, `PrefixStripPatterns`, `TitleNoisePatterns`, `FeaturingPattern`, `FeaturingHandling`, and `FallbackArtistName`. |
+
+Cast discovery is **not** configured here. It sweeps the whole network, so it is off at startup and
+turned on from the Screens dialog for as long as it is needed; closing the dialog stops it.
 
 Environment-specific overrides live in `appsettings.Development.json`.
 
@@ -356,12 +379,12 @@ Brainstorm of features a full-featured karaoke hosting application should suppor
 ### Playback Engine
 | Feature | Priority | Notes |
 |---|---|---|
-| Pitch / key adjustment (±N semitones) without tempo change | High | Implemented in `DefaultMediaPlayer` via FFmpeg `asetrate+aresample+atempo` filters; no host-console UI control yet |
+| Pitch / key adjustment (±N semitones) without tempo change | High | The transcoder builds the `asetrate+aresample+atempo` filter and accepts a semitone offset, but nothing passes one: `PlaybackService` never sets it and there is no UI control, so key change is currently unreachable |
 | Audio device selection per output (mains vs. headphone cue) | Low | |
-| Volume control with smooth fade in/out | Medium | Fade-out (`FadeOutAsync`) implemented in `DefaultMediaPlayer`; volume is a startup config value (`Audio.Volume`); no runtime slider |
+| Volume control with smooth fade in/out | Medium | Stop fades the screens out; per-screen mute is in the Screens dialog; master volume is a startup config value (`Audio.Volume`) with no runtime slider |
 | Tempo adjustment without pitch change | Low | |
 | ~~Wide format support: CDG+MP3, MP4, MKV, AVI, WebM, WMV~~ | Medium | Done |
-| Mid-song cut ("kill song") with graceful fade | Medium | `FadeOutAsync` with configurable step/duration in `DefaultMediaPlayer`; not yet triggerable from the host console |
+| Mid-song cut ("kill song") with graceful fade | Medium | Stop fades over a configurable duration (`PlaybackService.StopFadeDuration`) and is triggerable from Now Playing |
 | Per-song saved key / tempo overrides remembered next time | Medium | |
 | Crossfade or hard cut between songs | Low | |
 | Vocal removal / karaoke-mode toggle for source tracks with vocals | Low | |
@@ -369,13 +392,14 @@ Brainstorm of features a full-featured karaoke hosting application should suppor
 ### Display / Screen Output
 | Feature | Priority | Notes |
 |---|---|---|
-| ~~Remote-controlled screen output from the host console~~ | High | Done — host ⇄ screen IPC over SignalR (`KHost.IPC.SignalR`); load/play/pause/stop/seek/volume/pitch commands and state feedback |
-| Multi-monitor support with independent output config | Low | IPC supports multiple screens by `screen-id`; per-screen output config not yet built |
-| True fullscreen video output (no taskbar / chrome) | High | |
+| ~~Remote-controlled screen output from the host console~~ | High | Done — host ⇄ screen IPC over SignalR (`KHost.IPC.SignalR`); load/play/pause/stop/seek/volume/timeline commands and state feedback |
+| ~~Multi-monitor support with independent output config~~ | Low | Done — screens are addressed by `screen-id`, each with its own audio, video and primary state, held on a shared timeline |
+| True fullscreen video output (no taskbar / chrome) | High | Double-click toggles fullscreen; the window keeps its chrome otherwise so it can be moved between displays |
 | Scrolling marquee with next-up singers | Medium | |
 | Idle/attract loop with background video, slides, or playlist | Medium | |
 | Big "Up Next: <Name>" announcement card before each song | Medium | |
 | Resolution / aspect-ratio scaling for any display | Medium | |
+| ~~Cast the output to a Chromecast receiver~~ | Medium | Done — discovery from the Screens dialog, one receiver at a time; a receiver cannot hold the group timeline |
 | Custom branding / logo / watermark overlay | Low | |
 | Promotional / sponsor slides rotated between songs | Low | |
 | Birthday / anniversary / special-occasion shoutouts | Low | |
