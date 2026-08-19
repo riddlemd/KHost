@@ -343,14 +343,24 @@ internal static class Program
 
         Log.Information("Opening native shell at {BaseUri}", baseUri);
 
+        // Either side can initiate shutdown; whichever gets there first owns it.
+        var shuttingDown = 0;
+
         var window = new PhotinoWindow()
             .SetTitle("KHost")
             .SetUseOsDefaultSize(false)
             .SetSize(1440, 900)
+            // On macOS closing the window tears the process down inside Photino, so the code
+            // after WaitForClose never runs there. Shutdown work has to finish before the close
+            // is allowed to proceed.
+            .RegisterWindowClosingHandler((_, _) =>
+            {
+                if (Interlocked.Exchange(ref shuttingDown, 1) == 0)
+                    app.StopAsync().GetAwaiter().GetResult();
+                return false;
+            })
             .Load(baseUri);
 
-        // Either side can initiate shutdown; whichever gets there first owns it.
-        var shuttingDown = 0;
         app.Lifetime.ApplicationStopped.Register(() =>
         {
             if (Interlocked.Exchange(ref shuttingDown, 1) == 0)
