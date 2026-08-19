@@ -22,8 +22,8 @@ internal class MediaRepository : BaseRepository<Media>, IMediaRepository
     private static readonly IReadOnlyDictionary<string, Expression<Func<Media, object>>> _sortColumns =
         new Dictionary<string, Expression<Func<Media, object>>>
         {
-            ["title"] = m => m.Title,
-            ["artist"] = m => m.Artist,
+            ["title"] = m => m.Title.ToLower(),
+            ["artist"] = m => m.Artist.ToLower(),
             ["format"] = m => m.Format,
             ["dateAdded"] = m => m.DateAdded,
             ["status"] = m => m.Status,
@@ -71,7 +71,7 @@ internal class MediaRepository : BaseRepository<Media>, IMediaRepository
     }
 
     protected override IReadOnlyDictionary<string, Expression<Func<Media, object>>> SortColumns => _sortColumns;
-    protected override Expression<Func<Media, object>> DefaultSortExpression => m => m.Title;
+    protected override Expression<Func<Media, object>> DefaultSortExpression => m => m.Title.ToLower();
 
     protected override IQueryable<Media> ApplySearchFilters<TOptions>(IQueryable<Media> queryable, string query, TOptions? options = null)
         where TOptions : class

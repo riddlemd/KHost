@@ -1,0 +1,205 @@
+using KHost.Abstractions.Services.IPC;
+using Microsoft.Extensions.Logging;
+
+namespace KHost.Screen2;
+
+internal sealed class ScreenIpcController : IAsyncDisposable
+{
+    private readonly IScreenClient _client;
+
+    // Concrete: loading a host stream is not a file load, so it has no place on IMediaPlayer.
+    private readonly StreamMediaPlayer _player;
+
+    private readonly ILogger<ScreenIpcController> _logger;
+
+    // Serialized so a load settles before a following Play, rather than racing on the page.
+    private readonly SemaphoreSlim _commandGate = new(1, 1);
+
+    /// <summary>
+    /// Long enough to ride out the first couple of automatic reconnect attempts, which recover in
+    /// seconds — a screen that blanked on every blip would be worse than one that waits.
+    /// </summary>
+    private static readonly TimeSpan HostLostGrace = TimeSpan.FromSeconds(5);
+
+    private readonly Lock _hostLostLock = new();
+    private Timer? _hostLostTimer;
+    private bool _hostLost;
+
+    public ScreenIpcController(IScreenClient client, StreamMediaPlayer player, ILogger<ScreenIpcController> logger)
+    {
+        _client = client;
+        _player = player;
+        _logger = logger;
+
+        _client.CommandReceived += OnCommandReceived;
+        _client.StateChanged += OnClientStateChanged;
+        _player.PlaybackEnded += OnPlaybackEnded;
+    }
+
+    /// <summary>Holds a scheduled start, and can be the screen the room hears.</summary>
+    public async Task ConnectAsync(string serverUri, string screenId, CancellationToken cancellationToken = default)
+    {
+        await _client.ConnectAsync(
+            serverUri,
+            screenId,
+            new ScreenCapabilities { SupportsSync = true, SupportsAudio = true, SupportsVideo = true },
+            cancellationToken);
+
+        await ResyncClockAsync(cancellationToken);
+    }
+
+    /// <summary>Clocks drift over a long night, and a stale offset biases the whole group.</summary>
+    public async Task ResyncClockAsync(CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            _player.SetClockOffset(await _client.EstimateClockOffsetAsync(cancellationToken));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Could not estimate the clock offset to the host");
+        }
+    }
+
+    private void OnClientStateChanged(object? sender, ScreenClientStateChangedEventArgs e)
+    {
+        _logger.LogInformation("IPC state: {Old} -> {New}", e.OldState, e.NewState);
+
+        switch (e.NewState)
+        {
+            // Terminal: the client has stopped retrying, so there is nothing left to wait for.
+            case ScreenClientState.Disconnected:
+            case ScreenClientState.Error:
+                SetHostLost(true);
+                break;
+
+            case ScreenClientState.Reconnecting:
+                StartHostLostCountdown();
+                break;
+
+            case ScreenClientState.Connected:
+                SetHostLost(false);
+                break;
+        }
+    }
+
+    private void StartHostLostCountdown()
+    {
+        lock (_hostLostLock)
+        {
+            _hostLostTimer?.Dispose();
+            _hostLostTimer = new Timer(_ => SetHostLost(true), null, HostLostGrace, Timeout.InfiniteTimeSpan);
+        }
+    }
+
+    /// <summary>
+    /// The host is this screen's clock and its only stop button, so losing it has to pause the song
+    /// rather than leave it running where nobody can reach it.
+    /// </summary>
+    private void SetHostLost(bool lost)
+    {
+        lock (_hostLostLock)
+        {
+            _hostLostTimer?.Dispose();
+            _hostLostTimer = null;
+
+            if (_hostLost == lost) return;
+            _hostLost = lost;
+        }
+
+        _player.SetHostLost(lost);
+    }
+
+    private async void OnCommandReceived(object? sender, ScreenCommandReceivedEventArgs e)
+    {
+        await _commandGate.WaitAsync();
+        try
+        {
+            _logger.LogInformation("Command received: {CommandType}", e.Command.GetType().Name);
+            await ExecuteCommandAsync(e.Command);
+        }
+        catch (Exception ex) { _logger.LogError(ex, "Error executing {Type}", e.Command.GetType().Name); }
+        finally { _commandGate.Release(); }
+    }
+
+    private async Task ExecuteCommandAsync(IScreenCommand command)
+    {
+        switch (command)
+        {
+            case LoadMediaCommand cmd:
+                _player.LoadStream(cmd.StreamUrl, cmd.StreamStartOffset);
+                break;
+            case PlayCommand:
+                _player.Play();
+                break;
+            case PauseCommand:
+                _player.Pause();
+                break;
+            case StopCommand cmd:
+                _player.Stop(cmd.FadeDuration);
+                break;
+            case SeekCommand cmd:
+                _player.Seek(cmd.Position);
+                break;
+            case SetVolumeCommand cmd:
+                _player.Volume = cmd.Volume;
+                break;
+            case SetTimelineCommand cmd:
+                _player.SetTimeline(cmd.Position, cmd.AnchorUtc, cmd.IsPlaying, cmd.IsPrimary);
+                break;
+            case SetVideoCommand cmd:
+                _player.SetVideoEnabled(cmd.Enabled);
+                break;
+            case SetPitchCommand cmd:
+                _player.PitchSemitones = cmd.Semitones;
+                break;
+            default:
+                _logger.LogWarning("Unhandled command: {Type}", command.GetType().Name);
+                break;
+        }
+
+        // A timeline says where to be, not what changed. Answering one makes the host re-anchor,
+        // which sends another timeline, forever.
+        if (command is not SetTimelineCommand)
+            await SendCurrentStateAsync();
+    }
+
+    private void OnPlaybackEnded(object? sender, EventArgs e) => _ = SendCurrentStateAsync();
+
+    public async Task SendCurrentStateAsync()
+    {
+        var state = new ScreenPlaybackState
+        {
+            LoadedFilePath = _player.Info?.FilePath,
+            IsPlaying = _player.IsPlaying,
+            Position = _player.Position,
+            Duration = _player.Duration,
+            SampledAtUtc = _player.SampledAtUtc,
+        };
+
+        try
+        {
+            await _client.SendStateAsync(state);
+        }
+        catch (InvalidOperationException)
+        {
+            // Not connected yet, or already torn down — state is resent on the next command.
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        _client.CommandReceived -= OnCommandReceived;
+        _client.StateChanged -= OnClientStateChanged;
+
+        lock (_hostLostLock)
+        {
+            _hostLostTimer?.Dispose();
+            _hostLostTimer = null;
+        }
+        _player.PlaybackEnded -= OnPlaybackEnded;
+        await _client.DisconnectAsync();
+        if (_client is IAsyncDisposable disposable) await disposable.DisposeAsync();
+        _commandGate.Dispose();
+    }
+}

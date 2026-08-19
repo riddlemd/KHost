@@ -40,7 +40,7 @@ public class ScreenServerServiceTests
     [Fact]
     public async Task OnScreenConnected_TracksTheConnection()
     {
-        Callback.OnScreenConnected("Screen 1", "conn-a");
+        Callback.OnScreenConnected("Screen 1", "conn-a", hostAddress: null, ScreenCapabilities.None);
 
         var screens = await ConnectedScreensAsync();
 
@@ -56,7 +56,7 @@ public class ScreenServerServiceTests
         ScreenConnectionEventArgs? captured = null;
         _service.ScreenConnected += (_, e) => captured = e;
 
-        Callback.OnScreenConnected("Screen 1", "conn-a");
+        Callback.OnScreenConnected("Screen 1", "conn-a", hostAddress: null, ScreenCapabilities.None);
 
         Assert.NotNull(captured);
         Assert.Equal("Screen 1", captured.Connection.ScreenId);
@@ -65,8 +65,8 @@ public class ScreenServerServiceTests
     [Fact]
     public async Task OnScreenConnected_WithDuplicateScreenId_CollapsesToOneConnection()
     {
-        Callback.OnScreenConnected("Screen", "conn-a");
-        Callback.OnScreenConnected("Screen", "conn-b");
+        Callback.OnScreenConnected("Screen", "conn-a", hostAddress: null, ScreenCapabilities.None);
+        Callback.OnScreenConnected("Screen", "conn-b", hostAddress: null, ScreenCapabilities.None);
 
         var screens = await ConnectedScreensAsync();
 
@@ -79,8 +79,8 @@ public class ScreenServerServiceTests
     [Fact]
     public async Task OnScreenDisconnected_RemovesTheMatchingConnection()
     {
-        Callback.OnScreenConnected("Screen 1", "conn-a");
-        Callback.OnScreenConnected("Screen 2", "conn-b");
+        Callback.OnScreenConnected("Screen 1", "conn-a", hostAddress: null, ScreenCapabilities.None);
+        Callback.OnScreenConnected("Screen 2", "conn-b", hostAddress: null, ScreenCapabilities.None);
 
         Callback.OnScreenDisconnected("conn-a");
 
@@ -93,7 +93,7 @@ public class ScreenServerServiceTests
     [Fact]
     public void OnScreenDisconnected_RaisesScreenDisconnected()
     {
-        Callback.OnScreenConnected("Screen 1", "conn-a");
+        Callback.OnScreenConnected("Screen 1", "conn-a", hostAddress: null, ScreenCapabilities.None);
 
         ScreenConnectionEventArgs? captured = null;
         _service.ScreenDisconnected += (_, e) => captured = e;
@@ -107,7 +107,7 @@ public class ScreenServerServiceTests
     [Fact]
     public async Task OnScreenDisconnected_IsANoOp_ForUnknownConnectionId()
     {
-        Callback.OnScreenConnected("Screen 1", "conn-a");
+        Callback.OnScreenConnected("Screen 1", "conn-a", hostAddress: null, ScreenCapabilities.None);
 
         var raised = false;
         _service.ScreenDisconnected += (_, _) => raised = true;
@@ -121,8 +121,8 @@ public class ScreenServerServiceTests
     [Fact]
     public async Task OnScreenDisconnected_ForStaleConnectionId_LeavesReconnectedScreenTracked()
     {
-        Callback.OnScreenConnected("Screen 1", "conn-old");
-        Callback.OnScreenConnected("Screen 1", "conn-new");
+        Callback.OnScreenConnected("Screen 1", "conn-old", hostAddress: null, ScreenCapabilities.None);
+        Callback.OnScreenConnected("Screen 1", "conn-new", hostAddress: null, ScreenCapabilities.None);
 
         // A late disconnect for the superseded connection must not evict the live one.
         Callback.OnScreenDisconnected("conn-old");
@@ -155,7 +155,7 @@ public class ScreenServerServiceTests
     [Fact]
     public async Task SendCommandAsync_SendsSerializedCommandToTheMatchingConnection()
     {
-        Callback.OnScreenConnected("Screen 1", "conn-a");
+        Callback.OnScreenConnected("Screen 1", "conn-a", hostAddress: null, ScreenCapabilities.None);
 
         await _service.SendCommandAsync("Screen 1", new PlayCommand());
 
@@ -178,7 +178,7 @@ public class ScreenServerServiceTests
     [Fact]
     public async Task SendCommandAsync_DoesNotSend_AfterTheScreenDisconnects()
     {
-        Callback.OnScreenConnected("Screen 1", "conn-a");
+        Callback.OnScreenConnected("Screen 1", "conn-a", hostAddress: null, ScreenCapabilities.None);
         Callback.OnScreenDisconnected("conn-a");
 
         await _service.SendCommandAsync("Screen 1", new PlayCommand());
@@ -188,30 +188,98 @@ public class ScreenServerServiceTests
     }
 
     [Fact]
-    public async Task BroadcastCommandAsync_SendsToAllClients_EvenWithNoTrackedConnections()
+    public async Task SendCommandAsync_SerializesThroughTheBaseType()
     {
-        await _service.BroadcastCommandAsync(new PauseCommand());
+        Callback.OnScreenConnected("Screen 1", "conn-a", hostAddress: null, ScreenCapabilities.None);
 
-        await _allClients.Received(1).SendCoreAsync(
-            "ReceiveCommand",
-            Arg.Is<object?[]>(args => args.Length == 1 && ((string)args[0]!).Contains("$type")),
-            Arg.Any<CancellationToken>());
-    }
-
-    [Fact]
-    public async Task BroadcastCommandAsync_SerializesThroughTheBaseType()
-    {
         string? payload = null;
-        await _allClients.SendCoreAsync(
+        await _singleClient.SendCoreAsync(
             Arg.Any<string>(),
             Arg.Do<object?[]>(args => payload = args[0] as string),
             Arg.Any<CancellationToken>());
 
-        await _service.BroadcastCommandAsync(new SeekCommand { Position = TimeSpan.FromSeconds(30) });
+        await _service.SendCommandAsync("Screen 1", new SeekCommand { Position = TimeSpan.FromSeconds(30) });
 
+        // Serializing by runtime type would drop the $type discriminator and the screen's
+        // base-typed deserialize would throw.
         Assert.NotNull(payload);
         var back = System.Text.Json.JsonSerializer.Deserialize<ScreenCommandBase>(
             payload, new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web));
         Assert.Equal(TimeSpan.FromSeconds(30), Assert.IsType<SeekCommand>(back).Position);
+    }
+
+    [Fact]
+    public async Task BroadcastCommandAsync_GivesEachScreenAStreamUrlItCanReach()
+    {
+        var here = Substitute.For<ISingleClientProxy>();
+        var across = Substitute.For<ISingleClientProxy>();
+        _clients.Client("conn-here").Returns(here);
+        _clients.Client("conn-across").Returns(across);
+
+        Callback.OnScreenConnected("Here", "conn-here", "127.0.0.1", ScreenCapabilities.None);
+        Callback.OnScreenConnected("Across", "conn-across", "192.168.0.99", ScreenCapabilities.None);
+
+        string? herePayload = null, acrossPayload = null;
+        await here.SendCoreAsync(Arg.Any<string>(), Arg.Do<object?[]>(a => herePayload = a[0] as string), Arg.Any<CancellationToken>());
+        await across.SendCoreAsync(Arg.Any<string>(), Arg.Do<object?[]>(a => acrossPayload = a[0] as string), Arg.Any<CancellationToken>());
+
+        await _service.BroadcastCommandAsync(new LoadMediaCommand
+        {
+            StreamUrl = "http://localhost:5251/media/abc/stream.m3u8",
+        });
+
+        // The screen on this machine keeps loopback; the one across the network cannot fetch that.
+        Assert.Contains("localhost:5251", herePayload);
+        Assert.Contains("192.168.0.99:5251", acrossPayload);
+        Assert.DoesNotContain("localhost:5251", acrossPayload);
+    }
+
+    [Fact]
+    public async Task BroadcastCommandAsync_KeepsTheSingleSend_ForACommandWithNoUrlToRewrite()
+    {
+        Callback.OnScreenConnected("Screen 1", "conn-a", "192.168.0.99", ScreenCapabilities.None);
+
+        await _service.BroadcastCommandAsync(new PlayCommand());
+
+        await _allClients.Received(1).SendCoreAsync(
+            "ReceiveCommand", Arg.Any<object?[]>(), Arg.Any<CancellationToken>());
+        await _singleClient.DidNotReceive().SendCoreAsync(
+            Arg.Any<string>(), Arg.Any<object?[]>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task SendCommandAsync_RewritesTheStreamUrlForThatScreen()
+    {
+        Callback.OnScreenConnected("Across", "conn-across", "192.168.0.99", ScreenCapabilities.None);
+
+        string? payload = null;
+        await _singleClient.SendCoreAsync(
+            Arg.Any<string>(), Arg.Do<object?[]>(a => payload = a[0] as string), Arg.Any<CancellationToken>());
+
+        await _service.SendCommandAsync("Across", new LoadMediaCommand
+        {
+            StreamUrl = "http://localhost:5251/media/abc/stream.m3u8",
+        });
+
+        Assert.Contains("192.168.0.99:5251", payload);
+    }
+
+    [Fact]
+    public async Task BroadcastCommandAsync_CarriesTheRestOfTheCommandAcross()
+    {
+        Callback.OnScreenConnected("Across", "conn-across", "192.168.0.99", ScreenCapabilities.None);
+
+        string? payload = null;
+        await _singleClient.SendCoreAsync(
+            Arg.Any<string>(), Arg.Do<object?[]>(a => payload = a[0] as string), Arg.Any<CancellationToken>());
+
+        await _service.BroadcastCommandAsync(new LoadMediaCommand
+        {
+            StreamUrl = "http://localhost:5251/media/abc/stream.m3u8",
+            StreamStartOffset = TimeSpan.FromSeconds(12),
+        });
+
+        // Rebuilding the command to rewrite the host must not drop what came with it.
+        Assert.Contains("12", payload);
     }
 }

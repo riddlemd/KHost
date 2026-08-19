@@ -20,7 +20,12 @@
     line-height: 1;
     padding: 0 1em;
     background: linear-gradient(135deg, var(--kh-primary), var(--kh-primary-hover));
+    // The reset strips borders from every button, so every border-color below this — the outline
+    // and secondary modifiers included — had nothing to paint and those buttons rendered as bare
+    // text. Width and style belong here; border-box keeps the fixed height.
+    border: 1px solid;
     border-color: var(--kh-primary-hover);
+    box-sizing: border-box;
     color: var(--kh-button-primary-text);
 
     &:hover:not(:disabled) {

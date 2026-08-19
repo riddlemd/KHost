@@ -2,7 +2,7 @@
 @using KHost.UserInterface.Models
 
 <Dialog IsOpen="IsOpen" OnClose="OnClose" Class="kh-dialog__screens">
-    <Header>Screens</Header>
+    <Header><Icon Name="display-fill" /> Screens</Header>
     <Body>
         <div class="kh-screens-dialog">
 
@@ -14,14 +14,25 @@
                 }
                 else
                 {
-                    <ul class="kh-screens-dialog__list">
+                    <div class="kh-screens-dialog__matrix" role="table">
+                        <div class="kh-screens-dialog__matrix-head" role="row">
+                            <span role="columnheader">Screen</span>
+                            <span role="columnheader" title="Whether the screen is holding the group timeline.">Sync</span>
+                            <span role="columnheader" title="Which screens the room hears.">Audio</span>
+                            <span role="columnheader" title="Blanks the picture without taking the screen off the timeline.">Video</span>
+                            <span role="columnheader" title="The screen the others are held to. Exactly one.">Primary</span>
+                        </div>
+
                         @foreach (var screen in _connectedScreens)
                         {
                             var state = _screenStates.TryGetValue(screen.ScreenId, out var s) ? s : null;
-                            <li class="kh-screens-dialog__item">
-                                <i class="bi bi-circle-fill kh-screens-dialog__status--connected"></i>
-                                <div class="kh-screens-dialog__item-content">
-                                    <div class="kh-screens-dialog__screen-name">@screen.ScreenId</div>
+                            var isPrimary = IsPrimaryScreen(screen);
+                            <div role="row" class="kh-screens-dialog__matrix-row @(isPrimary ? "kh-screens-dialog__matrix-row--primary" : "")">
+                                <div class="kh-screens-dialog__item-content" role="cell">
+                                    <div class="kh-screens-dialog__screen-name">
+                                        <i class="bi bi-circle-fill kh-screens-dialog__status--connected"></i>
+                                        <span>@screen.ScreenId</span>
+                                    </div>
                                     @if (state is not null)
                                     {
                                         <div class="kh-screens-dialog__screen-state">
@@ -29,7 +40,7 @@
                                             {
                                                 <span class="kh-screens-dialog__file">@Path.GetFileName(state.LoadedFilePath)</span>
                                             }
-                                            <span class="kh-screens-dialog__playback">
+                                            <span>
                                                 @if (state.IsPlaying)
                                                 {
                                                     <i class="bi bi-play-fill"></i> <span>Playing</span>
@@ -46,22 +57,162 @@
                                         </div>
                                     }
                                 </div>
-                            </li>
+
+                                <div class="kh-screens-dialog__cell" role="cell">
+                                    <i class="bi @SyncIcon(screen) kh-screens-dialog__sync @SyncModifier(screen)"
+                                       title="@SyncTitle(screen)"
+                                       aria-label="@SyncTitle(screen)"
+                                       role="img"></i>
+                                </div>
+
+                                <div class="kh-screens-dialog__cell" role="cell">
+                                    <button class="kh-screens-dialog__toggle @(IsAudible(screen) ? "" : "kh-screens-dialog__toggle--off")"
+                                            disabled="@(!screen.Capabilities.SupportsAudio)"
+                                            aria-pressed="@(IsAudible(screen) ? "true" : "false")"
+                                            title="@AudioTitle(screen)"
+                                            @onclick="() => ToggleAudioAsync(screen)">
+                                        <i class="bi @(IsAudible(screen) ? "bi-volume-up-fill" : "bi-volume-mute")"></i>
+                                    </button>
+                                </div>
+
+                                <div class="kh-screens-dialog__cell" role="cell">
+                                    <button class="kh-screens-dialog__toggle @(IsVideoOn(screen) ? "" : "kh-screens-dialog__toggle--off")"
+                                            disabled="@(!screen.Capabilities.SupportsVideo)"
+                                            aria-pressed="@(IsVideoOn(screen) ? "true" : "false")"
+                                            title="@(IsVideoOn(screen) ? "Showing video — click to blank" : "Blanked — click to show video")"
+                                            @onclick="() => ToggleVideoAsync(screen)">
+                                        <i class="bi @(IsVideoOn(screen) ? "bi-display-fill" : "bi-display")"></i>
+                                    </button>
+                                </div>
+
+                                <div class="kh-screens-dialog__cell" role="cell">
+                                    <button class="kh-screens-dialog__radio @(isPrimary ? "kh-screens-dialog__radio--on" : "")"
+                                            role="radio"
+                                            aria-checked="@(isPrimary ? "true" : "false")"
+                                            disabled="@(!screen.Capabilities.SupportsSync)"
+                                            title="@PrimaryTitle(screen)"
+                                            @onclick="() => SetAsPrimaryAsync(screen)">
+                                    </button>
+                                </div>
+                            </div>
                         }
-                    </ul>
+                    </div>
+                    @if (ScreenCoordination!.RolesAreSplit)
+                    {
+                        <p class="kh-screens-dialog__warning">
+                            <i class="bi bi-exclamation-triangle-fill"></i>
+                            The audio screen cannot be synced, so the other screens are following
+                            <strong>@ScreenCoordination.PrimaryScreenId</strong> instead. Lyrics may
+                            drift away from what the room hears.
+                        </p>
+                    }
+                    <p class="kh-screens-dialog__hint">
+                        Only the audio screen is audible by default — two screens playing the same
+                        song into one room fight each other. Unmute another only if it is elsewhere.
+                    </p>
+                }
+            </section>
+
+            <section class="kh-screens-dialog__cast">
+                <h3>
+                    Cast devices
+                    <span class="kh-screens-dialog__note"
+                          title="A Cast receiver plays on its own schedule and cannot be held to the group's timeline.">
+                        always unsynced
+                    </span>
+                    <button class="kh-screens-dialog__search @(IsSearchingForCast ? "kh-screens-dialog__search--on" : "")"
+                            aria-pressed="@(IsSearchingForCast ? "true" : "false")"
+                            disabled="@_castSearchBusy"
+                            title="@(IsSearchingForCast
+                                ? "Searching the network for receivers. Click to stop."
+                                : "Browsing sweeps the whole network, so it stays off until you ask.")"
+                            @onclick="ToggleCastSearchAsync">
+                        <i class="bi @(IsSearchingForCast ? "bi-broadcast" : "bi-search")"></i>
+                        <span>@(IsSearchingForCast ? "Searching" : "Search")</span>
+                    </button>
+                </h3>
+
+                @if (CastDevices.Count == 0)
+                {
+                    <p class="kh-screens-dialog__empty">
+                        @(IsSearchingForCast ? "Looking for receivers…" : "Not searching for receivers.")
+                    </p>
+                }
+                else
+                {
+                    <div class="kh-screens-dialog__picker" @onkeydown="OnCastPickerKeyDownAsync">
+                        <div class="kh-screens-dialog__picker-row">
+                            <button class="kh-screens-dialog__picker-trigger"
+                                    aria-haspopup="listbox"
+                                    aria-expanded="@(_castPickerOpen ? "true" : "false")"
+                                    title="Only one receiver is driven at a time."
+                                    @onclick="ToggleCastPicker">
+                                <i class="bi bi-cast @(ConnectedCastDevice is not null ? "kh-screens-dialog__picker-icon--on" : "")"></i>
+                                <span class="kh-screens-dialog__picker-label">@CastTriggerText</span>
+                                <i class="bi bi-chevron-down kh-screens-dialog__picker-chev"></i>
+                            </button>
+                            @if (ConnectedCastDevice is not null)
+                            {
+                                <button class="kh-button kh-button--secondary"
+                                        disabled="@(_busyCastDevice is not null)"
+                                        title="Stop casting to @ConnectedCastDevice.Name."
+                                        @onclick="() => DisconnectCastAsync(ConnectedCastDevice)">
+                                    Stop
+                                </button>
+                            }
+                        </div>
+
+                        @if (_castPickerOpen)
+                        {
+                            <div class="kh-screens-dialog__picker-backdrop" @onclick="CloseCastPicker"></div>
+                            <div class="kh-screens-dialog__picker-popover" role="listbox" aria-label="Cast devices">
+                                @foreach (var device in CastDevices)
+                                {
+                                    <button class="kh-screens-dialog__picker-item @(device.IsConnected ? "kh-screens-dialog__picker-item--on" : "")"
+                                            role="option"
+                                            aria-selected="@(device.IsConnected ? "true" : "false")"
+                                            disabled="@(_busyCastDevice is not null)"
+                                            @onclick="() => SelectCastAsync(device)">
+                                        <span class="kh-screens-dialog__picker-radio"></span>
+                                        <span class="kh-screens-dialog__picker-text">
+                                            <span class="kh-screens-dialog__picker-name">@device.Name</span>
+                                            <span class="kh-screens-dialog__picker-meta">@(device.Model ?? "Cast receiver") @device.Address</span>
+                                        </span>
+                                        <span class="kh-screens-dialog__picker-state">
+                                            @if (_busyCastDevice == device.Id)
+                                            {
+                                                <span>Connecting…</span>
+                                            }
+                                            else if (device.IsConnected)
+                                            {
+                                                <span>Connected</span>
+                                            }
+                                        </span>
+                                    </button>
+                                }
+                            </div>
+                        }
+                    </div>
+                }
+
+                @if (_castError is not null)
+                {
+                    <p class="kh-screens-dialog__warning">
+                        <i class="bi bi-exclamation-triangle-fill"></i> @_castError
+                    </p>
                 }
             </section>
 
             <section class="kh-screens-dialog__launch">
                 <h3>Launch New Screen</h3>
                 <div class="kh-screens-dialog__launch-form">
-                    <input class="kh-input"
+                    <input class="kh-form-control"
                            type="text"
                            placeholder="Screen name (auto if blank)"
                            disabled="@_isLaunching"
                            @bind="_screenName"
                            @bind:event="oninput" />
-                    <select class="kh-select" disabled="@_isLaunching" @bind="_selectedProviderName">
+                    <select class="kh-form-select" disabled="@_isLaunching" @bind="_selectedProviderName">
                         @foreach (var provider in _providers)
                         {
                             <option value="@provider.Name" disabled="@(!provider.IsAvailable)">

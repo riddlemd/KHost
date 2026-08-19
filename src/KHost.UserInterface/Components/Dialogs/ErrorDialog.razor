@@ -1,0 +1,64 @@
+@using KHost.UserInterface.Models
+
+<Dialog IsOpen="IsOpen" Class="@($"{_rootClassName} {Class?.Trim()}".Trim())" OnClose="OnClose">
+    <Header>
+        <Icon Name="exclamation-triangle-fill" Class="@($"{_rootClassName}__severity")" />
+        @Title
+    </Header>
+    <Body>
+        <div class="@(_rootClassName)__row">
+            <Icon Name="file-earmark-x" Class="@($"{_rootClassName}__row-icon")" />
+            <div>
+                <span class="@(_rootClassName)__row-label">What happened</span>
+                <p class="@(_rootClassName)__row-text">@WhatHappened</p>
+            </div>
+        </div>
+
+        @if (!string.IsNullOrWhiteSpace(Suggestion))
+        {
+            <div class="@(_rootClassName)__row">
+                <Icon Name="life-preserver" Class="@($"{_rootClassName}__row-icon {_rootClassName}__row-icon--fix")" />
+                <div>
+                    <span class="@(_rootClassName)__row-label">What to try</span>
+                    <p class="@(_rootClassName)__row-text">@Suggestion</p>
+                </div>
+            </div>
+        }
+
+        @if (!string.IsNullOrWhiteSpace(Detail))
+        {
+            <details class="@(_rootClassName)__detail">
+                <summary>Technical details</summary>
+                <pre>@Detail</pre>
+            </details>
+        }
+
+        <div class="@(_rootClassName)__reference">
+            <span class="@(_rootClassName)__reference-label">Reference</span>
+            <code>@ReferenceCode</code>
+        </div>
+
+        @* Drawn but never shown: sending reports is not built yet, and a dead control that looks
+           live is worse than none. Flip ReportingAvailable when it exists. *@
+        @if (ReportingAvailable)
+        {
+            <div class="@(_rootClassName)__report">
+                <label>
+                    <input type="checkbox" @bind="_sendReport" />
+                    Send this report to the developers
+                </label>
+                <p class="@(_rootClassName)__report-note">
+                    Includes the details above, the app version and your operating system —
+                    never your library or singers.
+                </p>
+            </div>
+        }
+    </Body>
+    <Footer>
+        <button class="kh-button kh-button--primary" @onclick="CloseAsync">Dismiss</button>
+        @if (OnRetry is not null)
+        {
+            <button class="kh-button kh-button--primary" @onclick="RetryAsync">Try again</button>
+        }
+    </Footer>
+</Dialog>

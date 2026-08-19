@@ -9,7 +9,7 @@ public class LocalScreenProviderTests
     {
         var path = LocalScreenProvider.ResolveExePath(null, "/app", isWindows: false);
 
-        Assert.Equal(Path.Combine("/app", "KHost.Screen"), path);
+        Assert.Equal(Path.Combine("/app", "KHost.Screen2"), path);
     }
 
     [Fact]
@@ -17,7 +17,7 @@ public class LocalScreenProviderTests
     {
         var path = LocalScreenProvider.ResolveExePath(null, "/app", isWindows: true);
 
-        Assert.Equal(Path.Combine("/app", "KHost.Screen.exe"), path);
+        Assert.Equal(Path.Combine("/app", "KHost.Screen2.exe"), path);
     }
 
     [Theory]
@@ -28,7 +28,7 @@ public class LocalScreenProviderTests
     {
         var path = LocalScreenProvider.ResolveExePath(configured, "/app", isWindows: false);
 
-        Assert.Equal(Path.Combine("/app", "KHost.Screen"), path);
+        Assert.Equal(Path.Combine("/app", "KHost.Screen2"), path);
     }
 
     [Fact]
@@ -43,9 +43,9 @@ public class LocalScreenProviderTests
     public void ResolveExePath_AnchorsRelativeConfiguredPath_ToBaseDirectory()
     {
         // Anchoring to the process CWD instead would resolve somewhere else entirely.
-        var path = LocalScreenProvider.ResolveExePath("screens/KHost.Screen", "/app", isWindows: false);
+        var path = LocalScreenProvider.ResolveExePath("screens/KHost.Screen2", "/app", isWindows: false);
 
-        Assert.Equal(Path.Combine("/app", "screens/KHost.Screen"), path);
+        Assert.Equal(Path.Combine("/app", "screens/KHost.Screen2"), path);
     }
 
     [Fact]

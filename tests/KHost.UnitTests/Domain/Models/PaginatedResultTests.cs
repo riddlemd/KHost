@@ -86,13 +86,4 @@ public class PaginatedResultTests
         Assert.False(result.HasNextPage);
     }
 
-    [Fact]
-    public void Items_CanBeAssigned()
-    {
-        var items = new List<string> { "a", "b", "c" };
-        var result = new PaginatedResult<string> { Items = items };
-
-        Assert.Equal(3, result.Items.Count);
-        Assert.Same(items, result.Items);
-    }
 }

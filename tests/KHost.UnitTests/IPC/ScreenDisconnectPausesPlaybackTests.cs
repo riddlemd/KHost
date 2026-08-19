@@ -34,6 +34,20 @@ public class ScreenDisconnectPausesPlaybackTests : IDisposable
             Settings = new Venue.VenueSettings(),
         });
 
+        // Playback needs a host stream now: without one a load throws rather than sending a
+        // command no screen could act on.
+        var mediaStreams = Substitute.For<IMediaStreamService>();
+        mediaStreams
+            .OpenAsync(Arg.Any<string>(), Arg.Any<TimeSpan>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(call => new MediaStreamSession
+            {
+                Id = "stream-1",
+                SourcePath = call.ArgAt<string>(0),
+                PlaylistUrl = "http://host/media/stream-1/stream.m3u8",
+                StartOffset = call.ArgAt<TimeSpan>(1),
+                PitchSemitones = 0,
+            });
+
         _playbackService = new PlaybackService(
             NullLogger<PlaybackService>.Instance,
             Substitute.For<ISingerQueueService>(),
@@ -41,6 +55,9 @@ public class ScreenDisconnectPausesPlaybackTests : IDisposable
             venues,
             Substitute.For<IAnalyticsService>(),
             _screenServer,
+            mediaStreams,
+            new ScreenCoordinationService(NullLogger<ScreenCoordinationService>.Instance, _screenServer),
+            Substitute.For<ICastService>(),
             Options.Create(new PlaybackService.ServiceOptions { StopFadeDuration = TimeSpan.Zero }));
     }
 
@@ -81,7 +98,7 @@ public class ScreenDisconnectPausesPlaybackTests : IDisposable
     [Fact]
     public async Task Disconnect_ReturnsPromptly_AndDoesNotDeadlockTheHubThread()
     {
-        Callback.OnScreenConnected("Screen 1", "conn-1");
+        Callback.OnScreenConnected("Screen 1", "conn-1", hostAddress: null, ScreenCapabilities.None);
         await StartPlayingAsync();
 
         // Runs on the hub's calling thread while the connection lock is held.
@@ -97,7 +114,7 @@ public class ScreenDisconnectPausesPlaybackTests : IDisposable
     [Fact]
     public async Task LastScreenDisconnecting_PausesPlayback()
     {
-        Callback.OnScreenConnected("Screen 1", "conn-1");
+        Callback.OnScreenConnected("Screen 1", "conn-1", hostAddress: null, ScreenCapabilities.None);
         await StartPlayingAsync();
 
         Callback.OnScreenDisconnected("conn-1");
@@ -108,8 +125,8 @@ public class ScreenDisconnectPausesPlaybackTests : IDisposable
     [Fact]
     public async Task OneOfTwoScreensDisconnecting_KeepsPlaying()
     {
-        Callback.OnScreenConnected("Screen 1", "conn-1");
-        Callback.OnScreenConnected("Screen 2", "conn-2");
+        Callback.OnScreenConnected("Screen 1", "conn-1", hostAddress: null, ScreenCapabilities.None);
+        Callback.OnScreenConnected("Screen 2", "conn-2", hostAddress: null, ScreenCapabilities.None);
         await StartPlayingAsync();
 
         Callback.OnScreenDisconnected("conn-1");
@@ -136,7 +153,7 @@ public class ScreenDisconnectPausesPlaybackTests : IDisposable
 
         Assert.Equal(PlaybackState.Stopped, _playbackService.State);
 
-        Callback.OnScreenConnected("Screen 1", "conn-1");
+        Callback.OnScreenConnected("Screen 1", "conn-1", hostAddress: null, ScreenCapabilities.None);
         await _playbackService.PlayAsync();
 
         Assert.Equal(PlaybackState.Playing, _playbackService.State);

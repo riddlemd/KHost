@@ -8,9 +8,20 @@ public interface IScreenClient
     string? ScreenId { get; }
     ScreenClientState State { get; }
 
-    Task ConnectAsync(string serverUri, string screenId, CancellationToken cancellationToken = default);
+    Task ConnectAsync(
+        string serverUri,
+        string screenId,
+        ScreenCapabilities? capabilities = null,
+        CancellationToken cancellationToken = default);
+
     Task DisconnectAsync();
     Task SendStateAsync(IScreenState state);
+
+    /// <summary>
+    /// Estimates the offset from this machine's clock to the host's, NTP style. A scheduled start
+    /// is meaningless across machines without it; on one machine it settles near zero.
+    /// </summary>
+    Task<TimeSpan> EstimateClockOffsetAsync(CancellationToken cancellationToken = default);
 }
 
 public class ScreenCommandReceivedEventArgs : EventArgs
