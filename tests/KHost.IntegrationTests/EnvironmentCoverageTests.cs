@@ -1,6 +1,6 @@
 using System.Diagnostics;
 
-namespace KHost.UnitTests;
+namespace KHost.IntegrationTests;
 
 /// <summary>
 /// Several suites skip themselves when the tool they drive is absent, which makes a run that lost
