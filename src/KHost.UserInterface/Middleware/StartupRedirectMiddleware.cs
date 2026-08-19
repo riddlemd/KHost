@@ -19,8 +19,7 @@ public class StartupRedirectMiddleware(
         "/images",
         "/fonts",
         "/favicon",
-        "/_content",
-        "/api"
+        "/_content"
     ];
 
     private static readonly string[] StaticFileExtensions =
