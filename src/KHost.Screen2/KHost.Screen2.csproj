@@ -37,11 +37,12 @@
     <ProjectReference Include="..\KHost.IPC.SignalR\KHost.IPC.SignalR.csproj" />
   </ItemGroup>
 
-  <!-- Not a Web SDK project, so the player page needs copying explicitly. Deliberately not
-       "wwwroot": this output is copied flat into the UI's output, where a wwwroot/index.html
-       would shadow the Blazor app at /. -->
+  <!-- Embedded, not copied: this output is copied wholesale into the UI's output, and loose
+       player files there are both clutter and a shadowing hazard. LogicalName is set explicitly
+       so the lookup in Program.cs cannot break on MSBuild's path-to-namespace mangling. -->
   <ItemGroup>
-    <Content Include="screen-ui\**\*" CopyToOutputDirectory="PreserveNewest" />
+    <EmbeddedResource Include="screen-ui\index.html" LogicalName="screen-ui/index.html" />
+    <EmbeddedResource Include="screen-ui\player.js" LogicalName="screen-ui/player.js" />
   </ItemGroup>
 
   <ItemGroup>
