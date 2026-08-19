@@ -151,7 +151,7 @@ public class ScreensDialogSyncTests
     private void Report(string screenId, TimeSpan position, DateTime? sampledAtUtc, bool isPlaying = true)
         => _dialog._screenStates[screenId] = new ScreenPlaybackState
         {
-            LoadedFilePath = "song.mp4",
+            StreamUrl = "http://192.168.1.10:5251/media/abc123/stream.m3u8",
             IsPlaying = isPlaying,
             Position = position,
             Duration = TimeSpan.FromMinutes(4),

@@ -36,16 +36,16 @@
                                     @if (state is not null)
                                     {
                                         <div class="kh-screens-dialog__screen-state">
-                                            @if (!string.IsNullOrEmpty(state.LoadedFilePath))
+                                            @if (!string.IsNullOrEmpty(state.StreamUrl))
                                             {
-                                                <span class="kh-screens-dialog__file">@Path.GetFileName(state.LoadedFilePath)</span>
+                                                <span class="kh-screens-dialog__file">@NowPlayingLabel</span>
                                             }
                                             <span>
                                                 @if (state.IsPlaying)
                                                 {
                                                     <i class="bi bi-play-fill"></i> <span>Playing</span>
                                                 }
-                                                else if (!string.IsNullOrEmpty(state.LoadedFilePath))
+                                                else if (!string.IsNullOrEmpty(state.StreamUrl))
                                                 {
                                                     <i class="bi bi-pause-fill"></i> <span>Paused</span>
                                                 }

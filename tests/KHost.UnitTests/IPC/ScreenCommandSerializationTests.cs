@@ -152,7 +152,7 @@ public class ScreenCommandSerializationTests
     {
         ScreenStateBase state = new ScreenPlaybackState
         {
-            LoadedFilePath = "/music/x.mp4",
+            StreamUrl = "http://192.168.1.10:5251/media/abc123/stream.m3u8",
             IsPlaying = true,
             Position = TimeSpan.FromSeconds(5),
             Duration = TimeSpan.FromMinutes(3),
@@ -163,6 +163,6 @@ public class ScreenCommandSerializationTests
 
         var playback = Assert.IsType<ScreenPlaybackState>(back);
         Assert.True(playback.IsPlaying);
-        Assert.Equal("/music/x.mp4", playback.LoadedFilePath);
+        Assert.Equal("http://192.168.1.10:5251/media/abc123/stream.m3u8", playback.StreamUrl);
     }
 }
