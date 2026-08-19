@@ -3,7 +3,7 @@ using KHost.Domain.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
-namespace KHost.UnitTests.Domain.Services;
+namespace KHost.IntegrationTests.Domain.Services;
 
 /// <summary>Drives real ffmpeg, and skips where it is not installed.</summary>
 public class HlsMediaStreamServiceTranscodeTests : IDisposable
