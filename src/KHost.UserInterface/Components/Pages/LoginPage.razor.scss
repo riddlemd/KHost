@@ -3,23 +3,27 @@
     align-items: center;
     justify-content: center;
     min-height: 100vh;
+    padding: 1rem;
 
     &__card {
-        width: 360px;
-        padding: 32px;
+        width: 100%;
+        max-width: 420px;
+        padding: 2.5rem 2rem;
         background: var(--kh-bg-card);
         border: 1px solid var(--kh-border);
         border-radius: var(--kh-radius-lg);
+        box-shadow: 0 8px 32px var(--kh-primary-glow);
     }
 
     &__title {
         margin: 0;
         text-align: center;
+        font-family: var(--kh-font-display);
         color: var(--kh-primary-bright);
     }
 
     &__subtitle {
-        margin: 4px 0 24px;
+        margin: 0.25rem 0 2rem;
         text-align: center;
         color: var(--kh-text-secondary);
     }
@@ -27,10 +31,49 @@
     &__form {
         display: flex;
         flex-direction: column;
-        gap: 16px;
+        gap: 1.25rem;
+    }
+
+    &__group {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    &__label {
+        font-size: 0.95rem;
+        font-weight: 500;
+        color: var(--kh-text);
+    }
+
+    &__control {
+        width: 100%;
+        padding: 0.75rem 1rem;
+        background: var(--kh-bg-input);
+        color: var(--kh-text);
+        border: 1px solid var(--kh-border);
+        border-radius: var(--kh-radius);
+        font: inherit;
+        transition: border-color var(--kh-transition), box-shadow var(--kh-transition);
+
+        &:focus {
+            outline: none;
+            border-color: var(--kh-primary);
+            box-shadow: 0 0 0 3px var(--kh-primary-glow);
+        }
+
+        &::placeholder {
+            color: var(--kh-text-muted);
+        }
     }
 
     &__submit {
-        margin-top: 8px;
+        margin-top: 0.5rem;
+        padding: 0.75rem 1rem;
+        justify-content: center;
+    }
+
+    .kh-alert--warning {
+        margin-bottom: 1.25rem;
     }
 }

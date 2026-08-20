@@ -15,15 +15,19 @@
         }
 
         <form class="kh-login__form" method="post" action="/auth/login">
-            <div>
-                <label class="kh-form-label" for="username">Name</label>
-                <input class="kh-form-control" id="username" name="username" autocomplete="username" autofocus required />
+            <div class="kh-login__group">
+                <label class="kh-login__label" for="username">Username</label>
+                <input class="kh-login__control" id="username" name="username"
+                       placeholder="Enter your username" autocomplete="username" autofocus required />
             </div>
-            <div>
-                <label class="kh-form-label" for="password">Password</label>
-                <input class="kh-form-control" id="password" name="password" type="password" autocomplete="current-password" required />
+            <div class="kh-login__group">
+                <label class="kh-login__label" for="password">Password</label>
+                <input class="kh-login__control" id="password" name="password" type="password"
+                       placeholder="Enter your password" autocomplete="current-password" required />
             </div>
-            <button class="kh-button kh-login__submit" type="submit">Sign in</button>
+            <button class="kh-button kh-button--primary kh-login__submit" type="submit">
+                <Icon Name="box-arrow-in-right" /> Sign in
+            </button>
         </form>
     </div>
 </div>
