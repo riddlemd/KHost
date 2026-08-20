@@ -1,7 +1,7 @@
+using KHost.Abstractions.Models;
 using KHost.Abstractions.Repositories;
 using KHost.Abstractions.Services;
 using Microsoft.Extensions.Logging;
-using System.Runtime.Intrinsics.X86;
 
 namespace KHost.Domain.Services;
 
@@ -19,6 +19,7 @@ public class MediaImportService : BaseService, IMediaImportService
     private readonly IMediaFileParsingService _parser;
     private readonly IMediaRepository _repository;
     private readonly IMediaService _mediaService;
+    private readonly IMediaFingerprintService _fingerprints;
     private readonly IAnalyticsService _analytics;
 
     private CancellationTokenSource? _cts;
@@ -37,12 +38,14 @@ public class MediaImportService : BaseService, IMediaImportService
         IMediaFileParsingService parser,
         IMediaRepository repository,
         IMediaService mediaService,
+        IMediaFingerprintService fingerprints,
         IAnalyticsService analytics)
         : base(logger)
     {
         _parser = parser;
         _repository = repository;
         _mediaService = mediaService;
+        _fingerprints = fingerprints;
         _analytics = analytics;
     }
 
@@ -99,11 +102,17 @@ public class MediaImportService : BaseService, IMediaImportService
         InvokeStateChanged();
     }
 
-    private async Task ImportOneFileAsync(string path)
+    private async Task ImportOneFileAsync(ImportCandidate candidate, CancellationToken ct)
     {
         try
         {
-            var media = await _parser.LoadAndParseAsync(path);
+            var media = await _parser.LoadAndParseAsync(candidate.Path);
+
+            media.FileSize = candidate.Size;
+            media.SampledHash = candidate.SampledHash
+                ?? await _fingerprints.ComputeSampledHashAsync(candidate.Path, ct);
+            media.ContentHash = candidate.ContentHash;
+
             await _mediaService.CreateAsync(media);
             ImportedCount++;
             _analytics.RecordImportFilesProcessed(1, "imported");
@@ -116,7 +125,7 @@ public class MediaImportService : BaseService, IMediaImportService
         {
             FailedCount++;
             _analytics.RecordImportFilesProcessed(1, "failed");
-            Logger.LogWarning(ex, "Failed to import {FilePath}", path);
+            Logger.LogWarning(ex, "Failed to import {FilePath}", candidate.Path);
         }
     }
 
@@ -127,7 +136,7 @@ public class MediaImportService : BaseService, IMediaImportService
 
         try
         {
-            var toImport = await FilterNewPathsAsync(paths, activity);
+            var toImport = await FilterNewPathsAsync(paths, activity, ct);
             await ImportBatchAsync(toImport, ct);
         }
         catch (OperationCanceledException) { }
@@ -146,10 +155,13 @@ public class MediaImportService : BaseService, IMediaImportService
         }
     }
 
-    private async Task<List<string>> FilterNewPathsAsync(List<string> paths, IAnalyticsActivity activity)
+    private async Task<List<ImportCandidate>> FilterNewPathsAsync(
+        List<string> paths, IAnalyticsActivity activity, CancellationToken ct)
     {
         var existing = await _repository.GetExistingFilePathsAsync(paths);
-        var toImport = paths.Where(p => !existing.Contains(p)).ToList();
+        var unseen = paths.Where(p => !existing.Contains(p)).ToList();
+
+        var toImport = await FilterKnownContentAsync(unseen, ct);
         var skippedCount = paths.Count - toImport.Count;
 
         if (skippedCount > 0)
@@ -162,20 +174,194 @@ public class MediaImportService : BaseService, IMediaImportService
         return toImport;
     }
 
-    private async Task ImportBatchAsync(List<string> toImport, CancellationToken ct)
+    /// <summary>
+    /// Drops files whose bytes are already in the library under a different path. Size is the
+    /// prefilter, so a file matching no stored size is new without ever being opened; only a size
+    /// collision pays for a sampled hash, and only a sampled match pays for the full hash that
+    /// confirms it. That last step is not optional — a false positive silently loses a song, which
+    /// is worse than the duplicate row it would have prevented.
+    /// </summary>
+    private async Task<List<ImportCandidate>> FilterKnownContentAsync(List<string> paths, CancellationToken ct)
     {
-        foreach (var path in toImport)
+        await MeasureUnsizedLibraryRowsAsync(ct);
+
+        var sizes = new Dictionary<string, long>();
+        foreach (var path in paths)
+        {
+            var size = _fingerprints.TryGetSize(path);
+            if (size is not null)
+                sizes[path] = size.Value;
+        }
+
+        var buckets = new Dictionary<long, List<Fingerprint>>();
+        foreach (var row in await _repository.GetByFileSizesAsync(sizes.Values))
+        {
+            BucketFor(buckets, row.FileSize!.Value).Add(
+                new Fingerprint(row.FilePath, row) { Sampled = row.SampledHash, Full = row.ContentHash });
+        }
+
+        var accepted = new List<ImportCandidate>(paths.Count);
+        var updatedRows = new HashSet<Media>();
+
+        foreach (var path in paths)
+        {
+            ct.ThrowIfCancellationRequested();
+
+            if (!sizes.TryGetValue(path, out var size))
+            {
+                // Unreadable right now. Let the import run and report the real failure.
+                accepted.Add(new ImportCandidate(path, null, null, null));
+                continue;
+            }
+
+            // The incoming file joins its own bucket once accepted, so two identical files inside
+            // one selection dedup against each other and not just against the library.
+            var bucket = BucketFor(buckets, size);
+            var incoming = new Fingerprint(path, Row: null);
+
+            if (await MatchesKnownContentAsync(incoming, bucket, updatedRows, ct))
+                continue;
+
+            bucket.Add(incoming);
+            accepted.Add(new ImportCandidate(path, size, incoming.Sampled, incoming.Full));
+        }
+
+        await _repository.UpdateFingerprintsAsync(updatedRows);
+
+        return accepted;
+    }
+
+    private async Task<bool> MatchesKnownContentAsync(
+        Fingerprint incoming, List<Fingerprint> bucket, HashSet<Media> updatedRows, CancellationToken ct)
+    {
+        // Nothing to compare against, so leave the hash to the import itself. Same total work
+        // either way — the point is that filtering a large fresh library does no file I/O at all,
+        // and progress starts moving immediately instead of after a read of every selected file.
+        if (bucket.Count == 0)
+            return false;
+
+        incoming.Sampled = await _fingerprints.ComputeSampledHashAsync(incoming.FilePath, ct);
+        if (incoming.Sampled is null)
+            return false;
+
+        foreach (var known in bucket)
+        {
+            ct.ThrowIfCancellationRequested();
+
+            if (known.Sampled is null && !await FillSampledAsync(known, updatedRows, ct))
+                continue;
+
+            if (known.Sampled != incoming.Sampled)
+                continue;
+
+            incoming.Full ??= await _fingerprints.ComputeFullHashAsync(incoming.FilePath, ct);
+            if (incoming.Full is null)
+                return false;
+
+            if (known.Full is null && !await FillFullAsync(known, updatedRows, ct))
+                continue;
+
+            if (known.Full != incoming.Full)
+                continue;
+
+            Logger.LogInformation(
+                "Skipping {FilePath}: identical to {ExistingFilePath} already in the library",
+                incoming.FilePath, known.FilePath);
+            return true;
+        }
+
+        return false;
+    }
+
+    private async Task<bool> FillSampledAsync(Fingerprint known, HashSet<Media> updatedRows, CancellationToken ct)
+    {
+        known.Sampled = await _fingerprints.ComputeSampledHashAsync(known.FilePath, ct);
+        if (known.Sampled is null)
+            return false;
+
+        if (known.Row is not null)
+        {
+            known.Row.SampledHash = known.Sampled;
+            updatedRows.Add(known.Row);
+        }
+
+        return true;
+    }
+
+    private async Task<bool> FillFullAsync(Fingerprint known, HashSet<Media> updatedRows, CancellationToken ct)
+    {
+        known.Full = await _fingerprints.ComputeFullHashAsync(known.FilePath, ct);
+        if (known.Full is null)
+            return false;
+
+        if (known.Row is not null)
+        {
+            known.Row.ContentHash = known.Full;
+            updatedRows.Add(known.Row);
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// Gives rows imported before content dedup a size to match on. Stat only — no file is read —
+    /// so this stays cheap even on a large library, and a row whose file has gone is left alone
+    /// rather than marked, so it recovers if the drive comes back.
+    /// </summary>
+    private async Task MeasureUnsizedLibraryRowsAsync(CancellationToken ct)
+    {
+        var unsized = await _repository.GetWithoutFileSizeAsync();
+        if (unsized.Count == 0)
+            return;
+
+        var measured = new List<Media>(unsized.Count);
+        foreach (var row in unsized)
+        {
+            ct.ThrowIfCancellationRequested();
+
+            var size = _fingerprints.TryGetSize(row.FilePath);
+            if (size is null)
+                continue;
+
+            row.FileSize = size;
+            measured.Add(row);
+        }
+
+        await _repository.UpdateFingerprintsAsync(measured);
+        Logger.LogInformation("Measured {Count} library file(s) that predate content dedup", measured.Count);
+    }
+
+    private static List<Fingerprint> BucketFor(Dictionary<long, List<Fingerprint>> buckets, long size)
+    {
+        if (!buckets.TryGetValue(size, out var bucket))
+            buckets[size] = bucket = [];
+
+        return bucket;
+    }
+
+    private async Task ImportBatchAsync(List<ImportCandidate> toImport, CancellationToken ct)
+    {
+        foreach (var candidate in toImport)
         {
             if (ct.IsCancellationRequested)
                 break;
 
-            CurrentFilePath = path;
+            CurrentFilePath = candidate.Path;
             InvokeStateChangedThrottled();
 
-            await ImportOneFileAsync(path);
+            await ImportOneFileAsync(candidate, ct);
 
             InvokeStateChangedThrottled();
         }
+    }
+
+    private sealed record ImportCandidate(string Path, long? Size, string? SampledHash, string? ContentHash);
+
+    /// <summary>A file's hashes, filled in on demand. <see cref="Row"/> is null for a file being imported.</summary>
+    private sealed record Fingerprint(string FilePath, Media? Row)
+    {
+        public string? Sampled { get; set; }
+        public string? Full { get; set; }
     }
 
     private static class AnalyticActivities

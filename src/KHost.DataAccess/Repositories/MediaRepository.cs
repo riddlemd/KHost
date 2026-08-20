@@ -70,6 +70,57 @@ internal class MediaRepository : BaseRepository<Media>, IMediaRepository
         return found;
     }
 
+    public async Task<IReadOnlyList<Media>> GetByFileSizesAsync(IEnumerable<long> sizes)
+    {
+        var wanted = sizes.Distinct().ToList();
+        if (wanted.Count == 0)
+            return [];
+
+        using var context = await ContextFactory.CreateDbContextAsync();
+
+        return await context.Media
+            .Where(m => m.FileSize != null && wanted.Contains(m.FileSize.Value))
+            .ToListAsync();
+    }
+
+    public async Task<IReadOnlyList<Media>> GetWithoutFileSizeAsync()
+    {
+        using var context = await ContextFactory.CreateDbContextAsync();
+
+        return await context.Media
+            .Where(m => m.FileSize == null)
+            .ToListAsync();
+    }
+
+    public async Task UpdateFingerprintsAsync(IEnumerable<Media> media)
+    {
+        var rows = media.ToList();
+        if (rows.Count == 0)
+            return;
+
+        using var context = await ContextFactory.CreateDbContextAsync();
+
+        // Marking single properties rather than calling Update: the context is NoTracking, so a
+        // whole-entity update would write back stale copies of every other column.
+        foreach (var row in rows)
+        {
+            var entry = context.Attach(row);
+            entry.Property(m => m.FileSize).IsModified = true;
+            entry.Property(m => m.SampledHash).IsModified = true;
+            entry.Property(m => m.ContentHash).IsModified = true;
+        }
+
+        try
+        {
+            await context.SaveChangesAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "EF SaveChanges failed updating fingerprints for {Count} media rows", rows.Count);
+            throw;
+        }
+    }
+
     protected override IReadOnlyDictionary<string, Expression<Func<Media, object>>> SortColumns => _sortColumns;
     protected override Expression<Func<Media, object>> DefaultSortExpression => m => m.Title.ToLower();
 
