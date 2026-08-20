@@ -177,9 +177,9 @@ internal class DatabaseInitializer : IDatabaseInitializer
         using var context = await _contextFactory.CreateDbContextAsync();
 
         var stale = (await context.Media
-                .Select(m => new { m.Id, m.Title, m.Artist, m.Notes, m.SearchFolded })
+                .Select(m => new { m.Id, m.Title, m.Artist, m.SearchFolded })
                 .ToListAsync())
-            .Select(row => new { row.Id, Folded = TextFolding.Fold($"{row.Title} {row.Artist} {row.Notes}"), row.SearchFolded })
+            .Select(row => new { row.Id, Folded = TextFolding.Fold($"{row.Title} {row.Artist}"), row.SearchFolded })
             .Where(row => row.SearchFolded != row.Folded)
             .ToList();
 
