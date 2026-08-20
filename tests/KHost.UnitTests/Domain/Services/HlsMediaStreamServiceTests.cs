@@ -1,6 +1,6 @@
-using KHost.Domain.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using KHost.Domain.Services;
 
 namespace KHost.UnitTests.Domain.Services;
 

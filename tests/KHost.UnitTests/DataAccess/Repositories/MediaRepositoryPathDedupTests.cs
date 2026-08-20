@@ -1,9 +1,11 @@
 using KHost.Abstractions.Models;
+using KHost.Abstractions.Services;
 using KHost.DataAccess.Contexts;
 using KHost.DataAccess.Repositories;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
+using KHost.Domain.Services;
 
 namespace KHost.UnitTests.DataAccess.Repositories;
 

@@ -32,6 +32,72 @@ public class UsersRepositoryTests : IDisposable
     }
 
     [Fact]
+    public async Task CreateAsync_AllowsTwoDifferentNames()
+    {
+        await _database.SeedAsync(User("Alice"));
+
+        await _repository.CreateAsync(User("Bob"));
+
+        Assert.NotNull(await _repository.FindByNameAsync("alice"));
+        Assert.NotNull(await _repository.FindByNameAsync("bob"));
+    }
+
+    [Fact]
+    public async Task FindByName_IgnoresCase_OutsideAscii()
+    {
+        await _database.SeedAsync(User("BJÖRK"));
+
+        Assert.Equal("BJÖRK", (await _repository.FindByNameAsync("björk"))?.Name);
+        Assert.Equal("BJÖRK", (await _repository.FindByNameAsync("Björk"))?.Name);
+    }
+
+    [Fact]
+    public async Task FindByName_MatchesAcrossUnicodeNormalisation()
+    {
+        // Composed on the way in, decomposed on the way back - what macOS hands out for the
+        // same name read off a filesystem versus typed by hand.
+        await _database.SeedAsync(User("Zo\u00EB"));
+
+        Assert.NotNull(await _repository.FindByNameAsync("Zoe\u0308"));
+    }
+
+    [Fact]
+    public async Task CreateAsync_RejectsANameDifferingOnlyInNormalisation()
+    {
+        await _database.SeedAsync(User("Zo\u00EB"));
+
+        await Assert.ThrowsAsync<Microsoft.EntityFrameworkCore.DbUpdateException>(
+            () => _repository.CreateAsync(User("Zoe\u0308")));
+    }
+
+    [Fact]
+    public async Task FindByName_IgnoresAccents()
+    {
+        // Hosts on US keyboards cannot easily type accents a name was entered with.
+        await _database.SeedAsync(User("Zoë"));
+
+        Assert.NotNull(await _repository.FindByNameAsync("zoe"));
+    }
+
+    [Fact]
+    public async Task CreateAsync_RejectsANameDifferingOnlyInAccents()
+    {
+        await _database.SeedAsync(User("Björk"));
+
+        await Assert.ThrowsAsync<Microsoft.EntityFrameworkCore.DbUpdateException>(
+            () => _repository.CreateAsync(User("Bjork")));
+    }
+
+    [Fact]
+    public async Task CreateAsync_RejectsANameDifferingOnlyInCase_WhenTheDifferenceIsNotAscii()
+    {
+        await _database.SeedAsync(User("ZOË"));
+
+        await Assert.ThrowsAsync<Microsoft.EntityFrameworkCore.DbUpdateException>(
+            () => _repository.CreateAsync(User("zoë")));
+    }
+
+    [Fact]
     public async Task HasAdminUser_IsFalse_WhenNobodyIsInAnAdminGroup()
     {
         await _database.SeedAsync(User("Steve"), new KHostUserGroup { Name = "Singers", IsAdmin = false });
@@ -101,13 +167,14 @@ public class UsersRepositoryTests : IDisposable
     }
 
     [Fact]
-    public async Task Search_DoesNotFoldAccents()
+    public async Task Search_FoldsAccents()
     {
         await _database.SeedAsync(User("Ándre"));
 
-        // SQLite's lower() only folds ASCII, so the uppercase accent never matches. A host typing
-        // the name as it appears finds nothing.
-        Assert.Empty((await _repository.SearchAsync("ándre")).Items);
+        // Matching happens in .NET, so an uppercase accent folds the way the host expects rather
+        // than the way SQLite's ASCII-only lower() would leave it.
+        Assert.Single((await _repository.SearchAsync("ándre")).Items);
+        Assert.Single((await _repository.SearchAsync("ÁNDRE")).Items);
         Assert.Single((await _repository.SearchAsync("ndre")).Items);
     }
 

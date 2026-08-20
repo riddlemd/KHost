@@ -25,17 +25,16 @@ internal class UsersRepository : BaseRepository<KHostUser>, IUsersRepository
 
     public async Task<KHostUser?> FindByNameAsync(string name)
     {
+        var folded = EntityFolding.Fold(name);
+
         using var context = await ContextFactory.CreateDbContextAsync();
 
-        // In .NET, not SQL: the bundled SQLite folds ASCII only, so "SÖNG" and "söng" would
-        // pass a NOCASE comparison as different names. The table is a roster, not a library.
-        await foreach (var user in context.Set<KHostUser>().AsAsyncEnumerable())
-        {
-            if (string.Equals(user.Name, name, StringComparison.OrdinalIgnoreCase))
-                return user;
-        }
-
-        return null;
+        // Exact spelling first: NameFolded is unique so the folded lookup can only ever return one
+        // row, but a pre-upgrade database may hold two names the fold now considers equal (Andre
+        // and Ándre), of which only one could be refolded. Typing a name exactly as stored must
+        // always reach that account, or the losing side of the collision cannot sign in at all.
+        return await context.Set<KHostUser>().FirstOrDefaultAsync(u => u.Name == name)
+            ?? await context.Set<KHostUser>().FirstOrDefaultAsync(u => u.NameFolded == folded);
     }
 
     public async Task<bool> HasAdminUserAsync()
@@ -69,6 +68,6 @@ internal class UsersRepository : BaseRepository<KHostUser>, IUsersRepository
         if (string.IsNullOrWhiteSpace(query))
             return queryable;
 
-        return queryable.Where(u => u.Name.ToLower().Contains(query.ToLower()));
+        return queryable.Where(u => EF.Functions.Like(u.NameFolded, FoldedContainsPattern(query), "\\"));
     }
 }

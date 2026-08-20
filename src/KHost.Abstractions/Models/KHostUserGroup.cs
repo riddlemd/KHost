@@ -6,6 +6,9 @@ public class KHostUserGroup : RepositoryModel
     public static readonly Guid RegularGroupId = new("00000000-0000-0000-0000-000000000002");
 
     public required string Name { get; set; }
+
+    /// <summary>The name as search matches it. Written by the persistence layer, not by hand.</summary>
+    public string NameFolded { get; set; } = string.Empty;
     public string Description { get; set; } = "";
     public bool IsAdmin { get; set; }
 

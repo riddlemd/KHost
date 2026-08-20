@@ -20,6 +20,20 @@ internal class DefaultContext : DbContext
 
     }
 
+    // Both overloads, because callers use each: EF does not route one through the other.
+    public override int SaveChanges(bool acceptAllChangesOnSuccess)
+    {
+        EntityFolding.Apply(ChangeTracker);
+        return base.SaveChanges(acceptAllChangesOnSuccess);
+    }
+
+    public override Task<int> SaveChangesAsync(
+        bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
+    {
+        EntityFolding.Apply(ChangeTracker);
+        return base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+    }
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -47,6 +61,10 @@ internal class DefaultContext : DbContext
             entity.Property(e => e.Notes)
                 .HasMaxLength(1000);
 
+            entity.Property(e => e.SearchFolded)
+                .IsRequired()
+                .HasMaxLength(600);
+
             entity.Property(e => e.SampledHash)
                 .HasMaxLength(64);
 
@@ -70,6 +88,10 @@ internal class DefaultContext : DbContext
             entity.HasKey(e => e.Id);
 
             entity.Property(e => e.Name)
+                .IsRequired()
+                .HasMaxLength(255);
+
+            entity.Property(e => e.NameFolded)
                 .IsRequired()
                 .HasMaxLength(255);
 
@@ -98,8 +120,11 @@ internal class DefaultContext : DbContext
 
             entity.Property(e => e.Name)
                 .IsRequired()
-                .HasMaxLength(255)
-                .UseCollation("NOCASE");
+                .HasMaxLength(255);
+
+            entity.Property(e => e.NameFolded)
+                .IsRequired()
+                .HasMaxLength(255);
 
             entity.Property(e => e.Notes)
                 .HasMaxLength(1000);
@@ -107,7 +132,9 @@ internal class DefaultContext : DbContext
             entity.Property(e => e.PasswordHash)
                 .HasMaxLength(512);
 
-            entity.HasIndex(e => e.Name).IsUnique();
+            // Uniqueness is on the folded name, not on Name COLLATE NOCASE: NOCASE folds ASCII
+            // only, so it let "ZOË" and "zoë" both exist as separate singers.
+            entity.HasIndex(e => e.NameFolded).IsUnique();
             entity.HasIndex(e => e.CreatedDate);
         });
 
@@ -137,6 +164,10 @@ internal class DefaultContext : DbContext
                 .IsRequired()
                 .HasMaxLength(100);
 
+            entity.Property(e => e.NameFolded)
+                .IsRequired()
+                .HasMaxLength(100);
+
             entity.Property(e => e.Description)
                 .HasMaxLength(500);
 
@@ -153,6 +184,7 @@ internal class DefaultContext : DbContext
                 {
                     Id = new Guid("00000000-0000-0000-0000-000000000001"),
                     Name = "Admin",
+                    NameFolded = "admin",
                     Description = "Full access to all management features",
                     IsAdmin = true,
                     Permissions = []
@@ -161,6 +193,7 @@ internal class DefaultContext : DbContext
                 {
                     Id = new Guid("00000000-0000-0000-0000-000000000002"),
                     Name = "Regular",
+                    NameFolded = "regular",
                     Description = "Frequent singer",
                     IsAdmin = false,
                     Permissions = []
@@ -198,6 +231,10 @@ internal class DefaultContext : DbContext
 
             entity.Property(e => e.Amount)
                 .HasPrecision(18, 2);
+
+            entity.Property(e => e.NotesFolded)
+                .IsRequired()
+                .HasMaxLength(1000);
 
             entity.Property(e => e.Notes)
                 .HasMaxLength(1000);

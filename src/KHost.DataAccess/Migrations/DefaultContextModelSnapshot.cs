@@ -29,8 +29,12 @@ namespace KHost.DataAccess.Migrations
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(255)
-                        .HasColumnType("TEXT")
-                        .UseCollation("NOCASE");
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("NameFolded")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("Notes")
                         .IsRequired()
@@ -45,10 +49,10 @@ namespace KHost.DataAccess.Migrations
 
                     b.HasIndex("CreatedDate");
 
-                    b.HasIndex("Name")
+                    b.HasIndex("NameFolded")
                         .IsUnique();
 
-                    b.ToTable("Users");
+                    b.ToTable("Users", (string)null);
                 });
 
             modelBuilder.Entity("KHost.Abstractions.Models.KHostUserGroup", b =>
@@ -72,6 +76,11 @@ namespace KHost.DataAccess.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("NameFolded")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
                     b.PrimitiveCollection<string>("Permissions")
                         .IsRequired()
                         .HasColumnType("JSON");
@@ -81,7 +90,7 @@ namespace KHost.DataAccess.Migrations
                     b.HasIndex("Name")
                         .IsUnique();
 
-                    b.ToTable("UserGroups");
+                    b.ToTable("UserGroups", (string)null);
 
                     b.HasData(
                         new
@@ -90,6 +99,7 @@ namespace KHost.DataAccess.Migrations
                             Description = "Full access to all management features",
                             IsAdmin = true,
                             Name = "Admin",
+                            NameFolded = "admin",
                             Permissions = "[]"
                         },
                         new
@@ -98,6 +108,7 @@ namespace KHost.DataAccess.Migrations
                             Description = "Frequent singer",
                             IsAdmin = false,
                             Name = "Regular",
+                            NameFolded = "regular",
                             Permissions = "[]"
                         });
                 });
@@ -145,6 +156,11 @@ namespace KHost.DataAccess.Migrations
                         .HasMaxLength(64)
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("SearchFolded")
+                        .IsRequired()
+                        .HasMaxLength(600)
+                        .HasColumnType("TEXT");
+
                     b.Property<int>("Status")
                         .HasColumnType("INTEGER");
 
@@ -170,7 +186,7 @@ namespace KHost.DataAccess.Migrations
 
                     b.HasIndex("Title");
 
-                    b.ToTable("Media");
+                    b.ToTable("Media", (string)null);
                 });
 
             modelBuilder.Entity("KHost.Abstractions.Models.Performance", b =>
@@ -204,7 +220,7 @@ namespace KHost.DataAccess.Migrations
 
                     b.HasIndex("VenueId");
 
-                    b.ToTable("Performances");
+                    b.ToTable("Performances", (string)null);
                 });
 
             modelBuilder.Entity("KHost.Abstractions.Models.Tip", b =>
@@ -221,6 +237,11 @@ namespace KHost.DataAccess.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Notes")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("NotesFolded")
                         .IsRequired()
                         .HasMaxLength(1000)
                         .HasColumnType("TEXT");
@@ -242,7 +263,7 @@ namespace KHost.DataAccess.Migrations
 
                     b.HasIndex("VenueId");
 
-                    b.ToTable("Tips");
+                    b.ToTable("Tips", (string)null);
                 });
 
             modelBuilder.Entity("KHost.Abstractions.Models.Venue", b =>
@@ -264,6 +285,11 @@ namespace KHost.DataAccess.Migrations
                         .HasMaxLength(255)
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("NameFolded")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("Notes")
                         .IsRequired()
                         .HasMaxLength(1000)
@@ -279,7 +305,7 @@ namespace KHost.DataAccess.Migrations
                     b.HasIndex("Name")
                         .IsUnique();
 
-                    b.ToTable("Venues");
+                    b.ToTable("Venues", (string)null);
                 });
 
             modelBuilder.Entity("KHost.DataAccess.Models.UserGroupMembership", b =>
@@ -332,7 +358,7 @@ namespace KHost.DataAccess.Migrations
 
                             b1.HasKey("VenueId");
 
-                            b1.ToTable("Venues");
+                            b1.ToTable("Venues", (string)null);
 
                             b1
                                 .ToJson("Settings")
@@ -366,7 +392,7 @@ namespace KHost.DataAccess.Migrations
 
                                     b2.HasKey("VenueSettingsVenueId");
 
-                                    b2.ToTable("Venues");
+                                    b2.ToTable("Venues", (string)null);
 
                                     b2.WithOwner()
                                         .HasForeignKey("VenueSettingsVenueId");

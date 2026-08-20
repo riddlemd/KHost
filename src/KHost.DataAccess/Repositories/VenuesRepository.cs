@@ -30,6 +30,6 @@ internal class VenuesRepository : BaseRepository<Venue>, IVenuesRepository
         if (string.IsNullOrWhiteSpace(query))
             return queryable;
 
-        return queryable.Where(v => v.Name.ToLower().Contains(query.ToLower()));
+        return queryable.Where(v => EF.Functions.Like(v.NameFolded, FoldedContainsPattern(query), "\\"));
     }
 }
