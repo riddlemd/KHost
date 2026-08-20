@@ -1,3 +1,4 @@
+using KHost.Abstractions;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using KHost.DataAccess.Contexts;
@@ -55,11 +56,52 @@ internal class DatabaseInitializer : IDatabaseInitializer
         _logger.LogInformation("Running EF Core migrations");
         await context.Database.MigrateAsync();
 
+        await RefoldUserNamesAsync();
         await SeedDefaultAdminUserAsync();
         await SeedDefaultVenueAsync();
         await SeedDefaultMediaAsync();
 
         _logger.LogInformation("Database initialization complete");
+    }
+
+    /// <summary>
+    /// Repairs folded names that SQL could not compute. The migration seeds NameFolded with
+    /// SQLite's lower(), which leaves non-ASCII case alone, so a singer stored as "Ándre" would
+    /// never be found again. Cheap because the roster is small, and self-healing if the folding
+    /// rule itself ever changes.
+    /// </summary>
+    internal async Task RefoldUserNamesAsync()
+    {
+        using var context = await _contextFactory.CreateDbContextAsync();
+
+        // Projected, not materialised: setting Name on a loaded entity refolds it in memory, so a
+        // KHostUser always looks correct and the stored value can only be read as a raw column.
+        var stored = await context.Users
+            .Select(user => new { user.Id, user.Name, user.NameFolded })
+            .ToListAsync();
+
+        var stale = stored.Where(row => row.NameFolded != TextFolding.Fold(row.Name)).ToList();
+        if (stale.Count == 0)
+            return;
+
+        foreach (var row in stale)
+        {
+            var folded = TextFolding.Fold(row.Name);
+            try
+            {
+                await context.Users
+                    .Where(user => user.Id == row.Id)
+                    .ExecuteUpdateAsync(set => set.SetProperty(user => user.NameFolded, folded));
+            }
+            catch (DbUpdateException ex)
+            {
+                // Two singers whose names differed only outside ASCII already existed - the
+                // duplicate the old ASCII-only index should never have allowed through.
+                _logger.LogError(ex, "Could not refold '{Name}': another user already folds to the same name", row.Name);
+            }
+        }
+
+        _logger.LogInformation("Refolded {Count} user name(s) for comparison", stale.Count);
     }
 
     internal async Task SeedDefaultAdminUserAsync()

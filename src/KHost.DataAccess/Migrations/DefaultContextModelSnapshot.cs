@@ -29,8 +29,12 @@ namespace KHost.DataAccess.Migrations
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(255)
-                        .HasColumnType("TEXT")
-                        .UseCollation("NOCASE");
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("NameFolded")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("Notes")
                         .IsRequired()
@@ -45,7 +49,7 @@ namespace KHost.DataAccess.Migrations
 
                     b.HasIndex("CreatedDate");
 
-                    b.HasIndex("Name")
+                    b.HasIndex("NameFolded")
                         .IsUnique();
 
                     b.ToTable("Users");
