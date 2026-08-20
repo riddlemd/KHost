@@ -15,6 +15,8 @@ public sealed class LocalScreenProvider : IScreenProvider, IDisposable
         public string ServerUri { get; set; } = "http://localhost:5000/ipc/screen";
     }
 
+    private const int ExitGraceMilliseconds = 2000;
+
     private readonly ServiceOptions _options;
     private readonly ILogger<LocalScreenProvider> _logger;
     private readonly ConcurrentDictionary<string, Process> _processes = new();
@@ -59,27 +61,47 @@ public sealed class LocalScreenProvider : IScreenProvider, IDisposable
         return Task.CompletedTask;
     }
 
-    public void Dispose()
+    /// <summary>
+    /// Kills the screen processes this provider started. Killing the process rather than asking the
+    /// screen to quit over IPC is deliberate: the request has to reach only our own children, and a
+    /// message on the hub would also reach screens running on other machines.
+    /// </summary>
+    public void CloseSpawnedScreens()
     {
-        foreach (var (screenId, process) in _processes)
+        // Take each screen out of the map as it is handled, so running this on the way down and
+        // again on disposal does the work once.
+        foreach (var screenId in _processes.Keys)
         {
+            if (!_processes.TryRemove(screenId, out var process))
+                continue;
+
             try
             {
                 if (!process.HasExited)
                 {
-                    _logger.LogInformation("Killing local screen '{ScreenId}'", screenId);
+                    _logger.LogInformation("Closing local screen '{ScreenId}'", screenId);
                     process.Kill(entireProcessTree: true);
+                    process.WaitForExit(ExitGraceMilliseconds);
                 }
-                process.Dispose();
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Failed to kill local screen '{ScreenId}'", screenId);
+                // A screen that will not die must not hold the host's shutdown open.
+                _logger.LogWarning(ex, "Could not close local screen '{ScreenId}'", screenId);
+            }
+            finally
+            {
+                process.Dispose();
             }
         }
-
-        _processes.Clear();
     }
+
+    public void Dispose() => CloseSpawnedScreens();
+
+    /// <summary>Tracks an already-started process as if this provider had launched it.</summary>
+    internal void Track(string screenId, Process process) => _processes[screenId] = process;
+
+    internal bool IsTracking(string screenId) => _processes.ContainsKey(screenId);
 
     // The apphost is only .exe on Windows, so a hardcoded name makes IsAvailable false elsewhere.
     // Path.Combine leaves a rooted second argument alone, so an absolute configured path still wins.

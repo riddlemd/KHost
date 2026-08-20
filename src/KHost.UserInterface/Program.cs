@@ -9,6 +9,7 @@ using KHost.Abstractions.Interactions;
 using KHost.Abstractions.Interactions.Requests;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
+using KHost.Abstractions.Services.IPC;
 using KHost.DataAccess;
 using KHost.Domain;
 using KHost.Cast;
@@ -300,6 +301,24 @@ internal static class Program
         // Segments outlive the process, so sweep them on the way down.
         app.Lifetime.ApplicationStopping.Register(() =>
             app.Services.GetRequiredService<IMediaStreamService>().CloseAllAsync().GetAwaiter().GetResult());
+
+        // Screens we started are ours to close, and nothing else does it: on macOS closing the
+        // window tears the process down inside Photino, so container disposal never runs and the
+        // screen would be left on the display announcing a lost host.
+        app.Lifetime.ApplicationStopping.Register(() =>
+        {
+            foreach (var provider in app.Services.GetServices<IScreenProvider>())
+            {
+                try
+                {
+                    provider.CloseSpawnedScreens();
+                }
+                catch (Exception ex)
+                {
+                    Log.Warning(ex, "Could not close the screens launched by {Provider}", provider.Name);
+                }
+            }
+        });
 
         // Every graceful exit lands here — the Exit menu, the window's close button, Ctrl+C when
         // headless — so the venue's clear-on-close setting is honoured however KHost was quit.
