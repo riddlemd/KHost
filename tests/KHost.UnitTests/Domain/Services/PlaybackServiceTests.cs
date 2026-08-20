@@ -29,7 +29,7 @@ public class PlaybackServiceTests : IDisposable
         // NSubstitute returns string.Empty for unstubbed strings, so "no receiver" must be said.
         _cast.ConnectedDeviceId.Returns((string?)null);
 
-        _screenCoordination = new ScreenCoordinationService(NullLogger<ScreenCoordinationService>.Instance, _screenServer);
+        _screenCoordination = new ScreenCoordinationService(NullLogger<ScreenCoordinationService>.Instance, _screenServer, Substitute.For<IVenuesService>());
 
         _venuesService.ReadSelectedVenueAsync()
             .Returns(new Venue { Id = Guid.NewGuid(), Name = "Test Venue", Settings = new Venue.VenueSettings() });
