@@ -14,7 +14,18 @@ public class Media : RepositoryModel
 
     public string Format { get; set; } = string.Empty;
 
+    /// <summary>
+    /// What the host has learned about this file. Deliberately not searchable: notes describe media
+    /// already found, so a word buried in one should not pull the song up as a match.
+    /// </summary>
     public string Notes { get; set; } = "";
+
+    /// <summary>
+    /// Title and artist as one folded haystack, holding exactly the text media_fts indexes so the
+    /// short-query fallback finds a song by the same words the index does. Written by the
+    /// persistence layer, not by hand.
+    /// </summary>
+    public string SearchFolded { get; set; } = string.Empty;
 
     /// <summary>Size in bytes. Null on rows imported before content dedup, and measured on the next import run.</summary>
     public long? FileSize { get; set; }

@@ -51,6 +51,6 @@ internal class TipsRepository : BaseRepository<Tip>, ITipsRepository
         if (string.IsNullOrWhiteSpace(query))
             return queryable;
 
-        return queryable.Where(t => t.Notes.ToLower().Contains(query.ToLower()));
+        return queryable.Where(t => EF.Functions.Like(t.NotesFolded, FoldedContainsPattern(query), "\\"));
     }
 }

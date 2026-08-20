@@ -1,4 +1,5 @@
 using KHost.Abstractions.Models;
+using KHost.Domain.Services.MediaProviders;
 using KHost.Plugins.Sdk.Models;
 using KHost.Plugins.Sdk.Services;
 using KHost.Abstractions.Services;
@@ -8,6 +9,9 @@ namespace KHost.Domain.Services;
 
 public class MediaSearchService : BaseService, IMediaSearchService
 {
+    /// <summary>The library on this machine, which is what a plain search means.</summary>
+    internal static readonly string LocalSourceName = nameof(LocalMediaProvider);
+
     private readonly List<IMediaProvider> _providers;
     private readonly IAnalyticsService _analytics;
 
@@ -21,6 +25,17 @@ public class MediaSearchService : BaseService, IMediaSearchService
     public IReadOnlyList<IMediaProvider> Providers => _providers;
 
     public Task<List<MediaSearchEntity>> SearchAsync(string query, int pageNumber = 0, int pageSize = 0)
+    {
+        if (_providers.FirstOrDefault(p => p.SourceName == LocalSourceName) is not { } local)
+        {
+            Logger.LogWarning("No local media provider is registered, so the default search has nothing to read");
+            return Task.FromResult(new List<MediaSearchEntity>());
+        }
+
+        return SearchProvidersAsync([local], query, local.SourceName, pageNumber, pageSize);
+    }
+
+    public Task<List<MediaSearchEntity>> SearchAllAsync(string query, int pageNumber = 0, int pageSize = 0)
         => SearchProvidersAsync(_providers, query, source: null, pageNumber, pageSize);
 
     public Task<List<MediaSearchEntity>> SearchAsync(string query, string source, int pageNumber = 0, int pageSize = 0)

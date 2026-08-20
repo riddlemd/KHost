@@ -122,6 +122,23 @@ internal abstract class BaseRepository<T> : IRepository<T> where T : RepositoryM
         return PaginationComponent.BuildResult(items, totalCount, pageNumber, pageSize);
     }
 
+    /// <summary>
+    /// Builds a contains-pattern for a folded column. The query is folded the same way the column
+    /// was, and LIKE's own wildcards are escaped so a singer called "50%" searches for itself.
+    /// </summary>
+    /// <summary>How this repository folds text. Media adds stylisations; everything else does not.</summary>
+    protected virtual Func<string?, string> Folder => EntityFolding.Fold;
+
+    protected string FoldedContainsPattern(string query)
+    {
+        var folded = Folder(query)
+            .Replace("\\", "\\\\")
+            .Replace("%", "\\%")
+            .Replace("_", "\\_");
+
+        return $"%{folded}%";
+    }
+
     public virtual async Task<PaginatedResult<T>> SearchAsync<TOptions>(string query, int pageNumber = 0, int pageSize = 0, TOptions? options = null)
         where TOptions : class
     {

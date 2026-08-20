@@ -3,8 +3,8 @@ using KHost.Abstractions.Interactions.Requests;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Repositories;
 using KHost.Abstractions.Services;
-using KHost.Domain.Services;
 using Microsoft.Extensions.Logging;
+using KHost.Domain.Services;
 
 namespace KHost.UnitTests.Domain.Services;
 

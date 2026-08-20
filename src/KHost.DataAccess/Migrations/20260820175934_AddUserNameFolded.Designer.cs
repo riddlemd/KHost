@@ -3,6 +3,7 @@ using System;
 using KHost.DataAccess.Contexts;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -10,9 +11,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace KHost.DataAccess.Migrations
 {
     [DbContext(typeof(DefaultContext))]
-    partial class DefaultContextModelSnapshot : ModelSnapshot
+    [Migration("20260820175934_AddUserNameFolded")]
+    partial class AddUserNameFolded
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.7");
@@ -52,7 +55,7 @@ namespace KHost.DataAccess.Migrations
                     b.HasIndex("NameFolded")
                         .IsUnique();
 
-                    b.ToTable("Users", (string)null);
+                    b.ToTable("Users");
                 });
 
             modelBuilder.Entity("KHost.Abstractions.Models.KHostUserGroup", b =>
@@ -76,11 +79,6 @@ namespace KHost.DataAccess.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("TEXT");
 
-                    b.Property<string>("NameFolded")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("TEXT");
-
                     b.PrimitiveCollection<string>("Permissions")
                         .IsRequired()
                         .HasColumnType("JSON");
@@ -90,7 +88,7 @@ namespace KHost.DataAccess.Migrations
                     b.HasIndex("Name")
                         .IsUnique();
 
-                    b.ToTable("UserGroups", (string)null);
+                    b.ToTable("UserGroups");
 
                     b.HasData(
                         new
@@ -99,7 +97,6 @@ namespace KHost.DataAccess.Migrations
                             Description = "Full access to all management features",
                             IsAdmin = true,
                             Name = "Admin",
-                            NameFolded = "admin",
                             Permissions = "[]"
                         },
                         new
@@ -108,7 +105,6 @@ namespace KHost.DataAccess.Migrations
                             Description = "Frequent singer",
                             IsAdmin = false,
                             Name = "Regular",
-                            NameFolded = "regular",
                             Permissions = "[]"
                         });
                 });
@@ -156,11 +152,6 @@ namespace KHost.DataAccess.Migrations
                         .HasMaxLength(64)
                         .HasColumnType("TEXT");
 
-                    b.Property<string>("SearchFolded")
-                        .IsRequired()
-                        .HasMaxLength(600)
-                        .HasColumnType("TEXT");
-
                     b.Property<int>("Status")
                         .HasColumnType("INTEGER");
 
@@ -186,7 +177,7 @@ namespace KHost.DataAccess.Migrations
 
                     b.HasIndex("Title");
 
-                    b.ToTable("Media", (string)null);
+                    b.ToTable("Media");
                 });
 
             modelBuilder.Entity("KHost.Abstractions.Models.Performance", b =>
@@ -220,7 +211,7 @@ namespace KHost.DataAccess.Migrations
 
                     b.HasIndex("VenueId");
 
-                    b.ToTable("Performances", (string)null);
+                    b.ToTable("Performances");
                 });
 
             modelBuilder.Entity("KHost.Abstractions.Models.Tip", b =>
@@ -237,11 +228,6 @@ namespace KHost.DataAccess.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Notes")
-                        .IsRequired()
-                        .HasMaxLength(1000)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("NotesFolded")
                         .IsRequired()
                         .HasMaxLength(1000)
                         .HasColumnType("TEXT");
@@ -263,7 +249,7 @@ namespace KHost.DataAccess.Migrations
 
                     b.HasIndex("VenueId");
 
-                    b.ToTable("Tips", (string)null);
+                    b.ToTable("Tips");
                 });
 
             modelBuilder.Entity("KHost.Abstractions.Models.Venue", b =>
@@ -285,11 +271,6 @@ namespace KHost.DataAccess.Migrations
                         .HasMaxLength(255)
                         .HasColumnType("TEXT");
 
-                    b.Property<string>("NameFolded")
-                        .IsRequired()
-                        .HasMaxLength(255)
-                        .HasColumnType("TEXT");
-
                     b.Property<string>("Notes")
                         .IsRequired()
                         .HasMaxLength(1000)
@@ -305,7 +286,7 @@ namespace KHost.DataAccess.Migrations
                     b.HasIndex("Name")
                         .IsUnique();
 
-                    b.ToTable("Venues", (string)null);
+                    b.ToTable("Venues");
                 });
 
             modelBuilder.Entity("KHost.DataAccess.Models.UserGroupMembership", b =>
@@ -358,7 +339,7 @@ namespace KHost.DataAccess.Migrations
 
                             b1.HasKey("VenueId");
 
-                            b1.ToTable("Venues", (string)null);
+                            b1.ToTable("Venues");
 
                             b1
                                 .ToJson("Settings")
@@ -392,7 +373,7 @@ namespace KHost.DataAccess.Migrations
 
                                     b2.HasKey("VenueSettingsVenueId");
 
-                                    b2.ToTable("Venues", (string)null);
+                                    b2.ToTable("Venues");
 
                                     b2.WithOwner()
                                         .HasForeignKey("VenueSettingsVenueId");

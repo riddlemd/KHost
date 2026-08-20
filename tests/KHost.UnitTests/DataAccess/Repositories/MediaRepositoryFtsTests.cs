@@ -1,4 +1,5 @@
 using KHost.Abstractions.Models;
+using KHost.Abstractions.Services;
 using KHost.DataAccess.Contexts;
 using KHost.DataAccess.Repositories;
 using Microsoft.EntityFrameworkCore;
@@ -105,13 +106,15 @@ public class MediaRepositoryFtsTests : IDisposable
     }
 
     [Fact]
-    public async Task SearchAsync_OnlyPunctuationQuery_FallsBackToLegacyPath()
+    public async Task SearchAsync_OnlyPunctuationQuery_FindsNothing()
     {
         await SeedDefaultLibraryAsync();
 
         var result = await _repository.SearchAsync("\"*()");
 
-        Assert.Equal(3, result.TotalCount);
+        // Stripping the metacharacters leaves nothing to match on. Handing back the whole library
+        // reads as "everything matched" when in fact nothing was searched for.
+        Assert.Equal(0, result.TotalCount);
     }
 
     [Fact]

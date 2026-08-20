@@ -66,6 +66,6 @@ internal class UserGroupsRepository : BaseRepository<KHostUserGroup>, IUserGroup
         if (string.IsNullOrWhiteSpace(query))
             return queryable;
 
-        return queryable.Where(g => g.Name.ToLower().Contains(query.ToLower()));
+        return queryable.Where(g => EF.Functions.Like(g.NameFolded, FoldedContainsPattern(query), "\\"));
     }
 }

@@ -55,11 +55,72 @@ internal class DatabaseInitializer : IDatabaseInitializer
         _logger.LogInformation("Running EF Core migrations");
         await context.Database.MigrateAsync();
 
+        await RefoldStoredTextAsync();
         await SeedDefaultAdminUserAsync();
         await SeedDefaultVenueAsync();
         await SeedDefaultMediaAsync();
 
         _logger.LogInformation("Database initialization complete");
+    }
+
+    /// <summary>
+    /// Repairs folded names that SQL could not compute. The migration seeds NameFolded with
+    /// SQLite's lower(), which leaves non-ASCII case alone, so a singer stored as "Ándre" would
+    /// never be found again. Cheap because the roster is small, and self-healing if the folding
+    /// rule itself ever changes.
+    /// </summary>
+    /// <summary>
+    /// Rewrites folded columns whose source text no longer folds to what is stored. Needed because
+    /// a migration can only seed them with SQLite's lower(), which folds ASCII and nothing else,
+    /// and because changing the folding rule itself has to reach rows already in the database.
+    /// Saving is what refolds them — the context folds on the way out.
+    /// </summary>
+    internal async Task RefoldStoredTextAsync()
+    {
+        using var context = await _contextFactory.CreateDbContextAsync();
+
+        var repaired =
+            Repair(context, context.Users, u => u.NameFolded, u => EntityFolding.Fold(u.Name), "user name") +
+            Repair(context, context.Venues, v => v.NameFolded, v => EntityFolding.Fold(v.Name), "venue name") +
+            Repair(context, context.UserGroups, g => g.NameFolded, g => EntityFolding.Fold(g.Name), "user group name") +
+            Repair(context, context.Tips, t => t.NotesFolded, t => EntityFolding.Fold(t.Notes), "tip note") +
+            Repair(context, context.Media, m => m.SearchFolded,
+                m => EntityFolding.FoldMedia($"{m.Title} {m.Artist}"), "media search text");
+
+        if (repaired == 0)
+            return;
+
+        try
+        {
+            await context.SaveChangesAsync();
+        }
+        catch (DbUpdateException ex)
+        {
+            // Two rows the old rule kept apart now fold together, and a unique index refuses the
+            // write. Nothing is lost: the rows stay as they are, one of them still folded the old
+            // way, and it remains reachable by its exact spelling.
+            _logger.LogError(ex, "Could not refold stored text: two rows fold to the same value");
+        }
+    }
+
+    private int Repair<T>(
+        DefaultContext context,
+        DbSet<T> set,
+        Func<T, string> stored,
+        Func<T, string> expected,
+        string what)
+        where T : class
+    {
+        var stale = set.AsEnumerable().Where(entity => stored(entity) != expected(entity)).ToList();
+        if (stale.Count == 0)
+            return 0;
+
+        // Attaching is enough: the context folds every changed entity as it saves.
+        foreach (var entity in stale)
+            context.Update(entity);
+
+        _logger.LogInformation("Refolding {Count} {What}(s)", stale.Count, what);
+        return stale.Count;
     }
 
     internal async Task SeedDefaultAdminUserAsync()

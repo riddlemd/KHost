@@ -22,7 +22,7 @@
         <SplitButton
             @onclick="RunSearchAsync"
             disabled="@(_searching)"
-            Title="Search all Providers">
+            Title="Search the local library">
                 <Text>
                     @if (_searching)
                     {
@@ -37,6 +37,10 @@
                     @foreach (var provider in MediaSearchService?.Providers ?? [])
                     {
                         <button @onclick="() => RunProviderSearchAsync(provider.SourceName)">@provider.DisplayName</button>
+                    }
+                    @if (MediaSearchService?.Providers.Count > 1)
+                    {
+                        <button @onclick="RunAllProvidersSearchAsync">All providers</button>
                     }
                 </Buttons>
         </SplitButton>
@@ -65,8 +69,8 @@
                 @if (_results.Count == 0)
                 {
                     <div class="kh-panel--empty">
-                        <Icon Name="folder-x" />
-                        <span>No compatible media files found in that directory.</span>
+                        <Icon Name="search" />
+                        <span>No songs match that search.</span>
                     </div>
                 }
                 else

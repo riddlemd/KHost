@@ -13,6 +13,8 @@ namespace KHost.DataAccess.Repositories;
 
 internal class MediaRepository : BaseRepository<Media>, IMediaRepository
 {
+    private const int TrigramLength = 3;
+
     private static readonly char[] _ftsMetaChars = ['"', '*', ':', '^', '(', ')', '+', '-'];
 
     // Linux filesystems are case-sensitive; Windows and default macOS volumes are not. Folding case
@@ -121,6 +123,9 @@ internal class MediaRepository : BaseRepository<Media>, IMediaRepository
         }
     }
 
+    // Media queries fold exactly the way media rows were folded on the way in.
+    protected override Func<string?, string> Folder => EntityFolding.FoldMedia;
+
     protected override IReadOnlyDictionary<string, Expression<Func<Media, object>>> SortColumns => _sortColumns;
     protected override Expression<Func<Media, object>> DefaultSortExpression => m => m.Title.ToLower();
 
@@ -131,7 +136,12 @@ internal class MediaRepository : BaseRepository<Media>, IMediaRepository
         if (statusesToReturn?.Count > 0)
             queryable = queryable.Where(m => statusesToReturn.Contains(m.Status));
 
-        return queryable;
+        // Only reached when the query cannot go to FTS - a term too short for the trigram index,
+        // or one left empty once the metacharacters were stripped.
+        if (string.IsNullOrWhiteSpace(query))
+            return queryable;
+
+        return queryable.Where(m => EF.Functions.Like(m.SearchFolded, FoldedContainsPattern(query), "\\"));
     }
 
     public override async Task<PaginatedResult<Media>> SearchAsync<TOptions>(string query, int pageNumber = 0, int pageSize = 0, TOptions? options = null)
@@ -238,14 +248,20 @@ internal class MediaRepository : BaseRepository<Media>, IMediaRepository
         }
     }
 
-    private static string? BuildFtsMatchExpression(string? query)
+    private string? BuildFtsMatchExpression(string? query)
     {
         if (string.IsNullOrWhiteSpace(query))
             return null;
 
+        // Folded exactly the way the indexed text was: the index holds SearchFolded, so a query
+        // matches by being reduced with the same rules, not by either side being clever.
+        var folded = Folder(query);
+
         var sanitized = new StringBuilder(query.Length);
 
-        foreach (var ch in query.ToLowerInvariant())
+        // Folded exactly the way the indexed text was: the index holds SearchFolded, so a query
+        // matches by being reduced with the same rules, not by either side being clever.
+        foreach (var ch in folded)
         {
             if (Array.IndexOf(_ftsMetaChars, ch) < 0)
                 sanitized.Append(ch);
@@ -254,7 +270,9 @@ internal class MediaRepository : BaseRepository<Media>, IMediaRepository
         var tokens = sanitized.ToString()
             .Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
-        if (tokens.Length == 0)
+        // The trigram index cannot represent a term shorter than three characters, so a query with
+        // one would match nothing at all rather than too much. Hand those to the substring search.
+        if (tokens.Length == 0 || Array.Exists(tokens, token => token.Length < TrigramLength))
             return null;
 
         return string.Join(' ', tokens.Select(t => $"\"{t}\""));
