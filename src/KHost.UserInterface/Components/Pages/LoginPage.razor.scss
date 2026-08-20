@@ -1,0 +1,91 @@
+.kh-login {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    padding: 1rem;
+
+    &__card {
+        width: 100%;
+        max-width: 420px;
+        padding: 2.5rem 2rem;
+        background: var(--kh-bg-card);
+        border: 1px solid var(--kh-border);
+        border-top: 3px solid var(--kh-accent);
+        border-radius: var(--kh-radius-lg);
+        box-shadow: 0 8px 32px var(--kh-primary-glow);
+    }
+
+    &__title {
+        margin: 0;
+        text-align: center;
+        font-family: var(--kh-font-display);
+        letter-spacing: 0.03em;
+        background: linear-gradient(135deg, var(--kh-logo-from) 0%, var(--kh-logo-to) 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }
+
+    &__subtitle {
+        margin: 0.25rem 0 2rem;
+        text-align: center;
+        color: var(--kh-text-secondary);
+    }
+
+    &__form {
+        display: flex;
+        flex-direction: column;
+        gap: 1.25rem;
+    }
+
+    &__group {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    &__label {
+        font-size: 0.95rem;
+        font-weight: 500;
+        color: var(--kh-text);
+    }
+
+    &__control {
+        width: 100%;
+        padding: 0.75rem 1rem;
+        background: var(--kh-bg-input);
+        color: var(--kh-text);
+        border: 1px solid var(--kh-border);
+        border-radius: var(--kh-radius);
+        font: inherit;
+        transition: border-color var(--kh-transition), box-shadow var(--kh-transition);
+
+        &:focus {
+            outline: none;
+            border-color: var(--kh-primary);
+            box-shadow: 0 0 0 3px var(--kh-primary-glow);
+        }
+
+        &::placeholder {
+            color: var(--kh-text-muted);
+        }
+    }
+
+    &__submit {
+        margin-top: 0.5rem;
+        padding: 0.75rem 1rem;
+        justify-content: center;
+        background: var(--kh-accent);
+        color: #fff;
+
+        &:hover {
+            background: var(--kh-accent-hover);
+            box-shadow: 0 4px 16px var(--kh-accent-glow);
+        }
+    }
+
+    .kh-alert--warning {
+        margin-bottom: 1.25rem;
+    }
+}

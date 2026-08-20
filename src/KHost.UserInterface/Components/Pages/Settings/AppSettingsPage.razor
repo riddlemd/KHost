@@ -1,0 +1,66 @@
+@page "/settings/app-settings"
+@attribute [Authorize(Roles = KHost.UserInterface.Auth.KHostClaimsFactory.AdminRole)]
+
+<PageTitle>App Settings - KHost</PageTitle>
+
+<div class="kh-app-settings kh-card">
+    <div class="kh-card__header">
+        <Icon Name="gear-fill" />
+        <span class="kh-card__title">App Settings</span>
+    </div>
+    <div class="kh-card__body">
+        @if (_restartRequired)
+        {
+            <div class="kh-alert--warning">Changes take effect after restarting KHost.</div>
+        }
+        @if (_error is not null)
+        {
+            <div class="kh-alert--warning">@_error</div>
+        }
+
+        <div class="kh-app-settings__section">Security</div>
+        <label class="kh-app-settings__row kh-form-check">
+            <span class="kh-form-check-label">
+                Require sign-in to use KHost
+                <span class="kh-app-settings__apply">applies on the next page load</span>
+            </span>
+            <InputCheckbox class="kh-form-check-input" @bind-Value="_model.RequireLogin" />
+        </label>
+
+        <div class="kh-app-settings__section">Playback</div>
+        <label class="kh-app-settings__row">
+            <span>
+                Stop fade (seconds)
+                <span class="kh-app-settings__apply">applies immediately</span>
+            </span>
+            <InputNumber class="kh-form-control kh-app-settings__number" @bind-Value="_model.StopFadeSeconds" min="0" step="0.5" />
+        </label>
+        <label class="kh-app-settings__row">
+            <span>
+                Sync start lead (milliseconds)
+                <span class="kh-app-settings__apply">applies immediately</span>
+            </span>
+            <InputNumber class="kh-form-control kh-app-settings__number" @bind-Value="_model.SyncStartLeadMilliseconds" min="0" step="50" />
+        </label>
+        <label class="kh-app-settings__row">
+            <span>
+                HLS segment length (seconds)
+                <span class="kh-app-settings__apply">applies immediately</span>
+            </span>
+            <InputNumber class="kh-form-control kh-app-settings__number" @bind-Value="_model.SegmentSeconds" min="1" step="1" />
+        </label>
+
+        <div class="kh-app-settings__section">Media</div>
+        <label class="kh-app-settings__row">
+            <span>
+                FFmpeg directory (blank = use PATH)
+                <span class="kh-app-settings__apply">restart required</span>
+            </span>
+            <InputText class="kh-form-control kh-app-settings__path" @bind-Value="_model.FFmpegPath" placeholder="/usr/local/bin" />
+        </label>
+
+        <div class="kh-app-settings__actions">
+            <button class="kh-button kh-button--primary" @onclick="SaveAsync" disabled="@_saving">Save</button>
+        </div>
+    </div>
+</div>

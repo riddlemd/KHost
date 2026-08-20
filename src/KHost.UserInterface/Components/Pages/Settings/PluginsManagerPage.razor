@@ -1,4 +1,5 @@
 @page "/settings/plugins-manager"
+@attribute [Authorize(Roles = KHost.UserInterface.Auth.KHostClaimsFactory.AdminRole)]
 @using KHost.Abstractions.Models.Plugins
 @using KHost.UserInterface.Services
 @using System.Text.Json

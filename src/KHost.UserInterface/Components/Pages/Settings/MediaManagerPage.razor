@@ -1,4 +1,5 @@
 @page "/settings/media-manager"
+@attribute [Authorize(Policy = nameof(KHostPermission.ManageMedia))]
 @using KHost.Abstractions.Services
 @using KHost.UserInterface.Models
 @using KHost.UserInterface.Services
@@ -95,9 +96,11 @@
                                         <button class="kh-button kh-button--outline-secondary kh-button--icon-minimal" title="Edit" @onclick="() => EditAsync(media)" type="button">
                                             <Icon Name="pencil" />
                                         </button>
+                                        <AuthorizeView Policy="@nameof(KHostPermission.DeleteMedia)" Context="_auth">
                                         <button class="kh-button kh-button--outline-danger kh-button--icon-minimal" title="Remove" @onclick="() => RemoveAsync(media)" type="button">
                                             <Icon Name="trash" />
                                         </button>
+                                        </AuthorizeView>
                                     </td>
                                 </tr>
                             }
@@ -113,9 +116,11 @@
                                         <Icon Name="pencil" /> Edit @_selectedIds.Count Selected
                                     </Text>
                                     <Buttons>
+                                        <AuthorizeView Policy="@nameof(KHostPermission.DeleteMedia)" Context="_auth">
                                         <button class="kh-button kh-button--danger" @onclick="DeleteSelectedAsync" type="button">
                                             <Icon Name="trash" /> Delete Selected
                                         </button>
+                                        </AuthorizeView>
                                     </Buttons>
                                 </SplitButton>
                             </div>
