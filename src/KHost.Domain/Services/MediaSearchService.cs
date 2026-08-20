@@ -10,7 +10,7 @@ namespace KHost.Domain.Services;
 public class MediaSearchService : BaseService, IMediaSearchService
 {
     /// <summary>The library on this machine, which is what a plain search means.</summary>
-    internal static readonly string LocalSourceName = nameof(DefaultMediaProvider);
+    internal static readonly string LocalSourceName = nameof(LocalMediaProvider);
 
     private readonly List<IMediaProvider> _providers;
     private readonly IAnalyticsService _analytics;
