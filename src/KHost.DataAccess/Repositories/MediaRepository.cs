@@ -123,6 +123,9 @@ internal class MediaRepository : BaseRepository<Media>, IMediaRepository
         }
     }
 
+    // Media queries fold exactly the way media rows were folded on the way in.
+    protected override Func<string?, string> Folder => EntityFolding.FoldMedia;
+
     protected override IReadOnlyDictionary<string, Expression<Func<Media, object>>> SortColumns => _sortColumns;
     protected override Expression<Func<Media, object>> DefaultSortExpression => m => m.Title.ToLower();
 
@@ -245,14 +248,20 @@ internal class MediaRepository : BaseRepository<Media>, IMediaRepository
         }
     }
 
-    private static string? BuildFtsMatchExpression(string? query)
+    private string? BuildFtsMatchExpression(string? query)
     {
         if (string.IsNullOrWhiteSpace(query))
             return null;
 
+        // Folded exactly the way the indexed text was: the index holds SearchFolded, so a query
+        // matches by being reduced with the same rules, not by either side being clever.
+        var folded = Folder(query);
+
         var sanitized = new StringBuilder(query.Length);
 
-        foreach (var ch in query.ToLowerInvariant())
+        // Folded exactly the way the indexed text was: the index holds SearchFolded, so a query
+        // matches by being reduced with the same rules, not by either side being clever.
+        foreach (var ch in folded)
         {
             if (Array.IndexOf(_ftsMetaChars, ch) < 0)
                 sanitized.Append(ch);

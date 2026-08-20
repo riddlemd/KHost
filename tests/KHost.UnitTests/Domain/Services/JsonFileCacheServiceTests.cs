@@ -1,8 +1,8 @@
 using KHost.Abstractions.Services;
-using KHost.Domain.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using System.Text.Json;
+using KHost.Domain.Services;
 
 namespace KHost.UnitTests.Domain.Services;
 

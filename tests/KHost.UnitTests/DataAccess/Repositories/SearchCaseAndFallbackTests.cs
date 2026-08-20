@@ -1,4 +1,5 @@
 using KHost.Abstractions.Models;
+using KHost.Abstractions.Services;
 using KHost.DataAccess.Contexts;
 using KHost.DataAccess.Repositories;
 using Microsoft.EntityFrameworkCore;
@@ -250,6 +251,51 @@ public class SearchCaseAndFallbackTests : IDisposable
 
         Assert.Single((await repository.SearchAsync("colder")).Items);
         Assert.Single((await repository.SearchAsync("brown")).Items);
+    }
+
+    [Fact]
+    public async Task MediaSearch_FindsAccentedArtists_ByTheirPlainSpelling_ThroughTheFullTextIndex()
+    {
+        SeedMedia(("Army of Me", "Björk"), ("Other Song", "Nobody"));
+        var repository = new MediaRepository(_factory, NullLogger<BaseRepository<Media>>.Instance);
+
+        // Long enough for the trigram path; the index holds folded text.
+        Assert.Single((await repository.SearchAsync("bjork")).Items);
+        Assert.Single((await repository.SearchAsync("Björk")).Items);
+    }
+
+    [Fact]
+    public async Task MediaSearch_FindsStylisedArtists_ByTheirPlainSpelling()
+    {
+        SeedMedia(("Tik Tok", "Ke$ha"), ("Other Song", "Nobody"));
+        var repository = new MediaRepository(_factory, NullLogger<BaseRepository<Media>>.Instance);
+
+        Assert.Single((await repository.SearchAsync("kesha")).Items);
+        Assert.Single((await repository.SearchAsync("Ke$ha")).Items);
+    }
+
+    [Fact]
+    public async Task MediaSearch_FindsADecomposedTitle_ByItsComposedSpelling_ThroughTheFullTextIndex()
+    {
+        // Stored the way a macOS filename import would store it: e + combining diaeresis.
+        SeedMedia(("Zoë Anthem", "Someone"), ("Other Song", "Nobody"));
+        var repository = new MediaRepository(_factory, NullLogger<BaseRepository<Media>>.Instance);
+
+        Assert.Single((await repository.SearchAsync("zoë anthem")).Items);
+        Assert.Single((await repository.SearchAsync("zoe anthem")).Items);
+    }
+
+    [Fact]
+    public async Task UserSearch_FindsAccentedNames_ByTheirPlainSpelling()
+    {
+        Seed(context =>
+        {
+            context.Users.Add(new KHostUser { Name = "Björk" });
+            context.Users.Add(new KHostUser { Name = "Someone Else" });
+        });
+        var repository = new UsersRepository(_factory, NullLogger<BaseRepository<KHostUser>>.Instance);
+
+        Assert.Equal("Björk", Assert.Single((await repository.SearchAsync("bjork")).Items).Name);
     }
 
     private void Seed(Action<DefaultContext> add)
