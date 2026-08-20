@@ -199,7 +199,7 @@ public class SearchCaseAndFallbackTests : IDisposable
     }
 
     [Fact]
-    public async Task MediaSearch_ShortQuery_MatchesNotesAsWellAsTitleAndArtist()
+    public async Task MediaSearch_DoesNotMatchNotes()
     {
         using (var context = _factory.CreateDbContext())
         {
@@ -216,9 +216,40 @@ public class SearchCaseAndFallbackTests : IDisposable
         }
         var repository = new MediaRepository(_factory, NullLogger<BaseRepository<Media>>.Instance);
 
+        // Notes describe media already found; they are not something to look a song up by.
         var result = await repository.SearchAsync("cr");
 
-        Assert.Equal("Untitled", Assert.Single(result.Items).Title);
+        Assert.Empty(result.Items);
+    }
+
+    [Fact]
+    public async Task MediaSearch_DoesNotMatchNotes_ThroughTheFullTextIndex()
+    {
+        using (var context = _factory.CreateDbContext())
+        {
+            context.Media.Add(new Media
+            {
+                FilePath = "/library/notes.mp4", Title = "Untitled", Artist = "Unknown",
+                Notes = "scratched disc rerecorded", Status = MediaStatus.Ready,
+            });
+            context.SaveChanges();
+        }
+        var repository = new MediaRepository(_factory, NullLogger<BaseRepository<Media>>.Instance);
+
+        // Long enough to go through media_fts rather than the folded fallback.
+        var result = await repository.SearchAsync("rerecorded");
+
+        Assert.Empty(result.Items);
+    }
+
+    [Fact]
+    public async Task MediaSearch_StillMatchesTitleAndArtist_ThroughTheFullTextIndex()
+    {
+        SeedMedia(("Colder Weather", "Zac Brown Band"));
+        var repository = new MediaRepository(_factory, NullLogger<BaseRepository<Media>>.Instance);
+
+        Assert.Single((await repository.SearchAsync("colder")).Items);
+        Assert.Single((await repository.SearchAsync("brown")).Items);
     }
 
     private void Seed(Action<DefaultContext> add)
