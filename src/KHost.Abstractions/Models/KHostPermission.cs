@@ -1,43 +1,48 @@
 namespace KHost.Abstractions.Models;
 
+// Values are explicit and permanent: groups store these as numbers in a JSON column, so a
+// renumbered member silently becomes a different permission in every stored group.
 public enum KHostPermission
 {
     [PermissionGroup("Users")]
-    EditUser,
+    EditUser = 0,
 
     [PermissionGroup("Users")]
-    DeleteUser,
+    DeleteUser = 1,
 
     [PermissionGroup("Groups")]
-    EditGroup,
+    EditGroup = 2,
 
     [PermissionGroup("Groups")]
-    DeleteGroup,
+    DeleteGroup = 3,
 
     [PermissionGroup("Venue")]
-    EditVenue,
+    EditVenue = 4,
 
     [PermissionGroup("Venue")]
-    DeleteVenue,
+    DeleteVenue = 5,
 
     [PermissionGroup("Library")]
-    ImportLibrary,
+    ImportLibrary = 6,
 
     [PermissionGroup("Library")]
-    DeleteMedia,
+    DeleteMedia = 7,
+
+    [PermissionGroup("Library")]
+    ManageMedia = 13,
 
     [PermissionGroup("Queue")]
-    AddToQueue,
+    AddToQueue = 8,
 
     [PermissionGroup("Queue")]
-    RemoveFromQueue,
+    RemoveFromQueue = 9,
 
     [PermissionGroup("Queue")]
-    ReorderQueue,
+    ReorderQueue = 10,
 
     [PermissionGroup("Queue")]
-    SkipQueue,
+    SkipQueue = 11,
 
     [PermissionGroup("History")]
-    ViewPerformanceHistory
+    ViewPerformanceHistory = 12
 }
