@@ -42,9 +42,9 @@ public class SearchCaseAndFallbackTests : IDisposable
         });
         var repository = new VenuesRepository(_factory, NullLogger<BaseRepository<Venue>>.Instance);
 
-        var result = await repository.SearchAsync("zoë");
-
-        Assert.Equal("ZOË'S BAR", Assert.Single(result.Items).Name);
+        // Both directions: the stored value is folded on write, the query on read.
+        Assert.Equal("ZOË'S BAR", Assert.Single((await repository.SearchAsync("zoë")).Items).Name);
+        Assert.Equal("ZOË'S BAR", Assert.Single((await repository.SearchAsync("ZOË")).Items).Name);
     }
 
     [Fact]
@@ -164,6 +164,61 @@ public class SearchCaseAndFallbackTests : IDisposable
         var result = await repository.SearchAsync("wi");
 
         Assert.Single(result.Items);
+    }
+
+    [Fact]
+    public async Task VenueSearch_TreatsWildcardsInTheQueryAsText()
+    {
+        Seed(context =>
+        {
+            context.Venues.Add(new Venue { Name = "The 50% Bar" });
+            context.Venues.Add(new Venue { Name = "50 Cent Lounge" });
+        });
+        var repository = new VenuesRepository(_factory, NullLogger<BaseRepository<Venue>>.Instance);
+
+        // Unescaped, "%" is LIKE's match-anything and would return the whole table.
+        var result = await repository.SearchAsync("50%");
+
+        Assert.Equal("The 50% Bar", Assert.Single(result.Items).Name);
+    }
+
+    [Fact]
+    public async Task VenueSearch_TreatsUnderscoreInTheQueryAsText()
+    {
+        Seed(context =>
+        {
+            context.Venues.Add(new Venue { Name = "back_room" });
+            context.Venues.Add(new Venue { Name = "backXroom" });
+        });
+        var repository = new VenuesRepository(_factory, NullLogger<BaseRepository<Venue>>.Instance);
+
+        // Unescaped, "_" is LIKE's single-character wildcard and would match backXroom too.
+        var result = await repository.SearchAsync("back_room");
+
+        Assert.Equal("back_room", Assert.Single(result.Items).Name);
+    }
+
+    [Fact]
+    public async Task MediaSearch_ShortQuery_MatchesNotesAsWellAsTitleAndArtist()
+    {
+        using (var context = _factory.CreateDbContext())
+        {
+            context.Media.Add(new Media
+            {
+                FilePath = "/library/notes.mp4", Title = "Untitled", Artist = "Unknown",
+                Notes = "crowd favourite", Status = MediaStatus.Ready,
+            });
+            context.Media.Add(new Media
+            {
+                FilePath = "/library/other.mp4", Title = "Other", Artist = "Nobody", Status = MediaStatus.Ready,
+            });
+            context.SaveChanges();
+        }
+        var repository = new MediaRepository(_factory, NullLogger<BaseRepository<Media>>.Instance);
+
+        var result = await repository.SearchAsync("cr");
+
+        Assert.Equal("Untitled", Assert.Single(result.Items).Title);
     }
 
     private void Seed(Action<DefaultContext> add)
