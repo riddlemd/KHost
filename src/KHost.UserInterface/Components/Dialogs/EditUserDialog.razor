@@ -24,6 +24,13 @@
                 <ValidationMessage For="() => _model.Notes" />
             </div>
 
+            <div >
+                <label class="kh-form-label">Password</label>
+                <InputText type="password" class="kh-form-control" @bind-Value="_newPassword"
+                           placeholder="@(_hasPassword ? "Unchanged unless typed" : "No password — cannot sign in")"
+                           autocomplete="new-password" />
+            </div>
+
             <div>
                 <label class="kh-form-label">Groups</label>
                 @if (_availableGroups.Count == 0)

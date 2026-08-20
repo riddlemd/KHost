@@ -16,6 +16,7 @@ public partial class EditUserDialog
     [Inject] private IMediaService? MediaService { get; set; }
     [Inject] private IVenuesService? VenuesService { get; set; }
     [Inject] private ITipsService? TipsService { get; set; }
+    [Inject] private IPasswordHasher? PasswordHasher { get; set; }
 
     [Parameter] public bool IsOpen { get; set; }
     [Parameter] public KHostUser? User { get; set; }
@@ -30,6 +31,8 @@ public partial class EditUserDialog
     private bool _prevIsOpen;
     private List<KHostUserGroup> _availableGroups = [];
     private bool _isExistingUser;
+    private string _newPassword = "";
+    private bool _hasPassword;
     private decimal _totalTips;
     private List<RecentVenue> _recentVenues = [];
     private List<RecentSong> _recentSongs = [];
@@ -57,6 +60,8 @@ public partial class EditUserDialog
                     };
 
             _editContext = new EditContext(_model);
+            _newPassword = "";
+            _hasPassword = !string.IsNullOrEmpty(User?.PasswordHash);
 
             await LoadGroupsAsync();
             await LoadStatsAsync();
@@ -159,6 +164,9 @@ public partial class EditUserDialog
         user.Name = _model.Name;
         user.Notes = _model.Notes;
         user.Groups = [.. _availableGroups.Where(g => _model.SelectedGroupIds.Contains(g.Id))];
+
+        if (!string.IsNullOrWhiteSpace(_newPassword) && PasswordHasher is not null)
+            user.PasswordHash = await PasswordHasher.HashAsync(_newPassword);
 
         await OnSave.InvokeAsync(user);
 

@@ -1,0 +1,29 @@
+@page "/login"
+@attribute [AllowAnonymous]
+@layout SetupLayout
+
+<PageTitle>Sign in - KHost</PageTitle>
+
+<div class="kh-login">
+    <div class="kh-login__card">
+        <h1 class="kh-login__title">KHost</h1>
+        <p class="kh-login__subtitle">Sign in to run the show</p>
+
+        @if (Failed)
+        {
+            <div class="kh-alert--warning">Invalid name or password.</div>
+        }
+
+        <form class="kh-login__form" method="post" action="/auth/login">
+            <div>
+                <label class="kh-form-label" for="username">Name</label>
+                <input class="kh-form-control" id="username" name="username" autocomplete="username" autofocus required />
+            </div>
+            <div>
+                <label class="kh-form-label" for="password">Password</label>
+                <input class="kh-form-control" id="password" name="password" type="password" autocomplete="current-password" required />
+            </div>
+            <button class="kh-button kh-login__submit" type="submit">Sign in</button>
+        </form>
+    </div>
+</div>

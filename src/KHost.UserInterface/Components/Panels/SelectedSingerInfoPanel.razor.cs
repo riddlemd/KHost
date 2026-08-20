@@ -17,6 +17,7 @@ public partial class SelectedSingerInfoPanel : IDisposable
     [Inject] private IUserGroupsService? UserGroupsService { get; set; }
     [Inject] private IMediaService? MediaService { get; set; }
     [Inject] private IDialogService? DialogService { get; set; }
+    [Inject] private IPermissionService? Permissions { get; set; }
     [Inject] private ITipsService? TipsService { get; set; }
     [Inject] private IVenuesService? VenuesService { get; set; }
 
@@ -27,6 +28,9 @@ public partial class SelectedSingerInfoPanel : IDisposable
     private decimal _tonightTotal;
     private decimal _lifetimeTotal;
     private bool _tippingEnabled = true;
+    private bool _canRemoveFromQueue;
+    private bool _canReorderQueue;
+    private bool _canViewHistory;
 
     protected override async Task OnInitializedAsync()
     {
@@ -35,6 +39,13 @@ public partial class SelectedSingerInfoPanel : IDisposable
         PlaybackService?.StateChanged += OnStateChanged;
         MediaService?.StateChanged += OnStateChanged;
         VenuesService?.StateChanged += OnStateChanged;
+
+        if (Permissions is not null)
+        {
+            _canRemoveFromQueue = await Permissions.HasAsync(KHostPermission.RemoveFromQueue);
+            _canReorderQueue = await Permissions.HasAsync(KHostPermission.ReorderQueue);
+            _canViewHistory = await Permissions.HasAsync(KHostPermission.ViewPerformanceHistory);
+        }
 
         await RefreshVenueSettingsAsync();
         await RefreshPerformancesAsync();
