@@ -1,4 +1,6 @@
+using KHost.Abstractions.Models;
 using KHost.Abstractions.Services.IPC;
+using KHost.Abstractions.Services;
 using KHost.Domain.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -9,8 +11,10 @@ public class ScreenCoordinationServiceTests : IDisposable
     private readonly IScreenServer _screenServer = Substitute.For<IScreenServer>();
     private readonly ScreenCoordinationService _service;
 
+    private readonly IVenuesService _venuesService = Substitute.For<IVenuesService>();
+
     public ScreenCoordinationServiceTests()
-        => _service = new ScreenCoordinationService(NullLogger<ScreenCoordinationService>.Instance, _screenServer);
+        => _service = new ScreenCoordinationService(NullLogger<ScreenCoordinationService>.Instance, _screenServer, _venuesService);
 
     public void Dispose() => _service.Dispose();
 
@@ -198,6 +202,50 @@ public class ScreenCoordinationServiceTests : IDisposable
         Assert.True(_service.IsAudioEnabled("Spare"));
         await _screenServer.Received().SendCommandAsync("Spare",
             Arg.Is<SetVolumeCommand>(c => c.Volume > 0f));
+    }
+
+    [Fact]
+    public async Task TheAudibleScreen_GetsTheVenueDefaultVolume()
+    {
+        _venuesService.ReadSelectedVenueAsync().Returns(
+            new Venue { Name = "Quiet Bar", Settings = new Venue.VenueSettings { DefaultVolume = 40 } });
+        Connect(Screen("Main", sync: true, audio: true));
+
+        await _service.EnsureRolesAsync();
+
+        await _screenServer.Received().SendCommandAsync("Main",
+            Arg.Is<SetVolumeCommand>(c => Math.Abs(c.Volume - 0.4f) < 0.001f));
+    }
+
+    [Fact]
+    public async Task TheAudibleScreen_GetsFullVolume_BeforeAnyVenueExists()
+    {
+        _venuesService.ReadSelectedVenueAsync().Returns((Venue?)null);
+        Connect(Screen("Main", sync: true, audio: true));
+
+        await _service.EnsureRolesAsync();
+
+        await _screenServer.Received().SendCommandAsync("Main",
+            Arg.Is<SetVolumeCommand>(c => c.Volume == 1.0f));
+    }
+
+    [Fact]
+    public async Task ChangingTheVenue_ReappliesTheVolume()
+    {
+        Connect(Screen("Main", sync: true, audio: true));
+        await _service.EnsureRolesAsync();
+        _screenServer.ClearReceivedCalls();
+
+        _venuesService.ReadSelectedVenueAsync().Returns(
+            new Venue { Name = "Loud Bar", Settings = new Venue.VenueSettings { DefaultVolume = 70 } });
+        _venuesService.StateChanged += Raise.Event<EventHandler>(_venuesService, EventArgs.Empty);
+
+        await WaitForAsync(() => _screenServer.ReceivedCalls().Any(c =>
+            c.GetMethodInfo().Name == nameof(IScreenServer.SendCommandAsync)
+            && c.GetArguments()[1] is SetVolumeCommand { Volume: > 0.69f and < 0.71f }));
+
+        await _screenServer.Received().SendCommandAsync("Main",
+            Arg.Is<SetVolumeCommand>(c => Math.Abs(c.Volume - 0.7f) < 0.001f));
     }
 
     [Fact]

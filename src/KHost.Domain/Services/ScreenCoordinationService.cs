@@ -15,6 +15,7 @@ public sealed class ScreenCoordinationService : BaseService, IScreenCoordination
     private const float MutedVolume = 0.0f;
 
     private readonly IScreenServer _screenServer;
+    private readonly IVenuesService _venuesService;
     private readonly SemaphoreSlim _lock = new(1, 1);
 
     // Screens the user has pinned on or off. Absent means "follow the audio role".
@@ -30,12 +31,16 @@ public sealed class ScreenCoordinationService : BaseService, IScreenCoordination
     // while the other still names a screen that just left.
     private volatile RoleSnapshot _roles = new(null, null);
 
-    public ScreenCoordinationService(ILogger<ScreenCoordinationService> logger, IScreenServer screenServer)
+    public ScreenCoordinationService(ILogger<ScreenCoordinationService> logger, IScreenServer screenServer, IVenuesService venuesService)
         : base(logger)
     {
         _screenServer = screenServer;
+        _venuesService = venuesService;
         _screenServer.ScreenConnected += OnScreenConnected;
         _screenServer.ScreenDisconnected += OnScreenDisconnected;
+        // Selecting or editing a venue changes what "audible" means; without this the new
+        // volume waits for the next role move to be heard.
+        _venuesService.StateChanged += OnVenueStateChanged;
     }
 
     /// <summary>A screen can register before this service is first resolved.</summary>
@@ -204,9 +209,11 @@ public sealed class ScreenCoordinationService : BaseService, IScreenCoordination
     /// <summary>Caller holds the lock.</summary>
     private async Task ApplyAudioAsync(List<IScreenConnection> screens)
     {
+        var audible = await AudibleVolumeAsync();
+
         foreach (var screen in screens)
         {
-            var volume = IsAudioEnabled(screen.ScreenId) ? AudibleVolume : MutedVolume;
+            var volume = IsAudioEnabled(screen.ScreenId) ? audible : MutedVolume;
 
             try
             {
@@ -218,6 +225,22 @@ public sealed class ScreenCoordinationService : BaseService, IScreenCoordination
             }
         }
     }
+
+    /// <summary>The selected venue's volume, or full volume before any venue exists.</summary>
+    private async Task<float> AudibleVolumeAsync()
+    {
+        var venue = await _venuesService.ReadSelectedVenueAsync();
+
+        return venue is null ? AudibleVolume : Math.Clamp(venue.Settings.DefaultVolume, 0, 100) / 100f;
+    }
+
+    private void OnVenueStateChanged(object? sender, EventArgs e) =>
+        _ = Task.Run(async () =>
+        {
+            await _lock.WaitAsync();
+            try { await ApplyAudioAsync(await ConnectedAsync()); }
+            finally { _lock.Release(); }
+        });
 
     private async Task<List<IScreenConnection>> ConnectedAsync()
     {
@@ -278,6 +301,7 @@ public sealed class ScreenCoordinationService : BaseService, IScreenCoordination
     {
         _screenServer.ScreenConnected -= OnScreenConnected;
         _screenServer.ScreenDisconnected -= OnScreenDisconnected;
+        _venuesService.StateChanged -= OnVenueStateChanged;
 
         // Deliberately not disposing _lock: a detached connect handler may still hold it.
     }
