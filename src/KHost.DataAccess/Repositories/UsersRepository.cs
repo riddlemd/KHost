@@ -61,14 +61,11 @@ internal class UsersRepository : BaseRepository<KHostUser>, IUsersRepository
     protected override IReadOnlyDictionary<string, Expression<Func<KHostUser, object>>> SortColumns => _sortColumns;
     protected override Expression<Func<KHostUser, object>> DefaultSortExpression => u => u.Name.ToLower();
 
+    protected override Func<KHostUser, IEnumerable<string?>>? SearchableTextFields => user => [user.Name];
+
     protected override IQueryable<KHostUser> ApplySearchFilters<TOptions>(IQueryable<KHostUser> queryable, string query, TOptions? options = null)
         where TOptions : class
     {
-        queryable = queryable.Include(u => u.Groups.OrderBy(g => g.Name));
-
-        if (string.IsNullOrWhiteSpace(query))
-            return queryable;
-
-        return queryable.Where(u => u.Name.ToLower().Contains(query.ToLower()));
+        return queryable.Include(u => u.Groups.OrderBy(g => g.Name));
     }
 }

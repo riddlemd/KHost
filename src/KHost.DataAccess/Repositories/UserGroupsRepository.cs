@@ -60,12 +60,11 @@ internal class UserGroupsRepository : BaseRepository<KHostUserGroup>, IUserGroup
     protected override IReadOnlyDictionary<string, Expression<Func<KHostUserGroup, object>>> SortColumns => _sortColumns;
     protected override Expression<Func<KHostUserGroup, object>> DefaultSortExpression => g => g.Name.ToLower();
 
+    protected override Func<KHostUserGroup, IEnumerable<string?>>? SearchableTextFields => group => [group.Name];
+
     protected override IQueryable<KHostUserGroup> ApplySearchFilters<TOptions>(IQueryable<KHostUserGroup> queryable, string query, TOptions? options = null)
         where TOptions : class
     {
-        if (string.IsNullOrWhiteSpace(query))
-            return queryable;
-
-        return queryable.Where(g => g.Name.ToLower().Contains(query.ToLower()));
+        return queryable;
     }
 }
