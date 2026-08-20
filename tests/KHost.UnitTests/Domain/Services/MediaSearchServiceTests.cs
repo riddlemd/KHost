@@ -2,8 +2,8 @@ using KHost.Plugins.Sdk.Models;
 using KHost.Plugins.Sdk.Services;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
-using KHost.Domain.Services;
 using Microsoft.Extensions.Logging;
+using KHost.Domain.Services;
 
 namespace KHost.UnitTests.Domain.Services;
 
@@ -89,7 +89,7 @@ public class MediaSearchServiceTests
         analytics.StartActivity(Arg.Any<string>()).Returns(Substitute.For<IAnalyticsActivity>());
         var emptyService = new MediaSearchService(_logger, [], analytics);
 
-        var results = await emptyService.SearchAsync("test");
+        var results = await emptyService.SearchAllAsync("test");
 
         Assert.Empty(results);
     }
@@ -100,7 +100,7 @@ public class MediaSearchServiceTests
         _provider.SearchAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<int>())
             .Returns(Task.FromException<List<MediaSearchEntity>>(new HttpRequestException("network error")));
 
-        var results = await _service.SearchAsync("song");
+        var results = await _service.SearchAllAsync("song");
 
         Assert.Empty(results);
     }
@@ -111,7 +111,7 @@ public class MediaSearchServiceTests
         _provider.SearchAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<int>())
             .Returns(Task.FromResult(new List<MediaSearchEntity>()));
 
-        var results = await _service.SearchAsync("nonexistent");
+        var results = await _service.SearchAllAsync("nonexistent");
 
         Assert.Empty(results);
     }
@@ -130,7 +130,7 @@ public class MediaSearchServiceTests
         _provider.SearchAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<int>())
             .Returns(Task.FromResult(entities));
 
-        var results = await _service.SearchAsync("test");
+        var results = await _service.SearchAllAsync("test");
 
         Assert.Equal(2, results.Count);
         Assert.Equal("Artist1 - Media1", results[0].DisplayName);
@@ -144,11 +144,71 @@ public class MediaSearchServiceTests
     [Fact]
     public async Task SearchAsync_CallsProviderWithProvidedPageParameters()
     {
-        _provider.SearchAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<int>())
+        var (service, local, _) = ServiceWithLocalAnd(_provider);
+        local.SearchAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<int>())
             .Returns(Task.FromResult(new List<MediaSearchEntity>()));
 
-        await _service.SearchAsync("test", pageNumber: 2, pageSize: 50);
+        await service.SearchAsync("test", pageNumber: 2, pageSize: 50);
 
-        await _provider.Received(1).SearchAsync("test", pageNumber: 2, pageSize: 50);
+        await local.Received(1).SearchAsync("test", pageNumber: 2, pageSize: 50);
+    }
+
+    [Fact]
+    public async Task SearchAsync_AsksTheLocalProviderOnly()
+    {
+        var (service, local, remote) = ServiceWithLocalAnd(_provider);
+        local.SearchAsync("song", 0, 0).Returns([Entity(MediaSearchService.LocalSourceName, "local hit")]);
+
+        var results = await service.SearchAsync("song");
+
+        Assert.Equal("local hit", Assert.Single(results).DisplayName);
+        await remote.DidNotReceive().SearchAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<int>());
+    }
+
+    [Fact]
+    public async Task SearchAsync_LeavesRemoteProvidersAlone_EvenWhenTheLocalLibraryFindsNothing()
+    {
+        var (service, local, remote) = ServiceWithLocalAnd(_provider);
+        local.SearchAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<int>()).Returns([]);
+
+        var results = await service.SearchAsync("song");
+
+        Assert.Empty(results);
+        await remote.DidNotReceive().SearchAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<int>());
+    }
+
+    [Fact]
+    public async Task SearchAllAsync_AsksEveryProvider()
+    {
+        var (service, local, remote) = ServiceWithLocalAnd(_provider);
+        local.SearchAsync("song", 0, 0).Returns([Entity(MediaSearchService.LocalSourceName, "local hit")]);
+        remote.SearchAsync("song", 0, 0).Returns([Entity("FileSystem", "remote hit")]);
+
+        var results = await service.SearchAllAsync("song");
+
+        Assert.Equal(2, results.Count);
+        await remote.Received(1).SearchAsync("song", 0, 0);
+    }
+
+    [Fact]
+    public async Task SearchAsync_FindsNothing_WhenNoLocalProviderIsRegistered()
+    {
+        // Only a remote provider registered: the default search must still not reach for it.
+        var results = await _service.SearchAsync("song");
+
+        Assert.Empty(results);
+        await _provider.DidNotReceive().SearchAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<int>());
+    }
+
+    private (MediaSearchService Service, IMediaProvider Local, IMediaProvider Remote) ServiceWithLocalAnd(IMediaProvider remote)
+    {
+        var local = Substitute.For<IMediaProvider>();
+        local.SourceName.Returns(MediaSearchService.LocalSourceName);
+        local.DisplayName.Returns("Local");
+
+        var analytics = Substitute.For<IAnalyticsService>();
+        analytics.StartActivity(Arg.Any<string>()).Returns(Substitute.For<IAnalyticsActivity>());
+
+        return (new MediaSearchService(_logger, [local, remote], analytics), local, remote);
     }
 }

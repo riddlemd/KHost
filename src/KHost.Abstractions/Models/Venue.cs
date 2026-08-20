@@ -6,6 +6,9 @@ public class Venue : RepositoryModel
 {
     public bool Enabled { get; set; } = true;
     public required string Name { get; set; }
+
+    /// <summary>The name as search matches it. Written by the persistence layer, not by hand.</summary>
+    public string NameFolded { get; set; } = string.Empty;
     public string Notes { get; set; } = "";
     public string Address { get; set; } = "";
     public string Phone { get; set; } = "";

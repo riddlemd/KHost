@@ -8,4 +8,7 @@ public class Tip : RepositoryModel
     public decimal Amount { get; set; }
     public TipPaymentMethod PaymentMethod { get; set; }
     public string Notes { get; set; } = "";
+
+    /// <summary>The notes as search matches them. Written by the persistence layer, not by hand.</summary>
+    public string NotesFolded { get; set; } = string.Empty;
 }

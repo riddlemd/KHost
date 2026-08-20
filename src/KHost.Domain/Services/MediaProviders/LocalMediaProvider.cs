@@ -9,7 +9,7 @@ using Microsoft.Extensions.Logging;
 
 namespace KHost.Domain.Services.MediaProviders;
 
-public class DefaultMediaProvider : BaseService, IMediaProvider
+public class LocalMediaProvider : BaseService, IMediaProvider
 {
     // Broken songs stay in the library so the host can fix or re-import them, but must not be
     // offered for queueing. Derived from the enum so a new status shows up unless it opts out.
@@ -22,8 +22,8 @@ public class DefaultMediaProvider : BaseService, IMediaProvider
     private readonly IInteractionDispatcher _interactions;
     private readonly IMediaService _mediaService;
 
-    public DefaultMediaProvider(
-        ILogger<DefaultMediaProvider> logger,
+    public LocalMediaProvider(
+        ILogger<LocalMediaProvider> logger,
         IPerformanceService performanceService,
         ISingerQueueService singerQueueService,
         IMediaRepository repository,
@@ -63,7 +63,7 @@ public class DefaultMediaProvider : BaseService, IMediaProvider
 
     public string DisplayName => "Local";
 
-    public string SourceName => nameof(DefaultMediaProvider);
+    public string SourceName => nameof(LocalMediaProvider);
 
     public IEnumerable<MediaProviderAction> Actions { get; }
 

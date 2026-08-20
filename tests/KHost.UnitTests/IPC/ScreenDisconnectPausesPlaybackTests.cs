@@ -1,11 +1,11 @@
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using KHost.Abstractions.Services.IPC;
-using KHost.Domain.Services;
 using KHost.IPC.SignalR;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using KHost.Domain.Services;
 
 namespace KHost.UnitTests.IPC;
 
