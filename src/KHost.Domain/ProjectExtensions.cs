@@ -41,6 +41,7 @@ namespace KHost.Domain
             // Configure KHost Services
             serviceCollection.AddSingleton(TimeProvider.System);
             serviceCollection.AddSingleton<IMediaFileParsingService, MediaFileParsingService>();
+            serviceCollection.AddSingleton<IMediaFingerprintService, MediaFingerprintService>();
             serviceCollection.AddSingleton<IMediaImportService, MediaImportService>();
             serviceCollection.AddSingleton<ICacheService, JsonFileCacheService>();
             serviceCollection.AddSingleton<ISingerQueueService, SingerQueueService>();

@@ -47,11 +47,22 @@ internal class DefaultContext : DbContext
             entity.Property(e => e.Notes)
                 .HasMaxLength(1000);
 
+            entity.Property(e => e.SampledHash)
+                .HasMaxLength(64);
+
+            entity.Property(e => e.ContentHash)
+                .HasMaxLength(64);
+
             entity.HasIndex(e => e.FilePath).IsUnique();
             entity.HasIndex(e => e.Title);
             entity.HasIndex(e => e.Artist);
             entity.HasIndex(e => e.Status);
             entity.HasIndex(e => e.DateAdded);
+
+            // Import dedup looks rows up by size first; neither hash is unique, because the same
+            // file legitimately exists under two paths until one of them is skipped.
+            entity.HasIndex(e => e.FileSize);
+            entity.HasIndex(e => e.ContentHash);
         });
 
         modelBuilder.Entity<Venue>(entity =>
