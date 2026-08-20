@@ -51,6 +51,7 @@
                                 <th class="kh-table__col--sortable" @onclick='() => OnSortColumnClicked("paymentMethod")'>
                                     Payment Method @if (_sortColumn == "paymentMethod") { <Icon Name="@(_sortDescending ? "sort-down" : "sort-up")" class="kh-table__sort-indicator" /> }
                                 </th>
+                                <th>Venue</th>
                                 <th>Notes</th>
                                 <th>Actions</th>
                             </tr>
@@ -63,6 +64,7 @@
                                     <td>@GetSingerName(tip.UserId)</td>
                                     <td>@tip.Amount.ToString("C")</td>
                                     <td>@tip.PaymentMethod</td>
+                                    <td>@GetVenueName(tip.VenueId)</td>
                                     <td class="kh-table__cell--fill">@tip.Notes</td>
                                     <td class="kh-table__cell--actions">
                                         <button class="kh-tips-manager__edit-btn kh-button--icon-minimal" @onclick="() => OpenEditDialogAsync(tip)" type="button">
