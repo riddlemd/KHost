@@ -1,0 +1,25 @@
+<div class="kh-setup-wizard__step">
+    <div class="kh-setup-wizard__header">
+        <h2>Security</h2>
+        <p>Decide whether the console asks for a sign-in.</p>
+    </div>
+
+    <div class="kh-setup-wizard__form">
+        <label class="kh-form-check kh-wizard-security__choice">
+            <input type="checkbox" class="kh-form-check-input" checked="@_requireLogin"
+                   @onchange="e => _requireLogin = (bool)(e.Value ?? true)" />
+            <span class="kh-form-check-label">Require sign-in to use the console</span>
+        </label>
+        <span class="kh-form-hint">
+            On: operators sign in with a name and password, and what each account may do is set
+            per group. Off: anyone at this machine has full control — fine for a console that
+            never leaves your booth.
+        </span>
+
+        <div class="kh-setup-wizard__actions">
+            <button type="button" class="kh-button kh-button--primary" @onclick="OnNextAsync">
+                <Icon Name="arrow-right" /> Next
+            </button>
+        </div>
+    </div>
+</div>

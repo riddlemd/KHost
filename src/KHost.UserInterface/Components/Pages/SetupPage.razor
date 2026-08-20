@@ -12,22 +12,25 @@
             <div class="kh-setup-wizard__progress-fill" style="@($"width: {CurrentStepProgress}%")"></div>
         </div>
         <div class="kh-setup-wizard__progress-text">
-            Step @(_currentStep + 1) of @StepCount
+            Step @(_currentStep + 1) of @_steps.Count
         </div>
     </div>
 
     <div class="kh-setup-wizard__content">
-        @if (_currentStep == AdminStep)
+        @switch (_steps[_currentStep])
         {
-            <WizardStep1AdminUser OnComplete="@(async () => await MoveToNextStepAsync())" />
-        }
-        else if (_currentStep == VenueStep)
-        {
-            <WizardStep2VenueSetup OnComplete="@(async () => await MoveToNextStepAsync())" />
-        }
-        else if (_currentStep == MediaStep)
-        {
-            <WizardStep3MediaImport OnComplete="@OnSetupCompleteAsync" />
+            case SetupStep.Security:
+                <WizardStepSecurity OnComplete="@OnSecurityCompletedAsync" />
+                break;
+            case SetupStep.Admin:
+                <WizardStep1AdminUser OnComplete="@(async () => await MoveToNextStepAsync())" />
+                break;
+            case SetupStep.Venue:
+                <WizardStep2VenueSetup OnComplete="@(async () => await MoveToNextStepAsync())" />
+                break;
+            case SetupStep.Media:
+                <WizardStep3MediaImport OnComplete="@OnSetupCompleteAsync" />
+                break;
         }
     </div>
 </div>
