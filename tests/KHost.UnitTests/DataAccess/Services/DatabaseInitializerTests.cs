@@ -4,6 +4,7 @@ using KHost.DataAccess.Contexts;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using KHost.Abstractions.Services;
+using KHost.DataAccess.Repositories;
 using KHost.DataAccess.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -212,7 +213,7 @@ public class DatabaseInitializerTests
     // --- RefoldUserNamesAsync ---
 
     [Fact]
-    public async Task RefoldUserNamesAsync_RepairsANameSqlCouldNotFold()
+    public async Task RefoldStoredTextAsync_RepairsANameSqlCouldNotFold()
     {
         var (factory, dbPath) = NewDatabase();
         try
@@ -221,16 +222,16 @@ public class DatabaseInitializerTests
             Seed(factory, ("Ándre", "Ándre"), ("Steve", "steve"));
             var sut = CreateSut(new ServiceOptions(), factory);
 
-            await sut.RefoldUserNamesAsync();
+            await sut.RefoldStoredTextAsync();
 
-            Assert.Equal("ándre", FoldedFor(factory, "Ándre"));
+            Assert.Equal("andre", FoldedFor(factory, "Ándre"));
             Assert.Equal("steve", FoldedFor(factory, "Steve"));
         }
         finally { Delete(dbPath); }
     }
 
     [Fact]
-    public async Task RefoldUserNamesAsync_LeavesCorrectlyFoldedNamesAlone()
+    public async Task RefoldStoredTextAsync_LeavesCorrectlyFoldedNamesAlone()
     {
         var (factory, dbPath) = NewDatabase();
         try
@@ -238,11 +239,48 @@ public class DatabaseInitializerTests
             Seed(factory, ("Steve", "steve"));
             var sut = CreateSut(new ServiceOptions(), factory);
 
-            await sut.RefoldUserNamesAsync();
+            await sut.RefoldStoredTextAsync();
 
             Assert.Equal("steve", FoldedFor(factory, "Steve"));
         }
         finally { Delete(dbPath); }
+    }
+
+    [Fact]
+    public async Task RefoldStoredTextAsync_KeepsBothAccounts_WhenTwoLegacyNamesFoldTogether()
+    {
+        var (factory, dbPath) = NewDatabase();
+        try
+        {
+            // A pre-upgrade roster where the old, stricter fold let both of these exist.
+            Seed(factory, ("Andre", "andre"));
+            SeedRaw(factory, "Ándre", "ándre");
+            var sut = CreateSut(new ServiceOptions(), factory);
+
+            await sut.RefoldStoredTextAsync();
+
+            // The collision cannot be repaired - the unique index rightly refuses - but nothing
+            // may be lost: both rows survive, one of them still stale.
+            using var context = factory.CreateDbContext();
+            Assert.Equal(2, context.Users.Count());
+            Assert.Equal("andre", context.Users.Single(u => u.Name == "Andre").NameFolded);
+
+            var repository = new UsersRepository(factory, NullLogger<BaseRepository<KHostUser>>.Instance);
+            Assert.Equal("Andre", (await repository.FindByNameAsync("andre"))?.Name);
+            // The losing side stays reachable by its exact stored spelling.
+            Assert.Equal("Ándre", (await repository.FindByNameAsync("Ándre"))?.Name);
+        }
+        finally { Delete(dbPath); }
+    }
+
+    // Bypasses the model entirely: the setter would fold the name and trip the unique index, which
+    // is precisely what a legacy row predates.
+    private static void SeedRaw(IDbContextFactory<DefaultContext> factory, string name, string folded)
+    {
+        using var context = factory.CreateDbContext();
+        context.Database.ExecuteSqlRaw(
+            "INSERT INTO Users (Id, Name, NameFolded, Notes, CreatedDate) VALUES ({0}, {1}, {2}, '', {3})",
+            Guid.NewGuid().ToString().ToUpperInvariant(), name, folded, DateTime.UtcNow);
     }
 
     private static (IDbContextFactory<DefaultContext> Factory, string Path) NewDatabase()

@@ -5,21 +5,10 @@ namespace KHost.Abstractions.Models;
 public class Venue : RepositoryModel
 {
     public bool Enabled { get; set; } = true;
-    private string _name = string.Empty;
+    public required string Name { get; set; }
 
-    /// <summary>Setting this refolds <see cref="NameFolded"/> with it, so the two cannot drift apart.</summary>
-    public required string Name
-    {
-        get => _name;
-        set
-        {
-            _name = value;
-            NameFolded = TextFolding.Fold(value);
-        }
-    }
-
-    /// <summary>The name as search matches it: composed and lowercased.</summary>
-    public string NameFolded { get; private set; } = string.Empty;
+    /// <summary>The name as search matches it. Written by the persistence layer, not by hand.</summary>
+    public string NameFolded { get; set; } = string.Empty;
     public string Notes { get; set; } = "";
     public string Address { get; set; } = "";
     public string Phone { get; set; } = "";

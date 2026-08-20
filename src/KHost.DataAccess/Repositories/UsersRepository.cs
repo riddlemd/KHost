@@ -1,5 +1,4 @@
 using System.Linq.Expressions;
-using KHost.Abstractions;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Repositories;
 using KHost.DataAccess.Contexts;
@@ -26,11 +25,16 @@ internal class UsersRepository : BaseRepository<KHostUser>, IUsersRepository
 
     public async Task<KHostUser?> FindByNameAsync(string name)
     {
-        var folded = TextFolding.Fold(name);
+        var folded = EntityFolding.Fold(name);
 
         using var context = await ContextFactory.CreateDbContextAsync();
 
-        return await context.Set<KHostUser>().FirstOrDefaultAsync(u => u.NameFolded == folded);
+        // Exact spelling first: NameFolded is unique so the folded lookup can only ever return one
+        // row, but a pre-upgrade database may hold two names the fold now considers equal (Andre
+        // and Ándre), of which only one could be refolded. Typing a name exactly as stored must
+        // always reach that account, or the losing side of the collision cannot sign in at all.
+        return await context.Set<KHostUser>().FirstOrDefaultAsync(u => u.Name == name)
+            ?? await context.Set<KHostUser>().FirstOrDefaultAsync(u => u.NameFolded == folded);
     }
 
     public async Task<bool> HasAdminUserAsync()

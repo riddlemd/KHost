@@ -1,4 +1,3 @@
-using KHost.Abstractions;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using KHost.DataAccess.Contexts;
@@ -70,133 +69,58 @@ internal class DatabaseInitializer : IDatabaseInitializer
     /// never be found again. Cheap because the roster is small, and self-healing if the folding
     /// rule itself ever changes.
     /// </summary>
+    /// <summary>
+    /// Rewrites folded columns whose source text no longer folds to what is stored. Needed because
+    /// a migration can only seed them with SQLite's lower(), which folds ASCII and nothing else,
+    /// and because changing the folding rule itself has to reach rows already in the database.
+    /// Saving is what refolds them — the context folds on the way out.
+    /// </summary>
     internal async Task RefoldStoredTextAsync()
     {
-        await RefoldUserNamesAsync();
-        await RefoldVenueNamesAsync();
-        await RefoldUserGroupNamesAsync();
-        await RefoldTipNotesAsync();
-        await RefoldMediaSearchTextAsync();
-    }
-
-    internal async Task RefoldUserNamesAsync()
-    {
         using var context = await _contextFactory.CreateDbContextAsync();
 
-        // Projected, not materialised: setting Name on a loaded entity refolds it in memory, so a
-        // KHostUser always looks correct and the stored value can only be read as a raw column.
-        var stored = await context.Users
-            .Select(user => new { user.Id, user.Name, user.NameFolded })
-            .ToListAsync();
+        var repaired =
+            Repair(context, context.Users, u => u.NameFolded, u => EntityFolding.Fold(u.Name), "user name") +
+            Repair(context, context.Venues, v => v.NameFolded, v => EntityFolding.Fold(v.Name), "venue name") +
+            Repair(context, context.UserGroups, g => g.NameFolded, g => EntityFolding.Fold(g.Name), "user group name") +
+            Repair(context, context.Tips, t => t.NotesFolded, t => EntityFolding.Fold(t.Notes), "tip note") +
+            Repair(context, context.Media, m => m.SearchFolded,
+                m => EntityFolding.FoldMedia($"{m.Title} {m.Artist}"), "media search text");
 
-        var stale = stored.Where(row => row.NameFolded != TextFolding.Fold(row.Name)).ToList();
-        if (stale.Count == 0)
+        if (repaired == 0)
             return;
 
-        foreach (var row in stale)
+        try
         {
-            var folded = TextFolding.Fold(row.Name);
-            try
-            {
-                await context.Users
-                    .Where(user => user.Id == row.Id)
-                    .ExecuteUpdateAsync(set => set.SetProperty(user => user.NameFolded, folded));
-            }
-            catch (DbUpdateException ex)
-            {
-                // Two singers whose names differed only outside ASCII already existed - the
-                // duplicate the old ASCII-only index should never have allowed through.
-                _logger.LogError(ex, "Could not refold '{Name}': another user already folds to the same name", row.Name);
-            }
+            await context.SaveChangesAsync();
         }
-
-        _logger.LogInformation("Refolded {Count} user name(s) for comparison", stale.Count);
+        catch (DbUpdateException ex)
+        {
+            // Two rows the old rule kept apart now fold together, and a unique index refuses the
+            // write. Nothing is lost: the rows stay as they are, one of them still folded the old
+            // way, and it remains reachable by its exact spelling.
+            _logger.LogError(ex, "Could not refold stored text: two rows fold to the same value");
+        }
     }
 
-    internal async Task RefoldVenueNamesAsync()
+    private int Repair<T>(
+        DefaultContext context,
+        DbSet<T> set,
+        Func<T, string> stored,
+        Func<T, string> expected,
+        string what)
+        where T : class
     {
-        using var context = await _contextFactory.CreateDbContextAsync();
+        var stale = set.AsEnumerable().Where(entity => stored(entity) != expected(entity)).ToList();
+        if (stale.Count == 0)
+            return 0;
 
-        var stale = (await context.Venues.Select(v => new { v.Id, v.Name, v.NameFolded }).ToListAsync())
-            .Where(row => row.NameFolded != TextFolding.Fold(row.Name))
-            .ToList();
+        // Attaching is enough: the context folds every changed entity as it saves.
+        foreach (var entity in stale)
+            context.Update(entity);
 
-        foreach (var row in stale)
-        {
-            var folded = TextFolding.Fold(row.Name);
-            await context.Venues.Where(v => v.Id == row.Id)
-                .ExecuteUpdateAsync(set => set.SetProperty(v => v.NameFolded, folded));
-        }
-
-        LogRefold("venue name", stale.Count);
-    }
-
-    internal async Task RefoldUserGroupNamesAsync()
-    {
-        using var context = await _contextFactory.CreateDbContextAsync();
-
-        var stale = (await context.UserGroups.Select(g => new { g.Id, g.Name, g.NameFolded }).ToListAsync())
-            .Where(row => row.NameFolded != TextFolding.Fold(row.Name))
-            .ToList();
-
-        foreach (var row in stale)
-        {
-            var folded = TextFolding.Fold(row.Name);
-            await context.UserGroups.Where(g => g.Id == row.Id)
-                .ExecuteUpdateAsync(set => set.SetProperty(g => g.NameFolded, folded));
-        }
-
-        LogRefold("user group name", stale.Count);
-    }
-
-    internal async Task RefoldTipNotesAsync()
-    {
-        using var context = await _contextFactory.CreateDbContextAsync();
-
-        var stale = (await context.Tips.Select(t => new { t.Id, t.Notes, t.NotesFolded }).ToListAsync())
-            .Where(row => row.NotesFolded != TextFolding.Fold(row.Notes))
-            .ToList();
-
-        foreach (var row in stale)
-        {
-            var folded = TextFolding.Fold(row.Notes);
-            await context.Tips.Where(t => t.Id == row.Id)
-                .ExecuteUpdateAsync(set => set.SetProperty(t => t.NotesFolded, folded));
-        }
-
-        LogRefold("tip note", stale.Count);
-    }
-
-    /// <summary>
-    /// The library is the one table here big enough to notice. Only the folded text is read back,
-    /// and only rows that actually differ are written, so a library that is already correct costs
-    /// one scan of three columns at startup.
-    /// </summary>
-    internal async Task RefoldMediaSearchTextAsync()
-    {
-        using var context = await _contextFactory.CreateDbContextAsync();
-
-        var stale = (await context.Media
-                .Select(m => new { m.Id, m.Title, m.Artist, m.SearchFolded })
-                .ToListAsync())
-            .Select(row => new { row.Id, Folded = TextFolding.Fold($"{row.Title} {row.Artist}"), row.SearchFolded })
-            .Where(row => row.SearchFolded != row.Folded)
-            .ToList();
-
-        foreach (var row in stale)
-        {
-            var folded = row.Folded;
-            await context.Media.Where(m => m.Id == row.Id)
-                .ExecuteUpdateAsync(set => set.SetProperty(m => m.SearchFolded, folded));
-        }
-
-        LogRefold("media search text", stale.Count);
-    }
-
-    private void LogRefold(string what, int count)
-    {
-        if (count > 0)
-            _logger.LogInformation("Refolded {Count} {What}(s) for comparison", count, what);
+        _logger.LogInformation("Refolding {Count} {What}(s)", stale.Count, what);
+        return stale.Count;
     }
 
     internal async Task SeedDefaultAdminUserAsync()

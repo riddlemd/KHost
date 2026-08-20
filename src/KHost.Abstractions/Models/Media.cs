@@ -8,20 +8,9 @@ public class Media : RepositoryModel
     public TimeSpan? Duration { get; set; }
     public MediaStatus Status { get; set; }
 
-    private string _title = string.Empty;
-    private string _artist = string.Empty;
+    public required string Title { get; set; } = string.Empty;
 
-    public required string Title
-    {
-        get => _title;
-        set { _title = value; RefoldSearch(); }
-    }
-
-    public string Artist
-    {
-        get => _artist;
-        set { _artist = value; RefoldSearch(); }
-    }
+    public string Artist { get; set; } = string.Empty;
 
     public string Format { get; set; } = string.Empty;
 
@@ -32,13 +21,11 @@ public class Media : RepositoryModel
     public string Notes { get; set; } = "";
 
     /// <summary>
-    /// Title and artist as one folded haystack — composed and lowercased — holding exactly the text
-    /// media_fts indexes, so the short-query fallback finds a song by the same words the index does.
-    /// Refolded whenever either is set, so it cannot drift.
+    /// Title and artist as one folded haystack, holding exactly the text media_fts indexes so the
+    /// short-query fallback finds a song by the same words the index does. Written by the
+    /// persistence layer, not by hand.
     /// </summary>
-    public string SearchFolded { get; private set; } = string.Empty;
-
-    private void RefoldSearch() => SearchFolded = TextFolding.Fold($"{_title} {_artist}");
+    public string SearchFolded { get; set; } = string.Empty;
 
     /// <summary>Size in bytes. Null on rows imported before content dedup, and measured on the next import run.</summary>
     public long? FileSize { get; set; }

@@ -7,19 +7,8 @@ public class Tip : RepositoryModel
     public Guid? VenueId { get; set; }
     public decimal Amount { get; set; }
     public TipPaymentMethod PaymentMethod { get; set; }
-    private string _notes = string.Empty;
+    public string Notes { get; set; } = "";
 
-    /// <summary>Setting this refolds <see cref="NotesFolded"/> with it, so the two cannot drift apart.</summary>
-    public string Notes
-    {
-        get => _notes;
-        set
-        {
-            _notes = value;
-            NotesFolded = TextFolding.Fold(value);
-        }
-    }
-
-    /// <summary>The notes as search matches them: composed and lowercased.</summary>
-    public string NotesFolded { get; private set; } = string.Empty;
+    /// <summary>The notes as search matches them. Written by the persistence layer, not by hand.</summary>
+    public string NotesFolded { get; set; } = string.Empty;
 }

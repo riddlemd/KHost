@@ -1,6 +1,5 @@
 using System.Diagnostics;
 using System.Linq.Expressions;
-using KHost.Abstractions;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Repositories;
 using KHost.DataAccess.Contexts;
@@ -127,9 +126,12 @@ internal abstract class BaseRepository<T> : IRepository<T> where T : RepositoryM
     /// Builds a contains-pattern for a folded column. The query is folded the same way the column
     /// was, and LIKE's own wildcards are escaped so a singer called "50%" searches for itself.
     /// </summary>
-    protected static string FoldedContainsPattern(string query)
+    /// <summary>How this repository folds text. Media adds stylisations; everything else does not.</summary>
+    protected virtual Func<string?, string> Folder => EntityFolding.Fold;
+
+    protected string FoldedContainsPattern(string query)
     {
-        var folded = TextFolding.Fold(query)
+        var folded = Folder(query)
             .Replace("\\", "\\\\")
             .Replace("%", "\\%")
             .Replace("_", "\\_");
