@@ -38,6 +38,8 @@ internal static class Program
 
     private const string InstanceLockFileName = ".instance.lock";
 
+    internal const string LastLoginCacheKey = "last-login";
+
     private const int AlreadyRunningExitCode = 1;
 
     // Top-level statements cannot carry [STAThread], which Photino needs on Windows, and the
@@ -207,7 +209,8 @@ internal static class Program
             [FromForm] string username,
             [FromForm] string password,
             IAuthService authService,
-            IUsersService usersService) =>
+            IUsersService usersService,
+            ICacheService cacheService) =>
         {
             var result = await authService.LoginAsync(username, password);
 
@@ -221,6 +224,10 @@ internal static class Program
             await http.SignInAsync(
                 CookieAuthenticationDefaults.AuthenticationScheme,
                 KHostClaimsFactory.Create(withGroups, CookieAuthenticationDefaults.AuthenticationScheme));
+
+            // The canonical name, not the typed casing: the lock screen shows who was at the
+            // controls, the way an OS lock screen would.
+            await cacheService.SaveAsync(LastLoginCacheKey, withGroups.Name);
 
             return Results.Redirect("/");
         }).AllowAnonymous().DisableAntiforgery();
