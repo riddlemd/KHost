@@ -19,13 +19,13 @@
                 <label class="kh-login__label" for="username">Username</label>
                 <input class="kh-login__control" id="username" name="username" value="@_lastUser"
                        placeholder="Enter your username" autocomplete="username"
-                       autofocus="@(_lastUser is null)" required />
+                       @ref="_usernameInput" required />
             </div>
             <div class="kh-login__group">
                 <label class="kh-login__label" for="password">Password</label>
                 <input class="kh-login__control" id="password" name="password" type="password"
                        placeholder="Enter your password" autocomplete="current-password"
-                       autofocus="@(_lastUser is not null)" required />
+                       @ref="_passwordInput" required />
             </div>
             <button class="kh-button kh-login__submit" type="submit">
                 <Icon Name="box-arrow-in-right" /> Sign in
