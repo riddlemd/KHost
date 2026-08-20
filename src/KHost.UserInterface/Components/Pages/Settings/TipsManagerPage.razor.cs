@@ -20,10 +20,12 @@ public partial class TipsManagerPage : IDisposable
     private bool _sortDescending;
     private PaginatedResult<Tip>? _paginatedResult;
     private Dictionary<Guid, string> _userNames = [];
+    private Dictionary<Guid, string> _venueNames = [];
 
     protected override async Task OnInitializedAsync()
     {
         await LoadUsersAsync();
+        await LoadVenuesAsync();
         await SearchAsync();
         TipsService!.StateChanged += OnStateChanged;
     }
@@ -40,6 +42,18 @@ public partial class TipsManagerPage : IDisposable
     {
         return _userNames.TryGetValue(userId, out var name) ? name : "Unknown Singer";
     }
+
+    private async Task LoadVenuesAsync()
+    {
+        if (VenuesService is null) return;
+
+        var result = await VenuesService.ReadAllAsync(pageSize: 1000);
+        _venueNames = result.Items.ToDictionary(v => v.Id, v => v.Name);
+    }
+
+    // Old tips predate venue stamping, and a deleted venue leaves its id behind by design.
+    private string GetVenueName(Guid? venueId)
+        => venueId is { } id && _venueNames.TryGetValue(id, out var name) ? name : "—";
 
     private async Task SearchAsync()
     {
