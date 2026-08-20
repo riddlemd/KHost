@@ -234,6 +234,9 @@ public class MediaImportService : BaseService, IMediaImportService
     private async Task<bool> MatchesKnownContentAsync(
         Fingerprint incoming, List<Fingerprint> bucket, HashSet<Media> updatedRows, CancellationToken ct)
     {
+        // Nothing to compare against, so leave the hash to the import itself. Same total work
+        // either way — the point is that filtering a large fresh library does no file I/O at all,
+        // and progress starts moving immediately instead of after a read of every selected file.
         if (bucket.Count == 0)
             return false;
 
