@@ -86,8 +86,8 @@ public class SearchCaseAndFallbackTests : IDisposable
         Seed(context =>
         {
             context.Users.Add(singer);
-            context.Tips.Add(new Tip { UserId = singer.Id, Amount = 5, Notes = "FOR RENÉE" });
-            context.Tips.Add(new Tip { UserId = singer.Id, Amount = 5, Notes = "unrelated note" });
+            context.Tips.Add(new Tip { UserId = singer.Id, AmountInCents = 500, Notes = "FOR RENÉE" });
+            context.Tips.Add(new Tip { UserId = singer.Id, AmountInCents = 500, Notes = "unrelated note" });
         });
         var repository = new TipsRepository(_factory, NullLogger<BaseRepository<Tip>>.Instance);
 
