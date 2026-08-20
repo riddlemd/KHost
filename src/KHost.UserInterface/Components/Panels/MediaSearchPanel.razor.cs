@@ -107,7 +107,7 @@ public partial class MediaSearchPanel : IDisposable
 
     private List<string> GetSingersWithMediaQueued(string foreignKey, string source)
     {
-        if (!source.Equals(nameof(DefaultMediaProvider), StringComparison.InvariantCultureIgnoreCase))
+        if (!source.Equals(nameof(LocalMediaProvider), StringComparison.InvariantCultureIgnoreCase))
             return [];
 
         return Guid.TryParse(foreignKey, out var mediaId) && _queuedBySinger.TryGetValue(mediaId, out var singers)
