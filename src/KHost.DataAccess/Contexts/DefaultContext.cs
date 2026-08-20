@@ -20,6 +20,20 @@ internal class DefaultContext : DbContext
 
     }
 
+    // Both overloads, because callers use each: EF does not route one through the other.
+    public override int SaveChanges(bool acceptAllChangesOnSuccess)
+    {
+        EntityFolding.Apply(ChangeTracker);
+        return base.SaveChanges(acceptAllChangesOnSuccess);
+    }
+
+    public override Task<int> SaveChangesAsync(
+        bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
+    {
+        EntityFolding.Apply(ChangeTracker);
+        return base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+    }
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -170,6 +184,7 @@ internal class DefaultContext : DbContext
                 {
                     Id = new Guid("00000000-0000-0000-0000-000000000001"),
                     Name = "Admin",
+                    NameFolded = "admin",
                     Description = "Full access to all management features",
                     IsAdmin = true,
                     Permissions = []
@@ -178,6 +193,7 @@ internal class DefaultContext : DbContext
                 {
                     Id = new Guid("00000000-0000-0000-0000-000000000002"),
                     Name = "Regular",
+                    NameFolded = "regular",
                     Description = "Frequent singer",
                     IsAdmin = false,
                     Permissions = []

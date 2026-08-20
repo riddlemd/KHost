@@ -71,6 +71,24 @@ public class UsersRepositoryTests : IDisposable
     }
 
     [Fact]
+    public async Task FindByName_IgnoresAccents()
+    {
+        // Hosts on US keyboards cannot easily type accents a name was entered with.
+        await _database.SeedAsync(User("Zoë"));
+
+        Assert.NotNull(await _repository.FindByNameAsync("zoe"));
+    }
+
+    [Fact]
+    public async Task CreateAsync_RejectsANameDifferingOnlyInAccents()
+    {
+        await _database.SeedAsync(User("Björk"));
+
+        await Assert.ThrowsAsync<Microsoft.EntityFrameworkCore.DbUpdateException>(
+            () => _repository.CreateAsync(User("Bjork")));
+    }
+
+    [Fact]
     public async Task CreateAsync_RejectsANameDifferingOnlyInCase_WhenTheDifferenceIsNotAscii()
     {
         await _database.SeedAsync(User("ZOË"));

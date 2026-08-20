@@ -3,6 +3,7 @@ using System;
 using KHost.DataAccess.Contexts;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -10,9 +11,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace KHost.DataAccess.Migrations
 {
     [DbContext(typeof(DefaultContext))]
-    partial class DefaultContextModelSnapshot : ModelSnapshot
+    [Migration("20260820211940_IndexFoldedSearchText")]
+    partial class IndexFoldedSearchText
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.7");
@@ -52,7 +55,7 @@ namespace KHost.DataAccess.Migrations
                     b.HasIndex("NameFolded")
                         .IsUnique();
 
-                    b.ToTable("Users", (string)null);
+                    b.ToTable("Users");
                 });
 
             modelBuilder.Entity("KHost.Abstractions.Models.KHostUserGroup", b =>
@@ -90,7 +93,7 @@ namespace KHost.DataAccess.Migrations
                     b.HasIndex("Name")
                         .IsUnique();
 
-                    b.ToTable("UserGroups", (string)null);
+                    b.ToTable("UserGroups");
 
                     b.HasData(
                         new
@@ -186,7 +189,7 @@ namespace KHost.DataAccess.Migrations
 
                     b.HasIndex("Title");
 
-                    b.ToTable("Media", (string)null);
+                    b.ToTable("Media");
                 });
 
             modelBuilder.Entity("KHost.Abstractions.Models.Performance", b =>
@@ -220,7 +223,7 @@ namespace KHost.DataAccess.Migrations
 
                     b.HasIndex("VenueId");
 
-                    b.ToTable("Performances", (string)null);
+                    b.ToTable("Performances");
                 });
 
             modelBuilder.Entity("KHost.Abstractions.Models.Tip", b =>
@@ -263,7 +266,7 @@ namespace KHost.DataAccess.Migrations
 
                     b.HasIndex("VenueId");
 
-                    b.ToTable("Tips", (string)null);
+                    b.ToTable("Tips");
                 });
 
             modelBuilder.Entity("KHost.Abstractions.Models.Venue", b =>
@@ -305,7 +308,7 @@ namespace KHost.DataAccess.Migrations
                     b.HasIndex("Name")
                         .IsUnique();
 
-                    b.ToTable("Venues", (string)null);
+                    b.ToTable("Venues");
                 });
 
             modelBuilder.Entity("KHost.DataAccess.Models.UserGroupMembership", b =>
@@ -358,7 +361,7 @@ namespace KHost.DataAccess.Migrations
 
                             b1.HasKey("VenueId");
 
-                            b1.ToTable("Venues", (string)null);
+                            b1.ToTable("Venues");
 
                             b1
                                 .ToJson("Settings")
@@ -392,7 +395,7 @@ namespace KHost.DataAccess.Migrations
 
                                     b2.HasKey("VenueSettingsVenueId");
 
-                                    b2.ToTable("Venues", (string)null);
+                                    b2.ToTable("Venues");
 
                                     b2.WithOwner()
                                         .HasForeignKey("VenueSettingsVenueId");

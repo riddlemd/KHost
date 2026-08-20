@@ -1,8 +1,8 @@
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Repositories;
 using KHost.Abstractions.Services;
-using KHost.Domain.Services;
 using Microsoft.Extensions.Logging.Abstractions;
+using KHost.Domain.Services;
 
 namespace KHost.UnitTests.Domain.Services;
 
