@@ -11,6 +11,7 @@
         padding: 2.5rem 2rem;
         background: var(--kh-bg-card);
         border: 1px solid var(--kh-border);
+        border-top: 3px solid var(--kh-accent);
         border-radius: var(--kh-radius-lg);
         box-shadow: 0 8px 32px var(--kh-primary-glow);
     }
@@ -19,7 +20,11 @@
         margin: 0;
         text-align: center;
         font-family: var(--kh-font-display);
-        color: var(--kh-primary-bright);
+        letter-spacing: 0.03em;
+        background: linear-gradient(135deg, var(--kh-logo-from) 0%, var(--kh-logo-to) 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
     }
 
     &__subtitle {
@@ -71,6 +76,13 @@
         margin-top: 0.5rem;
         padding: 0.75rem 1rem;
         justify-content: center;
+        background: var(--kh-accent);
+        color: #fff;
+
+        &:hover {
+            background: var(--kh-accent-hover);
+            box-shadow: 0 4px 16px var(--kh-accent-glow);
+        }
     }
 
     .kh-alert--warning {
