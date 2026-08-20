@@ -1,4 +1,5 @@
 @page "/settings/users-manager"
+@attribute [Authorize(Policy = nameof(KHostPermission.EditUser))]
 @using KHost.UserInterface.Models
 @using KHost.UserInterface.Services
 
@@ -75,9 +76,11 @@
                                         </button>
                                         @if (!KHostUser.IsBuiltIn(user.Id))
                                         {
+                                            <AuthorizeView Policy="@nameof(KHostPermission.DeleteUser)" Context="_auth">
                                             <button class="kh-singer-manager__delete-btn kh-button--icon-minimal" title="Delete User" @onclick="@(async () => await StartDeleteAsync(user))">
                                                 <Icon Name="trash" />
                                             </button>
+                                            </AuthorizeView>
                                         }
                                     </td>
                                 </tr>

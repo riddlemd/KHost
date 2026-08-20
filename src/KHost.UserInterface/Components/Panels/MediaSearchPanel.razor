@@ -108,6 +108,8 @@
                                         </td>
                                     }
                                     <td class="kh-table__cell--actions">
+                                        @if (_canAddToQueue)
+                                        {
                                         @foreach(var action in CombineWithGlobalActions(mediaSearchEntity.SupportedActions))
                                         {
                                             <SplitButton
@@ -127,6 +129,7 @@
                                                     }
                                                 </Buttons>
                                             </SplitButton>
+                                        }
                                         }
                                     </td>
                                 </tr>
