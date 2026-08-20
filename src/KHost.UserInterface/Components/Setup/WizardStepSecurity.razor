@@ -1,7 +1,7 @@
 <div class="kh-setup-wizard__step">
     <div class="kh-setup-wizard__header">
         <h2>Security</h2>
-        <p>Decide whether the console asks for a sign-in.</p>
+        <p>Decide whether KHost asks for a sign-in.</p>
     </div>
 
     <div class="kh-setup-wizard__form kh-wizard-security">
@@ -9,7 +9,7 @@
             <input type="checkbox" checked="@_requireLogin"
                    @onchange="e => _requireLogin = (bool)(e.Value ?? true)" />
             <span class="kh-wizard-security__label">
-                Require sign-in to use the console
+                Require sign-in to use KHost
                 <span class="kh-wizard-security__hint">
                     Operators sign in with a name and password; what each account may do is set
                     per group.
@@ -18,7 +18,7 @@
         </label>
 
         <p class="kh-wizard-security__off-note">
-            Turned off, anyone at this machine has full control — fine for a console that never
+            Turned off, anyone at this machine has full control — fine for a machine that never
             leaves your booth. It can be changed later in App Settings.
         </p>
 
