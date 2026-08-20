@@ -1,4 +1,5 @@
 @page "/settings/media-manager"
+@attribute [Authorize(Policy = nameof(KHostPermission.ManageMedia))]
 @using KHost.Abstractions.Services
 @using KHost.UserInterface.Models
 @using KHost.UserInterface.Services
