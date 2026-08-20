@@ -32,6 +32,54 @@ public class UsersRepositoryTests : IDisposable
     }
 
     [Fact]
+    public async Task CreateAsync_AllowsTwoDifferentNames()
+    {
+        await _database.SeedAsync(User("Alice"));
+
+        await _repository.CreateAsync(User("Bob"));
+
+        Assert.NotNull(await _repository.FindByNameAsync("alice"));
+        Assert.NotNull(await _repository.FindByNameAsync("bob"));
+    }
+
+    [Fact]
+    public async Task FindByName_IgnoresCase_OutsideAscii()
+    {
+        await _database.SeedAsync(User("BJÖRK"));
+
+        Assert.Equal("BJÖRK", (await _repository.FindByNameAsync("björk"))?.Name);
+        Assert.Equal("BJÖRK", (await _repository.FindByNameAsync("Björk"))?.Name);
+    }
+
+    [Fact]
+    public async Task FindByName_MatchesAcrossUnicodeNormalisation()
+    {
+        // Composed on the way in, decomposed on the way back - what macOS hands out for the
+        // same name read off a filesystem versus typed by hand.
+        await _database.SeedAsync(User("Zo\u00EB"));
+
+        Assert.NotNull(await _repository.FindByNameAsync("Zoe\u0308"));
+    }
+
+    [Fact]
+    public async Task CreateAsync_RejectsANameDifferingOnlyInNormalisation()
+    {
+        await _database.SeedAsync(User("Zo\u00EB"));
+
+        await Assert.ThrowsAsync<Microsoft.EntityFrameworkCore.DbUpdateException>(
+            () => _repository.CreateAsync(User("Zoe\u0308")));
+    }
+
+    [Fact]
+    public async Task CreateAsync_RejectsANameDifferingOnlyInCase_WhenTheDifferenceIsNotAscii()
+    {
+        await _database.SeedAsync(User("ZOË"));
+
+        await Assert.ThrowsAsync<Microsoft.EntityFrameworkCore.DbUpdateException>(
+            () => _repository.CreateAsync(User("zoë")));
+    }
+
+    [Fact]
     public async Task HasAdminUser_IsFalse_WhenNobodyIsInAnAdminGroup()
     {
         await _database.SeedAsync(User("Steve"), new KHostUserGroup { Name = "Singers", IsAdmin = false });

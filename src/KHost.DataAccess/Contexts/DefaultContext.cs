@@ -98,8 +98,11 @@ internal class DefaultContext : DbContext
 
             entity.Property(e => e.Name)
                 .IsRequired()
-                .HasMaxLength(255)
-                .UseCollation("NOCASE");
+                .HasMaxLength(255);
+
+            entity.Property(e => e.NameFolded)
+                .IsRequired()
+                .HasMaxLength(255);
 
             entity.Property(e => e.Notes)
                 .HasMaxLength(1000);
@@ -107,7 +110,9 @@ internal class DefaultContext : DbContext
             entity.Property(e => e.PasswordHash)
                 .HasMaxLength(512);
 
-            entity.HasIndex(e => e.Name).IsUnique();
+            // Uniqueness is on the folded name, not on Name COLLATE NOCASE: NOCASE folds ASCII
+            // only, so it let "ZOË" and "zoë" both exist as separate singers.
+            entity.HasIndex(e => e.NameFolded).IsUnique();
             entity.HasIndex(e => e.CreatedDate);
         });
 
