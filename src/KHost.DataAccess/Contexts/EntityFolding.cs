@@ -1,7 +1,7 @@
 using KHost.Abstractions.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
-using KHost.Domain;
+using KHost.Domain.Orthography;
 using Unidecode.NET;
 
 namespace KHost.DataAccess.Contexts;
