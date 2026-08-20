@@ -101,13 +101,14 @@ public class UsersRepositoryTests : IDisposable
     }
 
     [Fact]
-    public async Task Search_DoesNotFoldAccents()
+    public async Task Search_FoldsAccents()
     {
         await _database.SeedAsync(User("Ándre"));
 
-        // SQLite's lower() only folds ASCII, so the uppercase accent never matches. A host typing
-        // the name as it appears finds nothing.
-        Assert.Empty((await _repository.SearchAsync("ándre")).Items);
+        // Matching happens in .NET, so an uppercase accent folds the way the host expects rather
+        // than the way SQLite's ASCII-only lower() would leave it.
+        Assert.Single((await _repository.SearchAsync("ándre")).Items);
+        Assert.Single((await _repository.SearchAsync("ÁNDRE")).Items);
         Assert.Single((await _repository.SearchAsync("ndre")).Items);
     }
 
