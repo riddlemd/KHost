@@ -229,9 +229,6 @@ internal class DefaultContext : DbContext
             entity.Property(e => e.UserId)
                 .IsRequired();
 
-            entity.Property(e => e.Amount)
-                .HasPrecision(18, 2);
-
             entity.Property(e => e.NotesFolded)
                 .IsRequired()
                 .HasMaxLength(1000);

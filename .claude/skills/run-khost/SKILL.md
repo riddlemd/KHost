@@ -30,6 +30,19 @@ Only a hard kill (`kill -9`) skips the clear. Deleting `bin/` destroys everythin
 
 ```bash
 # Windowed (the real app: native Photino window, 1440x900 at screen (0,34))
+#
+# Park it on the LEFT half of the screen straight after launch. At its default size it covers
+# the terminal, and the operator cannot read replies while the app is up:
+#
+#   osascript -e 'tell application "System Events" to tell process "KHost.UserInterface" \
+#     to set position of window 1 to {0, 34}'
+#   osascript -e 'tell application "System Events" to tell process "KHost.UserInterface" \
+#     to set size of window 1 to {720, 866}'
+#
+# Position and size must be set in separate statements - setting both at once fails -10003.
+#
+# Screenshot that region with: screencapture -R0,34,720,866 -o -x out.png
+# Recompute click coordinates against the resized window - the layout reflows.
 nohup dotnet run --project src/KHost.UserInterface > /tmp/khost.log 2>&1 &
 
 # Headless (development: no window, console served to a browser)

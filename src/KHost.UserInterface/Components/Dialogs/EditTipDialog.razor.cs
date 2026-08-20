@@ -61,7 +61,7 @@ public partial class EditTipDialog : IAsyncDisposable
                     Id = Tip.Id,
                     UserId = Tip.UserId,
                     VenueId = Tip.VenueId,
-                    Amount = Tip.Amount,
+                    AmountInCents = Tip.AmountInCents,
                     PaymentMethod = Tip.PaymentMethod,
                     Notes = Tip.Notes
                 };
@@ -81,7 +81,7 @@ public partial class EditTipDialog : IAsyncDisposable
             _currencyModule = await JS.InvokeAsync<IJSObjectReference>("import", "/js/currency-input.js");
             _currencyHandle = await _currencyModule.InvokeAsync<IJSObjectReference>("init", _amountRef);
         }
-        await _currencyModule!.InvokeVoidAsync("setValue", _amountRef, (long)(_model.Amount * 100));
+        await _currencyModule!.InvokeVoidAsync("setValue", _amountRef, _model.AmountInCents);
     }
 
     private async Task SubmitAsync()
@@ -95,7 +95,7 @@ public partial class EditTipDialog : IAsyncDisposable
         var tip = Tip ?? new Tip { Id = _model.Id, UserId = _model.UserId };
         tip.UserId = _model.UserId;
         tip.VenueId = _model.VenueId;
-        tip.Amount = _model.Amount;
+        tip.AmountInCents = _model.AmountInCents;
         tip.PaymentMethod = _model.PaymentMethod;
         tip.Notes = _model.Notes;
 
@@ -107,8 +107,8 @@ public partial class EditTipDialog : IAsyncDisposable
     private Task OnAmountChangedAsync(ChangeEventArgs e)
     {
         var digits = System.Text.RegularExpressions.Regex.Replace(e.Value?.ToString() ?? "", @"[^\d]", "");
-        _model.Amount = long.TryParse(digits, out var cents) ? cents / 100m : 0m;
-        _editContext.NotifyFieldChanged(FieldIdentifier.Create(() => _model.Amount));
+        _model.AmountInCents = int.TryParse(digits, out var cents) ? cents : 0;
+        _editContext.NotifyFieldChanged(FieldIdentifier.Create(() => _model.AmountInCents));
         return Task.CompletedTask;
     }
 
