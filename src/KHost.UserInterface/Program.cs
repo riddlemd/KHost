@@ -2,7 +2,9 @@ using FFMpegCore;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.Extensions.Options;
+using KHost.Abstractions.Repositories;
 using KHost.Domain.Services;
+using KHost.Domain.Services.PasswordHashers;
 using KHost.Abstractions.Interactions;
 using KHost.Abstractions.Interactions.Requests;
 using KHost.Abstractions.Models;
@@ -19,7 +21,11 @@ using KHost.UserInterface.Interactions;
 using KHost.UserInterface.Middleware;
 using KHost.UserInterface.Interactions.Handlers;
 using KHost.UserInterface.Services;
+using KHost.UserInterface.Auth;
 using KHost.UserInterface.Http;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Mvc;
 using Photino.NET;
 using Serilog;
 using Serilog.Events;
@@ -32,7 +38,12 @@ internal static class Program
     /// <summary>Skips the native shell and runs as a plain web host — browser-based development.</summary>
     private const string HeadlessFlag = "--headless";
 
+    /// <summary>Prints a freshly generated password for the named user, then exits.</summary>
+    private const string ResetPasswordFlag = "--reset-password";
+
     private const string InstanceLockFileName = ".instance.lock";
+
+    internal const string LastLoginCacheKey = "last-login";
 
     private const int AlreadyRunningExitCode = 1;
 
@@ -42,13 +53,18 @@ internal static class Program
     private static int Main(string[] args)
     {
         var headless = args.Contains(HeadlessFlag);
+        var resetIndex = Array.IndexOf(args, ResetPasswordFlag);
 
         using var instanceLock = AcquireInstanceLock();
         if (instanceLock is null)
         {
-            ReportAlreadyRunning(headless);
+            // A reset run is a terminal operation — a native dialog would block a script forever.
+            ReportAlreadyRunning(headless || resetIndex >= 0);
             return AlreadyRunningExitCode;
         }
+
+        if (resetIndex >= 0)
+            return ResetPassword(resetIndex + 1 < args.Length ? args[resetIndex + 1] : null);
 
         var builder = WebApplication.CreateBuilder(new WebApplicationOptions
         {
@@ -59,6 +75,13 @@ internal static class Program
             // anywhere — leaving WebRootPath null and ThemeService dead on startup.
             ContentRootPath = AppContext.BaseDirectory,
         });
+
+        // The App Settings page writes this overlay; registered last, it wins over the
+        // deployment defaults, and reload-on-change lets IOptionsMonitor bindings apply live.
+        builder.Configuration.AddJsonFile(
+            Path.Combine(AppContext.BaseDirectory, "cache", AppSettingsService.OverlayFileName),
+            optional: true,
+            reloadOnChange: true);
 
         var logDirectory = Path.Combine(AppContext.BaseDirectory, "logs");
         Directory.CreateDirectory(logDirectory);
@@ -98,6 +121,31 @@ internal static class Program
         builder.Services.AddRazorComponents()
             .AddInteractiveServerComponents();
 
+        builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
+            .AddCookie(options =>
+            {
+                options.Cookie.Name = "khost.auth";
+                options.LoginPath = "/login";
+                options.ExpireTimeSpan = TimeSpan.FromHours(12);
+                options.SlidingExpiration = true;
+            });
+
+        // One policy per permission, admins passing all of them, so a page can gate itself with
+        // [Authorize(Policy = nameof(KHostPermission.X))] and no gate needs its own logic.
+        var authorization = builder.Services.AddAuthorizationBuilder();
+        foreach (var permission in Enum.GetValues<KHostPermission>())
+        {
+            authorization.AddPolicy(permission.ToString(), policy =>
+                policy.RequireAssertion(context =>
+                    context.User.IsInRole(KHostClaimsFactory.AdminRole)
+                    || context.User.HasClaim(KHostClaimsFactory.PermissionClaim, permission.ToString())));
+        }
+
+        builder.Services.AddCascadingAuthenticationState();
+
+        builder.Services.AddScoped<IPermissionService, PermissionService>();
+        builder.Services.AddSingleton<IAppSettingsService>(sp => new AppSettingsService(
+            sp.GetRequiredService<IConfiguration>(), sp.GetRequiredService<IUsersService>()));
         builder.Services.AddSingleton<IThemeService, ThemeService>();
         builder.Services.AddSingleton<IDialogService, DialogService>();
         builder.Services.AddSingleton<IStartupRedirectProvider, SetupRedirectProvider>();
@@ -172,6 +220,43 @@ internal static class Program
 
         app.MapDefaultEndpoints();
         app.MapIPCServer();
+        // Native form posts, not circuit calls: a cookie can only be issued on an HTTP
+        // response. Antiforgery is off here deliberately — the console answers loopback only,
+        // and forcing a login/logout is the entire extent of what a forged post could do.
+        app.MapPost("/auth/login", async (
+            HttpContext http,
+            [FromForm] string username,
+            [FromForm] string password,
+            IAuthService authService,
+            IUsersService usersService,
+            ICacheService cacheService) =>
+        {
+            var result = await authService.LoginAsync(username, password);
+
+            if (result is not { Success: true, User: { } user })
+                return Results.Redirect("/login?failed=1");
+
+            // Re-read for the groups: the login lookup returns the bare row, and the
+            // principal's role and permission claims come from group membership.
+            var withGroups = await usersService.ReadAsync(user.Id) ?? user;
+
+            await http.SignInAsync(
+                CookieAuthenticationDefaults.AuthenticationScheme,
+                KHostClaimsFactory.Create(withGroups, CookieAuthenticationDefaults.AuthenticationScheme));
+
+            // The canonical name, not the typed casing: the lock screen shows who was at the
+            // controls, the way an OS lock screen would.
+            await cacheService.SaveAsync(LastLoginCacheKey, withGroups.Name);
+
+            return Results.Redirect("/");
+        }).AllowAnonymous().DisableAntiforgery();
+
+        app.MapPost("/auth/logout", async (HttpContext http) =>
+        {
+            await http.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+            return Results.Redirect("/login");
+        }).DisableAntiforgery();
+
         app.MapMediaStream();
 
         // Point launched screen processes at this host's live listening address, so they
@@ -250,6 +335,21 @@ internal static class Program
             app.UseExceptionHandler("/Error", createScopeForErrors: true);
         }
         app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
+        app.UseAuthentication();
+
+        // Login requirement off: every session is the console admin. The gates stay wired and
+        // all pass — single-operator mode rather than a second code path through the UI. Read
+        // per request, not at startup: the overlay reloads live, so the setup wizard's choice
+        // and the App Settings toggle apply on the next page load instead of the next launch.
+        app.Use((context, next) =>
+        {
+            if (!(app.Configuration.GetValue<bool?>("Auth:RequireLogin") ?? true))
+                context.User = KHostClaimsFactory.CreateConsolePrincipal();
+
+            return next(context);
+        });
+
+        app.UseAuthorization();
         app.UseAntiforgery();
 
         app.UseStartupRedirect();
@@ -266,6 +366,38 @@ internal static class Program
 
         RunWithNativeShell(app);
         return 0;
+    }
+
+    private static int ResetPassword(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            Console.WriteLine($"Usage: KHost.UserInterface {ResetPasswordFlag} <username>");
+            return 1;
+        }
+
+        var services = new ServiceCollection()
+            .AddLogging()
+            .AddDataAccess()
+            .AddSingleton<IPasswordHasher, Argon2PasswordHasher>()
+            .BuildServiceProvider();
+
+        var exitCode = PasswordReset.RunAsync(
+            name,
+            services.GetRequiredService<IUsersRepository>(),
+            services.GetRequiredService<IPasswordHasher>(),
+            Console.Out).GetAwaiter().GetResult();
+
+        if (exitCode == 0)
+        {
+            // The reset must not be silent: whoever reads the logs sees recovery was used.
+            var line = $"{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff zzz} [WRN] Password reset via {ResetPasswordFlag} for '{name}'";
+            File.AppendAllText(
+                Path.Combine(AppContext.BaseDirectory, "logs", $"{DateTime.Now:yyyyMMdd}.log"),
+                line + Environment.NewLine);
+        }
+
+        return exitCode;
     }
 
     /// <summary>

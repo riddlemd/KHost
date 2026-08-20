@@ -1,4 +1,5 @@
 @page "/settings/user-groups-manager"
+@attribute [Authorize(Policy = nameof(KHostPermission.EditGroup))]
 @using KHost.UserInterface.Models
 @using KHost.UserInterface.Services
 
@@ -77,9 +78,11 @@
                                         </button>
                                         @if (!KHostUserGroup.IsBuiltIn(group.Id))
                                         {
+                                            <AuthorizeView Policy="@nameof(KHostPermission.DeleteGroup)" Context="_auth">
                                             <button class="kh-user-groups-manager__delete-btn kh-button--icon-minimal" title="Delete Group" @onclick="@(async () => await StartDeleteAsync(group))">
                                                 <Icon Name="trash" />
                                             </button>
+                                            </AuthorizeView>
                                         }
                                     </td>
                                 </tr>

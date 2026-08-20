@@ -26,7 +26,16 @@ internal class UsersRepository : BaseRepository<KHostUser>, IUsersRepository
     public async Task<KHostUser?> FindByNameAsync(string name)
     {
         using var context = await ContextFactory.CreateDbContextAsync();
-        return await context.Set<KHostUser>().FirstOrDefaultAsync(u => u.Name == name);
+
+        // In .NET, not SQL: the bundled SQLite folds ASCII only, so "SÖNG" and "söng" would
+        // pass a NOCASE comparison as different names. The table is a roster, not a library.
+        await foreach (var user in context.Set<KHostUser>().AsAsyncEnumerable())
+        {
+            if (string.Equals(user.Name, name, StringComparison.OrdinalIgnoreCase))
+                return user;
+        }
+
+        return null;
     }
 
     public async Task<bool> HasAdminUserAsync()
@@ -34,6 +43,13 @@ internal class UsersRepository : BaseRepository<KHostUser>, IUsersRepository
         using var context = await ContextFactory.CreateDbContextAsync();
         return await context.Set<KHostUser>()
             .AnyAsync(u => u.Groups.Any(g => g.IsAdmin));
+    }
+
+    public async Task<bool> HasAdminWithPasswordAsync()
+    {
+        using var context = await ContextFactory.CreateDbContextAsync();
+        return await context.Set<KHostUser>()
+            .AnyAsync(u => u.PasswordHash != null && u.PasswordHash != "" && u.Groups.Any(g => g.IsAdmin));
     }
 
     public override async Task<KHostUser?> ReadAsync(Guid id)

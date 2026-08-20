@@ -13,12 +13,22 @@ public class UsersRepositoryTests : IDisposable
         => _repository = new UsersRepository(_database, NullLogger<BaseRepository<KHostUser>>.Instance);
 
     [Fact]
-    public async Task FindByName_MatchesExactly()
+    public async Task FindByName_IgnoresCase()
     {
         await _database.SeedAsync(User("Steve"), User("Vaun"));
 
-        Assert.Equal("Steve", (await _repository.FindByNameAsync("Steve"))?.Name);
-        Assert.Null(await _repository.FindByNameAsync("steve"));
+        Assert.Equal("Steve", (await _repository.FindByNameAsync("steve"))?.Name);
+        Assert.Equal("Steve", (await _repository.FindByNameAsync("STEVE"))?.Name);
+        Assert.Null(await _repository.FindByNameAsync("Stevie"));
+    }
+
+    [Fact]
+    public async Task CreateAsync_RejectsANameDifferingOnlyInCase()
+    {
+        await _database.SeedAsync(User("Admin"));
+
+        await Assert.ThrowsAsync<Microsoft.EntityFrameworkCore.DbUpdateException>(
+            () => _repository.CreateAsync(User("admin")));
     }
 
     [Fact]
