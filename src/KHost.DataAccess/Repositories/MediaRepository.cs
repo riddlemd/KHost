@@ -13,6 +13,8 @@ namespace KHost.DataAccess.Repositories;
 
 internal class MediaRepository : BaseRepository<Media>, IMediaRepository
 {
+    private const int TrigramLength = 3;
+
     private static readonly char[] _ftsMetaChars = ['"', '*', ':', '^', '(', ')', '+', '-'];
 
     // Linux filesystems are case-sensitive; Windows and default macOS volumes are not. Folding case
@@ -120,6 +122,9 @@ internal class MediaRepository : BaseRepository<Media>, IMediaRepository
             throw;
         }
     }
+
+    protected override Func<Media, IEnumerable<string?>>? SearchableTextFields =>
+        media => [media.Title, media.Artist, media.Notes];
 
     protected override IReadOnlyDictionary<string, Expression<Func<Media, object>>> SortColumns => _sortColumns;
     protected override Expression<Func<Media, object>> DefaultSortExpression => m => m.Title.ToLower();
@@ -254,7 +259,9 @@ internal class MediaRepository : BaseRepository<Media>, IMediaRepository
         var tokens = sanitized.ToString()
             .Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
-        if (tokens.Length == 0)
+        // The trigram index cannot represent a term shorter than three characters, so a query with
+        // one would match nothing at all rather than too much. Hand those to the substring search.
+        if (tokens.Length == 0 || Array.Exists(tokens, token => token.Length < TrigramLength))
             return null;
 
         return string.Join(' ', tokens.Select(t => $"\"{t}\""));

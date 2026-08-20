@@ -24,12 +24,11 @@ internal class VenuesRepository : BaseRepository<Venue>, IVenuesRepository
     protected override IReadOnlyDictionary<string, Expression<Func<Venue, object>>> SortColumns => _sortColumns;
     protected override Expression<Func<Venue, object>> DefaultSortExpression => v => v.Name.ToLower();
 
+    protected override Func<Venue, IEnumerable<string?>>? SearchableTextFields => venue => [venue.Name];
+
     protected override IQueryable<Venue> ApplySearchFilters<TOptions>(IQueryable<Venue> queryable, string query, TOptions? options = null)
         where TOptions : class
     {
-        if (string.IsNullOrWhiteSpace(query))
-            return queryable;
-
-        return queryable.Where(v => v.Name.ToLower().Contains(query.ToLower()));
+        return queryable;
     }
 }
