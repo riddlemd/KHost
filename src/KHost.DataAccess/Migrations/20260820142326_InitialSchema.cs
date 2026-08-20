@@ -66,7 +66,7 @@ namespace KHost.DataAccess.Migrations
                 columns: table => new
                 {
                     Id = table.Column<Guid>(type: "TEXT", nullable: false),
-                    Name = table.Column<string>(type: "TEXT", maxLength: 255, nullable: false),
+                    Name = table.Column<string>(type: "TEXT", maxLength: 255, nullable: false, collation: "NOCASE"),
                     Notes = table.Column<string>(type: "TEXT", maxLength: 1000, nullable: false),
                     CreatedDate = table.Column<DateTime>(type: "TEXT", nullable: false),
                     PasswordHash = table.Column<string>(type: "TEXT", maxLength: 512, nullable: true)
@@ -207,6 +207,11 @@ namespace KHost.DataAccess.Migrations
                 column: "UserId");
 
             migrationBuilder.CreateIndex(
+                name: "IX_Tips_VenueId",
+                table: "Tips",
+                column: "VenueId");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_UserGroupMemberships_UserId",
                 table: "UserGroupMemberships",
                 column: "UserId");
@@ -231,7 +236,8 @@ namespace KHost.DataAccess.Migrations
             migrationBuilder.CreateIndex(
                 name: "IX_Venues_Name",
                 table: "Venues",
-                column: "Name");
+                column: "Name",
+                unique: true);
         }
 
         /// <inheritdoc />
