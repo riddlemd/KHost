@@ -48,9 +48,14 @@ public partial class VenueSelector : IDisposable
         if (VenuesService is null) return;
 
         var result = await VenuesService.ReadAllAsync(pageSize: 1000);
-
-        _venues = result.Items;
         _selected = await VenuesService.ReadSelectedVenueAsync();
+
+        // Disabled venues are managed, not sung at: they stay in the venues manager but not in
+        // this switcher. The selected one always shows, so disabling the venue in use never
+        // makes the header lie about where tonight's queue is running.
+        _venues = result.Items
+            .Where(v => v.Enabled || v.Id == _selected?.Id)
+            .ToList();
     }
 
     private async void OnStateChanged(object? sender, EventArgs e)
