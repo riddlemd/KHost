@@ -34,7 +34,10 @@
                     }
                 </Text>
                 <Buttons>
-                    <button>Local</button>
+                    @foreach (var provider in MediaSearchService?.Providers ?? [])
+                    {
+                        <button @onclick="() => RunProviderSearchAsync(provider.SourceName)">@provider.DisplayName</button>
+                    }
                 </Buttons>
         </SplitButton>
     </div>

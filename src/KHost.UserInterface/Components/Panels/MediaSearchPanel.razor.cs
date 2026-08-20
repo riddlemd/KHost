@@ -34,7 +34,11 @@ public partial class MediaSearchPanel : IDisposable
         await UpdateQueuedMediaAsync();
     }
 
-    private async Task RunSearchAsync()
+    private Task RunSearchAsync() => RunSearchCoreAsync(source: null);
+
+    private Task RunProviderSearchAsync(string source) => RunSearchCoreAsync(source);
+
+    private async Task RunSearchCoreAsync(string? source)
     {
         if (MediaSearchService is null)
             return;
@@ -45,7 +49,9 @@ public partial class MediaSearchPanel : IDisposable
 
         StateHasChanged();
 
-        _results = await MediaSearchService.SearchAsync(_query);
+        _results = source is null
+            ? await MediaSearchService.SearchAsync(_query)
+            : await MediaSearchService.SearchAsync(_query, source);
 
         _searching = false;
 

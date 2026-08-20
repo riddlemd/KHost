@@ -25,6 +25,48 @@ public class MediaSearchServiceTests
     }
 
     [Fact]
+    public void Providers_ExposesEveryRegisteredProvider()
+    {
+        Assert.Single(_service.Providers);
+        Assert.Equal("FileSystem", _service.Providers[0].SourceName);
+    }
+
+    [Fact]
+    public async Task SearchAsync_BySource_AsksOnlyTheMatchingProvider()
+    {
+        var other = Substitute.For<IMediaProvider>();
+        other.SourceName.Returns("YouTube");
+        var analytics = Substitute.For<IAnalyticsService>();
+        analytics.StartActivity(Arg.Any<string>()).Returns(Substitute.For<IAnalyticsActivity>());
+        var service = new MediaSearchService(_logger, [_provider, other], analytics);
+
+        _provider.SearchAsync("song", 0, 0).Returns([Entity("FileSystem", "song")]);
+
+        var results = await service.SearchAsync("song", "FileSystem");
+
+        Assert.Single(results);
+        Assert.Equal("FileSystem", results[0].Source);
+        await other.DidNotReceive().SearchAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<int>());
+    }
+
+    [Fact]
+    public async Task SearchAsync_BySource_FindsNothing_ForAnUnknownSource()
+    {
+        var results = await _service.SearchAsync("song", "NoSuchSource");
+
+        Assert.Empty(results);
+        await _provider.DidNotReceive().SearchAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<int>());
+    }
+
+    private static MediaSearchEntity Entity(string source, string name) => new()
+    {
+        Source = source,
+        SourceDisplayName = source,
+        ForeignKey = Guid.NewGuid().ToString(),
+        DisplayName = name,
+    };
+
+    [Fact]
     public void GetMediaProviderDisplayName_ReturnsDisplayName_WhenProviderFound()
     {
         var result = _service.GetMediaProviderDisplayName("FileSystem");

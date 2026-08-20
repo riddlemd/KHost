@@ -8,26 +8,41 @@ namespace KHost.Domain.Services;
 
 public class MediaSearchService : BaseService, IMediaSearchService
 {
-    private readonly IEnumerable<IMediaProvider> _providers;
+    private readonly List<IMediaProvider> _providers;
     private readonly IAnalyticsService _analytics;
 
     public MediaSearchService(ILogger<MediaSearchService> logger, IEnumerable<IMediaProvider> providers, IAnalyticsService analytics)
         : base(logger)
     {
-        _providers = providers;
+        _providers = providers.ToList();
         _analytics = analytics;
     }
 
-    public async Task<List<MediaSearchEntity>> SearchAsync(string query, int pageNumber = 0, int pageSize = 0)
+    public IReadOnlyList<IMediaProvider> Providers => _providers;
+
+    public Task<List<MediaSearchEntity>> SearchAsync(string query, int pageNumber = 0, int pageSize = 0)
+        => SearchProvidersAsync(_providers, query, source: null, pageNumber, pageSize);
+
+    public Task<List<MediaSearchEntity>> SearchAsync(string query, string source, int pageNumber = 0, int pageSize = 0)
+    {
+        var matching = _providers.Where(p => p.SourceName == source).ToList();
+
+        if (matching.Count == 0)
+            Logger.LogWarning("No provider registered for source '{Source}'", source);
+
+        return SearchProvidersAsync(matching, query, source, pageNumber, pageSize);
+    }
+
+    private async Task<List<MediaSearchEntity>> SearchProvidersAsync(
+        List<IMediaProvider> providers, string query, string? source, int pageNumber, int pageSize)
     {
         using var activity = _analytics.StartActivity(AnalyticActivities.Search);
         activity.SetTag("query", query);
+        activity.SetTag("source", source ?? "all");
 
-        var providerList = _providers.ToList();
+        Logger.LogDebug("Searching {ProviderCount} providers for '{Query}'", providers.Count, query);
 
-        Logger.LogDebug("Searching {ProviderCount} providers for '{Query}'", providerList.Count, query);
-
-        var tasks = providerList.Select(async p =>
+        var tasks = providers.Select(async p =>
         {
             try
             {
