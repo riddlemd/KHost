@@ -1,4 +1,5 @@
 using System.Linq.Expressions;
+using KHost.Abstractions;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Repositories;
 using KHost.DataAccess.Contexts;
@@ -25,17 +26,11 @@ internal class UsersRepository : BaseRepository<KHostUser>, IUsersRepository
 
     public async Task<KHostUser?> FindByNameAsync(string name)
     {
+        var folded = TextFolding.Fold(name);
+
         using var context = await ContextFactory.CreateDbContextAsync();
 
-        // In .NET, not SQL: the bundled SQLite folds ASCII only, so "SÖNG" and "söng" would
-        // pass a NOCASE comparison as different names. The table is a roster, not a library.
-        await foreach (var user in context.Set<KHostUser>().AsAsyncEnumerable())
-        {
-            if (string.Equals(user.Name, name, StringComparison.OrdinalIgnoreCase))
-                return user;
-        }
-
-        return null;
+        return await context.Set<KHostUser>().FirstOrDefaultAsync(u => u.NameFolded == folded);
     }
 
     public async Task<bool> HasAdminUserAsync()
