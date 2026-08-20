@@ -19,7 +19,11 @@ using KHost.UserInterface.Interactions;
 using KHost.UserInterface.Middleware;
 using KHost.UserInterface.Interactions.Handlers;
 using KHost.UserInterface.Services;
+using KHost.UserInterface.Auth;
 using KHost.UserInterface.Http;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Mvc;
 using Photino.NET;
 using Serilog;
 using Serilog.Events;
@@ -98,6 +102,29 @@ internal static class Program
         builder.Services.AddRazorComponents()
             .AddInteractiveServerComponents();
 
+        builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
+            .AddCookie(options =>
+            {
+                options.Cookie.Name = "khost.auth";
+                options.LoginPath = "/login";
+                options.ExpireTimeSpan = TimeSpan.FromHours(12);
+                options.SlidingExpiration = true;
+            });
+
+        // One policy per permission, admins passing all of them, so a page can gate itself with
+        // [Authorize(Policy = nameof(KHostPermission.X))] and no gate needs its own logic.
+        var authorization = builder.Services.AddAuthorizationBuilder();
+        foreach (var permission in Enum.GetValues<KHostPermission>())
+        {
+            authorization.AddPolicy(permission.ToString(), policy =>
+                policy.RequireAssertion(context =>
+                    context.User.IsInRole(KHostClaimsFactory.AdminRole)
+                    || context.User.HasClaim(KHostClaimsFactory.PermissionClaim, permission.ToString())));
+        }
+
+        builder.Services.AddCascadingAuthenticationState();
+
+        builder.Services.AddScoped<IPermissionService, PermissionService>();
         builder.Services.AddSingleton<IThemeService, ThemeService>();
         builder.Services.AddSingleton<IDialogService, DialogService>();
         builder.Services.AddSingleton<IStartupRedirectProvider, SetupRedirectProvider>();
@@ -172,6 +199,38 @@ internal static class Program
 
         app.MapDefaultEndpoints();
         app.MapIPCServer();
+        // Native form posts, not circuit calls: a cookie can only be issued on an HTTP
+        // response. Antiforgery is off here deliberately — the console answers loopback only,
+        // and forcing a login/logout is the entire extent of what a forged post could do.
+        app.MapPost("/auth/login", async (
+            HttpContext http,
+            [FromForm] string username,
+            [FromForm] string password,
+            IAuthService authService,
+            IUsersService usersService) =>
+        {
+            var result = await authService.LoginAsync(username, password);
+
+            if (result is not { Success: true, User: { } user })
+                return Results.Redirect("/login?failed=1");
+
+            // Re-read for the groups: the login lookup returns the bare row, and the
+            // principal's role and permission claims come from group membership.
+            var withGroups = await usersService.ReadAsync(user.Id) ?? user;
+
+            await http.SignInAsync(
+                CookieAuthenticationDefaults.AuthenticationScheme,
+                KHostClaimsFactory.Create(withGroups, CookieAuthenticationDefaults.AuthenticationScheme));
+
+            return Results.Redirect("/");
+        }).AllowAnonymous().DisableAntiforgery();
+
+        app.MapPost("/auth/logout", async (HttpContext http) =>
+        {
+            await http.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+            return Results.Redirect("/login");
+        }).DisableAntiforgery();
+
         app.MapMediaStream();
 
         // Point launched screen processes at this host's live listening address, so they
@@ -250,6 +309,8 @@ internal static class Program
             app.UseExceptionHandler("/Error", createScopeForErrors: true);
         }
         app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
+        app.UseAuthentication();
+        app.UseAuthorization();
         app.UseAntiforgery();
 
         app.UseStartupRedirect();

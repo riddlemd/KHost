@@ -1,0 +1,36 @@
+.kh-login {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+
+    &__card {
+        width: 360px;
+        padding: 32px;
+        background: var(--kh-bg-card);
+        border: 1px solid var(--kh-border);
+        border-radius: var(--kh-radius-lg);
+    }
+
+    &__title {
+        margin: 0;
+        text-align: center;
+        color: var(--kh-primary-bright);
+    }
+
+    &__subtitle {
+        margin: 4px 0 24px;
+        text-align: center;
+        color: var(--kh-text-secondary);
+    }
+
+    &__form {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+    }
+
+    &__submit {
+        margin-top: 8px;
+    }
+}

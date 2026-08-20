@@ -12,6 +12,8 @@
         }
         <span class="kh-card__shortcut">ctrl+1</span>
     </div>
+    @if (_canAddToQueue)
+    {
     <div class="kh-card__body">
         <form name="add-singer-form" class="kh-panel__form-row" @onsubmit="AddUserAsync" @onsubmit:preventDefault>
             <input type="text" class="kh-form-control kh-panel__form-grow" placeholder="Type New Singer's Name..."
@@ -22,6 +24,7 @@
             </button>
         </form>
     </div>
+    }
     <div class="kh-singer-queue-panel__singer-queue kh-card__body">
         @if (!SingerQueueService?.Users.Any() == true)
         {
@@ -45,11 +48,14 @@
                  @key="user.Id"
                  data-singer-id="@user.Id"
                  @onclick="() => SingerQueueService?.SelectUserAsync(user.Id) ?? Task.CompletedTask">
-                <button class="kh-singer-queue-panel__drag-handle kh-button--icon-minimal"
-                        title="Drag to reorder"
-                        @onclick:stopPropagation>
-                    <Icon Name="grip-vertical" />
-                </button>
+                @if (_canReorderQueue)
+                {
+                    <button class="kh-singer-queue-panel__drag-handle kh-button--icon-minimal"
+                            title="Drag to reorder"
+                            @onclick:stopPropagation>
+                        <Icon Name="grip-vertical" />
+                    </button>
+                }
                 <div class="kh-singer-queue-panel__singer-queue__singer__icon">
                     @if (isFirst && PlaybackService?.CurrentPerformance?.SingerId == user.Id && PlaybackService.State == PlaybackState.Playing)
                     {
@@ -76,6 +82,8 @@
                 </div>
 
                 <div class="kh-singer-queue-panel__singer-queue__singer__actions">
+                    @if (_canReorderQueue)
+                    {
                     <button class="kh-singer-queue-panel__singer-queue__singer__move-up-btn kh-button--icon-minimal" title="Move up (Shift+Up)"
                             disabled="@disableMoveUp"
                             @onclick="async () => await (SingerQueueService?.MoveUserUpAsync(user.Id) ?? Task.CompletedTask)"
@@ -88,12 +96,16 @@
                             @onclick:stopPropagation>
                         <Icon Name="chevron-down" />
                     </button>
+                    }
+                    @if (_canRemoveFromQueue)
+                    {
                     <button class="kh-singer-queue-panel__singer-queue__singer__remove-btn kh-button--icon-danger" title="Remove singer"
                             disabled="@disableRemove"
                             @onclick="@(async () => await ConfirmRemoveUserAsync(user))"
                             @onclick:stopPropagation>
                         <Icon Name="x-lg" />
                     </button>
+                    }
                 </div>
             </div>
         }

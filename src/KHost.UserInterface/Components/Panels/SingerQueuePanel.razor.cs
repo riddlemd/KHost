@@ -15,6 +15,7 @@ public partial class SingerQueuePanel : IDisposable
     [Inject] private IPlaybackService? PlaybackService { get; set; }
     [Inject] private IUsersService? UsersService { get; set; }
     [Inject] private IDialogService? DialogService { get; set; }
+    [Inject] private IPermissionService? Permissions { get; set; }
     [Inject] private IJSRuntime? JS { get; set; }
     [Inject] private IVenuesService? VenuesService { get; set; }
 
@@ -24,13 +25,23 @@ public partial class SingerQueuePanel : IDisposable
     private Dictionary<Guid, int> _performanceCounts = [];
     private DotNetObjectReference<SingerQueuePanel>? _dotNetRef;
     private bool _showEwt = true;
+    private bool _canAddToQueue;
+    private bool _canRemoveFromQueue;
+    private bool _canReorderQueue;
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
         SingerQueueService?.StateChanged  += OnStateChanged;
         PerformanceService?.StateChanged  += OnStateChanged;
         PlaybackService?.StateChanged += OnStateChanged;
         VenuesService?.StateChanged += OnStateChanged;
+
+        if (Permissions is not null)
+        {
+            _canAddToQueue = await Permissions.HasAsync(KHostPermission.AddToQueue);
+            _canRemoveFromQueue = await Permissions.HasAsync(KHostPermission.RemoveFromQueue);
+            _canReorderQueue = await Permissions.HasAsync(KHostPermission.ReorderQueue);
+        }
     }
 
     protected override async Task OnParametersSetAsync()
@@ -43,7 +54,8 @@ public partial class SingerQueuePanel : IDisposable
     {
         await RefreshPerformanceCountsAsync();
 
-        if (firstRender && JS is not null)
+        // Sortable would happily reorder for someone the arrows are hidden from.
+        if (firstRender && JS is not null && _canReorderQueue)
         {
             _dotNetRef = DotNetObjectReference.Create(this);
             // The name reaches JS as a string; nameof turns a missed rename into a compile
