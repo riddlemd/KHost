@@ -123,9 +123,6 @@ internal class MediaRepository : BaseRepository<Media>, IMediaRepository
         }
     }
 
-    protected override Func<Media, IEnumerable<string?>>? SearchableTextFields =>
-        media => [media.Title, media.Artist, media.Notes];
-
     protected override IReadOnlyDictionary<string, Expression<Func<Media, object>>> SortColumns => _sortColumns;
     protected override Expression<Func<Media, object>> DefaultSortExpression => m => m.Title.ToLower();
 
@@ -136,7 +133,12 @@ internal class MediaRepository : BaseRepository<Media>, IMediaRepository
         if (statusesToReturn?.Count > 0)
             queryable = queryable.Where(m => statusesToReturn.Contains(m.Status));
 
-        return queryable;
+        // Only reached when the query cannot go to FTS - a term too short for the trigram index,
+        // or one left empty once the metacharacters were stripped.
+        if (string.IsNullOrWhiteSpace(query))
+            return queryable;
+
+        return queryable.Where(m => EF.Functions.Like(m.SearchFolded, FoldedContainsPattern(query), "\\"));
     }
 
     public override async Task<PaginatedResult<Media>> SearchAsync<TOptions>(string query, int pageNumber = 0, int pageSize = 0, TOptions? options = null)

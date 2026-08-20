@@ -44,12 +44,13 @@ internal class TipsRepository : BaseRepository<Tip>, ITipsRepository
     protected override Expression<Func<Tip, object>> DefaultSortExpression => t => t.CreatedDate;
     protected override bool DefaultSortDescending => true;
 
-    protected override Func<Tip, IEnumerable<string?>>? SearchableTextFields => tip => [tip.Notes];
-
     protected override IQueryable<Tip> ApplySearchFilters<TOptions>(
         IQueryable<Tip> queryable, string query, TOptions? options = null)
         where TOptions : class
     {
-        return queryable;
+        if (string.IsNullOrWhiteSpace(query))
+            return queryable;
+
+        return queryable.Where(t => EF.Functions.Like(t.NotesFolded, FoldedContainsPattern(query), "\\"));
     }
 }

@@ -47,6 +47,10 @@ internal class DefaultContext : DbContext
             entity.Property(e => e.Notes)
                 .HasMaxLength(1000);
 
+            entity.Property(e => e.SearchFolded)
+                .IsRequired()
+                .HasMaxLength(600);
+
             entity.Property(e => e.SampledHash)
                 .HasMaxLength(64);
 
@@ -70,6 +74,10 @@ internal class DefaultContext : DbContext
             entity.HasKey(e => e.Id);
 
             entity.Property(e => e.Name)
+                .IsRequired()
+                .HasMaxLength(255);
+
+            entity.Property(e => e.NameFolded)
                 .IsRequired()
                 .HasMaxLength(255);
 
@@ -142,6 +150,10 @@ internal class DefaultContext : DbContext
                 .IsRequired()
                 .HasMaxLength(100);
 
+            entity.Property(e => e.NameFolded)
+                .IsRequired()
+                .HasMaxLength(100);
+
             entity.Property(e => e.Description)
                 .HasMaxLength(500);
 
@@ -203,6 +215,10 @@ internal class DefaultContext : DbContext
 
             entity.Property(e => e.Amount)
                 .HasPrecision(18, 2);
+
+            entity.Property(e => e.NotesFolded)
+                .IsRequired()
+                .HasMaxLength(1000);
 
             entity.Property(e => e.Notes)
                 .HasMaxLength(1000);

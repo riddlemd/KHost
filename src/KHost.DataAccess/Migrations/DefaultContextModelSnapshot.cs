@@ -76,6 +76,11 @@ namespace KHost.DataAccess.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("NameFolded")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
                     b.PrimitiveCollection<string>("Permissions")
                         .IsRequired()
                         .HasColumnType("JSON");
@@ -94,6 +99,7 @@ namespace KHost.DataAccess.Migrations
                             Description = "Full access to all management features",
                             IsAdmin = true,
                             Name = "Admin",
+                            NameFolded = "admin",
                             Permissions = "[]"
                         },
                         new
@@ -102,6 +108,7 @@ namespace KHost.DataAccess.Migrations
                             Description = "Frequent singer",
                             IsAdmin = false,
                             Name = "Regular",
+                            NameFolded = "regular",
                             Permissions = "[]"
                         });
                 });
@@ -147,6 +154,11 @@ namespace KHost.DataAccess.Migrations
 
                     b.Property<string>("SampledHash")
                         .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("SearchFolded")
+                        .IsRequired()
+                        .HasMaxLength(600)
                         .HasColumnType("TEXT");
 
                     b.Property<int>("Status")
@@ -229,6 +241,11 @@ namespace KHost.DataAccess.Migrations
                         .HasMaxLength(1000)
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("NotesFolded")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("TEXT");
+
                     b.Property<int>("PaymentMethod")
                         .HasColumnType("INTEGER");
 
@@ -264,6 +281,11 @@ namespace KHost.DataAccess.Migrations
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("NameFolded")
                         .IsRequired()
                         .HasMaxLength(255)
                         .HasColumnType("TEXT");

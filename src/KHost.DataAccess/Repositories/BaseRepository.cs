@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Linq.Expressions;
+using KHost.Abstractions;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Repositories;
 using KHost.DataAccess.Contexts;
@@ -123,45 +124,18 @@ internal abstract class BaseRepository<T> : IRepository<T> where T : RepositoryM
     }
 
     /// <summary>
-    /// The text a free-text query is matched against. A repository that returns fields here gets
-    /// its matching done in .NET instead of SQL, because the bundled SQLite folds ASCII only: a
-    /// stored "ZOË" never matches a typed "zoë" through lower() or NOCASE, and the miss is silent.
-    /// Null means the repository has no free-text search.
+    /// Builds a contains-pattern for a folded column. The query is folded the same way the column
+    /// was, and LIKE's own wildcards are escaped so a singer called "50%" searches for itself.
     /// </summary>
-    protected virtual Func<T, IEnumerable<string?>>? SearchableTextFields => null;
-
-    /// <summary>
-    /// Streams the shaped query and keeps only the rows that match, so peak memory is the size of
-    /// the result set rather than the table.
-    /// </summary>
-    private async Task<PaginatedResult<T>> SearchTextInMemoryAsync(
-        string query, int pageNumber, int pageSize, Func<IQueryable<T>, IQueryable<T>> shape)
+    protected static string FoldedContainsPattern(string query)
     {
-        var fields = SearchableTextFields!;
+        var folded = TextFolding.Fold(query)
+            .Replace("\\", "\\\\")
+            .Replace("%", "\\%")
+            .Replace("_", "\\_");
 
-        using var context = await ContextFactory.CreateDbContextAsync();
-
-        var matches = new List<T>();
-        await foreach (var entity in shape(context.Set<T>()).AsAsyncEnumerable())
-        {
-            if (fields(entity).Any(field => field is not null
-                    && field.Contains(query, StringComparison.OrdinalIgnoreCase)))
-            {
-                matches.Add(entity);
-            }
-        }
-
-        var (page, size) = PaginationComponent.Normalize(pageNumber, pageSize);
-        var items = matches.Skip((page - 1) * size).Take(size).ToList();
-
-        return PaginationComponent.BuildResult(items, matches.Count, pageNumber, pageSize);
+        return $"%{folded}%";
     }
-
-    private Task<PaginatedResult<T>> RunSearchAsync(
-        string query, int pageNumber, int pageSize, Func<IQueryable<T>, IQueryable<T>> shape)
-        => string.IsNullOrWhiteSpace(query) || SearchableTextFields is null
-            ? SearchableComponent.SearchAsync(query, pageNumber, pageSize, shape)
-            : SearchTextInMemoryAsync(query, pageNumber, pageSize, shape);
 
     public virtual async Task<PaginatedResult<T>> SearchAsync<TOptions>(string query, int pageNumber = 0, int pageSize = 0, TOptions? options = null)
         where TOptions : class
@@ -169,7 +143,7 @@ internal abstract class BaseRepository<T> : IRepository<T> where T : RepositoryM
         var sw = Stopwatch.StartNew();
         try
         {
-            var result = await RunSearchAsync(query, pageNumber, pageSize,
+            var result = await SearchableComponent.SearchAsync(query, pageNumber, pageSize,
                 q => ApplySort(ApplySearchFilters(q, query, options), sort: null));
             Logger.LogDebug("SearchAsync<{EntityType}> q={Query} elapsed={ElapsedMs}ms results={ResultCount}",
                 _entityTypeName, query, sw.ElapsedMilliseconds, result.TotalCount);
@@ -191,7 +165,7 @@ internal abstract class BaseRepository<T> : IRepository<T> where T : RepositoryM
         var sw = Stopwatch.StartNew();
         try
         {
-            var result = await RunSearchAsync(query, pageNumber, pageSize,
+            var result = await SearchableComponent.SearchAsync(query, pageNumber, pageSize,
                 q => ApplySort(ApplySearchFilters<object>(q, query, null), sort));
             Logger.LogDebug("SearchAsync<{EntityType}> q={Query} sort={Sort} elapsed={ElapsedMs}ms results={ResultCount}",
                 _entityTypeName, query, sort?.Column, sw.ElapsedMilliseconds, result.TotalCount);
