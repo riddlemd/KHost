@@ -4,6 +4,9 @@
    ═══════════════════════════════════════════════════════════════════════════ */
 
 .kh-settings-menu {
+    // The lock form is layout-invisible so its button lines up with the plain ones.
+    form { display: contents; }
+
     display: flex;
     flex-direction: column;
     gap: 8px;

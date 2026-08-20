@@ -14,6 +14,7 @@ public partial class MediaSearchPanel : IDisposable
     [Inject] private ISingerQueueService? SingerQueueService { get; set; }
     [Inject] private IPerformanceService? PerformanceService { get; set; }
     [Inject] private IDialogService? DialogService { get; set; }
+    [Inject] private IPermissionService? Permissions { get; set; }
 
     private bool _searching;
     private string _query = "";
@@ -21,10 +22,14 @@ public partial class MediaSearchPanel : IDisposable
     private string? _errorMessage;
     private IEnumerable<MediaProviderAction> _globalActions = [];
     private bool _multipleProvidersInResults;
+    private bool _canAddToQueue;
     private Dictionary<Guid, List<string>> _queuedBySinger = [];
 
     protected override async Task OnInitializedAsync()
     {
+        if (Permissions is not null)
+            _canAddToQueue = await Permissions.HasAsync(KHostPermission.AddToQueue);
+
         SingerQueueService?.StateChanged += OnStateChanged;
         // Someone else queueing a song changes this panel's badges without touching the singer
         // list, so the performance service has to be listened to as well.
