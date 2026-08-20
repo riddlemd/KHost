@@ -10,7 +10,6 @@ public class Media : RepositoryModel
 
     private string _title = string.Empty;
     private string _artist = string.Empty;
-    private string _notes = "";
 
     public required string Title
     {
@@ -26,20 +25,20 @@ public class Media : RepositoryModel
 
     public string Format { get; set; } = string.Empty;
 
-    public string Notes
-    {
-        get => _notes;
-        set { _notes = value; RefoldSearch(); }
-    }
+    /// <summary>
+    /// What the host has learned about this file. Deliberately not searchable: notes describe media
+    /// already found, so a word buried in one should not pull the song up as a match.
+    /// </summary>
+    public string Notes { get; set; } = "";
 
     /// <summary>
-    /// Title, artist and notes as one folded haystack — composed and lowercased. Search matches any
-    /// of the three, so one column answers the query with a single comparison. Refolded whenever any
-    /// of them is set, so it cannot drift.
+    /// Title and artist as one folded haystack — composed and lowercased — holding exactly the text
+    /// media_fts indexes, so the short-query fallback finds a song by the same words the index does.
+    /// Refolded whenever either is set, so it cannot drift.
     /// </summary>
     public string SearchFolded { get; private set; } = string.Empty;
 
-    private void RefoldSearch() => SearchFolded = TextFolding.Fold($"{_title} {_artist} {_notes}");
+    private void RefoldSearch() => SearchFolded = TextFolding.Fold($"{_title} {_artist}");
 
     /// <summary>Size in bytes. Null on rows imported before content dedup, and measured on the next import run.</summary>
     public long? FileSize { get; set; }
