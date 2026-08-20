@@ -1,3 +1,4 @@
+using KHost.Domain.Monetary;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using KHost.UserInterface.Models;
@@ -85,7 +86,7 @@ public partial class TipsManagerPage : IDisposable
 
     private async Task OpenAddDialogAsync()
     {
-        await DialogService!.RequestEditAsync(new Tip { Amount = 0 }, async tip => await SaveAsync(tip));
+        await DialogService!.RequestEditAsync(new Tip { AmountInCents = 0 }, async tip => await SaveAsync(tip));
     }
 
     private async Task OpenEditDialogAsync(Tip tip)
@@ -113,7 +114,7 @@ public partial class TipsManagerPage : IDisposable
         var singer = GetSingerName(tip.UserId);
 
         await DialogService.ShowConfirmationAsync(
-            $"Are you sure you want to delete the tip from <span class=\"kh-emphasis\">{singer}</span> for ${tip.Amount:F2}?",
+            $"Are you sure you want to delete the tip from <span class=\"kh-emphasis\">{singer}</span> for {tip.AmountInCents.ToCurrency()}?",
             async () => await TipsService.DeleteAsync(tip.Id),
             "Delete Tip",
             "Delete"
