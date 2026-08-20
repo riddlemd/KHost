@@ -87,7 +87,8 @@ internal class DefaultContext : DbContext
 
             entity.Property(e => e.Name)
                 .IsRequired()
-                .HasMaxLength(255);
+                .HasMaxLength(255)
+                .UseCollation("NOCASE");
 
             entity.Property(e => e.Notes)
                 .HasMaxLength(1000);
