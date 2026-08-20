@@ -1,4 +1,7 @@
+using System.Diagnostics;
 using KHost.Domain.Services;
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 
 namespace KHost.UnitTests.Domain.Services;
 
@@ -77,5 +80,128 @@ public class LocalScreenProviderTests
         Assert.Equal(4, args.Length);
         Assert.Equal("http://host/ipc", args[Array.IndexOf(args, "--server-uri") + 1]);
         Assert.Equal("Screen 1", args[Array.IndexOf(args, "--screen-id") + 1]);
+    }
+
+    [Fact]
+    public void CloseSpawnedScreens_KillsAScreenItStarted()
+    {
+        var provider = Provider();
+        var screen = StartLongLivedProcess();
+        var pid = screen.Id;
+        provider.Track("Screen 1", screen);
+
+        provider.CloseSpawnedScreens();
+
+        AssertGone(pid);
+    }
+
+    [Fact]
+    public void CloseSpawnedScreens_ForgetsTheScreensItClosed()
+    {
+        var provider = Provider();
+        var screen = StartLongLivedProcess();
+        provider.Track("Screen 1", screen);
+
+        provider.CloseSpawnedScreens();
+
+        Assert.False(provider.IsTracking("Screen 1"));
+    }
+
+    [Fact]
+    public void CloseSpawnedScreens_IsSafeToRunTwice()
+    {
+        var provider = Provider();
+        var screen = StartLongLivedProcess();
+        var pid = screen.Id;
+        provider.Track("Screen 1", screen);
+
+        provider.CloseSpawnedScreens();
+        provider.CloseSpawnedScreens();
+
+        AssertGone(pid);
+    }
+
+    [Fact]
+    public void CloseSpawnedScreens_KillsEveryScreen_EvenWhenOneHasAlreadyGone()
+    {
+        var provider = Provider();
+        var alreadyGone = StartLongLivedProcess();
+        var stillRunning = StartLongLivedProcess();
+        var pid = stillRunning.Id;
+        provider.Track("Screen 1", alreadyGone);
+        provider.Track("Screen 2", stillRunning);
+
+        alreadyGone.Kill();
+        alreadyGone.WaitForExit(5000);
+
+        provider.CloseSpawnedScreens();
+
+        AssertGone(pid);
+    }
+
+    [Fact]
+    public void Dispose_ClosesSpawnedScreens()
+    {
+        var provider = Provider();
+        var screen = StartLongLivedProcess();
+        var pid = screen.Id;
+        provider.Track("Screen 1", screen);
+
+        provider.Dispose();
+
+        AssertGone(pid);
+    }
+
+    [Fact]
+    public void CloseSpawnedScreens_DoesNothing_WhenNoScreenWasStarted()
+    {
+        var provider = Provider();
+
+        provider.CloseSpawnedScreens();
+
+        Assert.False(provider.IsTracking("Screen 1"));
+    }
+
+    // The provider disposes the Process handle once it has killed it, so the original object can no
+    // longer answer HasExited. Ask the OS about the pid instead.
+    private static void AssertGone(int pid)
+    {
+        var deadline = DateTime.UtcNow.AddSeconds(10);
+        while (DateTime.UtcNow < deadline)
+        {
+            try
+            {
+                using var found = Process.GetProcessById(pid);
+                if (found.HasExited)
+                    return;
+            }
+            catch (ArgumentException)
+            {
+                return;
+            }
+
+            Thread.Sleep(50);
+        }
+
+        Assert.Fail($"Process {pid} was still running.");
+    }
+
+    private static LocalScreenProvider Provider()
+        => new(
+            Options.Create(new LocalScreenProvider.ServiceOptions()),
+            NullLogger<LocalScreenProvider>.Instance);
+
+    // A stand-in for a screen: any child process that stays up until it is killed. The command
+    // differs per OS so this runs everywhere rather than being skipped off Unix.
+    private static Process StartLongLivedProcess()
+    {
+        var info = OperatingSystem.IsWindows()
+            ? new ProcessStartInfo("cmd.exe", "/c timeout /t 60 /nobreak")
+            : new ProcessStartInfo("/bin/sleep", "60");
+
+        info.UseShellExecute = false;
+        info.CreateNoWindow = true;
+
+        return Process.Start(info) ?? throw new InvalidOperationException("Could not start the stand-in process.");
     }
 }
