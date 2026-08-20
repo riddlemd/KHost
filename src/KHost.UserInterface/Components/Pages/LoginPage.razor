@@ -9,7 +9,7 @@
         <h1 class="kh-login__title">KHost</h1>
         <p class="kh-login__subtitle">Sign in to run the show</p>
 
-        @if (Failed)
+        @if (Failed is not null)
         {
             <div class="kh-alert--warning">Invalid name or password.</div>
         }
