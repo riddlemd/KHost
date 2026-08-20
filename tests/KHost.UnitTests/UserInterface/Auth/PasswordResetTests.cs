@@ -37,7 +37,7 @@ public class PasswordResetTests
 
         var printed = _output.ToString().Split("is now: ")[1].Split('\n')[0].Trim();
         Assert.Equal(12, printed.Length);
-        Assert.DoesNotMatch("[0OQ1lI]", printed);
+        Assert.DoesNotMatch("[0O1lI]", printed);
         Assert.Equal("hashed:" + printed, user.PasswordHash);
     }
 

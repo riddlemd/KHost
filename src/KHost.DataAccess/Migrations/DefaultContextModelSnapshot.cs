@@ -113,6 +113,10 @@ namespace KHost.DataAccess.Migrations
                         .HasMaxLength(255)
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("ContentHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
                     b.Property<DateTime>("DateAdded")
                         .HasColumnType("TEXT");
 
@@ -124,6 +128,9 @@ namespace KHost.DataAccess.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("TEXT");
 
+                    b.Property<long?>("FileSize")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("Format")
                         .IsRequired()
                         .HasMaxLength(10)
@@ -132,6 +139,10 @@ namespace KHost.DataAccess.Migrations
                     b.Property<string>("Notes")
                         .IsRequired()
                         .HasMaxLength(1000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("SampledHash")
+                        .HasMaxLength(64)
                         .HasColumnType("TEXT");
 
                     b.Property<int>("Status")
@@ -146,10 +157,14 @@ namespace KHost.DataAccess.Migrations
 
                     b.HasIndex("Artist");
 
+                    b.HasIndex("ContentHash");
+
                     b.HasIndex("DateAdded");
 
                     b.HasIndex("FilePath")
                         .IsUnique();
+
+                    b.HasIndex("FileSize");
 
                     b.HasIndex("Status");
 
