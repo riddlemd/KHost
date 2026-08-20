@@ -2,7 +2,9 @@ using FFMpegCore;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.Extensions.Options;
+using KHost.Abstractions.Repositories;
 using KHost.Domain.Services;
+using KHost.Domain.Services.PasswordHashers;
 using KHost.Abstractions.Interactions;
 using KHost.Abstractions.Interactions.Requests;
 using KHost.Abstractions.Models;
@@ -36,6 +38,9 @@ internal static class Program
     /// <summary>Skips the native shell and runs as a plain web host — browser-based development.</summary>
     private const string HeadlessFlag = "--headless";
 
+    /// <summary>Prints a freshly generated password for the named user, then exits.</summary>
+    private const string ResetPasswordFlag = "--reset-password";
+
     private const string InstanceLockFileName = ".instance.lock";
 
     internal const string LastLoginCacheKey = "last-login";
@@ -48,13 +53,18 @@ internal static class Program
     private static int Main(string[] args)
     {
         var headless = args.Contains(HeadlessFlag);
+        var resetIndex = Array.IndexOf(args, ResetPasswordFlag);
 
         using var instanceLock = AcquireInstanceLock();
         if (instanceLock is null)
         {
-            ReportAlreadyRunning(headless);
+            // A reset run is a terminal operation — a native dialog would block a script forever.
+            ReportAlreadyRunning(headless || resetIndex >= 0);
             return AlreadyRunningExitCode;
         }
+
+        if (resetIndex >= 0)
+            return ResetPassword(resetIndex + 1 < args.Length ? args[resetIndex + 1] : null);
 
         var builder = WebApplication.CreateBuilder(new WebApplicationOptions
         {
@@ -334,6 +344,38 @@ internal static class Program
 
         RunWithNativeShell(app);
         return 0;
+    }
+
+    private static int ResetPassword(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            Console.WriteLine($"Usage: KHost.UserInterface {ResetPasswordFlag} <username>");
+            return 1;
+        }
+
+        var services = new ServiceCollection()
+            .AddLogging()
+            .AddDataAccess()
+            .AddSingleton<IPasswordHasher, Argon2PasswordHasher>()
+            .BuildServiceProvider();
+
+        var exitCode = PasswordReset.RunAsync(
+            name,
+            services.GetRequiredService<IUsersRepository>(),
+            services.GetRequiredService<IPasswordHasher>(),
+            Console.Out).GetAwaiter().GetResult();
+
+        if (exitCode == 0)
+        {
+            // The reset must not be silent: whoever reads the logs sees recovery was used.
+            var line = $"{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff zzz} [WRN] Password reset via {ResetPasswordFlag} for '{name}'";
+            File.AppendAllText(
+                Path.Combine(AppContext.BaseDirectory, "logs", $"{DateTime.Now:yyyyMMdd}.log"),
+                line + Environment.NewLine);
+        }
+
+        return exitCode;
     }
 
     /// <summary>
