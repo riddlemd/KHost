@@ -56,7 +56,7 @@ internal class DatabaseInitializer : IDatabaseInitializer
         _logger.LogInformation("Running EF Core migrations");
         await context.Database.MigrateAsync();
 
-        await RefoldUserNamesAsync();
+        await RefoldStoredTextAsync();
         await SeedDefaultAdminUserAsync();
         await SeedDefaultVenueAsync();
         await SeedDefaultMediaAsync();
@@ -70,6 +70,15 @@ internal class DatabaseInitializer : IDatabaseInitializer
     /// never be found again. Cheap because the roster is small, and self-healing if the folding
     /// rule itself ever changes.
     /// </summary>
+    internal async Task RefoldStoredTextAsync()
+    {
+        await RefoldUserNamesAsync();
+        await RefoldVenueNamesAsync();
+        await RefoldUserGroupNamesAsync();
+        await RefoldTipNotesAsync();
+        await RefoldMediaSearchTextAsync();
+    }
+
     internal async Task RefoldUserNamesAsync()
     {
         using var context = await _contextFactory.CreateDbContextAsync();
@@ -102,6 +111,92 @@ internal class DatabaseInitializer : IDatabaseInitializer
         }
 
         _logger.LogInformation("Refolded {Count} user name(s) for comparison", stale.Count);
+    }
+
+    internal async Task RefoldVenueNamesAsync()
+    {
+        using var context = await _contextFactory.CreateDbContextAsync();
+
+        var stale = (await context.Venues.Select(v => new { v.Id, v.Name, v.NameFolded }).ToListAsync())
+            .Where(row => row.NameFolded != TextFolding.Fold(row.Name))
+            .ToList();
+
+        foreach (var row in stale)
+        {
+            var folded = TextFolding.Fold(row.Name);
+            await context.Venues.Where(v => v.Id == row.Id)
+                .ExecuteUpdateAsync(set => set.SetProperty(v => v.NameFolded, folded));
+        }
+
+        LogRefold("venue name", stale.Count);
+    }
+
+    internal async Task RefoldUserGroupNamesAsync()
+    {
+        using var context = await _contextFactory.CreateDbContextAsync();
+
+        var stale = (await context.UserGroups.Select(g => new { g.Id, g.Name, g.NameFolded }).ToListAsync())
+            .Where(row => row.NameFolded != TextFolding.Fold(row.Name))
+            .ToList();
+
+        foreach (var row in stale)
+        {
+            var folded = TextFolding.Fold(row.Name);
+            await context.UserGroups.Where(g => g.Id == row.Id)
+                .ExecuteUpdateAsync(set => set.SetProperty(g => g.NameFolded, folded));
+        }
+
+        LogRefold("user group name", stale.Count);
+    }
+
+    internal async Task RefoldTipNotesAsync()
+    {
+        using var context = await _contextFactory.CreateDbContextAsync();
+
+        var stale = (await context.Tips.Select(t => new { t.Id, t.Notes, t.NotesFolded }).ToListAsync())
+            .Where(row => row.NotesFolded != TextFolding.Fold(row.Notes))
+            .ToList();
+
+        foreach (var row in stale)
+        {
+            var folded = TextFolding.Fold(row.Notes);
+            await context.Tips.Where(t => t.Id == row.Id)
+                .ExecuteUpdateAsync(set => set.SetProperty(t => t.NotesFolded, folded));
+        }
+
+        LogRefold("tip note", stale.Count);
+    }
+
+    /// <summary>
+    /// The library is the one table here big enough to notice. Only the folded text is read back,
+    /// and only rows that actually differ are written, so a library that is already correct costs
+    /// one scan of three columns at startup.
+    /// </summary>
+    internal async Task RefoldMediaSearchTextAsync()
+    {
+        using var context = await _contextFactory.CreateDbContextAsync();
+
+        var stale = (await context.Media
+                .Select(m => new { m.Id, m.Title, m.Artist, m.Notes, m.SearchFolded })
+                .ToListAsync())
+            .Select(row => new { row.Id, Folded = TextFolding.Fold($"{row.Title} {row.Artist} {row.Notes}"), row.SearchFolded })
+            .Where(row => row.SearchFolded != row.Folded)
+            .ToList();
+
+        foreach (var row in stale)
+        {
+            var folded = row.Folded;
+            await context.Media.Where(m => m.Id == row.Id)
+                .ExecuteUpdateAsync(set => set.SetProperty(m => m.SearchFolded, folded));
+        }
+
+        LogRefold("media search text", stale.Count);
+    }
+
+    private void LogRefold(string what, int count)
+    {
+        if (count > 0)
+            _logger.LogInformation("Refolded {Count} {What}(s) for comparison", count, what);
     }
 
     internal async Task SeedDefaultAdminUserAsync()
