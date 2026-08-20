@@ -76,6 +76,13 @@ internal static class Program
             ContentRootPath = AppContext.BaseDirectory,
         });
 
+        // The App Settings page writes this overlay; registered last, it wins over the
+        // deployment defaults, and reload-on-change lets IOptionsMonitor bindings apply live.
+        builder.Configuration.AddJsonFile(
+            Path.Combine(AppContext.BaseDirectory, "cache", AppSettingsService.OverlayFileName),
+            optional: true,
+            reloadOnChange: true);
+
         var logDirectory = Path.Combine(AppContext.BaseDirectory, "logs");
         Directory.CreateDirectory(logDirectory);
 
@@ -137,6 +144,8 @@ internal static class Program
         builder.Services.AddCascadingAuthenticationState();
 
         builder.Services.AddScoped<IPermissionService, PermissionService>();
+        builder.Services.AddSingleton<IAppSettingsService>(sp => new AppSettingsService(
+            sp.GetRequiredService<IConfiguration>(), sp.GetRequiredService<IUsersService>()));
         builder.Services.AddSingleton<IThemeService, ThemeService>();
         builder.Services.AddSingleton<IDialogService, DialogService>();
         builder.Services.AddSingleton<IStartupRedirectProvider, SetupRedirectProvider>();
@@ -327,6 +336,19 @@ internal static class Program
         }
         app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
         app.UseAuthentication();
+
+        // Login requirement off: every session is the console admin. The gates stay wired and
+        // all pass — single-operator mode rather than a second code path through the UI. Read
+        // per request, not at startup: the overlay reloads live, so the setup wizard's choice
+        // and the App Settings toggle apply on the next page load instead of the next launch.
+        app.Use((context, next) =>
+        {
+            if (!(app.Configuration.GetValue<bool?>("Auth:RequireLogin") ?? true))
+                context.User = KHostClaimsFactory.CreateConsolePrincipal();
+
+            return next(context);
+        });
+
         app.UseAuthorization();
         app.UseAntiforgery();
 
