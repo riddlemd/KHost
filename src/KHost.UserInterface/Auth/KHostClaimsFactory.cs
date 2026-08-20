@@ -12,6 +12,17 @@ internal static class KHostClaimsFactory
     internal const string AdminRole = "Admin";
     internal const string PermissionClaim = "khost:permission";
 
+    /// <summary>
+    /// The identity every session gets while the login requirement is off: the pipeline and
+    /// every permission gate stay exactly as built, and all of them pass.
+    /// </summary>
+    internal static ClaimsPrincipal CreateConsolePrincipal()
+        => new(new ClaimsIdentity(
+        [
+            new Claim(ClaimTypes.Name, "Console"),
+            new Claim(ClaimTypes.Role, AdminRole),
+        ], "console"));
+
     internal static ClaimsPrincipal Create(KHostUser user, string authenticationScheme)
     {
         var claims = new List<Claim>

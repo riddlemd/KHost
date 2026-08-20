@@ -9,6 +9,7 @@ public partial class SettingsMenuDialog
 {
     [Inject] private NavigationManager? Navigation { get; set; }
     [Inject] private IPermissionService? Permissions { get; set; }
+    [Inject] private IAppSettingsService? AppSettings { get; set; }
 
     [Parameter] public bool IsOpen { get; set; }
     [Parameter] public EventCallback OnClose { get; set; }
@@ -32,13 +33,18 @@ public partial class SettingsMenuDialog
         new SettingsPage { Title = "Venues Manager", Icon = "geo-alt-fill", Route = "/settings/venues-manager", Requires = KHostPermission.EditVenue },
         new SettingsPage { Title = "Tips Manager", Icon = "coin", Route = "/settings/tips-manager" },
         new SettingsPage { Title = "Media Manager", Icon = "music-note-list", Route = "/settings/media-manager", Requires = KHostPermission.ManageMedia },
-        new SettingsPage { Title = "Plugins Manager", Icon = "plug-fill", Route = "/settings/plugins-manager", AdminOnly = true }
+        new SettingsPage { Title = "Plugins Manager", Icon = "plug-fill", Route = "/settings/plugins-manager", AdminOnly = true },
+        new SettingsPage { Title = "App Settings", Icon = "gear-fill", Route = "/settings/app-settings", AdminOnly = true }
     ];
 
     private List<SettingsPage> _settingsPages = [];
+    private bool _canLock;
 
     protected override async Task OnInitializedAsync()
     {
+        // Locking a console that signs everyone in automatically would be a button to nowhere.
+        _canLock = AppSettings?.Current.RequireLogin != false;
+
         if (Permissions is null)
         {
             _settingsPages = _allPages;

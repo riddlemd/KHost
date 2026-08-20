@@ -16,6 +16,8 @@
                 </button>
             }
 
+            @if (_canLock)
+            {
             <div class="kh-dropdown__divider"></div>
 
             @* A native post: the cookie can only be cleared on an HTTP response, not from the circuit. *@
@@ -26,6 +28,7 @@
                     <span>Lock</span>
                 </button>
             </form>
+            }
         </div>
     </Body>
 </Dialog>

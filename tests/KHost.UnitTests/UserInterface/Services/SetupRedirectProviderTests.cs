@@ -1,6 +1,7 @@
 using KHost.Abstractions.Services;
 using KHost.UserInterface.Services.RedirectProviders;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace KHost.UnitTests.UserInterface.Services;
@@ -10,12 +11,31 @@ public class SetupRedirectProviderTests
     private readonly IUsersService _usersService = Substitute.For<IUsersService>();
     private readonly IVenuesService _venuesService = Substitute.For<IVenuesService>();
 
-    private SetupRedirectProvider MakeProvider(bool hasAdminUser, bool hasVenue)
+    private SetupRedirectProvider MakeProvider(bool hasAdminUser, bool hasVenue, bool requireLogin = true)
     {
         _usersService.HasAdminUserAsync().Returns(hasAdminUser);
         _venuesService.HasAnyAsync().Returns(hasVenue);
 
-        return new SetupRedirectProvider(_usersService, _venuesService, NullLogger<SetupRedirectProvider>.Instance);
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(
+            new Dictionary<string, string?> { ["Auth:RequireLogin"] = requireLogin.ToString() }).Build();
+
+        return new SetupRedirectProvider(_usersService, _venuesService, configuration, NullLogger<SetupRedirectProvider>.Instance);
+    }
+
+    [Fact]
+    public async Task ShouldRedirect_IsSatisfiedWithoutAnAdmin_WhenLoginIsNotRequired()
+    {
+        var provider = MakeProvider(hasAdminUser: false, hasVenue: true, requireLogin: false);
+
+        Assert.False(await provider.ShouldRedirectAsync(MakeContext("/")));
+    }
+
+    [Fact]
+    public async Task ShouldRedirect_StillWantsAVenue_WhenLoginIsNotRequired()
+    {
+        var provider = MakeProvider(hasAdminUser: false, hasVenue: false, requireLogin: false);
+
+        Assert.True(await provider.ShouldRedirectAsync(MakeContext("/")));
     }
 
     private static HttpContext MakeContext(string path)

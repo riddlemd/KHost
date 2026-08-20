@@ -45,6 +45,13 @@ internal class UsersRepository : BaseRepository<KHostUser>, IUsersRepository
             .AnyAsync(u => u.Groups.Any(g => g.IsAdmin));
     }
 
+    public async Task<bool> HasAdminWithPasswordAsync()
+    {
+        using var context = await ContextFactory.CreateDbContextAsync();
+        return await context.Set<KHostUser>()
+            .AnyAsync(u => u.PasswordHash != null && u.PasswordHash != "" && u.Groups.Any(g => g.IsAdmin));
+    }
+
     public override async Task<KHostUser?> ReadAsync(Guid id)
     {
         using var context = await ContextFactory.CreateDbContextAsync();
