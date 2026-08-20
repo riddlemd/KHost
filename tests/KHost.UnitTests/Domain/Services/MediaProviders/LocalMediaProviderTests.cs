@@ -9,18 +9,18 @@ using Microsoft.Extensions.Logging;
 
 namespace KHost.UnitTests.Domain.Services.MediaProviders;
 
-public class DefaultMediaProviderTests
+public class LocalMediaProviderTests
 {
-    private readonly ILogger<DefaultMediaProvider> _logger = Substitute.For<ILogger<DefaultMediaProvider>>();
+    private readonly ILogger<LocalMediaProvider> _logger = Substitute.For<ILogger<LocalMediaProvider>>();
     private readonly IPerformanceService _performanceService = Substitute.For<IPerformanceService>();
     private readonly ISingerQueueService _singerQueueService = Substitute.For<ISingerQueueService>();
     private readonly IMediaRepository _repository = Substitute.For<IMediaRepository>();
     private readonly IInteractionDispatcher _interactions = Substitute.For<IInteractionDispatcher>();
     private readonly IMediaService _mediaService = Substitute.For<IMediaService>();
-    private readonly DefaultMediaProvider _service;
+    private readonly LocalMediaProvider _service;
     private readonly List<Media> _mediaStore = [];
 
-    public DefaultMediaProviderTests()
+    public LocalMediaProviderTests()
     {
         _repository.SearchAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<int>(), Arg.Any<HashSet<MediaStatus>>())
             .Returns(call =>
@@ -53,7 +53,7 @@ public class DefaultMediaProviderTests
         _performanceService.CreateAndEnqueueAsync(Arg.Any<Performance>())
             .Returns(args => Task.FromResult<Performance?>((Performance)args[0]));
 
-        _service = new DefaultMediaProvider(_logger, _performanceService, _singerQueueService, _repository, _interactions, _mediaService);
+        _service = new LocalMediaProvider(_logger, _performanceService, _singerQueueService, _repository, _interactions, _mediaService);
     }
 
     [Fact]
@@ -93,13 +93,13 @@ public class DefaultMediaProviderTests
     }
 
     [Fact]
-    public async Task SearchAsync_SetsSource_ToDefaultMediaProvider()
+    public async Task SearchAsync_SetsSource_ToLocalMediaProvider()
     {
         _mediaStore.Add(new Media { Title = "Track", Artist = "Artist", FilePath = "/a.mp3" });
 
         var result = await _service.SearchAsync("Track");
 
-        Assert.Equal("DefaultMediaProvider", result[0].Source);
+        Assert.Equal("LocalMediaProvider", result[0].Source);
     }
 
     [Fact]
