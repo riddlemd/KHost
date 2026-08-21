@@ -50,57 +50,57 @@ public class TipsRepositoryTests : IDisposable
     }
 
     [Fact]
-    public async Task GetTotalByUserIdAsync_ReturnsZero_WhenUserHasNoTips()
+    public async Task GetTotalInCentsByUserIdAsync_ReturnsZero_WhenUserHasNoTips()
     {
-        var total = await _repository.GetTotalByUserIdAsync(UserA);
+        var total = await _repository.GetTotalInCentsByUserIdAsync(UserA);
 
         Assert.Equal(0, total);
     }
 
     [Fact]
-    public async Task GetTotalByUserIdAsync_SumsOnlyTheGivenUser()
+    public async Task GetTotalInCentsByUserIdAsync_SumsOnlyTheGivenUser()
     {
         await SeedAsync(
             MakeTip(UserA, 1000, new DateTime(2026, 1, 10, 0, 0, 0, DateTimeKind.Utc)),
             MakeTip(UserA, 550, new DateTime(2026, 1, 11, 0, 0, 0, DateTimeKind.Utc)),
             MakeTip(UserB, 9900, new DateTime(2026, 1, 12, 0, 0, 0, DateTimeKind.Utc)));
 
-        var total = await _repository.GetTotalByUserIdAsync(UserA);
+        var total = await _repository.GetTotalInCentsByUserIdAsync(UserA);
 
         Assert.Equal(1550, total);
     }
 
     [Fact]
-    public async Task GetTotalByUserIdAsync_IncludesTipsExactlyOnTheFromBoundary()
+    public async Task GetTotalInCentsByUserIdAsync_IncludesTipsExactlyOnTheFromBoundary()
     {
         var boundary = new DateTime(2026, 1, 10, 12, 0, 0, DateTimeKind.Utc);
         await SeedAsync(MakeTip(UserA, 2000, boundary));
 
-        var total = await _repository.GetTotalByUserIdAsync(UserA, from: boundary);
+        var total = await _repository.GetTotalInCentsByUserIdAsync(UserA, from: boundary);
 
         Assert.Equal(2000, total);
     }
 
     [Fact]
-    public async Task GetTotalByUserIdAsync_IncludesTipsExactlyOnTheToBoundary()
+    public async Task GetTotalInCentsByUserIdAsync_IncludesTipsExactlyOnTheToBoundary()
     {
         var boundary = new DateTime(2026, 1, 10, 12, 0, 0, DateTimeKind.Utc);
         await SeedAsync(MakeTip(UserA, 2000, boundary));
 
-        var total = await _repository.GetTotalByUserIdAsync(UserA, to: boundary);
+        var total = await _repository.GetTotalInCentsByUserIdAsync(UserA, to: boundary);
 
         Assert.Equal(2000, total);
     }
 
     [Fact]
-    public async Task GetTotalByUserIdAsync_ExcludesTipsOutsideTheRange()
+    public async Task GetTotalInCentsByUserIdAsync_ExcludesTipsOutsideTheRange()
     {
         await SeedAsync(
             MakeTip(UserA, 100, new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc)),
             MakeTip(UserA, 1000, new DateTime(2026, 1, 15, 0, 0, 0, DateTimeKind.Utc)),
             MakeTip(UserA, 10000, new DateTime(2026, 2, 1, 0, 0, 0, DateTimeKind.Utc)));
 
-        var total = await _repository.GetTotalByUserIdAsync(
+        var total = await _repository.GetTotalInCentsByUserIdAsync(
             UserA,
             from: new DateTime(2026, 1, 10, 0, 0, 0, DateTimeKind.Utc),
             to: new DateTime(2026, 1, 20, 0, 0, 0, DateTimeKind.Utc));
@@ -109,11 +109,11 @@ public class TipsRepositoryTests : IDisposable
     }
 
     [Fact]
-    public async Task GetTotalByUserIdAsync_ReturnsZero_WhenRangeExcludesEverything()
+    public async Task GetTotalInCentsByUserIdAsync_ReturnsZero_WhenRangeExcludesEverything()
     {
         await SeedAsync(MakeTip(UserA, 1000, new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc)));
 
-        var total = await _repository.GetTotalByUserIdAsync(
+        var total = await _repository.GetTotalInCentsByUserIdAsync(
             UserA,
             from: new DateTime(2026, 6, 1, 0, 0, 0, DateTimeKind.Utc));
 
@@ -121,14 +121,14 @@ public class TipsRepositoryTests : IDisposable
     }
 
     [Fact]
-    public async Task GetTotalByUserIdAsync_AddsUpExactly()
+    public async Task GetTotalInCentsByUserIdAsync_AddsUpExactly()
     {
         await SeedAsync(
             MakeTip(UserA, 10, new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc)),
             MakeTip(UserA, 20, new DateTime(2026, 1, 2, 0, 0, 0, DateTimeKind.Utc)));
 
         // Whole cents, so the total is integer arithmetic end to end - no float in the middle.
-        var total = await _repository.GetTotalByUserIdAsync(UserA);
+        var total = await _repository.GetTotalInCentsByUserIdAsync(UserA);
 
         Assert.Equal(30, total);
     }

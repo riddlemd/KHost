@@ -33,7 +33,7 @@ public partial class EditUserDialog
     private bool _isExistingUser;
     private string _newPassword = "";
     private bool _hasPassword;
-    private decimal _totalTips;
+    private int _totalTips;
     private List<RecentVenue> _recentVenues = [];
     private List<RecentSong> _recentSongs = [];
 
@@ -87,7 +87,7 @@ public partial class EditUserDialog
         _isExistingUser = true;
 
         if (TipsService is not null)
-            _totalTips = await TipsService.GetTotalByUserIdAsync(User.Id);
+            _totalTips = await TipsService.GetTotalInCentsByUserIdAsync(User.Id);
 
         if (VenuesService is not null)
         {
