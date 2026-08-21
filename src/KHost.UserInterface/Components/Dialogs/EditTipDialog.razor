@@ -16,13 +16,12 @@
             {
                 <div >
                     <label class="kh-form-label">Singer</label>
-                    <InputSelect class="kh-form-control" @bind-Value="_model.UserId">
-                        <option value="">-- Select a singer --</option>
-                        @foreach (var user in _users)
-                        {
-                            <option value="@user.Id">@user.Name</option>
-                        }
-                    </InputSelect>
+                    <ComboBox TItem="KHostUser"
+                              Value="_singer"
+                              ValueChanged="OnSingerChangedAsync"
+                              Search="SearchSingersAsync"
+                              DisplayName="@(singer => singer.Name)"
+                              Placeholder="Search singers…" />
                     <ValidationMessage For="() => _model.UserId" />
                 </div>
             }

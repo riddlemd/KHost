@@ -1,0 +1,47 @@
+@typeparam TItem
+
+<div class="kh-combobox @Class?.Trim()">
+    <input type="text"
+           @ref="_inputRef"
+           class="kh-form-control kh-combobox__input"
+           value="@_query"
+           placeholder="@Placeholder"
+           autocomplete="off"
+           role="combobox"
+           aria-expanded="@(_isOpen ? "true" : "false")"
+           aria-autocomplete="list"
+           data-menu-open="@(_isOpen ? "true" : "false")"
+           @oninput="OnQueryChangedAsync"
+           @onfocusout="OnFocusOut"
+           @onkeydown="OnKeyDownAsync" />
+
+    @if (_isOpen)
+    {
+        <ul class="kh-combobox__menu" role="listbox">
+            @if (_isSearching && _results.Count == 0)
+            {
+                <li class="kh-combobox__message">Searching…</li>
+            }
+            else if (_results.Count == 0)
+            {
+                <li class="kh-combobox__message">No matches for “@_query”</li>
+            }
+            else
+            {
+                @for (var i = 0; i < _results.Count; i++)
+                {
+                    var index = i;
+                    var item = _results[index];
+
+                    <li role="option" aria-selected="@(index == _highlighted ? "true" : "false")">
+                        @* Otherwise the input blurs and the menu closes before the click lands. *@
+                        <button type="button"
+                                class="kh-combobox__option @(index == _highlighted ? "kh-combobox__option--highlighted" : "")"
+                                @onmousedown:preventDefault
+                                @onclick="() => SelectAsync(item)">@DisplayName(item)</button>
+                    </li>
+                }
+            }
+        </ul>
+    }
+</div>
