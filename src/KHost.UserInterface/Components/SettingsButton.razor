@@ -1,9 +1,27 @@
-<DropdownMenu Class="kh-settings-menu" Title="Menu">
+<DropdownMenu @ref="_menu" Class="kh-settings-menu" Title="Menu" CloseOnItemClick="false"
+              OpenChanged="OnMenuOpenChanged">
     <Trigger><Icon Name="list" /></Trigger>
     <Items>
         <button class="kh-dropdown__item @CurrentClass(HomeRoute)" type="button" @onclick="() => NavigateTo(HomeRoute)">
             <span class="kh-dropdown__check"><Icon Name="sliders2" /></span>
             Controls
+        </button>
+
+        <div class="kh-dropdown__divider"></div>
+        <span class="kh-dropdown__heading">Quick Settings</span>
+
+        <button class="kh-dropdown__item" type="button" @ref="_venueRowRef" @onclick="() => ToggleSection(VenueSection)">
+            <span class="kh-dropdown__check"><Icon Name="geo-alt-fill" /></span>
+            Venue
+            <span class="kh-settings-menu__value">@(_selectedVenue?.Name ?? "None")</span>
+            <Icon Name="chevron-left" Class="kh-settings-menu__chevron" />
+        </button>
+
+        <button class="kh-dropdown__item" type="button" @ref="_themeRowRef" @onclick="() => ToggleSection(ThemeSection)">
+            <span class="kh-dropdown__check"><Icon Name="palette-fill" /></span>
+            Theme
+            <span class="kh-settings-menu__value">@ThemeName(ThemeService?.CurrentTheme)</span>
+            <Icon Name="chevron-left" Class="kh-settings-menu__chevron" />
         </button>
 
         @foreach (var group in _groups)
@@ -34,6 +52,47 @@
                     Lock
                 </button>
             </form>
+        }
+        @if (_openSection is not null)
+        {
+            <div class="kh-settings-menu__flyout" @ref="_flyoutRef">
+                @if (IsOpen(VenueSection))
+                {
+                    @foreach (var venue in _venues)
+                    {
+                        <button class="kh-dropdown__item @(venue.Id == _selectedVenue?.Id ? "kh-dropdown__item--selected" : "")"
+                                type="button" @onclick="() => SelectVenueAsync(venue.Id)">
+                            <span class="kh-dropdown__check">
+                                @if (venue.Id == _selectedVenue?.Id) { <Icon Name="check2" /> }
+                            </span>
+                            @venue.Name
+                        </button>
+                    }
+
+                    <div class="kh-dropdown__divider"></div>
+
+                    <button class="kh-dropdown__item" type="button" disabled="@(_selectedVenue is null)"
+                            @onclick="EditVenueAsync">
+                        <span class="kh-dropdown__check"><Icon Name="sliders" /></span>
+                        Edit venue…
+                    </button>
+                }
+                else
+                {
+                    @foreach (var theme in ThemeService?.AvailableThemes ?? [])
+                    {
+                        var isCurrent = ThemeService?.CurrentTheme == theme;
+
+                        <button class="kh-dropdown__item @(isCurrent ? "kh-dropdown__item--selected" : "")"
+                                type="button" @onclick="() => SelectThemeAsync(theme)">
+                            <span class="kh-dropdown__check">
+                                @if (isCurrent) { <Icon Name="check2" /> }
+                            </span>
+                            @ThemeName(theme)
+                        </button>
+                    }
+                }
+            </div>
         }
     </Items>
 </DropdownMenu>
