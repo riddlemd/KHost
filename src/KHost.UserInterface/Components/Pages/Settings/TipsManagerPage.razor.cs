@@ -86,7 +86,9 @@ public partial class TipsManagerPage : IDisposable
 
     private async Task OpenAddDialogAsync()
     {
-        await DialogService!.RequestEditAsync(new Tip { AmountInCents = 0 }, async tip => await SaveAsync(tip));
+        // Typed parameter: the RequestEditAsync overloads differ only in their model, so a bare
+        // null and an untyped lambda cannot pick one.
+        await DialogService!.RequestEditAsync(null, async (Tip? tip) => await SaveAsync(tip));
     }
 
     private async Task OpenEditDialogAsync(Tip tip)
