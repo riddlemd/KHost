@@ -93,7 +93,7 @@
                                     var queuedBy = GetSingersWithMediaQueued(mediaSearchEntity.ForeignKey, mediaSearchEntity.Source);
 
                                     <tr class="kh-media-search-panel__results__result @(queuedBy.Count > 0 ? "kh-media-search-panel__results__result--queued" : "")">
-                                    <td class="kh-table__cell--fill">
+                                    <td class="kh-table__cell--fill" title="@mediaSearchEntity.DisplayName">
                                         @mediaSearchEntity.DisplayName
 
                                         @if (queuedBy.Count > 0)

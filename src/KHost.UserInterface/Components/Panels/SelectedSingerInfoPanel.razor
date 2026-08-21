@@ -88,7 +88,7 @@
                     <tr>
                         <th class="kh-selected-singer-info-panel__col--number">#</th>
                         <th>Title</th>
-                        <th>Artist</th>
+                        <th class="kh-selected-singer-info-panel__col--artist">Artist</th>
                         <th class="kh-selected-singer-info-panel__col--duration">Duration</th>
                         <th class="kh-selected-singer-info-panel__col--status">Status</th>
                         <th class="kh-selected-singer-info-panel__col--actions">Actions</th>
@@ -123,14 +123,14 @@
                                     <span>@(idx + 1)</span>
                                 }
                             </td>
-                            <td class="kh-selected-singer-info-panel__name kh-table__cell--fill">
+                            <td class="kh-selected-singer-info-panel__name kh-table__cell--fill" title="@(rowMedia?.Title ?? "")">
                                 <span class="@nameClass">@(rowMedia?.Title ?? "—")</span>
                             </td>
-                            <td>@(rowMedia?.Artist ?? "")</td>
+                            <td class="kh-table__cell--fill" title="@(rowMedia?.Artist ?? "")">@(rowMedia?.Artist ?? "")</td>
                             <td class="kh-selected-singer-info-panel__duration">
                                     @rowMedia?.Duration?.ToTotalMinutesAndSeconds()
                             </td>
-                            <td>
+                            <td class="kh-selected-singer-info-panel__status">
                                 @if (rowMedia is not null)
                                 {
                                     <span class="kh-badge @MediaStatusDisplay.BadgeClass(rowMedia.Status)">@rowMedia.Status</span>
