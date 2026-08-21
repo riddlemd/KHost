@@ -106,7 +106,7 @@ public partial class EditVenueDialog
 
     public record DialogRequest : EditDialogRequest<Venue>
     {
-        public DialogRequest(Venue? value, Action<Venue?> onSave, Action? onCancel, Action onClose) : base(value, onSave, onCancel, onClose)
+        public DialogRequest(Venue? value, Func<Venue?, Task> onSave, Action? onCancel, Action onClose) : base(value, onSave, onCancel, onClose)
         {
         }
     }
