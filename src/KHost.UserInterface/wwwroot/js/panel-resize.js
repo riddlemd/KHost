@@ -36,10 +36,16 @@ export function init() {
     let saveTimer = null;
 
     // ── Restore saved sizes ───────────────────────────────────────────────
-    function restoreQueueWidth() {
+    // The stored width is the preference; what gets applied is that preference clamped to the
+    // window as it is now. Clamping without storing means a session at 720px does not throw away
+    // the width chosen at 1440.
+    function applyQueueWidth() {
         const queue = find(SELECTORS.queue);
-        const saved = parseFloat(localStorage.getItem(KEYS.queueWidth));
-        if (queue && saved > 0) queue.style.width = saved + 'px';
+        const desired = parseFloat(localStorage.getItem(KEYS.queueWidth));
+        if (!queue || !(desired > 0)) return;
+
+        const max = body.getBoundingClientRect().width * MaxQueueFraction;
+        queue.style.width = Math.max(MinQueueWidth, Math.min(desired, max)) + 'px';
     }
 
     function restoreSearchHeight() {
@@ -54,7 +60,7 @@ export function init() {
         search.style.height = saved + 'px';
     }
 
-    restoreQueueWidth();
+    applyQueueWidth();
     restoreSearchHeight();
 
     // Selecting a singer mounts the right-hand panels long after init ran.
@@ -156,6 +162,10 @@ export function init() {
     document.addEventListener('mousemove', move);
     document.addEventListener('mouseup', end);
 
+    // Without this the clamp only ever runs mid-drag, so a width restored from a wider session
+    // keeps the whole detail column off-screen.
+    window.addEventListener('resize', applyQueueWidth);
+
     document.addEventListener('touchstart', begin, { passive: false });
     document.addEventListener('touchmove', move, { passive: false });
     document.addEventListener('touchend', end);
@@ -168,6 +178,8 @@ export function init() {
             document.removeEventListener('mousedown', begin);
             document.removeEventListener('mousemove', move);
             document.removeEventListener('mouseup', end);
+
+            window.removeEventListener('resize', applyQueueWidth);
 
             document.removeEventListener('touchstart', begin);
             document.removeEventListener('touchmove', move);
