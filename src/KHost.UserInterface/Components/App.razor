@@ -28,13 +28,3 @@
 </body>
 
 </html>
-
-@code {
-    [Inject] private IConfiguration Configuration { get; set; } = default!;
-    [Inject] private IWebHostEnvironment Environment { get; set; } = default!;
-
-    // Only the native window, and only outside Development — a developer keeps their tools, and the
-    // headless mode is served to a real browser where this would be hostile.
-    private bool LockDownShell
-        => Configuration.GetValue<bool>("NativeShell") && !Environment.IsDevelopment();
-}

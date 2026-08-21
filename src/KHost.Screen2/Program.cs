@@ -38,6 +38,9 @@ internal static class Program
         PhotinoWindow? window = null;
         window = new PhotinoWindow()
             .SetTitle("KHost Screen")
+#if !DEBUG
+            .SetDevToolsEnabled(false)
+#endif
             // Photino logs every SendWebMessage into the host's inherited stdout.
             .SetLogVerbosity(0)
             // Chromeless cannot change after creation and has no title bar to drag, so full
