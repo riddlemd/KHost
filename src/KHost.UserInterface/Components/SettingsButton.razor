@@ -1,6 +1,39 @@
-@using KHost.UserInterface.Components.Dialogs
-@using KHost.UserInterface.Services
+<DropdownMenu Class="kh-settings-menu" Title="Menu">
+    <Trigger><Icon Name="list" /></Trigger>
+    <Items>
+        <button class="kh-dropdown__item" type="button" @onclick="() => NavigateTo(HomeRoute)">
+            <span class="kh-dropdown__check"><Icon Name="sliders2" /></span>
+            Controls
+        </button>
 
-<button class="kh-settings-btn kh-button--icon-minimal" title="@ButtonText" @onclick="OpenSettingsAsync">
-    <i class="bi @ButtonIcon"></i>
-</button>
+        @foreach (var group in _groups)
+        {
+            <div class="kh-dropdown__divider"></div>
+            <span class="kh-dropdown__heading">@group.Key</span>
+
+            @* Not `page`: the Razor parser reads @page as the directive. *@
+            @foreach (var settingsPage in group)
+            {
+                <button class="kh-dropdown__item" type="button"
+                        @onclick="() => NavigateTo(settingsPage.Route)">
+                    <span class="kh-dropdown__check"><Icon Name="@settingsPage.Icon" /></span>
+                    @settingsPage.Title
+                </button>
+            }
+        }
+
+        @if (_canLock)
+        {
+            <div class="kh-dropdown__divider"></div>
+
+            @* A native post: the cookie can only be cleared on an HTTP response, not from the circuit. *@
+            <form method="post" action="/auth/logout">
+                <button class="kh-dropdown__item" type="submit"
+                        title="Lock KHost — the show keeps running, the controls need a sign-in">
+                    <span class="kh-dropdown__check"><Icon Name="lock-fill" /></span>
+                    Lock
+                </button>
+            </form>
+        }
+    </Items>
+</DropdownMenu>
