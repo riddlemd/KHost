@@ -25,11 +25,26 @@ public partial class ComboBox<TItem> : IAsyncDisposable
     /// <summary>What to show for a row, in the menu and in the field once it is chosen.</summary>
     [Parameter, EditorRequired] public Func<TItem, string> DisplayName { get; set; } = _ => "";
 
+    /// <summary>
+    /// Which group a row belongs to. Rows are shown in the order <see cref="Search"/> returned them
+    /// and a heading is drawn wherever the group changes, so the caller groups by sorting — the box
+    /// never reorders. Return null or empty for rows that should carry no heading.
+    /// </summary>
+    [Parameter] public Func<TItem, string?>? GroupName { get; set; }
+
     /// <summary>Characters needed before the menu opens. Nothing opens it on focus.</summary>
     [Parameter] public int MinimumSearchLength { get; set; } = 3;
 
     [Parameter] public TItem? Value { get; set; }
     [Parameter] public EventCallback<TItem?> ValueChanged { get; set; }
+
+    /// <summary>
+    /// What is in the field. Bind it when the caller accepts text that matches no row — a new name
+    /// being typed for the first time — or to clear the field from outside.
+    /// </summary>
+    [Parameter] public string? Text { get; set; }
+
+    [Parameter] public EventCallback<string> TextChanged { get; set; }
     [Parameter] public string Placeholder { get; set; } = "Search…";
     [Parameter] public string Class { get; set; } = "";
 
@@ -44,15 +59,36 @@ public partial class ComboBox<TItem> : IAsyncDisposable
     private int _highlighted;
 
     private TItem? _bound;
+    private string? _boundText;
     private CancellationTokenSource? _debounce;
 
     protected override void OnParametersSet()
     {
-        if (EqualityComparer<TItem>.Default.Equals(Value, _bound))
-            return;
+        // A changed row wins over changed text: picking one is what set the other.
+        if (!EqualityComparer<TItem>.Default.Equals(Value, _bound))
+        {
+            _bound = Value;
+            SetQuery(Value is null ? "" : DisplayName(Value));
+            Dismiss();
+        }
+        else if (Text is not null && Text != _boundText)
+        {
+            SetQuery(Text);
+            Dismiss();
+        }
+    }
 
-        _bound = Value;
-        _query = Value is null ? "" : DisplayName(Value);
+    private void SetQuery(string text)
+    {
+        _query = text;
+        _boundText = text;
+    }
+
+    private async Task SetTextAsync(string text)
+    {
+        SetQuery(text);
+
+        await TextChanged.InvokeAsync(text);
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -69,7 +105,7 @@ public partial class ComboBox<TItem> : IAsyncDisposable
 
     private async Task OnQueryChangedAsync(ChangeEventArgs e)
     {
-        _query = e.Value?.ToString() ?? "";
+        await SetTextAsync(e.Value?.ToString() ?? "");
 
         // The text and the bound value must never disagree, or a form saves the row that was
         // chosen before the name was edited.
@@ -150,9 +186,22 @@ public partial class ComboBox<TItem> : IAsyncDisposable
         }
     }
 
+    /// <summary>A heading is drawn where a row's group differs from the row above it.</summary>
+    private bool StartsGroup(int index)
+    {
+        if (GroupName is null) return false;
+
+        var group = GroupName(_results[index]);
+        if (string.IsNullOrEmpty(group)) return false;
+
+        return index == 0 || GroupName(_results[index - 1]) != group;
+    }
+
+    private string? GroupOf(int index) => GroupName?.Invoke(_results[index]);
+
     private async Task SelectAsync(TItem item)
     {
-        _query = DisplayName(item);
+        await SetTextAsync(DisplayName(item));
         await SetValueAsync(item);
         Close();
     }
@@ -164,9 +213,20 @@ public partial class ComboBox<TItem> : IAsyncDisposable
         // Ahead of the callback: the parent echoes the value straight back, and OnParametersSet
         // would read that as an outside change and rewrite the field.
         _bound = value;
+        _boundText = _query;
         Value = value;
 
         await ValueChanged.InvokeAsync(value);
+    }
+
+    /// <summary>
+    /// Closes and forgets the rows. Only for a change that came from the caller: what the menu was
+    /// answering is gone with the text it was answering about.
+    /// </summary>
+    private void Dismiss()
+    {
+        _results = [];
+        Close();
     }
 
     private void Close()

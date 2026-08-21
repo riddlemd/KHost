@@ -136,6 +136,44 @@ public class ComboBoxTests
         Assert.Equal("half-typed", Field<string>("_query"));
     }
 
+    // With nothing to choose, Enter belongs to whatever surrounds the box — a form that accepts a
+    // name matching no row.
+    [Fact]
+    public async Task Enter_WithNoMatches_ChoosesNothing()
+    {
+        SetField("_isOpen", true);
+        SetField("_results", new List<Song>());
+
+        await InvokeAsync("OnKeyDownAsync", new KeyboardEventArgs { Key = "Enter" });
+
+        Assert.False(_wasReported);
+        Assert.Null(_combo.Value);
+    }
+
+    [Fact]
+    public void TextReplacedByTheCaller_DismissesTheMenu()
+    {
+        Open(new Song("Jolene"));
+
+        SetParameter(nameof(ComboBox<Song>.Text), "");
+        ParametersSet();
+
+        Assert.False(Field<bool>("_isOpen"));
+        Assert.Empty(Field<List<Song>>("_results"));
+    }
+
+    [Fact]
+    public void ValueReplacedByTheCaller_DismissesTheMenu()
+    {
+        Open(new Song("Jolene"));
+
+        SetParameter(nameof(ComboBox<Song>.Value), new Song("Crazy"));
+        ParametersSet();
+
+        Assert.False(Field<bool>("_isOpen"));
+        Assert.Empty(Field<List<Song>>("_results"));
+    }
+
     [Fact]
     public void MinimumSearchLength_DefaultsToThree()
     {
@@ -189,6 +227,60 @@ public class ComboBoxTests
         await _combo.DisposeAsync();
         await typing;
     }
+
+    [Fact]
+    public void WithoutAGroupName_NoRowStartsAGroup()
+    {
+        Open(new Song("At Last"), new Song("Respect"));
+
+        Assert.False(StartsGroup(0));
+        Assert.False(StartsGroup(1));
+    }
+
+    // Rows arrive already sorted, so a heading belongs wherever the group changes — and only there.
+    [Fact]
+    public void WithAGroupName_AHeadingStartsEachRunOfRows()
+    {
+        GroupBy(song => song.Title.StartsWith('A') ? "Here" : "Elsewhere");
+        Open(new Song("At Last"), new Song("Alfie"), new Song("Respect"), new Song("Rehab"));
+
+        Assert.True(StartsGroup(0));
+        Assert.False(StartsGroup(1));
+        Assert.True(StartsGroup(2));
+        Assert.False(StartsGroup(3));
+    }
+
+    [Fact]
+    public void WithAGroupName_ARunThatReturnsNothing_GetsNoHeading()
+    {
+        GroupBy(song => song.Title.StartsWith('A') ? null : "Elsewhere");
+        Open(new Song("At Last"), new Song("Respect"));
+
+        Assert.False(StartsGroup(0));
+        Assert.True(StartsGroup(1));
+    }
+
+    [Fact]
+    public void GroupOf_IsTheHeadingText()
+    {
+        GroupBy(_ => "Here");
+        Open(new Song("At Last"));
+
+        Assert.Equal("Here", GroupOf(0));
+    }
+
+    private void GroupBy(Func<Song, string?> group)
+        => SetParameter(nameof(ComboBox<Song>.GroupName), group);
+
+    private bool StartsGroup(int index)
+        => (bool)typeof(ComboBox<Song>)
+            .GetMethod("StartsGroup", BindingFlags.NonPublic | BindingFlags.Instance)!
+            .Invoke(_combo, [index])!;
+
+    private string? GroupOf(int index)
+        => (string?)typeof(ComboBox<Song>)
+            .GetMethod("GroupOf", BindingFlags.NonPublic | BindingFlags.Instance)!
+            .Invoke(_combo, [index]);
 
     private void Open(params Song[] results)
     {
