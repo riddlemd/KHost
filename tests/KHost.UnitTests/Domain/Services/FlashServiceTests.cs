@@ -1,6 +1,7 @@
-using KHost.UserInterface.Services;
+using KHost.Abstractions.Models;
+using KHost.Domain.Services;
 
-namespace KHost.UnitTests.UserInterface.Services;
+namespace KHost.UnitTests.Domain.Services;
 
 public class FlashServiceTests
 {

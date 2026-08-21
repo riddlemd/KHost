@@ -1,4 +1,5 @@
-using KHost.UserInterface.Services;
+using KHost.Abstractions.Models;
+using KHost.Abstractions.Services;
 using Microsoft.AspNetCore.Components;
 
 namespace KHost.UserInterface.Components;
