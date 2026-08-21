@@ -74,4 +74,14 @@ public partial class SettingsButton
     }
 
     private void NavigateTo(string route) => NavigationManager?.NavigateTo(route);
+
+    // Read as the menu opens rather than tracked: the items are a fragment, so this runs each time
+    // the menu is rendered and there is no navigation to subscribe to.
+    private string CurrentClass(string route)
+        => IsSameRoute(new Uri(NavigationManager?.Uri ?? HomeRoute).AbsolutePath, route)
+            ? "kh-dropdown__item--current"
+            : "";
+
+    public static bool IsSameRoute(string path, string route)
+        => string.Equals(path.TrimEnd('/'), route.TrimEnd('/'), StringComparison.OrdinalIgnoreCase);
 }

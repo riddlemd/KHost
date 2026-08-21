@@ -1,7 +1,7 @@
 <DropdownMenu Class="kh-settings-menu" Title="Menu">
     <Trigger><Icon Name="list" /></Trigger>
     <Items>
-        <button class="kh-dropdown__item" type="button" @onclick="() => NavigateTo(HomeRoute)">
+        <button class="kh-dropdown__item @CurrentClass(HomeRoute)" type="button" @onclick="() => NavigateTo(HomeRoute)">
             <span class="kh-dropdown__check"><Icon Name="sliders2" /></span>
             Controls
         </button>
@@ -14,7 +14,7 @@
             @* Not `page`: the Razor parser reads @page as the directive. *@
             @foreach (var settingsPage in group)
             {
-                <button class="kh-dropdown__item" type="button"
+                <button class="kh-dropdown__item @CurrentClass(settingsPage.Route)" type="button"
                         @onclick="() => NavigateTo(settingsPage.Route)">
                     <span class="kh-dropdown__check"><Icon Name="@settingsPage.Icon" /></span>
                     @settingsPage.Title
