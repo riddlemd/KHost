@@ -10,8 +10,11 @@ namespace KHost.UserInterface.Components.Dialogs;
 public partial class EditTipDialog : IAsyncDisposable
 {
     [Inject] private IJSRuntime JS { get; set; } = default!;
+    [Inject] private IUsersService? UsersService { get; set; }
 
     private const string _rootClassName = "kh-tip-edit-dialog";
+
+    private const int SingerResultLimit = 20;
 
     [Parameter] public bool IsOpen { get; set; }
     [Parameter] public Tip? Tip { get; set; }
@@ -23,35 +26,24 @@ public partial class EditTipDialog : IAsyncDisposable
     [Parameter] public EventCallback OnClose { get; set; }
     [Parameter] public EventCallback OnOpen { get; set; }
 
-    [Inject] private IUsersService? UsersService { get; set; }
-
     private ElementReference _amountRef;
     private IJSObjectReference? _currencyModule;
     private IJSObjectReference? _currencyHandle;
 
     private bool _isNew;
+    private KHostUser? _singer;
     private EditTipModel _model = new();
     private EditContext _editContext = default!;
     private bool _prevIsOpen;
     // What was last written into the input, so a re-render never overwrites what is being typed.
     private int? _pushedCents;
-    private List<KHostUser> _users = [];
 
     protected override void OnInitialized()
     {
         _editContext = new EditContext(_model);
     }
 
-    protected override async Task OnInitializedAsync()
-    {
-        if (UsersService != null && UserId is null)
-        {
-            var result = await UsersService.ReadAllAsync(pageSize: 1000);
-            _users = result.Items.OrderBy(u => u.Name).ToList();
-        }
-    }
-
-    protected override void OnParametersSet()
+    protected override async Task OnParametersSetAsync()
     {
         if (IsOpen && !_prevIsOpen)
         {
@@ -75,6 +67,11 @@ public partial class EditTipDialog : IAsyncDisposable
 
             _editContext = new EditContext(_model);
             _pushedCents = null;
+
+            // A stored tip carries an id; the field shows a name.
+            _singer = _model.UserId is null || UsersService is null
+                ? null
+                : await UsersService.ReadAsync(_model.UserId.Value);
         }
         _prevIsOpen = IsOpen;
     }
@@ -116,6 +113,24 @@ public partial class EditTipDialog : IAsyncDisposable
         await OnSave.InvokeAsync(tip);
 
         await CloseAsync();
+    }
+
+    private async Task<IReadOnlyList<KHostUser>> SearchSingersAsync(string query)
+    {
+        if (UsersService is null) return [];
+
+        var result = await UsersService.SearchAsync(query, 1, SingerResultLimit);
+
+        return result.Items;
+    }
+
+    private Task OnSingerChangedAsync(KHostUser? singer)
+    {
+        _singer = singer;
+        _model.UserId = singer?.Id;
+        _editContext.NotifyFieldChanged(FieldIdentifier.Create(() => _model.UserId));
+
+        return Task.CompletedTask;
     }
 
     private Task OnAmountChangedAsync(ChangeEventArgs e)

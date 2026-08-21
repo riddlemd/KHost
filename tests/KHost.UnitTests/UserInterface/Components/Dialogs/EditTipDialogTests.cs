@@ -8,52 +8,52 @@ namespace KHost.UnitTests.UserInterface.Components.Dialogs;
 public class EditTipDialogTests
 {
     [Fact]
-    public void Opening_WithNoTip_IsAnAdd()
+    public async Task Opening_WithNoTip_IsAnAdd()
     {
-        Assert.True(IsNew(Open(null)));
+        Assert.True(IsNew(await OpenAsync(null)));
     }
 
     [Fact]
-    public void Opening_WithAnExistingTip_IsAnEdit()
+    public async Task Opening_WithAnExistingTip_IsAnEdit()
     {
-        Assert.False(IsNew(Open(new Tip { UserId = Guid.NewGuid(), AmountInCents = 500 })));
+        Assert.False(IsNew(await OpenAsync(new Tip { UserId = Guid.NewGuid(), AmountInCents = 500 })));
     }
 
     [Fact]
-    public void Opening_WithNoTip_LeavesTheSingerUnchosen()
+    public async Task Opening_WithNoTip_LeavesTheSingerUnchosen()
     {
-        Assert.Null(Model(Open(null)).UserId);
+        Assert.Null(Model(await OpenAsync(null)).UserId);
     }
 
     // Guid.Empty has to read as "nothing chosen": [Required] rejects only null.
     [Fact]
-    public void Opening_WithABlankTip_LeavesTheSingerUnchosen()
+    public async Task Opening_WithABlankTip_LeavesTheSingerUnchosen()
     {
-        Assert.Null(Model(Open(new Tip { AmountInCents = 0 })).UserId);
+        Assert.Null(Model(await OpenAsync(new Tip { AmountInCents = 0 })).UserId);
     }
 
     [Fact]
-    public void Opening_WithAnExistingTip_KeepsItsSinger()
+    public async Task Opening_WithAnExistingTip_KeepsItsSinger()
     {
         var userId = Guid.NewGuid();
 
-        var model = Model(Open(new Tip { UserId = userId, AmountInCents = 1250 }));
+        var model = Model(await OpenAsync(new Tip { UserId = userId, AmountInCents = 1250 }));
 
         Assert.Equal(userId, model.UserId);
         Assert.Equal(1250, model.AmountInCents);
     }
 
     [Fact]
-    public void Opening_WithASingerAlreadyChosen_UsesIt()
+    public async Task Opening_WithASingerAlreadyChosen_UsesIt()
     {
         var userId = Guid.NewGuid();
 
-        var model = Model(Open(new Tip { AmountInCents = 0 }, lockedUserId: userId));
+        var model = Model(await OpenAsync(new Tip { AmountInCents = 0 }, lockedUserId: userId));
 
         Assert.Equal(userId, model.UserId);
     }
 
-    private static EditTipDialog Open(Tip? tip, Guid? lockedUserId = null)
+    private static async Task<EditTipDialog> OpenAsync(Tip? tip, Guid? lockedUserId = null)
     {
         var dialog = new EditTipDialog();
 
@@ -62,9 +62,9 @@ public class EditTipDialogTests
         Set(dialog, nameof(EditTipDialog.Tip), tip);
         Set(dialog, nameof(EditTipDialog.UserId), lockedUserId);
 
-        typeof(EditTipDialog)
-            .GetMethod("OnParametersSet", BindingFlags.NonPublic | BindingFlags.Instance)!
-            .Invoke(dialog, null);
+        await (Task)typeof(EditTipDialog)
+            .GetMethod("OnParametersSetAsync", BindingFlags.NonPublic | BindingFlags.Instance)!
+            .Invoke(dialog, null)!;
 
         return dialog;
     }
