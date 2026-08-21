@@ -1,4 +1,5 @@
-<DropdownMenu @ref="_menu" Class="kh-settings-menu" Title="Menu" CloseOnItemClick="false">
+<DropdownMenu @ref="_menu" Class="kh-settings-menu" Title="Menu" CloseOnItemClick="false"
+              OpenChanged="OnMenuOpenChanged">
     <Trigger><Icon Name="list" /></Trigger>
     <Items>
         <button class="kh-dropdown__item @CurrentClass(HomeRoute)" type="button" @onclick="() => NavigateTo(HomeRoute)">
