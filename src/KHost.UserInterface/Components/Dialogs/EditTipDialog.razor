@@ -30,8 +30,8 @@
             <div >
                 <label class="kh-form-label">Amount</label>
                 <input type="text" @ref="_amountRef" class="kh-form-control"
-                       inputmode="numeric" @onchange="OnAmountChangedAsync" />
-                <ValidationMessage For="() => _model.Amount" />
+                       inputmode="numeric" @oninput="OnAmountChangedAsync" />
+                <ValidationMessage For="() => _model.AmountInCents" />
             </div>
 
             <div >

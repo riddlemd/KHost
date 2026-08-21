@@ -25,8 +25,8 @@ public partial class SelectedSingerInfoPanel : IDisposable
     private Dictionary<Guid, Media?> _mediaCache = [];
     private int _performanceCount = 0;
     private Guid? _selectedPerformanceId;
-    private decimal _tonightTotal;
-    private decimal _lifetimeTotal;
+    private int _tonightTotalInCents;
+    private int _lifetimeTotalInCents;
     private bool _tippingEnabled = true;
     private bool _canRemoveFromQueue;
     private bool _canReorderQueue;
@@ -233,14 +233,14 @@ public partial class SelectedSingerInfoPanel : IDisposable
             if (_tippingEnabled && TipsService is not null)
             {
                 var tips = await TipsService.GetByUserIdAsync(user.Id);
-                _lifetimeTotal = tips.Sum(t => t.Amount);
-                _tonightTotal = tips.Where(t => t.CreatedDate.Date == DateTime.UtcNow.Date)
-                                     .Sum(t => t.Amount);
+                _lifetimeTotalInCents = tips.Sum(t => t.AmountInCents);
+                _tonightTotalInCents = tips.Where(t => t.CreatedDate.Date == DateTime.UtcNow.Date)
+                                           .Sum(t => t.AmountInCents);
             }
             else
             {
-                _tonightTotal = 0;
-                _lifetimeTotal = 0;
+                _tonightTotalInCents = 0;
+                _lifetimeTotalInCents = 0;
             }
         }
         else
@@ -249,8 +249,8 @@ public partial class SelectedSingerInfoPanel : IDisposable
             _performanceCount = 0;
             _selectedPerformanceId = null;
             _mediaCache = [];
-            _tonightTotal = 0;
-            _lifetimeTotal = 0;
+            _tonightTotalInCents = 0;
+            _lifetimeTotalInCents = 0;
         }
     }
 

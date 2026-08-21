@@ -1,3 +1,4 @@
+@using KHost.Domain.Monetary
 @using KHost.Abstractions.Models
 @using KHost.Domain.Collections.Generics
 @using KHost.UserInterface.Models
@@ -20,11 +21,11 @@
                 <span class="kh-selected-singer-info-panel__tip-totals">
                     Tips |
                     <span>
-                        <label>Tonight:</label> $@_tonightTotal.ToString("F2")
+                        <label>Tonight:</label> @_tonightTotalInCents.ToCurrency()
                     </span>
                     /
                     <span>
-                        <label>Lifetime:</label> $@_lifetimeTotal.ToString("F2")
+                        <label>Lifetime:</label> @_lifetimeTotalInCents.ToCurrency()
                     </span>
                 </span>
             }

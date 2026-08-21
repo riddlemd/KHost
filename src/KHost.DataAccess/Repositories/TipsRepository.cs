@@ -13,7 +13,7 @@ internal class TipsRepository : BaseRepository<Tip>, ITipsRepository
         new Dictionary<string, Expression<Func<Tip, object>>>
         {
             ["createdDate"] = t => t.CreatedDate,
-            ["amount"] = t => t.Amount,
+            ["amount"] = t => t.AmountInCents,
             ["paymentMethod"] = t => t.PaymentMethod,
         };
 
@@ -31,13 +31,13 @@ internal class TipsRepository : BaseRepository<Tip>, ITipsRepository
             .ToListAsync();
     }
 
-    public async Task<decimal> GetTotalByUserIdAsync(Guid userId, DateTime? from = null, DateTime? to = null)
+    public async Task<int> GetTotalByUserIdAsync(Guid userId, DateTime? from = null, DateTime? to = null)
     {
         using var context = await ContextFactory.CreateDbContextAsync();
         var query = context.Tips.Where(t => t.UserId == userId);
         if (from.HasValue) query = query.Where(t => t.CreatedDate >= from.Value);
         if (to.HasValue)   query = query.Where(t => t.CreatedDate <= to.Value);
-        return await query.SumAsync(t => t.Amount);
+        return await query.SumAsync(t => t.AmountInCents);
     }
 
     protected override IReadOnlyDictionary<string, Expression<Func<Tip, object>>> SortColumns => _sortColumns;
