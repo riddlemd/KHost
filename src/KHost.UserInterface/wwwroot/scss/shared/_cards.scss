@@ -24,6 +24,11 @@
         align-items: center;
 
         .kh-card__title {
+            // Without these it cannot shrink, so it pushes whatever shares the header row instead.
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
             color: var(--kh-text-secondary);
             margin: 0 0 0 1em;
             font-size: inherit;
