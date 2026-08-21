@@ -13,8 +13,8 @@ public class EditTipModel
     public Guid? VenueId { get; set; }
 
     [Required(ErrorMessage = "Amount is required.")]
-    [Range(0.01, 99999.99, ErrorMessage = "Amount must be between $0.01 and $99,999.99.")]
-    public decimal Amount { get; set; }
+    [Range(1, 9_999_999, ErrorMessage = "Amount must be between $0.01 and $99,999.99.")]
+    public int AmountInCents { get; set; }
 
     public TipPaymentMethod PaymentMethod { get; set; } = TipPaymentMethod.Cash;
 

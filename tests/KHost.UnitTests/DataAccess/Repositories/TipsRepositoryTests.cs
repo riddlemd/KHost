@@ -54,96 +54,97 @@ public class TipsRepositoryTests : IDisposable
     {
         var total = await _repository.GetTotalByUserIdAsync(UserA);
 
-        Assert.Equal(0m, total);
+        Assert.Equal(0, total);
     }
 
     [Fact]
     public async Task GetTotalByUserIdAsync_SumsOnlyTheGivenUser()
     {
         await SeedAsync(
-            MakeTip(UserA, 10.00m, new DateTime(2026, 1, 10, 0, 0, 0, DateTimeKind.Utc)),
-            MakeTip(UserA, 5.50m, new DateTime(2026, 1, 11, 0, 0, 0, DateTimeKind.Utc)),
-            MakeTip(UserB, 99.00m, new DateTime(2026, 1, 12, 0, 0, 0, DateTimeKind.Utc)));
+            MakeTip(UserA, 1000, new DateTime(2026, 1, 10, 0, 0, 0, DateTimeKind.Utc)),
+            MakeTip(UserA, 550, new DateTime(2026, 1, 11, 0, 0, 0, DateTimeKind.Utc)),
+            MakeTip(UserB, 9900, new DateTime(2026, 1, 12, 0, 0, 0, DateTimeKind.Utc)));
 
         var total = await _repository.GetTotalByUserIdAsync(UserA);
 
-        Assert.Equal(15.50m, total);
+        Assert.Equal(1550, total);
     }
 
     [Fact]
     public async Task GetTotalByUserIdAsync_IncludesTipsExactlyOnTheFromBoundary()
     {
         var boundary = new DateTime(2026, 1, 10, 12, 0, 0, DateTimeKind.Utc);
-        await SeedAsync(MakeTip(UserA, 20m, boundary));
+        await SeedAsync(MakeTip(UserA, 2000, boundary));
 
         var total = await _repository.GetTotalByUserIdAsync(UserA, from: boundary);
 
-        Assert.Equal(20m, total);
+        Assert.Equal(2000, total);
     }
 
     [Fact]
     public async Task GetTotalByUserIdAsync_IncludesTipsExactlyOnTheToBoundary()
     {
         var boundary = new DateTime(2026, 1, 10, 12, 0, 0, DateTimeKind.Utc);
-        await SeedAsync(MakeTip(UserA, 20m, boundary));
+        await SeedAsync(MakeTip(UserA, 2000, boundary));
 
         var total = await _repository.GetTotalByUserIdAsync(UserA, to: boundary);
 
-        Assert.Equal(20m, total);
+        Assert.Equal(2000, total);
     }
 
     [Fact]
     public async Task GetTotalByUserIdAsync_ExcludesTipsOutsideTheRange()
     {
         await SeedAsync(
-            MakeTip(UserA, 1m, new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc)),
-            MakeTip(UserA, 10m, new DateTime(2026, 1, 15, 0, 0, 0, DateTimeKind.Utc)),
-            MakeTip(UserA, 100m, new DateTime(2026, 2, 1, 0, 0, 0, DateTimeKind.Utc)));
+            MakeTip(UserA, 100, new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc)),
+            MakeTip(UserA, 1000, new DateTime(2026, 1, 15, 0, 0, 0, DateTimeKind.Utc)),
+            MakeTip(UserA, 10000, new DateTime(2026, 2, 1, 0, 0, 0, DateTimeKind.Utc)));
 
         var total = await _repository.GetTotalByUserIdAsync(
             UserA,
             from: new DateTime(2026, 1, 10, 0, 0, 0, DateTimeKind.Utc),
             to: new DateTime(2026, 1, 20, 0, 0, 0, DateTimeKind.Utc));
 
-        Assert.Equal(10m, total);
+        Assert.Equal(1000, total);
     }
 
     [Fact]
     public async Task GetTotalByUserIdAsync_ReturnsZero_WhenRangeExcludesEverything()
     {
-        await SeedAsync(MakeTip(UserA, 10m, new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc)));
+        await SeedAsync(MakeTip(UserA, 1000, new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc)));
 
         var total = await _repository.GetTotalByUserIdAsync(
             UserA,
             from: new DateTime(2026, 6, 1, 0, 0, 0, DateTimeKind.Utc));
 
-        Assert.Equal(0m, total);
+        Assert.Equal(0, total);
     }
 
     [Fact]
-    public async Task GetTotalByUserIdAsync_PreservesDecimalPrecision()
+    public async Task GetTotalByUserIdAsync_AddsUpExactly()
     {
         await SeedAsync(
-            MakeTip(UserA, 0.10m, new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc)),
-            MakeTip(UserA, 0.20m, new DateTime(2026, 1, 2, 0, 0, 0, DateTimeKind.Utc)));
+            MakeTip(UserA, 10, new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc)),
+            MakeTip(UserA, 20, new DateTime(2026, 1, 2, 0, 0, 0, DateTimeKind.Utc)));
 
+        // Whole cents, so the total is integer arithmetic end to end - no float in the middle.
         var total = await _repository.GetTotalByUserIdAsync(UserA);
 
-        Assert.Equal(0.30m, total);
+        Assert.Equal(30, total);
     }
 
     [Fact]
     public async Task GetByUserIdAsync_ReturnsOnlyThatUsersTips_NewestFirst()
     {
         await SeedAsync(
-            MakeTip(UserA, 1m, new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc)),
-            MakeTip(UserA, 2m, new DateTime(2026, 1, 3, 0, 0, 0, DateTimeKind.Utc)),
-            MakeTip(UserA, 3m, new DateTime(2026, 1, 2, 0, 0, 0, DateTimeKind.Utc)),
-            MakeTip(UserB, 99m, new DateTime(2026, 1, 4, 0, 0, 0, DateTimeKind.Utc)));
+            MakeTip(UserA, 100, new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc)),
+            MakeTip(UserA, 200, new DateTime(2026, 1, 3, 0, 0, 0, DateTimeKind.Utc)),
+            MakeTip(UserA, 300, new DateTime(2026, 1, 2, 0, 0, 0, DateTimeKind.Utc)),
+            MakeTip(UserB, 9900, new DateTime(2026, 1, 4, 0, 0, 0, DateTimeKind.Utc)));
 
         var tips = await _repository.GetByUserIdAsync(UserA);
 
-        Assert.Equal([2m, 3m, 1m], tips.Select(t => t.Amount));
+        Assert.Equal([200, 300, 100], tips.Select(t => t.AmountInCents));
     }
 
     [Fact]
@@ -158,19 +159,19 @@ public class TipsRepositoryTests : IDisposable
     public async Task SearchAsync_MatchesNotesSubstring()
     {
         await SeedAsync(
-            MakeTip(UserA, 1m, new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc), "great set tonight"),
-            MakeTip(UserA, 2m, new DateTime(2026, 1, 2, 0, 0, 0, DateTimeKind.Utc), "encore please"));
+            MakeTip(UserA, 100, new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc), "great set tonight"),
+            MakeTip(UserA, 200, new DateTime(2026, 1, 2, 0, 0, 0, DateTimeKind.Utc), "encore please"));
 
         var result = await _repository.SearchAsync("encore");
 
         Assert.Equal(1, result.TotalCount);
-        Assert.Equal(2m, result.Items[0].Amount);
+        Assert.Equal(200, result.Items[0].AmountInCents);
     }
 
     [Fact]
     public async Task SearchAsync_IsCaseInsensitiveForAsciiNotes()
     {
-        await SeedAsync(MakeTip(UserA, 1m, new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc), "Encore Please"));
+        await SeedAsync(MakeTip(UserA, 100, new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc), "Encore Please"));
 
         var result = await _repository.SearchAsync("ENCORE");
 
@@ -181,8 +182,8 @@ public class TipsRepositoryTests : IDisposable
     public async Task SearchAsync_BlankQuery_ReturnsAllTips()
     {
         await SeedAsync(
-            MakeTip(UserA, 1m, new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc)),
-            MakeTip(UserB, 2m, new DateTime(2026, 1, 2, 0, 0, 0, DateTimeKind.Utc)));
+            MakeTip(UserA, 100, new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc)),
+            MakeTip(UserB, 200, new DateTime(2026, 1, 2, 0, 0, 0, DateTimeKind.Utc)));
 
         var result = await _repository.SearchAsync("");
 
@@ -206,10 +207,10 @@ public class TipsRepositoryTests : IDisposable
         await context.SaveChangesAsync();
     }
 
-    private static Tip MakeTip(Guid userId, decimal amount, DateTime createdDate, string notes = "") => new()
+    private static Tip MakeTip(Guid userId, int amountInCents, DateTime createdDate, string notes = "") => new()
     {
         UserId = userId,
-        Amount = amount,
+        AmountInCents = amountInCents,
         CreatedDate = createdDate,
         PaymentMethod = TipPaymentMethod.Cash,
         Notes = notes,
