@@ -33,6 +33,8 @@ public partial class EditTipDialog : IAsyncDisposable
     private EditTipModel _model = new();
     private EditContext _editContext = default!;
     private bool _prevIsOpen;
+    // What was last written into the input, so a re-render never overwrites what is being typed.
+    private int? _pushedCents;
     private List<KHostUser> _users = [];
 
     protected override void OnInitialized()
@@ -70,6 +72,7 @@ public partial class EditTipDialog : IAsyncDisposable
                 _model.UserId = UserId.Value;
 
             _editContext = new EditContext(_model);
+            _pushedCents = null;
         }
         _prevIsOpen = IsOpen;
     }
@@ -81,7 +84,13 @@ public partial class EditTipDialog : IAsyncDisposable
             _currencyModule = await JS.InvokeAsync<IJSObjectReference>("import", "/js/currency-input.js");
             _currencyHandle = await _currencyModule.InvokeAsync<IJSObjectReference>("init", _amountRef);
         }
-        await _currencyModule!.InvokeVoidAsync("setValue", _amountRef, _model.AmountInCents);
+        // Only when the value actually changed underneath us. Pushing on every render put the
+        // model's value back over whatever was half-typed, and the next change event reported that.
+        if (_pushedCents != _model.AmountInCents)
+        {
+            _pushedCents = _model.AmountInCents;
+            await _currencyModule!.InvokeVoidAsync("setValue", _amountRef, _model.AmountInCents);
+        }
     }
 
     private async Task SubmitAsync()
@@ -108,6 +117,8 @@ public partial class EditTipDialog : IAsyncDisposable
     {
         var digits = System.Text.RegularExpressions.Regex.Replace(e.Value?.ToString() ?? "", @"[^\d]", "");
         _model.AmountInCents = int.TryParse(digits, out var cents) ? cents : 0;
+        // The input already shows what was typed; re-pushing it would fight the caret.
+        _pushedCents = _model.AmountInCents;
         _editContext.NotifyFieldChanged(FieldIdentifier.Create(() => _model.AmountInCents));
         return Task.CompletedTask;
     }

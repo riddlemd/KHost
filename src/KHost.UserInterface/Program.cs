@@ -38,6 +38,7 @@ internal static class Program
 {
     /// <summary>Skips the native shell and runs as a plain web host — browser-based development.</summary>
     private const string HeadlessFlag = "--headless";
+    internal const string NativeShellKey = "NativeShell";
 
     /// <summary>Prints a freshly generated password for the named user, then exits.</summary>
     private const string ResetPasswordFlag = "--reset-password";
@@ -76,6 +77,10 @@ internal static class Program
             // anywhere — leaving WebRootPath null and ThemeService dead on startup.
             ContentRootPath = AppContext.BaseDirectory,
         });
+
+        // The window locks itself down (no reload, no back, no inspector); a browser tab does not.
+        builder.Configuration.AddInMemoryCollection(
+            [new KeyValuePair<string, string?>(NativeShellKey, (!headless).ToString())]);
 
         // The App Settings page writes this overlay; registered last, it wins over the
         // deployment defaults, and reload-on-change lets IOptionsMonitor bindings apply live.
