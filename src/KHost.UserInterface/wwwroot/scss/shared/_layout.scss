@@ -34,6 +34,13 @@
     &__gap {
         margin-left: auto;
     }
+
+    // Its own flex row so wrapping the mark in a link leaves the header's spacing untouched.
+    &__home {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
 }
 
 /* ─── Footer ──────────────────────────────────────────────────────────────── */

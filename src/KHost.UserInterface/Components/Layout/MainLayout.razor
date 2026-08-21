@@ -3,8 +3,11 @@
 <ThemeLink />
 
 <header class="kh-header">
-    <Icon Name="headphones" Class="kh-app__logo-icon" />
-    <span class="kh-app__logo-text">KHost</span>
+    @* An anchor, not a click handler: it keeps keyboard focus, middle-click and the status bar. *@
+    <a href="/" class="kh-header__home" title="KHost — back to the controls">
+        <Icon Name="headphones" Class="kh-app__logo-icon" />
+        <span class="kh-app__logo-text">KHost</span>
+    </a>
     <span class="kh-app__logo-sep">|</span>
     <span class="kh-app__logo-sub">Karaoke for the people, by the people.</span>
     @* The venue selector used to carry the auto margin that pushed these right; with it gone the
