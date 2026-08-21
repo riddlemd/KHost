@@ -1,69 +1,104 @@
 // Drag-to-resize for the KHost panel layout.
 // Persists sizes to localStorage. Returns a { dispose } object for cleanup.
+//
+// Nothing here may hold an element captured at startup: the now-playing, search and singer-info
+// panels mount only once a singer is selected, so on a fresh page none of them exist yet. Handles
+// are reached by delegation and panels are looked up per drag.
 
 const KEYS = {
     queueWidth:   'khost-queue-width',
     searchHeight: 'khost-search-height',
 };
 
-export function init() {
-    const colLeft    = document.querySelector('.kh-app__col--queue');
-    const nowPlaying = document.querySelector('.kh-now-playing-panel');
-    const MediaSearch = document.querySelector('.kh-media-search-panel');
-    const vHandle    = document.querySelector('.kh-vertical-handle');
-    const hHandle    = document.querySelector('.kh-horizontal-handle');
-    const body       = document.querySelector('.kh-app__body');
+const SELECTORS = {
+    body:       '.kh-app__body',
+    queue:      '.kh-app__col--queue',
+    nowPlaying: '.kh-now-playing-panel',
+    search:     '.kh-media-search-panel',
+    vHandle:    '.kh-vertical-handle',
+    hHandle:    '.kh-horizontal-handle',
+};
 
-    if (!colLeft || !nowPlaying || !MediaSearch || !vHandle || !hHandle || !body)
-        return { dispose: () => {} };
+const MinQueueWidth = 150;
+const MaxQueueFraction = 0.65;
+const MinPanelHeight = 80;
+
+const find = selector => document.querySelector(selector);
+
+export function init() {
+    const body = find(SELECTORS.body);
+    if (!body) return { dispose: () => {} };
+
+    let mode = null;   // 'v' | 'h'
+    let handle = null;
+    let startCoord = 0;
+    let startSize = 0;
+    let saveTimer = null;
 
     // ── Restore saved sizes ───────────────────────────────────────────────
-    const savedQW = parseFloat(localStorage.getItem(KEYS.queueWidth));
-    if (savedQW > 0) colLeft.style.width = savedQW + 'px';
-
-    const savedSH = parseFloat(localStorage.getItem(KEYS.searchHeight));
-    if (savedSH > 0) {
-        MediaSearch.style.flex   = 'none';
-        MediaSearch.style.height = savedSH + 'px';
+    function restoreQueueWidth() {
+        const queue = find(SELECTORS.queue);
+        const saved = parseFloat(localStorage.getItem(KEYS.queueWidth));
+        if (queue && saved > 0) queue.style.width = saved + 'px';
     }
 
-    // ── Drag state ────────────────────────────────────────────────────────
-    let mode       = null;   // 'v' | 'h'
-    let startCoord = 0;
-    let startSize  = 0;
-    let saveTimer  = null;
+    function restoreSearchHeight() {
+        const search = find(SELECTORS.search);
+        const saved = parseFloat(localStorage.getItem(KEYS.searchHeight));
 
-    function clientCoords(e) {
-        const src = e.touches?.[0] ?? e;
-        return { x: src.clientX, y: src.clientY };
+        // An inline height means this panel has already been sized — either restored or dragged —
+        // and re-applying the stored value mid-session would undo the drag in progress.
+        if (mode || !search || !(saved > 0) || search.style.height) return;
+
+        search.style.flex = 'none';
+        search.style.height = saved + 'px';
     }
+
+    restoreQueueWidth();
+    restoreSearchHeight();
+
+    // Selecting a singer mounts the right-hand panels long after init ran.
+    const observer = new MutationObserver(restoreSearchHeight);
+    observer.observe(body, { childList: true, subtree: true });
 
     // ── Persist (debounced) ───────────────────────────────────────────────
     function scheduleSave() {
         clearTimeout(saveTimer);
         saveTimer = setTimeout(() => {
-            localStorage.setItem(KEYS.queueWidth,   colLeft.getBoundingClientRect().width);
-            if (MediaSearch.style.height)
-                localStorage.setItem(KEYS.searchHeight, parseFloat(MediaSearch.style.height));
+            const queue = find(SELECTORS.queue);
+            const search = find(SELECTORS.search);
+
+            if (queue) localStorage.setItem(KEYS.queueWidth, queue.getBoundingClientRect().width);
+            if (search?.style.height) localStorage.setItem(KEYS.searchHeight, parseFloat(search.style.height));
         }, 150);
     }
 
     // ── Handlers ──────────────────────────────────────────────────────────
-    function beginV(e) {
-        mode       = 'v';
-        startCoord = clientCoords(e).x;
-        startSize  = colLeft.getBoundingClientRect().width;
-        vHandle.classList.add('kh-vertical-handle--dragging');
-        lock('col-resize');
-        e.preventDefault();
+    function clientCoords(e) {
+        const src = e.touches?.[0] ?? e;
+        return { x: src.clientX, y: src.clientY };
     }
 
-    function beginH(e) {
-        mode       = 'h';
-        startCoord = clientCoords(e).y;
-        startSize  = MediaSearch.getBoundingClientRect().height;
-        hHandle.classList.add('kh-horizontal-handle--dragging');
-        lock('row-resize');
+    function begin(e) {
+        const target = e.target instanceof Element
+            ? e.target.closest(`${SELECTORS.vHandle}, ${SELECTORS.hHandle}`)
+            : null;
+        if (!target) return;
+
+        const vertical = target.matches(SELECTORS.vHandle);
+        const panel = find(vertical ? SELECTORS.queue : SELECTORS.search);
+        if (!panel) return;
+
+        const { x, y } = clientCoords(e);
+        const rect = panel.getBoundingClientRect();
+
+        mode = vertical ? 'v' : 'h';
+        handle = target;
+        startCoord = vertical ? x : y;
+        startSize = vertical ? rect.width : rect.height;
+
+        target.classList.add(vertical ? 'kh-vertical-handle--dragging' : 'kh-horizontal-handle--dragging');
+        lock(vertical ? 'col-resize' : 'row-resize');
         e.preventDefault();
     }
 
@@ -72,18 +107,26 @@ export function init() {
         const { x, y } = clientCoords(e);
 
         if (mode === 'v') {
-            const totalW = body.getBoundingClientRect().width;
-            const newW   = Math.max(150, Math.min(startSize + (x - startCoord), totalW * 0.65));
-            colLeft.style.width = newW + 'px';
+            const queue = find(SELECTORS.queue);
+            if (!queue) return;
 
-        } else if (mode === 'h') {
-            const bodyH     = body.getBoundingClientRect().height;
-            const npH       = nowPlaying.getBoundingClientRect().height;
-            const handleH   = hHandle.getBoundingClientRect().height;
-            const available = bodyH - npH - handleH;
-            const newH      = Math.max(80, Math.min(startSize + (y - startCoord), available - 80));
-            MediaSearch.style.flex   = 'none';
-            MediaSearch.style.height = newH + 'px';
+            const totalW = body.getBoundingClientRect().width;
+            const newW = Math.max(MinQueueWidth, Math.min(startSize + (x - startCoord), totalW * MaxQueueFraction));
+            queue.style.width = newW + 'px';
+
+        } else {
+            const search = find(SELECTORS.search);
+            const nowPlaying = find(SELECTORS.nowPlaying);
+            const hHandle = find(SELECTORS.hHandle);
+            if (!search || !nowPlaying || !hHandle) return;
+
+            const available = body.getBoundingClientRect().height
+                - nowPlaying.getBoundingClientRect().height
+                - hHandle.getBoundingClientRect().height;
+            const newH = Math.max(MinPanelHeight, Math.min(startSize + (y - startCoord), available - MinPanelHeight));
+
+            search.style.flex = 'none';
+            search.style.height = newH + 'px';
         }
 
         scheduleSave();
@@ -91,43 +134,44 @@ export function init() {
 
     function end() {
         if (!mode) return;
-        vHandle.classList.remove('kh-vertical-handle--dragging');
-        hHandle.classList.remove('kh-horizontal-handle--dragging');
+
+        handle?.classList.remove('kh-vertical-handle--dragging', 'kh-horizontal-handle--dragging');
         mode = null;
+        handle = null;
         unlock();
     }
 
     function lock(cursor) {
-        document.body.style.cursor     = cursor;
+        document.body.style.cursor = cursor;
         document.body.style.userSelect = 'none';
     }
+
     function unlock() {
-        document.body.style.cursor     = '';
+        document.body.style.cursor = '';
         document.body.style.userSelect = '';
     }
 
     // ── Wire up events ────────────────────────────────────────────────────
-    vHandle.addEventListener('mousedown',  beginV);
-    hHandle.addEventListener('mousedown', beginH);
+    document.addEventListener('mousedown', begin);
     document.addEventListener('mousemove', move);
-    document.addEventListener('mouseup',   end);
+    document.addEventListener('mouseup', end);
 
-    vHandle.addEventListener('touchstart',  beginV,  { passive: false });
-    hHandle.addEventListener('touchstart', beginH, { passive: false });
-    document.addEventListener('touchmove',  move,    { passive: false });
-    document.addEventListener('touchend',   end);
+    document.addEventListener('touchstart', begin, { passive: false });
+    document.addEventListener('touchmove', move, { passive: false });
+    document.addEventListener('touchend', end);
 
     return {
         dispose: () => {
             clearTimeout(saveTimer);
-            vHandle.removeEventListener('mousedown',  beginV);
-            hHandle.removeEventListener('mousedown', beginH);
+            observer.disconnect();
+
+            document.removeEventListener('mousedown', begin);
             document.removeEventListener('mousemove', move);
-            document.removeEventListener('mouseup',   end);
-            vHandle.removeEventListener('touchstart',  beginV);
-            hHandle.removeEventListener('touchstart', beginH);
-            document.removeEventListener('touchmove',  move);
-            document.removeEventListener('touchend',   end);
+            document.removeEventListener('mouseup', end);
+
+            document.removeEventListener('touchstart', begin);
+            document.removeEventListener('touchmove', move);
+            document.removeEventListener('touchend', end);
         }
     };
 }
