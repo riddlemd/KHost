@@ -4,6 +4,8 @@
    ═══════════════════════════════════════════════════════════════════════════ */
 
 .kh-media-search-panel {
+    // Keyed to the panel: the splitter sets its width independently of the window's.
+    container: kh-media-search / inline-size;
     flex: 1 1 0;
     overflow: hidden;
     min-height: 80px;
@@ -75,5 +77,15 @@
     &__hint {
         font-size: 0.72rem;
         color: var(--kh-warning);
+    }
+}
+
+/* ─── Narrow panel ────────────────────────────────────────────────────────── */
+@container kh-media-search (max-width: 560px) {
+    // The icon and the button's own title carry the action; the word is what pushes the results
+    // table wider than the panel. ::deep because the label sits in a fragment handed to
+    // SplitButton — reached through the panel root, which this component does render.
+    .kh-media-search-panel ::deep .kh-media-search-panel__action-label {
+        display: none;
     }
 }

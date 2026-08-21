@@ -120,7 +120,10 @@
                                                     disabled="@(SingerQueueService?.SelectedUserId is null)"
                                                     @onclick="() => PerformActionAsync(action.PerformAsync, mediaSearchEntity)"
                                                     title="@action.Description">
-                                                <Text><Icon Name="@action.Icon" /> @action.DisplayName</Text>
+                                                <Text>
+                                                    <Icon Name="@action.Icon" />
+                                                    <span class="kh-media-search-panel__action-label">@action.DisplayName</span>
+                                                </Text>
                                                 <Buttons>
                                                     @foreach(var subAction in action.SubActions)
                                                     {
