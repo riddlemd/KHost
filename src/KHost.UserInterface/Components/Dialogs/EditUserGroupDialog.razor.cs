@@ -41,6 +41,7 @@ public partial class EditUserGroupDialog
                     Name = Group.Name,
                     Description = Group.Description,
                     IsAdmin = Group.IsAdmin,
+                    ExcludeFromSingerQueue = Group.ExcludeFromSingerQueue,
                     Permissions = [.. Group.Permissions]
                 };
 
@@ -112,6 +113,7 @@ public partial class EditUserGroupDialog
         group.Name = _model.Name;
         group.Description = _model.Description;
         group.IsAdmin = _model.IsAdmin;
+        group.ExcludeFromSingerQueue = _model.ExcludeFromSingerQueue;
         group.Permissions = _model.IsAdmin ? [] : [.. _model.Permissions];
 
         await OnSave.InvokeAsync(group);

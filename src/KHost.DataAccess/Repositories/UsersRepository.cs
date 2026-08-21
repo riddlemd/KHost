@@ -65,6 +65,9 @@ internal class UsersRepository : BaseRepository<KHostUser>, IUsersRepository
     {
         queryable = queryable.Include(u => u.Groups.OrderBy(g => g.Name));
 
+        if (options is UserSearchOptions { SingersOnly: true })
+            queryable = queryable.Where(u => !u.Groups.Any(g => g.ExcludeFromSingerQueue));
+
         if (string.IsNullOrWhiteSpace(query))
             return queryable;
 
