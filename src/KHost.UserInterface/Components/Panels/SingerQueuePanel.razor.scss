@@ -3,6 +3,12 @@
    Singer cards, selection states, and actions
    ═══════════════════════════════════════════════════════════════════════════ */
 
+.kh-card__body.kh-singer-queue-panel__add {
+    // Beats the queue column's blanket overflow on .kh-card__body, which would crop the picker's
+    // menu to the height of the form.
+    overflow: visible;
+}
+
 .kh-singer-queue-panel {
     display: flex;
     flex-direction: column;
