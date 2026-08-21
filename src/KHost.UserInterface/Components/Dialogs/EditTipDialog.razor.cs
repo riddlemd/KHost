@@ -61,7 +61,9 @@ public partial class EditTipDialog : IAsyncDisposable
                 : new EditTipModel
                 {
                     Id = Tip.Id,
-                    UserId = Tip.UserId,
+                    // The singer-locked overload can hand over a blank tip, and Guid.Empty has to
+                    // read as "not chosen" for [Required] to fail on it.
+                    UserId = Tip.UserId == Guid.Empty ? null : Tip.UserId,
                     VenueId = Tip.VenueId,
                     AmountInCents = Tip.AmountInCents,
                     PaymentMethod = Tip.PaymentMethod,
@@ -101,8 +103,11 @@ public partial class EditTipDialog : IAsyncDisposable
 
     private async Task SaveAsync()
     {
-        var tip = Tip ?? new Tip { Id = _model.Id, UserId = _model.UserId };
-        tip.UserId = _model.UserId;
+        // Validation has run, so the singer is set.
+        var userId = _model.UserId!.Value;
+
+        var tip = Tip ?? new Tip { Id = _model.Id, UserId = userId };
+        tip.UserId = userId;
         tip.VenueId = _model.VenueId;
         tip.AmountInCents = _model.AmountInCents;
         tip.PaymentMethod = _model.PaymentMethod;

@@ -19,9 +19,18 @@ public class TipsService : BaseRepositoryService<Tip, ITipsRepository>, ITipsSer
     // that must not move when the host switches venue later.
     public override async Task<Tip> CreateAsync(Tip entity)
     {
+        EnsureSinger(entity);
+
         entity.VenueId ??= _venuesService.SelectedVenueId;
 
         return await base.CreateAsync(entity);
+    }
+
+    public override async Task UpdateAsync(Tip entity)
+    {
+        EnsureSinger(entity);
+
+        await base.UpdateAsync(entity);
     }
 
     public Task<IReadOnlyList<Tip>> GetByUserIdAsync(Guid userId)
@@ -29,4 +38,12 @@ public class TipsService : BaseRepositoryService<Tip, ITipsRepository>, ITipsSer
 
     public Task<int> GetTotalByUserIdAsync(Guid userId, DateTime? from = null, DateTime? to = null)
         => Repository.GetTotalByUserIdAsync(userId, from, to);
+
+    // Every view that reads tips reaches them through a singer, so one without is money recorded
+    // where nothing can show it.
+    private static void EnsureSinger(Tip entity)
+    {
+        if (entity.UserId == Guid.Empty)
+            throw new ArgumentException("A tip must belong to a singer.", nameof(entity));
+    }
 }
