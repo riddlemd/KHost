@@ -83,7 +83,7 @@ public partial class EditMediaDialog
 
     public record DialogRequest : EditDialogRequest<Media>
     {
-        public DialogRequest(Media? value, Action<Media?> onSave, Action? onCancel, Action? onClose) : base(value, onSave, onCancel, onClose)
+        public DialogRequest(Media? value, Func<Media?, Task> onSave, Action? onCancel, Action? onClose) : base(value, onSave, onCancel, onClose)
         {
         }
     }

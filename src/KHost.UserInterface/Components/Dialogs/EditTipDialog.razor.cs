@@ -19,6 +19,7 @@ public partial class EditTipDialog : IAsyncDisposable
     [Parameter] public bool IsOpen { get; set; }
     [Parameter] public Tip? Tip { get; set; }
     [Parameter] public Guid? UserId { get; set; }
+
     [Parameter] public string Class { get; set; } = "";
     [Parameter] public bool CloseOnScrimClick { get; set; }
 
@@ -161,11 +162,12 @@ public partial class EditTipDialog : IAsyncDisposable
     {
         public Guid? UserId { get; init; }
 
-        public DialogRequest(Tip? value, Action<Tip?> onSave, Action? onCancel, Action? onClose) : base(value, onSave, onCancel, onClose)
+        public DialogRequest(Tip? value, Func<Tip?, Task> onSave, Action? onCancel, Action? onClose) : base(value, onSave, onCancel, onClose)
         {
         }
 
-        public DialogRequest(Tip? value, Guid? lockedUserId, Action<Tip?> onSave, Action? onCancel, Action? onClose) : base(value, onSave, onCancel, onClose)
+        public DialogRequest(Tip? value, Guid? lockedUserId, Func<Tip?, Task> onSave, Action? onCancel, Action? onClose)
+            : base(value, onSave, onCancel, onClose)
         {
             UserId = lockedUserId;
         }

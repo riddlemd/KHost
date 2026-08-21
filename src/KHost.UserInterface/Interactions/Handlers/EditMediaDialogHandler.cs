@@ -22,7 +22,7 @@ public class EditMediaDialogHandler : IInteractionHandler<EditMediaRequest, Medi
 
         _ = _dialogService.RequestEditAsync(
             request.Media,
-            onSave: media => tcs.TrySetResult(media),
+            onSave: media => { tcs.TrySetResult(media); return Task.CompletedTask; },
             onCancel: () => tcs.TrySetResult(null));
 
         return tcs.Task;
