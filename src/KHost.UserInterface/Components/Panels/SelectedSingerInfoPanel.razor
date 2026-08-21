@@ -8,7 +8,9 @@
 <div class="kh-selected-singer-info-panel kh-card">
     <div class="kh-card__header">
         <Icon Name="queue-music" />
-        <Icon Name="music-note-list" />
+        @* Wrapped so this component owns an element it can hide; the Icon's own markup carries
+           the Icon component's scope, not this one's. *@
+        <span class="kh-selected-singer-info-panel__header-icon"><Icon Name="music-note-list" /></span>
         @if (SingerQueueService?.SelectedUser is { } selectedUser)
         {
             var isRegular = selectedUser.Groups.Any(g => g.Id == KHostUserGroup.RegularGroupId);
@@ -19,13 +21,9 @@
             @if (_tippingEnabled)
             {
                 <span class="kh-selected-singer-info-panel__tip-totals">
-                    Tips |
-                    <span>
-                        <label>Tonight:</label> @_tonightTotalInCents.ToCurrency()
-                    </span>
-                    /
-                    <span>
-                        <label>Lifetime:</label> @_lifetimeTotalInCents.ToCurrency()
+                    <span class="kh-selected-singer-info-panel__tip-figures">
+                        <span title="Tonight's Tips"><Icon Name="moon-stars" /> @_tonightTotalInCents.ToCurrency()</span>
+                        <span title="Lifetime Tips"><Icon Name="bank" /> @_lifetimeTotalInCents.ToCurrency()</span>
                     </span>
                 </span>
             }
@@ -90,7 +88,7 @@
                     <tr>
                         <th class="kh-selected-singer-info-panel__col--number">#</th>
                         <th>Title</th>
-                        <th>Artist</th>
+                        <th class="kh-selected-singer-info-panel__col--artist">Artist</th>
                         <th class="kh-selected-singer-info-panel__col--duration">Duration</th>
                         <th class="kh-selected-singer-info-panel__col--status">Status</th>
                         <th class="kh-selected-singer-info-panel__col--actions">Actions</th>
@@ -125,14 +123,14 @@
                                     <span>@(idx + 1)</span>
                                 }
                             </td>
-                            <td class="kh-selected-singer-info-panel__name kh-table__cell--fill">
+                            <td class="kh-selected-singer-info-panel__name kh-table__cell--fill" title="@(rowMedia?.Title ?? "")">
                                 <span class="@nameClass">@(rowMedia?.Title ?? "—")</span>
                             </td>
-                            <td>@(rowMedia?.Artist ?? "")</td>
+                            <td class="kh-table__cell--fill" title="@(rowMedia?.Artist ?? "")">@(rowMedia?.Artist ?? "")</td>
                             <td class="kh-selected-singer-info-panel__duration">
                                     @rowMedia?.Duration?.ToTotalMinutesAndSeconds()
                             </td>
-                            <td>
+                            <td class="kh-selected-singer-info-panel__status">
                                 @if (rowMedia is not null)
                                 {
                                     <span class="kh-badge @MediaStatusDisplay.BadgeClass(rowMedia.Status)">@rowMedia.Status</span>

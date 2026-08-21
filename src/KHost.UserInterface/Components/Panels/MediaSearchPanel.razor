@@ -93,7 +93,7 @@
                                     var queuedBy = GetSingersWithMediaQueued(mediaSearchEntity.ForeignKey, mediaSearchEntity.Source);
 
                                     <tr class="kh-media-search-panel__results__result @(queuedBy.Count > 0 ? "kh-media-search-panel__results__result--queued" : "")">
-                                    <td class="kh-table__cell--fill">
+                                    <td class="kh-table__cell--fill" title="@mediaSearchEntity.DisplayName">
                                         @mediaSearchEntity.DisplayName
 
                                         @if (queuedBy.Count > 0)
@@ -120,7 +120,10 @@
                                                     disabled="@(SingerQueueService?.SelectedUserId is null)"
                                                     @onclick="() => PerformActionAsync(action.PerformAsync, mediaSearchEntity)"
                                                     title="@action.Description">
-                                                <Text><Icon Name="@action.Icon" /> @action.DisplayName</Text>
+                                                <Text>
+                                                    <Icon Name="@action.Icon" />
+                                                    <span class="kh-media-search-panel__action-label">@action.DisplayName</span>
+                                                </Text>
                                                 <Buttons>
                                                     @foreach(var subAction in action.SubActions)
                                                     {

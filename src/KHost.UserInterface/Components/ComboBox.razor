@@ -11,6 +11,7 @@
            aria-expanded="@(_isOpen ? "true" : "false")"
            aria-autocomplete="list"
            data-menu-open="@(_isOpen ? "true" : "false")"
+           data-has-rows="@(_results.Count > 0 ? "true" : "false")"
            @oninput="OnQueryChangedAsync"
            @onfocusout="OnFocusOut"
            @onkeydown="OnKeyDownAsync" />
@@ -32,6 +33,11 @@
                 {
                     var index = i;
                     var item = _results[index];
+
+                    @if (StartsGroup(index))
+                    {
+                        <li class="kh-combobox__group" role="presentation">@GroupOf(index)</li>
+                    }
 
                     <li role="option" aria-selected="@(index == _highlighted ? "true" : "false")">
                         @* Otherwise the input blurs and the menu closes before the click lands. *@

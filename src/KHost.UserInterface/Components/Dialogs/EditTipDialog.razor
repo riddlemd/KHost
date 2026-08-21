@@ -35,7 +35,7 @@
 
             <div >
                 <label class="kh-form-label">Payment Method</label>
-                <InputSelect class="kh-form-control" @bind-Value="_model.PaymentMethod">
+                <InputSelect class="kh-form-select" @bind-Value="_model.PaymentMethod">
                     @foreach (var method in Enum.GetValues<TipPaymentMethod>())
                     {
                         <option value="@method">@method</option>
