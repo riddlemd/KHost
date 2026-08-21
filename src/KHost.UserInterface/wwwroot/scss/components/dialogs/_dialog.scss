@@ -33,7 +33,9 @@
         max-height: 60vh;
         overflow: auto;
 
-        .kh-form-control {
+        // Both, or a select is left shrink-to-fit and its label sits alongside it instead of above.
+        .kh-form-control,
+        .kh-form-select {
             width: 100%;
         }
 
