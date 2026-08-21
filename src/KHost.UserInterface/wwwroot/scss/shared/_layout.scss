@@ -73,6 +73,8 @@
     }
 
     &__logo-sub {
+        // The only freely-wrappable thing on the header row, so it takes every squeeze.
+        white-space: nowrap;
         font-size: 11px;
         font-weight: 500;
         color: var(--kh-text-muted);
@@ -91,8 +93,15 @@
     /* ─── Left Column — Singer Queue ──────────────────────────────────────── */
     &__col--queue {
         width: 20%;
-        min-width: 150px;
-        flex-shrink: 0;
+        // 20% of a 720px window is narrower than the row's own furniture, leaving the name no
+        // room at all. The cap agrees with the clamp in panel-resize.js — if they disagree the
+        // splitter stops responding partway through a drag.
+        min-width: min(240px, 34%);
+        max-width: 65%;
+        flex-shrink: 1;
+        // Named container so the rows can answer to the panel's width rather than the window's:
+        // the splitter writes a pixel width, so the two are independent.
+        container: kh-queue / inline-size;
         display: flex;
         flex-direction: column;
         overflow: hidden;
@@ -148,5 +157,16 @@ form {
     > * {
         flex: 1 1;
         width: 100%;
+    }
+}
+
+/* ─── Narrow window ───────────────────────────────────────────────────────────
+   The header spans the window, so unlike the columns it has no splitter between
+   it and the viewport. */
+@media (max-width: 820px) {
+    // Decoration, and the only thing on the row the venue and theme controls can take room from.
+    .kh-app__logo-sep,
+    .kh-app__logo-sub {
+        display: none;
     }
 }
