@@ -19,10 +19,21 @@ public partial class SingerQueuePanel : IDisposable
     [Inject] private IJSRuntime? JS { get; set; }
     [Inject] private IVenuesService? VenuesService { get; set; }
 
+    private const int SingerSuggestionLimit = 20;
+
+    /// <summary>Where singers go when no performance of theirs carries a venue at all.</summary>
+    private const string NoVenueGroup = "Not sung here before";
+
+    /// <summary>A venue that has since been deleted still names a group; it just cannot name itself.</summary>
+    private const string UnknownVenueGroup = "Another venue";
+
+    private KHostUser? _pickedSinger;
     private string _newSingerName = string.Empty;
     private List<Performance> _allQueuedPerformances = [];
     private Dictionary<Guid, Media?> _mediaCache = [];
     private Dictionary<Guid, int> _performanceCounts = [];
+    private Dictionary<Guid, RecentVenueVisit> _lastVenues = [];
+    private Dictionary<Guid, string> _venueNames = [];
     private DotNetObjectReference<SingerQueuePanel>? _dotNetRef;
     private bool _showEwt = true;
     private bool _canAddToQueue;
@@ -35,6 +46,12 @@ public partial class SingerQueuePanel : IDisposable
         PerformanceService?.StateChanged  += OnStateChanged;
         PlaybackService?.StateChanged += OnStateChanged;
         VenuesService?.StateChanged += OnStateChanged;
+
+        if (VenuesService is not null)
+        {
+            var venues = await VenuesService.ReadAllAsync(pageSize: 0);
+            _venueNames = venues.Items.ToDictionary(v => v.Id, v => v.Name);
+        }
 
         if (Permissions is not null)
         {
@@ -78,19 +95,82 @@ public partial class SingerQueuePanel : IDisposable
             await SingerQueueService.MoveUserToIndexAsync(userId, newIndex);
     }
 
+    private async Task<IReadOnlyList<KHostUser>> SearchSingersAsync(string query)
+    {
+        if (UsersService is null) return [];
+
+        var result = await UsersService.SearchAsync(
+            query, 1, SingerSuggestionLimit, new UserSearchOptions { SingersOnly = true });
+
+        if (PerformanceService is null || result.Items.Count == 0)
+            return result.Items;
+
+        _lastVenues = new Dictionary<Guid, RecentVenueVisit>(
+            await PerformanceService.ReadLastVenueBySingersAsync(result.Items.Select(u => u.Id)));
+
+        return RankByVenue(result.Items, _lastVenues, VenuesService?.SelectedVenueId);
+    }
+
+    /// <summary>
+    /// Venue groups, this one first, then by how recently anyone sang at each — and singers with no
+    /// venue at all last. Inside a group, most recently sung first: the likeliest to be back.
+    /// The combo box labels runs without reordering them, so the grouping is this ordering.
+    /// </summary>
+    public static IReadOnlyList<KHostUser> RankByVenue(
+        IReadOnlyList<KHostUser> singers,
+        IReadOnlyDictionary<Guid, RecentVenueVisit> lastVenues,
+        Guid? currentVenueId)
+    {
+        Guid? VenueOf(KHostUser singer)
+            => lastVenues.TryGetValue(singer.Id, out var visit) ? visit.VenueId : null;
+
+        DateTime LastSungOn(KHostUser singer)
+            => lastVenues.TryGetValue(singer.Id, out var visit) ? visit.LastSungOn : DateTime.MinValue;
+
+        return
+        [
+            .. singers
+                .GroupBy(VenueOf)
+                .OrderByDescending(group => group.Key is not null && group.Key == currentVenueId)
+                .ThenByDescending(group => group.Key is not null)
+                .ThenByDescending(group => group.Max(LastSungOn))
+                .SelectMany(group => group.OrderByDescending(LastSungOn).ThenBy(singer => singer.Name))
+        ];
+    }
+
+    private string? GroupForSinger(KHostUser singer)
+        => _lastVenues.TryGetValue(singer.Id, out var visit)
+            ? _venueNames.GetValueOrDefault(visit.VenueId, UnknownVenueGroup)
+            : NoVenueGroup;
+
+    private async Task OnSingerPickedAsync(KHostUser? singer)
+    {
+        _pickedSinger = singer;
+
+        // Choosing a known singer is the whole action — there is nothing left for the button to do,
+        // and the text is already theirs because the box sets it before it reports the choice.
+        if (singer is not null)
+            await AddUserAsync();
+    }
+
     private async Task AddUserAsync()
     {
         if (string.IsNullOrWhiteSpace(_newSingerName)) return;
         if (SingerQueueService is null || UsersService is null) return;
 
         var name = _newSingerName.Trim();
-        var results = await UsersService.SearchAsync(name);
-        var user = results.Items.FirstOrDefault(u => u.Name.Equals(name, StringComparison.OrdinalIgnoreCase))
-                     ?? await UsersService.CreateAsync(new KHostUser { Name = name });
+
+        // A singer picked from the list is already the one meant; a name that matches nobody is a
+        // new singer. Typing after picking clears the pick, so the two cannot disagree.
+        var user = _pickedSinger
+            ?? (await UsersService.SearchAsync(name)).Items
+                   .FirstOrDefault(u => u.Name.Equals(name, StringComparison.OrdinalIgnoreCase))
+            ?? await UsersService.CreateAsync(new KHostUser { Name = name });
 
         await SingerQueueService.AddUserAsync(user.Id);
         await SingerQueueService.SelectUserAsync(user.Id);
 
+        _pickedSinger = null;
         _newSingerName = string.Empty;
     }
 
