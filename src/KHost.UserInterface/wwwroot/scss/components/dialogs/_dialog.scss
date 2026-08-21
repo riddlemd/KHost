@@ -7,8 +7,10 @@
     background: var(--kh-bg-card);
     border: 1px solid var(--kh-border-bright);
     border-radius: var(--kh-radius-lg);
-    width: 60vw;
-    max-width: 90vw;
+    // A flat 60vw is 432px in a 720px window, which clips the columns of anything tabular. The
+    // floor lets a narrow window give the dialog nearly all of itself; 90vw still wins over the
+    // floor when the window is narrower than the floor.
+    width: min(90vw, max(640px, 60vw));
     display: flex;
     flex-direction: column;
     gap: 0;
@@ -33,7 +35,9 @@
         max-height: 60vh;
         overflow: auto;
 
-        .kh-form-control {
+        // Both, or a select is left shrink-to-fit and its label sits alongside it instead of above.
+        .kh-form-control,
+        .kh-form-select {
             width: 100%;
         }
 

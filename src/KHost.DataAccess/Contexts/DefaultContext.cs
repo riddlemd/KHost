@@ -179,6 +179,9 @@ internal class DefaultContext : DbContext
             entity.Property(e => e.IsAdmin)
                 .HasDefaultValue(false);
 
+            entity.Property(e => e.ExcludeFromSingerQueue)
+                .HasDefaultValue(false);
+
             entity.HasData(
                 new KHostUserGroup
                 {
@@ -187,6 +190,8 @@ internal class DefaultContext : DbContext
                     NameFolded = "admin",
                     Description = "Full access to all management features",
                     IsAdmin = true,
+                    // The admin account is how a host signs in, not somebody waiting to sing.
+                    ExcludeFromSingerQueue = true,
                     Permissions = []
                 },
                 new KHostUserGroup
@@ -196,6 +201,7 @@ internal class DefaultContext : DbContext
                     NameFolded = "regular",
                     Description = "Frequent singer",
                     IsAdmin = false,
+                    ExcludeFromSingerQueue = false,
                     Permissions = []
                 }
             );

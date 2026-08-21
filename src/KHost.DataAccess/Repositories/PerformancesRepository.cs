@@ -137,6 +137,35 @@ internal class PerformancesRepository : BaseRepository<Performance>, IPerformanc
         return [.. visits.Select(v => new RecentVenueVisit(v.VenueId, v.LastSungOn))];
     }
 
+    public async Task<IReadOnlyDictionary<Guid, RecentVenueVisit>> ReadLastVenueBySingersAsync(IEnumerable<Guid> singerIds)
+    {
+        var ids = singerIds.Distinct().ToList();
+        if (ids.Count == 0)
+            return new Dictionary<Guid, RecentVenueVisit>();
+
+        using var context = await ContextFactory.CreateDbContextAsync();
+
+        var query = context.Set<Performance>()
+            .Where(p => ids.Contains(p.SingerId) && p.VenueId != null);
+
+        query = ApplyFilter(query, PerformanceFilter.UnQueued);
+
+        // Grouped by the pair so the aggregate stays in SQL, then reduced per singer here: one row
+        // per venue a singer has visited is a handful, where their performances are not.
+        var visits = await query
+            .GroupBy(p => new { p.SingerId, VenueId = p.VenueId!.Value })
+            .Select(g => new { g.Key.SingerId, g.Key.VenueId, LastSungOn = g.Max(p => p.CreatedDate) })
+            .ToListAsync();
+
+        return visits
+            .GroupBy(v => v.SingerId)
+            .ToDictionary(
+                g => g.Key,
+                g => g.OrderByDescending(v => v.LastSungOn)
+                      .Select(v => new RecentVenueVisit(v.VenueId, v.LastSungOn))
+                      .First());
+    }
+
     public async Task<PaginatedResult<Performance>> ReadByMediaIdAsync(Guid mediaId, int pageNumber = 1, int pageSize = 0, PerformanceFilter filter = PerformanceFilter.All)
     {
         using var context = await ContextFactory.CreateDbContextAsync();
