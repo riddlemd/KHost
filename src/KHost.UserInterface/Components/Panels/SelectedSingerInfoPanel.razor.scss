@@ -45,8 +45,6 @@
     }
 
     &__name {
-        max-width: 1px;
-
         &--current {
             color: var(--kh-text-muted);
         }
@@ -215,6 +213,12 @@
 @container kh-singer-info (max-width: 560px) {
     // Second of two decorative icons on the same row.
     .kh-selected-singer-info-panel__header-icon {
+        display: none;
+    }
+
+    // "Ready" on all but a broken song, and the row already greys out when it is not playable.
+    .kh-selected-singer-info-panel__col--status,
+    .kh-selected-singer-info-panel__status {
         display: none;
     }
 
