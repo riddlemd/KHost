@@ -175,7 +175,7 @@ public partial class EditUserDialog
 
     public record DialogRequest : EditDialogRequest<KHostUser>
     {
-        public DialogRequest(KHostUser? value, Action<KHostUser?> onSave, Action? onCancel, Action? onClose) : base(value, onSave, onCancel, onClose)
+        public DialogRequest(KHostUser? value, Func<KHostUser?, Task> onSave, Action? onCancel, Action? onClose) : base(value, onSave, onCancel, onClose)
         {
         }
     }

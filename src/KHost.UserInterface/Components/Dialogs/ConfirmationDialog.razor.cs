@@ -47,7 +47,7 @@ public partial class ConfirmationDialog
 
     public record DialogRequest : BaseDialogRequest
     {
-        public DialogRequest(string title, string message, string confirmText, Action onConfirm, Action? onCancel, Action? onClose) : base(onClose)
+        public DialogRequest(string title, string message, string confirmText, Func<Task> onConfirm, Action? onCancel, Action? onClose) : base(onClose)
         {
             Title = title;
             Message = message;
@@ -59,7 +59,7 @@ public partial class ConfirmationDialog
         public string Title { get; }
         public string Message { get; }
         public string ConfirmText { get; }
-        public Action OnConfirm { get; }
+        public Func<Task> OnConfirm { get; }
         public Action? OnCancel { get; }
     }
 }

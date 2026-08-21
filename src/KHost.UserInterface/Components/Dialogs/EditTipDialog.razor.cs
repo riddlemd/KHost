@@ -19,6 +19,13 @@ public partial class EditTipDialog : IAsyncDisposable
     [Parameter] public bool IsOpen { get; set; }
     [Parameter] public Tip? Tip { get; set; }
     [Parameter] public Guid? UserId { get; set; }
+
+    /// <summary>
+    /// False when the tip is being taken as it happens, which is every tip added from the console:
+    /// a date field there is a question with only one sensible answer.
+    /// </summary>
+    [Parameter] public bool ShowDate { get; set; } = true;
+
     [Parameter] public string Class { get; set; } = "";
     [Parameter] public bool CloseOnScrimClick { get; set; }
 
@@ -58,6 +65,8 @@ public partial class EditTipDialog : IAsyncDisposable
                     UserId = Tip.UserId == Guid.Empty ? null : Tip.UserId,
                     VenueId = Tip.VenueId,
                     AmountInCents = Tip.AmountInCents,
+                    // ToLocalTime reads an Unspecified kind as UTC, which is what SQLite hands back.
+                    CreatedDate = Tip.CreatedDate.ToLocalTime(),
                     PaymentMethod = Tip.PaymentMethod,
                     Notes = Tip.Notes
                 };
@@ -107,6 +116,9 @@ public partial class EditTipDialog : IAsyncDisposable
         tip.UserId = userId;
         tip.VenueId = _model.VenueId;
         tip.AmountInCents = _model.AmountInCents;
+        // And ToUniversalTime reads Unspecified as local, which is what the picker hands back — the
+        // two are not symmetric, they are each right for the direction they are used in.
+        tip.CreatedDate = _model.CreatedDate.ToUniversalTime();
         tip.PaymentMethod = _model.PaymentMethod;
         tip.Notes = _model.Notes;
 
@@ -161,13 +173,17 @@ public partial class EditTipDialog : IAsyncDisposable
     {
         public Guid? UserId { get; init; }
 
-        public DialogRequest(Tip? value, Action<Tip?> onSave, Action? onCancel, Action? onClose) : base(value, onSave, onCancel, onClose)
+        public DialogRequest(Tip? value, Func<Tip?, Task> onSave, Action? onCancel, Action? onClose) : base(value, onSave, onCancel, onClose)
         {
         }
 
-        public DialogRequest(Tip? value, Guid? lockedUserId, Action<Tip?> onSave, Action? onCancel, Action? onClose) : base(value, onSave, onCancel, onClose)
+        public DialogRequest(Tip? value, Guid? lockedUserId, Func<Tip?, Task> onSave, Action? onCancel, Action? onClose, bool showDate = true)
+            : base(value, onSave, onCancel, onClose)
         {
             UserId = lockedUserId;
+            ShowDate = showDate;
         }
+
+        public bool ShowDate { get; init; } = true;
     }
 }

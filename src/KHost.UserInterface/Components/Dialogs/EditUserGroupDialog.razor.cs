@@ -122,7 +122,7 @@ public partial class EditUserGroupDialog
 
     public record DialogRequest : EditDialogRequest<KHostUserGroup>
     {
-        public DialogRequest(KHostUserGroup? value, Action<KHostUserGroup?> onSave, Action? onCancel, Action? onClose)
+        public DialogRequest(KHostUserGroup? value, Func<KHostUserGroup?, Task> onSave, Action? onCancel, Action? onClose)
             : base(value, onSave, onCancel, onClose)
         {
         }

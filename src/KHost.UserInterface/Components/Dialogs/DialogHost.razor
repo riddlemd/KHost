@@ -16,32 +16,32 @@
         case ConfirmationDialog.DialogRequest r:
             <ConfirmationDialog @key="r.Id" IsOpen="true"
                 Title="@r.Title" Message="@r.Message" ConfirmText="@r.ConfirmText"
-                OnConfirm="@(() => { r.OnConfirm?.Invoke(); Close(r); })"
+                OnConfirm="@(async () => { await r.OnConfirm(); Close(r); })"
                 OnCancel="@(() => { r.OnCancel?.Invoke(); Close(r); })"
                 OnClose="@(() => { r.OnCancel?.Invoke(); Close(r); })" />
             break;
 
         case EditUserDialog.DialogRequest r:
             <EditUserDialog @key="r.Id" IsOpen="true" User="@r.Value"
-                OnSave="@((user) => { r.OnSave?.Invoke(user); Close(r); })"
+                OnSave="@(async (user) => { if (r.OnSave is not null) await r.OnSave(user); Close(r); })"
                 OnClose="@(() => { r.OnCancel?.Invoke(); Close(r); })" />
             break;
 
         case EditUserGroupDialog.DialogRequest r:
             <EditUserGroupDialog @key="r.Id" IsOpen="true" Group="@r.Value"
-                OnSave="@((group) => { r.OnSave?.Invoke(group); Close(r); })"
+                OnSave="@(async (group) => { if (r.OnSave is not null) await r.OnSave(group); Close(r); })"
                 OnClose="@(() => { r.OnCancel?.Invoke(); Close(r); })" />
             break;
 
         case EditVenueDialog.DialogRequest r:
             <EditVenueDialog @key="r.Id" IsOpen="true" Venue="@r.Value"
-                OnSave="@((venue) => { r.OnSave?.Invoke(venue); Close(r); })"
+                OnSave="@(async (venue) => { if (r.OnSave is not null) await r.OnSave(venue); Close(r); })"
                 OnClose="@(() => { r.OnCancel?.Invoke(); Close(r); })" />
             break;
 
         case EditTipDialog.DialogRequest r:
-            <EditTipDialog @key="r.Id" IsOpen="true" Tip="@r.Value" UserId="@r.UserId"
-                OnSave="@((tip) => { r.OnSave?.Invoke(tip); Close(r); })"
+            <EditTipDialog @key="r.Id" IsOpen="true" Tip="@r.Value" UserId="@r.UserId" ShowDate="@r.ShowDate"
+                OnSave="@(async (tip) => { if (r.OnSave is not null) await r.OnSave(tip); Close(r); })"
                 OnClose="@(() => { r.OnCancel?.Invoke(); Close(r); })" />
             break;
 
@@ -52,7 +52,7 @@
 
         case EditMediaDialog.DialogRequest r:
             <EditMediaDialog @key="r.Id" IsOpen="true" Media="@r.Value"
-                OnSave="@((media) => { r.OnSave?.Invoke(media); Close(r); })"
+                OnSave="@(async (media) => { if (r.OnSave is not null) await r.OnSave(media); Close(r); })"
                 OnClose="@(() => { r.OnCancel?.Invoke(); Close(r); })" />
             break;
 
