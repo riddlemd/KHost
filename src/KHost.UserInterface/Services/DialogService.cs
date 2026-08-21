@@ -42,14 +42,6 @@ public class DialogService : IDialogService
         return Task.CompletedTask;
     }
 
-    public Task ShowSettingsMenuAsync(Action? onClose = null)
-    {
-        _logger.LogDebug("Dialog requested: {DialogType}", nameof(SettingsMenuDialog));
-        ShowRequested?.Invoke(this, new SettingsMenuDialog.DialogRequest(onClose));
-
-        return Task.CompletedTask;
-    }
-
     public async Task RequestEditAsync(Media? item, Action<Media?> onSave, Action? onCancel = null, Action? onClose = null)
         => await RequestEditAsync<EditMediaDialog.DialogRequest, Media>(item, onSave, onCancel, onClose);
 
