@@ -60,7 +60,9 @@
         </label>
 
         <div class="kh-app-settings__actions">
-            <button class="kh-button kh-button--primary" @onclick="SaveAsync" disabled="@_saving">Save</button>
+            <button class="kh-button kh-button--primary" @onclick="SaveAsync" disabled="@_saving">
+                @(_saving ? "Saving…" : "Save")
+            </button>
         </div>
     </div>
 </div>
