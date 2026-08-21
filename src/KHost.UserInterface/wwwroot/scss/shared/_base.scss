@@ -86,7 +86,10 @@ html {
 // WebKit draws the native macOS pop-up for a menulist select and ignores the background and border
 // set above; Chromium honours them. The app runs in a Photino WKWebView, so without this the control
 // looks native and unthemed there while looking fine in a browser.
-.kh-form-select {
+.kh-form-select,
+// A select carrying the input class needs this too: without it the control silently reverts to the
+// native pop-up on macOS alone, ignoring the padding and border set above.
+select.kh-form-control {
     appearance: none;
     -webkit-appearance: none;
     padding-right: 2rem;
@@ -96,7 +99,8 @@ html {
     background-size: 12px;
 }
 
-.kh-form-select option {
+.kh-form-select option,
+select.kh-form-control option {
     background-color: var(--kh-bg-elevated);
     color: var(--kh-text);
 }
