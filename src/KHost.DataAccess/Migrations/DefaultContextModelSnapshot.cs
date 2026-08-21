@@ -66,6 +66,11 @@ namespace KHost.DataAccess.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("TEXT");
 
+                    b.Property<bool>("ExcludeFromSingerQueue")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(false);
+
                     b.Property<bool>("IsAdmin")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER")
@@ -97,6 +102,7 @@ namespace KHost.DataAccess.Migrations
                         {
                             Id = new Guid("00000000-0000-0000-0000-000000000001"),
                             Description = "Full access to all management features",
+                            ExcludeFromSingerQueue = true,
                             IsAdmin = true,
                             Name = "Admin",
                             NameFolded = "admin",
@@ -106,6 +112,7 @@ namespace KHost.DataAccess.Migrations
                         {
                             Id = new Guid("00000000-0000-0000-0000-000000000002"),
                             Description = "Frequent singer",
+                            ExcludeFromSingerQueue = false,
                             IsAdmin = false,
                             Name = "Regular",
                             NameFolded = "regular",
