@@ -51,4 +51,32 @@ public class TipsServiceTests
 
         Assert.Null(tip.VenueId);
     }
+
+    [Fact]
+    public async Task CreateAsync_WithNoSinger_Throws()
+    {
+        await Assert.ThrowsAsync<ArgumentException>(
+            () => _service.CreateAsync(new Tip { UserId = Guid.Empty, AmountInCents = 500 }));
+
+        await _repository.DidNotReceive().CreateAsync(Arg.Any<Tip>());
+    }
+
+    [Fact]
+    public async Task UpdateAsync_WithNoSinger_Throws()
+    {
+        await Assert.ThrowsAsync<ArgumentException>(
+            () => _service.UpdateAsync(new Tip { UserId = Guid.Empty, AmountInCents = 500 }));
+
+        await _repository.DidNotReceive().UpdateAsync(Arg.Any<Tip>());
+    }
+
+    [Fact]
+    public async Task UpdateAsync_WithASinger_ReachesTheRepository()
+    {
+        var tip = new Tip { UserId = Guid.NewGuid(), AmountInCents = 500 };
+
+        await _service.UpdateAsync(tip);
+
+        await _repository.Received(1).UpdateAsync(tip);
+    }
 }

@@ -7,8 +7,9 @@ public class EditTipModel
 {
     public Guid Id { get; set; } = Guid.NewGuid();
 
+    // Nullable so [Required] can fail: it rejects only null, and Guid.Empty satisfies it.
     [Required(ErrorMessage = "Singer is required.")]
-    public Guid UserId { get; set; }
+    public Guid? UserId { get; set; }
 
     public Guid? VenueId { get; set; }
 
