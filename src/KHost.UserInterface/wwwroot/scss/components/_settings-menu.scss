@@ -1,0 +1,34 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   Settings Menu
+   The burger in the header. Global rather than co-located with SettingsButton:
+   every element here is rendered by DropdownMenu, so a scoped rule from the
+   button's own stylesheet would reach none of them.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.kh-settings-menu {
+    .kh-dropdown__trigger {
+        background: transparent;
+        border-color: transparent;
+        padding: 0 0.35rem;
+
+        &:hover:not(:disabled) {
+            border-color: transparent;
+            color: var(--kh-primary-bright);
+        }
+    }
+
+    // A caret beside a burger says nothing the burger has not already said.
+    .kh-dropdown__caret {
+        display: none;
+    }
+
+    .kh-dropdown__trigger-label {
+        font-size: 1.5em;
+        line-height: 1;
+    }
+
+    // Layout-invisible, or the lock button stops lining up with the plain ones.
+    form {
+        display: contents;
+    }
+}
