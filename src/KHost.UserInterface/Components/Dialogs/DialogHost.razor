@@ -50,11 +50,6 @@
                 OnClose="@(() => { r.OnClose?.Invoke(); Close(r); })" />
             break;
 
-        case SettingsMenuDialog.DialogRequest r:
-            <SettingsMenuDialog @key="r.Id" IsOpen="true"
-                OnClose="@(() => { r.OnClose?.Invoke(); Close(r); })" />
-            break;
-
         case EditMediaDialog.DialogRequest r:
             <EditMediaDialog @key="r.Id" IsOpen="true" Media="@r.Value"
                 OnSave="@((media) => { r.OnSave?.Invoke(media); Close(r); })"
