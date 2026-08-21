@@ -17,6 +17,9 @@ public class EditTipModel
     [Range(1, 9_999_999, ErrorMessage = "Amount must be between $0.01 and $99,999.99.")]
     public int AmountInCents { get; set; }
 
+    /// <summary>Local time, because that is what the host is reading off a clock. Stored as UTC.</summary>
+    public DateTime CreatedDate { get; set; } = DateTime.Now;
+
     public TipPaymentMethod PaymentMethod { get; set; } = TipPaymentMethod.Cash;
 
     [MaxLength(1000, ErrorMessage = "Notes cannot exceed 1000 characters.")]

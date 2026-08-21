@@ -26,6 +26,6 @@ public interface IDialogService
 
     /// <summary>Presents a failure in the host's own words, with its reference code.</summary>
     Task ShowErrorAsync(KHostException error, string title = "Something went wrong", Action? onRetry = null, Action? onClose = null);
-    Task RequestEditAsync(Tip? item, Guid userId, Func<Tip?, Task> onSave, Action? onCancel = null, Action? onClose = null);
+    Task RequestEditAsync(Tip? item, Guid userId, Func<Tip?, Task> onSave, Action? onCancel = null, Action? onClose = null, bool showDate = true);
     Task RequestBulkEditAsync(IReadOnlyList<Media> items, Func<BulkEditMediaModel, Task> onSave, Action? onCancel = null, Action? onClose = null);
 }
