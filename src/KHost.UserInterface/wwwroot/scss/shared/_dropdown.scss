@@ -59,6 +59,8 @@
         flex-direction: column;
         padding: 0.35em 0;
         min-width: max-content;
+        // Height is capped by dropdown-menu.js against the room below the trigger.
+        overflow-y: auto;
         background: var(--kh-bg-card);
         border: 1px solid var(--kh-border-bright);
         border-radius: var(--kh-radius);
@@ -77,6 +79,15 @@
     &__divider {
         margin: 0.35em 0;
         border-top: 1px solid var(--kh-border);
+    }
+
+    // The menu and the flyout are scrolling flex columns, and a flex item shrinks before it
+    // scrolls: without this the rows squash to nothing instead of the container scrolling.
+    &__item,
+    &__heading,
+    &__divider,
+    &__empty {
+        flex-shrink: 0;
     }
 
     &__item {

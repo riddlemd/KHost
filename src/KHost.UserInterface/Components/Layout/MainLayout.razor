@@ -7,8 +7,9 @@
     <span class="kh-app__logo-text">KHost</span>
     <span class="kh-app__logo-sep">|</span>
     <span class="kh-app__logo-sub">Karaoke for the people, by the people.</span>
-    <VenueSelector />
-    <ThemeSelector />
+    @* The venue selector used to carry the auto margin that pushed these right; with it gone the
+       gap has to be something the header owns. *@
+    <span class="kh-header__gap"></span>
     <ScreensButton />
     <SettingsButton />
 </header>
