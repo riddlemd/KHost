@@ -1,7 +1,9 @@
 using System.Linq.Expressions;
+using KHost.Abstractions.Exceptions;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Repositories;
 using KHost.DataAccess.Contexts;
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -22,6 +24,49 @@ internal class UsersRepository : BaseRepository<KHostUser>, IUsersRepository
         : base(contextFactory, logger)
     {
     }
+
+    /// <summary>SQLITE_CONSTRAINT — every constraint, so the column has to be checked as well.</summary>
+    private const int SqliteConstraintViolation = 19;
+
+    private const string FoldedNameIndex = "Users.NameFolded";
+
+    // Translated here rather than in the service: the constraint is a fact of this layer, and an
+    // untranslated DbUpdateException reaches Blazor as an unhandled exception and kills the circuit.
+    public override async Task<KHostUser> CreateAsync(KHostUser entity)
+    {
+        try
+        {
+            return await base.CreateAsync(entity);
+        }
+        catch (DbUpdateException ex) when (IsNameTaken(ex))
+        {
+            throw NameTaken(entity.Name, ex);
+        }
+    }
+
+    public override async Task UpdateAsync(KHostUser entity)
+    {
+        try
+        {
+            await base.UpdateAsync(entity);
+        }
+        catch (DbUpdateException ex) when (IsNameTaken(ex))
+        {
+            throw NameTaken(entity.Name, ex);
+        }
+    }
+
+    private static bool IsNameTaken(DbUpdateException ex)
+        => ex.InnerException is SqliteException { SqliteErrorCode: SqliteConstraintViolation } sqlite
+           && sqlite.Message.Contains(FoldedNameIndex, StringComparison.Ordinal);
+
+    // Names are matched folded, so "Mike" and "mike" collide and the message has to explain why a
+    // name that looks free is not.
+    private static KHostException NameTaken(string name, Exception inner)
+        => new($"There is already a singer called “{name}”.",
+               "Names ignore case and accents, so pick one that differs by more than those.",
+               "KH-USER-NAME-TAKEN",
+               inner);
 
     public async Task<KHostUser?> FindByNameAsync(string name)
     {
