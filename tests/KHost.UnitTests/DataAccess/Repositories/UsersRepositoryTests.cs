@@ -1,3 +1,4 @@
+using KHost.Abstractions.Exceptions;
 using KHost.Abstractions.Models;
 using KHost.DataAccess.Repositories;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -22,13 +23,45 @@ public class UsersRepositoryTests : IDisposable
         Assert.Null(await _repository.FindByNameAsync("Stevie"));
     }
 
+    // A DbUpdateException out of a Blazor event handler is an unhandled exception, and it takes
+    // the circuit down. The name being taken is something a host can be told and act on.
     [Fact]
     public async Task CreateAsync_RejectsANameDifferingOnlyInCase()
     {
         await _database.SeedAsync(User("Admin"));
 
+        var taken = await Assert.ThrowsAsync<KHostException>(() => _repository.CreateAsync(User("admin")));
+
+        Assert.Contains("admin", taken.WhatHappened);
+        Assert.Equal("KH-USER-NAME-TAKEN", taken.ReferenceCode);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_RejectsRenamingOntoAnotherSingersName()
+    {
+        var mike = User("Mike");
+        await _database.SeedAsync(User("Steve"), mike);
+
+        mike.Name = "steve";
+
+        await Assert.ThrowsAsync<KHostException>(() => _repository.UpdateAsync(mike));
+    }
+
+    /// <summary>
+    /// SQLite reports every constraint as error 19, so a duplicate primary key looks identical to a
+    /// duplicate name until the column is checked. It must not be reported as a name already taken.
+    /// </summary>
+    [Fact]
+    public async Task CreateAsync_DoesNotBlameTheNameForOtherConstraints()
+    {
+        var first = User("Mike");
+        await _database.SeedAsync(first);
+
+        var clash = User("Someone Else");
+        clash.Id = first.Id;
+
         await Assert.ThrowsAsync<Microsoft.EntityFrameworkCore.DbUpdateException>(
-            () => _repository.CreateAsync(User("admin")));
+            () => _repository.CreateAsync(clash));
     }
 
     [Fact]
@@ -66,7 +99,7 @@ public class UsersRepositoryTests : IDisposable
     {
         await _database.SeedAsync(User("Zo\u00EB"));
 
-        await Assert.ThrowsAsync<Microsoft.EntityFrameworkCore.DbUpdateException>(
+        await Assert.ThrowsAsync<KHostException>(
             () => _repository.CreateAsync(User("Zoe\u0308")));
     }
 
@@ -84,7 +117,7 @@ public class UsersRepositoryTests : IDisposable
     {
         await _database.SeedAsync(User("Björk"));
 
-        await Assert.ThrowsAsync<Microsoft.EntityFrameworkCore.DbUpdateException>(
+        await Assert.ThrowsAsync<KHostException>(
             () => _repository.CreateAsync(User("Bjork")));
     }
 
@@ -93,7 +126,7 @@ public class UsersRepositoryTests : IDisposable
     {
         await _database.SeedAsync(User("ZOË"));
 
-        await Assert.ThrowsAsync<Microsoft.EntityFrameworkCore.DbUpdateException>(
+        await Assert.ThrowsAsync<KHostException>(
             () => _repository.CreateAsync(User("zoë")));
     }
 
