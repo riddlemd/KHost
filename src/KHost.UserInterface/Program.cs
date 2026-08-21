@@ -163,6 +163,7 @@ internal static class Program
             sp.GetRequiredService<IConfiguration>(), sp.GetRequiredService<IUsersService>()));
         builder.Services.AddSingleton<IThemeService, ThemeService>();
         builder.Services.AddSingleton<IDialogService, DialogService>();
+        builder.Services.AddSingleton<IFlashService, FlashService>();
         builder.Services.AddSingleton<IStartupRedirectProvider, SetupRedirectProvider>();
         builder.Services.AddSingleton<IStartupRedirectProvider, CliStartupRedirectProvider>();
 
