@@ -61,7 +61,7 @@
                             @foreach (var tip in _paginatedResult!.Items)
                             {
                                 <tr>
-                                    <td>@tip.CreatedDate.ToString("MM/dd/yyyy HH:mm")</td>
+                                    <td>@tip.CreatedDate.ToLocalTime().ToString("MM/dd/yyyy HH:mm")</td>
                                     <td>@GetSingerName(tip.UserId)</td>
                                     <td>@tip.AmountInCents.ToCurrency()</td>
                                     <td>@tip.PaymentMethod</td>

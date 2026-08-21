@@ -79,7 +79,7 @@
                             {
                                 <li class="@(_rootClassName)__stats-item">
                                     <span class="@(_rootClassName)__stats-primary">@venue.Name</span>
-                                    <span class="@(_rootClassName)__stats-secondary">@venue.LastSungOn.ToString("d MMM yyyy")</span>
+                                    <span class="@(_rootClassName)__stats-secondary">@venue.LastSungOn.ToLocalTime().ToString("d MMM yyyy")</span>
                                 </li>
                             }
                         </ul>
@@ -100,7 +100,7 @@
                                 <li class="@(_rootClassName)__stats-item">
                                     <span class="@(_rootClassName)__stats-primary">@song.Title</span>
                                     <span class="@(_rootClassName)__stats-secondary">
-                                        @(string.IsNullOrWhiteSpace(song.Artist) ? song.SungOn.ToString("d MMM") : $"{song.Artist} · {song.SungOn:d MMM}")
+                                        @(string.IsNullOrWhiteSpace(song.Artist) ? song.SungOn.ToLocalTime().ToString("d MMM") : $"{song.Artist} · {song.SungOn.ToLocalTime():d MMM}")
                                     </span>
                                 </li>
                             }
