@@ -26,10 +26,10 @@ public partial class MediaManagerPage : IAsyncDisposable
     private void NavigateToImporter() => Navigation!.NavigateTo("/settings/media-importer");
 
     private Task EditAsync(Media media) =>
-        DialogService!.RequestEditAsync(media, onSave: updated =>
+        DialogService!.RequestEditAsync(media, onSave: async updated =>
         {
             if (updated is not null)
-                _ = MediaService!.UpdateAsync(updated);
+                await MediaService!.UpdateAsync(updated);
         });
 
     // Unconditional: a destructive action must not hinge on which venue is selected.
@@ -39,7 +39,7 @@ public partial class MediaManagerPage : IAsyncDisposable
 
         await DialogService.ShowConfirmationAsync(
             $"Are you sure you want to remove <span class=\"kh-emphasis\">{media.Title}</span> from the library?",
-            onConfirm: () => _ = MediaService.DeleteAsync(media.Id),
+            onConfirm: () => MediaService.DeleteAsync(media.Id),
             title: "Remove Media",
             confirmText: "Remove"
         );
@@ -193,7 +193,7 @@ public partial class MediaManagerPage : IAsyncDisposable
 
         await DialogService!.ShowConfirmationAsync(
             $"Are you sure you want to remove {items.Count} item(s) from the library?",
-            onConfirm: () => _ = DeleteSelectedItemsAsync(items),
+            onConfirm: () => DeleteSelectedItemsAsync(items),
             title: "Remove Media",
             confirmText: "Remove"
         );

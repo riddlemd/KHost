@@ -21,7 +21,7 @@ public class DialogService : IDialogService
 
     public Task<bool> ShowConfirmationAsync(
         string message,
-        Action onConfirm,
+        Func<Task> onConfirm,
         string title = "Confirm",
         string confirmText = "Confirm",
         Action? onCancel = null,
@@ -42,22 +42,22 @@ public class DialogService : IDialogService
         return Task.CompletedTask;
     }
 
-    public async Task RequestEditAsync(Media? item, Action<Media?> onSave, Action? onCancel = null, Action? onClose = null)
+    public async Task RequestEditAsync(Media? item, Func<Media?, Task> onSave, Action? onCancel = null, Action? onClose = null)
         => await RequestEditAsync<EditMediaDialog.DialogRequest, Media>(item, onSave, onCancel, onClose);
 
-    public async Task RequestEditAsync(KHostUser? item, Action<KHostUser?> onSave, Action? onCancel = null, Action? onClose = null)
+    public async Task RequestEditAsync(KHostUser? item, Func<KHostUser?, Task> onSave, Action? onCancel = null, Action? onClose = null)
         => await RequestEditAsync<EditUserDialog.DialogRequest, KHostUser>(item, onSave, onCancel, onClose);
 
-    public async Task RequestEditAsync(KHostUserGroup? item, Action<KHostUserGroup?> onSave, Action? onCancel = null, Action? onClose = null)
+    public async Task RequestEditAsync(KHostUserGroup? item, Func<KHostUserGroup?, Task> onSave, Action? onCancel = null, Action? onClose = null)
         => await RequestEditAsync<EditUserGroupDialog.DialogRequest, KHostUserGroup>(item, onSave, onCancel, onClose);
 
-    public async Task RequestEditAsync(Venue? item, Action<Venue?> onSave, Action? onCancel = null, Action? onClose = null)
+    public async Task RequestEditAsync(Venue? item, Func<Venue?, Task> onSave, Action? onCancel = null, Action? onClose = null)
         => await RequestEditAsync<EditVenueDialog.DialogRequest, Venue>(item, onSave, onCancel, onClose);
 
-    public async Task RequestEditAsync(Tip? item, Action<Tip?> onSave, Action? onCancel = null, Action? onClose = null)
+    public async Task RequestEditAsync(Tip? item, Func<Tip?, Task> onSave, Action? onCancel = null, Action? onClose = null)
         => await RequestEditAsync<EditTipDialog.DialogRequest, Tip>(item, onSave, onCancel, onClose);
 
-    public Task RequestEditAsync(Tip? item, Guid userId, Action<Tip?> onSave, Action? onCancel = null, Action? onClose = null)
+    public Task RequestEditAsync(Tip? item, Guid userId, Func<Tip?, Task> onSave, Action? onCancel = null, Action? onClose = null)
     {
         var request = new EditTipDialog.DialogRequest(item, userId, onSave, onCancel, onClose);
         _logger.LogDebug("Dialog requested: {DialogType} userId={UserId}", nameof(EditTipDialog), userId);
@@ -107,11 +107,11 @@ public class DialogService : IDialogService
     public Task ShowNoScreensAsync()
         => ShowConfirmationAsync(
             "Playback needs a screen for audio and video output.",
-            onConfirm: () => _ = ShowScreensAsync(),
+            onConfirm: () => ShowScreensAsync(),
             title: "No screens connected",
             confirmText: "Launch Screen");
 
-    private Task RequestEditAsync<TRequest, TInput>(TInput? item, Action<TInput?> onSave, Action? onCancel = null, Action? onClose = null)
+    private Task RequestEditAsync<TRequest, TInput>(TInput? item, Func<TInput?, Task> onSave, Action? onCancel = null, Action? onClose = null)
         where TInput : class
         where TRequest : EditDialogRequest<TInput>
     {

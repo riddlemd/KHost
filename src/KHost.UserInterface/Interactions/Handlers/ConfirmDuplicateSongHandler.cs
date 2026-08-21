@@ -21,7 +21,7 @@ public class ConfirmDuplicateSongHandler : IInteractionHandler<ConfirmDuplicateS
 
         _ = _dialogService.ShowConfirmationAsync(
             BuildMessage(request),
-            onConfirm: () => tcs.TrySetResult(true),
+            onConfirm: () => { tcs.TrySetResult(true); return Task.CompletedTask; },
             title: "Duplicate Song",
             confirmText: "Queue Anyway",
             onCancel: () => tcs.TrySetResult(false),
