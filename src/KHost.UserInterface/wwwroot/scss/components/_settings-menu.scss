@@ -32,3 +32,35 @@
         display: contents;
     }
 }
+
+/* The menu's own rows. Same reason as above: DropdownMenu renders them, so these cannot be scoped. */
+.kh-dropdown__menu {
+    .kh-settings-menu__value {
+        margin-left: auto;
+        padding-left: 1em;
+        color: var(--kh-text-muted);
+        font-size: 0.85em;
+    }
+
+    .kh-settings-menu__chevron {
+        margin-left: 0.5em;
+        color: var(--kh-text-muted);
+        font-size: 0.75em;
+    }
+
+}
+
+/* Fixed so the parent menu's own scrolling cannot clip it; placed by dropdown-menu.js. */
+.kh-settings-menu__flyout {
+    position: fixed;
+    z-index: 102;
+    display: flex;
+    flex-direction: column;
+    min-width: 12rem;
+    padding: 0.35em 0;
+    overflow-y: auto;
+    background: var(--kh-bg-card);
+    border: 1px solid var(--kh-border-bright);
+    border-radius: var(--kh-radius);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
