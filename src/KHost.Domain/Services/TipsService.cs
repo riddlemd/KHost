@@ -36,8 +36,8 @@ public class TipsService : BaseRepositoryService<Tip, ITipsRepository>, ITipsSer
     public Task<IReadOnlyList<Tip>> GetByUserIdAsync(Guid userId)
         => Repository.GetByUserIdAsync(userId);
 
-    public Task<int> GetTotalByUserIdAsync(Guid userId, DateTime? from = null, DateTime? to = null)
-        => Repository.GetTotalByUserIdAsync(userId, from, to);
+    public Task<int> GetTotalInCentsByUserIdAsync(Guid userId, DateTime? from = null, DateTime? to = null)
+        => Repository.GetTotalInCentsByUserIdAsync(userId, from, to);
 
     // Every view that reads tips reaches them through a singer, so one without is money recorded
     // where nothing can show it.
