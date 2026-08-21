@@ -27,6 +27,6 @@ public class TipsService : BaseRepositoryService<Tip, ITipsRepository>, ITipsSer
     public Task<IReadOnlyList<Tip>> GetByUserIdAsync(Guid userId)
         => Repository.GetByUserIdAsync(userId);
 
-    public Task<decimal> GetTotalByUserIdAsync(Guid userId, DateTime? from = null, DateTime? to = null)
+    public Task<int> GetTotalByUserIdAsync(Guid userId, DateTime? from = null, DateTime? to = null)
         => Repository.GetTotalByUserIdAsync(userId, from, to);
 }

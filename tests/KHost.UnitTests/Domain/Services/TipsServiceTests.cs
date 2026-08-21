@@ -25,7 +25,7 @@ public class TipsServiceTests
         var venueId = Guid.NewGuid();
         _venuesService.SelectedVenueId.Returns(venueId);
 
-        var tip = await _service.CreateAsync(new Tip { UserId = Guid.NewGuid(), Amount = 5m });
+        var tip = await _service.CreateAsync(new Tip { UserId = Guid.NewGuid(), AmountInCents = 500 });
 
         Assert.Equal(venueId, tip.VenueId);
     }
@@ -37,7 +37,7 @@ public class TipsServiceTests
         _venuesService.SelectedVenueId.Returns(Guid.NewGuid());
 
         var tip = await _service.CreateAsync(
-            new Tip { UserId = Guid.NewGuid(), Amount = 5m, VenueId = explicitVenueId });
+            new Tip { UserId = Guid.NewGuid(), AmountInCents = 500, VenueId = explicitVenueId });
 
         Assert.Equal(explicitVenueId, tip.VenueId);
     }
@@ -47,7 +47,7 @@ public class TipsServiceTests
     {
         _venuesService.SelectedVenueId.Returns((Guid?)null);
 
-        var tip = await _service.CreateAsync(new Tip { UserId = Guid.NewGuid(), Amount = 5m });
+        var tip = await _service.CreateAsync(new Tip { UserId = Guid.NewGuid(), AmountInCents = 500 });
 
         Assert.Null(tip.VenueId);
     }

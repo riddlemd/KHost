@@ -38,6 +38,16 @@ internal static class Program
 {
     /// <summary>Skips the native shell and runs as a plain web host — browser-based development.</summary>
     private const string HeadlessFlag = "--headless";
+    internal const string NativeShellKey = "NativeShell";
+
+    // The shell locks down by build configuration, not environment: a Release build is what an
+    // operator runs. Environment cannot carry this — ASPNETCORE_ENVIRONMENT must stay Development
+    // for an unpublished run to serve its static assets at all, so it is never a dev/operator tell.
+#if DEBUG
+    internal const bool IsDebugBuild = true;
+#else
+    internal const bool IsDebugBuild = false;
+#endif
 
     /// <summary>Prints a freshly generated password for the named user, then exits.</summary>
     private const string ResetPasswordFlag = "--reset-password";
@@ -76,6 +86,10 @@ internal static class Program
             // anywhere — leaving WebRootPath null and ThemeService dead on startup.
             ContentRootPath = AppContext.BaseDirectory,
         });
+
+        // The window locks itself down (no reload, no back, no inspector); a browser tab does not.
+        builder.Configuration.AddInMemoryCollection(
+            [new KeyValuePair<string, string?>(NativeShellKey, (!headless).ToString())]);
 
         // The App Settings page writes this overlay; registered last, it wins over the
         // deployment defaults, and reload-on-change lets IOptionsMonitor bindings apply live.
@@ -501,6 +515,11 @@ internal static class Program
             .SetTitle("KHost")
             .SetUseOsDefaultSize(false)
             .SetSize(1440, 900)
+            // The page cannot reach the webview's own developer tools: neither the "Inspect
+            // Element" item in a text field's native menu nor F12/Cmd-Opt-I, which are handled
+            // before the DOM sees them. This is the only switch that closes both, and it leaves
+            // the rest of the text-field menu — cut, copy, paste — alone.
+            .SetDevToolsEnabled(IsDebugBuild)
             // On macOS closing the window tears the process down inside Photino, so the code
             // after WaitForClose never runs there. Shutdown work has to finish before the close
             // is allowed to proceed.
