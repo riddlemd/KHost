@@ -85,6 +85,7 @@
         gap: 0.5em;
         width: 100%;
         padding: 0.5em 1em;
+        border-left: 3px solid transparent;
         color: var(--kh-text);
         white-space: nowrap;
         transition: background var(--kh-transition);
@@ -101,6 +102,13 @@
         &--selected {
             color: var(--kh-primary-bright);
             font-weight: 600;
+        }
+
+        // Weight carries this, not the rail's colour: the greyscale themes have an accent barely
+        // distinguishable from the text, and "you are here" has to survive them too.
+        &--current {
+            border-left-color: var(--kh-primary-bright);
+            font-weight: 700;
         }
     }
 
