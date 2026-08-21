@@ -53,6 +53,35 @@ public class EditTipDialogTests
         Assert.Equal(userId, model.UserId);
     }
 
+    /// <summary>
+    /// Stored UTC, edited in local: a host reads the time off a clock, not off Greenwich. The two
+    /// only agree in one timezone, which is why this asserts the conversion rather than equality.
+    /// </summary>
+    [Fact]
+    public async Task Opening_ShowsTheStoredDateInLocalTime()
+    {
+        var stored = new DateTime(2026, 8, 21, 2, 43, 0, DateTimeKind.Utc);
+
+        var model = Model(await OpenAsync(new Tip { UserId = Guid.NewGuid(), AmountInCents = 500, CreatedDate = stored }));
+
+        Assert.Equal(stored.ToLocalTime(), model.CreatedDate);
+    }
+
+    [Fact]
+    public async Task Opening_WithNoTip_DatesItNow()
+    {
+        var model = Model(await OpenAsync(null));
+
+        Assert.True((DateTime.Now - model.CreatedDate).Duration() < TimeSpan.FromMinutes(1),
+            $"expected roughly now, got {model.CreatedDate}");
+    }
+
+    [Fact]
+    public void TheDateFieldShows_UnlessTheCallerSaysOtherwise()
+    {
+        Assert.True(new EditTipDialog().ShowDate);
+    }
+
     private static async Task<EditTipDialog> OpenAsync(Tip? tip, Guid? lockedUserId = null)
     {
         var dialog = new EditTipDialog();

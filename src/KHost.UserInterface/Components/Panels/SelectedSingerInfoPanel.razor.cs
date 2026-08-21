@@ -128,7 +128,7 @@ public partial class SelectedSingerInfoPanel : IDisposable
     private async Task OpenAddTipDialogAsync()
     {
         if (SingerQueueService?.SelectedUser is not { } user) return;
-        await DialogService!.RequestEditAsync(null, user.Id, async savedTip =>
+        await DialogService!.RequestEditAsync(null, user.Id, showDate: false, onSave: async savedTip =>
         {
             if (savedTip is null) return;
             await TipsService!.CreateAsync(savedTip);
@@ -234,7 +234,7 @@ public partial class SelectedSingerInfoPanel : IDisposable
             {
                 var tips = await TipsService.GetByUserIdAsync(user.Id);
                 _lifetimeTotalInCents = tips.Sum(t => t.AmountInCents);
-                _tonightTotalInCents = tips.Where(t => t.CreatedDate.Date == DateTime.UtcNow.Date)
+                _tonightTotalInCents = tips.Where(t => t.CreatedDate.ToLocalTime().Date == DateTime.Now.Date)
                                            .Sum(t => t.AmountInCents);
             }
             else

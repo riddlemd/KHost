@@ -33,6 +33,15 @@
                 <ValidationMessage For="() => _model.AmountInCents" />
             </div>
 
+            @if (ShowDate)
+            {
+                <div >
+                    <label class="kh-form-label">Date</label>
+                    <InputDate Type="InputDateType.DateTimeLocal" class="kh-form-control" @bind-Value="_model.CreatedDate" />
+                    <ValidationMessage For="() => _model.CreatedDate" />
+                </div>
+            }
+
             <div >
                 <label class="kh-form-label">Payment Method</label>
                 <InputSelect class="kh-form-select" @bind-Value="_model.PaymentMethod">
