@@ -26,7 +26,7 @@ public class TipsManagerPageTests
         await Invoke("OpenAddDialogAsync");
 
         await _dialogService.Received(1).RequestEditAsync(
-            (Tip?)null, Arg.Any<Action<Tip?>>(), Arg.Any<Action?>(), Arg.Any<Action?>());
+            (Tip?)null, Arg.Any<Func<Tip?, Task>>(), Arg.Any<Action?>(), Arg.Any<Action?>());
     }
 
     private Task Invoke(string method)

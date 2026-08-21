@@ -45,7 +45,7 @@
                                     }
                                 </td>
                                 <td class="kh-table__cell--fill">@(media?.Artist ?? "—")</td>
-                                <td>@perf.CreatedDate.ToString("g")</td>
+                                <td>@perf.CreatedDate.ToLocalTime().ToString("g")</td>
                                 <td class="kh-table__cell--actions">
                                     <SplitButton
                                             PrimaryDisabled="@(!isReady)"
