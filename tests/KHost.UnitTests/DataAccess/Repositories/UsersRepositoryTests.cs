@@ -190,6 +190,42 @@ public class UsersRepositoryTests : IDisposable
         Assert.Equal(7, result.TotalCount);
     }
 
+    /// <summary>
+    /// The flag lives on the group, so a singer who is also an admin has to be excluded by the
+    /// group they share — not by anything on their own row.
+    /// </summary>
+    [Fact]
+    public async Task Search_WithSingersOnly_LeavesOutMembersOfAnExcludedGroup()
+    {
+        var staff = new KHostUserGroup { Name = "Staff", ExcludeFromSingerQueue = true };
+        var regulars = new KHostUserGroup { Name = "Regulars" };
+        // One call: a group handed to a second context is untracked, so EF inserts it again and
+        // trips the unique name index.
+        await _database.SeedAsync(
+            staff, regulars,
+            new KHostUser { Name = "Sam Singer", Groups = [regulars] },
+            new KHostUser { Name = "Sam Staffer", Groups = [staff] },
+            new KHostUser { Name = "Sam Nobody" });
+
+        var result = await _repository.SearchAsync("Sam", 1, 50, new UserSearchOptions { SingersOnly = true });
+
+        Assert.Equal(["Sam Nobody", "Sam Singer"], result.Items.Select(u => u.Name).Order());
+    }
+
+    [Fact]
+    public async Task Search_WithoutTheOption_LeavesEveryoneIn()
+    {
+        var staff = new KHostUserGroup { Name = "Staff", ExcludeFromSingerQueue = true };
+        await _database.SeedAsync(
+            staff,
+            new KHostUser { Name = "Sam Singer" },
+            new KHostUser { Name = "Sam Staffer", Groups = [staff] });
+
+        var result = await _repository.SearchAsync("Sam", 1, 50);
+
+        Assert.Equal(2, result.Items.Count);
+    }
+
     private static KHostUser User(string name) => new() { Name = name };
 
     public void Dispose()

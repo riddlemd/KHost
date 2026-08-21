@@ -16,5 +16,7 @@ public class EditUserGroupModel
 
     public bool IsAdmin { get; set; }
 
+    public bool ExcludeFromSingerQueue { get; set; }
+
     public List<KHostPermission> Permissions { get; set; } = [];
 }

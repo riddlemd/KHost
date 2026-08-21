@@ -3,6 +3,12 @@
    Singer cards, selection states, and actions
    ═══════════════════════════════════════════════════════════════════════════ */
 
+.kh-card__body.kh-singer-queue-panel__add {
+    // Beats the queue column's blanket overflow on .kh-card__body, which would crop the picker's
+    // menu to the height of the form.
+    overflow: visible;
+}
+
 .kh-singer-queue-panel {
     display: flex;
     flex-direction: column;
@@ -75,6 +81,7 @@
             &__actions {
                 display: flex;
                 margin-left: auto;
+                flex-shrink: 0;
             }
 
             &__icon {
@@ -84,11 +91,22 @@
                 margin-right: 0.75rem;
                 font-size: 1.5em;
                 min-width: 1em;
+                flex-shrink: 0;
+            }
+
+            // min-width:0 or it cannot go below its longest name, and every sibling is squeezed
+            // instead — they are the ones that must not shrink.
+            &__text {
+                min-width: 0;
+                flex: 1 1 auto;
             }
 
             &__name {
                 font-weight: 600;
                 color: var(--kh-text);
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
             }
 
             &__info {
@@ -113,5 +131,17 @@
         flex: 0 0 auto;
         width: auto;
         padding: 0.5em 0.75em;
+    }
+}
+
+/* ─── Narrow panel ────────────────────────────────────────────────────────────
+   Keyed to the panel, not the window: the splitter can leave it this narrow at
+   any window size. */
+@container kh-queue (max-width: 260px) {
+    // The drag handle reorders too, so the arrows are the first thing that can go to buy the
+    // singer's name some room.
+    .kh-singer-queue-panel__singer-queue__singer__move-up-btn,
+    .kh-singer-queue-panel__singer-queue__singer__move-down-btn {
+        display: none;
     }
 }
