@@ -1,0 +1,45 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   Flash Banner
+   Confirmation across the top of the console. Absolute rather than in the flow:
+   the panels below must not jump down and back as it comes and goes.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.kh-flash {
+    position: absolute;
+    top: 0.5em;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 50;
+    display: flex;
+    align-items: center;
+    gap: 0.6em;
+    max-width: min(90%, 640px);
+    padding: 0.5em 0.75em;
+    border: 1px solid var(--kh-border-bright);
+    border-radius: var(--kh-radius);
+    background: var(--kh-bg-elevated);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+    font-size: 0.9rem;
+
+    &--success {
+        border-color: var(--kh-success-border-subtle);
+        color: var(--kh-success);
+    }
+
+    &--warning {
+        border-color: var(--kh-warning-border-subtle);
+        color: var(--kh-warning);
+    }
+
+    &__text {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    &__dismiss {
+        margin-left: 0.25em;
+        color: inherit;
+    }
+}
