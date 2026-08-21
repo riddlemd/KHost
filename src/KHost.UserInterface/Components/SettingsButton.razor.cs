@@ -97,6 +97,15 @@ public partial class SettingsButton : IDisposable
 
     private bool IsOpen(string section) => _openSection == section;
 
+    // A section must not outlive the menu it was opened in, or the next open shows a flyout nobody
+    // asked for — and one that was never placed, because opening the menu does not render this.
+    private void OnMenuOpenChanged(bool open)
+    {
+        if (!open) _openSection = null;
+
+        StateHasChanged();
+    }
+
     // Placed after every render while a section is open: the row it hangs off moves whenever the
     // menu re-renders, and a flyout left where the row used to be is worse than none.
     protected override async Task OnAfterRenderAsync(bool firstRender)
