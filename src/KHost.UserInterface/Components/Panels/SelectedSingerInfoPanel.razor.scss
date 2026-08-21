@@ -4,6 +4,8 @@
    ═══════════════════════════════════════════════════════════════════════════ */
 
 .kh-selected-singer-info-panel {
+    // Keyed to the panel: the splitter sets its width independently of the window's.
+    container: kh-singer-info / inline-size;
     flex: 1 1 0;
     overflow: hidden;
     display: flex;
@@ -113,10 +115,42 @@
     }
     /* ─── Quick Menu (singer flags + actions) ────────────────────────────── */
     &__tip-totals {
+        display: flex;
+        align-items: center;
+        gap: 0.5em;
         margin: 0 1em 0 auto;
+        white-space: nowrap;
+        // The title beside them truncates instead — it is the one thing here that can.
+        flex-shrink: 0;
 
         + .kh-selected-singer-info-panel__quick-menu {
             margin-left: 0;
+        }
+    }
+
+    // Stacked and small: two short lines take less of the row than one long one, and at this size
+    // the pair is no taller than the buttons beside them.
+    &__tip-figures {
+        display: flex;
+        flex-direction: column;
+        font-size: 0.8em;
+        line-height: 1.25;
+        // The header sets both for its own title; at this size they only hurt legibility.
+        text-transform: none;
+        letter-spacing: normal;
+
+        > span {
+            // Gap on the row rather than a margin on the icon: the Icon component renders that
+            // element, so it carries the child's scope id and this stylesheet cannot reach it.
+            display: flex;
+            align-items: center;
+            gap: 0.35em;
+            padding: 0.15em 0;
+
+            // Adjacent sibling, so the rule falls between the two figures rather than boxing them.
+            + span {
+                border-top: 1px solid var(--kh-border);
+            }
         }
     }
 
@@ -174,5 +208,20 @@
         // Spacing is the quick-menu's gap. Needs to beat `.kh-card__header .kh-button`'s
         // margin-left:auto, which would otherwise spread these across the free space.
         margin: 0;
+    }
+}
+
+/* ─── Narrow panel ─────────────────────────────────────────────────────────── */
+@container kh-singer-info (max-width: 560px) {
+    // Second of two decorative icons on the same row.
+    .kh-selected-singer-info-panel__header-icon {
+        display: none;
+    }
+
+    // Still comfortably a touch target, and between them the buttons were taking more of the row
+    // than the singer's name.
+    .kh-selected-singer-info-panel__quick-menu {
+        font-size: 1.15em;
+        --kh-quick-menu-size: 26px;
     }
 }
