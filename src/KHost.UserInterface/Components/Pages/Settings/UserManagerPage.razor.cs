@@ -18,7 +18,7 @@ public partial class UserManagerPage : IDisposable
     private string? _sortColumn;
     private bool _sortDescending;
     private PaginatedResult<KHostUser>? _paginatedResult;
-    private Dictionary<Guid, decimal> _tipTotals = [];
+    private Dictionary<Guid, int> _tipTotals = [];
 
     protected override async Task OnInitializedAsync()
     {
@@ -39,7 +39,7 @@ public partial class UserManagerPage : IDisposable
         _tipTotals = [];
         foreach (var user in _paginatedResult?.Items ?? [])
         {
-            _tipTotals[user.Id] = await TipsService.GetTotalByUserIdAsync(user.Id);
+            _tipTotals[user.Id] = await TipsService.GetTotalInCentsByUserIdAsync(user.Id);
         }
     }
 

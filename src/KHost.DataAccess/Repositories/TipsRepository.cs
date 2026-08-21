@@ -31,7 +31,7 @@ internal class TipsRepository : BaseRepository<Tip>, ITipsRepository
             .ToListAsync();
     }
 
-    public async Task<int> GetTotalByUserIdAsync(Guid userId, DateTime? from = null, DateTime? to = null)
+    public async Task<int> GetTotalInCentsByUserIdAsync(Guid userId, DateTime? from = null, DateTime? to = null)
     {
         using var context = await ContextFactory.CreateDbContextAsync();
         var query = context.Tips.Where(t => t.UserId == userId);
