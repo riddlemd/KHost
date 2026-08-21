@@ -1,3 +1,4 @@
+using KHost.Abstractions.Exceptions;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using KHost.UserInterface.Services;
@@ -9,6 +10,7 @@ public partial class UserManagerPage : IDisposable
 {
     [Inject] private IUsersService? UsersService { get; set; }
     [Inject] private ITipsService? TipsService { get; set; }
+    [Inject] private IFlashService? Flash { get; set; }
     [Inject] private IDialogService? DialogService { get; set; }
     [Inject] private IVenuesService? VenuesService { get; set; }
 
@@ -83,11 +85,21 @@ public partial class UserManagerPage : IDisposable
         if (UsersService is null || user is null)
             return;
 
-        var existing = await UsersService.ReadAsync(user.Id);
-        if (existing is null)
-            await UsersService.CreateAsync(user);
-        else
-            await UsersService.UpdateAsync(user);
+        try
+        {
+            var existing = await UsersService.ReadAsync(user.Id);
+            if (existing is null)
+                await UsersService.CreateAsync(user);
+            else
+                await UsersService.UpdateAsync(user);
+        }
+        catch (KHostException taken)
+        {
+            // Caught here rather than left to the error boundary: a name already in use is the
+            // host's mistake to correct, and replacing the page they were working on is no way to
+            // tell them.
+            Flash?.Show(taken.WhatHappened, FlashKind.Warning);
+        }
     }
 
     // Unconditional: a destructive action must not hinge on which venue is selected.
