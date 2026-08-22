@@ -20,7 +20,19 @@ public class PlaybackService : BaseService, IPlaybackService
         public TimeSpan SyncStartLead { get; set; } = TimeSpan.FromMilliseconds(400);
     }
 
+    private const int ClockIntervalMs = 500;
+
+    // Swapping _timer is a two-step read-then-assign reached from the UI dispatcher (PlayAsync,
+    // SeekAsync) and from Task.Run continuations (a screen connecting) at once. Unguarded, both
+    // callers assign and the loser's Timer is unreachable — it ticks, and drives a second position
+    // clock and a second round of panel queries, until the process ends.
+    private readonly Lock _clockLock = new();
     private Timer? _timer;
+
+    // A tick that outruns the interval must not overlap the next: two in flight both see the song
+    // ended and rotate the singer away twice.
+    private int _ticking;
+
     private DateTime _lastTick;
 
     // Bounded independently of report rate: a chatty screen must not become a command storm.
@@ -46,6 +58,8 @@ public class PlaybackService : BaseService, IPlaybackService
     private readonly IScreenCoordinationService _screenCoordination;
     private readonly ICastService _cast;
     private readonly ServiceOptions _options;
+
+    public event EventHandler? PositionChanged;
 
     public Performance? CurrentPerformance { get; private set; }
     public Media? CurrentMedia { get; private set; }
@@ -360,8 +374,8 @@ public class PlaybackService : BaseService, IPlaybackService
         finally
         {
             // Also covers the throwing path: a stopped clock under Playing freezes the UI.
-            if (State == PlaybackState.Playing && _timer is null)
-                StartClock();
+            if (State == PlaybackState.Playing)
+                EnsureClockRunning();
 
             _screenSyncLock.Release();
         }
@@ -414,15 +428,33 @@ public class PlaybackService : BaseService, IPlaybackService
 
     private void StartClock()
     {
-        _lastTick = DateTime.UtcNow;
-        _timer?.Dispose();
-        _timer = new Timer(OnTick, null, 500, 500);
+        lock (_clockLock)
+        {
+            _lastTick = DateTime.UtcNow;
+            _timer?.Dispose();
+            _timer = new Timer(OnTick, null, ClockIntervalMs, ClockIntervalMs);
+        }
+    }
+
+    /// <summary>Starts the clock only if it is not already running, as one indivisible step.</summary>
+    private void EnsureClockRunning()
+    {
+        lock (_clockLock)
+        {
+            if (_timer is not null) return;
+
+            _lastTick = DateTime.UtcNow;
+            _timer = new Timer(OnTick, null, ClockIntervalMs, ClockIntervalMs);
+        }
     }
 
     private void StopClock()
     {
-        _timer?.Dispose();
-        _timer = null;
+        lock (_clockLock)
+        {
+            _timer?.Dispose();
+            _timer = null;
+        }
     }
 
     private async Task<ScreenDisconnectBehavior> GetScreenDisconnectBehaviorAsync()
@@ -635,6 +667,10 @@ public class PlaybackService : BaseService, IPlaybackService
 
     private async void OnTick(object? state)
     {
+        // Dropped, not queued: a tick only interpolates the playhead, and the one already running
+        // has the newer reading anyway.
+        if (Interlocked.Exchange(ref _ticking, 1) == 1) return;
+
         try
         {
             await TickAsync();
@@ -642,6 +678,10 @@ public class PlaybackService : BaseService, IPlaybackService
         catch (Exception ex)
         {
             Logger.LogError(ex, "Unhandled error in playback tick");
+        }
+        finally
+        {
+            Interlocked.Exchange(ref _ticking, 0);
         }
     }
 
@@ -658,9 +698,14 @@ public class PlaybackService : BaseService, IPlaybackService
             Logger.LogInformation("Playback concluded");
 
             await EndedAsync();
+
+            InvokeStateChanged();
+            return;
         }
 
-        InvokeStateChanged();
+        // Not StateChanged: the queue panels answer that one with a queue read and a media read
+        // per singer, and at twice a second for a whole night that is the console's entire load.
+        PositionChanged?.Invoke(this, EventArgs.Empty);
     }
 
     private bool HasPlaybackEnded() =>
