@@ -33,5 +33,6 @@ public interface IPerformanceService : IRepositoryService<Performance>
     Task MoveUpInQueueAsync(Guid singerId, Guid performanceId);
     Task MoveDownInQueueAsync(Guid singerId, Guid performanceId);
     Task MoveToEndOfQueueAsync(Guid singerId, Guid performanceId);
+    Task MoveToIndexAsync(Guid singerId, Guid performanceId, int newIndex);
     Task DeleteAllQueuedAsync();
 }

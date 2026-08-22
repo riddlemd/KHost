@@ -208,6 +208,88 @@ public class PerformanceServiceTests
     }
 
     [Fact]
+    public async Task MoveToIndexAsync_DropsTheSongAtTheIndexAndClosesTheGap()
+    {
+        var singerId = Guid.NewGuid();
+        var first = await EnqueueForAsync(singerId);
+        var second = await EnqueueForAsync(singerId);
+        var third = await EnqueueForAsync(singerId);
+
+        await _service.MoveToIndexAsync(singerId, first.Id, 2);
+
+        var queued = await _service.ReadBySingerIdAsync(singerId, filter: PerformanceFilter.Queued);
+        Assert.Equal([second.Id, third.Id, first.Id], queued.Items.Select(p => p.Id));
+        // Positions, not just order: they are what everything else reads the queue back by, and
+        // enqueueing takes the next one from their maximum.
+        Assert.Equal([1, 2, 3], queued.Items.Select(p => p.QueuePosition));
+    }
+
+    [Fact]
+    public async Task MoveToIndexAsync_MovesASongUpTheQueue()
+    {
+        var singerId = Guid.NewGuid();
+        var first = await EnqueueForAsync(singerId);
+        var second = await EnqueueForAsync(singerId);
+        var third = await EnqueueForAsync(singerId);
+
+        await _service.MoveToIndexAsync(singerId, third.Id, 0);
+
+        var queued = await _service.ReadBySingerIdAsync(singerId, filter: PerformanceFilter.Queued);
+        Assert.Equal([third.Id, first.Id, second.Id], queued.Items.Select(p => p.Id));
+    }
+
+    // The row a drag lands on belongs to the whole table, and the queue can shrink mid-drag.
+    [Theory]
+    [InlineData(-3)]
+    [InlineData(99)]
+    public async Task MoveToIndexAsync_ClampsAnIndexPastEitherEnd(int newIndex)
+    {
+        var singerId = Guid.NewGuid();
+        var first = await EnqueueForAsync(singerId);
+        var second = await EnqueueForAsync(singerId);
+
+        await _service.MoveToIndexAsync(singerId, first.Id, newIndex);
+
+        var queued = await _service.ReadBySingerIdAsync(singerId, filter: PerformanceFilter.Queued);
+        var expected = newIndex < 0 ? new[] { first.Id, second.Id } : [second.Id, first.Id];
+        Assert.Equal(expected, queued.Items.Select(p => p.Id));
+    }
+
+    [Fact]
+    public async Task MoveToIndexAsync_LeavesAnotherSingersQueueAlone()
+    {
+        var singerId = Guid.NewGuid();
+        var otherSinger = Guid.NewGuid();
+        var mine = await EnqueueForAsync(singerId);
+        await EnqueueForAsync(singerId);
+        await EnqueueForAsync(otherSinger);
+        await EnqueueForAsync(otherSinger);
+        // Read now, not after: the repository hands back the same instances, so comparing the rows
+        // to themselves once the move has run would pass however badly they were renumbered. Two
+        // songs each, because renumbering everyone leaves the first of them on position 1 anyway.
+        var before = (await _service.ReadBySingerIdAsync(otherSinger, filter: PerformanceFilter.Queued))
+            .Items.Select(p => p.QueuePosition).ToList();
+
+        await _service.MoveToIndexAsync(singerId, mine.Id, 1);
+
+        var others = await _service.ReadBySingerIdAsync(otherSinger, filter: PerformanceFilter.Queued);
+        Assert.Equal(before, others.Items.Select(p => p.QueuePosition));
+    }
+
+    [Fact]
+    public async Task MoveToIndexAsync_IgnoresAPerformanceThatIsNotQueuedForThatSinger()
+    {
+        var singerId = Guid.NewGuid();
+        var first = await EnqueueForAsync(singerId);
+        var second = await EnqueueForAsync(singerId);
+
+        await _service.MoveToIndexAsync(singerId, Guid.NewGuid(), 0);
+
+        var queued = await _service.ReadBySingerIdAsync(singerId, filter: PerformanceFilter.Queued);
+        Assert.Equal([first.Id, second.Id], queued.Items.Select(p => p.Id));
+    }
+
+    [Fact]
     public async Task MoveToEndOfQueueAsync_MovesToEnd()
     {
         var singerId = Guid.NewGuid();
