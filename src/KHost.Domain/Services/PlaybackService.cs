@@ -170,6 +170,42 @@ public class PlaybackService : BaseService, IPlaybackService
         InvokeStateChanged();
     }
 
+    public async Task SeekAsync(TimeSpan position)
+    {
+        // Loaded is enough. A song sits in Stopped until Play, and scrubbing before starting it —
+        // to skip a long intro — is exactly when a host reaches for the bar.
+        if (CurrentMedia is not { } media)
+            return;
+
+        var target = Clamp(position, media.Duration);
+        var wasPlaying = State == PlaybackState.Playing;
+
+        // Stopped first: the tick would otherwise carry the old position over the new one.
+        StopClock();
+        Position = target;
+
+        Logger.LogInformation("Seeking to {Position}", target);
+
+        await SendToScreensAsync(new SeekCommand { Position = target });
+        await CastAsync(c => c.SeekAsync(target));
+
+        // Screens play to a scheduled instant rather than following us, so moving the playhead has
+        // to re-anchor the whole group — not only the screen the host happens to be looking at.
+        await PublishTimelineAsync(wasPlaying, target, scheduleAhead: wasPlaying);
+
+        if (wasPlaying)
+            StartClock();
+
+        InvokeStateChanged();
+    }
+
+    private static TimeSpan Clamp(TimeSpan position, TimeSpan? duration)
+    {
+        if (position < TimeSpan.Zero) return TimeSpan.Zero;
+
+        return duration is { } end && position > end ? end : position;
+    }
+
     public async Task PauseAsync()
     {
         if (State != PlaybackState.Playing)
