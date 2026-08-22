@@ -378,7 +378,7 @@ public class PerformanceServiceTests
             SingerId = Guid.NewGuid(),
             MediaId = mediaId,
             QueuePosition = null,
-            CreatedDate = DateTime.Now.AddHours(-2)
+            CreatedDate = DateTime.UtcNow.AddHours(-2)
         });
 
         await EnqueueMediaAsync(Guid.NewGuid(), mediaId);
@@ -400,7 +400,7 @@ public class PerformanceServiceTests
             SingerId = Guid.NewGuid(),
             MediaId = mediaId,
             QueuePosition = null,
-            CreatedDate = DateTime.Now.AddHours(-9)
+            CreatedDate = DateTime.UtcNow.AddHours(-9)
         });
 
         await EnqueueMediaAsync(Guid.NewGuid(), mediaId);
