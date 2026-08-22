@@ -73,7 +73,9 @@
             <div class="kh-now-playing__progress-section">
                 @if (hasDur)
                 {
-                    <div class="kh-now-playing__progress-track">
+                    <div class="kh-now-playing__progress-track kh-now-playing__progress-track--seekable"
+                         @ref="_trackRef" @onclick="SeekToClickAsync"
+                         title="Click to skip to a point in the song">
                         <div class="kh-now-playing__progress-fill @(isPlaying ? "kh-now-playing__progress-fill--playing" : "") @(isStopping ? "kh-now-playing__progress-fill--stopping" : "")"
                              style="width:@(pct.ToString("F1", System.Globalization.CultureInfo.InvariantCulture))%">
                         </div>

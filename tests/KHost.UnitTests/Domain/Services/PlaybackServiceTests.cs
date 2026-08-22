@@ -1283,6 +1283,66 @@ public class PlaybackServiceTests : IDisposable
         await _performanceService.Received().DequeueAsync(performance.SingerId, performance.Id);
     }
 
+    [Fact]
+    public async Task SeekAsync_MovesThePlayheadAndTellsTheScreens()
+    {
+        var (performance, media) = CreatePerformance();
+        media.Duration = TimeSpan.FromMinutes(4);
+        await _service.LoadAsync(performance, media);
+
+        await _service.SeekAsync(TimeSpan.FromMinutes(1));
+
+        Assert.Equal(TimeSpan.FromMinutes(1), _service.Position);
+        await _screenServer.Received().BroadcastCommandAsync(Arg.Any<SeekCommand>());
+    }
+
+    // A click at the very end of a progress bar lands on or past the last pixel.
+    [Fact]
+    public async Task SeekAsync_PastTheEnd_StopsAtTheEnd()
+    {
+        var (performance, media) = CreatePerformance();
+        media.Duration = TimeSpan.FromMinutes(4);
+        await _service.LoadAsync(performance, media);
+
+        await _service.SeekAsync(TimeSpan.FromMinutes(9));
+
+        Assert.Equal(TimeSpan.FromMinutes(4), _service.Position);
+    }
+
+    [Fact]
+    public async Task SeekAsync_BeforeTheStart_StopsAtZero()
+    {
+        var (performance, media) = CreatePerformance();
+        media.Duration = TimeSpan.FromMinutes(4);
+        await _service.LoadAsync(performance, media);
+
+        await _service.SeekAsync(TimeSpan.FromSeconds(-30));
+
+        Assert.Equal(TimeSpan.Zero, _service.Position);
+    }
+
+    /// <summary>A song of unknown length still seeks; there is just nothing to clamp against.</summary>
+    [Fact]
+    public async Task SeekAsync_WithNoDuration_MovesAnyway()
+    {
+        var (performance, media) = CreatePerformance();
+        media.Duration = null;
+        await _service.LoadAsync(performance, media);
+
+        await _service.SeekAsync(TimeSpan.FromMinutes(2));
+
+        Assert.Equal(TimeSpan.FromMinutes(2), _service.Position);
+    }
+
+    [Fact]
+    public async Task SeekAsync_WithNothingLoaded_DoesNothing()
+    {
+        await _service.SeekAsync(TimeSpan.FromMinutes(1));
+
+        Assert.Equal(TimeSpan.Zero, _service.Position);
+        await _screenServer.DidNotReceive().BroadcastCommandAsync(Arg.Any<SeekCommand>());
+    }
+
     private static (Performance, Media) CreatePerformance()
     {
         var singerId = Guid.NewGuid();
