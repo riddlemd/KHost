@@ -11,6 +11,11 @@ public partial class MainLayout : IDisposable
 
     private bool _pendingPageOpen;
 
+    // The console owns the viewport and never scrolls; every other page scrolls as a document,
+    // which takes the status bar with it.
+    private bool IsMainPage =>
+        string.IsNullOrEmpty(NavigationManager.ToBaseRelativePath(NavigationManager.Uri).Split('?', '#')[0].Trim('/'));
+
     protected override void OnInitialized()
     {
         NavigationManager.LocationChanged += OnLocationChanged;

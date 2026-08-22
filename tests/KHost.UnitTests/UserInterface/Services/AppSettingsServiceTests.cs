@@ -74,6 +74,65 @@ public class AppSettingsServiceTests : IDisposable
         Assert.False(service.RestartRequired);
     }
 
+    [Fact]
+    public void Current_FallsBackToTheDefaultPageSizes_WhenTheOverlayHasNone()
+    {
+        var current = Service().Current;
+
+        Assert.Equal(AppSettings.DefaultPageSize, current.MediaPageSize);
+        Assert.Equal(AppSettings.DefaultPageSize, current.UsersPageSize);
+        Assert.Equal(AppSettings.DefaultPageSize, current.UserGroupsPageSize);
+        Assert.Equal(AppSettings.DefaultPageSize, current.TipsPageSize);
+        Assert.Equal(AppSettings.DefaultPageSize, current.VenuesPageSize);
+        Assert.Equal(AppSettings.DefaultPerformanceHistoryPageSize, current.PerformanceHistoryPageSize);
+    }
+
+    [Fact]
+    public void Current_ReadsEachPageSizeFromItsOwnKey()
+    {
+        var service = Service(
+            new KeyValuePair<string, string?>("Pagination:Media", "11"),
+            new KeyValuePair<string, string?>("Pagination:Users", "12"),
+            new KeyValuePair<string, string?>("Pagination:UserGroups", "13"),
+            new KeyValuePair<string, string?>("Pagination:Tips", "14"),
+            new KeyValuePair<string, string?>("Pagination:Venues", "15"),
+            new KeyValuePair<string, string?>("Pagination:PerformanceHistory", "16"));
+
+        var current = service.Current;
+
+        Assert.Equal(11, current.MediaPageSize);
+        Assert.Equal(12, current.UsersPageSize);
+        Assert.Equal(13, current.UserGroupsPageSize);
+        Assert.Equal(14, current.TipsPageSize);
+        Assert.Equal(15, current.VenuesPageSize);
+        Assert.Equal(16, current.PerformanceHistoryPageSize);
+    }
+
+    [Theory]
+    [InlineData("0", AppSettings.MinPageSize)]
+    [InlineData("-5", AppSettings.MinPageSize)]
+    [InlineData("100000", AppSettings.MaxPageSize)]
+    public void Current_ClampsAHandEditedPageSize(string configured, int expected)
+    {
+        var service = Service(new KeyValuePair<string, string?>("Pagination:Media", configured));
+
+        Assert.Equal(expected, service.Current.MediaPageSize);
+    }
+
+    [Fact]
+    public async Task SaveAsync_WritesThePageSizes_Clamped()
+    {
+        var service = Service();
+
+        await service.SaveAsync(new AppSettings { MediaPageSize = 50, UsersPageSize = 0 });
+
+        using var overlay = JsonDocument.Parse(
+            await File.ReadAllTextAsync(Path.Combine(_directory, AppSettingsService.OverlayFileName)));
+        var pagination = overlay.RootElement.GetProperty("Pagination");
+        Assert.Equal(50, pagination.GetProperty("Media").GetInt32());
+        Assert.Equal(AppSettings.MinPageSize, pagination.GetProperty("Users").GetInt32());
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_directory)) Directory.Delete(_directory, recursive: true);

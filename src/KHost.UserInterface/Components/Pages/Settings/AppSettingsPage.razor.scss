@@ -1,6 +1,9 @@
 .kh-app-settings {
     max-width: 720px;
-    margin: 16px auto;
+    // An auto cross-axis margin switches off the flex stretch, so without this the card sizes to
+    // its content instead of filling up to the cap.
+    width: 100%;
+    margin-inline: auto;
 
     // .kh-card__body pads a direct <form> child and nothing else; this page has no form, so its
     // rows sat flush against both card edges.
@@ -10,6 +13,8 @@
 
     &__section {
         margin: 20px 0 8px;
+        padding-bottom: 6px;
+        border-bottom: 1px solid var(--kh-border);
         font-weight: 600;
         text-transform: uppercase;
         font-size: 0.8rem;
