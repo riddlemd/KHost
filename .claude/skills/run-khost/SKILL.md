@@ -8,6 +8,10 @@ description: Launch and drive the KHost app (windowed or headless) to see a chan
 Everything here was verified by actually doing it on macOS. Follow it in order; the traps
 section is not optional reading.
 
+Driving mechanics only. If the point is to **test** a change rather than just see the app, load the
+`test-khost` skill as well — it carries the fixed sequence, the measurements that count as proof,
+and the reporting shape.
+
 ## The one rule that protects the user's data
 
 **Every graceful exit clears the singer queue and queued performances** (the venue's
