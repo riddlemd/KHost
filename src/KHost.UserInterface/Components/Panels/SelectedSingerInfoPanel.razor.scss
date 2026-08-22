@@ -164,7 +164,6 @@
         // hide them — so own it here, and hand it back when they are present so the two stay
         // together as one right-aligned cluster rather than splitting the free space.
         margin-left: auto;
-        // Everything on this row is square except the flags pill, which widens per flag.
         --kh-quick-menu-size: 32px;
 
         > i {
@@ -175,14 +174,20 @@
     &__flags {
         display: flex;
         align-items: center;
+        justify-content: center;
         height: var(--kh-quick-menu-size);
-        padding: 0 0.33em;
+        width: var(--kh-quick-menu-size);
         background: rgba(0, 0, 0, 0.5);
-        border-radius: 0.5em;
+        border-radius: var(--kh-radius);
         margin-left: auto;
     }
 
     &__toggle-regular-btn {
+        // .kh-button--icon-minimal fixes 26px regardless of the row, which left this the one
+        // control on the quick menu that did not match its neighbours.
+        height: var(--kh-quick-menu-size);
+        width: var(--kh-quick-menu-size);
+
         // `.kh-button--icon-minimal i` pins its icon at 12px, well under the quick menu's 1.5em
         // neighbours; the full 1.5em in turn crowds the flags pill, so sit between the two.
         ::deep i {
