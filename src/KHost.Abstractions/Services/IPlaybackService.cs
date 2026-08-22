@@ -6,6 +6,13 @@ public interface IPlaybackService : IDisposable
 {
     event EventHandler? StateChanged;
 
+    /// <summary>
+    /// Raised by the position clock alone, twice a second while a song plays. Nothing but
+    /// <see cref="Position"/> has moved, so a subscriber that re-queries on it repeats that query
+    /// all night — take it only to redraw a playhead, and take <see cref="StateChanged"/> for the rest.
+    /// </summary>
+    event EventHandler? PositionChanged;
+
     Performance? CurrentPerformance { get; }
     Media? CurrentMedia { get; }
     PlaybackState State { get; }
