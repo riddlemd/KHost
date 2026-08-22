@@ -9,6 +9,7 @@
     <PackageVersion Include="FFMpegCore" Version="5.4.0" />
     <PackageVersion Include="Silk.NET.OpenAL.Soft.Native" Version="1.23.1" />
     <!-- Testing -->
+    <PackageVersion Include="bunit" Version="2.9.0" />
     <PackageVersion Include="coverlet.collector" Version="10.0.0" />
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.4.0" />
     <PackageVersion Include="NSubstitute" Version="5.3.0" />
