@@ -52,19 +52,32 @@ public partial class SelectedSingerInfoPanel : IDisposable
         await RefreshPerformancesAsync();
     }
 
-    private Task OnKeyDownAsync(KeyboardEventArgs e)
+    private async Task OnKeyDownAsync(KeyboardEventArgs e)
     {
-        if (SingerQueueService?.SelectedUser is null) return Task.CompletedTask;
+        if (SingerQueueService?.SelectedUser is not { } singer) return;
 
         var currentIdx = _performances.FindIndex(p => p.Id == _selectedPerformanceId);
         var action = ListKeyboardShortcuts.Resolve(e.Key, e.ShiftKey, currentIdx, _performances.Count);
 
-        if (action is ListKeyAction.SelectPrevious)
-            SelectPerformance(_performances[currentIdx - 1].Id);
-        else if (action is ListKeyAction.SelectNext)
-            SelectPerformance(_performances[currentIdx + 1].Id);
+        // Reordering is a permission of its own; the arrows that do it are hidden without it.
+        if (action is ListKeyAction.MovePrevious or ListKeyAction.MoveNext && !_canReorderQueue)
+            return;
 
-        return Task.CompletedTask;
+        switch (action)
+        {
+            case ListKeyAction.SelectPrevious:
+                SelectPerformance(_performances[currentIdx - 1].Id);
+                break;
+            case ListKeyAction.SelectNext:
+                SelectPerformance(_performances[currentIdx + 1].Id);
+                break;
+            case ListKeyAction.MovePrevious:
+                await (PerformanceService?.MoveUpInQueueAsync(singer.Id, _performances[currentIdx].Id) ?? Task.CompletedTask);
+                break;
+            case ListKeyAction.MoveNext:
+                await (PerformanceService?.MoveDownInQueueAsync(singer.Id, _performances[currentIdx].Id) ?? Task.CompletedTask);
+                break;
+        }
     }
 
     private async Task LoadAndPlayAsync(Performance performance)
