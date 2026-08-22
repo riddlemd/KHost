@@ -9,8 +9,7 @@ namespace KHost.UserInterface.Components.Pages.Settings;
 
 public partial class MediaManagerPage : IAsyncDisposable
 {
-    private const int _pageSize = 25;
-
+    private int _pageSize = AppSettings.DefaultPageSize;
     private int _currentPage = 1;
     private string _searchQuery = "";
     private string? _sortColumn;
@@ -22,6 +21,7 @@ public partial class MediaManagerPage : IAsyncDisposable
     [Inject] private NavigationManager? Navigation { get; set; }
     [Inject] private IDialogService? DialogService { get; set; }
     [Inject] private IVenuesService? VenuesService { get; set; }
+    [Inject] private IAppSettingsService? AppSettingsService { get; set; }
 
     private void NavigateToImporter() => Navigation!.NavigateTo("/settings/media-importer");
 
@@ -49,6 +49,8 @@ public partial class MediaManagerPage : IAsyncDisposable
     {
         if (MediaService is null)
             return;
+
+        _pageSize = AppSettingsService!.Current.MediaPageSize;
 
         await SearchAsync();
         MediaService.StateChanged += OnMediaStateChanged;
