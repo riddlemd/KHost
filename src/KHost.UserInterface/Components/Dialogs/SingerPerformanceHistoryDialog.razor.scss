@@ -5,13 +5,18 @@
 
 .kh-singer-performance-history-dialog {
 
-    .kh-dialog__body {
-        padding: 0;
-    }
-
     &__table-wrapper {
         max-height: 500px;
         overflow-y: auto;
+        // Cancels .kh-dialog__body's 1em so the table meets the dialog edges. Setting padding: 0
+        // on the body instead cannot work: that div belongs to Dialog's scope, not this one.
+        margin: -1em -1em 0;
+    }
+
+    // Wrapping the shared Pagination keeps this offset off every other page that uses it: the
+    // margin belongs to a div this component renders, so no ::deep into Pagination's scope.
+    &__pagination {
+        margin: 0 -1em -1em;
     }
 
     &__empty {
