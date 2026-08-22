@@ -9,7 +9,6 @@ namespace KHost.UserInterface.Components.Dialogs;
 public partial class SingerPerformanceHistoryDialog
 {
     private const string _rootClassName = "kh-singer-performance-history-dialog";
-    private const int _pageSize = 5;
 
     [Parameter] public bool IsOpen { get; set; }
     [Parameter] public Guid UserId { get; set; }
@@ -22,9 +21,11 @@ public partial class SingerPerformanceHistoryDialog
     [Inject] private IMediaService? MediaService { get; set; }
     [Inject] private IDialogService? DialogService { get; set; }
     [Inject] private IVenuesService? VenuesService { get; set; }
+    [Inject] private IAppSettingsService? AppSettingsService { get; set; }
 
     private PaginatedResult<Performance>? _paginatedPerformances;
     private List<Media> _media = [];
+    private int _pageSize = AppSettings.DefaultPerformanceHistoryPageSize;
     private int _currentPage = 1;
     private bool _prevIsOpen;
 
@@ -34,6 +35,7 @@ public partial class SingerPerformanceHistoryDialog
     {
         if (IsOpen && !_prevIsOpen)
         {
+            _pageSize = AppSettingsService!.Current.PerformanceHistoryPageSize;
             _currentPage = 1;
             await LoadPageAsync();
         }

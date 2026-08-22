@@ -9,8 +9,9 @@ public partial class VenuesManagerPage : IDisposable
 {
     [Inject] private IVenuesService? VenuesService { get; set; }
     [Inject] private IDialogService? DialogService { get; set; }
+    [Inject] private IAppSettingsService? AppSettingsService { get; set; }
 
-    private const int PageSize = 10;
+    private int _pageSize = AppSettings.DefaultPageSize;
     // Mirrors EditVenueModel's [MaxLength] so a generated name can't fail validation later.
     private const int NameMaxLength = 32;
     private int _currentPage = 1;
@@ -21,6 +22,8 @@ public partial class VenuesManagerPage : IDisposable
 
     protected override async Task OnInitializedAsync()
     {
+        _pageSize = AppSettingsService!.Current.VenuesPageSize;
+
         await SearchAsync();
         VenuesService!.StateChanged += OnStateChanged;
     }
@@ -31,7 +34,7 @@ public partial class VenuesManagerPage : IDisposable
             return;
 
         var sort = _sortColumn is not null ? new SortDescriptor(_sortColumn, _sortDescending) : null;
-        _paginatedResult = await VenuesService.SearchAsync(_searchQuery, _currentPage, PageSize, sort);
+        _paginatedResult = await VenuesService.SearchAsync(_searchQuery, _currentPage, _pageSize, sort);
     }
 
     private void OnSortColumnClicked(string column)
