@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
+using Microsoft.JSInterop;
 using KHost.Abstractions.Exceptions;
 using KHost.Abstractions.Models;
 using KHost.UserInterface.Models;
@@ -21,11 +22,14 @@ public partial class SelectedSingerInfoPanel : IDisposable
     [Inject] private IPermissionService? Permissions { get; set; }
     [Inject] private ITipsService? TipsService { get; set; }
     [Inject] private IVenuesService? VenuesService { get; set; }
+    [Inject] private IJSRuntime? JS { get; set; }
 
     private List<Performance> _performances = [];
     private Dictionary<Guid, Media?> _mediaCache = [];
     private int _performanceCount = 0;
     private Guid? _selectedPerformanceId;
+    private DotNetObjectReference<SelectedSingerInfoPanel>? _dotNetRef;
+    private bool _sortableAttached;
     private int _tonightTotalInCents;
     private int _lifetimeTotalInCents;
     private bool _tippingEnabled = true;
@@ -50,6 +54,49 @@ public partial class SelectedSingerInfoPanel : IDisposable
 
         await RefreshVenueSettingsAsync();
         await RefreshPerformancesAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // Unlike the singer queue's, this table is absent until the singer has a song, so the
+        // hook-up cannot be a first-render one-shot: it has to follow the table in and out.
+        var sortable = _canReorderQueue && _performances.Count > 0;
+
+        if (sortable == _sortableAttached || JS is null) return;
+
+        if (sortable)
+        {
+            _dotNetRef ??= DotNetObjectReference.Create(this);
+
+            // The method name reaches JS as a string; nameof turns a missed rename into a compile
+            // error instead of a callback that silently stops firing.
+            await JS.InvokeVoidAsync(
+                "khSortable.init",
+                "songs",
+                ".kh-selected-singer-info-panel__rows",
+                // The row itself drags. Its buttons are filtered out, or a press on play or
+                // remove would start a drag instead of doing what it says.
+                null,
+                "button",
+                _dotNetRef,
+                nameof(OnSortEndAsync),
+                "performanceId");
+        }
+        else
+        {
+            await JS.InvokeVoidAsync("khSortable.destroy", "songs");
+        }
+
+        _sortableAttached = sortable;
+    }
+
+    [JSInvokable]
+    public async Task OnSortEndAsync(string performanceIdStr, int newIndex)
+    {
+        if (SingerQueueService?.SelectedUser is not { } singer) return;
+        if (!Guid.TryParse(performanceIdStr, out var performanceId)) return;
+
+        await (PerformanceService?.MoveToIndexAsync(singer.Id, performanceId, newIndex) ?? Task.CompletedTask);
     }
 
     private async Task OnKeyDownAsync(KeyboardEventArgs e)
@@ -273,5 +320,7 @@ public partial class SelectedSingerInfoPanel : IDisposable
         PlaybackService?.StateChanged -= OnStateChanged;
         MediaService?.StateChanged -= OnStateChanged;
         VenuesService?.StateChanged -= OnStateChanged;
+        _dotNetRef?.Dispose();
+        JS?.InvokeVoidAsync("khSortable.destroy", "songs");
     }
 }

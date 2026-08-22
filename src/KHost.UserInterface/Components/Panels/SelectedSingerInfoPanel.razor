@@ -87,7 +87,7 @@
             <table class="kh-table kh-selected-singer-info-panel__table">
                 <thead >
                     <tr>
-                        <th class="kh-selected-singer-info-panel__col--number">#</th>
+                        <th class="kh-selected-singer-info-panel__col--number"></th>
                         <th>Title</th>
                         <th class="kh-selected-singer-info-panel__col--artist">Artist</th>
                         <th class="kh-selected-singer-info-panel__col--duration">Duration</th>
@@ -95,7 +95,7 @@
                         <th class="kh-selected-singer-info-panel__col--actions">Actions</th>
                     </tr>
                 </thead>
-                <tbody>
+                <tbody class="kh-selected-singer-info-panel__rows">
                     @foreach (var (performance, idx) in _performances.Select((p, i) => (p, i)))
                     {
                         var isCurrent = PlaybackService?.CurrentPerformance?.Id == performance.Id;
@@ -109,7 +109,10 @@
                         _mediaCache.TryGetValue(performance.MediaId, out var rowMedia);
                         var isBroken = rowMedia?.Status == MediaStatus.Broken;
 
-                        <tr class="kh-selected-singer-info-panel__row @rowClass" @onclick="() => SelectPerformance(performance.Id)">
+                        <tr class="kh-selected-singer-info-panel__row @rowClass @(isCurrent && PlaybackService?.State == PlaybackState.Playing ? "kh-selected-singer-info-panel__row--playing" : "")"
+                            @key="performance.Id"
+                            data-performance-id="@performance.Id"
+                            @onclick="() => SelectPerformance(performance.Id)">
                             <td class="kh-selected-singer-info-panel__pos">
                                 @if (isCurrent && PlaybackService?.State == PlaybackState.Playing)
                                 {
@@ -118,10 +121,6 @@
                                         <div class="kh-now-playing__bar"></div>
                                         <div class="kh-now-playing__bar"></div>
                                     </div>
-                                }
-                                else
-                                {
-                                    <span>@(idx + 1)</span>
                                 }
                             </td>
                             <td class="kh-selected-singer-info-panel__name kh-table__cell--fill" title="@(rowMedia?.Title ?? "")">

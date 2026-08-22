@@ -79,10 +79,16 @@ public partial class SingerQueuePanel : IDisposable
             // The name reaches JS as a string; nameof turns a missed rename into a compile
             // error instead of a callback that silently stops firing.
             await JS.InvokeVoidAsync(
-                "singerQueueSortable.init",
+                "khSortable.init",
+                "singers",
                 ".kh-singer-queue-panel__singer-queue",
+                // The row itself drags. Its buttons are filtered out so a press on remove or an
+                // arrow does what it says, and the locked row still refuses to move.
+                null,
+                "button, .kh-singer-queue-panel__singer-queue__singer--locked",
                 _dotNetRef,
-                nameof(OnSortEndAsync));
+                nameof(OnSortEndAsync),
+                "singerId");
         }
 
         if (SingerQueueService?.SelectedUserId is not null)
