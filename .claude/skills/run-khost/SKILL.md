@@ -44,6 +44,9 @@ Only a hard kill (`kill -9`) skips the clear. Deleting `bin/` destroys everythin
 #     to set size of window 1 to {$HALF, 864}"
 #
 # Position and size must be set in separate statements - setting both at once fails -10003.
+# Read the size back afterwards - both statements can report success and leave the window as it
+# was, and a screenshot of the wrong region looks like a layout bug:
+#   osascript -e 'tell application "System Events" to tell process "KHost.UserInterface" to get size of window 1'
 #
 # Screenshot that region with: screencapture -R0,34,$HALF,864 -o -x out.png
 # Recompute click coordinates against the resized window - the layout reflows.
@@ -58,6 +61,8 @@ dotnet run --project src/KHost.AppHost
 
 - Listens on `http://localhost:5251`. A second launch refuses to start (exclusive
   `.instance.lock`) — check `lsof -nP -iTCP:5251 -sTCP:LISTEN` first and stop what holds it.
+  Stop with `pkill -f "bin/Debug/net10.0/KHost.UserInterface"`, not a single PID from `pgrep | head -1`:
+  a leftover instance leaves the relaunch showing a blank 1x1 window that logs `SetSize(1, 1)`.
 - Build separately with `dotnet build KHost.slnx "-p:BaseOutputPath=./obj/_build"` so an open
   IDE's `bin/` isn't locked. Don't rebuild while the app is running — it swaps the binaries.
 - First build needs `npm install` in `src/KHost.UserInterface/` (fails on `copy:vendors`).
@@ -68,8 +73,9 @@ dotnet run --project src/KHost.AppHost
 # Headless: poll HTTP
 until [ "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:5251/)" = "200" ]; do sleep 1; done
 
-# Windowed: poll for the visible process (~5s)
-osascript -e 'tell application "System Events" to get name of every process whose visible is true' | grep -q KHost.UserInterface
+# Windowed: poll for the window, not the process. The process turns visible a beat before its
+# window exists, and every `window 1` call until then fails with -1719.
+osascript -e 'tell application "System Events" to tell process "KHost.UserInterface" to get name of window 1' >/dev/null 2>&1
 ```
 
 Startup is confirmed by `Singer queue loaded (N users)` in the log (file log:
@@ -83,6 +89,11 @@ AppleScript `click at` fails with accessibility error `-25208`. **`cliclick` wor
 verification only; `osascript ... set frontmost` still works for raising windows.
 
 The loop: screenshot a region → read it → map coordinates → click → screenshot again.
+
+Raise the window in the same command as the click. Anything else on screen — a browser — can be
+in front of that region, and a blind click lands in it instead. Two mistakes to avoid: the region
+offset belongs in the y (`screen_y = 34 + image_y / 2`), and typing after a shortcut that did not
+land goes wherever focus actually is — a stray Enter in the singer field creates a singer.
 
 ```bash
 screencapture -R0,34,1440,900 -o -x /tmp/shot.png    # host window region

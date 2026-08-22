@@ -34,6 +34,8 @@ SCSS compiles inside `dotnet build` (AspNetCore.SassCompiler) — no separate sa
 - Component logic lives in a code-behind partial (`Foo.razor.cs`, `public partial class Foo`), never an inline `@code` block. `@inject` becomes an `[Inject]` property; `@implements` becomes an interface on the partial. `@page`, `@using`, `@inherits`, `@layout`, `@attribute` stay in the `.razor`.
 - Never give the code-behind partial a base class — the generated razor partial already supplies one; a second base clause won't compile.
 - `_Imports.razor` does not reach `.razor.cs` — code-behind needs its own `using` directives.
+- `Dialog` renders its footer only when one is supplied. A viewer — one whose actions commit as they are clicked — supplies none and closes from the header X; a footer button that only closes is furniture.
+- Keyboard shortcuts split two ways. A list's arrow keys are a Blazor `@onkeydown` on a focusable element *inside* the panel (`tabindex` + `data-kh-keylist`): keydown fires on the focused element and bubbles up, so a handler on the column around the panel never sees it. Global chords live in `shortcuts.js` and focus `[data-kh-shortcut]`, matched in JS so ordinary typing never crosses the circuit. Both lists share `ListKeyboardShortcuts.Resolve`. A new shortcut has to reach `KeyboardShortcuts.All` as well — the dialog off the menu is the only place a host can discover one.
 - `ComboBox<TItem>` is the type-to-search replacement for a native select. It binds the chosen item (not a key), takes every row from a `Search` delegate, and labels runs via `GroupName` without reordering them — the caller groups by sorting. Bind `Text` when the field must also accept a value the list does not contain.
 
 ## CSS/SCSS
@@ -42,19 +44,25 @@ SCSS compiles inside `dotnet build` (AspNetCore.SassCompiler) — no separate sa
 - Component styles live beside the component (`Foo.razor.scss` → scoped `Foo.razor.css`; that output is gitignored — never edit or commit it). Shared blocks stay under `wwwroot/scss` via `app.scss`; a partial co-locates only once exactly one component uses its block. Only `app.scss` and `themes/*` may lack a `_` prefix — any other `wwwroot/scss` file without one compiles to its own stylesheet.
 - Scoped CSS reaches only elements the component itself renders. A class handed to another component (`<Icon Class="..." />`, `<InputNumber class="..." />`, RenderFragment content) lands on markup carrying a different scope id or none, and the rule silently matches nothing. Reach it with `::deep` under an ancestor this component does render, naming the child class in full: `.kh-foo__row { ::deep .kh-foo__field { ... } }`. Never `::deep &__x` — `&` expands to the parent and swallows it.
 - Narrow layouts key off the right width. Panels answer to `@container` (`kh-queue`, `kh-singer-info`, `kh-media-search`) because `panel-resize.js` writes a pixel width — a panel can be 180px wide at 1440. The header answers to `@media`, having no splitter between it and the viewport. Set thresholds against a panel's measured width at 1440, not a round number.
+- The console owns the viewport and never scrolls; every other route scrolls as a document, so the status bar follows the content rather than sitting pinned above it. `MainLayout` puts `--scroll` on `.kh-shell` off `/`, which releases the height caps inside it. Release heights only: `.kh-settings-page`'s `flex` is horizontal — it sits in the row `.kh-app__body` lays out — so zeroing it there collapses every settings card to content width. A settings page that skips the `kh-app__body` > `kh-settings-page` wrapper grows until it paints over the footer.
+- An auto margin on the cross axis switches off a flex item's stretch, so `max-width` + `margin-inline: auto` leaves a card at its content width until you also give it `width: 100%`.
 - A flex item needs `min-width: 0` as well as `white-space: nowrap` before it will truncate; without it, it pushes its neighbours off the row instead.
 - `.kh-card__body` pads a direct `<form>` child and nothing else — a card body without a form needs its own padding. A `<select>` needs `kh-form-select`, not `kh-form-control`, or WebKit draws the native macOS pop-up and discards the styling (correct in a browser, wrong only in the Photino window).
 
 ## Tests
 
-xUnit + NSubstitute. A test that needs anything outside the process — an external binary (ffmpeg), a live service (the Cast emulator) — belongs in `KHost.IntegrationTests`; `KHost.UnitTests` must stay skip-free so green means everything ran. In-process I/O (temp files, in-memory SQLite) stays in unit tests.
+xUnit + NSubstitute, and bunit for components. A test that needs anything outside the process — an external binary (ffmpeg), a live service (the Cast emulator) — belongs in `KHost.IntegrationTests`; `KHost.UnitTests` must stay skip-free so green means everything ran. In-process I/O (temp files, in-memory SQLite) stays in unit tests.
 
 `MethodUnderTest_Scenario_ExpectedBehavior`; substitutes in field initializers; mirror the source layout (`Domain/Services/Foo.cs` → `Domain/Services/FooTests.cs`). Test `StateChanged` with a counter lambda.
+
+A component test renders the component (`BunitContext`, not the obsolete `TestContext`) and dispatches a real event — a handler that exists but is attached to nothing passes every test that calls it directly, which is how the queue's arrow keys sat dead behind tooltips advertising them. Set `JSInterop.Mode = JSRuntimeMode.Loose` (panels call into JS on first render) and give every `Task<List<T>>` substitute a return value: NSubstitute hands back a completed task wrapping `null`, and the component `.Count()`s it.
 
 ## Gotchas
 
 - Services dir is `Services/` — don't recreate the old `Servies` typo.
 - Runtime DB lives at `src/KHost.UserInterface/bin/Debug/net10.0/cache/` — deleting `bin/` destroys the local library, users and queue.
+- Machine settings are an overlay at `cache/settings.json`, edited by the App Settings page through `IAppSettingsService` and reloaded on change; deployment defaults stay in `appsettings.json`. Per-list page sizes live there under `Pagination:` and are clamped on read as well as on save, because a hand-edited `0` reaches `PaginatedResult` as a page that holds no rows and reports no pages.
+- Seed test data through the repositories, not the `sqlite3` CLI: the system binary has no fts5, so any Media insert dies on the `media_fts` triggers, and the folded columns are written by `EntityFolding` on save rather than by hand. A throwaway console app referencing `KHost.DataAccess` with `AddDataAccess()` gets both — point it at the runtime DB by symlinking `cache` into its output directory, since `DatabaseLocation` reads `AppContext.BaseDirectory`.
 - `DefaultContext` is `NoTracking` — saves/updates won't touch related models unless explicitly programmed to.
 - `BlazorDisableThrowNavigationException` is set; navigation failures won't throw.
 - EF join entities: `UsingEntity<T>(l => ..., r => ..., j => ...)` with no string name — a string name makes a shared-type entity and breaks `context.Set<T>()`.
