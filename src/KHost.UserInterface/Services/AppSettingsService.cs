@@ -33,7 +33,21 @@ internal sealed class AppSettingsService : IAppSettingsService
         StopFadeSeconds = (_configuration.GetValue<TimeSpan?>("Playback:StopFadeDuration") ?? TimeSpan.FromSeconds(5)).TotalSeconds,
         SyncStartLeadMilliseconds = (_configuration.GetValue<TimeSpan?>("Playback:SyncStartLead") ?? TimeSpan.FromMilliseconds(400)).TotalMilliseconds,
         SegmentSeconds = _configuration.GetValue<int?>("MediaStream:SegmentSeconds") ?? 2,
+        MediaPageSize = PageSize("Media"),
+        UsersPageSize = PageSize("Users"),
+        UserGroupsPageSize = PageSize("UserGroups"),
+        TipsPageSize = PageSize("Tips"),
+        VenuesPageSize = PageSize("Venues"),
+        PerformanceHistoryPageSize = PageSize("PerformanceHistory", AppSettings.DefaultPerformanceHistoryPageSize),
     };
+
+    // Clamped on read as well as on save: the overlay is a plain JSON file an operator can edit
+    // by hand, and a 0 there would leave every list permanently empty.
+    private int PageSize(string key, int fallback = AppSettings.DefaultPageSize) =>
+        PaginationClamp(_configuration.GetValue<int?>($"Pagination:{key}") ?? fallback);
+
+    private static int PaginationClamp(int pageSize) =>
+        Math.Clamp(pageSize, AppSettings.MinPageSize, AppSettings.MaxPageSize);
 
     public async Task<AppSettingsSaveResult> SaveAsync(AppSettings settings)
     {
@@ -55,6 +69,15 @@ internal sealed class AppSettingsService : IAppSettingsService
                 ["SyncStartLead"] = TimeSpan.FromMilliseconds(settings.SyncStartLeadMilliseconds).ToString(),
             },
             ["MediaStream"] = new Dictionary<string, object?> { ["SegmentSeconds"] = settings.SegmentSeconds },
+            ["Pagination"] = new Dictionary<string, object?>
+            {
+                ["Media"] = PaginationClamp(settings.MediaPageSize),
+                ["Users"] = PaginationClamp(settings.UsersPageSize),
+                ["UserGroups"] = PaginationClamp(settings.UserGroupsPageSize),
+                ["Tips"] = PaginationClamp(settings.TipsPageSize),
+                ["Venues"] = PaginationClamp(settings.VenuesPageSize),
+                ["PerformanceHistory"] = PaginationClamp(settings.PerformanceHistoryPageSize),
+            },
         };
 
         if (!string.IsNullOrWhiteSpace(settings.FFmpegPath))

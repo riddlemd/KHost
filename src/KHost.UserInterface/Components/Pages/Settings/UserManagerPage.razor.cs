@@ -13,8 +13,9 @@ public partial class UserManagerPage : IDisposable
     [Inject] private IFlashService? Flash { get; set; }
     [Inject] private IDialogService? DialogService { get; set; }
     [Inject] private IVenuesService? VenuesService { get; set; }
+    [Inject] private IAppSettingsService? AppSettingsService { get; set; }
 
-    private const int PageSize = 20;
+    private int _pageSize = AppSettings.DefaultPageSize;
     private int _currentPage = 1;
     private string _searchQuery = "";
     private string? _sortColumn;
@@ -24,6 +25,8 @@ public partial class UserManagerPage : IDisposable
 
     protected override async Task OnInitializedAsync()
     {
+        _pageSize = AppSettingsService!.Current.UsersPageSize;
+
         await SearchAsync();
 
         UsersService!.StateChanged += OnStateChanged;
@@ -36,7 +39,7 @@ public partial class UserManagerPage : IDisposable
             return;
 
         var sort = _sortColumn is not null ? new SortDescriptor(_sortColumn, _sortDescending) : null;
-        _paginatedResult = await UsersService.SearchAsync(_searchQuery, _currentPage, PageSize, sort);
+        _paginatedResult = await UsersService.SearchAsync(_searchQuery, _currentPage, _pageSize, sort);
 
         _tipTotals = [];
         foreach (var user in _paginatedResult?.Items ?? [])
