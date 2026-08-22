@@ -98,14 +98,24 @@ public class SingerQueueService : ISingerQueueService
     {
         if (!_userIds.Contains(userId)) return;
 
-        var performance = new Performance
+        // ForeignKey is whatever the provider calls the result — a library id for a local one, a
+        // video id or a URL for a remote one. Only the first is a media row that already exists,
+        // and importing the others is the provider's job, not the queue's.
+        if (!Guid.TryParse(media.ForeignKey, out var mediaId))
         {
-            Id = Guid.NewGuid(),
-            SingerId = userId,
-            MediaId = Guid.NewGuid()
-        };
+            _logger.LogWarning(
+                "Not enqueuing {Source} result '{ForeignKey}': it is not a library media id",
+                media.Source, media.ForeignKey);
 
-        await _performanceService.CreateAndEnqueueAsync(performance);
+            return;
+        }
+
+        await _performanceService.CreateAndEnqueueAsync(new Performance
+        {
+            SingerId = userId,
+            MediaId = mediaId,
+            CreatedDate = DateTime.UtcNow,
+        });
     }
 
     public async Task MoveUserUpAsync(Guid userId)

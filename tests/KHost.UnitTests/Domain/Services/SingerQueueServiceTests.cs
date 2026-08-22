@@ -134,38 +134,58 @@ public class SingerQueueServiceTests : IDisposable
         Assert.Equal("Bob", _service.SelectedUser!.Name);
     }
 
-    [Fact]
-    public async Task AddMediaAsync_DelegatesWithUnknownUser()
+    private static MediaSearchEntity SearchResult(string foreignKey) => new()
     {
-        var mediaId = Guid.NewGuid();
-        var entity = new MediaSearchEntity
-        {
-            SourceDisplayName = "FileSystem",
-            Source = "FileSystem",
-            ForeignKey = Guid.NewGuid().ToString(),
-            DisplayName = "My Media",
-        };
+        SourceDisplayName = "FileSystem",
+        Source = "FileSystem",
+        ForeignKey = foreignKey,
+        Title = "My Media",
+    };
 
-        await _service.AddMediaAsync(Guid.NewGuid(), entity);
+    [Fact]
+    public async Task AddMediaAsync_EnqueuesNothing_ForASingerNotInTheQueue()
+    {
+        await _service.AddMediaAsync(Guid.NewGuid(), SearchResult(Guid.NewGuid().ToString()));
 
         await _performanceService.DidNotReceive().CreateAndEnqueueAsync(Arg.Any<Performance>());
     }
 
     [Fact]
-    public async Task AddMediaAsync_DelegatesWithKnownUser()
+    public async Task AddMediaAsync_EnqueuesTheMediaTheResultNames()
     {
         var alice = await EnqueueAsync("Alice");
-        var entity = new MediaSearchEntity
-        {
-            SourceDisplayName = "FileSystem",
-            Source = "FileSystem",
-            ForeignKey = "/music/media.mp4",
-            DisplayName = "My Media"
-        };
+        var mediaId = Guid.NewGuid();
 
-        await _service.AddMediaAsync(alice.Id, entity);
+        await _service.AddMediaAsync(alice.Id, SearchResult(mediaId.ToString()));
 
-        await _performanceService.Received(1).CreateAndEnqueueAsync(Arg.Is<Performance>(p => p.SingerId == alice.Id));
+        await _performanceService.Received(1).CreateAndEnqueueAsync(
+            Arg.Is<Performance>(p => p.SingerId == alice.Id && p.MediaId == mediaId));
+    }
+
+    [Fact]
+    public async Task AddMediaAsync_StampsTheEnqueueTimeInUtc()
+    {
+        var alice = await EnqueueAsync("Alice");
+        var before = DateTime.UtcNow;
+
+        await _service.AddMediaAsync(alice.Id, SearchResult(Guid.NewGuid().ToString()));
+
+        await _performanceService.Received(1).CreateAndEnqueueAsync(
+            Arg.Is<Performance>(p => p.CreatedDate >= before && p.CreatedDate <= DateTime.UtcNow));
+    }
+
+    // A remote provider's key is its own — a video id, a URL — and names nothing in the library.
+    [Theory]
+    [InlineData("/music/media.mp4")]
+    [InlineData("dQw4w9WgXcQ")]
+    [InlineData("")]
+    public async Task AddMediaAsync_EnqueuesNothing_WhenTheKeyIsNotALibraryMediaId(string foreignKey)
+    {
+        var alice = await EnqueueAsync("Alice");
+
+        await _service.AddMediaAsync(alice.Id, SearchResult(foreignKey));
+
+        await _performanceService.DidNotReceive().CreateAndEnqueueAsync(Arg.Any<Performance>());
     }
 
     [Fact]
