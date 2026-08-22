@@ -27,7 +27,7 @@
                       DisplayName="@(singer => singer.Name)"
                       GroupName="GroupForSinger"
                       MinimumSearchLength="1"
-                      Placeholder="Type New Singer's Name..." />
+                      Placeholder="Type Singer Name" />
             <button type="submit" class="kh-singer-queue-panel__add-btn kh-button kh-button--primary"
                     disabled="@string.IsNullOrWhiteSpace(_newSingerName)" title="Add Singer to Queue">
                 <Icon Name="plus-lg" />
@@ -76,7 +76,7 @@
                 <div class="kh-singer-queue-panel__singer-queue__singer__text">
                     <div class="kh-singer-queue-panel__singer-queue__singer__name">@user.Name</div>
                     <div class="kh-singer-queue-panel__singer-queue__singer__info">
-                        <span class="@(mediaCount <= 0 ? "kh-singer-queue-panel__empty-queue" : null)">@mediaCount media queued</span>
+                        <span class="@(mediaCount <= 0 ? "kh-singer-queue-panel__empty-queue" : null)">@mediaCount @(mediaCount == 1 ? "song" : "songs") queued</span>
                         @if (_showEwt && ewt > TimeSpan.Zero)
                         {
                             <span>EWT: @FormatEwt(ewt)</span>

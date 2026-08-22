@@ -19,7 +19,7 @@ public static class KeyboardShortcuts
         new("Panels",
         [
             new([Accel, "1"], "Focus the new singer's name field"),
-            new([Accel, "2"], "Focus media search"),
+            new([Accel, "2"], "Focus song search"),
         ],
         "Cmd works as well as Ctrl."),
 
