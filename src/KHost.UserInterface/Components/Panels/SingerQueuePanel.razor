@@ -59,14 +59,6 @@
                  @key="user.Id"
                  data-singer-id="@user.Id"
                  @onclick="() => SingerQueueService?.SelectUserAsync(user.Id) ?? Task.CompletedTask">
-                @if (_canReorderQueue)
-                {
-                    <button class="kh-singer-queue-panel__drag-handle kh-button--icon-minimal"
-                            title="Drag to reorder"
-                            @onclick:stopPropagation>
-                        <Icon Name="grip-vertical" />
-                    </button>
-                }
                 <div class="kh-singer-queue-panel__singer-queue__singer__icon">
                     @if (isFirst && PlaybackService?.CurrentPerformance?.SingerId == user.Id && PlaybackService.State == PlaybackState.Playing)
                     {

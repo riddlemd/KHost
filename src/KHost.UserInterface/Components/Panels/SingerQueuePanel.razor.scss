@@ -59,23 +59,10 @@
                 box-shadow: 0 0 12px var(--kh-primary-glow);
             }
 
-            &__drag-handle {
-                cursor: grab;
-                color: var(--kh-text-muted);
-                margin-right: 0.25rem;
-                flex-shrink: 0;
-
-                &:active {
-                    cursor: grabbing;
-                }
-            }
-
+            // The greyed-out grip used to be what said this row will not move. With the whole
+            // row dragging there is no grip, so the cursor carries it.
             &--locked {
-                .kh-singer-queue-panel__drag-handle {
-                    opacity: 0.3;
-                    cursor: not-allowed;
-                    pointer-events: none;
-                }
+                cursor: not-allowed;
             }
 
             &__actions {

@@ -1,18 +1,24 @@
-window.singerQueueSortable = {
-    instance: null,
+// Keyed by list: the console has two sortable queues on screen at once — the singers and the
+// selected singer's songs — and a single shared instance would have each init tear the other down.
+window.khSortable = {
+    instances: {},
 
-    init(containerSelector, dotNetRef, sortEndMethod) {
+    init(key, containerSelector, handleSelector, filterSelector, dotNetRef, sortEndMethod, itemIdAttribute) {
         const el = document.querySelector(containerSelector);
         if (!el) return;
 
-        if (this.instance) this.instance.destroy();
+        this.destroy(key);
 
-        this.instance = Sortable.create(el, {
+        this.instances[key] = Sortable.create(el, {
             animation: 150,
-            handle: '.kh-singer-queue-panel__drag-handle',
-            filter: '.kh-singer-queue-panel__singer-queue__singer--locked',
+            // No handle means the whole row drags. Whatever is excluded then has to come through
+            // `filter`, and preventOnFilter must be off or Sortable swallows those elements'
+            // clicks along with the drag — the row's buttons would stop working.
+            handle: handleSelector || undefined,
+            filter: filterSelector || undefined,
+            preventOnFilter: false,
             onEnd(evt) {
-                const singerId = evt.item.dataset.singerId;
+                const itemId = evt.item.dataset[itemIdAttribute];
                 // Revert the DOM to its pre-drag order. Blazor Server maintains a
                 // server-side virtual DOM and doesn't know SortableJS moved nodes.
                 // If we leave the DOM in SortableJS's order, Blazor's diff will be
@@ -25,13 +31,13 @@ window.singerQueueSortable = {
                     }
                 }
 
-                dotNetRef.invokeMethodAsync(sortEndMethod, singerId, evt.newIndex);
+                dotNetRef.invokeMethodAsync(sortEndMethod, itemId, evt.newIndex);
             }
         });
     },
 
-    destroy() {
-        this.instance?.destroy();
-        this.instance = null;
+    destroy(key) {
+        this.instances[key]?.destroy();
+        delete this.instances[key];
     }
 };
