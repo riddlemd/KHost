@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 using KHost.Abstractions.Exceptions;
 using KHost.Abstractions.Models;
+using KHost.UserInterface.Models;
 using KHost.Abstractions.Services;
 using KHost.UserInterface.Services;
 
@@ -51,21 +52,19 @@ public partial class SelectedSingerInfoPanel : IDisposable
         await RefreshPerformancesAsync();
     }
 
-    private async Task OnKeyDownAsync(KeyboardEventArgs e)
+    private Task OnKeyDownAsync(KeyboardEventArgs e)
     {
-        if (SingerQueueService?.SelectedUser is null) return;
+        if (SingerQueueService?.SelectedUser is null) return Task.CompletedTask;
 
-        var currentIdx = _performances.FindIndex(s => s.Id == _selectedPerformanceId);
+        var currentIdx = _performances.FindIndex(p => p.Id == _selectedPerformanceId);
+        var action = ListKeyboardShortcuts.Resolve(e.Key, e.ShiftKey, currentIdx, _performances.Count);
 
-        Performance? selectedPerformance = null;
+        if (action is ListKeyAction.SelectPrevious)
+            SelectPerformance(_performances[currentIdx - 1].Id);
+        else if (action is ListKeyAction.SelectNext)
+            SelectPerformance(_performances[currentIdx + 1].Id);
 
-        if (e.Key == "ArrowUp" && currentIdx > 0)
-            selectedPerformance = _performances[currentIdx - 1];
-        else if (e.Key == "ArrowDown" && currentIdx < _performances.Count - 1)
-            selectedPerformance = _performances[currentIdx + 1];
-
-        if (selectedPerformance != null)
-            SelectPerformance(selectedPerformance.Id);
+        return Task.CompletedTask;
     }
 
     private async Task LoadAndPlayAsync(Performance performance)

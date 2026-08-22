@@ -65,7 +65,8 @@
         }
     </div>
 
-    <div class="kh-card__body kh-selected-singer-info-panel__body">
+    <div class="kh-card__body kh-selected-singer-info-panel__body"
+         tabindex="0" @onkeydown="OnKeyDownAsync">
         @if (SingerQueueService?.SelectedUser is null)
         {
             // Do nothing, we should not see this.
