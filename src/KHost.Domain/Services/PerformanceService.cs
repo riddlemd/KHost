@@ -190,6 +190,42 @@ public class PerformanceService : BaseRepositoryService<Performance, IPerformanc
         }
     }
 
+    /// <summary>Drop a song at an arbitrary position — what a drag ends in.</summary>
+    public async Task MoveToIndexAsync(Guid singerId, Guid performanceId, int newIndex)
+    {
+        var queue = (await Repository.ReadQueuedAsync())
+            .Where(p => p.SingerId == singerId)
+            .ToList();
+
+        var idx = queue.FindIndex(p => p.Id == performanceId);
+
+        if (idx < 0) return;
+
+        // A drag can land past either end of the singer's own list — the row it was dropped on
+        // belongs to the whole table, and a queue can shrink while a drag is in flight.
+        var target = Math.Clamp(newIndex, 0, queue.Count - 1);
+
+        if (target == idx) return;
+
+        var moved = queue[idx];
+        queue.RemoveAt(idx);
+        queue.Insert(target, moved);
+
+        // Renumbered rather than swapped: a move across several rows shifts every position between
+        // the two ends, and the pairwise swap the arrows use cannot express that.
+        for (var position = 0; position < queue.Count; position++)
+        {
+            if (queue[position].QueuePosition == position + 1) continue;
+
+            queue[position].QueuePosition = position + 1;
+            await Repository.UpdateAsync(queue[position]);
+        }
+
+        Logger.LogDebug("Moved performance {PerformanceId} from index {OldIndex} to {NewIndex}", performanceId, idx, target);
+
+        InvokeStateChanged();
+    }
+
     public async Task MoveToEndOfQueueAsync(Guid singerId, Guid performanceId)
     {
         var queue = (await Repository.ReadQueuedAsync())
