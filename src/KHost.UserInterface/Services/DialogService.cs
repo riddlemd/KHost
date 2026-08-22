@@ -81,6 +81,14 @@ public class DialogService : IDialogService
         return Task.CompletedTask;
     }
 
+    public Task ShowShortcutsAsync(Action? onClose = null)
+    {
+        _logger.LogDebug("Dialog requested: {DialogType}", nameof(ShortcutsDialog));
+        ShowRequested?.Invoke(this, new ShortcutsDialog.DialogRequest(onClose));
+
+        return Task.CompletedTask;
+    }
+
     public Task ShowScreensAsync(Action? onClose = null)
     {
         _logger.LogDebug("Dialog requested: {DialogType}", nameof(ScreensDialog));

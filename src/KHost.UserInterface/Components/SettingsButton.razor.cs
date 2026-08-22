@@ -33,6 +33,9 @@ public partial class SettingsButton : IDisposable
         public KHostPermission? Requires { get; set; }
 
         public bool AdminOnly { get; set; }
+
+        /// <summary>Set instead of Route for an item that opens a dialog rather than navigating.</summary>
+        public Func<SettingsButton, Task>? Opens { get; set; }
     }
 
     private static readonly List<SettingsPage> _allPages =
@@ -43,7 +46,8 @@ public partial class SettingsButton : IDisposable
         new SettingsPage { Title = "Tips Manager", Icon = "coin", Route = "/settings/tips-manager" },
         new SettingsPage { Title = "Media Manager", Icon = "music-note-list", Route = "/settings/media-manager", Requires = KHostPermission.ManageMedia },
         new SettingsPage { Title = "Plugins Manager", Icon = "plug-fill", Route = "/settings/plugins-manager", AdminOnly = true },
-        new SettingsPage { Title = "App Settings", Icon = "gear-fill", Route = "/settings/app-settings", Group = ApplicationGroup, AdminOnly = true }
+        new SettingsPage { Title = "App Settings", Icon = "gear-fill", Route = "/settings/app-settings", Group = ApplicationGroup, AdminOnly = true },
+        new SettingsPage { Title = "Keyboard Shortcuts", Icon = "keyboard", Group = ApplicationGroup, Opens = menu => menu.ShowShortcutsAsync() }
     ];
 
     private bool _canLock;
@@ -183,6 +187,18 @@ public partial class SettingsButton : IDisposable
         return visible;
     }
 
+    private async Task SelectAsync(SettingsPage page)
+    {
+        CloseMenu();
+
+        if (page.Opens is { } open)
+            await open(this);
+        else
+            NavigationManager?.NavigateTo(page.Route);
+    }
+
+    private Task ShowShortcutsAsync() => DialogService?.ShowShortcutsAsync() ?? Task.CompletedTask;
+
     private void NavigateTo(string route)
     {
         CloseMenu();
@@ -192,7 +208,7 @@ public partial class SettingsButton : IDisposable
     // Read as the menu opens rather than tracked: the items are a fragment, so this runs each time
     // the menu is rendered and there is no navigation to subscribe to.
     private string CurrentClass(string route)
-        => IsSameRoute(new Uri(NavigationManager?.Uri ?? HomeRoute).AbsolutePath, route)
+        => !string.IsNullOrEmpty(route) && IsSameRoute(new Uri(NavigationManager?.Uri ?? HomeRoute).AbsolutePath, route)
             ? "kh-dropdown__item--current"
             : "";
 
