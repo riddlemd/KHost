@@ -155,12 +155,12 @@
                                 </SplitButton>
                                 @if (_canReorderQueue)
                                 {
-                                <button class="kh-selected-singer-info-panel__move-up-btn kh-button--icon-minimal" title="Move up Queue"
+                                <button class="kh-selected-singer-info-panel__move-up-btn kh-button--icon-minimal" title="Move up (Shift+Up)"
                                         disabled="@disableMoveUp"
                                         @onclick="() => PerformanceService?.MoveUpInQueueAsync(selected.Id, performance.Id) ?? Task.CompletedTask">
                                     <Icon Name="chevron-up" />
                                 </button>
-                                <button class="kh-selected-singer-info-panel__move-down-btn kh-button--icon-minimal" title="Move down Queue"
+                                <button class="kh-selected-singer-info-panel__move-down-btn kh-button--icon-minimal" title="Move down (Shift+Down)"
                                         disabled="@disableMoveDown"
                                         @onclick="() => PerformanceService?.MoveDownInQueueAsync(selected.Id, performance.Id) ?? Task.CompletedTask">
                                     <Icon Name="chevron-down" />
