@@ -120,7 +120,8 @@ public class LocalMediaProvider : BaseService, IMediaProvider
         return [.. result.Items
             .Select(media => new MediaSearchEntity
             {
-                DisplayName = $"{media.Artist} - {media.Title}",
+                Title = media.Title,
+                Artist = media.Artist,
                 SourceDisplayName = DisplayName,
                 Source = SourceName,
                 Duration = media.Duration,

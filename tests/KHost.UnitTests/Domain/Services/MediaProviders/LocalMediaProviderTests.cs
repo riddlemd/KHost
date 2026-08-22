@@ -83,13 +83,27 @@ public class LocalMediaProviderTests
     }
 
     [Fact]
-    public async Task SearchAsync_MapsDisplayName_AsArtistDashTitle()
+    public async Task SearchAsync_CarriesTitleAndArtistSeparately()
     {
         _mediaStore.Add(new Media { Title = "Bohemian Rhapsody", Artist = "Queen", FilePath = "/a.mp3" });
 
         var result = await _service.SearchAsync("Queen");
 
-        Assert.Equal("Queen - Bohemian Rhapsody", result[0].DisplayName);
+        // The library splits these, so joining them here and re-parsing downstream is work the
+        // console should never have to do.
+        Assert.Equal("Bohemian Rhapsody", result[0].Title);
+        Assert.Equal("Queen", result[0].Artist);
+    }
+
+    [Fact]
+    public async Task SearchAsync_LeavesTheArtistEmpty_WhenTheLibraryHasNone()
+    {
+        _mediaStore.Add(new Media { Title = "Unknown Recording", Artist = "", FilePath = "/a.mp3" });
+
+        var result = await _service.SearchAsync("Unknown");
+
+        Assert.Equal("Unknown Recording", result[0].Title);
+        Assert.Empty(result[0].Artist);
     }
 
     [Fact]
@@ -133,7 +147,7 @@ public class LocalMediaProviderTests
 
         var result = await _service.SearchAsync("Band");
 
-        Assert.Equal("Band - Playable", Assert.Single(result).DisplayName);
+        Assert.Equal("Playable", Assert.Single(result).Title);
     }
 
     [Fact]
@@ -152,7 +166,7 @@ public class LocalMediaProviderTests
     {
         _singerQueueService.SelectedUserId.Returns((Guid?)null);
 
-        await _service.EnqueueAsync(new MediaSearchEntity { SourceDisplayName = "test", Source = "test", ForeignKey = Guid.NewGuid().ToString(), DisplayName = "test" });
+        await _service.EnqueueAsync(new MediaSearchEntity { SourceDisplayName = "test", Source = "test", ForeignKey = Guid.NewGuid().ToString(), Title = "test" });
 
         await _performanceService.DidNotReceive().CreateAndEnqueueAsync(Arg.Any<Performance>());
     }
@@ -164,7 +178,7 @@ public class LocalMediaProviderTests
         var mediaId = Guid.NewGuid();
         _singerQueueService.SelectedUserId.Returns(singerId);
 
-        await _service.EnqueueAsync(new MediaSearchEntity { SourceDisplayName = "test", Source = "test", ForeignKey = mediaId.ToString(), DisplayName = "test" });
+        await _service.EnqueueAsync(new MediaSearchEntity { SourceDisplayName = "test", Source = "test", ForeignKey = mediaId.ToString(), Title = "test" });
 
         await _performanceService.Received(1)
             .CreateAndEnqueueAsync(Arg.Is<Performance>(p => p.MediaId == mediaId));
@@ -176,7 +190,7 @@ public class LocalMediaProviderTests
         var singerId = Guid.NewGuid();
         _singerQueueService.SelectedUserId.Returns(singerId);
 
-        await _service.EnqueueAsync(new MediaSearchEntity { SourceDisplayName = "test", Source = "test", ForeignKey = Guid.NewGuid().ToString(), DisplayName = "test" });
+        await _service.EnqueueAsync(new MediaSearchEntity { SourceDisplayName = "test", Source = "test", ForeignKey = Guid.NewGuid().ToString(), Title = "test" });
 
         await _performanceService.Received(1)
             .CreateAndEnqueueAsync(Arg.Is<Performance>(p => p.SingerId == singerId));
