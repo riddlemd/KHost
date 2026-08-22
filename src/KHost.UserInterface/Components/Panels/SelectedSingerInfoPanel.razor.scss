@@ -31,12 +31,46 @@
         width: 100%;
     }
 
+    // Row numbers come from a counter so reordering renumbers without a re-render.
+    &__rows {
+        counter-reset: kh-song-row;
+    }
+
+    &__row {
+        counter-increment: kh-song-row;
+    }
+
     &__pos {
-        color: var(--kh-text-muted);
-        font-size: 0.75rem;
-        font-variant-numeric: tabular-nums;
-        width: 32px;
+        position: relative;
+        // Anchors the number badge and holds the playing bars, nothing else — so it shrinks to
+        // them rather than reserving a column the title then starts well clear of.
+        width: 1px;
+        padding-right: 0;
         text-align: center;
+        white-space: nowrap;
+
+        // The same corner badge the singer rows carry. On the cell rather than the row: a <tr> is
+        // not a reliable containing block for an absolutely positioned child, and this is the
+        // leftmost cell, so its corner is the row's.
+        &::before {
+            content: counter(kh-song-row);
+            position: absolute;
+            top: 0;
+            left: 0;
+            padding: 0 0.35em;
+            border-right: 1px solid var(--kh-border);
+            border-bottom: 1px solid var(--kh-border);
+            background: var(--kh-bg-elevated);
+            font-size: 0.65rem;
+            line-height: 1.4;
+            color: var(--kh-text-muted);
+            pointer-events: none;
+        }
+    }
+
+    // The bars say which song this is; the number beside them would only repeat it.
+    &__row--playing &__pos::before {
+        content: none;
     }
 
     &__song-count {
@@ -227,6 +261,13 @@
     // "Ready" on all but a broken song, and the row already greys out when it is not playable.
     .kh-selected-singer-info-panel__col--status,
     .kh-selected-singer-info-panel__status {
+        display: none;
+    }
+
+    // The drag handle reorders too, so the arrows are the first thing that can go to buy the
+    // song's title some room — the same trade the singer queue makes.
+    .kh-selected-singer-info-panel__move-up-btn,
+    .kh-selected-singer-info-panel__move-down-btn {
         display: none;
     }
 
