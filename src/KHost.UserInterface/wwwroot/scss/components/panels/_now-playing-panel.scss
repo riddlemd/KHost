@@ -180,6 +180,20 @@
         cursor: pointer;
     }
 
+    &__progress-track--seekable {
+        // The bar stays 4px; the target does not. A strip that thin is not something a host hits
+        // in a dark room while talking to someone.
+        &::before {
+            content: '';
+            position: absolute;
+            inset: -8px 0;
+        }
+
+        &:hover {
+            background: var(--kh-border-bright);
+        }
+    }
+
     &__progress-fill {
         height: 100%;
         background: linear-gradient(90deg, var(--kh-primary), var(--kh-primary-bright));

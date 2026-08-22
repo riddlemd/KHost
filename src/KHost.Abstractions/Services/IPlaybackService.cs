@@ -25,6 +25,12 @@ public interface IPlaybackService : IDisposable
     Task PlayAsync();
     Task PauseAsync();
     Task StopAsync();
+
+    /// <summary>
+    /// Moves the playhead. Clamped to the song, so a click at either end of a progress bar is a
+    /// position rather than an error.
+    /// </summary>
+    Task SeekAsync(TimeSpan position);
 }
 
 // Stopping is appended so the existing numeric values stay stable for telemetry.
