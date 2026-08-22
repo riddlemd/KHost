@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Components.Web;
 using Microsoft.JSInterop;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
+using KHost.UserInterface.Models;
 using KHost.UserInterface.Services;
 
 namespace KHost.UserInterface.Components.Panels;
@@ -178,27 +179,28 @@ public partial class SingerQueuePanel : IDisposable
     {
         if (SingerQueueService is null) return;
 
-        var selectedUserId = SingerQueueService.SelectedUserId;
-        var currentIdx = SingerQueueService.Users.ToList().FindIndex(u => u.Id == SingerQueueService.SelectedUserId);
+        var users = SingerQueueService.Users;
+        var currentIdx = users.ToList().FindIndex(u => u.Id == SingerQueueService.SelectedUserId);
+        var action = ListKeyboardShortcuts.Resolve(e.Key, e.ShiftKey, currentIdx, users.Count);
 
-        if (e.ShiftKey && selectedUserId != null)
+        // Reordering is a permission of its own; the arrows that do it are hidden without it.
+        if (action is ListKeyAction.MovePrevious or ListKeyAction.MoveNext && !_canReorderQueue)
+            return;
+
+        switch (action)
         {
-            if (e.Key == "ArrowUp" && currentIdx > 0)
-                await SingerQueueService.MoveUserUpAsync(SingerQueueService.SelectedUserId!.Value);
-            else if (e.Key == "ArrowDown" && currentIdx < SingerQueueService.Users.Count - 1)
-                await SingerQueueService.MoveUserDownAsync(SingerQueueService.SelectedUserId!.Value);
-        }
-        else
-        {
-            KHostUser? selectedUser = null;
-
-            if (e.Key == "ArrowUp" && currentIdx > 0)
-                selectedUser = SingerQueueService.Users[currentIdx - 1];
-            else if (e.Key == "ArrowDown" && currentIdx < SingerQueueService.Users.Count - 1)
-                selectedUser = SingerQueueService.Users[currentIdx + 1];
-
-            if(selectedUser != null)
-                await SingerQueueService.SelectUserAsync(selectedUser.Id);
+            case ListKeyAction.SelectPrevious:
+                await SingerQueueService.SelectUserAsync(users[currentIdx - 1].Id);
+                break;
+            case ListKeyAction.SelectNext:
+                await SingerQueueService.SelectUserAsync(users[currentIdx + 1].Id);
+                break;
+            case ListKeyAction.MovePrevious:
+                await SingerQueueService.MoveUserUpAsync(users[currentIdx].Id);
+                break;
+            case ListKeyAction.MoveNext:
+                await SingerQueueService.MoveUserDownAsync(users[currentIdx].Id);
+                break;
         }
     }
 

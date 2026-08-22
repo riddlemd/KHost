@@ -62,6 +62,11 @@
                 OnClose="@(() => { r.OnCancel?.Invoke(); Close(r); })" />
             break;
 
+        case ShortcutsDialog.DialogRequest r:
+            <ShortcutsDialog @key="r.Id" IsOpen="true"
+                OnClose="@(() => { r.OnClose?.Invoke(); Close(r); })" />
+            break;
+
         case ShowLyricsDialog.DialogRequest r:
             <ShowLyricsDialog @key="r.Id" IsOpen="true" Query="@r.Query"
                 OnClose="@(() => { r.OnClose?.Invoke(); Close(r); })" />

@@ -48,6 +48,9 @@ public partial class ComboBox<TItem> : IAsyncDisposable
     [Parameter] public string Placeholder { get; set; } = "Search…";
     [Parameter] public string Class { get; set; } = "";
 
+    /// <summary>Names this input for the focus shortcut in shortcuts.js.</summary>
+    [Parameter] public string? ShortcutId { get; set; }
+
     private ElementReference _inputRef;
     private IJSObjectReference? _module;
     private IJSObjectReference? _handle;
