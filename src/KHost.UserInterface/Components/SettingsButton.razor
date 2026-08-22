@@ -33,7 +33,7 @@
             @foreach (var settingsPage in group)
             {
                 <button class="kh-dropdown__item @CurrentClass(settingsPage.Route)" type="button"
-                        @onclick="() => NavigateTo(settingsPage.Route)">
+                        @onclick="() => SelectAsync(settingsPage)">
                     <span class="kh-dropdown__check"><Icon Name="@settingsPage.Icon" /></span>
                     @settingsPage.Title
                 </button>

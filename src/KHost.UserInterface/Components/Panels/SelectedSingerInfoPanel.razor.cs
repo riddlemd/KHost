@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 using KHost.Abstractions.Exceptions;
 using KHost.Abstractions.Models;
+using KHost.UserInterface.Models;
 using KHost.Abstractions.Services;
 using KHost.UserInterface.Services;
 
@@ -53,19 +54,30 @@ public partial class SelectedSingerInfoPanel : IDisposable
 
     private async Task OnKeyDownAsync(KeyboardEventArgs e)
     {
-        if (SingerQueueService?.SelectedUser is null) return;
+        if (SingerQueueService?.SelectedUser is not { } singer) return;
 
-        var currentIdx = _performances.FindIndex(s => s.Id == _selectedPerformanceId);
+        var currentIdx = _performances.FindIndex(p => p.Id == _selectedPerformanceId);
+        var action = ListKeyboardShortcuts.Resolve(e.Key, e.ShiftKey, currentIdx, _performances.Count);
 
-        Performance? selectedPerformance = null;
+        // Reordering is a permission of its own; the arrows that do it are hidden without it.
+        if (action is ListKeyAction.MovePrevious or ListKeyAction.MoveNext && !_canReorderQueue)
+            return;
 
-        if (e.Key == "ArrowUp" && currentIdx > 0)
-            selectedPerformance = _performances[currentIdx - 1];
-        else if (e.Key == "ArrowDown" && currentIdx < _performances.Count - 1)
-            selectedPerformance = _performances[currentIdx + 1];
-
-        if (selectedPerformance != null)
-            SelectPerformance(selectedPerformance.Id);
+        switch (action)
+        {
+            case ListKeyAction.SelectPrevious:
+                SelectPerformance(_performances[currentIdx - 1].Id);
+                break;
+            case ListKeyAction.SelectNext:
+                SelectPerformance(_performances[currentIdx + 1].Id);
+                break;
+            case ListKeyAction.MovePrevious:
+                await (PerformanceService?.MoveUpInQueueAsync(singer.Id, _performances[currentIdx].Id) ?? Task.CompletedTask);
+                break;
+            case ListKeyAction.MoveNext:
+                await (PerformanceService?.MoveDownInQueueAsync(singer.Id, _performances[currentIdx].Id) ?? Task.CompletedTask);
+                break;
+        }
     }
 
     private async Task LoadAndPlayAsync(Performance performance)

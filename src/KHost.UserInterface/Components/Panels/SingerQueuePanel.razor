@@ -18,6 +18,7 @@
     <div class="kh-card__body kh-singer-queue-panel__add">
         <form name="add-singer-form" class="kh-panel__form-row" @onsubmit="AddUserAsync" @onsubmit:preventDefault>
             <ComboBox TItem="KHostUser"
+                      ShortcutId="new-singer"
                       Class="kh-panel__form-grow"
                       Value="_pickedSinger"
                       ValueChanged="OnSingerPickedAsync"
@@ -34,7 +35,8 @@
         </form>
     </div>
     }
-    <div class="kh-singer-queue-panel__singer-queue kh-card__body">
+    <div class="kh-singer-queue-panel__singer-queue kh-card__body"
+         tabindex="0" data-kh-keylist @onkeydown="OnKeyDownAsync">
         @if (!SingerQueueService?.Users.Any() == true)
         {
             <div class="kh-panel--empty kh-panel--empty-lg">
