@@ -16,8 +16,16 @@ public partial class NowPlayingPanel : IDisposable
     private ElementReference _trackRef;
     private IJSObjectReference? _seekBar;
 
-    protected override void OnInitialized() =>
-        PlaybackService?.StateChanged += OnStateChanged;
+    protected override void OnInitialized()
+    {
+        if (PlaybackService is null) return;
+
+        PlaybackService.StateChanged += OnStateChanged;
+
+        // The only panel that takes the position clock: it draws the playhead, and a redraw is all
+        // it does with either event.
+        PlaybackService.PositionChanged += OnStateChanged;
+    }
 
     private async Task PlayAsync()
     {
@@ -47,6 +55,11 @@ public partial class NowPlayingPanel : IDisposable
     private static string FormatTime(TimeSpan ts) =>
         $"{(int)ts.TotalMinutes}:{ts.Seconds:D2}";
 
-    public void Dispose() =>
-        PlaybackService?.StateChanged -= OnStateChanged;
+    public void Dispose()
+    {
+        if (PlaybackService is null) return;
+
+        PlaybackService.StateChanged -= OnStateChanged;
+        PlaybackService.PositionChanged -= OnStateChanged;
+    }
 }

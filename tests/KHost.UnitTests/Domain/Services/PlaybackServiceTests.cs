@@ -1343,6 +1343,98 @@ public class PlaybackServiceTests : IDisposable
         await _screenServer.DidNotReceive().BroadcastCommandAsync(Arg.Any<SeekCommand>());
     }
 
+    [Fact]
+    public async Task TickAsync_RaisesPositionChangedOnly_WhileTheSongIsStillPlaying()
+    {
+        var (performance, media) = CreatePerformance();
+        await _service.LoadAsync(performance, media);
+        await _service.PlayAsync();
+
+        var positions = 0;
+        var states = 0;
+        _service.PositionChanged += (_, _) => positions++;
+        _service.StateChanged += (_, _) => states++;
+
+        await _service.TickAsync();
+
+        Assert.Equal(1, positions);
+        Assert.Equal(0, states);
+    }
+
+    [Fact]
+    public async Task TickAsync_RaisesStateChanged_WhenTheSongRunsOut()
+    {
+        var (performance, media) = CreatePerformance();
+        media.Duration = TimeSpan.FromSeconds(1);
+
+        await _service.LoadAsync(performance, media);
+        await _service.PlayAsync();
+
+        // Past the end, so the tick concludes the performance rather than interpolating. Seek
+        // raises StateChanged of its own, so the counter starts after it.
+        await _service.SeekAsync(TimeSpan.FromSeconds(1));
+
+        var states = 0;
+        _service.StateChanged += (_, _) => states++;
+
+        await _service.TickAsync();
+
+        Assert.Equal(1, states);
+        Assert.Equal(PlaybackState.Stopped, _service.State);
+    }
+
+    [Fact]
+    public async Task ScreenReconnect_LeavesThePositionClockRunning()
+    {
+        var (performance, media) = CreatePerformance();
+        await _service.LoadAsync(performance, media);
+        await _service.PlayAsync();
+
+        // Off zero, so the reconnect sync sends the seek this waits on.
+        await _service.TickAsync();
+        _screenServer.ClearReceivedCalls();
+
+        // The reconnect sync stops the clock to reload the screen; the song is still playing, so
+        // it has to be running again by the time that finishes or the playhead sticks.
+        RaiseScreenConnected();
+        Assert.True(await WaitForBroadcastAsync<SeekCommand>());
+
+        var ticks = 0;
+        _service.PositionChanged += (_, _) => Interlocked.Increment(ref ticks);
+
+        for (var i = 0; i < 200 && Volatile.Read(ref ticks) == 0; i++)
+            await Task.Delay(10);
+
+        Assert.True(ticks > 0, "the clock never ticked again after the screen reconnected");
+    }
+
+    [Fact]
+    public async Task PositionClock_GoesSilentOnStop_EvenWhenSeeksRacedEachOther()
+    {
+        var (performance, media) = CreatePerformance();
+        await _service.LoadAsync(performance, media);
+        await _service.PlayAsync();
+
+        // Seek stops the clock and starts it again, so concurrent seeks drive two threads through
+        // that swap at once. Unsynchronised, one of them assigns a Timer the other has already
+        // replaced — orphaned, unreachable, and never disposed by the stop below.
+        await Task.WhenAll(Enumerable.Range(0, 64).Select(i =>
+            Task.Run(() => _service.SeekAsync(TimeSpan.FromSeconds(i % 5)))));
+
+        await _service.StopAsync();
+
+        // Let any tick already in flight when the clock stopped finish before counting.
+        await Task.Delay(150);
+
+        var ticks = 0;
+        _service.PositionChanged += (_, _) => Interlocked.Increment(ref ticks);
+
+        // Two clock intervals: an orphan ticking at 500ms cannot hide inside this window.
+        await Task.Delay(1200);
+
+        Assert.Equal(0, ticks);
+    }
+
     private static (Performance, Media) CreatePerformance()
     {
         var singerId = Guid.NewGuid();
