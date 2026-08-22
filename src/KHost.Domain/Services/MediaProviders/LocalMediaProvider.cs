@@ -85,7 +85,7 @@ public class LocalMediaProvider : BaseService, IMediaProvider
         {
             MediaId = new Guid(mediaSearchEntity.ForeignKey),
             SingerId = singerId,
-            CreatedDate = DateTime.Now
+            CreatedDate = DateTime.UtcNow
         });
 
         Logger.LogInformation("Enqueued media {MediaId} for singer {SingerId}", mediaSearchEntity.ForeignKey, singerId);

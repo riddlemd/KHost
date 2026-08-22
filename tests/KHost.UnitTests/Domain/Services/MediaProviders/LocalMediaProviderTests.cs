@@ -184,6 +184,20 @@ public class LocalMediaProviderTests
             .CreateAndEnqueueAsync(Arg.Is<Performance>(p => p.MediaId == mediaId));
     }
 
+    // Everything else stores UTC and converts on display, so a local stamp here would be read
+    // back as UTC and then shifted again by the history dialog — wrong twice, by the offset.
+    [Fact]
+    public async Task EnqueueAsync_StampsTheEnqueueTimeInUtc()
+    {
+        _singerQueueService.SelectedUserId.Returns(Guid.NewGuid());
+        var before = DateTime.UtcNow;
+
+        await _service.EnqueueAsync(new MediaSearchEntity { SourceDisplayName = "test", Source = "test", ForeignKey = Guid.NewGuid().ToString(), Title = "test" });
+
+        await _performanceService.Received(1).CreateAndEnqueueAsync(
+            Arg.Is<Performance>(p => p.CreatedDate >= before && p.CreatedDate <= DateTime.UtcNow));
+    }
+
     [Fact]
     public async Task EnqueueAsync_CallsCreateAndEnqueue_WithCorrectSingerId()
     {

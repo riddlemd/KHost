@@ -106,7 +106,9 @@ public class PerformanceService : BaseRepositoryService<Performance, IPerformanc
         if (mostRecent == default)
             return null;
 
-        var elapsed = DateTime.Now - mostRecent;
+        // CreatedDate is stored UTC, so this has to be too: subtracting a local clock from it
+        // shifts every gap by the host's offset, and the window silently moves with the timezone.
+        var elapsed = DateTime.UtcNow - mostRecent;
 
         return elapsed <= TimeSpan.FromHours(windowHours)
             ? (int)Math.Floor(Math.Max(elapsed.TotalHours, 0))
