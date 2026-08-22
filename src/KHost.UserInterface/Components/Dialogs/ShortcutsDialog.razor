@@ -1,0 +1,35 @@
+@using KHost.UserInterface.Models
+
+<Dialog IsOpen="IsOpen" Class="@($"{_rootClassName} {Class?.Trim()}".Trim())" OnClose="OnClose" CloseOnScrimClick="CloseOnScrimClick">
+    <Header>
+        <Icon Name="keyboard" /> Keyboard Shortcuts
+    </Header>
+    <Body>
+        @foreach (var group in Shortcuts)
+        {
+            <div class="@(_rootClassName)__group">
+                <div class="@(_rootClassName)__group-title">@group.Title</div>
+                @if (group.Note is { } note)
+                {
+                    <p class="@(_rootClassName)__note">@note</p>
+                }
+                <dl class="@(_rootClassName)__list">
+                    @foreach (var shortcut in group.Shortcuts)
+                    {
+                        <dt class="@(_rootClassName)__keys">
+                            @foreach (var (key, keyIdx) in shortcut.Keys.Select((k, i) => (k, i)))
+                            {
+                                @if (keyIdx > 0)
+                                {
+                                    <span class="@(_rootClassName)__plus">+</span>
+                                }
+                                <kbd class="@(_rootClassName)__key">@key</kbd>
+                            }
+                        </dt>
+                        <dd class="@(_rootClassName)__description">@shortcut.Description</dd>
+                    }
+                </dl>
+            </div>
+        }
+    </Body>
+</Dialog>
