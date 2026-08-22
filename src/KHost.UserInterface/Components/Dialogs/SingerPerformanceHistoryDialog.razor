@@ -73,18 +73,17 @@
                 </table>
             </div>
 
-            <Pagination CurrentPage="_currentPage"
-                        TotalPages="TotalPages"
-                        OnPreviousPage="PreviousPageAsync"
-                        OnNextPage="NextPageAsync" />
+            <div class="@(_rootClassName)__pagination">
+                <Pagination CurrentPage="_currentPage"
+                            TotalPages="TotalPages"
+                            OnPreviousPage="PreviousPageAsync"
+                            OnNextPage="NextPageAsync" />
+            </div>
         }
         else
         {
             <p class="@(_rootClassName)__empty">No performances found.</p>
         }
     </Body>
-    <Footer>
-        <button class="kh-button kh-button--primary" @onclick="CloseAsync" type="button">Close</button>
-    </Footer>
 </Dialog>
 

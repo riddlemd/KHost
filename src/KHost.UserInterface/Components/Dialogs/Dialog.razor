@@ -7,8 +7,11 @@
         <div class="@(_rootClassName)__body">
             @Body
         </div>
-        <div class="@(_rootClassName)__footer">
-            @Footer
-        </div>
+        @if (Footer is not null)
+        {
+            <div class="@(_rootClassName)__footer">
+                @Footer
+            </div>
+        }
     </div>
 </Scrim>
