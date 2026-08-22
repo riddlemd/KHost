@@ -63,7 +63,7 @@ public class MediaSearchServiceTests
         Source = source,
         SourceDisplayName = source,
         ForeignKey = Guid.NewGuid().ToString(),
-        DisplayName = name,
+        Title = name,
     };
 
     [Fact]
@@ -123,8 +123,8 @@ public class MediaSearchServiceTests
         var mediaId2 = Guid.NewGuid();
         var entities = new List<MediaSearchEntity>
         {
-            new MediaSearchEntity { SourceDisplayName = "FileSystem", DisplayName = "Artist1 - Media1", Source = "FileSystem", ForeignKey = mediaId1.ToString() },
-            new MediaSearchEntity { SourceDisplayName = "FileSystem", DisplayName = "Artist2 - Media2", Source = "FileSystem", ForeignKey = mediaId2.ToString() }
+            new MediaSearchEntity { SourceDisplayName = "FileSystem", Title = "Media1", Artist = "Artist1", Source = "FileSystem", ForeignKey = mediaId1.ToString() },
+            new MediaSearchEntity { SourceDisplayName = "FileSystem", Title = "Media2", Artist = "Artist2", Source = "FileSystem", ForeignKey = mediaId2.ToString() }
         };
 
         _provider.SearchAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<int>())
@@ -133,8 +133,10 @@ public class MediaSearchServiceTests
         var results = await _service.SearchAllAsync("test");
 
         Assert.Equal(2, results.Count);
-        Assert.Equal("Artist1 - Media1", results[0].DisplayName);
-        Assert.Equal("Artist2 - Media2", results[1].DisplayName);
+        Assert.Equal("Media1", results[0].Title);
+        Assert.Equal("Artist1", results[0].Artist);
+        Assert.Equal("Media2", results[1].Title);
+        Assert.Equal("Artist2", results[1].Artist);
         Assert.Equal("FileSystem", results[0].Source);
         Assert.Equal(mediaId1.ToString(), results[0].ForeignKey);
         Assert.Equal("FileSystem", results[1].Source);
@@ -161,7 +163,7 @@ public class MediaSearchServiceTests
 
         var results = await service.SearchAsync("song");
 
-        Assert.Equal("local hit", Assert.Single(results).DisplayName);
+        Assert.Equal("local hit", Assert.Single(results).Title);
         await remote.DidNotReceive().SearchAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<int>());
     }
 

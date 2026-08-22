@@ -80,7 +80,8 @@
                     <table class="kh-table">
                         <thead >
                             <tr>
-                                <th>Name</th>
+                                <th>Title</th>
+                                <th class="kh-media-search-panel__col--artist">Artist</th>
                                 <th>Duration</th>
                                 @if (_multipleProvidersInResults)
                                 {
@@ -95,8 +96,8 @@
                                     var queuedBy = GetSingersWithMediaQueued(mediaSearchEntity.ForeignKey, mediaSearchEntity.Source);
 
                                     <tr class="kh-media-search-panel__results__result @(queuedBy.Count > 0 ? "kh-media-search-panel__results__result--queued" : "")">
-                                    <td class="kh-table__cell--fill" title="@mediaSearchEntity.DisplayName">
-                                        @mediaSearchEntity.DisplayName
+                                    <td class="kh-table__cell--fill" title="@mediaSearchEntity.Title">
+                                        @mediaSearchEntity.Title
 
                                         @if (queuedBy.Count > 0)
                                         {
@@ -107,6 +108,8 @@
                                             </span>
                                         }
                                     </td>
+                                    <td class="kh-table__cell--fill kh-media-search-panel__col--artist"
+                                        title="@mediaSearchEntity.Artist">@mediaSearchEntity.Artist</td>
                                     <td>@(mediaSearchEntity.Duration?.ToTotalMinutesAndSeconds() ?? "--:--")</td>
                                     @if (_multipleProvidersInResults) {
                                         <td>
