@@ -8,6 +8,18 @@ public sealed class AppSettings
     public double StopFadeSeconds { get; set; } = 5;
     public double SyncStartLeadMilliseconds { get; set; } = 400;
     public int SegmentSeconds { get; set; } = 2;
+    public int MediaPageSize { get; set; } = DefaultPageSize;
+    public int UsersPageSize { get; set; } = DefaultPageSize;
+    public int UserGroupsPageSize { get; set; } = DefaultPageSize;
+    public int TipsPageSize { get; set; } = DefaultPageSize;
+    public int VenuesPageSize { get; set; } = DefaultPageSize;
+    public int PerformanceHistoryPageSize { get; set; } = DefaultPerformanceHistoryPageSize;
+
+    public const int DefaultPageSize = 25;
+    // Lower than a full page's: this list lives in a dialog whose table is capped at 500px.
+    public const int DefaultPerformanceHistoryPageSize = 10;
+    public const int MinPageSize = 1;
+    public const int MaxPageSize = 500;
 }
 
 public interface IAppSettingsService

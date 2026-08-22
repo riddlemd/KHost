@@ -13,8 +13,9 @@ public partial class TipsManagerPage : IDisposable
     [Inject] private IUsersService? UsersService { get; set; }
     [Inject] private IDialogService? DialogService { get; set; }
     [Inject] private IVenuesService? VenuesService { get; set; }
+    [Inject] private IAppSettingsService? AppSettingsService { get; set; }
 
-    private const int PageSize = 10;
+    private int _pageSize = AppSettings.DefaultPageSize;
     private int _currentPage = 1;
     private string _searchQuery = "";
     private string? _sortColumn;
@@ -25,6 +26,8 @@ public partial class TipsManagerPage : IDisposable
 
     protected override async Task OnInitializedAsync()
     {
+        _pageSize = AppSettingsService!.Current.TipsPageSize;
+
         await LoadUsersAsync();
         await LoadVenuesAsync();
         await SearchAsync();
@@ -62,7 +65,7 @@ public partial class TipsManagerPage : IDisposable
             return;
 
         var sort = _sortColumn is not null ? new SortDescriptor(_sortColumn, _sortDescending) : null;
-        _paginatedResult = await TipsService.SearchAsync(_searchQuery, _currentPage, PageSize, sort);
+        _paginatedResult = await TipsService.SearchAsync(_searchQuery, _currentPage, _pageSize, sort);
     }
 
     private void OnSortColumnClicked(string column)
