@@ -27,3 +27,18 @@
         if (typeof target.select === 'function') target.select();
     });
 })();
+
+// Arrow keys inside a keyboard-navigable list. Blazor's own handler still runs — preventDefault
+// only cancels the browser's default, it does not stop the event reaching the delegated listener
+// — but without it macOS treats the key as unhandled and beeps, and the list scrolls underneath
+// the selection it just moved.
+(function () {
+    const ARROWS = new Set(['ArrowUp', 'ArrowDown']);
+
+    document.addEventListener('keydown', function (event) {
+        if (!ARROWS.has(event.key) || event.ctrlKey || event.metaKey || event.altKey) return;
+
+        if (event.target instanceof Element && event.target.closest('[data-kh-keylist]'))
+            event.preventDefault();
+    });
+})();
