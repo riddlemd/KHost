@@ -88,4 +88,15 @@
     .kh-media-search-panel ::deep .kh-media-search-panel__action-label {
         display: none;
     }
+
+}
+
+// The artist holds on much longer than the action labels do. This panel measures 436px beside a
+// half-width window, so it keeps its column there and gives it up only once the title, duration
+// and actions have the row to themselves.
+@container kh-media-search (max-width: 360px) {
+    // Title first: an artist with no song is no use, and the title cell keeps the queued badge.
+    .kh-media-search-panel__col--artist {
+        display: none;
+    }
 }
