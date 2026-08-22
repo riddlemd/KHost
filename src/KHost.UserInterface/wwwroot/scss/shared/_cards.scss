@@ -37,10 +37,17 @@
             text-transform: inherit;
         }
 
-        .kh-card__shortcut { /* Not implemented, just a stub */
-            display: none;
+        .kh-card__shortcut {
             margin-left: auto;
-            opacity: 0.3;
+            opacity: 0.45;
+            font-size: 0.75em;
+            letter-spacing: 0.04em;
+            text-transform: lowercase;
+            // The singer queue column measures 283px at 1440; below that its title and count
+            // already fill the row, and the hint is the first thing that can go.
+            @container (max-width: 260px) {
+                display: none;
+            }
         }
 
         .kh-button {

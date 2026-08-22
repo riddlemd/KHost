@@ -9,12 +9,14 @@
     <div class="kh-card__header">
         <Icon Name="search" />
         <span class="kh-card__title">Media Search</span>
+        <span class="kh-card__shortcut">ctrl+2</span>
     </div>
 
     <div class="kh-card__body kh-media-search-panel__inputs">
         <Control>
             <input type="text" class="kh-form-control" placeholder="Type a Media name or artist..."
                     autocomplete="off"
+                    data-kh-shortcut="media-search"
                     @bind="_query"
                     @bind:event="oninput"
                     @onkeydown="OnFilterKeyDownAsync" />
