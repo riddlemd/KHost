@@ -1,0 +1,65 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   Shortcuts Dialog
+   Reference list of the keyboard shortcuts the console answers to
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.kh-shortcuts-dialog {
+
+    &__group + &__group {
+        margin-top: 1.5em;
+    }
+
+    &__group-title {
+        padding-bottom: 6px;
+        border-bottom: 1px solid var(--kh-border);
+        font-weight: 600;
+        text-transform: uppercase;
+        font-size: 0.8rem;
+        letter-spacing: 0.06em;
+        color: var(--kh-text-secondary);
+    }
+
+    &__note {
+        margin: 8px 0 0;
+        font-size: 0.8rem;
+        color: var(--kh-text-muted);
+    }
+
+    &__list {
+        display: grid;
+        // The keys column takes what the widest chord needs and no more.
+        grid-template-columns: max-content 1fr;
+        align-items: baseline;
+        gap: 8px 16px;
+        margin: 12px 0 0;
+    }
+
+    &__keys {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        margin: 0;
+    }
+
+    &__key {
+        font-family: var(--kh-font);
+        font-size: 0.75rem;
+        line-height: 1;
+        padding: 4px 7px;
+        border: 1px solid var(--kh-border-bright);
+        border-radius: var(--kh-radius);
+        background: var(--kh-bg-input);
+        color: var(--kh-text);
+        white-space: nowrap;
+    }
+
+    // Between the caps, not inside one — a ::before on the second kbd sits within its border.
+    &__plus {
+        color: var(--kh-text-muted);
+        font-size: 0.75rem;
+    }
+
+    &__description {
+        margin: 0;
+    }
+}

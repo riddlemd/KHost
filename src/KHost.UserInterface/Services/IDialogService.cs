@@ -20,6 +20,7 @@ public interface IDialogService
     Task ShowSingerPerformanceHistoryAsync(Guid userId, Action? onClose = null);
     Task ShowLyricsAsync(string query, Action? onClose = null);
     Task ShowScreensAsync(Action? onClose = null);
+    Task ShowShortcutsAsync(Action? onClose = null);
 
     /// <summary>Tells the host playback needs a screen, offering to open the Screens dialog.</summary>
     Task ShowNoScreensAsync();
