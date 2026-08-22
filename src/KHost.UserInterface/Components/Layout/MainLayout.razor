@@ -17,16 +17,18 @@
     <SettingsButton />
 </header>
 
-<div class="kh-app" tabindex="0">
-    <FlashBanner />
-    <KHostErrorBoundary>
-        @Body
-    </KHostErrorBoundary>
-</div>
+<div class="kh-shell @(IsMainPage ? "" : "kh-shell--scroll")">
+    <div class="kh-app" tabindex="0">
+        <FlashBanner />
+        <KHostErrorBoundary>
+            @Body
+        </KHostErrorBoundary>
+    </div>
 
-<footer class="kh-footer">
-    <AppStatusBar />
-</footer>
+    <footer class="kh-footer">
+        <AppStatusBar />
+    </footer>
+</div>
 
 <DialogHost />
 
