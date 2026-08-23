@@ -358,7 +358,7 @@ internal static class Program
         // UI, its assets, or its error pages.
         app.Use(async (context, next) =>
         {
-            if (!LanAccessPolicy.IsAllowed(context.Connection.RemoteIpAddress, context.Request.Path))
+            if (!LanAccessPolicy.IsAllowed(context.Connection.RemoteIpAddress, context.Request.Host, context.Request.Path))
             {
                 context.Response.StatusCode = StatusCodes.Status404NotFound;
                 return;
