@@ -72,6 +72,24 @@ internal class MediaRepository : BaseRepository<Media>, IMediaRepository
         return found;
     }
 
+    public async Task<Media?> FindByFilePathAsync(string filePath)
+    {
+        using var context = await ContextFactory.CreateDbContextAsync();
+
+        if (_caseSensitivePaths)
+            return await context.Media.FirstOrDefaultAsync(m => m.FilePath == filePath);
+
+        // Same reasoning as GetExistingFilePathsAsync: bundled SQLite folds ASCII only, so this
+        // has to compare in .NET rather than push a lower() down into the query.
+        await foreach (var row in context.Media.AsAsyncEnumerable())
+        {
+            if (string.Equals(row.FilePath, filePath, StringComparison.OrdinalIgnoreCase))
+                return row;
+        }
+
+        return null;
+    }
+
     public async Task<IReadOnlyList<Media>> GetByFileSizesAsync(IEnumerable<long> sizes)
     {
         var wanted = sizes.Distinct().ToList();

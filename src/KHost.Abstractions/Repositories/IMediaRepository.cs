@@ -6,6 +6,9 @@ public interface IMediaRepository : IRepository<Media>
 {
     Task<HashSet<string>> GetExistingFilePathsAsync(IEnumerable<string> filePaths);
 
+    /// <summary>Row whose FilePath matches, under the same case-folding rules as <see cref="GetExistingFilePathsAsync"/>.</summary>
+    Task<Media?> FindByFilePathAsync(string filePath);
+
     /// <summary>Rows whose file size is one of <paramref name="sizes"/> — the prefilter for content dedup.</summary>
     Task<IReadOnlyList<Media>> GetByFileSizesAsync(IEnumerable<long> sizes);
 

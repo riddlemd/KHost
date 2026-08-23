@@ -55,6 +55,7 @@ internal class DatabaseInitializer : IDatabaseInitializer
         _logger.LogInformation("Running EF Core migrations");
         await context.Database.MigrateAsync();
 
+        await SweepStalledDownloadsAsync();
         await RefoldStoredTextAsync();
         await SeedDefaultAdminUserAsync();
         await SeedDefaultVenueAsync();
@@ -95,6 +96,33 @@ internal class DatabaseInitializer : IDatabaseInitializer
             // way, and it remains reachable by its exact spelling.
             _logger.LogError(ex, "Could not refold stored text: two rows fold to the same value");
         }
+    }
+
+    /// <summary>
+    /// Flips every still-Downloading row to Broken — the host process that owned those downloads'
+    /// cancellation tokens is gone, so nothing will ever settle them otherwise. Never deleted: the
+    /// file a download left behind may still be on disk, and a deleted row would let a later
+    /// import silently re-register that partial file as Ready.
+    /// </summary>
+    internal async Task SweepStalledDownloadsAsync()
+    {
+        using var context = await _contextFactory.CreateDbContextAsync();
+
+        var stalled = await context.Media.Where(m => m.Status == MediaStatus.Downloading).ToListAsync();
+        if (stalled.Count == 0)
+            return;
+
+        // NoTracking context: mutating the property alone leaves nothing for SaveChanges to see,
+        // so each row has to be attached and marked Modified explicitly.
+        foreach (var media in stalled)
+        {
+            media.Status = MediaStatus.Broken;
+            context.Update(media);
+        }
+
+        await context.SaveChangesAsync();
+
+        _logger.LogWarning("Swept {Count} stalled download(s) left Downloading by an unclean shutdown to Broken", stalled.Count);
     }
 
     private int Repair<T>(

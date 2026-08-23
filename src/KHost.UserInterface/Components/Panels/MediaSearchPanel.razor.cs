@@ -103,7 +103,16 @@ public partial class MediaSearchPanel : IDisposable
 
     private async Task PerformActionAsync(Func<MediaSearchEntity, Task> func, MediaSearchEntity mediaSearchEntity)
     {
-        await func(mediaSearchEntity);
+        try
+        {
+            await func(mediaSearchEntity);
+        }
+        catch (OperationCanceledException)
+        {
+            // The host dequeuing the Downloading row cancels the plugin's own download token —
+            // this is that cancel unwinding through the action, not a failure to report.
+            return;
+        }
 
         await InvokeAsync(StateHasChanged);
     }

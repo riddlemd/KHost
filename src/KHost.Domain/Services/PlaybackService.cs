@@ -118,6 +118,14 @@ public class PlaybackService : BaseService, IPlaybackService
 
     public async Task LoadAsync(Performance performance, Media media)
     {
+        // Broken was already unplayable in spirit; a download still in flight is the same refusal
+        // for a different reason, so the check is against Ready rather than either status by name.
+        if (media.Status != MediaStatus.Ready)
+        {
+            Logger.LogWarning("Load refused: media {MediaId} is {Status}, not Ready", media.Id, media.Status);
+            return;
+        }
+
         ResetState();
 
         CurrentPerformance = performance;

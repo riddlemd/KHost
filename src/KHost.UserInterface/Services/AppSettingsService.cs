@@ -26,10 +26,14 @@ internal sealed class AppSettingsService : IAppSettingsService
 
     public bool RestartRequired { get; private set; }
 
+    public string DefaultMediaDirectory =>
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "karaoke");
+
     public AppSettings Current => new()
     {
         RequireLogin = _configuration.GetValue<bool?>("Auth:RequireLogin") ?? true,
         FFmpegPath = _configuration["FFmpegPath"],
+        MediaDirectory = NormalizeMediaDirectory(_configuration["Plugins:MediaDirectory"]),
         StopFadeSeconds = (_configuration.GetValue<TimeSpan?>("Playback:StopFadeDuration") ?? TimeSpan.FromSeconds(5)).TotalSeconds,
         SyncStartLeadMilliseconds = (_configuration.GetValue<TimeSpan?>("Playback:SyncStartLead") ?? TimeSpan.FromMilliseconds(400)).TotalMilliseconds,
         SegmentSeconds = _configuration.GetValue<int?>("MediaStream:SegmentSeconds") ?? 2,
@@ -46,6 +50,9 @@ internal sealed class AppSettingsService : IAppSettingsService
 
     private static int PaginationClamp(int pageSize) =>
         Math.Clamp(pageSize, AppSettings.MinPageSize, AppSettings.MaxPageSize);
+
+    private static string? NormalizeMediaDirectory(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
     public async Task<AppSettingsSaveResult> SaveAsync(AppSettings settings)
     {
@@ -80,6 +87,10 @@ internal sealed class AppSettingsService : IAppSettingsService
 
         if (!string.IsNullOrWhiteSpace(settings.FFmpegPath))
             overlay["FFmpegPath"] = settings.FFmpegPath;
+
+        var mediaDirectory = NormalizeMediaDirectory(settings.MediaDirectory);
+        if (mediaDirectory is not null)
+            overlay["Plugins"] = new Dictionary<string, object?> { ["MediaDirectory"] = mediaDirectory };
 
         Directory.CreateDirectory(Path.GetDirectoryName(_overlayPath)!);
         await File.WriteAllTextAsync(

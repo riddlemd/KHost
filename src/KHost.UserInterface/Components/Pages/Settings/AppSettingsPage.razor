@@ -104,6 +104,13 @@
                     </span>
                     <InputText class="kh-form-control kh-app-settings__path" @bind-Value="_model.FFmpegPath" placeholder="/usr/local/bin" />
                 </label>
+                <label class="kh-app-settings__row">
+                    <span>
+                        Media directory (blank = @_defaultMediaDirectory)
+                        <span class="kh-app-settings__apply">applies to plugin downloads immediately</span>
+                    </span>
+                    <InputText class="kh-form-control kh-app-settings__path" @bind-Value="_model.MediaDirectory" placeholder="@_defaultMediaDirectory" />
+                </label>
 
                 <div class="kh-app-settings__actions">
                     <button class="kh-button kh-button--primary" @onclick="SaveAsync" disabled="@_saving">

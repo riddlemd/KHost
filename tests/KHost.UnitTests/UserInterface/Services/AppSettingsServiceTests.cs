@@ -133,6 +133,52 @@ public class AppSettingsServiceTests : IDisposable
         Assert.Equal(AppSettings.MinPageSize, pagination.GetProperty("Users").GetInt32());
     }
 
+    [Fact]
+    public void Current_FallsBackToNull_WhenTheOverlayHasNoMediaDirectory()
+    {
+        Assert.Null(Service().Current.MediaDirectory);
+    }
+
+    [Fact]
+    public void DefaultMediaDirectory_IsUserProfileKaraoke()
+    {
+        var expected = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "karaoke");
+
+        Assert.Equal(expected, Service().DefaultMediaDirectory);
+    }
+
+    [Fact]
+    public void Current_TrimsAHandEditedMediaDirectory()
+    {
+        var service = Service(new KeyValuePair<string, string?>("Plugins:MediaDirectory", "  /data/karaoke  "));
+
+        Assert.Equal("/data/karaoke", service.Current.MediaDirectory);
+    }
+
+    [Fact]
+    public async Task SaveAsync_WritesTheMediaDirectoryTrimmed()
+    {
+        var service = Service();
+
+        await service.SaveAsync(new AppSettings { MediaDirectory = "  /data/karaoke  " });
+
+        using var overlay = JsonDocument.Parse(
+            await File.ReadAllTextAsync(Path.Combine(_directory, AppSettingsService.OverlayFileName)));
+        Assert.Equal("/data/karaoke", overlay.RootElement.GetProperty("Plugins").GetProperty("MediaDirectory").GetString());
+    }
+
+    [Fact]
+    public async Task SaveAsync_OmitsTheMediaDirectory_WhenLeftBlank()
+    {
+        var service = Service();
+
+        await service.SaveAsync(new AppSettings { MediaDirectory = "   " });
+
+        using var overlay = JsonDocument.Parse(
+            await File.ReadAllTextAsync(Path.Combine(_directory, AppSettingsService.OverlayFileName)));
+        Assert.False(overlay.RootElement.TryGetProperty("Plugins", out _));
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_directory)) Directory.Delete(_directory, recursive: true);
