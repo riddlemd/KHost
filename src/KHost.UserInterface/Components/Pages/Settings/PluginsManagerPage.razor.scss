@@ -79,8 +79,15 @@
             width: min(100%, 24rem);
         }
 
-        &__save-btn {
-            width: auto;
+        // A row, not another item in the column: on the column's main axis the button's fixed
+        // height is shrinkable, which is what left it squatter than the inputs above it.
+        // Stretched because the form aligns its children to the start, so this would otherwise
+        // be only as wide as the button and have nothing to push it against.
+        &__actions {
+            align-self: stretch;
+            display: flex;
+            justify-content: flex-end;
+            margin-top: 0.25em;
         }
     }
 }
