@@ -3,14 +3,12 @@
    Structure mirrors Components/ hierarchy.
    ═══════════════════════════════════════════════════════════════════════════ */
 
-/* Reset */
 @use 'shared/reset';
 
 /* Theme files are imported via HTML <link> tags, so they set CSS custom properties */
 
 @use 'bootstrap-icons';
 
-/* ─── Shared / global building blocks ─────────────────────────────────────── */
 @use 'shared/base';
 @use 'shared/buttons';
 @use 'shared/dropdown';
@@ -22,19 +20,12 @@
 @use 'shared/layout';
 @use 'shared/validation';
 
-/* ─── Components/ (root) ──────────────────────────────────────────────────── */
-
-/* ─── Components/Panels/ ──────────────────────────────────────────────────── */
 @use 'components/panels/now-playing-panel';
 
-/* ─── Components/ (root) - UI Controls ────────────────────────────────────── */
 @use 'components/settings-menu';
 @use 'components/venue-settings';
 
-/* ─── Components/Dialogs/ ─────────────────────────────────────────────────── */
 @use 'components/dialogs/dialog';
 
-/* ─── Components/Pages/ ───────────────────────────────────────────────────── */
 @use 'components/pages/setup-page';
 
-/* ─── Components/Pages/Settings/ ──────────────────────────────────────────── */

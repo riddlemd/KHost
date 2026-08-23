@@ -22,7 +22,6 @@ public static class StylisedSpelling
         ['@'] = 'a',
     };
 
-    /// <summary>Replaces letter-like symbols with the letters they stand for.</summary>
     public static string Resolve(string? value)
     {
         if (string.IsNullOrEmpty(value))

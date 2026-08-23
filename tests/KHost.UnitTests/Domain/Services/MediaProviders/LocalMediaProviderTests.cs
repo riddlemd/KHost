@@ -89,8 +89,6 @@ public class LocalMediaProviderTests
 
         var result = await _service.SearchAsync("Queen");
 
-        // The library splits these, so joining them here and re-parsing downstream is work the
-        // console should never have to do.
         Assert.Equal("Bohemian Rhapsody", result[0].Title);
         Assert.Equal("Queen", result[0].Artist);
     }

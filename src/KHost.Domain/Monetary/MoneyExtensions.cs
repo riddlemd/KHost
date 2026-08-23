@@ -1,10 +1,5 @@
 namespace KHost.Domain.Monetary;
 
-/// <summary>
-/// Money is stored as a whole number of cents. SQLite has no decimal type, so a decimal is kept as
-/// text — exact, but lexicographic: "100.00" sorts before "9.00" and SUM() does not work. Cents are
-/// an INTEGER, which sorts and sums correctly, and never introduces the rounding error a REAL would.
-/// </summary>
 public static class MoneyExtensions
 {
     /// <summary>Formats cents for display, e.g. 1250 becomes "$12.50" under a US culture.</summary>

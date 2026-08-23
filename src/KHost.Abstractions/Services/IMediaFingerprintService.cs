@@ -13,6 +13,5 @@ public interface IMediaFingerprintService
     /// <summary>Hashes the size plus the first and last 64 KB.</summary>
     Task<string?> ComputeSampledHashAsync(string filePath, CancellationToken cancellationToken = default);
 
-    /// <summary>Hashes the whole file.</summary>
     Task<string?> ComputeFullHashAsync(string filePath, CancellationToken cancellationToken = default);
 }

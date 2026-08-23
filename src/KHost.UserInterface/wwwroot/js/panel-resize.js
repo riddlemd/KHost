@@ -1,6 +1,3 @@
-// Drag-to-resize for the KHost panel layout.
-// Persists sizes to localStorage. Returns a { dispose } object for cleanup.
-//
 // Nothing here may hold an element captured at startup: the now-playing, search and singer-info
 // panels mount only once a singer is selected, so on a fresh page none of them exist yet. Handles
 // are reached by delegation and panels are looked up per drag.
@@ -35,7 +32,6 @@ export function init() {
     let startSize = 0;
     let saveTimer = null;
 
-    // ── Restore saved sizes ───────────────────────────────────────────────
     // The stored width is the preference; what gets applied is that preference clamped to the
     // window as it is now. Clamping without storing means a session at 720px does not throw away
     // the width chosen at 1440.
@@ -67,7 +63,6 @@ export function init() {
     const observer = new MutationObserver(restoreSearchHeight);
     observer.observe(body, { childList: true, subtree: true });
 
-    // ── Persist (debounced) ───────────────────────────────────────────────
     function scheduleSave() {
         clearTimeout(saveTimer);
         saveTimer = setTimeout(() => {
@@ -79,7 +74,6 @@ export function init() {
         }, 150);
     }
 
-    // ── Handlers ──────────────────────────────────────────────────────────
     function clientCoords(e) {
         const src = e.touches?.[0] ?? e;
         return { x: src.clientX, y: src.clientY };
@@ -157,7 +151,6 @@ export function init() {
         document.body.style.userSelect = '';
     }
 
-    // ── Wire up events ────────────────────────────────────────────────────
     document.addEventListener('mousedown', begin);
     document.addEventListener('mousemove', move);
     document.addEventListener('mouseup', end);

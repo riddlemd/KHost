@@ -1,9 +1,3 @@
-/* ═══════════════════════════════════════════════════════════════════════════
-   Alerts & Shared Panel Utilities
-   Alert styles and common panel patterns
-   ═══════════════════════════════════════════════════════════════════════════ */
-
-/* ─── Alerts ──────────────────────────────────────────────────────────────── */
 .kh-alert {
     &--warning {
         background: var(--kh-warning-subtle);
@@ -13,7 +7,6 @@
     }
 }
 
-/* ─── Shared Panel Utilities ──────────────────────────────────────────────── */
 .kh-panel {
     /* Empty state used by every panel (SingerQueue, SingerMediaQueue, MediaSearch) */
     &--empty {

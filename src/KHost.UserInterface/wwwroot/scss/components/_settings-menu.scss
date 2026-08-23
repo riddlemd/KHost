@@ -1,9 +1,5 @@
-/* ═══════════════════════════════════════════════════════════════════════════
-   Settings Menu
-   The burger in the header. Global rather than co-located with SettingsButton:
-   every element here is rendered by DropdownMenu, so a scoped rule from the
-   button's own stylesheet would reach none of them.
-   ═══════════════════════════════════════════════════════════════════════════ */
+/* Global rather than co-located with SettingsButton: every element here is rendered by
+   DropdownMenu, so a scoped rule from the button's own stylesheet would reach none of them. */
 
 .kh-settings-menu {
     .kh-dropdown__trigger {

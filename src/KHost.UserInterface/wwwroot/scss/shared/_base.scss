@@ -1,7 +1,3 @@
-/* ═══════════════════════════════════════════════════════════════════════════
-   Base Styles
-   ═══════════════════════════════════════════════════════════════════════════ */
-
 *:not(input) {
     -webkit-touch-callout: none; /* iOS Safari */
     -webkit-user-select: none; /* Safari */
@@ -33,7 +29,6 @@ html, body {
     flex-direction: column;
 }
 
-/* ─── Scrollbar ──────────────────────────────────────────────────────────── */
 ::-webkit-scrollbar {
     width: 6px;
     height: 6px;
@@ -57,7 +52,6 @@ html {
     scrollbar-width: thin;
 }
 
-/* ─── Form Controls ──────────────────────────────────────────────────────── */
 .kh-form-control,
 .kh-form-select {
     background-color: var(--kh-bg-input);

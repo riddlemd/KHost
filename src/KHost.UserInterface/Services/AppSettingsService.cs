@@ -41,8 +41,6 @@ internal sealed class AppSettingsService : IAppSettingsService
         PerformanceHistoryPageSize = PageSize("PerformanceHistory", AppSettings.DefaultPerformanceHistoryPageSize),
     };
 
-    // Clamped on read as well as on save: the overlay is a plain JSON file an operator can edit
-    // by hand, and a 0 there would leave every list permanently empty.
     private int PageSize(string key, int fallback = AppSettings.DefaultPageSize) =>
         PaginationClamp(_configuration.GetValue<int?>($"Pagination:{key}") ?? fallback);
 

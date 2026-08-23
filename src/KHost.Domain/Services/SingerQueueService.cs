@@ -268,8 +268,6 @@ public class SingerQueueService : ISingerQueueService
                 FinishedSingerId = finishedSingerId,
                 JoiningSingerId = joiningSingerId,
                 Config = config,
-                // "Tonight" is midnight UTC — a show running past midnight resets, which matches
-                // how the counts are described to the host rather than session length.
                 // Local midnight, expressed as UTC: a UTC midnight falls mid-show for most of the
                 // Americas, and the count would reset while the room is still singing.
                 SongsSungTonight = await _performanceService.CountSungSinceAsync(_userIds, DateTime.Today.ToUniversalTime()),
