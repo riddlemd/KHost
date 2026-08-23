@@ -1,3 +1,4 @@
+using KHost.Abstractions.Models.Plugins;
 using KHost.Plugins.Sdk;
 using KHost.Plugins.Sdk.Models;
 using System.Text.Json;
@@ -5,7 +6,7 @@ using KHost.Domain.Services.Plugins;
 
 namespace KHost.UnitTests.Domain.Services.Plugins;
 
-public class PluginTests
+public class PluginContextTests
 {
     [Fact]
     public void GetSetting_StoredValue_ReturnsIt()
@@ -100,7 +101,7 @@ public class PluginTests
         Assert.Equal(10, plugin.BindSettings<TestSettings>().PageSize);
     }
 
-    private static Plugin CreatePlugin(Dictionary<string, JsonElement>? stored = null, JsonElement? defaultValue = null)
+    private static PluginContext CreatePlugin(Dictionary<string, JsonElement>? stored = null, JsonElement? defaultValue = null)
     {
         var manifest = new PluginManifest
         {
@@ -121,7 +122,7 @@ public class PluginTests
             ],
         };
 
-        return new Plugin(manifest, stored);
+        return new PluginContext(manifest, stored, new DiscoveredPlugin { Directory = "/plugins/test", Manifest = manifest });
     }
 
     private class TestSettings
