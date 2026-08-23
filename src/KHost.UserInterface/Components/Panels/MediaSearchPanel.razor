@@ -38,7 +38,7 @@
                 <Buttons>
                     @foreach (var provider in MediaSearchService?.Providers ?? [])
                     {
-                        <button @onclick="() => RunProviderSearchAsync(provider.SourceName, provider.DisplayName)">@provider.DisplayName</button>
+                        <button @onclick="() => RunProviderSearchAsync(provider.SourceName, provider.DisplayName)">Search @provider.DisplayName</button>
                     }
                 </Buttons>
         </SplitButton>
