@@ -1,6 +1,7 @@
 using KHost.Abstractions.Services.IPC;
 using KHost.IPC.SignalR;
 using Microsoft.AspNetCore.SignalR;
+using Microsoft.Extensions.Options;
 
 namespace KHost.UnitTests.IPC;
 
@@ -23,13 +24,16 @@ public class ScreenServerServiceTests
 
     private IHubCallback Callback => _service;
 
-    private async Task<List<IScreenConnection>> ConnectedScreensAsync()
+    private async Task<List<IScreenConnection>> ConnectedScreensAsync(ScreenServerService? service = null)
     {
         var list = new List<IScreenConnection>();
-        await foreach (var conn in _service.GetConnectedScreensAsync())
+        await foreach (var conn in (service ?? _service).GetConnectedScreensAsync())
             list.Add(conn);
         return list;
     }
+
+    private ScreenServerService ServiceWithOptions(ScreenServerService.ServiceOptions options) =>
+        new(_hubContext, Options.Create(options));
 
     [Fact]
     public async Task GetConnectedScreensAsync_IsEmpty_Initially()
@@ -281,5 +285,63 @@ public class ScreenServerServiceTests
 
         // Rebuilding the command to rewrite the host must not drop what came with it.
         Assert.Contains("12", payload);
+    }
+
+    [Fact]
+    public async Task OnScreenConnected_BeyondScreenCap_IsIgnored_AndDoesNotRaiseScreenConnected()
+    {
+        var service = ServiceWithOptions(new ScreenServerService.ServiceOptions { MaxRegisteredScreens = 2 });
+        IHubCallback callback = service;
+        var raisedCount = 0;
+        service.ScreenConnected += (_, _) => raisedCount++;
+
+        callback.OnScreenConnected("Screen 1", "conn-a", hostAddress: null, ScreenCapabilities.None);
+        callback.OnScreenConnected("Screen 2", "conn-b", hostAddress: null, ScreenCapabilities.None);
+        callback.OnScreenConnected("Screen 3", "conn-c", hostAddress: null, ScreenCapabilities.None);
+
+        var screens = await ConnectedScreensAsync(service);
+        Assert.Equal(2, screens.Count);
+        Assert.DoesNotContain(screens, s => s.ScreenId == "Screen 3");
+        Assert.Equal(2, raisedCount);
+    }
+
+    [Fact]
+    public async Task OnScreenConnected_ReRegistrationOfAnExistingIdAtCap_StillOverwrites()
+    {
+        var service = ServiceWithOptions(new ScreenServerService.ServiceOptions { MaxRegisteredScreens = 1 });
+        IHubCallback callback = service;
+
+        callback.OnScreenConnected("Screen 1", "conn-a", hostAddress: null, ScreenCapabilities.None);
+        callback.OnScreenConnected("Screen 1", "conn-b", hostAddress: null, ScreenCapabilities.None);
+
+        var only = Assert.Single(await ConnectedScreensAsync(service));
+        Assert.Equal("conn-b", only.ConnectionId);
+    }
+
+    [Fact]
+    public void TryAcquireConnectionSlot_RejectsBeyondCap_AndReleaseFreesASlot()
+    {
+        var service = ServiceWithOptions(new ScreenServerService.ServiceOptions { MaxConcurrentConnections = 2 });
+        IHubCallback callback = service;
+
+        Assert.True(callback.TryAcquireConnectionSlot("conn-a"));
+        Assert.True(callback.TryAcquireConnectionSlot("conn-b"));
+        Assert.False(callback.TryAcquireConnectionSlot("conn-c"));
+
+        callback.ReleaseConnectionSlot("conn-a");
+
+        Assert.True(callback.TryAcquireConnectionSlot("conn-c"));
+    }
+
+    [Fact]
+    public void ReleaseConnectionSlot_ForAConnectionNeverAcquired_IsANoOp()
+    {
+        var service = ServiceWithOptions(new ScreenServerService.ServiceOptions { MaxConcurrentConnections = 1 });
+        IHubCallback callback = service;
+
+        callback.ReleaseConnectionSlot("never-acquired");
+
+        Assert.True(callback.TryAcquireConnectionSlot("conn-a"));
+        Assert.False(callback.TryAcquireConnectionSlot("conn-b"));
     }
 }
