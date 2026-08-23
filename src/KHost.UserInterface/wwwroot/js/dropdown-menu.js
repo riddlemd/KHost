@@ -38,7 +38,6 @@ export function positionFlyout(rowEl, panelEl) {
     if (left < Margin)
         left = Math.min(row.right + Gap, window.innerWidth - panel.width - Margin);
 
-    // Aligned with its row, then pulled up by however much of it would fall past the bottom.
     const top = Math.min(row.top, window.innerHeight - panel.height - Margin);
 
     panelEl.style.left = `${Math.max(Margin, left)}px`;

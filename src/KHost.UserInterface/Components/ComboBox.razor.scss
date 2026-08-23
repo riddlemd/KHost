@@ -10,7 +10,7 @@
     position: relative;
     width: 100%;
 
-    // The field is nested now rather than being the flex item itself, so nothing else gives it
+    // The field is nested rather than being the flex item itself, so nothing else gives it
     // the width its container was handed.
     &__input {
         width: 100%;

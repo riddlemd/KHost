@@ -1,9 +1,3 @@
-/* ═══════════════════════════════════════════════════════════════════════════
-   KHost Chocolate Theme
-   Warm brown tones and creamy accents
-   ═══════════════════════════════════════════════════════════════════════════ */
-
-/* ─── Design Tokens ──────────────────────────────────────────────────────── */
 :root {
     --kh-primary: #6B4423;
     --kh-primary-hover: #8B5A3C;
@@ -53,46 +47,38 @@
     --bs-table-hover-bg: var(--kh-primary-subtle);
     --bs-table-striped-bg: var(--kh-primary-dim);
 
-    /* ─── Structural gradients ─────────────────────────────────────────────── */
     --kh-bg-header: linear-gradient(180deg, #3D2817 0%, #17110B 100%);
     --kh-logo-from: #C8956C;
     --kh-logo-to: #E8BF8A;
     --kh-np-gradient-from: #3D2817;
     --kh-card-header-bg: rgba(107, 68, 35, 0.12);
 
-    /* ─── Primary alpha variants ────────────────────────────────────────────── */
     --kh-primary-active: rgba(107, 68, 35, 0.3);
     --kh-primary-glow-strong: rgba(107, 68, 35, 0.7);
     --kh-primary-bright-glow: rgba(200, 149, 108, 0.7);
 
-    /* ─── Badge info colors ─────────────────────────────────────────────────── */
     --kh-badge-info-bg: rgba(200, 149, 108, 0.2);
     --kh-badge-info-text: #E8BF8A;
     --kh-badge-info-border: rgba(200, 149, 108, 0.4);
 
-    /* ─── Overlays & neutral surfaces ───────────────────────────────────────── */
     --kh-scrim: rgba(0, 0, 0, 0.6);
     --kh-track-bg: rgba(255, 255, 255, 0.08);
     --kh-table-stripe: rgba(0, 0, 0, 0.2);
     --kh-badge-pending-bg: rgba(255, 255, 255, 0.04);
     --kh-error-bg: linear-gradient(135deg, #2D0A0A, #1A0A0A);
 
-    /* ─── Danger alpha variants ─────────────────────────────────────────────── */
     --kh-danger-bg-subtle: rgba(239, 68, 68, 0.1);
     --kh-danger-bg-dim: rgba(239, 68, 68, 0.2);
     --kh-danger-border-subtle: rgba(239, 68, 68, 0.35);
     --kh-danger-text-subtle: rgba(239, 68, 68, 0.7);
     --kh-danger-bright: #ff8a80;
 
-    /* ─── Warning alpha variants ────────────────────────────────────────────── */
     --kh-warning-subtle: rgba(245, 158, 11, 0.1);
     --kh-warning-border-subtle: rgba(245, 158, 11, 0.3);
 
-    /* ─── Success alpha variants ────────────────────────────────────────────── */
     --kh-success-subtle: rgba(34, 197, 94, 0.1);
     --kh-success-border-subtle: rgba(34, 197, 94, 0.25);
 
-    /* ─── Singer flag colors ────────────────────────────────────────────────── */
     --kh-flag-tipper: #86EFAC;
     --kh-flag-regular: #FDA4AF;
 }

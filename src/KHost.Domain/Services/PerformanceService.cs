@@ -106,8 +106,8 @@ public class PerformanceService : BaseRepositoryService<Performance, IPerformanc
         if (mostRecent == default)
             return null;
 
-        // CreatedDate is stored UTC, so this has to be too: subtracting a local clock from it
-        // shifts every gap by the host's offset, and the window silently moves with the timezone.
+        // A local clock here shifts every gap by the host's offset, silently moving the
+        // duplicate-song window with the timezone.
         var elapsed = DateTime.UtcNow - mostRecent;
 
         return elapsed <= TimeSpan.FromHours(windowHours)

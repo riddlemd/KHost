@@ -40,7 +40,6 @@ try
         }
         catch
         {
-            // Do nothing...
         }
 
         await InvokeAsync(StateHasChanged);
@@ -63,7 +62,6 @@ try
         }
         catch
         {
-            // Do nothing...
         }
     }
 }

@@ -19,13 +19,11 @@ namespace KHost.Domain
     {
         public static IServiceCollection AddDomain(this IServiceCollection serviceCollection)
         {
-            // Register dependent sub-libraries
             serviceCollection.AddLrcLib(options =>
             {
                 options.UserAgent = "KHost/2.0 (+https://github.com/riddlemd/KHost)";
             });
 
-            // Configure KHost Options
             serviceCollection.AddOptions<MediaFileParsingService.ServiceOptions>()
                 .BindConfiguration(MediaFileParsingService.ServiceOptions.SectionName);
 
@@ -38,7 +36,6 @@ namespace KHost.Domain
             serviceCollection.AddOptions<HlsMediaStreamService.ServiceOptions>()
                 .BindConfiguration(HlsMediaStreamService.ServiceOptions.SectionName);
 
-            // Configure KHost Services
             serviceCollection.AddSingleton(TimeProvider.System);
             serviceCollection.AddSingleton<IFlashService, FlashService>();
         serviceCollection.AddSingleton<IMediaFileParsingService, MediaFileParsingService>();
@@ -61,11 +58,9 @@ namespace KHost.Domain
             serviceCollection.AddSingleton<IUserGroupsService, UserGroupsService>();
             serviceCollection.AddSingleton<ITipsService, TipsService>();
 
-            // Screen Providers
             serviceCollection.AddSingleton<IScreenProvider, LocalScreenProvider>();
             serviceCollection.AddSingleton<IScreenKeyStore, FileScreenKeyStore>();
 
-            // Media Providers
             serviceCollection.AddSingleton<IMediaProvider, LocalMediaProvider>();
 
             // Queue Rotation (built-in modes register before plugins so their ids win)

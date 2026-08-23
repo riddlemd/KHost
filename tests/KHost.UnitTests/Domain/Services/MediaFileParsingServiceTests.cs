@@ -243,7 +243,6 @@ public class MediaFileParsingServiceTests
             PrefixStripPatterns = ["(unclosed", @"^\[.*?\]\s*"]
         });
 
-        // The valid pattern still works.
         var (title, artist) = svc.GetTitleAndArtistFromFilename(@"[SBI-1234] Bruno Mars - Finesse.mp4");
 
         Assert.Equal("Finesse", title);

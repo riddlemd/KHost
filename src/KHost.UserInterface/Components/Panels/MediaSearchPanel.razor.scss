@@ -1,8 +1,3 @@
-/* ═══════════════════════════════════════════════════════════════════════════
-   Media Search Panel
-   Search input, results table, and media selection
-   ═══════════════════════════════════════════════════════════════════════════ */
-
 .kh-media-search-panel {
     // Keyed to the panel: the splitter sets its width independently of the window's.
     container: kh-media-search / inline-size;
@@ -80,7 +75,6 @@
     }
 }
 
-/* ─── Searching ───────────────────────────────────────────────────────────── */
 // Where the results will land, not on the button: a yt-dlp search is tens of seconds, and a
 // greyed-out button says the console is busy without saying what for or offering a way out.
 .kh-media-search-panel__searching {
@@ -101,7 +95,6 @@
     color: var(--kh-text-muted);
 }
 
-/* ─── Narrow panel ────────────────────────────────────────────────────────── */
 @container kh-media-search (max-width: 560px) {
     // The icon and the button's own title carry the action; the word is what pushes the results
     // table wider than the panel. ::deep because the label sits in a fragment handed to

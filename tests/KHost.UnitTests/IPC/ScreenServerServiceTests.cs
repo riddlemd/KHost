@@ -25,8 +25,6 @@ public class ScreenServerServiceTests
 
     private IHubCallback Callback => _service;
 
-    // --- signed-handshake helpers ------------------------------------------------
-
     private byte[] KeyFor(string screenId)
     {
         if (_keys.GetKey(screenId) is not { } key)
@@ -81,8 +79,6 @@ public class ScreenServerServiceTests
     private static string? InnerPayload(string? envelopeJson)
         => envelopeJson is null ? null : SignedEnvelope.TryParse(envelopeJson)?.Payload;
 
-    // --- registration & tracking -------------------------------------------------
-
     [Fact]
     public async Task GetConnectedScreensAsync_IsEmpty_Initially()
         => Assert.Empty(await ConnectedScreensAsync());
@@ -130,8 +126,6 @@ public class ScreenServerServiceTests
         var only = Assert.Single(await ConnectedScreensAsync());
         Assert.Equal("conn-b", only.ConnectionId);
     }
-
-    // --- authentication rejections ----------------------------------------------
 
     [Fact]
     public async Task Register_WithNoProvisionedKey_IsRefused()
@@ -181,8 +175,6 @@ public class ScreenServerServiceTests
         Register("conn-a", "Screen 1");
         Assert.True(Callback.IsAuthenticated("conn-a"));
     }
-
-    // --- state, signed and replay-guarded ---------------------------------------
 
     [Fact]
     public void TryAcceptState_FromAnUnauthenticatedConnection_IsRefused()
@@ -235,8 +227,6 @@ public class ScreenServerServiceTests
         Assert.False(SendState("conn-a", "Screen 1", Playing(), seq: 2, signWith: RandomNumberGenerator.GetBytes(32)));
     }
 
-    // --- disconnect --------------------------------------------------------------
-
     [Fact]
     public async Task OnScreenDisconnected_RemovesTheMatchingConnection()
     {
@@ -283,8 +273,6 @@ public class ScreenServerServiceTests
 
         Assert.False(Callback.IsAuthenticated("conn-a"));
     }
-
-    // --- sending commands, signed -----------------------------------------------
 
     [Fact]
     public async Task SendCommandAsync_SendsASignedCommandToTheMatchingConnection()
@@ -399,8 +387,6 @@ public class ScreenServerServiceTests
         Assert.Equal(TimeSpan.FromSeconds(30), Assert.IsType<SeekCommand>(back).Position);
     }
 
-    // --- caps (carried over from the throttle work, now over the signed path) ----
-
     [Fact]
     public async Task Register_BeyondScreenCap_IsRefused_AndDoesNotRaiseScreenConnected()
     {
@@ -452,7 +438,6 @@ public class ScreenServerServiceTests
         Assert.True(callback.TryAcquireConnectionSlot("conn-a"));
     }
 
-    // Registers on an alternate service instance (used by the cap tests), with its own session/key.
     private bool RegisterOn(ScreenServerService service, string connectionId, string screenId)
     {
         IHubCallback callback = service;

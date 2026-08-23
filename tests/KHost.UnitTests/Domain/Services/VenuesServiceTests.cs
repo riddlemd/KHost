@@ -71,7 +71,6 @@ public class VenuesServiceTests : IDisposable
                 return Task.FromResult(result);
             });
 
-        // SearchAsync with generic options parameter
         _repository.SearchAsync<object>(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<int>(), Arg.Any<object>())
             .Returns(call =>
             {
@@ -96,7 +95,6 @@ public class VenuesServiceTests : IDisposable
                 return Task.FromResult(result);
             });
 
-        // SearchAsync without options parameter
         _repository.SearchAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<int>())
             .Returns(call =>
             {

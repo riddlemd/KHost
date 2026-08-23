@@ -1,8 +1,3 @@
-/* ═══════════════════════════════════════════════════════════════════════════
-   Now Playing Panel
-   Playback controls, progress bar, and now playing display
-   ═══════════════════════════════════════════════════════════════════════════ */
-
 .kh-now-playing-panel {
     height: 20vh;
     max-height: 20vh;
@@ -97,7 +92,6 @@
         gap: 14px;
     }
 
-    /* ─── Play & Stop Buttons ─────────────────────────────────────────────── */
     &__btn--play,
     &__btn--stop {
         border-radius: 50%;
@@ -156,7 +150,6 @@
         }
     }
 
-    /* ─── Progress Bar ────────────────────────────────────────────────────── */
     // Anchored to the bottom rather than a fixed top offset: the section is absolutely
     // positioned, so the body's padding does not apply to it.
     &__progress-section {
@@ -265,7 +258,6 @@
         margin-top: 4px;
     }
 
-    /* ─── Playing Bars Indicator ──────────────────────────────────────────── */
     &__bars {
         display: flex;
         align-items: flex-end;
@@ -309,7 +301,6 @@
     margin-left: auto !important;
 }
 
-/* ─── Animations ──────────────────────────────────────────────────────────── */
 @keyframes np-bar-bounce {
     from {
         transform: scaleY(0.3);

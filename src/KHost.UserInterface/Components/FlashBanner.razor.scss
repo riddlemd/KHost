@@ -1,9 +1,4 @@
-/* ═══════════════════════════════════════════════════════════════════════════
-   Flash Banner
-   Confirmation across the top of the console. Absolute rather than in the flow:
-   the panels below must not jump down and back as it comes and goes.
-   ═══════════════════════════════════════════════════════════════════════════ */
-
+/* Absolute rather than in the flow: the panels below must not jump down and back as it comes and goes. */
 .kh-flash {
     position: absolute;
     top: 0.5em;

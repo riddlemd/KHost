@@ -6,14 +6,12 @@
 <PageTitle>KHost &mdash; Karaoke Queue</PageTitle>
 
 <div class="kh-app__body">
-    <!-- Left column: Singer Queue -->
     <div class="kh-app__col--queue" tabindex="0">
         <SingerQueuePanel />
     </div>
 
     <VerticalResizeHandle />
 
-    <!-- Right column -->
     <div class="kh-app__col--detail">
         @if (QueueService?.SelectedUser is null)
         {

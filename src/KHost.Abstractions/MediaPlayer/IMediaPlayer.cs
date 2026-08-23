@@ -1,7 +1,6 @@
 namespace KHost.Abstractions.MediaPlayer;
 
 /// <summary>
-/// Controls a media player
 /// Platform-neutral — no dependency on System.Drawing or any OS-specific graphics API.
 /// </summary>
 public interface IMediaPlayer : IDisposable
@@ -34,10 +33,9 @@ public interface IMediaPlayer : IDisposable
     /// </summary>
     event EventHandler<FrameData>? FrameAvailable;
 
-    /// <summary>Raised when playback reaches the end of the file.</summary>
     event EventHandler? PlaybackEnded;
 
-    /// <summary>Raised when a playback error occurs. The string contains the error message.</summary>
+    /// <summary>The string carries the error message.</summary>
     event EventHandler<string>? ErrorOccurred;
 
     /// <summary>
