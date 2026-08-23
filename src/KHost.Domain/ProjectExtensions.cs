@@ -63,6 +63,7 @@ namespace KHost.Domain
 
             // Screen Providers
             serviceCollection.AddSingleton<IScreenProvider, LocalScreenProvider>();
+            serviceCollection.AddSingleton<IScreenKeyStore, FileScreenKeyStore>();
 
             // Media Providers
             serviceCollection.AddSingleton<IMediaProvider, LocalMediaProvider>();

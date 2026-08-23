@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using KHost.Abstractions.Services.IPC;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Logging;
@@ -19,10 +20,12 @@ internal sealed class ScreenServerService : IScreenServer, IHubCallback
     }
 
     private readonly IHubContext<ScreenHub> _hubContext;
+    private readonly IScreenKeyStore _keyStore;
     private readonly ServiceOptions _options;
     private readonly ILogger<ScreenServerService>? _logger;
     private readonly Dictionary<string, ScreenConnection> _connections = [];
     private readonly HashSet<string> _liveConnectionIds = [];
+    private readonly Dictionary<string, SessionAuth> _sessions = [];
     private readonly SemaphoreSlim _lock = new(1, 1);
 
     public event EventHandler<ScreenConnectionEventArgs>? ScreenConnected;
@@ -31,10 +34,12 @@ internal sealed class ScreenServerService : IScreenServer, IHubCallback
 
     public ScreenServerService(
         IHubContext<ScreenHub> hubContext,
+        IScreenKeyStore keyStore,
         IOptions<ServiceOptions>? options = null,
         ILogger<ScreenServerService>? logger = null)
     {
         _hubContext = hubContext;
+        _keyStore = keyStore;
         _options = options?.Value ?? new ServiceOptions();
         _logger = logger;
     }
@@ -57,25 +62,97 @@ internal sealed class ScreenServerService : IScreenServer, IHubCallback
         finally { _lock.Release(); }
     }
 
-    void IHubCallback.OnScreenConnected(string screenId, string connectionId, string? hostAddress, ScreenCapabilities capabilities)
+    string IHubCallback.BeginSession(string connectionId)
     {
+        var nonce = Convert.ToBase64String(RandomNumberGenerator.GetBytes(16));
+
+        _lock.Wait();
+        try { _sessions[connectionId] = new SessionAuth { Nonce = nonce }; }
+        finally { _lock.Release(); }
+
+        return nonce;
+    }
+
+    bool IHubCallback.TryRegisterScreen(string connectionId, string? hostAddress, string envelopeJson)
+    {
+        var envelope = SignedEnvelope.TryParse(envelopeJson);
+        if (envelope is null) return false;
+
+        var key = _keyStore.GetKey(envelope.ScreenId);
+        if (key is null)
+        {
+            _logger?.LogWarning("Refused registration for '{ScreenId}': no key is provisioned for it", envelope.ScreenId);
+            return false;
+        }
+
         _lock.Wait();
         try
         {
+            if (!_sessions.TryGetValue(connectionId, out var session)) return false;
+
+            if (!ScreenMessageAuth.Verify(key, session.Nonce, envelope.Seq, envelope.Payload, envelope.Mac)
+                || envelope.Seq <= session.ExpectedInboundSeq)
+                return false;
+
+            var payload = RegisterPayload.TryParse(envelope.Payload);
+            if (payload is null) return false;
+
             // A re-registration under an existing id overwrites in place, so it does not count against the cap.
-            if (!_connections.ContainsKey(screenId) && _connections.Count >= _options.MaxRegisteredScreens) return;
+            if (!_connections.ContainsKey(envelope.ScreenId) && _connections.Count >= _options.MaxRegisteredScreens)
+                return false;
+
+            session.Key = key;
+            session.ScreenId = envelope.ScreenId;
+            session.ExpectedInboundSeq = envelope.Seq;
 
             var conn = new ScreenConnection
             {
-                ScreenId = screenId,
+                ScreenId = envelope.ScreenId,
                 ConnectionId = connectionId,
                 ConnectedAt = DateTime.UtcNow,
                 HostAddress = hostAddress,
-                Capabilities = capabilities,
+                Capabilities = payload.ToCapabilities(),
             };
-            _connections[screenId] = conn;
+            _connections[envelope.ScreenId] = conn;
             ScreenConnected?.Invoke(this, new ScreenConnectionEventArgs { Connection = conn });
+            return true;
         }
+        finally { _lock.Release(); }
+    }
+
+    bool IHubCallback.TryAcceptState(string connectionId, string envelopeJson)
+    {
+        var envelope = SignedEnvelope.TryParse(envelopeJson);
+        if (envelope is null) return false;
+
+        IScreenState? state;
+
+        _lock.Wait();
+        try
+        {
+            if (!_sessions.TryGetValue(connectionId, out var session) || session.Key is null) return false;
+            if (envelope.ScreenId != session.ScreenId) return false;
+
+            if (!ScreenMessageAuth.Verify(session.Key, session.Nonce, envelope.Seq, envelope.Payload, envelope.Mac)
+                || envelope.Seq <= session.ExpectedInboundSeq)
+                return false;
+
+            state = ScreenIpcSerializer.DeserializeState(envelope.Payload);
+            if (state is null) return false;
+
+            session.ExpectedInboundSeq = envelope.Seq;
+        }
+        finally { _lock.Release(); }
+
+        // Raised outside the lock: a handler that enumerates connected screens must not deadlock on it.
+        StateReceived?.Invoke(this, new ScreenStateReceivedEventArgs { ScreenId = envelope.ScreenId, State = state });
+        return true;
+    }
+
+    bool IHubCallback.IsAuthenticated(string connectionId)
+    {
+        _lock.Wait();
+        try { return _sessions.TryGetValue(connectionId, out var session) && session.Key is not null; }
         finally { _lock.Release(); }
     }
 
@@ -84,6 +161,8 @@ internal sealed class ScreenServerService : IScreenServer, IHubCallback
         _lock.Wait();
         try
         {
+            _sessions.Remove(connectionId);
+
             var conn = _connections.Values.FirstOrDefault(c => c.ConnectionId == connectionId);
             if (conn is null) return;
             _connections.Remove(conn.ScreenId);
@@ -91,9 +170,6 @@ internal sealed class ScreenServerService : IScreenServer, IHubCallback
         }
         finally { _lock.Release(); }
     }
-
-    void IHubCallback.OnStateReceived(string screenId, IScreenState state) =>
-        StateReceived?.Invoke(this, new ScreenStateReceivedEventArgs { ScreenId = screenId, State = state });
 
     public async IAsyncEnumerable<IScreenConnection> GetConnectedScreensAsync()
     {
@@ -120,15 +196,9 @@ internal sealed class ScreenServerService : IScreenServer, IHubCallback
 
     public async Task BroadcastCommandAsync(IScreenCommand command)
     {
-        // A stream URL differs per screen, so those fan out instead of going to Clients.All. The
-        // cost is that a client which has not registered yet is skipped — it has no screen id, so
-        // the host could not have addressed it anyway.
-        if (command is not LoadMediaCommand { StreamUrl.Length: > 0 })
-        {
-            await _hubContext.Clients.All.SendAsync("ReceiveCommand", ScreenIpcSerializer.SerializeCommand(command));
-            return;
-        }
-
+        // Every command is signed with the addressed screen's own key, so there is no Clients.All
+        // shortcut any more — a single message cannot carry a MAC every screen would accept. Each
+        // gets its own, which is also where the per-screen stream URL was already handled.
         List<ScreenConnection> snapshot;
         await _lock.WaitAsync();
         try { snapshot = [.. _connections.Values]; }
@@ -137,9 +207,32 @@ internal sealed class ScreenServerService : IScreenServer, IHubCallback
         await Task.WhenAll(snapshot.Select(conn => SendToAsync(conn, command)));
     }
 
-    private Task SendToAsync(ScreenConnection connection, IScreenCommand command)
-        => _hubContext.Clients.Client(connection.ConnectionId)
-            .SendAsync("ReceiveCommand", ScreenIpcSerializer.SerializeCommand(Reachable(command, connection)));
+    private async Task SendToAsync(ScreenConnection connection, IScreenCommand command)
+    {
+        var payload = ScreenIpcSerializer.SerializeCommand(Reachable(command, connection));
+
+        string nonce;
+        byte[] key;
+        long seq;
+
+        await _lock.WaitAsync();
+        try
+        {
+            // Only a screen that finished the handshake has a key; one still registering is skipped
+            // rather than sent an unsigned command it would reject anyway.
+            if (!_sessions.TryGetValue(connection.ConnectionId, out var session) || session.Key is null) return;
+
+            nonce = session.Nonce;
+            key = session.Key;
+            seq = ++session.OutboundSeq;
+        }
+        finally { _lock.Release(); }
+
+        var envelope = new SignedEnvelope(
+            connection.ScreenId, seq, payload, ScreenMessageAuth.Sign(key, nonce, seq, payload));
+
+        await _hubContext.Clients.Client(connection.ConnectionId).SendAsync("ReceiveCommand", envelope.ToJson());
+    }
 
     private IScreenCommand Reachable(IScreenCommand command, ScreenConnection connection)
     {
@@ -157,6 +250,15 @@ internal sealed class ScreenServerService : IScreenServer, IHubCallback
             StreamUrl = url,
             StreamStartOffset = load.StreamStartOffset,
         };
+    }
+
+    private sealed class SessionAuth
+    {
+        public required string Nonce { get; init; }
+        public byte[]? Key { get; set; }
+        public string? ScreenId { get; set; }
+        public long ExpectedInboundSeq { get; set; }
+        public long OutboundSeq { get; set; }
     }
 
     private sealed class ScreenConnection : IScreenConnection

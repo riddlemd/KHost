@@ -54,18 +54,18 @@ public class LocalScreenProviderTests
     [Fact]
     public void BuildArguments_KeepsScreenIdWithSpacesAsOneArgument()
     {
-        var args = LocalScreenProvider.BuildArguments("http://localhost:5251/ipc/screen", "Screen 1");
+        var args = LocalScreenProvider.BuildArguments("http://localhost:5251/ipc/screen", "Screen 1", "/keys/s.key");
 
         Assert.Equal(
-            ["--server-uri", "http://localhost:5251/ipc/screen", "--screen-id", "Screen 1"],
+            ["--server-uri", "http://localhost:5251/ipc/screen", "--screen-id", "Screen 1", "--key-file", "/keys/s.key"],
             args);
     }
 
     [Fact]
     public void BuildArguments_DistinguishesScreenIdsThatDifferOnlyAfterASpace()
     {
-        var first = LocalScreenProvider.BuildArguments("http://host/ipc", "Screen 1");
-        var second = LocalScreenProvider.BuildArguments("http://host/ipc", "Screen 2");
+        var first = LocalScreenProvider.BuildArguments("http://host/ipc", "Screen 1", "/keys/a.key");
+        var second = LocalScreenProvider.BuildArguments("http://host/ipc", "Screen 2", "/keys/b.key");
 
         // Concatenating these would yield the same parsed --screen-id ("Screen") for both,
         // so two screens would collide on one id.
@@ -75,11 +75,12 @@ public class LocalScreenProviderTests
     [Fact]
     public void BuildArguments_PairsEachFlagWithItsValue()
     {
-        var args = LocalScreenProvider.BuildArguments("http://host/ipc", "Screen 1");
+        var args = LocalScreenProvider.BuildArguments("http://host/ipc", "Screen 1", "/keys/s.key");
 
-        Assert.Equal(4, args.Length);
+        Assert.Equal(6, args.Length);
         Assert.Equal("http://host/ipc", args[Array.IndexOf(args, "--server-uri") + 1]);
         Assert.Equal("Screen 1", args[Array.IndexOf(args, "--screen-id") + 1]);
+        Assert.Equal("/keys/s.key", args[Array.IndexOf(args, "--key-file") + 1]);
     }
 
     [Fact]
@@ -189,7 +190,16 @@ public class LocalScreenProviderTests
     private static LocalScreenProvider Provider()
         => new(
             Options.Create(new LocalScreenProvider.ServiceOptions()),
+            new NoOpKeyStore(),
             NullLogger<LocalScreenProvider>.Instance);
+
+    // These tests exercise process lifecycle, not keys — a store that does nothing keeps them focused.
+    private sealed class NoOpKeyStore : KHost.Abstractions.Services.IPC.IScreenKeyStore
+    {
+        public string Provision(string screenId) => $"/keys/{screenId}.key";
+        public byte[]? GetKey(string screenId) => null;
+        public void Revoke(string screenId) { }
+    }
 
     // A stand-in for a screen: any child process that stays up until it is killed. The command
     // differs per OS so this runs everywhere rather than being skipped off Unix.

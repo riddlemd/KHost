@@ -14,6 +14,7 @@ namespace KHost.UnitTests.IPC;
 public class ScreenDisconnectPausesPlaybackTests : IDisposable
 {
     private readonly ScreenServerService _screenServer;
+    private readonly FakeKeyStore _keys = new();
     private readonly PlaybackService _playbackService;
 
     public ScreenDisconnectPausesPlaybackTests()
@@ -24,7 +25,7 @@ public class ScreenDisconnectPausesPlaybackTests : IDisposable
         clients.All.Returns(Substitute.For<IClientProxy>());
         hubContext.Clients.Returns(clients);
 
-        _screenServer = new ScreenServerService(hubContext);
+        _screenServer = new ScreenServerService(hubContext, _keys);
 
         var venues = Substitute.For<IVenuesService>();
         venues.ReadSelectedVenueAsync().Returns(new Venue
@@ -65,6 +66,29 @@ public class ScreenDisconnectPausesPlaybackTests : IDisposable
 
     private IHubCallback Callback => _screenServer;
 
+    // A screen only exists once it has completed the signed handshake, so the tests register the
+    // way the hub does: provision a key, take the session nonce, sign the registration.
+    private void Register(string connectionId, string screenId)
+    {
+        var key = System.Security.Cryptography.RandomNumberGenerator.GetBytes(32);
+        _keys.Set(screenId, key);
+
+        var nonce = Callback.BeginSession(connectionId);
+        var payload = RegisterPayload.From(ScreenCapabilities.None).ToJson();
+        var mac = ScreenMessageAuth.Sign(key, nonce, 1, payload);
+
+        Callback.TryRegisterScreen(connectionId, null, new SignedEnvelope(screenId, 1, payload, mac).ToJson());
+    }
+
+    private sealed class FakeKeyStore : IScreenKeyStore
+    {
+        private readonly Dictionary<string, byte[]> _keys = [];
+        public void Set(string screenId, byte[] key) => _keys[screenId] = key;
+        public string Provision(string screenId) => $"/keys/{screenId}.key";
+        public byte[]? GetKey(string screenId) => _keys.GetValueOrDefault(screenId);
+        public void Revoke(string screenId) => _keys.Remove(screenId);
+    }
+
     private async Task StartPlayingAsync()
     {
         var performance = new Performance { Id = Guid.NewGuid(), SingerId = Guid.NewGuid(), MediaId = Guid.NewGuid() };
@@ -98,7 +122,7 @@ public class ScreenDisconnectPausesPlaybackTests : IDisposable
     [Fact]
     public async Task Disconnect_ReturnsPromptly_AndDoesNotDeadlockTheHubThread()
     {
-        Callback.OnScreenConnected("Screen 1", "conn-1", hostAddress: null, ScreenCapabilities.None);
+        Register("conn-1", "Screen 1");
         await StartPlayingAsync();
 
         // Runs on the hub's calling thread while the connection lock is held.
@@ -114,7 +138,7 @@ public class ScreenDisconnectPausesPlaybackTests : IDisposable
     [Fact]
     public async Task LastScreenDisconnecting_PausesPlayback()
     {
-        Callback.OnScreenConnected("Screen 1", "conn-1", hostAddress: null, ScreenCapabilities.None);
+        Register("conn-1", "Screen 1");
         await StartPlayingAsync();
 
         Callback.OnScreenDisconnected("conn-1");
@@ -125,8 +149,8 @@ public class ScreenDisconnectPausesPlaybackTests : IDisposable
     [Fact]
     public async Task OneOfTwoScreensDisconnecting_KeepsPlaying()
     {
-        Callback.OnScreenConnected("Screen 1", "conn-1", hostAddress: null, ScreenCapabilities.None);
-        Callback.OnScreenConnected("Screen 2", "conn-2", hostAddress: null, ScreenCapabilities.None);
+        Register("conn-1", "Screen 1");
+        Register("conn-2", "Screen 2");
         await StartPlayingAsync();
 
         Callback.OnScreenDisconnected("conn-1");
@@ -153,7 +177,7 @@ public class ScreenDisconnectPausesPlaybackTests : IDisposable
 
         Assert.Equal(PlaybackState.Stopped, _playbackService.State);
 
-        Callback.OnScreenConnected("Screen 1", "conn-1", hostAddress: null, ScreenCapabilities.None);
+        Register("conn-1", "Screen 1");
         await _playbackService.PlayAsync();
 
         Assert.Equal(PlaybackState.Playing, _playbackService.State);

@@ -1,4 +1,3 @@
-using KHost.Abstractions.Services.IPC;
 using Microsoft.AspNetCore.SignalR;
 
 namespace KHost.IPC.SignalR;
@@ -19,6 +18,11 @@ internal sealed class ScreenHub : Hub
             return;
         }
 
+        // The nonce every message on this connection must be signed against. Sent before the screen
+        // registers, so the screen can prove it holds the key without the key ever crossing the wire.
+        var nonce = _callback.BeginSession(Context.ConnectionId);
+        await Clients.Caller.SendAsync("Session", nonce);
+
         await base.OnConnectedAsync();
     }
 
@@ -29,30 +33,41 @@ internal sealed class ScreenHub : Hub
         return base.OnDisconnectedAsync(exception);
     }
 
-    public Task RegisterScreenAsync(string screenId, bool supportsSync, bool supportsAudio, bool supportsVideo)
+    public Task RegisterScreenAsync(string envelopeJson)
     {
         // The address this screen connected to, not one we pick: a host with several interfaces
         // must hand each screen the one it already routed to.
         var hostAddress = Context.GetHttpContext()?.Connection.LocalIpAddress?.ToString();
 
-        _callback.OnScreenConnected(screenId, Context.ConnectionId, hostAddress, new ScreenCapabilities
-        {
-            SupportsSync = supportsSync,
-            SupportsAudio = supportsAudio,
-            SupportsVideo = supportsVideo,
-        });
+        // A registration that does not verify is a stranger or a forgery — drop the connection
+        // rather than leave it half-open.
+        if (!_callback.TryRegisterScreen(Context.ConnectionId, hostAddress, envelopeJson))
+            Context.Abort();
 
         return Task.CompletedTask;
     }
 
     /// <summary>Does nothing else: any work lands inside the round trip being measured.</summary>
-    public long EchoClock() => DateTime.UtcNow.Ticks;
-
-    public Task ReceiveStateAsync(string screenId, string stateJson)
+    public long EchoClock()
     {
-        var state = ScreenIpcSerializer.DeserializeState(stateJson);
-        if (state is not null)
-            _callback.OnStateReceived(screenId, state);
+        // Only a registered screen has any use for the clock, and gating it keeps an unauthenticated
+        // peer from using the hub as a timing oracle before it has proven anything.
+        if (!_callback.IsAuthenticated(Context.ConnectionId))
+        {
+            Context.Abort();
+            return 0;
+        }
+
+        return DateTime.UtcNow.Ticks;
+    }
+
+    public Task ReceiveStateAsync(string envelopeJson)
+    {
+        // A state report drives the host's playback clock, so a forged one is exactly the spoof this
+        // guards against: verify or drop the connection.
+        if (!_callback.TryAcceptState(Context.ConnectionId, envelopeJson))
+            Context.Abort();
+
         return Task.CompletedTask;
     }
 }

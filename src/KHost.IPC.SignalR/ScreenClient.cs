@@ -1,5 +1,4 @@
 using KHost.Abstractions.Services.IPC;
-using Microsoft.AspNetCore.SignalR;
 using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.Extensions.Logging;
 
@@ -7,10 +6,20 @@ namespace KHost.IPC.SignalR;
 
 internal sealed class ScreenClient : IScreenClient, IAsyncDisposable
 {
+    private static readonly TimeSpan SessionTimeout = TimeSpan.FromSeconds(10);
+
     private HubConnection? _connection;
     private ScreenClientState _state = ScreenClientState.Disconnected;
     private readonly SemaphoreSlim _stateLock = new(1, 1);
     private readonly ILogger<ScreenClient> _logger;
+
+    private byte[]? _key;
+    private ScreenCapabilities _capabilities = ScreenCapabilities.None;
+    private string? _nonce;
+    private long _outboundSeq;
+    private long _inboundSeq;
+    private bool _everRegistered;
+    private TaskCompletionSource _sessionReady = NewSessionSignal();
 
     public event EventHandler<ScreenCommandReceivedEventArgs>? CommandReceived;
     public event EventHandler<ScreenClientStateChangedEventArgs>? StateChanged;
@@ -49,8 +58,13 @@ internal sealed class ScreenClient : IScreenClient, IAsyncDisposable
         string serverUri,
         string screenId,
         ScreenCapabilities? capabilities = null,
+        byte[]? authKey = null,
         CancellationToken cancellationToken = default)
     {
+        // The key is what proves this screen is one the host provisioned; without it the hub refuses
+        // the connection, so there is nothing to attempt.
+        _key = authKey ?? throw new InvalidOperationException("A screen auth key is required to connect.");
+
         await _stateLock.WaitAsync(cancellationToken);
         try
         {
@@ -60,6 +74,9 @@ internal sealed class ScreenClient : IScreenClient, IAsyncDisposable
             }
 
             ScreenId = screenId;
+            _capabilities = capabilities ?? ScreenCapabilities.None;
+            _everRegistered = false;
+            _sessionReady = NewSessionSignal();
             State = ScreenClientState.Connecting;
 
             _logger.LogInformation("Connecting to {Url}", serverUri);
@@ -69,14 +86,24 @@ internal sealed class ScreenClient : IScreenClient, IAsyncDisposable
                 .WithAutomaticReconnect()
                 .Build();
 
-            _connection.On<string>("ReceiveCommand", commandJson =>
+            // The nonce arrives before anything is registered. Resetting the sequences here is what
+            // makes a reconnect a fresh session: the host issues a new nonce on the new connection,
+            // and a re-register re-establishes the screen (which the old client never did).
+            _connection.On<string>("Session", nonce =>
             {
-                var command = ScreenIpcSerializer.DeserializeCommand(commandJson);
-                if (command is not null)
-                    CommandReceived?.Invoke(this, new ScreenCommandReceivedEventArgs { Command = command });
+                _nonce = nonce;
+                Interlocked.Exchange(ref _outboundSeq, 0);
+                _inboundSeq = 0;
+
+                if (_everRegistered)
+                    _ = SendRegisterAsync();
+                else
+                    _sessionReady.TrySetResult();
             });
 
-            _connection.Closed += async (error) =>
+            _connection.On<string>("ReceiveCommand", OnCommandEnvelope);
+
+            _connection.Closed += (error) =>
             {
                 if (error != null)
                 {
@@ -88,6 +115,8 @@ internal sealed class ScreenClient : IScreenClient, IAsyncDisposable
                     _logger.LogInformation("SignalR connection closed");
                     State = ScreenClientState.Disconnected;
                 }
+
+                return Task.CompletedTask;
             };
 
             _connection.Reconnecting += (error) =>
@@ -106,14 +135,12 @@ internal sealed class ScreenClient : IScreenClient, IAsyncDisposable
 
             await _connection.StartAsync(cancellationToken);
 
-            var declared = capabilities ?? ScreenCapabilities.None;
-            _logger.LogInformation(
-                "RegisterScreen sent for {ScreenId} (sync={SupportsSync} audio={SupportsAudio} video={SupportsVideo})",
-                screenId, declared.SupportsSync, declared.SupportsAudio, declared.SupportsVideo);
+            // The host sends the nonce right after the connection opens; the handshake cannot start
+            // until it arrives.
+            await _sessionReady.Task.WaitAsync(SessionTimeout, cancellationToken);
 
-            await _connection.InvokeAsync(
-                nameof(ScreenHub.RegisterScreenAsync),
-                screenId, declared.SupportsSync, declared.SupportsAudio, declared.SupportsVideo, cancellationToken);
+            await SendRegisterAsync();
+            _everRegistered = true;
 
             State = ScreenClientState.Connected;
         }
@@ -187,8 +214,56 @@ internal sealed class ScreenClient : IScreenClient, IAsyncDisposable
             throw new InvalidOperationException("Not connected to server");
         }
 
-        await _connection.InvokeAsync(nameof(ScreenHub.ReceiveStateAsync), ScreenId, ScreenIpcSerializer.SerializeState(state));
+        await _connection.InvokeAsync(
+            nameof(ScreenHub.ReceiveStateAsync), Sign(ScreenIpcSerializer.SerializeState(state)).ToJson());
     }
+
+    private async Task SendRegisterAsync()
+    {
+        if (_connection is null) return;
+
+        _logger.LogInformation(
+            "RegisterScreen sent for {ScreenId} (sync={SupportsSync} audio={SupportsAudio} video={SupportsVideo})",
+            ScreenId, _capabilities.SupportsSync, _capabilities.SupportsAudio, _capabilities.SupportsVideo);
+
+        await _connection.InvokeAsync(
+            nameof(ScreenHub.RegisterScreenAsync), Sign(RegisterPayload.From(_capabilities).ToJson()).ToJson());
+    }
+
+    private void OnCommandEnvelope(string envelopeJson)
+    {
+        var envelope = SignedEnvelope.TryParse(envelopeJson);
+        if (envelope is null || _key is null || _nonce is null) return;
+
+        // A command whose MAC does not verify, or whose sequence does not advance, is a forgery or a
+        // replay — dropped, never dispatched to the player.
+        if (!ScreenMessageAuth.Verify(_key, _nonce, envelope.Seq, envelope.Payload, envelope.Mac)
+            || envelope.Seq <= _inboundSeq)
+        {
+            _logger.LogWarning("Dropped a command that did not verify (seq {Seq})", envelope.Seq);
+            return;
+        }
+
+        _inboundSeq = envelope.Seq;
+
+        var command = ScreenIpcSerializer.DeserializeCommand(envelope.Payload);
+        if (command is not null)
+            CommandReceived?.Invoke(this, new ScreenCommandReceivedEventArgs { Command = command });
+    }
+
+    private SignedEnvelope Sign(string payload)
+    {
+        var nonce = _nonce ?? throw new InvalidOperationException("No session nonce; the handshake has not completed.");
+        var key = _key ?? throw new InvalidOperationException("No auth key.");
+        var seq = Interlocked.Increment(ref _outboundSeq);
+
+        return new SignedEnvelope(ScreenId ?? "", seq, payload, ScreenMessageAuth.Sign(key, nonce, seq, payload));
+    }
+
+    // RunContinuationsAsynchronously: the Session handler runs on the connection's dispatch loop, so
+    // completing the waiter must not run ConnectAsync's continuation there and stall the loop.
+    private static TaskCompletionSource NewSessionSignal()
+        => new(TaskCreationOptions.RunContinuationsAsynchronously);
 
     public async ValueTask DisposeAsync()
     {

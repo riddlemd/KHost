@@ -12,6 +12,7 @@ public interface IScreenClient
         string serverUri,
         string screenId,
         ScreenCapabilities? capabilities = null,
+        byte[]? authKey = null,
         CancellationToken cancellationToken = default);
 
     Task DisconnectAsync();

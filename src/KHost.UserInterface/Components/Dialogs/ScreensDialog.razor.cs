@@ -21,7 +21,6 @@ public partial class ScreensDialog : IDisposable
     private List<IScreenProvider> _providers = [];
     internal Dictionary<string, ScreenPlaybackState> _screenStates = [];
     private string _screenName = "";
-    private string _selectedProviderName = "";
 
     private string? _busyCastDevice;
     private string? _castError;
@@ -38,14 +37,13 @@ public partial class ScreensDialog : IDisposable
         ? $"{media.Artist} - {media.Title}"
         : "Streaming";
 
-    private bool CanLaunch =>
-        !_isLaunching &&
-        _providers.FirstOrDefault(p => p.Name == _selectedProviderName)?.IsAvailable == true;
+    private IScreenProvider? LaunchProvider => _providers.FirstOrDefault(p => p.IsAvailable);
+
+    private bool CanLaunch => !_isLaunching && LaunchProvider is not null;
 
     protected override async Task OnInitializedAsync()
     {
         _providers = ScreenProviders!.ToList();
-        _selectedProviderName = _providers.FirstOrDefault()?.Name ?? "";
 
         await foreach (var screen in ScreenServer!.GetConnectedScreensAsync())
             _connectedScreens.Add(screen);
@@ -300,8 +298,8 @@ public partial class ScreensDialog : IDisposable
     {
         if (_isLaunching) return;
 
-        var provider = _providers.FirstOrDefault(p => p.Name == _selectedProviderName);
-        if (provider is null || !provider.IsAvailable) return;
+        var provider = LaunchProvider;
+        if (provider is null) return;
 
         var name = string.IsNullOrWhiteSpace(_screenName) ? GenerateScreenName() : _screenName.Trim();
 
