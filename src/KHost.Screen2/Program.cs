@@ -19,6 +19,7 @@ internal static class Program
     {
         var serverUri = GetArg(args, "--server-uri") ?? "http://localhost:5000/ipc/screen";
         var screenId = GetArg(args, "--screen-id") ?? Environment.MachineName;
+        var authKey = ReadAuthKey(GetArg(args, "--key-file"));
 
         var logLevel = ParseLogLevel(GetArg(args, "--log-level"));
 
@@ -60,7 +61,7 @@ internal static class Program
             {
                 player.SendToBrowser = json => window!.SendWebMessage(json);
 
-                _ = ConnectAsync(logger, serverUri, screenId);
+                _ = ConnectAsync(logger, serverUri, screenId, authKey);
                 _ = PublishStateAsync();
                 _ = ResyncClockAsync();
             })
@@ -166,17 +167,26 @@ internal static class Program
         }
     }
 
-    private static async Task ConnectAsync(Microsoft.Extensions.Logging.ILogger logger, string serverUri, string screenId)
+    private static async Task ConnectAsync(Microsoft.Extensions.Logging.ILogger logger, string serverUri, string screenId, byte[] authKey)
     {
         try
         {
-            await _ipc!.ConnectAsync(serverUri, screenId);
+            await _ipc!.ConnectAsync(serverUri, screenId, authKey);
             logger.LogInformation("Connected to IPC server");
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "Failed to connect to IPC server at {Uri}", serverUri);
         }
+    }
+
+    /// <summary>The host writes this file and hands its path in; its absence means an unprovisioned launch.</summary>
+    private static byte[] ReadAuthKey(string? keyFilePath)
+    {
+        if (string.IsNullOrWhiteSpace(keyFilePath))
+            throw new InvalidOperationException("No --key-file was given; the host provisions one for every screen it launches.");
+
+        return Convert.FromBase64String(File.ReadAllText(keyFilePath).Trim());
     }
 
     /// <summary>Keeps the host's position display live; commands alone only report on completion.</summary>

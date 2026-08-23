@@ -212,14 +212,6 @@
                            disabled="@_isLaunching"
                            @bind="_screenName"
                            @bind:event="oninput" />
-                    <select class="kh-form-select" disabled="@_isLaunching" @bind="_selectedProviderName">
-                        @foreach (var provider in _providers)
-                        {
-                            <option value="@provider.Name" disabled="@(!provider.IsAvailable)">
-                                @provider.Name@(!provider.IsAvailable ? " (unavailable)" : "")
-                            </option>
-                        }
-                    </select>
                     <button class="kh-button"
                             disabled="@(!CanLaunch)"
                             @onclick="LaunchAsync">
