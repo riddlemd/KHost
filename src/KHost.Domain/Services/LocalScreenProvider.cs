@@ -18,12 +18,14 @@ public sealed class LocalScreenProvider : IScreenProvider, IDisposable
     private const int ExitGraceMilliseconds = 2000;
 
     private readonly ServiceOptions _options;
+    private readonly IScreenKeyStore _keyStore;
     private readonly ILogger<LocalScreenProvider> _logger;
     private readonly ConcurrentDictionary<string, Process> _processes = new();
 
-    public LocalScreenProvider(IOptions<ServiceOptions> options, ILogger<LocalScreenProvider> logger)
+    public LocalScreenProvider(IOptions<ServiceOptions> options, IScreenKeyStore keyStore, ILogger<LocalScreenProvider> logger)
     {
         _options = options.Value;
+        _keyStore = keyStore;
         _logger = logger;
     }
 
@@ -41,13 +43,17 @@ public sealed class LocalScreenProvider : IScreenProvider, IDisposable
 
         _logger.LogInformation("Launching local screen '{ScreenId}' via {ExePath}", screenId, exePath);
 
+        // A fresh key per launch, handed over by file path rather than value: the value on the
+        // command line would show up in the process list to every local user.
+        var keyFile = _keyStore.Provision(screenId);
+
         var psi = new ProcessStartInfo(exePath)
         {
             UseShellExecute = false,
             CreateNoWindow = false,
         };
 
-        foreach (var argument in BuildArguments(_options.ServerUri, screenId))
+        foreach (var argument in BuildArguments(_options.ServerUri, screenId, keyFile))
             psi.ArgumentList.Add(argument);
 
         var process = Process.Start(psi)
@@ -74,6 +80,10 @@ public sealed class LocalScreenProvider : IScreenProvider, IDisposable
         {
             if (!_processes.TryRemove(screenId, out var process))
                 continue;
+
+            // The key dies with the screen it was for: a relaunch mints a fresh one, and a lingering
+            // file is one more thing that could authenticate something we are no longer running.
+            _keyStore.Revoke(screenId);
 
             try
             {
@@ -112,8 +122,8 @@ public sealed class LocalScreenProvider : IScreenProvider, IDisposable
 
     // Must stay one element per argument: screen ids are generated as "Screen 1", and a single
     // concatenated argument string would split that in two, leaving every screen named "Screen".
-    internal static string[] BuildArguments(string serverUri, string screenId)
-        => ["--server-uri", serverUri, "--screen-id", screenId];
+    internal static string[] BuildArguments(string serverUri, string screenId, string keyFile)
+        => ["--server-uri", serverUri, "--screen-id", screenId, "--key-file", keyFile];
 
     private string ResolvedExePath =>
         ResolveExePath(_options.ExePath, AppContext.BaseDirectory, OperatingSystem.IsWindows());

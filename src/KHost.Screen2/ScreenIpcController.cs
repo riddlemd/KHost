@@ -37,12 +37,13 @@ internal sealed class ScreenIpcController : IAsyncDisposable
     }
 
     /// <summary>Holds a scheduled start, and can be the screen the room hears.</summary>
-    public async Task ConnectAsync(string serverUri, string screenId, CancellationToken cancellationToken = default)
+    public async Task ConnectAsync(string serverUri, string screenId, byte[] authKey, CancellationToken cancellationToken = default)
     {
         await _client.ConnectAsync(
             serverUri,
             screenId,
             new ScreenCapabilities { SupportsSync = true, SupportsAudio = true, SupportsVideo = true },
+            authKey,
             cancellationToken);
 
         await ResyncClockAsync(cancellationToken);
