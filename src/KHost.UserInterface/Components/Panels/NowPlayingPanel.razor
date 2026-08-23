@@ -32,6 +32,10 @@
             <div class="kh-now-playing__top-row @(isStopping ? "kh-now-playing__top-row--stopping" : "")">
                 <div class="kh-now-playing__info">
                     <div class="kh-now-playing__media-title">@media.Title</div>
+                    @if (!string.IsNullOrEmpty(media.Artist))
+                    {
+                        <div class="kh-now-playing__artist">@media.Artist</div>
+                    }
                     @if (isStopping)
                     {
                         <div class="kh-now-playing__stopping">

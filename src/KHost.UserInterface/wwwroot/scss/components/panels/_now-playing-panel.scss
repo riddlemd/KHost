@@ -60,6 +60,14 @@
         white-space: nowrap;
     }
 
+    &__artist {
+        font-size: 0.8rem;
+        color: var(--kh-text-muted);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
     &__singer-name {
         color: var(--kh-text-secondary);
 
