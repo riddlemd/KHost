@@ -12,18 +12,41 @@ public class PerformanceService : BaseRepositoryService<Performance, IPerformanc
     private readonly IMediaService _mediaService;
     private readonly IVenuesService _venuesService;
     private readonly IInteractionDispatcher _interactions;
+    private readonly IPluginImportCancellation _pluginImportCancellation;
 
     public PerformanceService(
         ILogger<PerformanceService> logger,
         IPerformancesRepository repository,
         IMediaService mediaService,
         IVenuesService venuesService,
-        IInteractionDispatcher interactions)
+        IInteractionDispatcher interactions,
+        IPluginImportCancellation pluginImportCancellation)
         : base(logger, repository)
     {
         _mediaService = mediaService;
         _venuesService = venuesService;
         _interactions = interactions;
+        _pluginImportCancellation = pluginImportCancellation;
+    }
+
+    // No gate service: removing a queued performance is what a dequeue IS, so killing an
+    // in-flight download for it lives right here rather than behind a separate guard.
+    public override async Task<bool> DeleteAsync(Guid id)
+    {
+        // Read before the row is gone — once it is deleted there is nothing left to look its
+        // media id up from.
+        var mediaId = (await Repository.ReadAsync(id))?.MediaId;
+
+        var deleted = await base.DeleteAsync(id);
+
+        if (deleted && mediaId is { } removedMediaId)
+        {
+            var media = await _mediaService.ReadAsync(removedMediaId);
+            if (media?.Status == MediaStatus.Downloading)
+                await _pluginImportCancellation.CancelImportAsync(removedMediaId);
+        }
+
+        return deleted;
     }
 
     public async Task<PaginatedResult<Performance>> ReadBySingerIdAsync(Guid singerId, int pageNumber = 1, int pageSize = 0, PerformanceFilter filter = PerformanceFilter.All, DateTime? startDate = null)

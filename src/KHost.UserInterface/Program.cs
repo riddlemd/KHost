@@ -318,6 +318,12 @@ internal static class Program
         app.Lifetime.ApplicationStopping.Register(() =>
             app.Services.GetRequiredService<IMediaStreamService>().CloseAllAsync().GetAwaiter().GetResult());
 
+        // A plugin's cleanup may not get to finish before the process ends — the startup sweep
+        // covers whatever it leaves Downloading — but the cancel itself must still fire, or a
+        // yt-dlp process outlives the host it was downloading for.
+        app.Lifetime.ApplicationStopping.Register(() =>
+            app.Services.GetRequiredService<IPluginImportCancellation>().CancelAllImports());
+
         // Screens we started are ours to close, and nothing else does it: on macOS closing the
         // window tears the process down inside Photino, so container disposal never runs and the
         // screen would be left on the display announcing a lost host.

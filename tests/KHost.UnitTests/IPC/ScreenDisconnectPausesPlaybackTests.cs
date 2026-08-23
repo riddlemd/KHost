@@ -100,6 +100,7 @@ public class ScreenDisconnectPausesPlaybackTests : IDisposable
             FilePath = "/library/song.mp4",
             Format = "mp4",
             Duration = TimeSpan.FromMinutes(4),
+            Status = MediaStatus.Ready,
         };
 
         await _playbackService.LoadAsync(performance, media);
@@ -170,6 +171,7 @@ public class ScreenDisconnectPausesPlaybackTests : IDisposable
             Artist = "Artist",
             FilePath = "/library/song.mp4",
             Format = "mp4",
+            Status = MediaStatus.Ready,
         };
 
         await _playbackService.LoadAsync(performance, media);

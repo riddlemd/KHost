@@ -140,6 +140,34 @@ public class PlaybackServiceTests : IDisposable
         Assert.True(raised);
     }
 
+    [Theory]
+    [InlineData(MediaStatus.Downloading)]
+    [InlineData(MediaStatus.Broken)]
+    [InlineData(MediaStatus.Processing)]
+    [InlineData(MediaStatus.Unknown)]
+    public async Task LoadAsync_RefusesMediaThatIsNotReady(MediaStatus status)
+    {
+        var (performance, media) = CreatePerformance();
+        media.Status = status;
+
+        await _service.LoadAsync(performance, media);
+
+        Assert.Null(_service.CurrentPerformance);
+        Assert.Null(_service.CurrentMedia);
+        await _queueService.DidNotReceive().MoveUserToStartAsync(Arg.Any<Guid>());
+        await _screenServer.DidNotReceive().BroadcastCommandAsync(Arg.Any<LoadMediaCommand>());
+    }
+
+    [Fact]
+    public async Task LoadAsync_ReadyMedia_Loads()
+    {
+        var (performance, media) = CreatePerformance();
+
+        await _service.LoadAsync(performance, media);
+
+        Assert.Same(performance, _service.CurrentPerformance);
+    }
+
     [Fact]
     public async Task PlayAsync_DoesNothing_WhenNoMediaLoaded()
     {
@@ -1447,7 +1475,7 @@ public class PlaybackServiceTests : IDisposable
             CreatedDate = DateTime.Now,
             QueuePosition = 1
         };
-        var media = new Media { Id = mediaId, FilePath = "/music/media.mp4", Title = "Media" };
+        var media = new Media { Id = mediaId, FilePath = "/music/media.mp4", Title = "Media", Status = MediaStatus.Ready };
         return (performance, media);
     }
 }

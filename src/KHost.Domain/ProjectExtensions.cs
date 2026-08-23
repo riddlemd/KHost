@@ -36,6 +36,9 @@ namespace KHost.Domain
             serviceCollection.AddOptions<HlsMediaStreamService.ServiceOptions>()
                 .BindConfiguration(HlsMediaStreamService.ServiceOptions.SectionName);
 
+            serviceCollection.AddOptions<PluginLibrary.ServiceOptions>()
+                .BindConfiguration(PluginLibrary.ServiceOptions.SectionName);
+
             serviceCollection.AddSingleton(TimeProvider.System);
             serviceCollection.AddSingleton<IFlashService, FlashService>();
         serviceCollection.AddSingleton<IMediaFileParsingService, MediaFileParsingService>();
@@ -62,6 +65,13 @@ namespace KHost.Domain
             serviceCollection.AddSingleton<IScreenKeyStore, FileScreenKeyStore>();
 
             serviceCollection.AddSingleton<IMediaProvider, LocalMediaProvider>();
+            // Registered ahead of PluginLibrary and independent of it: PluginLibrary depends on
+            // IPerformanceService, and PerformanceService depends on IPluginImportCancellation, so
+            // the registry has to be its own dependency-free singleton to avoid a constructor cycle.
+            serviceCollection.AddSingleton<PluginImportCancellations>();
+            serviceCollection.AddSingleton<IPluginImportCancellation>(sp => sp.GetRequiredService<PluginImportCancellations>());
+            serviceCollection.AddSingleton<PluginLibrary>();
+            serviceCollection.AddSingleton<IPluginLibrary>(sp => sp.GetRequiredService<PluginLibrary>());
 
             // Queue Rotation (built-in modes register before plugins so their ids win)
             serviceCollection.AddSingleton<IQueueRotationStrategyFactory, QueueRotationStrategyFactory>();

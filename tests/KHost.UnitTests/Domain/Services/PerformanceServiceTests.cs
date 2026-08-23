@@ -16,6 +16,7 @@ public class PerformanceServiceTests
     private readonly IMediaService _mediaService = Substitute.For<IMediaService>();
     private readonly IVenuesService _venuesService = Substitute.For<IVenuesService>();
     private readonly IInteractionDispatcher _interactions = Substitute.For<IInteractionDispatcher>();
+    private readonly IPluginImportCancellation _pluginImportCancellation = Substitute.For<IPluginImportCancellation>();
     private readonly Venue _venue = new() { Name = "Test Venue" };
     private readonly PerformanceService _service;
 
@@ -123,9 +124,20 @@ public class PerformanceServiceTests
                 });
             });
 
+        _repository.DeleteAsync(Arg.Any<Guid>())
+            .Returns(args =>
+            {
+                var id = (Guid)args[0];
+                var existing = _performanceDb.FirstOrDefault(p => p.Id == id);
+                if (existing is null) return Task.FromResult(false);
+
+                _performanceDb.Remove(existing);
+                return Task.FromResult(true);
+            });
+
         _venuesService.ReadSelectedVenueAsync().Returns(_venue);
 
-        _service = new PerformanceService(_logger, _repository, _mediaService, _venuesService, _interactions);
+        _service = new PerformanceService(_logger, _repository, _mediaService, _venuesService, _interactions, _pluginImportCancellation);
     }
 
     [Fact]
@@ -177,6 +189,73 @@ public class PerformanceServiceTests
         var queued = await _service.ReadBySingerIdAsync(singerId, filter: PerformanceFilter.Queued);
         Assert.Single(queued.Items);
         Assert.Equal(perf2.Id, queued.Items[0].Id);
+    }
+
+    [Fact]
+    public async Task DeleteAsync_RemovesADownloadingPerformancesMedia_CancelsThatMediasImport()
+    {
+        var singerId = Guid.NewGuid();
+        var performance = await EnqueueForAsync(singerId);
+        _mediaService.ReadAsync(performance.MediaId).Returns(new Media { Id = performance.MediaId, FilePath = "/downloads/song.mp4", Title = "Song", Status = MediaStatus.Downloading });
+
+        await _service.DeleteAsync(performance.Id);
+
+        await _pluginImportCancellation.Received(1).CancelImportAsync(performance.MediaId);
+    }
+
+    [Fact]
+    public async Task DeleteAsync_RemovesAReadyPerformancesMedia_DoesNotCancelAnyImport()
+    {
+        var singerId = Guid.NewGuid();
+        var performance = await EnqueueForAsync(singerId);
+        _mediaService.ReadAsync(performance.MediaId).Returns(new Media { Id = performance.MediaId, FilePath = "/downloads/song.mp4", Title = "Song", Status = MediaStatus.Ready });
+
+        await _service.DeleteAsync(performance.Id);
+
+        await _pluginImportCancellation.DidNotReceive().CancelImportAsync(Arg.Any<Guid>());
+    }
+
+    [Fact]
+    public async Task DeleteAsync_RemovesThePerformance_RegardlessOfMediaStatus()
+    {
+        var singerId = Guid.NewGuid();
+        var performance = await EnqueueForAsync(singerId);
+        _mediaService.ReadAsync(performance.MediaId).Returns(new Media { Id = performance.MediaId, FilePath = "/downloads/song.mp4", Title = "Song", Status = MediaStatus.Ready });
+
+        var deleted = await _service.DeleteAsync(performance.Id);
+
+        Assert.True(deleted);
+        var queued = await _service.ReadBySingerIdAsync(singerId, filter: PerformanceFilter.Queued);
+        Assert.Empty(queued.Items);
+    }
+
+    [Fact]
+    public async Task DeleteAsync_NoSuchPerformance_DoesNotCancelAnyImport()
+    {
+        await _service.DeleteAsync(Guid.NewGuid());
+
+        await _pluginImportCancellation.DidNotReceive().CancelImportAsync(Arg.Any<Guid>());
+    }
+
+    // A dedicated repository substitute, not the shared one: reconfiguring the shared repository's
+    // DeleteAsync for one specific id re-triggers its existing Arg.Any callback as a side effect
+    // (NSubstitute routes the call once while recording it, before the new Returns takes over),
+    // which would silently delete the row out from under this test before it ever calls DeleteAsync.
+    [Fact]
+    public async Task DeleteAsync_RepositoryDeleteFails_DoesNotCancelAnyImport()
+    {
+        var repository = Substitute.For<IPerformancesRepository>();
+        var performance = new Performance { Id = Guid.NewGuid(), SingerId = Guid.NewGuid(), MediaId = Guid.NewGuid() };
+        repository.ReadAsync(performance.Id).Returns(performance);
+        repository.DeleteAsync(performance.Id).Returns(false);
+        _mediaService.ReadAsync(performance.MediaId).Returns(new Media { Id = performance.MediaId, FilePath = "/downloads/song.mp4", Title = "Song", Status = MediaStatus.Downloading });
+
+        var service = new PerformanceService(_logger, repository, _mediaService, _venuesService, _interactions, _pluginImportCancellation);
+
+        var deleted = await service.DeleteAsync(performance.Id);
+
+        Assert.False(deleted);
+        await _pluginImportCancellation.DidNotReceive().CancelImportAsync(Arg.Any<Guid>());
     }
 
     [Fact]

@@ -205,6 +205,83 @@ public class DatabaseInitializerTests
     }
 
     [Fact]
+    public async Task SweepStalledDownloadsAsync_FlipsDownloadingRowsToBroken()
+    {
+        var (factory, dbPath) = NewDatabase();
+        try
+        {
+            SeedMedia(factory, ("stalled.mp4", MediaStatus.Downloading));
+            var sut = CreateSut(new ServiceOptions(), factory);
+
+            await sut.SweepStalledDownloadsAsync();
+
+            using var context = factory.CreateDbContext();
+            Assert.Equal(MediaStatus.Broken, context.Media.Single(m => m.FilePath == "stalled.mp4").Status);
+        }
+        finally { Delete(dbPath); }
+    }
+
+    [Fact]
+    public async Task SweepStalledDownloadsAsync_NeverDeletesTheRow()
+    {
+        var (factory, dbPath) = NewDatabase();
+        try
+        {
+            SeedMedia(factory, ("stalled.mp4", MediaStatus.Downloading));
+            var sut = CreateSut(new ServiceOptions(), factory);
+
+            await sut.SweepStalledDownloadsAsync();
+
+            using var context = factory.CreateDbContext();
+            Assert.Equal(1, context.Media.Count(m => m.FilePath == "stalled.mp4"));
+        }
+        finally { Delete(dbPath); }
+    }
+
+    [Fact]
+    public async Task SweepStalledDownloadsAsync_LeavesReadyAndBrokenRowsAlone()
+    {
+        var (factory, dbPath) = NewDatabase();
+        try
+        {
+            SeedMedia(factory, ("ready.mp4", MediaStatus.Ready), ("broken.mp4", MediaStatus.Broken));
+            var sut = CreateSut(new ServiceOptions(), factory);
+
+            await sut.SweepStalledDownloadsAsync();
+
+            using var context = factory.CreateDbContext();
+            Assert.Equal(MediaStatus.Ready, context.Media.Single(m => m.FilePath == "ready.mp4").Status);
+            Assert.Equal(MediaStatus.Broken, context.Media.Single(m => m.FilePath == "broken.mp4").Status);
+        }
+        finally { Delete(dbPath); }
+    }
+
+    [Fact]
+    public async Task SweepStalledDownloadsAsync_CountsRowsItSwept()
+    {
+        var (factory, dbPath) = NewDatabase();
+        try
+        {
+            SeedMedia(factory, ("a.mp4", MediaStatus.Downloading), ("b.mp4", MediaStatus.Downloading), ("c.mp4", MediaStatus.Ready));
+            var sut = CreateSut(new ServiceOptions(), factory);
+
+            await sut.SweepStalledDownloadsAsync();
+
+            using var context = factory.CreateDbContext();
+            Assert.Equal(2, context.Media.Count(m => m.Status == MediaStatus.Broken));
+        }
+        finally { Delete(dbPath); }
+    }
+
+    private static void SeedMedia(IDbContextFactory<DefaultContext> factory, params (string FilePath, MediaStatus Status)[] rows)
+    {
+        using var context = factory.CreateDbContext();
+        foreach (var (filePath, status) in rows)
+            context.Media.Add(new Media { FilePath = filePath, Title = filePath, Status = status });
+        context.SaveChanges();
+    }
+
+    [Fact]
     public async Task RefoldStoredTextAsync_RepairsANameSqlCouldNotFold()
     {
         var (factory, dbPath) = NewDatabase();
