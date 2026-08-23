@@ -1,24 +1,60 @@
 using KHost.Abstractions.Services.IPC;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace KHost.IPC.SignalR;
 
 internal sealed class ScreenServerService : IScreenServer, IHubCallback
 {
+    public sealed class ServiceOptions
+    {
+        public const string SectionName = "ScreenServer";
+
+        /// <summary>Caps live hub connections regardless of whether they ever register a screen — bounds an unauthenticated LAN flood.</summary>
+        public int MaxConcurrentConnections { get; set; } = 20;
+
+        /// <summary>Caps registered screens independently of the connection cap; a re-registration under an existing id is not new growth.</summary>
+        public int MaxRegisteredScreens { get; set; } = 16;
+    }
+
     private readonly IHubContext<ScreenHub> _hubContext;
+    private readonly ServiceOptions _options;
     private readonly ILogger<ScreenServerService>? _logger;
     private readonly Dictionary<string, ScreenConnection> _connections = [];
+    private readonly HashSet<string> _liveConnectionIds = [];
     private readonly SemaphoreSlim _lock = new(1, 1);
 
     public event EventHandler<ScreenConnectionEventArgs>? ScreenConnected;
     public event EventHandler<ScreenConnectionEventArgs>? ScreenDisconnected;
     public event EventHandler<ScreenStateReceivedEventArgs>? StateReceived;
 
-    public ScreenServerService(IHubContext<ScreenHub> hubContext, ILogger<ScreenServerService>? logger = null)
+    public ScreenServerService(
+        IHubContext<ScreenHub> hubContext,
+        IOptions<ServiceOptions>? options = null,
+        ILogger<ScreenServerService>? logger = null)
     {
         _hubContext = hubContext;
+        _options = options?.Value ?? new ServiceOptions();
         _logger = logger;
+    }
+
+    bool IHubCallback.TryAcquireConnectionSlot(string connectionId)
+    {
+        _lock.Wait();
+        try
+        {
+            if (_liveConnectionIds.Count >= _options.MaxConcurrentConnections) return false;
+            return _liveConnectionIds.Add(connectionId);
+        }
+        finally { _lock.Release(); }
+    }
+
+    void IHubCallback.ReleaseConnectionSlot(string connectionId)
+    {
+        _lock.Wait();
+        try { _liveConnectionIds.Remove(connectionId); }
+        finally { _lock.Release(); }
     }
 
     void IHubCallback.OnScreenConnected(string screenId, string connectionId, string? hostAddress, ScreenCapabilities capabilities)
@@ -26,6 +62,9 @@ internal sealed class ScreenServerService : IScreenServer, IHubCallback
         _lock.Wait();
         try
         {
+            // A re-registration under an existing id overwrites in place, so it does not count against the cap.
+            if (!_connections.ContainsKey(screenId) && _connections.Count >= _options.MaxRegisteredScreens) return;
+
             var conn = new ScreenConnection
             {
                 ScreenId = screenId,
