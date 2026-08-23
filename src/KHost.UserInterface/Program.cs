@@ -221,6 +221,11 @@ internal static class Program
             throw;
         }
 
+        // The second half of plugin loading: discovery ran before the container existed, so this is
+        // the first moment an entry point can be handed services. Never fatal — PluginInitializer
+        // marks a plugin that throws and leaves the rest of the app alone.
+        app.Services.GetRequiredService<IPluginInitializer>().InitializeAsync().GetAwaiter().GetResult();
+
         // Before the hub is mapped: a service nobody has resolved cannot mute the first screen.
         try
         {

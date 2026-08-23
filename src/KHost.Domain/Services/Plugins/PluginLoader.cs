@@ -164,10 +164,23 @@ public static class PluginLoader
                 services.AddSingleton(extensionInterface, serviceProvider => ActivatorUtilities.CreateInstance(
                     serviceProvider,
                     implementationType,
-                    new Plugin(manifest, storedValues)));
+                    new PluginContext(manifest, storedValues, plugin)));
 
                 registered++;
             }
+        }
+
+        // Optional: a plugin that only exposes providers needs no entry point, and loads as before.
+        foreach (var type in types.Where(t => t.IsClass && !t.IsAbstract && typeof(IPlugin).IsAssignableFrom(t)))
+        {
+            var entryPointType = type;
+
+            services.AddSingleton<LoadedPlugin>(serviceProvider => new LoadedPlugin(
+                plugin,
+                (IPlugin)ActivatorUtilities.CreateInstance(serviceProvider, entryPointType),
+                new PluginContext(manifest, storedValues, plugin)));
+
+            registered++;
         }
 
         if (registered == 0)
