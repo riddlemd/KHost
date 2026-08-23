@@ -15,6 +15,9 @@ public static class ProjectExtensions
             .AddJsonProtocol(options =>
                 options.PayloadSerializerOptions.TypeInfoResolverChain.Insert(0, ScreenCommandJsonContext.Default));
 
+        services.AddOptions<ScreenServerService.ServiceOptions>()
+            .BindConfiguration(ScreenServerService.ServiceOptions.SectionName);
+
         services.AddSingleton<ScreenServerService>();
         services.AddSingleton<IScreenServer>(sp => sp.GetRequiredService<ScreenServerService>());
         services.AddSingleton<IHubCallback>(sp => sp.GetRequiredService<ScreenServerService>());

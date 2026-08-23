@@ -9,8 +9,22 @@ internal sealed class ScreenHub : Hub
 
     public ScreenHub(IHubCallback callback) => _callback = callback;
 
+    public override async Task OnConnectedAsync()
+    {
+        // Rejected before the cap-holder set gains an entry: Abort() still runs OnDisconnectedAsync,
+        // whose ReleaseConnectionSlot is a no-op for a connectionId that was never acquired.
+        if (!_callback.TryAcquireConnectionSlot(Context.ConnectionId))
+        {
+            Context.Abort();
+            return;
+        }
+
+        await base.OnConnectedAsync();
+    }
+
     public override Task OnDisconnectedAsync(Exception? exception)
     {
+        _callback.ReleaseConnectionSlot(Context.ConnectionId);
         _callback.OnScreenDisconnected(Context.ConnectionId);
         return base.OnDisconnectedAsync(exception);
     }
