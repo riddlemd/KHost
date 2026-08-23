@@ -1,16 +1,20 @@
+using KHost.Abstractions.Models.Plugins;
 using KHost.Plugins.Sdk.Models;
 using KHost.Plugins.Sdk.Services;
 using System.Text.Json;
 
 namespace KHost.Domain.Services.Plugins;
 
-public class Plugin : IPlugin
+public class PluginContext : IPluginContext
 {
     private readonly Dictionary<string, JsonElement> _values;
     private readonly Dictionary<string, JsonElement> _defaults;
+    private readonly DiscoveredPlugin _plugin;
 
-    public Plugin(PluginManifest manifest, Dictionary<string, JsonElement>? storedValues)
+    public PluginContext(PluginManifest manifest, Dictionary<string, JsonElement>? storedValues, DiscoveredPlugin plugin)
     {
+        _plugin = plugin;
+
         // Case-insensitive: stored keys pass through camelCase serialization, manifests may not.
         _values = new(storedValues ?? [], StringComparer.OrdinalIgnoreCase);
         _defaults = new(StringComparer.OrdinalIgnoreCase);
@@ -49,6 +53,18 @@ public class Plugin : IPlugin
         {
             // One malformed stored value falls back to the type's own defaults.
             return new();
+        }
+    }
+
+    /// <summary>Reported from a plugin's own background work, so the list is not appended to bare.</summary>
+    public void ReportWarning(string message)
+    {
+        if (string.IsNullOrWhiteSpace(message)) return;
+
+        lock (_plugin.Warnings)
+        {
+            if (!_plugin.Warnings.Contains(message))
+                _plugin.Warnings.Add(message);
         }
     }
 }
