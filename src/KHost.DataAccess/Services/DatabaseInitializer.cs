@@ -64,12 +64,6 @@ internal class DatabaseInitializer : IDatabaseInitializer
     }
 
     /// <summary>
-    /// Repairs folded names that SQL could not compute. The migration seeds NameFolded with
-    /// SQLite's lower(), which leaves non-ASCII case alone, so a singer stored as "Ándre" would
-    /// never be found again. Cheap because the roster is small, and self-healing if the folding
-    /// rule itself ever changes.
-    /// </summary>
-    /// <summary>
     /// Rewrites folded columns whose source text no longer folds to what is stored. Needed because
     /// a migration can only seed them with SQLite's lower(), which folds ASCII and nothing else,
     /// and because changing the folding rule itself has to reach rows already in the database.

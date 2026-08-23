@@ -1,9 +1,4 @@
-/* ═══════════════════════════════════════════════════════════════════════════
-   Loader
-   Inline loading indicators — spinner, dots, bars, pulse, ripple, vinyl, typewriter
-   Scale by setting font-size on the component or a size modifier.
-   ═══════════════════════════════════════════════════════════════════════════ */
-
+// Scale by setting font-size on the component or a size modifier.
 .kh-loader {
     display: inline-flex;
     align-items: center;
@@ -14,7 +9,6 @@
     &--lg { font-size: 1.75rem; }
     &--xl { font-size: 3rem; }
 
-    // ── Spinner ──────────────────────────────────────────────────────────────
     &__spinner {
         width: 1.75em;
         height: 1.75em;
@@ -24,7 +18,6 @@
         animation: kh-loader-spin 0.75s linear infinite;
     }
 
-    // ── Dots ─────────────────────────────────────────────────────────────────
     &__dots {
         display: flex;
         align-items: center;
@@ -42,7 +35,6 @@
         }
     }
 
-    // ── Bars (equalizer) ─────────────────────────────────────────────────────
     &__bars {
         display: flex;
         align-items: flex-end;
@@ -64,7 +56,6 @@
         }
     }
 
-    // ── Pulse ─────────────────────────────────────────────────────────────────
     &__pulse {
         width: 1.25em;
         height: 1.25em;
@@ -73,7 +64,6 @@
         animation: kh-loader-pulse 1.2s ease-in-out infinite;
     }
 
-    // ── Ripple ────────────────────────────────────────────────────────────────
     &__ripple {
         position: relative;
         width: 2em;
@@ -90,14 +80,12 @@
         }
     }
 
-    // ── Vinyl ─────────────────────────────────────────────────────────────────
     &__vinyl {
         font-size: 1em;
         color: var(--kh-primary);
         animation: kh-loader-spin 1.8s linear infinite;
     }
 
-    // ── KH ───────────────────────────────────────────────────────────────────
     &__kh {
         position: relative;
         width: 2em;
@@ -121,7 +109,6 @@
         }
     }
 
-    // ── Typewriter ────────────────────────────────────────────────────────────
     &__typewriter {
         display: flex;
         align-items: center;
@@ -139,8 +126,6 @@
         }
     }
 }
-
-// ── Keyframes ─────────────────────────────────────────────────────────────────
 
 @keyframes kh-loader-spin {
     to { transform: rotate(360deg); }

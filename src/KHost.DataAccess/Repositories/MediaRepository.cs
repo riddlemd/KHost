@@ -259,8 +259,6 @@ internal class MediaRepository : BaseRepository<Media>, IMediaRepository
 
         var sanitized = new StringBuilder(query.Length);
 
-        // Folded exactly the way the indexed text was: the index holds SearchFolded, so a query
-        // matches by being reduced with the same rules, not by either side being clever.
         foreach (var ch in folded)
         {
             if (Array.IndexOf(_ftsMetaChars, ch) < 0)

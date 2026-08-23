@@ -175,11 +175,9 @@ public class MediaImportService : BaseService, IMediaImportService
     }
 
     /// <summary>
-    /// Drops files whose bytes are already in the library under a different path. Size is the
-    /// prefilter, so a file matching no stored size is new without ever being opened; only a size
-    /// collision pays for a sampled hash, and only a sampled match pays for the full hash that
-    /// confirms it. That last step is not optional — a false positive silently loses a song, which
-    /// is worse than the duplicate row it would have prevented.
+    /// Drops files already in the library under a different path. Size prefilters cheaply; only a
+    /// size collision pays for a sampled hash, and only a sampled match pays for the full hash that
+    /// confirms it — skipping that confirmation risks silently losing a song to a false positive.
     /// </summary>
     private async Task<List<ImportCandidate>> FilterKnownContentAsync(List<string> paths, CancellationToken ct)
     {

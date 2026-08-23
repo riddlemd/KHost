@@ -127,12 +127,10 @@ internal static class Program
         builder.Services.AddSignalRIPCServer();
         builder.Services.AddCast();
 
-        // Configure FFmpeg
         var ffmpegPath = builder.Configuration["FFmpegPath"];
         if (!string.IsNullOrWhiteSpace(ffmpegPath))
             GlobalFFOptions.Configure(opts => opts.BinaryFolder = ffmpegPath);
 
-        // Add services to the container.
         builder.Services.AddRazorComponents()
             .AddInteractiveServerComponents();
 
@@ -173,7 +171,6 @@ internal static class Program
 
         var app = builder.Build();
 
-        // Initialize database with seed data
         try
         {
             using var scope = app.Services.CreateScope();
@@ -367,7 +364,6 @@ internal static class Program
             await next();
         });
 
-        // Configure the HTTP request pipeline.
         if (!app.Environment.IsDevelopment())
         {
             app.UseExceptionHandler("/Error", createScopeForErrors: true);
@@ -570,7 +566,6 @@ internal static class Program
 
         if (string.IsNullOrWhiteSpace(httpAddress)) return null;
 
-        // Normalize wildcard hosts (http://*:5251, http://[::]:5251, http://0.0.0.0:5251) to localhost.
         return httpAddress
             .Replace("://*", "://localhost", StringComparison.OrdinalIgnoreCase)
             .Replace("://[::]", "://localhost", StringComparison.OrdinalIgnoreCase)

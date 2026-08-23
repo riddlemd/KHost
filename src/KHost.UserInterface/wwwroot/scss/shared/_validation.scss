@@ -1,8 +1,3 @@
-/* ═══════════════════════════════════════════════════════════════════════════
-   Blazor Validation & Error UI
-   Form validation states and error boundary styles
-   ═══════════════════════════════════════════════════════════════════════════ */
-
 .valid.modified:not([type=checkbox]) {
     outline: 1px solid var(--kh-success);
 }

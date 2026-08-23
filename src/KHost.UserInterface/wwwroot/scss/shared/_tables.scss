@@ -1,8 +1,3 @@
-/* ═══════════════════════════════════════════════════════════════════════════
-   Tables
-   Table styles and header variants
-   ═══════════════════════════════════════════════════════════════════════════ */
-
 .kh-table {
     --bs-table-color: var(--kh-text);
     --bs-table-bg: transparent;
@@ -40,14 +35,13 @@
     }
 
     &--header-primary thead th {
-        // Primary header variant (if needed)
     }
 
     &__cell {
         &--fill {
             width: 100%;
             // max-width with width:100% is what makes a cell in an auto-layout table shrink; on
-            // its own it only overflows, which is how the title came to sit on top of the artist.
+            // its own it only overflows.
             max-width: 1px;
             overflow: hidden;
             text-overflow: ellipsis;

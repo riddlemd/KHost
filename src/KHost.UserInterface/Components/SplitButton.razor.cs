@@ -48,7 +48,6 @@ public partial class SplitButton : IAsyncDisposable
         }
         catch
         {
-            // Do nothing...
         }
     }
 }

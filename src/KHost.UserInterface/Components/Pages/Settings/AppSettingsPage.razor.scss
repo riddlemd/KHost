@@ -1,12 +1,8 @@
 .kh-app-settings {
     max-width: 720px;
-    // An auto cross-axis margin switches off the flex stretch, so without this the card sizes to
-    // its content instead of filling up to the cap.
     width: 100%;
     margin-inline: auto;
 
-    // .kh-card__body pads a direct <form> child and nothing else; this page has no form, so its
-    // rows sat flush against both card edges.
     .kh-card__body {
         padding: 0 1em 1em;
     }
@@ -29,9 +25,8 @@
         gap: 16px;
         padding: 8px 0;
 
-        // ::deep, and hung off the row rather than the field: InputNumber and InputText render
-        // their own markup, so it carries no scope id of this page's and a plain rule never
-        // matched — which is why every field here was the same stretched width.
+        // ::deep, hung off the row rather than the field: InputNumber and InputText render their
+        // own markup with no scope id of this page's, so a plain rule here would not match.
         ::deep .kh-app-settings__number {
             width: 120px;
             text-align: right;

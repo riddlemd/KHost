@@ -37,8 +37,6 @@ public class DatabaseInitializerTests
             _mediaFileParsingService);
     }
 
-    // --- SeedDefaultAdminUserAsync ---
-
     [Fact]
     public async Task SeedDefaultAdminUserAsync_DoesNothing_WhenDefaultAdminUserIsNull()
     {
@@ -82,8 +80,6 @@ public class DatabaseInitializerTests
         await _userGroupsService.Received(1).AddUserToGroupAsync(created.Id, KHostUserGroup.AdminGroupId);
     }
 
-    // --- SeedDefaultVenueAsync ---
-
     [Fact]
     public async Task SeedDefaultVenueAsync_DoesNothing_WhenDefaultVenueIsNull()
     {
@@ -125,8 +121,6 @@ public class DatabaseInitializerTests
         await _venuesService.Received(1).CreateAsync(Arg.Is<Venue>(v => v.Name == "Main Stage" && v.Enabled));
         await _venuesService.Received(1).SelectVenueAsync(created.Id);
     }
-
-    // --- SeedDefaultMediaAsync ---
 
     [Fact]
     public async Task SeedDefaultMediaAsync_DoesNothing_WhenDefaultMediaIsNull()
@@ -209,8 +203,6 @@ public class DatabaseInitializerTests
 
         await _mediaService.Received(1).CreateAsync(mediaB);
     }
-
-    // --- RefoldUserNamesAsync ---
 
     [Fact]
     public async Task RefoldStoredTextAsync_RepairsANameSqlCouldNotFold()
