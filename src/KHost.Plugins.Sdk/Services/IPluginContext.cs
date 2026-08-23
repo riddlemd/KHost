@@ -7,6 +7,9 @@ namespace KHost.Plugins.Sdk.Services;
 /// </summary>
 public interface IPluginContext
 {
+    /// <summary>Imports downloaded files into the host library and enqueues them for the selected singer.</summary>
+    IPluginLibrary Library { get; }
+
     T? GetSetting<T>(string key);
 
     /// <summary>

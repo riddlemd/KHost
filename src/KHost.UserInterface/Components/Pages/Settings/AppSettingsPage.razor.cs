@@ -14,6 +14,7 @@ public partial class AppSettingsPage
     private bool _restartRequired;
     private bool _saving;
     private string? _error;
+    private string? _defaultMediaDirectory;
 
     protected override void OnInitialized()
     {
@@ -21,6 +22,7 @@ public partial class AppSettingsPage
 
         _model = AppSettings.Current;
         _restartRequired = AppSettings.RestartRequired;
+        _defaultMediaDirectory = AppSettings.DefaultMediaDirectory;
     }
 
     private async Task SaveAsync()

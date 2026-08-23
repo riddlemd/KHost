@@ -65,7 +65,7 @@ public class PluginInitializerTests
 
         var discovered = new DiscoveredPlugin { Directory = "/plugins/test", Manifest = manifest };
 
-        return new LoadedPlugin(discovered, entryPoint, new PluginContext(manifest, null, discovered));
+        return new LoadedPlugin(discovered, entryPoint, new PluginContext(manifest, null, discovered, Substitute.For<IPluginLibrary>()));
     }
 
     private sealed class SpyPlugin : IPlugin

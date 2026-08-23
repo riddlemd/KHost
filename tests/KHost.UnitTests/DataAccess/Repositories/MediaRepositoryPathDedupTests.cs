@@ -132,6 +132,37 @@ public class MediaRepositoryPathDedupTests : IDisposable
         Assert.Equal(FoldsCase, result.Contains("/library/söng.mp4"));
     }
 
+    [Fact]
+    public async Task FindByFilePathAsync_ExactPath_ReturnsTheRow()
+    {
+        await SeedAsync(MakeMedia("/library/song.mp4"));
+
+        var result = await _repository.FindByFilePathAsync("/library/song.mp4");
+
+        Assert.NotNull(result);
+        Assert.Equal("/library/song.mp4", result!.FilePath);
+    }
+
+    [Fact]
+    public async Task FindByFilePathAsync_NoMatchingRow_ReturnsNull()
+    {
+        await SeedAsync(MakeMedia("/library/song.mp4"));
+
+        var result = await _repository.FindByFilePathAsync("/library/other.mp4");
+
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public async Task FindByFilePathAsync_CaseVariant_MatchesOnlyWhenPlatformFoldsCase()
+    {
+        await SeedAsync(MakeMedia("/library/song.mp4"));
+
+        var result = await _repository.FindByFilePathAsync("/library/SONG.mp4");
+
+        Assert.Equal(FoldsCase, result is not null);
+    }
+
     private async Task SeedAsync(params Media[] media)
     {
         using var context = await _factory.CreateDbContextAsync();

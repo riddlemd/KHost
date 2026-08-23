@@ -5,6 +5,7 @@ public sealed class AppSettings
 {
     public bool RequireLogin { get; set; } = true;
     public string? FFmpegPath { get; set; }
+    public string? MediaDirectory { get; set; }
     public double StopFadeSeconds { get; set; } = 5;
     public double SyncStartLeadMilliseconds { get; set; } = 400;
     public int SegmentSeconds { get; set; } = 2;
@@ -29,6 +30,9 @@ public interface IAppSettingsService
 
     /// <summary>A change to a startup-only setting was saved and waits for a restart.</summary>
     bool RestartRequired { get; }
+
+    /// <summary>The directory used in place of a blank <see cref="AppSettings.MediaDirectory"/>, for display.</summary>
+    string DefaultMediaDirectory { get; }
 
     /// <summary>
     /// Writes the overlay. Turning the login requirement on is refused while no admin-group

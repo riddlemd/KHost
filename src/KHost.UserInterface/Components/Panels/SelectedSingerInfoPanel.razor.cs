@@ -138,8 +138,10 @@ public partial class SelectedSingerInfoPanel : IDisposable
             return;
 
         // Not just the disabled button: the row's cached media can be a render behind a status
-        // change made elsewhere, so refuse the play here too.
-        if (media.Status == MediaStatus.Broken)
+        // change made elsewhere, so refuse the play here too. PlaybackService.LoadAsync carries
+        // the same guard, but a no-op there would fall through to the PlayAsync below and resume
+        // whatever performance was already loaded — this stops that before either call happens.
+        if (media.Status != MediaStatus.Ready)
             return;
 
         // Before Load, which already moves the singer to the top and locks the slot.

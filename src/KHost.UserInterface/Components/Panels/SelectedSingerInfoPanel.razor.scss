@@ -247,7 +247,8 @@
         display: none;
     }
 
-    // "Ready" on all but a broken song, and the row already greys out when it is not playable.
+    // "Ready" on all but a broken or downloading song, and the play button already carries that
+    // distinction — greyed out, or a spinner in place of the icon.
     .kh-selected-singer-info-panel__col--status,
     .kh-selected-singer-info-panel__status {
         display: none;
