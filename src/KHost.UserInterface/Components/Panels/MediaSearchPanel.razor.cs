@@ -21,9 +21,13 @@ public partial class MediaSearchPanel : IDisposable
     private List<MediaSearchEntity>? _results;
     private string? _errorMessage;
     private IEnumerable<MediaProviderAction> _globalActions = [];
-    private bool _multipleProvidersInResults;
     private bool _canAddToQueue;
     private Dictionary<Guid, List<string>> _queuedBySinger = [];
+
+    /// <summary>What is being searched, for the wait message. Null while nothing is running.</summary>
+    private string? _searchingSource;
+
+    private CancellationTokenSource? _searchCts;
 
     protected override async Task OnInitializedAsync()
     {
@@ -39,29 +43,56 @@ public partial class MediaSearchPanel : IDisposable
         await UpdateQueuedMediaAsync();
     }
 
-    private Task RunSearchAsync() => RunSearchCoreAsync(service => service.SearchAsync(_query));
+    private Task RunSearchAsync()
+        => RunSearchCoreAsync("the library", service => service.SearchAsync(_query));
 
-    private Task RunProviderSearchAsync(string source)
-        => RunSearchCoreAsync(service => service.SearchAsync(_query, source));
+    private Task RunProviderSearchAsync(string source, string displayName)
+        => RunSearchCoreAsync(displayName, service => service.SearchAsync(_query, source));
 
-    private Task RunAllProvidersSearchAsync() => RunSearchCoreAsync(service => service.SearchAllAsync(_query));
+    /// <summary>
+    /// Abandons the wait rather than the work: a provider is handed no token, so its request runs
+    /// on to completion in the background. The host gets the panel back either way.
+    /// </summary>
+    private void CancelSearch() => _searchCts?.Cancel();
 
-    private async Task RunSearchCoreAsync(Func<IMediaSearchService, Task<List<MediaSearchEntity>>> search)
+    private async Task RunSearchCoreAsync(
+        string sourceLabel,
+        Func<IMediaSearchService, Task<List<MediaSearchEntity>>> search)
     {
         if (MediaSearchService is null)
             return;
 
+        // A second search supersedes the first, so the one still running stops owning the panel.
+        _searchCts?.Cancel();
+        _searchCts?.Dispose();
+
+        var cts = new CancellationTokenSource();
+        _searchCts = cts;
+
         _errorMessage = null;
         _searching = true;
+        _searchingSource = sourceLabel;
         _results = null;
 
         StateHasChanged();
 
-        _results = await search(MediaSearchService);
+        try
+        {
+            _results = await search(MediaSearchService).WaitAsync(cts.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+        finally
+        {
+            // Safe unguarded: cancelling makes the await above throw at once, so this method has
+            // already returned before the button is live enough to start another search.
+            _searching = false;
+            _searchingSource = null;
 
-        _searching = false;
-
-        _multipleProvidersInResults = _results.GroupBy(x => x.Source).Distinct().Count() > 1;
+            StateHasChanged();
+        }
     }
 
     private async Task OnFilterKeyDownAsync(KeyboardEventArgs e)
@@ -119,5 +150,9 @@ public partial class MediaSearchPanel : IDisposable
     {
         SingerQueueService?.StateChanged -= OnStateChanged;
         PerformanceService?.StateChanged -= OnStateChanged;
+
+        // A search still running would otherwise call StateHasChanged on a disposed component.
+        _searchCts?.Cancel();
+        _searchCts?.Dispose();
     }
 }

@@ -80,6 +80,27 @@
     }
 }
 
+/* ─── Searching ───────────────────────────────────────────────────────────── */
+// Where the results will land, not on the button: a yt-dlp search is tens of seconds, and a
+// greyed-out button says the console is busy without saying what for or offering a way out.
+.kh-media-search-panel__searching {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 24px 20px;
+    color: var(--kh-text-muted);
+    font-size: 0.85rem;
+    text-align: center;
+}
+
+.kh-media-search-panel__searching-label {
+    // The provider is the useful half: a slow local search and a slow YouTube one want different
+    // reactions from the host.
+    color: var(--kh-text-muted);
+}
+
 /* ─── Narrow panel ────────────────────────────────────────────────────────── */
 @container kh-media-search (max-width: 560px) {
     // The icon and the button's own title carry the action; the word is what pushes the results

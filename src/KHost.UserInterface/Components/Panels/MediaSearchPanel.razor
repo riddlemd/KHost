@@ -38,11 +38,7 @@
                 <Buttons>
                     @foreach (var provider in MediaSearchService?.Providers ?? [])
                     {
-                        <button @onclick="() => RunProviderSearchAsync(provider.SourceName)">@provider.DisplayName</button>
-                    }
-                    @if (MediaSearchService?.Providers.Count > 1)
-                    {
-                        <button @onclick="RunAllProvidersSearchAsync">All providers</button>
+                        <button @onclick="() => RunProviderSearchAsync(provider.SourceName, provider.DisplayName)">@provider.DisplayName</button>
                     }
                 </Buttons>
         </SplitButton>
@@ -56,7 +52,16 @@
             </div>
         }
 
-        @if (_results is not null)
+        @if (_searching)
+        {
+            <div class="kh-media-search-panel__searching">
+                <Loader Type="Loader.LoaderType.Spinner" />
+                <span class="kh-media-search-panel__searching-label">Searching @_searchingSource…</span>
+                <button type="button" class="kh-button kh-button--danger" @onclick="CancelSearch">Cancel</button>
+            </div>
+        }
+
+        @if (_results is not null && !_searching)
         {
             <div>
                 @if (SingerQueueService?.SelectedUserId is null && _results.Count > 0)
@@ -83,10 +88,6 @@
                                 <th>Title</th>
                                 <th class="kh-media-search-panel__col--artist">Artist</th>
                                 <th>Duration</th>
-                                @if (_multipleProvidersInResults)
-                                {
-                                    <th>Source</th>
-                                }
                                 <th>Actions</th>
                             </tr>
                         </thead>
@@ -111,11 +112,6 @@
                                     <td class="kh-table__cell--fill kh-media-search-panel__col--artist"
                                         title="@mediaSearchEntity.Artist">@mediaSearchEntity.Artist</td>
                                     <td>@(mediaSearchEntity.Duration?.ToTotalMinutesAndSeconds() ?? "--:--")</td>
-                                    @if (_multipleProvidersInResults) {
-                                        <td>
-                                            @mediaSearchEntity.SourceDisplayName
-                                        </td>
-                                    }
                                     <td class="kh-table__cell--actions">
                                         @if (_canAddToQueue)
                                         {
@@ -151,7 +147,8 @@
                 }
             </div>
         }
-        else {
+        else if (!_searching)
+        {
             <div class="kh-panel--empty">
                 <Icon Name="cassette" />
                 <span>No songs searched for yet.</span>
