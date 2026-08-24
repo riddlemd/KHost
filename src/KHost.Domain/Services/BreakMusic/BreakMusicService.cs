@@ -205,7 +205,10 @@ public class BreakMusicService : BaseService, IBreakMusicService, IDisposable
             Logger.LogWarning("Break music provider '{Source}' is not loaded; falling back", sourceName);
         }
 
-        return _providers.FirstOrDefault();
+        // Named rather than "whichever registered first": plugins register after the domain
+        // today, but that ordering is not something a venue's default should rest on.
+        return _providers.FirstOrDefault(p => p is LibraryBreakMusicProvider)
+            ?? _providers.FirstOrDefault();
     }
 
     private void OnProviderTrackChanged(object? sender, EventArgs e)
