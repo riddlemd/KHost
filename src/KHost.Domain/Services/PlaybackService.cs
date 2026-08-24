@@ -29,6 +29,7 @@ public class PlaybackService : BaseService, IPlaybackService
     // callers assign and the loser's Timer is unreachable — it ticks, and drives a second position
     // clock and a second round of panel queries, until the process ends.
     private readonly Lock _clockLock = new();
+    private readonly IMessageBroker _broker;
     private Timer? _timer;
 
     // A tick that outruns the interval must not overlap the next: two in flight both see the song
@@ -96,8 +97,9 @@ public class PlaybackService : BaseService, IPlaybackService
         IMediaService mediaService,
         IOptions<ServiceOptions> options,
         IMessageBroker broker)
-        : base(logger, broker)
+        : base(logger)
     {
+        _broker = broker;
         _singerQueueService = singerQueueService;
         _performanceService = performanceService;
         _venuesService = venuesService;
@@ -173,7 +175,7 @@ public class PlaybackService : BaseService, IPlaybackService
 
         await SendToScreensAsync(await BuildLoadCommandAsync(media, TimeSpan.Zero));
 
-        Announce(new PlaybackChanged());
+        _broker.Announce(new PlaybackChanged());
     }
 
     /// <summary>
@@ -239,7 +241,7 @@ public class PlaybackService : BaseService, IPlaybackService
             Logger.LogWarning("Ad refused: no screens are connected");
 
             await EndedAsync();
-            Announce(new PlaybackChanged());
+            _broker.Announce(new PlaybackChanged());
             return false;
         }
 
@@ -270,7 +272,7 @@ public class PlaybackService : BaseService, IPlaybackService
             });
         }
 
-        Announce(new PlaybackChanged());
+        _broker.Announce(new PlaybackChanged());
 
         if (!playsOnMainChannel)
         {
@@ -279,7 +281,7 @@ public class PlaybackService : BaseService, IPlaybackService
             State = PlaybackState.Playing;
             StartClock();
 
-            Announce(new PlaybackChanged());
+            _broker.Announce(new PlaybackChanged());
             return true;
         }
 
@@ -292,7 +294,7 @@ public class PlaybackService : BaseService, IPlaybackService
         // ad would hold the main channel and keep the bed suspended behind it.
         await EndedAsync();
 
-        Announce(new PlaybackChanged());
+        _broker.Announce(new PlaybackChanged());
 
         return false;
     }
@@ -342,7 +344,7 @@ public class PlaybackService : BaseService, IPlaybackService
         // which instant to start on.
         await PublishTimelineAsync(isPlaying: true, scheduleAhead: true);
 
-        Announce(new PlaybackChanged());
+        _broker.Announce(new PlaybackChanged());
     }
 
     public async Task SeekAsync(TimeSpan position)
@@ -371,7 +373,7 @@ public class PlaybackService : BaseService, IPlaybackService
         if (wasPlaying)
             StartClock();
 
-        Announce(new PlaybackChanged());
+        _broker.Announce(new PlaybackChanged());
     }
 
     private static TimeSpan Clamp(TimeSpan position, TimeSpan? duration)
@@ -397,7 +399,7 @@ public class PlaybackService : BaseService, IPlaybackService
         await CastAsync(c => c.PauseAsync());
         await PublishTimelineAsync(isPlaying: false);
 
-        Announce(new PlaybackChanged());
+        _broker.Announce(new PlaybackChanged());
 
         return;
     }
@@ -419,7 +421,7 @@ public class PlaybackService : BaseService, IPlaybackService
 
         Logger.LogInformation("Playback stopping (fade={Fade})", fade);
 
-        Announce(new PlaybackChanged());
+        _broker.Announce(new PlaybackChanged());
 
         await SendToScreensAsync(new StopCommand { FadeDuration = fade });
         await CastAsync(c => c.StopAsync());
@@ -439,7 +441,7 @@ public class PlaybackService : BaseService, IPlaybackService
 
         await EndedAsync();
 
-        Announce(new PlaybackChanged());
+        _broker.Announce(new PlaybackChanged());
     }
 
     public void Dispose()
@@ -579,13 +581,13 @@ public class PlaybackService : BaseService, IPlaybackService
                 case ScreenDisconnectBehavior.CancelPerformance:
                     ResetState();
                     await EndedAsync();
-                    Announce(new PlaybackChanged());
+                    _broker.Announce(new PlaybackChanged());
                     break;
 
                 case ScreenDisconnectBehavior.RestartFromStart:
                     await PauseAsync();
                     Position = TimeSpan.Zero;
-                    Announce(new PlaybackChanged());
+                    _broker.Announce(new PlaybackChanged());
                     break;
 
                 default:
@@ -995,7 +997,7 @@ public class PlaybackService : BaseService, IPlaybackService
 
             await EndedAsync();
 
-            Announce(new PlaybackChanged());
+            _broker.Announce(new PlaybackChanged());
             return;
         }
 

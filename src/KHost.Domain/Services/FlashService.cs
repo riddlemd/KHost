@@ -12,14 +12,14 @@ using KHost.Plugins.Sdk.Messaging.Messages;
 /// </summary>
 public class FlashService : IFlashService
 {
-    private readonly IMessageBroker? _broker;
+    private readonly IMessageBroker _broker;
 
     private FlashMessage? _current;
 
 
     public FlashMessage? Current => _current;
 
-    public FlashService(IMessageBroker? broker = null)
+    public FlashService(IMessageBroker broker)
     {
         _broker = broker;
     }

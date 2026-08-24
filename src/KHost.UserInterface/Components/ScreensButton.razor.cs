@@ -12,7 +12,7 @@ public partial class ScreensButton : IDisposable
     [Inject] private IDialogService? DialogService { get; set; }
     [Inject] private IScreenServer? ScreenServer { get; set; }
     [Inject] private ICastService? Cast { get; set; }
-    [Inject] private IMessageBroker? Broker { get; set; }
+    [Inject] private IMessageBroker Broker { get; set; } = default!;
 
     private readonly SubscriptionSet _subscriptions = new();
 
@@ -46,8 +46,7 @@ public partial class ScreensButton : IDisposable
         ScreenServer!.ScreenConnected += OnScreensChanged;
         ScreenServer.ScreenDisconnected += OnScreensChanged;
 
-        if (Broker is not null)
-            _subscriptions.Add(Broker.Subscribe<CastChanged>(OnCastChanged));
+        _subscriptions.Add(Broker.Subscribe<CastChanged>(OnCastChanged));
 
         await RefreshCountAsync();
     }

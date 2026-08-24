@@ -21,7 +21,7 @@ public partial class SingerQueuePanel : IDisposable
     [Inject] private IPermissionService? Permissions { get; set; }
     [Inject] private IJSRuntime? JS { get; set; }
     [Inject] private IVenuesService? VenuesService { get; set; }
-    [Inject] private IMessageBroker? Broker { get; set; }
+    [Inject] private IMessageBroker Broker { get; set; } = default!;
 
     private readonly SubscriptionSet _subscriptions = new();
 
@@ -48,7 +48,6 @@ public partial class SingerQueuePanel : IDisposable
 
     protected override async Task OnInitializedAsync()
     {
-        if (Broker is not null)
         {
             _subscriptions.Add(Broker.Subscribe<SingerQueueChanged>(_ => OnStateChanged()));
             _subscriptions.Add(Broker.Subscribe<PerformancesChanged>(_ => OnStateChanged()));

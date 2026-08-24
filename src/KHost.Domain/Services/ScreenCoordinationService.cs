@@ -17,6 +17,7 @@ public sealed class ScreenCoordinationService : BaseService, IScreenCoordination
     private const float MutedVolume = 0.0f;
 
     private readonly IScreenServer _screenServer;
+    private readonly IMessageBroker _broker;
     private readonly IVenuesService _venuesService;
     private readonly SemaphoreSlim _lock = new(1, 1);
     private readonly IDisposable _venueChanged;
@@ -35,8 +36,9 @@ public sealed class ScreenCoordinationService : BaseService, IScreenCoordination
     private volatile RoleSnapshot _roles = new(null, null);
 
     public ScreenCoordinationService(ILogger<ScreenCoordinationService> logger, IScreenServer screenServer, IVenuesService venuesService, IMessageBroker broker)
-        : base(logger, broker)
+        : base(logger)
     {
+        _broker = broker;
         _screenServer = screenServer;
         _venuesService = venuesService;
         _screenServer.ScreenConnected += OnScreenConnected;
@@ -84,7 +86,7 @@ public sealed class ScreenCoordinationService : BaseService, IScreenCoordination
         }
         finally { _lock.Release(); }
 
-        Announce(new ScreensChanged());
+        _broker.Announce(new ScreensChanged());
     }
 
     public async Task<string?> EnsureRolesAsync(CancellationToken cancellationToken = default)
@@ -145,7 +147,7 @@ public sealed class ScreenCoordinationService : BaseService, IScreenCoordination
         }
         finally { _lock.Release(); }
 
-        Announce(new ScreensChanged());
+        _broker.Announce(new ScreensChanged());
         return true;
     }
 
@@ -159,7 +161,7 @@ public sealed class ScreenCoordinationService : BaseService, IScreenCoordination
         }
         finally { _lock.Release(); }
 
-        Announce(new ScreensChanged());
+        _broker.Announce(new ScreensChanged());
     }
 
     public async Task ClearAudioOverrideAsync(string screenId, CancellationToken cancellationToken = default)
@@ -172,7 +174,7 @@ public sealed class ScreenCoordinationService : BaseService, IScreenCoordination
         }
         finally { _lock.Release(); }
 
-        Announce(new ScreensChanged());
+        _broker.Announce(new ScreensChanged());
     }
 
     /// <summary>Prefers a syncable screen, so the audible one is never the corrected one.</summary>
@@ -276,7 +278,7 @@ public sealed class ScreenCoordinationService : BaseService, IScreenCoordination
             // A new screen arrives unmuted; without this it would add a second voice to the room.
             await EnsureRolesAsync();
             await MuteUnlessPermittedAsync(e.Connection.ScreenId);
-            Announce(new ScreensChanged());
+            _broker.Announce(new ScreensChanged());
         });
 
     private void OnScreenDisconnected(object? sender, ScreenConnectionEventArgs e) =>
@@ -289,7 +291,7 @@ public sealed class ScreenCoordinationService : BaseService, IScreenCoordination
             // No role write here: EnsureRolesAsync drops a departed screen under the lock, and
             // a shortcut outside it is how a reader once saw audio vacated with primary still set.
             await EnsureRolesAsync();
-            Announce(new ScreensChanged());
+            _broker.Announce(new ScreensChanged());
         });
 
     private async Task MuteUnlessPermittedAsync(string screenId)

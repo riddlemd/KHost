@@ -16,7 +16,7 @@ public partial class TipsManagerPage : IDisposable
     [Inject] private IDialogService? DialogService { get; set; }
     [Inject] private IVenuesService? VenuesService { get; set; }
     [Inject] private IAppSettingsService? AppSettingsService { get; set; }
-    [Inject] private IMessageBroker? Broker { get; set; }
+    [Inject] private IMessageBroker Broker { get; set; } = default!;
 
     private readonly SubscriptionSet _subscriptions = new();
 
@@ -36,8 +36,7 @@ public partial class TipsManagerPage : IDisposable
         await LoadUsersAsync();
         await LoadVenuesAsync();
         await SearchAsync();
-        if (Broker is not null)
-            _subscriptions.Add(Broker.Subscribe<TipsChanged>(OnStateChanged));
+        _subscriptions.Add(Broker.Subscribe<TipsChanged>(OnStateChanged));
     }
 
     private async Task LoadUsersAsync()

@@ -21,7 +21,7 @@ public class SingerQueueService : ISingerQueueService
     private readonly IVenuesService _venuesService;
     private readonly IAnalyticsService _analytics;
     private readonly IQueueRotationStrategyFactory _rotationStrategyFactory;
-    private readonly IMessageBroker? _broker;
+    private readonly IMessageBroker _broker;
     private readonly List<Guid> _userIds = [];
     private List<KHostUser> _cachedUsers = [];
 
@@ -42,7 +42,7 @@ public class SingerQueueService : ISingerQueueService
         IVenuesService venuesService,
         IAnalyticsService analytics,
         IQueueRotationStrategyFactory rotationStrategyFactory,
-        IMessageBroker? broker = null)
+        IMessageBroker broker)
     {
         _logger = logger;
         _cacheService = cacheService;

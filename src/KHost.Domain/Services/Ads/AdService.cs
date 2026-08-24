@@ -9,6 +9,7 @@ namespace KHost.Domain.Services.Ads;
 public class AdService : BaseService, IAdService, IDisposable
 {
     private readonly SemaphoreSlim _lock = new(1, 1);
+    private readonly IMessageBroker _broker;
     private readonly IPlaybackService _playback;
     private readonly IMediaPoolService _pools;
     private readonly IMediaService _media;
@@ -25,8 +26,9 @@ public class AdService : BaseService, IAdService, IDisposable
         ISingerQueueService queue,
         TimeProvider time,
         IMessageBroker broker)
-        : base(logger, broker)
+        : base(logger)
     {
+        _broker = broker;
         _playback = playback;
         _pools = pools;
         _media = media;
@@ -51,7 +53,7 @@ public class AdService : BaseService, IAdService, IDisposable
         // the first gap of the night.
         LastAdAtUtc = _time.GetUtcNow();
 
-        Announce(new AdsChanged());
+        _broker.Announce(new AdsChanged());
     }
 
     public async Task<bool> PlayNowAsync(CancellationToken cancellationToken = default)
@@ -100,7 +102,7 @@ public class AdService : BaseService, IAdService, IDisposable
             if (venue is null || pool is null)
             {
                 IsConfigured = false;
-                Announce(new AdsChanged());
+                _broker.Announce(new AdsChanged());
                 return;
             }
 
@@ -108,7 +110,7 @@ public class AdService : BaseService, IAdService, IDisposable
 
             if (!IsDue(pool))
             {
-                Announce(new AdsChanged());
+                _broker.Announce(new AdsChanged());
                 return;
             }
 
@@ -179,7 +181,7 @@ public class AdService : BaseService, IAdService, IDisposable
 
         Logger.LogInformation("Ad playing from playlist {PoolId}", pool.Id);
 
-        Announce(new AdsChanged());
+        _broker.Announce(new AdsChanged());
 
         return true;
     }
