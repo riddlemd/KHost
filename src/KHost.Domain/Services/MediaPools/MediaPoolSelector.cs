@@ -18,7 +18,7 @@ public static class MediaPoolSelector
     /// Null when the tree holds nothing playable. Tried twice: once honouring the no-repeat
     /// window, then once ignoring it, so a two-track pool still plays rather than falling silent.
     /// </summary>
-    public static Guid? SelectNext(
+    public static MediaPoolEntry? SelectNext(
         MediaPool root,
         IReadOnlyDictionary<Guid, MediaPool> poolsById,
         PoolSelectionState state,
@@ -27,13 +27,13 @@ public static class MediaPoolSelector
         var picked = Select(root, poolsById, state, random, enforceNoRepeat: true, [], 0)
             ?? Select(root, poolsById, state, random, enforceNoRepeat: false, [], 0);
 
-        if (picked is { } mediaId)
-            state.Remember(mediaId, root.NoRepeatCount);
+        if (picked is not null)
+            state.Remember(IdentityOf(picked), root.NoRepeatCount);
 
         return picked;
     }
 
-    private static Guid? Select(
+    private static MediaPoolEntry? Select(
         MediaPool pool,
         IReadOnlyDictionary<Guid, MediaPool> poolsById,
         PoolSelectionState state,
@@ -48,7 +48,9 @@ public static class MediaPoolSelector
         try
         {
             var candidates = pool.Entries
-                .Where(e => e.MediaId is not null || (e.ChildPoolId is { } childId && poolsById.ContainsKey(childId)))
+                .Where(e => e.ChildPoolId is { } childId
+                    ? poolsById.ContainsKey(childId)
+                    : e.MediaId is not null || e.AudioMediaId is not null)
                 .OrderBy(e => e.Position)
                 .ToList();
 
@@ -62,10 +64,10 @@ public static class MediaPoolSelector
 
                 var entry = candidates[index];
 
-                if (entry.MediaId is { } mediaId)
+                if (!entry.IsPool)
                 {
-                    if (!enforceNoRepeat || !IsBlocked(mediaId, pool.NoRepeatCount, state))
-                        return mediaId;
+                    if (!enforceNoRepeat || !IsBlocked(IdentityOf(entry), pool.NoRepeatCount, state))
+                        return entry;
                 }
                 else if (poolsById.TryGetValue(entry.ChildPoolId!.Value, out var child))
                 {
@@ -86,6 +88,12 @@ public static class MediaPoolSelector
             visited.Remove(pool.Id);
         }
     }
+
+    /// <summary>
+    /// What the no-repeat window remembers. The media where there is one, so the same track listed
+    /// twice to weight it does not get to play back to back; the entry itself otherwise.
+    /// </summary>
+    private static Guid IdentityOf(MediaPoolEntry entry) => entry.MediaId ?? entry.AudioMediaId ?? entry.Id;
 
     private static bool IsBlocked(Guid mediaId, int noRepeatCount, PoolSelectionState state)
     {

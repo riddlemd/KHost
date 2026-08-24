@@ -11,8 +11,8 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace KHost.DataAccess.Migrations
 {
     [DbContext(typeof(DefaultContext))]
-    [Migration("20260824154921_AddMediaPools")]
-    partial class AddMediaPools
+    [Migration("20260824170254_AddMediaFts")]
+    partial class AddMediaFts
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -253,7 +253,16 @@ namespace KHost.DataAccess.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("TEXT");
 
+                    b.Property<Guid?>("AudioMediaId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<TimeSpan?>("AudioStart")
+                        .HasColumnType("TEXT");
+
                     b.Property<Guid?>("ChildPoolId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<TimeSpan?>("Duration")
                         .HasColumnType("TEXT");
 
                     b.Property<Guid?>("MediaId")
@@ -445,6 +454,16 @@ namespace KHost.DataAccess.Migrations
                     b.OwnsOne("KHost.Abstractions.Models.Venue+VenueSettings", "Settings", b1 =>
                         {
                             b1.Property<Guid>("VenueId");
+
+                            b1.Property<Guid?>("AdPoolId");
+
+                            b1.Property<Guid?>("BrandingImageMediaId");
+
+                            b1.Property<Guid?>("BreakMusicPoolId");
+
+                            b1.Property<string>("BreakMusicProvider");
+
+                            b1.Property<int?>("BreakMusicVolume");
 
                             b1.Property<bool>("ClearQueueOnClose");
 

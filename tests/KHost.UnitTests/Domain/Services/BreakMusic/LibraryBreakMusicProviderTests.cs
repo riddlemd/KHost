@@ -68,7 +68,8 @@ public class LibraryBreakMusicProviderTests : IDisposable
             Kind = MediaKind.BreakMusic,
         };
 
-        _pools.SelectNextAsync(_poolId, Arg.Any<Guid?>()).Returns(Task.FromResult<Guid?>(media.Id));
+        _pools.SelectNextAsync(_poolId, Arg.Any<Guid?>())
+            .Returns(Task.FromResult<MediaPoolEntry?>(new MediaPoolEntry { MediaId = media.Id }));
         _media.ReadAsync(media.Id).Returns(Task.FromResult<Media?>(media));
 
         return media;
@@ -87,7 +88,7 @@ public class LibraryBreakMusicProviderTests : IDisposable
     public async Task StartAsync_WhenThePoolIsEmpty_DoesNotPlay()
     {
         VenueWithPool(_poolId);
-        _pools.SelectNextAsync(_poolId, Arg.Any<Guid?>()).Returns(Task.FromResult<Guid?>(null));
+        _pools.SelectNextAsync(_poolId, Arg.Any<Guid?>()).Returns(Task.FromResult<MediaPoolEntry?>(null));
 
         Assert.False(await _provider.StartAsync());
         Assert.Empty(_sent);

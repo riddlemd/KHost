@@ -62,7 +62,14 @@ public class PlaybackServiceTests : IDisposable
             screen.ScreenId.Returns($"Screen {i}");
             screen.ConnectionId.Returns($"conn-{i}");
             screen.IsConnected.Returns(true);
-            screen.Capabilities.Returns(new ScreenCapabilities { SupportsSync = supportsSync });
+            // Audio and video as well as sync: a Photino screen declares all three, and the
+            // background channel only goes to a screen that can carry the room's audio.
+            screen.Capabilities.Returns(new ScreenCapabilities
+            {
+                SupportsSync = supportsSync,
+                SupportsAudio = true,
+                SupportsVideo = true,
+            });
             return screen;
         }).ToArray();
 
@@ -1956,6 +1963,123 @@ public class PlaybackServiceTests : IDisposable
         await EndAPerformanceAsync();
 
         await _breakMusic.Received(1).RestoreAsync(Arg.Any<CancellationToken>());
+    }
+
+    private static Media CreateAudio(TimeSpan? duration = null) => new()
+    {
+        Id = Guid.NewGuid(),
+        FilePath = "/media/voiceover.mp3",
+        Title = "Voiceover",
+        Status = MediaStatus.Ready,
+        Kind = MediaKind.Ad,
+        Format = "MP3",
+        Duration = duration ?? TimeSpan.FromSeconds(12),
+    };
+
+    // A still with a voiceover: the picture is on the main channel, the words on the bed's channel,
+    // and the bed itself has to get out of the way because the room now hears the ad.
+    [Fact]
+    public async Task PlayAdAsync_AStillWithItsOwnAudio_UsesBothChannels()
+    {
+        _mediaStreams.BuildImageUrl(Arg.Any<Guid>()).Returns("http://host/media/image/x");
+
+        var ad = new AdPlayback
+        {
+            Visual = CreateStillAd(),
+            Audio = CreateAudio(),
+            Duration = TimeSpan.FromSeconds(12),
+        };
+
+        Assert.True(await _service.PlayAdAsync(ad));
+
+        await _screenServer.Received().BroadcastCommandAsync(Arg.Any<ShowImageCommand>());
+        await _screenServer.Received().SendCommandAsync(Arg.Any<string>(), Arg.Any<LoadBackgroundCommand>());
+        await _breakMusic.Received(1).SuspendAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task PlayAdAsync_AudioOnly_LeavesTheScreenAlone()
+    {
+        var ad = new AdPlayback { Audio = CreateAudio(), Duration = TimeSpan.FromSeconds(12) };
+
+        Assert.True(await _service.PlayAdAsync(ad));
+
+        await _screenServer.DidNotReceive().BroadcastCommandAsync(Arg.Any<ShowImageCommand>());
+        await _screenServer.DidNotReceive().BroadcastCommandAsync(Arg.Any<LoadMediaCommand>());
+        await _screenServer.Received().SendCommandAsync(Arg.Any<string>(), Arg.Any<LoadBackgroundCommand>());
+    }
+
+    // The whole point of a segment: a clip out of a longer file costs no re-encode, because the
+    // stream is simply opened at the offset.
+    [Fact]
+    public async Task PlayAdAsync_AnAudioSegment_OpensTheStreamAtTheOffset()
+    {
+        var ad = new AdPlayback
+        {
+            Audio = CreateAudio(TimeSpan.FromMinutes(5)),
+            AudioStart = TimeSpan.FromSeconds(90),
+            Duration = TimeSpan.FromSeconds(20),
+        };
+
+        await _service.PlayAdAsync(ad);
+
+        await _mediaStreams.Received().OpenAsync("/media/voiceover.mp3", TimeSpan.FromSeconds(90),
+            Arg.Any<int>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task PlayAdAsync_RunsForTheCompositionsDurationNotTheFiles()
+    {
+        var ad = new AdPlayback
+        {
+            Audio = CreateAudio(TimeSpan.FromMinutes(5)),
+            Duration = TimeSpan.FromMilliseconds(1),
+        };
+
+        await _service.PlayAdAsync(ad);
+        await Task.Delay(20);
+        await _service.TickAsync();
+
+        Assert.False(_service.IsPlayingAd);
+    }
+
+    [Fact]
+    public async Task AnAdWithItsOwnAudioEnding_HandsTheChannelBack()
+    {
+        var ad = new AdPlayback { Audio = CreateAudio(), Duration = TimeSpan.FromMilliseconds(1) };
+
+        await _service.PlayAdAsync(ad);
+        _screenServer.ClearReceivedCalls();
+
+        await Task.Delay(20);
+        await _service.TickAsync();
+
+        // Stopped before break music reclaims the channel, or the bed would come up over a
+        // voiceover that is still playing on it.
+        await _screenServer.Received().SendCommandAsync(Arg.Any<string>(), Arg.Any<StopBackgroundCommand>());
+        await _mediaStreams.Received().CloseAsync(Arg.Any<string>());
+    }
+
+    [Fact]
+    public async Task PlayAdAsync_WithNothingToShowOrPlay_IsRefused()
+    {
+        Assert.False(await _service.PlayAdAsync(new AdPlayback { Duration = TimeSpan.FromSeconds(5) }));
+    }
+
+    [Fact]
+    public async Task PlayAdAsync_WithBrokenAudio_IsRefused()
+    {
+        var audio = CreateAudio();
+        audio.Status = MediaStatus.Broken;
+
+        Assert.False(await _service.PlayAdAsync(new AdPlayback
+        {
+            Visual = CreateStillAd(),
+            Audio = audio,
+            Duration = TimeSpan.FromSeconds(5),
+        }));
+
+        Assert.False(_service.IsPlayingAd);
     }
 
     private static (Performance, Media) CreatePerformance()

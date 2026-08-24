@@ -16,10 +16,10 @@ public interface IMediaPoolService : IRepositoryService<MediaPool>
     Task<bool> ReplaceEntriesAsync(Guid poolId, IReadOnlyList<MediaPoolEntry> entries);
 
     /// <summary>
-    /// Next media out of the pool, or null when the tree holds nothing playable. Advances the
+    /// The next entry out of the pool, or null when the tree holds nothing playable. Advances the
     /// pool's own sequential cursor and no-repeat history.
     /// </summary>
-    Task<Guid?> SelectNextAsync(Guid poolId, Guid? venueId);
+    Task<MediaPoolEntry?> SelectNextAsync(Guid poolId, Guid? venueId);
 
     /// <summary>Forgets a pool's cursor and history — what a host expects "start over" to do.</summary>
     void ResetSelection(Guid poolId);

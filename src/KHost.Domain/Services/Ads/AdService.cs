@@ -150,34 +150,76 @@ public class AdService : BaseService, IAdService, IDisposable
     /// <summary>Caller holds the lock.</summary>
     private async Task<bool> PlayFromAsync(Venue venue, MediaPool pool)
     {
-        var mediaId = await _pools.SelectNextAsync(pool.Id, venue.Id);
+        var entry = await _pools.SelectNextAsync(pool.Id, venue.Id);
 
-        if (mediaId is null)
+        if (entry is null)
         {
             Logger.LogInformation("No ad played: playlist {PoolId} holds nothing playable", pool.Id);
             return false;
         }
 
-        var media = await _media.ReadAsync(mediaId.Value);
+        var ad = await ComposeAsync(entry);
 
-        if (media is null)
+        if (ad is null)
         {
-            Logger.LogWarning("No ad played: media {MediaId} is missing", mediaId);
+            Logger.LogWarning("No ad played: entry {EntryId} could not be resolved", entry.Id);
             return false;
         }
 
         // Counters move only on an ad that actually reached the screen. A refusal — no screen, a
         // broken file — leaves it due so the next gap tries again rather than skipping the slot.
-        if (!await _playback.PlayAdAsync(media))
+        if (!await _playback.PlayAdAsync(ad))
             return false;
 
         PerformancesSinceLastAd = 0;
         LastAdAtUtc = _time.GetUtcNow();
 
-        Logger.LogInformation("Ad '{Title}' playing from playlist {PoolId}", media.Title, pool.Id);
+        Logger.LogInformation("Ad playing from playlist {PoolId}", pool.Id);
 
         InvokeStateChanged();
 
         return true;
+    }
+
+    /// <summary>
+    /// Turns a playlist line into the thing that reaches the room. Null when neither half resolves
+    /// to a file, or when nothing can say how long it should run.
+    /// </summary>
+    internal async Task<AdPlayback?> ComposeAsync(MediaPoolEntry entry)
+    {
+        var visual = entry.MediaId is { } visualId ? await _media.ReadAsync(visualId) : null;
+        var audio = entry.AudioMediaId is { } audioId ? await _media.ReadAsync(audioId) : null;
+
+        if (visual is null && audio is null)
+            return null;
+
+        var audioStart = entry.AudioStart ?? TimeSpan.Zero;
+        var duration = entry.Duration ?? ResolveDuration(visual, audio, audioStart);
+
+        if (duration is not { } length || length <= TimeSpan.Zero)
+            return null;
+
+        return new AdPlayback
+        {
+            Visual = visual,
+            Audio = audio,
+            AudioStart = audioStart,
+            Duration = length,
+        };
+    }
+
+    /// <summary>
+    /// What the entry runs for when the host has not said. A video answers for itself; a still
+    /// with a voiceover runs for what is left of the clip, so the picture and the words end together.
+    /// </summary>
+    private static TimeSpan? ResolveDuration(Media? visual, Media? audio, TimeSpan audioStart)
+    {
+        if (visual is not null && !MediaFormats.IsImage(visual.Format))
+            return visual.Duration;
+
+        if (audio?.Duration is { } audioLength)
+            return audioLength - audioStart;
+
+        return visual?.Duration ?? (visual is not null ? MediaFormats.DefaultImageDuration : null);
     }
 }
