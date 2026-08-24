@@ -1,0 +1,104 @@
+@page "/settings/ads-manager"
+@attribute [Authorize(Policy = nameof(KHostPermission.ManageMedia))]
+@using KHost.Abstractions.Models
+@using KHost.UserInterface.Models
+
+<PageTitle>KHost &mdash; Ads</PageTitle>
+
+<div class="kh-app__body">
+    <div class="kh-settings-page">
+        <div class="kh-card">
+            <div class="kh-card__header">
+                <span class="kh-card__title"><Icon Name="megaphone" /> Ads Manager</span>
+            </div>
+
+            <div class="kh-card__body">
+                <div class="kh-venue-settings">
+                    <div class="kh-venue-settings__section kh-venue-settings__section--head">
+                        <div class="kh-venue-settings__row">
+                            <label for="ad-playlist" class="kh-form-label">Playlist this venue runs</label>
+                            <select id="ad-playlist" class="kh-form-select"
+                                    value="@(_activePoolId?.ToString() ?? "")" @onchange="OnPlaylistChangedAsync">
+                                <option value="">None &mdash; this venue runs no ads</option>
+                                @foreach (var pool in _pools)
+                                {
+                                    <option value="@pool.Id">@pool.Name</option>
+                                }
+                            </select>
+                        </div>
+
+                        <p class="kh-ads-manager__hint">
+                            Applies to <span class="kh-emphasis">@(_venueName ?? "no venue selected")</span>.
+                            An ad never interrupts a singer &mdash; it waits for the gap after a song.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="kh-card">
+            <div class="kh-card__header">
+                <span class="kh-card__title"><Icon Name="collection-play" /> Playlists</span>
+                <button class="kh-button kh-button--primary" @onclick="OpenAddDialog" type="button">
+                    <Icon Name="plus-lg" /> Add Playlist
+                </button>
+            </div>
+
+            <div class="kh-card__body">
+                @if (_pools.Count == 0)
+                {
+                    <div class="kh-panel--empty kh-panel--empty-lg">
+                        <Icon Name="collection" />
+                        <span>No ad playlists yet. Add one using the button above.</span>
+                    </div>
+                }
+                else
+                {
+                    <table class="kh-table">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Picks</th>
+                                <th>Entries</th>
+                                <th>They play</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var pool in _pools)
+                            {
+                                <tr>
+                                    <td class="kh-table__cell--fill">
+                                        <span class="kh-ads-manager__name">
+                                            @pool.Name
+                                            @if (pool.Id == _activePoolId)
+                                            {
+                                                <span class="kh-badge kh-badge--secondary">In use</span>
+                                            }
+                                        </span>
+                                    </td>
+                                    <td>@PlaylistDisplay.DescribeSelection(pool)</td>
+                                    <td>@PlaylistDisplay.DescribeEntries(pool)</td>
+                                    <td>@PlaylistDisplay.DescribeTrigger(pool)</td>
+                                    <td class="kh-table__cell--actions">
+                                        <button class="kh-button--icon-minimal" title="Edit playlist"
+                                                @onclick="() => OpenEditDialog(pool)">
+                                            <Icon Name="pencil" />
+                                        </button>
+                                        <button class="kh-button--icon-minimal" title="Delete playlist"
+                                                @onclick="@(async () => await StartDeleteAsync(pool))">
+                                            <Icon Name="trash" />
+                                        </button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+<EditPlaylistDialog IsOpen="_dialogOpen" Pool="_editing" Purpose="PoolPurpose.Ads"
+                    OnSave="SavePoolAsync" OnClose="CloseDialog" />

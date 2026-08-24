@@ -3,6 +3,7 @@ using KHost.Abstractions.Repositories;
 using KHost.Abstractions.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 using KHost.Domain.Services;
+using KHost.Domain.Services.Messaging;
 
 namespace KHost.UnitTests.Domain.Services;
 
@@ -13,6 +14,7 @@ public class MediaImportServiceTests
     private readonly IMediaService _mediaService = Substitute.For<IMediaService>();
     private readonly IMediaFingerprintService _fingerprints = Substitute.For<IMediaFingerprintService>();
     private readonly IAnalyticsService _analytics = Substitute.For<IAnalyticsService>();
+    private readonly MessageBroker _broker = new(NullLogger<MessageBroker>.Instance);
     private readonly MediaImportService _service;
 
     public MediaImportServiceTests()
@@ -31,7 +33,8 @@ public class MediaImportServiceTests
             _repository,
             _mediaService,
             _fingerprints,
-            _analytics);
+            _analytics,
+            _broker);
     }
 
     [Fact]

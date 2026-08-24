@@ -11,6 +11,9 @@
         <div class="kh-card">
             <div class="kh-card__header">
                 <span class="kh-card__title"><Icon Name="music-note-list" /> Media Manager</span>
+                <button class="kh-button kh-button--secondary" @onclick="OpenAddFileDialog" type="button">
+                    <Icon Name="file-earmark-plus" /> Add a File
+                </button>
                 <button class="kh-button kh-button--primary" @onclick="NavigateToImporter" type="button">
                     <Icon Name="plus-lg" /> Import New Song/s
                 </button>
@@ -51,6 +54,7 @@
                                 <th class="kh-table__col--sortable" @onclick='() => OnSortColumnClicked("artist")'>
                                     Artist @if (_sortColumn == "artist") { <Icon Name="@(_sortDescending ? "sort-down" : "sort-up")" class="kh-table__sort-indicator" /> }
                                 </th>
+                                <th class="kh-media-manager__col--type">Type</th>
                                 <th class="kh-media-manager__col--format kh-table__col--sortable" @onclick='() => OnSortColumnClicked("format")'>
                                     Format @if (_sortColumn == "format") { <Icon Name="@(_sortDescending ? "sort-down" : "sort-up")" class="kh-table__sort-indicator" /> }
                                 </th>
@@ -77,6 +81,18 @@
                                     </td>
                                     <td class="kh-table__cell--fill" title="@media.FilePath">@media.Title</td>
                                     <td>@media.Artist</td>
+                                    <td>
+                                        @if (media.Type != MediaType.Karaoke)
+                                        {
+                                            @* Badged only for the unusual rows: karaoke is the bulk
+                                               of the library, and badging every row is noise. *@
+                                            <span class="kh-badge kh-badge--secondary">@DescribeType(media.Type)</span>
+                                        }
+                                        else
+                                        {
+                                            <span>@DescribeType(media.Type)</span>
+                                        }
+                                    </td>
                                     <td>@media.Format</td>
                                     <td>
                                         @if (media.Duration is { } dur)
@@ -136,3 +152,5 @@
         </div>
     </div>
 </div>
+
+<AddMediaFileDialog IsOpen="_addFileDialogOpen" OnAdded="SearchAsync" OnClose="CloseAddFileDialog" />

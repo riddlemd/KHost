@@ -1,14 +1,25 @@
 using KHost.Abstractions.Models;
 using KHost.Domain.Services;
+using KHost.Domain.Services.Messaging;
+using KHost.Plugins.Sdk.Messaging.Messages;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace KHost.UnitTests.Domain.Services;
 
-public class FlashServiceTests
+public class FlashServiceTests : IDisposable
 {
-    private readonly FlashService _flash = new();
+    private readonly MessageBroker _broker = new(NullLogger<MessageBroker>.Instance);
+    private readonly FlashService _flash;
+    private readonly IDisposable _subscription;
     private int _changes;
 
-    public FlashServiceTests() => _flash.StateChanged += (_, _) => _changes++;
+    public FlashServiceTests()
+    {
+        _flash = new FlashService(_broker);
+        _subscription = _broker.Subscribe<FlashChanged>(_ => _changes++);
+    }
+
+    public void Dispose() => _subscription.Dispose();
 
     [Fact]
     public void Show_PublishesTheMessageAndAnnouncesIt()
@@ -16,16 +27,16 @@ public class FlashServiceTests
         _flash.Show("Saved.");
 
         Assert.Equal("Saved.", _flash.Current?.Text);
-        Assert.Equal(FlashKind.Success, _flash.Current?.Kind);
+        Assert.Equal(FlashType.Success, _flash.Current?.Type);
         Assert.Equal(1, _changes);
     }
 
     [Fact]
     public void Show_CarriesTheKind()
     {
-        _flash.Show("Careful.", FlashKind.Warning);
+        _flash.Show("Careful.", FlashType.Warning);
 
-        Assert.Equal(FlashKind.Warning, _flash.Current?.Kind);
+        Assert.Equal(FlashType.Warning, _flash.Current?.Type);
     }
 
     [Fact]

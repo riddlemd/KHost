@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Components;
 using KHost.Abstractions.Services;
 using KHost.Abstractions.Services.IPC;
+using KHost.Plugins.Sdk.Messaging;
+using KHost.Plugins.Sdk.Messaging.Messages;
 using KHost.UserInterface.Services;
 
 namespace KHost.UserInterface.Components;
@@ -10,6 +12,9 @@ public partial class ScreensButton : IDisposable
     [Inject] private IDialogService? DialogService { get; set; }
     [Inject] private IScreenServer? ScreenServer { get; set; }
     [Inject] private ICastService? Cast { get; set; }
+    [Inject] private IMessageBroker Broker { get; set; } = default!;
+
+    private readonly SubscriptionSet _subscriptions = new();
 
     internal int _screenCount;
 
@@ -40,7 +45,8 @@ public partial class ScreensButton : IDisposable
     {
         ScreenServer!.ScreenConnected += OnScreensChanged;
         ScreenServer.ScreenDisconnected += OnScreensChanged;
-        Cast!.StateChanged += OnCastChanged;
+
+        _subscriptions.Add(Broker.Subscribe<CastChanged>(OnCastChanged));
 
         await RefreshCountAsync();
     }
@@ -50,7 +56,7 @@ public partial class ScreensButton : IDisposable
         _ = InvokeAsync(RefreshCountAsync);
 
     // Connecting a receiver changes no screen, so the colour needs its own trigger.
-    private void OnCastChanged(object? sender, EventArgs e) => _ = InvokeAsync(StateHasChanged);
+    private void OnCastChanged(CastChanged message) => _ = InvokeAsync(StateHasChanged);
 
     private async Task RefreshCountAsync()
     {
@@ -66,7 +72,7 @@ public partial class ScreensButton : IDisposable
 
     public void Dispose()
     {
-        if (Cast is not null) Cast.StateChanged -= OnCastChanged;
+        _subscriptions.Dispose();
 
         if (ScreenServer is null) return;
 

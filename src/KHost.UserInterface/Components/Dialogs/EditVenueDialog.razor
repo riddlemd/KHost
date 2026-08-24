@@ -7,7 +7,7 @@
         <Icon Name="geo-alt-fill" /> @(_isNew ? "Add Venue" : "Edit Venue")
     </Header>
     <Body>
-        <EditForm EditContext="_editContext" OnValidSubmit="SaveAsync">
+        <EditForm EditContext="_editContext" OnValidSubmit="SaveAsync" class="kh-venue-settings">
             <DataAnnotationsValidator />
             <div class="kh-venue-settings__section kh-venue-settings__section--head">
                 <div class="kh-venue-settings__field">
@@ -102,6 +102,25 @@
                         <InputCheckbox class="kh-form-check-input" @bind-Value="_model.PromptBeforeRemovingPerformance" />
                     </label>
                 </div>
+            </div>
+
+            <div class="kh-venue-settings__section">
+                <span class="kh-venue-settings__section-title">Between singers</span>
+
+                <div class="kh-venue-settings__row">
+                    <label for="branding-image" class="kh-form-label">Card shown when nothing is playing</label>
+                    <InputSelect id="branding-image" class="kh-form-select" @bind-Value="_model.BrandingImageMediaId">
+                        <option value="">None — leave the screen blank</option>
+                        @foreach (var image in _images)
+                        {
+                            <option value="@image.Id">@image.Title</option>
+                        }
+                    </InputSelect>
+                </div>
+
+                <p class="kh-venue-settings__hint">
+                    Break music and ads are set up under Settings &rsaquo; Break Music Manager and Ads Manager.
+                </p>
             </div>
 
             <div class="kh-venue-settings__section">

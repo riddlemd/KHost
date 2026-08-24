@@ -1,9 +1,8 @@
-﻿using KHost.Abstractions.Services;
 using Microsoft.Extensions.Logging;
 
 namespace KHost.Domain.Services
 {
-    public abstract class BaseService : IKHostService
+    public abstract class BaseService
     {
         protected BaseService(ILogger logger)
         {
@@ -11,12 +10,5 @@ namespace KHost.Domain.Services
         }
 
         protected ILogger Logger { get; }
-
-        public event EventHandler? StateChanged;
-
-        protected void InvokeStateChanged()
-        {
-            StateChanged?.Invoke(this, EventArgs.Empty);
-        }
     }
 }

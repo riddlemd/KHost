@@ -1,6 +1,7 @@
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Repositories;
 using KHost.Abstractions.Services;
+using KHost.Plugins.Sdk.Messaging;
 using Microsoft.Extensions.Logging;
 
 namespace KHost.Domain.Services;
@@ -11,17 +12,25 @@ public abstract class BaseRepositoryService<TClass, TRepository> : BaseService, 
 {
     protected readonly TRepository Repository;
 
-    protected BaseRepositoryService(ILogger logger, TRepository repository)
+    // Supplied rather than named here: the CRUD below is generic over TClass and cannot say which
+    // of the library, the venues or the users just moved.
+    private readonly IMessageBroker _broker;
+    private readonly object _changeMessage;
+
+    protected BaseRepositoryService(ILogger logger, TRepository repository, IMessageBroker broker,
+        object changeMessage)
         : base(logger)
     {
         Repository = repository;
+        _broker = broker;
+        _changeMessage = changeMessage;
     }
 
     public virtual async Task<TClass> CreateAsync(TClass entity)
     {
         var savedEntity = await Repository.CreateAsync(entity);
 
-        InvokeStateChanged();
+        _broker.Announce(_changeMessage);
 
         return savedEntity;
     }
@@ -35,7 +44,7 @@ public abstract class BaseRepositoryService<TClass, TRepository> : BaseService, 
     {
         await Repository.UpdateAsync(entity);
 
-        InvokeStateChanged();
+        _broker.Announce(_changeMessage);
     }
 
     public virtual async Task<bool> DeleteAsync(Guid id)
@@ -43,7 +52,7 @@ public abstract class BaseRepositoryService<TClass, TRepository> : BaseService, 
         var success = await Repository.DeleteAsync(id);
 
         if (success)
-            InvokeStateChanged();
+            _broker.Announce(_changeMessage);
 
         return success;
     }

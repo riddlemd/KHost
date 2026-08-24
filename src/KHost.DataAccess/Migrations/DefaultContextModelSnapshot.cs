@@ -154,6 +154,9 @@ namespace KHost.DataAccess.Migrations
                         .HasMaxLength(10)
                         .HasColumnType("TEXT");
 
+                    b.Property<int>("ImageScaling")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("Notes")
                         .IsRequired()
                         .HasMaxLength(1000)
@@ -176,6 +179,9 @@ namespace KHost.DataAccess.Migrations
                         .HasMaxLength(255)
                         .HasColumnType("TEXT");
 
+                    b.Property<int>("Type")
+                        .HasColumnType("INTEGER");
+
                     b.HasKey("Id");
 
                     b.HasIndex("Artist");
@@ -193,7 +199,93 @@ namespace KHost.DataAccess.Migrations
 
                     b.HasIndex("Title");
 
+                    b.HasIndex("Type");
+
                     b.ToTable("Media");
+                });
+
+            modelBuilder.Entity("KHost.Abstractions.Models.MediaPool", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("AdTrigger")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("AdTriggerInterval")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("NameFolded")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("NoRepeatCount")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Purpose")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("SelectionMode")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<Guid?>("VenueId")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Purpose");
+
+                    b.HasIndex("VenueId");
+
+                    b.ToTable("MediaPools");
+                });
+
+            modelBuilder.Entity("KHost.Abstractions.Models.MediaPoolEntry", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid?>("AudioMediaId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<TimeSpan?>("AudioStart")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid?>("ChildPoolId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<TimeSpan?>("Duration")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid?>("MediaId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("MediaPoolId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Position")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Weight")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ChildPoolId");
+
+                    b.HasIndex("MediaId");
+
+                    b.HasIndex("MediaPoolId");
+
+                    b.ToTable("MediaPoolEntries");
                 });
 
             modelBuilder.Entity("KHost.Abstractions.Models.Performance", b =>
@@ -329,6 +421,25 @@ namespace KHost.DataAccess.Migrations
                     b.ToTable("UserGroupMemberships", (string)null);
                 });
 
+            modelBuilder.Entity("KHost.Abstractions.Models.MediaPoolEntry", b =>
+                {
+                    b.HasOne("KHost.Abstractions.Models.MediaPool", null)
+                        .WithMany()
+                        .HasForeignKey("ChildPoolId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("KHost.Abstractions.Models.Media", null)
+                        .WithMany()
+                        .HasForeignKey("MediaId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.HasOne("KHost.Abstractions.Models.MediaPool", null)
+                        .WithMany("Entries")
+                        .HasForeignKey("MediaPoolId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("KHost.Abstractions.Models.Tip", b =>
                 {
                     b.HasOne("KHost.Abstractions.Models.KHostUser", null)
@@ -343,6 +454,14 @@ namespace KHost.DataAccess.Migrations
                     b.OwnsOne("KHost.Abstractions.Models.Venue+VenueSettings", "Settings", b1 =>
                         {
                             b1.Property<Guid>("VenueId");
+
+                            b1.Property<Guid?>("AdPoolId");
+
+                            b1.Property<Guid?>("BrandingImageMediaId");
+
+                            b1.Property<Guid?>("BreakMusicPoolId");
+
+                            b1.Property<string>("BreakMusicProvider");
 
                             b1.Property<bool>("ClearQueueOnClose");
 
@@ -429,6 +548,11 @@ namespace KHost.DataAccess.Migrations
             modelBuilder.Entity("KHost.Abstractions.Models.KHostUser", b =>
                 {
                     b.Navigation("Tips");
+                });
+
+            modelBuilder.Entity("KHost.Abstractions.Models.MediaPool", b =>
+                {
+                    b.Navigation("Entries");
                 });
 #pragma warning restore 612, 618
         }

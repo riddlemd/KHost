@@ -1,9 +1,13 @@
 using Bunit;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
+using KHost.Domain.Services.Messaging;
+using KHost.Plugins.Sdk.Messaging;
+using KHost.Plugins.Sdk.Messaging.Messages;
 using KHost.UserInterface.Components.Panels;
 using KHost.UserInterface.Services;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace KHost.UnitTests.UserInterface.Components.Panels;
 
@@ -18,6 +22,7 @@ public class SelectedSingerInfoPanelQueueRowStatusTests : BunitContext
     private readonly ISingerQueueService _queue = Substitute.For<ISingerQueueService>();
     private readonly IPerformanceService _performances = Substitute.For<IPerformanceService>();
     private readonly IMediaService _mediaService = Substitute.For<IMediaService>();
+    private readonly MessageBroker _broker = new(NullLogger<MessageBroker>.Instance);
     private readonly KHostUser _singer = new() { Id = Guid.NewGuid(), Name = "Ann" };
     private readonly Performance _performance;
     private readonly Media _media;
@@ -52,6 +57,7 @@ public class SelectedSingerInfoPanelQueueRowStatusTests : BunitContext
         Services.AddSingleton(Substitute.For<IUserGroupsService>());
         Services.AddSingleton(Substitute.For<IDialogService>());
         Services.AddSingleton(Substitute.For<ITipsService>());
+        Services.AddSingleton<IMessageBroker>(_broker);
     }
 
     [Fact]
@@ -81,13 +87,13 @@ public class SelectedSingerInfoPanelQueueRowStatusTests : BunitContext
     }
 
     [Fact]
-    public void MediaTurningReady_ReRendersTheRow_WhenTheMediaServiceStateChangedFires()
+    public async Task MediaTurningReady_ReRendersTheRow_WhenMediaLibraryChangedIsPublished()
     {
         var panel = Render<SelectedSingerInfoPanel>();
         Assert.NotEmpty(panel.FindAll($"{PlayButtonSelector} .kh-loader__spinner"));
 
         _media.Status = MediaStatus.Ready;
-        _mediaService.StateChanged += Raise.Event();
+        await _broker.PublishAsync(new MediaLibraryChanged());
 
         panel.WaitForAssertion(() => Assert.NotEmpty(panel.FindAll($"{PlayButtonSelector} .bi-play-fill")));
         Assert.Empty(panel.FindAll($"{PlayButtonSelector} .kh-loader__spinner"));

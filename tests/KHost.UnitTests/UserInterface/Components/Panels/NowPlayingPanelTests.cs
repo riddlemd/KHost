@@ -1,3 +1,6 @@
+using Microsoft.Extensions.Logging.Abstractions;
+using KHost.Plugins.Sdk.Messaging;
+using KHost.Domain.Services.Messaging;
 using Bunit;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
@@ -12,6 +15,7 @@ public class NowPlayingPanelTests : BunitContext
     private const string ArtistSelector = ".kh-now-playing__artist";
 
     private readonly IPlaybackService _playback = Substitute.For<IPlaybackService>();
+    private readonly MessageBroker _broker = new(NullLogger<MessageBroker>.Instance);
 
     public NowPlayingPanelTests()
     {
@@ -22,6 +26,7 @@ public class NowPlayingPanelTests : BunitContext
         _playback.Position.Returns(TimeSpan.Zero);
 
         Services.AddSingleton(_playback);
+        Services.AddSingleton<IMessageBroker>(_broker);
         Services.AddSingleton(Substitute.For<ISingerQueueService>());
         Services.AddSingleton(Substitute.For<IDialogService>());
     }

@@ -3,7 +3,7 @@ using System.Text.Json;
 
 namespace KHost.Abstractions.Services;
 
-public interface IPluginsService : IKHostService
+public interface IPluginsService
 {
     /// <summary>Plugins discovered at startup; statuses reflect that load, not later edits.</summary>
     IReadOnlyList<DiscoveredPlugin> Plugins { get; }

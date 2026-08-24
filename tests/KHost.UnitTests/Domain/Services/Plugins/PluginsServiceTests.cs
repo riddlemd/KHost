@@ -1,7 +1,10 @@
 using KHost.Abstractions.Models.Plugins;
 using KHost.Abstractions.Services;
+using KHost.Domain.Services.Messaging;
 using KHost.Domain.Services.Plugins;
+using KHost.Plugins.Sdk.Messaging.Messages;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using System.Text.Json;
 
 namespace KHost.UnitTests.Domain.Services.Plugins;
@@ -11,6 +14,7 @@ public class PluginsServiceTests
     private readonly ILogger<PluginsService> _logger = Substitute.For<ILogger<PluginsService>>();
     private readonly ICacheService _cache = Substitute.For<ICacheService>();
     private readonly IPluginRegistry _registry = Substitute.For<IPluginRegistry>();
+    private readonly MessageBroker _broker = new(NullLogger<MessageBroker>.Instance);
     private readonly PluginsService _service;
 
     private PluginsState? _savedState;
@@ -21,7 +25,7 @@ public class PluginsServiceTests
         _cache.SaveAsync(PluginsState.CacheKey, Arg.Do<PluginsState>(s => _savedState = s))
             .Returns(Task.CompletedTask);
 
-        _service = new PluginsService(_logger, _cache, _registry);
+        _service = new PluginsService(_logger, _cache, _registry, _broker);
     }
 
     [Fact]
@@ -52,10 +56,10 @@ public class PluginsServiceTests
     }
 
     [Fact]
-    public async Task SetEnabledAsync_AnyChange_SetsRestartRequiredAndRaisesStateChanged()
+    public async Task SetEnabledAsync_AnyChange_SetsRestartRequiredAndAnnouncesPluginsChanged()
     {
         var stateChangedCount = 0;
-        _service.StateChanged += (_, _) => stateChangedCount++;
+        using var subscription = _broker.Subscribe<PluginsChanged>(_ => stateChangedCount++);
 
         Assert.False(_service.RestartRequired);
 

@@ -1,5 +1,7 @@
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
+using KHost.Plugins.Sdk.Messaging;
+using KHost.Plugins.Sdk.Messaging.Messages;
 using KHost.UserInterface.Services;
 using Microsoft.AspNetCore.Components;
 
@@ -11,6 +13,9 @@ public partial class UserGroupsManagerPage : IDisposable
     [Inject] private IDialogService? DialogService { get; set; }
     [Inject] private IVenuesService? VenuesService { get; set; }
     [Inject] private IAppSettingsService? AppSettingsService { get; set; }
+    [Inject] private IMessageBroker Broker { get; set; } = default!;
+
+    private readonly SubscriptionSet _subscriptions = new();
 
     private int _pageSize = AppSettings.DefaultPageSize;
     private int _currentPage = 1;
@@ -25,7 +30,7 @@ public partial class UserGroupsManagerPage : IDisposable
 
         await SearchAsync();
 
-        UserGroupsService!.StateChanged += OnStateChanged;
+        _subscriptions.Add(Broker.Subscribe<UserGroupsChanged>(OnStateChanged));
     }
 
     private async Task SearchAsync()
@@ -112,7 +117,7 @@ public partial class UserGroupsManagerPage : IDisposable
         }
     }
 
-    private async void OnStateChanged(object? sender, EventArgs e)
+    private async void OnStateChanged(UserGroupsChanged message)
     {
         await SearchAsync();
 
@@ -128,8 +133,5 @@ public partial class UserGroupsManagerPage : IDisposable
         await InvokeAsync(StateHasChanged);
     }
 
-    public void Dispose()
-    {
-        UserGroupsService?.StateChanged -= OnStateChanged;
-    }
+    public void Dispose() => _subscriptions.Dispose();
 }

@@ -2,7 +2,9 @@ using KHost.Abstractions.Models;
 using KHost.Abstractions.Repositories;
 using KHost.Abstractions.Services;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using KHost.Domain.Services;
+using KHost.Domain.Services.Messaging;
 
 namespace KHost.UnitTests.Domain.Services;
 
@@ -16,7 +18,7 @@ public class TipsServiceTests
     public TipsServiceTests()
     {
         _repository.CreateAsync(Arg.Any<Tip>()).Returns(call => Task.FromResult(call.Arg<Tip>()));
-        _service = new TipsService(_logger, _repository, _venuesService);
+        _service = new TipsService(_logger, _repository, _venuesService, new MessageBroker(NullLogger<MessageBroker>.Instance));
     }
 
     [Fact]

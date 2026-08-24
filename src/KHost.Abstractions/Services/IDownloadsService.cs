@@ -19,7 +19,6 @@ public interface IDownloadsService
     /// <summary>Cancels every in-flight download at once, so none outlives the host on shutdown.</summary>
     void CancelAll();
 
-    event EventHandler StateChanged;
 
     /// <summary>Registers a new Downloading entry and returns the token that fires on cancel.</summary>
     CancellationToken Register(Guid mediaId, string title, string artist, string source);

@@ -22,13 +22,13 @@ public class LocalMediaProviderTests
 
     public LocalMediaProviderTests()
     {
-        _repository.SearchAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<int>(), Arg.Any<HashSet<MediaStatus>>())
+        _repository.SearchAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<int>(), Arg.Any<MediaSearchOptions>())
             .Returns(call =>
             {
                 var query = call.ArgAt<string>(0);
                 var pageNumber = call.ArgAt<int>(1);
                 var pageSize = call.ArgAt<int>(2);
-                var statuses = call.ArgAt<HashSet<MediaStatus>?>(3);
+                var options = call.ArgAt<MediaSearchOptions?>(3);
 
                 var filtered = string.IsNullOrWhiteSpace(query)
                     ? _mediaStore
@@ -36,8 +36,12 @@ public class LocalMediaProviderTests
                         m.Title.Contains(query, StringComparison.OrdinalIgnoreCase) ||
                         m.Artist.Contains(query, StringComparison.OrdinalIgnoreCase)).ToList();
 
-                // Mirrors MediaRepository.ApplySearchFilters, so the status filter is exercised
-                // here rather than assumed.
+                // Mirrors MediaRepository.ApplySearchFilters, so the type and status filters are
+                // exercised here rather than assumed.
+                if (options?.Types is { Length: > 0 } types)
+                    filtered = [.. filtered.Where(m => types.Contains(m.Type))];
+
+                var statuses = options?.Statuses;
                 if (statuses?.Count > 0)
                     filtered = [.. filtered.Where(m => statuses.Contains(m.Status))];
 
@@ -71,7 +75,7 @@ public class LocalMediaProviderTests
 
         await _service.SearchAsync("rock");
 
-        await _repository.Received(1).SearchAsync("rock", Arg.Any<int>(), Arg.Any<int>(), Arg.Any<HashSet<MediaStatus>>());
+        await _repository.Received(1).SearchAsync("rock", Arg.Any<int>(), Arg.Any<int>(), Arg.Any<MediaSearchOptions>());
     }
 
     [Fact]
@@ -79,7 +83,7 @@ public class LocalMediaProviderTests
     {
         await _service.SearchAsync("any", pageNumber: 2, pageSize: 25);
 
-        await _repository.Received(1).SearchAsync(Arg.Any<string>(), 2, 25, Arg.Any<HashSet<MediaStatus>>());
+        await _repository.Received(1).SearchAsync(Arg.Any<string>(), 2, 25, Arg.Any<MediaSearchOptions>());
     }
 
     [Fact]

@@ -1,3 +1,6 @@
+using Microsoft.Extensions.Logging.Abstractions;
+using KHost.Plugins.Sdk.Messaging;
+using KHost.Domain.Services.Messaging;
 using AngleSharp.Dom;
 using Bunit;
 using KHost.Abstractions.Models;
@@ -15,6 +18,7 @@ namespace KHost.UnitTests.UserInterface.Components;
 public class SettingsButtonShortcutsTests : BunitContext
 {
     private readonly IDialogService _dialogs = Substitute.For<IDialogService>();
+    private readonly MessageBroker _broker = new(NullLogger<MessageBroker>.Instance);
     private readonly IPermissionService _permissions = Substitute.For<IPermissionService>();
 
     public SettingsButtonShortcutsTests()
@@ -28,6 +32,7 @@ public class SettingsButtonShortcutsTests : BunitContext
         appSettings.Current.Returns(new AppSettings());
 
         Services.AddSingleton(_dialogs);
+        Services.AddSingleton<IMessageBroker>(_broker);
         Services.AddSingleton(_permissions);
         Services.AddSingleton(venues);
         Services.AddSingleton(appSettings);

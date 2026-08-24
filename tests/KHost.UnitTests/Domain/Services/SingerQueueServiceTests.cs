@@ -6,8 +6,10 @@ using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using KHost.Abstractions.Services.QueueRotation;
 using KHost.Domain.Services;
+using KHost.Domain.Services.Messaging;
 using KHost.Domain.Services.QueueRotation;
 using KHost.Domain.Services.QueueRotation.Modes;
+using KHost.Plugins.Sdk.Messaging.Messages;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
@@ -23,6 +25,7 @@ public class SingerQueueServiceTests : IDisposable
     private readonly IVenuesService _venuesService;
     private readonly IQueueRotationStrategyFactory _rotationFactory;
     private readonly Dictionary<Guid, KHostUser> _userDb = [];
+    private readonly MessageBroker _broker = new(NullLogger<MessageBroker>.Instance);
     private readonly SingerQueueService _service;
 
     public SingerQueueServiceTests()
@@ -53,7 +56,7 @@ public class SingerQueueServiceTests : IDisposable
         StubStrategy(ctx => ctx.Queue.Select(u => u.Id).ToList());
 
         var analyticsQueue = Substitute.For<IAnalyticsService>();
-        _service = new SingerQueueService(NullLogger<SingerQueueService>.Instance, _cacheService, _performanceService, _usersService, _venuesService, analyticsQueue, _rotationFactory);
+        _service = new SingerQueueService(NullLogger<SingerQueueService>.Instance, _cacheService, _performanceService, _usersService, _venuesService, analyticsQueue, _rotationFactory, _broker);
     }
 
     private void StubStrategy(Func<QueueRotationContext, IReadOnlyList<Guid>> strategy)
@@ -91,10 +94,10 @@ public class SingerQueueServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task AddUserAsync_RaisesStateChanged()
+    public async Task AddUserAsync_AnnouncesSingerQueueChanged()
     {
         var raised = false;
-        _service.StateChanged += (_, _) => raised = true;
+        using var subscription = _broker.Subscribe<SingerQueueChanged>(_ => raised = true);
 
         await EnqueueAsync("Alice");
 
@@ -505,7 +508,8 @@ public class SingerQueueServiceTests : IDisposable
         _usersService,
         _venuesService,
         Substitute.For<IAnalyticsService>(),
-        _rotationFactory);
+        _rotationFactory,
+        _broker);
 
     [Fact]
     public async Task RotateQueueAsync_DefaultConfig_MovesFinishedSingerToEndAndSelectsFirst()
@@ -619,7 +623,8 @@ public class SingerQueueServiceTests : IDisposable
         _usersService,
         _venuesService,
         Substitute.For<IAnalyticsService>(),
-        new QueueRotationStrategyFactory([new FifoStrategy()]));
+        new QueueRotationStrategyFactory([new FifoStrategy()]),
+        _broker);
 
     private async Task<KHostUser> EnqueueUserOnAsync(SingerQueueService service, string name)
     {

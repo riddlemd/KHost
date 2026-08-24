@@ -1,6 +1,8 @@
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Repositories;
 using KHost.Abstractions.Services;
+using KHost.Plugins.Sdk.Messaging;
+using KHost.Plugins.Sdk.Messaging.Messages;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -9,13 +11,16 @@ namespace KHost.Domain.Services;
 public class UsersService : BaseRepositoryService<KHostUser, IUsersRepository>, IUsersService
 {
     private readonly IUserGroupsRepository _userGroupsRepository;
+    private readonly IMessageBroker _broker;
 
     public UsersService(
         ILogger<UsersService> logger,
         IUsersRepository repository,
-        IUserGroupsRepository userGroupsRepository)
-        : base(logger, repository)
+        IUserGroupsRepository userGroupsRepository,
+        IMessageBroker broker)
+        : base(logger, repository, broker, new UsersChanged())
     {
+        _broker = broker;
         _userGroupsRepository = userGroupsRepository;
     }
 
@@ -33,7 +38,7 @@ public class UsersService : BaseRepositoryService<KHostUser, IUsersRepository>, 
 
         saved.Groups = groups;
 
-        InvokeStateChanged();
+        _broker.Announce(new UsersChanged());
         return saved;
     }
 
@@ -53,7 +58,7 @@ public class UsersService : BaseRepositoryService<KHostUser, IUsersRepository>, 
         foreach (var groupId in currentGroupIds.Except(desiredGroupIds))
             await _userGroupsRepository.RemoveUserFromGroupAsync(entity.Id, groupId);
 
-        InvokeStateChanged();
+        _broker.Announce(new UsersChanged());
     }
 
     public override async Task<bool> DeleteAsync(Guid id)

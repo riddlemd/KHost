@@ -6,7 +6,6 @@ namespace KHost.Abstractions.Services;
 /// </summary>
 public interface ICastService
 {
-    event EventHandler? StateChanged;
 
     /// <summary>
     /// With no syncable screen present this is the only clock there is. A receiver buffers

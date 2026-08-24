@@ -1,6 +1,8 @@
 using KHost.Abstractions.Exceptions;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
+using KHost.Plugins.Sdk.Messaging;
+using KHost.Plugins.Sdk.Messaging.Messages;
 using KHost.UserInterface.Services;
 using Microsoft.AspNetCore.Components;
 
@@ -14,6 +16,9 @@ public partial class UserManagerPage : IDisposable
     [Inject] private IDialogService? DialogService { get; set; }
     [Inject] private IVenuesService? VenuesService { get; set; }
     [Inject] private IAppSettingsService? AppSettingsService { get; set; }
+    [Inject] private IMessageBroker Broker { get; set; } = default!;
+
+    private readonly SubscriptionSet _subscriptions = new();
 
     private int _pageSize = AppSettings.DefaultPageSize;
     private int _currentPage = 1;
@@ -29,8 +34,10 @@ public partial class UserManagerPage : IDisposable
 
         await SearchAsync();
 
-        UsersService!.StateChanged += OnStateChanged;
-        TipsService!.StateChanged  += OnStateChanged;
+        {
+            _subscriptions.Add(Broker.Subscribe<UsersChanged>(_ => OnStateChanged()));
+            _subscriptions.Add(Broker.Subscribe<TipsChanged>(_ => OnStateChanged()));
+        }
     }
 
     private async Task SearchAsync()
@@ -101,7 +108,7 @@ public partial class UserManagerPage : IDisposable
             // Caught here rather than left to the error boundary: a name already in use is the
             // host's mistake to correct, and replacing the page they were working on is no way to
             // tell them.
-            Flash?.Show(taken.WhatHappened, FlashKind.Warning);
+            Flash?.Show(taken.WhatHappened, FlashType.Warning);
         }
     }
 
@@ -146,7 +153,7 @@ public partial class UserManagerPage : IDisposable
         }
     }
 
-    private async void OnStateChanged(object? sender, EventArgs e)
+    private async void OnStateChanged()
     {
         await SearchAsync();
 
@@ -162,8 +169,5 @@ public partial class UserManagerPage : IDisposable
         await InvokeAsync(StateHasChanged);
     }
 
-    public void Dispose()
-    {
-        UsersService?.StateChanged -= OnStateChanged;
-    }
+    public void Dispose() => _subscriptions.Dispose();
 }

@@ -14,6 +14,8 @@ internal class DefaultContext : DbContext
     public DbSet<KHostUserGroup> UserGroups { get; set; }
     public DbSet<Performance> Performances { get; set; }
     public DbSet<Tip> Tips { get; set; }
+    public DbSet<MediaPool> MediaPools { get; set; }
+    public DbSet<MediaPoolEntry> MediaPoolEntries { get; set; }
 
     public DefaultContext(DbContextOptions<DefaultContext> options) : base(options)
     {
@@ -77,10 +79,59 @@ internal class DefaultContext : DbContext
             entity.HasIndex(e => e.Status);
             entity.HasIndex(e => e.DateAdded);
 
+            // Every listing and search filters on kind, so it sits ahead of the sort columns
+            // rather than beside them.
+            entity.HasIndex(e => e.Type);
+
             // Import dedup looks rows up by size first; neither hash is unique, because the same
             // file legitimately exists under two paths until one of them is skipped.
             entity.HasIndex(e => e.FileSize);
             entity.HasIndex(e => e.ContentHash);
+        });
+
+        modelBuilder.Entity<MediaPool>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+
+            entity.Property(e => e.Name)
+                .IsRequired()
+                .HasMaxLength(255);
+
+            entity.Property(e => e.NameFolded)
+                .IsRequired()
+                .HasMaxLength(255);
+
+            entity.HasIndex(e => e.Purpose);
+            entity.HasIndex(e => e.VenueId);
+
+            entity.HasMany(e => e.Entries)
+                .WithOne()
+                .HasForeignKey(e => e.MediaPoolId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<MediaPoolEntry>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+
+            entity.Ignore(e => e.IsPool);
+
+            entity.HasIndex(e => e.MediaPoolId);
+            entity.HasIndex(e => e.ChildPoolId);
+
+            // Restrict, not Cascade: deleting a nested pool must fail loudly rather than quietly
+            // empty out every parent that referenced it mid-show.
+            entity.HasOne<MediaPool>()
+                .WithMany()
+                .HasForeignKey(e => e.ChildPoolId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // A media row deleted from the library takes its pool lines with it — the alternative
+            // is an entry pointing at nothing, which the selector would have to skip forever.
+            entity.HasOne<Media>()
+                .WithMany()
+                .HasForeignKey(e => e.MediaId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<Venue>(entity =>

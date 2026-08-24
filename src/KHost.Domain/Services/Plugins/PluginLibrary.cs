@@ -1,6 +1,8 @@
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Repositories;
 using KHost.Abstractions.Services;
+using KHost.Plugins.Sdk.Messaging;
+using KHost.Plugins.Sdk.Messaging.Messages;
 using KHost.Plugins.Sdk.Models;
 using KHost.Plugins.Sdk.Services;
 using Microsoft.Extensions.Logging;
@@ -27,7 +29,8 @@ public class PluginLibrary : BaseService, IPluginLibrary
         ISingerQueueService singerQueueService,
         IPerformanceService performanceService,
         IOptionsMonitor<ServiceOptions> options,
-        IDownloadsService downloadsService)
+        IDownloadsService downloadsService,
+        IMessageBroker broker)
         : base(logger)
     {
         _repository = repository;
@@ -158,7 +161,7 @@ public class PluginLibrary : BaseService, IPluginLibrary
 
         media.Status = status;
 
-        // BaseRepositoryService.UpdateAsync raises StateChanged itself.
+        // BaseRepositoryService.UpdateAsync announces the change itself.
         await _mediaService.UpdateAsync(media);
     }
 
