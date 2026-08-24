@@ -1,0 +1,8 @@
+.kh-break-music-manager {
+    // .kh-card__body pads a direct <form> child and nothing else, and this sits beside one.
+    &__hint {
+        margin: 0;
+        font-size: 0.8rem;
+        opacity: 0.6;
+    }
+}

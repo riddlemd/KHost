@@ -12,6 +12,9 @@ public partial class EditPlaylistDialog
 
     [Parameter] public bool IsOpen { get; set; }
     [Parameter] public MediaPool? Pool { get; set; }
+
+    /// <summary>Set by the page: a playlist belongs to the manager it was created from.</summary>
+    [Parameter] public PoolPurpose Purpose { get; set; }
     [Parameter] public EventCallback<MediaPool> OnSave { get; set; }
     [Parameter] public EventCallback OnClose { get; set; }
 
@@ -20,7 +23,6 @@ public partial class EditPlaylistDialog
 
     private Guid _id = Guid.NewGuid();
     private string _name = "";
-    private PoolPurpose _purpose = PoolPurpose.BreakMusic;
     private PoolSelectionMode _selectionMode = PoolSelectionMode.Shuffle;
     private int _noRepeatCount = 3;
     private AdTriggerMode _adTrigger = AdTriggerMode.HostOnly;
@@ -42,7 +44,6 @@ public partial class EditPlaylistDialog
 
             _id = Pool?.Id ?? Guid.NewGuid();
             _name = Pool?.Name ?? "";
-            _purpose = Pool?.Purpose ?? PoolPurpose.BreakMusic;
             _selectionMode = Pool?.SelectionMode ?? PoolSelectionMode.Shuffle;
             _noRepeatCount = Pool?.NoRepeatCount ?? 3;
             _adTrigger = Pool?.AdTrigger ?? AdTriggerMode.HostOnly;
@@ -58,25 +59,6 @@ public partial class EditPlaylistDialog
         }
 
         _prevIsOpen = IsOpen;
-    }
-
-    /// <summary>
-    /// Both lists are scoped to the kind, so switching from break music to ads has to fetch again:
-    /// otherwise the picker keeps offering bed tracks and none of the venue's ads.
-    /// </summary>
-    private async Task OnPurposeChangedAsync(ChangeEventArgs e)
-    {
-        if (!Enum.TryParse<PoolPurpose>(e.Value?.ToString(), out var purpose) || purpose == _purpose)
-            return;
-
-        _purpose = purpose;
-
-        // Entries came out of the other purpose's libraries, so they are not this playlist's to keep.
-        _entries.Clear();
-        _addMediaId = "";
-        _addPoolId = "";
-
-        await LoadChoicesAsync();
     }
 
     private static MediaPoolEntry Copy(MediaPoolEntry entry) => new()
@@ -96,7 +78,7 @@ public partial class EditPlaylistDialog
     {
         // What each purpose can actually use: an ad is a video or a picture, break music is a
         // record. Unpaged, because a paged read filtered in memory drops everything past page one.
-        _mediaChoices = _purpose == PoolPurpose.Ads
+        _mediaChoices = Purpose == PoolPurpose.Ads
             ? await Media.ReadAllByKindsAsync(MediaKind.Video, MediaKind.Image)
             : await Media.ReadAllByKindsAsync(MediaKind.Audio);
 
@@ -104,7 +86,7 @@ public partial class EditPlaylistDialog
         // neither something to play between singers nor an ad's voiceover.
         _audioChoices = await Media.ReadAllByKindsAsync(MediaKind.Audio);
 
-        var pools = await MediaPools.ReadAllWithEntriesAsync(_purpose, venueId: null);
+        var pools = await MediaPools.ReadAllWithEntriesAsync(Purpose, venueId: null);
 
         // A playlist is never offered itself. Deeper loops are refused on save, which is the only
         // place the whole shape is known.
@@ -207,7 +189,7 @@ public partial class EditPlaylistDialog
         {
             Id = _id,
             Name = _name.Trim(),
-            Purpose = _purpose,
+            Purpose = Purpose,
             SelectionMode = _selectionMode,
             NoRepeatCount = Math.Clamp(_noRepeatCount, 0, 50),
             AdTrigger = _adTrigger,
