@@ -144,7 +144,10 @@ public class PlaybackService : BaseService, IPlaybackService
 
         ResetState();
 
-        IsPlayingAd = false;
+        // A song takes the room back from an ad still running. The still comes down with the card
+        // below, but an ad's own audio is on the background channel, which nothing else clears.
+        if (IsPlayingAd)
+            await CancelAdAsync();
 
         // The venue card is only for when nothing is playing.
         await SendToScreensAsync(new HideImageCommand());
@@ -685,6 +688,29 @@ public class PlaybackService : BaseService, IPlaybackService
         StreamStartOffset = _stream?.StartOffset ?? TimeSpan.Zero,
     };
 
+    /// <summary>
+    /// Ends an ad before its clock ran out, so none of what follows a finished one — the bed, the
+    /// venue card — happens here: the caller is putting something else on instead.
+    /// </summary>
+    private async Task CancelAdAsync()
+    {
+        Logger.LogInformation("Ad cut short");
+
+        IsPlayingAd = false;
+        _adDuration = null;
+
+        await ReleaseAdAudioAsync();
+    }
+
+    /// <summary>Gives the background channel back, so the bed or a song can take it.</summary>
+    private async Task ReleaseAdAudioAsync()
+    {
+        if (_adAudioStream is null) return;
+
+        await SendToAudioScreenAsync(new StopBackgroundCommand());
+        await CloseAdAudioStreamAsync();
+    }
+
     private async Task CloseAdAudioStreamAsync()
     {
         var stream = _adAudioStream;
@@ -745,11 +771,7 @@ public class PlaybackService : BaseService, IPlaybackService
 
             // Handed back before the bed is restored, or break music would reclaim the channel
             // while the ad's own voiceover was still playing on it.
-            if (_adAudioStream is not null)
-            {
-                await SendToAudioScreenAsync(new StopBackgroundCommand());
-                await CloseAdAudioStreamAsync();
-            }
+            await ReleaseAdAudioAsync();
 
             // No dequeue and no rotation: an ad is nobody's turn, and there is no slot to unlock
             // because none was ever locked for it.
