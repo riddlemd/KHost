@@ -2,7 +2,7 @@ namespace KHost.Abstractions.Services;
 
 public enum ImportState { Idle, Running, Cancelling }
 
-public interface IMediaImportService : IKHostService
+public interface IMediaImportService
 {
     ImportState State { get; }
     int TotalCount { get; }

@@ -270,7 +270,7 @@ public class ScreenCoordinationServiceTests : IDisposable
 
         _venuesService.ReadSelectedVenueAsync().Returns(
             new Venue { Name = "Loud Bar", Settings = new Venue.VenueSettings { DefaultVolume = 70 } });
-        _venuesService.StateChanged += Raise.Event<EventHandler>(_venuesService, EventArgs.Empty);
+        await _broker.PublishAsync(new VenuesChanged());
 
         await WaitForAsync(() => _screenServer.ReceivedCalls().Any(c =>
             c.GetMethodInfo().Name == nameof(IScreenServer.SendCommandAsync)

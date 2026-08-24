@@ -19,6 +19,7 @@ public sealed class ScreenCoordinationService : BaseService, IScreenCoordination
     private readonly IScreenServer _screenServer;
     private readonly IVenuesService _venuesService;
     private readonly SemaphoreSlim _lock = new(1, 1);
+    private readonly IDisposable _venueChanged;
 
     // Screens the user has pinned on or off. Absent means "follow the audio role".
     // Concurrent, not plain: the writers below hold _lock, but IsAudioEnabled/IsVideoEnabled are
@@ -42,7 +43,7 @@ public sealed class ScreenCoordinationService : BaseService, IScreenCoordination
         _screenServer.ScreenDisconnected += OnScreenDisconnected;
         // Selecting or editing a venue changes what "audible" means; without this the new
         // volume waits for the next role move to be heard.
-        _venuesService.StateChanged += OnVenueStateChanged;
+        _venueChanged = broker.Subscribe<VenuesChanged>(OnVenueStateChanged);
     }
 
     /// <summary>A screen can register before this service is first resolved.</summary>
@@ -244,7 +245,7 @@ public sealed class ScreenCoordinationService : BaseService, IScreenCoordination
         return venue is null ? AudibleVolume : Math.Clamp(venue.Settings.DefaultVolume, 0, 100) / 100f;
     }
 
-    private void OnVenueStateChanged(object? sender, EventArgs e) =>
+    private void OnVenueStateChanged(VenuesChanged message) =>
         _ = Task.Run(async () =>
         {
             await _lock.WaitAsync();
@@ -311,7 +312,7 @@ public sealed class ScreenCoordinationService : BaseService, IScreenCoordination
     {
         _screenServer.ScreenConnected -= OnScreenConnected;
         _screenServer.ScreenDisconnected -= OnScreenDisconnected;
-        _venuesService.StateChanged -= OnVenueStateChanged;
+        _venueChanged.Dispose();
 
         // Deliberately not disposing _lock: a detached connect handler may still hold it.
     }

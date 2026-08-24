@@ -7,7 +7,7 @@ namespace KHost.Abstractions.Services;
 /// settings page changes nothing on screen, and work finishing in the background changes nothing
 /// they are watching. Domain code can reach this, so it does not have to be handed a UI callback.
 /// </summary>
-public interface IFlashService : IKHostService
+public interface IFlashService
 {
     FlashMessage? Current { get; }
 

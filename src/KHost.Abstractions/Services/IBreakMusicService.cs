@@ -16,7 +16,6 @@ public enum BreakMusicState { Stopped, Playing, Paused, Suspended }
 /// </summary>
 public interface IBreakMusicService
 {
-    event EventHandler? StateChanged;
 
     IReadOnlyList<IBreakMusicProvider> Providers { get; }
     IBreakMusicProvider? ActiveProvider { get; }

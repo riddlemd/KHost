@@ -3,7 +3,7 @@ using KHost.Abstractions.Repositories;
 
 namespace KHost.Abstractions.Services;
 
-public interface IRepositoryService<T> : IKHostService, ISearchable<T>
+public interface IRepositoryService<T> : ISearchable<T>
     where T : RepositoryModel
 {
     Task<T> CreateAsync(T entity);

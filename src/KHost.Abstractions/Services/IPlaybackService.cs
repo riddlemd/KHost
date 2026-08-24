@@ -18,7 +18,6 @@ public sealed class PerformanceEndedEventArgs : EventArgs
 
 public interface IPlaybackService : IDisposable
 {
-    event EventHandler? StateChanged;
 
     /// <summary>
     /// A singer's performance finished, raised in the gap before break music comes back.
