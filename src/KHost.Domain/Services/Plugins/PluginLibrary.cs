@@ -1,6 +1,8 @@
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Repositories;
 using KHost.Abstractions.Services;
+using KHost.Plugins.Sdk.Messaging;
+using KHost.Plugins.Sdk.Messaging.Messages;
 using KHost.Plugins.Sdk.Models;
 using KHost.Plugins.Sdk.Services;
 using Microsoft.Extensions.Logging;
@@ -20,6 +22,8 @@ public class PluginLibrary : BaseService, IPluginLibrary
     private readonly IOptionsMonitor<ServiceOptions> _options;
     private readonly IDownloadsService _downloadsService;
 
+    protected override object? StateChangedMessage => new PluginLibraryChanged();
+
     public PluginLibrary(
         ILogger<PluginLibrary> logger,
         IMediaRepository repository,
@@ -27,8 +31,9 @@ public class PluginLibrary : BaseService, IPluginLibrary
         ISingerQueueService singerQueueService,
         IPerformanceService performanceService,
         IOptionsMonitor<ServiceOptions> options,
-        IDownloadsService downloadsService)
-        : base(logger)
+        IDownloadsService downloadsService,
+        IMessageBroker broker)
+        : base(logger, broker)
     {
         _repository = repository;
         _mediaService = mediaService;

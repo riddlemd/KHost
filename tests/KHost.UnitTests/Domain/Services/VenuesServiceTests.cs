@@ -2,8 +2,10 @@ using KHost.Abstractions.Models;
 using KHost.Abstractions.Repositories;
 using KHost.Abstractions.Services;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using KHost.Domain.Services;
+using KHost.Domain.Services.Messaging;
 
 namespace KHost.UnitTests.Domain.Services;
 
@@ -12,6 +14,7 @@ public class VenuesServiceTests : IDisposable
     private readonly ILogger<VenuesService> _logger = Substitute.For<ILogger<VenuesService>>();
     private readonly IVenuesRepository _repository;
     private readonly ICacheService _cacheService = Substitute.For<ICacheService>();
+    private readonly MessageBroker _broker = new(NullLogger<MessageBroker>.Instance);
     private readonly VenuesService _service;
     private readonly List<Venue> _venueStore = new();
 
@@ -19,7 +22,7 @@ public class VenuesServiceTests : IDisposable
     {
         _repository = Substitute.For<IVenuesRepository>();
         SetupRepositoryDefaults();
-        _service = new VenuesService(_logger, _repository, _cacheService);
+        _service = new VenuesService(_logger, _repository, _cacheService, _broker);
     }
 
     private void SetupRepositoryDefaults()
@@ -391,7 +394,7 @@ public class VenuesServiceTests : IDisposable
         Assert.Equal(first.Id, _service.SelectedVenueId);
     }
 
-    private VenuesService MakeService() => new(_logger, _repository, _cacheService);
+    private VenuesService MakeService() => new(_logger, _repository, _cacheService, _broker);
 
     private void CacheReturns(Guid id) =>
         _cacheService.LoadAsync<Guid?>("selected-venue").Returns(id);

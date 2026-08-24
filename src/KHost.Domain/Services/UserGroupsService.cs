@@ -1,14 +1,18 @@
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Repositories;
 using KHost.Abstractions.Services;
+using KHost.Plugins.Sdk.Messaging;
+using KHost.Plugins.Sdk.Messaging.Messages;
 using Microsoft.Extensions.Logging;
 
 namespace KHost.Domain.Services;
 
 public class UserGroupsService : BaseRepositoryService<KHostUserGroup, IUserGroupsRepository>, IUserGroupsService
 {
-    public UserGroupsService(ILogger<UserGroupsService> logger, IUserGroupsRepository repository)
-        : base(logger, repository)
+    protected override object? StateChangedMessage => new UserGroupsChanged();
+
+    public UserGroupsService(ILogger<UserGroupsService> logger, IUserGroupsRepository repository, IMessageBroker broker)
+        : base(logger, repository, broker)
     {
     }
 

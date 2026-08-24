@@ -1,6 +1,7 @@
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Repositories;
 using KHost.Domain.Services.MediaPools;
+using KHost.Domain.Services.Messaging;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace KHost.UnitTests.Domain.Services.MediaPools;
@@ -15,7 +16,8 @@ public class MediaPoolServiceTests
         _repository.ReadAllWithEntriesAsync(Arg.Any<PoolPurpose>(), Arg.Any<Guid?>())
             .Returns(Task.FromResult<IReadOnlyList<MediaPool>>([]));
 
-        _service = new MediaPoolService(NullLogger<MediaPoolService>.Instance, _repository, new Random(1));
+        _service = new MediaPoolService(NullLogger<MediaPoolService>.Instance, _repository,
+            new MessageBroker(NullLogger<MessageBroker>.Instance), random: new Random(1));
     }
 
     private static MediaPool Pool(Guid id, params MediaPoolEntry[] entries) => new()

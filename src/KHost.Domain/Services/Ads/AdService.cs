@@ -1,5 +1,7 @@
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
+using KHost.Plugins.Sdk.Messaging;
+using KHost.Plugins.Sdk.Messaging.Messages;
 using Microsoft.Extensions.Logging;
 
 namespace KHost.Domain.Services.Ads;
@@ -21,8 +23,9 @@ public class AdService : BaseService, IAdService, IDisposable
         IMediaService media,
         IVenuesService venues,
         ISingerQueueService queue,
-        TimeProvider time)
-        : base(logger)
+        TimeProvider time,
+        IMessageBroker broker)
+        : base(logger, broker)
     {
         _playback = playback;
         _pools = pools;
@@ -37,6 +40,8 @@ public class AdService : BaseService, IAdService, IDisposable
     public bool IsConfigured { get; private set; }
     public int PerformancesSinceLastAd { get; private set; }
     public DateTimeOffset? LastAdAtUtc { get; private set; }
+
+    protected override object? StateChangedMessage => new AdsChanged();
 
     public async Task InitializeAsync(CancellationToken cancellationToken = default)
     {
