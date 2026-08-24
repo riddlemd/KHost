@@ -15,17 +15,12 @@ namespace KHost.Domain.Services
 
         protected IMessageBroker? Broker { get; }
 
-        /// <summary>
-        /// What this service publishes when it changes. Null for the services that never notified
-        /// anyone — they inherit the event without ever raising it.
-        /// </summary>
-        protected virtual object? StateChangedMessage => null;
 
         // Not awaited: this says "redraw", and a publisher that waited for every component to
         // finish rendering would stall the show to do it.
-        protected void InvokeStateChanged()
+        protected void Announce(object message)
         {
-            if (Broker is { } broker && StateChangedMessage is { } message)
+            if (Broker is { } broker)
                 _ = broker.PublishAsync(message);
         }
     }

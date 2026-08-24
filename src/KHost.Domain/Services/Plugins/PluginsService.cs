@@ -13,8 +13,6 @@ public class PluginsService : BaseService, IPluginsService
     private readonly ICacheService _cache;
     private readonly IPluginRegistry _registry;
 
-    protected override object? StateChangedMessage => new PluginsChanged();
-
     public PluginsService(ILogger<PluginsService> logger, ICacheService cache, IPluginRegistry registry, IMessageBroker broker)
         : base(logger, broker)
     {
@@ -82,6 +80,6 @@ public class PluginsService : BaseService, IPluginsService
             _lock.Release();
         }
 
-        InvokeStateChanged();
+        Announce(new PluginsChanged());
     }
 }

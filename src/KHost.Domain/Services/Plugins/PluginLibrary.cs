@@ -22,8 +22,6 @@ public class PluginLibrary : BaseService, IPluginLibrary
     private readonly IOptionsMonitor<ServiceOptions> _options;
     private readonly IDownloadsService _downloadsService;
 
-    protected override object? StateChangedMessage => new PluginLibraryChanged();
-
     public PluginLibrary(
         ILogger<PluginLibrary> logger,
         IMediaRepository repository,

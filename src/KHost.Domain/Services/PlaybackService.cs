@@ -82,8 +82,6 @@ public class PlaybackService : BaseService, IPlaybackService
     public Guid? CurrentlyPerformingUserId { get; private set; }
     public TimeSpan? StopFadeDuration { get; private set; }
 
-    protected override object? StateChangedMessage => new PlaybackChanged();
-
     public PlaybackService(
         ILogger<PlaybackService> logger,
         ISingerQueueService singerQueueService,
@@ -175,7 +173,7 @@ public class PlaybackService : BaseService, IPlaybackService
 
         await SendToScreensAsync(await BuildLoadCommandAsync(media, TimeSpan.Zero));
 
-        InvokeStateChanged();
+        Announce(new PlaybackChanged());
     }
 
     /// <summary>
@@ -241,7 +239,7 @@ public class PlaybackService : BaseService, IPlaybackService
             Logger.LogWarning("Ad refused: no screens are connected");
 
             await EndedAsync();
-            InvokeStateChanged();
+            Announce(new PlaybackChanged());
             return false;
         }
 
@@ -272,7 +270,7 @@ public class PlaybackService : BaseService, IPlaybackService
             });
         }
 
-        InvokeStateChanged();
+        Announce(new PlaybackChanged());
 
         if (!playsOnMainChannel)
         {
@@ -281,7 +279,7 @@ public class PlaybackService : BaseService, IPlaybackService
             State = PlaybackState.Playing;
             StartClock();
 
-            InvokeStateChanged();
+            Announce(new PlaybackChanged());
             return true;
         }
 
@@ -294,7 +292,7 @@ public class PlaybackService : BaseService, IPlaybackService
         // ad would hold the main channel and keep the bed suspended behind it.
         await EndedAsync();
 
-        InvokeStateChanged();
+        Announce(new PlaybackChanged());
 
         return false;
     }
@@ -344,7 +342,7 @@ public class PlaybackService : BaseService, IPlaybackService
         // which instant to start on.
         await PublishTimelineAsync(isPlaying: true, scheduleAhead: true);
 
-        InvokeStateChanged();
+        Announce(new PlaybackChanged());
     }
 
     public async Task SeekAsync(TimeSpan position)
@@ -373,7 +371,7 @@ public class PlaybackService : BaseService, IPlaybackService
         if (wasPlaying)
             StartClock();
 
-        InvokeStateChanged();
+        Announce(new PlaybackChanged());
     }
 
     private static TimeSpan Clamp(TimeSpan position, TimeSpan? duration)
@@ -399,7 +397,7 @@ public class PlaybackService : BaseService, IPlaybackService
         await CastAsync(c => c.PauseAsync());
         await PublishTimelineAsync(isPlaying: false);
 
-        InvokeStateChanged();
+        Announce(new PlaybackChanged());
 
         return;
     }
@@ -421,7 +419,7 @@ public class PlaybackService : BaseService, IPlaybackService
 
         Logger.LogInformation("Playback stopping (fade={Fade})", fade);
 
-        InvokeStateChanged();
+        Announce(new PlaybackChanged());
 
         await SendToScreensAsync(new StopCommand { FadeDuration = fade });
         await CastAsync(c => c.StopAsync());
@@ -441,7 +439,7 @@ public class PlaybackService : BaseService, IPlaybackService
 
         await EndedAsync();
 
-        InvokeStateChanged();
+        Announce(new PlaybackChanged());
     }
 
     public void Dispose()
@@ -581,13 +579,13 @@ public class PlaybackService : BaseService, IPlaybackService
                 case ScreenDisconnectBehavior.CancelPerformance:
                     ResetState();
                     await EndedAsync();
-                    InvokeStateChanged();
+                    Announce(new PlaybackChanged());
                     break;
 
                 case ScreenDisconnectBehavior.RestartFromStart:
                     await PauseAsync();
                     Position = TimeSpan.Zero;
-                    InvokeStateChanged();
+                    Announce(new PlaybackChanged());
                     break;
 
                 default:
@@ -997,7 +995,7 @@ public class PlaybackService : BaseService, IPlaybackService
 
             await EndedAsync();
 
-            InvokeStateChanged();
+            Announce(new PlaybackChanged());
             return;
         }
 

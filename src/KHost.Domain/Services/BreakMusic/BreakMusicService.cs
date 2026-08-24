@@ -41,8 +41,6 @@ public class BreakMusicService : BaseService, IBreakMusicService, IDisposable
 
     public BreakMusicState State { get; private set; } = BreakMusicState.Stopped;
 
-    protected override object? StateChangedMessage => new BreakMusicChanged();
-
     public BreakMusicTrack? CurrentTrack => _activeProvider?.CurrentTrack;
 
     public async Task InitializeAsync(CancellationToken cancellationToken = default)
@@ -53,7 +51,7 @@ public class BreakMusicService : BaseService, IBreakMusicService, IDisposable
 
         Logger.LogInformation("Break music provider: {Provider}", _activeProvider?.SourceName ?? "none");
 
-        InvokeStateChanged();
+        Announce(new BreakMusicChanged());
     }
 
     public async Task SetActiveProviderAsync(string sourceName, CancellationToken cancellationToken = default)
@@ -69,7 +67,7 @@ public class BreakMusicService : BaseService, IBreakMusicService, IDisposable
 
         _activeProvider = next;
 
-        InvokeStateChanged();
+        Announce(new BreakMusicChanged());
     }
 
     public async Task<bool> StartAsync(CancellationToken cancellationToken = default)
@@ -92,7 +90,7 @@ public class BreakMusicService : BaseService, IBreakMusicService, IDisposable
             _lock.Release();
         }
 
-        InvokeStateChanged();
+        Announce(new BreakMusicChanged());
         return true;
     }
 
@@ -105,7 +103,7 @@ public class BreakMusicService : BaseService, IBreakMusicService, IDisposable
 
         State = BreakMusicState.Paused;
 
-        InvokeStateChanged();
+        Announce(new BreakMusicChanged());
     }
 
     public async Task ResumeAsync(CancellationToken cancellationToken = default)
@@ -117,7 +115,7 @@ public class BreakMusicService : BaseService, IBreakMusicService, IDisposable
 
         State = BreakMusicState.Playing;
 
-        InvokeStateChanged();
+        Announce(new BreakMusicChanged());
     }
 
     public async Task StopAsync(CancellationToken cancellationToken = default)
@@ -129,7 +127,7 @@ public class BreakMusicService : BaseService, IBreakMusicService, IDisposable
 
         State = BreakMusicState.Stopped;
 
-        InvokeStateChanged();
+        Announce(new BreakMusicChanged());
     }
 
     public async Task SkipAsync(CancellationToken cancellationToken = default)
@@ -139,7 +137,7 @@ public class BreakMusicService : BaseService, IBreakMusicService, IDisposable
 
         await provider.SkipAsync(cancellationToken);
 
-        InvokeStateChanged();
+        Announce(new BreakMusicChanged());
     }
 
     /// <summary>
@@ -178,7 +176,7 @@ public class BreakMusicService : BaseService, IBreakMusicService, IDisposable
 
         Logger.LogInformation("Break music suspended for something with its own audio");
 
-        InvokeStateChanged();
+        Announce(new BreakMusicChanged());
     }
 
     public async Task RestoreAsync(CancellationToken cancellationToken = default)
@@ -193,14 +191,13 @@ public class BreakMusicService : BaseService, IBreakMusicService, IDisposable
         if (!await StartAsync(cancellationToken))
         {
             State = BreakMusicState.Stopped;
-            InvokeStateChanged();
+            Announce(new BreakMusicChanged());
         }
     }
 
     public void Dispose()
     {
         _subscriptions.Dispose();
-
 
         _lock.Dispose();
 
@@ -239,6 +236,6 @@ public class BreakMusicService : BaseService, IBreakMusicService, IDisposable
         if (message.ProviderSourceName != _activeProvider?.SourceName)
             return;
 
-        InvokeStateChanged();
+        Announce(new BreakMusicChanged());
     }
 }

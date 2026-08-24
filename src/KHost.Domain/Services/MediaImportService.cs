@@ -35,8 +35,6 @@ public class MediaImportService : BaseService, IMediaImportService
     public string? CurrentFilePath { get; private set; }
     public IReadOnlyList<string> SupportedExtensions { get; } = _supportedExtensions;
 
-    protected override object? StateChangedMessage => new MediaImportChanged();
-
     public MediaImportService(
         ILogger<MediaImportService> logger,
         IMediaFileParsingService parser,
@@ -74,7 +72,7 @@ public class MediaImportService : BaseService, IMediaImportService
             _lastNotifyMs = 0;
         }
 
-        InvokeStateChanged();
+        Announce(new MediaImportChanged());
         var cts = _cts!;
         var thread = new Thread(() => RunImportAsync(paths, cts.Token).GetAwaiter().GetResult())
         {
@@ -94,17 +92,17 @@ public class MediaImportService : BaseService, IMediaImportService
 
         State = ImportState.Cancelling;
         _cts?.Cancel();
-        InvokeStateChanged();
+        Announce(new MediaImportChanged());
     }
 
-    private void InvokeStateChangedThrottled()
+    private void AnnounceThrottled()
     {
         var now = Environment.TickCount64;
         if (now - _lastNotifyMs < 250)
             return;
 
         _lastNotifyMs = now;
-        InvokeStateChanged();
+        Announce(new MediaImportChanged());
     }
 
     private async Task ImportOneFileAsync(ImportCandidate candidate, CancellationToken ct)
@@ -156,7 +154,7 @@ public class MediaImportService : BaseService, IMediaImportService
             CurrentFilePath = null;
             _cts?.Dispose();
             _cts = null;
-            InvokeStateChanged();
+            Announce(new MediaImportChanged());
         }
     }
 
@@ -174,7 +172,7 @@ public class MediaImportService : BaseService, IMediaImportService
 
         activity.SetTag("total_files", paths.Count);
         TotalCount = toImport.Count;
-        InvokeStateChanged();
+        Announce(new MediaImportChanged());
 
         return toImport;
     }
@@ -350,11 +348,11 @@ public class MediaImportService : BaseService, IMediaImportService
                 break;
 
             CurrentFilePath = candidate.Path;
-            InvokeStateChangedThrottled();
+            AnnounceThrottled();
 
             await ImportOneFileAsync(candidate, ct);
 
-            InvokeStateChangedThrottled();
+            AnnounceThrottled();
         }
     }
 

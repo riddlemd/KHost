@@ -9,10 +9,9 @@ namespace KHost.Domain.Services;
 
 public class UserGroupsService : BaseRepositoryService<KHostUserGroup, IUserGroupsRepository>, IUserGroupsService
 {
-    protected override object? StateChangedMessage => new UserGroupsChanged();
 
     public UserGroupsService(ILogger<UserGroupsService> logger, IUserGroupsRepository repository, IMessageBroker broker)
-        : base(logger, repository, broker)
+        : base(logger, repository, broker, new UserGroupsChanged())
     {
     }
 

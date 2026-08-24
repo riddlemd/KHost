@@ -11,10 +11,8 @@ public class TipsService : BaseRepositoryService<Tip, ITipsRepository>, ITipsSer
 {
     private readonly IVenuesService _venuesService;
 
-    protected override object? StateChangedMessage => new TipsChanged();
-
     public TipsService(ILogger<TipsService> logger, ITipsRepository repository, IVenuesService venuesService, IMessageBroker broker)
-        : base(logger, repository, broker)
+        : base(logger, repository, broker, new TipsChanged())
     {
         _venuesService = venuesService;
     }
