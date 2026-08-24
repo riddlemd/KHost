@@ -1,62 +1,39 @@
 .kh-playlist-dialog {
-    &__section {
-        display: flex;
-        flex-direction: column;
-        gap: 0.5rem;
-        padding-block: 0.75rem;
-
-        & + & {
-            border-top: 1px solid var(--kh-border);
-        }
-    }
-
-    &__section-title {
-        font-weight: 600;
-        color: var(--kh-text-muted);
-        font-size: 0.8125rem;
-        text-transform: uppercase;
-        letter-spacing: 0.04em;
-    }
-
-    &__row {
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-
-        // Without this the label pushes the control off the row rather than truncating itself.
-        .kh-form-label {
-            flex: 1;
-            min-width: 0;
-            white-space: nowrap;
-            margin: 0;
-        }
-    }
-
-    &__suffix {
-        color: var(--kh-text-muted);
-        white-space: nowrap;
-    }
-
     &__hint {
         margin: 0;
-        color: var(--kh-text-muted);
-        font-size: 0.875rem;
+        font-size: 0.8rem;
+        opacity: 0.6;
     }
 
+    // The row of controls that appends an entry, below the table rather than in it.
     &__add {
         display: flex;
-        flex-wrap: wrap;
         align-items: center;
         gap: 0.5rem;
-        padding-top: 0.5rem;
+        margin-top: 0.75rem;
+
+        .kh-form-select {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .kh-button {
+            flex-shrink: 0;
+        }
     }
 
-    // Handed to the table this component renders, so a plain descendant rule reaches them.
+    // Held narrow so the entry description keeps the width instead of these cells taking it.
     &__time {
-        width: 5.5rem;
+        width: 5rem;
+        text-align: right;
     }
 
     &__weight {
-        width: 4.5rem;
+        width: 4rem;
+        text-align: right;
+    }
+
+    &__col--actions {
+        width: 1%;
     }
 }

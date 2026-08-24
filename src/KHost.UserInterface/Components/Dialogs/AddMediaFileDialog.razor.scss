@@ -1,20 +1,13 @@
 .kh-add-media-dialog {
     &__hint {
-        margin: 0 0 0.75rem;
-        color: var(--kh-text-muted);
-        font-size: 0.875rem;
-    }
-
-    &__row {
-        display: flex;
-        flex-direction: column;
-        gap: 0.25rem;
-        margin-bottom: 0.75rem;
+        margin: 0 0 1em;
+        font-size: 0.8rem;
+        opacity: 0.6;
     }
 
     &__error {
         margin: 0;
-        color: var(--kh-danger);
-        font-size: 0.875rem;
+        font-size: 0.8rem;
+        color: var(--kh-danger, #e06c75);
     }
 }

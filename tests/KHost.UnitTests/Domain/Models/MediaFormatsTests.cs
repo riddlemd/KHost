@@ -43,4 +43,53 @@ public class MediaFormatsTests
     [Fact]
     public void ContentTypeFor_APlayableFormat_IsNull()
         => Assert.Null(MediaFormats.ContentTypeFor("MP4"));
+
+    // A backing track has no singer on it and is often not the original recording, so it is a song
+    // to queue and nothing else. The .cdg is what gives the pair away.
+    [Fact]
+    public void IsKaraokeTrack_ACdg_IsOne()
+    {
+        var dir = Directory.CreateTempSubdirectory("khost-cdg-");
+        try
+        {
+            var cdg = Path.Combine(dir.FullName, "song.cdg");
+            File.WriteAllText(cdg, "");
+
+            Assert.True(MediaFormats.IsKaraokeTrack(cdg));
+        }
+        finally { dir.Delete(recursive: true); }
+    }
+
+    [Fact]
+    public void IsKaraokeTrack_AnMp3WithACdgBesideIt_IsOne()
+    {
+        var dir = Directory.CreateTempSubdirectory("khost-cdg-");
+        try
+        {
+            var mp3 = Path.Combine(dir.FullName, "song.mp3");
+            File.WriteAllText(mp3, "");
+            File.WriteAllText(Path.Combine(dir.FullName, "song.cdg"), "");
+
+            Assert.True(MediaFormats.IsKaraokeTrack(mp3));
+        }
+        finally { dir.Delete(recursive: true); }
+    }
+
+    [Fact]
+    public void IsKaraokeTrack_AnMp3OnItsOwn_IsNot()
+    {
+        var dir = Directory.CreateTempSubdirectory("khost-cdg-");
+        try
+        {
+            var mp3 = Path.Combine(dir.FullName, "record.mp3");
+            File.WriteAllText(mp3, "");
+
+            Assert.False(MediaFormats.IsKaraokeTrack(mp3));
+        }
+        finally { dir.Delete(recursive: true); }
+    }
+
+    [Fact]
+    public void IsKaraokeTrack_NoPath_IsNot()
+        => Assert.False(MediaFormats.IsKaraokeTrack(""));
 }

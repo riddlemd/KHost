@@ -92,9 +92,11 @@ public partial class EditVenueDialog
         _adPools = await MediaPools.ReadAllWithEntriesAsync(MediaKind.Ad, _model.Id);
         _breakMusicProviders = BreakMusic.Providers;
 
-        // Stills only: anything else handed to the screen as a card is a URL that serves nothing.
-        var media = await Media.ReadAllAsync(1, 0, sort: null, MediaSearchOptions.AllKinds);
-        _images = [.. media.Items.Where(m => MediaFormats.IsImage(m.Format)).OrderBy(m => m.Title)];
+        // Stills only, and never out of the karaoke library: anything else handed to the screen as
+        // a card is a URL that serves nothing. Read by kind rather than paged, or a card past the
+        // first page of a real library would never be offered.
+        var media = await Media.ReadAllByKindsAsync(MediaKind.Ad, MediaKind.BreakMusic);
+        _images = [.. media.Where(m => MediaFormats.IsImage(m.Format))];
     }
 
     private async Task SubmitAsync()
