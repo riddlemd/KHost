@@ -72,6 +72,9 @@
 </head>
 <body>
     <video id="video" playsinline></video>
+    <!-- Break music and an ad's own bed. Audio-only and never on the group timeline, so it is a
+         separate element rather than a second source on the video above. -->
+    <audio id="background"></audio>
     <div id="placeholder">KHost</div>
     <div id="blanked" hidden>Video off</div>
     <div id="hostlost" hidden>Lost the host<small>Paused until KHost comes back</small></div>
