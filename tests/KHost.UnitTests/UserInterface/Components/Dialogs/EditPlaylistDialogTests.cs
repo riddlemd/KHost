@@ -19,7 +19,7 @@ public class EditPlaylistDialogTests : BunitContext
         FilePath = "/media/bed.mp3",
         Title = "Elevator Jazz",
         Format = "MP3",
-        Kind = MediaKind.Audio,
+        Type = MediaType.Audio,
         Status = MediaStatus.Ready,
     };
 
@@ -29,7 +29,7 @@ public class EditPlaylistDialogTests : BunitContext
         FilePath = "/media/spot.mp4",
         Title = "Happy Hour Spot",
         Format = "MP4",
-        Kind = MediaKind.Video,
+        Type = MediaType.Video,
         Status = MediaStatus.Ready,
     };
 
@@ -38,12 +38,12 @@ public class EditPlaylistDialogTests : BunitContext
         JSInterop.Mode = JSRuntimeMode.Loose;
 
         // NSubstitute hands back a completed task wrapping null otherwise, and the dialog counts it.
-        _media.ReadAllByKindsAsync(Arg.Any<MediaKind[]>())
+        _media.ReadAllByTypesAsync(Arg.Any<MediaType[]>())
             .Returns(call =>
             {
-                var kinds = call.Arg<MediaKind[]>();
+                var types = call.Arg<MediaType[]>();
                 return Task.FromResult<IReadOnlyList<Media>>(
-                    [.. new[] { _bed, _spot }.Where(m => kinds.Contains(m.Kind))]);
+                    [.. new[] { _bed, _spot }.Where(m => types.Contains(m.Type))]);
             });
 
         _pools.ReadAllWithEntriesAsync(Arg.Any<PoolPurpose>(), Arg.Any<Guid?>())
@@ -195,12 +195,12 @@ public class EditPlaylistDialogTests : BunitContext
     public void TheMediaPicker_OffersOnlyWhatThePurposeCanUse()
     {
         RenderDialog(new MediaPool { Name = "Beds" }, PoolPurpose.BreakMusic);
-        _media.Received().ReadAllByKindsAsync(MediaKind.Audio);
+        _media.Received().ReadAllByTypesAsync(MediaType.Audio);
 
         _media.ClearReceivedCalls();
 
         RenderDialog(new MediaPool { Name = "Spots" }, PoolPurpose.Ads);
-        _media.Received().ReadAllByKindsAsync(MediaKind.Video, MediaKind.Image);
+        _media.Received().ReadAllByTypesAsync(MediaType.Video, MediaType.Image);
     }
 
     [Theory]

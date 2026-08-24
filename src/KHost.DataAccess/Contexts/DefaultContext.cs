@@ -81,7 +81,7 @@ internal class DefaultContext : DbContext
 
             // Every listing and search filters on kind, so it sits ahead of the sort columns
             // rather than beside them.
-            entity.HasIndex(e => e.Kind);
+            entity.HasIndex(e => e.Type);
 
             // Import dedup looks rows up by size first; neither hash is unique, because the same
             // file legitimately exists under two paths until one of them is skipped.

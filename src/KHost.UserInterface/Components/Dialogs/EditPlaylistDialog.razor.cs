@@ -79,12 +79,12 @@ public partial class EditPlaylistDialog
         // What each purpose can actually use: an ad is a video or a picture, break music is a
         // record. Unpaged, because a paged read filtered in memory drops everything past page one.
         _mediaChoices = Purpose == PoolPurpose.Ads
-            ? await Media.ReadAllByKindsAsync(MediaKind.Video, MediaKind.Image)
-            : await Media.ReadAllByKindsAsync(MediaKind.Audio);
+            ? await Media.ReadAllByTypesAsync(MediaType.Video, MediaType.Image)
+            : await Media.ReadAllByTypesAsync(MediaType.Audio);
 
         // Never the karaoke library: those are backing tracks with no singer on them, so they are
         // neither something to play between singers nor an ad's voiceover.
-        _audioChoices = await Media.ReadAllByKindsAsync(MediaKind.Audio);
+        _audioChoices = await Media.ReadAllByTypesAsync(MediaType.Audio);
 
         var pools = await MediaPools.ReadAllWithEntriesAsync(Purpose, venueId: null);
 
