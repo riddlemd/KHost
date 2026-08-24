@@ -25,7 +25,6 @@ public class SingerQueueService : ISingerQueueService
     private readonly List<Guid> _userIds = [];
     private List<KHostUser> _cachedUsers = [];
 
-    public event EventHandler? StateChanged;
 
     public IReadOnlyList<KHostUser> Users => _cachedUsers.AsReadOnly();
     public Guid? SelectedUserId { get; private set; }
@@ -255,7 +254,6 @@ public class SingerQueueService : ISingerQueueService
         SelectedUserId = queueData.SelectedUserId;
         await ResolveAsync();
         _logger.LogInformation("Singer queue loaded ({Count} users)", queueData.UserIds.Count);
-        StateChanged?.Invoke(this, EventArgs.Empty);
         if (_broker is { } broker)
             _ = broker.PublishAsync(new SingerQueueChanged());
     }
@@ -371,7 +369,6 @@ public class SingerQueueService : ISingerQueueService
         await ResolveAsync();
         await SaveAsync();
 
-        StateChanged?.Invoke(this, EventArgs.Empty);
         if (_broker is { } broker)
             _ = broker.PublishAsync(new SingerQueueChanged());
     }

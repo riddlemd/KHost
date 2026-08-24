@@ -1,4 +1,6 @@
 using KHost.Abstractions.Services;
+using KHost.Plugins.Sdk.Messaging;
+using KHost.UserInterface.Messaging;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Logging;
 
@@ -12,17 +14,19 @@ public class ThemeService : IThemeService
     private readonly ICacheService _cacheService;
     private readonly IWebHostEnvironment _env;
     private readonly ILogger<ThemeService> _logger;
+    private readonly IMessageBroker _broker;
 
-    public event EventHandler? StateChanged;
 
     public string CurrentTheme { get; private set; } = DefaultTheme;
     public IReadOnlyList<string> AvailableThemes { get; private set; } = [];
 
-    public ThemeService(ICacheService cacheService, IWebHostEnvironment env, ILogger<ThemeService> logger)
+    public ThemeService(ICacheService cacheService, IWebHostEnvironment env, ILogger<ThemeService> logger,
+        IMessageBroker broker)
     {
         _cacheService = cacheService;
         _env = env;
         _logger = logger;
+        _broker = broker;
     }
 
     public async Task InitializeAsync()
@@ -64,6 +68,6 @@ public class ThemeService : IThemeService
         CurrentTheme = themeName;
         await _cacheService.SaveAsync(CacheKey, themeName);
         _logger.LogInformation("Theme changed: {From} -> {To}", previous, themeName);
-        StateChanged?.Invoke(this, EventArgs.Empty);
+        _ = _broker.PublishAsync(new ThemeChanged());
     }
 }

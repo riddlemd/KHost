@@ -166,7 +166,7 @@ public class BreakMusicServiceTests : IDisposable
         await _service.InitializeAsync();
         _provider.ClearReceivedCalls();
 
-        _venues.StateChanged += Raise.Event();
+        await _broker.PublishAsync(new VenuesChanged());
 
         await _provider.Received().SetVolumeAsync(0.25f, Arg.Any<CancellationToken>());
     }

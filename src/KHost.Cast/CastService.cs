@@ -34,7 +34,6 @@ public sealed class CastService : ICastService, IDisposable
     private string? _connectedDeviceId;
     private TimeSpan _streamStartOffset;
 
-    public event EventHandler? StateChanged;
     public event EventHandler<CastPlaybackStatus>? PlaybackStatusChanged;
 
     public CastService(ILogger<CastService> logger, IOptions<ServiceOptions> options, IMessageBroker? broker = null)
@@ -288,7 +287,6 @@ public sealed class CastService : ICastService, IDisposable
 
     private void RaiseStateChanged()
     {
-        StateChanged?.Invoke(this, EventArgs.Empty);
         if (_broker is { } broker)
             _ = broker.PublishAsync(new CastChanged());
     }

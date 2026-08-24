@@ -6,7 +6,6 @@ namespace KHost.Abstractions.Services;
 /// </summary>
 public interface IAdService
 {
-    event EventHandler? StateChanged;
 
     /// <summary>False when the venue has chosen no ad playlist, which is most venues.</summary>
     bool IsConfigured { get; }

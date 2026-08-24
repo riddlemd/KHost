@@ -13,7 +13,7 @@ public class BreakMusicService : BaseService, IBreakMusicService, IDisposable
     private static readonly TimeSpan SuspendFade = TimeSpan.FromSeconds(2);
 
     private readonly SemaphoreSlim _lock = new(1, 1);
-    private readonly IDisposable _trackChanged;
+    private readonly SubscriptionSet _subscriptions = new();
     private readonly List<IBreakMusicProvider> _providers;
     private readonly IVenuesService _venues;
 
@@ -29,11 +29,11 @@ public class BreakMusicService : BaseService, IBreakMusicService, IDisposable
         _providers = [.. providers];
         _venues = venues;
 
-        _trackChanged = broker.Subscribe<BreakMusicTrackChanged>(OnProviderTrackChanged);
+        _subscriptions.Add(broker.Subscribe<BreakMusicTrackChanged>(OnProviderTrackChanged));
 
         // Only for a provider the host cannot reach: ScreenCoordination already re-applies the
         // venue level to every screen when a venue is edited.
-        _venues.StateChanged += OnVenueChanged;
+        _subscriptions.Add(broker.Subscribe<VenuesChanged>(OnVenueChanged));
     }
 
     public IReadOnlyList<IBreakMusicProvider> Providers => _providers;
@@ -199,9 +199,8 @@ public class BreakMusicService : BaseService, IBreakMusicService, IDisposable
 
     public void Dispose()
     {
-        _trackChanged.Dispose();
+        _subscriptions.Dispose();
 
-        _venues.StateChanged -= OnVenueChanged;
 
         _lock.Dispose();
 
@@ -227,7 +226,7 @@ public class BreakMusicService : BaseService, IBreakMusicService, IDisposable
             ?? _providers.FirstOrDefault();
     }
 
-    private void OnVenueChanged(object? sender, EventArgs e)
+    private void OnVenueChanged(VenuesChanged message)
     {
         if (_activeProvider is { } provider)
             _ = ApplyVenueVolumeAsync(provider, CancellationToken.None);

@@ -22,7 +22,6 @@ public class DownloadsService : IDownloadsService
     private readonly object _recentLock = new();
     private readonly IMessageBroker? _broker;
 
-    public event EventHandler? StateChanged;
 
     public DownloadsService(IMessageBroker? broker = null)
     {
@@ -138,7 +137,6 @@ public class DownloadsService : IDownloadsService
 
     private void RaiseStateChanged()
     {
-        StateChanged?.Invoke(this, EventArgs.Empty);
         if (_broker is { } broker)
             _ = broker.PublishAsync(new DownloadsChanged());
     }
