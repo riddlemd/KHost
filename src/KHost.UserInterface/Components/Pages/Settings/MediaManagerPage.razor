@@ -11,6 +11,9 @@
         <div class="kh-card">
             <div class="kh-card__header">
                 <span class="kh-card__title"><Icon Name="music-note-list" /> Media Manager</span>
+                <button class="kh-button kh-button--secondary" @onclick="OpenAddFileDialog" type="button">
+                    <Icon Name="file-earmark-plus" /> Add a File
+                </button>
                 <button class="kh-button kh-button--primary" @onclick="NavigateToImporter" type="button">
                     <Icon Name="plus-lg" /> Import New Song/s
                 </button>
@@ -51,6 +54,7 @@
                                 <th class="kh-table__col--sortable" @onclick='() => OnSortColumnClicked("artist")'>
                                     Artist @if (_sortColumn == "artist") { <Icon Name="@(_sortDescending ? "sort-down" : "sort-up")" class="kh-table__sort-indicator" /> }
                                 </th>
+                                <th class="kh-media-manager__col--kind">Used for</th>
                                 <th class="kh-media-manager__col--format kh-table__col--sortable" @onclick='() => OnSortColumnClicked("format")'>
                                     Format @if (_sortColumn == "format") { <Icon Name="@(_sortDescending ? "sort-down" : "sort-up")" class="kh-table__sort-indicator" /> }
                                 </th>
@@ -77,6 +81,16 @@
                                     </td>
                                     <td class="kh-table__cell--fill" title="@media.FilePath">@media.Title</td>
                                     <td>@media.Artist</td>
+                                    <td>
+                                        @if (media.Kind != MediaKind.Karaoke)
+                                        {
+                                            <span class="kh-badge kh-badge--secondary">@DescribeKind(media.Kind)</span>
+                                        }
+                                        else
+                                        {
+                                            <span>Song</span>
+                                        }
+                                    </td>
                                     <td>@media.Format</td>
                                     <td>
                                         @if (media.Duration is { } dur)
@@ -136,3 +150,5 @@
         </div>
     </div>
 </div>
+
+<AddMediaFileDialog IsOpen="_addFileDialogOpen" OnAdded="SearchAsync" OnClose="CloseAddFileDialog" />

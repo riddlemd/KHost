@@ -56,6 +56,12 @@ public partial class MediaManagerPage : IAsyncDisposable
         MediaService.StateChanged += OnMediaStateChanged;
     }
 
+    private bool _addFileDialogOpen;
+
+    private void OpenAddFileDialog() => _addFileDialogOpen = true;
+
+    private void CloseAddFileDialog() => _addFileDialogOpen = false;
+
     private async Task SearchAsync()
     {
         if (MediaService is null)
@@ -217,6 +223,15 @@ public partial class MediaManagerPage : IAsyncDisposable
         _selectedIds.Clear();
         await Task.CompletedTask;
     }
+
+    // The console says song; this page and the importer say media, so a row's purpose is named
+    // here rather than left as an enum value.
+    private static string DescribeKind(MediaKind kind) => kind switch
+    {
+        MediaKind.BreakMusic => "Break music",
+        MediaKind.Ad => "Ad",
+        _ => "Song",
+    };
 
     private static string GetStatusBadgeClass(MediaStatus status) => MediaStatusDisplay.BadgeClass(status);
 }

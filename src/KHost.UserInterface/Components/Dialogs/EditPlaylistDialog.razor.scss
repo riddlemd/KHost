@@ -1,0 +1,62 @@
+.kh-playlist-dialog {
+    &__section {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+        padding-block: 0.75rem;
+
+        & + & {
+            border-top: 1px solid var(--kh-border);
+        }
+    }
+
+    &__section-title {
+        font-weight: 600;
+        color: var(--kh-text-muted);
+        font-size: 0.8125rem;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+    }
+
+    &__row {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+
+        // Without this the label pushes the control off the row rather than truncating itself.
+        .kh-form-label {
+            flex: 1;
+            min-width: 0;
+            white-space: nowrap;
+            margin: 0;
+        }
+    }
+
+    &__suffix {
+        color: var(--kh-text-muted);
+        white-space: nowrap;
+    }
+
+    &__hint {
+        margin: 0;
+        color: var(--kh-text-muted);
+        font-size: 0.875rem;
+    }
+
+    &__add {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.5rem;
+        padding-top: 0.5rem;
+    }
+
+    // Handed to the table this component renders, so a plain descendant rule reaches them.
+    &__time {
+        width: 5.5rem;
+    }
+
+    &__weight {
+        width: 4.5rem;
+    }
+}

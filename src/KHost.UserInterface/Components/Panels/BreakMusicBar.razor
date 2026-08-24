@@ -1,0 +1,55 @@
+@using KHost.Abstractions.Models
+
+@if (BreakMusic.ActiveProvider is not null)
+{
+    <div class="kh-break-music-bar">
+        <Icon Name="music-note-list" Class="kh-break-music-bar__icon" />
+
+        <div class="kh-break-music-bar__info">
+            @if (BreakMusic.CurrentTrack is { } track)
+            {
+                <span class="kh-break-music-bar__title">@track.Title</span>
+                @if (!string.IsNullOrEmpty(track.Artist))
+                {
+                    <span class="kh-break-music-bar__artist">@track.Artist</span>
+                }
+            }
+            else
+            {
+                <span class="kh-break-music-bar__title kh-break-music-bar__title--idle">@DescribeState()</span>
+            }
+        </div>
+
+        <div class="kh-break-music-bar__controls">
+            @if (BreakMusic.State == BreakMusicState.Playing)
+            {
+                <button class="kh-button--icon-minimal" title="Pause break music" type="button" @onclick="PauseAsync">
+                    <Icon Name="pause-fill" />
+                </button>
+            }
+            else
+            {
+                <button class="kh-button--icon-minimal" title="Play break music" type="button" @onclick="PlayAsync">
+                    <Icon Name="play-fill" />
+                </button>
+            }
+
+            <button class="kh-button--icon-minimal" title="Skip to the next track" type="button"
+                    disabled="@(BreakMusic.State == BreakMusicState.Stopped)" @onclick="SkipAsync">
+                <Icon Name="skip-end-fill" />
+            </button>
+
+            <input type="range" class="kh-break-music-bar__volume" min="0" max="100" step="1"
+                   title="Break music volume"
+                   value="@((int)Math.Round(BreakMusic.Volume * 100))"
+                   @onchange="OnVolumeChangedAsync" />
+
+            @if (Ads.IsConfigured)
+            {
+                <button class="kh-button--icon-minimal" title="Play an ad now" type="button" @onclick="PlayAdAsync">
+                    <Icon Name="megaphone" />
+                </button>
+            }
+        </div>
+    </div>
+}

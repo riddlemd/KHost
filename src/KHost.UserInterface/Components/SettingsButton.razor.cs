@@ -46,6 +46,7 @@ public partial class SettingsButton : IDisposable
         new SettingsPage { Title = "Tips Manager", Icon = "coin", Route = "/settings/tips-manager" },
         new SettingsPage { Title = "Media Manager", Icon = "music-note-list", Route = "/settings/media-manager", Requires = KHostPermission.ManageMedia },
         new SettingsPage { Title = "Downloads Manager", Icon = "cloud-download", Route = "/settings/downloads-manager", Requires = KHostPermission.ManageMedia },
+        new SettingsPage { Title = "Playlists Manager", Icon = "collection-play", Route = "/settings/playlists-manager", Requires = KHostPermission.ManageMedia },
         new SettingsPage { Title = "Plugins Manager", Icon = "plug-fill", Route = "/settings/plugins-manager", AdminOnly = true },
         new SettingsPage { Title = "App Settings", Icon = "gear-fill", Route = "/settings/app-settings", Group = ApplicationGroup, AdminOnly = true },
         new SettingsPage { Title = "Keyboard Shortcuts", Icon = "keyboard", Group = ApplicationGroup, Opens = menu => menu.ShowShortcutsAsync() },
