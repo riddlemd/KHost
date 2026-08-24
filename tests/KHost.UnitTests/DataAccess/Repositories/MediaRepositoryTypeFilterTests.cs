@@ -21,7 +21,7 @@ public class MediaRepositoryTypeFilterTests : IDisposable
 
     public MediaRepositoryTypeFilterTests()
     {
-        _dbPath = Path.Combine(Path.GetTempPath(), $"khost-kind-{Guid.NewGuid():N}.db");
+        _dbPath = Path.Combine(Path.GetTempPath(), $"khost-type-{Guid.NewGuid():N}.db");
 
         var services = new ServiceCollection();
         services.AddDbContextFactory<DefaultContext>(options =>
