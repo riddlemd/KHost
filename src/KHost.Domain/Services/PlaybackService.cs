@@ -475,8 +475,9 @@ public class PlaybackService : BaseService, IPlaybackService
 
             // A still sits on the screen rather than in a stream, so there is nothing to reload —
             // and reloading would try to open a transcode for a picture. It just has to be put up
-            // again on the screen that has arrived.
-            if (IsPlayingAd && media is not null && MediaFormats.IsImage(media.Format))
+            // again on the screen that has arrived. Keyed on the format rather than on it being an
+            // ad: what matters is that the thing on screen is a picture, whatever put it there.
+            if (media is not null && MediaFormats.IsImage(media.Format))
             {
                 await SendToScreensAsync(new ShowImageCommand { Url = _mediaStreams.BuildImageUrl(media.Id) });
                 return;
