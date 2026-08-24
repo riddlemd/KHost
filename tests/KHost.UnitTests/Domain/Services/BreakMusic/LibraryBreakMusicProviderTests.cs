@@ -1,3 +1,4 @@
+using KHost.Domain.Services.Messaging;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using KHost.Abstractions.Services.IPC;
@@ -11,6 +12,7 @@ public class LibraryBreakMusicProviderTests : IDisposable
     private const string AudioScreenId = "screen-1";
 
     private readonly IMediaPoolService _pools = Substitute.For<IMediaPoolService>();
+    private readonly MessageBroker _broker = new(NullLogger<MessageBroker>.Instance);
     private readonly IMediaService _media = Substitute.For<IMediaService>();
     private readonly IMediaStreamService _streams = Substitute.For<IMediaStreamService>();
     private readonly IScreenServer _screenServer = Substitute.For<IScreenServer>();
@@ -39,7 +41,7 @@ public class LibraryBreakMusicProviderTests : IDisposable
 
         _provider = new LibraryBreakMusicProvider(
             NullLogger<LibraryBreakMusicProvider>.Instance,
-            _pools, _media, _streams, _screenServer, _screenCoordination, _venues);
+            _pools, _media, _streams, _screenServer, _screenCoordination, _venues, _broker);
     }
 
     public void Dispose()
