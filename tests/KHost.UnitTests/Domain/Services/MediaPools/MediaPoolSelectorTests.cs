@@ -116,19 +116,41 @@ public class MediaPoolSelectorTests
         Assert.Null(Select(pool, new PoolSelectionState(), new Random(1)));
     }
 
+    // Drawn repeatedly rather than twice: with two tracks and a shuffle, one pair of picks differs
+    // half the time by luck alone, so a two-call version passes with the window switched off.
     [Fact]
-    public void SelectNext_NoRepeatWindow_SkipsARecentlyPlayedTrack()
+    public void SelectNext_NoRepeatWindowOfOne_NeverPlaysTheSameTrackTwiceRunning()
     {
-        var pool = Pool(PoolSelectionMode.Shuffle, noRepeat: 1,
-            Track(_trackA), Track(_trackB), Track(_trackC));
+        var pool = Pool(PoolSelectionMode.Shuffle, noRepeat: 1, Track(_trackA), Track(_trackB));
 
         var state = new PoolSelectionState();
         var random = new Random(3);
 
-        var first = Select(pool, state, random);
-        var second = Select(pool, state, random);
+        Guid? previous = null;
+        for (var i = 0; i < 50; i++)
+        {
+            var pick = Select(pool, state, random);
 
-        Assert.NotEqual(first, second);
+            Assert.NotEqual(previous, pick);
+            previous = pick;
+        }
+    }
+
+    [Fact]
+    public void SelectNext_NoRepeatWindowOfTwo_KeepsATrackOutForTwoFurtherPicks()
+    {
+        var pool = Pool(PoolSelectionMode.Shuffle, noRepeat: 2,
+            Track(_trackA), Track(_trackB), Track(_trackC));
+
+        var state = new PoolSelectionState();
+        var random = new Random(11);
+
+        var picks = new List<Guid?>();
+        for (var i = 0; i < 30; i++)
+            picks.Add(Select(pool, state, random));
+
+        for (var i = 2; i < picks.Count; i++)
+            Assert.DoesNotContain(picks[i], picks.GetRange(i - 2, 2));
     }
 
     // A pool smaller than its own no-repeat window would have nothing eligible, and silence in
