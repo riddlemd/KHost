@@ -56,7 +56,7 @@ public class UsersServiceTests
     }
 
     [Fact]
-    public async Task DeleteAsync_DoesNotRaiseStateChangedForBuiltInUsers()
+    public async Task DeleteAsync_DoesNotAnnounceUsersChangedForBuiltInUsers()
     {
         var notifications = 0;
         using var subscription = _broker.Subscribe<UsersChanged>(_ => notifications++);
@@ -180,7 +180,7 @@ public class UsersServiceTests
     }
 
     [Fact]
-    public async Task CreateAsync_RaisesStateChangedOnlyAfterMembershipIsWritten()
+    public async Task CreateAsync_AnnouncesUsersChangedOnlyAfterMembershipIsWritten()
     {
         var hosts = new KHostUserGroup { Id = Guid.NewGuid(), Name = "Hosts" };
         var user = new KHostUser { Name = "Dana", Groups = [hosts] };
@@ -198,7 +198,7 @@ public class UsersServiceTests
     }
 
     [Fact]
-    public async Task UpdateAsync_RaisesStateChangedOnlyAfterMembershipIsWritten()
+    public async Task UpdateAsync_AnnouncesUsersChangedOnlyAfterMembershipIsWritten()
     {
         var hosts = new KHostUserGroup { Id = Guid.NewGuid(), Name = "Hosts" };
         var userId = Guid.NewGuid();

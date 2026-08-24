@@ -411,7 +411,7 @@ public class ScreenCoordinationServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task SetAudioScreen_RaisesStateChanged()
+    public async Task SetAudioScreen_AnnouncesScreensChanged()
     {
         Connect(Screen("Main", sync: true, audio: true), Screen("Lyrics", sync: true, audio: true));
         await _service.EnsureRolesAsync();

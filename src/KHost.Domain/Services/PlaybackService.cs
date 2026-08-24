@@ -1001,7 +1001,7 @@ public class PlaybackService : BaseService, IPlaybackService
             return;
         }
 
-        // Not StateChanged: the queue panels answer that one with a queue read and a media read
+        // Not PlaybackChanged: the queue panels answer that one with a queue read and a media read
         // per singer, and at twice a second for a whole night that is the console's entire load.
         PositionChanged?.Invoke(this, EventArgs.Empty);
     }

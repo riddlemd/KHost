@@ -38,7 +38,7 @@ public class CastDiscoveryTests : IDisposable
     }
 
     [Fact]
-    public async Task StopDiscovery_RaisesStateChanged_SoThePageRedraws()
+    public async Task StopDiscovery_AnnouncesCastChanged_SoThePageRedraws()
     {
         var raised = 0;
         using var subscription = _broker.Subscribe<CastChanged>(_ => raised++);

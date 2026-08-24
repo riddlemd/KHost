@@ -171,7 +171,7 @@ public class PerformanceServiceTests
     }
 
     [Fact]
-    public async Task CreateAndEnqueueAsync_RaisesStateChanged()
+    public async Task CreateAndEnqueueAsync_AnnouncesPerformancesChanged()
     {
         var raised = false;
         using var subscription = _broker.Subscribe<PerformancesChanged>(_ => raised = true);

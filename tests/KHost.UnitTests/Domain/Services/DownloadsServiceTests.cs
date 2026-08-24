@@ -33,7 +33,7 @@ public class DownloadsServiceTests
     }
 
     [Fact]
-    public void Register_RaisesStateChanged()
+    public void Register_AnnouncesDownloadsChanged()
     {
         var raised = 0;
         using var subscription = _broker.Subscribe<DownloadsChanged>(_ => raised++);
@@ -83,7 +83,7 @@ public class DownloadsServiceTests
     }
 
     [Fact]
-    public void Settle_ActiveEntry_RaisesStateChanged()
+    public void Settle_ActiveEntry_AnnouncesDownloadsChanged()
     {
         var mediaId = Guid.NewGuid();
         _service.Register(mediaId, "Title", "Artist", "Source");
@@ -236,7 +236,7 @@ public class DownloadsServiceTests
     }
 
     [Fact]
-    public void ReportProgress_IntegerPercentChanges_RaisesStateChanged()
+    public void ReportProgress_IntegerPercentChanges_AnnouncesDownloadsChanged()
     {
         var mediaId = Guid.NewGuid();
         _service.Register(mediaId, "Title", "Artist", "Source");
@@ -250,7 +250,7 @@ public class DownloadsServiceTests
     }
 
     [Fact]
-    public void ReportProgress_SameIntegerPercent_DoesNotRaiseStateChangedButStillRecordsTheValue()
+    public void ReportProgress_SameIntegerPercent_DoesNotAnnounceDownloadsChangedButStillRecordsTheValue()
     {
         var mediaId = Guid.NewGuid();
         _service.Register(mediaId, "Title", "Artist", "Source");

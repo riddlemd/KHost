@@ -84,7 +84,7 @@ public class UserGroupsServiceTests
     }
 
     [Fact]
-    public async Task DeleteAsync_DoesNotRaiseStateChangedForBuiltInGroups()
+    public async Task DeleteAsync_DoesNotAnnounceUserGroupsChangedForBuiltInGroups()
     {
         var notifications = 0;
         using var subscription = _broker.Subscribe<UserGroupsChanged>(_ => notifications++);

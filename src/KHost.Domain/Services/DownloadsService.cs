@@ -77,7 +77,7 @@ public class DownloadsService : IDownloadsService
         entry.Info = entry.Info with { Progress = clamped };
 
         // Raised only on an integer-percent change: a plugin can report every few milliseconds,
-        // and a StateChanged per call is the chatty-event-stream failure mode this repo has
+        // and a DownloadsChanged per call is the chatty-event-stream failure mode this repo has
         // already lived through once.
         if (newPercent != previousPercent)
             RaiseStateChanged();

@@ -87,7 +87,7 @@ public class SelectedSingerInfoPanelQueueRowStatusTests : BunitContext
     }
 
     [Fact]
-    public async Task MediaTurningReady_ReRendersTheRow_WhenTheMediaServiceStateChangedFires()
+    public async Task MediaTurningReady_ReRendersTheRow_WhenMediaLibraryChangedIsPublished()
     {
         var panel = Render<SelectedSingerInfoPanel>();
         Assert.NotEmpty(panel.FindAll($"{PlayButtonSelector} .kh-loader__spinner"));

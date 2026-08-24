@@ -219,10 +219,10 @@ public class PluginLibraryTests
     }
 
     [Fact]
-    public async Task CompleteImportAsync_RaisesTheMediaServiceStateChanged()
+    public async Task CompleteImportAsync_AnnouncesMediaLibraryChanged()
     {
         // A real MediaService rather than the substitute: BaseRepositoryService.UpdateAsync is
-        // what actually raises StateChanged, so this proves PluginLibrary reaches it rather than
+        // what actually publishes MediaLibraryChanged, so this proves PluginLibrary reaches it rather than
         // asserting on a mock that we would have to wire the same behaviour into by hand.
         var repository = Substitute.For<IMediaRepository>();
         var mediaService = new MediaService(NullLogger<MediaService>.Instance, repository, _broker);
@@ -260,7 +260,7 @@ public class PluginLibraryTests
     }
 
     [Fact]
-    public async Task FailImportAsync_RaisesTheMediaServiceStateChanged()
+    public async Task FailImportAsync_AnnouncesMediaLibraryChanged()
     {
         var repository = Substitute.For<IMediaRepository>();
         var mediaService = new MediaService(NullLogger<MediaService>.Instance, repository, _broker);
@@ -311,7 +311,7 @@ public class PluginLibraryTests
     }
 
     [Fact]
-    public async Task DiscardImportAsync_RaisesTheMediaServiceStateChanged()
+    public async Task DiscardImportAsync_AnnouncesMediaLibraryChanged()
     {
         var repository = Substitute.For<IMediaRepository>();
         var mediaService = new MediaService(NullLogger<MediaService>.Instance, repository, _broker);

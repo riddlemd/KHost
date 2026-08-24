@@ -151,7 +151,7 @@ public class VenuesServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task CreateAsync_RaisesStateChanged()
+    public async Task CreateAsync_AnnouncesVenuesChanged()
     {
         var raised = false;
         using var subscription = _broker.Subscribe<VenuesChanged>(_ => raised = true);
@@ -401,7 +401,7 @@ public class VenuesServiceTests : IDisposable
         _cacheService.LoadAsync<Guid?>("selected-venue").Returns(id);
 
     [Fact]
-    public async Task SelectVenueAsync_RaisesStateChanged()
+    public async Task SelectVenueAsync_AnnouncesVenuesChanged()
     {
         var raised = false;
         using var subscription = _broker.Subscribe<VenuesChanged>(_ => raised = true);
