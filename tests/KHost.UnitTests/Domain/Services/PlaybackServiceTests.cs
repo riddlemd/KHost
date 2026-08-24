@@ -1876,6 +1876,88 @@ public class PlaybackServiceTests : IDisposable
         await _screenServer.Received().BroadcastCommandAsync(Arg.Any<HideImageCommand>());
     }
 
+    private async Task EndAPerformanceAsync()
+    {
+        var (performance, media) = CreatePerformance();
+        media.Duration = TimeSpan.FromMilliseconds(1);
+
+        await _service.LoadAsync(performance, media);
+        await _service.PlayAsync();
+        _screenServer.ClearReceivedCalls();
+        _breakMusic.ClearReceivedCalls();
+
+        await Task.Delay(20);
+        await _service.TickAsync();
+    }
+
+    [Fact]
+    public async Task PlaybackEnding_RaisesPerformanceEnded()
+    {
+        var raised = 0;
+        _service.PerformanceEnded += (_, _) => raised++;
+
+        await EndAPerformanceAsync();
+
+        Assert.Equal(1, raised);
+    }
+
+    // An ad is nobody's turn. Raising it here would count the ad towards the next ad, and could
+    // chain them without a singer getting back on.
+    [Fact]
+    public async Task AnAdEnding_DoesNotRaisePerformanceEnded()
+    {
+        await _service.PlayAdAsync(CreateAd(TimeSpan.FromMilliseconds(1)));
+
+        var raised = 0;
+        _service.PerformanceEnded += (_, _) => raised++;
+
+        await Task.Delay(20);
+        await _service.TickAsync();
+
+        Assert.Equal(0, raised);
+    }
+
+    // The whole reason the gap carries work rather than being a plain void event: a handler that
+    // starts an ad must finish starting it before the bed is brought back underneath it.
+    [Fact]
+    public async Task PlaybackEnding_AwaitsWorkRegisteredOnTheGap()
+    {
+        var finished = false;
+
+        _service.PerformanceEnded += (_, gap) => gap.Fill(Task.Run(async () =>
+        {
+            await Task.Delay(30);
+            finished = true;
+        }));
+
+        await EndAPerformanceAsync();
+
+        Assert.True(finished);
+    }
+
+    [Fact]
+    public async Task PlaybackEnding_WhenTheGapStartedAnAd_LeavesBreakMusicDown()
+    {
+        var ad = CreateAd();
+
+        _service.PerformanceEnded += (_, gap) => gap.Fill(_service.PlayAdAsync(ad));
+
+        await EndAPerformanceAsync();
+
+        Assert.True(_service.IsPlayingAd);
+        await _breakMusic.DidNotReceive().RestoreAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task PlaybackEnding_WhenNothingTookTheGap_RestoresBreakMusic()
+    {
+        _service.PerformanceEnded += (_, _) => { };
+
+        await EndAPerformanceAsync();
+
+        await _breakMusic.Received(1).RestoreAsync(Arg.Any<CancellationToken>());
+    }
+
     private static (Performance, Media) CreatePerformance()
     {
         var singerId = Guid.NewGuid();

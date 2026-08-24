@@ -49,6 +49,9 @@ public class Venue : RepositoryModel
         /// <summary>Shown on screen whenever nothing is playing. Null leaves the screen blank.</summary>
         public Guid? BrandingImageMediaId { get; set; }
 
+        /// <summary>The one ad playlist that may fire. Null means this venue runs no ads.</summary>
+        public Guid? AdPoolId { get; set; }
+
         /// <summary>Which pool break music draws from. Null means the venue has not chosen one.</summary>
         public Guid? BreakMusicPoolId { get; set; }
 
