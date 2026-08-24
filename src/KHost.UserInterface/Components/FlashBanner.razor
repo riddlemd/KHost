@@ -2,8 +2,8 @@
 
 @if (Flash?.Current is { } message)
 {
-    <div class="kh-flash kh-flash--@message.Kind.ToString().ToLowerInvariant()" role="status">
-        <Icon Name="@(message.Kind == FlashKind.Success ? "check2-circle" : "exclamation-triangle")" />
+    <div class="kh-flash kh-flash--@message.Type.ToString().ToLowerInvariant()" role="status">
+        <Icon Name="@(message.Type == FlashType.Success ? "check2-circle" : "exclamation-triangle")" />
         <span class="kh-flash__text">@message.Text</span>
         <button class="kh-flash__dismiss kh-button--icon-minimal" title="Dismiss" @onclick="() => Flash.Dismiss()">
             <Icon Name="x-lg" />

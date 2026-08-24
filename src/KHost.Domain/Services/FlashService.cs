@@ -16,9 +16,9 @@ public class FlashService : IFlashService
 
     public FlashMessage? Current => _current;
 
-    public void Show(string text, FlashKind kind = FlashKind.Success)
+    public void Show(string text, FlashType type = FlashType.Success)
     {
-        _current = new FlashMessage(text, kind);
+        _current = new FlashMessage(text, type);
         StateChanged?.Invoke(this, EventArgs.Empty);
     }
 
