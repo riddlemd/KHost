@@ -1,0 +1,37 @@
+@using KHost.Abstractions.Models
+
+<Dialog IsOpen="IsOpen" Class="kh-add-media-dialog" OnClose="OnClose">
+    <Header>
+        <Icon Name="file-earmark-plus" /> Add a File
+    </Header>
+    <Body>
+        <p class="kh-add-media-dialog__hint">
+            For the files the song importer leaves alone &mdash; break music, ad spots, and the card
+            shown on screen between singers. The file stays where it is; only its details are stored.
+        </p>
+
+        <div class="kh-add-media-dialog__row">
+            <label for="add-media-path" class="kh-form-label">Full path to the file</label>
+            <input id="add-media-path" class="kh-form-control" autocomplete="off" spellcheck="false"
+                   placeholder="/Users/you/Music/house-bed.mp3" @bind="_path" />
+        </div>
+
+        <div class="kh-add-media-dialog__row">
+            <label for="add-media-kind" class="kh-form-label">Used for</label>
+            <select id="add-media-kind" class="kh-form-select" @bind="_kind">
+                <option value="@MediaKind.BreakMusic">Break music</option>
+                <option value="@MediaKind.Ad">Ads and screen cards</option>
+                <option value="@MediaKind.Karaoke">Karaoke</option>
+            </select>
+        </div>
+
+        @if (_error is { Length: > 0 })
+        {
+            <p class="kh-add-media-dialog__error">@_error</p>
+        }
+    </Body>
+    <Footer>
+        <button class="kh-button kh-button--secondary" type="button" @onclick="OnClose">Cancel</button>
+        <button class="kh-button kh-button--primary" type="button" @onclick="AddAsync" disabled="@_busy">Add</button>
+    </Footer>
+</Dialog>

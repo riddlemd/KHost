@@ -1,4 +1,6 @@
 using KHost.Abstractions.Models;
+using KHost.Abstractions.Services;
+using KHost.Plugins.Sdk.Services;
 using KHost.UserInterface.Models;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Forms;
@@ -20,6 +22,15 @@ public partial class EditVenueDialog
     [Parameter] public EventCallback OnClose { get; set; }
     [Parameter] public EventCallback OnOpen { get; set; }
 
+    [Inject] private IMediaPoolService MediaPools { get; set; } = default!;
+    [Inject] private IMediaService Media { get; set; } = default!;
+    [Inject] private IBreakMusicService BreakMusic { get; set; } = default!;
+
+    private IReadOnlyList<MediaPool> _breakMusicPools = [];
+    private IReadOnlyList<MediaPool> _adPools = [];
+    private IReadOnlyList<Media> _images = [];
+    private IReadOnlyList<IBreakMusicProvider> _breakMusicProviders = [];
+
     private bool _isNew;
     private EditVenueModel _model = new();
     private EditContext _editContext = default!;
@@ -31,7 +42,7 @@ public partial class EditVenueDialog
         _editContext = new EditContext(_model);
     }
 
-    protected override void OnParametersSet()
+    protected override async Task OnParametersSetAsync()
     {
         if (IsOpen && !_prevIsOpen)
         {
@@ -58,10 +69,35 @@ public partial class EditVenueDialog
                     ClearQueueOnClose = Venue.Settings.ClearQueueOnClose,
                     // Clone so Cancel discards rotation edits along with the rest of the model.
                     QueueRotation = Venue.Settings.QueueRotation?.Clone() ?? new(),
+                    BreakMusicPoolId = Venue.Settings.BreakMusicPoolId,
+                    AdPoolId = Venue.Settings.AdPoolId,
+                    BrandingImageMediaId = Venue.Settings.BrandingImageMediaId,
+                    BreakMusicProvider = Venue.Settings.BreakMusicProvider,
+
+                    // Stored nullable so a venue saved before the setting existed reads as unset
+                    // rather than as silent.
+                    BreakMusicVolume = Venue.Settings.BreakMusicVolume ?? 60,
                 };
             _editContext = new EditContext(_model);
+
+            await LoadChoicesAsync();
         }
         _prevIsOpen = IsOpen;
+    }
+
+    /// <summary>
+    /// Read when the dialog opens rather than held: a playlist added on the manager page while
+    /// this venue was last edited would otherwise be missing from the list.
+    /// </summary>
+    private async Task LoadChoicesAsync()
+    {
+        _breakMusicPools = await MediaPools.ReadAllWithEntriesAsync(MediaKind.BreakMusic, _model.Id);
+        _adPools = await MediaPools.ReadAllWithEntriesAsync(MediaKind.Ad, _model.Id);
+        _breakMusicProviders = BreakMusic.Providers;
+
+        // Stills only: anything else handed to the screen as a card is a URL that serves nothing.
+        var media = await Media.ReadAllAsync(1, 0, sort: null, MediaSearchOptions.AllKinds);
+        _images = [.. media.Items.Where(m => MediaFormats.IsImage(m.Format)).OrderBy(m => m.Title)];
     }
 
     private async Task SubmitAsync()
@@ -86,6 +122,11 @@ public partial class EditVenueDialog
         venue.Settings.PromptBeforeRemovingPerformance = _model.PromptBeforeRemovingPerformance;
         venue.Settings.ClearQueueOnClose = _model.ClearQueueOnClose;
         venue.Settings.QueueRotation = _model.QueueRotation;
+        venue.Settings.BreakMusicPoolId = _model.BreakMusicPoolId;
+        venue.Settings.AdPoolId = _model.AdPoolId;
+        venue.Settings.BrandingImageMediaId = _model.BrandingImageMediaId;
+        venue.Settings.BreakMusicProvider = _model.BreakMusicProvider;
+        venue.Settings.BreakMusicVolume = _model.BreakMusicVolume;
 
         await OnSave.InvokeAsync(venue);
 

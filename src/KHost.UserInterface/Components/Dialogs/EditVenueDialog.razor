@@ -105,6 +105,66 @@
             </div>
 
             <div class="kh-venue-settings__section">
+                <span class="kh-venue-settings__section-title">Between singers</span>
+
+                <div class="kh-venue-settings__row">
+                    <label for="break-music-pool" class="kh-form-label">Break music playlist</label>
+                    <InputSelect id="break-music-pool" class="kh-form-select" @bind-Value="_model.BreakMusicPoolId">
+                        <option value="">None — silence between singers</option>
+                        @foreach (var pool in _breakMusicPools)
+                        {
+                            <option value="@pool.Id">@pool.Name</option>
+                        }
+                    </InputSelect>
+                </div>
+
+                @if (_breakMusicProviders.Count > 1)
+                {
+                    <div class="kh-venue-settings__row">
+                        <label for="break-music-provider" class="kh-form-label">Break music comes from</label>
+                        <InputSelect id="break-music-provider" class="kh-form-select" @bind-Value="_model.BreakMusicProvider">
+                            @foreach (var provider in _breakMusicProviders)
+                            {
+                                <option value="@provider.SourceName">@provider.DisplayName</option>
+                            }
+                        </InputSelect>
+                    </div>
+                }
+
+                <div class="kh-venue-settings__row">
+                    <label for="break-music-volume" class="kh-form-label">Break music volume</label>
+                    <InputNumber id="break-music-volume" class="kh-form-control" @bind-Value="_model.BreakMusicVolume" min="0" max="100" />
+                </div>
+                <ValidationMessage For="() => _model.BreakMusicVolume" />
+
+                <div class="kh-venue-settings__row">
+                    <label for="ad-pool" class="kh-form-label">Ad playlist</label>
+                    <InputSelect id="ad-pool" class="kh-form-select" @bind-Value="_model.AdPoolId">
+                        <option value="">None — this venue runs no ads</option>
+                        @foreach (var pool in _adPools)
+                        {
+                            <option value="@pool.Id">@pool.Name</option>
+                        }
+                    </InputSelect>
+                </div>
+
+                <div class="kh-venue-settings__row">
+                    <label for="branding-image" class="kh-form-label">Card shown when nothing is playing</label>
+                    <InputSelect id="branding-image" class="kh-form-select" @bind-Value="_model.BrandingImageMediaId">
+                        <option value="">None — leave the screen blank</option>
+                        @foreach (var image in _images)
+                        {
+                            <option value="@image.Id">@image.Title</option>
+                        }
+                    </InputSelect>
+                </div>
+
+                <p class="kh-venue-settings__hint">
+                    Playlists are set up under Settings &rsaquo; Playlists Manager.
+                </p>
+            </div>
+
+            <div class="kh-venue-settings__section">
                 <span class="kh-venue-settings__section-title">Notes</span>
                 <InputTextArea class="kh-form-control" @bind-Value="_model.Notes" rows="3"
                                placeholder="Anything worth remembering about this venue…" />

@@ -1,0 +1,193 @@
+@using KHost.Abstractions.Models
+
+<Dialog IsOpen="IsOpen" Class="kh-playlist-dialog" OnClose="OnClose">
+    <Header>
+        <Icon Name="collection-play" /> @(_isNew ? "Add Playlist" : "Edit Playlist")
+    </Header>
+    <Body>
+        <div class="kh-playlist-dialog__section">
+            <div class="kh-playlist-dialog__row">
+                <label for="playlist-name" class="kh-form-label">Name</label>
+                <input id="playlist-name" class="kh-form-control" @bind="_name" autocomplete="off" />
+            </div>
+
+            <div class="kh-playlist-dialog__row">
+                <label for="playlist-kind" class="kh-form-label">Used for</label>
+                <select id="playlist-kind" class="kh-form-select" @bind="_kind">
+                    <option value="@MediaKind.BreakMusic">Break music between singers</option>
+                    <option value="@MediaKind.Ad">Ads</option>
+                </select>
+            </div>
+
+            <div class="kh-playlist-dialog__row">
+                <label for="playlist-mode" class="kh-form-label">Pick the next entry</label>
+                <select id="playlist-mode" class="kh-form-select" @bind="_selectionMode">
+                    <option value="@PoolSelectionMode.Shuffle">Shuffled</option>
+                    <option value="@PoolSelectionMode.Sequential">In the order below</option>
+                    <option value="@PoolSelectionMode.Weighted">By weight</option>
+                </select>
+            </div>
+
+            <div class="kh-playlist-dialog__row">
+                <label for="playlist-norepeat" class="kh-form-label">Keep the last</label>
+                <input id="playlist-norepeat" type="number" class="kh-form-control" min="0" max="50" @bind="_noRepeatCount" />
+                <span class="kh-playlist-dialog__suffix">out of the running</span>
+            </div>
+        </div>
+
+        @if (_kind == MediaKind.Ad)
+        {
+            <div class="kh-playlist-dialog__section">
+                <span class="kh-playlist-dialog__section-title">When these ads play</span>
+
+                <div class="kh-playlist-dialog__row">
+                    <select class="kh-form-select" @bind="_adTrigger">
+                        <option value="@AdTriggerMode.HostOnly">Only when the host asks</option>
+                        <option value="@AdTriggerMode.EveryNPerformances">Every few songs</option>
+                        <option value="@AdTriggerMode.EveryNMinutes">Every few minutes</option>
+                        <option value="@AdTriggerMode.OnIdle">Whenever nobody is queued</option>
+                    </select>
+                </div>
+
+                @if (_adTrigger is AdTriggerMode.EveryNPerformances or AdTriggerMode.EveryNMinutes)
+                {
+                    <div class="kh-playlist-dialog__row">
+                        <label for="playlist-interval" class="kh-form-label">
+                            @(_adTrigger == AdTriggerMode.EveryNPerformances ? "Songs between ads" : "Minutes between ads")
+                        </label>
+                        <input id="playlist-interval" type="number" class="kh-form-control" min="1" max="240" @bind="_adTriggerInterval" />
+                    </div>
+                }
+
+                <p class="kh-playlist-dialog__hint">
+                    An ad never interrupts a singer &mdash; it waits for the gap after a song.
+                </p>
+            </div>
+        }
+
+        <div class="kh-playlist-dialog__section">
+            <span class="kh-playlist-dialog__section-title">Entries</span>
+
+            @if (_entries.Count == 0)
+            {
+                <div class="kh-panel--empty">
+                    <Icon Name="collection" />
+                    <span>Nothing in this playlist yet.</span>
+                </div>
+            }
+            else
+            {
+                <table class="kh-table kh-playlist-dialog__entries">
+                    <thead>
+                        <tr>
+                            <th>What plays</th>
+                            @if (_kind == MediaKind.Ad)
+                            {
+                                <th>Sound</th>
+                                <th>From</th>
+                                <th>Length</th>
+                            }
+                            @if (_selectionMode == PoolSelectionMode.Weighted)
+                            {
+                                <th>Weight</th>
+                            }
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @for (var i = 0; i < _entries.Count; i++)
+                        {
+                            var index = i;
+                            var entry = _entries[index];
+
+                            <tr>
+                                <td class="kh-table__cell--fill">@DescribeEntry(entry)</td>
+
+                                @if (_kind == MediaKind.Ad)
+                                {
+                                    <td>
+                                        <select class="kh-form-select" value="@(entry.AudioMediaId?.ToString() ?? "")"
+                                                @onchange="e => SetEntryAudio(index, e.Value?.ToString())">
+                                            <option value="">@(entry.IsPool ? "—" : "Whatever it brings")</option>
+                                            @foreach (var audio in _audioChoices)
+                                            {
+                                                <option value="@audio.Id">@audio.Title</option>
+                                            }
+                                        </select>
+                                    </td>
+                                    <td>
+                                        <input class="kh-form-control kh-playlist-dialog__time" placeholder="0:00"
+                                               value="@FormatTime(entry.AudioStart)"
+                                               @onchange="e => SetEntryAudioStart(index, e.Value?.ToString())" />
+                                    </td>
+                                    <td>
+                                        <input class="kh-form-control kh-playlist-dialog__time" placeholder="auto"
+                                               value="@FormatTime(entry.Duration)"
+                                               @onchange="e => SetEntryDuration(index, e.Value?.ToString())" />
+                                    </td>
+                                }
+
+                                @if (_selectionMode == PoolSelectionMode.Weighted)
+                                {
+                                    <td>
+                                        <input type="number" class="kh-form-control kh-playlist-dialog__weight" min="0" max="100"
+                                               value="@entry.Weight"
+                                               @onchange="e => SetEntryWeight(index, e.Value?.ToString())" />
+                                    </td>
+                                }
+
+                                <td class="kh-table__cell--actions">
+                                    <button class="kh-button--icon-minimal" title="Move up" type="button"
+                                            disabled="@(index == 0)" @onclick="() => MoveEntry(index, -1)">
+                                        <Icon Name="arrow-up" />
+                                    </button>
+                                    <button class="kh-button--icon-minimal" title="Move down" type="button"
+                                            disabled="@(index == _entries.Count - 1)" @onclick="() => MoveEntry(index, 1)">
+                                        <Icon Name="arrow-down" />
+                                    </button>
+                                    <button class="kh-button--icon-minimal" title="Remove" type="button"
+                                            @onclick="() => RemoveEntry(index)">
+                                        <Icon Name="trash" />
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+
+            <div class="kh-playlist-dialog__add">
+                <select class="kh-form-select" @bind="_addMediaId">
+                    <option value="">Add media…</option>
+                    @foreach (var media in _mediaChoices)
+                    {
+                        <option value="@media.Id">@media.Title</option>
+                    }
+                </select>
+                <button class="kh-button kh-button--secondary" type="button"
+                        disabled="@(string.IsNullOrEmpty(_addMediaId))" @onclick="AddMediaEntry">
+                    <Icon Name="plus-lg" /> Add
+                </button>
+
+                @if (_poolChoices.Count > 0)
+                {
+                    <select class="kh-form-select" @bind="_addPoolId">
+                        <option value="">Add another playlist…</option>
+                        @foreach (var pool in _poolChoices)
+                        {
+                            <option value="@pool.Id">@pool.Name</option>
+                        }
+                    </select>
+                    <button class="kh-button kh-button--secondary" type="button"
+                            disabled="@(string.IsNullOrEmpty(_addPoolId))" @onclick="AddPoolEntry">
+                        <Icon Name="plus-lg" /> Add
+                    </button>
+                }
+            </div>
+        </div>
+    </Body>
+    <Footer>
+        <button class="kh-button kh-button--secondary" type="button" @onclick="OnClose">Cancel</button>
+        <button class="kh-button kh-button--primary" type="button" @onclick="SaveAsync">Save</button>
+    </Footer>
+</Dialog>
