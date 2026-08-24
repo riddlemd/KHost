@@ -73,6 +73,36 @@ public class MediaPoolRepositoryTests : IDisposable
         Assert.Equal([0, 1], loaded.Entries.Select(e => e.Position));
     }
 
+    // The repository copies an entry field by field, so a column added to the model and not here
+    // is dropped in silence — which is exactly how an ad lost its voiceover on every save.
+    [Fact]
+    public async Task ReplaceEntriesAsync_KeepsTheWholeComposition()
+    {
+        var pool = await SeedPoolAsync("Spots", PoolPurpose.Ads);
+        var still = await SeedMediaAsync("Card", MediaKind.Image);
+        var voice = await SeedMediaAsync("Voiceover", MediaKind.Audio);
+
+        await _repository.ReplaceEntriesAsync(pool.Id,
+        [
+            new MediaPoolEntry
+            {
+                MediaId = still.Id,
+                AudioMediaId = voice.Id,
+                AudioStart = TimeSpan.FromSeconds(90),
+                Duration = TimeSpan.FromSeconds(20),
+                Weight = 7,
+            },
+        ]);
+
+        var entry = Assert.Single((await _repository.ReadWithEntriesAsync(pool.Id))!.Entries);
+
+        Assert.Equal(still.Id, entry.MediaId);
+        Assert.Equal(voice.Id, entry.AudioMediaId);
+        Assert.Equal(TimeSpan.FromSeconds(90), entry.AudioStart);
+        Assert.Equal(TimeSpan.FromSeconds(20), entry.Duration);
+        Assert.Equal(7, entry.Weight);
+    }
+
     // Position comes from the order handed in, not from whatever the model carried: the editor
     // reorders by moving rows and only the resulting list knows the answer.
     [Fact]
