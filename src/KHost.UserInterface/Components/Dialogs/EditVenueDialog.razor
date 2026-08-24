@@ -132,12 +132,6 @@
                 }
 
                 <div class="kh-venue-settings__row">
-                    <label for="break-music-volume" class="kh-form-label">Break music volume</label>
-                    <InputNumber id="break-music-volume" class="kh-form-control" @bind-Value="_model.BreakMusicVolume" min="0" max="100" />
-                </div>
-                <ValidationMessage For="() => _model.BreakMusicVolume" />
-
-                <div class="kh-venue-settings__row">
                     <label for="ad-pool" class="kh-form-label">Ad playlist</label>
                     <InputSelect id="ad-pool" class="kh-form-select" @bind-Value="_model.AdPoolId">
                         <option value="">None — this venue runs no ads</option>

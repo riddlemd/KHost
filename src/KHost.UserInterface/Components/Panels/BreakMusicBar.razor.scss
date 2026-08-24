@@ -46,10 +46,6 @@
         flex: none;
     }
 
-    &__volume {
-        width: 6rem;
-    }
-
     // The console owns the viewport, so this bar has to shed the track text rather than wrap.
     @container (max-width: 420px) {
         &__artist {

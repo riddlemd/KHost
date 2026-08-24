@@ -54,12 +54,6 @@ public partial class BreakMusicBar : IDisposable
 
     private Task SkipAsync() => BreakMusic.SkipAsync();
 
-    private async Task OnVolumeChangedAsync(ChangeEventArgs e)
-    {
-        if (int.TryParse(e.Value?.ToString(), out var percent))
-            await BreakMusic.SetVolumeAsync(percent / 100f);
-    }
-
     private async Task PlayAdAsync()
     {
         if (!await Ads.PlayNowAsync())

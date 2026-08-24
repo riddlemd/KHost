@@ -218,6 +218,12 @@ public sealed class ScreenCoordinationService : BaseService, IScreenCoordination
             try
             {
                 await _screenServer.SendCommandAsync(screen.ScreenId, new SetVolumeCommand { Volume = volume });
+
+                // The bed and an ad's own voiceover ride the second channel, and they are the same
+                // room through the same mixer — so one venue level covers both rather than leaving
+                // the host balancing two. This is the only place that sets it, and it re-runs on a
+                // venue edit, a role change and a screen connecting.
+                await _screenServer.SendCommandAsync(screen.ScreenId, new SetBackgroundVolumeCommand { Volume = volume });
             }
             catch (Exception ex)
             {

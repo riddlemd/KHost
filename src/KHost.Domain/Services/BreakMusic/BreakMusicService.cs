@@ -10,8 +10,6 @@ public class BreakMusicService : BaseService, IBreakMusicService, IDisposable
     /// <summary>Long enough not to clip, short enough that the singer is not waiting on it.</summary>
     private static readonly TimeSpan SuspendFade = TimeSpan.FromSeconds(2);
 
-    private const float DefaultVolume = 0.6f;
-
     private readonly SemaphoreSlim _lock = new(1, 1);
     private readonly List<IBreakMusicProvider> _providers;
     private readonly IVenuesService _venues;
@@ -29,6 +27,10 @@ public class BreakMusicService : BaseService, IBreakMusicService, IDisposable
 
         foreach (var provider in _providers)
             provider.TrackChanged += OnProviderTrackChanged;
+
+        // Only for a provider the host cannot reach: ScreenCoordination already re-applies the
+        // venue level to every screen when a venue is edited.
+        _venues.StateChanged += OnVenueChanged;
     }
 
     public IReadOnlyList<IBreakMusicProvider> Providers => _providers;
@@ -38,16 +40,11 @@ public class BreakMusicService : BaseService, IBreakMusicService, IDisposable
 
     public BreakMusicTrack? CurrentTrack => _activeProvider?.CurrentTrack;
 
-    public float Volume { get; private set; } = DefaultVolume;
-
     public async Task InitializeAsync(CancellationToken cancellationToken = default)
     {
         var venue = await _venues.ReadSelectedVenueAsync();
 
         _activeProvider = Resolve(venue?.Settings.BreakMusicProvider);
-
-        if (venue?.Settings.BreakMusicVolume is { } stored)
-            Volume = Math.Clamp(stored / 100f, 0f, 1f);
 
         Logger.LogInformation("Break music provider: {Provider}", _activeProvider?.SourceName ?? "none");
 
@@ -81,7 +78,7 @@ public class BreakMusicService : BaseService, IBreakMusicService, IDisposable
             if (!await provider.StartAsync(cancellationToken))
                 return false;
 
-            await provider.SetVolumeAsync(Volume, cancellationToken);
+            await ApplyVenueVolumeAsync(provider, cancellationToken);
 
             State = BreakMusicState.Playing;
         }
@@ -140,14 +137,27 @@ public class BreakMusicService : BaseService, IBreakMusicService, IDisposable
         InvokeStateChanged();
     }
 
-    public async Task SetVolumeAsync(float volume, CancellationToken cancellationToken = default)
+    /// <summary>
+    /// Pushes the venue's level at a provider the host cannot reach. One that renders through the
+    /// host needs nothing here: its channel is set by ScreenCoordination alongside the song's, so
+    /// doing it again would be a second place for the same number to drift.
+    /// </summary>
+    private async Task ApplyVenueVolumeAsync(IBreakMusicProvider provider, CancellationToken cancellationToken)
     {
-        Volume = Math.Clamp(volume, 0f, 1f);
+        if (provider.RendersThroughHost)
+            return;
 
-        if (_activeProvider is { } provider)
-            await provider.SetVolumeAsync(Volume, cancellationToken);
+        try
+        {
+            var venue = await _venues.ReadSelectedVenueAsync();
+            var volume = Math.Clamp((venue?.Settings.DefaultVolume ?? 100) / 100f, 0f, 1f);
 
-        InvokeStateChanged();
+            await provider.SetVolumeAsync(volume, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Could not apply the venue volume to {Provider}", provider.SourceName);
+        }
     }
 
     public async Task SuspendAsync(CancellationToken cancellationToken = default)
@@ -187,6 +197,8 @@ public class BreakMusicService : BaseService, IBreakMusicService, IDisposable
         foreach (var provider in _providers)
             provider.TrackChanged -= OnProviderTrackChanged;
 
+        _venues.StateChanged -= OnVenueChanged;
+
         _lock.Dispose();
 
         GC.SuppressFinalize(this);
@@ -209,6 +221,12 @@ public class BreakMusicService : BaseService, IBreakMusicService, IDisposable
         // today, but that ordering is not something a venue's default should rest on.
         return _providers.FirstOrDefault(p => p is LibraryBreakMusicProvider)
             ?? _providers.FirstOrDefault();
+    }
+
+    private void OnVenueChanged(object? sender, EventArgs e)
+    {
+        if (_activeProvider is { } provider)
+            _ = ApplyVenueVolumeAsync(provider, CancellationToken.None);
     }
 
     private void OnProviderTrackChanged(object? sender, EventArgs e)

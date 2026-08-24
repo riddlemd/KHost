@@ -217,6 +217,35 @@ public class ScreenCoordinationServiceTests : IDisposable
             Arg.Is<SetVolumeCommand>(c => Math.Abs(c.Volume - 0.4f) < 0.001f));
     }
 
+    // One venue level covers the room: the song, the bed and an ad's voiceover all reach the same
+    // mixer, so the second channel is set here alongside the first rather than balanced separately.
+    [Fact]
+    public async Task TheAudibleScreen_GetsTheVenueVolumeOnTheBackgroundChannelToo()
+    {
+        _venuesService.ReadSelectedVenueAsync().Returns(
+            new Venue { Name = "Quiet Bar", Settings = new Venue.VenueSettings { DefaultVolume = 40 } });
+        Connect(Screen("Main", sync: true, audio: true));
+
+        await _service.EnsureRolesAsync();
+
+        await _screenServer.Received().SendCommandAsync("Main",
+            Arg.Is<SetBackgroundVolumeCommand>(c => Math.Abs(c.Volume - 0.4f) < 0.001f));
+    }
+
+    // A muted screen must not leak the bed either — it is the same speaker.
+    [Fact]
+    public async Task AMutedScreen_HasItsBackgroundChannelMutedAsWell()
+    {
+        var main = Screen("Main", sync: true, audio: true);
+        var spare = Screen("Spare", sync: true, audio: true);
+        Connect(main, spare);
+
+        await _service.EnsureRolesAsync();
+
+        await _screenServer.Received().SendCommandAsync("Spare",
+            Arg.Is<SetBackgroundVolumeCommand>(c => c.Volume == 0f));
+    }
+
     [Fact]
     public async Task TheAudibleScreen_GetsFullVolume_BeforeAnyVenueExists()
     {
