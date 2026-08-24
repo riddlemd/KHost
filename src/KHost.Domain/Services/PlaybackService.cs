@@ -62,6 +62,7 @@ public class PlaybackService : BaseService, IPlaybackService
     private readonly ServiceOptions _options;
 
     public event EventHandler? PositionChanged;
+    public event EventHandler<PerformanceEndedEventArgs>? PerformanceEnded;
 
     public Performance? CurrentPerformance { get; private set; }
     public Media? CurrentMedia { get; private set; }
@@ -669,7 +670,16 @@ public class PlaybackService : BaseService, IPlaybackService
         await _performanceService.DequeueAsync(currentPerformance.SingerId, currentPerformance.Id);
         await _singerQueueService.RotateQueueAsync(currentPerformance.SingerId);
 
-        // Last, so a bed starting up cannot delay the rotation the next singer is waiting on.
+        // Raised before the bed comes back, and awaited, so an ad taking this gap is never
+        // started underneath break music that was restored a moment earlier.
+        var gap = new PerformanceEndedEventArgs();
+        PerformanceEnded?.Invoke(this, gap);
+        await gap.WhenFilledAsync();
+
+        // Something took the gap. The bed and the card come back when that ends instead.
+        if (IsPlayingAd)
+            return;
+
         await _breakMusic.RestoreAsync();
         await ShowIdleCardAsync();
     }
