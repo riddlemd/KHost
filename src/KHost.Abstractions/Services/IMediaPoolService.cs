@@ -7,7 +7,7 @@ public interface IMediaPoolService : IRepositoryService<MediaPool>
     /// <summary>The pool with its entries loaded. The inherited read leaves them empty.</summary>
     Task<MediaPool?> ReadWithEntriesAsync(Guid id);
 
-    Task<IReadOnlyList<MediaPool>> ReadAllWithEntriesAsync(MediaKind kind, Guid? venueId);
+    Task<IReadOnlyList<MediaPool>> ReadAllWithEntriesAsync(PoolPurpose purpose, Guid? venueId);
 
     /// <summary>
     /// Replaces a pool's entries. Refused when the result would let the pool reach itself — the

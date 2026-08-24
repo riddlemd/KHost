@@ -228,8 +228,9 @@ public partial class MediaManagerPage : IAsyncDisposable
     // here rather than left as an enum value.
     private static string DescribeKind(MediaKind kind) => kind switch
     {
-        MediaKind.BreakMusic => "Break music",
-        MediaKind.Ad => "Ad",
+        MediaKind.Video => "Video",
+        MediaKind.Audio => "Audio",
+        MediaKind.Image => "Image",
         _ => "Song",
     };
 

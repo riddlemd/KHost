@@ -1546,7 +1546,7 @@ public class PlaybackServiceTests : IDisposable
         FilePath = "/media/spot.mp4",
         Title = "Happy Hour",
         Status = MediaStatus.Ready,
-        Kind = MediaKind.Ad,
+        Kind = MediaKind.Video,
         Duration = duration ?? TimeSpan.FromSeconds(20),
     };
 
@@ -1723,7 +1723,7 @@ public class PlaybackServiceTests : IDisposable
         FilePath = "/media/card.png",
         Title = "Happy Hour Card",
         Status = MediaStatus.Ready,
-        Kind = MediaKind.Ad,
+        Kind = MediaKind.Video,
         Format = format,
         Duration = TimeSpan.FromSeconds(15),
     };
@@ -1971,7 +1971,7 @@ public class PlaybackServiceTests : IDisposable
         FilePath = "/media/voiceover.mp3",
         Title = "Voiceover",
         Status = MediaStatus.Ready,
-        Kind = MediaKind.Ad,
+        Kind = MediaKind.Video,
         Format = "MP3",
         Duration = duration ?? TimeSpan.FromSeconds(12),
     };

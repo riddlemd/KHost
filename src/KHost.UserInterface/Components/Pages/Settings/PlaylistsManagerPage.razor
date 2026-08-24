@@ -49,12 +49,12 @@
                                     <td class="kh-table__cell--fill">@pool.Name</td>
                                     <td>
                                         <span class="kh-badge kh-badge--secondary">
-                                            @(pool.Kind == MediaKind.Ad ? "Ads" : "Break music")
+                                            @(pool.Purpose == PoolPurpose.Ads ? "Ads" : "Break music")
                                         </span>
                                     </td>
                                     <td>@DescribeSelection(pool)</td>
                                     <td>@DescribeEntries(pool)</td>
-                                    <td>@(pool.Kind == MediaKind.Ad ? DescribeTrigger(pool) : "—")</td>
+                                    <td>@(pool.Purpose == PoolPurpose.Ads ? DescribeTrigger(pool) : "—")</td>
                                     <td class="kh-table__cell--actions">
                                         <button class="kh-button--icon-minimal" title="Edit playlist"
                                                 @onclick="() => OpenEditDialogAsync(pool)">

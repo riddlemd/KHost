@@ -19,7 +19,7 @@ public class EditPlaylistDialogTests : BunitContext
         FilePath = "/media/bed.mp3",
         Title = "Elevator Jazz",
         Format = "MP3",
-        Kind = MediaKind.BreakMusic,
+        Kind = MediaKind.Audio,
         Status = MediaStatus.Ready,
     };
 
@@ -29,7 +29,7 @@ public class EditPlaylistDialogTests : BunitContext
         FilePath = "/media/spot.mp4",
         Title = "Happy Hour Spot",
         Format = "MP4",
-        Kind = MediaKind.Ad,
+        Kind = MediaKind.Video,
         Status = MediaStatus.Ready,
     };
 
@@ -46,7 +46,7 @@ public class EditPlaylistDialogTests : BunitContext
                     [.. new[] { _bed, _spot }.Where(m => kinds.Contains(m.Kind))]);
             });
 
-        _pools.ReadAllWithEntriesAsync(Arg.Any<MediaKind>(), Arg.Any<Guid?>())
+        _pools.ReadAllWithEntriesAsync(Arg.Any<PoolPurpose>(), Arg.Any<Guid?>())
             .Returns(Task.FromResult<IReadOnlyList<MediaPool>>([]));
 
         Services.AddSingleton(_pools);
@@ -66,7 +66,7 @@ public class EditPlaylistDialogTests : BunitContext
     [Fact]
     public void AdFields_AreHidden_ForABreakMusicPlaylist()
     {
-        var rendered = RenderDialog(new MediaPool { Name = "Beds", Kind = MediaKind.BreakMusic });
+        var rendered = RenderDialog(new MediaPool { Name = "Beds", Purpose = PoolPurpose.BreakMusic });
 
         Assert.DoesNotContain("When these ads play", rendered.Markup);
     }
@@ -74,7 +74,7 @@ public class EditPlaylistDialogTests : BunitContext
     [Fact]
     public void AdFields_AreShown_ForAnAdPlaylist()
     {
-        var rendered = RenderDialog(new MediaPool { Name = "Spots", Kind = MediaKind.Ad });
+        var rendered = RenderDialog(new MediaPool { Name = "Spots", Purpose = PoolPurpose.Ads });
 
         Assert.Contains("When these ads play", rendered.Markup);
     }
@@ -86,7 +86,7 @@ public class EditPlaylistDialogTests : BunitContext
         var rendered = RenderDialog(new MediaPool
         {
             Name = "Spots",
-            Kind = MediaKind.Ad,
+            Purpose = PoolPurpose.Ads,
             AdTrigger = AdTriggerMode.HostOnly,
         });
 
@@ -99,7 +99,7 @@ public class EditPlaylistDialogTests : BunitContext
         var rendered = RenderDialog(new MediaPool
         {
             Name = "Spots",
-            Kind = MediaKind.Ad,
+            Purpose = PoolPurpose.Ads,
             AdTrigger = AdTriggerMode.EveryNPerformances,
         });
 
@@ -176,36 +176,36 @@ public class EditPlaylistDialogTests : BunitContext
         Assert.Null(saved);
     }
 
-    // Both pickers are scoped to the kind, so switching to ads has to fetch again — otherwise the
-    // dialog keeps offering bed tracks and none of the venue's ads.
+    // The pickers are scoped to the purpose, so switching to ads has to fetch again — otherwise
+    // the dialog keeps offering bed tracks and none of the venue's ads.
     [Fact]
-    public void ChangingTheKind_ReloadsTheMediaChoices()
+    public void ChangingThePurpose_ReloadsTheMediaChoices()
     {
-        var rendered = RenderDialog(new MediaPool { Name = "Beds", Kind = MediaKind.BreakMusic });
+        var rendered = RenderDialog(new MediaPool { Name = "Beds", Purpose = PoolPurpose.BreakMusic });
 
         Assert.Contains("Elevator Jazz", rendered.Markup);
         Assert.DoesNotContain("Happy Hour Spot", rendered.Markup);
 
-        rendered.Find("#playlist-kind").Change(nameof(MediaKind.Ad));
+        rendered.Find("#playlist-purpose").Change(nameof(PoolPurpose.Ads));
 
         Assert.Contains("Happy Hour Spot", rendered.Markup);
         Assert.DoesNotContain("Elevator Jazz", rendered.Markup);
     }
 
-    // Those entries came out of the other kind's library, so they are not this playlist's to keep.
+    // Those entries came out of the other purpose's libraries, so they are not this one's to keep.
     [Fact]
-    public void ChangingTheKind_ClearsEntriesPickedFromTheOtherLibrary()
+    public void ChangingThePurpose_ClearsEntriesPickedFromTheOtherLibrary()
     {
         var rendered = RenderDialog(new MediaPool
         {
             Name = "Beds",
-            Kind = MediaKind.BreakMusic,
+            Purpose = PoolPurpose.BreakMusic,
             Entries = [new MediaPoolEntry { Id = Guid.NewGuid(), MediaId = Guid.NewGuid() }],
         });
 
         Assert.NotEmpty(rendered.FindAll(".kh-playlist-dialog__entries tbody tr"));
 
-        rendered.Find("#playlist-kind").Change(nameof(MediaKind.Ad));
+        rendered.Find("#playlist-purpose").Change(nameof(PoolPurpose.Ads));
 
         Assert.Empty(rendered.FindAll(".kh-playlist-dialog__entries tbody tr"));
     }

@@ -19,8 +19,8 @@ public class MediaPoolService : BaseRepositoryService<MediaPool, IMediaPoolRepos
 
     public Task<MediaPool?> ReadWithEntriesAsync(Guid id) => Repository.ReadWithEntriesAsync(id);
 
-    public Task<IReadOnlyList<MediaPool>> ReadAllWithEntriesAsync(MediaKind kind, Guid? venueId)
-        => Repository.ReadAllWithEntriesAsync(kind, venueId);
+    public Task<IReadOnlyList<MediaPool>> ReadAllWithEntriesAsync(PoolPurpose purpose, Guid? venueId)
+        => Repository.ReadAllWithEntriesAsync(purpose, venueId);
 
     public async Task<bool> ReplaceEntriesAsync(Guid poolId, IReadOnlyList<MediaPoolEntry> entries)
     {
@@ -35,11 +35,11 @@ public class MediaPoolService : BaseRepositoryService<MediaPool, IMediaPoolRepos
         {
             Id = pool.Id,
             Name = pool.Name,
-            Kind = pool.Kind,
+            Purpose = pool.Purpose,
             Entries = [.. entries],
         };
 
-        var siblings = await Repository.ReadAllWithEntriesAsync(pool.Kind, pool.VenueId);
+        var siblings = await Repository.ReadAllWithEntriesAsync(pool.Purpose, pool.VenueId);
 
         if (MediaPoolCycles.CreatesCycle(edited, siblings.ToDictionary(p => p.Id)))
         {
@@ -63,7 +63,7 @@ public class MediaPoolService : BaseRepositoryService<MediaPool, IMediaPoolRepos
         if (pool is null)
             return null;
 
-        var pools = await Repository.ReadAllWithEntriesAsync(pool.Kind, venueId);
+        var pools = await Repository.ReadAllWithEntriesAsync(pool.Purpose, venueId);
         var byId = pools.ToDictionary(p => p.Id);
 
         // The root is read separately and may be scoped to another venue, so it is added rather
