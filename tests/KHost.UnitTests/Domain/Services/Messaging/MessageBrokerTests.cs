@@ -233,3 +233,33 @@ public class SubscriptionSetTests
         Assert.Equal(0, received);
     }
 }
+
+public class MessageBrokerAnnounceTests
+{
+    private sealed record Ping;
+
+    private readonly MessageBroker _broker = new(NullLogger<MessageBroker>.Instance);
+
+    [Fact]
+    public void Announce_DeliversToASubscriber()
+    {
+        var received = 0;
+        using var subscription = _broker.Subscribe<Ping>(_ => received++);
+
+        _broker.Announce(new Ping());
+
+        Assert.Equal(1, received);
+    }
+
+    // On the interface rather than an extension so a service's announcing can be substituted: an
+    // extension method is static and no test double can see the call.
+    [Fact]
+    public void Announce_IsSubstitutable()
+    {
+        var broker = Substitute.For<IMessageBroker>();
+
+        broker.Announce(new Ping());
+
+        broker.Received(1).Announce(Arg.Any<Ping>());
+    }
+}

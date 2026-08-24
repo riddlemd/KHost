@@ -22,4 +22,11 @@ public interface IMessageBroker
     /// than surfaced here — a broken subscriber must not stop the show for the rest.
     /// </summary>
     Task PublishAsync<TMessage>(TMessage message, CancellationToken cancellationToken = default) where TMessage : notnull;
+
+    /// <summary>
+    /// Publishes without waiting, for a message that only says "this moved, redraw". A publisher
+    /// that waited for every component to finish rendering would stall the show to do it. Anything
+    /// whose outcome the publisher depends on must await <see cref="PublishAsync"/> instead.
+    /// </summary>
+    void Announce<TMessage>(TMessage message) where TMessage : notnull;
 }
