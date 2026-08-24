@@ -221,6 +221,25 @@ internal class MediaRepository : BaseRepository<Media>, IMediaRepository
         return queryable.Where(m => EF.Functions.Like(m.SearchFolded, FoldedContainsPattern(query), "\\"));
     }
 
+    /// <summary>
+    /// The SQL twin of <see cref="ApplyTypeAndStatus"/>, for the FTS path that cannot compose LINQ.
+    /// Interpolating is safe here and only here: both values are enum members of ours, never input.
+    /// </summary>
+    private static string BuildOptionFilterSql(MediaSearchOptions? options)
+    {
+        options ??= MediaSearchOptions.Default;
+
+        var sql = string.Empty;
+
+        if (options.Types is { Length: > 0 } types)
+            sql += $" AND m.\"Type\" IN ({string.Join(',', types.Select(t => (int)t))})";
+
+        if (options.Statuses is { Count: > 0 } statuses)
+            sql += $" AND m.\"Status\" IN ({string.Join(',', statuses.Select(s => (int)s))})";
+
+        return sql;
+    }
+
     public override async Task<PaginatedResult<Media>> SearchAsync<TOptions>(string query, int pageNumber = 0, int pageSize = 0, TOptions? options = null)
         where TOptions : class
     {
@@ -232,28 +251,39 @@ internal class MediaRepository : BaseRepository<Media>, IMediaRepository
         var sw = Stopwatch.StartNew();
         try
         {
-            var sql = $$"""
+            var (page, size) = PaginationComponent.Normalize(pageNumber, pageSize);
+
+            // Filters and paging both go in the SQL rather than being composed on top. Composing
+            // makes EF wrap this as a subquery and put LIMIT/OFFSET outside it, where there is no
+            // ORDER BY — the bm25 ranking is then whatever SQLite feels like preserving, so a
+            // second page can repeat or skip rows the first one already showed.
+            var filters = BuildOptionFilterSql(options as MediaSearchOptions);
+
+            var countSql = $$"""
+                SELECT COUNT(*) AS "Value"
+                FROM "Media" AS m
+                INNER JOIN "media_fts" AS f ON f."media_id" = m."Id"
+                WHERE "media_fts" MATCH {0}{{filters}}
+                """;
+
+            var pageSql = $$"""
                 SELECT m.*
                 FROM "Media" AS m
                 INNER JOIN "media_fts" AS f ON f."media_id" = m."Id"
-                WHERE "media_fts" MATCH {0}
+                WHERE "media_fts" MATCH {0}{{filters}}
                 ORDER BY bm25("media_fts")
+                LIMIT {1} OFFSET {2}
                 """;
 
             using var context = await ContextFactory.CreateDbContextAsync();
 
-            var queryable = context.Media
-                .FromSqlRaw(sql, match)
-                .AsNoTracking();
+            var totalCount = await context.Database
+                .SqlQueryRaw<int>(countSql, match)
+                .SingleAsync();
 
-            // The raw FTS query bypasses the base SearchAsync pipeline, so apply
-            // the same option-based filters (e.g. status) here.
-            queryable = ApplySearchFilters(queryable, query, options);
-
-            var totalCount = await queryable.CountAsync();
-
-            var items = await PaginationComponent
-                .Paginate(queryable, pageNumber, pageSize)
+            var items = await context.Media
+                .FromSqlRaw(pageSql, match, size, (page - 1) * size)
+                .AsNoTracking()
                 .ToListAsync();
 
             Logger.LogDebug("MediaRepository.SearchAsync q={Query} match={Match} elapsed={ElapsedMs}ms results={ResultCount} usedFts=true",
