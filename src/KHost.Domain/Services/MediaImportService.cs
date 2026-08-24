@@ -19,6 +19,7 @@ public class MediaImportService : BaseService, IMediaImportService
     ];
 
     private readonly IMediaFileParsingService _parser;
+    private readonly IMessageBroker _broker;
     private readonly IMediaRepository _repository;
     private readonly IMediaService _mediaService;
     private readonly IMediaFingerprintService _fingerprints;
@@ -43,8 +44,9 @@ public class MediaImportService : BaseService, IMediaImportService
         IMediaFingerprintService fingerprints,
         IAnalyticsService analytics,
         IMessageBroker broker)
-        : base(logger, broker)
+        : base(logger)
     {
+        _broker = broker;
         _parser = parser;
         _repository = repository;
         _mediaService = mediaService;
@@ -72,7 +74,7 @@ public class MediaImportService : BaseService, IMediaImportService
             _lastNotifyMs = 0;
         }
 
-        Announce(new MediaImportChanged());
+        _broker.Announce(new MediaImportChanged());
         var cts = _cts!;
         var thread = new Thread(() => RunImportAsync(paths, cts.Token).GetAwaiter().GetResult())
         {
@@ -92,7 +94,7 @@ public class MediaImportService : BaseService, IMediaImportService
 
         State = ImportState.Cancelling;
         _cts?.Cancel();
-        Announce(new MediaImportChanged());
+        _broker.Announce(new MediaImportChanged());
     }
 
     private void AnnounceThrottled()
@@ -102,7 +104,7 @@ public class MediaImportService : BaseService, IMediaImportService
             return;
 
         _lastNotifyMs = now;
-        Announce(new MediaImportChanged());
+        _broker.Announce(new MediaImportChanged());
     }
 
     private async Task ImportOneFileAsync(ImportCandidate candidate, CancellationToken ct)
@@ -154,7 +156,7 @@ public class MediaImportService : BaseService, IMediaImportService
             CurrentFilePath = null;
             _cts?.Dispose();
             _cts = null;
-            Announce(new MediaImportChanged());
+            _broker.Announce(new MediaImportChanged());
         }
     }
 
@@ -172,7 +174,7 @@ public class MediaImportService : BaseService, IMediaImportService
 
         activity.SetTag("total_files", paths.Count);
         TotalCount = toImport.Count;
-        Announce(new MediaImportChanged());
+        _broker.Announce(new MediaImportChanged());
 
         return toImport;
     }

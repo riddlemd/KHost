@@ -16,7 +16,7 @@ public partial class UserManagerPage : IDisposable
     [Inject] private IDialogService? DialogService { get; set; }
     [Inject] private IVenuesService? VenuesService { get; set; }
     [Inject] private IAppSettingsService? AppSettingsService { get; set; }
-    [Inject] private IMessageBroker? Broker { get; set; }
+    [Inject] private IMessageBroker Broker { get; set; } = default!;
 
     private readonly SubscriptionSet _subscriptions = new();
 
@@ -34,7 +34,6 @@ public partial class UserManagerPage : IDisposable
 
         await SearchAsync();
 
-        if (Broker is not null)
         {
             _subscriptions.Add(Broker.Subscribe<UsersChanged>(_ => OnStateChanged()));
             _subscriptions.Add(Broker.Subscribe<TipsChanged>(_ => OnStateChanged()));

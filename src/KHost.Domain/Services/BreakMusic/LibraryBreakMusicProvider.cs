@@ -17,6 +17,7 @@ namespace KHost.Domain.Services.BreakMusic;
 public class LibraryBreakMusicProvider : BaseService, IBreakMusicProvider, IDisposable
 {
     private readonly SemaphoreSlim _lock = new(1, 1);
+    private readonly IMessageBroker _broker;
     private readonly IMediaPoolService _pools;
     private readonly IMediaService _media;
     private readonly IMediaStreamService _streams;
@@ -28,7 +29,7 @@ public class LibraryBreakMusicProvider : BaseService, IBreakMusicProvider, IDisp
     private BreakMusicTrack? _currentTrack;
 
     private Task PublishTrackChangedAsync()
-        => Broker?.PublishAsync(new BreakMusicTrackChanged(SourceName)) ?? Task.CompletedTask;
+        => _broker.PublishAsync(new BreakMusicTrackChanged(SourceName));
 
     public LibraryBreakMusicProvider(
         ILogger<LibraryBreakMusicProvider> logger,
@@ -39,8 +40,9 @@ public class LibraryBreakMusicProvider : BaseService, IBreakMusicProvider, IDisp
         IScreenCoordinationService screenCoordination,
         IVenuesService venues,
         IMessageBroker broker)
-        : base(logger, broker)
+        : base(logger)
     {
+        _broker = broker;
         _pools = pools;
         _media = media;
         _streams = streams;

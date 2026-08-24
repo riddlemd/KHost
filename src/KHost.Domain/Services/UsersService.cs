@@ -11,6 +11,7 @@ namespace KHost.Domain.Services;
 public class UsersService : BaseRepositoryService<KHostUser, IUsersRepository>, IUsersService
 {
     private readonly IUserGroupsRepository _userGroupsRepository;
+    private readonly IMessageBroker _broker;
 
     public UsersService(
         ILogger<UsersService> logger,
@@ -19,6 +20,7 @@ public class UsersService : BaseRepositoryService<KHostUser, IUsersRepository>, 
         IMessageBroker broker)
         : base(logger, repository, broker, new UsersChanged())
     {
+        _broker = broker;
         _userGroupsRepository = userGroupsRepository;
     }
 
@@ -36,7 +38,7 @@ public class UsersService : BaseRepositoryService<KHostUser, IUsersRepository>, 
 
         saved.Groups = groups;
 
-        Announce(new UsersChanged());
+        _broker.Announce(new UsersChanged());
         return saved;
     }
 
@@ -56,7 +58,7 @@ public class UsersService : BaseRepositoryService<KHostUser, IUsersRepository>, 
         foreach (var groupId in currentGroupIds.Except(desiredGroupIds))
             await _userGroupsRepository.RemoveUserFromGroupAsync(entity.Id, groupId);
 
-        Announce(new UsersChanged());
+        _broker.Announce(new UsersChanged());
     }
 
     public override async Task<bool> DeleteAsync(Guid id)

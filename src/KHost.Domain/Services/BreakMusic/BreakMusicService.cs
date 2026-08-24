@@ -13,6 +13,7 @@ public class BreakMusicService : BaseService, IBreakMusicService, IDisposable
     private static readonly TimeSpan SuspendFade = TimeSpan.FromSeconds(2);
 
     private readonly SemaphoreSlim _lock = new(1, 1);
+    private readonly IMessageBroker _broker;
     private readonly SubscriptionSet _subscriptions = new();
     private readonly List<IBreakMusicProvider> _providers;
     private readonly IVenuesService _venues;
@@ -24,8 +25,9 @@ public class BreakMusicService : BaseService, IBreakMusicService, IDisposable
         IEnumerable<IBreakMusicProvider> providers,
         IVenuesService venues,
         IMessageBroker broker)
-        : base(logger, broker)
+        : base(logger)
     {
+        _broker = broker;
         _providers = [.. providers];
         _venues = venues;
 
@@ -51,7 +53,7 @@ public class BreakMusicService : BaseService, IBreakMusicService, IDisposable
 
         Logger.LogInformation("Break music provider: {Provider}", _activeProvider?.SourceName ?? "none");
 
-        Announce(new BreakMusicChanged());
+        _broker.Announce(new BreakMusicChanged());
     }
 
     public async Task SetActiveProviderAsync(string sourceName, CancellationToken cancellationToken = default)
@@ -67,7 +69,7 @@ public class BreakMusicService : BaseService, IBreakMusicService, IDisposable
 
         _activeProvider = next;
 
-        Announce(new BreakMusicChanged());
+        _broker.Announce(new BreakMusicChanged());
     }
 
     public async Task<bool> StartAsync(CancellationToken cancellationToken = default)
@@ -90,7 +92,7 @@ public class BreakMusicService : BaseService, IBreakMusicService, IDisposable
             _lock.Release();
         }
 
-        Announce(new BreakMusicChanged());
+        _broker.Announce(new BreakMusicChanged());
         return true;
     }
 
@@ -103,7 +105,7 @@ public class BreakMusicService : BaseService, IBreakMusicService, IDisposable
 
         State = BreakMusicState.Paused;
 
-        Announce(new BreakMusicChanged());
+        _broker.Announce(new BreakMusicChanged());
     }
 
     public async Task ResumeAsync(CancellationToken cancellationToken = default)
@@ -115,7 +117,7 @@ public class BreakMusicService : BaseService, IBreakMusicService, IDisposable
 
         State = BreakMusicState.Playing;
 
-        Announce(new BreakMusicChanged());
+        _broker.Announce(new BreakMusicChanged());
     }
 
     public async Task StopAsync(CancellationToken cancellationToken = default)
@@ -127,7 +129,7 @@ public class BreakMusicService : BaseService, IBreakMusicService, IDisposable
 
         State = BreakMusicState.Stopped;
 
-        Announce(new BreakMusicChanged());
+        _broker.Announce(new BreakMusicChanged());
     }
 
     public async Task SkipAsync(CancellationToken cancellationToken = default)
@@ -137,7 +139,7 @@ public class BreakMusicService : BaseService, IBreakMusicService, IDisposable
 
         await provider.SkipAsync(cancellationToken);
 
-        Announce(new BreakMusicChanged());
+        _broker.Announce(new BreakMusicChanged());
     }
 
     /// <summary>
@@ -176,7 +178,7 @@ public class BreakMusicService : BaseService, IBreakMusicService, IDisposable
 
         Logger.LogInformation("Break music suspended for something with its own audio");
 
-        Announce(new BreakMusicChanged());
+        _broker.Announce(new BreakMusicChanged());
     }
 
     public async Task RestoreAsync(CancellationToken cancellationToken = default)
@@ -191,7 +193,7 @@ public class BreakMusicService : BaseService, IBreakMusicService, IDisposable
         if (!await StartAsync(cancellationToken))
         {
             State = BreakMusicState.Stopped;
-            Announce(new BreakMusicChanged());
+            _broker.Announce(new BreakMusicChanged());
         }
     }
 
@@ -236,6 +238,6 @@ public class BreakMusicService : BaseService, IBreakMusicService, IDisposable
         if (message.ProviderSourceName != _activeProvider?.SourceName)
             return;
 
-        Announce(new BreakMusicChanged());
+        _broker.Announce(new BreakMusicChanged());
     }
 }

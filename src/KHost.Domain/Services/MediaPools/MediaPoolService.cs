@@ -10,12 +10,14 @@ namespace KHost.Domain.Services.MediaPools;
 public class MediaPoolService : BaseRepositoryService<MediaPool, IMediaPoolRepository>, IMediaPoolService
 {
     private readonly SemaphoreSlim _lock = new(1, 1);
+    private readonly IMessageBroker _broker;
     private readonly Dictionary<Guid, PoolSelectionState> _selectionStates = [];
     private readonly Random _random;
 
     public MediaPoolService(ILogger<MediaPoolService> logger, IMediaPoolRepository repository, IMessageBroker broker, Random? random = null)
         : base(logger, repository, broker, new MediaPoolsChanged())
     {
+        _broker = broker;
         _random = random ?? Random.Shared;
     }
 
@@ -53,7 +55,7 @@ public class MediaPoolService : BaseRepositoryService<MediaPool, IMediaPoolRepos
 
         ResetSelection(poolId);
 
-        Announce(new MediaPoolsChanged());
+        _broker.Announce(new MediaPoolsChanged());
 
         return true;
     }

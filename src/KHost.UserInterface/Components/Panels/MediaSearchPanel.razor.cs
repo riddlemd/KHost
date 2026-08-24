@@ -17,7 +17,7 @@ public partial class MediaSearchPanel : IDisposable
     [Inject] private IPerformanceService? PerformanceService { get; set; }
     [Inject] private IDialogService? DialogService { get; set; }
     [Inject] private IPermissionService? Permissions { get; set; }
-    [Inject] private IMessageBroker? Broker { get; set; }
+    [Inject] private IMessageBroker Broker { get; set; } = default!;
 
     private readonly SubscriptionSet _subscriptions = new();
 
@@ -39,7 +39,6 @@ public partial class MediaSearchPanel : IDisposable
         if (Permissions is not null)
             _canAddToQueue = await Permissions.HasAsync(KHostPermission.AddToQueue);
 
-        if (Broker is not null)
         {
             _subscriptions.Add(Broker.Subscribe<SingerQueueChanged>(_ => OnStateChanged()));
             // Someone else queueing a song changes this panel's badges without touching the singer

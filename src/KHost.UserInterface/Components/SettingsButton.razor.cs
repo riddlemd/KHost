@@ -24,7 +24,7 @@ public partial class SettingsButton : IDisposable
     [Inject] private IThemeService? ThemeService { get; set; }
     [Inject] private IDialogService? DialogService { get; set; }
     [Inject] private IJSRuntime JS { get; set; } = default!;
-    [Inject] private IMessageBroker? Broker { get; set; }
+    [Inject] private IMessageBroker Broker { get; set; } = default!;
 
     private readonly SubscriptionSet _subscriptions = new();
 
@@ -83,7 +83,6 @@ public partial class SettingsButton : IDisposable
         if (VenuesService is not null)
             await RefreshVenuesAsync();
 
-        if (Broker is null) return;
 
         if (VenuesService is not null)
             _subscriptions.Add(Broker.Subscribe<VenuesChanged>(_ => OnServiceChanged(null, EventArgs.Empty)));

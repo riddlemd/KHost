@@ -42,7 +42,6 @@ public sealed record DownloadsChanged;
 
 public sealed record PluginsChanged;
 
-public sealed record PluginLibraryChanged;
 
 public sealed record FlashChanged;
 

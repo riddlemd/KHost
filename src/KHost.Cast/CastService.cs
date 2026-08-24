@@ -27,7 +27,7 @@ public sealed class CastService : ICastService, IDisposable
     private readonly ILogger<CastService> _logger;
     private readonly SemaphoreSlim _lock = new(1, 1);
     private readonly Dictionary<string, ChromecastReceiver> _discovered = [];
-    private readonly IMessageBroker? _broker;
+    private readonly IMessageBroker _broker;
 
     private ChromecastLocator? _locator;
     private ChromecastClient? _client;
@@ -36,7 +36,7 @@ public sealed class CastService : ICastService, IDisposable
 
     public event EventHandler<CastPlaybackStatus>? PlaybackStatusChanged;
 
-    public CastService(ILogger<CastService> logger, IOptions<ServiceOptions> options, IMessageBroker? broker = null)
+    public CastService(ILogger<CastService> logger, IOptions<ServiceOptions> options, IMessageBroker broker)
     {
         _logger = logger;
         _options = options.Value;

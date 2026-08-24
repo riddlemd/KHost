@@ -20,7 +20,7 @@ public class PluginLibraryTests
     private readonly ISingerQueueService _singerQueueService = Substitute.For<ISingerQueueService>();
     private readonly IPerformanceService _performanceService = Substitute.For<IPerformanceService>();
     private readonly IOptionsMonitor<PluginLibrary.ServiceOptions> _options = Substitute.For<IOptionsMonitor<PluginLibrary.ServiceOptions>>();
-    private readonly DownloadsService _downloads = new();
+    private readonly DownloadsService _downloads = new(new MessageBroker(NullLogger<MessageBroker>.Instance));
     private readonly MessageBroker _broker = new(NullLogger<MessageBroker>.Instance);
     private readonly PluginLibrary _service;
 
