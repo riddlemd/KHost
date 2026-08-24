@@ -89,7 +89,7 @@ public partial class BreakMusicManagerPage : IDisposable
 
         if (venue is null)
         {
-            Flash.Show("No venue is selected, so there is nothing to save this against.", FlashKind.Warning);
+            Flash.Show("No venue is selected, so there is nothing to save this against.", FlashType.Warning);
             return;
         }
 
@@ -129,7 +129,7 @@ public partial class BreakMusicManagerPage : IDisposable
         // Refused when the entries would let the playlist reach itself, which the dialog cannot
         // know until the whole edit is in.
         if (!await MediaPools.ReplaceEntriesAsync(pool.Id, pool.Entries))
-            Flash.Show("That playlist ends up containing itself, so its entries were left as they were.", FlashKind.Warning);
+            Flash.Show("That playlist ends up containing itself, so its entries were left as they were.", FlashType.Warning);
 
         CloseDialog();
 

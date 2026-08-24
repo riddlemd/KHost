@@ -16,16 +16,16 @@ public class FlashServiceTests
         _flash.Show("Saved.");
 
         Assert.Equal("Saved.", _flash.Current?.Text);
-        Assert.Equal(FlashKind.Success, _flash.Current?.Kind);
+        Assert.Equal(FlashType.Success, _flash.Current?.Type);
         Assert.Equal(1, _changes);
     }
 
     [Fact]
     public void Show_CarriesTheKind()
     {
-        _flash.Show("Careful.", FlashKind.Warning);
+        _flash.Show("Careful.", FlashType.Warning);
 
-        Assert.Equal(FlashKind.Warning, _flash.Current?.Kind);
+        Assert.Equal(FlashType.Warning, _flash.Current?.Type);
     }
 
     [Fact]

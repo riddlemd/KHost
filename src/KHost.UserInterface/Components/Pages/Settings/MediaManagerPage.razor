@@ -54,7 +54,7 @@
                                 <th class="kh-table__col--sortable" @onclick='() => OnSortColumnClicked("artist")'>
                                     Artist @if (_sortColumn == "artist") { <Icon Name="@(_sortDescending ? "sort-down" : "sort-up")" class="kh-table__sort-indicator" /> }
                                 </th>
-                                <th class="kh-media-manager__col--kind">Used for</th>
+                                <th class="kh-media-manager__col--type">Type</th>
                                 <th class="kh-media-manager__col--format kh-table__col--sortable" @onclick='() => OnSortColumnClicked("format")'>
                                     Format @if (_sortColumn == "format") { <Icon Name="@(_sortDescending ? "sort-down" : "sort-up")" class="kh-table__sort-indicator" /> }
                                 </th>

@@ -19,7 +19,8 @@ namespace KHost.DataAccess.Migrations
                     FilePath = table.Column<string>(type: "TEXT", maxLength: 500, nullable: false),
                     Duration = table.Column<TimeSpan>(type: "TEXT", nullable: true),
                     Status = table.Column<int>(type: "INTEGER", nullable: false),
-                    Kind = table.Column<int>(type: "INTEGER", nullable: false),
+                    Type = table.Column<int>(type: "INTEGER", nullable: false),
+                    ImageScaling = table.Column<int>(type: "INTEGER", nullable: false),
                     Title = table.Column<string>(type: "TEXT", maxLength: 255, nullable: false),
                     Artist = table.Column<string>(type: "TEXT", maxLength: 255, nullable: false),
                     Format = table.Column<string>(type: "TEXT", maxLength: 10, nullable: false),
@@ -40,7 +41,7 @@ namespace KHost.DataAccess.Migrations
                 columns: table => new
                 {
                     Id = table.Column<Guid>(type: "TEXT", nullable: false),
-                    Kind = table.Column<int>(type: "INTEGER", nullable: false),
+                    Purpose = table.Column<int>(type: "INTEGER", nullable: false),
                     Name = table.Column<string>(type: "TEXT", maxLength: 255, nullable: false),
                     NameFolded = table.Column<string>(type: "TEXT", maxLength: 255, nullable: false),
                     VenueId = table.Column<Guid>(type: "TEXT", nullable: true),
@@ -243,11 +244,6 @@ namespace KHost.DataAccess.Migrations
                 column: "FileSize");
 
             migrationBuilder.CreateIndex(
-                name: "IX_Media_Kind",
-                table: "Media",
-                column: "Kind");
-
-            migrationBuilder.CreateIndex(
                 name: "IX_Media_Status",
                 table: "Media",
                 column: "Status");
@@ -256,6 +252,11 @@ namespace KHost.DataAccess.Migrations
                 name: "IX_Media_Title",
                 table: "Media",
                 column: "Title");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Media_Type",
+                table: "Media",
+                column: "Type");
 
             migrationBuilder.CreateIndex(
                 name: "IX_MediaPoolEntries_ChildPoolId",
@@ -273,9 +274,9 @@ namespace KHost.DataAccess.Migrations
                 column: "MediaPoolId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_MediaPools_Kind",
+                name: "IX_MediaPools_Purpose",
                 table: "MediaPools",
-                column: "Kind");
+                column: "Purpose");
 
             migrationBuilder.CreateIndex(
                 name: "IX_MediaPools_VenueId",
