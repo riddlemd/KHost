@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Contributing guide
+    url: https://github.com/riddlemd/KHost/blob/master/CONTRIBUTING.md
+    about: How to build KHost, run the tests, and get a change reviewed.
+  - name: Development setup
+    url: https://github.com/riddlemd/KHost/blob/master/DEVELOPMENT.md
+    about: Prerequisites and first-run steps before filing a build or tooling issue.

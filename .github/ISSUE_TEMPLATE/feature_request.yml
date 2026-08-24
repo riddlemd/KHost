@@ -1,0 +1,79 @@
+name: Feature request
+description: Suggest a new capability or an improvement to an existing one.
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to suggest a feature. Fill in what you can —
+        the problem and the host-facing behaviour matter more than the implementation.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What can't you do today, and what happens instead?
+      placeholder: |
+        When a singer asks for a song that isn't in the library, I have to leave the
+        console, import it on the media page, then come back and search again.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behaviour
+      description: >
+        Describe it from the host's side — what they see, click, or type, and what the
+        app does in response. Sketches, mockups, or a numbered walkthrough all work.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      description: Which part of KHost does this touch? Pick every one that applies.
+      multiple: true
+      options:
+        - Console / singer queue
+        - Media library, search, or import
+        - Screen output (Photino / video)
+        - Chromecast
+        - Plugins & provider SDK
+        - Settings & venue configuration
+        - Users, groups, and tips
+        - Data, database, or migrations
+        - Build, tests, or tooling
+        - Not sure
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Other ways to solve this, and why they fall short. Skip if there aren't any.
+    validations:
+      required: false
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: >
+        Anything else worth knowing — how often this comes up during a show, the media
+        formats or providers involved, links to related issues.
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues and this isn't already requested.
+          required: true
+        - label: This is a feature request, not a bug report.
+          required: true
