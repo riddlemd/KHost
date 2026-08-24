@@ -41,8 +41,6 @@ public class AdService : BaseService, IAdService, IDisposable
     public int PerformancesSinceLastAd { get; private set; }
     public DateTimeOffset? LastAdAtUtc { get; private set; }
 
-    protected override object? StateChangedMessage => new AdsChanged();
-
     public async Task InitializeAsync(CancellationToken cancellationToken = default)
     {
         var venue = await _venues.ReadSelectedVenueAsync();
@@ -53,7 +51,7 @@ public class AdService : BaseService, IAdService, IDisposable
         // the first gap of the night.
         LastAdAtUtc = _time.GetUtcNow();
 
-        InvokeStateChanged();
+        Announce(new AdsChanged());
     }
 
     public async Task<bool> PlayNowAsync(CancellationToken cancellationToken = default)
@@ -102,7 +100,7 @@ public class AdService : BaseService, IAdService, IDisposable
             if (venue is null || pool is null)
             {
                 IsConfigured = false;
-                InvokeStateChanged();
+                Announce(new AdsChanged());
                 return;
             }
 
@@ -110,7 +108,7 @@ public class AdService : BaseService, IAdService, IDisposable
 
             if (!IsDue(pool))
             {
-                InvokeStateChanged();
+                Announce(new AdsChanged());
                 return;
             }
 
@@ -181,7 +179,7 @@ public class AdService : BaseService, IAdService, IDisposable
 
         Logger.LogInformation("Ad playing from playlist {PoolId}", pool.Id);
 
-        InvokeStateChanged();
+        Announce(new AdsChanged());
 
         return true;
     }

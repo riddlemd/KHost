@@ -16,8 +16,6 @@ public class PerformanceService : BaseRepositoryService<Performance, IPerformanc
     private readonly IInteractionDispatcher _interactions;
     private readonly IDownloadsService _downloadsService;
 
-    protected override object? StateChangedMessage => new PerformancesChanged();
-
     public PerformanceService(
         ILogger<PerformanceService> logger,
         IPerformancesRepository repository,
@@ -26,7 +24,7 @@ public class PerformanceService : BaseRepositoryService<Performance, IPerformanc
         IInteractionDispatcher interactions,
         IDownloadsService downloadsService,
         IMessageBroker broker)
-        : base(logger, repository, broker)
+        : base(logger, repository, broker, new PerformancesChanged())
     {
         _mediaService = mediaService;
         _venuesService = venuesService;
@@ -97,7 +95,7 @@ public class PerformanceService : BaseRepositoryService<Performance, IPerformanc
 
         Logger.LogInformation("Enqueued media {MediaId} for singer {SingerId} at position {Position}", performance.MediaId, performance.SingerId, nextPosition);
 
-        InvokeStateChanged();
+        Announce(new PerformancesChanged());
 
         return performance;
     }
@@ -160,7 +158,7 @@ public class PerformanceService : BaseRepositoryService<Performance, IPerformanc
             Logger.LogWarning("Performance {PerformanceId} not found for singer {SingerId}", performanceId, singerId);
         }
 
-        InvokeStateChanged();
+        Announce(new PerformancesChanged());
     }
 
     public async Task DeleteAllQueuedAsync()
@@ -169,10 +167,8 @@ public class PerformanceService : BaseRepositoryService<Performance, IPerformanc
 
         Logger.LogInformation("All queued performances deleted");
 
-        InvokeStateChanged();
+        Announce(new PerformancesChanged());
     }
-
-
 
     public async Task MoveUpInQueueAsync(Guid singerId, Guid performanceId)
     {
@@ -193,7 +189,7 @@ public class PerformanceService : BaseRepositoryService<Performance, IPerformanc
 
             Logger.LogDebug("Moved performance {PerformanceId} up from position {OldPosition} to {NewPosition}", performanceId, prevPerf.QueuePosition, perf.QueuePosition);
 
-            InvokeStateChanged();
+            Announce(new PerformancesChanged());
         }
     }
 
@@ -216,7 +212,7 @@ public class PerformanceService : BaseRepositoryService<Performance, IPerformanc
 
             Logger.LogDebug("Moved performance {PerformanceId} down from position {OldPosition} to {NewPosition}", performanceId, nextPerf.QueuePosition, perf.QueuePosition);
 
-            InvokeStateChanged();
+            Announce(new PerformancesChanged());
         }
     }
 
@@ -253,7 +249,7 @@ public class PerformanceService : BaseRepositoryService<Performance, IPerformanc
 
         Logger.LogDebug("Moved performance {PerformanceId} from index {OldIndex} to {NewIndex}", performanceId, idx, target);
 
-        InvokeStateChanged();
+        Announce(new PerformancesChanged());
     }
 
     public async Task MoveToEndOfQueueAsync(Guid singerId, Guid performanceId)
@@ -274,7 +270,7 @@ public class PerformanceService : BaseRepositoryService<Performance, IPerformanc
 
             Logger.LogDebug("Moved performance {PerformanceId} to end of queue at position {Position}", performanceId, perf.QueuePosition);
 
-            InvokeStateChanged();
+            Announce(new PerformancesChanged());
         }
     }
 }

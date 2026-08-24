@@ -12,14 +12,12 @@ public class UsersService : BaseRepositoryService<KHostUser, IUsersRepository>, 
 {
     private readonly IUserGroupsRepository _userGroupsRepository;
 
-    protected override object? StateChangedMessage => new UsersChanged();
-
     public UsersService(
         ILogger<UsersService> logger,
         IUsersRepository repository,
         IUserGroupsRepository userGroupsRepository,
         IMessageBroker broker)
-        : base(logger, repository, broker)
+        : base(logger, repository, broker, new UsersChanged())
     {
         _userGroupsRepository = userGroupsRepository;
     }
@@ -38,7 +36,7 @@ public class UsersService : BaseRepositoryService<KHostUser, IUsersRepository>, 
 
         saved.Groups = groups;
 
-        InvokeStateChanged();
+        Announce(new UsersChanged());
         return saved;
     }
 
@@ -58,7 +56,7 @@ public class UsersService : BaseRepositoryService<KHostUser, IUsersRepository>, 
         foreach (var groupId in currentGroupIds.Except(desiredGroupIds))
             await _userGroupsRepository.RemoveUserFromGroupAsync(entity.Id, groupId);
 
-        InvokeStateChanged();
+        Announce(new UsersChanged());
     }
 
     public override async Task<bool> DeleteAsync(Guid id)

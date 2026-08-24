@@ -13,10 +13,8 @@ public class MediaPoolService : BaseRepositoryService<MediaPool, IMediaPoolRepos
     private readonly Dictionary<Guid, PoolSelectionState> _selectionStates = [];
     private readonly Random _random;
 
-    protected override object? StateChangedMessage => new MediaPoolsChanged();
-
     public MediaPoolService(ILogger<MediaPoolService> logger, IMediaPoolRepository repository, IMessageBroker broker, Random? random = null)
-        : base(logger, repository, broker)
+        : base(logger, repository, broker, new MediaPoolsChanged())
     {
         _random = random ?? Random.Shared;
     }
@@ -55,7 +53,7 @@ public class MediaPoolService : BaseRepositoryService<MediaPool, IMediaPoolRepos
 
         ResetSelection(poolId);
 
-        InvokeStateChanged();
+        Announce(new MediaPoolsChanged());
 
         return true;
     }
