@@ -1,26 +1,39 @@
 @page "/settings/plugins-manager"
 @attribute [Authorize(Roles = KHost.UserInterface.Auth.KHostClaimsFactory.AdminRole)]
 @using KHost.Abstractions.Models.Plugins
-@using KHost.UserInterface.Services
-@using System.Text.Json
 
 <PageTitle>KHost &mdash; Manage Plugins</PageTitle>
 
 <div class="kh-app__body">
     <div class="kh-settings-page">
-        <div class="kh-card">
+        <div class="kh-card kh-plugins-manager">
             <div class="kh-card__header">
                 <span class="kh-card__title"><Icon Name="plug-fill" /> Plugins Manager</span>
+                <button type="button" class="kh-button kh-button--secondary" title="Open the plugins folder"
+                        @onclick="() => OpenFolder(_pluginsDirectory)">
+                    <Icon Name="folder2-open" />
+                </button>
             </div>
             @if (PluginsService?.RestartRequired == true)
             {
-                <div class="kh-plugins-manager__restart-banner">
+                var waiting = WaitingOnRestart.ToList();
+
+                <div class="kh-plugins-manager__restart">
                     <Icon Name="arrow-clockwise" />
-                    <span>Changes take effect after restarting KHost.</span>
+                    <span>
+                        @if (waiting.Count > 0)
+                        {
+                            @($"{string.Join(", ", waiting)} — restart KHost to apply.")
+                        }
+                        else
+                        {
+                            @("Saved settings take effect after restarting KHost.")
+                        }
+                    </span>
                 </div>
             }
             <div class="kh-card__body">
-                @if (PluginsService is null || PluginsService.Plugins.Count == 0)
+                @if (Plugins.Count == 0)
                 {
                     <div class="kh-panel--empty kh-panel--empty-lg">
                         <Icon Name="plug" />
@@ -29,76 +42,151 @@
                 }
                 else
                 {
-                    @foreach (var plugin in PluginsService.Plugins)
+                    @foreach (var plugin in Plugins)
                     {
                         var manifest = plugin.Manifest;
-                        var canEnable = plugin.Status is not (PluginStatus.Errored or PluginStatus.Incompatible) || _enabledIds.Contains(plugin.Id);
+                        var state = GetRowState(plugin);
+                        var enabled = IsEnabled(plugin.Id);
+                        var open = IsOpen(plugin.Id);
+                        var dirty = IsDirty(plugin.Id);
+                        _settingFields.TryGetValue(plugin.Id, out var fields);
 
-                        <div class="kh-plugins-manager__plugin" @key="plugin.Directory">
-                            <div class="kh-plugins-manager__plugin__header">
-                                <span class="kh-plugins-manager__plugin__name">@plugin.DisplayName</span>
-                                @if (manifest is not null)
-                                {
-                                    <span class="kh-badge kh-badge--ext">v@(manifest.Version)</span>
-                                }
-                                <span class="kh-badge @GetStatusBadgeClass(plugin.Status)">@GetStatusLabel(plugin.Status)</span>
-                                <label class="kh-checkbox kh-plugins-manager__plugin__toggle">
-                                    <input type="checkbox" checked="@_enabledIds.Contains(plugin.Id)" disabled="@(!canEnable)"
-                                           @onchange="async e => await ToggleAsync(plugin.Id, (bool)e.Value!)" />
-                                    <span>Enabled</span>
-                                </label>
-                            </div>
-                            <div class="kh-plugins-manager__plugin__meta">
-                                @if (!string.IsNullOrWhiteSpace(manifest?.Description))
-                                {
-                                    <span>@manifest.Description</span>
-                                }
-                                @if (!string.IsNullOrWhiteSpace(manifest?.Author))
-                                {
-                                    <span class="kh-plugins-manager__plugin__author">by @manifest.Author</span>
-                                }
-                            </div>
-                            @if (plugin.Error is not null)
-                            {
-                                <div class="kh-plugins-manager__plugin__error">
-                                    <Icon Name="exclamation-triangle-fill" />
-                                    <span>@plugin.Error</span>
+                        <div class="kh-plugins-manager__row @(open ? "kh-plugins-manager__row--open" : null)" @key="plugin.Directory">
+                            <div class="kh-plugins-manager__head">
+                                <button type="button" class="kh-plugins-manager__disclosure" aria-expanded="@(open ? "true" : "false")"
+                                        @onclick="() => ToggleOpen(plugin.Id)">
+                                    <span class="kh-plugins-manager__chevron"><Icon Name="chevron-right" /></span>
+                                    <span class="kh-plugins-manager__glyph"><Icon Name="@GetGlyph(plugin)" /></span>
+                                    <span class="kh-plugins-manager__identity">
+                                        <span class="kh-plugins-manager__title">
+                                            <span class="kh-plugins-manager__name">@plugin.DisplayName</span>
+                                            @if (manifest is not null)
+                                            {
+                                                <span class="kh-badge kh-badge--ext">v@(manifest.Version)</span>
+                                            }
+                                            @foreach (var capability in plugin.Capabilities)
+                                            {
+                                                <span class="kh-plugins-manager__chip">@capability</span>
+                                            }
+                                            @if (dirty)
+                                            {
+                                                <span class="kh-plugins-manager__unsaved">Unsaved</span>
+                                            }
+                                        </span>
+                                        <span class="kh-plugins-manager__sub">
+                                            @(plugin.Error ?? manifest?.Description ?? "No manifest description.")
+                                        </span>
+                                    </span>
+                                </button>
+                                <div class="kh-plugins-manager__aside">
+                                    <span class="kh-badge @GetStateBadgeClass(state)">@GetStateLabel(state)</span>
+                                    <button type="button" role="switch" aria-checked="@(enabled ? "true" : "false")" class="kh-switch"
+                                            aria-label="@($"Enable {plugin.DisplayName}")"
+                                            disabled="@(!CanEnable(plugin, enabled))"
+                                            @onclick="() => ToggleAsync(plugin.Id, !enabled)">
+                                        <span class="kh-switch__track"></span>
+                                        <span class="kh-switch__label">@(enabled ? "Enabled" : "Disabled")</span>
+                                    </button>
                                 </div>
-                            }
-                            @foreach (var warning in plugin.Warnings)
+                            </div>
+
+                            @if (open)
                             {
-                                <div class="kh-plugins-manager__plugin__warning">
-                                    <Icon Name="exclamation-circle" />
-                                    <span>@warning</span>
-                                </div>
-                            }
-                            @if (manifest?.Settings.Count > 0 && _settingFields.TryGetValue(plugin.Id, out var fields))
-                            {
-                                <form class="kh-plugins-manager__plugin__settings" @onsubmit="async () => await SaveSettingsAsync(plugin.Id)" @onsubmit:preventDefault>
-                                    @foreach (var field in fields)
+                                <form class="kh-plugins-manager__panel"
+                                      @onsubmit="async () => await SaveSettingsAsync(plugin.Id)" @onsubmit:preventDefault>
+                                    @if (plugin.Error is not null)
                                     {
-                                        <label class="kh-plugins-manager__plugin__setting">
-                                            @if (field.Definition.Type == PluginSettingType.Bool)
-                                            {
-                                                <span class="kh-checkbox">
-                                                    <input type="checkbox" @bind="field.Flag" />
-                                                    <span>@field.Definition.Label</span>
-                                                </span>
-                                            }
-                                            else
-                                            {
-                                                <span>@field.Definition.Label</span>
-                                                <input class="kh-form-control"
-                                                       type="@GetInputType(field.Definition)"
-                                                       autocomplete="off"
-                                                       @bind="field.Text" />
-                                            }
-                                        </label>
+                                        <div class="kh-plugins-manager__notice kh-plugins-manager__notice--error">
+                                            <Icon Name="exclamation-triangle-fill" />
+                                            <span>@plugin.Error</span>
+                                        </div>
                                     }
-                                    <div class="kh-plugins-manager__plugin__actions">
-                                        <button type="submit" class="kh-button kh-button--primary">
-                                            <Icon Name="floppy" /> Save Settings
+                                    @foreach (var warning in plugin.Warnings)
+                                    {
+                                        <div class="kh-plugins-manager__notice kh-plugins-manager__notice--warning">
+                                            <Icon Name="exclamation-circle" />
+                                            <span>@warning</span>
+                                        </div>
+                                    }
+
+                                    @if (fields is not null)
+                                    {
+                                        <div class="kh-plugins-manager__settings">
+                                            @foreach (var field in fields)
+                                            {
+                                                <div class="kh-plugins-manager__field">
+                                                    @if (field.Definition.Type == PluginSettingType.Bool)
+                                                    {
+                                                        <span class="kh-plugins-manager__toggle">
+                                                            <button type="button" role="switch" aria-checked="@(field.Flag ? "true" : "false")"
+                                                                    class="kh-switch kh-switch--bare"
+                                                                    aria-label="@field.Definition.Label"
+                                                                    @onclick="() => { field.Flag = !field.Flag; MarkEdited(plugin.Id); }">
+                                                                <span class="kh-switch__track"></span>
+                                                            </button>
+                                                            <span>@field.Definition.Label</span>
+                                                        </span>
+                                                    }
+                                                    else if (field.Definition.Secret)
+                                                    {
+                                                        <span class="kh-plugins-manager__label">@field.Definition.Label</span>
+                                                        @if (field.HasSecret && !field.Replacing)
+                                                        {
+                                                            <span class="kh-plugins-manager__secret">
+                                                                <span class="kh-plugins-manager__secret-state">
+                                                                    <Icon Name="key-fill" />
+                                                                    @(field.SecretHint is null ? "Set" : $"Set — ends {field.SecretHint}")
+                                                                </span>
+                                                                <button type="button" class="kh-button kh-button--secondary"
+                                                                        @onclick="() => ReplaceSecret(plugin.Id, field)">Replace</button>
+                                                                <button type="button" class="kh-button kh-button--outline-danger"
+                                                                        @onclick="() => ClearSecret(plugin.Id, field)">Clear</button>
+                                                            </span>
+                                                        }
+                                                        else
+                                                        {
+                                                            <span class="kh-plugins-manager__secret">
+                                                                <input class="kh-form-control" type="password" autocomplete="new-password"
+                                                                       placeholder="Not set"
+                                                                       @bind="field.Text" @bind:event="oninput"
+                                                                       @bind:after="() => MarkEdited(plugin.Id)" />
+                                                                @if (field.OriginalSecret is not null)
+                                                                {
+                                                                    <button type="button" class="kh-button kh-button--secondary"
+                                                                            @onclick="() => CancelReplaceSecret(plugin.Id, field)">Cancel</button>
+                                                                }
+                                                            </span>
+                                                        }
+                                                    }
+                                                    else
+                                                    {
+                                                        <span class="kh-plugins-manager__label">@field.Definition.Label</span>
+                                                        <input class="kh-form-control" type="@GetInputType(field.Definition)"
+                                                               autocomplete="off"
+                                                               @bind="field.Text" @bind:event="oninput"
+                                                               @bind:after="() => MarkEdited(plugin.Id)" />
+                                                    }
+                                                </div>
+                                            }
+                                        </div>
+                                    }
+
+                                    <div class="kh-plugins-manager__foot">
+                                        <button type="button" class="kh-plugins-manager__path" title="Open this plugin's folder"
+                                                @onclick="() => OpenFolder(plugin.Directory)">
+                                            <Icon Name="folder2-open" /> @Path.GetFileName(plugin.Directory)
                                         </button>
+                                        @if (fields is not null && dirty)
+                                        {
+                                            <button type="button" class="kh-button kh-button--secondary" @onclick="() => Revert(plugin.Id)">Revert</button>
+                                            <button type="submit" class="kh-button">
+                                                <Icon Name="floppy" /> Save settings
+                                            </button>
+                                        }
+                                        else if (WasSaved(plugin.Id))
+                                        {
+                                            <span class="kh-plugins-manager__saved"><Icon Name="check-lg" /> Saved</span>
+                                        }
                                     </div>
                                 </form>
                             }

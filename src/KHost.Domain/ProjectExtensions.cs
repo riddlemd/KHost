@@ -66,10 +66,9 @@ namespace KHost.Domain
 
             serviceCollection.AddSingleton<IMediaProvider, LocalMediaProvider>();
             // Registered ahead of PluginLibrary and independent of it: PluginLibrary depends on
-            // IPerformanceService, and PerformanceService depends on IPluginImportCancellation, so
-            // the registry has to be its own dependency-free singleton to avoid a constructor cycle.
-            serviceCollection.AddSingleton<PluginImportCancellations>();
-            serviceCollection.AddSingleton<IPluginImportCancellation>(sp => sp.GetRequiredService<PluginImportCancellations>());
+            // IPerformanceService, and PerformanceService depends on IDownloadsService, so the
+            // service has to be its own dependency-free singleton to avoid a constructor cycle.
+            serviceCollection.AddSingleton<IDownloadsService, DownloadsService>();
             serviceCollection.AddSingleton<PluginLibrary>();
             serviceCollection.AddSingleton<IPluginLibrary>(sp => sp.GetRequiredService<PluginLibrary>());
 

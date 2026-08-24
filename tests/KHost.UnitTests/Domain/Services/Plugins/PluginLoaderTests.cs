@@ -1,4 +1,5 @@
 using KHost.Abstractions.Models.Plugins;
+using KHost.Domain.Services.MediaProviders;
 using KHost.Domain.Services.Plugins;
 using KHost.Plugins.Sdk;
 using KHost.Plugins.Sdk.Models;
@@ -138,6 +139,49 @@ public class PluginLoaderTests : IDisposable
         Assert.Contains(plugins[0].Warnings, w => w.Contains("No extension implementations"));
         // Manifest "1.0.0" vs assembly 1.0.0.0 is the same version, not drift.
         Assert.DoesNotContain(plugins[0].Warnings, w => w.Contains("differs from assembly version"));
+    }
+
+    [Fact]
+    public void LoadAndRegister_AssemblyWithExtensions_RecordsOneCapabilityPerInterface()
+    {
+        // KHost.Domain is a real assembly holding both extension shapes, and nine rotation modes —
+        // enough to prove the label is per interface, not per implementation.
+        var directory = WritePlugin("domain-copy", "0ca00000-0000-4000-8000-0000000cab11", entryAssembly: "Entry.dll", createEntryAssembly: false);
+        File.Copy(typeof(LocalMediaProvider).Assembly.Location, Path.Combine(directory, "Entry.dll"));
+        var state = new PluginsState { EnabledPluginIds = ["0ca00000-0000-4000-8000-0000000cab11"] };
+        var plugins = PluginLoader.Discover(PluginsDir, state);
+
+        PluginLoader.LoadAndRegister(new ServiceCollection(), plugins, state);
+
+        Assert.Equal(PluginStatus.Loaded, plugins[0].Status);
+        Assert.Equal(["Media provider", "Queue rotation"], plugins[0].Capabilities);
+    }
+
+    [Fact]
+    public void LoadAndRegister_AssemblyWithoutExtensions_RecordsNoCapabilities()
+    {
+        var directory = WritePlugin("sdk-only", "0cb00000-0000-4000-8000-0000000cab00", entryAssembly: "Entry.dll", createEntryAssembly: false);
+        File.Copy(typeof(PluginManifest).Assembly.Location, Path.Combine(directory, "Entry.dll"));
+        var state = new PluginsState { EnabledPluginIds = ["0cb00000-0000-4000-8000-0000000cab00"] };
+        var plugins = PluginLoader.Discover(PluginsDir, state);
+
+        PluginLoader.LoadAndRegister(new ServiceCollection(), plugins, state);
+
+        Assert.Empty(plugins[0].Capabilities);
+    }
+
+    [Fact]
+    public void LoadAndRegister_DisabledPlugin_RecordsNoCapabilities()
+    {
+        var directory = WritePlugin("not-enabled", "0cc00000-0000-4000-8000-0000000cacc0", entryAssembly: "Entry.dll", createEntryAssembly: false);
+        File.Copy(typeof(LocalMediaProvider).Assembly.Location, Path.Combine(directory, "Entry.dll"));
+        var state = new PluginsState();
+        var plugins = PluginLoader.Discover(PluginsDir, state);
+
+        PluginLoader.LoadAndRegister(new ServiceCollection(), plugins, state);
+
+        Assert.Equal(PluginStatus.Disabled, plugins[0].Status);
+        Assert.Empty(plugins[0].Capabilities);
     }
 
     [Fact]

@@ -18,7 +18,7 @@ public class PluginLibrary : BaseService, IPluginLibrary
     private readonly ISingerQueueService _singerQueueService;
     private readonly IPerformanceService _performanceService;
     private readonly IOptionsMonitor<ServiceOptions> _options;
-    private readonly PluginImportCancellations _cancellations;
+    private readonly IDownloadsService _downloadsService;
 
     public PluginLibrary(
         ILogger<PluginLibrary> logger,
@@ -27,7 +27,7 @@ public class PluginLibrary : BaseService, IPluginLibrary
         ISingerQueueService singerQueueService,
         IPerformanceService performanceService,
         IOptionsMonitor<ServiceOptions> options,
-        PluginImportCancellations cancellations)
+        IDownloadsService downloadsService)
         : base(logger)
     {
         _repository = repository;
@@ -35,7 +35,7 @@ public class PluginLibrary : BaseService, IPluginLibrary
         _singerQueueService = singerQueueService;
         _performanceService = performanceService;
         _options = options;
-        _cancellations = cancellations;
+        _downloadsService = downloadsService;
     }
 
     // Re-read on every access (not cached at construction) so a settings-page edit applies
@@ -76,7 +76,7 @@ public class PluginLibrary : BaseService, IPluginLibrary
     {
         var existing = await _repository.FindByFilePathAsync(request.FilePath);
         if (existing is not null)
-            return new ImportTicket { MediaId = existing.Id, Cancellation = TokenFor(existing) };
+            return new ImportTicket { MediaId = existing.Id, Cancellation = TokenFor(existing, request) };
 
         var created = await _mediaService.CreateAsync(new Media
         {
@@ -90,24 +90,32 @@ public class PluginLibrary : BaseService, IPluginLibrary
             DateAdded = DateTime.UtcNow,
         });
 
-        var token = _cancellations.Register(created.Id);
+        var token = _downloadsService.Register(created.Id, request.Title, request.Artist, request.Source);
 
         return new ImportTicket { MediaId = created.Id, Cancellation = token };
     }
 
+    public Task ReportDownloadProgressAsync(Guid mediaId, double fraction)
+    {
+        _downloadsService.ReportProgress(mediaId, fraction);
+        return Task.CompletedTask;
+    }
+
     // A settled row (Ready/Broken) has nothing left to cancel; an in-flight one reuses its
     // registered source rather than handing out a second, unreachable one for the same download.
-    private CancellationToken TokenFor(Media media) => media.Status == MediaStatus.Downloading
-        ? _cancellations.TokenForInFlight(media.Id)
+    private CancellationToken TokenFor(Media media, MediaImportRequest request) => media.Status == MediaStatus.Downloading
+        ? _downloadsService.TokenForInFlight(media.Id, request.Title, request.Artist, request.Source)
         : CancellationToken.None;
 
-    public Task CompleteImportAsync(Guid mediaId) => SettleAsync(mediaId, MediaStatus.Ready);
+    public Task CompleteImportAsync(Guid mediaId) => SettleAsync(mediaId, MediaStatus.Ready, DownloadState.Completed);
 
-    public Task FailImportAsync(Guid mediaId) => SettleAsync(mediaId, MediaStatus.Broken);
+    public Task FailImportAsync(Guid mediaId) => SettleAsync(mediaId, MediaStatus.Broken, DownloadState.Failed);
 
     public async Task DiscardImportAsync(Guid mediaId)
     {
-        _cancellations.Remove(mediaId);
+        // A no-op if the host already cancelled it from the Downloads page — CancelAsync there
+        // settles the entry itself, and this call has nothing left to find.
+        _downloadsService.Settle(mediaId, DownloadState.Cancelled);
 
         var media = await _mediaService.ReadAsync(mediaId);
 
@@ -137,9 +145,9 @@ public class PluginLibrary : BaseService, IPluginLibrary
         Logger.LogInformation("Enqueued media {MediaId} for singer {SingerId}", mediaId, singerId);
     }
 
-    private async Task SettleAsync(Guid mediaId, MediaStatus status)
+    private async Task SettleAsync(Guid mediaId, MediaStatus status, DownloadState downloadState)
     {
-        _cancellations.Remove(mediaId);
+        _downloadsService.Settle(mediaId, downloadState);
 
         var media = await _mediaService.ReadAsync(mediaId);
         if (media is null)

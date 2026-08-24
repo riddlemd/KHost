@@ -18,7 +18,7 @@ public class PluginLibraryTests
     private readonly ISingerQueueService _singerQueueService = Substitute.For<ISingerQueueService>();
     private readonly IPerformanceService _performanceService = Substitute.For<IPerformanceService>();
     private readonly IOptionsMonitor<PluginLibrary.ServiceOptions> _options = Substitute.For<IOptionsMonitor<PluginLibrary.ServiceOptions>>();
-    private readonly PluginImportCancellations _cancellations = new();
+    private readonly DownloadsService _downloads = new();
     private readonly PluginLibrary _service;
 
     public PluginLibraryTests()
@@ -28,7 +28,7 @@ public class PluginLibraryTests
             .Returns(call => Task.FromResult<Performance?>(call.ArgAt<Performance>(0)));
         _options.CurrentValue.Returns(new PluginLibrary.ServiceOptions());
 
-        _service = new PluginLibrary(_logger, _repository, _mediaService, _singerQueueService, _performanceService, _options, _cancellations);
+        _service = new PluginLibrary(_logger, _repository, _mediaService, _singerQueueService, _performanceService, _options, _downloads);
     }
 
     [Fact]
@@ -147,7 +147,7 @@ public class PluginLibraryTests
     }
 
     [Fact]
-    public async Task BeginImportAsync_NewRow_TicketTokenFiresWhenCancelImportAsyncIsCalled()
+    public async Task BeginImportAsync_NewRow_TicketTokenFiresWhenCancelAsyncIsCalled()
     {
         _repository.FindByFilePathAsync(Arg.Any<string>()).Returns((Media?)null);
         var created = new Media { Id = Guid.NewGuid(), FilePath = "/downloads/song.mp4", Title = "Song Title" };
@@ -158,7 +158,7 @@ public class PluginLibraryTests
 
         Assert.False(ticket.Cancellation.IsCancellationRequested);
 
-        await _cancellations.CancelImportAsync(created.Id);
+        await _downloads.CancelAsync(created.Id);
 
         Assert.True(ticket.Cancellation.IsCancellationRequested);
     }
@@ -180,7 +180,7 @@ public class PluginLibraryTests
         Assert.False(first.Cancellation.IsCancellationRequested);
         Assert.False(second.Cancellation.IsCancellationRequested);
 
-        await _cancellations.CancelImportAsync(media.Id);
+        await _downloads.CancelAsync(media.Id);
 
         Assert.True(first.Cancellation.IsCancellationRequested);
         Assert.True(second.Cancellation.IsCancellationRequested);
@@ -226,7 +226,7 @@ public class PluginLibraryTests
         var media = new Media { Id = Guid.NewGuid(), FilePath = "/downloads/song.mp4", Title = "Song Title", Status = MediaStatus.Downloading };
         repository.ReadAsync(media.Id).Returns(media);
 
-        var service = new PluginLibrary(_logger, repository, mediaService, _singerQueueService, _performanceService, _options, _cancellations);
+        var service = new PluginLibrary(_logger, repository, mediaService, _singerQueueService, _performanceService, _options, _downloads);
         var raised = 0;
         mediaService.StateChanged += (_, _) => raised++;
 
@@ -264,7 +264,7 @@ public class PluginLibraryTests
         var media = new Media { Id = Guid.NewGuid(), FilePath = "/downloads/song.mp4", Title = "Song Title", Status = MediaStatus.Downloading };
         repository.ReadAsync(media.Id).Returns(media);
 
-        var service = new PluginLibrary(_logger, repository, mediaService, _singerQueueService, _performanceService, _options, _cancellations);
+        var service = new PluginLibrary(_logger, repository, mediaService, _singerQueueService, _performanceService, _options, _downloads);
         var raised = 0;
         mediaService.StateChanged += (_, _) => raised++;
 
@@ -316,7 +316,7 @@ public class PluginLibraryTests
         repository.ReadAsync(media.Id).Returns(media);
         repository.DeleteAsync(media.Id).Returns(true);
 
-        var service = new PluginLibrary(_logger, repository, mediaService, _singerQueueService, _performanceService, _options, _cancellations);
+        var service = new PluginLibrary(_logger, repository, mediaService, _singerQueueService, _performanceService, _options, _downloads);
         var raised = 0;
         mediaService.StateChanged += (_, _) => raised++;
 
@@ -335,7 +335,7 @@ public class PluginLibraryTests
         _mediaService.ReadAsync(media.Id).Returns(media);
 
         await _service.CompleteImportAsync(media.Id);
-        await _cancellations.CancelImportAsync(media.Id);
+        await _downloads.CancelAsync(media.Id);
 
         Assert.False(ticket.Cancellation.IsCancellationRequested);
     }
@@ -350,7 +350,7 @@ public class PluginLibraryTests
         _mediaService.ReadAsync(media.Id).Returns(media);
 
         await _service.FailImportAsync(media.Id);
-        await _cancellations.CancelImportAsync(media.Id);
+        await _downloads.CancelAsync(media.Id);
 
         Assert.False(ticket.Cancellation.IsCancellationRequested);
     }
@@ -365,19 +365,19 @@ public class PluginLibraryTests
         _mediaService.ReadAsync(media.Id).Returns(media);
 
         await _service.DiscardImportAsync(media.Id);
-        await _cancellations.CancelImportAsync(media.Id);
+        await _downloads.CancelAsync(media.Id);
 
         Assert.False(ticket.Cancellation.IsCancellationRequested);
     }
 
     [Fact]
-    public async Task CancelImportAsync_NothingRegistered_DoesNotThrow()
+    public async Task CancelAsync_NothingRegistered_DoesNotThrow()
     {
-        await _cancellations.CancelImportAsync(Guid.NewGuid());
+        await _downloads.CancelAsync(Guid.NewGuid());
     }
 
     [Fact]
-    public async Task CancelAllImports_CancelsEveryRegisteredToken()
+    public async Task CancelAll_CancelsEveryRegisteredToken()
     {
         _repository.FindByFilePathAsync(Arg.Any<string>()).Returns((Media?)null);
         var mediaA = new Media { Id = Guid.NewGuid(), FilePath = "/downloads/a.mp4", Title = "A" };
@@ -388,7 +388,7 @@ public class PluginLibraryTests
         var ticketA = await _service.BeginImportAsync(new MediaImportRequest { FilePath = "/downloads/a.mp4", Title = "A" });
         var ticketB = await _service.BeginImportAsync(new MediaImportRequest { FilePath = "/downloads/b.mp4", Title = "B" });
 
-        _cancellations.CancelAllImports();
+        _downloads.CancelAll();
 
         Assert.True(ticketA.Cancellation.IsCancellationRequested);
         Assert.True(ticketB.Cancellation.IsCancellationRequested);
@@ -415,5 +415,49 @@ public class PluginLibraryTests
 
         await _performanceService.Received(1).CreateAndEnqueueAsync(
             Arg.Is<Performance>(p => p.MediaId == mediaId && p.SingerId == singerId));
+    }
+
+    [Fact]
+    public async Task BeginImportAsync_NewRow_RegistersDownloadMetadataFromTheRequest()
+    {
+        _repository.FindByFilePathAsync(Arg.Any<string>()).Returns((Media?)null);
+        var created = new Media { Id = Guid.NewGuid(), FilePath = "/downloads/song.mp4", Title = "Song Title" };
+        _mediaService.CreateAsync(Arg.Any<Media>()).Returns(created);
+        var request = new MediaImportRequest
+        {
+            FilePath = "/downloads/song.mp4",
+            Title = "Song Title",
+            Artist = "Song Artist",
+            Source = "My Plugin",
+        };
+
+        await _service.BeginImportAsync(request);
+
+        var registered = Assert.Single(_downloads.Snapshot());
+        Assert.Equal(created.Id, registered.MediaId);
+        Assert.Equal("Song Title", registered.Title);
+        Assert.Equal("Song Artist", registered.Artist);
+        Assert.Equal("My Plugin", registered.Source);
+    }
+
+    [Fact]
+    public async Task ReportDownloadProgressAsync_DelegatesToDownloadsService()
+    {
+        _repository.FindByFilePathAsync(Arg.Any<string>()).Returns((Media?)null);
+        var created = new Media { Id = Guid.NewGuid(), FilePath = "/downloads/song.mp4", Title = "Song Title" };
+        _mediaService.CreateAsync(Arg.Any<Media>()).Returns(created);
+        await _service.BeginImportAsync(new MediaImportRequest { FilePath = "/downloads/song.mp4", Title = "Song Title" });
+
+        await _service.ReportDownloadProgressAsync(created.Id, 0.42);
+
+        Assert.Equal(0.42, Assert.Single(_downloads.Snapshot()).Progress);
+    }
+
+    [Fact]
+    public async Task ReportDownloadProgressAsync_UnknownMediaId_NoOps()
+    {
+        // Nothing to assert against but that it does not throw — DownloadsService itself already
+        // covers the silent-no-op behaviour for an id it never registered.
+        await _service.ReportDownloadProgressAsync(Guid.NewGuid(), 0.5);
     }
 }

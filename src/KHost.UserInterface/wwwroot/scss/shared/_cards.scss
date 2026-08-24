@@ -93,6 +93,13 @@
         font-weight: 500;
     }
 
+    &--warning {
+        background: var(--kh-warning-subtle) !important;
+        color: var(--kh-warning);
+        border: 1px solid var(--kh-warning-border-subtle);
+        font-weight: 500;
+    }
+
     &--info {
         background: var(--kh-badge-info-bg) !important;
         color: var(--kh-badge-info-text);
