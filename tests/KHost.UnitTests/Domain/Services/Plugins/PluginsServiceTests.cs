@@ -56,7 +56,7 @@ public class PluginsServiceTests
     }
 
     [Fact]
-    public async Task SetEnabledAsync_AnyChange_SetsRestartRequiredAndRaisesStateChanged()
+    public async Task SetEnabledAsync_AnyChange_SetsRestartRequiredAndAnnouncesPluginsChanged()
     {
         var stateChangedCount = 0;
         using var subscription = _broker.Subscribe<PluginsChanged>(_ => stateChangedCount++);

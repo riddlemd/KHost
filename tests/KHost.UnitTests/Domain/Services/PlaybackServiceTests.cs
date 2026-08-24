@@ -144,7 +144,7 @@ public class PlaybackServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task Load_RaisesStateChanged()
+    public async Task Load_AnnouncesPlaybackChanged()
     {
         var raised = false;
         using var subscription = _broker.Subscribe<PlaybackChanged>(_ => raised = true);
@@ -1194,7 +1194,7 @@ public class PlaybackServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task StopAsync_RaisesStateChanged_WhenEnteringStopping()
+    public async Task StopAsync_AnnouncesPlaybackChanged_WhenEnteringStopping()
     {
         var service = MakeService(TimeSpan.FromMilliseconds(200));
         var (performance, media) = CreatePerformance();
@@ -1405,7 +1405,7 @@ public class PlaybackServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task TickAsync_RaisesStateChanged_WhenTheSongRunsOut()
+    public async Task TickAsync_AnnouncesPlaybackChanged_WhenTheSongRunsOut()
     {
         var (performance, media) = CreatePerformance();
         media.Duration = TimeSpan.FromSeconds(1);

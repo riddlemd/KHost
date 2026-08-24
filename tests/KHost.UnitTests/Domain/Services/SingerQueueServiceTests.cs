@@ -94,7 +94,7 @@ public class SingerQueueServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task AddUserAsync_RaisesStateChanged()
+    public async Task AddUserAsync_AnnouncesSingerQueueChanged()
     {
         var raised = false;
         using var subscription = _broker.Subscribe<SingerQueueChanged>(_ => raised = true);

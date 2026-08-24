@@ -160,7 +160,7 @@ public class BreakMusicBarTests : BunitContext
     }
 
     [Fact]
-    public async Task StateChanged_RedrawsTheBar()
+    public async Task BreakMusicChanged_RedrawsTheBar()
     {
         var rendered = Render();
 

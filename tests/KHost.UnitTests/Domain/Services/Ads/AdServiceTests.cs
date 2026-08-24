@@ -407,7 +407,7 @@ public class AdServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task AnAdPlaying_RaisesStateChanged()
+    public async Task AnAdPlaying_AnnouncesAdsChanged()
     {
         ConfigureVenue(AdTriggerMode.EveryNPerformances, interval: 1);
 

@@ -121,7 +121,7 @@ public class MediaPoolServiceTests
     }
 
     [Fact]
-    public async Task ReplaceEntriesAsync_RaisesStateChanged()
+    public async Task ReplaceEntriesAsync_AnnouncesMediaPoolsChanged()
     {
         var pool = Pool(Guid.NewGuid());
         _repository.ReadWithEntriesAsync(pool.Id).Returns(Task.FromResult<MediaPool?>(pool));
@@ -135,7 +135,7 @@ public class MediaPoolServiceTests
     }
 
     [Fact]
-    public async Task ReplaceEntriesAsync_RefusedEntries_DoNotRaiseStateChanged()
+    public async Task ReplaceEntriesAsync_RefusedEntries_DoNotAnnounceMediaPoolsChanged()
     {
         var pool = Pool(Guid.NewGuid());
         _repository.ReadWithEntriesAsync(pool.Id).Returns(Task.FromResult<MediaPool?>(pool));
