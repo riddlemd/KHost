@@ -145,8 +145,8 @@ internal class MediaRepository : BaseRepository<Media>, IMediaRepository
     {
         options ??= MediaSearchOptions.Default;
 
-        if (options.Type is { } kind)
-            queryable = queryable.Where(m => m.Type == kind);
+        if (options.Types is { Length: > 0 } types)
+            queryable = queryable.Where(m => types.Contains(m.Type));
 
         var statuses = options.Statuses;
         if (statuses?.Count > 0)

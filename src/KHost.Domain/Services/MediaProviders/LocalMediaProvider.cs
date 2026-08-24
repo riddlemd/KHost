@@ -15,7 +15,7 @@ public class LocalMediaProvider : BaseService, IMediaProvider
     // offered for queueing. Derived from the enum so a new status shows up unless it opts out.
     private static readonly MediaSearchOptions _searchOptions = new()
     {
-        Type = MediaType.Karaoke,
+        Types = [MediaType.Karaoke],
         Statuses = [.. Enum.GetValues<MediaStatus>().Where(status => status != MediaStatus.Broken)],
     };
 

@@ -1,4 +1,3 @@
-using System.Globalization;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using Microsoft.AspNetCore.Components;
@@ -29,11 +28,13 @@ public partial class EditPlaylistDialog
     private int _adTriggerInterval = 4;
 
     private List<MediaPoolEntry> _entries = [];
-    private IReadOnlyList<Media> _mediaChoices = [];
-    private IReadOnlyList<Media> _audioChoices = [];
     private IReadOnlyList<MediaPool> _poolChoices = [];
 
-    private string _addMediaId = "";
+    /// <summary>Titles for the entries already in the list, so a row can name what it plays.</summary>
+    private readonly Dictionary<Guid, string> _titles = [];
+
+    private Media? _addMedia;
+    private string _addMediaText = "";
     private string _addPoolId = "";
 
     protected override async Task OnParametersSetAsync()
@@ -52,7 +53,8 @@ public partial class EditPlaylistDialog
             // Copied rather than bound: Cancel has to leave the stored playlist untouched.
             _entries = [.. (Pool?.Entries ?? []).OrderBy(e => e.Position).Select(Copy)];
 
-            _addMediaId = "";
+            _addMedia = null;
+            _addMediaText = "";
             _addPoolId = "";
 
             await LoadChoicesAsync();
@@ -76,15 +78,7 @@ public partial class EditPlaylistDialog
 
     private async Task LoadChoicesAsync()
     {
-        // What each purpose can actually use: an ad is a video or a picture, break music is a
-        // record. Unpaged, because a paged read filtered in memory drops everything past page one.
-        _mediaChoices = Purpose == PoolPurpose.Ads
-            ? await Media.ReadAllByTypesAsync(MediaType.Video, MediaType.Image)
-            : await Media.ReadAllByTypesAsync(MediaType.Audio);
-
-        // Never the karaoke library: those are backing tracks with no singer on them, so they are
-        // neither something to play between singers nor an ad's voiceover.
-        _audioChoices = await Media.ReadAllByTypesAsync(MediaType.Audio);
+        await LoadEntryTitlesAsync();
 
         var pools = await MediaPools.ReadAllWithEntriesAsync(Purpose, venueId: null);
 
@@ -93,67 +87,67 @@ public partial class EditPlaylistDialog
         _poolChoices = [.. pools.Where(p => p.Id != _id).OrderBy(p => p.Name)];
     }
 
+    /// <summary>
+    /// Only the rows already in the playlist, read by id. The pickers search the library instead
+    /// of holding it, so there is no in-memory list to look a title up in.
+    /// </summary>
+    private async Task LoadEntryTitlesAsync()
+    {
+        _titles.Clear();
+
+        foreach (var id in _entries.SelectMany(e => new[] { e.MediaId, e.AudioMediaId })
+                     .OfType<Guid>().Distinct())
+        {
+            if (await Media.ReadAsync(id) is { } media)
+                _titles[id] = media.Title;
+        }
+    }
+
+    private string TitleFor(Guid id) => _titles.GetValueOrDefault(id, "(missing)");
+
     private string DescribeEntry(MediaPoolEntry entry)
     {
         if (entry.ChildPoolId is { } poolId)
             return $"Playlist: {_poolChoices.FirstOrDefault(p => p.Id == poolId)?.Name ?? "(missing)"}";
 
         if (entry.MediaId is { } mediaId)
-            return _mediaChoices.FirstOrDefault(m => m.Id == mediaId)?.Title
-                ?? _audioChoices.FirstOrDefault(m => m.Id == mediaId)?.Title
-                ?? "(missing)";
+            return TitleFor(mediaId);
 
         return entry.AudioMediaId is { } audioId
-            ? $"Sound only: {_audioChoices.FirstOrDefault(m => m.Id == audioId)?.Title ?? "(missing)"}"
+            ? $"Sound only: {TitleFor(audioId)}"
             : "(empty)";
     }
 
-    /// <summary>Blank rather than 00:00:00, so "not set" reads as not set.</summary>
-    private static string FormatTime(TimeSpan? value)
-        => value is { } time ? time.ToString(time.TotalHours >= 1 ? @"h\:mm\:ss" : @"m\:ss", CultureInfo.InvariantCulture) : "";
+    /// <summary>
+    /// What this playlist can use: an ad is a video, a sound, or a still; break music is a record.
+    /// Never the karaoke library — those are backing tracks with no singer on them.
+    /// </summary>
+    private Task<IReadOnlyList<Media>> SearchMediaAsync(string term) => SearchAsync(term,
+        Purpose == PoolPurpose.Ads
+            ? [MediaType.Video, MediaType.Audio, MediaType.Image]
+            : [MediaType.Audio]);
 
-    /// <summary>Accepts m:ss and h:mm:ss, and plain seconds — a host typing "20" means 20 seconds.</summary>
-    private static TimeSpan? ParseTime(string? text)
+    private async Task<IReadOnlyList<Media>> SearchAsync(string term, MediaType[] types)
     {
-        if (string.IsNullOrWhiteSpace(text))
-            return null;
+        // Capped: the box is for finding one row, and a thousand of them help nobody.
+        var page = await Media.SearchAsync(term, 1, 50, sort: null, new MediaSearchOptions { Types = types });
 
-        if (int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out var seconds))
-            return seconds > 0 ? TimeSpan.FromSeconds(seconds) : null;
-
-        var parts = text.Split(':');
-        var total = TimeSpan.Zero;
-
-        foreach (var part in parts)
-        {
-            if (!int.TryParse(part, NumberStyles.Integer, CultureInfo.InvariantCulture, out var value))
-                return null;
-
-            total = total * 60 + TimeSpan.FromSeconds(value);
-        }
-
-        return total > TimeSpan.Zero ? total : null;
+        return page.Items;
     }
-
-    private void SetEntryAudio(int index, string? value)
-        => _entries[index].AudioMediaId = Guid.TryParse(value, out var id) ? id : null;
-
-    private void SetEntryAudioStart(int index, string? value)
-        => _entries[index].AudioStart = ParseTime(value);
-
-    private void SetEntryDuration(int index, string? value)
-        => _entries[index].Duration = ParseTime(value);
 
     private void SetEntryWeight(int index, string? value)
         => _entries[index].Weight = int.TryParse(value, out var weight) && weight >= 0 ? weight : 1;
 
     private void AddMediaEntry()
     {
-        if (!Guid.TryParse(_addMediaId, out var mediaId))
+        if (_addMedia is not { } media)
             return;
 
-        _entries.Add(new MediaPoolEntry { Id = Guid.NewGuid(), MediaId = mediaId, Position = _entries.Count });
-        _addMediaId = "";
+        _titles[media.Id] = media.Title;
+        _entries.Add(new MediaPoolEntry { Id = Guid.NewGuid(), MediaId = media.Id, Position = _entries.Count });
+
+        _addMedia = null;
+        _addMediaText = "";
     }
 
     private void AddPoolEntry()
