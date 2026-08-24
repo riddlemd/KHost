@@ -115,7 +115,7 @@ public class MediaRepositoryTypeFilterTests : IDisposable
     }
 
     // A query under three characters cannot go to the trigram index, so this drops to the
-    // substring fallback — a separate branch that has to filter by kind the same way.
+    // substring fallback — a separate branch that has to filter by type the same way.
     [Fact]
     public async Task SearchAsync_ShortQueryTakingTheFallback_ReturnsKaraokeOnly()
     {
@@ -232,7 +232,7 @@ public class MediaRepositoryTypeFilterTests : IDisposable
         Assert.Empty(await _repository.ReadAllByTypesAsync());
     }
 
-    // Dedup deliberately spans every kind: FilePath is unique across the table, so an ad already
+    // Dedup deliberately spans every type: FilePath is unique across the table, so an ad already
     // imported has to be found before the same path is inserted again as a song.
     [Fact]
     public async Task GetExistingFilePathsAsync_FindsPathsOfEveryKind()
@@ -256,7 +256,7 @@ public class MediaRepositoryTypeFilterTests : IDisposable
         Assert.Equal(bed.Id, found?.Id);
     }
 
-    // Status and kind are independent conditions, not one narrowing the other.
+    // Status and type are independent conditions, not one narrowing the other.
     [Fact]
     public async Task SearchAsync_WithStatusesAndKind_AppliesBoth()
     {

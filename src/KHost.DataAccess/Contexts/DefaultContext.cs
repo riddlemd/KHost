@@ -79,7 +79,7 @@ internal class DefaultContext : DbContext
             entity.HasIndex(e => e.Status);
             entity.HasIndex(e => e.DateAdded);
 
-            // Every listing and search filters on kind, so it sits ahead of the sort columns
+            // Every listing and search filters on type, so it sits ahead of the sort columns
             // rather than beside them.
             entity.HasIndex(e => e.Type);
 

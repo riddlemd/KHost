@@ -1,7 +1,7 @@
 namespace KHost.Abstractions.Models;
 
 /// <summary>
-/// What a playlist is for. Deliberately not <see cref="MediaType"/>: a kind says what a file is,
+/// What a playlist is for. Deliberately not <see cref="MediaType"/>: a type says what a file is,
 /// and both purposes draw on several types — an ad is a picture and a sound together.
 /// </summary>
 public enum PoolPurpose

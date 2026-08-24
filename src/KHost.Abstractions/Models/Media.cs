@@ -3,13 +3,9 @@ namespace KHost.Abstractions.Models;
 public enum MediaStatus { Unknown, Ready, Downloading, Processing, Broken }
 
 /// <summary>
-/// What the file is. Karaoke is first so rows written before the column existed read as the songs
-/// they are, and so a caller that forgets to set it lands on the harmless kind.
+/// What the file is, not what it is for — an ad is composed in a playlist out of these, so there
+/// is no ad type. Karaoke is first so a caller that forgets to set it lands on the harmless one.
 /// </summary>
-/// <remarks>
-/// What a file is, not what it is for: an ad is composed in a playlist out of these, so there is
-/// no ad kind. Karaoke is the one the queue plays — an mp4 or a cdg+mp3 pair with no singer on it.
-/// </remarks>
 public enum MediaType
 {
     Karaoke,
