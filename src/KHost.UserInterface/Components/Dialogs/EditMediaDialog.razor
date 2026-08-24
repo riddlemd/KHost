@@ -55,6 +55,19 @@
                     }
                 </div>
             </div>
+            @if (MediaFormats.IsImage(Media?.Format))
+            {
+                <div>
+                    <label for="edit-media-scaling" class="kh-form-label">How it fills the screen</label>
+                    <select id="edit-media-scaling" class="kh-form-select" @bind="_model.ImageScaling">
+                        <option value="@ImageScaling.Fit">Fit — show all of it</option>
+                        <option value="@ImageScaling.Fill">Fill — crop the overflow</option>
+                        <option value="@ImageScaling.Stretch">Stretch — distort to fit</option>
+                        <option value="@ImageScaling.Original">Original size</option>
+                    </select>
+                </div>
+            }
+
             <button type="submit" class="kh-hidden"></button>
         </EditForm>
     </Body>

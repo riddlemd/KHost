@@ -1,3 +1,4 @@
+using KHost.Abstractions.Models;
 using KHost.Abstractions.Services.IPC;
 using Microsoft.Extensions.Logging;
 
@@ -168,7 +169,7 @@ internal sealed class ScreenIpcController : IAsyncDisposable
                 _player.BackgroundVolume = cmd.Volume;
                 break;
             case ShowImageCommand cmd:
-                _player.ShowImage(cmd.Url);
+                _player.ShowImage(cmd.Url, cmd.Scaling);
                 break;
             case HideImageCommand:
                 _player.HideImage();

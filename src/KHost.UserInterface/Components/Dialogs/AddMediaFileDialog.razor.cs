@@ -20,6 +20,11 @@ public partial class AddMediaFileDialog
     [Parameter] public EventCallback OnClose { get; set; }
 
     private string _path = "";
+    private ImageScaling _scaling = ImageScaling.Fit;
+
+    /// <summary>Driven off the path as it is typed, so the option appears only for a still.</summary>
+    private bool _isImage => MediaFormats.IsImage(Path.GetExtension(_path.Trim().Trim('"')));
+
     private MediaKind _kind = MediaKind.BreakMusic;
     private string? _error;
     private bool _busy;
@@ -31,6 +36,7 @@ public partial class AddMediaFileDialog
         {
             _path = "";
             _kind = MediaKind.BreakMusic;
+            _scaling = ImageScaling.Fit;
             _error = null;
             _busy = false;
         }
@@ -78,6 +84,7 @@ public partial class AddMediaFileDialog
         {
             var media = await Parser.LoadAndParseAsync(path);
             media.Kind = _kind;
+            media.ImageScaling = _scaling;
 
             await Media.CreateAsync(media);
 

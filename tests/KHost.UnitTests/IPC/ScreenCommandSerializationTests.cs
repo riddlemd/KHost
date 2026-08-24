@@ -1,3 +1,4 @@
+using KHost.Abstractions.Models;
 using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -34,7 +35,7 @@ public class ScreenCommandSerializationTests
         [nameof(PauseBackgroundCommand)] = new PauseBackgroundCommand(),
         [nameof(StopBackgroundCommand)] = new StopBackgroundCommand { FadeDuration = TimeSpan.FromSeconds(2) },
         [nameof(SetBackgroundVolumeCommand)] = new SetBackgroundVolumeCommand { Volume = 0.4f },
-        [nameof(ShowImageCommand)] = new ShowImageCommand { Url = "http://host/media/image/abc" },
+        [nameof(ShowImageCommand)] = new ShowImageCommand { Url = "http://host/media/image/abc", Scaling = ImageScaling.Fill },
         [nameof(HideImageCommand)] = new HideImageCommand(),
     };
 
