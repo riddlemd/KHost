@@ -64,6 +64,9 @@ public class PlaybackService : BaseService, IPlaybackService
 
     public Performance? CurrentPerformance { get; private set; }
     public Media? CurrentMedia { get; private set; }
+
+    /// <summary>Whether the main channel is carrying an ad rather than a singer's song.</summary>
+    public bool IsPlayingAd { get; private set; }
     public PlaybackState State { get; private set; } = PlaybackState.Stopped;
     public TimeSpan Position { get; private set; }
     public Guid? CurrentlyPerformingUserId { get; private set; }
@@ -131,6 +134,8 @@ public class PlaybackService : BaseService, IPlaybackService
 
         ResetState();
 
+        IsPlayingAd = false;
+
         // On load rather than on play: the host lines the next singer up while the room is still
         // listening to the bed, and a song that starts over the top of it is two songs at once.
         await _breakMusic.SuspendAsync();
@@ -152,9 +157,66 @@ public class PlaybackService : BaseService, IPlaybackService
         InvokeStateChanged();
     }
 
+    /// <summary>
+    /// Plays media on the main channel that is nobody's turn. It ends without dequeuing or
+    /// rotating: retiring a singer for an ad would cost them the song they are still waiting on.
+    /// </summary>
+    public async Task<bool> PlayAdAsync(Media media)
+    {
+        if (media.Status != MediaStatus.Ready)
+        {
+            Logger.LogWarning("Ad refused: media {MediaId} is {Status}, not Ready", media.Id, media.Status);
+            return false;
+        }
+
+        // Nothing here is watching an ad the way a host watches a song, and the clock ends a
+        // performance by its duration — without one this would hold the main channel all night.
+        if (media.Duration is not { } duration || duration <= TimeSpan.Zero)
+        {
+            Logger.LogWarning("Ad refused: media {MediaId} has no duration", media.Id);
+            return false;
+        }
+
+        // Never over a singer. An ad waits for the gap rather than cutting a performance short.
+        if (CurrentPerformance is not null)
+        {
+            Logger.LogWarning("Ad refused: a performance is loaded");
+            return false;
+        }
+
+        ResetState();
+
+        // It brings its own audio, so the bed yields to it exactly as it does to a song.
+        await _breakMusic.SuspendAsync();
+
+        CurrentMedia = media;
+        IsPlayingAd = true;
+        Position = TimeSpan.Zero;
+
+        Logger.LogInformation("Playing ad '{Title}'", media.Title);
+
+        await SendToScreensAsync(await BuildLoadCommandAsync(media, TimeSpan.Zero));
+
+        InvokeStateChanged();
+
+        await PlayAsync();
+
+        if (State == PlaybackState.Playing)
+            return true;
+
+        // Refused — with no screen there is nothing to run the clock down and clear this, so the
+        // ad would hold the main channel and keep the bed suspended behind it.
+        await EndedAsync();
+
+        InvokeStateChanged();
+
+        return false;
+    }
+
     public async Task PlayAsync()
     {
-        if (CurrentPerformance is null || State == PlaybackState.Playing) return;
+        // Media rather than performance: an ad is loaded the same way and has no singer.
+        if (CurrentMedia is null || State == PlaybackState.Playing) return;
 
         // Playing during a stop's fade supersedes it, but the screens have already been told to
         // fade out and drop the media — so they need it handed back before being told to play.
@@ -168,7 +230,7 @@ public class PlaybackService : BaseService, IPlaybackService
             return;
         }
 
-        CurrentlyPerformingUserId = CurrentPerformance.SingerId;
+        CurrentlyPerformingUserId = CurrentPerformance?.SingerId;
 
         // Leaving Stopping here is what tells an in-flight StopAsync to abandon its completion.
         State = PlaybackState.Playing;
@@ -177,7 +239,7 @@ public class PlaybackService : BaseService, IPlaybackService
 
         _analytics.RecordPlaybackStateTransition(PlaybackState.Playing);
 
-        Logger.LogInformation("Playback started for user {UserId}", CurrentPerformance.SingerId);
+        Logger.LogInformation("Playback started for user {UserId}", CurrentPerformance?.SingerId);
 
         if (supersedesStop && CurrentMedia is { } resumed)
         {
@@ -546,9 +608,21 @@ public class PlaybackService : BaseService, IPlaybackService
         await CloseStreamAsync();
 
         var currentPerformance = CurrentPerformance;
+        var wasAd = IsPlayingAd;
 
         CurrentPerformance = null;
         CurrentMedia = null;
+        IsPlayingAd = false;
+
+        if (wasAd)
+        {
+            Logger.LogInformation("Ad finished");
+
+            // No dequeue and no rotation: an ad is nobody's turn, and there is no slot to unlock
+            // because none was ever locked for it.
+            await _breakMusic.RestoreAsync();
+            return;
+        }
 
         _singerQueueService.UnlockTopSlot();
 
