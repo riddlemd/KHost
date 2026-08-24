@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using KHost.Domain.Services;
+using KHost.Domain.Services.Messaging;
 
 namespace KHost.UnitTests.IPC;
 
@@ -15,6 +16,7 @@ public class ScreenDisconnectPausesPlaybackTests : IDisposable
 {
     private readonly ScreenServerService _screenServer;
     private readonly FakeKeyStore _keys = new();
+    private readonly MessageBroker _broker = new(NullLogger<MessageBroker>.Instance);
     private readonly PlaybackService _playbackService;
 
     public ScreenDisconnectPausesPlaybackTests()
@@ -57,9 +59,12 @@ public class ScreenDisconnectPausesPlaybackTests : IDisposable
             Substitute.For<IAnalyticsService>(),
             _screenServer,
             mediaStreams,
-            new ScreenCoordinationService(NullLogger<ScreenCoordinationService>.Instance, _screenServer, Substitute.For<IVenuesService>()),
+            new ScreenCoordinationService(NullLogger<ScreenCoordinationService>.Instance, _screenServer, Substitute.For<IVenuesService>(), _broker),
             Substitute.For<ICastService>(),
-            Options.Create(new PlaybackService.ServiceOptions { StopFadeDuration = TimeSpan.Zero }));
+            Substitute.For<IBreakMusicService>(),
+            Substitute.For<IMediaService>(),
+            Options.Create(new PlaybackService.ServiceOptions { StopFadeDuration = TimeSpan.Zero }),
+            _broker);
     }
 
     public void Dispose() => _playbackService.Dispose();

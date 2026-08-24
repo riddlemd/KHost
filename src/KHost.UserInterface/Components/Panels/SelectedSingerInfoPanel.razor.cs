@@ -5,6 +5,8 @@ using KHost.Abstractions.Exceptions;
 using KHost.Abstractions.Models;
 using KHost.UserInterface.Models;
 using KHost.Abstractions.Services;
+using KHost.Plugins.Sdk.Messaging;
+using KHost.Plugins.Sdk.Messaging.Messages;
 using KHost.UserInterface.Services;
 
 namespace KHost.UserInterface.Components.Panels;
@@ -23,6 +25,9 @@ public partial class SelectedSingerInfoPanel : IDisposable
     [Inject] private ITipsService? TipsService { get; set; }
     [Inject] private IVenuesService? VenuesService { get; set; }
     [Inject] private IJSRuntime? JS { get; set; }
+    [Inject] private IMessageBroker Broker { get; set; } = default!;
+
+    private readonly SubscriptionSet _subscriptions = new();
 
     private List<Performance> _performances = [];
     private Dictionary<Guid, Media?> _mediaCache = [];
@@ -39,11 +44,13 @@ public partial class SelectedSingerInfoPanel : IDisposable
 
     protected override async Task OnInitializedAsync()
     {
-        SingerQueueService?.StateChanged += OnStateChanged;
-        PerformanceService?.StateChanged += OnStateChanged;
-        PlaybackService?.StateChanged += OnStateChanged;
-        MediaService?.StateChanged += OnStateChanged;
-        VenuesService?.StateChanged += OnStateChanged;
+        {
+            _subscriptions.Add(Broker.Subscribe<SingerQueueChanged>(_ => OnStateChanged()));
+            _subscriptions.Add(Broker.Subscribe<PerformancesChanged>(_ => OnStateChanged()));
+            _subscriptions.Add(Broker.Subscribe<PlaybackChanged>(_ => OnStateChanged()));
+            _subscriptions.Add(Broker.Subscribe<MediaLibraryChanged>(_ => OnStateChanged()));
+            _subscriptions.Add(Broker.Subscribe<VenuesChanged>(_ => OnStateChanged()));
+        }
 
         if (Permissions is not null)
         {
@@ -131,7 +138,11 @@ public partial class SelectedSingerInfoPanel : IDisposable
     {
         if (PlaybackService is null) return;
 
-        if (PlaybackService.State == PlaybackState.Playing && PlaybackService.CurrentPerformance?.Id != performance.Id)
+        // An ad is nobody's turn, so it never matches this performance and would trip the guard
+        // below for every row on the panel. A host has to be able to take the room back from one.
+        if (PlaybackService.State == PlaybackState.Playing
+            && !PlaybackService.IsPlayingAd
+            && PlaybackService.CurrentPerformance?.Id != performance.Id)
             return;
 
         if (!_mediaCache.TryGetValue(performance.MediaId, out var media) || media is null)
@@ -249,7 +260,7 @@ public partial class SelectedSingerInfoPanel : IDisposable
         StateHasChanged();
     }
 
-    private void OnStateChanged(object? sender, EventArgs e) => InvokeAsync(async () =>
+    private void OnStateChanged() => InvokeAsync(async () =>
     {
         await RefreshVenueSettingsAsync();
         await RefreshPerformancesAsync();
@@ -317,11 +328,7 @@ public partial class SelectedSingerInfoPanel : IDisposable
 
     public void Dispose()
     {
-        SingerQueueService?.StateChanged    -= OnStateChanged;
-        PerformanceService?.StateChanged    -= OnStateChanged;
-        PlaybackService?.StateChanged -= OnStateChanged;
-        MediaService?.StateChanged -= OnStateChanged;
-        VenuesService?.StateChanged -= OnStateChanged;
+        _subscriptions.Dispose();
         _dotNetRef?.Dispose();
         JS?.InvokeVoidAsync("khSortable.destroy", "songs");
     }

@@ -3,6 +3,8 @@ using Microsoft.AspNetCore.Components.Web;
 using Microsoft.JSInterop;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
+using KHost.Plugins.Sdk.Messaging;
+using KHost.Plugins.Sdk.Messaging.Messages;
 using KHost.UserInterface.Models;
 using KHost.UserInterface.Services;
 
@@ -19,6 +21,9 @@ public partial class SingerQueuePanel : IDisposable
     [Inject] private IPermissionService? Permissions { get; set; }
     [Inject] private IJSRuntime? JS { get; set; }
     [Inject] private IVenuesService? VenuesService { get; set; }
+    [Inject] private IMessageBroker Broker { get; set; } = default!;
+
+    private readonly SubscriptionSet _subscriptions = new();
 
     private const int SingerSuggestionLimit = 20;
 
@@ -43,10 +48,12 @@ public partial class SingerQueuePanel : IDisposable
 
     protected override async Task OnInitializedAsync()
     {
-        SingerQueueService?.StateChanged  += OnStateChanged;
-        PerformanceService?.StateChanged  += OnStateChanged;
-        PlaybackService?.StateChanged += OnStateChanged;
-        VenuesService?.StateChanged += OnStateChanged;
+        {
+            _subscriptions.Add(Broker.Subscribe<SingerQueueChanged>(_ => OnStateChanged()));
+            _subscriptions.Add(Broker.Subscribe<PerformancesChanged>(_ => OnStateChanged()));
+            _subscriptions.Add(Broker.Subscribe<PlaybackChanged>(_ => OnStateChanged()));
+            _subscriptions.Add(Broker.Subscribe<VenuesChanged>(_ => OnStateChanged()));
+        }
 
         if (VenuesService is not null)
         {
@@ -264,7 +271,7 @@ public partial class SingerQueuePanel : IDisposable
         }
     }
 
-    private void OnStateChanged(object? sender, EventArgs e) => InvokeAsync(async () =>
+    private void OnStateChanged() => InvokeAsync(async () =>
     {
         await RefreshPerformanceCountsAsync();
         await RefreshVenueSettingsAsync();
@@ -322,10 +329,7 @@ public partial class SingerQueuePanel : IDisposable
 
     public void Dispose()
     {
-        SingerQueueService?.StateChanged -= OnStateChanged;
-        PerformanceService?.StateChanged -= OnStateChanged;
-        PlaybackService?.StateChanged -= OnStateChanged;
-        VenuesService?.StateChanged -= OnStateChanged;
+        _subscriptions.Dispose();
         _dotNetRef?.Dispose();
         JS?.InvokeVoidAsync("singerQueueSortable.destroy");
     }

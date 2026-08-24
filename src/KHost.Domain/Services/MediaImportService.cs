@@ -1,6 +1,8 @@
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Repositories;
 using KHost.Abstractions.Services;
+using KHost.Plugins.Sdk.Messaging;
+using KHost.Plugins.Sdk.Messaging.Messages;
 using Microsoft.Extensions.Logging;
 
 namespace KHost.Domain.Services;
@@ -17,6 +19,7 @@ public class MediaImportService : BaseService, IMediaImportService
     ];
 
     private readonly IMediaFileParsingService _parser;
+    private readonly IMessageBroker _broker;
     private readonly IMediaRepository _repository;
     private readonly IMediaService _mediaService;
     private readonly IMediaFingerprintService _fingerprints;
@@ -39,9 +42,11 @@ public class MediaImportService : BaseService, IMediaImportService
         IMediaRepository repository,
         IMediaService mediaService,
         IMediaFingerprintService fingerprints,
-        IAnalyticsService analytics)
+        IAnalyticsService analytics,
+        IMessageBroker broker)
         : base(logger)
     {
+        _broker = broker;
         _parser = parser;
         _repository = repository;
         _mediaService = mediaService;
@@ -69,7 +74,7 @@ public class MediaImportService : BaseService, IMediaImportService
             _lastNotifyMs = 0;
         }
 
-        InvokeStateChanged();
+        _broker.Announce(new MediaImportChanged());
         var cts = _cts!;
         var thread = new Thread(() => RunImportAsync(paths, cts.Token).GetAwaiter().GetResult())
         {
@@ -89,17 +94,17 @@ public class MediaImportService : BaseService, IMediaImportService
 
         State = ImportState.Cancelling;
         _cts?.Cancel();
-        InvokeStateChanged();
+        _broker.Announce(new MediaImportChanged());
     }
 
-    private void InvokeStateChangedThrottled()
+    private void AnnounceThrottled()
     {
         var now = Environment.TickCount64;
         if (now - _lastNotifyMs < 250)
             return;
 
         _lastNotifyMs = now;
-        InvokeStateChanged();
+        _broker.Announce(new MediaImportChanged());
     }
 
     private async Task ImportOneFileAsync(ImportCandidate candidate, CancellationToken ct)
@@ -151,7 +156,7 @@ public class MediaImportService : BaseService, IMediaImportService
             CurrentFilePath = null;
             _cts?.Dispose();
             _cts = null;
-            InvokeStateChanged();
+            _broker.Announce(new MediaImportChanged());
         }
     }
 
@@ -169,7 +174,7 @@ public class MediaImportService : BaseService, IMediaImportService
 
         activity.SetTag("total_files", paths.Count);
         TotalCount = toImport.Count;
-        InvokeStateChanged();
+        _broker.Announce(new MediaImportChanged());
 
         return toImport;
     }
@@ -345,11 +350,11 @@ public class MediaImportService : BaseService, IMediaImportService
                 break;
 
             CurrentFilePath = candidate.Path;
-            InvokeStateChangedThrottled();
+            AnnounceThrottled();
 
             await ImportOneFileAsync(candidate, ct);
 
-            InvokeStateChangedThrottled();
+            AnnounceThrottled();
         }
     }
 

@@ -1,3 +1,6 @@
+using Microsoft.Extensions.Logging.Abstractions;
+using KHost.Plugins.Sdk.Messaging;
+using KHost.Domain.Services.Messaging;
 using Bunit;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
@@ -18,6 +21,7 @@ public class SingerQueuePanelKeyboardTests : BunitContext
     private const string QueueSelector = ".kh-singer-queue-panel__singer-queue";
 
     private readonly ISingerQueueService _queue = Substitute.For<ISingerQueueService>();
+    private readonly MessageBroker _broker = new(NullLogger<MessageBroker>.Instance);
     private readonly IPermissionService _permissions = Substitute.For<IPermissionService>();
     private readonly KHostUser _first = new() { Id = Guid.NewGuid(), Name = "Ann" };
     private readonly KHostUser _second = new() { Id = Guid.NewGuid(), Name = "Bob" };
@@ -35,6 +39,7 @@ public class SingerQueuePanelKeyboardTests : BunitContext
         venues.ReadAllAsync(Arg.Any<int>(), Arg.Any<int>()).Returns(new PaginatedResult<Venue>());
 
         Services.AddSingleton(_queue);
+        Services.AddSingleton<IMessageBroker>(_broker);
         Services.AddSingleton(_permissions);
         Services.AddSingleton(venues);
         var performances = Substitute.For<IPerformanceService>();

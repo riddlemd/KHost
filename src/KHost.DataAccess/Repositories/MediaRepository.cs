@@ -1,7 +1,6 @@
 using System.Diagnostics;
 using System.Globalization;
 using System.Linq.Expressions;
-using System.Text;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Repositories;
 using KHost.DataAccess.Contexts;
@@ -15,7 +14,10 @@ internal class MediaRepository : BaseRepository<Media>, IMediaRepository
 {
     private const int TrigramLength = 3;
 
-    private static readonly char[] _ftsMetaChars = ['"', '*', ':', '^', '(', ')', '+', '-'];
+    // Only the quote. Every other FTS5 operator character is inert inside a quoted phrase, and
+    // stripping them instead made a hyphenated title unsearchable by its own name: "Track-004"
+    // became "track004", which matches no trigram in "track-004".
+    private const char FtsQuote = '"';
 
     // Linux filesystems are case-sensitive; Windows and default macOS volumes are not. Folding case
     // on Linux would treat Song.mp4 and song.mp4 as the same file and silently drop one on import.
@@ -141,6 +143,62 @@ internal class MediaRepository : BaseRepository<Media>, IMediaRepository
         }
     }
 
+    private static IQueryable<Media> ApplyTypeAndStatus(IQueryable<Media> queryable, MediaSearchOptions? options)
+    {
+        options ??= MediaSearchOptions.Default;
+
+        if (options.Types is { Length: > 0 } types)
+            queryable = queryable.Where(m => types.Contains(m.Type));
+
+        var statuses = options.Statuses;
+        if (statuses?.Count > 0)
+            queryable = queryable.Where(m => statuses.Contains(m.Status));
+
+        return queryable;
+    }
+
+    public override Task<PaginatedResult<Media>> ReadAllAsync(int pageNumber, int pageSize, SortDescriptor? sort)
+        => ReadAllAsync(pageNumber, pageSize, sort, options: null);
+
+    public async Task<PaginatedResult<Media>> ReadAllAsync(int pageNumber, int pageSize, SortDescriptor? sort, MediaSearchOptions? options)
+    {
+        using var context = await ContextFactory.CreateDbContextAsync();
+
+        // Filtered before the count as well as the page: a total that counts ads would page the
+        // library past its own last row.
+        var queryable = ApplyTypeAndStatus(context.Media, options);
+
+        var totalCount = await queryable.CountAsync();
+
+        var items = await PaginationComponent
+            .Paginate(ApplySort(queryable, sort), pageNumber, pageSize)
+            .ToListAsync();
+
+        return PaginationComponent.BuildResult(items, totalCount, pageNumber, pageSize);
+    }
+
+    public async Task<IReadOnlyList<Media>> ReadAllByTypesAsync(params MediaType[] types)
+    {
+        if (types.Length == 0)
+            return [];
+
+        using var context = await ContextFactory.CreateDbContextAsync();
+
+        return await context.Media
+            .Where(m => types.Contains(m.Type))
+            .OrderBy(m => m.Title.ToLower())
+            .ToListAsync();
+    }
+
+    public override async Task<bool> HasAnyAsync()
+    {
+        using var context = await ContextFactory.CreateDbContextAsync();
+
+        // A library holding nothing but ads is still a host with no songs to sing, which is what
+        // the setup wizard is asking about.
+        return await context.Media.AnyAsync(m => m.Type == MediaType.Karaoke);
+    }
+
     // Media queries fold exactly the way media rows were folded on the way in.
     protected override Func<string?, string> Folder => EntityFolding.FoldMedia;
 
@@ -150,9 +208,10 @@ internal class MediaRepository : BaseRepository<Media>, IMediaRepository
     protected override IQueryable<Media> ApplySearchFilters<TOptions>(IQueryable<Media> queryable, string query, TOptions? options = null)
         where TOptions : class
     {
-        var statusesToReturn = options as HashSet<MediaStatus>;
-        if (statusesToReturn?.Count > 0)
-            queryable = queryable.Where(m => statusesToReturn.Contains(m.Status));
+        // Anything that is not MediaSearchOptions — including the null the sort-only overloads
+        // pass — lands on the default, which is karaoke. Forgetting to pass options narrows the
+        // result rather than widening it.
+        queryable = ApplyTypeAndStatus(queryable, options as MediaSearchOptions);
 
         // Only reached when the query cannot go to FTS - a term too short for the trigram index,
         // or one left empty once the metacharacters were stripped.
@@ -160,6 +219,68 @@ internal class MediaRepository : BaseRepository<Media>, IMediaRepository
             return queryable;
 
         return queryable.Where(m => EF.Functions.Like(m.SearchFolded, FoldedContainsPattern(query), "\\"));
+    }
+
+    /// <summary>
+    /// The SQL twin of <see cref="ApplyTypeAndStatus"/>, for the FTS path that cannot compose LINQ.
+    /// Interpolating is safe here and only here: both values are enum members of ours, never input.
+    /// </summary>
+    private static string BuildOptionFilterSql(MediaSearchOptions? options)
+    {
+        options ??= MediaSearchOptions.Default;
+
+        var sql = string.Empty;
+
+        if (options.Types is { Length: > 0 } types)
+            sql += $" AND m.\"Type\" IN ({string.Join(',', types.Select(t => (int)t))})";
+
+        if (options.Statuses is { Count: > 0 } statuses)
+            sql += $" AND m.\"Status\" IN ({string.Join(',', statuses.Select(s => (int)s))})";
+
+        return sql;
+    }
+
+    /// <summary>
+    /// Relevance-ranked search, filtered and paged inside the one query that ranks it. Composing
+    /// LINQ on top instead makes EF wrap this as a subquery and put LIMIT/OFFSET outside it, where
+    /// there is no ORDER BY — the bm25 ranking is then whatever SQLite happens to preserve, so a
+    /// later page can repeat or skip rows an earlier one already showed.
+    /// </summary>
+    private async Task<PaginatedResult<Media>> SearchRankedAsync(
+        string match, string query, int pageNumber, int pageSize, MediaSearchOptions? options)
+    {
+        var (page, size) = PaginationComponent.Normalize(pageNumber, pageSize);
+        var filters = BuildOptionFilterSql(options);
+
+        var countSql = $$"""
+            SELECT COUNT(*) AS "Value"
+            FROM "Media" AS m
+            INNER JOIN "media_fts" AS f ON f."media_id" = m."Id"
+            WHERE "media_fts" MATCH {0}{{filters}}
+            """;
+
+        var pageSql = $$"""
+            SELECT m.*
+            FROM "Media" AS m
+            INNER JOIN "media_fts" AS f ON f."media_id" = m."Id"
+            WHERE "media_fts" MATCH {0}{{filters}}
+            ORDER BY bm25("media_fts")
+            LIMIT {1} OFFSET {2}
+            """;
+
+        using var context = await ContextFactory.CreateDbContextAsync();
+
+        var totalCount = await context.Database.SqlQueryRaw<int>(countSql, match).SingleAsync();
+
+        var items = await context.Media
+            .FromSqlRaw(pageSql, match, size, (page - 1) * size)
+            .AsNoTracking()
+            .ToListAsync();
+
+        Logger.LogDebug("MediaRepository ranked search q={Query} match={Match} results={ResultCount}",
+            query, match, totalCount);
+
+        return PaginationComponent.BuildResult(items, totalCount, page, size);
     }
 
     public override async Task<PaginatedResult<Media>> SearchAsync<TOptions>(string query, int pageNumber = 0, int pageSize = 0, TOptions? options = null)
@@ -173,34 +294,7 @@ internal class MediaRepository : BaseRepository<Media>, IMediaRepository
         var sw = Stopwatch.StartNew();
         try
         {
-            var sql = $$"""
-                SELECT m.*
-                FROM "Media" AS m
-                INNER JOIN "media_fts" AS f ON f."media_id" = m."Id"
-                WHERE "media_fts" MATCH {0}
-                ORDER BY bm25("media_fts")
-                """;
-
-            using var context = await ContextFactory.CreateDbContextAsync();
-
-            var queryable = context.Media
-                .FromSqlRaw(sql, match)
-                .AsNoTracking();
-
-            // The raw FTS query bypasses the base SearchAsync pipeline, so apply
-            // the same option-based filters (e.g. status) here.
-            queryable = ApplySearchFilters(queryable, query, options);
-
-            var totalCount = await queryable.CountAsync();
-
-            var items = await PaginationComponent
-                .Paginate(queryable, pageNumber, pageSize)
-                .ToListAsync();
-
-            Logger.LogDebug("MediaRepository.SearchAsync q={Query} match={Match} elapsed={ElapsedMs}ms results={ResultCount} usedFts=true",
-                query, match, sw.ElapsedMilliseconds, totalCount);
-
-            return PaginationComponent.BuildResult(items, totalCount, pageNumber, pageSize);
+            return await SearchRankedAsync(match, query, pageNumber, pageSize, options as MediaSearchOptions);
         }
         finally
         {
@@ -210,33 +304,37 @@ internal class MediaRepository : BaseRepository<Media>, IMediaRepository
         }
     }
 
-    public override async Task<PaginatedResult<Media>> SearchAsync(string query, int pageNumber, int pageSize, SortDescriptor? sort)
+    public override Task<PaginatedResult<Media>> SearchAsync(string query, int pageNumber, int pageSize, SortDescriptor? sort)
+        => SearchAsync(query, pageNumber, pageSize, sort, options: null);
+
+    public async Task<PaginatedResult<Media>> SearchAsync(string query, int pageNumber, int pageSize, SortDescriptor? sort, MediaSearchOptions? options)
     {
         var match = BuildFtsMatchExpression(query);
 
+        // Neither base overload carries a sort and options at once, so the fallback is built here
+        // rather than delegated — handing options to base.SearchAsync picks the generic overload
+        // and silently drops the sort.
         if (match is null)
-            return await base.SearchAsync(query, pageNumber, pageSize, sort);
+        {
+            return await SearchableComponent.SearchAsync(query, pageNumber, pageSize,
+                q => ApplySort(ApplySearchFilters(q, query, options ?? MediaSearchOptions.Default), sort));
+        }
 
         var sw = Stopwatch.StartNew();
         try
         {
             // An explicit sort supersedes relevance rather than combining with it: the caller asked
-            // for that column's order, and bm25 could only break ties within it.
-            var includeBm25InSql = sort is null;
-            var sql = includeBm25InSql
-                ? $$"""
-                    SELECT m.*
-                    FROM "Media" AS m
-                    INNER JOIN "media_fts" AS f ON f."media_id" = m."Id"
-                    WHERE "media_fts" MATCH {0}
-                    ORDER BY bm25("media_fts")
-                    """
-                : $$"""
-                    SELECT m.*
-                    FROM "Media" AS m
-                    INNER JOIN "media_fts" AS f ON f."media_id" = m."Id"
-                    WHERE "media_fts" MATCH {0}
-                    """;
+            // for that column's order, and bm25 could only break ties within it. With no sort the
+            // ranking is the order, and that has to be paged in the query that produces it.
+            if (sort is null)
+                return await SearchRankedAsync(match, query, pageNumber, pageSize, options);
+
+            var sql = $$"""
+                SELECT m.*
+                FROM "Media" AS m
+                INNER JOIN "media_fts" AS f ON f."media_id" = m."Id"
+                WHERE "media_fts" MATCH {0}
+                """;
 
             using var context = await ContextFactory.CreateDbContextAsync();
 
@@ -244,8 +342,11 @@ internal class MediaRepository : BaseRepository<Media>, IMediaRepository
                 .FromSqlRaw(sql, match)
                 .AsNoTracking();
 
-            if (sort is not null)
-                queryable = ApplySort(queryable, sort);
+            // The FTS join matches on text alone and knows nothing of kind, so the filter is
+            // composed onto the raw query the same way the other paths apply it.
+            queryable = ApplyTypeAndStatus(queryable, options);
+
+            queryable = ApplySort(queryable, sort);
 
             var totalCount = await queryable.CountAsync();
 
@@ -275,15 +376,7 @@ internal class MediaRepository : BaseRepository<Media>, IMediaRepository
         // matches by being reduced with the same rules, not by either side being clever.
         var folded = Folder(query);
 
-        var sanitized = new StringBuilder(query.Length);
-
-        foreach (var ch in folded)
-        {
-            if (Array.IndexOf(_ftsMetaChars, ch) < 0)
-                sanitized.Append(ch);
-        }
-
-        var tokens = sanitized.ToString()
+        var tokens = folded
             .Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
         // The trigram index cannot represent a term shorter than three characters, so a query with
@@ -291,6 +384,10 @@ internal class MediaRepository : BaseRepository<Media>, IMediaRepository
         if (tokens.Length == 0 || Array.Exists(tokens, token => token.Length < TrigramLength))
             return null;
 
-        return string.Join(' ', tokens.Select(t => $"\"{t}\""));
+        // Each token becomes a quoted phrase, so punctuation a host typed is matched literally
+        // rather than read as syntax. A quote inside one is escaped by doubling it, which is how
+        // FTS5 spells a literal quote — dropping it would end the phrase early and change the query.
+        return string.Join(' ', tokens.Select(token =>
+            $"{FtsQuote}{token.Replace("\"", "\"\"")}{FtsQuote}"));
     }
 }

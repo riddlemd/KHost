@@ -1,8 +1,12 @@
 using Bunit;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
+using KHost.Domain.Services.Messaging;
+using KHost.Plugins.Sdk.Messaging;
+using KHost.Plugins.Sdk.Messaging.Messages;
 using KHost.UserInterface.Components.Pages.Settings;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace KHost.UnitTests.UserInterface.Components.Pages.Settings;
 
@@ -14,6 +18,7 @@ public class DownloadsManagerPageTests : BunitContext
 
     private readonly IDownloadsService _downloadsService = Substitute.For<IDownloadsService>();
     private readonly IPerformanceService _performanceService = Substitute.For<IPerformanceService>();
+    private readonly MessageBroker _broker = new(NullLogger<MessageBroker>.Instance);
 
     public DownloadsManagerPageTests()
     {
@@ -21,6 +26,7 @@ public class DownloadsManagerPageTests : BunitContext
 
         Services.AddSingleton(_downloadsService);
         Services.AddSingleton(_performanceService);
+        Services.AddSingleton<IMessageBroker>(_broker);
     }
 
     [Fact]
@@ -96,7 +102,7 @@ public class DownloadsManagerPageTests : BunitContext
     }
 
     [Fact]
-    public void StateChanged_Raised_ReRendersWithTheNewSnapshot()
+    public async Task DownloadsChanged_ReRendersWithTheNewSnapshot()
     {
         var mediaId = Guid.NewGuid();
         _downloadsService.Snapshot().Returns([]);
@@ -104,7 +110,7 @@ public class DownloadsManagerPageTests : BunitContext
         Assert.Empty(cut.FindAll(ProgressTrackSelector));
 
         _downloadsService.Snapshot().Returns([Downloading(mediaId, progress: 0.2)]);
-        _downloadsService.StateChanged += Raise.Event();
+        await _broker.PublishAsync(new DownloadsChanged());
 
         cut.WaitForAssertion(() => Assert.Single(cut.FindAll(ProgressTrackSelector)));
     }

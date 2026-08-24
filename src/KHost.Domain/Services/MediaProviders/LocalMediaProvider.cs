@@ -13,8 +13,11 @@ public class LocalMediaProvider : BaseService, IMediaProvider
 {
     // Broken songs stay in the library so the host can fix or re-import them, but must not be
     // offered for queueing. Derived from the enum so a new status shows up unless it opts out.
-    private static readonly HashSet<MediaStatus> _searchableStatuses =
-        [.. Enum.GetValues<MediaStatus>().Where(status => status != MediaStatus.Broken)];
+    private static readonly MediaSearchOptions _searchOptions = new()
+    {
+        Types = [MediaType.Karaoke],
+        Statuses = [.. Enum.GetValues<MediaStatus>().Where(status => status != MediaStatus.Broken)],
+    };
 
     private readonly IPerformanceService _performanceService;
     private readonly IMediaRepository _repository;
@@ -115,7 +118,7 @@ public class LocalMediaProvider : BaseService, IMediaProvider
 
     public async Task<List<MediaSearchEntity>> SearchAsync(string query, int pageNumber = 0, int pageSize = 0)
     {
-        var result = await _repository.SearchAsync(query, pageNumber, pageSize, _searchableStatuses);
+        var result = await _repository.SearchAsync(query, pageNumber, pageSize, _searchOptions);
 
         return [.. result.Items
             .Select(media => new MediaSearchEntity

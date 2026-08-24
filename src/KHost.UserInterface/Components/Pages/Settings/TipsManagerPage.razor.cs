@@ -1,6 +1,8 @@
 using KHost.Domain.Monetary;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
+using KHost.Plugins.Sdk.Messaging;
+using KHost.Plugins.Sdk.Messaging.Messages;
 using KHost.UserInterface.Models;
 using KHost.UserInterface.Services;
 using Microsoft.AspNetCore.Components;
@@ -14,6 +16,9 @@ public partial class TipsManagerPage : IDisposable
     [Inject] private IDialogService? DialogService { get; set; }
     [Inject] private IVenuesService? VenuesService { get; set; }
     [Inject] private IAppSettingsService? AppSettingsService { get; set; }
+    [Inject] private IMessageBroker Broker { get; set; } = default!;
+
+    private readonly SubscriptionSet _subscriptions = new();
 
     private int _pageSize = AppSettings.DefaultPageSize;
     private int _currentPage = 1;
@@ -31,7 +36,7 @@ public partial class TipsManagerPage : IDisposable
         await LoadUsersAsync();
         await LoadVenuesAsync();
         await SearchAsync();
-        TipsService!.StateChanged += OnStateChanged;
+        _subscriptions.Add(Broker.Subscribe<TipsChanged>(OnStateChanged));
     }
 
     private async Task LoadUsersAsync()
@@ -144,7 +149,7 @@ public partial class TipsManagerPage : IDisposable
         }
     }
 
-    private async void OnStateChanged(object? sender, EventArgs e)
+    private async void OnStateChanged(TipsChanged message)
     {
         await SearchAsync();
 
@@ -158,8 +163,5 @@ public partial class TipsManagerPage : IDisposable
         await InvokeAsync(StateHasChanged);
     }
 
-    public void Dispose()
-    {
-        TipsService?.StateChanged -= OnStateChanged;
-    }
+    public void Dispose() => _subscriptions.Dispose();
 }

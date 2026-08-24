@@ -1,3 +1,4 @@
+using KHost.Abstractions.Models;
 using KHost.Abstractions.Services.IPC;
 using Microsoft.Extensions.Logging;
 
@@ -34,6 +35,7 @@ internal sealed class ScreenIpcController : IAsyncDisposable
         _client.CommandReceived += OnCommandReceived;
         _client.StateChanged += OnClientStateChanged;
         _player.PlaybackEnded += OnPlaybackEnded;
+        _player.BackgroundEnded += OnBackgroundEnded;
     }
 
     /// <summary>Holds a scheduled start, and can be the screen the room hears.</summary>
@@ -151,6 +153,27 @@ internal sealed class ScreenIpcController : IAsyncDisposable
             case SetVideoCommand cmd:
                 _player.SetVideoEnabled(cmd.Enabled);
                 break;
+            case LoadBackgroundCommand cmd:
+                _player.LoadBackground(cmd.StreamUrl, cmd.AutoPlay);
+                break;
+            case PlayBackgroundCommand:
+                _player.PlayBackground();
+                break;
+            case PauseBackgroundCommand:
+                _player.PauseBackground();
+                break;
+            case StopBackgroundCommand cmd:
+                _player.StopBackground(cmd.FadeDuration);
+                break;
+            case SetBackgroundVolumeCommand cmd:
+                _player.BackgroundVolume = cmd.Volume;
+                break;
+            case ShowImageCommand cmd:
+                _player.ShowImage(cmd.Url, cmd.Scaling);
+                break;
+            case HideImageCommand:
+                _player.HideImage();
+                break;
             default:
                 _logger.LogWarning("Unhandled command: {Type}", command.GetType().Name);
                 break;
@@ -158,11 +181,46 @@ internal sealed class ScreenIpcController : IAsyncDisposable
 
         // A timeline says where to be, not what changed. Answering one makes the host re-anchor,
         // which sends another timeline, forever.
-        if (command is not SetTimelineCommand)
+        if (command is SetTimelineCommand)
+            return;
+
+        // The bed reports on its own channel. Answering with playback state would tell the host
+        // the song had moved because a background command arrived.
+        if (IsBackgroundCommand(command))
+            await SendBackgroundStateAsync(hasEnded: false);
+        else
             await SendCurrentStateAsync();
     }
 
+    private static bool IsBackgroundCommand(IScreenCommand command) => command
+        is LoadBackgroundCommand
+        or PlayBackgroundCommand
+        or PauseBackgroundCommand
+        or StopBackgroundCommand
+        or SetBackgroundVolumeCommand;
+
     private void OnPlaybackEnded(object? sender, EventArgs e) => _ = SendCurrentStateAsync();
+
+    private void OnBackgroundEnded(object? sender, EventArgs e) => _ = SendBackgroundStateAsync(hasEnded: true);
+
+    public async Task SendBackgroundStateAsync(bool hasEnded)
+    {
+        var state = new ScreenBackgroundState
+        {
+            StreamUrl = _player.BackgroundUrl,
+            IsPlaying = _player.IsBackgroundPlaying,
+            HasEnded = hasEnded,
+        };
+
+        try
+        {
+            await _client.SendStateAsync(state);
+        }
+        catch (InvalidOperationException)
+        {
+            // Not connected yet, or already torn down — state is resent on the next command.
+        }
+    }
 
     public async Task SendCurrentStateAsync()
     {
@@ -196,6 +254,7 @@ internal sealed class ScreenIpcController : IAsyncDisposable
             _hostLostTimer = null;
         }
         _player.PlaybackEnded -= OnPlaybackEnded;
+        _player.BackgroundEnded -= OnBackgroundEnded;
         await _client.DisconnectAsync();
         if (_client is IAsyncDisposable disposable) await disposable.DisposeAsync();
         _commandGate.Dispose();

@@ -1,0 +1,40 @@
+.kh-playlist-dialog {
+    &__hint {
+        margin: 0;
+        font-size: 0.8rem;
+        opacity: 0.6;
+    }
+
+    // The row of controls that appends an entry, below the table rather than in it.
+    &__add {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin-top: 0.75rem;
+
+        // Both needed: without min-width the box refuses to shrink and pushes Add off the row.
+        .kh-playlist-dialog__picker {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .kh-form-select {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .kh-button {
+            flex-shrink: 0;
+        }
+    }
+
+    // Held narrow so the entry description keeps the width.
+    &__weight {
+        width: 4rem;
+        text-align: right;
+    }
+
+    &__col--actions {
+        width: 1%;
+    }
+}

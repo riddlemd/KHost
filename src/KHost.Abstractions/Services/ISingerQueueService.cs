@@ -5,7 +5,6 @@ namespace KHost.Abstractions.Services;
 
 public interface ISingerQueueService
 {
-    event EventHandler? StateChanged;
 
     IReadOnlyList<KHostUser> Users { get; }
     Guid? SelectedUserId { get; }

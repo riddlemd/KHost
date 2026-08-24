@@ -2,8 +2,11 @@ using KHost.Abstractions.Models;
 using KHost.Abstractions.Repositories;
 using KHost.Abstractions.Services;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using KHost.Domain.Services;
+using KHost.Domain.Services.Messaging;
+using KHost.Plugins.Sdk.Messaging.Messages;
 
 namespace KHost.UnitTests.Domain.Services;
 
@@ -12,6 +15,7 @@ public class VenuesServiceTests : IDisposable
     private readonly ILogger<VenuesService> _logger = Substitute.For<ILogger<VenuesService>>();
     private readonly IVenuesRepository _repository;
     private readonly ICacheService _cacheService = Substitute.For<ICacheService>();
+    private readonly MessageBroker _broker = new(NullLogger<MessageBroker>.Instance);
     private readonly VenuesService _service;
     private readonly List<Venue> _venueStore = new();
 
@@ -19,7 +23,7 @@ public class VenuesServiceTests : IDisposable
     {
         _repository = Substitute.For<IVenuesRepository>();
         SetupRepositoryDefaults();
-        _service = new VenuesService(_logger, _repository, _cacheService);
+        _service = new VenuesService(_logger, _repository, _cacheService, _broker);
     }
 
     private void SetupRepositoryDefaults()
@@ -147,10 +151,10 @@ public class VenuesServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task CreateAsync_RaisesStateChanged()
+    public async Task CreateAsync_AnnouncesVenuesChanged()
     {
         var raised = false;
-        _service.StateChanged += (_, _) => raised = true;
+        using var subscription = _broker.Subscribe<VenuesChanged>(_ => raised = true);
 
         var venue = new Venue { Name = "The Pub", Notes = "", Enabled = true };
         await _service.CreateAsync(venue);
@@ -391,19 +395,48 @@ public class VenuesServiceTests : IDisposable
         Assert.Equal(first.Id, _service.SelectedVenueId);
     }
 
-    private VenuesService MakeService() => new(_logger, _repository, _cacheService);
+    private VenuesService MakeService() => new(_logger, _repository, _cacheService, _broker);
 
     private void CacheReturns(Guid id) =>
         _cacheService.LoadAsync<Guid?>("selected-venue").Returns(id);
 
     [Fact]
-    public async Task SelectVenueAsync_RaisesStateChanged()
+    public async Task SelectVenueAsync_AnnouncesSelectedVenueChanged()
     {
         var raised = false;
-        _service.StateChanged += (_, _) => raised = true;
+        using var subscription = _broker.Subscribe<SelectedVenueChanged>(_ => raised = true);
 
         await _service.SelectVenueAsync(Guid.NewGuid());
 
         Assert.True(raised);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_TheSelectedVenue_AnnouncesSelectedVenueChanged()
+    {
+        var venueId = Guid.NewGuid();
+        await _service.SelectVenueAsync(venueId);
+
+        var raised = false;
+        using var subscription = _broker.Subscribe<SelectedVenueChanged>(_ => raised = true);
+
+        await _service.UpdateAsync(new Venue { Id = venueId, Name = "The Bar" });
+
+        Assert.True(raised);
+    }
+
+    // The screens take their audio baseline from the selected venue, so an edit to any other one
+    // must not reach them.
+    [Fact]
+    public async Task UpdateAsync_ADifferentVenue_DoesNotAnnounceSelectedVenueChanged()
+    {
+        await _service.SelectVenueAsync(Guid.NewGuid());
+
+        var raised = false;
+        using var subscription = _broker.Subscribe<SelectedVenueChanged>(_ => raised = true);
+
+        await _service.UpdateAsync(new Venue { Id = Guid.NewGuid(), Name = "Somewhere Else" });
+
+        Assert.False(raised);
     }
 }

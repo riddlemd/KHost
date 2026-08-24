@@ -1,5 +1,7 @@
 using KHost.Abstractions.Models.Plugins;
 using KHost.Abstractions.Services;
+using KHost.Plugins.Sdk.Messaging;
+using KHost.Plugins.Sdk.Messaging.Messages;
 using Microsoft.Extensions.Logging;
 using System.Text.Json;
 
@@ -8,12 +10,14 @@ namespace KHost.Domain.Services.Plugins;
 public class PluginsService : BaseService, IPluginsService
 {
     private readonly SemaphoreSlim _lock = new(1, 1);
+    private readonly IMessageBroker _broker;
     private readonly ICacheService _cache;
     private readonly IPluginRegistry _registry;
 
-    public PluginsService(ILogger<PluginsService> logger, ICacheService cache, IPluginRegistry registry)
+    public PluginsService(ILogger<PluginsService> logger, ICacheService cache, IPluginRegistry registry, IMessageBroker broker)
         : base(logger)
     {
+        _broker = broker;
         _cache = cache;
         _registry = registry;
     }
@@ -78,6 +82,6 @@ public class PluginsService : BaseService, IPluginsService
             _lock.Release();
         }
 
-        InvokeStateChanged();
+        _broker.Announce(new PluginsChanged());
     }
 }

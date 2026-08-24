@@ -20,6 +20,7 @@ namespace KHost.DataAccess
                 .BindConfiguration(DatabaseInitializer.ServiceOptions.SectionName);
 
             serviceCollection.AddSingleton<IMediaRepository, MediaRepository>();
+            serviceCollection.AddSingleton<IMediaPoolRepository, MediaPoolRepository>();
             serviceCollection.AddSingleton<IUsersRepository, UsersRepository>();
             serviceCollection.AddSingleton<IUserGroupsRepository, UserGroupsRepository>();
             serviceCollection.AddSingleton<IVenuesRepository, VenuesRepository>();

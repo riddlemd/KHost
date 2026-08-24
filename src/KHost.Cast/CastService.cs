@@ -2,6 +2,8 @@ using System.Net;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using KHost.Abstractions.Services;
+using KHost.Plugins.Sdk.Messaging;
+using KHost.Plugins.Sdk.Messaging.Messages;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Sharpcaster;
@@ -25,19 +27,20 @@ public sealed class CastService : ICastService, IDisposable
     private readonly ILogger<CastService> _logger;
     private readonly SemaphoreSlim _lock = new(1, 1);
     private readonly Dictionary<string, ChromecastReceiver> _discovered = [];
+    private readonly IMessageBroker _broker;
 
     private ChromecastLocator? _locator;
     private ChromecastClient? _client;
     private string? _connectedDeviceId;
     private TimeSpan _streamStartOffset;
 
-    public event EventHandler? StateChanged;
     public event EventHandler<CastPlaybackStatus>? PlaybackStatusChanged;
 
-    public CastService(ILogger<CastService> logger, IOptions<ServiceOptions> options)
+    public CastService(ILogger<CastService> logger, IOptions<ServiceOptions> options, IMessageBroker broker)
     {
         _logger = logger;
         _options = options.Value;
+        _broker = broker;
     }
 
     public string? ConnectedDeviceId => _connectedDeviceId;
@@ -282,7 +285,11 @@ public sealed class CastService : ICastService, IDisposable
         return true;
     }
 
-    private void RaiseStateChanged() => StateChanged?.Invoke(this, EventArgs.Empty);
+    private void RaiseStateChanged()
+    {
+        if (_broker is { } broker)
+            _ = broker.PublishAsync(new CastChanged());
+    }
 
     public void Dispose()
     {

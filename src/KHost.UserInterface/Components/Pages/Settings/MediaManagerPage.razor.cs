@@ -1,5 +1,7 @@
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
+using KHost.Plugins.Sdk.Messaging;
+using KHost.Plugins.Sdk.Messaging.Messages;
 using KHost.UserInterface.Models;
 using KHost.UserInterface.Services;
 using Microsoft.AspNetCore.Components;
@@ -22,6 +24,9 @@ public partial class MediaManagerPage : IAsyncDisposable
     [Inject] private IDialogService? DialogService { get; set; }
     [Inject] private IVenuesService? VenuesService { get; set; }
     [Inject] private IAppSettingsService? AppSettingsService { get; set; }
+    [Inject] private IMessageBroker Broker { get; set; } = default!;
+
+    private readonly SubscriptionSet _subscriptions = new();
 
     private void NavigateToImporter() => Navigation!.NavigateTo("/settings/media-importer");
 
@@ -53,8 +58,14 @@ public partial class MediaManagerPage : IAsyncDisposable
         _pageSize = AppSettingsService!.Current.MediaPageSize;
 
         await SearchAsync();
-        MediaService.StateChanged += OnMediaStateChanged;
+        _subscriptions.Add(Broker.Subscribe<MediaLibraryChanged>(OnMediaStateChanged));
     }
+
+    private bool _addFileDialogOpen;
+
+    private void OpenAddFileDialog() => _addFileDialogOpen = true;
+
+    private void CloseAddFileDialog() => _addFileDialogOpen = false;
 
     private async Task SearchAsync()
     {
@@ -62,7 +73,10 @@ public partial class MediaManagerPage : IAsyncDisposable
             return;
 
         var sort = _sortColumn is not null ? new SortDescriptor(_sortColumn, _sortDescending) : null;
-        _paginatedResult = await MediaService.SearchAsync(_searchQuery, _currentPage, _pageSize, sort);
+
+        // The manager is the one page that manages files rather than plays them, so it is the one
+        // place break music and ads are listed alongside songs.
+        _paginatedResult = await MediaService.SearchAsync(_searchQuery, _currentPage, _pageSize, sort, MediaSearchOptions.AllTypes);
     }
 
     private void OnSortColumnClicked(string column)
@@ -87,7 +101,7 @@ public partial class MediaManagerPage : IAsyncDisposable
         }
     }
 
-    private void OnMediaStateChanged(object? sender, EventArgs e) =>
+    private void OnMediaStateChanged(MediaLibraryChanged message) =>
         _ = InvokeAsync(async () =>
         {
             await SearchAsync();
@@ -96,8 +110,7 @@ public partial class MediaManagerPage : IAsyncDisposable
 
     async ValueTask IAsyncDisposable.DisposeAsync()
     {
-        if (MediaService is not null)
-            MediaService.StateChanged -= OnMediaStateChanged;
+        _subscriptions.Dispose();
 
         await Task.CompletedTask;
     }
@@ -214,6 +227,17 @@ public partial class MediaManagerPage : IAsyncDisposable
         _selectedIds.Clear();
         await Task.CompletedTask;
     }
+
+    // Every member spelled out rather than a catch-all: under a column headed Type, a row has to
+    // say which type it is, and a new member must not quietly inherit another one's label.
+    private static string DescribeType(MediaType type) => type switch
+    {
+        MediaType.Karaoke => "Karaoke",
+        MediaType.Video => "Video",
+        MediaType.Audio => "Audio",
+        MediaType.Image => "Image",
+        _ => type.ToString(),
+    };
 
     private static string GetStatusBadgeClass(MediaStatus status) => MediaStatusDisplay.BadgeClass(status);
 }

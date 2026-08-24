@@ -24,6 +24,7 @@ public static class PluginLoader
     [
         (typeof(IMediaProvider), "Media provider"),
         (typeof(IQueueRotationMode), "Queue rotation"),
+        (typeof(IBreakMusicProvider), "Break music"),
     ];
 
     public static PluginsState ReadState(string cacheDirectory)

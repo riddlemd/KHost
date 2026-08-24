@@ -1,5 +1,8 @@
+using KHost.UserInterface.Messaging;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
+using KHost.Plugins.Sdk.Messaging;
+using KHost.Plugins.Sdk.Messaging.Messages;
 using KHost.UserInterface.Services;
 using Microsoft.AspNetCore.Components;
 using Microsoft.JSInterop;
@@ -21,6 +24,9 @@ public partial class SettingsButton : IDisposable
     [Inject] private IThemeService? ThemeService { get; set; }
     [Inject] private IDialogService? DialogService { get; set; }
     [Inject] private IJSRuntime JS { get; set; } = default!;
+    [Inject] private IMessageBroker Broker { get; set; } = default!;
+
+    private readonly SubscriptionSet _subscriptions = new();
 
     private sealed class SettingsPage
     {
@@ -46,6 +52,8 @@ public partial class SettingsButton : IDisposable
         new SettingsPage { Title = "Tips Manager", Icon = "coin", Route = "/settings/tips-manager" },
         new SettingsPage { Title = "Media Manager", Icon = "music-note-list", Route = "/settings/media-manager", Requires = KHostPermission.ManageMedia },
         new SettingsPage { Title = "Downloads Manager", Icon = "cloud-download", Route = "/settings/downloads-manager", Requires = KHostPermission.ManageMedia },
+        new SettingsPage { Title = "Break Music Manager", Icon = "music-note-beamed", Route = "/settings/break-music-manager", Requires = KHostPermission.ManageMedia },
+        new SettingsPage { Title = "Ads Manager", Icon = "megaphone", Route = "/settings/ads-manager", Requires = KHostPermission.ManageMedia },
         new SettingsPage { Title = "Plugins Manager", Icon = "plug-fill", Route = "/settings/plugins-manager", AdminOnly = true },
         new SettingsPage { Title = "App Settings", Icon = "gear-fill", Route = "/settings/app-settings", Group = ApplicationGroup, AdminOnly = true },
         new SettingsPage { Title = "Keyboard Shortcuts", Icon = "keyboard", Group = ApplicationGroup, Opens = menu => menu.ShowShortcutsAsync() },
@@ -73,13 +81,13 @@ public partial class SettingsButton : IDisposable
         _groups = [.. (await VisiblePagesAsync()).GroupBy(page => page.Group)];
 
         if (VenuesService is not null)
-        {
             await RefreshVenuesAsync();
-            VenuesService.StateChanged += OnServiceChanged;
-        }
 
-        if (ThemeService is not null)
-            ThemeService.StateChanged += OnServiceChanged;
+
+        if (VenuesService is not null)
+            _subscriptions.Add(Broker.Subscribe<VenuesChanged>(_ => OnServiceChanged(null, EventArgs.Empty)));
+
+        _subscriptions.Add(Broker.Subscribe<ThemeChanged>(_ => OnServiceChanged(null, EventArgs.Empty)));
     }
 
     private async Task RefreshVenuesAsync()
@@ -219,7 +227,6 @@ public partial class SettingsButton : IDisposable
 
     public void Dispose()
     {
-        if (VenuesService is not null) VenuesService.StateChanged -= OnServiceChanged;
-        if (ThemeService is not null) ThemeService.StateChanged -= OnServiceChanged;
+        _subscriptions.Dispose();
     }
 }

@@ -1,0 +1,15 @@
+.kh-break-music-manager {
+    // Razor eats the newline between the name and the badge, so they need laying out.
+    &__name {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    // .kh-card__body pads a direct <form> child and nothing else, and this sits beside one.
+    &__hint {
+        margin: 0;
+        font-size: 0.8rem;
+        opacity: 0.6;
+    }
+}

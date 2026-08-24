@@ -3,6 +3,8 @@ using Microsoft.AspNetCore.Components.Web;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using KHost.Domain.Services.MediaProviders;
+using KHost.Plugins.Sdk.Messaging;
+using KHost.Plugins.Sdk.Messaging.Messages;
 using KHost.Plugins.Sdk.Models;
 using KHost.UserInterface.Services;
 
@@ -15,6 +17,9 @@ public partial class MediaSearchPanel : IDisposable
     [Inject] private IPerformanceService? PerformanceService { get; set; }
     [Inject] private IDialogService? DialogService { get; set; }
     [Inject] private IPermissionService? Permissions { get; set; }
+    [Inject] private IMessageBroker Broker { get; set; } = default!;
+
+    private readonly SubscriptionSet _subscriptions = new();
 
     private bool _searching;
     private string _query = "";
@@ -34,10 +39,12 @@ public partial class MediaSearchPanel : IDisposable
         if (Permissions is not null)
             _canAddToQueue = await Permissions.HasAsync(KHostPermission.AddToQueue);
 
-        SingerQueueService?.StateChanged += OnStateChanged;
-        // Someone else queueing a song changes this panel's badges without touching the singer
-        // list, so the performance service has to be listened to as well.
-        PerformanceService?.StateChanged += OnStateChanged;
+        {
+            _subscriptions.Add(Broker.Subscribe<SingerQueueChanged>(_ => OnStateChanged()));
+            // Someone else queueing a song changes this panel's badges without touching the singer
+            // list, so the performance service has to be listened to as well.
+            _subscriptions.Add(Broker.Subscribe<PerformancesChanged>(_ => OnStateChanged()));
+        }
 
         // Without this the badges stay empty until some unrelated state change fires.
         await UpdateQueuedMediaAsync();
@@ -120,7 +127,7 @@ public partial class MediaSearchPanel : IDisposable
     private MediaProviderAction[] CombineWithGlobalActions(IEnumerable<MediaProviderAction> actions)
         => [.._globalActions, ..actions];
 
-    private void OnStateChanged(object? sender, EventArgs e) => InvokeAsync(async () =>
+    private void OnStateChanged() => InvokeAsync(async () =>
     {
         await UpdateQueuedMediaAsync();
         StateHasChanged();
@@ -157,8 +164,7 @@ public partial class MediaSearchPanel : IDisposable
 
     public void Dispose()
     {
-        SingerQueueService?.StateChanged -= OnStateChanged;
-        PerformanceService?.StateChanged -= OnStateChanged;
+        _subscriptions.Dispose();
 
         // A search still running would otherwise call StateHasChanged on a disposed component.
         _searchCts?.Cancel();

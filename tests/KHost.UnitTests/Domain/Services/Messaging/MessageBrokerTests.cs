@@ -1,0 +1,265 @@
+using KHost.Domain.Services.Messaging;
+using KHost.Plugins.Sdk.Messaging;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
+
+namespace KHost.UnitTests.Domain.Services.Messaging;
+
+public class MessageBrokerTests
+{
+    private sealed record SongStarted(string Title);
+    private sealed record SongEnded(string Title);
+
+    private readonly RecordingLogger _logger = new();
+    private readonly MessageBroker _broker;
+
+    public MessageBrokerTests() => _broker = new MessageBroker(_logger);
+
+    /// <summary>
+    /// Delivering to a handler of the wrong type throws inside the cast, which the broker catches
+    /// and logs — so mis-routing is invisible unless a test watches what was logged.
+    /// </summary>
+    private sealed class RecordingLogger : ILogger<MessageBroker>
+    {
+        public List<Exception> Errors { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            if (logLevel >= LogLevel.Error && exception is not null)
+                Errors.Add(exception);
+        }
+    }
+
+    [Fact]
+    public async Task PublishAsync_DeliversToASubscriber()
+    {
+        string? seen = null;
+        _broker.Subscribe<SongStarted>(message => seen = message.Title);
+
+        await _broker.PublishAsync(new SongStarted("Bohemian Rhapsody"));
+
+        Assert.Equal("Bohemian Rhapsody", seen);
+    }
+
+    [Fact]
+    public async Task PublishAsync_WithNoSubscribers_DoesNothing()
+        => await _broker.PublishAsync(new SongStarted("Nobody Listening"));
+
+    [Fact]
+    public async Task PublishAsync_DeliversOnlyToHandlersOfThatType()
+    {
+        var started = 0;
+        var ended = 0;
+        _broker.Subscribe<SongStarted>(_ => started++);
+        _broker.Subscribe<SongEnded>(_ => ended++);
+
+        await _broker.PublishAsync(new SongStarted("One"));
+
+        Assert.Equal(1, started);
+        Assert.Equal(0, ended);
+        Assert.Empty(_logger.Errors);
+    }
+
+    // The reason this exists rather than an event: a publisher has to be able to wait for what its
+    // handlers did before deciding what happens next.
+    [Fact]
+    public async Task PublishAsync_WaitsForAnAsyncHandlerToFinish()
+    {
+        var finished = false;
+        _broker.Subscribe<SongEnded>(async (_, _) =>
+        {
+            await Task.Delay(30);
+            finished = true;
+        });
+
+        await _broker.PublishAsync(new SongEnded("Slow"));
+
+        Assert.True(finished);
+    }
+
+    [Fact]
+    public async Task PublishAsync_RunsHandlersOneAtATimeInSubscriptionOrder()
+    {
+        var order = new List<string>();
+
+        _broker.Subscribe<SongEnded>(async (_, _) =>
+        {
+            await Task.Delay(30);
+            order.Add("first");
+        });
+        _broker.Subscribe<SongEnded>(_ => order.Add("second"));
+
+        await _broker.PublishAsync(new SongEnded("Ordered"));
+
+        Assert.Equal(["first", "second"], order);
+    }
+
+    // A broken subscriber must not take the publisher down with it, or one bad handler stops the
+    // queue moving on to the next singer.
+    [Fact]
+    public async Task PublishAsync_AHandlerThatThrows_DoesNotStopTheRest()
+    {
+        var reached = false;
+        _broker.Subscribe<SongEnded>(_ => throw new InvalidOperationException("boom"));
+        _broker.Subscribe<SongEnded>(_ => reached = true);
+
+        await _broker.PublishAsync(new SongEnded("Broken"));
+
+        Assert.True(reached);
+    }
+
+    [Fact]
+    public async Task PublishAsync_CancellationReachesTheHandlerAndPropagates()
+    {
+        using var cancellation = new CancellationTokenSource();
+        await cancellation.CancelAsync();
+
+        _broker.Subscribe<SongEnded>((_, token) => Task.FromCanceled(token));
+
+        await Assert.ThrowsAsync<TaskCanceledException>(
+            () => _broker.PublishAsync(new SongEnded("Cancelled"), cancellation.Token));
+    }
+
+    [Fact]
+    public async Task DisposingASubscription_StopsDelivery()
+    {
+        var received = 0;
+        var subscription = _broker.Subscribe<SongStarted>(_ => received++);
+
+        await _broker.PublishAsync(new SongStarted("First"));
+        subscription.Dispose();
+        await _broker.PublishAsync(new SongStarted("Second"));
+
+        Assert.Equal(1, received);
+    }
+
+    // Two handlers written the same way are still two subscriptions; dropping one must not take
+    // the other's delivery with it.
+    [Fact]
+    public async Task DisposingOneOfTwoIdenticalSubscriptions_LeavesTheOtherDelivering()
+    {
+        var received = 0;
+        var first = _broker.Subscribe<SongStarted>(_ => received++);
+        _broker.Subscribe<SongStarted>(_ => received++);
+
+        first.Dispose();
+        await _broker.PublishAsync(new SongStarted("Only One Left"));
+
+        Assert.Equal(1, received);
+    }
+
+    [Fact]
+    public async Task DisposingASubscriptionTwice_DoesNotRemoveAnother()
+    {
+        var received = 0;
+        var first = _broker.Subscribe<SongStarted>(_ => received++);
+        _broker.Subscribe<SongStarted>(_ => received++);
+
+        first.Dispose();
+        first.Dispose();
+        await _broker.PublishAsync(new SongStarted("Still One Left"));
+
+        Assert.Equal(1, received);
+    }
+
+    [Fact]
+    public async Task Subscribe_DuringDelivery_DoesNotDisturbTheRunInFlight()
+    {
+        var late = 0;
+        _broker.Subscribe<SongStarted>(_ => _broker.Subscribe<SongStarted>(__ => late++));
+
+        await _broker.PublishAsync(new SongStarted("First"));
+
+        Assert.Equal(0, late);
+    }
+
+    // Services hand their change message to the broker through a base-class property typed as
+    // object, so routing has to read the message itself rather than the call's generic argument.
+    [Fact]
+    public async Task PublishAsync_AMessageHeldAsObject_StillReachesItsHandler()
+    {
+        var received = 0;
+        _broker.Subscribe<SongStarted>(_ => received++);
+
+        object message = new SongStarted("Boxed");
+        await _broker.PublishAsync(message);
+
+        Assert.Equal(1, received);
+        Assert.Empty(_logger.Errors);
+    }
+
+    [Fact]
+    public void Subscribe_WithNoHandler_Throws()
+        => Assert.Throws<ArgumentNullException>(() => _broker.Subscribe<SongStarted>((Action<SongStarted>)null!));
+}
+
+public class SubscriptionSetTests
+{
+    private sealed record Ping;
+
+    private readonly MessageBroker _broker = new(NullLogger<MessageBroker>.Instance);
+
+    [Fact]
+    public async Task Dispose_DropsEverySubscriptionItHolds()
+    {
+        var received = 0;
+        var set = new SubscriptionSet();
+        set.Add(_broker.Subscribe<Ping>(_ => received++));
+        set.Add(_broker.Subscribe<Ping>(_ => received++));
+
+        await _broker.PublishAsync(new Ping());
+        set.Dispose();
+        await _broker.PublishAsync(new Ping());
+
+        Assert.Equal(2, received);
+    }
+
+    [Fact]
+    public async Task Dispose_Twice_IsHarmless()
+    {
+        var received = 0;
+        var set = new SubscriptionSet();
+        set.Add(_broker.Subscribe<Ping>(_ => received++));
+
+        set.Dispose();
+        set.Dispose();
+        await _broker.PublishAsync(new Ping());
+
+        Assert.Equal(0, received);
+    }
+}
+
+public class MessageBrokerAnnounceTests
+{
+    private sealed record Ping;
+
+    private readonly MessageBroker _broker = new(NullLogger<MessageBroker>.Instance);
+
+    [Fact]
+    public void Announce_DeliversToASubscriber()
+    {
+        var received = 0;
+        using var subscription = _broker.Subscribe<Ping>(_ => received++);
+
+        _broker.Announce(new Ping());
+
+        Assert.Equal(1, received);
+    }
+
+    // On the interface rather than an extension so a service's announcing can be substituted: an
+    // extension method is static and no test double can see the call.
+    [Fact]
+    public void Announce_IsSubstitutable()
+    {
+        var broker = Substitute.For<IMessageBroker>();
+
+        broker.Announce(new Ping());
+
+        broker.Received(1).Announce(Arg.Any<Ping>());
+    }
+}

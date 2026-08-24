@@ -123,11 +123,124 @@ public class MediaRepositoryFtsTests : IDisposable
         await SeedDefaultLibraryAsync();
         await SeedAsync(MakeMedia("Killer Queen", "Queen", MediaStatus.Broken));
 
-        var readyOnly = new HashSet<MediaStatus> { MediaStatus.Ready };
+        var readyOnly = new MediaSearchOptions { Statuses = [MediaStatus.Ready] };
         var result = await _repository.SearchAsync("queen", pageNumber: 1, pageSize: 50, options: readyOnly);
 
         Assert.Single(result.Items);
         Assert.Equal("Bohemian Rhapsody", result.Items[0].Title);
+    }
+
+    // Punctuation inside a title is indexed by the trigram tokenizer, so a host typing the title
+    // as they see it must find it. Stripping the hyphen made "Track-004" search for "track004",
+    // which matches no trigram in "track-004" — the row was only reachable by typing "Track".
+    [Fact]
+    public async Task SearchAsync_HyphenatedTitle_IsFoundByTypingTheHyphen()
+    {
+        await SeedAsync(MakeMedia("Track-004", "Someone"));
+
+        var result = await _repository.SearchAsync("Track-004");
+
+        Assert.Equal("Track-004", Assert.Single(result.Items).Title);
+    }
+
+    [Fact]
+    public async Task SearchAsync_ArtistWithAHyphen_IsFoundByTypingIt()
+    {
+        await SeedAsync(MakeMedia("99 Problems", "Jay-Z"));
+
+        var result = await _repository.SearchAsync("Jay-Z");
+
+        Assert.Equal("99 Problems", Assert.Single(result.Items).Title);
+    }
+
+    // A quote inside a token is escaped by doubling it, which is how FTS5 spells a literal quote.
+    // Dropping it instead would end the phrase early and quietly widen the search: the trigram
+    // index holds the punctuation, so the quoted title must match and the unquoted one must not.
+    [Fact]
+    public async Task SearchAsync_QuoteInTheQuery_MatchesOnlyTheTitleThatHasOne()
+    {
+        await SeedAsync(
+            MakeMedia("Say \"Hello\" Now", "Someone"),
+            MakeMedia("Say Hello Now", "Someone"));
+
+        var result = await _repository.SearchAsync("\"Hello\"");
+
+        Assert.Equal("Say \"Hello\" Now", Assert.Single(result.Items).Title);
+    }
+
+    // Quoting rather than stripping means an operator character is literal, not syntax: this must
+    // find nothing rather than throwing an FTS5 syntax error.
+    [Fact]
+    public async Task SearchAsync_QueryOfOperatorCharacters_DoesNotThrow()
+    {
+        await SeedDefaultLibraryAsync();
+
+        var result = await _repository.SearchAsync("\"OR\" AND (x)");
+
+        Assert.NotNull(result);
+    }
+
+    // Paging composed on top of the raw FTS query put LIMIT/OFFSET outside it, where there was no
+    // ORDER BY — so which rows landed on which page was SQLite's choice, and a second page could
+    // repeat or skip what the first already showed.
+    [Fact]
+    public async Task SearchAsync_PagingTheSameQuery_CoversEveryRowExactlyOnce()
+    {
+        await SeedAsync([.. Enumerable.Range(1, 25).Select(i => MakeMedia($"Chorus Number {i:00}", "The Band"))]);
+
+        var seen = new List<string>();
+
+        for (var page = 1; page <= 5; page++)
+        {
+            var result = await _repository.SearchAsync("chorus", page, pageSize: 5);
+
+            Assert.Equal(25, result.TotalCount);
+            seen.AddRange(result.Items.Select(m => m.Title));
+        }
+
+        Assert.Equal(25, seen.Count);
+        Assert.Equal(25, seen.Distinct().Count());
+    }
+
+    [Fact]
+    public async Task SearchAsync_PageSize_IsHonoured()
+    {
+        await SeedAsync([.. Enumerable.Range(1, 12).Select(i => MakeMedia($"Chorus Number {i:00}", "The Band"))]);
+
+        var result = await _repository.SearchAsync("chorus", pageNumber: 1, pageSize: 5);
+
+        Assert.Equal(5, result.Items.Count);
+        Assert.Equal(12, result.TotalCount);
+    }
+
+    // The status filter has to narrow the count as well as the page, or the caller pages past the
+    // last row it can actually be shown.
+    [Fact]
+    public async Task SearchAsync_StatusFilter_NarrowsTheTotalCountToo()
+    {
+        await SeedAsync(
+            MakeMedia("Chorus One", "The Band"),
+            MakeMedia("Chorus Two", "The Band", MediaStatus.Broken));
+
+        var readyOnly = new MediaSearchOptions { Statuses = [MediaStatus.Ready] };
+        var result = await _repository.SearchAsync("chorus", pageNumber: 1, pageSize: 50, options: readyOnly);
+
+        Assert.Equal(1, result.TotalCount);
+        Assert.Equal("Chorus One", Assert.Single(result.Items).Title);
+    }
+
+    // With no sort asked for, relevance IS the order. Titles chosen so bm25 and the default
+    // alphabetical sort disagree: fall back to the default and the best match comes back last.
+    [Fact]
+    public async Task SearchAsync_WithNoSort_ReturnsTheBestMatchFirst()
+    {
+        await SeedAsync(
+            MakeMedia("Aaa Chorus Number Twelve With Several More Trailing Words", "The Band"),
+            MakeMedia("Zzz Chorus", "The Band"));
+
+        var result = await _repository.SearchAsync("chorus");
+
+        Assert.Equal("Zzz Chorus", result.Items[0].Title);
     }
 
     [Fact]

@@ -1,3 +1,4 @@
+using KHost.Abstractions.Models;
 using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -29,6 +30,13 @@ public class ScreenCommandSerializationTests
             IsPlaying = true,
             IsPrimary = true,
         },
+        [nameof(LoadBackgroundCommand)] = new LoadBackgroundCommand { StreamUrl = "/music/bed.m3u8", AutoPlay = true },
+        [nameof(PlayBackgroundCommand)] = new PlayBackgroundCommand(),
+        [nameof(PauseBackgroundCommand)] = new PauseBackgroundCommand(),
+        [nameof(StopBackgroundCommand)] = new StopBackgroundCommand { FadeDuration = TimeSpan.FromSeconds(2) },
+        [nameof(SetBackgroundVolumeCommand)] = new SetBackgroundVolumeCommand { Volume = 0.4f },
+        [nameof(ShowImageCommand)] = new ShowImageCommand { Url = "http://host/media/image/abc", Scaling = ImageScaling.Fill },
+        [nameof(HideImageCommand)] = new HideImageCommand(),
     };
 
     public static TheoryData<string> CommandNames => [.. Samples.Keys];
@@ -162,5 +170,26 @@ public class ScreenCommandSerializationTests
         var playback = Assert.IsType<ScreenPlaybackState>(back);
         Assert.True(playback.IsPlaying);
         Assert.Equal("http://192.168.1.10:5251/media/abc123/stream.m3u8", playback.StreamUrl);
+    }
+
+    // The two states share a base, so a background report that deserialized as playback would be
+    // read by PlaybackService as the song's own position.
+    [Fact]
+    public void BackgroundState_SerializeByBaseType_RoundTripsAsItsOwnType()
+    {
+        ScreenStateBase state = new ScreenBackgroundState
+        {
+            StreamUrl = "http://192.168.1.10:5251/media/bed99/stream.m3u8",
+            IsPlaying = false,
+            HasEnded = true,
+        };
+
+        var json = JsonSerializer.Serialize(state, typeof(ScreenStateBase), Options);
+        var back = JsonSerializer.Deserialize<ScreenStateBase>(json, Options);
+
+        var background = Assert.IsType<ScreenBackgroundState>(back);
+        Assert.True(background.HasEnded);
+        Assert.False(background.IsPlaying);
+        Assert.Equal("http://192.168.1.10:5251/media/bed99/stream.m3u8", background.StreamUrl);
     }
 }
