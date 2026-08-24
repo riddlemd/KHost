@@ -1531,6 +1531,164 @@ public class PlaybackServiceTests : IDisposable
         });
     }
 
+    private static Media CreateAd(TimeSpan? duration = null) => new()
+    {
+        Id = Guid.NewGuid(),
+        FilePath = "/media/spot.mp4",
+        Title = "Happy Hour",
+        Status = MediaStatus.Ready,
+        Kind = MediaKind.Ad,
+        Duration = duration ?? TimeSpan.FromSeconds(20),
+    };
+
+    [Fact]
+    public async Task PlayAdAsync_PlaysOnTheMainChannel()
+    {
+        Assert.True(await _service.PlayAdAsync(CreateAd()));
+
+        Assert.Equal(PlaybackState.Playing, _service.State);
+        Assert.True(_service.IsPlayingAd);
+        await _screenServer.Received().BroadcastCommandAsync(Arg.Any<LoadMediaCommand>());
+    }
+
+    // An ad is nobody's turn, so none of the queue machinery a performance triggers may run.
+    [Fact]
+    public async Task PlayAdAsync_DoesNotTouchTheSingerQueue()
+    {
+        await _service.PlayAdAsync(CreateAd());
+
+        await _queueService.DidNotReceive().MoveUserToStartAsync(Arg.Any<Guid>());
+        _queueService.DidNotReceive().LockTopSlot();
+    }
+
+    [Fact]
+    public async Task PlayAdAsync_LeavesCurrentPerformanceNull()
+    {
+        await _service.PlayAdAsync(CreateAd());
+
+        Assert.Null(_service.CurrentPerformance);
+        Assert.Null(_service.CurrentlyPerformingUserId);
+    }
+
+    [Fact]
+    public async Task PlayAdAsync_SuspendsBreakMusic()
+    {
+        await _service.PlayAdAsync(CreateAd());
+
+        await _breakMusic.Received(1).SuspendAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task PlayAdAsync_RefusesMediaThatIsNotReady()
+    {
+        var ad = CreateAd();
+        ad.Status = MediaStatus.Broken;
+
+        Assert.False(await _service.PlayAdAsync(ad));
+        Assert.False(_service.IsPlayingAd);
+        Assert.Equal(PlaybackState.Stopped, _service.State);
+    }
+
+    // Nothing watches an ad the way a host watches a song, and the clock ends playback by
+    // duration — one without a duration would hold the main channel all night.
+    [Fact]
+    public async Task PlayAdAsync_RefusesMediaWithNoDuration()
+    {
+        var ad = CreateAd();
+        ad.Duration = null;
+
+        Assert.False(await _service.PlayAdAsync(ad));
+        Assert.False(_service.IsPlayingAd);
+    }
+
+    [Fact]
+    public async Task PlayAdAsync_RefusesMediaWithZeroDuration()
+    {
+        Assert.False(await _service.PlayAdAsync(CreateAd(TimeSpan.Zero)));
+    }
+
+    [Fact]
+    public async Task PlayAdAsync_WhileAPerformanceIsLoaded_IsRefused()
+    {
+        var (performance, media) = CreatePerformance();
+        await _service.LoadAsync(performance, media);
+
+        Assert.False(await _service.PlayAdAsync(CreateAd()));
+
+        Assert.Same(performance, _service.CurrentPerformance);
+        Assert.False(_service.IsPlayingAd);
+    }
+
+    [Fact]
+    public async Task PlayAdAsync_WithNoScreens_ClearsItselfRatherThanHoldingTheChannel()
+    {
+        ConnectScreens(0);
+
+        Assert.False(await _service.PlayAdAsync(CreateAd()));
+
+        Assert.False(_service.IsPlayingAd);
+        Assert.Null(_service.CurrentMedia);
+        // Otherwise the bed stays suspended behind an ad that never plays or ends.
+        await _breakMusic.Received(1).RestoreAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task AnAdEnding_DoesNotDequeueOrRotate()
+    {
+        await _service.PlayAdAsync(CreateAd(TimeSpan.FromMilliseconds(1)));
+        await Task.Delay(20);
+        await _service.TickAsync();
+
+        await _performanceService.DidNotReceive().DequeueAsync(Arg.Any<Guid>(), Arg.Any<Guid>());
+        await _queueService.DidNotReceive().RotateQueueAsync(Arg.Any<Guid>());
+    }
+
+    [Fact]
+    public async Task AnAdEnding_RestoresBreakMusic()
+    {
+        await _service.PlayAdAsync(CreateAd(TimeSpan.FromMilliseconds(1)));
+        await Task.Delay(20);
+        await _service.TickAsync();
+
+        await _breakMusic.Received(1).RestoreAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task AnAdEnding_ClearsTheAdFlag()
+    {
+        await _service.PlayAdAsync(CreateAd(TimeSpan.FromMilliseconds(1)));
+        await Task.Delay(20);
+        await _service.TickAsync();
+
+        Assert.False(_service.IsPlayingAd);
+        Assert.Null(_service.CurrentMedia);
+    }
+
+    [Fact]
+    public async Task StoppingAnAd_DoesNotRotateTheQueue()
+    {
+        await _service.PlayAdAsync(CreateAd());
+
+        await _service.StopAsync();
+
+        await _queueService.DidNotReceive().RotateQueueAsync(Arg.Any<Guid>());
+        Assert.False(_service.IsPlayingAd);
+    }
+
+    // Loading a real song after an ad must not inherit the flag, or the singer's performance ends
+    // without dequeuing them and they never leave the top of the queue.
+    [Fact]
+    public async Task LoadingAPerformanceAfterAnAd_ClearsTheAdFlag()
+    {
+        await _service.PlayAdAsync(CreateAd());
+        await _service.StopAsync();
+
+        var (performance, media) = CreatePerformance();
+        await _service.LoadAsync(performance, media);
+
+        Assert.False(_service.IsPlayingAd);
+    }
+
     private static (Performance, Media) CreatePerformance()
     {
         var singerId = Guid.NewGuid();

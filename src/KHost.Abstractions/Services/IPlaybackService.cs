@@ -15,6 +15,9 @@ public interface IPlaybackService : IDisposable
 
     Performance? CurrentPerformance { get; }
     Media? CurrentMedia { get; }
+
+    /// <summary>Whether the main channel is carrying an ad rather than a singer's song.</summary>
+    bool IsPlayingAd { get; }
     PlaybackState State { get; }
     TimeSpan Position { get; }
     Guid? CurrentlyPerformingUserId { get; }
@@ -29,6 +32,13 @@ public interface IPlaybackService : IDisposable
     Task<bool> HasConnectedScreenAsync();
 
     Task LoadAsync(Performance performance, Media media);
+
+    /// <summary>
+    /// Plays media on the main channel that is nobody's turn, and starts it — an ad is not cued
+    /// by a host the way a song is. It ends without dequeuing or rotating, so the singer at the top
+    /// of the queue still has their turn afterwards. False when it was refused or had nowhere to play.
+    /// </summary>
+    Task<bool> PlayAdAsync(Media media);
     Task PlayAsync();
     Task PauseAsync();
     Task StopAsync();
