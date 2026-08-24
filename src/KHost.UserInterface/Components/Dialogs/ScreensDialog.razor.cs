@@ -48,6 +48,9 @@ public partial class ScreensDialog : IDisposable
 
     protected override async Task OnInitializedAsync()
     {
+        _subscriptions.Add(Broker.Subscribe<ScreensChanged>(_ => InvokeAsync(StateHasChanged)));
+        _subscriptions.Add(Broker.Subscribe<CastChanged>(_ => InvokeAsync(StateHasChanged)));
+
         _providers = ScreenProviders!.ToList();
 
         await foreach (var screen in ScreenServer!.GetConnectedScreensAsync())
@@ -56,8 +59,6 @@ public partial class ScreensDialog : IDisposable
         ScreenServer.ScreenConnected += OnScreenConnected;
         ScreenServer.ScreenDisconnected += OnScreenDisconnected;
         ScreenServer.StateReceived += OnStateReceived;
-        _subscriptions.Add(Broker.Subscribe<ScreensChanged>(_ => InvokeAsync(StateHasChanged)));
-        _subscriptions.Add(Broker.Subscribe<CastChanged>(_ => InvokeAsync(StateHasChanged)));
     }
 
     // A receiver is never a screen, so it never moves up into the connected screens.

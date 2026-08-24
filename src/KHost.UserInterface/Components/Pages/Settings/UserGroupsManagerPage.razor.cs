@@ -26,11 +26,11 @@ public partial class UserGroupsManagerPage : IDisposable
 
     protected override async Task OnInitializedAsync()
     {
+        _subscriptions.Add(Broker.Subscribe<UserGroupsChanged>(OnStateChanged));
+
         _pageSize = AppSettingsService!.Current.UserGroupsPageSize;
 
         await SearchAsync();
-
-        _subscriptions.Add(Broker.Subscribe<UserGroupsChanged>(OnStateChanged));
     }
 
     private async Task SearchAsync()
