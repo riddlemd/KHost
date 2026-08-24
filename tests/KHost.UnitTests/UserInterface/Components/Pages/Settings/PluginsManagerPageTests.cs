@@ -1,3 +1,6 @@
+using Microsoft.Extensions.Logging.Abstractions;
+using KHost.Plugins.Sdk.Messaging;
+using KHost.Domain.Services.Messaging;
 using System.Text.Json;
 using Bunit;
 using KHost.Abstractions.Models.Plugins;
@@ -23,6 +26,7 @@ public class PluginsManagerPageTests : BunitContext
     private static readonly Guid PluginId = new("11111111-1111-4111-8111-111111111111");
 
     private readonly IPluginsService _pluginsService = Substitute.For<IPluginsService>();
+    private readonly MessageBroker _broker = new(NullLogger<MessageBroker>.Instance);
     private readonly IExternalLinkService _externalLinks = Substitute.For<IExternalLinkService>();
 
     public PluginsManagerPageTests()
@@ -31,6 +35,7 @@ public class PluginsManagerPageTests : BunitContext
         _pluginsService.ReadSettingsAsync(Arg.Any<string>()).Returns(new Dictionary<string, JsonElement>());
 
         Services.AddSingleton(_pluginsService);
+        Services.AddSingleton<IMessageBroker>(_broker);
         Services.AddSingleton(_externalLinks);
     }
 

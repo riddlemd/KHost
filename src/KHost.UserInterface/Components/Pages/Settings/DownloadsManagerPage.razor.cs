@@ -1,5 +1,7 @@
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
+using KHost.Plugins.Sdk.Messaging;
+using KHost.Plugins.Sdk.Messaging.Messages;
 using Microsoft.AspNetCore.Components;
 
 namespace KHost.UserInterface.Components.Pages.Settings;
@@ -8,15 +10,16 @@ public partial class DownloadsManagerPage : IDisposable
 {
     [Inject] private IDownloadsService? DownloadsService { get; set; }
     [Inject] private IPerformanceService? PerformanceService { get; set; }
+    [Inject] private IMessageBroker Broker { get; set; } = default!;
+
+    private readonly SubscriptionSet _subscriptions = new();
 
     private List<DownloadInfo> _active = [];
     private List<DownloadInfo> _recent = [];
 
     protected override void OnInitialized()
     {
-        if (DownloadsService is null) return;
-
-        DownloadsService.StateChanged += OnStateChanged;
+        _subscriptions.Add(Broker.Subscribe<DownloadsChanged>(OnStateChanged));
         Refresh();
     }
 
@@ -69,15 +72,11 @@ public partial class DownloadsManagerPage : IDisposable
         _ => "kh-badge--secondary",
     };
 
-    private async void OnStateChanged(object? sender, EventArgs e)
+    private async void OnStateChanged(DownloadsChanged message)
     {
         Refresh();
         await InvokeAsync(StateHasChanged);
     }
 
-    public void Dispose()
-    {
-        if (DownloadsService is not null)
-            DownloadsService.StateChanged -= OnStateChanged;
-    }
+    public void Dispose() => _subscriptions.Dispose();
 }

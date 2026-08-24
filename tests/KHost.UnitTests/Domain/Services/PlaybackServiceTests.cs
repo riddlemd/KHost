@@ -7,6 +7,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using KHost.Domain.Services;
 using KHost.Domain.Services.Messaging;
+using KHost.Plugins.Sdk.Messaging.Messages;
 
 namespace KHost.UnitTests.Domain.Services;
 
@@ -146,7 +147,7 @@ public class PlaybackServiceTests : IDisposable
     public async Task Load_RaisesStateChanged()
     {
         var raised = false;
-        _service.StateChanged += (_, _) => raised = true;
+        using var subscription = _broker.Subscribe<PlaybackChanged>(_ => raised = true);
 
         var (performance, media) = CreatePerformance();
         await _service.LoadAsync(performance, media);
@@ -1202,7 +1203,7 @@ public class PlaybackServiceTests : IDisposable
         await service.PlayAsync();
 
         var changes = 0;
-        service.StateChanged += (_, _) => changes++;
+        using var subscription = _broker.Subscribe<PlaybackChanged>(_ => changes++);
 
         var stop = service.StopAsync();
 
@@ -1395,7 +1396,7 @@ public class PlaybackServiceTests : IDisposable
         var positions = 0;
         var states = 0;
         _service.PositionChanged += (_, _) => positions++;
-        _service.StateChanged += (_, _) => states++;
+        using var subscription = _broker.Subscribe<PlaybackChanged>(_ => states++);
 
         await _service.TickAsync();
 
@@ -1413,11 +1414,11 @@ public class PlaybackServiceTests : IDisposable
         await _service.PlayAsync();
 
         // Past the end, so the tick concludes the performance rather than interpolating. Seek
-        // raises StateChanged of its own, so the counter starts after it.
+        // publishes PlaybackChanged of its own, so the counter starts after it.
         await _service.SeekAsync(TimeSpan.FromSeconds(1));
 
         var states = 0;
-        _service.StateChanged += (_, _) => states++;
+        using var subscription = _broker.Subscribe<PlaybackChanged>(_ => states++);
 
         await _service.TickAsync();
 

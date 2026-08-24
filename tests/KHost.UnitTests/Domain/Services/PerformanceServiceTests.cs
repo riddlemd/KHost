@@ -7,6 +7,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using KHost.Domain.Services;
 using KHost.Domain.Services.Messaging;
+using KHost.Plugins.Sdk.Messaging.Messages;
 
 namespace KHost.UnitTests.Domain.Services;
 
@@ -173,7 +174,7 @@ public class PerformanceServiceTests
     public async Task CreateAndEnqueueAsync_RaisesStateChanged()
     {
         var raised = false;
-        _service.StateChanged += (_, _) => raised = true;
+        using var subscription = _broker.Subscribe<PerformancesChanged>(_ => raised = true);
 
         await _service.CreateAndEnqueueAsync(new Performance { Id = Guid.NewGuid(), SingerId = Guid.NewGuid(), MediaId = Guid.NewGuid() });
 

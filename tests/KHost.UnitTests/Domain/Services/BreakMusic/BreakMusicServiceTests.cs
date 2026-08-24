@@ -316,7 +316,7 @@ public class BreakMusicServiceTests : IDisposable
         await _service.InitializeAsync();
 
         var raised = 0;
-        _service.StateChanged += (_, _) => raised++;
+        using var subscription = _broker.Subscribe<BreakMusicChanged>(_ => raised++);
 
         await _service.StartAsync();
 
@@ -329,7 +329,7 @@ public class BreakMusicServiceTests : IDisposable
         await _service.InitializeAsync();
 
         var raised = 0;
-        _service.StateChanged += (_, _) => raised++;
+        using var subscription = _broker.Subscribe<BreakMusicChanged>(_ => raised++);
 
         await _broker.PublishAsync(new BreakMusicTrackChanged(_provider.SourceName));
 
@@ -343,7 +343,7 @@ public class BreakMusicServiceTests : IDisposable
         await _service.InitializeAsync();
 
         var raised = 0;
-        _service.StateChanged += (_, _) => raised++;
+        using var subscription = _broker.Subscribe<BreakMusicChanged>(_ => raised++);
 
         await _broker.PublishAsync(new BreakMusicTrackChanged("SomeOtherProvider"));
 

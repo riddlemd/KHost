@@ -2,6 +2,7 @@ using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using KHost.Domain.Services.Ads;
 using KHost.Domain.Services.Messaging;
+using KHost.Plugins.Sdk.Messaging.Messages;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace KHost.UnitTests.Domain.Services.Ads;
@@ -411,7 +412,7 @@ public class AdServiceTests : IDisposable
         ConfigureVenue(AdTriggerMode.EveryNPerformances, interval: 1);
 
         var raised = 0;
-        _service.StateChanged += (_, _) => raised++;
+        using var subscription = _broker.Subscribe<AdsChanged>(_ => raised++);
 
         await PerformancesAsync(1);
 

@@ -1,5 +1,7 @@
 using KHost.Abstractions.Services;
 using KHost.Abstractions.Services.IPC;
+using KHost.Plugins.Sdk.Messaging;
+using KHost.Plugins.Sdk.Messaging.Messages;
 using KHost.UserInterface.Models;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
@@ -13,6 +15,9 @@ public partial class ScreensDialog : IDisposable
     [Inject] private IScreenCoordinationService? ScreenCoordination { get; set; }
     [Inject] private ICastService? Cast { get; set; }
     [Inject] private IEnumerable<IScreenProvider>? ScreenProviders { get; set; }
+    [Inject] private IMessageBroker Broker { get; set; } = default!;
+
+    private readonly SubscriptionSet _subscriptions = new();
 
     [Parameter] public bool IsOpen { get; set; }
     [Parameter] public EventCallback OnClose { get; set; }
@@ -51,8 +56,8 @@ public partial class ScreensDialog : IDisposable
         ScreenServer.ScreenConnected += OnScreenConnected;
         ScreenServer.ScreenDisconnected += OnScreenDisconnected;
         ScreenServer.StateReceived += OnStateReceived;
-        ScreenCoordination!.StateChanged += OnScreenCoordinationChanged;
-        Cast!.StateChanged += OnScreenCoordinationChanged;
+        _subscriptions.Add(Broker.Subscribe<ScreensChanged>(_ => InvokeAsync(StateHasChanged)));
+        _subscriptions.Add(Broker.Subscribe<CastChanged>(_ => InvokeAsync(StateHasChanged)));
     }
 
     // A receiver is never a screen, so it never moves up into the connected screens.
@@ -268,8 +273,6 @@ public partial class ScreensDialog : IDisposable
         StateHasChanged();
     }
 
-    private void OnScreenCoordinationChanged(object? sender, EventArgs e) => InvokeAsync(StateHasChanged);
-
     private void OnScreenConnected(object? sender, ScreenConnectionEventArgs e)
     {
         _connectedScreens.Add(e.Connection);
@@ -362,8 +365,7 @@ public partial class ScreensDialog : IDisposable
         // An established cast is unaffected — StopDiscoveryAsync leaves the connection alone.
         if (Cast?.IsDiscovering == true) _ = Cast.StopDiscoveryAsync();
 
-        if (ScreenCoordination is not null) ScreenCoordination.StateChanged -= OnScreenCoordinationChanged;
-        if (Cast is not null) Cast.StateChanged -= OnScreenCoordinationChanged;
+        _subscriptions.Dispose();
 
         if (ScreenServer is null) return;
         ScreenServer.ScreenConnected -= OnScreenConnected;

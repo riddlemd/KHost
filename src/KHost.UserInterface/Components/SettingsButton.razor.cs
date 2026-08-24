@@ -1,5 +1,7 @@
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
+using KHost.Plugins.Sdk.Messaging;
+using KHost.Plugins.Sdk.Messaging.Messages;
 using KHost.UserInterface.Services;
 using Microsoft.AspNetCore.Components;
 using Microsoft.JSInterop;
@@ -21,6 +23,9 @@ public partial class SettingsButton : IDisposable
     [Inject] private IThemeService? ThemeService { get; set; }
     [Inject] private IDialogService? DialogService { get; set; }
     [Inject] private IJSRuntime JS { get; set; } = default!;
+    [Inject] private IMessageBroker? Broker { get; set; }
+
+    private readonly SubscriptionSet _subscriptions = new();
 
     private sealed class SettingsPage
     {
@@ -77,7 +82,9 @@ public partial class SettingsButton : IDisposable
         if (VenuesService is not null)
         {
             await RefreshVenuesAsync();
-            VenuesService.StateChanged += OnServiceChanged;
+
+            if (Broker is not null)
+                _subscriptions.Add(Broker.Subscribe<VenuesChanged>(_ => OnServiceChanged(null, EventArgs.Empty)));
         }
 
         if (ThemeService is not null)
@@ -221,7 +228,8 @@ public partial class SettingsButton : IDisposable
 
     public void Dispose()
     {
-        if (VenuesService is not null) VenuesService.StateChanged -= OnServiceChanged;
+        _subscriptions.Dispose();
+
         if (ThemeService is not null) ThemeService.StateChanged -= OnServiceChanged;
     }
 }

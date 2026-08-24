@@ -2,6 +2,7 @@ using KHost.Abstractions.Models;
 using KHost.Abstractions.Repositories;
 using KHost.Domain.Services.MediaPools;
 using KHost.Domain.Services.Messaging;
+using KHost.Plugins.Sdk.Messaging.Messages;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace KHost.UnitTests.Domain.Services.MediaPools;
@@ -9,6 +10,7 @@ namespace KHost.UnitTests.Domain.Services.MediaPools;
 public class MediaPoolServiceTests
 {
     private readonly IMediaPoolRepository _repository = Substitute.For<IMediaPoolRepository>();
+    private readonly MessageBroker _broker = new(NullLogger<MessageBroker>.Instance);
     private readonly MediaPoolService _service;
 
     public MediaPoolServiceTests()
@@ -17,7 +19,7 @@ public class MediaPoolServiceTests
             .Returns(Task.FromResult<IReadOnlyList<MediaPool>>([]));
 
         _service = new MediaPoolService(NullLogger<MediaPoolService>.Instance, _repository,
-            new MessageBroker(NullLogger<MessageBroker>.Instance), random: new Random(1));
+            _broker, random: new Random(1));
     }
 
     private static MediaPool Pool(Guid id, params MediaPoolEntry[] entries) => new()
@@ -125,7 +127,7 @@ public class MediaPoolServiceTests
         _repository.ReadWithEntriesAsync(pool.Id).Returns(Task.FromResult<MediaPool?>(pool));
 
         var raised = 0;
-        _service.StateChanged += (_, _) => raised++;
+        using var subscription = _broker.Subscribe<MediaPoolsChanged>(_ => raised++);
 
         await _service.ReplaceEntriesAsync(pool.Id, [new MediaPoolEntry { MediaId = Guid.NewGuid() }]);
 
@@ -139,7 +141,7 @@ public class MediaPoolServiceTests
         _repository.ReadWithEntriesAsync(pool.Id).Returns(Task.FromResult<MediaPool?>(pool));
 
         var raised = 0;
-        _service.StateChanged += (_, _) => raised++;
+        using var subscription = _broker.Subscribe<MediaPoolsChanged>(_ => raised++);
 
         await _service.ReplaceEntriesAsync(pool.Id, [new MediaPoolEntry { ChildPoolId = pool.Id }]);
 

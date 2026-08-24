@@ -1,5 +1,7 @@
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
+using KHost.Plugins.Sdk.Messaging;
+using KHost.Plugins.Sdk.Messaging.Messages;
 using KHost.UserInterface.Services;
 using Microsoft.AspNetCore.Components;
 
@@ -11,6 +13,9 @@ public partial class AdsManagerPage : IDisposable
     [Inject] private IVenuesService Venues { get; set; } = default!;
     [Inject] private IDialogService Dialogs { get; set; } = default!;
     [Inject] private IFlashService Flash { get; set; } = default!;
+    [Inject] private IMessageBroker Broker { get; set; } = default!;
+
+    private readonly SubscriptionSet _subscriptions = new();
 
     private List<MediaPool> _pools = [];
     private MediaPool? _editing;
@@ -22,19 +27,19 @@ public partial class AdsManagerPage : IDisposable
 
     protected override async Task OnInitializedAsync()
     {
-        MediaPools.StateChanged += OnChanged;
+        _subscriptions.Add(Broker.Subscribe<MediaPoolsChanged>(OnChanged));
 
         await RefreshAsync();
     }
 
     public void Dispose()
     {
-        MediaPools.StateChanged -= OnChanged;
+        _subscriptions.Dispose();
 
         GC.SuppressFinalize(this);
     }
 
-    private async void OnChanged(object? sender, EventArgs e)
+    private async void OnChanged(MediaPoolsChanged message)
         => await InvokeAsync(async () =>
         {
             await RefreshAsync();

@@ -1,5 +1,7 @@
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
+using KHost.Plugins.Sdk.Messaging;
+using KHost.Plugins.Sdk.Messaging.Messages;
 using KHost.UserInterface.Models;
 using KHost.UserInterface.Services;
 using Microsoft.AspNetCore.Components;
@@ -22,6 +24,9 @@ public partial class MediaManagerPage : IAsyncDisposable
     [Inject] private IDialogService? DialogService { get; set; }
     [Inject] private IVenuesService? VenuesService { get; set; }
     [Inject] private IAppSettingsService? AppSettingsService { get; set; }
+    [Inject] private IMessageBroker? Broker { get; set; }
+
+    private readonly SubscriptionSet _subscriptions = new();
 
     private void NavigateToImporter() => Navigation!.NavigateTo("/settings/media-importer");
 
@@ -53,7 +58,8 @@ public partial class MediaManagerPage : IAsyncDisposable
         _pageSize = AppSettingsService!.Current.MediaPageSize;
 
         await SearchAsync();
-        MediaService.StateChanged += OnMediaStateChanged;
+        if (Broker is not null)
+            _subscriptions.Add(Broker.Subscribe<MediaLibraryChanged>(OnMediaStateChanged));
     }
 
     private bool _addFileDialogOpen;
@@ -96,7 +102,7 @@ public partial class MediaManagerPage : IAsyncDisposable
         }
     }
 
-    private void OnMediaStateChanged(object? sender, EventArgs e) =>
+    private void OnMediaStateChanged(MediaLibraryChanged message) =>
         _ = InvokeAsync(async () =>
         {
             await SearchAsync();
@@ -105,8 +111,7 @@ public partial class MediaManagerPage : IAsyncDisposable
 
     async ValueTask IAsyncDisposable.DisposeAsync()
     {
-        if (MediaService is not null)
-            MediaService.StateChanged -= OnMediaStateChanged;
+        _subscriptions.Dispose();
 
         await Task.CompletedTask;
     }

@@ -1,5 +1,7 @@
 using KHost.Abstractions.Repositories;
 using KHost.Abstractions.Services;
+using KHost.Plugins.Sdk.Messaging;
+using KHost.Plugins.Sdk.Messaging.Messages;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 using System.Collections.Concurrent;
@@ -13,6 +15,9 @@ public partial class MediaBrowser : IAsyncDisposable
     [Inject] private IMediaImportService? ImportService { get; set; }
     [Inject] private IMediaRepository? MediaRepository { get; set; }
     [Inject] private IMediaFileParsingService? ParsingService { get; set; }
+    [Inject] private IMessageBroker Broker { get; set; } = default!;
+
+    private readonly SubscriptionSet _subscriptions = new();
 
     [Parameter]
     public EventCallback OnImportCompleted { get; set; }
@@ -140,7 +145,7 @@ public partial class MediaBrowser : IAsyncDisposable
 
     protected override async Task OnInitializedAsync()
     {
-        ImportService!.StateChanged += OnImportStateChanged;
+        _subscriptions.Add(Broker.Subscribe<MediaImportChanged>(OnImportStateChanged));
 
         var musicPath = Environment.GetFolderPath(Environment.SpecialFolder.MyMusic);
         if (Directory.Exists(musicPath))
@@ -465,7 +470,7 @@ public partial class MediaBrowser : IAsyncDisposable
         await ImportService!.StartAsync(filePaths);
     }
 
-    private void OnImportStateChanged(object? sender, EventArgs e) =>
+    private void OnImportStateChanged(MediaImportChanged message) =>
         _ = InvokeAsync(async () =>
         {
             var state = ImportService!.State;
@@ -486,8 +491,7 @@ public partial class MediaBrowser : IAsyncDisposable
 
     async ValueTask IAsyncDisposable.DisposeAsync()
     {
-        if (ImportService is not null)
-            ImportService.StateChanged -= OnImportStateChanged;
+        _subscriptions.Dispose();
 
         await Task.CompletedTask;
     }

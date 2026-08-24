@@ -1,10 +1,14 @@
 using Bunit;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
+using KHost.Domain.Services.Messaging;
+using KHost.Plugins.Sdk.Messaging;
+using KHost.Plugins.Sdk.Messaging.Messages;
 using KHost.Plugins.Sdk.Models;
 using KHost.Plugins.Sdk.Services;
 using KHost.UserInterface.Components.Panels;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace KHost.UnitTests.UserInterface.Components.Panels;
 
@@ -19,6 +23,7 @@ public class BreakMusicBarTests : BunitContext
     private readonly IAdService _ads = Substitute.For<IAdService>();
     private readonly IFlashService _flash = Substitute.For<IFlashService>();
     private readonly IBreakMusicProvider _provider = Substitute.For<IBreakMusicProvider>();
+    private readonly MessageBroker _broker = new(NullLogger<MessageBroker>.Instance);
 
     public BreakMusicBarTests()
     {
@@ -33,6 +38,7 @@ public class BreakMusicBarTests : BunitContext
         Services.AddSingleton(_breakMusic);
         Services.AddSingleton(_ads);
         Services.AddSingleton(_flash);
+        Services.AddSingleton<IMessageBroker>(_broker);
     }
 
     private IRenderedComponent<BreakMusicBar> Render() => Render<BreakMusicBar>();
@@ -154,13 +160,13 @@ public class BreakMusicBarTests : BunitContext
     }
 
     [Fact]
-    public void StateChanged_RedrawsTheBar()
+    public async Task StateChanged_RedrawsTheBar()
     {
         var rendered = Render();
 
         _breakMusic.State.Returns(BreakMusicState.Playing);
-        _breakMusic.StateChanged += Raise.Event();
+        await _broker.PublishAsync(new BreakMusicChanged());
 
-        Assert.NotEmpty(rendered.FindAll("[title='Pause break music']"));
+        rendered.WaitForAssertion(() => Assert.NotEmpty(rendered.FindAll("[title='Pause break music']")));
     }
 }
