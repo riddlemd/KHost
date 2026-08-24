@@ -1,5 +1,5 @@
 using KHost.Domain.Services.Messaging;
-using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Logging;
 
 namespace KHost.UnitTests.Domain.Services.Messaging;
 
@@ -8,7 +8,30 @@ public class MessageBrokerTests
     private sealed record SongStarted(string Title);
     private sealed record SongEnded(string Title);
 
-    private readonly MessageBroker _broker = new(NullLogger<MessageBroker>.Instance);
+    private readonly RecordingLogger _logger = new();
+    private readonly MessageBroker _broker;
+
+    public MessageBrokerTests() => _broker = new MessageBroker(_logger);
+
+    /// <summary>
+    /// Delivering to a handler of the wrong type throws inside the cast, which the broker catches
+    /// and logs — so mis-routing is invisible unless a test watches what was logged.
+    /// </summary>
+    private sealed class RecordingLogger : ILogger<MessageBroker>
+    {
+        public List<Exception> Errors { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            if (logLevel >= LogLevel.Error && exception is not null)
+                Errors.Add(exception);
+        }
+    }
 
     [Fact]
     public async Task PublishAsync_DeliversToASubscriber()
@@ -37,6 +60,7 @@ public class MessageBrokerTests
 
         Assert.Equal(1, started);
         Assert.Equal(0, ended);
+        Assert.Empty(_logger.Errors);
     }
 
     // The reason this exists rather than an event: a publisher has to be able to wait for what its
