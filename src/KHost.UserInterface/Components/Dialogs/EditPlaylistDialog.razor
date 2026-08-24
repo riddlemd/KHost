@@ -74,12 +74,6 @@
                     <thead>
                         <tr>
                             <th>What plays</th>
-                            @if (Purpose == PoolPurpose.Ads)
-                            {
-                                <th>Sound</th>
-                                <th>From</th>
-                                <th>Length</th>
-                            }
                             @if (_selectionMode == PoolSelectionMode.Weighted)
                             {
                                 <th>Weight</th>
@@ -95,30 +89,6 @@
 
                             <tr>
                                 <td class="kh-table__cell--fill">@DescribeEntry(entry)</td>
-
-                                @if (Purpose == PoolPurpose.Ads)
-                                {
-                                    <td>
-                                        <select class="kh-form-select" value="@(entry.AudioMediaId?.ToString() ?? "")"
-                                                @onchange="e => SetEntryAudio(index, e.Value?.ToString())">
-                                            <option value="">@(entry.IsPool ? "—" : "Its own")</option>
-                                            @foreach (var audio in _audioChoices)
-                                            {
-                                                <option value="@audio.Id">@audio.Title</option>
-                                            }
-                                        </select>
-                                    </td>
-                                    <td>
-                                        <input class="kh-form-control kh-playlist-dialog__time" placeholder="0:00"
-                                               value="@FormatTime(entry.AudioStart)"
-                                               @onchange="e => SetEntryAudioStart(index, e.Value?.ToString())" />
-                                    </td>
-                                    <td>
-                                        <input class="kh-form-control kh-playlist-dialog__time" placeholder="auto"
-                                               value="@FormatTime(entry.Duration)"
-                                               @onchange="e => SetEntryDuration(index, e.Value?.ToString())" />
-                                    </td>
-                                }
 
                                 @if (_selectionMode == PoolSelectionMode.Weighted)
                                 {
@@ -150,15 +120,17 @@
             }
 
             <div class="kh-playlist-dialog__add">
-                <select class="kh-form-select" @bind="_addMediaId">
-                    <option value="">Add media&hellip;</option>
-                    @foreach (var media in _mediaChoices)
-                    {
-                        <option value="@media.Id">@media.Title</option>
-                    }
-                </select>
+                <ComboBox TItem="Media"
+                          Class="kh-playlist-dialog__picker"
+                          Value="_addMedia"
+                          ValueChanged="@(media => _addMedia = media)"
+                          @bind-Text="_addMediaText"
+                          Search="SearchMediaAsync"
+                          DisplayName="@(media => media.Title)"
+                          MinimumSearchLength="1"
+                          Placeholder="@(Purpose == PoolPurpose.Ads ? "Search ad media…" : "Search break music…")" />
                 <button class="kh-button kh-button--secondary" type="button"
-                        disabled="@(string.IsNullOrEmpty(_addMediaId))" @onclick="AddMediaEntry">
+                        disabled="@(_addMedia is null)" @onclick="AddMediaEntry">
                     <Icon Name="plus-lg" /> Add
                 </button>
             </div>

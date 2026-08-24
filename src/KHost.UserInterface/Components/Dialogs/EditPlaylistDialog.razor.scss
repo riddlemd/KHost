@@ -12,6 +12,12 @@
         gap: 0.5rem;
         margin-top: 0.75rem;
 
+        // Both needed: without min-width the box refuses to shrink and pushes Add off the row.
+        .kh-playlist-dialog__picker {
+            flex: 1;
+            min-width: 0;
+        }
+
         .kh-form-select {
             flex: 1;
             min-width: 0;
@@ -22,12 +28,7 @@
         }
     }
 
-    // Held narrow so the entry description keeps the width instead of these cells taking it.
-    &__time {
-        width: 5rem;
-        text-align: right;
-    }
-
+    // Held narrow so the entry description keeps the width.
     &__weight {
         width: 4rem;
         text-align: right;

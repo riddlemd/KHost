@@ -38,12 +38,17 @@ public class EditPlaylistDialogTests : BunitContext
         JSInterop.Mode = JSRuntimeMode.Loose;
 
         // NSubstitute hands back a completed task wrapping null otherwise, and the dialog counts it.
-        _media.ReadAllByTypesAsync(Arg.Any<MediaType[]>())
+        _media.SearchAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<int>(),
+                Arg.Any<SortDescriptor?>(), Arg.Any<MediaSearchOptions?>())
             .Returns(call =>
             {
-                var types = call.Arg<MediaType[]>();
-                return Task.FromResult<IReadOnlyList<Media>>(
-                    [.. new[] { _bed, _spot }.Where(m => types.Contains(m.Type))]);
+                var types = call.Arg<MediaSearchOptions?>()?.Types ?? [];
+                var hits = new[] { _bed, _spot }.Where(m => types.Contains(m.Type)).ToList();
+
+                return Task.FromResult(new PaginatedResult<Media>
+                {
+                    Items = hits, TotalCount = hits.Count, PageNumber = 1, PageSize = 50,
+                });
             });
 
         _pools.ReadAllWithEntriesAsync(Arg.Any<PoolPurpose>(), Arg.Any<Guid?>())
@@ -190,32 +195,52 @@ public class EditPlaylistDialogTests : BunitContext
         Assert.Equal(PoolPurpose.Ads, saved?.Purpose);
     }
 
-    // An ad is a video or a picture; break music is a record. The picker asks for the right one.
+    private static async Task<IReadOnlyList<Media>> SearchThrough(IRenderedComponent<EditPlaylistDialog> dialog, string term)
+        => await (Task<IReadOnlyList<Media>>)typeof(EditPlaylistDialog)
+            .GetMethod("SearchMediaAsync", BindingFlags.NonPublic | BindingFlags.Instance)!
+            .Invoke(dialog.Instance, [term])!;
+
+    // An ad is a video, a sound or a still; break music is a record. Never the karaoke library —
+    // those are backing tracks with no singer on them.
     [Fact]
-    public void TheMediaPicker_OffersOnlyWhatThePurposeCanUse()
+    public async Task TheMediaPicker_SearchesOnlyWhatThePurposeCanUse()
     {
-        RenderDialog(new MediaPool { Name = "Beds" }, PoolPurpose.BreakMusic);
-        _media.Received().ReadAllByTypesAsync(MediaType.Audio);
+        var beds = RenderDialog(new MediaPool { Name = "Beds" }, PoolPurpose.BreakMusic);
+        await SearchThrough(beds, "any");
+
+        await _media.Received().SearchAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<int>(),
+            Arg.Any<SortDescriptor?>(),
+            Arg.Is<MediaSearchOptions>(o => o.Types!.SequenceEqual(new[] { MediaType.Audio })));
 
         _media.ClearReceivedCalls();
 
-        RenderDialog(new MediaPool { Name = "Spots" }, PoolPurpose.Ads);
-        _media.Received().ReadAllByTypesAsync(MediaType.Video, MediaType.Image);
+        var spots = RenderDialog(new MediaPool { Name = "Spots" }, PoolPurpose.Ads);
+        await SearchThrough(spots, "any");
+
+        await _media.Received().SearchAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<int>(),
+            Arg.Any<SortDescriptor?>(),
+            Arg.Is<MediaSearchOptions>(o =>
+                o.Types!.SequenceEqual(new[] { MediaType.Video, MediaType.Audio, MediaType.Image })));
     }
 
-    [Theory]
-    [InlineData("90", 90)]
-    [InlineData("1:30", 90)]
-    [InlineData("0:05", 5)]
-    [InlineData("1:00:00", 3600)]
-    public void ParseTime_AcceptsTheFormsAHostWouldType(string text, int expectedSeconds)
-        => Assert.Equal(TimeSpan.FromSeconds(expectedSeconds), ParseTime(text));
+    // Capped: the box is for finding one row, and a thousand of them help nobody.
+    [Fact]
+    public async Task TheMediaPicker_CapsWhatItAsksFor()
+    {
+        var dialog = RenderDialog(new MediaPool { Name = "Beds" }, PoolPurpose.BreakMusic);
+        await SearchThrough(dialog, "any");
 
-    [Theory]
-    [InlineData("")]
-    [InlineData("   ")]
-    [InlineData("abc")]
-    [InlineData("0")]
-    public void ParseTime_NothingUsable_IsNull(string text)
-        => Assert.Null(ParseTime(text));
+        await _media.Received().SearchAsync(Arg.Any<string>(), 1, 50,
+            Arg.Any<SortDescriptor?>(), Arg.Any<MediaSearchOptions>());
+    }
+
+    // Never the whole library: preloading every row was fine at four and is not at a few thousand.
+    [Fact]
+    public void TheDialog_NeverBulkReadsTheLibrary()
+    {
+        RenderDialog(new MediaPool { Name = "Beds" }, PoolPurpose.BreakMusic);
+
+        _media.DidNotReceive().ReadAllByTypesAsync(Arg.Any<MediaType[]>());
+    }
+
 }
