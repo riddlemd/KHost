@@ -20,7 +20,7 @@ public interface IMediaRepository : IRepository<Media>
     Task<IReadOnlyList<Media>> ReadAllByTypesAsync(params MediaType[] types);
 
     /// <summary>
-    /// Dedup reads deliberately span every kind: FilePath is unique across the table, so an ad
+    /// Dedup reads deliberately span every type: FilePath is unique across the table, so an ad
     /// already imported has to be found before the same path is inserted again as a song.
     /// </summary>
     Task<HashSet<string>> GetExistingFilePathsAsync(IEnumerable<string> filePaths);

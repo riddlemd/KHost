@@ -342,7 +342,7 @@ internal class MediaRepository : BaseRepository<Media>, IMediaRepository
                 .FromSqlRaw(sql, match)
                 .AsNoTracking();
 
-            // The FTS join matches on text alone and knows nothing of kind, so the filter is
+            // The FTS join matches on text alone and knows nothing of type, so the filter is
             // composed onto the raw query the same way the other paths apply it.
             queryable = ApplyTypeAndStatus(queryable, options);
 

@@ -1,9 +1,9 @@
 namespace KHost.Plugins.Sdk.Messaging.Messages;
 
 /// <summary>
-/// One record per service that used to raise <c>StateChanged</c>. They carry nothing: each says
-/// only that its corner of the show moved, which is all the event ever said — but a subscriber now
-/// names the corner it cares about instead of taking every service's word for it.
+/// One record per service that has something to announce. They carry nothing: each says only that
+/// its corner of the show moved, so a subscriber names the corner it cares about rather than
+/// taking every service's word for it.
 /// </summary>
 public sealed record PlaybackChanged;
 

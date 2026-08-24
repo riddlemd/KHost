@@ -13,17 +13,11 @@ using Microsoft.Extensions.DependencyInjection;
 namespace KHost.UnitTests.UserInterface.Components.Panels;
 
 /// <summary>
-/// A plugin's download action can throw OperationCanceledException — the host dequeuing the
-/// Downloading row cancels the token the plugin was given. That is a cancel, not a failure, so
-/// PerformActionAsync must not let it escape.
+/// A plugin's download action can throw OperationCanceledException — dequeuing the Downloading row
+/// cancels the token the plugin was given — and that is a cancel, not a failure to surface.
+/// Invoked by reflection rather than through a click: Components' event dispatch swallows the
+/// exception itself, so a click-based test passes identically with the catch removed.
 /// </summary>
-/// <remarks>
-/// Driven through a click, ASP.NET Core Components' own event dispatch already swallows an
-/// OperationCanceledException raised from a handler — so a click-based test cannot tell whether
-/// PerformActionAsync's own try/catch did anything; it would pass identically with the catch
-/// removed. PerformActionAsync is invoked directly by reflection instead, bypassing that dispatch
-/// so the assertion is actually about this method's own behaviour.
-/// </remarks>
 public class MediaSearchPanelActionTests : BunitContext
 {
     private readonly IMediaSearchService _search = Substitute.For<IMediaSearchService>();

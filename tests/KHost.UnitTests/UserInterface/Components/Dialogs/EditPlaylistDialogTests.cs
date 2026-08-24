@@ -60,8 +60,8 @@ public class EditPlaylistDialogTests : BunitContext
         Services.AddSingleton(_media);
     }
 
-    // The purpose comes from the page now: the Break Music and Ads managers each open this for
-    // their own kind of playlist, so the dialog never has to ask.
+    // The Break Music and Ads managers each open this for their own purpose, so the dialog is
+    // told which one rather than asking.
     private IRenderedComponent<EditPlaylistDialog> RenderDialog(
         MediaPool? pool, PoolPurpose purpose = PoolPurpose.BreakMusic, Action<MediaPool>? onSave = null)
         => Render<EditPlaylistDialog>(parameters => parameters
