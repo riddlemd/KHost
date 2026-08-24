@@ -35,7 +35,7 @@ public class BreakMusicService : BaseService, IBreakMusicService, IDisposable
 
         // Only for a provider the host cannot reach: ScreenCoordination already re-applies the
         // venue level to every screen when a venue is edited.
-        _subscriptions.Add(broker.Subscribe<VenuesChanged>(OnVenueChanged));
+        _subscriptions.Add(broker.Subscribe<SelectedVenueChanged>(OnVenueChanged));
     }
 
     public IReadOnlyList<IBreakMusicProvider> Providers => _providers;
@@ -225,7 +225,7 @@ public class BreakMusicService : BaseService, IBreakMusicService, IDisposable
             ?? _providers.FirstOrDefault();
     }
 
-    private void OnVenueChanged(VenuesChanged message)
+    private void OnVenueChanged(SelectedVenueChanged message)
     {
         if (_activeProvider is { } provider)
             _ = ApplyVenueVolumeAsync(provider, CancellationToken.None);
