@@ -1,4 +1,4 @@
-﻿using KHost.Abstractions.Messaging;
+﻿using KHost.Plugins.Sdk.Messaging;
 using KHost.Abstractions.Services;
 using KHost.Abstractions.Services.IPC;
 using KHost.Domain.Services;
