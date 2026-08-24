@@ -29,6 +29,7 @@ internal sealed class StreamMediaPlayer : IMediaPlayer
     private string? _backgroundUrl;
     private bool _backgroundPlaying;
     private float _backgroundVolume = 1f;
+    private string? _stillUrl;
 
     /// <summary>Host-clock instant <see cref="_position"/> was sampled at, per the page's stamp.</summary>
     private DateTime? _sampledAtUtc;
@@ -164,6 +165,27 @@ internal sealed class StreamMediaPlayer : IMediaPlayer
 
     public string? BackgroundUrl { get { lock (_lock) return _backgroundUrl; } }
     public bool IsBackgroundPlaying { get { lock (_lock) return _backgroundPlaying; } }
+
+    /// <summary>
+    /// Puts a still up. Nothing is opened and nothing plays, so the host clock is the only thing
+    /// that takes it down again.
+    /// </summary>
+    public void ShowImage(string url)
+    {
+        lock (_lock) _stillUrl = url;
+
+        _logger.LogInformation("Showing still {Url}", url);
+        Send(new { type = "show-image", url });
+    }
+
+    public void HideImage()
+    {
+        lock (_lock) _stillUrl = null;
+
+        Send(new { type = "hide-image" });
+    }
+
+    public string? StillUrl { get { lock (_lock) return _stillUrl; } }
 
     /// <summary>Blanks the picture. Playback continues, so the screen stays on the timeline.</summary>
     public void SetVideoEnabled(bool enabled)

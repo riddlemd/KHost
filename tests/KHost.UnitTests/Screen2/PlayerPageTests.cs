@@ -21,6 +21,7 @@ public class PlayerPageTests
 
         Assert.Contains("id=\"video\"", page);
         Assert.Contains("id=\"background\"", page);
+        Assert.Contains("id=\"still\"", page);
         Assert.Contains("id=\"placeholder\"", page);
         Assert.Contains("id=\"blanked\"", page);
         Assert.Contains("id=\"hostlost\"", page);
@@ -39,5 +40,14 @@ public class PlayerPageTests
         Assert.Contains("'bg-stop'", page);
         Assert.Contains("'bg-volume'", page);
         Assert.Contains("type: 'bg-ended'", page);
+    }
+
+    [Fact]
+    public void BuildPlayerPage_Always_HandlesTheStillCommands()
+    {
+        var page = Program.BuildPlayerPage();
+
+        Assert.Contains("'show-image'", page);
+        Assert.Contains("'hide-image'", page);
     }
 }

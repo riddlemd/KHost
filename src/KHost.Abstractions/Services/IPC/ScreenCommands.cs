@@ -16,6 +16,8 @@ namespace KHost.Abstractions.Services.IPC;
 [JsonDerivedType(typeof(PauseBackgroundCommand), "pauseBackground")]
 [JsonDerivedType(typeof(StopBackgroundCommand), "stopBackground")]
 [JsonDerivedType(typeof(SetBackgroundVolumeCommand), "setBackgroundVolume")]
+[JsonDerivedType(typeof(ShowImageCommand), "showImage")]
+[JsonDerivedType(typeof(HideImageCommand), "hideImage")]
 public abstract class ScreenCommandBase : IScreenCommand { }
 
 /// <summary>
@@ -105,6 +107,18 @@ public sealed class SetBackgroundVolumeCommand : ScreenCommandBase
 {
     public required float Volume { get; init; }
 }
+
+/// <summary>
+/// Puts a still on screen — an image ad, or the venue's own card while nothing is playing. It
+/// carries no duration because there is nothing here to time: no transcode is opened and no
+/// element is playing, so the host's clock is the only thing that decides when it comes down.
+/// </summary>
+public sealed class ShowImageCommand : ScreenCommandBase
+{
+    public required string Url { get; init; }
+}
+
+public sealed class HideImageCommand : ScreenCommandBase { }
 
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "$type")]
 [JsonDerivedType(typeof(ScreenPlaybackState), "playback")]

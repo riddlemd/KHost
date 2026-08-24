@@ -38,14 +38,18 @@ namespace KHost.Domain.Services
         {
             var opts = _options.CurrentValue;
             var (parsedTitle, parsedArtist) = GetTitleAndArtistFromFilename(filePath);
-            var probe = await TryProbeAsync(filePath);
+
+            // ffprobe has nothing to say about a still, and the host clock is what takes one down,
+            // so it gets a default length instead of the null that would make it unplayable.
+            var isStill = MediaFormats.IsImage(Path.GetExtension(filePath));
+            var probe = isStill ? null : await TryProbeAsync(filePath);
 
             var media = new Media
             {
                 FilePath = filePath,
                 Title = probe?.Title ?? parsedTitle,
                 Artist = probe?.Artist ?? parsedArtist ?? opts.FallbackArtistName,
-                Duration = probe?.Duration,
+                Duration = probe?.Duration ?? (isStill ? MediaFormats.DefaultImageDuration : null),
                 Format = Path.GetExtension(filePath).TrimStart('.').ToUpperInvariant(),
                 Status = MediaStatus.Ready,
                 DateAdded = DateTime.UtcNow,

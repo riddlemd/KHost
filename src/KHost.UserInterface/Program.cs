@@ -288,6 +288,7 @@ internal static class Program
         }).DisableAntiforgery();
 
         app.MapMediaStream();
+        app.MapMediaImages();
 
         // Point launched screen processes at this host's live listening address, so they
         // connect regardless of the (possibly dynamic, e.g. Aspire-assigned) port.
