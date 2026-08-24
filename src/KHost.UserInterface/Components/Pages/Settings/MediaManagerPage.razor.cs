@@ -224,14 +224,15 @@ public partial class MediaManagerPage : IAsyncDisposable
         await Task.CompletedTask;
     }
 
-    // The console says song; this page and the importer say media, so a row's type is named here
-    // rather than left as an enum value.
+    // Every member spelled out rather than a catch-all: under a column headed Type, a row has to
+    // say which type it is, and a new member must not quietly inherit another one's label.
     private static string DescribeType(MediaType type) => type switch
     {
+        MediaType.Karaoke => "Karaoke",
         MediaType.Video => "Video",
         MediaType.Audio => "Audio",
         MediaType.Image => "Image",
-        _ => "Song",
+        _ => type.ToString(),
     };
 
     private static string GetStatusBadgeClass(MediaStatus status) => MediaStatusDisplay.BadgeClass(status);
