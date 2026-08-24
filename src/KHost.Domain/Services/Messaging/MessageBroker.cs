@@ -41,6 +41,8 @@ public class MessageBroker : IMessageBroker
         });
     }
 
+    public void Announce<TMessage>(TMessage message) where TMessage : notnull => _ = PublishAsync(message);
+
     public async Task PublishAsync<TMessage>(TMessage message, CancellationToken cancellationToken = default)
         where TMessage : notnull
     {
