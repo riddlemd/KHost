@@ -4,6 +4,8 @@ Open-source karaoke hosting software built on **.NET 10**. KHost pairs a Blazor 
 
 The host transcodes each song once (FFmpeg → HLS) and serves the stream, so any number of screens — and a Chromecast receiver — play the same song on a shared timeline.
 
+Between singers it fills the room from break music playlists, and runs ad rolls in the gap after a performance — never over one.
+
 KHost runs on Windows, Linux, and macOS.
 
 ## Documentation
@@ -13,6 +15,7 @@ All documentation lives in the **[KHost wiki](https://github.com/riddlemd/KHost/
 - [Getting Started](https://github.com/riddlemd/KHost/wiki/Getting-Started) — prerequisites, running from source, first-run setup
 - [Configuration](https://github.com/riddlemd/KHost/wiki/Configuration) — settings reference
 - [Architecture](https://github.com/riddlemd/KHost/wiki/Architecture) — how the pieces fit together
+- [Break Music and Ads](https://github.com/riddlemd/KHost/wiki/Break-Music-and-Ads) — playlists, ad triggers, priority, volume
 - [Development](https://github.com/riddlemd/KHost/wiki/Development) and [Testing](https://github.com/riddlemd/KHost/wiki/Testing) — contributor workflow
 
 ## Quick start
