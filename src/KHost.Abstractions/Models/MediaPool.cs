@@ -75,6 +75,21 @@ public class MediaPoolEntry : RepositoryModel
 
     public Guid? MediaId { get; set; }
 
+    /// <summary>
+    /// Audio to play with this entry. Null means whatever the visual brings: a video's own track,
+    /// or silence for a still — and a silent ad leaves break music playing underneath it.
+    /// </summary>
+    public Guid? AudioMediaId { get; set; }
+
+    /// <summary>
+    /// Where in the audio to start. With <see cref="Duration"/> this trims a clip out of a longer
+    /// file without re-encoding it — the stream is simply opened at an offset.
+    /// </summary>
+    public TimeSpan? AudioStart { get; set; }
+
+    /// <summary>How long the entry runs. Null takes it from the media instead.</summary>
+    public TimeSpan? Duration { get; set; }
+
     public Guid? ChildPoolId { get; set; }
 
     public bool IsPool => ChildPoolId is not null;

@@ -49,6 +49,12 @@ public class PlaybackService : BaseService, IPlaybackService
     // The host-side transcode currently feeding the screens, if any.
     private MediaStreamSession? _stream;
 
+    // An ad's own audio track, which borrows the background channel from break music.
+    private MediaStreamSession? _adAudioStream;
+
+    // An ad's length, which is the composition's rather than any one file's.
+    private TimeSpan? _adDuration;
+
     private readonly ISingerQueueService _singerQueueService;
     private readonly IPerformanceService _performanceService;
     private readonly IVenuesService _venuesService;
@@ -168,19 +174,38 @@ public class PlaybackService : BaseService, IPlaybackService
     /// Plays media on the main channel that is nobody's turn. It ends without dequeuing or
     /// rotating: retiring a singer for an ad would cost them the song they are still waiting on.
     /// </summary>
-    public async Task<bool> PlayAdAsync(Media media)
+    /// <summary>The simple case: one file, its own length, whatever audio it carries.</summary>
+    public Task<bool> PlayAdAsync(Media media) => PlayAdAsync(new AdPlayback
     {
-        if (media.Status != MediaStatus.Ready)
+        Visual = media,
+        Duration = media.Duration ?? TimeSpan.Zero,
+    });
+
+    public async Task<bool> PlayAdAsync(AdPlayback ad)
+    {
+        if (ad.IsEmpty)
         {
-            Logger.LogWarning("Ad refused: media {MediaId} is {Status}, not Ready", media.Id, media.Status);
+            Logger.LogWarning("Ad refused: nothing to show and nothing to play");
             return false;
         }
 
-        // Nothing here is watching an ad the way a host watches a song, and the clock ends a
-        // performance by its duration — without one this would hold the main channel all night.
-        if (media.Duration is not { } duration || duration <= TimeSpan.Zero)
+        // Nothing here is watching an ad the way a host watches a song, and the clock ends one by
+        // its duration — without one this would hold the main channel all night.
+        if (ad.Duration <= TimeSpan.Zero)
         {
-            Logger.LogWarning("Ad refused: media {MediaId} has no duration", media.Id);
+            Logger.LogWarning("Ad refused: no duration");
+            return false;
+        }
+
+        if (ad.Visual is { Status: not MediaStatus.Ready } visualStatus)
+        {
+            Logger.LogWarning("Ad refused: visual {MediaId} is {Status}, not Ready", visualStatus.Id, visualStatus.Status);
+            return false;
+        }
+
+        if (ad.Audio is { Status: not MediaStatus.Ready } audioStatus)
+        {
+            Logger.LogWarning("Ad refused: audio {MediaId} is {Status}, not Ready", audioStatus.Id, audioStatus.Status);
             return false;
         }
 
@@ -191,47 +216,66 @@ public class PlaybackService : BaseService, IPlaybackService
             return false;
         }
 
-        var isStill = MediaFormats.IsImage(media.Format);
-
         ResetState();
 
-        // A still has no audio of its own, so the bed plays on underneath rather than leaving the
-        // room in silence. Anything that brings its own audio takes the room the way a song does.
-        if (!isStill)
+        // Only what the room can hear takes the room. A silent still leaves the bed playing under
+        // it rather than dropping the venue into fifteen seconds of nothing.
+        if (ad.HasOwnAudio)
             await _breakMusic.SuspendAsync();
 
-        CurrentMedia = media;
+        CurrentMedia = ad.Visual;
+        _adDuration = ad.Duration;
         IsPlayingAd = true;
         Position = TimeSpan.Zero;
 
-        Logger.LogInformation("Playing ad '{Title}'", media.Title);
-
-        if (isStill)
+        if (!await HasConnectedScreenAsync())
         {
-            // Refused here rather than through PlayAsync: a still opens no stream and drives no
-            // media element, so there is nothing for the play path to start.
-            if (!await HasConnectedScreenAsync())
+            Logger.LogWarning("Ad refused: no screens are connected");
+
+            await EndedAsync();
+            InvokeStateChanged();
+            return false;
+        }
+
+        Logger.LogInformation("Playing ad '{Title}'", ad.Visual?.Title ?? ad.Audio?.Title);
+
+        var playsOnMainChannel = ad.Visual is { } v && !MediaFormats.IsImage(v.Format);
+
+        if (playsOnMainChannel)
+        {
+            await SendToScreensAsync(new HideImageCommand());
+            await SendToScreensAsync(await BuildLoadCommandAsync(ad.Visual!, TimeSpan.Zero));
+        }
+        else if (ad.Visual is { } still)
+        {
+            await SendToScreensAsync(new ShowImageCommand { Url = _mediaStreams.BuildImageUrl(still.Id) });
+        }
+
+        // Opened at the offset rather than trimmed: a clip out of a longer file costs no re-encode,
+        // and the host clock stops it at the ad's duration.
+        if (ad.Audio is { } audio)
+        {
+            _adAudioStream = await _mediaStreams.OpenAsync(audio.FilePath, ad.AudioStart);
+
+            await SendToAudioScreenAsync(new LoadBackgroundCommand
             {
-                Logger.LogWarning("Ad refused: no screens are connected");
+                StreamUrl = _adAudioStream.PlaylistUrl,
+                AutoPlay = true,
+            });
+        }
 
-                await EndedAsync();
-                InvokeStateChanged();
-                return false;
-            }
+        InvokeStateChanged();
 
-            await SendToScreensAsync(new ShowImageCommand { Url = _mediaStreams.BuildImageUrl(media.Id) });
-
+        if (!playsOnMainChannel)
+        {
+            // A still or an audio-only spot drives no media element on the main channel, so there
+            // is nothing for the play path to start — the clock alone runs it out.
             State = PlaybackState.Playing;
             StartClock();
 
             InvokeStateChanged();
             return true;
         }
-
-        await SendToScreensAsync(new HideImageCommand());
-        await SendToScreensAsync(await BuildLoadCommandAsync(media, TimeSpan.Zero));
-
-        InvokeStateChanged();
 
         await PlayAsync();
 
@@ -624,6 +668,34 @@ public class PlaybackService : BaseService, IPlaybackService
         StreamStartOffset = _stream?.StartOffset ?? TimeSpan.Zero,
     };
 
+    private async Task CloseAdAudioStreamAsync()
+    {
+        var stream = _adAudioStream;
+        _adAudioStream = null;
+
+        if (stream is null) return;
+
+        try { await _mediaStreams.CloseAsync(stream.Id); }
+        catch (Exception ex) { Logger.LogWarning(ex, "Failed to close ad audio stream {SessionId}", stream.Id); }
+    }
+
+    /// <summary>The bed and an ad's own audio share one channel, and only the audible screen gets it.</summary>
+    private async Task SendToAudioScreenAsync(IScreenCommand command)
+    {
+        try
+        {
+            var screenId = await _screenCoordination.EnsureRolesAsync();
+
+            if (screenId is null) return;
+
+            await _screenServer.SendCommandAsync(screenId, command);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Failed to send {Command} to the audio screen", command.GetType().Name);
+        }
+    }
+
     private async Task CloseStreamAsync()
     {
         var stream = _stream;
@@ -651,6 +723,16 @@ public class PlaybackService : BaseService, IPlaybackService
         if (wasAd)
         {
             Logger.LogInformation("Ad finished");
+
+            _adDuration = null;
+
+            // Handed back before the bed is restored, or break music would reclaim the channel
+            // while the ad's own voiceover was still playing on it.
+            if (_adAudioStream is not null)
+            {
+                await SendToAudioScreenAsync(new StopBackgroundCommand());
+                await CloseAdAudioStreamAsync();
+            }
 
             // No dequeue and no rotation: an ad is nobody's turn, and there is no slot to unlock
             // because none was ever locked for it.
@@ -880,8 +962,14 @@ public class PlaybackService : BaseService, IPlaybackService
         PositionChanged?.Invoke(this, EventArgs.Empty);
     }
 
-    private bool HasPlaybackEnded() =>
-        CurrentMedia?.Duration is { } duration && Position >= duration;
+    private bool HasPlaybackEnded()
+    {
+        // An ad runs for the length its playlist entry gave it, which is not any one file's: a
+        // still has a default, and a voiceover may be a clip out of something far longer.
+        var duration = IsPlayingAd ? _adDuration : CurrentMedia?.Duration;
+
+        return duration is { } d && Position >= d;
+    }
 
     private static class AnalyticActivities
     {

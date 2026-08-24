@@ -60,6 +60,12 @@ public interface IPlaybackService : IDisposable
     /// of the queue still has their turn afterwards. False when it was refused or had nowhere to play.
     /// </summary>
     Task<bool> PlayAdAsync(Media media);
+
+    /// <summary>
+    /// The composed form: a visual, audio of its own, or both. An ad that brings audio takes the
+    /// room from break music; a silent still lets the bed play on underneath it.
+    /// </summary>
+    Task<bool> PlayAdAsync(AdPlayback ad);
     Task PlayAsync();
     Task PauseAsync();
     Task StopAsync();

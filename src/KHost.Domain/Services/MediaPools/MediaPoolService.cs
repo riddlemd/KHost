@@ -56,7 +56,7 @@ public class MediaPoolService : BaseRepositoryService<MediaPool, IMediaPoolRepos
         return true;
     }
 
-    public async Task<Guid?> SelectNextAsync(Guid poolId, Guid? venueId)
+    public async Task<MediaPoolEntry?> SelectNextAsync(Guid poolId, Guid? venueId)
     {
         var pool = await Repository.ReadWithEntriesAsync(poolId);
 
