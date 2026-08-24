@@ -229,6 +229,20 @@ public class MediaRepositoryFtsTests : IDisposable
         Assert.Equal("Chorus One", Assert.Single(result.Items).Title);
     }
 
+    // With no sort asked for, relevance IS the order. Titles chosen so bm25 and the default
+    // alphabetical sort disagree: fall back to the default and the best match comes back last.
+    [Fact]
+    public async Task SearchAsync_WithNoSort_ReturnsTheBestMatchFirst()
+    {
+        await SeedAsync(
+            MakeMedia("Aaa Chorus Number Twelve With Several More Trailing Words", "The Band"),
+            MakeMedia("Zzz Chorus", "The Band"));
+
+        var result = await _repository.SearchAsync("chorus");
+
+        Assert.Equal("Zzz Chorus", result.Items[0].Title);
+    }
+
     [Fact]
     public async Task SearchAsync_NoMatch_ReturnsEmptyResult()
     {
