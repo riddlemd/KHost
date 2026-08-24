@@ -237,6 +237,17 @@ internal static class Program
             throw;
         }
 
+        // After the plugins, so a provider one of them registered can be the venue's chosen one.
+        try
+        {
+            app.Services.GetRequiredService<IBreakMusicService>().InitializeAsync().GetAwaiter().GetResult();
+        }
+        catch (Exception ex)
+        {
+            // Not fatal: a venue with no break music set up is a venue that runs without it.
+            Log.Warning(ex, "Break music initialization failed");
+        }
+
         app.MapDefaultEndpoints();
         app.MapIPCServer();
         // Native form posts, not circuit calls: a cookie can only be issued on an HTTP

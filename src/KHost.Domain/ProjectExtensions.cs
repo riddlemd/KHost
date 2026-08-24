@@ -2,6 +2,7 @@
 using KHost.Abstractions.Services.IPC;
 using KHost.Domain.Services;
 using KHost.Domain.Services.AuthProviders;
+using KHost.Domain.Services.BreakMusic;
 using KHost.Domain.Services.MediaPools;
 using KHost.Domain.Services.MediaProviders;
 using KHost.Abstractions.Services.QueueRotation;
@@ -56,6 +57,8 @@ namespace KHost.Domain
             serviceCollection.AddSingleton<IPerformanceService, PerformanceService>();
             serviceCollection.AddSingleton<IMediaService, MediaService>();
             serviceCollection.AddSingleton<IMediaPoolService, MediaPoolService>();
+            serviceCollection.AddSingleton<IBreakMusicProvider, LibraryBreakMusicProvider>();
+            serviceCollection.AddSingleton<IBreakMusicService, BreakMusicService>();
             serviceCollection.AddSingleton<ILyricsService, LyricsService>();
             serviceCollection.AddSingleton<IPasswordHasher, Argon2PasswordHasher>();
             serviceCollection.AddSingleton<IAuthService, AuthService>();

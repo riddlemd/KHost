@@ -46,6 +46,16 @@ public class Venue : RepositoryModel
         // are ignored for missing JSON keys) — callers fall back to a default config.
         public QueueRotationConfig? QueueRotation { get; set; }
 
+        /// <summary>Which pool break music draws from. Null means the venue has not chosen one.</summary>
+        public Guid? BreakMusicPoolId { get; set; }
+
+        /// <summary><see cref="IBreakMusicProvider.SourceName"/>; null falls back to the built-in one.</summary>
+        public string? BreakMusicProvider { get; set; }
+
+        // Nullable for the same reason as QueueRotation: a stored row without this key reads as
+        // default, and an int would arrive as 0 — break music that plays silently.
+        public int? BreakMusicVolume { get; set; }
+
         /// <summary>Memberwise copy plus a deep copy of the one reference-type member.</summary>
         public VenueSettings Clone()
         {
