@@ -1,10 +1,10 @@
-namespace KHost.Abstractions.Messaging;
+namespace KHost.Plugins.Sdk.Messaging;
 
 /// <summary>
-/// In-process publish/subscribe between services. Publishing awaits every handler, which is the
-/// point of it: a C# event is void, so a publisher that needs to know its handlers finished — the
-/// gap after a performance, held open until whatever claims it has started — otherwise has to
-/// carry its own list of tasks to wait on.
+/// In-process publish/subscribe between the host's services and anything a plugin subscribes.
+/// Publishing awaits every handler, which is the point of it: a C# event is void, so a publisher
+/// that needs to know its handlers finished — the gap after a performance, held open until
+/// whatever claims it has started — otherwise has to carry its own list of tasks to wait on.
 /// </summary>
 public interface IMessageBroker
 {
