@@ -1,0 +1,87 @@
+.kh-downloads-manager {
+    &__section-title {
+        margin: 20px 12px 8px;
+        padding-bottom: 6px;
+        border-bottom: 1px solid var(--kh-border);
+        font-weight: 600;
+        text-transform: uppercase;
+        font-size: 0.8rem;
+        letter-spacing: 0.06em;
+        color: var(--kh-text-secondary);
+    }
+
+    &__table {
+        width: 100%;
+    }
+
+    &__info {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        min-width: 0;
+    }
+
+    &__title {
+        font-weight: 600;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    &__meta {
+        font-size: 0.85em;
+        color: var(--kh-text-muted);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    &__col--progress {
+        width: 200px;
+    }
+
+    &__col--started {
+        width: 140px;
+        white-space: nowrap;
+    }
+
+    &__col--state {
+        width: 110px;
+    }
+
+    &__col--actions {
+        width: 60px;
+    }
+
+    &__progress {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    // Height/radius/gradient match the Now Playing seek bar's track and fill so every progress
+    // indicator in the app reads the same, even though scoped component CSS keeps the two rules apart.
+    &__progress-track {
+        flex: 1;
+        min-width: 0;
+        height: 4px;
+        border-radius: 2px;
+        background: var(--kh-track-bg);
+        overflow: hidden;
+    }
+
+    &__progress-fill {
+        height: 100%;
+        background: linear-gradient(90deg, var(--kh-primary), var(--kh-primary-bright));
+        border-radius: 2px;
+        min-width: 4px;
+    }
+
+    &__progress-percent {
+        font-size: 0.8em;
+        color: var(--kh-text-muted);
+        min-width: 2.5em;
+        text-align: right;
+        flex-shrink: 0;
+    }
+}

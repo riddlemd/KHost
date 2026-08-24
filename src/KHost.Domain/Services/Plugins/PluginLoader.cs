@@ -18,11 +18,12 @@ public static class PluginLoader
 {
     public const string ManifestFileName = "manifest.json";
 
-    /// <summary>Interfaces a plugin assembly is scanned for; implementations are registered as singletons.</summary>
-    private static readonly Type[] ExtensionInterfaces =
+    /// <summary>Interfaces a plugin assembly is scanned for; implementations are registered as
+    /// singletons. The label is what the Plugins page shows a host the plugin provides.</summary>
+    private static readonly (Type Interface, string Capability)[] ExtensionInterfaces =
     [
-        typeof(IMediaProvider),
-        typeof(IQueueRotationMode),
+        (typeof(IMediaProvider), "Media provider"),
+        (typeof(IQueueRotationMode), "Queue rotation"),
     ];
 
     public static PluginsState ReadState(string cacheDirectory)
@@ -155,7 +156,7 @@ public static class PluginLoader
         var registered = 0;
         var storedValues = state.Settings.GetValueOrDefault(manifest.Id.ToString());
 
-        foreach (var extensionInterface in ExtensionInterfaces)
+        foreach (var (extensionInterface, capability) in ExtensionInterfaces)
         {
             foreach (var type in types.Where(t => t.IsClass && !t.IsAbstract && extensionInterface.IsAssignableFrom(t)))
             {
@@ -165,6 +166,9 @@ public static class PluginLoader
                     serviceProvider,
                     implementationType,
                     new PluginContext(manifest, storedValues, plugin, serviceProvider.GetRequiredService<IPluginLibrary>())));
+
+                if (!plugin.Capabilities.Contains(capability))
+                    plugin.Capabilities.Add(capability);
 
                 registered++;
             }

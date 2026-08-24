@@ -9,4 +9,7 @@ public record MediaImportRequest
     public string Artist { get; set; } = string.Empty;
     public TimeSpan? Duration { get; set; }
     public string Notes { get; set; } = string.Empty;
+
+    /// <summary>The provider's display name, shown on the host's Downloads page. Empty if unset.</summary>
+    public string Source { get; set; } = string.Empty;
 }

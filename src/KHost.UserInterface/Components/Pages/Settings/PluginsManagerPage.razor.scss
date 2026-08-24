@@ -1,5 +1,74 @@
+// The one control on this page that changes anything, so it has to read as a control rather than
+// as another badge. Lives here while the Plugins page is its only caller.
+.kh-switch {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.6em;
+    padding: 0;
+    background: none;
+    // The reset strips borders from every button; nothing to paint here on purpose.
+    border: 0;
+    cursor: pointer;
+    color: var(--kh-text-muted);
+    font-size: 0.78rem;
+
+    &__track {
+        position: relative;
+        width: 38px;
+        height: 21px;
+        flex: none;
+        border-radius: 999px;
+        background: var(--kh-track-bg);
+        border: 1px solid var(--kh-border-bright);
+        transition: background var(--kh-transition), border-color var(--kh-transition);
+
+        &::after {
+            content: "";
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            background: var(--kh-text-muted);
+            transition: transform var(--kh-transition), background var(--kh-transition);
+        }
+    }
+
+    // Reserves the width of the longer word so the badge beside it does not shift on toggle.
+    &__label {
+        min-width: 4.6em;
+        text-align: left;
+    }
+
+    &[aria-checked="true"] &__track {
+        background: var(--kh-primary);
+        border-color: var(--kh-primary-bright);
+
+        &::after {
+            transform: translateX(17px);
+            background: var(--kh-button-primary-text);
+        }
+    }
+
+    &:hover:not(:disabled) &__track {
+        border-color: var(--kh-primary-bright);
+    }
+
+    &:disabled {
+        opacity: 0.35;
+        cursor: default;
+    }
+
+    &:focus-visible {
+        outline: 2px solid var(--kh-border-bright);
+        outline-offset: 3px;
+        border-radius: var(--kh-radius);
+    }
+}
+
 .kh-plugins-manager {
-    &__restart-banner {
+    &__restart {
         display: flex;
         align-items: center;
         gap: 0.5em;
@@ -9,81 +78,254 @@
         border-bottom: 1px solid var(--kh-border);
     }
 
-    &__plugin {
-        padding: 12px;
+    &__row {
         border-top: 1px solid var(--kh-border);
 
         &:first-child {
             border-top: none;
         }
 
-        &__header {
-            display: flex;
-            align-items: center;
-            gap: 0.5em;
+        &--open {
+            background: var(--kh-primary-dim);
         }
+    }
 
-        &__name {
-            font-weight: 600;
-            color: var(--kh-text);
+    &__head {
+        display: flex;
+        align-items: center;
+        gap: 0.75em;
+        padding-right: 12px;
+
+        &:hover {
+            background: var(--kh-primary-subtle);
         }
+    }
 
-        &__toggle {
-            margin-left: auto;
+    &__disclosure {
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 10px 0 10px 12px;
+        background: none;
+        border: 0;
+        color: inherit;
+        text-align: left;
+        cursor: pointer;
+
+        &:focus-visible {
+            outline: 2px solid var(--kh-border-bright);
+            outline-offset: -2px;
         }
+    }
 
-        &__meta {
-            display: flex;
-            gap: 0.75em;
-            font-size: 0.9rem;
-            color: var(--kh-text-muted);
-        }
+    &__chevron {
+        display: inline-flex;
+        flex: none;
+        color: var(--kh-text-muted);
+        transition: transform var(--kh-transition);
+    }
 
-        &__author {
-            font-style: italic;
-        }
+    &__row--open &__chevron {
+        transform: rotate(90deg);
+    }
 
-        &__error,
-        &__warning {
-            display: flex;
-            align-items: center;
-            gap: 0.5em;
-            margin-top: 0.5em;
-            font-size: 0.9rem;
-        }
+    &__glyph {
+        width: 34px;
+        height: 34px;
+        flex: none;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: var(--kh-radius);
+        background: var(--kh-bg-elevated);
+        border: 1px solid var(--kh-border);
+        color: var(--kh-primary-bright);
+    }
 
-        &__error {
+    &__identity {
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+    }
+
+    &__title {
+        display: flex;
+        align-items: center;
+        gap: 0.4em;
+        flex-wrap: wrap;
+    }
+
+    &__name {
+        font-weight: 600;
+        color: var(--kh-text);
+    }
+
+    &__chip {
+        font-size: 0.72rem;
+        padding: 0.15em 0.5em;
+        border-radius: 4px;
+        white-space: nowrap;
+        color: var(--kh-text-secondary);
+        background: var(--kh-accent-subtle);
+        border: 1px solid var(--kh-border-bright);
+    }
+
+    &__unsaved {
+        font-size: 0.68rem;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        padding: 0.15em 0.5em;
+        border-radius: 4px;
+        color: var(--kh-warning);
+        background: var(--kh-warning-subtle);
+        border: 1px solid var(--kh-warning-border-subtle);
+    }
+
+    // Truncates rather than wrapping, so a long description cannot make one row twice the height
+    // of its neighbours and break the scan down the list.
+    &__sub {
+        min-width: 0;
+        font-size: 0.85rem;
+        color: var(--kh-text-muted);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    &__aside {
+        display: flex;
+        align-items: center;
+        gap: 0.75em;
+        flex: none;
+    }
+
+    &__panel {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75em;
+        // Indented to the identity column so the settings read as belonging to the row above.
+        padding: 4px 12px 14px 82px;
+    }
+
+    &__notice {
+        display: flex;
+        align-items: flex-start;
+        gap: 0.5em;
+        padding: 0.5em 0.75em;
+        border-radius: var(--kh-radius);
+        font-size: 0.88rem;
+
+        &--error {
             color: var(--kh-danger);
+            background: var(--kh-danger-bg-subtle);
+            border: 1px solid var(--kh-danger-border-subtle);
         }
 
-        &__warning {
+        &--warning {
             color: var(--kh-warning);
+            background: var(--kh-warning-subtle);
+            border: 1px solid var(--kh-warning-border-subtle);
+        }
+    }
+
+    &__settings {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+        gap: 0.9em 1.25em;
+    }
+
+    &__field {
+        display: flex;
+        flex-direction: column;
+        gap: 0.35em;
+        min-width: 0;
+    }
+
+    &__label {
+        font-size: 0.78rem;
+        font-weight: 600;
+        color: var(--kh-text-secondary);
+    }
+
+    &__toggle {
+        display: flex;
+        align-items: center;
+        gap: 0.6em;
+        font-size: 0.88rem;
+        color: var(--kh-text-secondary);
+    }
+
+    &__secret {
+        display: flex;
+        align-items: center;
+        gap: 0.5em;
+        flex-wrap: wrap;
+
+        .kh-form-control {
+            flex: 1;
+            min-width: 8em;
+        }
+    }
+
+    &__secret-state {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4em;
+        font-size: 0.88rem;
+        color: var(--kh-success);
+    }
+
+    &__foot {
+        display: flex;
+        align-items: center;
+        gap: 0.6em;
+        padding-top: 0.75em;
+        border-top: 1px solid var(--kh-border);
+    }
+
+    &__path {
+        margin-right: auto;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4em;
+        padding: 0;
+        background: none;
+        border: 0;
+        cursor: pointer;
+        font-size: 0.8rem;
+        color: var(--kh-text-muted);
+
+        &:hover {
+            color: var(--kh-primary-bright);
+        }
+    }
+
+    &__saved {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4em;
+        font-size: 0.85rem;
+        color: var(--kh-success);
+    }
+
+    // The settings page has no splitter between it and the viewport, so it answers to the window.
+    // Measured against the console's own narrow point: below this the indent costs more than it
+    // buys, and the row's description is the first thing that can go.
+    @media (max-width: 720px) {
+        &__panel {
+            padding-left: 12px;
         }
 
-        &__settings {
-            display: flex;
-            flex-direction: column;
-            align-items: flex-start;
-            gap: 0.75em;
-            margin-top: 0.75em;
+        &__sub {
+            display: none;
         }
 
-        &__setting {
-            display: flex;
-            flex-direction: column;
-            gap: 0.25em;
-            width: min(100%, 24rem);
-        }
-
-        // A row, not another item in the column: on the column's main axis the button's fixed
-        // height is shrinkable, which is what left it squatter than the inputs above it.
-        // Stretched because the form aligns its children to the start, so this would otherwise
-        // be only as wide as the button and have nothing to push it against.
-        &__actions {
-            align-self: stretch;
-            display: flex;
-            justify-content: flex-end;
-            margin-top: 0.25em;
+        &__glyph {
+            display: none;
         }
     }
 }

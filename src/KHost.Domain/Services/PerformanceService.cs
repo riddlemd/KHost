@@ -12,7 +12,7 @@ public class PerformanceService : BaseRepositoryService<Performance, IPerformanc
     private readonly IMediaService _mediaService;
     private readonly IVenuesService _venuesService;
     private readonly IInteractionDispatcher _interactions;
-    private readonly IPluginImportCancellation _pluginImportCancellation;
+    private readonly IDownloadsService _downloadsService;
 
     public PerformanceService(
         ILogger<PerformanceService> logger,
@@ -20,13 +20,13 @@ public class PerformanceService : BaseRepositoryService<Performance, IPerformanc
         IMediaService mediaService,
         IVenuesService venuesService,
         IInteractionDispatcher interactions,
-        IPluginImportCancellation pluginImportCancellation)
+        IDownloadsService downloadsService)
         : base(logger, repository)
     {
         _mediaService = mediaService;
         _venuesService = venuesService;
         _interactions = interactions;
-        _pluginImportCancellation = pluginImportCancellation;
+        _downloadsService = downloadsService;
     }
 
     // No gate service: removing a queued performance is what a dequeue IS, so killing an
@@ -43,7 +43,7 @@ public class PerformanceService : BaseRepositoryService<Performance, IPerformanc
         {
             var media = await _mediaService.ReadAsync(removedMediaId);
             if (media?.Status == MediaStatus.Downloading)
-                await _pluginImportCancellation.CancelImportAsync(removedMediaId);
+                await _downloadsService.CancelAsync(removedMediaId);
         }
 
         return deleted;

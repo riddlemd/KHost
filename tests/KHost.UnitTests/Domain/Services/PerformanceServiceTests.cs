@@ -16,7 +16,7 @@ public class PerformanceServiceTests
     private readonly IMediaService _mediaService = Substitute.For<IMediaService>();
     private readonly IVenuesService _venuesService = Substitute.For<IVenuesService>();
     private readonly IInteractionDispatcher _interactions = Substitute.For<IInteractionDispatcher>();
-    private readonly IPluginImportCancellation _pluginImportCancellation = Substitute.For<IPluginImportCancellation>();
+    private readonly IDownloadsService _downloadsService = Substitute.For<IDownloadsService>();
     private readonly Venue _venue = new() { Name = "Test Venue" };
     private readonly PerformanceService _service;
 
@@ -137,7 +137,7 @@ public class PerformanceServiceTests
 
         _venuesService.ReadSelectedVenueAsync().Returns(_venue);
 
-        _service = new PerformanceService(_logger, _repository, _mediaService, _venuesService, _interactions, _pluginImportCancellation);
+        _service = new PerformanceService(_logger, _repository, _mediaService, _venuesService, _interactions, _downloadsService);
     }
 
     [Fact]
@@ -200,7 +200,7 @@ public class PerformanceServiceTests
 
         await _service.DeleteAsync(performance.Id);
 
-        await _pluginImportCancellation.Received(1).CancelImportAsync(performance.MediaId);
+        await _downloadsService.Received(1).CancelAsync(performance.MediaId);
     }
 
     [Fact]
@@ -212,7 +212,7 @@ public class PerformanceServiceTests
 
         await _service.DeleteAsync(performance.Id);
 
-        await _pluginImportCancellation.DidNotReceive().CancelImportAsync(Arg.Any<Guid>());
+        await _downloadsService.DidNotReceive().CancelAsync(Arg.Any<Guid>());
     }
 
     [Fact]
@@ -234,7 +234,7 @@ public class PerformanceServiceTests
     {
         await _service.DeleteAsync(Guid.NewGuid());
 
-        await _pluginImportCancellation.DidNotReceive().CancelImportAsync(Arg.Any<Guid>());
+        await _downloadsService.DidNotReceive().CancelAsync(Arg.Any<Guid>());
     }
 
     // A dedicated repository substitute, not the shared one: reconfiguring the shared repository's
@@ -250,12 +250,12 @@ public class PerformanceServiceTests
         repository.DeleteAsync(performance.Id).Returns(false);
         _mediaService.ReadAsync(performance.MediaId).Returns(new Media { Id = performance.MediaId, FilePath = "/downloads/song.mp4", Title = "Song", Status = MediaStatus.Downloading });
 
-        var service = new PerformanceService(_logger, repository, _mediaService, _venuesService, _interactions, _pluginImportCancellation);
+        var service = new PerformanceService(_logger, repository, _mediaService, _venuesService, _interactions, _downloadsService);
 
         var deleted = await service.DeleteAsync(performance.Id);
 
         Assert.False(deleted);
-        await _pluginImportCancellation.DidNotReceive().CancelImportAsync(Arg.Any<Guid>());
+        await _downloadsService.DidNotReceive().CancelAsync(Arg.Any<Guid>());
     }
 
     [Fact]

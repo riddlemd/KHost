@@ -31,6 +31,13 @@ public interface IPluginLibrary
     Task<ImportTicket> BeginImportAsync(MediaImportRequest request);
 
     /// <summary>
+    /// Reports progress on a download begun with <see cref="BeginImportAsync"/>, shown on the
+    /// host's Downloads page. Fraction is clamped to [0,1]; an unknown or already-settled media id
+    /// is a silent no-op. Callers may report at any cadence — the host throttles its own updates.
+    /// </summary>
+    Task ReportDownloadProgressAsync(Guid mediaId, double fraction);
+
+    /// <summary>
     /// Marks a row begun with <see cref="BeginImportAsync"/> Ready — the download finished and the
     /// file is playable.
     /// </summary>

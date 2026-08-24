@@ -160,6 +160,8 @@ internal static class Program
         builder.Services.AddSingleton<IAppSettingsService>(sp => new AppSettingsService(
             sp.GetRequiredService<IConfiguration>(), sp.GetRequiredService<IUsersService>()));
         builder.Services.AddSingleton<IThemeService, ThemeService>();
+        builder.Services.AddSingleton<IAppInfoService, AppInfoService>();
+        builder.Services.AddSingleton<IExternalLinkService, ExternalLinkService>();
         builder.Services.AddSingleton<IDialogService, DialogService>();
         builder.Services.AddSingleton<IStartupRedirectProvider, SetupRedirectProvider>();
         builder.Services.AddSingleton<IStartupRedirectProvider, CliStartupRedirectProvider>();
@@ -322,7 +324,7 @@ internal static class Program
         // covers whatever it leaves Downloading — but the cancel itself must still fire, or a
         // yt-dlp process outlives the host it was downloading for.
         app.Lifetime.ApplicationStopping.Register(() =>
-            app.Services.GetRequiredService<IPluginImportCancellation>().CancelAllImports());
+            app.Services.GetRequiredService<IDownloadsService>().CancelAll());
 
         // Screens we started are ours to close, and nothing else does it: on macOS closing the
         // window tears the process down inside Photino, so container disposal never runs and the

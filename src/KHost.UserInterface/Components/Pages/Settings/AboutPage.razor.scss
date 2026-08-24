@@ -1,0 +1,119 @@
+.kh-about {
+    max-width: 720px;
+    width: 100%;
+    margin-inline: auto;
+
+    .kh-card__body {
+        padding: 0 1em 1em;
+    }
+
+    &__brand {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-top: 12px;
+
+        ::deep .kh-app__logo-icon {
+            font-size: 32px;
+        }
+
+        ::deep .kh-app__logo-text {
+            font-size: 26px;
+        }
+    }
+
+    &__meta {
+        margin: 8px 0 0;
+        font-size: 0.85rem;
+        color: var(--kh-text-secondary);
+    }
+
+    &__links {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin: 16px 0 4px;
+    }
+
+    // A button, not an <a>: it never navigates the shell — it hands the URL to
+    // IExternalLinkService, which shells out to the OS's own browser.
+    &__link {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4em;
+        padding: 4px 10px;
+        border: 1px solid var(--kh-border-bright);
+        border-radius: var(--kh-radius);
+        color: var(--kh-text-secondary);
+        font-size: 0.8rem;
+
+        &:hover {
+            background: var(--kh-primary-subtle);
+            border-color: var(--kh-primary);
+            color: var(--kh-text);
+        }
+    }
+
+    // The section header doubles as the expand/collapse control — collapsed by default, since
+    // both bodies run long enough to push the links and each other off the initial view.
+    &__toggle {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        width: 100%;
+        margin: 20px 0 8px;
+        padding-bottom: 6px;
+        border-bottom: 1px solid var(--kh-border);
+        font-weight: 600;
+        text-transform: uppercase;
+        font-size: 0.8rem;
+        letter-spacing: 0.06em;
+        color: var(--kh-text-secondary);
+        text-align: left;
+
+        &:hover {
+            color: var(--kh-text);
+        }
+    }
+
+    &__panel {
+        margin-top: 8px;
+    }
+
+    &__license-name {
+        margin-bottom: 8px;
+        font-weight: 600;
+    }
+
+    // Scrolls in place — the card and page stay put — for text long enough that scrolling the
+    // whole settings page would lose the section headings above it.
+    &__scroll-text {
+        max-height: 320px;
+        overflow-y: auto;
+        margin: 0;
+        padding: 12px;
+        border: 1px solid var(--kh-border);
+        border-radius: var(--kh-radius);
+        background: var(--kh-bg-input);
+        font-family: var(--kh-font-mono, monospace);
+        font-size: 0.8rem;
+        line-height: 1.5;
+        white-space: pre-wrap;
+        word-break: break-word;
+    }
+
+    &__license-detail {
+        margin-top: 12px;
+
+        summary {
+            cursor: pointer;
+            font-size: 0.85rem;
+            color: var(--kh-text-secondary);
+        }
+
+        .kh-about__scroll-text {
+            margin-top: 8px;
+            max-height: 240px;
+        }
+    }
+}
