@@ -15,6 +15,6 @@ public sealed class MediaSearchOptions
     /// <summary>What every read gets when the caller supplies nothing.</summary>
     public static MediaSearchOptions Default { get; } = new();
 
-    /// <summary>Every kind, for the pages that manage media rather than play them.</summary>
+    /// <summary>Every type, for the pages that manage media rather than play them.</summary>
     public static MediaSearchOptions AllTypes { get; } = new() { Types = null };
 }

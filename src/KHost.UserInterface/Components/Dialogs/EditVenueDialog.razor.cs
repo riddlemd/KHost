@@ -84,7 +84,7 @@ public partial class EditVenueDialog
     {
 
         // Stills only: anything else handed to the screen as a card is a URL that serves nothing.
-        // Read by kind rather than paged, or a card past the first page would never be offered.
+        // Read by type rather than paged, or a card past the first page would never be offered.
         _images = await Media.ReadAllByTypesAsync(MediaType.Image);
     }
 

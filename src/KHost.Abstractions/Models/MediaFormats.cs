@@ -2,7 +2,7 @@ namespace KHost.Abstractions.Models;
 
 /// <summary>
 /// Whether a row is a still rather than something that plays. Kept apart from
-/// <see cref="MediaType"/>: kind is what the file is for, this is how it reaches the screen.
+/// <see cref="MediaType"/>: type is what the file is, this is how it reaches the screen.
 /// A still opens no transcode, so the host clock alone decides how long it stays up.
 /// </summary>
 public static class MediaFormats
