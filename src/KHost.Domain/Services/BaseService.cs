@@ -1,10 +1,9 @@
-using KHost.Abstractions.Services;
 using KHost.Plugins.Sdk.Messaging;
 using Microsoft.Extensions.Logging;
 
 namespace KHost.Domain.Services
 {
-    public abstract class BaseService : IKHostService
+    public abstract class BaseService
     {
         protected BaseService(ILogger logger, IMessageBroker? broker = null)
         {
@@ -22,14 +21,10 @@ namespace KHost.Domain.Services
         /// </summary>
         protected virtual object? StateChangedMessage => null;
 
-        public event EventHandler? StateChanged;
-
+        // Not awaited: this says "redraw", and a publisher that waited for every component to
+        // finish rendering would stall the show to do it.
         protected void InvokeStateChanged()
         {
-            StateChanged?.Invoke(this, EventArgs.Empty);
-
-            // Not awaited, matching the event it stands beside: this says "redraw", and a publisher
-            // that waited for every component to finish rendering would stall the show to do it.
             if (Broker is { } broker && StateChangedMessage is { } message)
                 _ = broker.PublishAsync(message);
         }

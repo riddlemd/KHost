@@ -2,6 +2,9 @@ using KHost.Abstractions.Models;
 using KHost.Abstractions.Repositories;
 using Microsoft.Extensions.Logging;
 using KHost.Domain.Services;
+using KHost.Domain.Services.Messaging;
+using KHost.Plugins.Sdk.Messaging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace KHost.UnitTests.Domain.Services;
 
@@ -11,16 +14,22 @@ public class BaseRepositoryServiceTests
     {
     }
 
-    public sealed class TestRepositoryService(ILogger logger, IRepository<TestEntity> repository)
-        : BaseRepositoryService<TestEntity, IRepository<TestEntity>>(logger, repository);
+    public sealed class TestRepositoryService(ILogger logger, IRepository<TestEntity> repository, IMessageBroker broker)
+        : BaseRepositoryService<TestEntity, IRepository<TestEntity>>(logger, repository, broker)
+    {
+        protected override object? StateChangedMessage => new TestEntityChanged();
+    }
+
+    public sealed record TestEntityChanged;
 
     private readonly ILogger _logger = Substitute.For<ILogger>();
     private readonly IRepository<TestEntity> _repository = Substitute.For<IRepository<TestEntity>>();
+    private readonly MessageBroker _broker = new(NullLogger<MessageBroker>.Instance);
     private readonly TestRepositoryService _service;
 
     public BaseRepositoryServiceTests()
     {
-        _service = new TestRepositoryService(_logger, _repository);
+        _service = new TestRepositoryService(_logger, _repository, _broker);
     }
 
     [Fact]
@@ -28,7 +37,7 @@ public class BaseRepositoryServiceTests
     {
         _repository.DeleteAsync(Arg.Any<Guid>()).Returns(Task.FromResult(true));
         int count = 0;
-        _service.StateChanged += (_, _) => count++;
+        using var subscription = _broker.Subscribe<TestEntityChanged>(_ => count++);
 
         await _service.DeleteAsync(Guid.NewGuid());
 
@@ -40,7 +49,7 @@ public class BaseRepositoryServiceTests
     {
         _repository.DeleteAsync(Arg.Any<Guid>()).Returns(Task.FromResult(false));
         int count = 0;
-        _service.StateChanged += (_, _) => count++;
+        using var subscription = _broker.Subscribe<TestEntityChanged>(_ => count++);
 
         await _service.DeleteAsync(Guid.NewGuid());
 

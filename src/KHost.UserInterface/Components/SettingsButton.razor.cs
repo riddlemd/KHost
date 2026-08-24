@@ -1,3 +1,4 @@
+using KHost.UserInterface.Messaging;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using KHost.Plugins.Sdk.Messaging;
@@ -80,15 +81,14 @@ public partial class SettingsButton : IDisposable
         _groups = [.. (await VisiblePagesAsync()).GroupBy(page => page.Group)];
 
         if (VenuesService is not null)
-        {
             await RefreshVenuesAsync();
 
-            if (Broker is not null)
-                _subscriptions.Add(Broker.Subscribe<VenuesChanged>(_ => OnServiceChanged(null, EventArgs.Empty)));
-        }
+        if (Broker is null) return;
 
-        if (ThemeService is not null)
-            ThemeService.StateChanged += OnServiceChanged;
+        if (VenuesService is not null)
+            _subscriptions.Add(Broker.Subscribe<VenuesChanged>(_ => OnServiceChanged(null, EventArgs.Empty)));
+
+        _subscriptions.Add(Broker.Subscribe<ThemeChanged>(_ => OnServiceChanged(null, EventArgs.Empty)));
     }
 
     private async Task RefreshVenuesAsync()
@@ -229,7 +229,5 @@ public partial class SettingsButton : IDisposable
     public void Dispose()
     {
         _subscriptions.Dispose();
-
-        if (ThemeService is not null) ThemeService.StateChanged -= OnServiceChanged;
     }
 }
