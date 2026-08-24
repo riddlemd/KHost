@@ -25,7 +25,7 @@ public partial class AddMediaFileDialog
     /// <summary>Driven off the path as it is typed, so the option appears only for a still.</summary>
     private bool _isImage => MediaFormats.IsImage(Path.GetExtension(_path.Trim().Trim('"')));
 
-    private MediaKind _kind = MediaKind.Audio;
+    private MediaType _kind = MediaType.Audio;
     private string? _error;
     private bool _busy;
     private bool _prevIsOpen;
@@ -35,7 +35,7 @@ public partial class AddMediaFileDialog
         if (IsOpen && !_prevIsOpen)
         {
             _path = "";
-            _kind = MediaKind.Audio;
+            _kind = MediaType.Audio;
             _scaling = ImageScaling.Fit;
             _error = null;
             _busy = false;
@@ -62,7 +62,7 @@ public partial class AddMediaFileDialog
             return;
         }
 
-        // FilePath is unique across every kind, so this catches a file already in the library as a
+        // FilePath is unique across every type, so this catches a file already in the library as a
         // song rather than letting the insert die on the index.
         if (await MediaRepository.FindByFilePathAsync(path) is not null)
         {
@@ -72,7 +72,7 @@ public partial class AddMediaFileDialog
 
         // A backing track has no singer on it and is often not the original recording, so it is a
         // song to queue and nothing else. The .cdg beside it is what gives it away.
-        if (_kind != MediaKind.Karaoke && MediaFormats.IsKaraokeTrack(path))
+        if (_kind != MediaType.Karaoke && MediaFormats.IsKaraokeTrack(path))
         {
             _error = "That is a karaoke backing track, so it can only be added as karaoke.";
             return;
@@ -83,7 +83,7 @@ public partial class AddMediaFileDialog
         try
         {
             var media = await Parser.LoadAndParseAsync(path);
-            media.Kind = _kind;
+            media.Type = _kind;
             media.ImageScaling = _scaling;
 
             await Media.CreateAsync(media);

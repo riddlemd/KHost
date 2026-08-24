@@ -71,7 +71,7 @@ public partial class MediaManagerPage : IAsyncDisposable
 
         // The manager is the one page that manages files rather than plays them, so it is the one
         // place break music and ads are listed alongside songs.
-        _paginatedResult = await MediaService.SearchAsync(_searchQuery, _currentPage, _pageSize, sort, MediaSearchOptions.AllKinds);
+        _paginatedResult = await MediaService.SearchAsync(_searchQuery, _currentPage, _pageSize, sort, MediaSearchOptions.AllTypes);
     }
 
     private void OnSortColumnClicked(string column)
@@ -224,13 +224,13 @@ public partial class MediaManagerPage : IAsyncDisposable
         await Task.CompletedTask;
     }
 
-    // The console says song; this page and the importer say media, so a row's purpose is named
-    // here rather than left as an enum value.
-    private static string DescribeKind(MediaKind kind) => kind switch
+    // The console says song; this page and the importer say media, so a row's type is named here
+    // rather than left as an enum value.
+    private static string DescribeType(MediaType type) => type switch
     {
-        MediaKind.Video => "Video",
-        MediaKind.Audio => "Audio",
-        MediaKind.Image => "Image",
+        MediaType.Video => "Video",
+        MediaType.Audio => "Audio",
+        MediaType.Image => "Image",
         _ => "Song",
     };
 

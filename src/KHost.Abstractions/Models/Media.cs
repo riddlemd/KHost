@@ -10,7 +10,7 @@ public enum MediaStatus { Unknown, Ready, Downloading, Processing, Broken }
 /// What a file is, not what it is for: an ad is composed in a playlist out of these, so there is
 /// no ad kind. Karaoke is the one the queue plays — an mp4 or a cdg+mp3 pair with no singer on it.
 /// </remarks>
-public enum MediaKind
+public enum MediaType
 {
     Karaoke,
     Video,
@@ -43,7 +43,7 @@ public class Media : RepositoryModel
     public required string FilePath { get; set; }
     public TimeSpan? Duration { get; set; }
     public MediaStatus Status { get; set; }
-    public MediaKind Kind { get; set; }
+    public MediaType Type { get; set; }
 
     /// <summary>Read only for a still. Fit is the safe answer: nothing is cropped or distorted.</summary>
     public ImageScaling ImageScaling { get; set; }

@@ -65,7 +65,7 @@ public class LibraryBreakMusicProviderTests : IDisposable
             Title = title,
             Artist = "Someone",
             Status = status,
-            Kind = MediaKind.Audio,
+            Type = MediaType.Audio,
         };
 
         _pools.SelectNextAsync(_poolId, Arg.Any<Guid?>())

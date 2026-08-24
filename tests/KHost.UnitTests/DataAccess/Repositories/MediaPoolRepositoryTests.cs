@@ -20,7 +20,7 @@ public class MediaPoolRepositoryTests : IDisposable
         GC.SuppressFinalize(this);
     }
 
-    private async Task<Media> SeedMediaAsync(string title, MediaKind kind)
+    private async Task<Media> SeedMediaAsync(string title, MediaType type)
     {
         var media = new Media
         {
@@ -30,7 +30,7 @@ public class MediaPoolRepositoryTests : IDisposable
             Artist = "Tester",
             Format = "MP3",
             Status = MediaStatus.Ready,
-            Kind = kind,
+            Type = type,
         };
 
         await _database.SeedAsync(media);
@@ -58,8 +58,8 @@ public class MediaPoolRepositoryTests : IDisposable
     public async Task ReadWithEntriesAsync_ReturnsEntriesInPositionOrder()
     {
         var pool = await SeedPoolAsync("Bed");
-        var first = await SeedMediaAsync("First", MediaKind.Audio);
-        var second = await SeedMediaAsync("Second", MediaKind.Audio);
+        var first = await SeedMediaAsync("First", MediaType.Audio);
+        var second = await SeedMediaAsync("Second", MediaType.Audio);
 
         await _repository.ReplaceEntriesAsync(pool.Id,
         [
@@ -79,8 +79,8 @@ public class MediaPoolRepositoryTests : IDisposable
     public async Task ReplaceEntriesAsync_KeepsTheWholeComposition()
     {
         var pool = await SeedPoolAsync("Spots", PoolPurpose.Ads);
-        var still = await SeedMediaAsync("Card", MediaKind.Image);
-        var voice = await SeedMediaAsync("Voiceover", MediaKind.Audio);
+        var still = await SeedMediaAsync("Card", MediaType.Image);
+        var voice = await SeedMediaAsync("Voiceover", MediaType.Audio);
 
         await _repository.ReplaceEntriesAsync(pool.Id,
         [
@@ -109,7 +109,7 @@ public class MediaPoolRepositoryTests : IDisposable
     public async Task ReplaceEntriesAsync_AssignsPositionsFromTheGivenOrder()
     {
         var pool = await SeedPoolAsync("Bed");
-        var media = await SeedMediaAsync("Track", MediaKind.Audio);
+        var media = await SeedMediaAsync("Track", MediaType.Audio);
 
         await _repository.ReplaceEntriesAsync(pool.Id,
         [
@@ -125,8 +125,8 @@ public class MediaPoolRepositoryTests : IDisposable
     public async Task ReplaceEntriesAsync_RemovesTheEntriesItReplaced()
     {
         var pool = await SeedPoolAsync("Bed");
-        var oldTrack = await SeedMediaAsync("Old", MediaKind.Audio);
-        var newTrack = await SeedMediaAsync("New", MediaKind.Audio);
+        var oldTrack = await SeedMediaAsync("Old", MediaType.Audio);
+        var newTrack = await SeedMediaAsync("New", MediaType.Audio);
 
         await _repository.ReplaceEntriesAsync(pool.Id, [new MediaPoolEntry { MediaId = oldTrack.Id }]);
         await _repository.ReplaceEntriesAsync(pool.Id, [new MediaPoolEntry { MediaId = newTrack.Id }]);
@@ -170,7 +170,7 @@ public class MediaPoolRepositoryTests : IDisposable
     public async Task DeletingMedia_RemovesItsPoolEntries()
     {
         var pool = await SeedPoolAsync("Bed");
-        var media = await SeedMediaAsync("Doomed", MediaKind.Audio);
+        var media = await SeedMediaAsync("Doomed", MediaType.Audio);
 
         await _repository.ReplaceEntriesAsync(pool.Id, [new MediaPoolEntry { MediaId = media.Id }]);
 
@@ -189,7 +189,7 @@ public class MediaPoolRepositoryTests : IDisposable
     public async Task DeletingAPool_RemovesItsOwnEntries()
     {
         var pool = await SeedPoolAsync("Bed");
-        var media = await SeedMediaAsync("Track", MediaKind.Audio);
+        var media = await SeedMediaAsync("Track", MediaType.Audio);
 
         await _repository.ReplaceEntriesAsync(pool.Id, [new MediaPoolEntry { MediaId = media.Id }]);
         await _repository.DeleteAsync(pool.Id);

@@ -82,9 +82,9 @@
                                     <td class="kh-table__cell--fill" title="@media.FilePath">@media.Title</td>
                                     <td>@media.Artist</td>
                                     <td>
-                                        @if (media.Kind != MediaKind.Karaoke)
+                                        @if (media.Type != MediaType.Karaoke)
                                         {
-                                            <span class="kh-badge kh-badge--secondary">@DescribeKind(media.Kind)</span>
+                                            <span class="kh-badge kh-badge--secondary">@DescribeType(media.Type)</span>
                                         }
                                         else
                                         {

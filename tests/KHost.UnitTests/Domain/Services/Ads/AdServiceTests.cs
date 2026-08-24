@@ -67,7 +67,7 @@ public class AdServiceTests : IDisposable
             FilePath = "/media/spot.mp4",
             Title = "Happy Hour",
             Status = MediaStatus.Ready,
-            Kind = MediaKind.Video,
+            Type = MediaType.Video,
             Duration = TimeSpan.FromSeconds(20),
         };
 
@@ -92,7 +92,7 @@ public class AdServiceTests : IDisposable
             FilePath = $"/media/{title}",
             Title = title,
             Status = MediaStatus.Ready,
-            Kind = MediaKind.Video,
+            Type = MediaType.Video,
             Format = format,
             Duration = duration,
         };

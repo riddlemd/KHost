@@ -38,8 +38,8 @@ public class LocalMediaProviderTests
 
                 // Mirrors MediaRepository.ApplySearchFilters, so the kind and status filters are
                 // exercised here rather than assumed.
-                if (options?.Kind is { } kind)
-                    filtered = [.. filtered.Where(m => m.Kind == kind)];
+                if (options?.Type is { } kind)
+                    filtered = [.. filtered.Where(m => m.Type == kind)];
 
                 var statuses = options?.Statuses;
                 if (statuses?.Count > 0)
