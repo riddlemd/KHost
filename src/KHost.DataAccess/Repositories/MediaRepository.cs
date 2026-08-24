@@ -1,7 +1,6 @@
 using System.Diagnostics;
 using System.Globalization;
 using System.Linq.Expressions;
-using System.Text;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Repositories;
 using KHost.DataAccess.Contexts;
@@ -15,7 +14,10 @@ internal class MediaRepository : BaseRepository<Media>, IMediaRepository
 {
     private const int TrigramLength = 3;
 
-    private static readonly char[] _ftsMetaChars = ['"', '*', ':', '^', '(', ')', '+', '-'];
+    // Only the quote. Every other FTS5 operator character is inert inside a quoted phrase, and
+    // stripping them instead made a hyphenated title unsearchable by its own name: "Track-004"
+    // became "track004", which matches no trigram in "track-004".
+    private const char FtsQuote = '"';
 
     // Linux filesystems are case-sensitive; Windows and default macOS volumes are not. Folding case
     // on Linux would treat Song.mp4 and song.mp4 as the same file and silently drop one on import.
@@ -345,15 +347,7 @@ internal class MediaRepository : BaseRepository<Media>, IMediaRepository
         // matches by being reduced with the same rules, not by either side being clever.
         var folded = Folder(query);
 
-        var sanitized = new StringBuilder(query.Length);
-
-        foreach (var ch in folded)
-        {
-            if (Array.IndexOf(_ftsMetaChars, ch) < 0)
-                sanitized.Append(ch);
-        }
-
-        var tokens = sanitized.ToString()
+        var tokens = folded
             .Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
         // The trigram index cannot represent a term shorter than three characters, so a query with
@@ -361,6 +355,10 @@ internal class MediaRepository : BaseRepository<Media>, IMediaRepository
         if (tokens.Length == 0 || Array.Exists(tokens, token => token.Length < TrigramLength))
             return null;
 
-        return string.Join(' ', tokens.Select(t => $"\"{t}\""));
+        // Each token becomes a quoted phrase, so punctuation a host typed is matched literally
+        // rather than read as syntax. A quote inside one is escaped by doubling it, which is how
+        // FTS5 spells a literal quote — dropping it would end the phrase early and change the query.
+        return string.Join(' ', tokens.Select(token =>
+            $"{FtsQuote}{token.Replace("\"", "\"\"")}{FtsQuote}"));
     }
 }

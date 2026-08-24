@@ -130,6 +130,41 @@ public class MediaRepositoryFtsTests : IDisposable
         Assert.Equal("Bohemian Rhapsody", result.Items[0].Title);
     }
 
+    // Punctuation inside a title is indexed by the trigram tokenizer, so a host typing the title
+    // as they see it must find it. Stripping the hyphen made "Track-004" search for "track004",
+    // which matches no trigram in "track-004" — the row was only reachable by typing "Track".
+    [Fact]
+    public async Task SearchAsync_HyphenatedTitle_IsFoundByTypingTheHyphen()
+    {
+        await SeedAsync(MakeMedia("Track-004", "Someone"));
+
+        var result = await _repository.SearchAsync("Track-004");
+
+        Assert.Equal("Track-004", Assert.Single(result.Items).Title);
+    }
+
+    [Fact]
+    public async Task SearchAsync_ArtistWithAHyphen_IsFoundByTypingIt()
+    {
+        await SeedAsync(MakeMedia("99 Problems", "Jay-Z"));
+
+        var result = await _repository.SearchAsync("Jay-Z");
+
+        Assert.Equal("99 Problems", Assert.Single(result.Items).Title);
+    }
+
+    // Quoting rather than stripping means an operator character is literal, not syntax: this must
+    // find nothing rather than throwing an FTS5 syntax error.
+    [Fact]
+    public async Task SearchAsync_QueryOfOperatorCharacters_DoesNotThrow()
+    {
+        await SeedDefaultLibraryAsync();
+
+        var result = await _repository.SearchAsync("\"OR\" AND (x)");
+
+        Assert.NotNull(result);
+    }
+
     [Fact]
     public async Task SearchAsync_NoMatch_ReturnsEmptyResult()
     {
