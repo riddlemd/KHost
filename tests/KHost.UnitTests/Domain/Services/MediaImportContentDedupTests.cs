@@ -7,6 +7,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using KHost.Domain.Services;
+using KHost.Domain.Services.Messaging;
 
 namespace KHost.UnitTests.Domain.Services;
 
@@ -55,7 +56,8 @@ public class MediaImportContentDedupTests : IDisposable
             _repository,
             mediaService,
             new MediaFingerprintService(NullLogger<MediaFingerprintService>.Instance),
-            analytics);
+            analytics,
+            new MessageBroker(NullLogger<MessageBroker>.Instance));
     }
 
     [Fact]

@@ -1,7 +1,12 @@
-﻿using KHost.Abstractions.Services;
+﻿using KHost.Plugins.Sdk.Messaging;
+using KHost.Abstractions.Services;
 using KHost.Abstractions.Services.IPC;
 using KHost.Domain.Services;
+using KHost.Domain.Services.Messaging;
 using KHost.Domain.Services.AuthProviders;
+using KHost.Domain.Services.Ads;
+using KHost.Domain.Services.BreakMusic;
+using KHost.Domain.Services.MediaPools;
 using KHost.Domain.Services.MediaProviders;
 using KHost.Abstractions.Services.QueueRotation;
 using KHost.Domain.Services.PasswordHashers;
@@ -40,6 +45,7 @@ namespace KHost.Domain
                 .BindConfiguration(PluginLibrary.ServiceOptions.SectionName);
 
             serviceCollection.AddSingleton(TimeProvider.System);
+            serviceCollection.AddSingleton<IMessageBroker, MessageBroker>();
             serviceCollection.AddSingleton<IFlashService, FlashService>();
         serviceCollection.AddSingleton<IMediaFileParsingService, MediaFileParsingService>();
             serviceCollection.AddSingleton<IMediaFingerprintService, MediaFingerprintService>();
@@ -54,6 +60,10 @@ namespace KHost.Domain
             serviceCollection.AddSingleton<IUsersService, UsersService>();
             serviceCollection.AddSingleton<IPerformanceService, PerformanceService>();
             serviceCollection.AddSingleton<IMediaService, MediaService>();
+            serviceCollection.AddSingleton<IMediaPoolService, MediaPoolService>();
+            serviceCollection.AddSingleton<IBreakMusicProvider, LibraryBreakMusicProvider>();
+            serviceCollection.AddSingleton<IBreakMusicService, BreakMusicService>();
+            serviceCollection.AddSingleton<IAdService, AdService>();
             serviceCollection.AddSingleton<ILyricsService, LyricsService>();
             serviceCollection.AddSingleton<IPasswordHasher, Argon2PasswordHasher>();
             serviceCollection.AddSingleton<IAuthService, AuthService>();

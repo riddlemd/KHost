@@ -46,6 +46,18 @@ public class Venue : RepositoryModel
         // are ignored for missing JSON keys) — callers fall back to a default config.
         public QueueRotationConfig? QueueRotation { get; set; }
 
+        /// <summary>Shown on screen whenever nothing is playing. Null leaves the screen blank.</summary>
+        public Guid? BrandingImageMediaId { get; set; }
+
+        /// <summary>The one ad playlist that may fire. Null means this venue runs no ads.</summary>
+        public Guid? AdPoolId { get; set; }
+
+        /// <summary>Which pool break music draws from. Null means the venue has not chosen one.</summary>
+        public Guid? BreakMusicPoolId { get; set; }
+
+        /// <summary><see cref="IBreakMusicProvider.SourceName"/>; null falls back to the built-in one.</summary>
+        public string? BreakMusicProvider { get; set; }
+
         /// <summary>Memberwise copy plus a deep copy of the one reference-type member.</summary>
         public VenueSettings Clone()
         {

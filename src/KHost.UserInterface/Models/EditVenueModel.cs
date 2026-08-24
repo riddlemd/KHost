@@ -27,4 +27,11 @@ public class EditVenueModel
     public bool PromptBeforeRemovingPerformance { get; set; } = true;
     public bool ClearQueueOnClose { get; set; } = true;
     public QueueRotationConfig QueueRotation { get; set; } = new();
+
+    /// <summary>Empty is "none chosen", which is what a select with a blank first option posts.</summary>
+    public Guid? BreakMusicPoolId { get; set; }
+    public Guid? AdPoolId { get; set; }
+    public Guid? BrandingImageMediaId { get; set; }
+    public string? BreakMusicProvider { get; set; }
+
 }

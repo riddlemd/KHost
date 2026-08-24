@@ -2,6 +2,8 @@ namespace KHost.Domain.Services;
 
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
+using KHost.Plugins.Sdk.Messaging;
+using KHost.Plugins.Sdk.Messaging.Messages;
 
 /// <summary>
 /// Holds the current message and nothing else. How long it stays is a matter for whatever shows it:
@@ -10,16 +12,23 @@ using KHost.Abstractions.Services;
 /// </summary>
 public class FlashService : IFlashService
 {
+    private readonly IMessageBroker _broker;
+
     private FlashMessage? _current;
 
-    public event EventHandler? StateChanged;
 
     public FlashMessage? Current => _current;
 
-    public void Show(string text, FlashKind kind = FlashKind.Success)
+    public FlashService(IMessageBroker broker)
     {
-        _current = new FlashMessage(text, kind);
-        StateChanged?.Invoke(this, EventArgs.Empty);
+        _broker = broker;
+    }
+
+    public void Show(string text, FlashType type = FlashType.Success)
+    {
+        _current = new FlashMessage(text, type);
+        if (_broker is { } broker)
+            _ = broker.PublishAsync(new FlashChanged());
     }
 
     public void Dismiss()
@@ -28,6 +37,7 @@ public class FlashService : IFlashService
         // callers racing must not both announce the same withdrawal.
         if (Interlocked.Exchange(ref _current, null) is null) return;
 
-        StateChanged?.Invoke(this, EventArgs.Empty);
+        if (_broker is { } broker)
+            _ = broker.PublishAsync(new FlashChanged());
     }
 }

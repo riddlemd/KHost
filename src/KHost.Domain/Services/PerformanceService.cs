@@ -3,6 +3,8 @@ using KHost.Abstractions.Interactions.Requests;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Repositories;
 using KHost.Abstractions.Services;
+using KHost.Plugins.Sdk.Messaging;
+using KHost.Plugins.Sdk.Messaging.Messages;
 using Microsoft.Extensions.Logging;
 
 namespace KHost.Domain.Services;
@@ -10,6 +12,7 @@ namespace KHost.Domain.Services;
 public class PerformanceService : BaseRepositoryService<Performance, IPerformancesRepository>, IPerformanceService
 {
     private readonly IMediaService _mediaService;
+    private readonly IMessageBroker _broker;
     private readonly IVenuesService _venuesService;
     private readonly IInteractionDispatcher _interactions;
     private readonly IDownloadsService _downloadsService;
@@ -20,9 +23,11 @@ public class PerformanceService : BaseRepositoryService<Performance, IPerformanc
         IMediaService mediaService,
         IVenuesService venuesService,
         IInteractionDispatcher interactions,
-        IDownloadsService downloadsService)
-        : base(logger, repository)
+        IDownloadsService downloadsService,
+        IMessageBroker broker)
+        : base(logger, repository, broker, new PerformancesChanged())
     {
+        _broker = broker;
         _mediaService = mediaService;
         _venuesService = venuesService;
         _interactions = interactions;
@@ -92,7 +97,7 @@ public class PerformanceService : BaseRepositoryService<Performance, IPerformanc
 
         Logger.LogInformation("Enqueued media {MediaId} for singer {SingerId} at position {Position}", performance.MediaId, performance.SingerId, nextPosition);
 
-        InvokeStateChanged();
+        _broker.Announce(new PerformancesChanged());
 
         return performance;
     }
@@ -155,7 +160,7 @@ public class PerformanceService : BaseRepositoryService<Performance, IPerformanc
             Logger.LogWarning("Performance {PerformanceId} not found for singer {SingerId}", performanceId, singerId);
         }
 
-        InvokeStateChanged();
+        _broker.Announce(new PerformancesChanged());
     }
 
     public async Task DeleteAllQueuedAsync()
@@ -164,10 +169,8 @@ public class PerformanceService : BaseRepositoryService<Performance, IPerformanc
 
         Logger.LogInformation("All queued performances deleted");
 
-        InvokeStateChanged();
+        _broker.Announce(new PerformancesChanged());
     }
-
-
 
     public async Task MoveUpInQueueAsync(Guid singerId, Guid performanceId)
     {
@@ -188,7 +191,7 @@ public class PerformanceService : BaseRepositoryService<Performance, IPerformanc
 
             Logger.LogDebug("Moved performance {PerformanceId} up from position {OldPosition} to {NewPosition}", performanceId, prevPerf.QueuePosition, perf.QueuePosition);
 
-            InvokeStateChanged();
+            _broker.Announce(new PerformancesChanged());
         }
     }
 
@@ -211,7 +214,7 @@ public class PerformanceService : BaseRepositoryService<Performance, IPerformanc
 
             Logger.LogDebug("Moved performance {PerformanceId} down from position {OldPosition} to {NewPosition}", performanceId, nextPerf.QueuePosition, perf.QueuePosition);
 
-            InvokeStateChanged();
+            _broker.Announce(new PerformancesChanged());
         }
     }
 
@@ -248,7 +251,7 @@ public class PerformanceService : BaseRepositoryService<Performance, IPerformanc
 
         Logger.LogDebug("Moved performance {PerformanceId} from index {OldIndex} to {NewIndex}", performanceId, idx, target);
 
-        InvokeStateChanged();
+        _broker.Announce(new PerformancesChanged());
     }
 
     public async Task MoveToEndOfQueueAsync(Guid singerId, Guid performanceId)
@@ -269,7 +272,7 @@ public class PerformanceService : BaseRepositoryService<Performance, IPerformanc
 
             Logger.LogDebug("Moved performance {PerformanceId} to end of queue at position {Position}", performanceId, perf.QueuePosition);
 
-            InvokeStateChanged();
+            _broker.Announce(new PerformancesChanged());
         }
     }
 }

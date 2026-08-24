@@ -1,3 +1,4 @@
+using KHost.Abstractions.Models;
 using System.Text.Json;
 using KHost.Abstractions.MediaPlayer;
 using Microsoft.Extensions.Logging;
@@ -26,16 +27,18 @@ internal sealed class StreamMediaPlayer : IMediaPlayer
     /// <summary>This machine's clock plus this equals the host's. Near zero on the host's own box.</summary>
     private TimeSpan _clockOffset;
 
+    private string? _backgroundUrl;
+    private bool _backgroundPlaying;
+    private float _backgroundVolume = 1f;
+    private string? _stillUrl;
+
     /// <summary>Host-clock instant <see cref="_position"/> was sampled at, per the page's stamp.</summary>
     private DateTime? _sampledAtUtc;
 
-    // Never raised: the browser owns rendering. Declared only to satisfy IMediaPlayer.
-#pragma warning disable CS0067
-    public event EventHandler<IMediaPlayer.FrameData>? FrameAvailable;
-#pragma warning restore CS0067
-
     public event EventHandler? PlaybackEnded;
-    public event EventHandler<string>? ErrorOccurred;
+
+    /// <summary>The background track played out. How the host knows to pick the next one.</summary>
+    public event EventHandler? BackgroundEnded;
 
     /// <summary>Set by the host once the window exists; delivers a JSON command to the page.</summary>
     public Action<string>? SendToBrowser { get; set; }
@@ -106,6 +109,82 @@ internal sealed class StreamMediaPlayer : IMediaPlayer
         });
     }
 
+    /// <summary>
+    /// Points the second channel at a stream. No timeline and no correction: only the screen the
+    /// room hears is sent any of this, so there is no group for it to stay in step with.
+    /// </summary>
+    public void LoadBackground(string url, bool autoPlay)
+    {
+        lock (_lock)
+        {
+            _backgroundUrl = url;
+            _backgroundPlaying = autoPlay;
+        }
+
+        _logger.LogInformation("Loading background stream {Url}", url);
+        Send(new { type = "bg-load", url, autoplay = autoPlay });
+    }
+
+    public void PlayBackground()
+    {
+        lock (_lock) _backgroundPlaying = true;
+        Send(new { type = "bg-play" });
+    }
+
+    public void PauseBackground()
+    {
+        lock (_lock) _backgroundPlaying = false;
+        Send(new { type = "bg-pause" });
+    }
+
+    public void StopBackground(TimeSpan? fadeDuration = null)
+    {
+        lock (_lock)
+        {
+            _backgroundUrl = null;
+            _backgroundPlaying = false;
+        }
+
+        Send(new { type = "bg-stop", fadeMs = fadeDuration?.TotalMilliseconds ?? 0 });
+    }
+
+    public float BackgroundVolume
+    {
+        get { lock (_lock) return _backgroundVolume; }
+        set
+        {
+            lock (_lock) _backgroundVolume = value;
+            Send(new { type = "bg-volume", value });
+        }
+    }
+
+    public string? BackgroundUrl { get { lock (_lock) return _backgroundUrl; } }
+    public bool IsBackgroundPlaying { get { lock (_lock) return _backgroundPlaying; } }
+
+    /// <summary>
+    /// Puts a still up. Nothing is opened and nothing plays, so the host clock is the only thing
+    /// that takes it down again.
+    /// </summary>
+    public void ShowImage(string url, ImageScaling scaling)
+    {
+        lock (_lock) _stillUrl = url;
+
+        _logger.LogInformation("Showing still {Url} scaled {Scaling}", url, scaling);
+
+        // Lowercased here rather than in the page: the page should not have to know the enum's
+        // spelling, only the CSS word it maps to.
+        Send(new { type = "show-image", url, scaling = scaling.ToString().ToLowerInvariant() });
+    }
+
+    public void HideImage()
+    {
+        lock (_lock) _stillUrl = null;
+
+        Send(new { type = "hide-image" });
+    }
+
+    public string? StillUrl { get { lock (_lock) return _stillUrl; } }
+
     /// <summary>Blanks the picture. Playback continues, so the screen stays on the timeline.</summary>
     public void SetVideoEnabled(bool enabled)
     {
@@ -121,17 +200,15 @@ internal sealed class StreamMediaPlayer : IMediaPlayer
     {
         _logger.LogWarning("Host {State}", lost ? "lost" : "back");
 
-        if (lost) Pause();
+        // The bed is paused with the song: nothing here can pick the next track or stop this one
+        // while the host is away, so leaving it running would strand it playing to an empty desk.
+        if (lost)
+        {
+            Pause();
+            PauseBackground();
+        }
+
         Send(new { type = "hostLost", lost });
-    }
-
-    /// <summary>Unused: IMediaPlayer declares it, but the host only ever sends a stream URL.</summary>
-    public Task LoadAsync(string filePath, CancellationToken cancellationToken = default)
-    {
-        _logger.LogError("Cannot load '{FilePath}': this screen only plays host streams", filePath);
-        ErrorOccurred?.Invoke(this, "screen requires a host stream URL");
-
-        return Task.CompletedTask;
     }
 
     public void Play() => Send(new { type = "play" });
@@ -187,10 +264,16 @@ internal sealed class StreamMediaPlayer : IMediaPlayer
                     PlaybackEnded?.Invoke(this, EventArgs.Empty);
                     return true;
 
+                // Kept off the song's state on purpose: routing this through "ended" would run the
+                // singer's performance to completion because a bed track finished.
+                case "bg-ended":
+                    lock (_lock) _backgroundPlaying = false;
+                    BackgroundEnded?.Invoke(this, EventArgs.Empty);
+                    return true;
+
                 case "error":
                     var text = root.TryGetProperty("message", out var m) ? m.GetString() ?? "unknown" : "unknown";
                     _logger.LogError("Player error: {Message}", text);
-                    ErrorOccurred?.Invoke(this, text);
                     return true;
 
                 default:

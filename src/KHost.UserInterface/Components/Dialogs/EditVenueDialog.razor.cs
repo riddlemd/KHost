@@ -1,4 +1,5 @@
 using KHost.Abstractions.Models;
+using KHost.Abstractions.Services;
 using KHost.UserInterface.Models;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Forms;
@@ -20,6 +21,10 @@ public partial class EditVenueDialog
     [Parameter] public EventCallback OnClose { get; set; }
     [Parameter] public EventCallback OnOpen { get; set; }
 
+    [Inject] private IMediaService Media { get; set; } = default!;
+
+    private IReadOnlyList<Media> _images = [];
+
     private bool _isNew;
     private EditVenueModel _model = new();
     private EditContext _editContext = default!;
@@ -31,7 +36,7 @@ public partial class EditVenueDialog
         _editContext = new EditContext(_model);
     }
 
-    protected override void OnParametersSet()
+    protected override async Task OnParametersSetAsync()
     {
         if (IsOpen && !_prevIsOpen)
         {
@@ -58,10 +63,29 @@ public partial class EditVenueDialog
                     ClearQueueOnClose = Venue.Settings.ClearQueueOnClose,
                     // Clone so Cancel discards rotation edits along with the rest of the model.
                     QueueRotation = Venue.Settings.QueueRotation?.Clone() ?? new(),
+                    BreakMusicPoolId = Venue.Settings.BreakMusicPoolId,
+                    AdPoolId = Venue.Settings.AdPoolId,
+                    BrandingImageMediaId = Venue.Settings.BrandingImageMediaId,
+                    BreakMusicProvider = Venue.Settings.BreakMusicProvider,
+
                 };
             _editContext = new EditContext(_model);
+
+            await LoadChoicesAsync();
         }
         _prevIsOpen = IsOpen;
+    }
+
+    /// <summary>
+    /// Read when the dialog opens rather than held: a playlist added on the manager page while
+    /// this venue was last edited would otherwise be missing from the list.
+    /// </summary>
+    private async Task LoadChoicesAsync()
+    {
+
+        // Stills only: anything else handed to the screen as a card is a URL that serves nothing.
+        // Read by kind rather than paged, or a card past the first page would never be offered.
+        _images = await Media.ReadAllByTypesAsync(MediaType.Image);
     }
 
     private async Task SubmitAsync()
@@ -86,6 +110,12 @@ public partial class EditVenueDialog
         venue.Settings.PromptBeforeRemovingPerformance = _model.PromptBeforeRemovingPerformance;
         venue.Settings.ClearQueueOnClose = _model.ClearQueueOnClose;
         venue.Settings.QueueRotation = _model.QueueRotation;
+        // Round-tripped rather than edited here: the Break Music and Ads managers own these, and
+        // saving a venue from this dialog must not wipe what they set.
+        venue.Settings.BreakMusicPoolId = _model.BreakMusicPoolId;
+        venue.Settings.AdPoolId = _model.AdPoolId;
+        venue.Settings.BrandingImageMediaId = _model.BrandingImageMediaId;
+        venue.Settings.BreakMusicProvider = _model.BreakMusicProvider;
 
         await OnSave.InvokeAsync(venue);
 

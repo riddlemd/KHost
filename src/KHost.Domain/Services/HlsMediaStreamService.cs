@@ -166,6 +166,9 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, ID
         foreach (var session in snapshot) session.Dispose();
     }
 
+    public string BuildImageUrl(Guid mediaId)
+        => $"{_options.BaseAddress.TrimEnd('/')}/media/image/{mediaId}";
+
     public string? ResolveArtifact(string sessionId, string fileName)
     {
         // Anything that is not a bare file name is rejected before it reaches the filesystem.

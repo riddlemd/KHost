@@ -2,6 +2,8 @@ using KHost.Abstractions.Exceptions;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using KHost.Abstractions.Services.IPC;
+using KHost.Plugins.Sdk.Messaging;
+using KHost.Plugins.Sdk.Messaging.Messages;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -27,6 +29,7 @@ public class PlaybackService : BaseService, IPlaybackService
     // callers assign and the loser's Timer is unreachable — it ticks, and drives a second position
     // clock and a second round of panel queries, until the process ends.
     private readonly Lock _clockLock = new();
+    private readonly IMessageBroker _broker;
     private Timer? _timer;
 
     // A tick that outruns the interval must not overlap the next: two in flight both see the song
@@ -49,6 +52,12 @@ public class PlaybackService : BaseService, IPlaybackService
     // The host-side transcode currently feeding the screens, if any.
     private MediaStreamSession? _stream;
 
+    // An ad's own audio track, which borrows the background channel from break music.
+    private MediaStreamSession? _adAudioStream;
+
+    // An ad's length, which is the composition's rather than any one file's.
+    private TimeSpan? _adDuration;
+
     private readonly ISingerQueueService _singerQueueService;
     private readonly IPerformanceService _performanceService;
     private readonly IVenuesService _venuesService;
@@ -57,12 +66,18 @@ public class PlaybackService : BaseService, IPlaybackService
     private readonly IMediaStreamService _mediaStreams;
     private readonly IScreenCoordinationService _screenCoordination;
     private readonly ICastService _cast;
+    private readonly IBreakMusicService _breakMusic;
+    private readonly IMediaService _mediaService;
     private readonly ServiceOptions _options;
 
     public event EventHandler? PositionChanged;
+    public event EventHandler<PerformanceEndedEventArgs>? PerformanceEnded;
 
     public Performance? CurrentPerformance { get; private set; }
     public Media? CurrentMedia { get; private set; }
+
+    /// <summary>Whether the main channel is carrying an ad rather than a singer's song.</summary>
+    public bool IsPlayingAd { get; private set; }
     public PlaybackState State { get; private set; } = PlaybackState.Stopped;
     public TimeSpan Position { get; private set; }
     public Guid? CurrentlyPerformingUserId { get; private set; }
@@ -78,9 +93,13 @@ public class PlaybackService : BaseService, IPlaybackService
         IMediaStreamService mediaStreams,
         IScreenCoordinationService screenCoordination,
         ICastService cast,
-        IOptions<ServiceOptions> options)
+        IBreakMusicService breakMusic,
+        IMediaService mediaService,
+        IOptions<ServiceOptions> options,
+        IMessageBroker broker)
         : base(logger)
     {
+        _broker = broker;
         _singerQueueService = singerQueueService;
         _performanceService = performanceService;
         _venuesService = venuesService;
@@ -89,6 +108,8 @@ public class PlaybackService : BaseService, IPlaybackService
         _mediaStreams = mediaStreams;
         _screenCoordination = screenCoordination;
         _cast = cast;
+        _breakMusic = breakMusic;
+        _mediaService = mediaService;
         _options = options.Value;
 
         _screenServer.ScreenConnected += OnScreenConnected;
@@ -128,6 +149,18 @@ public class PlaybackService : BaseService, IPlaybackService
 
         ResetState();
 
+        // A song takes the room back from an ad still running. The still comes down with the card
+        // below, but an ad's own audio is on the background channel, which nothing else clears.
+        if (IsPlayingAd)
+            await CancelAdAsync();
+
+        // The venue card is only for when nothing is playing.
+        await SendToScreensAsync(new HideImageCommand());
+
+        // On load rather than on play: the host lines the next singer up while the room is still
+        // listening to the bed, and a song that starts over the top of it is two songs at once.
+        await _breakMusic.SuspendAsync();
+
         CurrentPerformance = performance;
         CurrentMedia = media;
         Position = TimeSpan.Zero;
@@ -142,12 +175,134 @@ public class PlaybackService : BaseService, IPlaybackService
 
         await SendToScreensAsync(await BuildLoadCommandAsync(media, TimeSpan.Zero));
 
-        InvokeStateChanged();
+        _broker.Announce(new PlaybackChanged());
+    }
+
+    /// <summary>
+    /// Plays media on the main channel that is nobody's turn. It ends without dequeuing or
+    /// rotating: retiring a singer for an ad would cost them the song they are still waiting on.
+    /// </summary>
+    /// <summary>The simple case: one file, its own length, whatever audio it carries.</summary>
+    public Task<bool> PlayAdAsync(Media media) => PlayAdAsync(new AdPlayback
+    {
+        Visual = media,
+        Duration = media.Duration ?? TimeSpan.Zero,
+    });
+
+    public async Task<bool> PlayAdAsync(AdPlayback ad)
+    {
+        if (ad.IsEmpty)
+        {
+            Logger.LogWarning("Ad refused: nothing to show and nothing to play");
+            return false;
+        }
+
+        // Nothing here is watching an ad the way a host watches a song, and the clock ends one by
+        // its duration — without one this would hold the main channel all night.
+        if (ad.Duration <= TimeSpan.Zero)
+        {
+            Logger.LogWarning("Ad refused: no duration");
+            return false;
+        }
+
+        if (ad.Visual is { Status: not MediaStatus.Ready } visualStatus)
+        {
+            Logger.LogWarning("Ad refused: visual {MediaId} is {Status}, not Ready", visualStatus.Id, visualStatus.Status);
+            return false;
+        }
+
+        if (ad.Audio is { Status: not MediaStatus.Ready } audioStatus)
+        {
+            Logger.LogWarning("Ad refused: audio {MediaId} is {Status}, not Ready", audioStatus.Id, audioStatus.Status);
+            return false;
+        }
+
+        // Never over a singer. An ad waits for the gap rather than cutting a performance short.
+        if (CurrentPerformance is not null)
+        {
+            Logger.LogWarning("Ad refused: a performance is loaded");
+            return false;
+        }
+
+        ResetState();
+
+        // Only what the room can hear takes the room. A silent still leaves the bed playing under
+        // it rather than dropping the venue into fifteen seconds of nothing.
+        if (ad.HasOwnAudio)
+            await _breakMusic.SuspendAsync();
+
+        CurrentMedia = ad.Visual;
+        _adDuration = ad.Duration;
+        IsPlayingAd = true;
+        Position = TimeSpan.Zero;
+
+        if (!await HasConnectedScreenAsync())
+        {
+            Logger.LogWarning("Ad refused: no screens are connected");
+
+            await EndedAsync();
+            _broker.Announce(new PlaybackChanged());
+            return false;
+        }
+
+        Logger.LogInformation("Playing ad '{Title}'", ad.Visual?.Title ?? ad.Audio?.Title);
+
+        var playsOnMainChannel = ad.Visual is { } v && !MediaFormats.IsImage(v.Format);
+
+        if (playsOnMainChannel)
+        {
+            await SendToScreensAsync(new HideImageCommand());
+            await SendToScreensAsync(await BuildLoadCommandAsync(ad.Visual!, TimeSpan.Zero));
+        }
+        else if (ad.Visual is { } still)
+        {
+            await SendToScreensAsync(new ShowImageCommand { Url = _mediaStreams.BuildImageUrl(still.Id), Scaling = still.ImageScaling });
+        }
+
+        // Opened at the offset rather than trimmed: a clip out of a longer file costs no re-encode,
+        // and the host clock stops it at the ad's duration.
+        if (ad.Audio is { } audio)
+        {
+            _adAudioStream = await _mediaStreams.OpenAsync(audio.FilePath, ad.AudioStart);
+
+            await SendToAudioScreenAsync(new LoadBackgroundCommand
+            {
+                StreamUrl = _adAudioStream.PlaylistUrl,
+                AutoPlay = true,
+            });
+        }
+
+        _broker.Announce(new PlaybackChanged());
+
+        if (!playsOnMainChannel)
+        {
+            // A still or an audio-only spot drives no media element on the main channel, so there
+            // is nothing for the play path to start — the clock alone runs it out.
+            State = PlaybackState.Playing;
+            StartClock();
+
+            _broker.Announce(new PlaybackChanged());
+            return true;
+        }
+
+        await PlayAsync();
+
+        if (State == PlaybackState.Playing)
+            return true;
+
+        // Refused — with no screen there is nothing to run the clock down and clear this, so the
+        // ad would hold the main channel and keep the bed suspended behind it.
+        await EndedAsync();
+
+        _broker.Announce(new PlaybackChanged());
+
+        return false;
     }
 
     public async Task PlayAsync()
     {
-        if (CurrentPerformance is null || State == PlaybackState.Playing) return;
+        // Media rather than performance: an ad is loaded the same way and has no singer.
+        if (CurrentMedia is null || State == PlaybackState.Playing) return;
 
         // Playing during a stop's fade supersedes it, but the screens have already been told to
         // fade out and drop the media — so they need it handed back before being told to play.
@@ -161,7 +316,7 @@ public class PlaybackService : BaseService, IPlaybackService
             return;
         }
 
-        CurrentlyPerformingUserId = CurrentPerformance.SingerId;
+        CurrentlyPerformingUserId = CurrentPerformance?.SingerId;
 
         // Leaving Stopping here is what tells an in-flight StopAsync to abandon its completion.
         State = PlaybackState.Playing;
@@ -170,7 +325,7 @@ public class PlaybackService : BaseService, IPlaybackService
 
         _analytics.RecordPlaybackStateTransition(PlaybackState.Playing);
 
-        Logger.LogInformation("Playback started for user {UserId}", CurrentPerformance.SingerId);
+        Logger.LogInformation("Playback started for user {UserId}", CurrentPerformance?.SingerId);
 
         if (supersedesStop && CurrentMedia is { } resumed)
         {
@@ -189,7 +344,7 @@ public class PlaybackService : BaseService, IPlaybackService
         // which instant to start on.
         await PublishTimelineAsync(isPlaying: true, scheduleAhead: true);
 
-        InvokeStateChanged();
+        _broker.Announce(new PlaybackChanged());
     }
 
     public async Task SeekAsync(TimeSpan position)
@@ -218,7 +373,7 @@ public class PlaybackService : BaseService, IPlaybackService
         if (wasPlaying)
             StartClock();
 
-        InvokeStateChanged();
+        _broker.Announce(new PlaybackChanged());
     }
 
     private static TimeSpan Clamp(TimeSpan position, TimeSpan? duration)
@@ -244,7 +399,7 @@ public class PlaybackService : BaseService, IPlaybackService
         await CastAsync(c => c.PauseAsync());
         await PublishTimelineAsync(isPlaying: false);
 
-        InvokeStateChanged();
+        _broker.Announce(new PlaybackChanged());
 
         return;
     }
@@ -266,7 +421,7 @@ public class PlaybackService : BaseService, IPlaybackService
 
         Logger.LogInformation("Playback stopping (fade={Fade})", fade);
 
-        InvokeStateChanged();
+        _broker.Announce(new PlaybackChanged());
 
         await SendToScreensAsync(new StopCommand { FadeDuration = fade });
         await CastAsync(c => c.StopAsync());
@@ -286,7 +441,7 @@ public class PlaybackService : BaseService, IPlaybackService
 
         await EndedAsync();
 
-        InvokeStateChanged();
+        _broker.Announce(new PlaybackChanged());
     }
 
     public void Dispose()
@@ -325,8 +480,25 @@ public class PlaybackService : BaseService, IPlaybackService
         try
         {
             var media = CurrentMedia;
-            if (media is null)
+
+            // A still sits on the screen rather than in a stream, so there is nothing to reload —
+            // and reloading would try to open a transcode for a picture. It just has to be put up
+            // again on the screen that has arrived. Keyed on the format rather than on it being an
+            // ad: what matters is that the thing on screen is a picture, whatever put it there.
+            if (media is not null && MediaFormats.IsImage(media.Format))
+            {
+                await SendToScreensAsync(new ShowImageCommand { Url = _mediaStreams.BuildImageUrl(media.Id), Scaling = media.ImageScaling });
                 return;
+            }
+
+            // Nothing is playing, so the joiner gets the venue's card rather than the bare
+            // placeholder. An audio-only ad lands here too: it holds no picture of its own, so the
+            // card is exactly what should be on screen behind it.
+            if (media is null)
+            {
+                await ShowIdleCardAsync();
+                return;
+            }
 
             // A screen reconnecting under the same id overwrites its own tracked connection, so
             // the stale disconnect is discarded and nothing is pending. Resume on either signal.
@@ -409,13 +581,13 @@ public class PlaybackService : BaseService, IPlaybackService
                 case ScreenDisconnectBehavior.CancelPerformance:
                     ResetState();
                     await EndedAsync();
-                    InvokeStateChanged();
+                    _broker.Announce(new PlaybackChanged());
                     break;
 
                 case ScreenDisconnectBehavior.RestartFromStart:
                     await PauseAsync();
                     Position = TimeSpan.Zero;
-                    InvokeStateChanged();
+                    _broker.Announce(new PlaybackChanged());
                     break;
 
                 default:
@@ -521,6 +693,57 @@ public class PlaybackService : BaseService, IPlaybackService
         StreamStartOffset = _stream?.StartOffset ?? TimeSpan.Zero,
     };
 
+    /// <summary>
+    /// Ends an ad before its clock ran out, so none of what follows a finished one — the bed, the
+    /// venue card — happens here: the caller is putting something else on instead.
+    /// </summary>
+    private async Task CancelAdAsync()
+    {
+        Logger.LogInformation("Ad cut short");
+
+        IsPlayingAd = false;
+        _adDuration = null;
+
+        await ReleaseAdAudioAsync();
+    }
+
+    /// <summary>Gives the background channel back, so the bed or a song can take it.</summary>
+    private async Task ReleaseAdAudioAsync()
+    {
+        if (_adAudioStream is null) return;
+
+        await SendToAudioScreenAsync(new StopBackgroundCommand());
+        await CloseAdAudioStreamAsync();
+    }
+
+    private async Task CloseAdAudioStreamAsync()
+    {
+        var stream = _adAudioStream;
+        _adAudioStream = null;
+
+        if (stream is null) return;
+
+        try { await _mediaStreams.CloseAsync(stream.Id); }
+        catch (Exception ex) { Logger.LogWarning(ex, "Failed to close ad audio stream {SessionId}", stream.Id); }
+    }
+
+    /// <summary>The bed and an ad's own audio share one channel, and only the audible screen gets it.</summary>
+    private async Task SendToAudioScreenAsync(IScreenCommand command)
+    {
+        try
+        {
+            var screenId = await _screenCoordination.EnsureRolesAsync();
+
+            if (screenId is null) return;
+
+            await _screenServer.SendCommandAsync(screenId, command);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Failed to send {Command} to the audio screen", command.GetType().Name);
+        }
+    }
+
     private async Task CloseStreamAsync()
     {
         var stream = _stream;
@@ -539,9 +762,28 @@ public class PlaybackService : BaseService, IPlaybackService
         await CloseStreamAsync();
 
         var currentPerformance = CurrentPerformance;
+        var wasAd = IsPlayingAd;
 
         CurrentPerformance = null;
         CurrentMedia = null;
+        IsPlayingAd = false;
+
+        if (wasAd)
+        {
+            Logger.LogInformation("Ad finished");
+
+            _adDuration = null;
+
+            // Handed back before the bed is restored, or break music would reclaim the channel
+            // while the ad's own voiceover was still playing on it.
+            await ReleaseAdAudioAsync();
+
+            // No dequeue and no rotation: an ad is nobody's turn, and there is no slot to unlock
+            // because none was ever locked for it.
+            await _breakMusic.RestoreAsync();
+            await ShowIdleCardAsync();
+            return;
+        }
 
         _singerQueueService.UnlockTopSlot();
 
@@ -553,6 +795,54 @@ public class PlaybackService : BaseService, IPlaybackService
         // Dequeue first so rotation's songs-sung-tonight count includes the finished song.
         await _performanceService.DequeueAsync(currentPerformance.SingerId, currentPerformance.Id);
         await _singerQueueService.RotateQueueAsync(currentPerformance.SingerId);
+
+        // Raised before the bed comes back, and awaited, so an ad taking this gap is never
+        // started underneath break music that was restored a moment earlier.
+        var gap = new PerformanceEndedEventArgs();
+        PerformanceEnded?.Invoke(this, gap);
+        await gap.WhenFilledAsync();
+
+        // Something took the gap. The bed and the card come back when that ends instead.
+        if (IsPlayingAd)
+            return;
+
+        await _breakMusic.RestoreAsync();
+        await ShowIdleCardAsync();
+    }
+
+    /// <summary>
+    /// Puts the venue's card up now that nothing is playing. Hides whatever was there when the
+    /// venue has set none, so an ad's still never outlives the ad.
+    /// </summary>
+    private async Task ShowIdleCardAsync()
+    {
+        try
+        {
+            var venue = await _venuesService.ReadSelectedVenueAsync();
+            var brandingId = venue?.Settings.BrandingImageMediaId;
+
+            if (brandingId is null)
+            {
+                await SendToScreensAsync(new HideImageCommand());
+                return;
+            }
+
+            var media = await _mediaService.ReadAsync(brandingId.Value);
+
+            if (media is null || !MediaFormats.IsImage(media.Format))
+            {
+                await SendToScreensAsync(new HideImageCommand());
+                return;
+            }
+
+            await SendToScreensAsync(new ShowImageCommand { Url = _mediaStreams.BuildImageUrl(media.Id), Scaling = media.ImageScaling });
+        }
+        catch (Exception ex)
+        {
+            // Never fatal: the card is decoration, and failing to draw it must not stop the queue
+            // moving on to the next singer.
+            Logger.LogWarning(ex, "Could not show the venue card");
+        }
     }
 
     /// <summary>
@@ -707,17 +997,23 @@ public class PlaybackService : BaseService, IPlaybackService
 
             await EndedAsync();
 
-            InvokeStateChanged();
+            _broker.Announce(new PlaybackChanged());
             return;
         }
 
-        // Not StateChanged: the queue panels answer that one with a queue read and a media read
+        // Not PlaybackChanged: the queue panels answer that one with a queue read and a media read
         // per singer, and at twice a second for a whole night that is the console's entire load.
         PositionChanged?.Invoke(this, EventArgs.Empty);
     }
 
-    private bool HasPlaybackEnded() =>
-        CurrentMedia?.Duration is { } duration && Position >= duration;
+    private bool HasPlaybackEnded()
+    {
+        // An ad runs for the length its playlist entry gave it, which is not any one file's: a
+        // still has a default, and a voiceover may be a clip out of something far longer.
+        var duration = IsPlayingAd ? _adDuration : CurrentMedia?.Duration;
+
+        return duration is { } d && Position >= d;
+    }
 
     private static class AnalyticActivities
     {

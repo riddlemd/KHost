@@ -1,9 +1,12 @@
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Repositories;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Xunit;
 using KHost.Domain.Services;
+using KHost.Domain.Services.Messaging;
+using KHost.Plugins.Sdk.Messaging.Messages;
 
 namespace KHost.UnitTests.Domain.Services;
 
@@ -11,11 +14,12 @@ public class UserGroupsServiceTests
 {
     private readonly ILogger<UserGroupsService> _logger = Substitute.For<ILogger<UserGroupsService>>();
     private readonly IUserGroupsRepository _repository = Substitute.For<IUserGroupsRepository>();
+    private readonly MessageBroker _broker = new(NullLogger<MessageBroker>.Instance);
     private readonly UserGroupsService _service;
 
     public UserGroupsServiceTests()
     {
-        _service = new UserGroupsService(_logger, _repository);
+        _service = new UserGroupsService(_logger, _repository, _broker);
     }
 
     [Fact]
@@ -80,10 +84,10 @@ public class UserGroupsServiceTests
     }
 
     [Fact]
-    public async Task DeleteAsync_DoesNotRaiseStateChangedForBuiltInGroups()
+    public async Task DeleteAsync_DoesNotAnnounceUserGroupsChangedForBuiltInGroups()
     {
         var notifications = 0;
-        _service.StateChanged += (_, _) => notifications++;
+        using var subscription = _broker.Subscribe<UserGroupsChanged>(_ => notifications++);
 
         await _service.DeleteAsync(KHostUserGroup.AdminGroupId);
 

@@ -1,3 +1,4 @@
+using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -104,6 +105,31 @@ public class MediaFileParsingServiceTests
 
         Assert.Equal("JustATitle", title);
         Assert.Null(artist);
+    }
+
+    // A still has no duration to probe for, and the host clock is what takes one down — without
+    // a default it would arrive null and PlayAdAsync would refuse to show it at all.
+    [Fact]
+    public async Task LoadAndParseAsync_AnImage_GetsADefaultDuration()
+    {
+        var svc = CreateService();
+
+        var media = await svc.LoadAndParseAsync(MediaPath("VenueCard.png"));
+
+        Assert.Equal(MediaFormats.DefaultImageDuration, media.Duration);
+        Assert.Equal("PNG", media.Format);
+    }
+
+    [Fact]
+    public async Task LoadAndParseAsync_AVideo_DoesNotGetTheImageDefault()
+    {
+        var svc = CreateService();
+
+        // The path does not exist, so ffprobe fails and duration stays unknown rather than
+        // inheriting the still default.
+        var media = await svc.LoadAndParseAsync(MediaPath("SomeSong.mp4"));
+
+        Assert.Null(media.Duration);
     }
 
     [Fact]

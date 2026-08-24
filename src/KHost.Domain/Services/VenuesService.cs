@@ -1,6 +1,8 @@
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Repositories;
 using KHost.Abstractions.Services;
+using KHost.Plugins.Sdk.Messaging;
+using KHost.Plugins.Sdk.Messaging.Messages;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -11,12 +13,14 @@ public class VenuesService : BaseRepositoryService<Venue, IVenuesRepository>, IV
     private const string _cacheKey = "selected-venue";
 
     private readonly ICacheService _cacheService;
+    private readonly IMessageBroker _broker;
 
     public Guid? SelectedVenueId { get; private set; }
 
-    public VenuesService(ILogger<VenuesService> logger, IVenuesRepository repository, ICacheService cacheService)
-        : base(logger, repository)
+    public VenuesService(ILogger<VenuesService> logger, IVenuesRepository repository, ICacheService cacheService, IMessageBroker broker)
+        : base(logger, repository, broker, new VenuesChanged())
     {
+        _broker = broker;
         _cacheService = cacheService;
     }
 
@@ -41,7 +45,7 @@ public class VenuesService : BaseRepositoryService<Venue, IVenuesRepository>, IV
 
         SelectedVenueId = id;
         Logger.LogInformation("Selected venue restored: {VenueId}", id);
-        InvokeStateChanged();
+        _broker.Announce(new SelectedVenueChanged());
     }
 
     public async Task<Venue?> ReadSelectedVenueAsync()
@@ -65,7 +69,17 @@ public class VenuesService : BaseRepositoryService<Venue, IVenuesRepository>, IV
 
         await _cacheService.SaveAsync(_cacheKey, venueId);
 
-        InvokeStateChanged();
+        _broker.Announce(new SelectedVenueChanged());
+    }
+
+    public override async Task UpdateAsync(Venue entity)
+    {
+        await base.UpdateAsync(entity);
+
+        // The room's audio baseline lives on the selected venue, so only an edit to that one has
+        // any business reaching the screens.
+        if (entity.Id == SelectedVenueId)
+            _broker.Announce(new SelectedVenueChanged());
     }
     
     public override async Task<bool> DeleteAsync(Guid id)

@@ -59,6 +59,10 @@ internal static class EntityFolding
                 case Tip tip:
                     Set(entry, nameof(Tip.NotesFolded), tip.NotesFolded, Fold(tip.Notes));
                     break;
+
+                case MediaPool pool:
+                    Set(entry, nameof(MediaPool.NameFolded), pool.NameFolded, Fold(pool.Name));
+                    break;
             }
         }
     }

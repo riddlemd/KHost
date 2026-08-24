@@ -1,3 +1,5 @@
+using KHost.Plugins.Sdk.Messaging;
+using KHost.UserInterface.Messaging;
 using Microsoft.AspNetCore.Components;
 using KHost.UserInterface.Services;
 
@@ -7,9 +9,13 @@ public partial class ThemeSelector : IDisposable
 {
     [Inject] private IThemeService? ThemeService { get; set; }
 
+    [Inject] private IMessageBroker Broker { get; set; } = default!;
+
+    private readonly SubscriptionSet _subscriptions = new();
+
     protected override void OnInitialized()
     {
-        ThemeService?.StateChanged += OnStateChanged;
+        _subscriptions.Add(Broker.Subscribe<ThemeChanged>(_ => OnStateChanged(null, EventArgs.Empty)));
     }
 
     private async Task SetThemeAsync(string theme)
@@ -26,8 +32,5 @@ public partial class ThemeSelector : IDisposable
         await InvokeAsync(StateHasChanged);
     }
 
-    public void Dispose()
-    {
-        ThemeService?.StateChanged -= OnStateChanged;
-    }
+    public void Dispose() => _subscriptions.Dispose();
 }

@@ -2,6 +2,8 @@ using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.JSInterop;
 using KHost.Abstractions.Services;
+using KHost.Plugins.Sdk.Messaging;
+using KHost.Plugins.Sdk.Messaging.Messages;
 using KHost.UserInterface.Services;
 
 namespace KHost.UserInterface.Components.Panels;
@@ -12,6 +14,9 @@ public partial class NowPlayingPanel : IDisposable
     [Inject] private ISingerQueueService? SingerQueueService { get; set; }
     [Inject] private IDialogService? DialogService { get; set; }
     [Inject] private IJSRuntime JS { get; set; } = default!;
+    [Inject] private IMessageBroker Broker { get; set; } = default!;
+
+    private readonly SubscriptionSet _subscriptions = new();
 
     private ElementReference _trackRef;
     private IJSObjectReference? _seekBar;
@@ -20,7 +25,7 @@ public partial class NowPlayingPanel : IDisposable
     {
         if (PlaybackService is null) return;
 
-        PlaybackService.StateChanged += OnStateChanged;
+        _subscriptions.Add(Broker.Subscribe<PlaybackChanged>(_ => OnStateChanged(null, EventArgs.Empty)));
 
         // The only panel that takes the position clock: it draws the playhead, and a redraw is all
         // it does with either event.
@@ -57,9 +62,10 @@ public partial class NowPlayingPanel : IDisposable
 
     public void Dispose()
     {
+        _subscriptions.Dispose();
+
         if (PlaybackService is null) return;
 
-        PlaybackService.StateChanged -= OnStateChanged;
         PlaybackService.PositionChanged -= OnStateChanged;
     }
 }

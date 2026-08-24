@@ -1,5 +1,7 @@
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
+using KHost.Plugins.Sdk.Messaging;
+using KHost.Plugins.Sdk.Messaging.Messages;
 using Microsoft.AspNetCore.Components;
 
 namespace KHost.UserInterface.Components;
@@ -10,16 +12,18 @@ public partial class FlashBanner : IDisposable
     private const int VisibleMilliseconds = 4000;
 
     [Inject] private IFlashService? Flash { get; set; }
+    [Inject] private IMessageBroker Broker { get; set; } = default!;
+
+    private readonly SubscriptionSet _subscriptions = new();
 
     private FlashMessage? _counting;
 
     protected override void OnInitialized()
     {
-        if (Flash is not null)
-            Flash.StateChanged += OnFlashChanged;
+        _subscriptions.Add(Broker.Subscribe<FlashChanged>(OnFlashChanged));
     }
 
-    private void OnFlashChanged(object? sender, EventArgs e)
+    private void OnFlashChanged(FlashChanged flashChanged)
     {
         var message = Flash?.Current;
 
@@ -41,9 +45,5 @@ public partial class FlashBanner : IDisposable
             Flash.Dismiss();
     }
 
-    public void Dispose()
-    {
-        if (Flash is not null)
-            Flash.StateChanged -= OnFlashChanged;
-    }
+    public void Dispose() => _subscriptions.Dispose();
 }

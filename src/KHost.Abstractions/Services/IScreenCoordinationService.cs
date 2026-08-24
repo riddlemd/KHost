@@ -8,7 +8,6 @@ namespace KHost.Abstractions.Services;
 /// </summary>
 public interface IScreenCoordinationService
 {
-    event EventHandler? StateChanged;
 
     /// <summary>
     /// Must run at startup: screens register as soon as the hub is mapped, and a service nobody

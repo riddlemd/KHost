@@ -1,3 +1,4 @@
+using KHost.Domain.Services.Messaging;
 using KHost.Cast;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -12,7 +13,8 @@ public class CastServiceDisconnectedTests : IDisposable
 {
     private readonly CastService _cast = new(
         NullLogger<CastService>.Instance,
-        Options.Create(new CastService.ServiceOptions()));
+        Options.Create(new CastService.ServiceOptions()),
+        new MessageBroker(NullLogger<MessageBroker>.Instance));
 
     [Fact]
     public void AFreshServiceIsIdleAndUnconnected()

@@ -1,0 +1,55 @@
+.kh-break-music-bar {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.375rem 0.75rem;
+    border-top: 1px solid var(--kh-border);
+    background: var(--kh-surface-2);
+
+    &__icon {
+        color: var(--kh-text-muted);
+        flex: none;
+    }
+
+    &__info {
+        display: flex;
+        align-items: baseline;
+        gap: 0.5rem;
+
+        // Both needed together, or the title pushes the controls off the row instead of truncating.
+        flex: 1;
+        min-width: 0;
+    }
+
+    &__title {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+
+        &--idle {
+            color: var(--kh-text-muted);
+        }
+    }
+
+    &__artist {
+        color: var(--kh-text-muted);
+        font-size: 0.8125rem;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    &__controls {
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
+        flex: none;
+    }
+
+    // The console owns the viewport, so this bar has to shed the track text rather than wrap.
+    @container (max-width: 420px) {
+        &__artist {
+            display: none;
+        }
+    }
+}

@@ -1,5 +1,7 @@
 using KHost.Abstractions.Services;
 using KHost.Abstractions.Services.IPC;
+using KHost.Plugins.Sdk.Messaging;
+using KHost.Plugins.Sdk.Messaging.Messages;
 using Microsoft.Extensions.Logging;
 using System.Collections.Concurrent;
 
@@ -15,8 +17,10 @@ public sealed class ScreenCoordinationService : BaseService, IScreenCoordination
     private const float MutedVolume = 0.0f;
 
     private readonly IScreenServer _screenServer;
+    private readonly IMessageBroker _broker;
     private readonly IVenuesService _venuesService;
     private readonly SemaphoreSlim _lock = new(1, 1);
+    private readonly IDisposable _venueChanged;
 
     // Screens the user has pinned on or off. Absent means "follow the audio role".
     // Concurrent, not plain: the writers below hold _lock, but IsAudioEnabled/IsVideoEnabled are
@@ -31,16 +35,17 @@ public sealed class ScreenCoordinationService : BaseService, IScreenCoordination
     // while the other still names a screen that just left.
     private volatile RoleSnapshot _roles = new(null, null);
 
-    public ScreenCoordinationService(ILogger<ScreenCoordinationService> logger, IScreenServer screenServer, IVenuesService venuesService)
+    public ScreenCoordinationService(ILogger<ScreenCoordinationService> logger, IScreenServer screenServer, IVenuesService venuesService, IMessageBroker broker)
         : base(logger)
     {
+        _broker = broker;
         _screenServer = screenServer;
         _venuesService = venuesService;
         _screenServer.ScreenConnected += OnScreenConnected;
         _screenServer.ScreenDisconnected += OnScreenDisconnected;
         // Selecting or editing a venue changes what "audible" means; without this the new
         // volume waits for the next role move to be heard.
-        _venuesService.StateChanged += OnVenueStateChanged;
+        _venueChanged = broker.Subscribe<SelectedVenueChanged>(OnVenueStateChanged);
     }
 
     /// <summary>A screen can register before this service is first resolved.</summary>
@@ -81,7 +86,7 @@ public sealed class ScreenCoordinationService : BaseService, IScreenCoordination
         }
         finally { _lock.Release(); }
 
-        InvokeStateChanged();
+        _broker.Announce(new ScreensChanged());
     }
 
     public async Task<string?> EnsureRolesAsync(CancellationToken cancellationToken = default)
@@ -142,7 +147,7 @@ public sealed class ScreenCoordinationService : BaseService, IScreenCoordination
         }
         finally { _lock.Release(); }
 
-        InvokeStateChanged();
+        _broker.Announce(new ScreensChanged());
         return true;
     }
 
@@ -156,7 +161,7 @@ public sealed class ScreenCoordinationService : BaseService, IScreenCoordination
         }
         finally { _lock.Release(); }
 
-        InvokeStateChanged();
+        _broker.Announce(new ScreensChanged());
     }
 
     public async Task ClearAudioOverrideAsync(string screenId, CancellationToken cancellationToken = default)
@@ -169,7 +174,7 @@ public sealed class ScreenCoordinationService : BaseService, IScreenCoordination
         }
         finally { _lock.Release(); }
 
-        InvokeStateChanged();
+        _broker.Announce(new ScreensChanged());
     }
 
     /// <summary>Prefers a syncable screen, so the audible one is never the corrected one.</summary>
@@ -218,6 +223,12 @@ public sealed class ScreenCoordinationService : BaseService, IScreenCoordination
             try
             {
                 await _screenServer.SendCommandAsync(screen.ScreenId, new SetVolumeCommand { Volume = volume });
+
+                // The bed and an ad's own voiceover ride the second channel, and they are the same
+                // room through the same mixer — so one venue level covers both rather than leaving
+                // the host balancing two. This is the only place that sets it, and it re-runs on a
+                // venue edit, a role change and a screen connecting.
+                await _screenServer.SendCommandAsync(screen.ScreenId, new SetBackgroundVolumeCommand { Volume = volume });
             }
             catch (Exception ex)
             {
@@ -234,7 +245,7 @@ public sealed class ScreenCoordinationService : BaseService, IScreenCoordination
         return venue is null ? AudibleVolume : Math.Clamp(venue.Settings.DefaultVolume, 0, 100) / 100f;
     }
 
-    private void OnVenueStateChanged(object? sender, EventArgs e) =>
+    private void OnVenueStateChanged(SelectedVenueChanged message) =>
         _ = Task.Run(async () =>
         {
             await _lock.WaitAsync();
@@ -267,7 +278,7 @@ public sealed class ScreenCoordinationService : BaseService, IScreenCoordination
             // A new screen arrives unmuted; without this it would add a second voice to the room.
             await EnsureRolesAsync();
             await MuteUnlessPermittedAsync(e.Connection.ScreenId);
-            InvokeStateChanged();
+            _broker.Announce(new ScreensChanged());
         });
 
     private void OnScreenDisconnected(object? sender, ScreenConnectionEventArgs e) =>
@@ -280,7 +291,7 @@ public sealed class ScreenCoordinationService : BaseService, IScreenCoordination
             // No role write here: EnsureRolesAsync drops a departed screen under the lock, and
             // a shortcut outside it is how a reader once saw audio vacated with primary still set.
             await EnsureRolesAsync();
-            InvokeStateChanged();
+            _broker.Announce(new ScreensChanged());
         });
 
     private async Task MuteUnlessPermittedAsync(string screenId)
@@ -301,7 +312,7 @@ public sealed class ScreenCoordinationService : BaseService, IScreenCoordination
     {
         _screenServer.ScreenConnected -= OnScreenConnected;
         _screenServer.ScreenDisconnected -= OnScreenDisconnected;
-        _venuesService.StateChanged -= OnVenueStateChanged;
+        _venueChanged.Dispose();
 
         // Deliberately not disposing _lock: a detached connect handler may still hold it.
     }

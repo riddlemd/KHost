@@ -2,6 +2,10 @@
 // (WebView2 on Windows) does not, and will need hls.js before this screen works there.
 
 const video = document.getElementById('video');
+const background = document.getElementById('background');
+const still = document.getElementById('still');
+
+const SCALING = { fit: 'contain', fill: 'cover', stretch: 'fill', original: 'none' };
 const placeholder = document.getElementById('placeholder');
 const blanked = document.getElementById('blanked');
 const hostLost = document.getElementById('hostlost');
@@ -65,6 +69,50 @@ async function fadeOutAndStop(fadeMs) {
     video.volume = currentVolume;
     placeholder.hidden = false;
     send({ type: 'state', position: 0, duration: 0, playing: false });
+}
+
+// The second channel. No timeline and no correction: only the screen the room hears receives any
+// of it, so there is no group for it to stay in step with.
+let backgroundVolume = 1;
+let backgroundGeneration = 0;
+
+function loadBackground(url, autoplay) {
+    backgroundGeneration++;
+    background.volume = backgroundVolume;
+    background.src = url;
+    if (autoplay) background.play().catch((e) => reportError(`bg play: ${e}`));
+}
+
+function teardownBackground() {
+    try { background.pause(); } catch { /* ignore */ }
+    try { background.removeAttribute('src'); background.load(); } catch { /* ignore */ }
+}
+
+async function fadeOutBackground(fadeMs) {
+    const generation = backgroundGeneration;
+
+    if (fadeMs <= 0) {
+        teardownBackground();
+        return;
+    }
+
+    const startVolume = background.volume;
+    const startedAt = performance.now();
+
+    await new Promise((resolve) => {
+        const tick = () => {
+            const progress = Math.min(1, (performance.now() - startedAt) / fadeMs);
+            background.volume = startVolume * (1 - progress);
+            if (progress < 1) requestAnimationFrame(tick); else resolve();
+        };
+        tick();
+    });
+
+    // Superseded: a new bed started during the fade, so leave it alone.
+    if (generation !== backgroundGeneration) return;
+
+    teardownBackground();
+    background.volume = backgroundVolume;
 }
 
 // Screens attach at different moments, so each steers onto the host's timeline rather than its
@@ -194,6 +242,38 @@ function handleCommand(raw) {
             currentVolume = Math.max(0, Math.min(1, message.value));
             video.volume = currentVolume;
             break;
+        case 'show-image':
+            // The placeholder is the 'nothing here' card, so it goes while a still is up.
+            placeholder.hidden = true;
+            // A screen is rarely the same shape as the picture, so the host chooses: contain shows
+            // all of it, cover fills and crops, fill distorts, none is native pixels centred.
+            still.style.objectFit = SCALING[message.scaling] || 'contain';
+            still.src = message.url;
+            still.hidden = false;
+            break;
+        case 'hide-image':
+            still.hidden = true;
+            still.removeAttribute('src');
+            break;
+        case 'bg-load':
+            loadBackground(message.url, message.autoplay === true);
+            break;
+        case 'bg-play':
+            backgroundGeneration++;
+            background.volume = backgroundVolume;
+            background.play().catch((e) => reportError(`bg play: ${e}`));
+            break;
+        case 'bg-pause':
+            background.pause();
+            break;
+        case 'bg-stop':
+            backgroundGeneration++;
+            fadeOutBackground(Math.max(0, message.fadeMs || 0));
+            break;
+        case 'bg-volume':
+            backgroundVolume = Math.max(0, Math.min(1, message.value));
+            background.volume = backgroundVolume;
+            break;
         default:
             break;
     }
@@ -207,6 +287,16 @@ window.addEventListener('keydown', (e) => {
 
 video.addEventListener('loadeddata', () => { placeholder.hidden = true; });
 video.addEventListener('ended', () => send({ type: 'ended' }));
+
+// Its own message, never 'ended': the host runs the singer's performance off that one, and a bed
+// track finishing must not retire the song on screen.
+background.addEventListener('ended', () => send({ type: 'bg-ended' }));
+still.addEventListener('error', () => reportError('still image failed to load'));
+
+background.addEventListener('error', () => {
+    const error = background.error;
+    if (error) reportError(`background media error ${error.code}`);
+});
 video.addEventListener('error', () => {
     const error = video.error;
     if (error) reportError(`media error ${error.code}`);
