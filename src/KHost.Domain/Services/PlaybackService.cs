@@ -58,6 +58,7 @@ public class PlaybackService : BaseService, IPlaybackService
     private readonly IScreenCoordinationService _screenCoordination;
     private readonly ICastService _cast;
     private readonly IBreakMusicService _breakMusic;
+    private readonly IMediaService _mediaService;
     private readonly ServiceOptions _options;
 
     public event EventHandler? PositionChanged;
@@ -83,6 +84,7 @@ public class PlaybackService : BaseService, IPlaybackService
         IScreenCoordinationService screenCoordination,
         ICastService cast,
         IBreakMusicService breakMusic,
+        IMediaService mediaService,
         IOptions<ServiceOptions> options)
         : base(logger)
     {
@@ -95,6 +97,7 @@ public class PlaybackService : BaseService, IPlaybackService
         _screenCoordination = screenCoordination;
         _cast = cast;
         _breakMusic = breakMusic;
+        _mediaService = mediaService;
         _options = options.Value;
 
         _screenServer.ScreenConnected += OnScreenConnected;
@@ -135,6 +138,9 @@ public class PlaybackService : BaseService, IPlaybackService
         ResetState();
 
         IsPlayingAd = false;
+
+        // The venue card is only for when nothing is playing.
+        await SendToScreensAsync(new HideImageCommand());
 
         // On load rather than on play: the host lines the next singer up while the room is still
         // listening to the bed, and a song that starts over the top of it is two songs at once.
@@ -184,10 +190,14 @@ public class PlaybackService : BaseService, IPlaybackService
             return false;
         }
 
+        var isStill = MediaFormats.IsImage(media.Format);
+
         ResetState();
 
-        // It brings its own audio, so the bed yields to it exactly as it does to a song.
-        await _breakMusic.SuspendAsync();
+        // A still has no audio of its own, so the bed plays on underneath rather than leaving the
+        // room in silence. Anything that brings its own audio takes the room the way a song does.
+        if (!isStill)
+            await _breakMusic.SuspendAsync();
 
         CurrentMedia = media;
         IsPlayingAd = true;
@@ -195,6 +205,29 @@ public class PlaybackService : BaseService, IPlaybackService
 
         Logger.LogInformation("Playing ad '{Title}'", media.Title);
 
+        if (isStill)
+        {
+            // Refused here rather than through PlayAsync: a still opens no stream and drives no
+            // media element, so there is nothing for the play path to start.
+            if (!await HasConnectedScreenAsync())
+            {
+                Logger.LogWarning("Ad refused: no screens are connected");
+
+                await EndedAsync();
+                InvokeStateChanged();
+                return false;
+            }
+
+            await SendToScreensAsync(new ShowImageCommand { Url = _mediaStreams.BuildImageUrl(media.Id) });
+
+            State = PlaybackState.Playing;
+            StartClock();
+
+            InvokeStateChanged();
+            return true;
+        }
+
+        await SendToScreensAsync(new HideImageCommand());
         await SendToScreensAsync(await BuildLoadCommandAsync(media, TimeSpan.Zero));
 
         InvokeStateChanged();
@@ -621,6 +654,7 @@ public class PlaybackService : BaseService, IPlaybackService
             // No dequeue and no rotation: an ad is nobody's turn, and there is no slot to unlock
             // because none was ever locked for it.
             await _breakMusic.RestoreAsync();
+            await ShowIdleCardAsync();
             return;
         }
 
@@ -637,6 +671,42 @@ public class PlaybackService : BaseService, IPlaybackService
 
         // Last, so a bed starting up cannot delay the rotation the next singer is waiting on.
         await _breakMusic.RestoreAsync();
+        await ShowIdleCardAsync();
+    }
+
+    /// <summary>
+    /// Puts the venue's card up now that nothing is playing. Hides whatever was there when the
+    /// venue has set none, so an ad's still never outlives the ad.
+    /// </summary>
+    private async Task ShowIdleCardAsync()
+    {
+        try
+        {
+            var venue = await _venuesService.ReadSelectedVenueAsync();
+            var brandingId = venue?.Settings.BrandingImageMediaId;
+
+            if (brandingId is null)
+            {
+                await SendToScreensAsync(new HideImageCommand());
+                return;
+            }
+
+            var media = await _mediaService.ReadAsync(brandingId.Value);
+
+            if (media is null || !MediaFormats.IsImage(media.Format))
+            {
+                await SendToScreensAsync(new HideImageCommand());
+                return;
+            }
+
+            await SendToScreensAsync(new ShowImageCommand { Url = _mediaStreams.BuildImageUrl(media.Id) });
+        }
+        catch (Exception ex)
+        {
+            // Never fatal: the card is decoration, and failing to draw it must not stop the queue
+            // moving on to the next singer.
+            Logger.LogWarning(ex, "Could not show the venue card");
+        }
     }
 
     /// <summary>

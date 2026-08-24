@@ -167,6 +167,12 @@ internal sealed class ScreenIpcController : IAsyncDisposable
             case SetBackgroundVolumeCommand cmd:
                 _player.BackgroundVolume = cmd.Volume;
                 break;
+            case ShowImageCommand cmd:
+                _player.ShowImage(cmd.Url);
+                break;
+            case HideImageCommand:
+                _player.HideImage();
+                break;
             default:
                 _logger.LogWarning("Unhandled command: {Type}", command.GetType().Name);
                 break;

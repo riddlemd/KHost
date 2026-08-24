@@ -19,6 +19,7 @@ public class PlaybackServiceTests : IDisposable
     private readonly IMediaStreamService _mediaStreams = Substitute.For<IMediaStreamService>();
     private readonly ICastService _cast = Substitute.For<ICastService>();
     private readonly IBreakMusicService _breakMusic = Substitute.For<IBreakMusicService>();
+    private readonly IMediaService _mediaService = Substitute.For<IMediaService>();
 
     // Real: a substitute would make the IsPrimary assertions below test nothing.
     private readonly ScreenCoordinationService _screenCoordination;
@@ -105,6 +106,7 @@ public class PlaybackServiceTests : IDisposable
         _screenCoordination,
         _cast,
         _breakMusic,
+        _mediaService,
         Options.Create(new PlaybackService.ServiceOptions { StopFadeDuration = stopFadeDuration }));
 
     public void Dispose() => _service.Dispose();
@@ -1706,6 +1708,165 @@ public class PlaybackServiceTests : IDisposable
 
         await _performanceService.Received(1).DequeueAsync(performance.SingerId, performance.Id);
         await _queueService.Received(1).RotateQueueAsync(performance.SingerId);
+    }
+
+    private static Media CreateStillAd(string format = "PNG") => new()
+    {
+        Id = Guid.NewGuid(),
+        FilePath = "/media/card.png",
+        Title = "Happy Hour Card",
+        Status = MediaStatus.Ready,
+        Kind = MediaKind.Ad,
+        Format = format,
+        Duration = TimeSpan.FromSeconds(15),
+    };
+
+    private void VenueBranding(Guid? mediaId, string format = "PNG")
+    {
+        _venuesService.ReadSelectedVenueAsync().Returns(new Venue
+        {
+            Id = Guid.NewGuid(),
+            Name = "Test Venue",
+            Settings = new Venue.VenueSettings { BrandingImageMediaId = mediaId },
+        });
+
+        if (mediaId is { } id)
+        {
+            _mediaService.ReadAsync(id).Returns(new Media
+            {
+                Id = id,
+                FilePath = "/media/brand.png",
+                Title = "Venue Card",
+                Status = MediaStatus.Ready,
+                Format = format,
+            });
+        }
+
+        _mediaStreams.BuildImageUrl(Arg.Any<Guid>()).Returns(c => $"http://host/media/image/{c.ArgAt<Guid>(0)}");
+    }
+
+    [Fact]
+    public async Task PlayAdAsync_AStill_ShowsItWithoutOpeningATranscode()
+    {
+        _mediaStreams.BuildImageUrl(Arg.Any<Guid>()).Returns("http://host/media/image/x");
+
+        Assert.True(await _service.PlayAdAsync(CreateStillAd()));
+
+        await _screenServer.Received().BroadcastCommandAsync(Arg.Any<ShowImageCommand>());
+        await _mediaStreams.DidNotReceive().OpenAsync(Arg.Any<string>(), Arg.Any<TimeSpan>(), Arg.Any<int>(), Arg.Any<CancellationToken>());
+        await _screenServer.DidNotReceive().BroadcastCommandAsync(Arg.Any<LoadMediaCommand>());
+    }
+
+    // A still has no audio, so the room would sit in silence for its whole duration if the bed
+    // yielded to it the way it yields to a video.
+    [Fact]
+    public async Task PlayAdAsync_AStill_LeavesBreakMusicPlaying()
+    {
+        _mediaStreams.BuildImageUrl(Arg.Any<Guid>()).Returns("http://host/media/image/x");
+
+        await _service.PlayAdAsync(CreateStillAd());
+
+        await _breakMusic.DidNotReceive().SuspendAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task PlayAdAsync_AVideoAd_StillSuspendsBreakMusic()
+    {
+        await _service.PlayAdAsync(CreateAd());
+
+        await _breakMusic.Received(1).SuspendAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task PlayAdAsync_AStill_RunsOnTheHostClockAndEnds()
+    {
+        _mediaStreams.BuildImageUrl(Arg.Any<Guid>()).Returns("http://host/media/image/x");
+
+        var still = CreateStillAd();
+        still.Duration = TimeSpan.FromMilliseconds(1);
+
+        await _service.PlayAdAsync(still);
+        Assert.Equal(PlaybackState.Playing, _service.State);
+
+        await Task.Delay(20);
+        await _service.TickAsync();
+
+        Assert.False(_service.IsPlayingAd);
+        Assert.Equal(PlaybackState.Stopped, _service.State);
+    }
+
+    [Fact]
+    public async Task PlayAdAsync_AStillWithNoScreens_IsRefused()
+    {
+        ConnectScreens(0);
+
+        Assert.False(await _service.PlayAdAsync(CreateStillAd()));
+
+        Assert.False(_service.IsPlayingAd);
+        Assert.Null(_service.CurrentMedia);
+    }
+
+    [Fact]
+    public async Task PlaybackEnding_WithVenueBranding_ShowsTheCard()
+    {
+        var brandingId = Guid.NewGuid();
+        VenueBranding(brandingId);
+
+        var (performance, media) = CreatePerformance();
+        media.Duration = TimeSpan.FromMilliseconds(1);
+
+        await _service.LoadAsync(performance, media);
+        await _service.PlayAsync();
+        await Task.Delay(20);
+        await _service.TickAsync();
+
+        await _screenServer.Received().BroadcastCommandAsync(
+            Arg.Is<ShowImageCommand>(c => c.Url.Contains(brandingId.ToString())));
+    }
+
+    [Fact]
+    public async Task PlaybackEnding_WithNoVenueBranding_HidesWhateverWasThere()
+    {
+        VenueBranding(null);
+
+        var (performance, media) = CreatePerformance();
+        media.Duration = TimeSpan.FromMilliseconds(1);
+
+        await _service.LoadAsync(performance, media);
+        await _service.PlayAsync();
+        await Task.Delay(20);
+        await _service.TickAsync();
+
+        await _screenServer.Received().BroadcastCommandAsync(Arg.Any<HideImageCommand>());
+    }
+
+    // A branding row pointing at a song would otherwise be handed to the screen as an image URL
+    // that serves nothing.
+    [Fact]
+    public async Task PlaybackEnding_WithBrandingThatIsNotAnImage_HidesInstead()
+    {
+        VenueBranding(Guid.NewGuid(), format: "MP4");
+
+        var (performance, media) = CreatePerformance();
+        media.Duration = TimeSpan.FromMilliseconds(1);
+
+        await _service.LoadAsync(performance, media);
+        await _service.PlayAsync();
+        await Task.Delay(20);
+        await _service.TickAsync();
+
+        await _screenServer.Received().BroadcastCommandAsync(Arg.Any<HideImageCommand>());
+        await _screenServer.DidNotReceive().BroadcastCommandAsync(Arg.Any<ShowImageCommand>());
+    }
+
+    [Fact]
+    public async Task LoadAsync_HidesTheVenueCard()
+    {
+        var (performance, media) = CreatePerformance();
+
+        await _service.LoadAsync(performance, media);
+
+        await _screenServer.Received().BroadcastCommandAsync(Arg.Any<HideImageCommand>());
     }
 
     private static (Performance, Media) CreatePerformance()

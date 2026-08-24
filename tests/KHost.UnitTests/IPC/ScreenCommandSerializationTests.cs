@@ -34,6 +34,8 @@ public class ScreenCommandSerializationTests
         [nameof(PauseBackgroundCommand)] = new PauseBackgroundCommand(),
         [nameof(StopBackgroundCommand)] = new StopBackgroundCommand { FadeDuration = TimeSpan.FromSeconds(2) },
         [nameof(SetBackgroundVolumeCommand)] = new SetBackgroundVolumeCommand { Volume = 0.4f },
+        [nameof(ShowImageCommand)] = new ShowImageCommand { Url = "http://host/media/image/abc" },
+        [nameof(HideImageCommand)] = new HideImageCommand(),
     };
 
     public static TheoryData<string> CommandNames => [.. Samples.Keys];

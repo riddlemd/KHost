@@ -3,6 +3,7 @@
 
 const video = document.getElementById('video');
 const background = document.getElementById('background');
+const still = document.getElementById('still');
 const placeholder = document.getElementById('placeholder');
 const blanked = document.getElementById('blanked');
 const hostLost = document.getElementById('hostlost');
@@ -239,6 +240,16 @@ function handleCommand(raw) {
             currentVolume = Math.max(0, Math.min(1, message.value));
             video.volume = currentVolume;
             break;
+        case 'show-image':
+            // The placeholder is the 'nothing here' card, so it goes while a still is up.
+            placeholder.hidden = true;
+            still.src = message.url;
+            still.hidden = false;
+            break;
+        case 'hide-image':
+            still.hidden = true;
+            still.removeAttribute('src');
+            break;
         case 'bg-load':
             loadBackground(message.url, message.autoplay === true);
             break;
@@ -275,6 +286,8 @@ video.addEventListener('ended', () => send({ type: 'ended' }));
 // Its own message, never 'ended': the host runs the singer's performance off that one, and a bed
 // track finishing must not retire the song on screen.
 background.addEventListener('ended', () => send({ type: 'bg-ended' }));
+still.addEventListener('error', () => reportError('still image failed to load'));
+
 background.addEventListener('error', () => {
     const error = background.error;
     if (error) reportError(`background media error ${error.code}`);
