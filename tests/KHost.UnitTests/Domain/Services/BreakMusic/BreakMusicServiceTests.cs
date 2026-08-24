@@ -91,14 +91,19 @@ public class BreakMusicServiceTests : IDisposable
         Assert.Equal(BreakMusicState.Stopped, _service.State);
     }
 
+    // Cleared first: SetVolumeAsync forwards to the provider on its own, so without this the
+    // assertion is satisfied by that call and passes even when Start never applies the volume.
+    // A provider restarted after a suspend comes up at its own default otherwise.
     [Fact]
     public async Task StartAsync_AppliesTheCurrentVolumeToTheProvider()
     {
         await _service.InitializeAsync();
         await _service.SetVolumeAsync(0.25f);
+        _provider.ClearReceivedCalls();
+
         await _service.StartAsync();
 
-        await _provider.Received().SetVolumeAsync(0.25f, Arg.Any<CancellationToken>());
+        await _provider.Received(1).SetVolumeAsync(0.25f, Arg.Any<CancellationToken>());
     }
 
     [Fact]
