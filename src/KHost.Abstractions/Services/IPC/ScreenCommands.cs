@@ -1,3 +1,4 @@
+using KHost.Abstractions.Models;
 using System.Text.Json.Serialization;
 
 namespace KHost.Abstractions.Services.IPC;
@@ -116,6 +117,9 @@ public sealed class SetBackgroundVolumeCommand : ScreenCommandBase
 public sealed class ShowImageCommand : ScreenCommandBase
 {
     public required string Url { get; init; }
+
+    /// <summary>Sent with the picture: the screen holds no library to look it up in.</summary>
+    public ImageScaling Scaling { get; init; }
 }
 
 public sealed class HideImageCommand : ScreenCommandBase { }

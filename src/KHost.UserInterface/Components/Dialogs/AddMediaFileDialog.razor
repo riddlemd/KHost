@@ -17,7 +17,7 @@
             <div class="kh-venue-settings__field">
                 <label for="add-media-path" class="kh-form-label">Full path to the file</label>
                 <input id="add-media-path" class="kh-form-control" autocomplete="off" spellcheck="false"
-                       placeholder="/Users/you/Music/house-bed.mp3" @bind="_path" />
+                       placeholder="/Users/you/Music/house-bed.mp3" @bind="_path" @bind:event="oninput" />
             </div>
 
             <div class="kh-venue-settings__row">
@@ -28,6 +28,19 @@
                     <option value="@MediaKind.Karaoke">Karaoke</option>
                 </select>
             </div>
+
+            @if (_isImage)
+            {
+                <div class="kh-venue-settings__row">
+                    <label for="add-media-scaling" class="kh-form-label">How it fills the screen</label>
+                    <select id="add-media-scaling" class="kh-form-select" @bind="_scaling">
+                        <option value="@ImageScaling.Fit">Fit — show all of it</option>
+                        <option value="@ImageScaling.Fill">Fill — crop the overflow</option>
+                        <option value="@ImageScaling.Stretch">Stretch — distort to fit</option>
+                        <option value="@ImageScaling.Original">Original size</option>
+                    </select>
+                </div>
+            }
 
             @if (_error is { Length: > 0 })
             {

@@ -154,6 +154,9 @@ namespace KHost.DataAccess.Migrations
                         .HasMaxLength(10)
                         .HasColumnType("TEXT");
 
+                    b.Property<int>("ImageScaling")
+                        .HasColumnType("INTEGER");
+
                     b.Property<int>("Kind")
                         .HasColumnType("INTEGER");
 
@@ -459,8 +462,6 @@ namespace KHost.DataAccess.Migrations
                             b1.Property<Guid?>("BreakMusicPoolId");
 
                             b1.Property<string>("BreakMusicProvider");
-
-                            b1.Property<int?>("BreakMusicVolume");
 
                             b1.Property<bool>("ClearQueueOnClose");
 

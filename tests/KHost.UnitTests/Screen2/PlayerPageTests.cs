@@ -50,4 +50,18 @@ public class PlayerPageTests
         Assert.Contains("'show-image'", page);
         Assert.Contains("'hide-image'", page);
     }
+
+    // A screen is rarely the same shape as the picture, so the host's choice has to reach the
+    // element as an object-fit rather than the page assuming one.
+    [Fact]
+    public void BuildPlayerPage_Always_MapsEveryScalingModeToAnObjectFit()
+    {
+        var page = Program.BuildPlayerPage();
+
+        Assert.Contains("objectFit", page);
+        Assert.Contains("fit: 'contain'", page);
+        Assert.Contains("fill: 'cover'", page);
+        Assert.Contains("stretch: 'fill'", page);
+        Assert.Contains("original: 'none'", page);
+    }
 }

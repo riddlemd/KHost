@@ -4,6 +4,8 @@
 const video = document.getElementById('video');
 const background = document.getElementById('background');
 const still = document.getElementById('still');
+
+const SCALING = { fit: 'contain', fill: 'cover', stretch: 'fill', original: 'none' };
 const placeholder = document.getElementById('placeholder');
 const blanked = document.getElementById('blanked');
 const hostLost = document.getElementById('hostlost');
@@ -243,6 +245,9 @@ function handleCommand(raw) {
         case 'show-image':
             // The placeholder is the 'nothing here' card, so it goes while a still is up.
             placeholder.hidden = true;
+            // A screen is rarely the same shape as the picture, so the host chooses: contain shows
+            // all of it, cover fills and crops, fill distorts, none is native pixels centred.
+            still.style.objectFit = SCALING[message.scaling] || 'contain';
             still.src = message.url;
             still.hidden = false;
             break;

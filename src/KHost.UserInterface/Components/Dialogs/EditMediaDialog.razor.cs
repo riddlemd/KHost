@@ -38,7 +38,8 @@ public partial class EditMediaDialog
                     Title = Media.Title,
                     Artist = Media.Artist,
                     Notes = Media.Notes,
-                    Status = Media.Status
+                    Status = Media.Status,
+                    ImageScaling = Media.ImageScaling
                 };
             _editContext = new EditContext(_model);
         }
@@ -59,6 +60,7 @@ public partial class EditMediaDialog
             Media.Artist = _model.Artist;
             Media.Notes = _model.Notes;
             Media.Status = _model.Status;
+            Media.ImageScaling = _model.ImageScaling;
 
             await OnSave.InvokeAsync(Media);
         }

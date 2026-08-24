@@ -9,6 +9,9 @@ public class EditMediaModel
 
     public MediaStatus Status { get; set; }
 
+    /// <summary>Read only for a still; the dialog hides the control for anything else.</summary>
+    public ImageScaling ImageScaling { get; set; }
+
     [Required(ErrorMessage = "Title is required.")]
     [MaxLength(255, ErrorMessage = "Title cannot exceed 255 characters.")]
     public string Title { get; set; } = "";
