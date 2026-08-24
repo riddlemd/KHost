@@ -35,10 +35,6 @@ internal sealed class StreamMediaPlayer : IMediaPlayer
     /// <summary>Host-clock instant <see cref="_position"/> was sampled at, per the page's stamp.</summary>
     private DateTime? _sampledAtUtc;
 
-    // Never raised: the browser owns rendering. Declared only to satisfy IMediaPlayer.
-#pragma warning disable CS0067
-#pragma warning restore CS0067
-
     public event EventHandler? PlaybackEnded;
 
     /// <summary>The background track played out. How the host knows to pick the next one.</summary>
@@ -213,14 +209,6 @@ internal sealed class StreamMediaPlayer : IMediaPlayer
         }
 
         Send(new { type = "hostLost", lost });
-    }
-
-    /// <summary>Unused: IMediaPlayer declares it, but the host only ever sends a stream URL.</summary>
-    public Task LoadAsync(string filePath, CancellationToken cancellationToken = default)
-    {
-        _logger.LogError("Cannot load '{FilePath}': this screen only plays host streams", filePath);
-
-        return Task.CompletedTask;
     }
 
     public void Play() => Send(new { type = "play" });

@@ -28,12 +28,6 @@ public interface IMediaPlayer : IDisposable
 
     event EventHandler? PlaybackEnded;
 
-    /// <summary>
-    /// Probes <paramref name="filePath"/> with ffprobe and prepares it for playback.
-    /// Must be called before <see cref="Play"/>.
-    /// </summary>
-    Task LoadAsync(string filePath, CancellationToken cancellationToken = default);
-
     /// <summary>Starts or resumes playback from the current position.</summary>
     void Play();
 
