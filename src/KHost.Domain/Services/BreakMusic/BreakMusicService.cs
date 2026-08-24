@@ -18,12 +18,6 @@ public class BreakMusicService : BaseService, IBreakMusicService, IDisposable
 
     private IBreakMusicProvider? _activeProvider;
 
-    /// <summary>
-    /// Whether the bed was playing when something with its own audio took over. A host who paused
-    /// it meant to, so only a suspend that interrupted playback is undone.
-    /// </summary>
-    private bool _suspendedFromPlaying;
-
     public BreakMusicService(
         ILogger<BreakMusicService> logger,
         IEnumerable<IBreakMusicProvider> providers,
@@ -90,7 +84,6 @@ public class BreakMusicService : BaseService, IBreakMusicService, IDisposable
             await provider.SetVolumeAsync(Volume, cancellationToken);
 
             State = BreakMusicState.Playing;
-            _suspendedFromPlaying = false;
         }
         finally
         {
@@ -133,7 +126,6 @@ public class BreakMusicService : BaseService, IBreakMusicService, IDisposable
         await provider.StopAsync(cancellationToken: cancellationToken);
 
         State = BreakMusicState.Stopped;
-        _suspendedFromPlaying = false;
 
         InvokeStateChanged();
     }
@@ -168,7 +160,6 @@ public class BreakMusicService : BaseService, IBreakMusicService, IDisposable
         await provider.StopAsync(SuspendFade, cancellationToken);
 
         State = BreakMusicState.Suspended;
-        _suspendedFromPlaying = true;
 
         Logger.LogInformation("Break music suspended for something with its own audio");
 
@@ -177,10 +168,10 @@ public class BreakMusicService : BaseService, IBreakMusicService, IDisposable
 
     public async Task RestoreAsync(CancellationToken cancellationToken = default)
     {
-        if (State != BreakMusicState.Suspended || !_suspendedFromPlaying)
+        // Suspended is only ever reached from Playing, so this one check carries the whole rule:
+        // a bed the host paused or stopped never entered this state and is left where they put it.
+        if (State != BreakMusicState.Suspended)
             return;
-
-        _suspendedFromPlaying = false;
 
         // Started rather than resumed: the suspend stopped the provider outright, because a bed
         // held open across a whole song is a transcode running for nobody.
