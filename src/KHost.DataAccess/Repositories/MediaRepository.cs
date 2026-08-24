@@ -240,6 +240,49 @@ internal class MediaRepository : BaseRepository<Media>, IMediaRepository
         return sql;
     }
 
+    /// <summary>
+    /// Relevance-ranked search, filtered and paged inside the one query that ranks it. Composing
+    /// LINQ on top instead makes EF wrap this as a subquery and put LIMIT/OFFSET outside it, where
+    /// there is no ORDER BY — the bm25 ranking is then whatever SQLite happens to preserve, so a
+    /// later page can repeat or skip rows an earlier one already showed.
+    /// </summary>
+    private async Task<PaginatedResult<Media>> SearchRankedAsync(
+        string match, string query, int pageNumber, int pageSize, MediaSearchOptions? options)
+    {
+        var (page, size) = PaginationComponent.Normalize(pageNumber, pageSize);
+        var filters = BuildOptionFilterSql(options);
+
+        var countSql = $$"""
+            SELECT COUNT(*) AS "Value"
+            FROM "Media" AS m
+            INNER JOIN "media_fts" AS f ON f."media_id" = m."Id"
+            WHERE "media_fts" MATCH {0}{{filters}}
+            """;
+
+        var pageSql = $$"""
+            SELECT m.*
+            FROM "Media" AS m
+            INNER JOIN "media_fts" AS f ON f."media_id" = m."Id"
+            WHERE "media_fts" MATCH {0}{{filters}}
+            ORDER BY bm25("media_fts")
+            LIMIT {1} OFFSET {2}
+            """;
+
+        using var context = await ContextFactory.CreateDbContextAsync();
+
+        var totalCount = await context.Database.SqlQueryRaw<int>(countSql, match).SingleAsync();
+
+        var items = await context.Media
+            .FromSqlRaw(pageSql, match, size, (page - 1) * size)
+            .AsNoTracking()
+            .ToListAsync();
+
+        Logger.LogDebug("MediaRepository ranked search q={Query} match={Match} results={ResultCount}",
+            query, match, totalCount);
+
+        return PaginationComponent.BuildResult(items, totalCount, page, size);
+    }
+
     public override async Task<PaginatedResult<Media>> SearchAsync<TOptions>(string query, int pageNumber = 0, int pageSize = 0, TOptions? options = null)
         where TOptions : class
     {
@@ -251,45 +294,7 @@ internal class MediaRepository : BaseRepository<Media>, IMediaRepository
         var sw = Stopwatch.StartNew();
         try
         {
-            var (page, size) = PaginationComponent.Normalize(pageNumber, pageSize);
-
-            // Filters and paging both go in the SQL rather than being composed on top. Composing
-            // makes EF wrap this as a subquery and put LIMIT/OFFSET outside it, where there is no
-            // ORDER BY — the bm25 ranking is then whatever SQLite feels like preserving, so a
-            // second page can repeat or skip rows the first one already showed.
-            var filters = BuildOptionFilterSql(options as MediaSearchOptions);
-
-            var countSql = $$"""
-                SELECT COUNT(*) AS "Value"
-                FROM "Media" AS m
-                INNER JOIN "media_fts" AS f ON f."media_id" = m."Id"
-                WHERE "media_fts" MATCH {0}{{filters}}
-                """;
-
-            var pageSql = $$"""
-                SELECT m.*
-                FROM "Media" AS m
-                INNER JOIN "media_fts" AS f ON f."media_id" = m."Id"
-                WHERE "media_fts" MATCH {0}{{filters}}
-                ORDER BY bm25("media_fts")
-                LIMIT {1} OFFSET {2}
-                """;
-
-            using var context = await ContextFactory.CreateDbContextAsync();
-
-            var totalCount = await context.Database
-                .SqlQueryRaw<int>(countSql, match)
-                .SingleAsync();
-
-            var items = await context.Media
-                .FromSqlRaw(pageSql, match, size, (page - 1) * size)
-                .AsNoTracking()
-                .ToListAsync();
-
-            Logger.LogDebug("MediaRepository.SearchAsync q={Query} match={Match} elapsed={ElapsedMs}ms results={ResultCount} usedFts=true",
-                query, match, sw.ElapsedMilliseconds, totalCount);
-
-            return PaginationComponent.BuildResult(items, totalCount, pageNumber, pageSize);
+            return await SearchRankedAsync(match, query, pageNumber, pageSize, options as MediaSearchOptions);
         }
         finally
         {
@@ -319,22 +324,17 @@ internal class MediaRepository : BaseRepository<Media>, IMediaRepository
         try
         {
             // An explicit sort supersedes relevance rather than combining with it: the caller asked
-            // for that column's order, and bm25 could only break ties within it.
-            var includeBm25InSql = sort is null;
-            var sql = includeBm25InSql
-                ? $$"""
-                    SELECT m.*
-                    FROM "Media" AS m
-                    INNER JOIN "media_fts" AS f ON f."media_id" = m."Id"
-                    WHERE "media_fts" MATCH {0}
-                    ORDER BY bm25("media_fts")
-                    """
-                : $$"""
-                    SELECT m.*
-                    FROM "Media" AS m
-                    INNER JOIN "media_fts" AS f ON f."media_id" = m."Id"
-                    WHERE "media_fts" MATCH {0}
-                    """;
+            // for that column's order, and bm25 could only break ties within it. With no sort the
+            // ranking is the order, and that has to be paged in the query that produces it.
+            if (sort is null)
+                return await SearchRankedAsync(match, query, pageNumber, pageSize, options);
+
+            var sql = $$"""
+                SELECT m.*
+                FROM "Media" AS m
+                INNER JOIN "media_fts" AS f ON f."media_id" = m."Id"
+                WHERE "media_fts" MATCH {0}
+                """;
 
             using var context = await ContextFactory.CreateDbContextAsync();
 
@@ -346,8 +346,7 @@ internal class MediaRepository : BaseRepository<Media>, IMediaRepository
             // composed onto the raw query the same way the other paths apply it.
             queryable = ApplyTypeAndStatus(queryable, options);
 
-            if (sort is not null)
-                queryable = ApplySort(queryable, sort);
+            queryable = ApplySort(queryable, sort);
 
             var totalCount = await queryable.CountAsync();
 
