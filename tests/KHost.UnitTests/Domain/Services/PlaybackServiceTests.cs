@@ -1834,6 +1834,11 @@ public class PlaybackServiceTests : IDisposable
 
         await _service.LoadAsync(performance, media);
         await _service.PlayAsync();
+
+        // Cleared because LoadAsync hides the card too: without this the assertion is satisfied by
+        // that call and passes even when the end of a song leaves the last still on screen.
+        _screenServer.ClearReceivedCalls();
+
         await Task.Delay(20);
         await _service.TickAsync();
 
@@ -1852,6 +1857,8 @@ public class PlaybackServiceTests : IDisposable
 
         await _service.LoadAsync(performance, media);
         await _service.PlayAsync();
+        _screenServer.ClearReceivedCalls();
+
         await Task.Delay(20);
         await _service.TickAsync();
 
