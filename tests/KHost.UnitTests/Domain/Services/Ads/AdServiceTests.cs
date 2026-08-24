@@ -1,6 +1,7 @@
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using KHost.Domain.Services.Ads;
+using KHost.Domain.Services.Messaging;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace KHost.UnitTests.Domain.Services.Ads;
@@ -25,6 +26,7 @@ public class AdServiceTests : IDisposable
     private readonly IVenuesService _venues = Substitute.For<IVenuesService>();
     private readonly ISingerQueueService _queue = Substitute.For<ISingerQueueService>();
     private readonly StoppedClock _clock = new();
+    private readonly MessageBroker _broker = new(NullLogger<MessageBroker>.Instance);
     private bool _adPlays = true;
     private readonly AdService _service;
 
@@ -39,7 +41,7 @@ public class AdServiceTests : IDisposable
         _queue.Users.Returns([]);
 
         _service = new AdService(
-            NullLogger<AdService>.Instance, _playback, _pools, _media, _venues, _queue, _clock);
+            NullLogger<AdService>.Instance, _playback, _pools, _media, _venues, _queue, _clock, _broker);
     }
 
     public void Dispose()

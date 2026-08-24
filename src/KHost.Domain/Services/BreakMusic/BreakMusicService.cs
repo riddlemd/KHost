@@ -1,4 +1,6 @@
 using KHost.Abstractions.Services;
+using KHost.Plugins.Sdk.Messaging;
+using KHost.Plugins.Sdk.Messaging.Messages;
 using KHost.Plugins.Sdk.Models;
 using KHost.Plugins.Sdk.Services;
 using Microsoft.Extensions.Logging;
@@ -19,8 +21,9 @@ public class BreakMusicService : BaseService, IBreakMusicService, IDisposable
     public BreakMusicService(
         ILogger<BreakMusicService> logger,
         IEnumerable<IBreakMusicProvider> providers,
-        IVenuesService venues)
-        : base(logger)
+        IVenuesService venues,
+        IMessageBroker broker)
+        : base(logger, broker)
     {
         _providers = [.. providers];
         _venues = venues;
@@ -37,6 +40,8 @@ public class BreakMusicService : BaseService, IBreakMusicService, IDisposable
     public IBreakMusicProvider? ActiveProvider => _activeProvider;
 
     public BreakMusicState State { get; private set; } = BreakMusicState.Stopped;
+
+    protected override object? StateChangedMessage => new BreakMusicChanged();
 
     public BreakMusicTrack? CurrentTrack => _activeProvider?.CurrentTrack;
 

@@ -1,6 +1,7 @@
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Repositories;
 using KHost.Abstractions.Services;
+using KHost.Plugins.Sdk.Messaging;
 using Microsoft.Extensions.Logging;
 
 namespace KHost.Domain.Services;
@@ -11,8 +12,8 @@ public abstract class BaseRepositoryService<TClass, TRepository> : BaseService, 
 {
     protected readonly TRepository Repository;
 
-    protected BaseRepositoryService(ILogger logger, TRepository repository)
-        : base(logger)
+    protected BaseRepositoryService(ILogger logger, TRepository repository, IMessageBroker? broker = null)
+        : base(logger, broker)
     {
         Repository = repository;
     }

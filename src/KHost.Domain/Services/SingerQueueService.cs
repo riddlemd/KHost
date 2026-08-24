@@ -1,4 +1,6 @@
 using KHost.Abstractions.Models;
+using KHost.Plugins.Sdk.Messaging;
+using KHost.Plugins.Sdk.Messaging.Messages;
 using KHost.Plugins.Sdk.Models;
 using KHost.Plugins.Sdk.Models.QueueRotation;
 using KHost.Plugins.Sdk.Services;
@@ -19,6 +21,7 @@ public class SingerQueueService : ISingerQueueService
     private readonly IVenuesService _venuesService;
     private readonly IAnalyticsService _analytics;
     private readonly IQueueRotationStrategyFactory _rotationStrategyFactory;
+    private readonly IMessageBroker? _broker;
     private readonly List<Guid> _userIds = [];
     private List<KHostUser> _cachedUsers = [];
 
@@ -39,7 +42,8 @@ public class SingerQueueService : ISingerQueueService
         IUsersService usersService,
         IVenuesService venuesService,
         IAnalyticsService analytics,
-        IQueueRotationStrategyFactory rotationStrategyFactory)
+        IQueueRotationStrategyFactory rotationStrategyFactory,
+        IMessageBroker? broker = null)
     {
         _logger = logger;
         _cacheService = cacheService;
@@ -48,6 +52,7 @@ public class SingerQueueService : ISingerQueueService
         _venuesService = venuesService;
         _analytics = analytics;
         _rotationStrategyFactory = rotationStrategyFactory;
+        _broker = broker;
     }
 
     public async Task SelectUserAsync(Guid? userId)
@@ -251,6 +256,8 @@ public class SingerQueueService : ISingerQueueService
         await ResolveAsync();
         _logger.LogInformation("Singer queue loaded ({Count} users)", queueData.UserIds.Count);
         StateChanged?.Invoke(this, EventArgs.Empty);
+        if (_broker is { } broker)
+            _ = broker.PublishAsync(new SingerQueueChanged());
     }
 
     // Venues saved before rotation existed read the JSON key back as null; default to fifo,
@@ -365,6 +372,8 @@ public class SingerQueueService : ISingerQueueService
         await SaveAsync();
 
         StateChanged?.Invoke(this, EventArgs.Empty);
+        if (_broker is { } broker)
+            _ = broker.PublishAsync(new SingerQueueChanged());
     }
 
     private class QueueCacheData

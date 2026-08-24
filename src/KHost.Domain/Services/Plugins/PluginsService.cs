@@ -1,5 +1,7 @@
 using KHost.Abstractions.Models.Plugins;
 using KHost.Abstractions.Services;
+using KHost.Plugins.Sdk.Messaging;
+using KHost.Plugins.Sdk.Messaging.Messages;
 using Microsoft.Extensions.Logging;
 using System.Text.Json;
 
@@ -11,8 +13,10 @@ public class PluginsService : BaseService, IPluginsService
     private readonly ICacheService _cache;
     private readonly IPluginRegistry _registry;
 
-    public PluginsService(ILogger<PluginsService> logger, ICacheService cache, IPluginRegistry registry)
-        : base(logger)
+    protected override object? StateChangedMessage => new PluginsChanged();
+
+    public PluginsService(ILogger<PluginsService> logger, ICacheService cache, IPluginRegistry registry, IMessageBroker broker)
+        : base(logger, broker)
     {
         _cache = cache;
         _registry = registry;

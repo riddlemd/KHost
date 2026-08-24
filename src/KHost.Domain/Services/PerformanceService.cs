@@ -3,6 +3,8 @@ using KHost.Abstractions.Interactions.Requests;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Repositories;
 using KHost.Abstractions.Services;
+using KHost.Plugins.Sdk.Messaging;
+using KHost.Plugins.Sdk.Messaging.Messages;
 using Microsoft.Extensions.Logging;
 
 namespace KHost.Domain.Services;
@@ -14,14 +16,17 @@ public class PerformanceService : BaseRepositoryService<Performance, IPerformanc
     private readonly IInteractionDispatcher _interactions;
     private readonly IDownloadsService _downloadsService;
 
+    protected override object? StateChangedMessage => new PerformancesChanged();
+
     public PerformanceService(
         ILogger<PerformanceService> logger,
         IPerformancesRepository repository,
         IMediaService mediaService,
         IVenuesService venuesService,
         IInteractionDispatcher interactions,
-        IDownloadsService downloadsService)
-        : base(logger, repository)
+        IDownloadsService downloadsService,
+        IMessageBroker broker)
+        : base(logger, repository, broker)
     {
         _mediaService = mediaService;
         _venuesService = venuesService;

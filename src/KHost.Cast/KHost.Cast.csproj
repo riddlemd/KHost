@@ -20,6 +20,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\KHost.Abstractions\KHost.Abstractions.csproj" />
+    <ProjectReference Include="..\KHost.Plugins.Sdk\KHost.Plugins.Sdk.csproj" />
   </ItemGroup>
 
 </Project>

@@ -1,12 +1,15 @@
 using System.Collections.Concurrent;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
+using KHost.Plugins.Sdk.Messaging;
+using KHost.Plugins.Sdk.Messaging.Messages;
 
 namespace KHost.Domain.Services;
 
 // Dependency-free like the registry it replaces: PluginLibrary depends on IPerformanceService, and
 // PerformanceService depends on IDownloadsService (to cancel a download on dequeue), so this has to
-// carry no dependencies of its own to avoid a constructor cycle between the two.
+// carry no dependencies of its own to avoid a constructor cycle between the two. IMessageBroker has
+// no dependencies of its own, so it is safe to inject here.
 public class DownloadsService : IDownloadsService
 {
     private const int RecentCap = 50;
@@ -17,8 +20,14 @@ public class DownloadsService : IDownloadsService
     // everything else here is already safe under ConcurrentDictionary's own atomics.
     private readonly List<DownloadInfo> _recent = [];
     private readonly object _recentLock = new();
+    private readonly IMessageBroker? _broker;
 
     public event EventHandler? StateChanged;
+
+    public DownloadsService(IMessageBroker? broker = null)
+    {
+        _broker = broker;
+    }
 
     public IReadOnlyList<DownloadInfo> Snapshot()
     {
@@ -127,7 +136,12 @@ public class DownloadsService : IDownloadsService
         }
     }
 
-    private void RaiseStateChanged() => StateChanged?.Invoke(this, EventArgs.Empty);
+    private void RaiseStateChanged()
+    {
+        StateChanged?.Invoke(this, EventArgs.Empty);
+        if (_broker is { } broker)
+            _ = broker.PublishAsync(new DownloadsChanged());
+    }
 
     private sealed class ActiveEntry
     {
