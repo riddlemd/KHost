@@ -103,6 +103,13 @@ public partial class EditPlaylistDialog
         }
     }
 
+    /// <summary>
+    /// Artist as well as title: the search covers both, so a row matched on its artist looks like
+    /// a mistake when only the title is shown.
+    /// </summary>
+    private static string Describe(Media media)
+        => string.IsNullOrWhiteSpace(media.Artist) ? media.Title : $"{media.Title} — {media.Artist}";
+
     private string TitleFor(Guid id) => _titles.GetValueOrDefault(id, "(missing)");
 
     private string DescribeEntry(MediaPoolEntry entry)
