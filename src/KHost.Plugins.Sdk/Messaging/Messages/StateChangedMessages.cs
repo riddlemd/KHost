@@ -30,7 +30,15 @@ public sealed record MediaImportChanged;
 
 public sealed record MediaPoolsChanged;
 
+/// <summary>Some venue was added, edited or removed — the list moved.</summary>
 public sealed record VenuesChanged;
+
+/// <summary>
+/// The console is now running a different venue, or the one it is running was edited. Separate
+/// from <see cref="VenuesChanged"/> because the venue carries the audio baseline for the room:
+/// anything that pushes settings to screens wants this one, not every edit to every other venue.
+/// </summary>
+public sealed record SelectedVenueChanged;
 
 public sealed record UsersChanged;
 
