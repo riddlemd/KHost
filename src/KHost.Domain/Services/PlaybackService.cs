@@ -472,8 +472,24 @@ public class PlaybackService : BaseService, IPlaybackService
         try
         {
             var media = CurrentMedia;
-            if (media is null)
+
+            // A still sits on the screen rather than in a stream, so there is nothing to reload —
+            // and reloading would try to open a transcode for a picture. It just has to be put up
+            // again on the screen that has arrived.
+            if (IsPlayingAd && media is not null && MediaFormats.IsImage(media.Format))
+            {
+                await SendToScreensAsync(new ShowImageCommand { Url = _mediaStreams.BuildImageUrl(media.Id) });
                 return;
+            }
+
+            // Nothing is playing, so the joiner gets the venue's card rather than the bare
+            // placeholder. An audio-only ad lands here too: it holds no picture of its own, so the
+            // card is exactly what should be on screen behind it.
+            if (media is null)
+            {
+                await ShowIdleCardAsync();
+                return;
+            }
 
             // A screen reconnecting under the same id overwrites its own tracked connection, so
             // the stale disconnect is discarded and nothing is pending. Resume on either signal.
