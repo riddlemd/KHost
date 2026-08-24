@@ -1,0 +1,78 @@
+@page "/settings/playlists-manager"
+@attribute [Authorize(Policy = nameof(KHostPermission.ManageMedia))]
+@using KHost.UserInterface.Models
+
+<PageTitle>KHost &mdash; Manage Playlists</PageTitle>
+
+<div class="kh-app__body">
+    <div class="kh-settings-page">
+        <div class="kh-card">
+            <div class="kh-card__header">
+                <span class="kh-card__title"><Icon Name="collection-play" /> Playlists Manager</span>
+                <button class="kh-button kh-button--primary" @onclick="OpenAddDialogAsync" type="button">
+                    <Icon Name="plus-lg" /> Add Playlist
+                </button>
+            </div>
+
+            <div class="kh-card__body">
+                <p class="kh-playlists-manager__hint">
+                    Break music plays between singers. Ads interrupt nothing &mdash; they wait for the gap
+                    after a song. A venue uses one playlist of each, chosen in the Venues Manager.
+                </p>
+            </div>
+
+            <div class="kh-card__body">
+                @if (_pools.Count == 0)
+                {
+                    <div class="kh-panel--empty kh-panel--empty-lg">
+                        <Icon Name="collection" />
+                        <span>No playlists yet. Add one using the button above to get started.</span>
+                    </div>
+                }
+                else
+                {
+                    <table class="kh-table">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Used for</th>
+                                <th>Picks</th>
+                                <th>Entries</th>
+                                <th>Ads play</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var pool in _pools)
+                            {
+                                <tr>
+                                    <td class="kh-table__cell--fill">@pool.Name</td>
+                                    <td>
+                                        <span class="kh-badge kh-badge--secondary">
+                                            @(pool.Kind == MediaKind.Ad ? "Ads" : "Break music")
+                                        </span>
+                                    </td>
+                                    <td>@DescribeSelection(pool)</td>
+                                    <td>@DescribeEntries(pool)</td>
+                                    <td>@(pool.Kind == MediaKind.Ad ? DescribeTrigger(pool) : "—")</td>
+                                    <td class="kh-table__cell--actions">
+                                        <button class="kh-button--icon-minimal" title="Edit playlist"
+                                                @onclick="() => OpenEditDialogAsync(pool)">
+                                            <Icon Name="pencil" />
+                                        </button>
+                                        <button class="kh-button--icon-minimal" title="Delete playlist"
+                                                @onclick="@(async () => await StartDeleteAsync(pool))">
+                                            <Icon Name="trash" />
+                                        </button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+<EditPlaylistDialog IsOpen="_dialogOpen" Pool="_editing" OnSave="SavePoolAsync" OnClose="CloseDialog" />
