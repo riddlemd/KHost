@@ -89,11 +89,13 @@
                             {
                                 <tr>
                                     <td class="kh-table__cell--fill">
-                                        @pool.Name
-                                        @if (pool.Id == _activePoolId)
-                                        {
-                                            <span class="kh-badge kh-badge--secondary">In use</span>
-                                        }
+                                        <span class="kh-break-music-manager__name">
+                                            @pool.Name
+                                            @if (pool.Id == _activePoolId)
+                                            {
+                                                <span class="kh-badge kh-badge--secondary">In use</span>
+                                            }
+                                        </span>
                                     </td>
                                     <td>@PlaylistDisplay.DescribeSelection(pool)</td>
                                     <td>@PlaylistDisplay.DescribeEntries(pool)</td>
