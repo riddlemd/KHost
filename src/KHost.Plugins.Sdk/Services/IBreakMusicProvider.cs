@@ -22,10 +22,11 @@ public interface IBreakMusicProvider
     /// </summary>
     bool RendersThroughHost { get; }
 
+    /// <summary>
+    /// Publish a <c>BreakMusicTrackChanged</c> carrying this provider's <see cref="SourceName"/>
+    /// whenever this moves on its own, or the console will not know the track turned over.
+    /// </summary>
     BreakMusicTrack? CurrentTrack { get; }
-
-    /// <summary>Raised when the provider moves to another track on its own.</summary>
-    event EventHandler? TrackChanged;
 
     /// <summary>False when there was nothing to play, or nowhere to play it.</summary>
     Task<bool> StartAsync(CancellationToken cancellationToken = default);

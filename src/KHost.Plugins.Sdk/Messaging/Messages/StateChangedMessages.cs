@@ -9,6 +9,13 @@ public sealed record PlaybackChanged;
 
 public sealed record BreakMusicChanged;
 
+/// <summary>
+/// A provider moved to another track on its own. Carries <see cref="ProviderSourceName"/> because
+/// only the provider the venue chose speaks for the console — another still winding down would
+/// otherwise redraw the panel with its own track.
+/// </summary>
+public sealed record BreakMusicTrackChanged(string ProviderSourceName);
+
 public sealed record AdsChanged;
 
 public sealed record SingerQueueChanged;

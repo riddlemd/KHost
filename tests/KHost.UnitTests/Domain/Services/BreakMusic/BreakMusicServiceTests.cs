@@ -4,6 +4,7 @@ using KHost.Abstractions.Services.IPC;
 using KHost.Domain.Services.BreakMusic;
 using KHost.Domain.Services.Messaging;
 using KHost.Plugins.Sdk.Models;
+using KHost.Plugins.Sdk.Messaging.Messages;
 using KHost.Plugins.Sdk.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -69,7 +70,7 @@ public class BreakMusicServiceTests : IDisposable
             Substitute.For<IMediaStreamService>(),
             Substitute.For<IScreenServer>(),
             Substitute.For<IScreenCoordinationService>(),
-            _venues);
+            _venues, _broker);
 
         using var service = new BreakMusicService(
             NullLogger<BreakMusicService>.Instance, [plugin, library], _venues, _broker);
@@ -330,9 +331,23 @@ public class BreakMusicServiceTests : IDisposable
         var raised = 0;
         _service.StateChanged += (_, _) => raised++;
 
-        _provider.TrackChanged += Raise.Event();
+        await _broker.PublishAsync(new BreakMusicTrackChanged(_provider.SourceName));
 
         Assert.Equal(1, raised);
+    }
+
+    // A provider still winding down must not redraw the console with its own track.
+    [Fact]
+    public async Task TrackChangedOnAnotherProvider_IsIgnored()
+    {
+        await _service.InitializeAsync();
+
+        var raised = 0;
+        _service.StateChanged += (_, _) => raised++;
+
+        await _broker.PublishAsync(new BreakMusicTrackChanged("SomeOtherProvider"));
+
+        Assert.Equal(0, raised);
     }
 
     [Fact]
