@@ -1,6 +1,8 @@
-﻿using KHost.Abstractions.Services;
+﻿using KHost.Abstractions.Messaging;
+using KHost.Abstractions.Services;
 using KHost.Abstractions.Services.IPC;
 using KHost.Domain.Services;
+using KHost.Domain.Services.Messaging;
 using KHost.Domain.Services.AuthProviders;
 using KHost.Domain.Services.Ads;
 using KHost.Domain.Services.BreakMusic;
@@ -43,6 +45,7 @@ namespace KHost.Domain
                 .BindConfiguration(PluginLibrary.ServiceOptions.SectionName);
 
             serviceCollection.AddSingleton(TimeProvider.System);
+            serviceCollection.AddSingleton<IMessageBroker, MessageBroker>();
             serviceCollection.AddSingleton<IFlashService, FlashService>();
         serviceCollection.AddSingleton<IMediaFileParsingService, MediaFileParsingService>();
             serviceCollection.AddSingleton<IMediaFingerprintService, MediaFingerprintService>();
