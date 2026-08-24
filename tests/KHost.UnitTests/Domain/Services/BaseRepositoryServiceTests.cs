@@ -33,7 +33,7 @@ public class BaseRepositoryServiceTests
     }
 
     [Fact]
-    public async Task DeleteAsync_InvokesStateChanged_WhenRepositoryReturnsTrue()
+    public async Task DeleteAsync_AnnouncesTheChange_WhenRepositoryReturnsTrue()
     {
         _repository.DeleteAsync(Arg.Any<Guid>()).Returns(Task.FromResult(true));
         int count = 0;
@@ -45,7 +45,7 @@ public class BaseRepositoryServiceTests
     }
 
     [Fact]
-    public async Task DeleteAsync_DoesNotInvokeStateChanged_WhenRepositoryReturnsFalse()
+    public async Task DeleteAsync_DoesNotAnnounceTheChange_WhenRepositoryReturnsFalse()
     {
         _repository.DeleteAsync(Arg.Any<Guid>()).Returns(Task.FromResult(false));
         int count = 0;

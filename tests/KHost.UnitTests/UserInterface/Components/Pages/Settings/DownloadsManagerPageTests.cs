@@ -102,7 +102,7 @@ public class DownloadsManagerPageTests : BunitContext
     }
 
     [Fact]
-    public async Task StateChanged_Raised_ReRendersWithTheNewSnapshot()
+    public async Task DownloadsChanged_ReRendersWithTheNewSnapshot()
     {
         var mediaId = Guid.NewGuid();
         _downloadsService.Snapshot().Returns([]);

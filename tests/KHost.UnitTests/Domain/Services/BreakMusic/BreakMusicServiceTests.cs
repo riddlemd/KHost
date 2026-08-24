@@ -311,7 +311,7 @@ public class BreakMusicServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task StartAsync_RaisesStateChanged()
+    public async Task StartAsync_AnnouncesBreakMusicChanged()
     {
         await _service.InitializeAsync();
 
@@ -324,7 +324,7 @@ public class BreakMusicServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task TrackChangedOnTheActiveProvider_RaisesStateChanged()
+    public async Task TrackChangedOnTheActiveProvider_AnnouncesBreakMusicChanged()
     {
         await _service.InitializeAsync();
 

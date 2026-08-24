@@ -163,7 +163,7 @@ public class PluginLibrary : BaseService, IPluginLibrary
 
         media.Status = status;
 
-        // BaseRepositoryService.UpdateAsync raises StateChanged itself.
+        // BaseRepositoryService.UpdateAsync announces the change itself.
         await _mediaService.UpdateAsync(media);
     }
 
