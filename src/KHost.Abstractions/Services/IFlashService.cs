@@ -11,7 +11,7 @@ public interface IFlashService : IKHostService
 {
     FlashMessage? Current { get; }
 
-    void Show(string text, FlashKind kind = FlashKind.Success);
+    void Show(string text, FlashType type = FlashType.Success);
 
     void Dismiss();
 }

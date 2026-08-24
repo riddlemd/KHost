@@ -48,7 +48,7 @@ public partial class BreakMusicBar : IDisposable
         // no playlist chosen and a venue with no screen attached look identical from here, and
         // blaming the wrong one sends the host to the wrong page.
         if (!await BreakMusic.StartAsync())
-            Flash.Show("Break music did not start — check this venue has a playlist and a screen is connected.", FlashKind.Warning);
+            Flash.Show("Break music did not start — check this venue has a playlist and a screen is connected.", FlashType.Warning);
     }
 
     private Task PauseAsync() => BreakMusic.PauseAsync();
@@ -58,6 +58,6 @@ public partial class BreakMusicBar : IDisposable
     private async Task PlayAdAsync()
     {
         if (!await Ads.PlayNowAsync())
-            Flash.Show("No ad played — the playlist is empty or a song is loaded.", FlashKind.Warning);
+            Flash.Show("No ad played — the playlist is empty or a song is loaded.", FlashType.Warning);
     }
 }

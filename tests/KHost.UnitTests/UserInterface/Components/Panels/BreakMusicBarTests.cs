@@ -139,7 +139,7 @@ public class BreakMusicBarTests : BunitContext
 
         // Both causes named: a missing playlist and a missing screen are indistinguishable here.
         _flash.Received(1).Show(
-            Arg.Is<string>(m => m.Contains("playlist") && m.Contains("screen")), FlashKind.Warning);
+            Arg.Is<string>(m => m.Contains("playlist") && m.Contains("screen")), FlashType.Warning);
     }
 
     [Fact]
@@ -150,7 +150,7 @@ public class BreakMusicBarTests : BunitContext
 
         Render().Find("[title='Play an ad now']").Click();
 
-        _flash.Received(1).Show(Arg.Any<string>(), FlashKind.Warning);
+        _flash.Received(1).Show(Arg.Any<string>(), FlashType.Warning);
     }
 
     [Fact]
