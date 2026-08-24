@@ -158,6 +158,10 @@
     overflow: auto;
     display: flex;
     flex-direction: column;
+
+    // Matches the 1em a nested card already gets in _cards.scss. A page with one card is
+    // unaffected; the break music and ads managers stack two and were running them together.
+    gap: 1em;
 }
 
 form {
