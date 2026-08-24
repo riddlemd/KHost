@@ -34,6 +34,4 @@ public class EditVenueModel
     public Guid? BrandingImageMediaId { get; set; }
     public string? BreakMusicProvider { get; set; }
 
-    [Range(0, 100, ErrorMessage = "Break music volume must be between 0 and 100.")]
-    public int BreakMusicVolume { get; set; } = 60;
 }

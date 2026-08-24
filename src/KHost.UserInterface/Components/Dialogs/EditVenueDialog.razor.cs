@@ -74,9 +74,6 @@ public partial class EditVenueDialog
                     BrandingImageMediaId = Venue.Settings.BrandingImageMediaId,
                     BreakMusicProvider = Venue.Settings.BreakMusicProvider,
 
-                    // Stored nullable so a venue saved before the setting existed reads as unset
-                    // rather than as silent.
-                    BreakMusicVolume = Venue.Settings.BreakMusicVolume ?? 60,
                 };
             _editContext = new EditContext(_model);
 
@@ -126,7 +123,6 @@ public partial class EditVenueDialog
         venue.Settings.AdPoolId = _model.AdPoolId;
         venue.Settings.BrandingImageMediaId = _model.BrandingImageMediaId;
         venue.Settings.BreakMusicProvider = _model.BreakMusicProvider;
-        venue.Settings.BreakMusicVolume = _model.BreakMusicVolume;
 
         await OnSave.InvokeAsync(venue);
 

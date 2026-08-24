@@ -24,10 +24,7 @@ public interface IBreakMusicService
     BreakMusicState State { get; }
     BreakMusicTrack? CurrentTrack { get; }
 
-    /// <summary>0 to 1. Held for the session; the venue's stored default seeds it.</summary>
-    float Volume { get; }
-
-    /// <summary>Restores the venue's chosen provider and volume. Call once at startup.</summary>
+    /// <summary>Restores the venue's chosen provider. Call once at startup.</summary>
     Task InitializeAsync(CancellationToken cancellationToken = default);
 
     Task SetActiveProviderAsync(string sourceName, CancellationToken cancellationToken = default);
@@ -37,7 +34,6 @@ public interface IBreakMusicService
     Task ResumeAsync(CancellationToken cancellationToken = default);
     Task StopAsync(CancellationToken cancellationToken = default);
     Task SkipAsync(CancellationToken cancellationToken = default);
-    Task SetVolumeAsync(float volume, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Yields to something that has audio of its own. Does nothing unless it is playing, so a

@@ -181,21 +181,25 @@ public class LibraryBreakMusicProviderTests : IDisposable
         Assert.Contains(_sent, c => c is StopBackgroundCommand);
     }
 
+    // This provider's audio rides the screen, and ScreenCoordination sets that channel from the
+    // venue alongside the song's. Setting it here too would be a second place for one number.
     [Fact]
-    public async Task SetVolumeAsync_SendsTheBackgroundVolumeCommand()
+    public async Task SetVolumeAsync_SendsNothing()
     {
         await _provider.SetVolumeAsync(0.3f);
 
-        var volume = Assert.IsType<SetBackgroundVolumeCommand>(Assert.Single(_sent));
-        Assert.Equal(0.3f, volume.Volume);
+        Assert.Empty(_sent);
     }
 
     [Fact]
-    public async Task SetVolumeAsync_ClampsOutOfRangeValues()
+    public async Task PlayingATrack_DoesNotSetTheChannelVolume()
     {
-        await _provider.SetVolumeAsync(4f);
+        VenueWithPool(_poolId);
+        PoolYields();
 
-        Assert.Equal(1f, Assert.IsType<SetBackgroundVolumeCommand>(Assert.Single(_sent)).Volume);
+        await _provider.StartAsync();
+
+        Assert.DoesNotContain(_sent, c => c is SetBackgroundVolumeCommand);
     }
 
     [Fact]

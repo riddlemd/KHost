@@ -39,11 +39,6 @@
                 <Icon Name="skip-end-fill" />
             </button>
 
-            <input type="range" class="kh-break-music-bar__volume" min="0" max="100" step="1"
-                   title="Break music volume"
-                   value="@((int)Math.Round(BreakMusic.Volume * 100))"
-                   @onchange="OnVolumeChangedAsync" />
-
             @if (Ads.IsConfigured)
             {
                 <button class="kh-button--icon-minimal" title="Play an ad now" type="button" @onclick="PlayAdAsync">
