@@ -37,6 +37,54 @@ public class MediaPoolSelectorTests
         return MediaPoolSelector.SelectNext(root, byId, state, random)?.MediaId;
     }
 
+    private static MediaPoolEntry? SelectEntry(MediaPool root, PoolSelectionState state, Random random, params MediaPool[] others)
+        => MediaPoolSelector.SelectNext(root, others.ToDictionary(p => p.Id), state, random);
+
+    // An audio-only ad — a radio-style spot over whatever is already on screen — carries no
+    // MediaId at all, so a filter that only looks there makes the whole entry unreachable.
+    [Fact]
+    public void SelectNext_AnEntryWithOnlyAudio_IsStillPicked()
+    {
+        var audioId = Guid.NewGuid();
+        var pool = Pool(PoolSelectionMode.Sequential, 0,
+            new MediaPoolEntry { Id = Guid.NewGuid(), AudioMediaId = audioId });
+
+        var picked = SelectEntry(pool, new PoolSelectionState(), new Random(1));
+
+        Assert.Equal(audioId, picked?.AudioMediaId);
+    }
+
+    [Fact]
+    public void SelectNext_AnEntryWithNeitherMediaNorPool_IsSkipped()
+    {
+        var pool = Pool(PoolSelectionMode.Sequential, 0,
+            new MediaPoolEntry { Id = Guid.NewGuid(), Position = 0 },
+            Track(_trackA, position: 1));
+
+        Assert.Equal(_trackA, Select(pool, new PoolSelectionState(), new Random(1)));
+    }
+
+    // Two entries for the same track — a host weighting it by listing it twice — must not let it
+    // play back to back, so the window remembers the media rather than the line.
+    [Fact]
+    public void SelectNext_TheSameTrackListedTwice_StillHonoursTheNoRepeatWindow()
+    {
+        var pool = Pool(PoolSelectionMode.Shuffle, noRepeat: 1,
+            Track(_trackA), Track(_trackA), Track(_trackB));
+
+        var state = new PoolSelectionState();
+        var random = new Random(9);
+
+        Guid? previous = null;
+        for (var i = 0; i < 40; i++)
+        {
+            var pick = Select(pool, state, random);
+
+            Assert.NotEqual(previous, pick);
+            previous = pick;
+        }
+    }
+
     [Fact]
     public void SelectNext_EmptyPool_ReturnsNull()
     {
