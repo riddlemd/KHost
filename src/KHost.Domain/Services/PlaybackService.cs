@@ -57,6 +57,7 @@ public class PlaybackService : BaseService, IPlaybackService
     private readonly IMediaStreamService _mediaStreams;
     private readonly IScreenCoordinationService _screenCoordination;
     private readonly ICastService _cast;
+    private readonly IBreakMusicService _breakMusic;
     private readonly ServiceOptions _options;
 
     public event EventHandler? PositionChanged;
@@ -78,6 +79,7 @@ public class PlaybackService : BaseService, IPlaybackService
         IMediaStreamService mediaStreams,
         IScreenCoordinationService screenCoordination,
         ICastService cast,
+        IBreakMusicService breakMusic,
         IOptions<ServiceOptions> options)
         : base(logger)
     {
@@ -89,6 +91,7 @@ public class PlaybackService : BaseService, IPlaybackService
         _mediaStreams = mediaStreams;
         _screenCoordination = screenCoordination;
         _cast = cast;
+        _breakMusic = breakMusic;
         _options = options.Value;
 
         _screenServer.ScreenConnected += OnScreenConnected;
@@ -127,6 +130,10 @@ public class PlaybackService : BaseService, IPlaybackService
         }
 
         ResetState();
+
+        // On load rather than on play: the host lines the next singer up while the room is still
+        // listening to the bed, and a song that starts over the top of it is two songs at once.
+        await _breakMusic.SuspendAsync();
 
         CurrentPerformance = performance;
         CurrentMedia = media;
@@ -553,6 +560,9 @@ public class PlaybackService : BaseService, IPlaybackService
         // Dequeue first so rotation's songs-sung-tonight count includes the finished song.
         await _performanceService.DequeueAsync(currentPerformance.SingerId, currentPerformance.Id);
         await _singerQueueService.RotateQueueAsync(currentPerformance.SingerId);
+
+        // Last, so a bed starting up cannot delay the rotation the next singer is waiting on.
+        await _breakMusic.RestoreAsync();
     }
 
     /// <summary>
