@@ -20,10 +20,10 @@ public class DownloadsService : IDownloadsService
     // everything else here is already safe under ConcurrentDictionary's own atomics.
     private readonly List<DownloadInfo> _recent = [];
     private readonly object _recentLock = new();
-    private readonly IMessageBroker? _broker;
+    private readonly IMessageBroker _broker;
 
 
-    public DownloadsService(IMessageBroker? broker = null)
+    public DownloadsService(IMessageBroker broker)
     {
         _broker = broker;
     }

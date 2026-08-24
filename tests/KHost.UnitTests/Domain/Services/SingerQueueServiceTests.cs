@@ -508,7 +508,8 @@ public class SingerQueueServiceTests : IDisposable
         _usersService,
         _venuesService,
         Substitute.For<IAnalyticsService>(),
-        _rotationFactory);
+        _rotationFactory,
+        _broker);
 
     [Fact]
     public async Task RotateQueueAsync_DefaultConfig_MovesFinishedSingerToEndAndSelectsFirst()
@@ -622,7 +623,8 @@ public class SingerQueueServiceTests : IDisposable
         _usersService,
         _venuesService,
         Substitute.For<IAnalyticsService>(),
-        new QueueRotationStrategyFactory([new FifoStrategy()]));
+        new QueueRotationStrategyFactory([new FifoStrategy()]),
+        _broker);
 
     private async Task<KHostUser> EnqueueUserOnAsync(SingerQueueService service, string name)
     {

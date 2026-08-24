@@ -13,7 +13,7 @@ public partial class PluginsManagerPage : IDisposable
 {
     [Inject] private IPluginsService? PluginsService { get; set; }
     [Inject] private IExternalLinkService? ExternalLinks { get; set; }
-    [Inject] private IMessageBroker? Broker { get; set; }
+    [Inject] private IMessageBroker Broker { get; set; } = default!;
 
     private readonly SubscriptionSet _subscriptions = new();
 
@@ -33,8 +33,7 @@ public partial class PluginsManagerPage : IDisposable
     {
         if (PluginsService is null) return;
 
-        if (Broker is not null)
-            _subscriptions.Add(Broker.Subscribe<PluginsChanged>(OnStateChanged));
+        _subscriptions.Add(Broker.Subscribe<PluginsChanged>(OnStateChanged));
 
         _enabledIds = (await PluginsService.ReadEnabledIdsAsync()).ToHashSet(StringComparer.OrdinalIgnoreCase);
 

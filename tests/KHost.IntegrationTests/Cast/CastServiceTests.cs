@@ -1,5 +1,6 @@
 using System.Net.Sockets;
 using KHost.Cast;
+using KHost.Domain.Services.Messaging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
@@ -21,7 +22,8 @@ public class CastServiceTests : IAsyncLifetime
         Options.Create(new CastService.ServiceOptions
         {
             DiscoveryTimeout = TimeSpan.FromSeconds(5),
-        }));
+        }),
+        new MessageBroker(NullLogger<MessageBroker>.Instance));
 
     public async Task InitializeAsync() => await _cast.StartDiscoveryAsync();
 

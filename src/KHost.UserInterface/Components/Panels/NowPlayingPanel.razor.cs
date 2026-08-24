@@ -14,7 +14,7 @@ public partial class NowPlayingPanel : IDisposable
     [Inject] private ISingerQueueService? SingerQueueService { get; set; }
     [Inject] private IDialogService? DialogService { get; set; }
     [Inject] private IJSRuntime JS { get; set; } = default!;
-    [Inject] private IMessageBroker? Broker { get; set; }
+    [Inject] private IMessageBroker Broker { get; set; } = default!;
 
     private readonly SubscriptionSet _subscriptions = new();
 
@@ -25,8 +25,7 @@ public partial class NowPlayingPanel : IDisposable
     {
         if (PlaybackService is null) return;
 
-        if (Broker is not null)
-            _subscriptions.Add(Broker.Subscribe<PlaybackChanged>(_ => OnStateChanged(null, EventArgs.Empty)));
+        _subscriptions.Add(Broker.Subscribe<PlaybackChanged>(_ => OnStateChanged(null, EventArgs.Empty)));
 
         // The only panel that takes the position clock: it draws the playhead, and a redraw is all
         // it does with either event.

@@ -12,7 +12,7 @@ public partial class VenuesManagerPage : IDisposable
     [Inject] private IVenuesService? VenuesService { get; set; }
     [Inject] private IDialogService? DialogService { get; set; }
     [Inject] private IAppSettingsService? AppSettingsService { get; set; }
-    [Inject] private IMessageBroker? Broker { get; set; }
+    [Inject] private IMessageBroker Broker { get; set; } = default!;
 
     private readonly SubscriptionSet _subscriptions = new();
 
@@ -30,8 +30,7 @@ public partial class VenuesManagerPage : IDisposable
         _pageSize = AppSettingsService!.Current.VenuesPageSize;
 
         await SearchAsync();
-        if (Broker is not null)
-            _subscriptions.Add(Broker.Subscribe<VenuesChanged>(OnStateChanged));
+        _subscriptions.Add(Broker.Subscribe<VenuesChanged>(OnStateChanged));
     }
 
     private async Task SearchAsync()

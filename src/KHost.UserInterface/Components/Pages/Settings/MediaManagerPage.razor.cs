@@ -24,7 +24,7 @@ public partial class MediaManagerPage : IAsyncDisposable
     [Inject] private IDialogService? DialogService { get; set; }
     [Inject] private IVenuesService? VenuesService { get; set; }
     [Inject] private IAppSettingsService? AppSettingsService { get; set; }
-    [Inject] private IMessageBroker? Broker { get; set; }
+    [Inject] private IMessageBroker Broker { get; set; } = default!;
 
     private readonly SubscriptionSet _subscriptions = new();
 
@@ -58,8 +58,7 @@ public partial class MediaManagerPage : IAsyncDisposable
         _pageSize = AppSettingsService!.Current.MediaPageSize;
 
         await SearchAsync();
-        if (Broker is not null)
-            _subscriptions.Add(Broker.Subscribe<MediaLibraryChanged>(OnMediaStateChanged));
+        _subscriptions.Add(Broker.Subscribe<MediaLibraryChanged>(OnMediaStateChanged));
     }
 
     private bool _addFileDialogOpen;

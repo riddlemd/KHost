@@ -31,7 +31,7 @@ public class PluginLibrary : BaseService, IPluginLibrary
         IOptionsMonitor<ServiceOptions> options,
         IDownloadsService downloadsService,
         IMessageBroker broker)
-        : base(logger, broker)
+        : base(logger)
     {
         _repository = repository;
         _mediaService = mediaService;

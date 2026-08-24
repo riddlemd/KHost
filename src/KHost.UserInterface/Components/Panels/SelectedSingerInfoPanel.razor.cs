@@ -25,7 +25,7 @@ public partial class SelectedSingerInfoPanel : IDisposable
     [Inject] private ITipsService? TipsService { get; set; }
     [Inject] private IVenuesService? VenuesService { get; set; }
     [Inject] private IJSRuntime? JS { get; set; }
-    [Inject] private IMessageBroker? Broker { get; set; }
+    [Inject] private IMessageBroker Broker { get; set; } = default!;
 
     private readonly SubscriptionSet _subscriptions = new();
 
@@ -44,7 +44,6 @@ public partial class SelectedSingerInfoPanel : IDisposable
 
     protected override async Task OnInitializedAsync()
     {
-        if (Broker is not null)
         {
             _subscriptions.Add(Broker.Subscribe<SingerQueueChanged>(_ => OnStateChanged()));
             _subscriptions.Add(Broker.Subscribe<PerformancesChanged>(_ => OnStateChanged()));
