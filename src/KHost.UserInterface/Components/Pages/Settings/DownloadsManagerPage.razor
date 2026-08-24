@@ -1,0 +1,129 @@
+@page "/settings/downloads-manager"
+@using KHost.Abstractions.Models
+
+<PageTitle>KHost &mdash; Downloads Manager</PageTitle>
+
+<div class="kh-app__body">
+    <div class="kh-settings-page">
+        <div class="kh-card">
+            <div class="kh-card__header">
+                <span class="kh-card__title"><Icon Name="cloud-download" /> Downloads Manager</span>
+                @if (_active.Count > 0)
+                {
+                    <button class="kh-button kh-button--danger" @onclick="CancelAllAsync" type="button">
+                        <Icon Name="x-circle" /> Cancel All
+                    </button>
+                }
+            </div>
+            <div class="kh-card__body">
+                <div class="kh-downloads-manager__section-title">Active</div>
+                @if (_active.Count == 0)
+                {
+                    <div class="kh-panel--empty kh-panel--empty-lg">
+                        <Icon Name="cloud-download" />
+                        <span>No downloads in progress.</span>
+                    </div>
+                }
+                else
+                {
+                    <table class="kh-table kh-downloads-manager__table">
+                        <thead>
+                            <tr>
+                                <th>Media</th>
+                                <th class="kh-downloads-manager__col--progress">Progress</th>
+                                <th class="kh-downloads-manager__col--started">Started</th>
+                                <th class="kh-downloads-manager__col--actions"></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var download in _active)
+                            {
+                                <tr @key="download.MediaId">
+                                    <td class="kh-table__cell--fill">
+                                        <div class="kh-downloads-manager__info">
+                                            <span class="kh-downloads-manager__title">@download.Title</span>
+                                            <span class="kh-downloads-manager__meta">
+                                                @if (!string.IsNullOrWhiteSpace(download.Artist))
+                                                {
+                                                    @download.Artist
+                                                    <text> &middot; </text>
+                                                }
+                                                @(string.IsNullOrWhiteSpace(download.Source) ? "Unknown source" : download.Source)
+                                            </span>
+                                        </div>
+                                    </td>
+                                    <td class="kh-downloads-manager__col--progress">
+                                        @if (download.Progress is { } fraction)
+                                        {
+                                            <div class="kh-downloads-manager__progress">
+                                                <div class="kh-downloads-manager__progress-track">
+                                                    <div class="kh-downloads-manager__progress-fill"
+                                                         style="width:@(Percent(fraction))%"></div>
+                                                </div>
+                                                <span class="kh-downloads-manager__progress-percent">@(Percent(fraction))%</span>
+                                            </div>
+                                        }
+                                        else
+                                        {
+                                            <Loader Type="Loader.LoaderType.Spinner" />
+                                        }
+                                    </td>
+                                    <td class="kh-downloads-manager__col--started">@download.StartedUtc.ToLocalTime().ToString("MM/dd/yyyy HH:mm")</td>
+                                    <td class="kh-table__cell--actions kh-downloads-manager__actions">
+                                        <button class="kh-button kh-button--outline-danger kh-button--icon-minimal" title="Cancel" @onclick="() => CancelAsync(download.MediaId)" type="button">
+                                            <Icon Name="x-lg" />
+                                        </button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+            </div>
+            <div class="kh-card__body">
+                <div class="kh-downloads-manager__section-title">Recent</div>
+                @if (_recent.Count == 0)
+                {
+                    <div class="kh-panel--empty kh-panel--empty-lg">
+                        <Icon Name="clock-history" />
+                        <span>No settled downloads yet.</span>
+                    </div>
+                }
+                else
+                {
+                    <table class="kh-table kh-downloads-manager__table">
+                        <thead>
+                            <tr>
+                                <th>Media</th>
+                                <th class="kh-downloads-manager__col--state">State</th>
+                                <th class="kh-downloads-manager__col--started">Started</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var download in _recent)
+                            {
+                                <tr class="kh-downloads-manager__recent-row" @key="download.MediaId">
+                                    <td class="kh-table__cell--fill">
+                                        <div class="kh-downloads-manager__info">
+                                            <span class="kh-downloads-manager__title">@download.Title</span>
+                                            <span class="kh-downloads-manager__meta">
+                                                @if (!string.IsNullOrWhiteSpace(download.Artist))
+                                                {
+                                                    @download.Artist
+                                                    <text> &middot; </text>
+                                                }
+                                                @(string.IsNullOrWhiteSpace(download.Source) ? "Unknown source" : download.Source)
+                                            </span>
+                                        </div>
+                                    </td>
+                                    <td><span class="kh-badge @StateBadgeClass(download.State)">@download.State</span></td>
+                                    <td class="kh-downloads-manager__col--started">@download.StartedUtc.ToLocalTime().ToString("MM/dd/yyyy HH:mm")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+            </div>
+        </div>
+    </div>
+</div>

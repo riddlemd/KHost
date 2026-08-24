@@ -37,14 +37,7 @@
     }
 }
 
-.kh-footer {
-    display: flex;
-    flex-shrink: 0;
-    padding: 0 24px;
-    opacity: 0.33;
-}
-
-/* ─── Shell — the header's sibling that owns the app body and the status bar ── */
+/* ─── Shell — the header's sibling that owns the app body ── */
 .kh-shell {
     flex: 1 1 0;
     min-height: 0;
@@ -157,10 +150,6 @@
         flex-direction: column;
         overflow: hidden;
         gap: 0.5em;
-    }
-
-    &__toast-message {
-        flex: 1;
     }
 }
 

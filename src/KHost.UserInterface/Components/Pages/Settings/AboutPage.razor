@@ -1,0 +1,77 @@
+@page "/settings/about"
+
+<PageTitle>About - KHost</PageTitle>
+
+<div class="kh-app__body">
+    <div class="kh-settings-page">
+        <div class="kh-about kh-card">
+            <div class="kh-card__header">
+                <Icon Name="info-circle" />
+                <span class="kh-card__title">About</span>
+            </div>
+            <div class="kh-card__body">
+
+                <div class="kh-about__brand">
+                    <Icon Name="headphones" Class="kh-app__logo-icon" />
+                    <span class="kh-app__logo-text">KHost</span>
+                </div>
+                <div class="kh-about__meta">
+                    <div>Version @_appInfo?.Version</div>
+                    <div>@_appInfo?.Copyright</div>
+                </div>
+
+                @if (_appInfo is { RepositoryUrl.Length: > 0 })
+                {
+                    <div class="kh-about__links">
+                        <button class="kh-about__link" @onclick="() => OpenLink(_appInfo.RepositoryUrl)">
+                            <Icon Name="github" /> GitHub Repository
+                        </button>
+                        <button class="kh-about__link" @onclick="() => OpenLink(_appInfo.IssuesUrl)">
+                            <Icon Name="bug" /> Report an Issue
+                        </button>
+                        <button class="kh-about__link" @onclick="() => OpenLink(_appInfo.WikiUrl)">
+                            <Icon Name="journal-text" /> Wiki
+                        </button>
+                        <button class="kh-about__link" @onclick="() => OpenLink(_appInfo.ContributingUrl)">
+                            <Icon Name="people" /> Contributing
+                        </button>
+                    </div>
+                }
+
+                <button class="kh-about__toggle" @onclick="() => _licenseExpanded = !_licenseExpanded">
+                    <Icon Name="@(_licenseExpanded ? "chevron-down" : "chevron-right")" />
+                    <span>License</span>
+                </button>
+                @if (_licenseExpanded)
+                {
+                    <div class="kh-about__panel">
+                        <div class="kh-about__license-name">@_appInfo?.LicenseName</div>
+                        <pre class="kh-about__scroll-text">@_appInfo?.LicenseText</pre>
+                    </div>
+                }
+
+                <button class="kh-about__toggle" @onclick="() => _noticesExpanded = !_noticesExpanded">
+                    <Icon Name="@(_noticesExpanded ? "chevron-down" : "chevron-right")" />
+                    <span>Third-Party Notices</span>
+                </button>
+                @if (_noticesExpanded)
+                {
+                    <div class="kh-about__panel">
+                        <pre class="kh-about__scroll-text">@_appInfo?.ThirdPartyNotices</pre>
+
+                        @if (_appInfo is not null)
+                        {
+                            @foreach (var license in _appInfo.ReferencedLicenses)
+                            {
+                                <details class="kh-about__license-detail">
+                                    <summary>@license.Name — full text</summary>
+                                    <pre class="kh-about__scroll-text">@license.Text</pre>
+                                </details>
+                            }
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+</div>

@@ -16,6 +16,10 @@ public class DiscoveredPlugin
 
     public List<string> Warnings { get; } = [];
 
+    /// <summary>What the plugin actually registered on load, for display. Empty until it loads —
+    /// a disabled plugin's assembly is never scanned, so the host cannot claim it provides anything.</summary>
+    public List<string> Capabilities { get; } = [];
+
     // "D"-format GUID string; broken manifests fall back to the folder name so the
     // Plugins page still has a stable key to render them under.
     public string Id => Manifest?.Id.ToString() ?? Path.GetFileName(Directory);
