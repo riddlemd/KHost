@@ -1,4 +1,6 @@
 using KHost.Abstractions.Services;
+using KHost.Plugins.Sdk.Messaging;
+using KHost.Plugins.Sdk.Messaging.Messages;
 using Microsoft.AspNetCore.Components;
 using Microsoft.JSInterop;
 
@@ -9,6 +11,9 @@ public partial class HomePage : IAsyncDisposable
     [Inject] private ISingerQueueService? QueueService { get; set; }
     [Inject] private IMediaService? MediaService { get; set; }
     [Inject] private IJSRuntime? JS { get; set; }
+    [Inject] private IMessageBroker Broker { get; set; } = default!;
+
+    private readonly SubscriptionSet _subscriptions = new();
 
     private bool _hasMedia;
 
@@ -17,14 +22,11 @@ public partial class HomePage : IAsyncDisposable
 
     protected override async Task OnInitializedAsync()
     {
-        if (QueueService is not null)
-            QueueService.StateChanged += OnStateChanged;
+        _subscriptions.Add(Broker.Subscribe<SingerQueueChanged>(_ => InvokeAsync(StateHasChanged)));
 
         if (MediaService is not null)
             _hasMedia = await MediaService.HasAnyAsync();
     }
-
-    private void OnStateChanged(object? sender, EventArgs e) => InvokeAsync(StateHasChanged);
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -47,8 +49,7 @@ try
 
     public async ValueTask DisposeAsync()
     {
-        if (QueueService is not null)
-            QueueService.StateChanged -= OnStateChanged;
+        _subscriptions.Dispose();
 
         try
         {

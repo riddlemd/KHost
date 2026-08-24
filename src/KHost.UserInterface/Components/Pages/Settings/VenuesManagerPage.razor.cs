@@ -1,5 +1,7 @@
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
+using KHost.Plugins.Sdk.Messaging;
+using KHost.Plugins.Sdk.Messaging.Messages;
 using KHost.UserInterface.Services;
 using Microsoft.AspNetCore.Components;
 
@@ -10,6 +12,9 @@ public partial class VenuesManagerPage : IDisposable
     [Inject] private IVenuesService? VenuesService { get; set; }
     [Inject] private IDialogService? DialogService { get; set; }
     [Inject] private IAppSettingsService? AppSettingsService { get; set; }
+    [Inject] private IMessageBroker? Broker { get; set; }
+
+    private readonly SubscriptionSet _subscriptions = new();
 
     private int _pageSize = AppSettings.DefaultPageSize;
     // Mirrors EditVenueModel's [MaxLength] so a generated name can't fail validation later.
@@ -25,7 +30,8 @@ public partial class VenuesManagerPage : IDisposable
         _pageSize = AppSettingsService!.Current.VenuesPageSize;
 
         await SearchAsync();
-        VenuesService!.StateChanged += OnStateChanged;
+        if (Broker is not null)
+            _subscriptions.Add(Broker.Subscribe<VenuesChanged>(OnStateChanged));
     }
 
     private async Task SearchAsync()
@@ -147,7 +153,7 @@ public partial class VenuesManagerPage : IDisposable
         }
     }
 
-    private async void OnStateChanged(object? sender, EventArgs e)
+    private async void OnStateChanged(VenuesChanged message)
     {
         await SearchAsync();
 
@@ -161,8 +167,5 @@ public partial class VenuesManagerPage : IDisposable
         await InvokeAsync(StateHasChanged);
     }
 
-    public void Dispose()
-    {
-        VenuesService?.StateChanged -= OnStateChanged;
-    }
+    public void Dispose() => _subscriptions.Dispose();
 }

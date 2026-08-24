@@ -1,5 +1,7 @@
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
+using KHost.Plugins.Sdk.Messaging;
+using KHost.Plugins.Sdk.Messaging.Messages;
 using Microsoft.AspNetCore.Components;
 
 namespace KHost.UserInterface.Components.Panels;
@@ -9,22 +11,24 @@ public partial class BreakMusicBar : IDisposable
     [Inject] private IBreakMusicService BreakMusic { get; set; } = default!;
     [Inject] private IAdService Ads { get; set; } = default!;
     [Inject] private IFlashService Flash { get; set; } = default!;
+    [Inject] private IMessageBroker Broker { get; set; } = default!;
+
+    private readonly SubscriptionSet _subscriptions = new();
 
     protected override void OnInitialized()
     {
-        BreakMusic.StateChanged += OnStateChanged;
-        Ads.StateChanged += OnStateChanged;
+        _subscriptions.Add(Broker.Subscribe<BreakMusicChanged>(_ => OnStateChanged()));
+        _subscriptions.Add(Broker.Subscribe<AdsChanged>(_ => OnStateChanged()));
     }
 
     public void Dispose()
     {
-        BreakMusic.StateChanged -= OnStateChanged;
-        Ads.StateChanged -= OnStateChanged;
+        _subscriptions.Dispose();
 
         GC.SuppressFinalize(this);
     }
 
-    private async void OnStateChanged(object? sender, EventArgs e)
+    private async void OnStateChanged()
         => await InvokeAsync(StateHasChanged);
 
     private string DescribeState() => BreakMusic.State switch

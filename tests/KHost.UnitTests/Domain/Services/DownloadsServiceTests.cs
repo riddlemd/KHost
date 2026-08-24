@@ -1,11 +1,20 @@
 using KHost.Abstractions.Models;
 using KHost.Domain.Services;
+using KHost.Domain.Services.Messaging;
+using KHost.Plugins.Sdk.Messaging.Messages;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace KHost.UnitTests.Domain.Services;
 
 public class DownloadsServiceTests
 {
-    private readonly DownloadsService _service = new();
+    private readonly MessageBroker _broker = new(NullLogger<MessageBroker>.Instance);
+    private readonly DownloadsService _service;
+
+    public DownloadsServiceTests()
+    {
+        _service = new DownloadsService(_broker);
+    }
 
     [Fact]
     public void Register_NewMedia_AddsAnActiveDownloadingEntry()
@@ -27,7 +36,7 @@ public class DownloadsServiceTests
     public void Register_RaisesStateChanged()
     {
         var raised = 0;
-        _service.StateChanged += (_, _) => raised++;
+        using var subscription = _broker.Subscribe<DownloadsChanged>(_ => raised++);
 
         _service.Register(Guid.NewGuid(), "Title", "Artist", "Source");
 
@@ -79,7 +88,7 @@ public class DownloadsServiceTests
         var mediaId = Guid.NewGuid();
         _service.Register(mediaId, "Title", "Artist", "Source");
         var raised = 0;
-        _service.StateChanged += (_, _) => raised++;
+        using var subscription = _broker.Subscribe<DownloadsChanged>(_ => raised++);
 
         _service.Settle(mediaId, DownloadState.Completed);
 
@@ -90,7 +99,7 @@ public class DownloadsServiceTests
     public void Settle_UnknownId_IsANoOp()
     {
         var raised = 0;
-        _service.StateChanged += (_, _) => raised++;
+        using var subscription = _broker.Subscribe<DownloadsChanged>(_ => raised++);
 
         _service.Settle(Guid.NewGuid(), DownloadState.Completed);
 
@@ -105,7 +114,7 @@ public class DownloadsServiceTests
         _service.Register(mediaId, "Title", "Artist", "Source");
         _service.Settle(mediaId, DownloadState.Completed);
         var raised = 0;
-        _service.StateChanged += (_, _) => raised++;
+        using var subscription = _broker.Subscribe<DownloadsChanged>(_ => raised++);
 
         _service.Settle(mediaId, DownloadState.Failed);
 
@@ -140,7 +149,7 @@ public class DownloadsServiceTests
     public async Task CancelAsync_NothingRegistered_DoesNotThrowOrRaise()
     {
         var raised = 0;
-        _service.StateChanged += (_, _) => raised++;
+        using var subscription = _broker.Subscribe<DownloadsChanged>(_ => raised++);
 
         await _service.CancelAsync(Guid.NewGuid());
 
@@ -156,7 +165,7 @@ public class DownloadsServiceTests
         _service.Register(mediaId, "Title", "Artist", "Source");
         await _service.CancelAsync(mediaId);
         var raised = 0;
-        _service.StateChanged += (_, _) => raised++;
+        using var subscription = _broker.Subscribe<DownloadsChanged>(_ => raised++);
 
         await _service.CancelAsync(mediaId);
 
@@ -180,7 +189,7 @@ public class DownloadsServiceTests
     public void CancelAll_NothingActive_DoesNotRaise()
     {
         var raised = 0;
-        _service.StateChanged += (_, _) => raised++;
+        using var subscription = _broker.Subscribe<DownloadsChanged>(_ => raised++);
 
         _service.CancelAll();
 
@@ -204,7 +213,7 @@ public class DownloadsServiceTests
     public void ReportProgress_UnknownId_IsASilentNoOp()
     {
         var raised = 0;
-        _service.StateChanged += (_, _) => raised++;
+        using var subscription = _broker.Subscribe<DownloadsChanged>(_ => raised++);
 
         _service.ReportProgress(Guid.NewGuid(), 0.5);
 
@@ -218,7 +227,7 @@ public class DownloadsServiceTests
         _service.Register(mediaId, "Title", "Artist", "Source");
         _service.Settle(mediaId, DownloadState.Completed);
         var raised = 0;
-        _service.StateChanged += (_, _) => raised++;
+        using var subscription = _broker.Subscribe<DownloadsChanged>(_ => raised++);
 
         _service.ReportProgress(mediaId, 0.5);
 
@@ -232,7 +241,7 @@ public class DownloadsServiceTests
         var mediaId = Guid.NewGuid();
         _service.Register(mediaId, "Title", "Artist", "Source");
         var raised = 0;
-        _service.StateChanged += (_, _) => raised++;
+        using var subscription = _broker.Subscribe<DownloadsChanged>(_ => raised++);
 
         _service.ReportProgress(mediaId, 0.5);
 
@@ -247,7 +256,7 @@ public class DownloadsServiceTests
         _service.Register(mediaId, "Title", "Artist", "Source");
         _service.ReportProgress(mediaId, 0.501);
         var raised = 0;
-        _service.StateChanged += (_, _) => raised++;
+        using var subscription = _broker.Subscribe<DownloadsChanged>(_ => raised++);
 
         _service.ReportProgress(mediaId, 0.504);
 

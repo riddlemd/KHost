@@ -1,3 +1,6 @@
+using Microsoft.Extensions.Logging.Abstractions;
+using KHost.Plugins.Sdk.Messaging;
+using KHost.Domain.Services.Messaging;
 using System.Reflection;
 using Bunit;
 using KHost.Abstractions.Models;
@@ -24,6 +27,7 @@ namespace KHost.UnitTests.UserInterface.Components.Panels;
 public class MediaSearchPanelActionTests : BunitContext
 {
     private readonly IMediaSearchService _search = Substitute.For<IMediaSearchService>();
+    private readonly MessageBroker _broker = new(NullLogger<MessageBroker>.Instance);
 
     public MediaSearchPanelActionTests()
     {
@@ -42,6 +46,7 @@ public class MediaSearchPanelActionTests : BunitContext
         performances.ReadQueuedAsync().Returns([]);
 
         Services.AddSingleton(_search);
+        Services.AddSingleton<IMessageBroker>(_broker);
         Services.AddSingleton(queue);
         Services.AddSingleton(permissions);
         Services.AddSingleton(performances);

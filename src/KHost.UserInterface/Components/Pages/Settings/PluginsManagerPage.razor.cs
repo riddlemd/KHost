@@ -1,6 +1,8 @@
 using System.Text.Json;
 using KHost.Abstractions.Models.Plugins;
 using KHost.Abstractions.Services;
+using KHost.Plugins.Sdk.Messaging;
+using KHost.Plugins.Sdk.Messaging.Messages;
 using KHost.Plugins.Sdk.Models;
 using KHost.UserInterface.Services;
 using Microsoft.AspNetCore.Components;
@@ -11,6 +13,9 @@ public partial class PluginsManagerPage : IDisposable
 {
     [Inject] private IPluginsService? PluginsService { get; set; }
     [Inject] private IExternalLinkService? ExternalLinks { get; set; }
+    [Inject] private IMessageBroker? Broker { get; set; }
+
+    private readonly SubscriptionSet _subscriptions = new();
 
     private readonly string _pluginsDirectory = Path.Combine(AppContext.BaseDirectory, "plugins");
     private readonly Dictionary<string, List<SettingField>> _settingFields = new(StringComparer.OrdinalIgnoreCase);
@@ -28,7 +33,8 @@ public partial class PluginsManagerPage : IDisposable
     {
         if (PluginsService is null) return;
 
-        PluginsService.StateChanged += OnStateChanged;
+        if (Broker is not null)
+            _subscriptions.Add(Broker.Subscribe<PluginsChanged>(OnStateChanged));
 
         _enabledIds = (await PluginsService.ReadEnabledIdsAsync()).ToHashSet(StringComparer.OrdinalIgnoreCase);
 
@@ -206,13 +212,9 @@ public partial class PluginsManagerPage : IDisposable
         _ => "kh-badge--ext",
     };
 
-    private void OnStateChanged(object? sender, EventArgs e) => InvokeAsync(StateHasChanged);
+    private void OnStateChanged(PluginsChanged message) => InvokeAsync(StateHasChanged);
 
-    public void Dispose()
-    {
-        if (PluginsService is not null)
-            PluginsService.StateChanged -= OnStateChanged;
-    }
+    public void Dispose() => _subscriptions.Dispose();
 
     private enum RowState
     {

@@ -4,6 +4,7 @@ using KHost.Abstractions.Services;
 using KHost.Domain.Services;
 using KHost.Domain.Services.Messaging;
 using KHost.Domain.Services.Plugins;
+using KHost.Plugins.Sdk.Messaging.Messages;
 using KHost.Plugins.Sdk.Models;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -230,7 +231,7 @@ public class PluginLibraryTests
 
         var service = new PluginLibrary(_logger, repository, mediaService, _singerQueueService, _performanceService, _options, _downloads, _broker);
         var raised = 0;
-        mediaService.StateChanged += (_, _) => raised++;
+        using var subscription = _broker.Subscribe<MediaLibraryChanged>(_ => raised++);
 
         await service.CompleteImportAsync(media.Id);
 
@@ -268,7 +269,7 @@ public class PluginLibraryTests
 
         var service = new PluginLibrary(_logger, repository, mediaService, _singerQueueService, _performanceService, _options, _downloads, _broker);
         var raised = 0;
-        mediaService.StateChanged += (_, _) => raised++;
+        using var subscription = _broker.Subscribe<MediaLibraryChanged>(_ => raised++);
 
         await service.FailImportAsync(media.Id);
 
@@ -320,7 +321,7 @@ public class PluginLibraryTests
 
         var service = new PluginLibrary(_logger, repository, mediaService, _singerQueueService, _performanceService, _options, _downloads, _broker);
         var raised = 0;
-        mediaService.StateChanged += (_, _) => raised++;
+        using var subscription = _broker.Subscribe<MediaLibraryChanged>(_ => raised++);
 
         await service.DiscardImportAsync(media.Id);
 
