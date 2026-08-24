@@ -131,7 +131,11 @@ public partial class SelectedSingerInfoPanel : IDisposable
     {
         if (PlaybackService is null) return;
 
-        if (PlaybackService.State == PlaybackState.Playing && PlaybackService.CurrentPerformance?.Id != performance.Id)
+        // An ad is nobody's turn, so it never matches this performance and would trip the guard
+        // below for every row on the panel. A host has to be able to take the room back from one.
+        if (PlaybackService.State == PlaybackState.Playing
+            && !PlaybackService.IsPlayingAd
+            && PlaybackService.CurrentPerformance?.Id != performance.Id)
             return;
 
         if (!_mediaCache.TryGetValue(performance.MediaId, out var media) || media is null)

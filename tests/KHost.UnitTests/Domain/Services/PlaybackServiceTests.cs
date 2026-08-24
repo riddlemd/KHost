@@ -2060,6 +2060,70 @@ public class PlaybackServiceTests : IDisposable
         await _mediaStreams.Received().CloseAsync(Arg.Any<string>());
     }
 
+    // A host who needs the next singer up cannot be held by a fifteen-second card, so a load cuts
+    // whatever ad is running rather than being refused behind it.
+    [Fact]
+    public async Task LoadAsync_WhileAnAdIsPlaying_CutsTheAdShort()
+    {
+        await _service.PlayAdAsync(CreateAd());
+        Assert.True(_service.IsPlayingAd);
+
+        var (performance, media) = CreatePerformance();
+        await _service.LoadAsync(performance, media);
+
+        Assert.False(_service.IsPlayingAd);
+        Assert.Same(performance, _service.CurrentPerformance);
+        Assert.Same(media, _service.CurrentMedia);
+    }
+
+    // The main channel is reloaded with the song either way; the ad's own audio is on the other
+    // channel, and only this hands it back — otherwise a voiceover plays under the singer.
+    [Fact]
+    public async Task LoadAsync_WhileAnAdWithItsOwnAudioIsPlaying_HandsTheChannelBack()
+    {
+        await _service.PlayAdAsync(new AdPlayback { Audio = CreateAudio(), Duration = TimeSpan.FromSeconds(12) });
+        _screenServer.ClearReceivedCalls();
+        _mediaStreams.ClearReceivedCalls();
+
+        var (performance, media) = CreatePerformance();
+        await _service.LoadAsync(performance, media);
+
+        await _screenServer.Received().SendCommandAsync(Arg.Any<string>(), Arg.Any<StopBackgroundCommand>());
+        await _mediaStreams.Received().CloseAsync(Arg.Any<string>());
+    }
+
+    // Cutting an ad is not the same as one ending: what follows here is a song, so the bed and the
+    // venue card that trail a finished ad must not come up over it.
+    [Fact]
+    public async Task LoadAsync_WhileAnAdIsPlaying_DoesNotBringBreakMusicBack()
+    {
+        await _service.PlayAdAsync(CreateAd());
+        _breakMusic.ClearReceivedCalls();
+
+        var (performance, media) = CreatePerformance();
+        await _service.LoadAsync(performance, media);
+
+        await _breakMusic.DidNotReceive().RestoreAsync(Arg.Any<CancellationToken>());
+    }
+
+    // The clock ran the ad, and a stale duration would end the song at the ad's length instead.
+    [Fact]
+    public async Task LoadAsync_WhileAnAdIsPlaying_RunsTheSongForItsOwnLength()
+    {
+        await _service.PlayAdAsync(CreateAd(TimeSpan.FromMilliseconds(1)));
+
+        var (performance, media) = CreatePerformance();
+        media.Duration = TimeSpan.FromMinutes(4);
+        await _service.LoadAsync(performance, media);
+        await _service.PlayAsync();
+
+        await Task.Delay(20);
+        await _service.TickAsync();
+
+        Assert.Equal(PlaybackState.Playing, _service.State);
+        Assert.Same(performance, _service.CurrentPerformance);
+    }
+
     [Fact]
     public async Task PlayAdAsync_WithNothingToShowOrPlay_IsRefused()
     {
