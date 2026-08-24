@@ -5,13 +5,14 @@
         <Icon Name="collection-play" /> @(_isNew ? "Add Playlist" : "Edit Playlist")
     </Header>
     <Body>
-        <div class="kh-playlist-dialog__section">
-            <div class="kh-playlist-dialog__row">
+      <div class="kh-venue-settings">
+        <div class="kh-venue-settings__section kh-venue-settings__section--head">
+            <div class="kh-venue-settings__field">
                 <label for="playlist-name" class="kh-form-label">Name</label>
-                <input id="playlist-name" class="kh-form-control" @bind="_name" autocomplete="off" />
+                <input id="playlist-name" class="kh-form-control" autocomplete="off" @bind="_name" />
             </div>
 
-            <div class="kh-playlist-dialog__row">
+            <div class="kh-venue-settings__row">
                 <label for="playlist-kind" class="kh-form-label">Used for</label>
                 <select id="playlist-kind" class="kh-form-select" @bind="_kind">
                     <option value="@MediaKind.BreakMusic">Break music between singers</option>
@@ -19,7 +20,7 @@
                 </select>
             </div>
 
-            <div class="kh-playlist-dialog__row">
+            <div class="kh-venue-settings__row">
                 <label for="playlist-mode" class="kh-form-label">Pick the next entry</label>
                 <select id="playlist-mode" class="kh-form-select" @bind="_selectionMode">
                     <option value="@PoolSelectionMode.Shuffle">Shuffled</option>
@@ -28,20 +29,20 @@
                 </select>
             </div>
 
-            <div class="kh-playlist-dialog__row">
-                <label for="playlist-norepeat" class="kh-form-label">Keep the last</label>
+            <div class="kh-venue-settings__row">
+                <label for="playlist-norepeat" class="kh-form-label">Don't repeat the last</label>
                 <input id="playlist-norepeat" type="number" class="kh-form-control" min="0" max="50" @bind="_noRepeatCount" />
-                <span class="kh-playlist-dialog__suffix">out of the running</span>
             </div>
         </div>
 
         @if (_kind == MediaKind.Ad)
         {
-            <div class="kh-playlist-dialog__section">
-                <span class="kh-playlist-dialog__section-title">When these ads play</span>
+            <div class="kh-venue-settings__section">
+                <span class="kh-venue-settings__section-title">When these ads play</span>
 
-                <div class="kh-playlist-dialog__row">
-                    <select class="kh-form-select" @bind="_adTrigger">
+                <div class="kh-venue-settings__row">
+                    <label for="playlist-trigger" class="kh-form-label">Play them</label>
+                    <select id="playlist-trigger" class="kh-form-select" @bind="_adTrigger">
                         <option value="@AdTriggerMode.HostOnly">Only when the host asks</option>
                         <option value="@AdTriggerMode.EveryNPerformances">Every few songs</option>
                         <option value="@AdTriggerMode.EveryNMinutes">Every few minutes</option>
@@ -51,7 +52,7 @@
 
                 @if (_adTrigger is AdTriggerMode.EveryNPerformances or AdTriggerMode.EveryNMinutes)
                 {
-                    <div class="kh-playlist-dialog__row">
+                    <div class="kh-venue-settings__row">
                         <label for="playlist-interval" class="kh-form-label">
                             @(_adTrigger == AdTriggerMode.EveryNPerformances ? "Songs between ads" : "Minutes between ads")
                         </label>
@@ -65,8 +66,8 @@
             </div>
         }
 
-        <div class="kh-playlist-dialog__section">
-            <span class="kh-playlist-dialog__section-title">Entries</span>
+        <div class="kh-venue-settings__section">
+            <span class="kh-venue-settings__section-title">Entries</span>
 
             @if (_entries.Count == 0)
             {
@@ -91,7 +92,7 @@
                             {
                                 <th>Weight</th>
                             }
-                            <th>Actions</th>
+                            <th class="kh-playlist-dialog__col--actions"></th>
                         </tr>
                     </thead>
                     <tbody>
@@ -108,7 +109,7 @@
                                     <td>
                                         <select class="kh-form-select" value="@(entry.AudioMediaId?.ToString() ?? "")"
                                                 @onchange="e => SetEntryAudio(index, e.Value?.ToString())">
-                                            <option value="">@(entry.IsPool ? "—" : "Whatever it brings")</option>
+                                            <option value="">@(entry.IsPool ? "—" : "Its own")</option>
                                             @foreach (var audio in _audioChoices)
                                             {
                                                 <option value="@audio.Id">@audio.Title</option>
@@ -158,7 +159,7 @@
 
             <div class="kh-playlist-dialog__add">
                 <select class="kh-form-select" @bind="_addMediaId">
-                    <option value="">Add media…</option>
+                    <option value="">Add media&hellip;</option>
                     @foreach (var media in _mediaChoices)
                     {
                         <option value="@media.Id">@media.Title</option>
@@ -168,11 +169,13 @@
                         disabled="@(string.IsNullOrEmpty(_addMediaId))" @onclick="AddMediaEntry">
                     <Icon Name="plus-lg" /> Add
                 </button>
+            </div>
 
-                @if (_poolChoices.Count > 0)
-                {
+            @if (_poolChoices.Count > 0)
+            {
+                <div class="kh-playlist-dialog__add">
                     <select class="kh-form-select" @bind="_addPoolId">
-                        <option value="">Add another playlist…</option>
+                        <option value="">Add another playlist&hellip;</option>
                         @foreach (var pool in _poolChoices)
                         {
                             <option value="@pool.Id">@pool.Name</option>
@@ -182,9 +185,10 @@
                             disabled="@(string.IsNullOrEmpty(_addPoolId))" @onclick="AddPoolEntry">
                         <Icon Name="plus-lg" /> Add
                     </button>
-                }
-            </div>
+                </div>
+            }
         </div>
+      </div>
     </Body>
     <Footer>
         <button class="kh-button kh-button--secondary" type="button" @onclick="OnClose">Cancel</button>

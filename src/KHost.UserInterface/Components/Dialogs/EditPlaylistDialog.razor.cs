@@ -75,14 +75,14 @@ public partial class EditPlaylistDialog
 
     private async Task LoadChoicesAsync()
     {
-        var all = await Media.ReadAllAsync(1, 0, sort: null, MediaSearchOptions.AllKinds);
+        // By kind, and unpaged: a paged read filtered in memory drops everything past the first
+        // page, so a track sitting at row 51 of the library would never be offered.
+        _mediaChoices = await Media.ReadAllByKindsAsync(_kind);
 
-        // Offered by kind: a break music playlist full of karaoke tracks would put a singer's song
-        // on between singers.
-        _mediaChoices = [.. all.Items.Where(m => m.Kind == _kind).OrderBy(m => m.Title)];
-
-        // Anything that is not a picture can be an ad's voiceover or bed.
-        _audioChoices = [.. all.Items.Where(m => !MediaFormats.IsImage(m.Format)).OrderBy(m => m.Title)];
+        // Never the karaoke library: those are backing tracks with no singer on them, so they are
+        // neither something to play between singers nor an ad's voiceover.
+        var sound = await Media.ReadAllByKindsAsync(MediaKind.Ad, MediaKind.BreakMusic);
+        _audioChoices = [.. sound.Where(m => !MediaFormats.IsImage(m.Format))];
 
         var pools = await MediaPools.ReadAllWithEntriesAsync(_kind, venueId: null);
 

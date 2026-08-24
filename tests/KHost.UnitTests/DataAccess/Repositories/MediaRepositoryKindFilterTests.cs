@@ -198,6 +198,40 @@ public class MediaRepositoryKindFilterTests : IDisposable
         Assert.True(await _repository.HasAnyAsync());
     }
 
+    // The picker bug: a paged read filtered in memory drops everything past the first page, so a
+    // card sitting at row 51 of a real library is simply never offered.
+    [Fact]
+    public async Task ReadAllByKindsAsync_ReturnsEveryRow_PastTheFirstPage()
+    {
+        for (var i = 0; i < 60; i++)
+            await SeedAsync(Song($"Song {i:D3}", MediaKind.Karaoke));
+
+        await SeedAsync(Song("Zebra Card", MediaKind.Ad));
+
+        var ads = await _repository.ReadAllByKindsAsync(MediaKind.Ad);
+
+        Assert.Equal("Zebra Card", Assert.Single(ads).Title);
+    }
+
+    [Fact]
+    public async Task ReadAllByKindsAsync_SpansSeveralKinds()
+    {
+        await SeedOneOfEachKindAsync();
+
+        var sound = await _repository.ReadAllByKindsAsync(MediaKind.Ad, MediaKind.BreakMusic);
+
+        Assert.Equal(2, sound.Count);
+        Assert.DoesNotContain(sound, m => m.Kind == MediaKind.Karaoke);
+    }
+
+    [Fact]
+    public async Task ReadAllByKindsAsync_NoKinds_ReturnsNothing()
+    {
+        await SeedOneOfEachKindAsync();
+
+        Assert.Empty(await _repository.ReadAllByKindsAsync());
+    }
+
     // Dedup deliberately spans every kind: FilePath is unique across the table, so an ad already
     // imported has to be found before the same path is inserted again as a song.
     [Fact]

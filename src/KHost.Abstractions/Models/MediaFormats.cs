@@ -22,6 +22,22 @@ public static class MediaFormats
 
     public static bool IsImage(string? format) => ContentTypeFor(format) is not null;
 
+    /// <summary>
+    /// Whether the file is a karaoke backing track rather than a record. A .cdg says so outright,
+    /// and an audio file with a .cdg beside it is the other half of the same pair — both are
+    /// instrumentals with no singer on them, so neither belongs in break music.
+    /// </summary>
+    public static bool IsKaraokeTrack(string filePath)
+    {
+        if (string.IsNullOrWhiteSpace(filePath))
+            return false;
+
+        if (Path.GetExtension(filePath).Equals(".cdg", StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        return File.Exists(Path.ChangeExtension(filePath, ".cdg"));
+    }
+
     /// <summary>Null for anything that is not a still, which is also the endpoint's refusal.</summary>
     public static string? ContentTypeFor(string? format)
     {

@@ -44,10 +44,11 @@ public partial class BreakMusicBar : IDisposable
             return;
         }
 
-        // Told rather than left silent: with no playlist chosen this button looks broken, and the
-        // fix is two pages away.
+        // Both causes named, because the service reports only that it did not start: a venue with
+        // no playlist chosen and a venue with no screen attached look identical from here, and
+        // blaming the wrong one sends the host to the wrong page.
         if (!await BreakMusic.StartAsync())
-            Flash.Show("Nothing to play — set a break music playlist on this venue.", FlashKind.Warning);
+            Flash.Show("Break music did not start — check this venue has a playlist and a screen is connected.", FlashKind.Warning);
     }
 
     private Task PauseAsync() => BreakMusic.PauseAsync();

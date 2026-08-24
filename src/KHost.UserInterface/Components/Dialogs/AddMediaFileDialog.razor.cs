@@ -64,6 +64,14 @@ public partial class AddMediaFileDialog
             return;
         }
 
+        // A backing track has no singer on it and is often not the original recording, so it is a
+        // song to queue and nothing else. The .cdg beside it is what gives it away.
+        if (_kind != MediaKind.Karaoke && MediaFormats.IsKaraokeTrack(path))
+        {
+            _error = "That is a karaoke backing track, so it can only be added as karaoke.";
+            return;
+        }
+
         _busy = true;
 
         try
