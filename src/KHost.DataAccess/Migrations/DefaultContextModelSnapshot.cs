@@ -154,6 +154,9 @@ namespace KHost.DataAccess.Migrations
                         .HasMaxLength(10)
                         .HasColumnType("TEXT");
 
+                    b.Property<int>("Kind")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("Notes")
                         .IsRequired()
                         .HasMaxLength(1000)
@@ -188,6 +191,8 @@ namespace KHost.DataAccess.Migrations
                         .IsUnique();
 
                     b.HasIndex("FileSize");
+
+                    b.HasIndex("Kind");
 
                     b.HasIndex("Status");
 

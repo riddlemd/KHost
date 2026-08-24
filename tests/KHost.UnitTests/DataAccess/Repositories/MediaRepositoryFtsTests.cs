@@ -123,7 +123,7 @@ public class MediaRepositoryFtsTests : IDisposable
         await SeedDefaultLibraryAsync();
         await SeedAsync(MakeMedia("Killer Queen", "Queen", MediaStatus.Broken));
 
-        var readyOnly = new HashSet<MediaStatus> { MediaStatus.Ready };
+        var readyOnly = new MediaSearchOptions { Statuses = [MediaStatus.Ready] };
         var result = await _repository.SearchAsync("queen", pageNumber: 1, pageSize: 50, options: readyOnly);
 
         Assert.Single(result.Items);

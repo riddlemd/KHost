@@ -77,6 +77,10 @@ internal class DefaultContext : DbContext
             entity.HasIndex(e => e.Status);
             entity.HasIndex(e => e.DateAdded);
 
+            // Every listing and search filters on kind, so it sits ahead of the sort columns
+            // rather than beside them.
+            entity.HasIndex(e => e.Kind);
+
             // Import dedup looks rows up by size first; neither hash is unique, because the same
             // file legitimately exists under two paths until one of them is skipped.
             entity.HasIndex(e => e.FileSize);
