@@ -126,8 +126,7 @@
                           ValueChanged="@(media => _addMedia = media)"
                           @bind-Text="_addMediaText"
                           Search="SearchMediaAsync"
-                          DisplayName="@(media => media.Title)"
-                          MinimumSearchLength="1"
+                          DisplayName="@(media => Describe(media))"
                           Placeholder="@(Purpose == PoolPurpose.Ads ? "Search ad media…" : "Search break music…")" />
                 <button class="kh-button kh-button--secondary" type="button"
                         disabled="@(_addMedia is null)" @onclick="AddMediaEntry">

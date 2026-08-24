@@ -2,6 +2,7 @@ using System.Reflection;
 using Bunit;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
+using KHost.UserInterface.Components;
 using KHost.UserInterface.Components.Dialogs;
 using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.DependencyInjection;
@@ -18,6 +19,7 @@ public class EditPlaylistDialogTests : BunitContext
         Id = Guid.NewGuid(),
         FilePath = "/media/bed.mp3",
         Title = "Elevator Jazz",
+        Artist = "Someone",
         Format = "MP3",
         Type = MediaType.Audio,
         Status = MediaStatus.Ready,
@@ -221,6 +223,30 @@ public class EditPlaylistDialogTests : BunitContext
             Arg.Any<SortDescriptor?>(),
             Arg.Is<MediaSearchOptions>(o =>
                 o.Types!.SequenceEqual(new[] { MediaType.Video, MediaType.Audio, MediaType.Image })));
+    }
+
+    // Two characters cannot reach the trigram index, so they fall to a substring match that hits
+    // the artist as well — typing "ti" once returned every row, because every artist is "…artist".
+    [Fact]
+    public void TheMediaPicker_DoesNotSearchBelowTheTrigramMinimum()
+    {
+        var dialog = RenderDialog(new MediaPool { Name = "Beds" }, PoolPurpose.BreakMusic);
+        var combo = dialog.FindComponent<ComboBox<Media>>();
+
+        Assert.True(combo.Instance.MinimumSearchLength >= 3);
+    }
+
+    // The search covers the artist, so a row matched on its artist looks like a mistake when only
+    // the title is shown.
+    [Fact]
+    public void TheMediaPicker_ShowsTheArtistBesideTheTitle()
+    {
+        var dialog = RenderDialog(new MediaPool { Name = "Beds" }, PoolPurpose.BreakMusic);
+        var combo = dialog.FindComponent<ComboBox<Media>>();
+
+        Assert.Equal("Elevator Jazz — Someone", combo.Instance.DisplayName(_bed));
+        Assert.Equal("Happy Hour Spot", combo.Instance.DisplayName(
+            new Media { FilePath = "/x.mp4", Title = "Happy Hour Spot", Artist = "" }));
     }
 
     // Capped: the box is for finding one row, and a thousand of them help nobody.
