@@ -14,7 +14,8 @@
 
             <div class="kh-venue-settings__row">
                 <label for="playlist-kind" class="kh-form-label">Used for</label>
-                <select id="playlist-kind" class="kh-form-select" @bind="_kind">
+                <select id="playlist-kind" class="kh-form-select" value="@_kind"
+                        @onchange="OnKindChangedAsync">
                     <option value="@MediaKind.BreakMusic">Break music between singers</option>
                     <option value="@MediaKind.Ad">Ads</option>
                 </select>

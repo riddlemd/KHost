@@ -23,13 +23,28 @@ public class EditPlaylistDialogTests : BunitContext
         Status = MediaStatus.Ready,
     };
 
+    private readonly Media _spot = new()
+    {
+        Id = Guid.NewGuid(),
+        FilePath = "/media/spot.mp4",
+        Title = "Happy Hour Spot",
+        Format = "MP4",
+        Kind = MediaKind.Ad,
+        Status = MediaStatus.Ready,
+    };
+
     public EditPlaylistDialogTests()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
 
         // NSubstitute hands back a completed task wrapping null otherwise, and the dialog counts it.
-        _media.ReadAllAsync(Arg.Any<int>(), Arg.Any<int>(), Arg.Any<SortDescriptor?>(), Arg.Any<MediaSearchOptions?>())
-            .Returns(Task.FromResult(new PaginatedResult<Media> { Items = [_bed], TotalCount = 1, PageNumber = 1, PageSize = 50 }));
+        _media.ReadAllByKindsAsync(Arg.Any<MediaKind[]>())
+            .Returns(call =>
+            {
+                var kinds = call.Arg<MediaKind[]>();
+                return Task.FromResult<IReadOnlyList<Media>>(
+                    [.. new[] { _bed, _spot }.Where(m => kinds.Contains(m.Kind))]);
+            });
 
         _pools.ReadAllWithEntriesAsync(Arg.Any<MediaKind>(), Arg.Any<Guid?>())
             .Returns(Task.FromResult<IReadOnlyList<MediaPool>>([]));
@@ -159,6 +174,40 @@ public class EditPlaylistDialogTests : BunitContext
         rendered.Find(".kh-button--primary").Click();
 
         Assert.Null(saved);
+    }
+
+    // Both pickers are scoped to the kind, so switching to ads has to fetch again — otherwise the
+    // dialog keeps offering bed tracks and none of the venue's ads.
+    [Fact]
+    public void ChangingTheKind_ReloadsTheMediaChoices()
+    {
+        var rendered = RenderDialog(new MediaPool { Name = "Beds", Kind = MediaKind.BreakMusic });
+
+        Assert.Contains("Elevator Jazz", rendered.Markup);
+        Assert.DoesNotContain("Happy Hour Spot", rendered.Markup);
+
+        rendered.Find("#playlist-kind").Change(nameof(MediaKind.Ad));
+
+        Assert.Contains("Happy Hour Spot", rendered.Markup);
+        Assert.DoesNotContain("Elevator Jazz", rendered.Markup);
+    }
+
+    // Those entries came out of the other kind's library, so they are not this playlist's to keep.
+    [Fact]
+    public void ChangingTheKind_ClearsEntriesPickedFromTheOtherLibrary()
+    {
+        var rendered = RenderDialog(new MediaPool
+        {
+            Name = "Beds",
+            Kind = MediaKind.BreakMusic,
+            Entries = [new MediaPoolEntry { Id = Guid.NewGuid(), MediaId = Guid.NewGuid() }],
+        });
+
+        Assert.NotEmpty(rendered.FindAll(".kh-playlist-dialog__entries tbody tr"));
+
+        rendered.Find("#playlist-kind").Change(nameof(MediaKind.Ad));
+
+        Assert.Empty(rendered.FindAll(".kh-playlist-dialog__entries tbody tr"));
     }
 
     [Theory]
