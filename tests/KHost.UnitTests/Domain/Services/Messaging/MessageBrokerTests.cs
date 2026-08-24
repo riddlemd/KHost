@@ -1,5 +1,7 @@
 using KHost.Domain.Services.Messaging;
+using KHost.Plugins.Sdk.Messaging;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace KHost.UnitTests.Domain.Services.Messaging;
 
@@ -194,4 +196,40 @@ public class MessageBrokerTests
     [Fact]
     public void Subscribe_WithNoHandler_Throws()
         => Assert.Throws<ArgumentNullException>(() => _broker.Subscribe<SongStarted>((Action<SongStarted>)null!));
+}
+
+public class SubscriptionSetTests
+{
+    private sealed record Ping;
+
+    private readonly MessageBroker _broker = new(NullLogger<MessageBroker>.Instance);
+
+    [Fact]
+    public async Task Dispose_DropsEverySubscriptionItHolds()
+    {
+        var received = 0;
+        var set = new SubscriptionSet();
+        set.Add(_broker.Subscribe<Ping>(_ => received++));
+        set.Add(_broker.Subscribe<Ping>(_ => received++));
+
+        await _broker.PublishAsync(new Ping());
+        set.Dispose();
+        await _broker.PublishAsync(new Ping());
+
+        Assert.Equal(2, received);
+    }
+
+    [Fact]
+    public async Task Dispose_Twice_IsHarmless()
+    {
+        var received = 0;
+        var set = new SubscriptionSet();
+        set.Add(_broker.Subscribe<Ping>(_ => received++));
+
+        set.Dispose();
+        set.Dispose();
+        await _broker.PublishAsync(new Ping());
+
+        Assert.Equal(0, received);
+    }
 }
