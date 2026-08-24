@@ -12,6 +12,6 @@ public interface IMediaService : IRepositoryService<Media>
 
     Task<PaginatedResult<Media>> SearchAsync(string query, int pageNumber, int pageSize, SortDescriptor? sort, MediaSearchOptions? options);
 
-    /// <summary>Every row of these kinds, unpaged and title-ordered — what a picker needs.</summary>
-    Task<IReadOnlyList<Media>> ReadAllByKindsAsync(params MediaKind[] kinds);
+    /// <summary>Every row of these types, unpaged and title-ordered — what a picker needs.</summary>
+    Task<IReadOnlyList<Media>> ReadAllByTypesAsync(params MediaType[] types);
 }

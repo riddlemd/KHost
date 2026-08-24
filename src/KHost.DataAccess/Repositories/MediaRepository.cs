@@ -141,12 +141,12 @@ internal class MediaRepository : BaseRepository<Media>, IMediaRepository
         }
     }
 
-    private static IQueryable<Media> ApplyKindAndStatus(IQueryable<Media> queryable, MediaSearchOptions? options)
+    private static IQueryable<Media> ApplyTypeAndStatus(IQueryable<Media> queryable, MediaSearchOptions? options)
     {
         options ??= MediaSearchOptions.Default;
 
-        if (options.Kind is { } kind)
-            queryable = queryable.Where(m => m.Kind == kind);
+        if (options.Type is { } kind)
+            queryable = queryable.Where(m => m.Type == kind);
 
         var statuses = options.Statuses;
         if (statuses?.Count > 0)
@@ -164,7 +164,7 @@ internal class MediaRepository : BaseRepository<Media>, IMediaRepository
 
         // Filtered before the count as well as the page: a total that counts ads would page the
         // library past its own last row.
-        var queryable = ApplyKindAndStatus(context.Media, options);
+        var queryable = ApplyTypeAndStatus(context.Media, options);
 
         var totalCount = await queryable.CountAsync();
 
@@ -175,15 +175,15 @@ internal class MediaRepository : BaseRepository<Media>, IMediaRepository
         return PaginationComponent.BuildResult(items, totalCount, pageNumber, pageSize);
     }
 
-    public async Task<IReadOnlyList<Media>> ReadAllByKindsAsync(params MediaKind[] kinds)
+    public async Task<IReadOnlyList<Media>> ReadAllByTypesAsync(params MediaType[] types)
     {
-        if (kinds.Length == 0)
+        if (types.Length == 0)
             return [];
 
         using var context = await ContextFactory.CreateDbContextAsync();
 
         return await context.Media
-            .Where(m => kinds.Contains(m.Kind))
+            .Where(m => types.Contains(m.Type))
             .OrderBy(m => m.Title.ToLower())
             .ToListAsync();
     }
@@ -194,7 +194,7 @@ internal class MediaRepository : BaseRepository<Media>, IMediaRepository
 
         // A library holding nothing but ads is still a host with no songs to sing, which is what
         // the setup wizard is asking about.
-        return await context.Media.AnyAsync(m => m.Kind == MediaKind.Karaoke);
+        return await context.Media.AnyAsync(m => m.Type == MediaType.Karaoke);
     }
 
     // Media queries fold exactly the way media rows were folded on the way in.
@@ -209,7 +209,7 @@ internal class MediaRepository : BaseRepository<Media>, IMediaRepository
         // Anything that is not MediaSearchOptions — including the null the sort-only overloads
         // pass — lands on the default, which is karaoke. Forgetting to pass options narrows the
         // result rather than widening it.
-        queryable = ApplyKindAndStatus(queryable, options as MediaSearchOptions);
+        queryable = ApplyTypeAndStatus(queryable, options as MediaSearchOptions);
 
         // Only reached when the query cannot go to FTS - a term too short for the trigram index,
         // or one left empty once the metacharacters were stripped.
@@ -312,7 +312,7 @@ internal class MediaRepository : BaseRepository<Media>, IMediaRepository
 
             // The FTS join matches on text alone and knows nothing of kind, so the filter is
             // composed onto the raw query the same way the other paths apply it.
-            queryable = ApplyKindAndStatus(queryable, options);
+            queryable = ApplyTypeAndStatus(queryable, options);
 
             if (sort is not null)
                 queryable = ApplySort(queryable, sort);

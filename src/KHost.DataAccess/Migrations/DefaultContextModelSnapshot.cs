@@ -157,9 +157,6 @@ namespace KHost.DataAccess.Migrations
                     b.Property<int>("ImageScaling")
                         .HasColumnType("INTEGER");
 
-                    b.Property<int>("Kind")
-                        .HasColumnType("INTEGER");
-
                     b.Property<string>("Notes")
                         .IsRequired()
                         .HasMaxLength(1000)
@@ -182,6 +179,9 @@ namespace KHost.DataAccess.Migrations
                         .HasMaxLength(255)
                         .HasColumnType("TEXT");
 
+                    b.Property<int>("Type")
+                        .HasColumnType("INTEGER");
+
                     b.HasKey("Id");
 
                     b.HasIndex("Artist");
@@ -195,11 +195,11 @@ namespace KHost.DataAccess.Migrations
 
                     b.HasIndex("FileSize");
 
-                    b.HasIndex("Kind");
-
                     b.HasIndex("Status");
 
                     b.HasIndex("Title");
+
+                    b.HasIndex("Type");
 
                     b.ToTable("Media");
                 });

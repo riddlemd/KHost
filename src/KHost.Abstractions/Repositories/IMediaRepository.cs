@@ -13,11 +13,11 @@ public interface IMediaRepository : IRepository<Media>
     Task<PaginatedResult<Media>> SearchAsync(string query, int pageNumber, int pageSize, SortDescriptor? sort, MediaSearchOptions? options);
 
     /// <summary>
-    /// Every row of these kinds, unpaged and title-ordered. What a picker needs: paging a library
+    /// Every row of these types, unpaged and title-ordered. What a picker needs: paging a library
     /// and filtering the page in memory drops everything past the first page, so a card sitting at
     /// row 51 simply never appears.
     /// </summary>
-    Task<IReadOnlyList<Media>> ReadAllByKindsAsync(params MediaKind[] kinds);
+    Task<IReadOnlyList<Media>> ReadAllByTypesAsync(params MediaType[] types);
 
     /// <summary>
     /// Dedup reads deliberately span every kind: FilePath is unique across the table, so an ad
