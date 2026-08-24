@@ -1,5 +1,7 @@
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
+using KHost.Plugins.Sdk.Messaging;
+using KHost.Plugins.Sdk.Messaging.Messages;
 using KHost.UserInterface.Services;
 using Microsoft.AspNetCore.Components;
 using KHost.Plugins.Sdk.Services;
@@ -13,6 +15,9 @@ public partial class BreakMusicManagerPage : IDisposable
     [Inject] private IVenuesService Venues { get; set; } = default!;
     [Inject] private IDialogService Dialogs { get; set; } = default!;
     [Inject] private IFlashService Flash { get; set; } = default!;
+    [Inject] private IMessageBroker Broker { get; set; } = default!;
+
+    private readonly SubscriptionSet _subscriptions = new();
 
     private List<MediaPool> _pools = [];
     private MediaPool? _editing;
@@ -25,21 +30,20 @@ public partial class BreakMusicManagerPage : IDisposable
 
     protected override async Task OnInitializedAsync()
     {
-        MediaPools.StateChanged += OnChanged;
-        BreakMusic.StateChanged += OnChanged;
+        _subscriptions.Add(Broker.Subscribe<MediaPoolsChanged>(_ => OnChanged()));
+        _subscriptions.Add(Broker.Subscribe<BreakMusicChanged>(_ => OnChanged()));
 
         await RefreshAsync();
     }
 
     public void Dispose()
     {
-        MediaPools.StateChanged -= OnChanged;
-        BreakMusic.StateChanged -= OnChanged;
+        _subscriptions.Dispose();
 
         GC.SuppressFinalize(this);
     }
 
-    private async void OnChanged(object? sender, EventArgs e)
+    private async void OnChanged()
         => await InvokeAsync(async () =>
         {
             await RefreshAsync();

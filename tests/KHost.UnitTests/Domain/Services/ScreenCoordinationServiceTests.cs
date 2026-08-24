@@ -4,6 +4,7 @@ using KHost.Abstractions.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 using KHost.Domain.Services;
 using KHost.Domain.Services.Messaging;
+using KHost.Plugins.Sdk.Messaging.Messages;
 
 namespace KHost.UnitTests.Domain.Services;
 
@@ -416,7 +417,7 @@ public class ScreenCoordinationServiceTests : IDisposable
         await _service.EnsureRolesAsync();
 
         var raised = 0;
-        _service.StateChanged += (_, _) => raised++;
+        using var subscription = _broker.Subscribe<ScreensChanged>(_ => raised++);
 
         await _service.SetAudioScreenAsync("Lyrics");
 

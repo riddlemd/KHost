@@ -1,3 +1,6 @@
+using Microsoft.Extensions.Logging.Abstractions;
+using KHost.Plugins.Sdk.Messaging;
+using KHost.Domain.Services.Messaging;
 using Bunit;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
@@ -18,6 +21,7 @@ public class MediaSearchPanelSearchingTests : BunitContext
     private const string SearchingSelector = ".kh-media-search-panel__searching";
 
     private readonly IMediaSearchService _search = Substitute.For<IMediaSearchService>();
+    private readonly MessageBroker _broker = new(NullLogger<MessageBroker>.Instance);
 
     /// <summary>One per search, in order, so a test can land an earlier one after a later one.</summary>
     private readonly List<TaskCompletionSource<List<MediaSearchEntity>>> _pendingSearches = [];
@@ -48,6 +52,7 @@ public class MediaSearchPanelSearchingTests : BunitContext
         performances.ReadQueuedAsync().Returns([]);
 
         Services.AddSingleton(_search);
+        Services.AddSingleton<IMessageBroker>(_broker);
         Services.AddSingleton(queue);
         Services.AddSingleton(permissions);
         Services.AddSingleton(performances);

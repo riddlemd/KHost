@@ -1,3 +1,6 @@
+using Microsoft.Extensions.Logging.Abstractions;
+using KHost.Plugins.Sdk.Messaging;
+using KHost.Domain.Services.Messaging;
 using AngleSharp.Dom;
 using Bunit;
 using KHost.Abstractions.Models;
@@ -18,6 +21,7 @@ public class SelectedSingerInfoPanelKeyboardTests : BunitContext
     private const string BodySelector = ".kh-selected-singer-info-panel__body";
 
     private readonly ISingerQueueService _queue = Substitute.For<ISingerQueueService>();
+    private readonly MessageBroker _broker = new(NullLogger<MessageBroker>.Instance);
     private readonly IPerformanceService _performances = Substitute.For<IPerformanceService>();
     private readonly IPermissionService _permissions = Substitute.For<IPermissionService>();
     private readonly KHostUser _singer = new() { Id = Guid.NewGuid(), Name = "Ann" };
@@ -40,6 +44,7 @@ public class SelectedSingerInfoPanelKeyboardTests : BunitContext
         venues.ReadSelectedVenueAsync().Returns(new Venue { Id = Guid.NewGuid(), Name = "Bar" });
 
         Services.AddSingleton(_queue);
+        Services.AddSingleton<IMessageBroker>(_broker);
         Services.AddSingleton(_performances);
         Services.AddSingleton(_permissions);
         Services.AddSingleton(venues);

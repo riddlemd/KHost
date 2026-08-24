@@ -1,3 +1,6 @@
+using Microsoft.Extensions.Logging.Abstractions;
+using KHost.Plugins.Sdk.Messaging;
+using KHost.Domain.Services.Messaging;
 using Bunit;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
@@ -17,6 +20,7 @@ public class SelectedSingerInfoPanelAdInterruptTests : BunitContext
     private const string PlayButtonSelector = ".kh-selected-singer-info-panel__row .kh-split-btn__primary";
 
     private readonly ISingerQueueService _queue = Substitute.For<ISingerQueueService>();
+    private readonly MessageBroker _broker = new(NullLogger<MessageBroker>.Instance);
     private readonly IPerformanceService _performances = Substitute.For<IPerformanceService>();
     private readonly IMediaService _mediaService = Substitute.For<IMediaService>();
     private readonly IPlaybackService _playback = Substitute.For<IPlaybackService>();
@@ -45,6 +49,7 @@ public class SelectedSingerInfoPanelAdInterruptTests : BunitContext
         venues.ReadSelectedVenueAsync().Returns(new Venue { Id = Guid.NewGuid(), Name = "Bar" });
 
         Services.AddSingleton(_queue);
+        Services.AddSingleton<IMessageBroker>(_broker);
         Services.AddSingleton(_performances);
         Services.AddSingleton(permissions);
         Services.AddSingleton(venues);

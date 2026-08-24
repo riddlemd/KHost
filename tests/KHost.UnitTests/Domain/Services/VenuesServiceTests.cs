@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using KHost.Domain.Services;
 using KHost.Domain.Services.Messaging;
+using KHost.Plugins.Sdk.Messaging.Messages;
 
 namespace KHost.UnitTests.Domain.Services;
 
@@ -153,7 +154,7 @@ public class VenuesServiceTests : IDisposable
     public async Task CreateAsync_RaisesStateChanged()
     {
         var raised = false;
-        _service.StateChanged += (_, _) => raised = true;
+        using var subscription = _broker.Subscribe<VenuesChanged>(_ => raised = true);
 
         var venue = new Venue { Name = "The Pub", Notes = "", Enabled = true };
         await _service.CreateAsync(venue);
@@ -403,7 +404,7 @@ public class VenuesServiceTests : IDisposable
     public async Task SelectVenueAsync_RaisesStateChanged()
     {
         var raised = false;
-        _service.StateChanged += (_, _) => raised = true;
+        using var subscription = _broker.Subscribe<VenuesChanged>(_ => raised = true);
 
         await _service.SelectVenueAsync(Guid.NewGuid());
 

@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using KHost.Domain.Services;
 using KHost.Domain.Services.Messaging;
+using KHost.Plugins.Sdk.Messaging.Messages;
 
 namespace KHost.UnitTests.Domain.Services;
 
@@ -13,11 +14,12 @@ public class UsersServiceTests
     private readonly ILogger<UsersService> _logger = Substitute.For<ILogger<UsersService>>();
     private readonly IUsersRepository _repository = Substitute.For<IUsersRepository>();
     private readonly IUserGroupsRepository _userGroupsRepository = Substitute.For<IUserGroupsRepository>();
+    private readonly MessageBroker _broker = new(NullLogger<MessageBroker>.Instance);
     private readonly UsersService _service;
 
     public UsersServiceTests()
     {
-        _service = new UsersService(_logger, _repository, _userGroupsRepository, new MessageBroker(NullLogger<MessageBroker>.Instance));
+        _service = new UsersService(_logger, _repository, _userGroupsRepository, _broker);
     }
 
     [Fact]
@@ -57,7 +59,7 @@ public class UsersServiceTests
     public async Task DeleteAsync_DoesNotRaiseStateChangedForBuiltInUsers()
     {
         var notifications = 0;
-        _service.StateChanged += (_, _) => notifications++;
+        using var subscription = _broker.Subscribe<UsersChanged>(_ => notifications++);
 
         await _service.DeleteAsync(new Guid("00000000-0000-0000-0000-000000000001"));
 
@@ -188,7 +190,7 @@ public class UsersServiceTests
         var writesWhenNotified = -1;
         _userGroupsRepository.AddUserToGroupAsync(Arg.Any<Guid>(), Arg.Any<Guid>())
             .Returns(_ => { membershipWrites++; return Task.CompletedTask; });
-        _service.StateChanged += (_, _) => writesWhenNotified = membershipWrites;
+        using var subscription = _broker.Subscribe<UsersChanged>(_ => writesWhenNotified = membershipWrites);
 
         await _service.CreateAsync(user);
 
@@ -207,7 +209,7 @@ public class UsersServiceTests
         var writesWhenNotified = -1;
         _userGroupsRepository.AddUserToGroupAsync(Arg.Any<Guid>(), Arg.Any<Guid>())
             .Returns(_ => { membershipWrites++; return Task.CompletedTask; });
-        _service.StateChanged += (_, _) => writesWhenNotified = membershipWrites;
+        using var subscription = _broker.Subscribe<UsersChanged>(_ => writesWhenNotified = membershipWrites);
 
         await _service.UpdateAsync(new KHostUser { Id = userId, Name = "Dana", Groups = [hosts] });
 

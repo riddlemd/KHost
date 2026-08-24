@@ -1,4 +1,6 @@
 using KHost.Cast;
+using KHost.Domain.Services.Messaging;
+using KHost.Plugins.Sdk.Messaging.Messages;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
@@ -7,9 +9,17 @@ namespace KHost.UnitTests.Cast;
 /// <summary>Discovery state, without touching the network.</summary>
 public class CastDiscoveryTests : IDisposable
 {
-    private readonly CastService _cast = new(
-        NullLogger<CastService>.Instance,
-        Options.Create(new CastService.ServiceOptions()));
+    private readonly MessageBroker _broker = new(NullLogger<MessageBroker>.Instance);
+
+    private readonly CastService _cast;
+
+    public CastDiscoveryTests()
+    {
+        _cast = new CastService(
+            NullLogger<CastService>.Instance,
+            Options.Create(new CastService.ServiceOptions()),
+            _broker);
+    }
 
     [Fact]
     public void IsDiscovering_IsFalse_UntilAsked()
@@ -31,7 +41,7 @@ public class CastDiscoveryTests : IDisposable
     public async Task StopDiscovery_RaisesStateChanged_SoThePageRedraws()
     {
         var raised = 0;
-        _cast.StateChanged += (_, _) => raised++;
+        using var subscription = _broker.Subscribe<CastChanged>(_ => raised++);
 
         await _cast.StopDiscoveryAsync();
 
