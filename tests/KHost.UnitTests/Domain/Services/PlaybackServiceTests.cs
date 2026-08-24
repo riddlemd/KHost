@@ -2137,6 +2137,48 @@ public class PlaybackServiceTests : IDisposable
         Assert.True(await WaitForBroadcastAsync<LoadMediaCommand>());
     }
 
+    // The screen holds no library, so the host's choice has to travel with the picture.
+    [Fact]
+    public async Task PlayAdAsync_AStill_SendsItsScalingWithTheImage()
+    {
+        _mediaStreams.BuildImageUrl(Arg.Any<Guid>()).Returns("http://host/media/image/x");
+
+        var still = CreateStillAd();
+        still.ImageScaling = ImageScaling.Fill;
+
+        await _service.PlayAdAsync(still);
+
+        await _screenServer.Received().BroadcastCommandAsync(
+            Arg.Is<ShowImageCommand>(c => c.Scaling == ImageScaling.Fill));
+    }
+
+    [Fact]
+    public async Task TheVenueCard_IsShownWithItsOwnScaling()
+    {
+        var brandingId = Guid.NewGuid();
+        VenueBranding(brandingId);
+        _mediaService.ReadAsync(brandingId).Returns(new Media
+        {
+            Id = brandingId,
+            FilePath = "/media/brand.png",
+            Title = "Venue Card",
+            Status = MediaStatus.Ready,
+            Format = "PNG",
+            ImageScaling = ImageScaling.Stretch,
+        });
+
+        var (performance, media) = CreatePerformance();
+        media.Duration = TimeSpan.FromMilliseconds(1);
+
+        await _service.LoadAsync(performance, media);
+        await _service.PlayAsync();
+        await Task.Delay(20);
+        await _service.TickAsync();
+
+        await _screenServer.Received().BroadcastCommandAsync(
+            Arg.Is<ShowImageCommand>(c => c.Scaling == ImageScaling.Stretch));
+    }
+
     private static (Performance, Media) CreatePerformance()
     {
         var singerId = Guid.NewGuid();

@@ -1,3 +1,4 @@
+using KHost.Abstractions.Models;
 using System.Text.Json;
 using KHost.Abstractions.MediaPlayer;
 using Microsoft.Extensions.Logging;
@@ -170,12 +171,15 @@ internal sealed class StreamMediaPlayer : IMediaPlayer
     /// Puts a still up. Nothing is opened and nothing plays, so the host clock is the only thing
     /// that takes it down again.
     /// </summary>
-    public void ShowImage(string url)
+    public void ShowImage(string url, ImageScaling scaling)
     {
         lock (_lock) _stillUrl = url;
 
-        _logger.LogInformation("Showing still {Url}", url);
-        Send(new { type = "show-image", url });
+        _logger.LogInformation("Showing still {Url} scaled {Scaling}", url, scaling);
+
+        // Lowercased here rather than in the page: the page should not have to know the enum's
+        // spelling, only the CSS word it maps to.
+        Send(new { type = "show-image", url, scaling = scaling.ToString().ToLowerInvariant() });
     }
 
     public void HideImage()

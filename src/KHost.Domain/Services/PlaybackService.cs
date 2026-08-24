@@ -248,7 +248,7 @@ public class PlaybackService : BaseService, IPlaybackService
         }
         else if (ad.Visual is { } still)
         {
-            await SendToScreensAsync(new ShowImageCommand { Url = _mediaStreams.BuildImageUrl(still.Id) });
+            await SendToScreensAsync(new ShowImageCommand { Url = _mediaStreams.BuildImageUrl(still.Id), Scaling = still.ImageScaling });
         }
 
         // Opened at the offset rather than trimmed: a clip out of a longer file costs no re-encode,
@@ -479,7 +479,7 @@ public class PlaybackService : BaseService, IPlaybackService
             // ad: what matters is that the thing on screen is a picture, whatever put it there.
             if (media is not null && MediaFormats.IsImage(media.Format))
             {
-                await SendToScreensAsync(new ShowImageCommand { Url = _mediaStreams.BuildImageUrl(media.Id) });
+                await SendToScreensAsync(new ShowImageCommand { Url = _mediaStreams.BuildImageUrl(media.Id), Scaling = media.ImageScaling });
                 return;
             }
 
@@ -808,7 +808,7 @@ public class PlaybackService : BaseService, IPlaybackService
                 return;
             }
 
-            await SendToScreensAsync(new ShowImageCommand { Url = _mediaStreams.BuildImageUrl(media.Id) });
+            await SendToScreensAsync(new ShowImageCommand { Url = _mediaStreams.BuildImageUrl(media.Id), Scaling = media.ImageScaling });
         }
         catch (Exception ex)
         {
