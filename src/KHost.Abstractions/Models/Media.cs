@@ -2,11 +2,18 @@ namespace KHost.Abstractions.Models;
 
 public enum MediaStatus { Unknown, Ready, Downloading, Processing, Broken }
 
+/// <summary>
+/// What the file is for. Karaoke is first so rows written before the column existed read as the
+/// songs they are, and so a caller that forgets to set it lands on the harmless kind.
+/// </summary>
+public enum MediaKind { Karaoke, BreakMusic, Ad }
+
 public class Media : RepositoryModel
 {
     public required string FilePath { get; set; }
     public TimeSpan? Duration { get; set; }
     public MediaStatus Status { get; set; }
+    public MediaKind Kind { get; set; }
 
     public required string Title { get; set; } = string.Empty;
 

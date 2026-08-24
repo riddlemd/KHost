@@ -62,7 +62,10 @@ public partial class MediaManagerPage : IAsyncDisposable
             return;
 
         var sort = _sortColumn is not null ? new SortDescriptor(_sortColumn, _sortDescending) : null;
-        _paginatedResult = await MediaService.SearchAsync(_searchQuery, _currentPage, _pageSize, sort);
+
+        // The manager is the one page that manages files rather than plays them, so it is the one
+        // place break music and ads are listed alongside songs.
+        _paginatedResult = await MediaService.SearchAsync(_searchQuery, _currentPage, _pageSize, sort, MediaSearchOptions.AllKinds);
     }
 
     private void OnSortColumnClicked(string column)
