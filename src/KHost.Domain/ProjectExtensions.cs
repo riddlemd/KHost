@@ -2,6 +2,7 @@
 using KHost.Abstractions.Services.IPC;
 using KHost.Domain.Services;
 using KHost.Domain.Services.AuthProviders;
+using KHost.Domain.Services.MediaPools;
 using KHost.Domain.Services.MediaProviders;
 using KHost.Abstractions.Services.QueueRotation;
 using KHost.Domain.Services.PasswordHashers;
@@ -54,6 +55,7 @@ namespace KHost.Domain
             serviceCollection.AddSingleton<IUsersService, UsersService>();
             serviceCollection.AddSingleton<IPerformanceService, PerformanceService>();
             serviceCollection.AddSingleton<IMediaService, MediaService>();
+            serviceCollection.AddSingleton<IMediaPoolService, MediaPoolService>();
             serviceCollection.AddSingleton<ILyricsService, LyricsService>();
             serviceCollection.AddSingleton<IPasswordHasher, Argon2PasswordHasher>();
             serviceCollection.AddSingleton<IAuthService, AuthService>();
