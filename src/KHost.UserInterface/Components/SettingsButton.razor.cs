@@ -78,16 +78,15 @@ public partial class SettingsButton : IDisposable
         // Locking a console that signs everyone in automatically would be a button to nowhere.
         _canLock = AppSettings?.Current.RequireLogin != false;
 
-        _groups = [.. (await VisiblePagesAsync()).GroupBy(page => page.Group)];
-
-        if (VenuesService is not null)
-            await RefreshVenuesAsync();
-
-
         if (VenuesService is not null)
             _subscriptions.Add(Broker.Subscribe<VenuesChanged>(_ => OnServiceChanged(null, EventArgs.Empty)));
 
         _subscriptions.Add(Broker.Subscribe<ThemeChanged>(_ => OnServiceChanged(null, EventArgs.Empty)));
+
+        _groups = [.. (await VisiblePagesAsync()).GroupBy(page => page.Group)];
+
+        if (VenuesService is not null)
+            await RefreshVenuesAsync();
     }
 
     private async Task RefreshVenuesAsync()

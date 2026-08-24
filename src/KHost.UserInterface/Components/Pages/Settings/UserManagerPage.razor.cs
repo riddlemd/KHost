@@ -30,14 +30,12 @@ public partial class UserManagerPage : IDisposable
 
     protected override async Task OnInitializedAsync()
     {
+        _subscriptions.Add(Broker.Subscribe<UsersChanged>(_ => OnStateChanged()));
+        _subscriptions.Add(Broker.Subscribe<TipsChanged>(_ => OnStateChanged()));
+
         _pageSize = AppSettingsService!.Current.UsersPageSize;
 
         await SearchAsync();
-
-        {
-            _subscriptions.Add(Broker.Subscribe<UsersChanged>(_ => OnStateChanged()));
-            _subscriptions.Add(Broker.Subscribe<TipsChanged>(_ => OnStateChanged()));
-        }
     }
 
     private async Task SearchAsync()

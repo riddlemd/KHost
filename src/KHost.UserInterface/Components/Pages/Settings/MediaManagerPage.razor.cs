@@ -55,10 +55,11 @@ public partial class MediaManagerPage : IAsyncDisposable
         if (MediaService is null)
             return;
 
+        _subscriptions.Add(Broker.Subscribe<MediaLibraryChanged>(OnMediaStateChanged));
+
         _pageSize = AppSettingsService!.Current.MediaPageSize;
 
         await SearchAsync();
-        _subscriptions.Add(Broker.Subscribe<MediaLibraryChanged>(OnMediaStateChanged));
     }
 
     private bool _addFileDialogOpen;

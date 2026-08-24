@@ -36,15 +36,13 @@ public partial class MediaSearchPanel : IDisposable
 
     protected override async Task OnInitializedAsync()
     {
+        _subscriptions.Add(Broker.Subscribe<SingerQueueChanged>(_ => OnStateChanged()));
+        // Someone else queueing a song changes this panel's badges without touching the singer
+        // list, so the performance service has to be listened to as well.
+        _subscriptions.Add(Broker.Subscribe<PerformancesChanged>(_ => OnStateChanged()));
+
         if (Permissions is not null)
             _canAddToQueue = await Permissions.HasAsync(KHostPermission.AddToQueue);
-
-        {
-            _subscriptions.Add(Broker.Subscribe<SingerQueueChanged>(_ => OnStateChanged()));
-            // Someone else queueing a song changes this panel's badges without touching the singer
-            // list, so the performance service has to be listened to as well.
-            _subscriptions.Add(Broker.Subscribe<PerformancesChanged>(_ => OnStateChanged()));
-        }
 
         // Without this the badges stay empty until some unrelated state change fires.
         await UpdateQueuedMediaAsync();
