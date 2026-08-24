@@ -20,8 +20,24 @@ public class PlayerPageTests
         var page = Program.BuildPlayerPage();
 
         Assert.Contains("id=\"video\"", page);
+        Assert.Contains("id=\"background\"", page);
         Assert.Contains("id=\"placeholder\"", page);
         Assert.Contains("id=\"blanked\"", page);
         Assert.Contains("id=\"hostlost\"", page);
+    }
+
+    // The bed is a second element rather than a second source on the video: it carries no
+    // timeline, and sharing the element would put it under the same correction as the song.
+    [Fact]
+    public void BuildPlayerPage_Always_HandlesTheBackgroundChannelCommands()
+    {
+        var page = Program.BuildPlayerPage();
+
+        Assert.Contains("'bg-load'", page);
+        Assert.Contains("'bg-play'", page);
+        Assert.Contains("'bg-pause'", page);
+        Assert.Contains("'bg-stop'", page);
+        Assert.Contains("'bg-volume'", page);
+        Assert.Contains("type: 'bg-ended'", page);
     }
 }
