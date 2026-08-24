@@ -1,0 +1,113 @@
+name: Bug report
+description: Something in KHost behaves incorrectly.
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Steps that reproduce the problem are worth more than a description of it.
+        If it happened mid-show, say so — timing and load matter for the queue and screen.
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: What happened
+      description: The incorrect behaviour, and what you expected instead.
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: Number them, starting from a freshly launched app where you can.
+      placeholder: |
+        1. Start the app and open the console
+        2. Search for a song and enqueue it for two singers
+        3. Drag the second performance above the first
+        4. The row numbers renumber but the screen plays the old order
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      description: Which part of KHost does this touch? Pick every one that applies.
+      multiple: true
+      options:
+        - Console / singer queue
+        - Media library, search, or import
+        - Screen output (Photino / video)
+        - Chromecast
+        - Plugins & provider SDK
+        - Settings & venue configuration
+        - Users, groups, and tips
+        - Data, database, or migrations
+        - Build, tests, or tooling
+        - Not sure
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: KHost version or commit
+      description: A release tag, or the commit SHA you built from (`git rev-parse --short HEAD`).
+      placeholder: 673d222
+    validations:
+      required: true
+
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Where did you see it
+      multiple: true
+      options:
+        - Photino screen window
+        - Browser (Blazor Server UI)
+        - Chromecast receiver
+        - Console output / logs only
+    validations:
+      required: true
+
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: OS and version, .NET SDK version, and ffmpeg version if media playback is involved.
+      placeholder: macOS 15.6, .NET 10.0.100, ffmpeg 8.1.2
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs, stack traces, or screenshots
+      description: >
+        Paste the relevant output — it is rendered as code, no backticks needed.
+        Redact anything you would not want public.
+      render: text
+    validations:
+      required: false
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: >
+        Anything that narrows it down — does it survive a restart, does it only happen with
+        a particular media file or provider, did it start after a specific change.
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues and this isn't already reported.
+          required: true
+        - label: I can reproduce this on a current build of `master`.
+          required: false
