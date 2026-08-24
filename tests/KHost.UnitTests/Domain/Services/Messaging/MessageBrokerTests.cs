@@ -176,6 +176,21 @@ public class MessageBrokerTests
         Assert.Equal(0, late);
     }
 
+    // Services hand their change message to the broker through a base-class property typed as
+    // object, so routing has to read the message itself rather than the call's generic argument.
+    [Fact]
+    public async Task PublishAsync_AMessageHeldAsObject_StillReachesItsHandler()
+    {
+        var received = 0;
+        _broker.Subscribe<SongStarted>(_ => received++);
+
+        object message = new SongStarted("Boxed");
+        await _broker.PublishAsync(message);
+
+        Assert.Equal(1, received);
+        Assert.Empty(_logger.Errors);
+    }
+
     [Fact]
     public void Subscribe_WithNoHandler_Throws()
         => Assert.Throws<ArgumentNullException>(() => _broker.Subscribe<SongStarted>((Action<SongStarted>)null!));

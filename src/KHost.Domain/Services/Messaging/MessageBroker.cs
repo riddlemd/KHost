@@ -46,7 +46,10 @@ public class MessageBroker : IMessageBroker
     {
         ArgumentNullException.ThrowIfNull(message);
 
-        if (!_handlers.TryGetValue(typeof(TMessage), out var handlers)) return;
+        // The message's own type, not TMessage: a publisher holding one as object — a service
+        // exposing its change message through a base-class property — would otherwise post it
+        // under object and reach nobody.
+        if (!_handlers.TryGetValue(message.GetType(), out var handlers)) return;
 
         // One at a time, in subscription order: what one handler does decides what the next is
         // allowed to do, and a show where an ad and the bed race for the room cannot be reproduced.
@@ -62,7 +65,7 @@ public class MessageBroker : IMessageBroker
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "A {MessageType} handler failed", typeof(TMessage).Name);
+                _logger.LogError(ex, "A {MessageType} handler failed", message.GetType().Name);
             }
         }
     }
