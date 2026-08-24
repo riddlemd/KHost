@@ -36,10 +36,10 @@ public class LocalMediaProviderTests
                         m.Title.Contains(query, StringComparison.OrdinalIgnoreCase) ||
                         m.Artist.Contains(query, StringComparison.OrdinalIgnoreCase)).ToList();
 
-                // Mirrors MediaRepository.ApplySearchFilters, so the kind and status filters are
+                // Mirrors MediaRepository.ApplySearchFilters, so the type and status filters are
                 // exercised here rather than assumed.
-                if (options?.Type is { } kind)
-                    filtered = [.. filtered.Where(m => m.Type == kind)];
+                if (options?.Types is { Length: > 0 } types)
+                    filtered = [.. filtered.Where(m => types.Contains(m.Type))];
 
                 var statuses = options?.Statuses;
                 if (statuses?.Count > 0)

@@ -109,7 +109,7 @@ public class MediaRepositoryTypeFilterTests : IDisposable
         await SeedOneOfEachTypeAsync();
 
         var result = await _repository.SearchAsync("Thunder", 1, 50, sort: null,
-            new MediaSearchOptions { Type = MediaType.Audio });
+            new MediaSearchOptions { Types = [MediaType.Audio] });
 
         Assert.Equal("Thunder Bed", Assert.Single(result.Items).Title);
     }
@@ -267,7 +267,7 @@ public class MediaRepositoryTypeFilterTests : IDisposable
 
         var result = await _repository.SearchAsync("Thunder", 1, 50, sort: null, new MediaSearchOptions
         {
-            Type = MediaType.Karaoke,
+            Types = [MediaType.Karaoke],
             Statuses = [MediaStatus.Ready],
         });
 
