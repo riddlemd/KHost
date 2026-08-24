@@ -35,7 +35,7 @@ public class AdServiceTests : IDisposable
     {
         // A flag rather than re-stubbing mid-test: NSubstitute treats a second Returns on a call
         // that has already run as a new invocation.
-        _playback.PlayAdAsync(Arg.Any<Media>()).Returns(_ => Task.FromResult(_adPlays));
+        _playback.PlayAdAsync(Arg.Any<AdPlayback>()).Returns(_ => Task.FromResult(_adPlays));
         _queue.Users.Returns([]);
 
         _service = new AdService(
@@ -71,7 +71,8 @@ public class AdServiceTests : IDisposable
             Duration = TimeSpan.FromSeconds(20),
         };
 
-        _pools.SelectNextAsync(_poolId, Arg.Any<Guid?>()).Returns(Task.FromResult<Guid?>(media.Id));
+        _pools.SelectNextAsync(_poolId, Arg.Any<Guid?>())
+            .Returns(Task.FromResult<MediaPoolEntry?>(new MediaPoolEntry { MediaId = media.Id }));
         _media.ReadAsync(media.Id).Returns(Task.FromResult<Media?>(media));
 
         return pool;
@@ -83,6 +84,125 @@ public class AdServiceTests : IDisposable
             await _service.HandlePerformanceEndedAsync();
     }
 
+    private Media Library(string title, string format, TimeSpan? duration)
+    {
+        var media = new Media
+        {
+            Id = Guid.NewGuid(),
+            FilePath = $"/media/{title}",
+            Title = title,
+            Status = MediaStatus.Ready,
+            Kind = MediaKind.Ad,
+            Format = format,
+            Duration = duration,
+        };
+
+        _media.ReadAsync(media.Id).Returns(Task.FromResult<Media?>(media));
+        return media;
+    }
+
+    [Fact]
+    public async Task ComposeAsync_AVideoEntry_RunsForTheVideosOwnLength()
+    {
+        var video = Library("spot.mp4", "MP4", TimeSpan.FromSeconds(30));
+
+        var ad = await _service.ComposeAsync(new MediaPoolEntry { MediaId = video.Id });
+
+        Assert.Equal(TimeSpan.FromSeconds(30), ad?.Duration);
+        Assert.True(ad?.HasOwnAudio);
+    }
+
+    // A silent card: break music keeps playing under it, which is what HasOwnAudio decides.
+    [Fact]
+    public async Task ComposeAsync_AStillWithNoAudio_HasNoAudioOfItsOwn()
+    {
+        var still = Library("card.png", "PNG", MediaFormats.DefaultImageDuration);
+
+        var ad = await _service.ComposeAsync(new MediaPoolEntry { MediaId = still.Id });
+
+        Assert.False(ad?.HasOwnAudio);
+        Assert.Equal(MediaFormats.DefaultImageDuration, ad?.Duration);
+    }
+
+    [Fact]
+    public async Task ComposeAsync_AStillWithAVoiceover_TakesTheRoom()
+    {
+        var still = Library("card.png", "PNG", MediaFormats.DefaultImageDuration);
+        var voice = Library("voice.mp3", "MP3", TimeSpan.FromSeconds(12));
+
+        var ad = await _service.ComposeAsync(new MediaPoolEntry { MediaId = still.Id, AudioMediaId = voice.Id });
+
+        Assert.True(ad?.HasOwnAudio);
+    }
+
+    // The picture and the words should end together, so a still takes its length from the clip
+    // rather than from the fifteen-second default.
+    [Fact]
+    public async Task ComposeAsync_AStillWithAVoiceover_RunsForTheVoiceover()
+    {
+        var still = Library("card.png", "PNG", MediaFormats.DefaultImageDuration);
+        var voice = Library("voice.mp3", "MP3", TimeSpan.FromSeconds(12));
+
+        var ad = await _service.ComposeAsync(new MediaPoolEntry { MediaId = still.Id, AudioMediaId = voice.Id });
+
+        Assert.Equal(TimeSpan.FromSeconds(12), ad?.Duration);
+    }
+
+    [Fact]
+    public async Task ComposeAsync_AnAudioSegment_RunsForWhatIsLeftOfTheClip()
+    {
+        var voice = Library("bed.mp3", "MP3", TimeSpan.FromMinutes(5));
+
+        var ad = await _service.ComposeAsync(new MediaPoolEntry
+        {
+            AudioMediaId = voice.Id,
+            AudioStart = TimeSpan.FromMinutes(4),
+        });
+
+        Assert.Equal(TimeSpan.FromMinutes(1), ad?.Duration);
+        Assert.Equal(TimeSpan.FromMinutes(4), ad?.AudioStart);
+    }
+
+    [Fact]
+    public async Task ComposeAsync_AnExplicitDuration_WinsOverTheFiles()
+    {
+        var voice = Library("bed.mp3", "MP3", TimeSpan.FromMinutes(5));
+
+        var ad = await _service.ComposeAsync(new MediaPoolEntry
+        {
+            AudioMediaId = voice.Id,
+            AudioStart = TimeSpan.FromMinutes(1),
+            Duration = TimeSpan.FromSeconds(8),
+        });
+
+        Assert.Equal(TimeSpan.FromSeconds(8), ad?.Duration);
+    }
+
+    [Fact]
+    public async Task ComposeAsync_AnEntryPointingAtNothing_IsNull()
+        => Assert.Null(await _service.ComposeAsync(new MediaPoolEntry()));
+
+    [Fact]
+    public async Task ComposeAsync_AVideoWithNoDuration_IsNull()
+    {
+        var video = Library("spot.mp4", "MP4", duration: null);
+
+        Assert.Null(await _service.ComposeAsync(new MediaPoolEntry { MediaId = video.Id }));
+    }
+
+    // A start past the end of the clip leaves nothing to play.
+    [Fact]
+    public async Task ComposeAsync_AnAudioStartBeyondTheClip_IsNull()
+    {
+        var voice = Library("bed.mp3", "MP3", TimeSpan.FromSeconds(10));
+
+        Assert.Null(await _service.ComposeAsync(new MediaPoolEntry
+        {
+            AudioMediaId = voice.Id,
+            AudioStart = TimeSpan.FromSeconds(30),
+        }));
+    }
+
     [Fact]
     public async Task HostOnly_NeverFiresOnItsOwn()
     {
@@ -90,7 +210,7 @@ public class AdServiceTests : IDisposable
 
         await PerformancesAsync(10);
 
-        await _playback.DidNotReceive().PlayAdAsync(Arg.Any<Media>());
+        await _playback.DidNotReceive().PlayAdAsync(Arg.Any<AdPlayback>());
     }
 
     [Fact]
@@ -100,7 +220,7 @@ public class AdServiceTests : IDisposable
 
         Assert.True(await _service.PlayNowAsync());
 
-        await _playback.Received(1).PlayAdAsync(Arg.Any<Media>());
+        await _playback.Received(1).PlayAdAsync(Arg.Any<AdPlayback>());
     }
 
     [Fact]
@@ -110,7 +230,7 @@ public class AdServiceTests : IDisposable
 
         Assert.False(await _service.PlayNowAsync());
 
-        await _playback.DidNotReceive().PlayAdAsync(Arg.Any<Media>());
+        await _playback.DidNotReceive().PlayAdAsync(Arg.Any<AdPlayback>());
     }
 
     [Fact]
@@ -120,7 +240,7 @@ public class AdServiceTests : IDisposable
 
         await PerformancesAsync(2);
 
-        await _playback.DidNotReceive().PlayAdAsync(Arg.Any<Media>());
+        await _playback.DidNotReceive().PlayAdAsync(Arg.Any<AdPlayback>());
     }
 
     [Fact]
@@ -130,7 +250,7 @@ public class AdServiceTests : IDisposable
 
         await PerformancesAsync(3);
 
-        await _playback.Received(1).PlayAdAsync(Arg.Any<Media>());
+        await _playback.Received(1).PlayAdAsync(Arg.Any<AdPlayback>());
     }
 
     [Fact]
@@ -140,7 +260,7 @@ public class AdServiceTests : IDisposable
 
         await PerformancesAsync(4);
 
-        await _playback.Received(2).PlayAdAsync(Arg.Any<Media>());
+        await _playback.Received(2).PlayAdAsync(Arg.Any<AdPlayback>());
     }
 
     // A zero interval reads the same either way here — the counter is already 1 by the time it
@@ -152,7 +272,7 @@ public class AdServiceTests : IDisposable
 
         await PerformancesAsync(2);
 
-        await _playback.Received(2).PlayAdAsync(Arg.Any<Media>());
+        await _playback.Received(2).PlayAdAsync(Arg.Any<AdPlayback>());
     }
 
     // The clock starts at initialization, so the first ad waits its interval rather than firing
@@ -166,7 +286,7 @@ public class AdServiceTests : IDisposable
         _clock.Advance(TimeSpan.FromMinutes(19));
         await PerformancesAsync(5);
 
-        await _playback.DidNotReceive().PlayAdAsync(Arg.Any<Media>());
+        await _playback.DidNotReceive().PlayAdAsync(Arg.Any<AdPlayback>());
     }
 
     [Fact]
@@ -178,7 +298,7 @@ public class AdServiceTests : IDisposable
         _clock.Advance(TimeSpan.FromMinutes(21));
         await PerformancesAsync(1);
 
-        await _playback.Received(1).PlayAdAsync(Arg.Any<Media>());
+        await _playback.Received(1).PlayAdAsync(Arg.Any<AdPlayback>());
     }
 
     [Fact]
@@ -190,7 +310,7 @@ public class AdServiceTests : IDisposable
         _clock.Advance(TimeSpan.FromMinutes(21));
         await PerformancesAsync(3);
 
-        await _playback.Received(1).PlayAdAsync(Arg.Any<Media>());
+        await _playback.Received(1).PlayAdAsync(Arg.Any<AdPlayback>());
     }
 
     // Unclamped, TimeSpan.FromMinutes(0) is always elapsed, so a hand-edited zero would put an
@@ -203,7 +323,7 @@ public class AdServiceTests : IDisposable
 
         await PerformancesAsync(3);
 
-        await _playback.DidNotReceive().PlayAdAsync(Arg.Any<Media>());
+        await _playback.DidNotReceive().PlayAdAsync(Arg.Any<AdPlayback>());
     }
 
     [Fact]
@@ -215,7 +335,7 @@ public class AdServiceTests : IDisposable
         _clock.Advance(TimeSpan.FromMinutes(2));
         await PerformancesAsync(1);
 
-        await _playback.Received(1).PlayAdAsync(Arg.Any<Media>());
+        await _playback.Received(1).PlayAdAsync(Arg.Any<AdPlayback>());
     }
 
     [Fact]
@@ -226,7 +346,7 @@ public class AdServiceTests : IDisposable
 
         await PerformancesAsync(1);
 
-        await _playback.DidNotReceive().PlayAdAsync(Arg.Any<Media>());
+        await _playback.DidNotReceive().PlayAdAsync(Arg.Any<AdPlayback>());
     }
 
     [Fact]
@@ -236,7 +356,7 @@ public class AdServiceTests : IDisposable
 
         await PerformancesAsync(1);
 
-        await _playback.Received(1).PlayAdAsync(Arg.Any<Media>());
+        await _playback.Received(1).PlayAdAsync(Arg.Any<AdPlayback>());
     }
 
     // A refusal leaves the slot due, so the next gap tries again rather than skipping it.
@@ -254,7 +374,7 @@ public class AdServiceTests : IDisposable
 
         // Two attempts, not three: the refusal left the slot due, so the very next gap retried it
         // rather than waiting another full interval.
-        await _playback.Received(2).PlayAdAsync(Arg.Any<Media>());
+        await _playback.Received(2).PlayAdAsync(Arg.Any<AdPlayback>());
         Assert.Equal(0, _service.PerformancesSinceLastAd);
     }
 
@@ -262,11 +382,11 @@ public class AdServiceTests : IDisposable
     public async Task AnEmptyPlaylist_PlaysNothingAndLeavesTheCounterDue()
     {
         ConfigureVenue(AdTriggerMode.EveryNPerformances, interval: 1);
-        _pools.SelectNextAsync(_poolId, Arg.Any<Guid?>()).Returns(Task.FromResult<Guid?>(null));
+        _pools.SelectNextAsync(_poolId, Arg.Any<Guid?>()).Returns(Task.FromResult<MediaPoolEntry?>(null));
 
         await PerformancesAsync(1);
 
-        await _playback.DidNotReceive().PlayAdAsync(Arg.Any<Media>());
+        await _playback.DidNotReceive().PlayAdAsync(Arg.Any<AdPlayback>());
         Assert.Equal(1, _service.PerformancesSinceLastAd);
     }
 
@@ -280,7 +400,7 @@ public class AdServiceTests : IDisposable
         // next singer is waiting on that gap finishing.
         await PerformancesAsync(1);
 
-        await _playback.DidNotReceive().PlayAdAsync(Arg.Any<Media>());
+        await _playback.DidNotReceive().PlayAdAsync(Arg.Any<AdPlayback>());
     }
 
     [Fact]
@@ -305,7 +425,7 @@ public class AdServiceTests : IDisposable
         _playback.PerformanceEnded += Raise.EventWith(gap);
         await gap.WhenFilledAsync();
 
-        await _playback.Received(1).PlayAdAsync(Arg.Any<Media>());
+        await _playback.Received(1).PlayAdAsync(Arg.Any<AdPlayback>());
     }
 
     // Playback holds break music down until the gap's work finishes, so an ad that registered
@@ -320,6 +440,6 @@ public class AdServiceTests : IDisposable
 
         await gap.WhenFilledAsync();
 
-        await _playback.Received(1).PlayAdAsync(Arg.Any<Media>());
+        await _playback.Received(1).PlayAdAsync(Arg.Any<AdPlayback>());
     }
 }

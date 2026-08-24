@@ -30,10 +30,11 @@ public class MediaPoolSelectorTests
     private static MediaPoolEntry Child(Guid poolId, int position = 0, int weight = 1)
         => new() { Id = Guid.NewGuid(), ChildPoolId = poolId, Position = position, Weight = weight };
 
+    /// <summary>The media behind the picked entry, which is what every case here is about.</summary>
     private static Guid? Select(MediaPool root, PoolSelectionState state, Random random, params MediaPool[] others)
     {
         var byId = others.ToDictionary(p => p.Id);
-        return MediaPoolSelector.SelectNext(root, byId, state, random);
+        return MediaPoolSelector.SelectNext(root, byId, state, random)?.MediaId;
     }
 
     [Fact]

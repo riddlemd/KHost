@@ -160,15 +160,16 @@ public class LibraryBreakMusicProvider : BaseService, IBreakMusicProvider, IDisp
             return false;
         }
 
-        var mediaId = await _pools.SelectNextAsync(poolId, venue.Id);
+        var entry = await _pools.SelectNextAsync(poolId, venue.Id);
 
-        if (mediaId is null)
+        // A bed track is the entry's own media; the ad composition's extra parts mean nothing here.
+        if (entry?.MediaId is not { } mediaId)
         {
             Logger.LogInformation("Break music not started: pool {PoolId} holds nothing playable", poolId);
             return false;
         }
 
-        var media = await _media.ReadAsync(mediaId.Value);
+        var media = await _media.ReadAsync(mediaId);
 
         if (media is null || media.Status != MediaStatus.Ready)
         {

@@ -43,7 +43,7 @@ public class MediaPoolServiceTests
 
         _repository.ReadWithEntriesAsync(pool.Id).Returns(Task.FromResult<MediaPool?>(pool));
 
-        Assert.Equal(mediaId, await _service.SelectNextAsync(pool.Id, venueId: null));
+        Assert.Equal(mediaId, (await _service.SelectNextAsync(pool.Id, venueId: null))?.MediaId);
     }
 
     // The cursor lives on the service, so consecutive calls have to advance rather than each
@@ -59,8 +59,8 @@ public class MediaPoolServiceTests
 
         _repository.ReadWithEntriesAsync(pool.Id).Returns(Task.FromResult<MediaPool?>(pool));
 
-        Assert.Equal(first, await _service.SelectNextAsync(pool.Id, venueId: null));
-        Assert.Equal(second, await _service.SelectNextAsync(pool.Id, venueId: null));
+        Assert.Equal(first, (await _service.SelectNextAsync(pool.Id, venueId: null))?.MediaId);
+        Assert.Equal(second, (await _service.SelectNextAsync(pool.Id, venueId: null))?.MediaId);
     }
 
     [Fact]
@@ -77,7 +77,7 @@ public class MediaPoolServiceTests
         await _service.SelectNextAsync(pool.Id, venueId: null);
         _service.ResetSelection(pool.Id);
 
-        Assert.Equal(first, await _service.SelectNextAsync(pool.Id, venueId: null));
+        Assert.Equal(first, (await _service.SelectNextAsync(pool.Id, venueId: null))?.MediaId);
     }
 
     [Fact]

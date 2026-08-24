@@ -19,15 +19,39 @@ namespace KHost.DataAccess.Migrations
                     FilePath = table.Column<string>(type: "TEXT", maxLength: 500, nullable: false),
                     Duration = table.Column<TimeSpan>(type: "TEXT", nullable: true),
                     Status = table.Column<int>(type: "INTEGER", nullable: false),
+                    Kind = table.Column<int>(type: "INTEGER", nullable: false),
                     Title = table.Column<string>(type: "TEXT", maxLength: 255, nullable: false),
                     Artist = table.Column<string>(type: "TEXT", maxLength: 255, nullable: false),
                     Format = table.Column<string>(type: "TEXT", maxLength: 10, nullable: false),
                     Notes = table.Column<string>(type: "TEXT", maxLength: 1000, nullable: false),
+                    SearchFolded = table.Column<string>(type: "TEXT", maxLength: 600, nullable: false),
+                    FileSize = table.Column<long>(type: "INTEGER", nullable: true),
+                    SampledHash = table.Column<string>(type: "TEXT", maxLength: 64, nullable: true),
+                    ContentHash = table.Column<string>(type: "TEXT", maxLength: 64, nullable: true),
                     DateAdded = table.Column<DateTime>(type: "TEXT", nullable: false)
                 },
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_Media", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "MediaPools",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "TEXT", nullable: false),
+                    Kind = table.Column<int>(type: "INTEGER", nullable: false),
+                    Name = table.Column<string>(type: "TEXT", maxLength: 255, nullable: false),
+                    NameFolded = table.Column<string>(type: "TEXT", maxLength: 255, nullable: false),
+                    VenueId = table.Column<Guid>(type: "TEXT", nullable: true),
+                    SelectionMode = table.Column<int>(type: "INTEGER", nullable: false),
+                    NoRepeatCount = table.Column<int>(type: "INTEGER", nullable: false),
+                    AdTrigger = table.Column<int>(type: "INTEGER", nullable: false),
+                    AdTriggerInterval = table.Column<int>(type: "INTEGER", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_MediaPools", x => x.Id);
                 });
 
             migrationBuilder.CreateTable(
@@ -52,8 +76,10 @@ namespace KHost.DataAccess.Migrations
                 {
                     Id = table.Column<Guid>(type: "TEXT", nullable: false),
                     Name = table.Column<string>(type: "TEXT", maxLength: 100, nullable: false),
+                    NameFolded = table.Column<string>(type: "TEXT", maxLength: 100, nullable: false),
                     Description = table.Column<string>(type: "TEXT", maxLength: 500, nullable: false),
                     IsAdmin = table.Column<bool>(type: "INTEGER", nullable: false, defaultValue: false),
+                    ExcludeFromSingerQueue = table.Column<bool>(type: "INTEGER", nullable: false, defaultValue: false),
                     Permissions = table.Column<string>(type: "JSON", nullable: false)
                 },
                 constraints: table =>
@@ -66,7 +92,8 @@ namespace KHost.DataAccess.Migrations
                 columns: table => new
                 {
                     Id = table.Column<Guid>(type: "TEXT", nullable: false),
-                    Name = table.Column<string>(type: "TEXT", maxLength: 255, nullable: false, collation: "NOCASE"),
+                    Name = table.Column<string>(type: "TEXT", maxLength: 255, nullable: false),
+                    NameFolded = table.Column<string>(type: "TEXT", maxLength: 255, nullable: false),
                     Notes = table.Column<string>(type: "TEXT", maxLength: 1000, nullable: false),
                     CreatedDate = table.Column<DateTime>(type: "TEXT", nullable: false),
                     PasswordHash = table.Column<string>(type: "TEXT", maxLength: 512, nullable: true)
@@ -83,6 +110,7 @@ namespace KHost.DataAccess.Migrations
                     Id = table.Column<Guid>(type: "TEXT", nullable: false),
                     Enabled = table.Column<bool>(type: "INTEGER", nullable: false),
                     Name = table.Column<string>(type: "TEXT", maxLength: 255, nullable: false),
+                    NameFolded = table.Column<string>(type: "TEXT", maxLength: 255, nullable: false),
                     Notes = table.Column<string>(type: "TEXT", maxLength: 1000, nullable: false),
                     Address = table.Column<string>(type: "TEXT", maxLength: 500, nullable: false),
                     Phone = table.Column<string>(type: "TEXT", maxLength: 20, nullable: false),
@@ -94,6 +122,43 @@ namespace KHost.DataAccess.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "MediaPoolEntries",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "TEXT", nullable: false),
+                    MediaPoolId = table.Column<Guid>(type: "TEXT", nullable: false),
+                    Position = table.Column<int>(type: "INTEGER", nullable: false),
+                    Weight = table.Column<int>(type: "INTEGER", nullable: false),
+                    MediaId = table.Column<Guid>(type: "TEXT", nullable: true),
+                    AudioMediaId = table.Column<Guid>(type: "TEXT", nullable: true),
+                    AudioStart = table.Column<TimeSpan>(type: "TEXT", nullable: true),
+                    Duration = table.Column<TimeSpan>(type: "TEXT", nullable: true),
+                    ChildPoolId = table.Column<Guid>(type: "TEXT", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_MediaPoolEntries", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_MediaPoolEntries_MediaPools_ChildPoolId",
+                        column: x => x.ChildPoolId,
+                        principalTable: "MediaPools",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_MediaPoolEntries_MediaPools_MediaPoolId",
+                        column: x => x.MediaPoolId,
+                        principalTable: "MediaPools",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                    table.ForeignKey(
+                        name: "FK_MediaPoolEntries_Media_MediaId",
+                        column: x => x.MediaId,
+                        principalTable: "Media",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "Tips",
                 columns: table => new
                 {
@@ -101,9 +166,10 @@ namespace KHost.DataAccess.Migrations
                     CreatedDate = table.Column<DateTime>(type: "TEXT", nullable: false),
                     UserId = table.Column<Guid>(type: "TEXT", nullable: false),
                     VenueId = table.Column<Guid>(type: "TEXT", nullable: true),
-                    Amount = table.Column<decimal>(type: "TEXT", precision: 18, scale: 2, nullable: false),
+                    AmountInCents = table.Column<int>(type: "INTEGER", nullable: false),
                     PaymentMethod = table.Column<int>(type: "INTEGER", nullable: false),
-                    Notes = table.Column<string>(type: "TEXT", maxLength: 1000, nullable: false)
+                    Notes = table.Column<string>(type: "TEXT", maxLength: 1000, nullable: false),
+                    NotesFolded = table.Column<string>(type: "TEXT", maxLength: 1000, nullable: false)
                 },
                 constraints: table =>
                 {
@@ -142,18 +208,23 @@ namespace KHost.DataAccess.Migrations
 
             migrationBuilder.InsertData(
                 table: "UserGroups",
-                columns: new[] { "Id", "Description", "IsAdmin", "Name", "Permissions" },
-                values: new object[] { new Guid("00000000-0000-0000-0000-000000000001"), "Full access to all management features", true, "Admin", "[]" });
+                columns: new[] { "Id", "Description", "ExcludeFromSingerQueue", "IsAdmin", "Name", "NameFolded", "Permissions" },
+                values: new object[] { new Guid("00000000-0000-0000-0000-000000000001"), "Full access to all management features", true, true, "Admin", "admin", "[]" });
 
             migrationBuilder.InsertData(
                 table: "UserGroups",
-                columns: new[] { "Id", "Description", "Name", "Permissions" },
-                values: new object[] { new Guid("00000000-0000-0000-0000-000000000002"), "Frequent singer", "Regular", "[]" });
+                columns: new[] { "Id", "Description", "Name", "NameFolded", "Permissions" },
+                values: new object[] { new Guid("00000000-0000-0000-0000-000000000002"), "Frequent singer", "Regular", "regular", "[]" });
 
             migrationBuilder.CreateIndex(
                 name: "IX_Media_Artist",
                 table: "Media",
                 column: "Artist");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Media_ContentHash",
+                table: "Media",
+                column: "ContentHash");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Media_DateAdded",
@@ -167,6 +238,16 @@ namespace KHost.DataAccess.Migrations
                 unique: true);
 
             migrationBuilder.CreateIndex(
+                name: "IX_Media_FileSize",
+                table: "Media",
+                column: "FileSize");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Media_Kind",
+                table: "Media",
+                column: "Kind");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_Media_Status",
                 table: "Media",
                 column: "Status");
@@ -175,6 +256,31 @@ namespace KHost.DataAccess.Migrations
                 name: "IX_Media_Title",
                 table: "Media",
                 column: "Title");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_MediaPoolEntries_ChildPoolId",
+                table: "MediaPoolEntries",
+                column: "ChildPoolId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_MediaPoolEntries_MediaId",
+                table: "MediaPoolEntries",
+                column: "MediaId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_MediaPoolEntries_MediaPoolId",
+                table: "MediaPoolEntries",
+                column: "MediaPoolId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_MediaPools_Kind",
+                table: "MediaPools",
+                column: "Kind");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_MediaPools_VenueId",
+                table: "MediaPools",
+                column: "VenueId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Performances_CreatedDate",
@@ -228,9 +334,9 @@ namespace KHost.DataAccess.Migrations
                 column: "CreatedDate");
 
             migrationBuilder.CreateIndex(
-                name: "IX_Users_Name",
+                name: "IX_Users_NameFolded",
                 table: "Users",
-                column: "Name",
+                column: "NameFolded",
                 unique: true);
 
             migrationBuilder.CreateIndex(
@@ -244,7 +350,7 @@ namespace KHost.DataAccess.Migrations
         protected override void Down(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.DropTable(
-                name: "Media");
+                name: "MediaPoolEntries");
 
             migrationBuilder.DropTable(
                 name: "Performances");
@@ -257,6 +363,12 @@ namespace KHost.DataAccess.Migrations
 
             migrationBuilder.DropTable(
                 name: "Venues");
+
+            migrationBuilder.DropTable(
+                name: "MediaPools");
+
+            migrationBuilder.DropTable(
+                name: "Media");
 
             migrationBuilder.DropTable(
                 name: "UserGroups");
