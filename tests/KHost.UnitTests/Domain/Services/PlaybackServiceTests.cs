@@ -1675,18 +1675,37 @@ public class PlaybackServiceTests : IDisposable
         Assert.False(_service.IsPlayingAd);
     }
 
-    // Loading a real song after an ad must not inherit the flag, or the singer's performance ends
-    // without dequeuing them and they never leave the top of the queue.
+    // Loading over a running ad is the path that matters: stopping the ad first clears the flag on
+    // its own, so a test that stops first passes even when Load never clears it.
     [Fact]
-    public async Task LoadingAPerformanceAfterAnAd_ClearsTheAdFlag()
+    public async Task LoadingAPerformanceOverARunningAd_ClearsTheAdFlag()
     {
         await _service.PlayAdAsync(CreateAd());
-        await _service.StopAsync();
+        Assert.True(_service.IsPlayingAd);
 
         var (performance, media) = CreatePerformance();
         await _service.LoadAsync(performance, media);
 
         Assert.False(_service.IsPlayingAd);
+    }
+
+    // The consequence of that flag surviving: the singer's own song would end down the ad path and
+    // never dequeue them, leaving them stuck at the top of the queue.
+    [Fact]
+    public async Task APerformanceLoadedOverARunningAd_StillDequeuesWhenItEnds()
+    {
+        await _service.PlayAdAsync(CreateAd());
+
+        var (performance, media) = CreatePerformance();
+        media.Duration = TimeSpan.FromMilliseconds(1);
+
+        await _service.LoadAsync(performance, media);
+        await _service.PlayAsync();
+        await Task.Delay(20);
+        await _service.TickAsync();
+
+        await _performanceService.Received(1).DequeueAsync(performance.SingerId, performance.Id);
+        await _queueService.Received(1).RotateQueueAsync(performance.SingerId);
     }
 
     private static (Performance, Media) CreatePerformance()
