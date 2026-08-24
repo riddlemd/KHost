@@ -18,6 +18,7 @@ public class PlaybackServiceTests : IDisposable
     private readonly IScreenServer _screenServer = Substitute.For<IScreenServer>();
     private readonly IMediaStreamService _mediaStreams = Substitute.For<IMediaStreamService>();
     private readonly ICastService _cast = Substitute.For<ICastService>();
+    private readonly IBreakMusicService _breakMusic = Substitute.For<IBreakMusicService>();
 
     // Real: a substitute would make the IsPrimary assertions below test nothing.
     private readonly ScreenCoordinationService _screenCoordination;
@@ -103,6 +104,7 @@ public class PlaybackServiceTests : IDisposable
         _mediaStreams,
         _screenCoordination,
         _cast,
+        _breakMusic,
         Options.Create(new PlaybackService.ServiceOptions { StopFadeDuration = stopFadeDuration }));
 
     public void Dispose() => _service.Dispose();
@@ -1461,6 +1463,72 @@ public class PlaybackServiceTests : IDisposable
         await Task.Delay(1200);
 
         Assert.Equal(0, ticks);
+    }
+
+    // The bed yields to the song and comes back after it. Both live here because
+    // PlaybackService is what knows a performance started and what knows one finished.
+    [Fact]
+    public async Task LoadAsync_SuspendsBreakMusic()
+    {
+        var (performance, media) = CreatePerformance();
+
+        await _service.LoadAsync(performance, media);
+
+        await _breakMusic.Received(1).SuspendAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task LoadAsync_RefusedMedia_LeavesBreakMusicAlone()
+    {
+        var (performance, media) = CreatePerformance();
+        media.Status = MediaStatus.Broken;
+
+        await _service.LoadAsync(performance, media);
+
+        await _breakMusic.DidNotReceive().SuspendAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task LoadAsync_DoesNotRestoreBreakMusic()
+    {
+        var (performance, media) = CreatePerformance();
+
+        await _service.LoadAsync(performance, media);
+
+        await _breakMusic.DidNotReceive().RestoreAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task PlaybackEnding_RestoresBreakMusic()
+    {
+        var (performance, media) = CreatePerformance();
+        media.Duration = TimeSpan.FromMilliseconds(1);
+
+        await _service.LoadAsync(performance, media);
+        await _service.PlayAsync();
+        await Task.Delay(20);
+        await _service.TickAsync();
+
+        await _breakMusic.Received(1).RestoreAsync(Arg.Any<CancellationToken>());
+    }
+
+    // Rotation is what the next singer is waiting on, so the bed must not come back ahead of it.
+    [Fact]
+    public async Task PlaybackEnding_RestoresBreakMusicAfterRotating()
+    {
+        var (performance, media) = CreatePerformance();
+        media.Duration = TimeSpan.FromMilliseconds(1);
+
+        await _service.LoadAsync(performance, media);
+        await _service.PlayAsync();
+        await Task.Delay(20);
+        await _service.TickAsync();
+
+        Received.InOrder(() =>
+        {
+            _queueService.RotateQueueAsync(performance.SingerId);
+            _breakMusic.RestoreAsync(Arg.Any<CancellationToken>());
+        });
     }
 
     private static (Performance, Media) CreatePerformance()
