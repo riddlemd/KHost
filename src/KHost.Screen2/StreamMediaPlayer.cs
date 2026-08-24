@@ -37,11 +37,9 @@ internal sealed class StreamMediaPlayer : IMediaPlayer
 
     // Never raised: the browser owns rendering. Declared only to satisfy IMediaPlayer.
 #pragma warning disable CS0067
-    public event EventHandler<IMediaPlayer.FrameData>? FrameAvailable;
 #pragma warning restore CS0067
 
     public event EventHandler? PlaybackEnded;
-    public event EventHandler<string>? ErrorOccurred;
 
     /// <summary>The background track played out. How the host knows to pick the next one.</summary>
     public event EventHandler? BackgroundEnded;
@@ -221,7 +219,6 @@ internal sealed class StreamMediaPlayer : IMediaPlayer
     public Task LoadAsync(string filePath, CancellationToken cancellationToken = default)
     {
         _logger.LogError("Cannot load '{FilePath}': this screen only plays host streams", filePath);
-        ErrorOccurred?.Invoke(this, "screen requires a host stream URL");
 
         return Task.CompletedTask;
     }
@@ -289,7 +286,6 @@ internal sealed class StreamMediaPlayer : IMediaPlayer
                 case "error":
                     var text = root.TryGetProperty("message", out var m) ? m.GetString() ?? "unknown" : "unknown";
                     _logger.LogError("Player error: {Message}", text);
-                    ErrorOccurred?.Invoke(this, text);
                     return true;
 
                 default:

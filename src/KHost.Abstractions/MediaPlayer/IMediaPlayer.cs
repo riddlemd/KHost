@@ -26,17 +26,7 @@ public interface IMediaPlayer : IDisposable
     /// </summary>
     float Volume { get; set; }
 
-    /// <summary>
-    /// Raised on a background thread each time a decoded video frame is ready.
-    /// The <see cref="FrameData"/> carries raw BGRA pixels; the handler must not
-    /// hold a reference beyond the event call (the buffer may be reused).
-    /// </summary>
-    event EventHandler<FrameData>? FrameAvailable;
-
     event EventHandler? PlaybackEnded;
-
-    /// <summary>The string carries the error message.</summary>
-    event EventHandler<string>? ErrorOccurred;
 
     /// <summary>
     /// Probes <paramref name="filePath"/> with ffprobe and prepares it for playback.
@@ -82,27 +72,4 @@ public interface IMediaPlayer : IDisposable
             $"{Path.GetFileName(FilePath)}  {Width}×{Height}  {Fps:F2} fps  {Duration:h\\:mm\\:ss}";
     }
 
-    /// <summary>
-    /// A single decoded video frame as a raw BGRA byte buffer.
-    /// The pixel layout is 4 bytes per pixel: B, G, R, A (alpha always 255).
-    /// </summary>
-    public sealed class FrameData
-    {
-        /// <summary>Raw pixel bytes in BGRA order, <c>Width × Height × 4</c> bytes total.</summary>
-        public byte[] Pixels { get; }
-
-        public int Width { get; }
-        public int Height { get; }
-
-        /// <summary>Render opacity for this frame. 1.0 = fully opaque, 0.0 = fully transparent.</summary>
-        public float Alpha { get; }
-
-        public FrameData(byte[] pixels, int width, int height, float alpha = 1.0f)
-        {
-            Pixels = pixels;
-            Width = width;
-            Height = height;
-            Alpha = alpha;
-        }
-    }
 }
