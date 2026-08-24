@@ -31,12 +31,13 @@ public partial class TipsManagerPage : IDisposable
 
     protected override async Task OnInitializedAsync()
     {
+        _subscriptions.Add(Broker.Subscribe<TipsChanged>(OnStateChanged));
+
         _pageSize = AppSettingsService!.Current.TipsPageSize;
 
         await LoadUsersAsync();
         await LoadVenuesAsync();
         await SearchAsync();
-        _subscriptions.Add(Broker.Subscribe<TipsChanged>(OnStateChanged));
     }
 
     private async Task LoadUsersAsync()

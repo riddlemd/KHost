@@ -27,10 +27,11 @@ public partial class VenuesManagerPage : IDisposable
 
     protected override async Task OnInitializedAsync()
     {
+        _subscriptions.Add(Broker.Subscribe<VenuesChanged>(OnStateChanged));
+
         _pageSize = AppSettingsService!.Current.VenuesPageSize;
 
         await SearchAsync();
-        _subscriptions.Add(Broker.Subscribe<VenuesChanged>(OnStateChanged));
     }
 
     private async Task SearchAsync()
