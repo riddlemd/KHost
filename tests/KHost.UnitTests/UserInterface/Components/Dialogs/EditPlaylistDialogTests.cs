@@ -53,10 +53,14 @@ public class EditPlaylistDialogTests : BunitContext
         Services.AddSingleton(_media);
     }
 
-    private IRenderedComponent<EditPlaylistDialog> RenderDialog(MediaPool? pool, Action<MediaPool>? onSave = null)
+    // The purpose comes from the page now: the Break Music and Ads managers each open this for
+    // their own kind of playlist, so the dialog never has to ask.
+    private IRenderedComponent<EditPlaylistDialog> RenderDialog(
+        MediaPool? pool, PoolPurpose purpose = PoolPurpose.BreakMusic, Action<MediaPool>? onSave = null)
         => Render<EditPlaylistDialog>(parameters => parameters
             .Add(p => p.IsOpen, true)
             .Add(p => p.Pool, pool)
+            .Add(p => p.Purpose, purpose)
             .Add(p => p.OnSave, EventCallback.Factory.Create<MediaPool>(this, saved => onSave?.Invoke(saved))));
 
     private static TimeSpan? ParseTime(string? text) => (TimeSpan?)typeof(EditPlaylistDialog)
@@ -74,7 +78,7 @@ public class EditPlaylistDialogTests : BunitContext
     [Fact]
     public void AdFields_AreShown_ForAnAdPlaylist()
     {
-        var rendered = RenderDialog(new MediaPool { Name = "Spots", Purpose = PoolPurpose.Ads });
+        var rendered = RenderDialog(new MediaPool { Name = "Spots" }, PoolPurpose.Ads);
 
         Assert.Contains("When these ads play", rendered.Markup);
     }
@@ -86,9 +90,8 @@ public class EditPlaylistDialogTests : BunitContext
         var rendered = RenderDialog(new MediaPool
         {
             Name = "Spots",
-            Purpose = PoolPurpose.Ads,
             AdTrigger = AdTriggerMode.HostOnly,
-        });
+        }, PoolPurpose.Ads);
 
         Assert.Empty(rendered.FindAll("#playlist-interval"));
     }
@@ -99,9 +102,8 @@ public class EditPlaylistDialogTests : BunitContext
         var rendered = RenderDialog(new MediaPool
         {
             Name = "Spots",
-            Purpose = PoolPurpose.Ads,
             AdTrigger = AdTriggerMode.EveryNPerformances,
-        });
+        }, PoolPurpose.Ads);
 
         Assert.NotEmpty(rendered.FindAll("#playlist-interval"));
     }
@@ -141,7 +143,7 @@ public class EditPlaylistDialogTests : BunitContext
                 new MediaPoolEntry { Id = Guid.NewGuid(), MediaId = Guid.NewGuid(), Position = 7 },
                 new MediaPoolEntry { Id = Guid.NewGuid(), MediaId = Guid.NewGuid(), Position = 3 },
             ],
-        }, pool => saved = pool);
+        }, PoolPurpose.BreakMusic, pool => saved = pool);
 
         rendered.Find(".kh-button--primary").Click();
 
@@ -170,44 +172,35 @@ public class EditPlaylistDialogTests : BunitContext
     {
         MediaPool? saved = null;
 
-        var rendered = RenderDialog(new MediaPool { Name = "" }, pool => saved = pool);
+        var rendered = RenderDialog(new MediaPool { Name = "" }, PoolPurpose.BreakMusic, pool => saved = pool);
         rendered.Find(".kh-button--primary").Click();
 
         Assert.Null(saved);
     }
 
-    // The pickers are scoped to the purpose, so switching to ads has to fetch again — otherwise
-    // the dialog keeps offering bed tracks and none of the venue's ads.
+    // The page owns the purpose, so the dialog saves whatever it was opened for.
     [Fact]
-    public void ChangingThePurpose_ReloadsTheMediaChoices()
+    public void Save_ReportsThePurposeThePageOpenedItFor()
     {
-        var rendered = RenderDialog(new MediaPool { Name = "Beds", Purpose = PoolPurpose.BreakMusic });
+        MediaPool? saved = null;
 
-        Assert.Contains("Elevator Jazz", rendered.Markup);
-        Assert.DoesNotContain("Happy Hour Spot", rendered.Markup);
+        var rendered = RenderDialog(new MediaPool { Name = "Spots" }, PoolPurpose.Ads, pool => saved = pool);
+        rendered.Find(".kh-button--primary").Click();
 
-        rendered.Find("#playlist-purpose").Change(nameof(PoolPurpose.Ads));
-
-        Assert.Contains("Happy Hour Spot", rendered.Markup);
-        Assert.DoesNotContain("Elevator Jazz", rendered.Markup);
+        Assert.Equal(PoolPurpose.Ads, saved?.Purpose);
     }
 
-    // Those entries came out of the other purpose's libraries, so they are not this one's to keep.
+    // An ad is a video or a picture; break music is a record. The picker asks for the right one.
     [Fact]
-    public void ChangingThePurpose_ClearsEntriesPickedFromTheOtherLibrary()
+    public void TheMediaPicker_OffersOnlyWhatThePurposeCanUse()
     {
-        var rendered = RenderDialog(new MediaPool
-        {
-            Name = "Beds",
-            Purpose = PoolPurpose.BreakMusic,
-            Entries = [new MediaPoolEntry { Id = Guid.NewGuid(), MediaId = Guid.NewGuid() }],
-        });
+        RenderDialog(new MediaPool { Name = "Beds" }, PoolPurpose.BreakMusic);
+        _media.Received().ReadAllByKindsAsync(MediaKind.Audio);
 
-        Assert.NotEmpty(rendered.FindAll(".kh-playlist-dialog__entries tbody tr"));
+        _media.ClearReceivedCalls();
 
-        rendered.Find("#playlist-purpose").Change(nameof(PoolPurpose.Ads));
-
-        Assert.Empty(rendered.FindAll(".kh-playlist-dialog__entries tbody tr"));
+        RenderDialog(new MediaPool { Name = "Spots" }, PoolPurpose.Ads);
+        _media.Received().ReadAllByKindsAsync(MediaKind.Video, MediaKind.Image);
     }
 
     [Theory]

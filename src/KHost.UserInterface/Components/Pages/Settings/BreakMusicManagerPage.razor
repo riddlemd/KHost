@@ -1,0 +1,121 @@
+@page "/settings/break-music-manager"
+@attribute [Authorize(Policy = nameof(KHostPermission.ManageMedia))]
+@using KHost.Abstractions.Models
+@using KHost.UserInterface.Models
+
+<PageTitle>KHost &mdash; Break Music</PageTitle>
+
+<div class="kh-app__body">
+    <div class="kh-settings-page">
+        <div class="kh-card">
+            <div class="kh-card__header">
+                <span class="kh-card__title"><Icon Name="music-note-beamed" /> Break Music Manager</span>
+            </div>
+
+            <div class="kh-card__body">
+                <div class="kh-venue-settings">
+                    <div class="kh-venue-settings__section kh-venue-settings__section--head">
+                        <span class="kh-venue-settings__section-title">Where break music comes from</span>
+
+                        <div class="kh-venue-settings__row">
+                            <label for="break-music-mode" class="kh-form-label">Mode</label>
+                            <select id="break-music-mode" class="kh-form-select"
+                                    value="@_providerSource" @onchange="OnProviderChangedAsync">
+                                @foreach (var provider in BreakMusic.Providers)
+                                {
+                                    <option value="@provider.SourceName">@DescribeProvider(provider)</option>
+                                }
+                            </select>
+                        </div>
+
+                        @if (BreakMusic.ActiveProvider is { RendersThroughHost: false })
+                        {
+                            <p class="kh-break-music-manager__hint">
+                                This provider plays through its own app, so the sound comes out of this
+                                machine rather than the screens &mdash; it will not reach a Cast device.
+                            </p>
+                        }
+
+                        <div class="kh-venue-settings__row">
+                            <label for="break-music-playlist" class="kh-form-label">Playlist this venue uses</label>
+                            <select id="break-music-playlist" class="kh-form-select"
+                                    value="@(_activePoolId?.ToString() ?? "")" @onchange="OnPlaylistChangedAsync">
+                                <option value="">None &mdash; silence between singers</option>
+                                @foreach (var pool in _pools)
+                                {
+                                    <option value="@pool.Id">@pool.Name</option>
+                                }
+                            </select>
+                        </div>
+
+                        <p class="kh-break-music-manager__hint">
+                            Applies to <span class="kh-emphasis">@(_venueName ?? "no venue selected")</span>.
+                            Other venues are set up in the Venues Manager.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="kh-card">
+            <div class="kh-card__header">
+                <span class="kh-card__title"><Icon Name="collection-play" /> Playlists</span>
+                <button class="kh-button kh-button--primary" @onclick="OpenAddDialog" type="button">
+                    <Icon Name="plus-lg" /> Add Playlist
+                </button>
+            </div>
+
+            <div class="kh-card__body">
+                @if (_pools.Count == 0)
+                {
+                    <div class="kh-panel--empty kh-panel--empty-lg">
+                        <Icon Name="collection" />
+                        <span>No break music playlists yet. Add one using the button above.</span>
+                    </div>
+                }
+                else
+                {
+                    <table class="kh-table">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Picks</th>
+                                <th>Entries</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var pool in _pools)
+                            {
+                                <tr>
+                                    <td class="kh-table__cell--fill">
+                                        @pool.Name
+                                        @if (pool.Id == _activePoolId)
+                                        {
+                                            <span class="kh-badge kh-badge--secondary">In use</span>
+                                        }
+                                    </td>
+                                    <td>@PlaylistDisplay.DescribeSelection(pool)</td>
+                                    <td>@PlaylistDisplay.DescribeEntries(pool)</td>
+                                    <td class="kh-table__cell--actions">
+                                        <button class="kh-button--icon-minimal" title="Edit playlist"
+                                                @onclick="() => OpenEditDialog(pool)">
+                                            <Icon Name="pencil" />
+                                        </button>
+                                        <button class="kh-button--icon-minimal" title="Delete playlist"
+                                                @onclick="@(async () => await StartDeleteAsync(pool))">
+                                            <Icon Name="trash" />
+                                        </button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+<EditPlaylistDialog IsOpen="_dialogOpen" Pool="_editing" Purpose="PoolPurpose.BreakMusic"
+                    OnSave="SavePoolAsync" OnClose="CloseDialog" />

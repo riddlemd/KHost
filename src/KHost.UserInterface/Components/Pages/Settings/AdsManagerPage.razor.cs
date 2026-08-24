@@ -5,9 +5,10 @@ using Microsoft.AspNetCore.Components;
 
 namespace KHost.UserInterface.Components.Pages.Settings;
 
-public partial class PlaylistsManagerPage : IDisposable
+public partial class AdsManagerPage : IDisposable
 {
     [Inject] private IMediaPoolService MediaPools { get; set; } = default!;
+    [Inject] private IVenuesService Venues { get; set; } = default!;
     [Inject] private IDialogService Dialogs { get; set; } = default!;
     [Inject] private IFlashService Flash { get; set; } = default!;
 
@@ -15,78 +16,75 @@ public partial class PlaylistsManagerPage : IDisposable
     private MediaPool? _editing;
     private bool _dialogOpen;
 
+    private Guid? _venueId;
+    private string? _venueName;
+    private Guid? _activePoolId;
+
     protected override async Task OnInitializedAsync()
     {
-        MediaPools.StateChanged += OnPoolsChanged;
+        MediaPools.StateChanged += OnChanged;
 
         await RefreshAsync();
     }
 
     public void Dispose()
     {
-        MediaPools.StateChanged -= OnPoolsChanged;
+        MediaPools.StateChanged -= OnChanged;
 
         GC.SuppressFinalize(this);
     }
 
-    private async void OnPoolsChanged(object? sender, EventArgs e)
-    {
-        await InvokeAsync(async () =>
+    private async void OnChanged(object? sender, EventArgs e)
+        => await InvokeAsync(async () =>
         {
             await RefreshAsync();
             StateHasChanged();
         });
-    }
 
     private async Task RefreshAsync()
     {
-        // Both kinds and every venue: this page manages playlists rather than running them, so it
-        // is the one place a playlist scoped to another venue is still visible.
-        var breakMusic = await MediaPools.ReadAllWithEntriesAsync(PoolPurpose.BreakMusic, venueId: null);
-        var ads = await MediaPools.ReadAllWithEntriesAsync(PoolPurpose.Ads, venueId: null);
+        var venue = await Venues.ReadSelectedVenueAsync();
 
-        _pools = [.. breakMusic.Concat(ads).OrderBy(p => p.Purpose).ThenBy(p => p.Name)];
+        _venueId = venue?.Id;
+        _venueName = venue?.Name;
+        _activePoolId = venue?.Settings.AdPoolId;
+
+        _pools = [.. (await MediaPools.ReadAllWithEntriesAsync(PoolPurpose.Ads, _venueId)).OrderBy(p => p.Name)];
     }
 
-    private static string DescribeSelection(MediaPool pool) => pool.SelectionMode switch
+    private async Task OnPlaylistChangedAsync(ChangeEventArgs e)
     {
-        PoolSelectionMode.Sequential => "In order",
-        PoolSelectionMode.Weighted => "By weight",
-        _ => "Shuffled",
-    };
+        var poolId = Guid.TryParse(e.Value?.ToString(), out var id) ? id : (Guid?)null;
 
-    private static string DescribeEntries(MediaPool pool)
-    {
-        var nested = pool.Entries.Count(e => e.IsPool);
-        var tracks = pool.Entries.Count - nested;
-
-        return nested == 0
-            ? $"{tracks}"
-            : $"{tracks} + {nested} playlist{(nested == 1 ? "" : "s")}";
+        await SaveVenueAsync(settings => settings.AdPoolId = poolId);
     }
 
-    private static string DescribeTrigger(MediaPool pool) => pool.AdTrigger switch
+    private async Task SaveVenueAsync(Action<Venue.VenueSettings> apply)
     {
-        AdTriggerMode.EveryNPerformances => $"Every {pool.AdTriggerInterval} songs",
-        AdTriggerMode.EveryNMinutes => $"Every {pool.AdTriggerInterval} minutes",
-        AdTriggerMode.OnIdle => "When nobody is queued",
-        _ => "Only when asked",
-    };
+        var venue = await Venues.ReadSelectedVenueAsync();
 
-    private Task OpenAddDialogAsync()
+        if (venue is null)
+        {
+            Flash.Show("No venue is selected, so there is nothing to save this against.", FlashKind.Warning);
+            return;
+        }
+
+        apply(venue.Settings);
+
+        await Venues.UpdateAsync(venue);
+        await RefreshAsync();
+    }
+
+    private void OpenAddDialog()
     {
         _editing = null;
         _dialogOpen = true;
-
-        return Task.CompletedTask;
     }
 
-    private Task OpenEditDialogAsync(MediaPool pool)
+    private void OpenEditDialog(MediaPool pool)
     {
         _editing = pool;
         _dialogOpen = true;
-
-        return Task.CompletedTask;
     }
 
     private void CloseDialog()
@@ -117,7 +115,7 @@ public partial class PlaylistsManagerPage : IDisposable
     private async Task StartDeleteAsync(MediaPool pool)
     {
         await Dialogs.ShowConfirmationAsync(
-            $"Delete <span class=\"kh-emphasis\">{pool.Name}</span>? Any venue using it falls back to nothing.",
+            $"Delete <span class=\"kh-emphasis\">{pool.Name}</span>? Any venue using it stops running ads.",
             async () =>
             {
                 await MediaPools.DeleteAsync(pool.Id);
