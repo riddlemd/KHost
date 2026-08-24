@@ -175,6 +175,19 @@ internal class MediaRepository : BaseRepository<Media>, IMediaRepository
         return PaginationComponent.BuildResult(items, totalCount, pageNumber, pageSize);
     }
 
+    public async Task<IReadOnlyList<Media>> ReadAllByKindsAsync(params MediaKind[] kinds)
+    {
+        if (kinds.Length == 0)
+            return [];
+
+        using var context = await ContextFactory.CreateDbContextAsync();
+
+        return await context.Media
+            .Where(m => kinds.Contains(m.Kind))
+            .OrderBy(m => m.Title.ToLower())
+            .ToListAsync();
+    }
+
     public override async Task<bool> HasAnyAsync()
     {
         using var context = await ContextFactory.CreateDbContextAsync();

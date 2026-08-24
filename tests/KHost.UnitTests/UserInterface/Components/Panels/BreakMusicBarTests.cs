@@ -137,7 +137,9 @@ public class BreakMusicBarTests : BunitContext
 
         Render().Find("[title='Play break music']").Click();
 
-        _flash.Received(1).Show(Arg.Is<string>(m => m.Contains("playlist")), FlashKind.Warning);
+        // Both causes named: a missing playlist and a missing screen are indistinguishable here.
+        _flash.Received(1).Show(
+            Arg.Is<string>(m => m.Contains("playlist") && m.Contains("screen")), FlashKind.Warning);
     }
 
     [Fact]

@@ -17,4 +17,7 @@ public class MediaService : BaseRepositoryService<Media, IMediaRepository>, IMed
 
     public Task<PaginatedResult<Media>> SearchAsync(string query, int pageNumber, int pageSize, SortDescriptor? sort, MediaSearchOptions? options)
         => Repository.SearchAsync(query, pageNumber, pageSize, sort, options);
+
+    public Task<IReadOnlyList<Media>> ReadAllByKindsAsync(params MediaKind[] kinds)
+        => Repository.ReadAllByKindsAsync(kinds);
 }
