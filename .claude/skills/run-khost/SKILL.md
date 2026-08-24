@@ -143,9 +143,32 @@ via their X (screenshot to locate it; it moves with dialog height).
 
 ## Screen2 by hand
 
+Prefer the Screens dialog's **Launch** button — it provisions the key and passes the arguments.
+Launching by hand needs a key first: `--key-file` is required, and the host normally writes one
+per screen it launches. Without it Screen2 dies on startup with "No --key-file was given".
+
+The key is 32 random bytes, base64, at `cache/screens/<sha256-hex-of-screen-id>.key` — the id is
+hashed, so the filename never matches the screen's name. Provision one and launch:
+
 ```bash
-dotnet run --project src/KHost.Screen2 -- --server-uri http://localhost:5251/ipc/screen --screen-id test --log-level debug
+CACHE="$PWD/src/KHost.UserInterface/bin/Debug/net10.0/cache"
+SCREEN_ID=hand-test
+HASH=$(printf '%s' "$SCREEN_ID" | shasum -a 256 | cut -d' ' -f1)
+
+mkdir -p "$CACHE/screens"
+openssl rand -base64 32 | tr -d '\n' > "$CACHE/screens/$HASH.key"
+chmod 600 "$CACHE/screens/$HASH.key"
+
+dotnet run --project src/KHost.Screen2 -- \
+  --server-uri http://localhost:5251/ipc/screen \
+  --screen-id "$SCREEN_ID" \
+  --key-file "$CACHE/screens/$HASH.key" \
+  --log-level debug
 ```
+
+`printf '%s'` not `echo` — a trailing newline hashes to a different filename, and the host then
+looks for a key that is not there. Success is `RegisterScreen sent for <id>` then
+`IPC state: Connecting -> Connected` in the screen's output.
 
 Its player page is embedded in the executable — no `screen-ui/` files on disk, page edits
 need a rebuild. Logs land in `logs/<screen-id>-YYYYMMDD.log` beside its binary.
