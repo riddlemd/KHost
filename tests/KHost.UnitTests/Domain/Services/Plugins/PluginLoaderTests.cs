@@ -3,6 +3,7 @@ using KHost.Domain.Services.MediaProviders;
 using KHost.Domain.Services.Plugins;
 using KHost.Plugins.Sdk;
 using KHost.Plugins.Sdk.Models;
+using KHost.Plugins.Sdk.Services;
 using Microsoft.Extensions.DependencyInjection;
 using System.Text.Json;
 
@@ -144,7 +145,7 @@ public class PluginLoaderTests : IDisposable
     [Fact]
     public void LoadAndRegister_AssemblyWithExtensions_RecordsOneCapabilityPerInterface()
     {
-        // KHost.Domain is a real assembly holding both extension shapes, and nine rotation modes —
+        // KHost.Domain is a real assembly holding every extension shape, and nine rotation modes —
         // enough to prove the label is per interface, not per implementation.
         var directory = WritePlugin("domain-copy", "0ca00000-0000-4000-8000-0000000cab11", entryAssembly: "Entry.dll", createEntryAssembly: false);
         File.Copy(typeof(LocalMediaProvider).Assembly.Location, Path.Combine(directory, "Entry.dll"));
@@ -154,7 +155,23 @@ public class PluginLoaderTests : IDisposable
         PluginLoader.LoadAndRegister(new ServiceCollection(), plugins, state);
 
         Assert.Equal(PluginStatus.Loaded, plugins[0].Status);
-        Assert.Equal(["Media provider", "Queue rotation"], plugins[0].Capabilities);
+        Assert.Equal(["Media provider", "Queue rotation", "Break music"], plugins[0].Capabilities);
+    }
+
+    // A plugin's break music provider has to land in the container under the interface the service
+    // resolves, or it loads, shows its capability on the Plugins page, and is never offered.
+    [Fact]
+    public void LoadAndRegister_AssemblyWithABreakMusicProvider_RegistersItForResolution()
+    {
+        var directory = WritePlugin("break-music", "0cd00000-0000-4000-8000-0000000cadd0", entryAssembly: "Entry.dll", createEntryAssembly: false);
+        File.Copy(typeof(LocalMediaProvider).Assembly.Location, Path.Combine(directory, "Entry.dll"));
+        var state = new PluginsState { EnabledPluginIds = ["0cd00000-0000-4000-8000-0000000cadd0"] };
+        var plugins = PluginLoader.Discover(PluginsDir, state);
+        var services = new ServiceCollection();
+
+        PluginLoader.LoadAndRegister(services, plugins, state);
+
+        Assert.Contains(services, d => d.ServiceType == typeof(IBreakMusicProvider));
     }
 
     [Fact]

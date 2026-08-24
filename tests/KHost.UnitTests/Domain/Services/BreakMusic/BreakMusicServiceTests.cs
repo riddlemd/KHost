@@ -1,5 +1,6 @@
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
+using KHost.Abstractions.Services.IPC;
 using KHost.Domain.Services.BreakMusic;
 using KHost.Plugins.Sdk.Models;
 using KHost.Plugins.Sdk.Services;
@@ -49,6 +50,46 @@ public class BreakMusicServiceTests : IDisposable
         await _service.InitializeAsync();
 
         Assert.Same(_provider, _service.ActiveProvider);
+    }
+
+    // Plugins register after the domain today, so the built-in happens to be first — but a venue's
+    // default must not rest on that. A plugin ahead of it in the list must not become the default.
+    [Fact]
+    public async Task InitializeAsync_WithAPluginProviderRegisteredFirst_StillDefaultsToTheBuiltIn()
+    {
+        var plugin = Substitute.For<IBreakMusicProvider>();
+        plugin.SourceName.Returns("SpotifyProvider");
+
+        var library = new LibraryBreakMusicProvider(
+            NullLogger<LibraryBreakMusicProvider>.Instance,
+            Substitute.For<IMediaPoolService>(),
+            Substitute.For<IMediaService>(),
+            Substitute.For<IMediaStreamService>(),
+            Substitute.For<IScreenServer>(),
+            Substitute.For<IScreenCoordinationService>(),
+            _venues);
+
+        using var service = new BreakMusicService(
+            NullLogger<BreakMusicService>.Instance, [plugin, library], _venues);
+
+        await service.InitializeAsync();
+
+        Assert.Same(library, service.ActiveProvider);
+    }
+
+    [Fact]
+    public async Task SetActiveProviderAsync_NamesAPluginProvider_SwitchesToIt()
+    {
+        var plugin = Substitute.For<IBreakMusicProvider>();
+        plugin.SourceName.Returns("SpotifyProvider");
+
+        using var service = new BreakMusicService(
+            NullLogger<BreakMusicService>.Instance, [_provider, plugin], _venues);
+
+        await service.InitializeAsync();
+        await service.SetActiveProviderAsync("SpotifyProvider");
+
+        Assert.Same(plugin, service.ActiveProvider);
     }
 
     [Fact]
