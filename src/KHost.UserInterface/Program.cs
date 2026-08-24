@@ -248,6 +248,15 @@ internal static class Program
             Log.Warning(ex, "Break music initialization failed");
         }
 
+        try
+        {
+            app.Services.GetRequiredService<IAdService>().InitializeAsync().GetAwaiter().GetResult();
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "Ad scheduling initialization failed");
+        }
+
         app.MapDefaultEndpoints();
         app.MapIPCServer();
         // Native form posts, not circuit calls: a cookie can only be issued on an HTTP

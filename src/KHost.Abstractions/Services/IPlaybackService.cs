@@ -2,9 +2,30 @@ using KHost.Abstractions.Models;
 
 namespace KHost.Abstractions.Services;
 
+/// <summary>
+/// Carries the gap after a performance. Handlers are void and cannot be awaited, so anything
+/// filling the gap registers its work here — otherwise break music would be brought back before
+/// the ad it is meant to make way for had even started.
+/// </summary>
+public sealed class PerformanceEndedEventArgs : EventArgs
+{
+    private readonly List<Task> _fills = [];
+
+    public void Fill(Task work) => _fills.Add(work);
+
+    public Task WhenFilledAsync() => _fills.Count == 0 ? Task.CompletedTask : Task.WhenAll(_fills);
+}
+
 public interface IPlaybackService : IDisposable
 {
     event EventHandler? StateChanged;
+
+    /// <summary>
+    /// A singer's performance finished, raised in the gap before break music comes back.
+    /// Deliberately not raised for an ad: one that re-entered here would count itself towards
+    /// the next ad and could chain them without a singer ever getting back on.
+    /// </summary>
+    event EventHandler<PerformanceEndedEventArgs>? PerformanceEnded;
 
     /// <summary>
     /// Raised by the position clock alone, twice a second while a song plays. Nothing but
