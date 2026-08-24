@@ -106,21 +106,6 @@ public class BreakMusicServiceTests : IDisposable
         Assert.Same(_provider, _service.ActiveProvider);
     }
 
-    // Stored as a percentage the settings page shows; the provider takes 0 to 1.
-    [Fact]
-    public async Task InitializeAsync_ReadsTheVenueVolume()
-    {
-        _venues.ReadSelectedVenueAsync().Returns(Task.FromResult<Venue?>(new Venue
-        {
-            Name = "The Bar",
-            Settings = new Venue.VenueSettings { BreakMusicVolume = 40 },
-        }));
-
-        await _service.InitializeAsync();
-
-        Assert.Equal(0.4f, _service.Volume, 3);
-    }
-
     [Fact]
     public async Task StartAsync_WhenTheProviderHasNothingToPlay_StaysStopped()
     {
@@ -132,19 +117,55 @@ public class BreakMusicServiceTests : IDisposable
         Assert.Equal(BreakMusicState.Stopped, _service.State);
     }
 
-    // Cleared first: SetVolumeAsync forwards to the provider on its own, so without this the
-    // assertion is satisfied by that call and passes even when Start never applies the volume.
-    // A provider restarted after a suspend comes up at its own default otherwise.
+    // One venue level covers every channel, so a provider the host cannot reach is told it and
+    // one that renders through the host is not — ScreenCoordination already sets that channel.
     [Fact]
-    public async Task StartAsync_AppliesTheCurrentVolumeToTheProvider()
+    public async Task StartAsync_AnExternalProvider_IsGivenTheVenueVolume()
     {
+        _provider.RendersThroughHost.Returns(false);
+        _venues.ReadSelectedVenueAsync().Returns(Task.FromResult<Venue?>(new Venue
+        {
+            Name = "The Bar",
+            Settings = new Venue.VenueSettings { DefaultVolume = 40 },
+        }));
+
         await _service.InitializeAsync();
-        await _service.SetVolumeAsync(0.25f);
         _provider.ClearReceivedCalls();
 
         await _service.StartAsync();
 
-        await _provider.Received(1).SetVolumeAsync(0.25f, Arg.Any<CancellationToken>());
+        await _provider.Received(1).SetVolumeAsync(0.4f, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task StartAsync_AHostRenderedProvider_IsNotGivenAVolume()
+    {
+        _provider.RendersThroughHost.Returns(true);
+
+        await _service.InitializeAsync();
+        _provider.ClearReceivedCalls();
+
+        await _service.StartAsync();
+
+        await _provider.DidNotReceive().SetVolumeAsync(Arg.Any<float>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task AVenueEdit_PushesTheNewLevelAtAnExternalProvider()
+    {
+        _provider.RendersThroughHost.Returns(false);
+        _venues.ReadSelectedVenueAsync().Returns(Task.FromResult<Venue?>(new Venue
+        {
+            Name = "The Bar",
+            Settings = new Venue.VenueSettings { DefaultVolume = 25 },
+        }));
+
+        await _service.InitializeAsync();
+        _provider.ClearReceivedCalls();
+
+        _venues.StateChanged += Raise.Event();
+
+        await _provider.Received().SetVolumeAsync(0.25f, Arg.Any<CancellationToken>());
     }
 
     [Fact]

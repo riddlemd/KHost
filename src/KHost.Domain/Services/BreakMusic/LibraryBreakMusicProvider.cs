@@ -24,7 +24,6 @@ public class LibraryBreakMusicProvider : BaseService, IBreakMusicProvider, IDisp
 
     private MediaStreamSession? _stream;
     private BreakMusicTrack? _currentTrack;
-    private float _volume = 1f;
 
     public LibraryBreakMusicProvider(
         ILogger<LibraryBreakMusicProvider> logger,
@@ -108,12 +107,12 @@ public class LibraryBreakMusicProvider : BaseService, IBreakMusicProvider, IDisp
         }
     }
 
-    public async Task SetVolumeAsync(float volume, CancellationToken cancellationToken = default)
-    {
-        lock (_lock) _volume = Math.Clamp(volume, 0f, 1f);
-
-        await SendToAudioScreenAsync(new SetBackgroundVolumeCommand { Volume = Math.Clamp(volume, 0f, 1f) });
-    }
+    /// <summary>
+    /// Deliberately nothing. This provider's audio rides the screen, and ScreenCoordination sets
+    /// that channel from the venue alongside the song's — one venue level, set in one place.
+    /// </summary>
+    public Task SetVolumeAsync(float volume, CancellationToken cancellationToken = default)
+        => Task.CompletedTask;
 
     public void Dispose()
     {
@@ -194,8 +193,6 @@ public class LibraryBreakMusicProvider : BaseService, IBreakMusicProvider, IDisp
             await CloseStreamAsync();
             return false;
         }
-
-        await SendToAudioScreenAsync(new SetBackgroundVolumeCommand { Volume = _volume });
 
         _currentTrack = new BreakMusicTrack
         {

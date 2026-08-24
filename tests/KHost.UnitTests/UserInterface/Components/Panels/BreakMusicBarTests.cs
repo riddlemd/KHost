@@ -27,7 +27,6 @@ public class BreakMusicBarTests : BunitContext
         _breakMusic.ActiveProvider.Returns(_provider);
         _breakMusic.Providers.Returns([_provider]);
         _breakMusic.State.Returns(BreakMusicState.Stopped);
-        _breakMusic.Volume.Returns(0.6f);
         _breakMusic.StartAsync(Arg.Any<CancellationToken>()).Returns(Task.FromResult(true));
         _ads.PlayNowAsync(Arg.Any<CancellationToken>()).Returns(Task.FromResult(true));
 
@@ -95,13 +94,10 @@ public class BreakMusicBarTests : BunitContext
         Assert.True(skip.HasAttribute("disabled"));
     }
 
+    // One venue level covers every channel, so the bar carries no fader of its own.
     [Fact]
-    public void VolumeSlider_Change_SetsTheVolumeAsAFraction()
-    {
-        Render().Find(".kh-break-music-bar__volume").Change("25");
-
-        _breakMusic.Received(1).SetVolumeAsync(0.25f, Arg.Any<CancellationToken>());
-    }
+    public void TheBar_HasNoVolumeControl()
+        => Assert.Empty(Render().FindAll("input[type=range]"));
 
     [Fact]
     public void CurrentTrack_IsShown()
