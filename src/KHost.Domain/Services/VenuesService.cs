@@ -16,10 +16,8 @@ public class VenuesService : BaseRepositoryService<Venue, IVenuesRepository>, IV
 
     public Guid? SelectedVenueId { get; private set; }
 
-    protected override object? StateChangedMessage => new VenuesChanged();
-
     public VenuesService(ILogger<VenuesService> logger, IVenuesRepository repository, ICacheService cacheService, IMessageBroker broker)
-        : base(logger, repository, broker)
+        : base(logger, repository, broker, new VenuesChanged())
     {
         _cacheService = cacheService;
     }
@@ -45,7 +43,7 @@ public class VenuesService : BaseRepositoryService<Venue, IVenuesRepository>, IV
 
         SelectedVenueId = id;
         Logger.LogInformation("Selected venue restored: {VenueId}", id);
-        InvokeStateChanged();
+        Announce(new VenuesChanged());
     }
 
     public async Task<Venue?> ReadSelectedVenueAsync()
@@ -69,7 +67,7 @@ public class VenuesService : BaseRepositoryService<Venue, IVenuesRepository>, IV
 
         await _cacheService.SaveAsync(_cacheKey, venueId);
 
-        InvokeStateChanged();
+        Announce(new VenuesChanged());
     }
     
     public override async Task<bool> DeleteAsync(Guid id)

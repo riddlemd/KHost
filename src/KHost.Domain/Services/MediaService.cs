@@ -9,10 +9,9 @@ namespace KHost.Domain.Services;
 
 public class MediaService : BaseRepositoryService<Media, IMediaRepository>, IMediaService
 {
-    protected override object? StateChangedMessage => new MediaLibraryChanged();
 
     public MediaService(ILogger<MediaService> logger, IMediaRepository repository, IMessageBroker broker)
-        : base(logger, repository, broker)
+        : base(logger, repository, broker, new MediaLibraryChanged())
     {
     }
 

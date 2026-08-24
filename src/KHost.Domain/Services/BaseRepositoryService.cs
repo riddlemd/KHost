@@ -12,17 +12,23 @@ public abstract class BaseRepositoryService<TClass, TRepository> : BaseService, 
 {
     protected readonly TRepository Repository;
 
-    protected BaseRepositoryService(ILogger logger, TRepository repository, IMessageBroker? broker = null)
+    // Supplied rather than named here: the CRUD below is generic over TClass and cannot say which
+    // of the library, the venues or the users just moved.
+    private readonly object _changeMessage;
+
+    protected BaseRepositoryService(ILogger logger, TRepository repository, IMessageBroker? broker,
+        object changeMessage)
         : base(logger, broker)
     {
         Repository = repository;
+        _changeMessage = changeMessage;
     }
 
     public virtual async Task<TClass> CreateAsync(TClass entity)
     {
         var savedEntity = await Repository.CreateAsync(entity);
 
-        InvokeStateChanged();
+        Announce(_changeMessage);
 
         return savedEntity;
     }
@@ -36,7 +42,7 @@ public abstract class BaseRepositoryService<TClass, TRepository> : BaseService, 
     {
         await Repository.UpdateAsync(entity);
 
-        InvokeStateChanged();
+        Announce(_changeMessage);
     }
 
     public virtual async Task<bool> DeleteAsync(Guid id)
@@ -44,7 +50,7 @@ public abstract class BaseRepositoryService<TClass, TRepository> : BaseService, 
         var success = await Repository.DeleteAsync(id);
 
         if (success)
-            InvokeStateChanged();
+            Announce(_changeMessage);
 
         return success;
     }

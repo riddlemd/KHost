@@ -54,8 +54,6 @@ public sealed class ScreenCoordinationService : BaseService, IScreenCoordination
 
     public string? PrimaryScreenId => _roles.Primary;
 
-    protected override object? StateChangedMessage => new ScreensChanged();
-
     public bool RolesAreSplit => _roles is { Audio: not null } r && r.Audio != r.Primary;
 
     public bool IsAudioEnabled(string screenId)
@@ -86,7 +84,7 @@ public sealed class ScreenCoordinationService : BaseService, IScreenCoordination
         }
         finally { _lock.Release(); }
 
-        InvokeStateChanged();
+        Announce(new ScreensChanged());
     }
 
     public async Task<string?> EnsureRolesAsync(CancellationToken cancellationToken = default)
@@ -147,7 +145,7 @@ public sealed class ScreenCoordinationService : BaseService, IScreenCoordination
         }
         finally { _lock.Release(); }
 
-        InvokeStateChanged();
+        Announce(new ScreensChanged());
         return true;
     }
 
@@ -161,7 +159,7 @@ public sealed class ScreenCoordinationService : BaseService, IScreenCoordination
         }
         finally { _lock.Release(); }
 
-        InvokeStateChanged();
+        Announce(new ScreensChanged());
     }
 
     public async Task ClearAudioOverrideAsync(string screenId, CancellationToken cancellationToken = default)
@@ -174,7 +172,7 @@ public sealed class ScreenCoordinationService : BaseService, IScreenCoordination
         }
         finally { _lock.Release(); }
 
-        InvokeStateChanged();
+        Announce(new ScreensChanged());
     }
 
     /// <summary>Prefers a syncable screen, so the audible one is never the corrected one.</summary>
@@ -278,7 +276,7 @@ public sealed class ScreenCoordinationService : BaseService, IScreenCoordination
             // A new screen arrives unmuted; without this it would add a second voice to the room.
             await EnsureRolesAsync();
             await MuteUnlessPermittedAsync(e.Connection.ScreenId);
-            InvokeStateChanged();
+            Announce(new ScreensChanged());
         });
 
     private void OnScreenDisconnected(object? sender, ScreenConnectionEventArgs e) =>
@@ -291,7 +289,7 @@ public sealed class ScreenCoordinationService : BaseService, IScreenCoordination
             // No role write here: EnsureRolesAsync drops a departed screen under the lock, and
             // a shortcut outside it is how a reader once saw audio vacated with primary still set.
             await EnsureRolesAsync();
-            InvokeStateChanged();
+            Announce(new ScreensChanged());
         });
 
     private async Task MuteUnlessPermittedAsync(string screenId)

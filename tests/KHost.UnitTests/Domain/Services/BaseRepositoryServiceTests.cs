@@ -15,10 +15,7 @@ public class BaseRepositoryServiceTests
     }
 
     public sealed class TestRepositoryService(ILogger logger, IRepository<TestEntity> repository, IMessageBroker broker)
-        : BaseRepositoryService<TestEntity, IRepository<TestEntity>>(logger, repository, broker)
-    {
-        protected override object? StateChangedMessage => new TestEntityChanged();
-    }
+        : BaseRepositoryService<TestEntity, IRepository<TestEntity>>(logger, repository, broker, new TestEntityChanged());
 
     public sealed record TestEntityChanged;
 
