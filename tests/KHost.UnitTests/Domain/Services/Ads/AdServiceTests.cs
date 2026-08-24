@@ -143,9 +143,10 @@ public class AdServiceTests : IDisposable
         await _playback.Received(2).PlayAdAsync(Arg.Any<Media>());
     }
 
-    // A hand-edited zero would otherwise fire an ad between every pair of singers.
+    // A zero interval reads the same either way here — the counter is already 1 by the time it
+    // is compared. The clamp that matters is on the minutes trigger below.
     [Fact]
-    public async Task EveryNPerformances_WithAZeroInterval_IsTreatedAsOne()
+    public async Task EveryNPerformances_WithAZeroInterval_FiresEveryGap()
     {
         ConfigureVenue(AdTriggerMode.EveryNPerformances, interval: 0);
 
@@ -188,6 +189,31 @@ public class AdServiceTests : IDisposable
 
         _clock.Advance(TimeSpan.FromMinutes(21));
         await PerformancesAsync(3);
+
+        await _playback.Received(1).PlayAdAsync(Arg.Any<Media>());
+    }
+
+    // Unclamped, TimeSpan.FromMinutes(0) is always elapsed, so a hand-edited zero would put an
+    // ad in every single gap all night.
+    [Fact]
+    public async Task EveryNMinutes_WithAZeroInterval_StillWaitsAMinute()
+    {
+        ConfigureVenue(AdTriggerMode.EveryNMinutes, interval: 0);
+        await _service.InitializeAsync();
+
+        await PerformancesAsync(3);
+
+        await _playback.DidNotReceive().PlayAdAsync(Arg.Any<Media>());
+    }
+
+    [Fact]
+    public async Task EveryNMinutes_WithAZeroInterval_FiresOnceTheClampedMinuteHasPassed()
+    {
+        ConfigureVenue(AdTriggerMode.EveryNMinutes, interval: 0);
+        await _service.InitializeAsync();
+
+        _clock.Advance(TimeSpan.FromMinutes(2));
+        await PerformancesAsync(1);
 
         await _playback.Received(1).PlayAdAsync(Arg.Any<Media>());
     }
