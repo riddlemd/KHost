@@ -13,15 +13,6 @@
             </div>
 
             <div class="kh-venue-settings__row">
-                <label for="playlist-purpose" class="kh-form-label">Used for</label>
-                <select id="playlist-purpose" class="kh-form-select" value="@_purpose"
-                        @onchange="OnPurposeChangedAsync">
-                    <option value="@PoolPurpose.BreakMusic">Break music between singers</option>
-                    <option value="@PoolPurpose.Ads">Ads</option>
-                </select>
-            </div>
-
-            <div class="kh-venue-settings__row">
                 <label for="playlist-mode" class="kh-form-label">Pick the next entry</label>
                 <select id="playlist-mode" class="kh-form-select" @bind="_selectionMode">
                     <option value="@PoolSelectionMode.Shuffle">Shuffled</option>
@@ -36,7 +27,7 @@
             </div>
         </div>
 
-        @if (_purpose == PoolPurpose.Ads)
+        @if (Purpose == PoolPurpose.Ads)
         {
             <div class="kh-venue-settings__section">
                 <span class="kh-venue-settings__section-title">When these ads play</span>
@@ -83,7 +74,7 @@
                     <thead>
                         <tr>
                             <th>What plays</th>
-                            @if (_purpose == PoolPurpose.Ads)
+                            @if (Purpose == PoolPurpose.Ads)
                             {
                                 <th>Sound</th>
                                 <th>From</th>
@@ -105,7 +96,7 @@
                             <tr>
                                 <td class="kh-table__cell--fill">@DescribeEntry(entry)</td>
 
-                                @if (_purpose == PoolPurpose.Ads)
+                                @if (Purpose == PoolPurpose.Ads)
                                 {
                                     <td>
                                         <select class="kh-form-select" value="@(entry.AudioMediaId?.ToString() ?? "")"

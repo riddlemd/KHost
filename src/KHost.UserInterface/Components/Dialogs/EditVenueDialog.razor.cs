@@ -1,6 +1,5 @@
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
-using KHost.Plugins.Sdk.Services;
 using KHost.UserInterface.Models;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Forms;
@@ -22,14 +21,9 @@ public partial class EditVenueDialog
     [Parameter] public EventCallback OnClose { get; set; }
     [Parameter] public EventCallback OnOpen { get; set; }
 
-    [Inject] private IMediaPoolService MediaPools { get; set; } = default!;
     [Inject] private IMediaService Media { get; set; } = default!;
-    [Inject] private IBreakMusicService BreakMusic { get; set; } = default!;
 
-    private IReadOnlyList<MediaPool> _breakMusicPools = [];
-    private IReadOnlyList<MediaPool> _adPools = [];
     private IReadOnlyList<Media> _images = [];
-    private IReadOnlyList<IBreakMusicProvider> _breakMusicProviders = [];
 
     private bool _isNew;
     private EditVenueModel _model = new();
@@ -88,9 +82,6 @@ public partial class EditVenueDialog
     /// </summary>
     private async Task LoadChoicesAsync()
     {
-        _breakMusicPools = await MediaPools.ReadAllWithEntriesAsync(PoolPurpose.BreakMusic, _model.Id);
-        _adPools = await MediaPools.ReadAllWithEntriesAsync(PoolPurpose.Ads, _model.Id);
-        _breakMusicProviders = BreakMusic.Providers;
 
         // Stills only: anything else handed to the screen as a card is a URL that serves nothing.
         // Read by kind rather than paged, or a card past the first page would never be offered.
@@ -119,6 +110,8 @@ public partial class EditVenueDialog
         venue.Settings.PromptBeforeRemovingPerformance = _model.PromptBeforeRemovingPerformance;
         venue.Settings.ClearQueueOnClose = _model.ClearQueueOnClose;
         venue.Settings.QueueRotation = _model.QueueRotation;
+        // Round-tripped rather than edited here: the Break Music and Ads managers own these, and
+        // saving a venue from this dialog must not wipe what they set.
         venue.Settings.BreakMusicPoolId = _model.BreakMusicPoolId;
         venue.Settings.AdPoolId = _model.AdPoolId;
         venue.Settings.BrandingImageMediaId = _model.BrandingImageMediaId;
