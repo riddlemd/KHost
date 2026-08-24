@@ -71,18 +71,31 @@ public class SelectedSingerInfoPanelAdInterruptTests : BunitContext
         await _playback.Received(1).PlayAsync();
     }
 
-    // The rule the guard exists for still has to hold: another singer's song is not interruptible
-    // from a second row, or two performances would be half-loaded at once.
+    // The other half of the rule: a song already loaded still locks every row, so the exemption
+    // above opened the door to ads only. This is the affordance a host actually sees.
     [Fact]
-    public async Task ClickingPlayDuringAnotherPerformance_IsStillRefused()
+    public void WhileAnotherPerformanceIsLoaded_ThePlayButtonIsDisabled()
     {
         _playback.State.Returns(PlaybackState.Playing);
         _playback.IsPlayingAd.Returns(false);
         _playback.CurrentPerformance.Returns(new Performance { Id = Guid.NewGuid() });
 
         var panel = Render<SelectedSingerInfoPanel>();
-        await panel.Find(PlayButtonSelector).ClickAsync(new());
 
-        await _playback.DidNotReceive().LoadAsync(Arg.Any<Performance>(), Arg.Any<Media>());
+        Assert.True(panel.Find(PlayButtonSelector).HasAttribute("disabled"));
+    }
+
+    // An ad must not lock the rows the way a song does, or the button would look dead even though
+    // the click now works.
+    [Fact]
+    public void WhileAnAdIsPlaying_ThePlayButtonStaysEnabled()
+    {
+        _playback.State.Returns(PlaybackState.Playing);
+        _playback.IsPlayingAd.Returns(true);
+        _playback.CurrentPerformance.Returns((Performance?)null);
+
+        var panel = Render<SelectedSingerInfoPanel>();
+
+        Assert.False(panel.Find(PlayButtonSelector).HasAttribute("disabled"));
     }
 }
