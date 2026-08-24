@@ -84,11 +84,13 @@
                                     <td>
                                         @if (media.Type != MediaType.Karaoke)
                                         {
+                                            @* Badged only for the unusual rows: karaoke is the bulk
+                                               of the library, and badging every row is noise. *@
                                             <span class="kh-badge kh-badge--secondary">@DescribeType(media.Type)</span>
                                         }
                                         else
                                         {
-                                            <span>Song</span>
+                                            <span>@DescribeType(media.Type)</span>
                                         }
                                     </td>
                                     <td>@media.Format</td>
