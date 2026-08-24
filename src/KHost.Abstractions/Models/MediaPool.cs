@@ -1,5 +1,15 @@
 namespace KHost.Abstractions.Models;
 
+/// <summary>
+/// What a playlist is for. Deliberately not <see cref="MediaKind"/>: a kind says what a file is,
+/// and both purposes draw on several kinds — an ad is a picture and a sound together.
+/// </summary>
+public enum PoolPurpose
+{
+    BreakMusic,
+    Ads,
+}
+
 /// <summary>How the next entry is picked out of a pool.</summary>
 public enum PoolSelectionMode
 {
@@ -32,8 +42,7 @@ public enum AdTriggerMode
 /// </summary>
 public class MediaPool : RepositoryModel
 {
-    /// <summary>Only <see cref="MediaKind.BreakMusic"/> and <see cref="MediaKind.Ad"/> mean anything here.</summary>
-    public MediaKind Kind { get; set; } = MediaKind.BreakMusic;
+    public PoolPurpose Purpose { get; set; } = PoolPurpose.BreakMusic;
 
     public required string Name { get; set; }
 

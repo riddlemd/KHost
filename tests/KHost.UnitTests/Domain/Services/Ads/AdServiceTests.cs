@@ -50,7 +50,7 @@ public class AdServiceTests : IDisposable
 
     private MediaPool ConfigureVenue(AdTriggerMode trigger, int interval = 3, bool withPool = true)
     {
-        var pool = new MediaPool { Id = _poolId, Name = "Spots", Kind = MediaKind.Ad, AdTrigger = trigger, AdTriggerInterval = interval };
+        var pool = new MediaPool { Id = _poolId, Name = "Spots", Purpose = PoolPurpose.Ads, AdTrigger = trigger, AdTriggerInterval = interval };
 
         _venues.ReadSelectedVenueAsync().Returns(Task.FromResult<Venue?>(new Venue
         {
@@ -67,7 +67,7 @@ public class AdServiceTests : IDisposable
             FilePath = "/media/spot.mp4",
             Title = "Happy Hour",
             Status = MediaStatus.Ready,
-            Kind = MediaKind.Ad,
+            Kind = MediaKind.Video,
             Duration = TimeSpan.FromSeconds(20),
         };
 
@@ -92,7 +92,7 @@ public class AdServiceTests : IDisposable
             FilePath = $"/media/{title}",
             Title = title,
             Status = MediaStatus.Ready,
-            Kind = MediaKind.Ad,
+            Kind = MediaKind.Video,
             Format = format,
             Duration = duration,
         };

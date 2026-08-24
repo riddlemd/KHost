@@ -23,8 +23,9 @@
             <div class="kh-venue-settings__row">
                 <label for="add-media-kind" class="kh-form-label">Used for</label>
                 <select id="add-media-kind" class="kh-form-select" @bind="_kind">
-                    <option value="@MediaKind.BreakMusic">Break music</option>
-                    <option value="@MediaKind.Ad">Ads and screen cards</option>
+                    <option value="@MediaKind.Audio">Audio &mdash; break music, or an ad's voiceover</option>
+                    <option value="@MediaKind.Video">Video &mdash; an ad spot</option>
+                    <option value="@MediaKind.Image">Image &mdash; a card or a still ad</option>
                     <option value="@MediaKind.Karaoke">Karaoke</option>
                 </select>
             </div>

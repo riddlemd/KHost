@@ -12,7 +12,7 @@ public class MediaPoolServiceTests
 
     public MediaPoolServiceTests()
     {
-        _repository.ReadAllWithEntriesAsync(Arg.Any<MediaKind>(), Arg.Any<Guid?>())
+        _repository.ReadAllWithEntriesAsync(Arg.Any<PoolPurpose>(), Arg.Any<Guid?>())
             .Returns(Task.FromResult<IReadOnlyList<MediaPool>>([]));
 
         _service = new MediaPoolService(NullLogger<MediaPoolService>.Instance, _repository, new Random(1));

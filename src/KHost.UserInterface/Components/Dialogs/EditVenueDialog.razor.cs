@@ -88,15 +88,13 @@ public partial class EditVenueDialog
     /// </summary>
     private async Task LoadChoicesAsync()
     {
-        _breakMusicPools = await MediaPools.ReadAllWithEntriesAsync(MediaKind.BreakMusic, _model.Id);
-        _adPools = await MediaPools.ReadAllWithEntriesAsync(MediaKind.Ad, _model.Id);
+        _breakMusicPools = await MediaPools.ReadAllWithEntriesAsync(PoolPurpose.BreakMusic, _model.Id);
+        _adPools = await MediaPools.ReadAllWithEntriesAsync(PoolPurpose.Ads, _model.Id);
         _breakMusicProviders = BreakMusic.Providers;
 
-        // Stills only, and never out of the karaoke library: anything else handed to the screen as
-        // a card is a URL that serves nothing. Read by kind rather than paged, or a card past the
-        // first page of a real library would never be offered.
-        var media = await Media.ReadAllByKindsAsync(MediaKind.Ad, MediaKind.BreakMusic);
-        _images = [.. media.Where(m => MediaFormats.IsImage(m.Format))];
+        // Stills only: anything else handed to the screen as a card is a URL that serves nothing.
+        // Read by kind rather than paged, or a card past the first page would never be offered.
+        _images = await Media.ReadAllByKindsAsync(MediaKind.Image);
     }
 
     private async Task SubmitAsync()

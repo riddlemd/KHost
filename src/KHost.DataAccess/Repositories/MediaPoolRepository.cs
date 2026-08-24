@@ -13,7 +13,7 @@ internal class MediaPoolRepository : BaseRepository<MediaPool>, IMediaPoolReposi
         new Dictionary<string, Expression<Func<MediaPool, object>>>
         {
             ["name"] = p => p.Name.ToLower(),
-            ["kind"] = p => p.Kind,
+            ["purpose"] = p => p.Purpose,
         };
 
     public MediaPoolRepository(IDbContextFactory<DefaultContext> contextFactory, ILogger<BaseRepository<MediaPool>> logger)
@@ -30,14 +30,14 @@ internal class MediaPoolRepository : BaseRepository<MediaPool>, IMediaPoolReposi
             .FirstOrDefaultAsync(p => p.Id == id);
     }
 
-    public async Task<IReadOnlyList<MediaPool>> ReadAllWithEntriesAsync(MediaKind kind, Guid? venueId)
+    public async Task<IReadOnlyList<MediaPool>> ReadAllWithEntriesAsync(PoolPurpose purpose, Guid? venueId)
     {
         using var context = await ContextFactory.CreateDbContextAsync();
 
         // A pool with no venue belongs to every venue, so it is always in scope alongside the
         // ones this venue owns.
         return await context.MediaPools
-            .Where(p => p.Kind == kind && (p.VenueId == null || p.VenueId == venueId))
+            .Where(p => p.Purpose == purpose && (p.VenueId == null || p.VenueId == venueId))
             .Include(p => p.Entries.OrderBy(e => e.Position))
             .ToListAsync();
     }
@@ -80,8 +80,8 @@ internal class MediaPoolRepository : BaseRepository<MediaPool>, IMediaPoolReposi
     {
         if (options is MediaPoolSearchOptions poolOptions)
         {
-            if (poolOptions.Kind is { } kind)
-                queryable = queryable.Where(p => p.Kind == kind);
+            if (poolOptions.Purpose is { } purpose)
+                queryable = queryable.Where(p => p.Purpose == purpose);
 
             if (poolOptions.VenueId is { } venueId)
                 queryable = queryable.Where(p => p.VenueId == null || p.VenueId == venueId);

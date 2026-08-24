@@ -25,7 +25,7 @@ public partial class AddMediaFileDialog
     /// <summary>Driven off the path as it is typed, so the option appears only for a still.</summary>
     private bool _isImage => MediaFormats.IsImage(Path.GetExtension(_path.Trim().Trim('"')));
 
-    private MediaKind _kind = MediaKind.BreakMusic;
+    private MediaKind _kind = MediaKind.Audio;
     private string? _error;
     private bool _busy;
     private bool _prevIsOpen;
@@ -35,7 +35,7 @@ public partial class AddMediaFileDialog
         if (IsOpen && !_prevIsOpen)
         {
             _path = "";
-            _kind = MediaKind.BreakMusic;
+            _kind = MediaKind.Audio;
             _scaling = ImageScaling.Fit;
             _error = null;
             _busy = false;
