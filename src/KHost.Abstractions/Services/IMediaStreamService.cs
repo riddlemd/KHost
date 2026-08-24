@@ -21,4 +21,10 @@ public interface IMediaStreamService
 
     /// <summary>Null rather than throwing, so the HTTP layer stays a plain 404.</summary>
     string? ResolveArtifact(string sessionId, string fileName);
+
+    /// <summary>
+    /// Where a screen fetches a library still from. It lives here because this service already
+    /// owns the address screens reach the host on; a still opens no session and no transcode.
+    /// </summary>
+    string BuildImageUrl(Guid mediaId);
 }

@@ -46,6 +46,9 @@ public class Venue : RepositoryModel
         // are ignored for missing JSON keys) — callers fall back to a default config.
         public QueueRotationConfig? QueueRotation { get; set; }
 
+        /// <summary>Shown on screen whenever nothing is playing. Null leaves the screen blank.</summary>
+        public Guid? BrandingImageMediaId { get; set; }
+
         /// <summary>Which pool break music draws from. Null means the venue has not chosen one.</summary>
         public Guid? BreakMusicPoolId { get; set; }
 
