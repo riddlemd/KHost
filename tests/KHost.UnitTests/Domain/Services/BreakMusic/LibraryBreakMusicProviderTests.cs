@@ -3,6 +3,7 @@ using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using KHost.Abstractions.Services.IPC;
 using KHost.Domain.Services.BreakMusic;
+using KHost.Plugins.Sdk.Messaging.Messages;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace KHost.UnitTests.Domain.Services.BreakMusic;
@@ -110,6 +111,22 @@ public class LibraryBreakMusicProviderTests : IDisposable
 
     // Only the screen the room hears: the bed carries no timeline, so a second screen playing it
     // would be a second bed in the room rather than the same one.
+    // The console redraws off this message alone now that the provider raises no event, so a
+    // provider that plays without announcing leaves the panel showing the previous track forever.
+    [Fact]
+    public async Task StartAsync_AnnouncesTheTrackUnderItsOwnSourceName()
+    {
+        VenueWithPool(_poolId);
+        PoolYields();
+
+        var announced = new List<string>();
+        using var subscription = _broker.Subscribe<BreakMusicTrackChanged>(m => announced.Add(m.ProviderSourceName));
+
+        Assert.True(await _provider.StartAsync());
+
+        Assert.Equal([_provider.SourceName], announced);
+    }
+
     [Fact]
     public async Task StartAsync_SendsToTheAudioScreenRatherThanBroadcasting()
     {
