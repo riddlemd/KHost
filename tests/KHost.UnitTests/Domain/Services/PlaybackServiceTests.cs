@@ -2082,6 +2082,61 @@ public class PlaybackServiceTests : IDisposable
         Assert.False(_service.IsPlayingAd);
     }
 
+    // A screen joining an idle host used to get nothing at all, so it sat on the bare "KHost"
+    // placeholder while every other screen showed the venue's card.
+    [Fact]
+    public async Task ScreenConnecting_WhileIdle_ShowsTheVenueCard()
+    {
+        var brandingId = Guid.NewGuid();
+        VenueBranding(brandingId);
+        _screenServer.ClearReceivedCalls();
+
+        RaiseScreenConnected();
+
+        Assert.True(await WaitForBroadcastAsync<ShowImageCommand>());
+    }
+
+    [Fact]
+    public async Task ScreenConnecting_WhileIdleWithNoBranding_ClearsTheScreen()
+    {
+        VenueBranding(null);
+        _screenServer.ClearReceivedCalls();
+
+        RaiseScreenConnected();
+
+        Assert.True(await WaitForBroadcastAsync<HideImageCommand>());
+    }
+
+    // A still is on the screen, not in a stream. Reloading it would try to open an ffmpeg
+    // transcode for a picture, which fails and leaves the joiner showing nothing.
+    [Fact]
+    public async Task ScreenConnecting_WhileAStillIsUp_ReshowsItWithoutOpeningATranscode()
+    {
+        _mediaStreams.BuildImageUrl(Arg.Any<Guid>()).Returns("http://host/media/image/x");
+
+        await _service.PlayAdAsync(CreateStillAd());
+        _screenServer.ClearReceivedCalls();
+        _mediaStreams.ClearReceivedCalls();
+
+        RaiseScreenConnected();
+
+        Assert.True(await WaitForBroadcastAsync<ShowImageCommand>());
+        await _mediaStreams.DidNotReceive().OpenAsync(Arg.Any<string>(), Arg.Any<TimeSpan>(),
+            Arg.Any<int>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task ScreenConnecting_WhileASongIsLoaded_StillReloadsIt()
+    {
+        var (performance, media) = CreatePerformance();
+        await _service.LoadAsync(performance, media);
+        _screenServer.ClearReceivedCalls();
+
+        RaiseScreenConnected();
+
+        Assert.True(await WaitForBroadcastAsync<LoadMediaCommand>());
+    }
+
     private static (Performance, Media) CreatePerformance()
     {
         var singerId = Guid.NewGuid();
