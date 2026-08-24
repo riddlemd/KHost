@@ -1,6 +1,8 @@
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using KHost.Abstractions.Services.IPC;
+using KHost.Plugins.Sdk.Messaging;
+using KHost.Plugins.Sdk.Messaging.Messages;
 using KHost.Plugins.Sdk.Models;
 using KHost.Plugins.Sdk.Services;
 using Microsoft.Extensions.Logging;
@@ -25,6 +27,9 @@ public class LibraryBreakMusicProvider : BaseService, IBreakMusicProvider, IDisp
     private MediaStreamSession? _stream;
     private BreakMusicTrack? _currentTrack;
 
+    private Task PublishTrackChangedAsync()
+        => Broker?.PublishAsync(new BreakMusicTrackChanged(SourceName)) ?? Task.CompletedTask;
+
     public LibraryBreakMusicProvider(
         ILogger<LibraryBreakMusicProvider> logger,
         IMediaPoolService pools,
@@ -32,8 +37,9 @@ public class LibraryBreakMusicProvider : BaseService, IBreakMusicProvider, IDisp
         IMediaStreamService streams,
         IScreenServer screenServer,
         IScreenCoordinationService screenCoordination,
-        IVenuesService venues)
-        : base(logger)
+        IVenuesService venues,
+        IMessageBroker broker)
+        : base(logger, broker)
     {
         _pools = pools;
         _media = media;
@@ -45,7 +51,6 @@ public class LibraryBreakMusicProvider : BaseService, IBreakMusicProvider, IDisp
         _screenServer.StateReceived += OnScreenStateReceived;
     }
 
-    public event EventHandler? TrackChanged;
 
     public string DisplayName => "Library";
     public string SourceName => nameof(LibraryBreakMusicProvider);
@@ -91,7 +96,7 @@ public class LibraryBreakMusicProvider : BaseService, IBreakMusicProvider, IDisp
             _lock.Release();
         }
 
-        TrackChanged?.Invoke(this, EventArgs.Empty);
+        await PublishTrackChangedAsync();
     }
 
     public async Task SkipAsync(CancellationToken cancellationToken = default)
@@ -204,7 +209,7 @@ public class LibraryBreakMusicProvider : BaseService, IBreakMusicProvider, IDisp
 
         Logger.LogInformation("Break music playing '{Title}'", media.Title);
 
-        TrackChanged?.Invoke(this, EventArgs.Empty);
+        await PublishTrackChangedAsync();
 
         return true;
     }
