@@ -45,7 +45,7 @@ public sealed class ScreenCoordinationService : BaseService, IScreenCoordination
         _screenServer.ScreenDisconnected += OnScreenDisconnected;
         // Selecting or editing a venue changes what "audible" means; without this the new
         // volume waits for the next role move to be heard.
-        _venueChanged = broker.Subscribe<VenuesChanged>(OnVenueStateChanged);
+        _venueChanged = broker.Subscribe<SelectedVenueChanged>(OnVenueStateChanged);
     }
 
     /// <summary>A screen can register before this service is first resolved.</summary>
@@ -245,7 +245,7 @@ public sealed class ScreenCoordinationService : BaseService, IScreenCoordination
         return venue is null ? AudibleVolume : Math.Clamp(venue.Settings.DefaultVolume, 0, 100) / 100f;
     }
 
-    private void OnVenueStateChanged(VenuesChanged message) =>
+    private void OnVenueStateChanged(SelectedVenueChanged message) =>
         _ = Task.Run(async () =>
         {
             await _lock.WaitAsync();

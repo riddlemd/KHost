@@ -45,7 +45,7 @@ public class VenuesService : BaseRepositoryService<Venue, IVenuesRepository>, IV
 
         SelectedVenueId = id;
         Logger.LogInformation("Selected venue restored: {VenueId}", id);
-        _broker.Announce(new VenuesChanged());
+        _broker.Announce(new SelectedVenueChanged());
     }
 
     public async Task<Venue?> ReadSelectedVenueAsync()
@@ -69,7 +69,17 @@ public class VenuesService : BaseRepositoryService<Venue, IVenuesRepository>, IV
 
         await _cacheService.SaveAsync(_cacheKey, venueId);
 
-        _broker.Announce(new VenuesChanged());
+        _broker.Announce(new SelectedVenueChanged());
+    }
+
+    public override async Task UpdateAsync(Venue entity)
+    {
+        await base.UpdateAsync(entity);
+
+        // The room's audio baseline lives on the selected venue, so only an edit to that one has
+        // any business reaching the screens.
+        if (entity.Id == SelectedVenueId)
+            _broker.Announce(new SelectedVenueChanged());
     }
     
     public override async Task<bool> DeleteAsync(Guid id)

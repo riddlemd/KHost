@@ -401,13 +401,42 @@ public class VenuesServiceTests : IDisposable
         _cacheService.LoadAsync<Guid?>("selected-venue").Returns(id);
 
     [Fact]
-    public async Task SelectVenueAsync_AnnouncesVenuesChanged()
+    public async Task SelectVenueAsync_AnnouncesSelectedVenueChanged()
     {
         var raised = false;
-        using var subscription = _broker.Subscribe<VenuesChanged>(_ => raised = true);
+        using var subscription = _broker.Subscribe<SelectedVenueChanged>(_ => raised = true);
 
         await _service.SelectVenueAsync(Guid.NewGuid());
 
         Assert.True(raised);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_TheSelectedVenue_AnnouncesSelectedVenueChanged()
+    {
+        var venueId = Guid.NewGuid();
+        await _service.SelectVenueAsync(venueId);
+
+        var raised = false;
+        using var subscription = _broker.Subscribe<SelectedVenueChanged>(_ => raised = true);
+
+        await _service.UpdateAsync(new Venue { Id = venueId, Name = "The Bar" });
+
+        Assert.True(raised);
+    }
+
+    // The screens take their audio baseline from the selected venue, so an edit to any other one
+    // must not reach them.
+    [Fact]
+    public async Task UpdateAsync_ADifferentVenue_DoesNotAnnounceSelectedVenueChanged()
+    {
+        await _service.SelectVenueAsync(Guid.NewGuid());
+
+        var raised = false;
+        using var subscription = _broker.Subscribe<SelectedVenueChanged>(_ => raised = true);
+
+        await _service.UpdateAsync(new Venue { Id = Guid.NewGuid(), Name = "Somewhere Else" });
+
+        Assert.False(raised);
     }
 }

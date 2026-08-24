@@ -166,9 +166,24 @@ public class BreakMusicServiceTests : IDisposable
         await _service.InitializeAsync();
         _provider.ClearReceivedCalls();
 
-        await _broker.PublishAsync(new VenuesChanged());
+        await _broker.PublishAsync(new SelectedVenueChanged());
 
         await _provider.Received().SetVolumeAsync(0.25f, Arg.Any<CancellationToken>());
+    }
+
+    // Editing some other venue's details is not the room's business: pushing the level at an
+    // external provider on every venue edit is a volume change the host never asked for.
+    [Fact]
+    public async Task AnEditToADifferentVenue_LeavesTheLevelAlone()
+    {
+        _provider.RendersThroughHost.Returns(false);
+
+        await _service.InitializeAsync();
+        _provider.ClearReceivedCalls();
+
+        await _broker.PublishAsync(new VenuesChanged());
+
+        await _provider.DidNotReceive().SetVolumeAsync(Arg.Any<float>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
