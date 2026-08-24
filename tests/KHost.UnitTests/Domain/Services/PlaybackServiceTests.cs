@@ -6,12 +6,14 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using KHost.Domain.Services;
+using KHost.Domain.Services.Messaging;
 
 namespace KHost.UnitTests.Domain.Services;
 
 public class PlaybackServiceTests : IDisposable
 {
     private readonly ILogger<PlaybackService> _logger = Substitute.For<ILogger<PlaybackService>>();
+    private readonly MessageBroker _broker = new(NullLogger<MessageBroker>.Instance);
     private readonly ISingerQueueService _queueService = Substitute.For<ISingerQueueService>();
     private readonly IPerformanceService _performanceService = Substitute.For<IPerformanceService>();
     private readonly IVenuesService _venuesService = Substitute.For<IVenuesService>();
@@ -31,7 +33,7 @@ public class PlaybackServiceTests : IDisposable
         // NSubstitute returns string.Empty for unstubbed strings, so "no receiver" must be said.
         _cast.ConnectedDeviceId.Returns((string?)null);
 
-        _screenCoordination = new ScreenCoordinationService(NullLogger<ScreenCoordinationService>.Instance, _screenServer, Substitute.For<IVenuesService>());
+        _screenCoordination = new ScreenCoordinationService(NullLogger<ScreenCoordinationService>.Instance, _screenServer, Substitute.For<IVenuesService>(), _broker);
 
         _venuesService.ReadSelectedVenueAsync()
             .Returns(new Venue { Id = Guid.NewGuid(), Name = "Test Venue", Settings = new Venue.VenueSettings() });
@@ -114,7 +116,8 @@ public class PlaybackServiceTests : IDisposable
         _cast,
         _breakMusic,
         _mediaService,
-        Options.Create(new PlaybackService.ServiceOptions { StopFadeDuration = stopFadeDuration }));
+        Options.Create(new PlaybackService.ServiceOptions { StopFadeDuration = stopFadeDuration }),
+        _broker);
 
     public void Dispose() => _service.Dispose();
 

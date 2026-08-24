@@ -1,6 +1,8 @@
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Repositories;
 using KHost.Abstractions.Services;
+using KHost.Plugins.Sdk.Messaging;
+using KHost.Plugins.Sdk.Messaging.Messages;
 using Microsoft.Extensions.Logging;
 
 namespace KHost.Domain.Services;
@@ -33,14 +35,17 @@ public class MediaImportService : BaseService, IMediaImportService
     public string? CurrentFilePath { get; private set; }
     public IReadOnlyList<string> SupportedExtensions { get; } = _supportedExtensions;
 
+    protected override object? StateChangedMessage => new MediaImportChanged();
+
     public MediaImportService(
         ILogger<MediaImportService> logger,
         IMediaFileParsingService parser,
         IMediaRepository repository,
         IMediaService mediaService,
         IMediaFingerprintService fingerprints,
-        IAnalyticsService analytics)
-        : base(logger)
+        IAnalyticsService analytics,
+        IMessageBroker broker)
+        : base(logger, broker)
     {
         _parser = parser;
         _repository = repository;

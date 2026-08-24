@@ -2,6 +2,7 @@ using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using KHost.Abstractions.Services.IPC;
 using KHost.Domain.Services.BreakMusic;
+using KHost.Domain.Services.Messaging;
 using KHost.Plugins.Sdk.Models;
 using KHost.Plugins.Sdk.Services;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -15,6 +16,7 @@ public class BreakMusicServiceTests : IDisposable
 {
     private readonly IBreakMusicProvider _provider = Substitute.For<IBreakMusicProvider>();
     private readonly IVenuesService _venues = Substitute.For<IVenuesService>();
+    private readonly MessageBroker _broker = new(NullLogger<MessageBroker>.Instance);
     private readonly BreakMusicService _service;
 
     public BreakMusicServiceTests()
@@ -23,7 +25,7 @@ public class BreakMusicServiceTests : IDisposable
         _provider.StartAsync(Arg.Any<CancellationToken>()).Returns(Task.FromResult(true));
         _venues.ReadSelectedVenueAsync().Returns(Task.FromResult<Venue?>(null));
 
-        _service = new BreakMusicService(NullLogger<BreakMusicService>.Instance, [_provider], _venues);
+        _service = new BreakMusicService(NullLogger<BreakMusicService>.Instance, [_provider], _venues, _broker);
     }
 
     public void Dispose()
@@ -70,7 +72,7 @@ public class BreakMusicServiceTests : IDisposable
             _venues);
 
         using var service = new BreakMusicService(
-            NullLogger<BreakMusicService>.Instance, [plugin, library], _venues);
+            NullLogger<BreakMusicService>.Instance, [plugin, library], _venues, _broker);
 
         await service.InitializeAsync();
 
@@ -84,7 +86,7 @@ public class BreakMusicServiceTests : IDisposable
         plugin.SourceName.Returns("SpotifyProvider");
 
         using var service = new BreakMusicService(
-            NullLogger<BreakMusicService>.Instance, [_provider, plugin], _venues);
+            NullLogger<BreakMusicService>.Instance, [_provider, plugin], _venues, _broker);
 
         await service.InitializeAsync();
         await service.SetActiveProviderAsync("SpotifyProvider");

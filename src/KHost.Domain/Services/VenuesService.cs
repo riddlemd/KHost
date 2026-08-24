@@ -1,6 +1,8 @@
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Repositories;
 using KHost.Abstractions.Services;
+using KHost.Plugins.Sdk.Messaging;
+using KHost.Plugins.Sdk.Messaging.Messages;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -14,8 +16,10 @@ public class VenuesService : BaseRepositoryService<Venue, IVenuesRepository>, IV
 
     public Guid? SelectedVenueId { get; private set; }
 
-    public VenuesService(ILogger<VenuesService> logger, IVenuesRepository repository, ICacheService cacheService)
-        : base(logger, repository)
+    protected override object? StateChangedMessage => new VenuesChanged();
+
+    public VenuesService(ILogger<VenuesService> logger, IVenuesRepository repository, ICacheService cacheService, IMessageBroker broker)
+        : base(logger, repository, broker)
     {
         _cacheService = cacheService;
     }

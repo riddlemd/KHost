@@ -1,9 +1,11 @@
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Repositories;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Xunit;
 using KHost.Domain.Services;
+using KHost.Domain.Services.Messaging;
 
 namespace KHost.UnitTests.Domain.Services;
 
@@ -15,7 +17,7 @@ public class UserGroupsServiceTests
 
     public UserGroupsServiceTests()
     {
-        _service = new UserGroupsService(_logger, _repository);
+        _service = new UserGroupsService(_logger, _repository, new MessageBroker(NullLogger<MessageBroker>.Instance));
     }
 
     [Fact]

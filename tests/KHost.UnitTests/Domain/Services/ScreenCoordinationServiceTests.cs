@@ -3,6 +3,7 @@ using KHost.Abstractions.Services.IPC;
 using KHost.Abstractions.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 using KHost.Domain.Services;
+using KHost.Domain.Services.Messaging;
 
 namespace KHost.UnitTests.Domain.Services;
 
@@ -12,9 +13,10 @@ public class ScreenCoordinationServiceTests : IDisposable
     private readonly ScreenCoordinationService _service;
 
     private readonly IVenuesService _venuesService = Substitute.For<IVenuesService>();
+    private readonly MessageBroker _broker = new(NullLogger<MessageBroker>.Instance);
 
     public ScreenCoordinationServiceTests()
-        => _service = new ScreenCoordinationService(NullLogger<ScreenCoordinationService>.Instance, _screenServer, _venuesService);
+        => _service = new ScreenCoordinationService(NullLogger<ScreenCoordinationService>.Instance, _screenServer, _venuesService, _broker);
 
     public void Dispose() => _service.Dispose();
 

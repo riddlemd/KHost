@@ -1,6 +1,8 @@
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Repositories;
 using KHost.Abstractions.Services;
+using KHost.Plugins.Sdk.Messaging;
+using KHost.Plugins.Sdk.Messaging.Messages;
 using Microsoft.Extensions.Logging;
 
 namespace KHost.Domain.Services.MediaPools;
@@ -11,8 +13,10 @@ public class MediaPoolService : BaseRepositoryService<MediaPool, IMediaPoolRepos
     private readonly Dictionary<Guid, PoolSelectionState> _selectionStates = [];
     private readonly Random _random;
 
-    public MediaPoolService(ILogger<MediaPoolService> logger, IMediaPoolRepository repository, Random? random = null)
-        : base(logger, repository)
+    protected override object? StateChangedMessage => new MediaPoolsChanged();
+
+    public MediaPoolService(ILogger<MediaPoolService> logger, IMediaPoolRepository repository, IMessageBroker broker, Random? random = null)
+        : base(logger, repository, broker)
     {
         _random = random ?? Random.Shared;
     }

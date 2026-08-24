@@ -1,5 +1,7 @@
 using KHost.Abstractions.Services;
 using KHost.Abstractions.Services.IPC;
+using KHost.Plugins.Sdk.Messaging;
+using KHost.Plugins.Sdk.Messaging.Messages;
 using Microsoft.Extensions.Logging;
 using System.Collections.Concurrent;
 
@@ -31,8 +33,8 @@ public sealed class ScreenCoordinationService : BaseService, IScreenCoordination
     // while the other still names a screen that just left.
     private volatile RoleSnapshot _roles = new(null, null);
 
-    public ScreenCoordinationService(ILogger<ScreenCoordinationService> logger, IScreenServer screenServer, IVenuesService venuesService)
-        : base(logger)
+    public ScreenCoordinationService(ILogger<ScreenCoordinationService> logger, IScreenServer screenServer, IVenuesService venuesService, IMessageBroker broker)
+        : base(logger, broker)
     {
         _screenServer = screenServer;
         _venuesService = venuesService;
@@ -50,6 +52,8 @@ public sealed class ScreenCoordinationService : BaseService, IScreenCoordination
     public string? AudioScreenId => _roles.Audio;
 
     public string? PrimaryScreenId => _roles.Primary;
+
+    protected override object? StateChangedMessage => new ScreensChanged();
 
     public bool RolesAreSplit => _roles is { Audio: not null } r && r.Audio != r.Primary;
 

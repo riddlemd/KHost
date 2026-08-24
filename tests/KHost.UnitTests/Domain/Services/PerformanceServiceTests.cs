@@ -4,7 +4,9 @@ using KHost.Abstractions.Models;
 using KHost.Abstractions.Repositories;
 using KHost.Abstractions.Services;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using KHost.Domain.Services;
+using KHost.Domain.Services.Messaging;
 
 namespace KHost.UnitTests.Domain.Services;
 
@@ -17,6 +19,7 @@ public class PerformanceServiceTests
     private readonly IVenuesService _venuesService = Substitute.For<IVenuesService>();
     private readonly IInteractionDispatcher _interactions = Substitute.For<IInteractionDispatcher>();
     private readonly IDownloadsService _downloadsService = Substitute.For<IDownloadsService>();
+    private readonly MessageBroker _broker = new(NullLogger<MessageBroker>.Instance);
     private readonly Venue _venue = new() { Name = "Test Venue" };
     private readonly PerformanceService _service;
 
@@ -137,7 +140,7 @@ public class PerformanceServiceTests
 
         _venuesService.ReadSelectedVenueAsync().Returns(_venue);
 
-        _service = new PerformanceService(_logger, _repository, _mediaService, _venuesService, _interactions, _downloadsService);
+        _service = new PerformanceService(_logger, _repository, _mediaService, _venuesService, _interactions, _downloadsService, _broker);
     }
 
     [Fact]
@@ -250,7 +253,7 @@ public class PerformanceServiceTests
         repository.DeleteAsync(performance.Id).Returns(false);
         _mediaService.ReadAsync(performance.MediaId).Returns(new Media { Id = performance.MediaId, FilePath = "/downloads/song.mp4", Title = "Song", Status = MediaStatus.Downloading });
 
-        var service = new PerformanceService(_logger, repository, _mediaService, _venuesService, _interactions, _downloadsService);
+        var service = new PerformanceService(_logger, repository, _mediaService, _venuesService, _interactions, _downloadsService, _broker);
 
         var deleted = await service.DeleteAsync(performance.Id);
 

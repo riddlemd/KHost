@@ -3,14 +3,18 @@ namespace KHost.Domain.Services;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Repositories;
 using KHost.Abstractions.Services;
+using KHost.Plugins.Sdk.Messaging;
+using KHost.Plugins.Sdk.Messaging.Messages;
 using Microsoft.Extensions.Logging;
 
 public class TipsService : BaseRepositoryService<Tip, ITipsRepository>, ITipsService
 {
     private readonly IVenuesService _venuesService;
 
-    public TipsService(ILogger<TipsService> logger, ITipsRepository repository, IVenuesService venuesService)
-        : base(logger, repository)
+    protected override object? StateChangedMessage => new TipsChanged();
+
+    public TipsService(ILogger<TipsService> logger, ITipsRepository repository, IVenuesService venuesService, IMessageBroker broker)
+        : base(logger, repository, broker)
     {
         _venuesService = venuesService;
     }

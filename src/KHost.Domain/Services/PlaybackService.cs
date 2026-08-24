@@ -2,6 +2,8 @@ using KHost.Abstractions.Exceptions;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using KHost.Abstractions.Services.IPC;
+using KHost.Plugins.Sdk.Messaging;
+using KHost.Plugins.Sdk.Messaging.Messages;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -80,6 +82,8 @@ public class PlaybackService : BaseService, IPlaybackService
     public Guid? CurrentlyPerformingUserId { get; private set; }
     public TimeSpan? StopFadeDuration { get; private set; }
 
+    protected override object? StateChangedMessage => new PlaybackChanged();
+
     public PlaybackService(
         ILogger<PlaybackService> logger,
         ISingerQueueService singerQueueService,
@@ -92,8 +96,9 @@ public class PlaybackService : BaseService, IPlaybackService
         ICastService cast,
         IBreakMusicService breakMusic,
         IMediaService mediaService,
-        IOptions<ServiceOptions> options)
-        : base(logger)
+        IOptions<ServiceOptions> options,
+        IMessageBroker broker)
+        : base(logger, broker)
     {
         _singerQueueService = singerQueueService;
         _performanceService = performanceService;

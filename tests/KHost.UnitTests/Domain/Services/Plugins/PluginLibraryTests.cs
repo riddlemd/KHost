@@ -2,6 +2,7 @@ using KHost.Abstractions.Models;
 using KHost.Abstractions.Repositories;
 using KHost.Abstractions.Services;
 using KHost.Domain.Services;
+using KHost.Domain.Services.Messaging;
 using KHost.Domain.Services.Plugins;
 using KHost.Plugins.Sdk.Models;
 using Microsoft.Extensions.Logging;
@@ -19,6 +20,7 @@ public class PluginLibraryTests
     private readonly IPerformanceService _performanceService = Substitute.For<IPerformanceService>();
     private readonly IOptionsMonitor<PluginLibrary.ServiceOptions> _options = Substitute.For<IOptionsMonitor<PluginLibrary.ServiceOptions>>();
     private readonly DownloadsService _downloads = new();
+    private readonly MessageBroker _broker = new(NullLogger<MessageBroker>.Instance);
     private readonly PluginLibrary _service;
 
     public PluginLibraryTests()
@@ -28,7 +30,7 @@ public class PluginLibraryTests
             .Returns(call => Task.FromResult<Performance?>(call.ArgAt<Performance>(0)));
         _options.CurrentValue.Returns(new PluginLibrary.ServiceOptions());
 
-        _service = new PluginLibrary(_logger, _repository, _mediaService, _singerQueueService, _performanceService, _options, _downloads);
+        _service = new PluginLibrary(_logger, _repository, _mediaService, _singerQueueService, _performanceService, _options, _downloads, _broker);
     }
 
     [Fact]
@@ -222,11 +224,11 @@ public class PluginLibraryTests
         // what actually raises StateChanged, so this proves PluginLibrary reaches it rather than
         // asserting on a mock that we would have to wire the same behaviour into by hand.
         var repository = Substitute.For<IMediaRepository>();
-        var mediaService = new MediaService(NullLogger<MediaService>.Instance, repository);
+        var mediaService = new MediaService(NullLogger<MediaService>.Instance, repository, _broker);
         var media = new Media { Id = Guid.NewGuid(), FilePath = "/downloads/song.mp4", Title = "Song Title", Status = MediaStatus.Downloading };
         repository.ReadAsync(media.Id).Returns(media);
 
-        var service = new PluginLibrary(_logger, repository, mediaService, _singerQueueService, _performanceService, _options, _downloads);
+        var service = new PluginLibrary(_logger, repository, mediaService, _singerQueueService, _performanceService, _options, _downloads, _broker);
         var raised = 0;
         mediaService.StateChanged += (_, _) => raised++;
 
@@ -260,11 +262,11 @@ public class PluginLibraryTests
     public async Task FailImportAsync_RaisesTheMediaServiceStateChanged()
     {
         var repository = Substitute.For<IMediaRepository>();
-        var mediaService = new MediaService(NullLogger<MediaService>.Instance, repository);
+        var mediaService = new MediaService(NullLogger<MediaService>.Instance, repository, _broker);
         var media = new Media { Id = Guid.NewGuid(), FilePath = "/downloads/song.mp4", Title = "Song Title", Status = MediaStatus.Downloading };
         repository.ReadAsync(media.Id).Returns(media);
 
-        var service = new PluginLibrary(_logger, repository, mediaService, _singerQueueService, _performanceService, _options, _downloads);
+        var service = new PluginLibrary(_logger, repository, mediaService, _singerQueueService, _performanceService, _options, _downloads, _broker);
         var raised = 0;
         mediaService.StateChanged += (_, _) => raised++;
 
@@ -311,12 +313,12 @@ public class PluginLibraryTests
     public async Task DiscardImportAsync_RaisesTheMediaServiceStateChanged()
     {
         var repository = Substitute.For<IMediaRepository>();
-        var mediaService = new MediaService(NullLogger<MediaService>.Instance, repository);
+        var mediaService = new MediaService(NullLogger<MediaService>.Instance, repository, _broker);
         var media = new Media { Id = Guid.NewGuid(), FilePath = "/downloads/song.mp4", Title = "Song Title", Status = MediaStatus.Downloading };
         repository.ReadAsync(media.Id).Returns(media);
         repository.DeleteAsync(media.Id).Returns(true);
 
-        var service = new PluginLibrary(_logger, repository, mediaService, _singerQueueService, _performanceService, _options, _downloads);
+        var service = new PluginLibrary(_logger, repository, mediaService, _singerQueueService, _performanceService, _options, _downloads, _broker);
         var raised = 0;
         mediaService.StateChanged += (_, _) => raised++;
 
