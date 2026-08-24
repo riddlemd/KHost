@@ -153,6 +153,21 @@ public class MediaRepositoryFtsTests : IDisposable
         Assert.Equal("99 Problems", Assert.Single(result.Items).Title);
     }
 
+    // A quote inside a token is escaped by doubling it, which is how FTS5 spells a literal quote.
+    // Dropping it instead would end the phrase early and quietly widen the search: the trigram
+    // index holds the punctuation, so the quoted title must match and the unquoted one must not.
+    [Fact]
+    public async Task SearchAsync_QuoteInTheQuery_MatchesOnlyTheTitleThatHasOne()
+    {
+        await SeedAsync(
+            MakeMedia("Say \"Hello\" Now", "Someone"),
+            MakeMedia("Say Hello Now", "Someone"));
+
+        var result = await _repository.SearchAsync("\"Hello\"");
+
+        Assert.Equal("Say \"Hello\" Now", Assert.Single(result.Items).Title);
+    }
+
     // Quoting rather than stripping means an operator character is literal, not syntax: this must
     // find nothing rather than throwing an FTS5 syntax error.
     [Fact]
