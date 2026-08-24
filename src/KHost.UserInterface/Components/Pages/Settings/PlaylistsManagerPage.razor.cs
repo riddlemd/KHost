@@ -42,10 +42,10 @@ public partial class PlaylistsManagerPage : IDisposable
     {
         // Both kinds and every venue: this page manages playlists rather than running them, so it
         // is the one place a playlist scoped to another venue is still visible.
-        var breakMusic = await MediaPools.ReadAllWithEntriesAsync(MediaKind.BreakMusic, venueId: null);
-        var ads = await MediaPools.ReadAllWithEntriesAsync(MediaKind.Ad, venueId: null);
+        var breakMusic = await MediaPools.ReadAllWithEntriesAsync(PoolPurpose.BreakMusic, venueId: null);
+        var ads = await MediaPools.ReadAllWithEntriesAsync(PoolPurpose.Ads, venueId: null);
 
-        _pools = [.. breakMusic.Concat(ads).OrderBy(p => p.Kind).ThenBy(p => p.Name)];
+        _pools = [.. breakMusic.Concat(ads).OrderBy(p => p.Purpose).ThenBy(p => p.Name)];
     }
 
     private static string DescribeSelection(MediaPool pool) => pool.SelectionMode switch

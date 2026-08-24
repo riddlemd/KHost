@@ -75,8 +75,8 @@ public class MediaRepositoryKindFilterTests : IDisposable
     {
         await SeedAsync(
             Song("Thunder Road", MediaKind.Karaoke),
-            Song("Thunder Bed", MediaKind.BreakMusic),
-            Song("Thunder Deal", MediaKind.Ad));
+            Song("Thunder Bed", MediaKind.Audio),
+            Song("Thunder Deal", MediaKind.Video));
     }
 
     [Fact]
@@ -99,7 +99,7 @@ public class MediaRepositoryKindFilterTests : IDisposable
 
         Assert.Equal(3, result.TotalCount);
         Assert.Equal(
-            [MediaKind.Karaoke, MediaKind.BreakMusic, MediaKind.Ad],
+            [MediaKind.Karaoke, MediaKind.Video, MediaKind.Audio],
             result.Items.Select(m => m.Kind).OrderBy(k => k));
     }
 
@@ -109,7 +109,7 @@ public class MediaRepositoryKindFilterTests : IDisposable
         await SeedOneOfEachKindAsync();
 
         var result = await _repository.SearchAsync("Thunder", 1, 50, sort: null,
-            new MediaSearchOptions { Kind = MediaKind.BreakMusic });
+            new MediaSearchOptions { Kind = MediaKind.Audio });
 
         Assert.Equal("Thunder Bed", Assert.Single(result.Items).Title);
     }
@@ -121,7 +121,7 @@ public class MediaRepositoryKindFilterTests : IDisposable
     {
         await SeedAsync(
             Song("Go", MediaKind.Karaoke),
-            Song("Go", MediaKind.Ad));
+            Song("Go", MediaKind.Video));
 
         var result = await _repository.SearchAsync("Go", 1, 50);
 
@@ -136,8 +136,8 @@ public class MediaRepositoryKindFilterTests : IDisposable
     {
         await SeedAsync(
             Song("Go B", MediaKind.Karaoke),
-            Song("Go A", MediaKind.Ad),
-            Song("Go C", MediaKind.BreakMusic));
+            Song("Go A", MediaKind.Video),
+            Song("Go C", MediaKind.Audio));
 
         var result = await _repository.SearchAsync("Go", 1, 50,
             new SortDescriptor("title", Descending: true), MediaSearchOptions.AllKinds);
@@ -184,8 +184,8 @@ public class MediaRepositoryKindFilterTests : IDisposable
     public async Task HasAnyAsync_WithOnlyBreakMusicAndAds_ReturnsFalse()
     {
         await SeedAsync(
-            Song("Thunder Bed", MediaKind.BreakMusic),
-            Song("Thunder Deal", MediaKind.Ad));
+            Song("Thunder Bed", MediaKind.Audio),
+            Song("Thunder Deal", MediaKind.Video));
 
         Assert.False(await _repository.HasAnyAsync());
     }
@@ -206,9 +206,9 @@ public class MediaRepositoryKindFilterTests : IDisposable
         for (var i = 0; i < 60; i++)
             await SeedAsync(Song($"Song {i:D3}", MediaKind.Karaoke));
 
-        await SeedAsync(Song("Zebra Card", MediaKind.Ad));
+        await SeedAsync(Song("Zebra Card", MediaKind.Video));
 
-        var ads = await _repository.ReadAllByKindsAsync(MediaKind.Ad);
+        var ads = await _repository.ReadAllByKindsAsync(MediaKind.Video);
 
         Assert.Equal("Zebra Card", Assert.Single(ads).Title);
     }
@@ -218,7 +218,7 @@ public class MediaRepositoryKindFilterTests : IDisposable
     {
         await SeedOneOfEachKindAsync();
 
-        var sound = await _repository.ReadAllByKindsAsync(MediaKind.Ad, MediaKind.BreakMusic);
+        var sound = await _repository.ReadAllByKindsAsync(MediaKind.Video, MediaKind.Audio);
 
         Assert.Equal(2, sound.Count);
         Assert.DoesNotContain(sound, m => m.Kind == MediaKind.Karaoke);
@@ -237,7 +237,7 @@ public class MediaRepositoryKindFilterTests : IDisposable
     [Fact]
     public async Task GetExistingFilePathsAsync_FindsPathsOfEveryKind()
     {
-        var ad = Song("Thunder Deal", MediaKind.Ad);
+        var ad = Song("Thunder Deal", MediaKind.Video);
         await SeedAsync(ad);
 
         var found = await _repository.GetExistingFilePathsAsync([ad.FilePath]);
@@ -248,7 +248,7 @@ public class MediaRepositoryKindFilterTests : IDisposable
     [Fact]
     public async Task FindByFilePathAsync_FindsANonKaraokeRow()
     {
-        var bed = Song("Thunder Bed", MediaKind.BreakMusic);
+        var bed = Song("Thunder Bed", MediaKind.Audio);
         await SeedAsync(bed);
 
         var found = await _repository.FindByFilePathAsync(bed.FilePath);
@@ -263,7 +263,7 @@ public class MediaRepositoryKindFilterTests : IDisposable
         await SeedAsync(
             Song("Thunder Road", MediaKind.Karaoke, MediaStatus.Ready),
             Song("Thunder Rain", MediaKind.Karaoke, MediaStatus.Broken),
-            Song("Thunder Deal", MediaKind.Ad, MediaStatus.Ready));
+            Song("Thunder Deal", MediaKind.Video, MediaStatus.Ready));
 
         var result = await _repository.SearchAsync("Thunder", 1, 50, sort: null, new MediaSearchOptions
         {

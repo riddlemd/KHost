@@ -216,9 +216,6 @@ namespace KHost.DataAccess.Migrations
                     b.Property<int>("AdTriggerInterval")
                         .HasColumnType("INTEGER");
 
-                    b.Property<int>("Kind")
-                        .HasColumnType("INTEGER");
-
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(255)
@@ -232,6 +229,9 @@ namespace KHost.DataAccess.Migrations
                     b.Property<int>("NoRepeatCount")
                         .HasColumnType("INTEGER");
 
+                    b.Property<int>("Purpose")
+                        .HasColumnType("INTEGER");
+
                     b.Property<int>("SelectionMode")
                         .HasColumnType("INTEGER");
 
@@ -240,7 +240,7 @@ namespace KHost.DataAccess.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("Kind");
+                    b.HasIndex("Purpose");
 
                     b.HasIndex("VenueId");
 

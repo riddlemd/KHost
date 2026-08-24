@@ -101,7 +101,7 @@ internal class DefaultContext : DbContext
                 .IsRequired()
                 .HasMaxLength(255);
 
-            entity.HasIndex(e => e.Kind);
+            entity.HasIndex(e => e.Purpose);
             entity.HasIndex(e => e.VenueId);
 
             entity.HasMany(e => e.Entries)
