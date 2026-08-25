@@ -158,6 +158,7 @@
                               Search="SearchPoolsAsync"
                               DisplayName="@(pool => pool.Name)"
                               MinimumSearchLength="0"
+                              OpenWhenEmpty="true"
                               Placeholder="Add another playlist…" />
                     <button class="kh-button kh-button--secondary" type="button"
                             disabled="@(_addPool is null)" @onclick="AddPoolEntry">
