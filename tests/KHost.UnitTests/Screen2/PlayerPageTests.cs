@@ -65,6 +65,18 @@ public class PlayerPageTests
         Assert.Contains("hls.attachMedia({ media: video, mediaSource })", page, StringComparison.Ordinal);
     }
 
+    // Chromium's srcObject takes only a MediaStream or a MediaSourceHandle and throws TypeError on
+    // a bare MediaSource, so the attach above cannot be the only way in. Unguarded it abandoned
+    // load() mid-call and the Windows screen went black with nothing reported to the host.
+    [Fact]
+    public void BuildPlayerPage_Always_FallsBackWhenSrcObjectRefusesTheMediaSource()
+    {
+        var page = Program.BuildPlayerPage();
+
+        Assert.Contains("try {", page, StringComparison.Ordinal);
+        Assert.Contains("hls.attachMedia(video);", page, StringComparison.Ordinal);
+    }
+
     // teardown clears src; an attached MediaSource outlives that, and the next song would then
     // append to the source the last one already ended.
     [Fact]

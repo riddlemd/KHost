@@ -77,14 +77,28 @@ function load(url, autoplay) {
     });
     hls.loadSource(url);
 
-    // The MediaSource is attached here, not by hls.js. Left to itself hls.js reaches the element
-    // through URL.createObjectURL, and this page is handed to the web view as a raw string — an
-    // opaque origin — so that URL comes out as blob:null/… and WebKit refuses to load it into a
-    // media element (MEDIA_ERR_SRC_NOT_SUPPORTED, before hls.js sees anything to report).
-    // srcObject carries no origin, and passing the source to attachMedia makes hls.js adopt it
-    // instead of minting a URL, which keeps one path across both web views.
+    // The two engines reject opposite things, so this tries the one that is fussier about origins
+    // first and falls back rather than choosing by name.
+    //
+    // WebKit: hls.js left to itself reaches the element through URL.createObjectURL, and this page
+    // is handed to the web view as a raw string — an opaque origin — so that URL comes out as
+    // blob:null/… and WebKit refuses to load it (MEDIA_ERR_SRC_NOT_SUPPORTED, before hls.js sees
+    // anything to report). srcObject carries no origin, and handing the source to attachMedia
+    // makes hls.js adopt it instead of minting a URL.
+    //
+    // Chromium: srcObject takes only a MediaStream or a MediaSourceHandle, and throws TypeError on
+    // a bare MediaSource — it has no MediaSource.handle to offer either. It has no quarrel with the
+    // blob: URL, so hls.js attaches the ordinary way. Thrown, not silent: assigning to srcObject
+    // outside a try would abandon load() with the screen black and nothing reported to the host.
     const mediaSource = new MediaSource();
-    video.srcObject = mediaSource;
+
+    try {
+        video.srcObject = mediaSource;
+    } catch {
+        hls.attachMedia(video);
+        return;
+    }
+
     hls.attachMedia({ media: video, mediaSource });
 }
 
