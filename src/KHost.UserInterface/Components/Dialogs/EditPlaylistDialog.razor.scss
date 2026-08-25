@@ -26,6 +26,12 @@
         .kh-button {
             flex-shrink: 0;
         }
+
+        // Collapsed, the row holds one button and nothing to stretch, so it goes to the end —
+        // where the entries table's own actions column already is.
+        &--collapsed {
+            justify-content: flex-end;
+        }
     }
 
     // Held narrow so the entry description keeps the width.
