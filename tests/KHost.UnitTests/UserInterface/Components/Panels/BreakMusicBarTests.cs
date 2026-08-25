@@ -51,6 +51,46 @@ public class BreakMusicBarTests : BunitContext
         Assert.Empty(Render().FindAll(".kh-break-music-bar"));
     }
 
+    /// <summary>
+    /// A provider driving another app reports no track, so the bar falls back to describing the
+    /// state. Playing had no case, which left it reading "Break music off" over audible music —
+    /// the Library provider hid it by always naming a track while it played.
+    /// </summary>
+    [Fact]
+    public void WhilePlayingAProviderThatNamesNoTrack_TheBarSaysItIsPlaying()
+    {
+        _provider.DisplayName.Returns("Spotify");
+        _breakMusic.State.Returns(BreakMusicState.Playing);
+        _breakMusic.CurrentTrack.Returns((BreakMusicTrack?)null);
+
+        var text = Render().Find(".kh-break-music-bar__title").TextContent;
+
+        Assert.Contains("Playing", text);
+        Assert.Contains("Spotify", text);
+        Assert.DoesNotContain("off", text);
+    }
+
+    [Fact]
+    public void WhilePlayingAProviderThatNamesATrack_TheBarShowsTheTrack()
+    {
+        _breakMusic.State.Returns(BreakMusicState.Playing);
+        _breakMusic.CurrentTrack.Returns(new BreakMusicTrack { Title = "House Record", Artist = "DJ" });
+
+        Assert.Equal("House Record", Render().Find(".kh-break-music-bar__title").TextContent);
+    }
+
+    [Theory]
+    [InlineData(BreakMusicState.Paused, "paused")]
+    [InlineData(BreakMusicState.Suspended, "waiting")]
+    [InlineData(BreakMusicState.Stopped, "off")]
+    public void WithNoTrackNamed_EachStateDescribesItself(BreakMusicState state, string expected)
+    {
+        _breakMusic.State.Returns(state);
+        _breakMusic.CurrentTrack.Returns((BreakMusicTrack?)null);
+
+        Assert.Contains(expected, Render().Find(".kh-break-music-bar__title").TextContent);
+    }
+
     [Fact]
     public void PlayButton_WhenStopped_StartsBreakMusic()
     {
