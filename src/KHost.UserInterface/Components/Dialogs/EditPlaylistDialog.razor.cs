@@ -38,6 +38,9 @@ public partial class EditPlaylistDialog
     /// <summary>Formats alongside them: only a video answers for its own length.</summary>
     private readonly Dictionary<Guid, string> _formats = [];
 
+    /// <summary>Lengths too, so a row can show what it will run for before it is overridden.</summary>
+    private readonly Dictionary<Guid, TimeSpan?> _durations = [];
+
     private Media? _addMedia;
     private string _addMediaText = "";
     private MediaPool? _addPool;
@@ -102,6 +105,7 @@ public partial class EditPlaylistDialog
     {
         _titles.Clear();
         _formats.Clear();
+        _durations.Clear();
 
         foreach (var id in _entries.SelectMany(e => new[] { e.MediaId, e.AudioMediaId })
                      .OfType<Guid>().Distinct())
@@ -110,6 +114,7 @@ public partial class EditPlaylistDialog
             {
                 _titles[id] = media.Title;
                 _formats[id] = media.Format;
+                _durations[id] = media.Duration;
             }
         }
     }
@@ -163,21 +168,32 @@ public partial class EditPlaylistDialog
             : null;
 
     /// <summary>
-    /// What the entry runs for when its own length is blank, shown as the placeholder so a host can
-    /// see what they are inheriting before deciding to override it.
+    /// The seconds the entry will actually run for while its own length is blank, shown as the
+    /// placeholder so a host sees the number they are inheriting rather than the rule behind it.
+    /// Mirrors what AdService resolves, so the two cannot say different things.
     /// </summary>
     private string DescribeDefaultLength(MediaPoolEntry entry)
     {
-        // A video answers for itself; anything else falls to the configured default.
-        if (entry.MediaId is { } mediaId
-            && _formats.TryGetValue(mediaId, out var format)
-            && !MediaFormats.IsImage(format))
+        // A video answers for itself.
+        if (entry.MediaId is { } visualId
+            && _formats.TryGetValue(visualId, out var format)
+            && !MediaFormats.IsImage(format)
+            && _durations.GetValueOrDefault(visualId) is { } visualLength)
         {
-            return "video";
+            return Seconds(visualLength);
+        }
+
+        // A still with a voiceover runs to the end of the voiceover, so the two finish together.
+        if (entry.AudioMediaId is { } audioId
+            && _durations.GetValueOrDefault(audioId) is { } audioLength)
+        {
+            return Seconds(audioLength - (entry.AudioStart ?? TimeSpan.Zero));
         }
 
         return $"{AppSettings.Current.AdDefaultLengthSeconds:0.#}";
     }
+
+    private static string Seconds(TimeSpan length) => $"{length.TotalSeconds:0.#}";
 
     private Task<IReadOnlyList<MediaPool>> SearchPoolsAsync(string term)
         => Task.FromResult<IReadOnlyList<MediaPool>>(
@@ -190,6 +206,7 @@ public partial class EditPlaylistDialog
 
         _titles[media.Id] = media.Title;
         _formats[media.Id] = media.Format;
+        _durations[media.Id] = media.Duration;
         _entries.Add(new MediaPoolEntry { Id = Guid.NewGuid(), MediaId = media.Id, Position = _entries.Count });
 
         _addMedia = null;
