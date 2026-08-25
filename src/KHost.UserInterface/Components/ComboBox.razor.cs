@@ -32,8 +32,15 @@ public partial class ComboBox<TItem> : IAsyncDisposable
     /// </summary>
     [Parameter] public Func<TItem, string?>? GroupName { get; set; }
 
-    /// <summary>Characters needed before the menu opens. Nothing opens it on focus.</summary>
+    /// <summary>Characters needed before the menu opens.</summary>
     [Parameter] public int MinimumSearchLength { get; set; } = 3;
+
+    /// <summary>
+    /// Opens the menu on focus while the field is empty, so a short list can be browsed the way a
+    /// native select is. Off by default: against a list of every song in the library, a menu that
+    /// opens itself is a wall of rows in front of the field a host meant to type into.
+    /// </summary>
+    [Parameter] public bool OpenWhenEmpty { get; set; }
 
     [Parameter] public TItem? Value { get; set; }
     [Parameter] public EventCallback<TItem?> ValueChanged { get; set; }
@@ -94,6 +101,12 @@ public partial class ComboBox<TItem> : IAsyncDisposable
         await TextChanged.InvokeAsync(text);
     }
 
+    /// <summary>
+    /// Puts the caret in the field. For a caller that revealed the box on purpose — without it,
+    /// showing a box costs the host a second click to reach the thing they just asked for.
+    /// </summary>
+    public ValueTask FocusAsync() => _inputRef.FocusAsync();
+
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (!firstRender) return;
@@ -105,6 +118,18 @@ public partial class ComboBox<TItem> : IAsyncDisposable
     private bool CanSearch => _query.Trim().Length >= MinimumSearchLength;
 
     private void OnFocusOut() => Close();
+
+    /// <summary>
+    /// Only while the field is empty: once a row is chosen its name is in the field, and reopening
+    /// over it would put a menu between the host and what they already picked.
+    /// </summary>
+    private async Task OnFocusAsync()
+    {
+        if (!OpenWhenEmpty || _query.Trim().Length > 0)
+            return;
+
+        await SearchAsync("");
+    }
 
     private async Task OnQueryChangedAsync(ChangeEventArgs e)
     {

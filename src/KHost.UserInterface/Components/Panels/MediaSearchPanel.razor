@@ -3,6 +3,7 @@
 @using KHost.Domain.Services.MediaProviders
 @using KHost.UserInterface.Services
 @using KHost.Domain.Chronography;
+@using KHost.Plugins.Sdk.Models;
 
 <div class="kh-media-search-panel" tabindex="0">
     <div class="kh-card">
@@ -82,13 +83,16 @@
                 }
                 else
                 {
-                    <table class="kh-table">
-                        <thead >
+                    var columns = MediaResultColumnSet.For(_results, MediaSearchService?.Providers ?? []);
+
+                    <table class="kh-table kh-media-search-panel__table">
+                        <thead>
                             <tr>
-                                <th>Title</th>
-                                <th class="kh-media-search-panel__col--artist">Artist</th>
-                                <th>Duration</th>
-                                <th>Actions</th>
+                                @for (var i = 0; i < columns.Count; i++)
+                                {
+                                    <th class="@ColumnClass(columns, i)">@columns[i].Header</th>
+                                }
+                                <th class="kh-media-search-panel__col--actions">Actions</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -97,21 +101,34 @@
                                     var queuedBy = GetSingersWithMediaQueued(mediaSearchEntity.ForeignKey, mediaSearchEntity.Source);
 
                                     <tr class="kh-media-search-panel__results__result @(queuedBy.Count > 0 ? "kh-media-search-panel__results__result--queued" : "")">
-                                    <td class="kh-table__cell--fill" title="@mediaSearchEntity.Title">
-                                        @mediaSearchEntity.Title
+                                    @for (var i = 0; i < columns.Count; i++)
+                                    {
+                                        var column = columns[i];
+                                        var value = MediaResultColumnSet.Value(mediaSearchEntity, column);
 
-                                        @if (queuedBy.Count > 0)
-                                        {
-                                            <span class="kh-badge kh-badge--info kh-media-search-panel__queued-badge"
-                                                  title="@($"Already queued by {string.Join(", ", queuedBy)}")">
-                                                <Icon Name="person-check-fill" />
-                                                @(queuedBy.Count == 1 ? queuedBy[0] : $"{queuedBy[0]} +{queuedBy.Count - 1}")
-                                            </span>
-                                        }
-                                    </td>
-                                    <td class="kh-table__cell--fill kh-media-search-panel__col--artist"
-                                        title="@mediaSearchEntity.Artist">@mediaSearchEntity.Artist</td>
-                                    <td>@(mediaSearchEntity.Duration?.ToTotalMinutesAndSeconds() ?? "--:--")</td>
+                                        <td class="@ColumnClass(columns, i)" title="@(column.EffectiveKind == MediaResultColumnKind.Thumbnail ? null : value)">
+                                            @if (column.EffectiveKind == MediaResultColumnKind.Thumbnail)
+                                            {
+                                                @if (!string.IsNullOrEmpty(value))
+                                                {
+                                                    <img class="kh-media-search-panel__thumb" src="@value" alt="" loading="lazy" />
+                                                }
+                                            }
+                                            else
+                                            {
+                                                @value
+                                            }
+
+                                            @if (i == MediaResultColumnSet.PrimaryIndex(columns) && queuedBy.Count > 0)
+                                            {
+                                                <span class="kh-badge kh-badge--info kh-media-search-panel__queued-badge"
+                                                      title="@($"Already queued by {string.Join(", ", queuedBy)}")">
+                                                    <Icon Name="person-check-fill" />
+                                                    @(queuedBy.Count == 1 ? queuedBy[0] : $"{queuedBy[0]} +{queuedBy.Count - 1}")
+                                                </span>
+                                            }
+                                        </td>
+                                    }
                                     <td class="kh-table__cell--actions">
                                         @if (_canAddToQueue)
                                         {

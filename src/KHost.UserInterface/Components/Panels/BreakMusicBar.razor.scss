@@ -2,11 +2,14 @@
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    padding: 0.375rem 0.75rem;
-    border-top: 1px solid var(--kh-border);
-    background: var(--kh-surface-2);
 
-    &__icon {
+    // Rides the end of the panel header's row. The header's own title is already told how to
+    // shrink, so this only has to claim what is left of it.
+    margin-left: auto;
+    min-width: 0;
+
+    // Icon renders its own markup, so a class handed to it never carries this component's scope.
+    ::deep .kh-break-music-bar__icon {
         color: var(--kh-text-muted);
         flex: none;
     }
@@ -16,12 +19,16 @@
         align-items: baseline;
         gap: 0.5rem;
 
-        // Both needed together, or the title pushes the controls off the row instead of truncating.
-        flex: 1;
+        // Without this the title refuses to shrink and shoves the controls off the header.
         min-width: 0;
     }
 
+    // The header around this is uppercase with wide tracking. A track title is not a heading and
+    // has to read the way it was written.
     &__title {
+        text-transform: none;
+        letter-spacing: normal;
+        font-weight: 400;
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
@@ -32,6 +39,9 @@
     }
 
     &__artist {
+        text-transform: none;
+        letter-spacing: normal;
+        font-weight: 400;
         color: var(--kh-text-muted);
         font-size: 0.8125rem;
         white-space: nowrap;
@@ -45,11 +55,18 @@
         gap: 0.25rem;
         flex: none;
     }
+}
 
-    // The console owns the viewport, so this bar has to shed the track text rather than wrap.
-    @container (max-width: 420px) {
-        &__artist {
-            display: none;
-        }
+// Sharing one row with the panel title, the text goes before the controls do: a host can read
+// what is playing in Spotify's own window, but these buttons are the only ones there are.
+@container kh-now-playing (max-width: 560px) {
+    .kh-break-music-bar__artist {
+        display: none;
+    }
+}
+
+@container kh-now-playing (max-width: 420px) {
+    .kh-break-music-bar__info {
+        display: none;
     }
 }

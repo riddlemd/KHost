@@ -8,6 +8,10 @@
          drags in KHost's own internals. The one package is Microsoft's logging abstraction, taken so
          a plugin can accept an ILogger without referencing anything itself. -->
     <Description>Contracts for building KHost plugins.</Description>
+    <!-- MIT, while the rest of KHost is PolyForm Shield: a plugin ships a copy of this assembly,
+         so a non-compete term here would forbid copyleft plugins outright. See ./LICENSE. -->
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <Copyright>Copyright (c) 2026 Michael Riddle</Copyright>
   </PropertyGroup>
 
   <ItemGroup>
