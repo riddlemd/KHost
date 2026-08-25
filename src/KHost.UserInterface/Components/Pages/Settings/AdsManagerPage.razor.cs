@@ -22,9 +22,9 @@ public partial class AdsManagerPage : IDisposable
     private bool _dialogOpen;
 
     private Guid? _venueId;
-    private string? _venueName;
+
+    /// <summary>Which playlist the venue runs, for the "In use" badge on the list.</summary>
     private Guid? _activePoolId;
-    private string? _activePoolName;
 
     protected override async Task OnInitializedAsync()
     {
@@ -52,11 +52,9 @@ public partial class AdsManagerPage : IDisposable
         var venue = await Venues.ReadSelectedVenueAsync();
 
         _venueId = venue?.Id;
-        _venueName = venue?.Name;
         _activePoolId = venue?.Settings.AdPoolId;
 
         _pools = [.. (await MediaPools.ReadAllWithEntriesAsync(PoolPurpose.Ads, _venueId)).OrderBy(p => p.Name)];
-        _activePoolName = _pools.FirstOrDefault(pool => pool.Id == _activePoolId)?.Name;
     }
 
     private void OpenAddDialog()
