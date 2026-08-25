@@ -42,6 +42,7 @@
        so the lookup in Program.cs cannot break on MSBuild's path-to-namespace mangling. -->
   <ItemGroup>
     <EmbeddedResource Include="screen-ui\index.html" LogicalName="screen-ui/index.html" />
+    <EmbeddedResource Include="screen-ui\hls.light.min.js" LogicalName="screen-ui/hls.light.min.js" />
     <EmbeddedResource Include="screen-ui\player.js" LogicalName="screen-ui/player.js" />
   </ItemGroup>
 
