@@ -21,6 +21,7 @@ public class BreakMusicBarTests : BunitContext
 {
     private readonly IBreakMusicService _breakMusic = Substitute.For<IBreakMusicService>();
     private readonly IAdService _ads = Substitute.For<IAdService>();
+    private readonly IPlaybackService _playback = Substitute.For<IPlaybackService>();
     private readonly IFlashService _flash = Substitute.For<IFlashService>();
     private readonly IBreakMusicProvider _provider = Substitute.For<IBreakMusicProvider>();
     private readonly MessageBroker _broker = new(NullLogger<MessageBroker>.Instance);
@@ -34,9 +35,11 @@ public class BreakMusicBarTests : BunitContext
         _breakMusic.State.Returns(BreakMusicState.Stopped);
         _breakMusic.StartAsync(Arg.Any<CancellationToken>()).Returns(Task.FromResult(true));
         _ads.PlayNowAsync(Arg.Any<CancellationToken>()).Returns(Task.FromResult(true));
+        _playback.HasConnectedScreenAsync().Returns(Task.FromResult(true));
 
         Services.AddSingleton(_breakMusic);
         Services.AddSingleton(_ads);
+        Services.AddSingleton(_playback);
         Services.AddSingleton(_flash);
         Services.AddSingleton<IMessageBroker>(_broker);
     }
@@ -49,6 +52,89 @@ public class BreakMusicBarTests : BunitContext
         _breakMusic.ActiveProvider.Returns((IBreakMusicProvider?)null);
 
         Assert.Empty(Render().FindAll(".kh-break-music-bar"));
+    }
+
+    /// <summary>
+    /// A provider driving another app reports no track, so the bar falls back to describing the
+    /// state. Playing had no case, which left it reading "Break music off" over audible music —
+    /// the Library provider hid it by always naming a track while it played.
+    /// </summary>
+    [Fact]
+    public void WhilePlayingAProviderThatNamesNoTrack_TheBarSaysItIsPlaying()
+    {
+        _provider.DisplayName.Returns("Spotify");
+        _breakMusic.State.Returns(BreakMusicState.Playing);
+        _breakMusic.CurrentTrack.Returns((BreakMusicTrack?)null);
+
+        var text = Render().Find(".kh-break-music-bar__title").TextContent;
+
+        Assert.Contains("Playing", text);
+        Assert.Contains("Spotify", text);
+        Assert.DoesNotContain("off", text);
+    }
+
+    [Fact]
+    public void WhilePlayingAProviderThatNamesATrack_TheBarShowsTheTrack()
+    {
+        _breakMusic.State.Returns(BreakMusicState.Playing);
+        _breakMusic.CurrentTrack.Returns(new BreakMusicTrack { Title = "House Record", Artist = "DJ" });
+
+        Assert.Equal("House Record", Render().Find(".kh-break-music-bar__title").TextContent);
+    }
+
+    [Theory]
+    [InlineData(BreakMusicState.Paused, "paused")]
+    [InlineData(BreakMusicState.Suspended, "waiting")]
+    [InlineData(BreakMusicState.Stopped, "off")]
+    public void WithNoTrackNamed_EachStateDescribesItself(BreakMusicState state, string expected)
+    {
+        _breakMusic.State.Returns(state);
+        _breakMusic.CurrentTrack.Returns((BreakMusicTrack?)null);
+
+        Assert.Contains(expected, Render().Find(".kh-break-music-bar__title").TextContent);
+    }
+
+    /// <summary>
+    /// The service only reports that nothing played, and the catch-all sent a host hunting through
+    /// the playlist for a problem that was really an unplugged screen.
+    /// </summary>
+    [Fact]
+    public void PlayAd_WithNoScreenConnected_SaysSo()
+    {
+        _ads.IsConfigured.Returns(true);
+        _ads.PlayNowAsync(Arg.Any<CancellationToken>()).Returns(Task.FromResult(false));
+        _playback.HasConnectedScreenAsync().Returns(Task.FromResult(false));
+
+        Render().Find("[title='Play an ad now']").Click();
+
+        _flash.Received(1).Show(
+            Arg.Is<string>(message => message.Contains("no screen", StringComparison.OrdinalIgnoreCase)),
+            FlashType.Warning);
+    }
+
+    [Fact]
+    public void PlayAd_WithAScreenConnected_BlamesThePlaylistInstead()
+    {
+        _ads.IsConfigured.Returns(true);
+        _ads.PlayNowAsync(Arg.Any<CancellationToken>()).Returns(Task.FromResult(false));
+        _playback.HasConnectedScreenAsync().Returns(Task.FromResult(true));
+
+        Render().Find("[title='Play an ad now']").Click();
+
+        _flash.Received(1).Show(
+            Arg.Is<string>(message => message.Contains("playlist", StringComparison.OrdinalIgnoreCase)),
+            FlashType.Warning);
+    }
+
+    [Fact]
+    public void PlayAd_ThatPlayed_SaysNothing()
+    {
+        _ads.IsConfigured.Returns(true);
+        _ads.PlayNowAsync(Arg.Any<CancellationToken>()).Returns(Task.FromResult(true));
+
+        Render().Find("[title='Play an ad now']").Click();
+
+        _flash.DidNotReceive().Show(Arg.Any<string>(), Arg.Any<FlashType>());
     }
 
     [Fact]

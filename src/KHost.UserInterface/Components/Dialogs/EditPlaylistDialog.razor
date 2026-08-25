@@ -78,6 +78,10 @@
                             {
                                 <th>Weight</th>
                             }
+                            @if (Purpose == PoolPurpose.Ads)
+                            {
+                                <th>Duration (sec)</th>
+                            }
                             <th class="kh-playlist-dialog__col--actions"></th>
                         </tr>
                     </thead>
@@ -96,6 +100,15 @@
                                         <input type="number" class="kh-form-control kh-playlist-dialog__weight" min="0" max="100"
                                                value="@entry.Weight"
                                                @onchange="e => SetEntryWeight(index, e.Value?.ToString())" />
+                                    </td>
+                                }
+                                @if (Purpose == PoolPurpose.Ads)
+                                {
+                                    <td>
+                                        <input type="number" class="kh-form-control kh-playlist-dialog__duration" min="1" step="1"
+                                               placeholder="@DescribeDefaultDuration(entry)"
+                                               value="@(entry.Duration?.TotalSeconds)"
+                                               @onchange="e => SetEntryDuration(index, e.Value?.ToString())" />
                                     </td>
                                 }
 
@@ -119,37 +132,35 @@
                 </table>
             }
 
-            <div class="kh-playlist-dialog__add">
-                <ComboBox TItem="Media"
-                          Class="kh-playlist-dialog__picker"
-                          Value="_addMedia"
-                          ValueChanged="@(media => _addMedia = media)"
-                          @bind-Text="_addMediaText"
-                          Search="SearchMediaAsync"
-                          DisplayName="@(media => Describe(media))"
-                          Placeholder="@(Purpose == PoolPurpose.Ads ? "Search ad media…" : "Search break music…")" />
-                <button class="kh-button kh-button--secondary" type="button"
-                        disabled="@(_addMedia is null)" @onclick="AddMediaEntry">
-                    <Icon Name="plus-lg" /> Add
-                </button>
-            </div>
-
-            @if (_poolChoices.Count > 0)
+            @if (_addOpen)
             {
                 <div class="kh-playlist-dialog__add">
-                    <select class="kh-form-select" @bind="_addPoolId">
-                        <option value="">Add another playlist&hellip;</option>
-                        @foreach (var pool in _poolChoices)
-                        {
-                            <option value="@pool.Id">@pool.Name</option>
-                        }
-                    </select>
+                    <ComboBox TItem="AddChoice"
+                              @ref="_addPicker"
+                              Class="kh-playlist-dialog__picker"
+                              Value="_addChoice"
+                              ValueChanged="@(choice => _addChoice = choice)"
+                              @bind-Text="_addText"
+                              Search="SearchAddChoicesAsync"
+                              DisplayName="@(choice => choice.Label)"
+                              GroupName="@(choice => choice.Group)"
+                              OpenWhenEmpty="true"
+                              Placeholder="@(Purpose == PoolPurpose.Ads ? "Search ad media…" : "Search break music…")" />
                     <button class="kh-button kh-button--secondary" type="button"
-                            disabled="@(string.IsNullOrEmpty(_addPoolId))" @onclick="AddPoolEntry">
+                            disabled="@(_addChoice is null)" @onclick="AddChosenEntry">
                         <Icon Name="plus-lg" /> Add
                     </button>
                 </div>
             }
+            else
+            {
+                <div class="kh-playlist-dialog__add kh-playlist-dialog__add--collapsed">
+                    <button class="kh-button kh-button--secondary" type="button" @onclick="OpenAdd">
+                        <Icon Name="plus-lg" /> Add entry
+                    </button>
+                </div>
+            }
+
         </div>
       </div>
     </Body>

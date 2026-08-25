@@ -27,11 +27,18 @@
 
     tbody tr:hover td {
         color: var(--kh-text);
-        background: var(--kh-primary-subtle);
     }
 
     tbody tr:nth-child(even) {
         background: var(--kh-table-stripe);
+    }
+
+    // Painted on the row, not on each cell. An actions cell is display:flex, which takes it out of
+    // the table's cell layout so it never grows to the row's height — on a tall row that left a
+    // band under the buttons the hover never reached. Has to stay below the stripe rule: the two
+    // have equal specificity, so order is what decides.
+    tbody tr:hover {
+        background: var(--kh-primary-subtle);
     }
 
     &--header-primary thead th {

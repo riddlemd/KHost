@@ -3,12 +3,25 @@ using KHost.Abstractions.Services;
 using KHost.Plugins.Sdk.Messaging;
 using KHost.Plugins.Sdk.Messaging.Messages;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace KHost.Domain.Services.Ads;
 
 public class AdService : BaseService, IAdService, IDisposable
 {
+    public sealed class ServiceOptions
+    {
+        public const string SectionName = "Ads";
+
+        /// <summary>
+        /// How long an ad runs when neither the playlist entry nor the media itself answers — a
+        /// still with no voiceover. A video ad runs for its own length whatever this says.
+        /// </summary>
+        public TimeSpan DefaultDuration { get; set; } = TimeSpan.FromSeconds(10);
+    }
+
     private readonly SemaphoreSlim _lock = new(1, 1);
+    private readonly SubscriptionSet _subscriptions = new();
     private readonly IMessageBroker _broker;
     private readonly IPlaybackService _playback;
     private readonly IMediaPoolService _pools;
@@ -16,6 +29,7 @@ public class AdService : BaseService, IAdService, IDisposable
     private readonly IVenuesService _venues;
     private readonly ISingerQueueService _queue;
     private readonly TimeProvider _time;
+    private readonly ServiceOptions _options;
 
     public AdService(
         ILogger<AdService> logger,
@@ -25,6 +39,7 @@ public class AdService : BaseService, IAdService, IDisposable
         IVenuesService venues,
         ISingerQueueService queue,
         TimeProvider time,
+        IOptions<ServiceOptions> options,
         IMessageBroker broker)
         : base(logger)
     {
@@ -35,8 +50,14 @@ public class AdService : BaseService, IAdService, IDisposable
         _venues = venues;
         _queue = queue;
         _time = time;
+        _options = options.Value;
 
         _playback.PerformanceEnded += OnPerformanceEnded;
+
+        // A venue's ad playlist gets chosen mid-shift. Without this the console keeps whatever it
+        // worked out at startup, and the button to play one does not appear until a song has
+        // finished — which is the one moment a host is not looking for it.
+        _subscriptions.Add(broker.Subscribe<SelectedVenueChanged>((_, _) => RefreshConfiguredAsync()));
     }
 
     public bool IsConfigured { get; private set; }
@@ -45,9 +66,7 @@ public class AdService : BaseService, IAdService, IDisposable
 
     public async Task InitializeAsync(CancellationToken cancellationToken = default)
     {
-        var venue = await _venues.ReadSelectedVenueAsync();
-
-        IsConfigured = venue?.Settings.AdPoolId is not null;
+        IsConfigured = await ReadIsConfiguredAsync();
 
         // Stamped at startup so every-N-minutes counts from opening rather than firing an ad into
         // the first gap of the night.
@@ -80,6 +99,7 @@ public class AdService : BaseService, IAdService, IDisposable
     public void Dispose()
     {
         _playback.PerformanceEnded -= OnPerformanceEnded;
+        _subscriptions.Dispose();
         _lock.Dispose();
 
         GC.SuppressFinalize(this);
@@ -141,6 +161,35 @@ public class AdService : BaseService, IAdService, IDisposable
 
     // A hand-edited zero would fire an ad after every single song, or on every tick of the clock.
     private static int Interval(MediaPool pool) => Math.Max(pool.AdTriggerInterval, 1);
+
+    /// <summary>
+    /// Announced only on a change, so switching between venues that both have ads set up does not
+    /// redraw the console for nothing.
+    /// </summary>
+    private async Task RefreshConfiguredAsync()
+    {
+        try
+        {
+            var configured = await ReadIsConfiguredAsync();
+
+            if (configured == IsConfigured)
+                return;
+
+            IsConfigured = configured;
+
+            _broker.Announce(new AdsChanged());
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Could not work out whether this venue has ads set up");
+        }
+    }
+
+    /// <summary>
+    /// Whether an ad could actually play, which is a resolved playlist and not merely an id on the
+    /// venue: an id left pointing at a deleted playlist offered a button that could do nothing.
+    /// </summary>
+    private async Task<bool> ReadIsConfiguredAsync() => (await ReadActiveAsync()).Pool is not null;
 
     private async Task<(Venue? Venue, MediaPool? Pool)> ReadActiveAsync()
     {
@@ -214,10 +263,15 @@ public class AdService : BaseService, IAdService, IDisposable
     }
 
     /// <summary>
-    /// What the entry runs for when the host has not said. A video answers for itself; a still
-    /// with a voiceover runs for what is left of the clip, so the picture and the words end together.
+    /// What the entry runs for when the host has not said. A video answers for itself; a still with
+    /// a voiceover runs for what is left of the clip, so the picture and the words end together.
     /// </summary>
-    private static TimeSpan? ResolveDuration(Media? visual, Media? audio, TimeSpan audioStart)
+    /// <remarks>
+    /// A still's own duration is deliberately not read. Importing one stamps a nominal length on
+    /// the media row, which would quietly outrank the configured default and leave the setting
+    /// looking like it did nothing.
+    /// </remarks>
+    private TimeSpan? ResolveDuration(Media? visual, Media? audio, TimeSpan audioStart)
     {
         if (visual is not null && !MediaFormats.IsImage(visual.Format))
             return visual.Duration;
@@ -225,6 +279,6 @@ public class AdService : BaseService, IAdService, IDisposable
         if (audio?.Duration is { } audioLength)
             return audioLength - audioStart;
 
-        return visual?.Duration ?? (visual is not null ? MediaFormats.DefaultImageDuration : null);
+        return _options.DefaultDuration;
     }
 }

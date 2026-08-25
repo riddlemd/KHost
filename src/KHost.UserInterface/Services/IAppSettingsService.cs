@@ -9,12 +9,24 @@ public sealed class AppSettings
     public double StopFadeSeconds { get; set; } = 5;
     public double SyncStartLeadMilliseconds { get; set; } = 400;
     public int SegmentSeconds { get; set; } = 2;
+
+    /// <summary>
+    /// How long an ad runs when its playlist entry does not say and the media cannot answer — a
+    /// still with no voiceover. A video ad runs for its own length regardless.
+    /// </summary>
+    public double AdDefaultDurationSeconds { get; set; } = DefaultAdDurationSeconds;
     public int MediaPageSize { get; set; } = DefaultPageSize;
     public int UsersPageSize { get; set; } = DefaultPageSize;
     public int UserGroupsPageSize { get; set; } = DefaultPageSize;
     public int TipsPageSize { get; set; } = DefaultPageSize;
     public int VenuesPageSize { get; set; } = DefaultPageSize;
     public int PerformanceHistoryPageSize { get; set; } = DefaultPerformanceHistoryPageSize;
+
+    public const double DefaultAdDurationSeconds = 10;
+    // A spot has to be long enough to read and short enough that the room does not turn back to
+    // its drinks, and the whole point of the setting is that a venue disagrees with the number.
+    public const double MinAdDurationSeconds = 1;
+    public const double MaxAdDurationSeconds = 300;
 
     public const int DefaultPageSize = 25;
     // Lower than a full page's: this list lives in a dialog whose table is capped at 500px.

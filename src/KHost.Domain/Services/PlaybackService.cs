@@ -58,6 +58,9 @@ public class PlaybackService : BaseService, IPlaybackService
     // An ad's length, which is the composition's rather than any one file's.
     private TimeSpan? _adDuration;
 
+    /// <summary>Whether the ad on screen takes the room's sound, which decides if the bed stays down.</summary>
+    private bool _adHasOwnAudio;
+
     private readonly ISingerQueueService _singerQueueService;
     private readonly IPerformanceService _performanceService;
     private readonly IVenuesService _venuesService;
@@ -173,7 +176,48 @@ public class PlaybackService : BaseService, IPlaybackService
 
         Logger.LogInformation("Loading media '{Title}' for performance {PerformanceId}", media.Title, performance.Id);
 
-        await SendToScreensAsync(await BuildLoadCommandAsync(media, TimeSpan.Zero));
+        try
+        {
+            await SendToScreensAsync(await BuildLoadCommandAsync(media, TimeSpan.Zero));
+        }
+        catch
+        {
+            // Everything above already happened, and a load that dies here leaves the console with
+            // no way back: remove is disabled for the current performance, play for every row, and
+            // stop for a state that never reached Playing.
+            await AbandonLoadAsync();
+            throw;
+        }
+
+        _broker.Announce(new PlaybackChanged());
+    }
+
+    /// <summary>
+    /// Puts back what <see cref="LoadAsync"/> set up before the load failed. Deliberately not
+    /// <see cref="EndedAsync"/>: nothing was performed, so the singer keeps their turn and the
+    /// song stays queued for another try.
+    /// </summary>
+    private async Task AbandonLoadAsync()
+    {
+        await CloseStreamAsync();
+
+        CurrentPerformance = null;
+        CurrentMedia = null;
+
+        _singerQueueService.UnlockTopSlot();
+
+        ResetState();
+
+        // Guarded so a bed that will not come back cannot replace the load failure the host is
+        // about to be shown with one about break music.
+        try
+        {
+            await _breakMusic.RestoreAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Could not restore break music after a failed load");
+        }
 
         _broker.Announce(new PlaybackChanged());
     }
@@ -233,6 +277,7 @@ public class PlaybackService : BaseService, IPlaybackService
 
         CurrentMedia = ad.Visual;
         _adDuration = ad.Duration;
+        _adHasOwnAudio = ad.HasOwnAudio;
         IsPlayingAd = true;
         Position = TimeSpan.Zero;
 
@@ -703,6 +748,7 @@ public class PlaybackService : BaseService, IPlaybackService
 
         IsPlayingAd = false;
         _adDuration = null;
+        _adHasOwnAudio = false;
 
         await ReleaseAdAudioAsync();
     }
@@ -773,6 +819,7 @@ public class PlaybackService : BaseService, IPlaybackService
             Logger.LogInformation("Ad finished");
 
             _adDuration = null;
+            _adHasOwnAudio = false;
 
             // Handed back before the bed is restored, or break music would reclaim the channel
             // while the ad's own voiceover was still playing on it.
@@ -802,9 +849,17 @@ public class PlaybackService : BaseService, IPlaybackService
         PerformanceEnded?.Invoke(this, gap);
         await gap.WhenFilledAsync();
 
-        // Something took the gap. The bed and the card come back when that ends instead.
         if (IsPlayingAd)
+        {
+            // A silent ad — a still with no voiceover — is meant to run over the bed rather than
+            // over nothing. Starting one only suspends the bed when the ad has sound of its own,
+            // so it never put this one down; the song that just ended did, and nothing else will
+            // pick it back up until the ad is over.
+            if (!_adHasOwnAudio)
+                await _breakMusic.RestoreAsync();
+
             return;
+        }
 
         await _breakMusic.RestoreAsync();
         await ShowIdleCardAsync();

@@ -4,6 +4,9 @@
     min-height: 72px;
     flex-shrink: 0;
     overflow: hidden;
+    // Named container so the break music controls sharing the header row answer to this panel's
+    // width. The detail column is dragged by the splitter, so it is not the window's width.
+    container: kh-now-playing / inline-size;
 
     > .kh-card {
         height: 100%;

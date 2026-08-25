@@ -7,11 +7,14 @@ Projects (`src/`): `Plugins.Sdk` (plugin contracts + the message broker — no p
 ## Commands
 
 ```bash
-dotnet run --project src/KHost.UserInterface                # run the app
+dotnet run --project src/KHost.UserInterface                # run the app (native Photino window)
+dotnet run --project src/KHost.UserInterface -- --headless  # no window; console served at http://localhost:5251
 dotnet build KHost.slnx "-p:BaseOutputPath=./obj/_build"    # build (redirected so VS's bin/ isn't locked)
 dotnet test tests/KHost.UnitTests                           # --filter "FullyQualifiedName~Name" to narrow
 dotnet test tests/KHost.IntegrationTests                    # drives real ffmpeg; fails without it (KHOST_SKIP_ENVIRONMENT_TESTS=1 to accept)
 ```
+
+**Prefer `--headless` for testing.** The console is then an ordinary page at `http://localhost:5251`, so it drives with browser tooling and reads with the DOM instead of screenshot coordinate math — the Photino window reaches neither, and a Screen2 window launched over it turns every later capture into a black rectangle. Only the window itself needs the windowed run: native chrome, `SetSize`, and the appliance lockdown. Port 5251 is held by an exclusive `.instance.lock`, so stop one before starting the other.
 
 SCSS compiles inside `dotnet build` (AspNetCore.SassCompiler) — no separate sass step. The build needs `node_modules` (`npm install`) for `copy:vendors`.
 
@@ -27,6 +30,7 @@ SCSS compiles inside `dotnet build` (AspNetCore.SassCompiler) — no separate sa
 - Method names that cross a string boundary (`[JSInvokable]` called from JS, SignalR hub methods invoked by name) break silently when renamed: pass the name as `nameof(...)` from C# and take it as a parameter in JS (see `SingerQueuePanel` / `sortable-interop.js`, `ScreenClient` / `ScreenHub`).
 - Library/users/groups persist in SQL; queue and venue state in the JSON cache (`ICacheService`, `./cache/`).
 - Dialogs go through `IInteractionDispatcher`, which resolves `IInteractionHandler<TReq, TRes>` from DI; handlers bridge dialogs into awaitable calls with `TaskCompletionSource` and are registered in `Program.cs`.
+- `KHost.Plugins.Sdk` is MIT; everything else is PolyForm Shield (`LICENSE`, and `src/KHost.Plugins.Sdk/LICENSE`). Its "no project refs" rule is now legal as well as structural — a reference out of the SDK pulls PolyForm-licensed code into an assembly plugin authors redistribute, which retroactively breaks the MIT grant they relied on. Keep first-party code that is not a plugin contract out of that project.
 - Do NOT commit unless explicitly asked.
 
 ## Messaging

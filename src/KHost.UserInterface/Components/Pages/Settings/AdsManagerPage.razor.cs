@@ -22,7 +22,8 @@ public partial class AdsManagerPage : IDisposable
     private bool _dialogOpen;
 
     private Guid? _venueId;
-    private string? _venueName;
+
+    /// <summary>Which playlist the venue runs, for the "In use" badge on the list.</summary>
     private Guid? _activePoolId;
 
     protected override async Task OnInitializedAsync()
@@ -51,33 +52,9 @@ public partial class AdsManagerPage : IDisposable
         var venue = await Venues.ReadSelectedVenueAsync();
 
         _venueId = venue?.Id;
-        _venueName = venue?.Name;
         _activePoolId = venue?.Settings.AdPoolId;
 
         _pools = [.. (await MediaPools.ReadAllWithEntriesAsync(PoolPurpose.Ads, _venueId)).OrderBy(p => p.Name)];
-    }
-
-    private async Task OnPlaylistChangedAsync(ChangeEventArgs e)
-    {
-        var poolId = Guid.TryParse(e.Value?.ToString(), out var id) ? id : (Guid?)null;
-
-        await SaveVenueAsync(settings => settings.AdPoolId = poolId);
-    }
-
-    private async Task SaveVenueAsync(Action<Venue.VenueSettings> apply)
-    {
-        var venue = await Venues.ReadSelectedVenueAsync();
-
-        if (venue is null)
-        {
-            Flash.Show("No venue is selected, so there is nothing to save this against.", FlashType.Warning);
-            return;
-        }
-
-        apply(venue.Settings);
-
-        await Venues.UpdateAsync(venue);
-        await RefreshAsync();
     }
 
     private void OpenAddDialog()

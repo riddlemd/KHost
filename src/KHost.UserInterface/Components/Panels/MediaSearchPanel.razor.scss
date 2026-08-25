@@ -105,12 +105,80 @@
 
 }
 
-// The artist holds on much longer than the action labels do. This panel measures 436px beside a
-// half-width window, so it keeps its column there and gives it up only once the title, duration
-// and actions have the row to themselves.
-@container kh-media-search (max-width: 360px) {
-    // Title first: an artist with no song is no use, and the title cell keeps the queued badge.
-    .kh-media-search-panel__col--artist {
+// Fixed layout: the columns below keep the width they are given and the text columns divide what
+// is left, evenly and predictably. Under auto layout the browser kept resolving the same set of
+// width hints differently depending on which columns were showing.
+.kh-media-search-panel__table {
+    table-layout: fixed;
+    width: 100%;
+}
+
+.kh-media-search-panel__col--text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.kh-media-search-panel__col--duration {
+    width: 76px;
+}
+
+// No overflow rule here: the actions cell holds a split button whose menu would be clipped by it.
+.kh-media-search-panel__col--actions {
+    width: 168px;
+}
+
+.kh-media-search-panel__col--thumb {
+    width: 104px;
+
+    img.kh-media-search-panel__thumb {
+        display: block;
+        width: 88px;
+        max-width: none;
+        // 16:9, the crop YouTube already serves. Fixed so a row with no picture yet is the same
+        // height as one that has it, and the table does not jump as thumbnails arrive.
+        aspect-ratio: 16 / 9;
+        height: auto;
+        object-fit: cover;
+        background: var(--kh-surface-2);
+
+        // Eats the cell's own padding so the picture sits flush against the row. The cell pads
+        // 8px vertically and 12px horizontally, so the left needs the wider pull to reach the edge.
+        margin: -8px -8px -8px -12px;
+    }
+}
+
+// A provider names its own columns, so which one goes is its call rather than this file's: the
+// panel numbers the droppable ones from the right and they leave in that order. Only the column
+// naming the row is pinned.
+//
+// Measured, not guessed: this panel is 1108px beside a maximised window and 371px beside a 733px
+// one. At 371 the picture, length and actions alone take 280, so a second text column would leave
+// the title about 45 — two characters. It goes first.
+@container kh-media-search (max-width: 560px) {
+    .kh-media-search-panel__col--shed1 {
+        display: none;
+    }
+
+    // The label goes with it, so the buttons need less room.
+    .kh-media-search-panel__col--actions {
+        width: 110px;
+    }
+}
+
+// Narrower still, the picture gives up width rather than the title: it is what a host picks a
+// karaoke track on, so it shrinks long before it is dropped.
+@container kh-media-search (max-width: 420px) {
+    .kh-media-search-panel__col--thumb {
+        width: 72px;
+
+        img.kh-media-search-panel__thumb {
+            width: 56px;
+        }
+    }
+}
+
+@container kh-media-search (max-width: 300px) {
+    .kh-media-search-panel__col--shed2 {
         display: none;
     }
 }
