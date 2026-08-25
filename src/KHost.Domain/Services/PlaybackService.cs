@@ -58,6 +58,9 @@ public class PlaybackService : BaseService, IPlaybackService
     // An ad's length, which is the composition's rather than any one file's.
     private TimeSpan? _adDuration;
 
+    /// <summary>Whether the ad on screen takes the room's sound, which decides if the bed stays down.</summary>
+    private bool _adHasOwnAudio;
+
     private readonly ISingerQueueService _singerQueueService;
     private readonly IPerformanceService _performanceService;
     private readonly IVenuesService _venuesService;
@@ -274,6 +277,7 @@ public class PlaybackService : BaseService, IPlaybackService
 
         CurrentMedia = ad.Visual;
         _adDuration = ad.Duration;
+        _adHasOwnAudio = ad.HasOwnAudio;
         IsPlayingAd = true;
         Position = TimeSpan.Zero;
 
@@ -744,6 +748,7 @@ public class PlaybackService : BaseService, IPlaybackService
 
         IsPlayingAd = false;
         _adDuration = null;
+        _adHasOwnAudio = false;
 
         await ReleaseAdAudioAsync();
     }
@@ -814,6 +819,7 @@ public class PlaybackService : BaseService, IPlaybackService
             Logger.LogInformation("Ad finished");
 
             _adDuration = null;
+            _adHasOwnAudio = false;
 
             // Handed back before the bed is restored, or break music would reclaim the channel
             // while the ad's own voiceover was still playing on it.
@@ -843,9 +849,17 @@ public class PlaybackService : BaseService, IPlaybackService
         PerformanceEnded?.Invoke(this, gap);
         await gap.WhenFilledAsync();
 
-        // Something took the gap. The bed and the card come back when that ends instead.
         if (IsPlayingAd)
+        {
+            // A silent ad — a still with no voiceover — is meant to run over the bed rather than
+            // over nothing. Starting one only suspends the bed when the ad has sound of its own,
+            // so it never put this one down; the song that just ended did, and nothing else will
+            // pick it back up until the ad is over.
+            if (!_adHasOwnAudio)
+                await _breakMusic.RestoreAsync();
+
             return;
+        }
 
         await _breakMusic.RestoreAsync();
         await ShowIdleCardAsync();
