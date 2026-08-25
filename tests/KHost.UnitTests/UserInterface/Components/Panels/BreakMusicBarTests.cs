@@ -21,6 +21,7 @@ public class BreakMusicBarTests : BunitContext
 {
     private readonly IBreakMusicService _breakMusic = Substitute.For<IBreakMusicService>();
     private readonly IAdService _ads = Substitute.For<IAdService>();
+    private readonly IPlaybackService _playback = Substitute.For<IPlaybackService>();
     private readonly IFlashService _flash = Substitute.For<IFlashService>();
     private readonly IBreakMusicProvider _provider = Substitute.For<IBreakMusicProvider>();
     private readonly MessageBroker _broker = new(NullLogger<MessageBroker>.Instance);
@@ -34,9 +35,11 @@ public class BreakMusicBarTests : BunitContext
         _breakMusic.State.Returns(BreakMusicState.Stopped);
         _breakMusic.StartAsync(Arg.Any<CancellationToken>()).Returns(Task.FromResult(true));
         _ads.PlayNowAsync(Arg.Any<CancellationToken>()).Returns(Task.FromResult(true));
+        _playback.HasConnectedScreenAsync().Returns(Task.FromResult(true));
 
         Services.AddSingleton(_breakMusic);
         Services.AddSingleton(_ads);
+        Services.AddSingleton(_playback);
         Services.AddSingleton(_flash);
         Services.AddSingleton<IMessageBroker>(_broker);
     }
@@ -89,6 +92,49 @@ public class BreakMusicBarTests : BunitContext
         _breakMusic.CurrentTrack.Returns((BreakMusicTrack?)null);
 
         Assert.Contains(expected, Render().Find(".kh-break-music-bar__title").TextContent);
+    }
+
+    /// <summary>
+    /// The service only reports that nothing played, and the catch-all sent a host hunting through
+    /// the playlist for a problem that was really an unplugged screen.
+    /// </summary>
+    [Fact]
+    public void PlayAd_WithNoScreenConnected_SaysSo()
+    {
+        _ads.IsConfigured.Returns(true);
+        _ads.PlayNowAsync(Arg.Any<CancellationToken>()).Returns(Task.FromResult(false));
+        _playback.HasConnectedScreenAsync().Returns(Task.FromResult(false));
+
+        Render().Find("[title='Play an ad now']").Click();
+
+        _flash.Received(1).Show(
+            Arg.Is<string>(message => message.Contains("no screen", StringComparison.OrdinalIgnoreCase)),
+            FlashType.Warning);
+    }
+
+    [Fact]
+    public void PlayAd_WithAScreenConnected_BlamesThePlaylistInstead()
+    {
+        _ads.IsConfigured.Returns(true);
+        _ads.PlayNowAsync(Arg.Any<CancellationToken>()).Returns(Task.FromResult(false));
+        _playback.HasConnectedScreenAsync().Returns(Task.FromResult(true));
+
+        Render().Find("[title='Play an ad now']").Click();
+
+        _flash.Received(1).Show(
+            Arg.Is<string>(message => message.Contains("playlist", StringComparison.OrdinalIgnoreCase)),
+            FlashType.Warning);
+    }
+
+    [Fact]
+    public void PlayAd_ThatPlayed_SaysNothing()
+    {
+        _ads.IsConfigured.Returns(true);
+        _ads.PlayNowAsync(Arg.Any<CancellationToken>()).Returns(Task.FromResult(true));
+
+        Render().Find("[title='Play an ad now']").Click();
+
+        _flash.DidNotReceive().Show(Arg.Any<string>(), Arg.Any<FlashType>());
     }
 
     [Fact]
