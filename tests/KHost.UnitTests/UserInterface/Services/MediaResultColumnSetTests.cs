@@ -13,7 +13,7 @@ public class MediaResultColumnSetTests
     private static readonly MediaResultColumn Publisher =
         new() { Key = "publisher", Header = "Published by", Essential = false };
     private static readonly MediaResultColumn Length =
-        new() { Key = MediaResultColumn.DurationKey, Header = "Length" };
+        new() { Key = MediaResultColumn.DurationKey, Header = "Duration" };
 
     private static readonly IReadOnlyList<MediaResultColumn> YouTubeShape = [Thumb, Title, Publisher, Length];
 
@@ -46,7 +46,7 @@ public class MediaResultColumnSetTests
     {
         var columns = MediaResultColumnSet.For([Result()], [Provider("YouTube", YouTubeShape)]);
 
-        Assert.Equal(["", "Title", "Published by", "Length"], columns.Select(c => c.Header));
+        Assert.Equal(["", "Title", "Published by", "Duration"], columns.Select(c => c.Header));
     }
 
     [Fact]
@@ -122,7 +122,7 @@ public class MediaResultColumnSetTests
     [Fact]
     public void EffectiveKind_TheReservedDurationKey_IsADurationWhateverWasDeclared()
     {
-        var declaredBare = new MediaResultColumn { Key = MediaResultColumn.DurationKey, Header = "Length" };
+        var declaredBare = new MediaResultColumn { Key = MediaResultColumn.DurationKey, Header = "Duration" };
 
         Assert.Equal(MediaResultColumnKind.Text, declaredBare.Kind);
         Assert.Equal(MediaResultColumnKind.Duration, declaredBare.EffectiveKind);
