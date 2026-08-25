@@ -41,7 +41,13 @@
         align-items: center;
         justify-content: space-between;
         gap: 1rem;
-        cursor: pointer;
+
+        // Only where the row is itself a label: clicking one toggles its checkbox, so the whole
+        // row is the control. A row holding a select or a picker is not clickable beside it, and
+        // saying otherwise invites a click that does nothing.
+        &.kh-form-check {
+            cursor: pointer;
+        }
         margin-bottom: 1em;
 
         .kh-form-control {
