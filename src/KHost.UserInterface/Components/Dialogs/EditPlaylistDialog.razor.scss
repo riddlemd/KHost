@@ -34,6 +34,13 @@
         text-align: right;
     }
 
+    // Wider than the weight: this one shows the inherited default as a placeholder, and "video"
+    // does not fit in four characters.
+    &__length {
+        width: 5.5rem;
+        text-align: right;
+    }
+
     &__col--actions {
         width: 1%;
     }

@@ -4,6 +4,7 @@ using KHost.Domain.Services.Ads;
 using KHost.Domain.Services.Messaging;
 using KHost.Plugins.Sdk.Messaging.Messages;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 
 namespace KHost.UnitTests.Domain.Services.Ads;
 
@@ -27,6 +28,7 @@ public class AdServiceTests : IDisposable
     private readonly IVenuesService _venues = Substitute.For<IVenuesService>();
     private readonly ISingerQueueService _queue = Substitute.For<ISingerQueueService>();
     private readonly StoppedClock _clock = new();
+    private readonly AdService.ServiceOptions _options = new();
     private readonly MessageBroker _broker = new(NullLogger<MessageBroker>.Instance);
     private bool _adPlays = true;
     private readonly AdService _service;
@@ -42,7 +44,8 @@ public class AdServiceTests : IDisposable
         _queue.Users.Returns([]);
 
         _service = new AdService(
-            NullLogger<AdService>.Instance, _playback, _pools, _media, _venues, _queue, _clock, _broker);
+            NullLogger<AdService>.Instance, _playback, _pools, _media, _venues, _queue, _clock,
+            Options.Create(_options), _broker);
     }
 
     public void Dispose()
@@ -160,6 +163,80 @@ public class AdServiceTests : IDisposable
         Assert.False(_service.IsConfigured);
     }
 
+    /// <summary>
+    /// A still stamps a nominal length on its media row at import. Reading that would outrank the
+    /// configured default and leave the setting looking like it did nothing.
+    /// </summary>
+    [Fact]
+    public async Task ComposeAsync_AStillWithNothingToHear_RunsForTheConfiguredDefault()
+    {
+        _options.DefaultLength = TimeSpan.FromSeconds(10);
+
+        var still = Library("card.png", "PNG", TimeSpan.FromSeconds(15));
+        var entry = new MediaPoolEntry { MediaId = still.Id };
+
+        var ad = await _service.ComposeAsync(entry);
+
+        Assert.Equal(TimeSpan.FromSeconds(10), ad!.Duration);
+    }
+
+    [Fact]
+    public async Task ComposeAsync_TheDefaultWasChanged_TheStillFollowsIt()
+    {
+        _options.DefaultLength = TimeSpan.FromSeconds(30);
+
+        var still = Library("card.png", "PNG", null);
+
+        var ad = await _service.ComposeAsync(new MediaPoolEntry { MediaId = still.Id });
+
+        Assert.Equal(TimeSpan.FromSeconds(30), ad!.Duration);
+    }
+
+    /// <summary>A video answers for itself whatever the default says.</summary>
+    [Fact]
+    public async Task ComposeAsync_AVideo_RunsForItsOwnLength()
+    {
+        _options.DefaultLength = TimeSpan.FromSeconds(10);
+
+        var video = Library("spot.mp4", "MP4", TimeSpan.FromSeconds(22));
+
+        var ad = await _service.ComposeAsync(new MediaPoolEntry { MediaId = video.Id });
+
+        Assert.Equal(TimeSpan.FromSeconds(22), ad!.Duration);
+    }
+
+    [Fact]
+    public async Task ComposeAsync_TheEntrySaysHowLong_ThatWinsOverEverything()
+    {
+        _options.DefaultLength = TimeSpan.FromSeconds(10);
+
+        var video = Library("spot.mp4", "MP4", TimeSpan.FromSeconds(22));
+        var entry = new MediaPoolEntry { MediaId = video.Id, Duration = TimeSpan.FromSeconds(7) };
+
+        var ad = await _service.ComposeAsync(entry);
+
+        Assert.Equal(TimeSpan.FromSeconds(7), ad!.Duration);
+    }
+
+    /// <summary>The picture and the words still end together — the default does not cut a voiceover.</summary>
+    [Fact]
+    public async Task ComposeAsync_AStillWithAVoiceover_RunsForWhatIsLeftOfTheVoiceover()
+    {
+        _options.DefaultLength = TimeSpan.FromSeconds(10);
+
+        var still = Library("card.png", "PNG", TimeSpan.FromSeconds(15));
+        var voice = Library("voice.mp3", "MP3", TimeSpan.FromSeconds(25));
+
+        var ad = await _service.ComposeAsync(new MediaPoolEntry
+        {
+            MediaId = still.Id,
+            AudioMediaId = voice.Id,
+            AudioStart = TimeSpan.FromSeconds(5),
+        });
+
+        Assert.Equal(TimeSpan.FromSeconds(20), ad!.Duration);
+    }
+
     private async Task PerformancesAsync(int count)
     {
         for (var i = 0; i < count; i++)
@@ -203,7 +280,9 @@ public class AdServiceTests : IDisposable
         var ad = await _service.ComposeAsync(new MediaPoolEntry { MediaId = still.Id });
 
         Assert.False(ad?.HasOwnAudio);
-        Assert.Equal(MediaFormats.DefaultImageDuration, ad?.Duration);
+
+        // Its own stamped length is deliberately passed over for the configured default.
+        Assert.Equal(_options.DefaultLength, ad?.Duration);
     }
 
     [Fact]
