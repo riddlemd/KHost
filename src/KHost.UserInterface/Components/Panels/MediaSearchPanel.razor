@@ -85,14 +85,14 @@
                 {
                     var columns = MediaResultColumnSet.For(_results, MediaSearchService?.Providers ?? []);
 
-                    <table class="kh-table">
+                    <table class="kh-table kh-media-search-panel__table">
                         <thead>
                             <tr>
                                 @for (var i = 0; i < columns.Count; i++)
                                 {
                                     <th class="@ColumnClass(columns, i)">@columns[i].Header</th>
                                 }
-                                <th>Actions</th>
+                                <th class="kh-media-search-panel__col--actions">Actions</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -106,8 +106,8 @@
                                         var column = columns[i];
                                         var value = MediaResultColumnSet.Value(mediaSearchEntity, column);
 
-                                        <td class="@ColumnClass(columns, i)" title="@(column.Kind == MediaResultColumnKind.Thumbnail ? null : value)">
-                                            @if (column.Kind == MediaResultColumnKind.Thumbnail)
+                                        <td class="@ColumnClass(columns, i)" title="@(column.EffectiveKind == MediaResultColumnKind.Thumbnail ? null : value)">
+                                            @if (column.EffectiveKind == MediaResultColumnKind.Thumbnail)
                                             {
                                                 @if (!string.IsNullOrEmpty(value))
                                                 {
