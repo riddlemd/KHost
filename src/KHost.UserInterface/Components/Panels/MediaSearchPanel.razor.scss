@@ -139,8 +139,10 @@
         aspect-ratio: 16 / 9;
         height: auto;
         object-fit: cover;
-        border-radius: 3px;
         background: var(--kh-surface-2);
+
+        // Eats the cell's own padding so the picture sits flush against the row.
+        margin: -8px;
     }
 }
 
