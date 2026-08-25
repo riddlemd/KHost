@@ -24,6 +24,7 @@ public partial class AdsManagerPage : IDisposable
     private Guid? _venueId;
     private string? _venueName;
     private Guid? _activePoolId;
+    private string? _activePoolName;
 
     protected override async Task OnInitializedAsync()
     {
@@ -55,29 +56,7 @@ public partial class AdsManagerPage : IDisposable
         _activePoolId = venue?.Settings.AdPoolId;
 
         _pools = [.. (await MediaPools.ReadAllWithEntriesAsync(PoolPurpose.Ads, _venueId)).OrderBy(p => p.Name)];
-    }
-
-    private async Task OnPlaylistChangedAsync(ChangeEventArgs e)
-    {
-        var poolId = Guid.TryParse(e.Value?.ToString(), out var id) ? id : (Guid?)null;
-
-        await SaveVenueAsync(settings => settings.AdPoolId = poolId);
-    }
-
-    private async Task SaveVenueAsync(Action<Venue.VenueSettings> apply)
-    {
-        var venue = await Venues.ReadSelectedVenueAsync();
-
-        if (venue is null)
-        {
-            Flash.Show("No venue is selected, so there is nothing to save this against.", FlashType.Warning);
-            return;
-        }
-
-        apply(venue.Settings);
-
-        await Venues.UpdateAsync(venue);
-        await RefreshAsync();
+        _activePoolName = _pools.FirstOrDefault(pool => pool.Id == _activePoolId)?.Name;
     }
 
     private void OpenAddDialog()
