@@ -1643,6 +1643,40 @@ public class PlaybackServiceTests : IDisposable
         await _breakMusic.Received(1).RestoreAsync(Arg.Any<CancellationToken>());
     }
 
+    /// <summary>
+    /// A still with no voiceover is silent, and starting one deliberately leaves the bed alone —
+    /// but the song that just ended had already put it down, so nothing was picking it back up.
+    /// The room heard the whole ad in silence.
+    /// </summary>
+    [Fact]
+    public async Task PlaybackEnding_ASilentAdTakesTheGap_BringsTheBedBackUnderIt()
+    {
+        _service.PerformanceEnded += (_, gap) => gap.Fill(_service.PlayAdAsync(new AdPlayback
+        {
+            Visual = CreateStillAd(),
+            Duration = TimeSpan.FromSeconds(10),
+        }));
+
+        await EndAPerformanceAsync();
+
+        await _breakMusic.Received(1).RestoreAsync(Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>The other half of the rule: nothing plays underneath an ad the room can hear.</summary>
+    [Fact]
+    public async Task PlaybackEnding_AnAdWithItsOwnAudioTakesTheGap_LeavesTheBedDown()
+    {
+        _service.PerformanceEnded += (_, gap) => gap.Fill(_service.PlayAdAsync(new AdPlayback
+        {
+            Visual = CreateAd(),
+            Duration = TimeSpan.FromSeconds(10),
+        }));
+
+        await EndAPerformanceAsync();
+
+        await _breakMusic.DidNotReceive().RestoreAsync(Arg.Any<CancellationToken>());
+    }
+
     // Rotation is what the next singer is waiting on, so the bed must not come back ahead of it.
     [Fact]
     public async Task PlaybackEnding_RestoresBreakMusicAfterRotating()
