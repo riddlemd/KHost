@@ -130,6 +130,124 @@ public class PlaybackServiceTests : IDisposable
         Assert.Equal(TimeSpan.Zero, _service.Position);
     }
 
+    /// <summary>
+    /// A load that throws leaves the console wedged unless it puts its state back: remove is
+    /// disabled for the current performance, play for every row, and stop for a state that never
+    /// reached Playing, so the host cannot clear the song that failed.
+    /// </summary>
+    private void FailTheStreamOpen() => _mediaStreams
+        .OpenAsync(Arg.Any<string>(), Arg.Any<TimeSpan>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+        .Returns<MediaStreamSession>(_ => throw new FileNotFoundException("Media file not found: /gone.cdg"));
+
+    [Fact]
+    public async Task LoadAsync_TheStreamWillNotOpen_TellsTheHost()
+    {
+        var (performance, media) = CreatePerformance();
+
+        FailTheStreamOpen();
+
+        var error = await Assert.ThrowsAsync<KHostException>(() => _service.LoadAsync(performance, media));
+
+        Assert.Equal("KH-STREAM-OPEN", error.ReferenceCode);
+    }
+
+    [Fact]
+    public async Task LoadAsync_TheStreamWillNotOpen_ClearsTheCurrentPerformance()
+    {
+        var (performance, media) = CreatePerformance();
+
+        FailTheStreamOpen();
+
+        await Assert.ThrowsAsync<KHostException>(() => _service.LoadAsync(performance, media));
+
+        // Left set, this disables the row's own remove button and every row's play button.
+        Assert.Null(_service.CurrentPerformance);
+        Assert.Null(_service.CurrentMedia);
+    }
+
+    [Fact]
+    public async Task LoadAsync_TheStreamWillNotOpen_UnlocksTheTopSlot()
+    {
+        var (performance, media) = CreatePerformance();
+
+        FailTheStreamOpen();
+
+        await Assert.ThrowsAsync<KHostException>(() => _service.LoadAsync(performance, media));
+
+        _queueService.Received(1).UnlockTopSlot();
+    }
+
+    [Fact]
+    public async Task LoadAsync_TheStreamWillNotOpen_BringsBreakMusicBack()
+    {
+        var (performance, media) = CreatePerformance();
+
+        FailTheStreamOpen();
+
+        await Assert.ThrowsAsync<KHostException>(() => _service.LoadAsync(performance, media));
+
+        // Suspended on the way in, so a failed load that does not restore it leaves the room silent.
+        await _breakMusic.Received(1).RestoreAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task LoadAsync_TheStreamWillNotOpen_LeavesTheSongQueuedForTheSameSinger()
+    {
+        var (performance, media) = CreatePerformance();
+
+        FailTheStreamOpen();
+
+        await Assert.ThrowsAsync<KHostException>(() => _service.LoadAsync(performance, media));
+
+        // Nothing was performed, so the singer keeps their turn and the song stays in the queue.
+        await _performanceService.DidNotReceive().DequeueAsync(Arg.Any<Guid>(), Arg.Any<Guid>());
+        await _queueService.DidNotReceive().RotateQueueAsync(Arg.Any<Guid>());
+    }
+
+    [Fact]
+    public async Task LoadAsync_TheStreamWillNotOpen_RedrawsTheConsole()
+    {
+        var (performance, media) = CreatePerformance();
+
+        FailTheStreamOpen();
+
+        var raised = 0;
+        using var subscription = _broker.Subscribe<PlaybackChanged>(_ => raised++);
+
+        await Assert.ThrowsAsync<KHostException>(() => _service.LoadAsync(performance, media));
+
+        // Without this the panels keep rendering the wedged state they were last told about.
+        Assert.True(raised > 0, "the console was never told the load was abandoned");
+    }
+
+    [Fact]
+    public async Task LoadAsync_AfterAFailedLoad_TheNextLoadStillWorks()
+    {
+        var (failed, failedMedia) = CreatePerformance();
+
+        FailTheStreamOpen();
+
+        await Assert.ThrowsAsync<KHostException>(() => _service.LoadAsync(failed, failedMedia));
+
+        // The stream opens again, as it would for a different song.
+        _mediaStreams
+            .OpenAsync(Arg.Any<string>(), Arg.Any<TimeSpan>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(call => new MediaStreamSession
+            {
+                Id = "stream-recovered",
+                SourcePath = call.ArgAt<string>(0),
+                PlaylistUrl = "http://host/media/stream-recovered/stream.m3u8",
+                StartOffset = call.ArgAt<TimeSpan>(1),
+                PitchSemitones = call.ArgAt<int>(2),
+            });
+
+        var (next, nextMedia) = CreatePerformance();
+
+        await _service.LoadAsync(next, nextMedia);
+
+        Assert.Equal(next.Id, _service.CurrentPerformance?.Id);
+    }
+
     [Fact]
     public async Task Load_SetsCurrentPerformanceAndMedia_AndResetsPosition()
     {
