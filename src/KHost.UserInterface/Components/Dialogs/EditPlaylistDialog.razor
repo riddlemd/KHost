@@ -132,41 +132,35 @@
                 </table>
             }
 
-            <div class="kh-playlist-dialog__add">
-                <ComboBox TItem="Media"
-                          Class="kh-playlist-dialog__picker"
-                          Value="_addMedia"
-                          ValueChanged="@(media => _addMedia = media)"
-                          @bind-Text="_addMediaText"
-                          Search="SearchMediaAsync"
-                          DisplayName="@(media => Describe(media))"
-                          OpenWhenEmpty="true"
-                          Placeholder="@(Purpose == PoolPurpose.Ads ? "Search ad media…" : "Search break music…")" />
-                <button class="kh-button kh-button--secondary" type="button"
-                        disabled="@(_addMedia is null)" @onclick="AddMediaEntry">
-                    <Icon Name="plus-lg" /> Add
-                </button>
-            </div>
-
-            @if (_poolChoices.Count > 0)
+            @if (_addOpen)
             {
                 <div class="kh-playlist-dialog__add">
-                    <ComboBox TItem="MediaPool"
+                    <ComboBox TItem="AddChoice"
+                              @ref="_addPicker"
                               Class="kh-playlist-dialog__picker"
-                              Value="_addPool"
-                              ValueChanged="@(pool => _addPool = pool)"
-                              @bind-Text="_addPoolText"
-                              Search="SearchPoolsAsync"
-                              DisplayName="@(pool => pool.Name)"
-                              MinimumSearchLength="0"
+                              Value="_addChoice"
+                              ValueChanged="@(choice => _addChoice = choice)"
+                              @bind-Text="_addText"
+                              Search="SearchAddChoicesAsync"
+                              DisplayName="@(choice => choice.Label)"
+                              GroupName="@(choice => choice.Group)"
                               OpenWhenEmpty="true"
-                              Placeholder="Add another playlist…" />
+                              Placeholder="@(Purpose == PoolPurpose.Ads ? "Search ad media…" : "Search break music…")" />
                     <button class="kh-button kh-button--secondary" type="button"
-                            disabled="@(_addPool is null)" @onclick="AddPoolEntry">
+                            disabled="@(_addChoice is null)" @onclick="AddChosenEntry">
                         <Icon Name="plus-lg" /> Add
                     </button>
                 </div>
             }
+            else
+            {
+                <div class="kh-playlist-dialog__add kh-playlist-dialog__add--collapsed">
+                    <button class="kh-button kh-button--secondary" type="button" @onclick="OpenAdd">
+                        <Icon Name="plus-lg" /> Add entry
+                    </button>
+                </div>
+            }
+
         </div>
       </div>
     </Body>

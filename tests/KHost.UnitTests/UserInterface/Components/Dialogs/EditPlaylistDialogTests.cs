@@ -184,6 +184,57 @@ public class EditPlaylistDialogTests : BunitContext
         return media;
     }
 
+    /// <summary>
+    /// Choosing fills the field and nothing more. A host who picks the wrong row types again,
+    /// rather than deleting a line they never meant to make.
+    /// </summary>
+    [Fact]
+    public async Task ChoosingARow_DoesNotAddIt()
+    {
+        var dialog = RenderDialog(new MediaPool { Name = "Beds" }, PoolPurpose.BreakMusic);
+        var combo = OpenPicker(dialog);
+
+        var row = (await combo.Instance.Search!("jazz")).First();
+        await combo.InvokeAsync(() => combo.Instance.ValueChanged.InvokeAsync(row));
+
+        Assert.Empty(dialog.FindAll("tbody tr"));
+    }
+
+    [Fact]
+    public async Task PressingAdd_AddsTheChosenRowAndCollapsesAgain()
+    {
+        var dialog = RenderDialog(new MediaPool { Name = "Beds" }, PoolPurpose.BreakMusic);
+        var combo = OpenPicker(dialog);
+
+        var row = (await combo.Instance.Search!("jazz")).First();
+        await combo.InvokeAsync(() => combo.Instance.ValueChanged.InvokeAsync(row));
+
+        dialog.FindAll("button").First(button => button.TextContent.Contains("Add")).Click();
+
+        Assert.Single(dialog.FindAll("tbody tr"));
+
+        // Back to the button: the row it made is the confirmation.
+        Assert.Empty(dialog.FindComponents<ComboBox<EditPlaylistDialog.AddChoice>>());
+    }
+
+    [Fact]
+    public void TheAddControl_RestsAsASingleButton()
+    {
+        var dialog = RenderDialog(new MediaPool { Name = "Beds" }, PoolPurpose.BreakMusic);
+
+        Assert.Empty(dialog.FindComponents<ComboBox<EditPlaylistDialog.AddChoice>>());
+        Assert.Contains(dialog.FindAll("button"), button => button.TextContent.Contains("Add entry"));
+    }
+
+    /// <summary>The picker is revealed, not resident — nothing to find until Add entry is pressed.</summary>
+    private static IRenderedComponent<ComboBox<EditPlaylistDialog.AddChoice>> OpenPicker(
+        IRenderedComponent<EditPlaylistDialog> dialog)
+    {
+        dialog.FindAll("button").First(button => button.TextContent.Contains("Add entry")).Click();
+
+        return dialog.FindComponent<ComboBox<EditPlaylistDialog.AddChoice>>();
+    }
+
     private static MediaPool WithEntry(MediaPoolEntry entry)
     {
         entry.Id = Guid.NewGuid();
@@ -346,8 +397,7 @@ public class EditPlaylistDialogTests : BunitContext
     [Fact]
     public void TheMediaPicker_DoesNotSearchBelowTheTrigramMinimum()
     {
-        var dialog = RenderDialog(new MediaPool { Name = "Beds" }, PoolPurpose.BreakMusic);
-        var combo = dialog.FindComponent<ComboBox<Media>>();
+        var combo = OpenPicker(RenderDialog(new MediaPool { Name = "Beds" }, PoolPurpose.BreakMusic));
 
         Assert.True(combo.Instance.MinimumSearchLength >= 3);
     }
@@ -355,14 +405,46 @@ public class EditPlaylistDialogTests : BunitContext
     // The search covers the artist, so a row matched on its artist looks like a mistake when only
     // the title is shown.
     [Fact]
-    public void TheMediaPicker_ShowsTheArtistBesideTheTitle()
+    public async Task TheMediaPicker_ShowsTheArtistBesideTheTitle()
     {
-        var dialog = RenderDialog(new MediaPool { Name = "Beds" }, PoolPurpose.BreakMusic);
-        var combo = dialog.FindComponent<ComboBox<Media>>();
+        var combo = OpenPicker(RenderDialog(new MediaPool { Name = "Beds" }, PoolPurpose.BreakMusic));
 
-        Assert.Equal("Elevator Jazz — Someone", combo.Instance.DisplayName(_bed));
-        Assert.Equal("Happy Hour Spot", combo.Instance.DisplayName(
-            new Media { FilePath = "/x.mp4", Title = "Happy Hour Spot", Artist = "" }));
+        // Driven through the search, so this is the label the picker actually offers rather than
+        // one the test handed to DisplayName itself.
+        var rows = await combo.Instance.Search!("jazz");
+
+        Assert.Contains(rows, row => row.Label == "Elevator Jazz — Someone");
+    }
+
+    [Fact]
+    public async Task TheMediaPicker_WithNoArtistToShow_ShowsJustTheTitle()
+    {
+        var combo = OpenPicker(RenderDialog(new MediaPool { Name = "Spots" }, PoolPurpose.Ads));
+
+        var rows = await combo.Instance.Search!("happy");
+
+        Assert.Contains(rows, row => row.Label == "Happy Hour Spot");
+    }
+
+    /// <summary>
+    /// One field over two lists, so the menu has to say which is which — and the box draws a
+    /// heading wherever the group changes, never reordering, so media has to come first.
+    /// </summary>
+    [Fact]
+    public async Task ThePicker_OffersMediaAndPlaylistsUnderTheirOwnHeadings()
+    {
+        // Stubbed before rendering: the dialog reads the playlists once, as it opens.
+        _pools.ReadAllWithEntriesAsync(Arg.Any<PoolPurpose>(), Arg.Any<Guid?>())
+            .Returns(Task.FromResult<IReadOnlyList<MediaPool>>(
+                [new MediaPool { Id = Guid.NewGuid(), Name = "House Spots" }]));
+
+        var combo = OpenPicker(RenderDialog(new MediaPool { Name = "Spots" }, PoolPurpose.Ads));
+
+        var groups = (await combo.Instance.Search!("")).Select(row => row.Group).ToList();
+
+        Assert.Contains("Media", groups);
+        Assert.Contains("Playlists", groups);
+        Assert.True(groups.IndexOf("Media") < groups.IndexOf("Playlists"), "media has to be listed first");
     }
 
     // Capped: the box is for finding one row, and a thousand of them help nobody.
