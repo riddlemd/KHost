@@ -7,11 +7,14 @@ Projects (`src/`): `Plugins.Sdk` (plugin contracts + the message broker — no p
 ## Commands
 
 ```bash
-dotnet run --project src/KHost.UserInterface                # run the app
+dotnet run --project src/KHost.UserInterface                # run the app (native Photino window)
+dotnet run --project src/KHost.UserInterface -- --headless  # no window; console served at http://localhost:5251
 dotnet build KHost.slnx "-p:BaseOutputPath=./obj/_build"    # build (redirected so VS's bin/ isn't locked)
 dotnet test tests/KHost.UnitTests                           # --filter "FullyQualifiedName~Name" to narrow
 dotnet test tests/KHost.IntegrationTests                    # drives real ffmpeg; fails without it (KHOST_SKIP_ENVIRONMENT_TESTS=1 to accept)
 ```
+
+**Prefer `--headless` for testing.** The console is then an ordinary page at `http://localhost:5251`, so it drives with browser tooling and reads with the DOM instead of screenshot coordinate math — the Photino window reaches neither, and a Screen2 window launched over it turns every later capture into a black rectangle. Only the window itself needs the windowed run: native chrome, `SetSize`, and the appliance lockdown. Port 5251 is held by an exclusive `.instance.lock`, so stop one before starting the other.
 
 SCSS compiles inside `dotnet build` (AspNetCore.SassCompiler) — no separate sass step. The build needs `node_modules` (`npm install`) for `copy:vendors`.
 
