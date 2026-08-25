@@ -81,15 +81,26 @@ internal static class Program
     internal static string BuildPlayerPage()
     {
         var html = ReadResource("screen-ui/index.html");
-        var script = ReadResource("screen-ui/player.js");
 
-        // Without this guard, renaming the tag in index.html yields a page with no player at all:
-        // a black window, no error, and nothing in the log to say why.
-        const string scriptTag = "<script src=\"player.js\"></script>";
+        // hls.js first: player.js reads Hls at load time to pick its playback path.
+        html = Inline(html, "hls.light.min.js");
+        html = Inline(html, "player.js");
+
+        return html;
+    }
+
+    /// <summary>
+    /// Replaces a script tag with the script itself. Without the guard, renaming a tag in
+    /// index.html yields a page missing that script: a black window, no error, and nothing in
+    /// the log to say why.
+    /// </summary>
+    private static string Inline(string html, string fileName)
+    {
+        var scriptTag = $"<script src=\"{fileName}\"></script>";
         if (!html.Contains(scriptTag, StringComparison.Ordinal))
-            throw new InvalidOperationException($"index.html no longer contains {scriptTag} for player.js to be inlined into.");
+            throw new InvalidOperationException($"index.html no longer contains {scriptTag} for {fileName} to be inlined into.");
 
-        return html.Replace(scriptTag, $"<script>{script}</script>", StringComparison.Ordinal);
+        return html.Replace(scriptTag, $"<script>{ReadResource($"screen-ui/{fileName}")}</script>", StringComparison.Ordinal);
     }
 
     private static string ReadResource(string name)

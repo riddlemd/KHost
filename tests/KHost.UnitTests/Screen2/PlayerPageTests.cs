@@ -14,6 +14,44 @@ public class PlayerPageTests
         Assert.DoesNotContain("<script src=\"player.js\"></script>", page);
     }
 
+    // Chromium has no native HLS, so a page that ships without the library plays nothing on
+    // Windows — and the failure is a black screen, not a build error.
+    [Fact]
+    public void BuildPlayerPage_Always_InlinesHlsJs()
+    {
+        var page = Program.BuildPlayerPage();
+
+        // An event name from the library itself, not one player.js uses: the page must carry
+        // the source rather than a reference to it.
+        Assert.Contains("MEDIA_ATTACHED", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("<script src=\"hls.light.min.js\"></script>", page);
+    }
+
+    // hls.js has to be defined before player.js reads it to choose a playback path.
+    [Fact]
+    public void BuildPlayerPage_Always_PutsHlsJsBeforeThePlayer()
+    {
+        var page = Program.BuildPlayerPage();
+
+        var library = page.IndexOf("MEDIA_ATTACHED", StringComparison.Ordinal);
+        var player = page.IndexOf("Hls.isSupported", StringComparison.Ordinal);
+
+        Assert.True(library >= 0, "the library is missing from the page");
+        Assert.True(player >= 0, "the player is missing from the page");
+        Assert.True(player > library, "hls.js must be inlined before player.js reads Hls");
+    }
+
+    // canPlayType answers 'maybe' for mpegurl on Chromium and then fails the load, so it must
+    // not be what picks the path. Asserted as the whole guard expression rather than the method
+    // name, which also appears in the comment above it and so matches a broken branch too.
+    [Fact]
+    public void BuildPlayerPage_Always_BranchesOnHlsSupportRatherThanCanPlayType()
+    {
+        var page = Program.BuildPlayerPage();
+
+        Assert.Contains("if (window.Hls && Hls.isSupported())", page, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void BuildPlayerPage_Always_KeepsTheElementsThePlayerDrives()
     {
