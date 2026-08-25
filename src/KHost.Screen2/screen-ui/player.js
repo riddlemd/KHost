@@ -1,8 +1,7 @@
-// Plays the host's HLS stream through hls.js, which demuxes the MPEG-TS segments in JS and
-// feeds them to MSE. WKWebView would also play them from a bare src, but canPlayType cannot
-// pick the branch: Chromium answers 'maybe' for mpegurl and then fails the load with
-// MEDIA_ERR_SRC_NOT_SUPPORTED. Hls.isSupported() is the honest check, so it decides, and the
-// native path stays as the fallback for a webview with HLS but no MSE.
+// Plays the host's HLS stream through hls.js, which demuxes the MPEG-TS segments in JS and feeds
+// them to MSE. There is no native-HLS path: WKWebView would play the playlist from a bare src,
+// but a web view that cannot run hls.js cannot serve as a screen anyway, and carrying a second
+// path meant the two platforms failed differently and only one of them got tested.
 
 const video = document.getElementById('video');
 const background = document.getElementById('background');
@@ -65,31 +64,37 @@ function load(url, autoplay) {
     detachHls();
     mediaRecoveries = 0;
 
-    if (window.Hls && Hls.isSupported()) {
-        hls = new Hls();
-        hls.on(Hls.Events.ERROR, onHlsError);
-        // Autoplay waits for the manifest: the media element has nothing to play until then.
-        hls.on(Hls.Events.MANIFEST_PARSED, () => {
-            if (autoplay) video.play().catch((e) => reportError(`play: ${e}`));
-        });
-        hls.loadSource(url);
-        hls.attachMedia(video);
+    if (!window.Hls || !Hls.isSupported()) {
+        reportError('this webview cannot run hls.js: no Media Source Extensions');
         return;
     }
 
-    if (video.canPlayType('application/vnd.apple.mpegurl') === '') {
-        reportError('this webview can neither run hls.js nor play HLS natively');
-        return;
-    }
+    hls = new Hls({ preferManagedMediaSource: false });
+    hls.on(Hls.Events.ERROR, onHlsError);
+    // Autoplay waits for the manifest: the media element has nothing to play until then.
+    hls.on(Hls.Events.MANIFEST_PARSED, () => {
+        if (autoplay) video.play().catch((e) => reportError(`play: ${e}`));
+    });
+    hls.loadSource(url);
 
-    video.src = url;
-    if (autoplay) video.play().catch((e) => reportError(`play: ${e}`));
+    // The MediaSource is attached here, not by hls.js. Left to itself hls.js reaches the element
+    // through URL.createObjectURL, and this page is handed to the web view as a raw string — an
+    // opaque origin — so that URL comes out as blob:null/… and WebKit refuses to load it into a
+    // media element (MEDIA_ERR_SRC_NOT_SUPPORTED, before hls.js sees anything to report).
+    // srcObject carries no origin, and passing the source to attachMedia makes hls.js adopt it
+    // instead of minting a URL, which keeps one path across both web views.
+    const mediaSource = new MediaSource();
+    video.srcObject = mediaSource;
+    hls.attachMedia({ media: video, mediaSource });
 }
 
 function teardown() {
     // Before the element is cleared: destroy() detaches the media it is driving.
     detachHls();
     try { video.pause(); } catch { /* ignore */ }
+    // srcObject as well as src: removeAttribute leaves an attached MediaSource in place, and the
+    // next load would then be appending to the source the last song already ended.
+    try { video.srcObject = null; } catch { /* ignore */ }
     try { video.removeAttribute('src'); video.load(); } catch { /* ignore */ }
 }
 

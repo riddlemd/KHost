@@ -41,15 +41,38 @@ public class PlayerPageTests
         Assert.True(player > library, "hls.js must be inlined before player.js reads Hls");
     }
 
-    // canPlayType answers 'maybe' for mpegurl on Chromium and then fails the load, so it must
-    // not be what picks the path. Asserted as the whole guard expression rather than the method
-    // name, which also appears in the comment above it and so matches a broken branch too.
+    // canPlayType answers 'maybe' for mpegurl on both web views, so it can never pick a path —
+    // and with the native fallback gone there is no second path for it to pick.
     [Fact]
     public void BuildPlayerPage_Always_BranchesOnHlsSupportRatherThanCanPlayType()
     {
         var page = Program.BuildPlayerPage();
 
-        Assert.Contains("if (window.Hls && Hls.isSupported())", page, StringComparison.Ordinal);
+        Assert.Contains("if (!window.Hls || !Hls.isSupported())", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("canPlayType", page, StringComparison.Ordinal);
+    }
+
+    // Left to itself hls.js attaches through URL.createObjectURL, and the page is handed to the
+    // web view as a raw string, so that URL is blob:null/… — which WebKit refuses to load into a
+    // media element, silently, before hls.js has anything to report. The screen played nothing on
+    // macOS for exactly this reason.
+    [Fact]
+    public void BuildPlayerPage_Always_AttachesTheMediaSourceItselfRatherThanLettingHlsMintAUrl()
+    {
+        var page = Program.BuildPlayerPage();
+
+        Assert.Contains("video.srcObject = mediaSource", page, StringComparison.Ordinal);
+        Assert.Contains("hls.attachMedia({ media: video, mediaSource })", page, StringComparison.Ordinal);
+    }
+
+    // teardown clears src; an attached MediaSource outlives that, and the next song would then
+    // append to the source the last one already ended.
+    [Fact]
+    public void BuildPlayerPage_Always_ClearsSrcObjectOnTeardown()
+    {
+        var page = Program.BuildPlayerPage();
+
+        Assert.Contains("video.srcObject = null", page, StringComparison.Ordinal);
     }
 
     [Fact]
