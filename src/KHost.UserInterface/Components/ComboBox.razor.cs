@@ -42,16 +42,6 @@ public partial class ComboBox<TItem> : IAsyncDisposable
     /// </summary>
     [Parameter] public bool OpenWhenEmpty { get; set; }
 
-    /// <summary>
-    /// How many rows that opening shows. An empty field is not a search, so without a cap a box
-    /// over a whole library answers it with the whole library.
-    /// </summary>
-    /// <remarks>
-    /// Caps what is shown, not what <see cref="Search"/> fetches — the delegate is still where a
-    /// caller keeps a query from reading its table end to end.
-    /// </remarks>
-    [Parameter] public int MaxRowsWhenEmpty { get; set; } = 10;
-
     [Parameter] public TItem? Value { get; set; }
     [Parameter] public EventCallback<TItem?> ValueChanged { get; set; }
 
@@ -76,7 +66,6 @@ public partial class ComboBox<TItem> : IAsyncDisposable
     private List<TItem> _results = [];
     private bool _isOpen;
     private bool _isSearching;
-    private bool _isTrimmed;
     private int _highlighted;
 
     private TItem? _bound;
@@ -133,7 +122,7 @@ public partial class ComboBox<TItem> : IAsyncDisposable
         if (!OpenWhenEmpty || _query.Trim().Length > 0)
             return;
 
-        await SearchAsync("", limit: MaxRowsWhenEmpty);
+        await SearchAsync("");
     }
 
     private async Task OnQueryChangedAsync(ChangeEventArgs e)
@@ -175,7 +164,7 @@ public partial class ComboBox<TItem> : IAsyncDisposable
         }
     }
 
-    private async Task SearchAsync(string query, CancellationToken token = default, int? limit = null)
+    private async Task SearchAsync(string query, CancellationToken token = default)
     {
         if (Search is null) return;
 
@@ -185,8 +174,7 @@ public partial class ComboBox<TItem> : IAsyncDisposable
 
         if (token.IsCancellationRequested) return;
 
-        _isTrimmed = limit is { } max && results.Count > max;
-        _results = _isTrimmed ? [.. results.Take(limit!.Value)] : [.. results];
+        _results = [.. results];
         _highlighted = 0;
         _isSearching = false;
         _isOpen = true;
