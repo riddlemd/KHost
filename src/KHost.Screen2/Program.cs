@@ -37,6 +37,7 @@ internal static class Program
             loggerFactory.CreateLogger<ScreenIpcController>());
 
         PhotinoWindow? window = null;
+        var ready = false;
         window = new PhotinoWindow()
             .SetTitle("KHost Screen")
 #if !DEBUG
@@ -55,15 +56,24 @@ internal static class Program
             .RegisterWebMessageReceivedHandler((_, message) =>
             {
                 if (message is null) return;
-                if (!player.HandleBrowserMessage(message)) HandleWindowMessage(window!, message, logger);
-            })
-            .RegisterWindowCreatedHandler((_, _) =>
-            {
-                player.SendToBrowser = json => window!.SendWebMessage(json);
 
-                _ = ConnectAsync(logger, serverUri, screenId, authKey);
-                _ = PublishStateAsync();
-                _ = ResyncClockAsync();
+                // The page saying it is wired up. Registering before this lets the host answer
+                // with a command, and SendWebMessage into a web view with no page yet is a native
+                // crash that takes the screen down with no managed exception to log.
+                if (message.Contains("\"ready\"", StringComparison.Ordinal) && !ready)
+                {
+                    ready = true;
+
+                    player.SendToBrowser = json => window!.SendWebMessage(json);
+
+                    _ = ConnectAsync(logger, serverUri, screenId, authKey);
+                    _ = PublishStateAsync();
+                    _ = ResyncClockAsync();
+
+                    return;
+                }
+
+                if (!player.HandleBrowserMessage(message)) HandleWindowMessage(window!, message, logger);
             })
             // Handed to the web view as a string: this screen serves nothing and has no files
             // on disk, the media comes from the host.
