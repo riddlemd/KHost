@@ -31,8 +31,11 @@ public partial class BreakMusicBar : IDisposable
     private async void OnStateChanged()
         => await InvokeAsync(StateHasChanged);
 
+    // Only reached when the provider names no track. A provider driving another app never does,
+    // so Playing has to be spelled out here or the bar reports "off" over audible music.
     private string DescribeState() => BreakMusic.State switch
     {
+        BreakMusicState.Playing => $"Playing on {BreakMusic.ActiveProvider?.DisplayName ?? "break music"}",
         BreakMusicState.Paused => "Break music paused",
         BreakMusicState.Suspended => "Break music waiting",
         _ => "Break music off",
