@@ -15,7 +15,15 @@ public class PluginLoaderTests : IDisposable
 
     private string PluginsDir => Path.Combine(_root.FullName, "plugins");
 
-    public void Dispose() => _root.Delete(recursive: true);
+    // Windows keeps a loaded assembly mapped for the life of the process, so the entry dlls the
+    // LoadAndRegister tests copied in cannot be deleted here; POSIX unlinks them regardless. Take
+    // what the OS will give rather than failing every test in the class on the way out.
+    public void Dispose()
+    {
+        try { _root.Delete(recursive: true); }
+        catch (UnauthorizedAccessException) { }
+        catch (IOException) { }
+    }
 
     [Fact]
     public void Discover_PluginsDirectoryMissing_ReturnsEmpty()
