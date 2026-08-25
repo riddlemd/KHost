@@ -162,7 +162,7 @@ public partial class EditPlaylistDialog
         => _entries[index].Weight = int.TryParse(value, out var weight) && weight >= 0 ? weight : 1;
 
     /// <summary>Blank hands the entry back to the default, which is the point of showing it as one.</summary>
-    private void SetEntryLength(int index, string? value)
+    private void SetEntryDuration(int index, string? value)
         => _entries[index].Duration = double.TryParse(value, out var seconds) && seconds > 0
             ? TimeSpan.FromSeconds(seconds)
             : null;
@@ -172,7 +172,7 @@ public partial class EditPlaylistDialog
     /// placeholder so a host sees the number they are inheriting rather than the rule behind it.
     /// Mirrors what AdService resolves, so the two cannot say different things.
     /// </summary>
-    private string DescribeDefaultLength(MediaPoolEntry entry)
+    private string DescribeDefaultDuration(MediaPoolEntry entry)
     {
         // A video answers for itself.
         if (entry.MediaId is { } visualId
@@ -190,7 +190,7 @@ public partial class EditPlaylistDialog
             return Seconds(audioLength - (entry.AudioStart ?? TimeSpan.Zero));
         }
 
-        return $"{AppSettings.Current.AdDefaultLengthSeconds:0.#}";
+        return $"{AppSettings.Current.AdDefaultDurationSeconds:0.#}";
     }
 
     private static string Seconds(TimeSpan length) => $"{length.TotalSeconds:0.#}";
