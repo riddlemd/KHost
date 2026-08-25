@@ -81,6 +81,85 @@ public class AdServiceTests : IDisposable
         return pool;
     }
 
+    /// <summary>
+    /// The button to play one hangs off this. A host turning ads on mid-shift saw nothing until a
+    /// song had finished, because the service worked it out at startup and then never again.
+    /// </summary>
+    [Fact]
+    public async Task IsConfigured_AdsTurnedOnAfterStartup_PicksItUpWithoutWaitingForASongToEnd()
+    {
+        ConfigureVenue(AdTriggerMode.EveryNPerformances, withPool: false);
+        await _service.InitializeAsync();
+
+        Assert.False(_service.IsConfigured);
+
+        ConfigureVenue(AdTriggerMode.EveryNPerformances);
+
+        await _broker.PublishAsync(new SelectedVenueChanged());
+
+        Assert.True(_service.IsConfigured);
+    }
+
+    [Fact]
+    public async Task IsConfigured_AdsTurnedOnAfterStartup_TellsTheConsoleToRedraw()
+    {
+        ConfigureVenue(AdTriggerMode.EveryNPerformances, withPool: false);
+        await _service.InitializeAsync();
+
+        var raised = 0;
+        using var subscription = _broker.Subscribe<AdsChanged>(_ => raised++);
+
+        ConfigureVenue(AdTriggerMode.EveryNPerformances);
+        await _broker.PublishAsync(new SelectedVenueChanged());
+
+        Assert.Equal(1, raised);
+    }
+
+    [Fact]
+    public async Task IsConfigured_AdsTurnedOffAfterStartup_LosesTheButton()
+    {
+        ConfigureVenue(AdTriggerMode.EveryNPerformances);
+        await _service.InitializeAsync();
+
+        Assert.True(_service.IsConfigured);
+
+        ConfigureVenue(AdTriggerMode.EveryNPerformances, withPool: false);
+        await _broker.PublishAsync(new SelectedVenueChanged());
+
+        Assert.False(_service.IsConfigured);
+    }
+
+    /// <summary>Switching between two venues that both run ads is not a reason to redraw.</summary>
+    [Fact]
+    public async Task IsConfigured_AVenueChangeThatChangesNothing_SaysNothing()
+    {
+        ConfigureVenue(AdTriggerMode.EveryNPerformances);
+        await _service.InitializeAsync();
+
+        var raised = 0;
+        using var subscription = _broker.Subscribe<AdsChanged>(_ => raised++);
+
+        await _broker.PublishAsync(new SelectedVenueChanged());
+
+        Assert.Equal(0, raised);
+    }
+
+    /// <summary>
+    /// A playlist deleted out from under the venue leaves its id behind. Startup used to take the
+    /// id at its word and offer a button that could not play anything, while the check after a
+    /// performance resolved the playlist properly — so the button appeared and then vanished.
+    /// </summary>
+    [Fact]
+    public async Task IsConfigured_ThePlaylistTheVenueNamesIsGone_IsFalseFromStartup()
+    {
+        ConfigureVenue(AdTriggerMode.EveryNPerformances);
+        _pools.ReadWithEntriesAsync(_poolId).Returns(Task.FromResult<MediaPool?>(null));
+
+        await _service.InitializeAsync();
+
+        Assert.False(_service.IsConfigured);
+    }
+
     private async Task PerformancesAsync(int count)
     {
         for (var i = 0; i < count; i++)
