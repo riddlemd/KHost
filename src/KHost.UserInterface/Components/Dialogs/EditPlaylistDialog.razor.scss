@@ -34,9 +34,8 @@
         text-align: right;
     }
 
-    // Wider than the weight: this one shows the inherited default as a placeholder, and "video"
-    // does not fit in four characters.
-    &__length {
+    // Wider than the weight, which only ever holds one or two digits.
+    &__duration {
         width: 5.5rem;
         text-align: right;
     }

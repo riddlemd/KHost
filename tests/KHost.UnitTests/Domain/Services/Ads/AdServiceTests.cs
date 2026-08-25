@@ -170,7 +170,7 @@ public class AdServiceTests : IDisposable
     [Fact]
     public async Task ComposeAsync_AStillWithNothingToHear_RunsForTheConfiguredDefault()
     {
-        _options.DefaultLength = TimeSpan.FromSeconds(10);
+        _options.DefaultDuration = TimeSpan.FromSeconds(10);
 
         var still = Library("card.png", "PNG", TimeSpan.FromSeconds(15));
         var entry = new MediaPoolEntry { MediaId = still.Id };
@@ -183,7 +183,7 @@ public class AdServiceTests : IDisposable
     [Fact]
     public async Task ComposeAsync_TheDefaultWasChanged_TheStillFollowsIt()
     {
-        _options.DefaultLength = TimeSpan.FromSeconds(30);
+        _options.DefaultDuration = TimeSpan.FromSeconds(30);
 
         var still = Library("card.png", "PNG", null);
 
@@ -196,7 +196,7 @@ public class AdServiceTests : IDisposable
     [Fact]
     public async Task ComposeAsync_AVideo_RunsForItsOwnLength()
     {
-        _options.DefaultLength = TimeSpan.FromSeconds(10);
+        _options.DefaultDuration = TimeSpan.FromSeconds(10);
 
         var video = Library("spot.mp4", "MP4", TimeSpan.FromSeconds(22));
 
@@ -208,7 +208,7 @@ public class AdServiceTests : IDisposable
     [Fact]
     public async Task ComposeAsync_TheEntrySaysHowLong_ThatWinsOverEverything()
     {
-        _options.DefaultLength = TimeSpan.FromSeconds(10);
+        _options.DefaultDuration = TimeSpan.FromSeconds(10);
 
         var video = Library("spot.mp4", "MP4", TimeSpan.FromSeconds(22));
         var entry = new MediaPoolEntry { MediaId = video.Id, Duration = TimeSpan.FromSeconds(7) };
@@ -222,7 +222,7 @@ public class AdServiceTests : IDisposable
     [Fact]
     public async Task ComposeAsync_AStillWithAVoiceover_RunsForWhatIsLeftOfTheVoiceover()
     {
-        _options.DefaultLength = TimeSpan.FromSeconds(10);
+        _options.DefaultDuration = TimeSpan.FromSeconds(10);
 
         var still = Library("card.png", "PNG", TimeSpan.FromSeconds(15));
         var voice = Library("voice.mp3", "MP3", TimeSpan.FromSeconds(25));
@@ -282,7 +282,7 @@ public class AdServiceTests : IDisposable
         Assert.False(ad?.HasOwnAudio);
 
         // Its own stamped length is deliberately passed over for the configured default.
-        Assert.Equal(_options.DefaultLength, ad?.Duration);
+        Assert.Equal(_options.DefaultDuration, ad?.Duration);
     }
 
     [Fact]

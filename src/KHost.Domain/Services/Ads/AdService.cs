@@ -17,7 +17,7 @@ public class AdService : BaseService, IAdService, IDisposable
         /// How long an ad runs when neither the playlist entry nor the media itself answers — a
         /// still with no voiceover. A video ad runs for its own length whatever this says.
         /// </summary>
-        public TimeSpan DefaultLength { get; set; } = TimeSpan.FromSeconds(10);
+        public TimeSpan DefaultDuration { get; set; } = TimeSpan.FromSeconds(10);
     }
 
     private readonly SemaphoreSlim _lock = new(1, 1);
@@ -279,6 +279,6 @@ public class AdService : BaseService, IAdService, IDisposable
         if (audio?.Duration is { } audioLength)
             return audioLength - audioStart;
 
-        return _options.DefaultLength;
+        return _options.DefaultDuration;
     }
 }

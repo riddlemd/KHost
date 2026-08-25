@@ -80,7 +80,7 @@
                             }
                             @if (Purpose == PoolPurpose.Ads)
                             {
-                                <th>Length</th>
+                                <th>Duration (sec)</th>
                             }
                             <th class="kh-playlist-dialog__col--actions"></th>
                         </tr>
@@ -105,10 +105,10 @@
                                 @if (Purpose == PoolPurpose.Ads)
                                 {
                                     <td>
-                                        <input type="number" class="kh-form-control kh-playlist-dialog__length" min="1" step="1"
-                                               placeholder="@DescribeDefaultLength(entry)"
+                                        <input type="number" class="kh-form-control kh-playlist-dialog__duration" min="1" step="1"
+                                               placeholder="@DescribeDefaultDuration(entry)"
                                                value="@(entry.Duration?.TotalSeconds)"
-                                               @onchange="e => SetEntryLength(index, e.Value?.ToString())" />
+                                               @onchange="e => SetEntryDuration(index, e.Value?.ToString())" />
                                     </td>
                                 }
 
