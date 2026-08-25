@@ -49,6 +49,12 @@
                                 @onclick="() => SelectAsync(item)">@DisplayName(item)</button>
                     </li>
                 }
+
+                @* A cap nothing admits to reads as "this is all there is". *@
+                @if (_isTrimmed)
+                {
+                    <li class="kh-combobox__message">Start typing to see the rest</li>
+                }
             }
         </ul>
     }
