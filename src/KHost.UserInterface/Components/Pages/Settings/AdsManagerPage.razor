@@ -10,21 +10,6 @@
         <div class="kh-card">
             <div class="kh-card__header">
                 <span class="kh-card__title"><Icon Name="megaphone" /> Ads Manager</span>
-            </div>
-
-            <div class="kh-card__body">
-                <p class="kh-ads-manager__hint">
-                    <span class="kh-emphasis">@(_venueName ?? "No venue selected")</span> runs
-                    <span class="kh-emphasis">@(_activePoolName ?? "no ads")</span>, chosen on the venue itself
-                    under Settings &rsaquo; Venues Manager. An ad never interrupts a singer &mdash; it waits
-                    for the gap after a song.
-                </p>
-            </div>
-        </div>
-
-        <div class="kh-card">
-            <div class="kh-card__header">
-                <span class="kh-card__title"><Icon Name="collection-play" /> Playlists</span>
                 <button class="kh-button kh-button--primary" @onclick="OpenAddDialog" type="button">
                     <Icon Name="plus-lg" /> Add Playlist
                 </button>
