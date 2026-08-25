@@ -173,7 +173,48 @@ public class PlaybackService : BaseService, IPlaybackService
 
         Logger.LogInformation("Loading media '{Title}' for performance {PerformanceId}", media.Title, performance.Id);
 
-        await SendToScreensAsync(await BuildLoadCommandAsync(media, TimeSpan.Zero));
+        try
+        {
+            await SendToScreensAsync(await BuildLoadCommandAsync(media, TimeSpan.Zero));
+        }
+        catch
+        {
+            // Everything above already happened, and a load that dies here leaves the console with
+            // no way back: remove is disabled for the current performance, play for every row, and
+            // stop for a state that never reached Playing.
+            await AbandonLoadAsync();
+            throw;
+        }
+
+        _broker.Announce(new PlaybackChanged());
+    }
+
+    /// <summary>
+    /// Puts back what <see cref="LoadAsync"/> set up before the load failed. Deliberately not
+    /// <see cref="EndedAsync"/>: nothing was performed, so the singer keeps their turn and the
+    /// song stays queued for another try.
+    /// </summary>
+    private async Task AbandonLoadAsync()
+    {
+        await CloseStreamAsync();
+
+        CurrentPerformance = null;
+        CurrentMedia = null;
+
+        _singerQueueService.UnlockTopSlot();
+
+        ResetState();
+
+        // Guarded so a bed that will not come back cannot replace the load failure the host is
+        // about to be shown with one about break music.
+        try
+        {
+            await _breakMusic.RestoreAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Could not restore break music after a failed load");
+        }
 
         _broker.Announce(new PlaybackChanged());
     }
