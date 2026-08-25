@@ -63,7 +63,7 @@ public class EditPlaylistDialogTests : BunitContext
 
         // The ad rows show the configured default as their placeholder, so the dialog reads it
         // even for a break music playlist that never renders the column.
-        _appSettings.Current.Returns(new AppSettings { AdDefaultLengthSeconds = 10 });
+        _appSettings.Current.Returns(new AppSettings { AdDefaultDurationSeconds = 10 });
         Services.AddSingleton(_appSettings);
     }
 
@@ -94,20 +94,21 @@ public class EditPlaylistDialogTests : BunitContext
     /// long a spot should run.
     /// </summary>
     [Fact]
-    public void LengthColumn_IsShown_ForAnAdPlaylist()
+    public void DurationColumn_IsShown_ForAnAdPlaylist()
     {
         var rendered = RenderDialog(WithOneEntry(PoolPurpose.Ads), PoolPurpose.Ads);
 
-        Assert.Contains("Length", rendered.FindAll("thead th").Select(th => th.TextContent.Trim()));
+        // The unit is in the header: the field itself holds a bare number.
+        Assert.Contains("Duration (sec)", rendered.FindAll("thead th").Select(th => th.TextContent.Trim()));
     }
 
     /// <summary>A bed runs for its own length; only an ad is cut to a slot.</summary>
     [Fact]
-    public void LengthColumn_IsHidden_ForABreakMusicPlaylist()
+    public void DurationColumn_IsHidden_ForABreakMusicPlaylist()
     {
         var rendered = RenderDialog(WithOneEntry(PoolPurpose.BreakMusic));
 
-        Assert.DoesNotContain("Length", rendered.FindAll("thead th").Select(th => th.TextContent.Trim()));
+        Assert.DoesNotContain("Duration (sec)", rendered.FindAll("thead th").Select(th => th.TextContent.Trim()));
     }
 
     /// <summary>
@@ -115,29 +116,29 @@ public class EditPlaylistDialogTests : BunitContext
     /// named the rule but not the number a host was deciding whether to override.
     /// </summary>
     [Fact]
-    public void LengthPlaceholder_AVideo_ShowsItsOwnLength()
+    public void DurationPlaceholder_AVideo_ShowsItsOwnLength()
     {
         var video = Media("spot.mp4", "MP4", TimeSpan.FromSeconds(22));
 
         var rendered = RenderDialog(WithEntry(new MediaPoolEntry { MediaId = video.Id }), PoolPurpose.Ads);
 
-        Assert.Equal("22", rendered.Find(".kh-playlist-dialog__length").GetAttribute("placeholder"));
+        Assert.Equal("22", rendered.Find(".kh-playlist-dialog__duration").GetAttribute("placeholder"));
     }
 
     [Fact]
-    public void LengthPlaceholder_AStillWithNothingToHear_ShowsTheConfiguredDefault()
+    public void DurationPlaceholder_AStillWithNothingToHear_ShowsTheConfiguredDefault()
     {
         var still = Media("card.png", "PNG", TimeSpan.FromSeconds(15));
 
         var rendered = RenderDialog(WithEntry(new MediaPoolEntry { MediaId = still.Id }), PoolPurpose.Ads);
 
         // Its stamped 15s is deliberately passed over, exactly as AdService passes it over.
-        Assert.Equal("10", rendered.Find(".kh-playlist-dialog__length").GetAttribute("placeholder"));
+        Assert.Equal("10", rendered.Find(".kh-playlist-dialog__duration").GetAttribute("placeholder"));
     }
 
     /// <summary>The picture and the words finish together, so that is the length to show.</summary>
     [Fact]
-    public void LengthPlaceholder_AStillWithAVoiceover_ShowsWhatIsLeftOfTheVoiceover()
+    public void DurationPlaceholder_AStillWithAVoiceover_ShowsWhatIsLeftOfTheVoiceover()
     {
         var still = Media("card.png", "PNG", TimeSpan.FromSeconds(15));
         var voice = Media("voice.mp3", "MP3", TimeSpan.FromSeconds(25));
@@ -151,18 +152,18 @@ public class EditPlaylistDialogTests : BunitContext
 
         var rendered = RenderDialog(WithEntry(entry), PoolPurpose.Ads);
 
-        Assert.Equal("20", rendered.Find(".kh-playlist-dialog__length").GetAttribute("placeholder"));
+        Assert.Equal("20", rendered.Find(".kh-playlist-dialog__duration").GetAttribute("placeholder"));
     }
 
     [Fact]
-    public void LengthValue_TheEntrySaysHowLong_ShowsThatRatherThanThePlaceholder()
+    public void DurationValue_TheEntrySaysHowLong_ShowsThatRatherThanThePlaceholder()
     {
         var video = Media("spot.mp4", "MP4", TimeSpan.FromSeconds(22));
         var entry = new MediaPoolEntry { MediaId = video.Id, Duration = TimeSpan.FromSeconds(7) };
 
         var rendered = RenderDialog(WithEntry(entry), PoolPurpose.Ads);
 
-        Assert.Equal("7", rendered.Find(".kh-playlist-dialog__length").GetAttribute("value"));
+        Assert.Equal("7", rendered.Find(".kh-playlist-dialog__duration").GetAttribute("value"));
     }
 
     /// <summary>Registers the row so the dialog can read its format and length back by id.</summary>
