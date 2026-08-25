@@ -147,6 +147,57 @@ public class MediaFileParsingServiceTests
         Assert.Equal("No Artist", media.Artist);
     }
 
+    /// <summary>
+    /// A card and an ad clip have no performer, so there is no artist for the fallback to stand in
+    /// for. Inventing one put "Unknown Artist" beside every still in the pickers that name a row by
+    /// title and artist.
+    /// </summary>
+    [Theory]
+    [InlineData(MediaType.Image, "card-001.png")]
+    [InlineData(MediaType.Video, "house-spot.mp4")]
+    public async Task LoadAndParseAsync_SomethingWithNoPerformer_IsLeftWithoutAnArtist(MediaType type, string file)
+    {
+        var svc = CreateService(new MediaFileParsingService.ServiceOptions { FallbackArtistName = "No Artist" });
+
+        var media = await svc.LoadAndParseAsync(MediaPath(file), type);
+
+        Assert.Equal(string.Empty, media.Artist);
+    }
+
+    [Theory]
+    [InlineData(MediaType.Karaoke)]
+    [InlineData(MediaType.Audio)]
+    public async Task LoadAndParseAsync_SomethingWithAPerformer_StillFallsBack(MediaType type)
+    {
+        var svc = CreateService(new MediaFileParsingService.ServiceOptions { FallbackArtistName = "No Artist" });
+
+        var media = await svc.LoadAndParseAsync(MediaPath("JustATitle.mp4"), type);
+
+        Assert.Equal("No Artist", media.Artist);
+    }
+
+    /// <summary>Taken at parse time now, rather than stamped on by the caller afterwards.</summary>
+    [Fact]
+    public async Task LoadAndParseAsync_CarriesTheTypeItWasGiven()
+    {
+        var svc = CreateService();
+
+        var media = await svc.LoadAndParseAsync(MediaPath("card-001.png"), MediaType.Image);
+
+        Assert.Equal(MediaType.Image, media.Type);
+    }
+
+    /// <summary>An artist the filename states is kept whatever the type — only the invented one goes.</summary>
+    [Fact]
+    public async Task LoadAndParseAsync_AVideoWhoseNameStatesAnArtist_KeepsIt()
+    {
+        var svc = CreateService();
+
+        var media = await svc.LoadAndParseAsync(MediaPath("Toto - Africa.mp4"), MediaType.Video);
+
+        Assert.Equal("Toto", media.Artist);
+    }
+
     [Fact]
     public async Task LoadAndParseAsync_StripsKaraokeNoiseSuffix()
     {
