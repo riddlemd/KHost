@@ -1,5 +1,8 @@
-// Plays the host's HLS stream. WKWebView plays HLS from a bare src; a Chromium webview
-// (WebView2 on Windows) does not, and will need hls.js before this screen works there.
+// Plays the host's HLS stream through hls.js, which demuxes the MPEG-TS segments in JS and
+// feeds them to MSE. WKWebView would also play them from a bare src, but canPlayType cannot
+// pick the branch: Chromium answers 'maybe' for mpegurl and then fails the load with
+// MEDIA_ERR_SRC_NOT_SUPPORTED. Hls.isSupported() is the honest check, so it decides, and the
+// native path stays as the fallback for a webview with HLS but no MSE.
 
 const video = document.getElementById('video');
 const background = document.getElementById('background');
@@ -22,13 +25,60 @@ function reportError(message) {
 
 let currentVolume = 1;
 
+let hls = null;
+
+// A decode glitch can usually be recovered in place, but a source that never decodes would
+// otherwise recover forever, so give up and let the host hear about it.
+const MAX_MEDIA_RECOVERIES = 2;
+let mediaRecoveries = 0;
+
+function detachHls() {
+    if (!hls) return;
+
+    try { hls.destroy(); } catch { /* ignore */ }
+    hls = null;
+}
+
+function onHlsError(_, data) {
+    if (!data.fatal) return;
+
+    if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+        hls.startLoad();
+        return;
+    }
+
+    if (data.type === Hls.ErrorTypes.MEDIA_ERROR && mediaRecoveries < MAX_MEDIA_RECOVERIES) {
+        mediaRecoveries++;
+        hls.recoverMediaError();
+        return;
+    }
+
+    reportError(`hls: ${data.details}`);
+    detachHls();
+}
+
 function load(url, autoplay) {
     video.style.transition = 'opacity 120ms linear';
     video.style.opacity = '1';
     video.volume = currentVolume;
 
+    detachHls();
+    mediaRecoveries = 0;
+
+    if (window.Hls && Hls.isSupported()) {
+        hls = new Hls();
+        hls.on(Hls.Events.ERROR, onHlsError);
+        // Autoplay waits for the manifest: the media element has nothing to play until then.
+        hls.on(Hls.Events.MANIFEST_PARSED, () => {
+            if (autoplay) video.play().catch((e) => reportError(`play: ${e}`));
+        });
+        hls.loadSource(url);
+        hls.attachMedia(video);
+        return;
+    }
+
     if (video.canPlayType('application/vnd.apple.mpegurl') === '') {
-        reportError('no native HLS support in this webview');
+        reportError('this webview can neither run hls.js nor play HLS natively');
         return;
     }
 
@@ -37,6 +87,8 @@ function load(url, autoplay) {
 }
 
 function teardown() {
+    // Before the element is cleared: destroy() detaches the media it is driving.
+    detachHls();
     try { video.pause(); } catch { /* ignore */ }
     try { video.removeAttribute('src'); video.load(); } catch { /* ignore */ }
 }

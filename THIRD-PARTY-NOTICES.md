@@ -37,6 +37,7 @@ These ship inside a KHost build (host and/or screen app, or the browser assets).
 | OpenTelemetry .NET (SDK, exporters, instrumentation) | host | Apache-2.0 | The OpenTelemetry Authors |
 | Bootstrap Icons (`wwwroot/css/bootstrap-icons.css`, `wwwroot/css/fonts/bootstrap-icons.woff*`) | host UI (browser) | MIT | The Bootstrap Authors |
 | SortableJS (`wwwroot/js/Sortable.min.js`) | host UI (browser) | MIT | All contributors to SortableJS |
+| hls.js (`screen-ui/hls.light.min.js`, embedded in the screen executable) | screen | Apache-2.0 | Dailymotion and contributors |
 
 License texts:
 - MIT and BSD-3-Clause are reproduced in [§4](#4-common-license-texts).
