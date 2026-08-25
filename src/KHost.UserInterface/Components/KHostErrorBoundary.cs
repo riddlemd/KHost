@@ -1,4 +1,4 @@
-using KHost.Abstractions.Exceptions;
+using KHost.Plugins.Sdk.Exceptions;
 using KHost.UserInterface.Services;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;

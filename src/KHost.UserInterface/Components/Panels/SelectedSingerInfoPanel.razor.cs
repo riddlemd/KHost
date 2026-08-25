@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.JSInterop;
-using KHost.Abstractions.Exceptions;
+using KHost.Plugins.Sdk.Exceptions;
 using KHost.Abstractions.Models;
 using KHost.UserInterface.Models;
 using KHost.Abstractions.Services;
