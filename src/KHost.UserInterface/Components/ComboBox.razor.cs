@@ -101,6 +101,12 @@ public partial class ComboBox<TItem> : IAsyncDisposable
         await TextChanged.InvokeAsync(text);
     }
 
+    /// <summary>
+    /// Puts the caret in the field. For a caller that revealed the box on purpose — without it,
+    /// showing a box costs the host a second click to reach the thing they just asked for.
+    /// </summary>
+    public ValueTask FocusAsync() => _inputRef.FocusAsync();
+
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (!firstRender) return;

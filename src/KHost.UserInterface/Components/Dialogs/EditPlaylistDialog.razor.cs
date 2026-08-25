@@ -41,10 +41,18 @@ public partial class EditPlaylistDialog
     /// <summary>Lengths too, so a row can show what it will run for before it is overridden.</summary>
     private readonly Dictionary<Guid, TimeSpan?> _durations = [];
 
-    private Media? _addMedia;
-    private string _addMediaText = "";
-    private MediaPool? _addPool;
-    private string _addPoolText = "";
+    /// <summary>
+    /// One row of the picker. Media and playlists are different things but the same choice, and a
+    /// combo box binds one type — so they meet here rather than in two controls.
+    /// </summary>
+    /// <param name="Group">Its heading in the menu. The caller groups by sorting; the box never reorders.</param>
+    internal sealed record AddChoice(string Label, string Group, Media? Media, MediaPool? Pool);
+
+    private bool _addOpen;
+    private bool _addJustOpened;
+    private AddChoice? _addChoice;
+    private string _addText = "";
+    private ComboBox<AddChoice>? _addPicker;
 
     protected override async Task OnParametersSetAsync()
     {
@@ -62,10 +70,10 @@ public partial class EditPlaylistDialog
             // Copied rather than bound: Cancel has to leave the stored playlist untouched.
             _entries = [.. (Pool?.Entries ?? []).OrderBy(e => e.Position).Select(Copy)];
 
-            _addMedia = null;
-            _addMediaText = "";
-            _addPool = null;
-            _addPoolText = "";
+
+            _addOpen = false;
+            _addChoice = null;
+            _addText = "";
 
             await LoadChoicesAsync();
         }
@@ -195,33 +203,69 @@ public partial class EditPlaylistDialog
 
     private static string Seconds(TimeSpan length) => $"{length.TotalSeconds:0.#}";
 
-    private Task<IReadOnlyList<MediaPool>> SearchPoolsAsync(string term)
-        => Task.FromResult<IReadOnlyList<MediaPool>>(
-            [.. _poolChoices.Where(pool => pool.Name.Contains(term, StringComparison.OrdinalIgnoreCase))]);
-
-    private void AddMediaEntry()
+    /// <summary>Focused a render late: the box does not exist until the one that revealed it.</summary>
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (_addMedia is not { } media)
+        if (!_addJustOpened || _addPicker is null)
             return;
 
-        _titles[media.Id] = media.Title;
-        _formats[media.Id] = media.Format;
-        _durations[media.Id] = media.Duration;
-        _entries.Add(new MediaPoolEntry { Id = Guid.NewGuid(), MediaId = media.Id, Position = _entries.Count });
+        _addJustOpened = false;
 
-        _addMedia = null;
-        _addMediaText = "";
+        await _addPicker.FocusAsync();
     }
 
-    private void AddPoolEntry()
+    private void OpenAdd()
     {
-        if (_addPool is not { } pool)
+        _addOpen = true;
+        _addJustOpened = true;
+    }
+
+    /// <summary>
+    /// Media first, then playlists — the box draws a heading wherever the group changes and never
+    /// reorders, so the order they are returned in is the order they are grouped in.
+    /// </summary>
+    private async Task<IReadOnlyList<AddChoice>> SearchAddChoicesAsync(string term)
+    {
+        var media = await SearchMediaAsync(term);
+
+        var choices = media
+            .Select(row => new AddChoice(Describe(row), "Media", row, null))
+            .ToList();
+
+        choices.AddRange(_poolChoices
+            .Where(pool => pool.Name.Contains(term, StringComparison.OrdinalIgnoreCase))
+            .Select(pool => new AddChoice(pool.Name, "Playlists", null, pool)));
+
+        return choices;
+    }
+
+    /// <summary>
+    /// Adding is its own press. Choosing a row only fills the field, so a host who picks the wrong
+    /// one types again rather than deleting a line they did not mean to make.
+    /// </summary>
+    private void AddChosenEntry()
+    {
+        if (_addChoice is not { } choice)
             return;
 
-        _entries.Add(new MediaPoolEntry { Id = Guid.NewGuid(), ChildPoolId = pool.Id, Position = _entries.Count });
+        if (choice.Media is { } media)
+        {
+            _titles[media.Id] = media.Title;
+            _formats[media.Id] = media.Format;
+            _durations[media.Id] = media.Duration;
 
-        _addPool = null;
-        _addPoolText = "";
+            _entries.Add(new MediaPoolEntry { Id = Guid.NewGuid(), MediaId = media.Id, Position = _entries.Count });
+        }
+        else if (choice.Pool is { } pool)
+        {
+            _entries.Add(new MediaPoolEntry { Id = Guid.NewGuid(), ChildPoolId = pool.Id, Position = _entries.Count });
+        }
+
+        // Collapsed again: the row it made is the confirmation, and the dialog goes back to being
+        // mostly the list it is for.
+        _addOpen = false;
+        _addChoice = null;
+        _addText = "";
     }
 
     private void RemoveEntry(int index) => _entries.RemoveAt(index);
