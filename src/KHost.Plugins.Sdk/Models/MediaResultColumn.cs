@@ -37,6 +37,14 @@ public sealed record MediaResultColumn
     public MediaResultColumnKind Kind { get; init; } = MediaResultColumnKind.Text;
 
     /// <summary>
+    /// How this column is actually laid out. The reserved duration key implies
+    /// <see cref="MediaResultColumnKind.Duration"/> whatever was declared, so a provider naming
+    /// that column does not have to say the same thing twice — and cannot say it two ways.
+    /// </summary>
+    public MediaResultColumnKind EffectiveKind =>
+        Key == DurationKey ? MediaResultColumnKind.Duration : Kind;
+
+    /// <summary>
     /// False lets the console drop this column when the panel is too narrow to carry every one,
     /// rightmost droppable first. The first column is never dropped — something has to name the
     /// row a host is choosing between.
