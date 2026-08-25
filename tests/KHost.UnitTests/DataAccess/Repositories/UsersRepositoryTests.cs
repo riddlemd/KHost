@@ -1,4 +1,4 @@
-using KHost.Abstractions.Exceptions;
+using KHost.Plugins.Sdk.Exceptions;
 using KHost.Abstractions.Models;
 using KHost.DataAccess.Repositories;
 using Microsoft.Extensions.Logging.Abstractions;

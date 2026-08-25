@@ -1,5 +1,5 @@
 using System.Linq.Expressions;
-using KHost.Abstractions.Exceptions;
+using KHost.Plugins.Sdk.Exceptions;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Repositories;
 using KHost.DataAccess.Contexts;
