@@ -34,7 +34,7 @@ namespace KHost.Domain.Services
             options.OnChange(Rebuild);
         }
 
-        public async Task<Media> LoadAndParseAsync(string filePath)
+        public async Task<Media> LoadAndParseAsync(string filePath, MediaType type = MediaType.Karaoke)
         {
             var opts = _options.CurrentValue;
             var (parsedTitle, parsedArtist) = GetTitleAndArtistFromFilename(filePath);
@@ -48,7 +48,11 @@ namespace KHost.Domain.Services
             {
                 FilePath = filePath,
                 Title = probe?.Title ?? parsedTitle,
-                Artist = probe?.Artist ?? parsedArtist ?? opts.FallbackArtistName,
+                Type = type,
+                // The fallback is only for something with a performer. A card or an ad clip has no
+                // artist to be unknown, and inventing one puts "Unknown Artist" beside every still
+                // in the pickers that name a row by title and artist.
+                Artist = probe?.Artist ?? parsedArtist ?? (HasArtist(type) ? opts.FallbackArtistName : string.Empty),
                 Duration = probe?.Duration ?? (isStill ? MediaFormats.DefaultImageDuration : null),
                 Format = Path.GetExtension(filePath).TrimStart('.').ToUpperInvariant(),
                 Status = MediaStatus.Ready,
@@ -60,6 +64,8 @@ namespace KHost.Domain.Services
 
             return media;
         }
+
+        private static bool HasArtist(MediaType type) => type is MediaType.Karaoke or MediaType.Audio;
 
         public (string Title, string? Artist) GetTitleAndArtistFromFilename(string filePath)
         {
