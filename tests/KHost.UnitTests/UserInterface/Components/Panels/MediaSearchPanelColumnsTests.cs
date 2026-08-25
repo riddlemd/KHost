@@ -32,7 +32,7 @@ public class MediaSearchPanelColumnsTests : BunitContext
         new() { Key = "thumbnail", Header = "", Kind = MediaResultColumnKind.Thumbnail, Essential = false },
         new() { Key = MediaResultColumn.TitleKey, Header = "Title" },
         new() { Key = "publisher", Header = "Published by", Essential = false },
-        new() { Key = MediaResultColumn.DurationKey, Header = "Length" },
+        new() { Key = MediaResultColumn.DurationKey, Header = "Duration" },
     ];
 
     public MediaSearchPanelColumnsTests()
@@ -94,7 +94,7 @@ public class MediaSearchPanelColumnsTests : BunitContext
         var headers = panel.FindAll("thead th").Select(th => th.TextContent.Trim()).ToArray();
 
         // Actions is the console's, appended after whatever the provider asked for.
-        Assert.Equal(["", "Title", "Published by", "Length", "Actions"], headers);
+        Assert.Equal(["", "Title", "Published by", "Duration", "Actions"], headers);
     }
 
     /// <summary>The complaint this feature exists for: the channel was computed and then dropped.</summary>
