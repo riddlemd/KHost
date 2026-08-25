@@ -44,6 +44,9 @@ namespace KHost.Domain
             serviceCollection.AddOptions<PluginLibrary.ServiceOptions>()
                 .BindConfiguration(PluginLibrary.ServiceOptions.SectionName);
 
+            serviceCollection.AddOptions<AdService.ServiceOptions>()
+                .BindConfiguration(AdService.ServiceOptions.SectionName);
+
             serviceCollection.AddSingleton(TimeProvider.System);
             serviceCollection.AddSingleton<IMessageBroker, MessageBroker>();
             serviceCollection.AddSingleton<IFlashService, FlashService>();
