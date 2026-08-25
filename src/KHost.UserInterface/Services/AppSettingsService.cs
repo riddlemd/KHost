@@ -37,6 +37,9 @@ internal sealed class AppSettingsService : IAppSettingsService
         StopFadeSeconds = (_configuration.GetValue<TimeSpan?>("Playback:StopFadeDuration") ?? TimeSpan.FromSeconds(5)).TotalSeconds,
         SyncStartLeadMilliseconds = (_configuration.GetValue<TimeSpan?>("Playback:SyncStartLead") ?? TimeSpan.FromMilliseconds(400)).TotalMilliseconds,
         SegmentSeconds = _configuration.GetValue<int?>("MediaStream:SegmentSeconds") ?? 2,
+        AdDefaultLengthSeconds = AdLengthClamp(
+            (_configuration.GetValue<TimeSpan?>("Ads:DefaultLength")
+                ?? TimeSpan.FromSeconds(AppSettings.DefaultAdLengthSeconds)).TotalSeconds),
         MediaPageSize = PageSize("Media"),
         UsersPageSize = PageSize("Users"),
         UserGroupsPageSize = PageSize("UserGroups"),
@@ -47,6 +50,11 @@ internal sealed class AppSettingsService : IAppSettingsService
 
     private int PageSize(string key, int fallback = AppSettings.DefaultPageSize) =>
         PaginationClamp(_configuration.GetValue<int?>($"Pagination:{key}") ?? fallback);
+
+    // Clamped on read as well as on save: a hand-edited zero would end every ad the instant it
+    // started, and a hand-edited hour would hold the room until someone restarted the console.
+    private static double AdLengthClamp(double seconds) =>
+        Math.Clamp(seconds, AppSettings.MinAdLengthSeconds, AppSettings.MaxAdLengthSeconds);
 
     private static int PaginationClamp(int pageSize) =>
         Math.Clamp(pageSize, AppSettings.MinPageSize, AppSettings.MaxPageSize);
@@ -74,6 +82,10 @@ internal sealed class AppSettingsService : IAppSettingsService
                 ["SyncStartLead"] = TimeSpan.FromMilliseconds(settings.SyncStartLeadMilliseconds).ToString(),
             },
             ["MediaStream"] = new Dictionary<string, object?> { ["SegmentSeconds"] = settings.SegmentSeconds },
+            ["Ads"] = new Dictionary<string, object?>
+            {
+                ["DefaultLength"] = TimeSpan.FromSeconds(AdLengthClamp(settings.AdDefaultLengthSeconds)).ToString(),
+            },
             ["Pagination"] = new Dictionary<string, object?>
             {
                 ["Media"] = PaginationClamp(settings.MediaPageSize),

@@ -3,11 +3,23 @@ using KHost.Abstractions.Services;
 using KHost.Plugins.Sdk.Messaging;
 using KHost.Plugins.Sdk.Messaging.Messages;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace KHost.Domain.Services.Ads;
 
 public class AdService : BaseService, IAdService, IDisposable
 {
+    public sealed class ServiceOptions
+    {
+        public const string SectionName = "Ads";
+
+        /// <summary>
+        /// How long an ad runs when neither the playlist entry nor the media itself answers — a
+        /// still with no voiceover. A video ad runs for its own length whatever this says.
+        /// </summary>
+        public TimeSpan DefaultLength { get; set; } = TimeSpan.FromSeconds(10);
+    }
+
     private readonly SemaphoreSlim _lock = new(1, 1);
     private readonly SubscriptionSet _subscriptions = new();
     private readonly IMessageBroker _broker;
@@ -17,6 +29,7 @@ public class AdService : BaseService, IAdService, IDisposable
     private readonly IVenuesService _venues;
     private readonly ISingerQueueService _queue;
     private readonly TimeProvider _time;
+    private readonly ServiceOptions _options;
 
     public AdService(
         ILogger<AdService> logger,
@@ -26,6 +39,7 @@ public class AdService : BaseService, IAdService, IDisposable
         IVenuesService venues,
         ISingerQueueService queue,
         TimeProvider time,
+        IOptions<ServiceOptions> options,
         IMessageBroker broker)
         : base(logger)
     {
@@ -36,6 +50,7 @@ public class AdService : BaseService, IAdService, IDisposable
         _venues = venues;
         _queue = queue;
         _time = time;
+        _options = options.Value;
 
         _playback.PerformanceEnded += OnPerformanceEnded;
 
@@ -248,10 +263,15 @@ public class AdService : BaseService, IAdService, IDisposable
     }
 
     /// <summary>
-    /// What the entry runs for when the host has not said. A video answers for itself; a still
-    /// with a voiceover runs for what is left of the clip, so the picture and the words end together.
+    /// What the entry runs for when the host has not said. A video answers for itself; a still with
+    /// a voiceover runs for what is left of the clip, so the picture and the words end together.
     /// </summary>
-    private static TimeSpan? ResolveDuration(Media? visual, Media? audio, TimeSpan audioStart)
+    /// <remarks>
+    /// A still's own duration is deliberately not read. Importing one stamps a nominal length on
+    /// the media row, which would quietly outrank the configured default and leave the setting
+    /// looking like it did nothing.
+    /// </remarks>
+    private TimeSpan? ResolveDuration(Media? visual, Media? audio, TimeSpan audioStart)
     {
         if (visual is not null && !MediaFormats.IsImage(visual.Format))
             return visual.Duration;
@@ -259,6 +279,6 @@ public class AdService : BaseService, IAdService, IDisposable
         if (audio?.Duration is { } audioLength)
             return audioLength - audioStart;
 
-        return visual?.Duration ?? (visual is not null ? MediaFormats.DefaultImageDuration : null);
+        return _options.DefaultLength;
     }
 }

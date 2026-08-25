@@ -4,6 +4,7 @@ using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using KHost.UserInterface.Components;
 using KHost.UserInterface.Components.Dialogs;
+using KHost.UserInterface.Services;
 using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -13,6 +14,7 @@ public class EditPlaylistDialogTests : BunitContext
 {
     private readonly IMediaPoolService _pools = Substitute.For<IMediaPoolService>();
     private readonly IMediaService _media = Substitute.For<IMediaService>();
+    private readonly IAppSettingsService _appSettings = Substitute.For<IAppSettingsService>();
 
     private readonly Media _bed = new()
     {
@@ -58,6 +60,11 @@ public class EditPlaylistDialogTests : BunitContext
 
         Services.AddSingleton(_pools);
         Services.AddSingleton(_media);
+
+        // The ad rows show the configured default as their placeholder, so the dialog reads it
+        // even for a break music playlist that never renders the column.
+        _appSettings.Current.Returns(new AppSettings { AdDefaultLengthSeconds = 10 });
+        Services.AddSingleton(_appSettings);
     }
 
     // The Break Music and Ads managers each open this for their own purpose, so the dialog is
@@ -81,6 +88,34 @@ public class EditPlaylistDialogTests : BunitContext
 
         Assert.DoesNotContain("When these ads play", rendered.Markup);
     }
+
+    /// <summary>
+    /// The entry already carried a length and nothing rendered it, so a host had no way to say how
+    /// long a spot should run.
+    /// </summary>
+    [Fact]
+    public void LengthColumn_IsShown_ForAnAdPlaylist()
+    {
+        var rendered = RenderDialog(WithOneEntry(PoolPurpose.Ads), PoolPurpose.Ads);
+
+        Assert.Contains("Length", rendered.FindAll("thead th").Select(th => th.TextContent.Trim()));
+    }
+
+    /// <summary>A bed runs for its own length; only an ad is cut to a slot.</summary>
+    [Fact]
+    public void LengthColumn_IsHidden_ForABreakMusicPlaylist()
+    {
+        var rendered = RenderDialog(WithOneEntry(PoolPurpose.BreakMusic));
+
+        Assert.DoesNotContain("Length", rendered.FindAll("thead th").Select(th => th.TextContent.Trim()));
+    }
+
+    private static MediaPool WithOneEntry(PoolPurpose purpose) => new()
+    {
+        Name = purpose == PoolPurpose.Ads ? "Spots" : "Beds",
+        Purpose = purpose,
+        Entries = [new MediaPoolEntry { Id = Guid.NewGuid(), MediaId = Guid.NewGuid(), Position = 0 }],
+    };
 
     [Fact]
     public void AdFields_AreShown_ForAnAdPlaylist()

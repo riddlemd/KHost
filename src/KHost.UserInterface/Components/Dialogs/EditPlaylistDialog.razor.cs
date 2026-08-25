@@ -1,5 +1,6 @@
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
+using KHost.UserInterface.Services;
 using Microsoft.AspNetCore.Components;
 
 namespace KHost.UserInterface.Components.Dialogs;
@@ -8,6 +9,7 @@ public partial class EditPlaylistDialog
 {
     [Inject] private IMediaPoolService MediaPools { get; set; } = default!;
     [Inject] private IMediaService Media { get; set; } = default!;
+    [Inject] private IAppSettingsService AppSettings { get; set; } = default!;
 
     [Parameter] public bool IsOpen { get; set; }
     [Parameter] public MediaPool? Pool { get; set; }
@@ -33,9 +35,13 @@ public partial class EditPlaylistDialog
     /// <summary>Titles for the entries already in the list, so a row can name what it plays.</summary>
     private readonly Dictionary<Guid, string> _titles = [];
 
+    /// <summary>Formats alongside them: only a video answers for its own length.</summary>
+    private readonly Dictionary<Guid, string> _formats = [];
+
     private Media? _addMedia;
     private string _addMediaText = "";
-    private string _addPoolId = "";
+    private MediaPool? _addPool;
+    private string _addPoolText = "";
 
     protected override async Task OnParametersSetAsync()
     {
@@ -55,7 +61,8 @@ public partial class EditPlaylistDialog
 
             _addMedia = null;
             _addMediaText = "";
-            _addPoolId = "";
+            _addPool = null;
+            _addPoolText = "";
 
             await LoadChoicesAsync();
         }
@@ -94,12 +101,16 @@ public partial class EditPlaylistDialog
     private async Task LoadEntryTitlesAsync()
     {
         _titles.Clear();
+        _formats.Clear();
 
         foreach (var id in _entries.SelectMany(e => new[] { e.MediaId, e.AudioMediaId })
                      .OfType<Guid>().Distinct())
         {
             if (await Media.ReadAsync(id) is { } media)
+            {
                 _titles[id] = media.Title;
+                _formats[id] = media.Format;
+            }
         }
     }
 
@@ -145,12 +156,40 @@ public partial class EditPlaylistDialog
     private void SetEntryWeight(int index, string? value)
         => _entries[index].Weight = int.TryParse(value, out var weight) && weight >= 0 ? weight : 1;
 
+    /// <summary>Blank hands the entry back to the default, which is the point of showing it as one.</summary>
+    private void SetEntryLength(int index, string? value)
+        => _entries[index].Duration = double.TryParse(value, out var seconds) && seconds > 0
+            ? TimeSpan.FromSeconds(seconds)
+            : null;
+
+    /// <summary>
+    /// What the entry runs for when its own length is blank, shown as the placeholder so a host can
+    /// see what they are inheriting before deciding to override it.
+    /// </summary>
+    private string DescribeDefaultLength(MediaPoolEntry entry)
+    {
+        // A video answers for itself; anything else falls to the configured default.
+        if (entry.MediaId is { } mediaId
+            && _formats.TryGetValue(mediaId, out var format)
+            && !MediaFormats.IsImage(format))
+        {
+            return "video";
+        }
+
+        return $"{AppSettings.Current.AdDefaultLengthSeconds:0.#}";
+    }
+
+    private Task<IReadOnlyList<MediaPool>> SearchPoolsAsync(string term)
+        => Task.FromResult<IReadOnlyList<MediaPool>>(
+            [.. _poolChoices.Where(pool => pool.Name.Contains(term, StringComparison.OrdinalIgnoreCase))]);
+
     private void AddMediaEntry()
     {
         if (_addMedia is not { } media)
             return;
 
         _titles[media.Id] = media.Title;
+        _formats[media.Id] = media.Format;
         _entries.Add(new MediaPoolEntry { Id = Guid.NewGuid(), MediaId = media.Id, Position = _entries.Count });
 
         _addMedia = null;
@@ -159,11 +198,13 @@ public partial class EditPlaylistDialog
 
     private void AddPoolEntry()
     {
-        if (!Guid.TryParse(_addPoolId, out var poolId))
+        if (_addPool is not { } pool)
             return;
 
-        _entries.Add(new MediaPoolEntry { Id = Guid.NewGuid(), ChildPoolId = poolId, Position = _entries.Count });
-        _addPoolId = "";
+        _entries.Add(new MediaPoolEntry { Id = Guid.NewGuid(), ChildPoolId = pool.Id, Position = _entries.Count });
+
+        _addPool = null;
+        _addPoolText = "";
     }
 
     private void RemoveEntry(int index) => _entries.RemoveAt(index);
