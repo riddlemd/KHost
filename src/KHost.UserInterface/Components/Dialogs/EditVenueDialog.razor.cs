@@ -22,8 +22,18 @@ public partial class EditVenueDialog
     [Parameter] public EventCallback OnOpen { get; set; }
 
     [Inject] private IMediaService Media { get; set; } = default!;
+    [Inject] private IMediaPoolService MediaPools { get; set; } = default!;
 
     private IReadOnlyList<Media> _images = [];
+    private IReadOnlyList<MediaPool> _breakMusicPools = [];
+    private IReadOnlyList<MediaPool> _adPools = [];
+
+    private Media? _brandingImage;
+    private string _brandingImageText = "";
+    private MediaPool? _breakMusicPool;
+    private string _breakMusicPoolText = "";
+    private MediaPool? _adPool;
+    private string _adPoolText = "";
 
     private bool _isNew;
     private EditVenueModel _model = new();
@@ -86,7 +96,52 @@ public partial class EditVenueDialog
         // Stills only: anything else handed to the screen as a card is a URL that serves nothing.
         // Read by type rather than paged, or a card past the first page would never be offered.
         _images = await Media.ReadAllByTypesAsync(MediaType.Image);
+
+        // Null venue id: a playlist belongs to every venue unless it was scoped to one, and this
+        // dialog may be editing a venue that is not the one currently selected.
+        _breakMusicPools = await MediaPools.ReadAllWithEntriesAsync(PoolPurpose.BreakMusic, venueId: null);
+        _adPools = await MediaPools.ReadAllWithEntriesAsync(PoolPurpose.Ads, venueId: null);
+
+        _brandingImage = _images.FirstOrDefault(image => image.Id == _model.BrandingImageMediaId);
+        _brandingImageText = _brandingImage?.Title ?? "";
+
+        _breakMusicPool = _breakMusicPools.FirstOrDefault(pool => pool.Id == _model.BreakMusicPoolId);
+        _breakMusicPoolText = _breakMusicPool?.Name ?? "";
+
+        _adPool = _adPools.FirstOrDefault(pool => pool.Id == _model.AdPoolId);
+        _adPoolText = _adPool?.Name ?? "";
     }
+
+    private void OnBreakMusicPoolChanged(MediaPool? pool)
+    {
+        _breakMusicPool = pool;
+        _model.BreakMusicPoolId = pool?.Id;
+    }
+
+    private void OnAdPoolChanged(MediaPool? pool)
+    {
+        _adPool = pool;
+        _model.AdPoolId = pool?.Id;
+    }
+
+    private Task<IReadOnlyList<MediaPool>> SearchBreakMusicPoolsAsync(string term) => MatchingAsync(_breakMusicPools, term);
+
+    private Task<IReadOnlyList<MediaPool>> SearchAdPoolsAsync(string term) => MatchingAsync(_adPools, term);
+
+    private static Task<IReadOnlyList<MediaPool>> MatchingAsync(IReadOnlyList<MediaPool> pools, string term)
+        => Task.FromResult<IReadOnlyList<MediaPool>>(
+            [.. pools.Where(pool => pool.Name.Contains(term, StringComparison.OrdinalIgnoreCase))]);
+
+    /// <summary>Clearing the field is how a venue goes back to showing no card at all.</summary>
+    private void OnBrandingImageChanged(Media? image)
+    {
+        _brandingImage = image;
+        _model.BrandingImageMediaId = image?.Id;
+    }
+
+    private Task<IReadOnlyList<Media>> SearchImagesAsync(string term)
+        => Task.FromResult<IReadOnlyList<Media>>(
+            [.. _images.Where(image => image.Title.Contains(term, StringComparison.OrdinalIgnoreCase))]);
 
     private async Task SubmitAsync()
     {
@@ -110,8 +165,6 @@ public partial class EditVenueDialog
         venue.Settings.PromptBeforeRemovingPerformance = _model.PromptBeforeRemovingPerformance;
         venue.Settings.ClearQueueOnClose = _model.ClearQueueOnClose;
         venue.Settings.QueueRotation = _model.QueueRotation;
-        // Round-tripped rather than edited here: the Break Music and Ads managers own these, and
-        // saving a venue from this dialog must not wipe what they set.
         venue.Settings.BreakMusicPoolId = _model.BreakMusicPoolId;
         venue.Settings.AdPoolId = _model.AdPoolId;
         venue.Settings.BrandingImageMediaId = _model.BrandingImageMediaId;
