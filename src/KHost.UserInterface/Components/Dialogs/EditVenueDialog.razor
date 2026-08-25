@@ -35,6 +35,7 @@
                               Search="SearchBreakMusicPoolsAsync"
                               DisplayName="@(pool => pool.Name)"
                               MinimumSearchLength="0"
+                              OpenWhenEmpty="true"
                               Placeholder="None — silence between singers" />
                 </div>
 
@@ -48,6 +49,7 @@
                               Search="SearchAdPoolsAsync"
                               DisplayName="@(pool => pool.Name)"
                               MinimumSearchLength="0"
+                              OpenWhenEmpty="true"
                               Placeholder="None — this venue runs no ads" />
                 </div>
 
@@ -61,6 +63,7 @@
                               Search="SearchImagesAsync"
                               DisplayName="@(image => image.Title)"
                               MinimumSearchLength="0"
+                              OpenWhenEmpty="true"
                               Placeholder="None — leave the screen blank" />
                 </div>
 
