@@ -325,6 +325,33 @@ public class BreakMusicServiceTests : IDisposable
         await _provider.Received(1).SkipAsync(Arg.Any<CancellationToken>());
     }
 
+    // Skipping starts the next track whichever provider is on — the library one plays what it
+    // loads, and a media-key next resumes a paused Spotify. Staying Paused left the bar offering
+    // play while the room could hear music.
+    [Fact]
+    public async Task SkipAsync_WhilePaused_ReportsPlaying()
+    {
+        await PlayingAsync();
+        await _service.PauseAsync();
+
+        await _service.SkipAsync();
+
+        Assert.Equal(BreakMusicState.Playing, _service.State);
+    }
+
+    // Suspended is break music yielding to a singer. Promoting it would claim the bed is playing
+    // over the song, and it comes back on its own when the song ends.
+    [Fact]
+    public async Task SkipAsync_WhileSuspended_StaysSuspended()
+    {
+        await PlayingAsync();
+        await _service.SuspendAsync();
+
+        await _service.SkipAsync();
+
+        Assert.Equal(BreakMusicState.Suspended, _service.State);
+    }
+
     [Fact]
     public async Task StartAsync_AnnouncesBreakMusicChanged()
     {

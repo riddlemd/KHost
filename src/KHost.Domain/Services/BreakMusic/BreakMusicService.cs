@@ -139,6 +139,13 @@ public class BreakMusicService : BaseService, IBreakMusicService, IDisposable
 
         await provider.SkipAsync(cancellationToken);
 
+        // Skipping is a request to hear the next track, and every provider starts it: the library
+        // one plays what it loads, and a media-key next resumes a paused Spotify. Left on Paused,
+        // the bar went on offering play while the room could already hear the music. Suspended is
+        // not promoted — that one is yielding to a singer, and it comes back on its own.
+        if (State == BreakMusicState.Paused)
+            State = BreakMusicState.Playing;
+
         _broker.Announce(new BreakMusicChanged());
     }
 
