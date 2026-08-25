@@ -36,21 +36,10 @@
                             </p>
                         }
 
-                        <div class="kh-venue-settings__row">
-                            <label for="break-music-playlist" class="kh-form-label">Playlist this venue uses</label>
-                            <select id="break-music-playlist" class="kh-form-select"
-                                    value="@(_activePoolId?.ToString() ?? "")" @onchange="OnPlaylistChangedAsync">
-                                <option value="">None &mdash; silence between singers</option>
-                                @foreach (var pool in _pools)
-                                {
-                                    <option value="@pool.Id">@pool.Name</option>
-                                }
-                            </select>
-                        </div>
-
                         <p class="kh-break-music-manager__hint">
-                            Applies to <span class="kh-emphasis">@(_venueName ?? "no venue selected")</span>.
-                            Other venues are set up in the Venues Manager.
+                            <span class="kh-emphasis">@(_venueName ?? "No venue selected")</span> plays
+                            <span class="kh-emphasis">@(_activePoolName ?? "nothing")</span> between singers,
+                            chosen on the venue itself under Settings &rsaquo; Venues Manager.
                         </p>
                     </div>
                 </div>

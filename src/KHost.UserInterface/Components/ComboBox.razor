@@ -14,6 +14,7 @@
            data-has-rows="@(_results.Count > 0 ? "true" : "false")"
            data-kh-shortcut="@ShortcutId"
            @oninput="OnQueryChangedAsync"
+           @onfocus="OnFocusAsync"
            @onfocusout="OnFocusOut"
            @onkeydown="OnKeyDownAsync" />
 
@@ -48,6 +49,7 @@
                                 @onclick="() => SelectAsync(item)">@DisplayName(item)</button>
                     </li>
                 }
+
             }
         </ul>
     }

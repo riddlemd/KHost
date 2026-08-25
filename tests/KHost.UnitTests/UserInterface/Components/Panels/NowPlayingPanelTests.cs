@@ -4,6 +4,7 @@ using KHost.Domain.Services.Messaging;
 using Bunit;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
+using KHost.Plugins.Sdk.Services;
 using KHost.UserInterface.Components.Panels;
 using KHost.UserInterface.Services;
 using Microsoft.Extensions.DependencyInjection;
@@ -15,6 +16,7 @@ public class NowPlayingPanelTests : BunitContext
     private const string ArtistSelector = ".kh-now-playing__artist";
 
     private readonly IPlaybackService _playback = Substitute.For<IPlaybackService>();
+    private readonly IBreakMusicService _breakMusic = Substitute.For<IBreakMusicService>();
     private readonly MessageBroker _broker = new(NullLogger<MessageBroker>.Instance);
 
     public NowPlayingPanelTests()
@@ -29,6 +31,45 @@ public class NowPlayingPanelTests : BunitContext
         Services.AddSingleton<IMessageBroker>(_broker);
         Services.AddSingleton(Substitute.For<ISingerQueueService>());
         Services.AddSingleton(Substitute.For<IDialogService>());
+
+        // The break music controls ride this panel's header, so their services have to resolve
+        // even in tests that only care about the song. The substitute names no provider, which is
+        // what keeps the bar from rendering into these assertions.
+        Services.AddSingleton(_breakMusic);
+        Services.AddSingleton(Substitute.For<IAdService>());
+        Services.AddSingleton(Substitute.For<IFlashService>());
+    }
+
+    /// <summary>
+    /// The break music controls ride this panel's header rather than a strip of their own, so the
+    /// console does not give up a row to three buttons.
+    /// </summary>
+    [Fact]
+    public void BreakMusicControls_RenderInsideThisPanelsHeader()
+    {
+        _breakMusic.ActiveProvider.Returns(Substitute.For<IBreakMusicProvider>());
+
+        Load(Performance(), MediaWithArtist("Toto", "Africa"));
+
+        var cut = Render<NowPlayingPanel>();
+
+        Assert.NotEmpty(cut.FindAll(".kh-card__header .kh-break-music-bar .kh-break-music-bar__controls button"));
+    }
+
+    [Fact]
+    public void BreakMusicControls_AreNotRenderedOutsideTheHeader()
+    {
+        _breakMusic.ActiveProvider.Returns(Substitute.For<IBreakMusicProvider>());
+
+        Load(Performance(), MediaWithArtist("Toto", "Africa"));
+
+        var cut = Render<NowPlayingPanel>();
+
+        // Every bar the panel renders has to be the one in the header — a second, or a stray one
+        // in the body, would be the old strip come back.
+        Assert.Equal(
+            cut.FindAll(".kh-break-music-bar").Count,
+            cut.FindAll(".kh-card__header .kh-break-music-bar").Count);
     }
 
     [Fact]

@@ -10,35 +10,6 @@
         <div class="kh-card">
             <div class="kh-card__header">
                 <span class="kh-card__title"><Icon Name="megaphone" /> Ads Manager</span>
-            </div>
-
-            <div class="kh-card__body">
-                <div class="kh-venue-settings">
-                    <div class="kh-venue-settings__section kh-venue-settings__section--head">
-                        <div class="kh-venue-settings__row">
-                            <label for="ad-playlist" class="kh-form-label">Playlist this venue runs</label>
-                            <select id="ad-playlist" class="kh-form-select"
-                                    value="@(_activePoolId?.ToString() ?? "")" @onchange="OnPlaylistChangedAsync">
-                                <option value="">None &mdash; this venue runs no ads</option>
-                                @foreach (var pool in _pools)
-                                {
-                                    <option value="@pool.Id">@pool.Name</option>
-                                }
-                            </select>
-                        </div>
-
-                        <p class="kh-ads-manager__hint">
-                            Applies to <span class="kh-emphasis">@(_venueName ?? "no venue selected")</span>.
-                            An ad never interrupts a singer &mdash; it waits for the gap after a song.
-                        </p>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="kh-card">
-            <div class="kh-card__header">
-                <span class="kh-card__title"><Icon Name="collection-play" /> Playlists</span>
                 <button class="kh-button kh-button--primary" @onclick="OpenAddDialog" type="button">
                     <Icon Name="plus-lg" /> Add Playlist
                 </button>

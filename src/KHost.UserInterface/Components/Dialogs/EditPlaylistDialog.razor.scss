@@ -26,11 +26,23 @@
         .kh-button {
             flex-shrink: 0;
         }
+
+        // Collapsed, the row holds one button and nothing to stretch, so it goes to the end —
+        // where the entries table's own actions column already is.
+        &--collapsed {
+            justify-content: flex-end;
+        }
     }
 
     // Held narrow so the entry description keeps the width.
     &__weight {
         width: 4rem;
+        text-align: right;
+    }
+
+    // Wider than the weight, which only ever holds one or two digits.
+    &__duration {
+        width: 5.5rem;
         text-align: right;
     }
 

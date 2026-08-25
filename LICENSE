@@ -5,6 +5,16 @@ Copyright (c) 2026 Michael Riddle
 KHost is licensed under the PolyForm Shield License 1.0.0, the full text of
 which is reproduced below.
 
+EXCEPTION — the plugin SDK is MIT, not PolyForm Shield. Everything under
+src/KHost.Plugins.Sdk/ (the KHost.Plugins.Sdk project and the assembly it
+builds) is licensed under the MIT License instead, per the LICENSE file in
+that directory. A plugin is compiled against that assembly and ships a copy of
+it, so it carries no non-compete term: plugin authors may license their own
+work however they wish, including under a copyleft licence, and redistribute
+KHost.Plugins.Sdk.dll with it. That permission covers the SDK alone — the rest
+of KHost, including the application that loads the plugin, remains under the
+terms below.
+
 In short: you may use, modify, and self-host KHost for any purpose, including
 commercial use (for example, running it to host your own karaoke events), but
 you may NOT use it to provide a product or service that competes with KHost —

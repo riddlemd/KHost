@@ -48,6 +48,32 @@ public partial class MediaSearchPanel : IDisposable
         await UpdateQueuedMediaAsync();
     }
 
+    /// <summary>
+    /// Marks the cell so the narrow-panel rules can shed it. The first column carries the fill
+    /// class instead — it is the one that should give up width before any other is dropped.
+    /// </summary>
+    /// <summary>
+    /// Classes for a column's header and cells. The table is laid out fixed, so the kinds given a
+    /// width keep it and the text columns share what is left. Auto layout could not be talked
+    /// into that: every hint that rescued one column took the width back out of another.
+    /// </summary>
+    private static string ColumnClass(IReadOnlyList<MediaResultColumn> columns, int index)
+    {
+        var classes = columns[index].EffectiveKind switch
+        {
+            MediaResultColumnKind.Thumbnail => "kh-media-search-panel__col--thumb",
+            MediaResultColumnKind.Duration => "kh-media-search-panel__col--duration",
+            _ => "kh-media-search-panel__col--text",
+        };
+
+        var shed = MediaResultColumnSet.ShedOrder(columns, index);
+
+        if (shed > 0)
+            classes += $" kh-media-search-panel__col--shed{Math.Min(shed, 2)}";
+
+        return classes;
+    }
+
     private Task RunSearchAsync()
         => RunSearchCoreAsync("the library", service => service.SearchAsync(_query));
 
