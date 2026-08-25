@@ -394,3 +394,9 @@ setInterval(() => {
 if (window.external && window.external.receiveMessage) {
     window.external.receiveMessage(handleCommand);
 }
+
+// Last line on purpose: everything above is wired, so the host may now send. Until this arrives
+// the screen has not told the host it exists — a command pushed into a web view that has no page
+// yet takes the whole process down inside Photino's native SendWebMessage, and the page is large
+// enough that the gap between the window appearing and this running is real.
+send({ type: 'ready' });
