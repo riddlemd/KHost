@@ -25,7 +25,9 @@ keep working, the maintainer must hold the rights to relicense every line in the
 project. Therefore, **by submitting a contribution you agree that:**
 
 - You license your contribution to the project and its users under the same
-  **PolyForm Shield License 1.0.0** that covers KHost; **and**
+  **PolyForm Shield License 1.0.0** that covers KHost — except for contributions
+  to `src/KHost.Plugins.Sdk/`, which you license under the **MIT License**, the
+  license that project carries; **and**
 - You grant **Michael Riddle** (the maintainer/licensor) a perpetual, worldwide,
   non-exclusive, royalty-free, irrevocable license to use, reproduce, modify,
   distribute, and **relicense** your contribution under any terms, **including
@@ -38,6 +40,10 @@ This lets the project remain free and source-available for the community while
 allowing the maintainer to offer the commercial/SaaS/OEM licenses described in
 the [README](README.md#license). You retain copyright in your contribution; you
 are simply granting these licenses.
+
+The plugin SDK is carved out because a plugin ships a copy of that assembly. A
+non-compete term on it would forbid copyleft plugins outright, so every line of
+`src/KHost.Plugins.Sdk/` has to be MIT — including yours.
 
 ## Sign your commits (DCO)
 
