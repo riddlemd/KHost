@@ -113,6 +113,29 @@ public class MediaResultColumnSetTests
     /// The badge and the pin ride the column that names the row. A picture names nothing, so a
     /// provider leading with one does not lose the title to it.
     /// </summary>
+    /// <summary>
+    /// Value reads the reserved keys off the entity while the panel lays a column out by its kind.
+    /// A provider naming the duration column without also declaring the kind — which is the
+    /// obvious way to write it — had the two disagree, and the length was laid out as free text
+    /// and given a share of the row meant for titles.
+    /// </summary>
+    [Fact]
+    public void EffectiveKind_TheReservedDurationKey_IsADurationWhateverWasDeclared()
+    {
+        var declaredBare = new MediaResultColumn { Key = MediaResultColumn.DurationKey, Header = "Length" };
+
+        Assert.Equal(MediaResultColumnKind.Text, declaredBare.Kind);
+        Assert.Equal(MediaResultColumnKind.Duration, declaredBare.EffectiveKind);
+    }
+
+    [Fact]
+    public void EffectiveKind_AnyOtherColumn_KeepsWhatItDeclared()
+    {
+        Assert.Equal(MediaResultColumnKind.Thumbnail, Thumb.EffectiveKind);
+        Assert.Equal(MediaResultColumnKind.Text, Publisher.EffectiveKind);
+        Assert.Equal(MediaResultColumnKind.Text, Title.EffectiveKind);
+    }
+
     [Fact]
     public void PrimaryIndex_TheFirstColumnIsAPicture_SkipsPastIt()
         => Assert.Equal(1, MediaResultColumnSet.PrimaryIndex(YouTubeShape));

@@ -65,7 +65,7 @@ public static class MediaResultColumnSet
     {
         for (var i = 0; i < columns.Count; i++)
         {
-            if (columns[i].Kind != MediaResultColumnKind.Thumbnail)
+            if (columns[i].EffectiveKind != MediaResultColumnKind.Thumbnail)
                 return i;
         }
 
