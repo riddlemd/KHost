@@ -26,6 +26,7 @@ public partial class BreakMusicManagerPage : IDisposable
     private Guid? _venueId;
     private string? _venueName;
     private Guid? _activePoolId;
+    private string? _activePoolName;
     private string? _providerSource;
 
     protected override async Task OnInitializedAsync()
@@ -60,6 +61,7 @@ public partial class BreakMusicManagerPage : IDisposable
         _providerSource = venue?.Settings.BreakMusicProvider ?? BreakMusic.ActiveProvider?.SourceName;
 
         _pools = [.. (await MediaPools.ReadAllWithEntriesAsync(PoolPurpose.BreakMusic, _venueId)).OrderBy(p => p.Name)];
+        _activePoolName = _pools.FirstOrDefault(pool => pool.Id == _activePoolId)?.Name;
     }
 
     /// <summary>
@@ -78,13 +80,6 @@ public partial class BreakMusicManagerPage : IDisposable
         // Written to the venue as well as switched live, or the choice is forgotten on restart.
         await BreakMusic.SetActiveProviderAsync(source);
         await SaveVenueAsync(settings => settings.BreakMusicProvider = source);
-    }
-
-    private async Task OnPlaylistChangedAsync(ChangeEventArgs e)
-    {
-        var poolId = Guid.TryParse(e.Value?.ToString(), out var id) ? id : (Guid?)null;
-
-        await SaveVenueAsync(settings => settings.BreakMusicPoolId = poolId);
     }
 
     private async Task SaveVenueAsync(Action<Venue.VenueSettings> apply)
