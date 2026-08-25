@@ -82,8 +82,7 @@ public partial class AddMediaFileDialog
 
         try
         {
-            var media = await Parser.LoadAndParseAsync(path);
-            media.Type = _type;
+            var media = await Parser.LoadAndParseAsync(path, _type);
             media.ImageScaling = _scaling;
 
             await Media.CreateAsync(media);
