@@ -83,7 +83,7 @@ public class BreakMusicService : BaseService, IBreakMusicService, IDisposable
         }
 
         // Suspended is the host's own business and never comes back from a provider.
-        State = playback switch
+        var adopted = playback switch
         {
             BreakMusicPlayback.Playing => BreakMusicState.Playing,
             BreakMusicPlayback.Paused => BreakMusicState.Paused,
@@ -91,7 +91,14 @@ public class BreakMusicService : BaseService, IBreakMusicService, IDisposable
             _ => State,
         };
 
-        if (playback is not null)
+        // Said once per change, not once per look. Startup asks and the watcher binding says
+        // Spotify is there, so the same answer arrives twice within a second — and a provider
+        // announcing a track turnover is a look whose transport usually has not moved at all.
+        var changed = adopted != State;
+
+        State = adopted;
+
+        if (playback is not null && changed)
             Logger.LogInformation("{Provider} reports it is {Playback}", provider.SourceName, playback);
     }
 
