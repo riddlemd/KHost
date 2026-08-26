@@ -22,12 +22,19 @@ public class PluginsManagerPageTests : BunitContext
     private const string SaveButtonSelector = "button[type=submit]";
     private const string SecretStateSelector = ".kh-plugins-manager__secret-state";
     private const string ChipSelector = ".kh-plugins-manager__chip";
+    private const string AvailableTabSelector = ".kh-plugins-manager__tab:last-child";
+    private const string AvailableRowSelector = ".kh-plugins-manager__head--static";
+    // The aside, not the row: the version chip beside the name is a .kh-badge too.
+    private const string AvailableBadgeSelector = ".kh-plugins-manager__head--static .kh-plugins-manager__aside .kh-badge";
 
     private static readonly Guid PluginId = new("11111111-1111-4111-8111-111111111111");
 
     private readonly IPluginsService _pluginsService = Substitute.For<IPluginsService>();
     private readonly MessageBroker _broker = new(NullLogger<MessageBroker>.Instance);
     private readonly IExternalLinkService _externalLinks = Substitute.For<IExternalLinkService>();
+    private readonly IPluginCatalogService _catalog = Substitute.For<IPluginCatalogService>();
+    private readonly IPluginInstallerService _installer = Substitute.For<IPluginInstallerService>();
+    private readonly IDialogService _dialogs = Substitute.For<IDialogService>();
 
     public PluginsManagerPageTests()
     {
@@ -37,6 +44,12 @@ public class PluginsManagerPageTests : BunitContext
         Services.AddSingleton(_pluginsService);
         Services.AddSingleton<IMessageBroker>(_broker);
         Services.AddSingleton(_externalLinks);
+        Services.AddSingleton(_catalog);
+        Services.AddSingleton(_installer);
+        Services.AddSingleton(_dialogs);
+
+        _installer.Snapshot().Returns([]);
+        _installer.Staged().Returns(PluginStagingState.Empty);
     }
 
     [Fact]
@@ -295,6 +308,95 @@ public class PluginsManagerPageTests : BunitContext
         => (Dictionary<string, JsonElement>)_pluginsService.ReceivedCalls()
             .Single(c => c.GetMethodInfo().Name == nameof(IPluginsService.SaveSettingsAsync))
             .GetArguments()[1]!;
+
+    /// <summary>Renders the page and switches to the browse list, which is where a catalog entry shows.</summary>
+    private IRenderedComponent<PluginsManagerPage> RenderAvailable(params PluginCatalogEntry[] entries)
+    {
+        _catalog.Current.Returns(new PluginCatalogSnapshot
+        {
+            Catalog = new PluginCatalog { SchemaVersion = 1, Plugins = [.. entries] },
+            FetchedUtc = new DateTime(2026, 8, 25, 12, 0, 0, DateTimeKind.Utc),
+        });
+
+        var cut = Render<PluginsManagerPage>();
+
+        cut.Find(AvailableTabSelector).Click();
+
+        return cut;
+    }
+
+    private static PluginCatalogEntry CatalogEntry(Guid id, string name, params PluginCatalogRelease[] releases)
+        => new() { Id = id, Name = name, Releases = [.. releases] };
+
+    private static PluginCatalogRelease CatalogRelease(
+        string version,
+        int apiVersion = 1,
+        string sha256 = "abc123",
+        string url = "https://example.test/plugin.zip")
+        => new() { Version = version, ApiVersion = apiVersion, Url = url, Sha256 = sha256 };
+
+    [Fact]
+    public void AvailableRow_ReleaseWithNoChecksum_ReadsNotVerifiableRatherThanNotCompatible()
+    {
+        Arrange(Plugin(PluginStatus.Loaded), enabled: true);
+
+        // Both leave nothing installable, and the two are not the same problem: "not compatible"
+        // would send a host looking for a KHost upgrade that changes nothing here.
+        var cut = RenderAvailable(CatalogEntry(Guid.NewGuid(), "Unsigned", CatalogRelease("1.0.0", sha256: "")));
+
+        Assert.Equal("Not verifiable", cut.Find(AvailableBadgeSelector).TextContent.Trim());
+    }
+
+    [Fact]
+    public void AvailableRow_ReleaseServedOverPlainHttp_ReadsNotVerifiable()
+    {
+        Arrange(Plugin(PluginStatus.Loaded), enabled: true);
+
+        var cut = RenderAvailable(CatalogEntry(Guid.NewGuid(), "Insecure",
+            CatalogRelease("1.0.0", url: "http://example.test/plugin.zip")));
+
+        Assert.Equal("Not verifiable", cut.Find(AvailableBadgeSelector).TextContent.Trim());
+    }
+
+    [Fact]
+    public void AvailableRow_EveryReleaseTargetsAnotherApi_ReadsNotCompatible()
+    {
+        Arrange(Plugin(PluginStatus.Loaded), enabled: true);
+
+        var cut = RenderAvailable(CatalogEntry(Guid.NewGuid(), "Future", CatalogRelease("1.0.0", apiVersion: 99)));
+
+        Assert.Equal("Not compatible", cut.Find(AvailableBadgeSelector).TextContent.Trim());
+    }
+
+    [Fact]
+    public void AvailableRow_NotInstalled_OffersInstall()
+    {
+        Arrange(Plugin(PluginStatus.Loaded), enabled: true);
+
+        var cut = RenderAvailable(CatalogEntry(Guid.NewGuid(), "KaraFun", CatalogRelease("2.0.0")));
+
+        Assert.Contains("Install", cut.Find($"{AvailableRowSelector} button.kh-button").TextContent);
+    }
+
+    [Fact]
+    public void AvailableRow_NewerThanTheInstalledVersion_OffersUpdate()
+    {
+        Arrange(Plugin(PluginStatus.Loaded), enabled: true);
+
+        var cut = RenderAvailable(CatalogEntry(PluginId, "Test Plugin", CatalogRelease("2.0.0")));
+
+        Assert.Contains("Update", cut.Find($"{AvailableRowSelector} button.kh-button").TextContent);
+    }
+
+    [Fact]
+    public void AvailableRow_SameVersionAsTheInstalledOne_ReadsInstalled()
+    {
+        Arrange(Plugin(PluginStatus.Loaded), enabled: true);
+
+        var cut = RenderAvailable(CatalogEntry(PluginId, "Test Plugin", CatalogRelease("1.0.0")));
+
+        Assert.Equal("Installed", cut.Find(AvailableBadgeSelector).TextContent.Trim());
+    }
 
     private void Arrange(DiscoveredPlugin plugin, bool enabled, Dictionary<string, JsonElement>? stored = null)
     {
