@@ -28,6 +28,20 @@ public interface IBreakMusicProvider
     /// </summary>
     BreakMusicTrack? CurrentTrack { get; }
 
+    /// <summary>
+    /// What this is doing right now, or null when the provider cannot tell. A provider driving
+    /// another app can already be playing before the host asks — it was left running, or the host
+    /// drove that app themselves — and the console showing the bed as off while the room hears it
+    /// is the least of it: the singer gets a song over the top.
+    /// </summary>
+    /// <remarks>
+    /// Defaulted to null so a provider that cannot look need not implement it. Null means "cannot
+    /// tell", which is not the same as <see cref="BreakMusicPlayback.Stopped"/> — the host trusts
+    /// its own state for the first and the provider's for the second.
+    /// </remarks>
+    Task<BreakMusicPlayback?> ReadPlaybackAsync(CancellationToken cancellationToken = default)
+        => Task.FromResult<BreakMusicPlayback?>(null);
+
     /// <summary>False when there was nothing to play, or nowhere to play it.</summary>
     Task<bool> StartAsync(CancellationToken cancellationToken = default);
 

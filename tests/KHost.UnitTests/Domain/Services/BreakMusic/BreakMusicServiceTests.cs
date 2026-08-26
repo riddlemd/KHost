@@ -231,6 +231,103 @@ public class BreakMusicServiceTests : IDisposable
         Assert.Equal(BreakMusicState.Paused, _service.State);
     }
 
+    // A provider driving another app outlives this process. Starting at Stopped left the console
+    // saying the bed was off while the room could hear it.
+    [Fact]
+    public async Task InitializeAsync_ProviderIsAlreadyPlaying_AdoptsThat()
+    {
+        _provider.ReadPlaybackAsync(Arg.Any<CancellationToken>()).Returns(BreakMusicPlayback.Playing);
+
+        await _service.InitializeAsync();
+
+        Assert.Equal(BreakMusicState.Playing, _service.State);
+    }
+
+    [Fact]
+    public async Task InitializeAsync_ProviderIsPaused_AdoptsThat()
+    {
+        _provider.ReadPlaybackAsync(Arg.Any<CancellationToken>()).Returns(BreakMusicPlayback.Paused);
+
+        await _service.InitializeAsync();
+
+        Assert.Equal(BreakMusicState.Paused, _service.State);
+    }
+
+    // Null is "cannot tell", which is not the same as "nothing is playing".
+    [Fact]
+    public async Task InitializeAsync_ProviderCannotTell_LeavesTheStateAlone()
+    {
+        _provider.ReadPlaybackAsync(Arg.Any<CancellationToken>()).Returns((BreakMusicPlayback?)null);
+
+        await _service.InitializeAsync();
+
+        Assert.Equal(BreakMusicState.Stopped, _service.State);
+    }
+
+    // The console must still come up when the other app will not answer.
+    [Fact]
+    public async Task InitializeAsync_ProviderThrowsOnTheLook_StillInitialises()
+    {
+        _provider.ReadPlaybackAsync(Arg.Any<CancellationToken>())
+            .Returns<BreakMusicPlayback?>(_ => throw new InvalidOperationException("no"));
+
+        await _service.InitializeAsync();
+
+        Assert.Equal(_provider, _service.ActiveProvider);
+    }
+
+    // The read runs off the broker's chain, so the announcement that follows it is what says the
+    // service has caught up. Waiting on that rather than on a delay keeps this from being a race.
+    private async Task PublishProviderMovedAsync()
+    {
+        var caughtUp = new TaskCompletionSource();
+        using var subscription = _broker.Subscribe<BreakMusicChanged>(_ => caughtUp.TrySetResult());
+
+        await _broker.PublishAsync(new BreakMusicTrackChanged(nameof(LibraryBreakMusicProvider)));
+
+        await caughtUp.Task.WaitAsync(TimeSpan.FromSeconds(5));
+    }
+
+    // What a host pressing pause in the other app's own window looks like from here: the provider
+    // says it moved, and this service asks what it moved to rather than assuming a track change.
+    [Fact]
+    public async Task ProviderAnnouncesItMoved_TransportChangedToo_FollowsIt()
+    {
+        await PlayingAsync();
+        _provider.ReadPlaybackAsync(Arg.Any<CancellationToken>()).Returns(BreakMusicPlayback.Paused);
+
+        await PublishProviderMovedAsync();
+
+        Assert.Equal(BreakMusicState.Paused, _service.State);
+    }
+
+    // Suspended is this service's own doing and the song that caused it is still playing. A
+    // provider going quiet underneath must not be read as the host wanting the bed back.
+    [Fact]
+    public async Task ProviderAnnouncesItMoved_WhileSuspended_StaysSuspended()
+    {
+        await PlayingAsync();
+        await _service.SuspendAsync();
+        _provider.ReadPlaybackAsync(Arg.Any<CancellationToken>()).Returns(BreakMusicPlayback.Stopped);
+
+        await PublishProviderMovedAsync();
+
+        Assert.Equal(BreakMusicState.Suspended, _service.State);
+    }
+
+    // The song was going to play over the top of music this service never started.
+    [Fact]
+    public async Task SuspendAsync_ProviderIsPlayingButThisStateSaysStopped_SuspendsAnyway()
+    {
+        await _service.InitializeAsync();
+        _provider.ReadPlaybackAsync(Arg.Any<CancellationToken>()).Returns(BreakMusicPlayback.Playing);
+
+        await _service.SuspendAsync();
+
+        Assert.Equal(BreakMusicState.Suspended, _service.State);
+        await _provider.Received(1).StopAsync(Arg.Any<TimeSpan?>(), Arg.Any<CancellationToken>());
+    }
+
     [Fact]
     public async Task RestoreAsync_AfterSuspendingFromPlaying_PlaysAgain()
     {
@@ -365,15 +462,23 @@ public class BreakMusicServiceTests : IDisposable
         Assert.Equal(1, raised);
     }
 
+    // Announced off the broker's chain now, so the count is taken once it has actually landed
+    // rather than the instant the publish returns.
     [Fact]
     public async Task TrackChangedOnTheActiveProvider_AnnouncesBreakMusicChanged()
     {
         await _service.InitializeAsync();
 
         var raised = 0;
-        using var subscription = _broker.Subscribe<BreakMusicChanged>(_ => raised++);
+        var landed = new TaskCompletionSource();
+        using var subscription = _broker.Subscribe<BreakMusicChanged>(_ =>
+        {
+            raised++;
+            landed.TrySetResult();
+        });
 
         await _broker.PublishAsync(new BreakMusicTrackChanged(_provider.SourceName));
+        await landed.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
         Assert.Equal(1, raised);
     }
