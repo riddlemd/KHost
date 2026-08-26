@@ -54,6 +54,9 @@ internal static class Program
         if (release.Prerelease && !options.IncludePrerelease)
             return Fail("That release is a prerelease. Pass --include-prerelease to list it anyway.");
 
+        if (!PluginRid.IsKnown(options.Rid))
+            return Fail($"'{options.Rid}' is not a platform this host recognises; use win, osx or linux.");
+
         if (SelectAsset(release, options.Asset) is not { } asset)
             return Fail("Could not choose an asset. Name one with --asset.");
 
@@ -109,6 +112,7 @@ internal static class Program
                 Url = asset.BrowserDownloadUrl,
                 Sha256 = sha256,
                 SizeBytes = asset.Size,
+                Rid = options.Rid,
             },
         });
 
