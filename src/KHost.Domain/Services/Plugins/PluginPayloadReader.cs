@@ -8,9 +8,8 @@ using System.Text.Json;
 namespace KHost.Domain.Services.Plugins;
 
 /// <summary>
-/// The rules a plugin zip has to satisfy. Shared by the installer and the catalog-sync tool on
-/// purpose: the tool exists to reject a release the host would refuse, so the two applying
-/// different rules is the one way it could be useless.
+/// The rules a plugin zip has to satisfy. Shared by the installer and the catalog-sync tool: the
+/// tool exists to reject a release the host would refuse, so the two must not drift.
 /// </summary>
 public class PluginPayloadReader : IPluginPayloadReader
 {
