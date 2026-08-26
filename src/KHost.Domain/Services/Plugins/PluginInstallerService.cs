@@ -6,7 +6,6 @@ using KHost.Plugins.Sdk.Messaging.Messages;
 using KHost.Plugins.Sdk.Models;
 using Microsoft.Extensions.Logging;
 using System.Collections.Concurrent;
-using System.IO.Compression;
 using System.Security.Cryptography;
 using System.Text.Json;
 
@@ -16,10 +15,9 @@ public class PluginInstallerService : BaseService, IPluginInstallerService
 {
     public const string HttpClientName = "PluginDownload";
 
-    /// <summary>A plugin is a handful of assemblies. These bound a hostile or broken publisher —
-    /// the compressed cap covers the download, the expanded one a zip that unpacks to fill the disk.</summary>
+    /// <summary>A plugin is a handful of assemblies. Bounds the download from a hostile or broken
+    /// publisher; the expanded size is bounded by <see cref="PluginPayloadReader.MaxExpandedBytes"/>.</summary>
     private const long MaxPayloadBytes = 64L * 1024 * 1024;
-    private const long MaxExpandedBytes = 256L * 1024 * 1024;
     private const int RecentCap = 20;
 
     private readonly ConcurrentDictionary<Guid, ActiveInstall> _active = new();
@@ -28,6 +26,7 @@ public class PluginInstallerService : BaseService, IPluginInstallerService
 
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly IPluginStagingArea _staging;
+    private readonly IPluginPayloadReader _payload;
     private readonly IMessageBroker _broker;
     private readonly TimeProvider _timeProvider;
 
@@ -35,12 +34,14 @@ public class PluginInstallerService : BaseService, IPluginInstallerService
         ILogger<PluginInstallerService> logger,
         IHttpClientFactory httpClientFactory,
         IPluginStagingArea staging,
+        IPluginPayloadReader payload,
         TimeProvider timeProvider,
         IMessageBroker broker)
         : base(logger)
     {
         _httpClientFactory = httpClientFactory;
         _staging = staging;
+        _payload = payload;
         _timeProvider = timeProvider;
         _broker = broker;
     }
@@ -102,16 +103,9 @@ public class PluginInstallerService : BaseService, IPluginInstallerService
 
             SetState(entry.Id, PluginInstallState.Verifying);
 
-            var payload = Path.Combine(work, "payload");
+            var contents = _payload.Unpack(zipPath, Path.Combine(work, "payload"), entry.Id);
 
-            Extract(zipPath, payload);
-
-            var root = FindManifestRoot(payload)
-                ?? throw new InvalidOperationException($"The download contains no {PluginLoader.ManifestFileName}.");
-
-            Validate(root, entry);
-
-            _staging.Stage(root, entry.Id);
+            _staging.Stage(contents.Root, entry.Id);
 
             Logger.LogInformation("Plugin '{Name}' {Version} staged; restart required", info.Name, release.Version);
 
@@ -198,72 +192,6 @@ public class PluginInstallerService : BaseService, IPluginInstallerService
         }
 
         return Convert.ToHexString(hasher.GetHashAndReset()).ToLowerInvariant();
-    }
-
-    private static void Extract(string zipPath, string destination)
-    {
-        Directory.CreateDirectory(destination);
-
-        var root = Path.GetFullPath(destination) + Path.DirectorySeparatorChar;
-
-        using var archive = ZipFile.OpenRead(zipPath);
-
-        long expanded = 0;
-
-        // Every entry is checked before a byte is written: a zip that escapes its destination or
-        // expands past the cap must not leave half its contents on disk.
-        foreach (var entry in archive.Entries)
-        {
-            expanded += entry.Length;
-
-            if (expanded > MaxExpandedBytes)
-                throw new InvalidOperationException("The download expands to more than this host will accept.");
-
-            if (entry.FullName.EndsWith('/') || entry.FullName.EndsWith('\\'))
-                continue;
-
-            if (!Path.GetFullPath(Path.Combine(destination, entry.FullName)).StartsWith(root, StringComparison.Ordinal))
-                throw new InvalidOperationException($"The download writes outside its folder ('{entry.FullName}').");
-        }
-
-        archive.ExtractToDirectory(destination);
-    }
-
-    /// <summary>A release zip commonly wraps its contents in one folder named for the tag.</summary>
-    private static string? FindManifestRoot(string extracted)
-    {
-        if (File.Exists(Path.Combine(extracted, PluginLoader.ManifestFileName)))
-            return extracted;
-
-        var children = Directory.GetDirectories(extracted);
-
-        return children.Length == 1 && File.Exists(Path.Combine(children[0], PluginLoader.ManifestFileName))
-            ? children[0]
-            : null;
-    }
-
-    private static void Validate(string root, PluginCatalogEntry entry)
-    {
-        var manifestPath = Path.Combine(root, PluginLoader.ManifestFileName);
-
-        var manifest = JsonSerializer.Deserialize<PluginManifest>(File.ReadAllText(manifestPath), JsonSerializerOptions.Web)
-            ?? throw new InvalidOperationException($"{PluginLoader.ManifestFileName} is empty.");
-
-        if (manifest.Id != entry.Id)
-            throw new InvalidOperationException($"The download declares plugin id {manifest.Id}, but the catalog lists {entry.Id}.");
-
-        if (manifest.ApiVersion != PluginApi.CurrentVersion)
-            throw new InvalidOperationException($"Requires plugin API v{manifest.ApiVersion}; this host supports v{PluginApi.CurrentVersion}.");
-
-        // The manifest came off the network and the loader hands EntryAssembly straight to
-        // LoadFromAssemblyPath, so a traversing name would load an assembly from outside the folder.
-        var entryPath = Path.GetFullPath(Path.Combine(root, manifest.EntryAssembly));
-
-        if (!entryPath.StartsWith(Path.GetFullPath(root) + Path.DirectorySeparatorChar, StringComparison.Ordinal))
-            throw new InvalidOperationException($"Entry assembly '{manifest.EntryAssembly}' points outside the plugin folder.");
-
-        if (!File.Exists(entryPath))
-            throw new InvalidOperationException($"Entry assembly '{manifest.EntryAssembly}' is missing from the download.");
     }
 
     private void ReportProgress(Guid pluginId, double fraction)

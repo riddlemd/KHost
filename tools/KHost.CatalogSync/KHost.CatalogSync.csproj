@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>KHost.CatalogSync</RootNamespace>
+    <AssemblyName>KHost.CatalogSync</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- The point of being a .NET tool rather than a script: the payload rules it enforces are the
+         host's own, not a second copy that can drift from them. -->
+    <ProjectReference Include="..\..\src\KHost.Domain\KHost.Domain.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
+      <_Parameter1>KHost.UnitTests</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
+
+</Project>

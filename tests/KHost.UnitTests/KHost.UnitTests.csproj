@@ -33,6 +33,7 @@
     <ProjectReference Include="..\..\src\KHost.Cast\KHost.Cast.csproj" />
     <ProjectReference Include="..\..\src\KHost.DataAccess\KHost.DataAccess.csproj" />
     <ProjectReference Include="..\..\src\KHost.Domain\KHost.Domain.csproj" />
+    <ProjectReference Include="..\..\tools\KHost.CatalogSync\KHost.CatalogSync.csproj" />
     <ProjectReference Include="..\..\src\KHost.IPC.SignalR\KHost.IPC.SignalR.csproj" />
     <ProjectReference Include="..\..\src\KHost.LrcLib\KHost.LrcLib.csproj" />
     <!-- Not used by any test directly; AsyncNamingConventionTests reflects over this assembly. -->
