@@ -89,6 +89,35 @@ public class PublishedCatalogTests
     }
 
     [Fact]
+    public void CatalogReleases_NameAPlatformTheHostRecognises()
+    {
+        // A rid this host cannot parse matches nothing, so the release reads as "not for this
+        // platform" on every machine — a failure that looks like a deliberate omission.
+        var offenders = Read().Plugins
+            .SelectMany(entry => entry.Releases.Select(release => (entry, release)))
+            .Where(pair => !PluginRid.IsKnown(pair.release.Rid))
+            .Select(pair => $"{Describe(pair.entry)} v{pair.release.Version} — rid '{pair.release.Rid}'")
+            .ToArray();
+
+        Assert.True(offenders.Length == 0, Message("Release platforms must be win, osx or linux", offenders));
+    }
+
+    [Fact]
+    public void CatalogReleases_DoNotRepeatAVersionForOnePlatform()
+    {
+        // Two rows for the same version and platform means one is dead weight, and which one a
+        // host installs depends on sort order rather than on anything a publisher decided.
+        var offenders = Read().Plugins
+            .SelectMany(entry => entry.Releases.Select(release => (entry, release)))
+            .GroupBy(pair => (pair.entry.Id, pair.release.Version, Rid: pair.release.Rid ?? string.Empty))
+            .Where(group => group.Count() > 1)
+            .Select(group => $"{group.Key.Id} v{group.Key.Version} rid '{group.Key.Rid}' ({group.Count()} rows)")
+            .ToArray();
+
+        Assert.True(offenders.Length == 0, Message("A version may appear once per platform", offenders));
+    }
+
+    [Fact]
     public void CatalogEntries_LinkRepositoriesTheHostWillOpen()
     {
         // A link the host silently declines to open reads as a dead button, not as a bad url.
