@@ -7,7 +7,7 @@ namespace KHost.UnitTests.Conventions;
 // bad edit is live the moment it merges — there is no build between it and the Available tab.
 public class PublishedCatalogTests
 {
-    private const string CatalogFileName = "catalog.json";
+    private const string CatalogFileName = "plugin-catalog.json";
 
     [Fact]
     public void Catalog_IsReadableByTheModelTheHostDeserialisesInto()
