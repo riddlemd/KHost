@@ -1,4 +1,5 @@
 using KHost.Plugins.Sdk;
+using System.Text.Json.Serialization;
 
 namespace KHost.Abstractions.Models.Plugins;
 
@@ -76,6 +77,9 @@ public sealed class PluginCatalogRelease
 
     public long? SizeBytes { get; set; }
 
+    // Derived, so it must never be written: the catalog is a published document, and a persisted
+    // isInstallable would read like a field a publisher could set, which it is not.
+    [JsonIgnore]
     public bool IsInstallable
         => !string.IsNullOrWhiteSpace(Sha256)
         && Uri.TryCreate(Url, UriKind.Absolute, out var uri)

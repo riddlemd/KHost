@@ -65,6 +65,17 @@ public class PluginCatalogEntryTests
         => Assert.False(EntryWith().HasReleaseForThisHost());
 
     [Fact]
+    public void Serializing_ARelease_DoesNotWriteTheDerivedInstallableFlag()
+    {
+        // The sync tool writes the catalog back out, so anything derived that serialises ends up
+        // published as though a publisher had set it.
+        var json = System.Text.Json.JsonSerializer.Serialize(Release("1.0.0"), System.Text.Json.JsonSerializerOptions.Web);
+
+        Assert.DoesNotContain("installable", json, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("sha256", json, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public void LatestCompatible_NoReleases_ReturnsNull()
         => Assert.Null(EntryWith().LatestCompatible());
 
