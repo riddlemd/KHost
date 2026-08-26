@@ -1,6 +1,8 @@
+using System.Net;
 using System.Text.Json;
 using KHost.Abstractions.Models.Plugins;
 using KHost.Abstractions.Services;
+using KHost.Domain.Services.Plugins;
 using KHost.Plugins.Sdk.Messaging;
 using KHost.Plugins.Sdk.Messaging.Messages;
 using KHost.Plugins.Sdk.Models;
@@ -12,16 +14,23 @@ namespace KHost.UserInterface.Components.Pages.Settings;
 public partial class PluginsManagerPage : IDisposable
 {
     [Inject] private IPluginsService? PluginsService { get; set; }
+    [Inject] private IPluginCatalogService? Catalog { get; set; }
+    [Inject] private IPluginInstallerService? Installer { get; set; }
+    [Inject] private IDialogService? Dialogs { get; set; }
     [Inject] private IExternalLinkService? ExternalLinks { get; set; }
     [Inject] private IMessageBroker Broker { get; set; } = default!;
 
     private readonly SubscriptionSet _subscriptions = new();
 
-    private readonly string _pluginsDirectory = Path.Combine(AppContext.BaseDirectory, "plugins");
+    private readonly string _pluginsDirectory = PluginPaths.Plugins;
     private readonly Dictionary<string, List<SettingField>> _settingFields = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> _openIds = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> _savedIds = new(StringComparer.OrdinalIgnoreCase);
     private HashSet<string> _enabledIds = new(StringComparer.OrdinalIgnoreCase);
+
+    private Tab _tab = Tab.Installed;
+    private PluginStagingState _staging = PluginStagingState.Empty;
+    private bool _catalogBusy;
 
     private IReadOnlyList<DiscoveredPlugin> Plugins => PluginsService?.Plugins ?? [];
 
@@ -34,6 +43,10 @@ public partial class PluginsManagerPage : IDisposable
         if (PluginsService is null) return;
 
         _subscriptions.Add(Broker.Subscribe<PluginsChanged>(OnStateChanged));
+        _subscriptions.Add(Broker.Subscribe<PluginCatalogChanged>(OnStateChanged));
+        _subscriptions.Add(Broker.Subscribe<PluginInstallsChanged>(OnInstallsChanged));
+
+        _staging = Installer?.Staged() ?? PluginStagingState.Empty;
 
         _enabledIds = (await PluginsService.ReadEnabledIdsAsync()).ToHashSet(StringComparer.OrdinalIgnoreCase);
 
@@ -211,9 +224,209 @@ public partial class PluginsManagerPage : IDisposable
         _ => "kh-badge--ext",
     };
 
-    private void OnStateChanged(PluginsChanged message) => InvokeAsync(StateHasChanged);
+    private void OnStateChanged(object message) => InvokeAsync(StateHasChanged);
+
+    // Staging is read from disk, not held in memory, so it has to be re-read whenever an install
+    // moves — that is the only signal that a payload landed or a pending action was dropped.
+    private void OnInstallsChanged(PluginInstallsChanged message) => InvokeAsync(() =>
+    {
+        _staging = Installer?.Staged() ?? PluginStagingState.Empty;
+
+        StateHasChanged();
+    });
 
     public void Dispose() => _subscriptions.Dispose();
+
+
+    private IReadOnlyList<PluginCatalogEntry> CatalogEntries => Catalog?.Current?.Catalog.Plugins ?? [];
+
+    private string StagingSummary
+    {
+        get
+        {
+            var parts = new List<string>();
+
+            if (_staging.Installs.Count > 0) parts.Add($"{_staging.Installs.Count} to install");
+            if (_staging.Removals.Count > 0) parts.Add($"{_staging.Removals.Count} to remove");
+            if (_staging.Failures.Count > 0) parts.Add($"{_staging.Failures.Count} failed");
+
+            return string.Join(", ", parts);
+        }
+    }
+
+    private static int Percent(double fraction) => (int)Math.Round(fraction * 100);
+
+    private async Task SelectTabAsync(Tab tab)
+    {
+        _tab = tab;
+
+        // Fetched on open rather than at startup: a console runs on whatever wifi the room has,
+        // and nothing on the installed list needs the network.
+        if (tab == Tab.Available && Catalog is not null && Catalog.Current is null)
+            await LoadCatalogAsync(force: false);
+    }
+
+    private Task RefreshCatalogAsync() => LoadCatalogAsync(force: true);
+
+    private async Task LoadCatalogAsync(bool force)
+    {
+        if (Catalog is null || _catalogBusy) return;
+
+        _catalogBusy = true;
+
+        try
+        {
+            if (force) await Catalog.RefreshAsync();
+            else await Catalog.GetAsync();
+        }
+        finally
+        {
+            _catalogBusy = false;
+        }
+    }
+
+    private string? GetInstalledVersion(Guid pluginId)
+        => Plugins.FirstOrDefault(p => p.Manifest?.Id == pluginId)?.Manifest?.Version;
+
+    private PluginInstallInfo? GetActiveInstall(Guid pluginId)
+        => Installer?.Snapshot().FirstOrDefault(i =>
+            i.PluginId == pluginId && i.State is PluginInstallState.Downloading or PluginInstallState.Verifying);
+
+    private PluginInstallInfo? GetLastInstall(Guid pluginId)
+        => Installer?.Snapshot().FirstOrDefault(i => i.PluginId == pluginId);
+
+    private AvailableState GetAvailableState(PluginCatalogEntry entry)
+    {
+        if (GetActiveInstall(entry.Id) is not null) return AvailableState.Installing;
+        if (_staging.Failures.ContainsKey(entry.Id)) return AvailableState.StageFailed;
+        if (_staging.Installs.Contains(entry.Id)) return AvailableState.Staged;
+        if (_staging.Removals.Contains(entry.Id)) return AvailableState.PendingRemoval;
+
+        var installed = GetInstalledVersion(entry.Id);
+        var release = entry.LatestCompatible();
+
+        if (release is null)
+        {
+            if (installed is not null) return AvailableState.Installed;
+
+            return entry.HasReleaseForThisHost() ? AvailableState.Unverified : AvailableState.Incompatible;
+        }
+
+        if (installed is null) return AvailableState.Installable;
+
+        return PluginVersion.IsNewer(release.Version, installed) ? AvailableState.UpdateAvailable : AvailableState.Installed;
+    }
+
+    private async Task ConfirmInstallAsync(PluginCatalogEntry entry)
+    {
+        if (Dialogs is null || entry.LatestCompatible() is not { } release) return;
+
+        var name = WebUtility.HtmlEncode(entry.Name);
+        var author = WebUtility.HtmlEncode(entry.Author ?? "an unnamed publisher");
+        var installed = GetInstalledVersion(entry.Id);
+        var verb = installed is null ? "Install" : "Update";
+
+        await Dialogs.ShowConfirmationAsync(
+            $"<p>{name} {WebUtility.HtmlEncode(release.Version)} is published by {author}.</p>"
+            + "<p>A plugin runs inside KHost with the same access to this machine as KHost itself. "
+            + "Install it only if you trust its publisher.</p>",
+            onConfirm: () =>
+            {
+                // Not awaited: the confirmation dialog closes on its callback returning, and a
+                // download would hold it open for the length of the transfer.
+                _ = InstallAsync(entry, release);
+
+                return Task.CompletedTask;
+            },
+            title: $"{verb} {entry.Name}",
+            confirmText: verb);
+    }
+
+    private async Task InstallAsync(PluginCatalogEntry entry, PluginCatalogRelease release)
+    {
+        if (Installer is null) return;
+
+        var result = await Installer.InstallAsync(entry, release);
+
+        // Enabling is the Plugins service's to record, not the installer's — the host asked for
+        // this plugin by installing it, so it should be on when the payload lands.
+        if (result.State == PluginInstallState.Staged && PluginsService is not null)
+        {
+            var id = entry.Id.ToString();
+
+            await PluginsService.SetEnabledAsync(id, true);
+
+            _enabledIds.Add(id);
+
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private void CancelInstall(Guid pluginId) => Installer?.Cancel(pluginId);
+
+    private void ClearStaged(Guid pluginId) => Installer?.ClearStaged(pluginId);
+
+    private async Task ConfirmUninstallAsync(DiscoveredPlugin plugin)
+    {
+        if (Dialogs is null || Installer is null || plugin.Manifest is not { } manifest) return;
+
+        await Dialogs.ShowConfirmationAsync(
+            $"<p>Remove {WebUtility.HtmlEncode(plugin.DisplayName)} and its folder on the next start?</p>"
+            + "<p>Its saved settings are kept, so reinstalling restores them.</p>",
+            onConfirm: async () =>
+            {
+                Installer.MarkForRemoval(manifest.Id);
+
+                if (PluginsService is not null)
+                {
+                    await PluginsService.SetEnabledAsync(manifest.Id.ToString(), false);
+
+                    _enabledIds.Remove(manifest.Id.ToString());
+                }
+            },
+            title: $"Remove {plugin.DisplayName}",
+            confirmText: "Remove");
+    }
+
+    private void OpenRepository(string? url)
+    {
+        if (!string.IsNullOrWhiteSpace(url) && Uri.TryCreate(url, UriKind.Absolute, out var uri)
+            && uri.Scheme is "https" or "http")
+        {
+            ExternalLinks?.Open(uri.ToString());
+        }
+    }
+
+    private static string GetAvailableGlyph(PluginCatalogEntry entry) => entry.Capabilities switch
+    {
+        var c when c.Contains("Media provider") => "music-note-beamed",
+        var c when c.Contains("Queue rotation") => "people-fill",
+        var c when c.Contains("Break music") => "music-player",
+        _ => "puzzle",
+    };
+
+
+    private enum Tab
+    {
+        Installed,
+        Available,
+    }
+
+    private enum AvailableState
+    {
+        Installable,
+        UpdateAvailable,
+        Installed,
+        Installing,
+        Staged,
+        StageFailed,
+        PendingRemoval,
+        /// <summary>The catalog lists it, but no release targets this host's plugin API.</summary>
+        Incompatible,
+        /// <summary>A release targets this host, but is published without an https URL and a
+        /// checksum — so the host has no way to know it got what the catalog described.</summary>
+        Unverified,
+    }
 
     private enum RowState
     {

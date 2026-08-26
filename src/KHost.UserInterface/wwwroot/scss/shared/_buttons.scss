@@ -34,7 +34,11 @@
         cursor: default;
     }
 
+    // Both outline modifiers have to clear the fill: the base sets a primary gradient, and
+    // overriding only border and text leaves an "outline" button wearing a solid primary
+    // background — grey in famicom, whose primary is the console's plastic.
     &--outline-secondary {
+        background: transparent;
         border-color: var(--kh-border-bright);
         color: var(--kh-text-secondary);
 
@@ -50,8 +54,11 @@
         }
     }
     &--outline-danger {
+        background: transparent;
         border-color: var(--kh-danger-border-subtle);
-        color: var(--kh-danger-text-subtle);
+        // The bright red, not the 70%-alpha one: these themes are all dark, and the base danger
+        // sits too close to the surface behind it to read as a label.
+        color: var(--kh-danger-bright);
 
         &:hover:not(:disabled) {
             background: var(--kh-danger-bg-subtle);
