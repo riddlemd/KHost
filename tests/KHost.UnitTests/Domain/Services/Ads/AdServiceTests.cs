@@ -463,6 +463,47 @@ public class AdServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task EveryNMinutes_NeverPlayedYet_IsDueAtTheFirstGap()
+    {
+        // Startup calls InitializeAsync, so the clock is normally already stamped and this branch
+        // does not come up. It is what the mode falls back to if that ordering ever changes:
+        // treat "never played" as due rather than waiting on a null.
+        ConfigureVenue(AdTriggerMode.EveryNMinutes, interval: 20);
+
+        Assert.Null(_service.LastAdAtUtc);
+
+        await PerformancesAsync(1);
+
+        await _playback.Received(1).PlayAdAsync(Arg.Any<AdPlayback>());
+    }
+
+    [Fact]
+    public async Task EveryNMinutes_FiresOnTheIntervalItself()
+    {
+        // Exactly the interval, not a minute past it: every other test clears the boundary by a
+        // margin, which leaves > and >= indistinguishable and an off-by-one free to ship.
+        ConfigureVenue(AdTriggerMode.EveryNMinutes, interval: 20);
+        await _service.InitializeAsync();
+
+        _clock.Advance(TimeSpan.FromMinutes(20));
+        await PerformancesAsync(1);
+
+        await _playback.Received(1).PlayAdAsync(Arg.Any<AdPlayback>());
+    }
+
+    [Fact]
+    public async Task EveryNMinutes_AnInstantBeforeTheInterval_DoesNotFire()
+    {
+        ConfigureVenue(AdTriggerMode.EveryNMinutes, interval: 20);
+        await _service.InitializeAsync();
+
+        _clock.Advance(TimeSpan.FromMinutes(20) - TimeSpan.FromTicks(1));
+        await PerformancesAsync(1);
+
+        await _playback.DidNotReceive().PlayAdAsync(Arg.Any<AdPlayback>());
+    }
+
+    [Fact]
     public async Task EveryNMinutes_DoesNotFireTwiceInTheSameWindow()
     {
         ConfigureVenue(AdTriggerMode.EveryNMinutes, interval: 20);
@@ -602,5 +643,37 @@ public class AdServiceTests : IDisposable
         await gap.WhenFilledAsync();
 
         await _playback.Received(1).PlayAdAsync(Arg.Any<AdPlayback>());
+    }
+
+    [Fact]
+    public async Task PerformanceEnded_TheGapWaitsForTheAdToStart()
+    {
+        // WhenFilledAsync completes immediately when nothing registered, so asserting the ad
+        // played after awaiting it passes whether or not the work was ever handed to the gap.
+        // Holding PlayAdAsync open is what tells the two apart — and break music coming up over
+        // an ad is exactly what an unheld gap would cause.
+        var started = new TaskCompletionSource();
+        var finish = new TaskCompletionSource<bool>();
+
+        _playback.PlayAdAsync(Arg.Any<AdPlayback>()).Returns(_ =>
+        {
+            started.TrySetResult();
+            return finish.Task;
+        });
+
+        ConfigureVenue(AdTriggerMode.EveryNPerformances, interval: 1);
+
+        var gap = new PerformanceEndedEventArgs();
+        _playback.PerformanceEnded += Raise.EventWith(gap);
+
+        await started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        var filled = gap.WhenFilledAsync();
+
+        Assert.False(filled.IsCompleted, "the gap released before the ad had started");
+
+        finish.SetResult(true);
+
+        await filled.WaitAsync(TimeSpan.FromSeconds(5));
     }
 }
