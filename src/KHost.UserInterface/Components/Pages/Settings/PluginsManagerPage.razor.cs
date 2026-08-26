@@ -309,9 +309,8 @@ public partial class PluginsManagerPage : IDisposable
         {
             if (installed is not null) return AvailableState.Installed;
 
-            // A build for another platform is not compatible either — same badge, and the reason
-            // goes in the tooltip. Unverifiable is the one that earns its own state: that plugin
-            // would run here, and only its publisher can fix it.
+            // Another platform is not compatible either, so it shares the badge. Unverifiable
+            // earns its own: that plugin would run here, and only its publisher can fix it.
             if (!entry.HasReleaseForThisHost() || !entry.HasReleaseForThisPlatform())
                 return AvailableState.Incompatible;
 
@@ -370,12 +369,8 @@ public partial class PluginsManagerPage : IDisposable
 
     private void CancelInstall(Guid pluginId) => Installer?.Cancel(pluginId);
 
-    /// <summary>
-    /// Drops what is staged, and puts back the enabled flag that staging it moved. Installing
-    /// enables a plugin and marking one for removal disables it, so undoing either has to reverse
-    /// that too — otherwise the enabled set names a plugin with nothing on disk, or a plugin the
-    /// host chose to keep stays switched off.
-    /// </summary>
+    /// <summary>Installing enables a plugin and marking one for removal disables it, so undoing
+    /// either has to put that flag back.</summary>
     private async Task ClearStagedAsync(Guid pluginId)
     {
         if (Installer is null) return;
@@ -444,8 +439,8 @@ public partial class PluginsManagerPage : IDisposable
         }
     }
 
-    /// <summary>Why nothing is installable, for the badge's tooltip — the two causes need
-    /// different things from a host, even though neither is actionable on this page.</summary>
+    /// <summary>Why nothing is installable, for the badge's tooltip: the two causes ask different
+    /// things of a host.</summary>
     private static string IncompatibleReason(PluginCatalogEntry entry)
         => entry.HasReleaseForThisHost()
             ? $"The catalog publishes no build for {PluginRid.Current}."
@@ -481,8 +476,6 @@ public partial class PluginsManagerPage : IDisposable
         /// <summary>A release targets this host, but is published without an https URL and a
         /// checksum — so the host has no way to know it got what the catalog described.</summary>
         Unverified,
-        /// <summary>Built for this plugin API, but only for other platforms.</summary>
-        Unsupported,
     }
 
     private enum RowState

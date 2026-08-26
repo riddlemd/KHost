@@ -4,9 +4,9 @@ using System.Text.Json.Serialization;
 namespace KHost.Abstractions.Models.Plugins;
 
 /// <summary>
-/// The published list of installable plugins, fetched as a static JSON document. Deliberately all
-/// optional-with-defaults rather than <c>required</c>: this is parsed from a remote file, so a
-/// missing field has to degrade one entry, not throw away the whole catalog.
+/// The published list of installable plugins. Optional-with-defaults rather than <c>required</c>
+/// throughout: parsed from a remote file, so a missing field degrades one entry rather than
+/// throwing away the whole catalog.
 /// </summary>
 public sealed class PluginCatalog
 {
@@ -39,20 +39,12 @@ public sealed class PluginCatalogEntry
 
     public List<PluginCatalogRelease> Releases { get; set; } = [];
 
-    /// <summary>
-    /// True when some release targets this host's plugin API, whatever else is wrong with it.
-    /// Separates "built for another KHost" from "published without a checksum" — both leave
-    /// <see cref="LatestCompatible"/> empty, and telling a host the wrong one sends them looking
-    /// for an upgrade that would not help.
-    /// </summary>
+    /// <summary>True when some release targets this host's plugin API, whatever else is wrong
+    /// with it. Tells "built for another KHost" apart from the other reasons nothing installs.</summary>
     public bool HasReleaseForThisHost()
         => Releases.Exists(release => release.ApiVersion == PluginApi.CurrentVersion);
 
-    /// <summary>
-    /// True when some release targets this host's plugin API *and* its platform. Separates "no
-    /// build for your OS" from the other two reasons nothing is installable, so a Windows-only
-    /// plugin does not tell a Mac host it needs a different KHost.
-    /// </summary>
+    /// <summary>True when some release targets this host's plugin API *and* its platform.</summary>
     public bool HasReleaseForThisPlatform()
         => Releases.Exists(release => release.ApiVersion == PluginApi.CurrentVersion
                                    && PluginRid.Matches(release.Rid));

@@ -8,8 +8,8 @@ namespace KHost.CatalogSync;
 // KHost.Screen2 already has one that the test project resolves against.
 internal static class Program
 {
-    // Not async: the entry point is the one method that cannot take the Async suffix the rest of
-    // the codebase enforces, so the awaiting happens one level down.
+    // Main is the one method that cannot carry the Async suffix the codebase enforces, so the
+    // awaiting happens a level down.
     private static int Main(string[] args) => RunAsync(args).GetAwaiter().GetResult();
 
     private static async Task<int> RunAsync(string[] args)
