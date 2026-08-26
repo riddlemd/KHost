@@ -41,6 +41,13 @@ public class BreakMusicService : BaseService, IBreakMusicService, IDisposable
     public IReadOnlyList<IBreakMusicProvider> Providers => _providers;
     public IBreakMusicProvider? ActiveProvider => _activeProvider;
 
+    /// <summary>
+    /// True while a song or an audible ad holds the room. Kept here rather than asked of playback,
+    /// which already depends on this service — the two calls playback makes on the way in and out
+    /// are the same two that decide it.
+    /// </summary>
+    private bool _roomTaken;
+
     public BreakMusicState State { get; private set; } = BreakMusicState.Stopped;
 
     public BreakMusicTrack? CurrentTrack => _activeProvider?.CurrentTrack;
@@ -123,6 +130,9 @@ public class BreakMusicService : BaseService, IBreakMusicService, IDisposable
         if (_activeProvider is not { } provider)
             return false;
 
+        if (RoomIsTaken(nameof(StartAsync)))
+            return false;
+
         await _lock.WaitAsync(cancellationToken);
         try
         {
@@ -159,6 +169,9 @@ public class BreakMusicService : BaseService, IBreakMusicService, IDisposable
         if (_activeProvider is not { } provider || State != BreakMusicState.Paused)
             return;
 
+        if (RoomIsTaken(nameof(ResumeAsync)))
+            return;
+
         await provider.ResumeAsync(cancellationToken);
 
         State = BreakMusicState.Playing;
@@ -181,6 +194,10 @@ public class BreakMusicService : BaseService, IBreakMusicService, IDisposable
     public async Task SkipAsync(CancellationToken cancellationToken = default)
     {
         if (_activeProvider is not { } provider || State == BreakMusicState.Stopped)
+            return;
+
+        // Skipping starts audio too, as the note below says, so it is refused for the same reason.
+        if (RoomIsTaken(nameof(SkipAsync)))
             return;
 
         await provider.SkipAsync(cancellationToken);
@@ -218,8 +235,27 @@ public class BreakMusicService : BaseService, IBreakMusicService, IDisposable
         }
     }
 
+    /// <summary>
+    /// Every way the bed can reach the room goes through this. Start is not the only one: a paused
+    /// bed resumes, and a skip starts the next track on every provider — and a song loading over a
+    /// *paused* bed leaves it paused rather than suspended, so both were reachable mid-song.
+    /// </summary>
+    private bool RoomIsTaken(string action)
+    {
+        if (!_roomTaken)
+            return false;
+
+        Logger.LogInformation("Break music {Action} refused: something with its own audio has the room", action);
+
+        return true;
+    }
+
     public async Task SuspendAsync(CancellationToken cancellationToken = default)
     {
+        // Before the provider check: whether anything is playing has no bearing on whether a
+        // singer now has the room, and StartAsync has to refuse either way.
+        _roomTaken = true;
+
         if (_activeProvider is not { } provider)
             return;
 
@@ -244,6 +280,10 @@ public class BreakMusicService : BaseService, IBreakMusicService, IDisposable
 
     public async Task RestoreAsync(CancellationToken cancellationToken = default)
     {
+        // Cleared first, and above the state check: the room is free again whether or not there
+        // was a bed to bring back, and StartAsync below would otherwise refuse its own restore.
+        _roomTaken = false;
+
         // Suspended is only ever reached from Playing, so this one check carries the whole rule:
         // a bed the host paused or stopped never entered this state and is left where they put it.
         if (State != BreakMusicState.Suspended)
