@@ -68,10 +68,30 @@ folder: `PluginLoader` hands that string straight to `LoadFromAssemblyPath`.
 - `ApplyPending()` runs from `AddPlugins` before `Discover`, so it predates the container: no DI,
   no logger, and a failure must never stop the app starting. It maps id → folder by reading each
   manifest, so an update replaces a plugin dropped in by hand under any folder name.
-- `LatestCompatible()` returning null means two different things, and the page must keep them
-  apart: no release for this plugin API ("Not compatible") versus a release published without a
-  checksum ("Not verifiable"). Telling a host the wrong one sends them after an upgrade that
-  changes nothing — that is what `HasReleaseForThisHost()` exists for.
+- **Add a release with the tool, never by hand**:
+  `dotnet run --project tools/KHost.CatalogSync -- <owner/repo> [--rid win] [--capabilities "a,b"]`.
+  It fetches the release **unauthenticated**, hashes what it downloads, unpacks it through the
+  host's own `IPluginPayloadReader`, and writes the entry from the manifest inside. A hand-typed
+  entry passes `PublishedCatalogTests` — those checks are about shape, not about whether the
+  checksum matches the asset — so a wrong hash only surfaces when a host's install fails.
+- Everything the tool does over the network is unauthenticated on purpose: the host sends no
+  credentials, so a private repo's release reads as 404 to it. Checking with `gh` (or any
+  authenticated client) passes happily while every host gets nothing.
+- GitHub publishes a `sha256` digest per asset. It is **cross-checked, never copied** — GitHub
+  recomputes it from whatever was uploaded, so it attests to transport and not to what anyone
+  reviewed. The catalog's hash is the one the sync run computed.
+- A release zip holds `manifest.json` at its root (or in one wrapping folder), the entry assembly,
+  and its `.deps.json` — `AssemblyDependencyResolver` reads that to find plugin-private
+  dependencies. Ship no `.pdb`, and no copy of `KHost.Plugins.Sdk.dll`: `PluginLoadContext.Load`
+  returns null for anything already in the default context, so a plugin-local SDK is never loaded.
+- `Rid` is blank for a build that runs anywhere, which is what a plugin should aim for. Name a
+  platform only where an OS API forces a separate build — the Spotify provider's WinRT path is the
+  case it exists for. Selection takes version first and platform second.
+- `LatestCompatible()` returning null has three causes, and the page must not conflate all of
+  them: the wrong plugin API and no build for this platform are both "Not compatible" (the
+  tooltip says which, via `HasReleaseForThisHost()` / `HasReleaseForThisPlatform()`), while a
+  release published without an https URL and a checksum is "Not verifiable" — that plugin would
+  run here, and only its publisher can fix it.
 - The catalog is fetched only when the Available tab opens, never at startup — a console runs on
   whatever wifi the room has. A failed fetch keeps the cached copy and shows the error beside it;
   an unknown `schemaVersion` rejects the whole document rather than guessing at the fields that
