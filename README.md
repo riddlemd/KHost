@@ -16,6 +16,7 @@ All documentation lives in the **[KHost wiki](https://github.com/riddlemd/KHost/
 - [Configuration](https://github.com/riddlemd/KHost/wiki/Configuration) — settings reference
 - [Architecture](https://github.com/riddlemd/KHost/wiki/Architecture) — how the pieces fit together
 - [Break Music and Ads](https://github.com/riddlemd/KHost/wiki/Break-Music-and-Ads) — playlists, ad triggers, priority, volume
+- [Plugins](https://github.com/riddlemd/KHost/wiki/Plugins) — extension points, installing from the catalog, publishing a plugin
 - [Development](https://github.com/riddlemd/KHost/wiki/Development) and [Testing](https://github.com/riddlemd/KHost/wiki/Testing) — contributor workflow
 
 ## Quick start
