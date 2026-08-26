@@ -126,9 +126,8 @@ public class PluginCatalogService : BaseService, IPluginCatalogService
 
             if (catalog.SchemaVersion != PluginCatalog.SupportedSchemaVersion)
             {
-                // Refusing the whole document is the point: a schema this host cannot read might
-                // have moved the checksum or the API version, and guessing either is how a host
-                // ends up installing something it cannot load.
+                // The whole document, not the entries it could parse: a schema this host cannot
+                // read might have moved the checksum or the API version.
                 throw new InvalidOperationException(
                     $"Catalog is schema v{catalog.SchemaVersion}; this host reads v{PluginCatalog.SupportedSchemaVersion}.");
             }
