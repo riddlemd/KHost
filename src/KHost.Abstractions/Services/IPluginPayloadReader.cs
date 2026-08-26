@@ -9,11 +9,10 @@ namespace KHost.Abstractions.Services;
 public interface IPluginPayloadReader
 {
     /// <summary>
-    /// Extracts into <paramref name="destination"/> and returns what the payload declares. Every
-    /// entry is checked before a byte is written, so a rejected archive leaves nothing behind.
-    /// <paramref name="expectedId"/> is the id the caller believes this is; null takes the
-    /// payload's word, which is how a catalog entry learns an id rather than asserting one.
-    /// Throws <see cref="InvalidOperationException"/> with the reason when the payload is refused.
+    /// Extracts into <paramref name="destination"/>, or throws with the reason. Every entry is
+    /// checked before a byte is written, so a refused archive leaves nothing behind. Null
+    /// <paramref name="expectedId"/> takes the payload's word, which is how a catalog entry
+    /// learns an id rather than asserting one.
     /// </summary>
     PluginPayloadContents Unpack(string zipPath, string destination, Guid? expectedId = null);
 }
