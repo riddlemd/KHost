@@ -53,7 +53,46 @@ public class BreakMusicService : BaseService, IBreakMusicService, IDisposable
 
         Logger.LogInformation("Break music provider: {Provider}", _activeProvider?.SourceName ?? "none");
 
+        await AdoptProviderPlaybackAsync(cancellationToken);
+
         _broker.Announce(new BreakMusicChanged());
+    }
+
+    /// <summary>
+    /// Takes the provider's word for what is playing. One driving another app outlives this
+    /// process, so starting at Stopped would leave the console saying the bed is off while the
+    /// room hears it — and, worse, leave <see cref="SuspendAsync"/> with no reason to clear the
+    /// air for a singer. A provider that cannot tell leaves the state where it was.
+    /// </summary>
+    private async Task AdoptProviderPlaybackAsync(CancellationToken cancellationToken)
+    {
+        if (_activeProvider is not { } provider)
+            return;
+
+        BreakMusicPlayback? playback;
+
+        try
+        {
+            playback = await provider.ReadPlaybackAsync(cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            // A provider that throws on a look must not stop the console coming up.
+            Logger.LogWarning(ex, "Could not read what {Provider} is playing", provider.SourceName);
+            return;
+        }
+
+        // Suspended is the host's own business and never comes back from a provider.
+        State = playback switch
+        {
+            BreakMusicPlayback.Playing => BreakMusicState.Playing,
+            BreakMusicPlayback.Paused => BreakMusicState.Paused,
+            BreakMusicPlayback.Stopped => BreakMusicState.Stopped,
+            _ => State,
+        };
+
+        if (playback is not null)
+            Logger.LogInformation("{Provider} reports it is {Playback}", provider.SourceName, playback);
     }
 
     public async Task SetActiveProviderAsync(string sourceName, CancellationToken cancellationToken = default)
@@ -174,9 +213,17 @@ public class BreakMusicService : BaseService, IBreakMusicService, IDisposable
 
     public async Task SuspendAsync(CancellationToken cancellationToken = default)
     {
+        if (_activeProvider is not { } provider)
+            return;
+
+        // Asked before deciding, because a provider driving another app can have started, stopped
+        // or been paused without this service hearing about it. Only what it cannot tell falls
+        // back to the state kept here.
+        await AdoptProviderPlaybackAsync(cancellationToken);
+
         // Only playback is interrupted. Paused and Stopped are where a host put it, and coming
         // back on the song's behalf would override them.
-        if (_activeProvider is not { } provider || State != BreakMusicState.Playing)
+        if (State != BreakMusicState.Playing)
             return;
 
         await provider.StopAsync(SuspendFade, cancellationToken);
@@ -245,6 +292,19 @@ public class BreakMusicService : BaseService, IBreakMusicService, IDisposable
         if (message.ProviderSourceName != _activeProvider?.SourceName)
             return;
 
-        _broker.Announce(new BreakMusicChanged());
+        // Off the broker's chain, not awaited on it. Handlers run one at a time, and
+        // ScreenConnected arrives on the SignalR hub thread already holding a lock — asking
+        // another app what it is playing from here stalls that thread long enough to lose a
+        // screen that was in the middle of registering.
+        _ = Task.Run(async () =>
+        {
+            // The transport may have moved as well as the track — this is what a host pressing
+            // pause in the other app's own window looks like from here. Suspended is left alone:
+            // the song that suspended it is still playing, and the provider does not end that.
+            if (State != BreakMusicState.Suspended)
+                await AdoptProviderPlaybackAsync(CancellationToken.None);
+
+            _broker.Announce(new BreakMusicChanged());
+        });
     }
 }
