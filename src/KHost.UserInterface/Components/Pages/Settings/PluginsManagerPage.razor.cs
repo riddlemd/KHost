@@ -364,7 +364,48 @@ public partial class PluginsManagerPage : IDisposable
 
     private void CancelInstall(Guid pluginId) => Installer?.Cancel(pluginId);
 
-    private void ClearStaged(Guid pluginId) => Installer?.ClearStaged(pluginId);
+    /// <summary>
+    /// Drops what is staged, and puts back the enabled flag that staging it moved. Installing
+    /// enables a plugin and marking one for removal disables it, so undoing either has to reverse
+    /// that too — otherwise the enabled set names a plugin with nothing on disk, or a plugin the
+    /// host chose to keep stays switched off.
+    /// </summary>
+    private async Task ClearStagedAsync(Guid pluginId)
+    {
+        if (Installer is null) return;
+
+        // Read before clearing: the announce that follows re-reads staging from disk.
+        var staged = _staging;
+
+        Installer.ClearStaged(pluginId);
+
+        if (PluginsService is null) return;
+
+        var id = pluginId.ToString();
+
+        if (staged.Installs.Contains(pluginId))
+        {
+            // Only a first install enabled anything. Undoing an update leaves the installed copy
+            // running, so disabling there would switch off a plugin the host never touched.
+            if (GetInstalledVersion(pluginId) is null)
+            {
+                await PluginsService.SetEnabledAsync(id, false);
+
+                _enabledIds.Remove(id);
+            }
+        }
+        else if (staged.Removals.Contains(pluginId) && WasLoadedAtStartup(pluginId))
+        {
+            // Loaded is the only honest signal that it was enabled when this process started; a
+            // plugin already switched off before the removal was marked stays off.
+            await PluginsService.SetEnabledAsync(id, true);
+
+            _enabledIds.Add(id);
+        }
+    }
+
+    private bool WasLoadedAtStartup(Guid pluginId)
+        => Plugins.Any(p => p.Manifest?.Id == pluginId && p.Status == PluginStatus.Loaded);
 
     private async Task ConfirmUninstallAsync(DiscoveredPlugin plugin)
     {

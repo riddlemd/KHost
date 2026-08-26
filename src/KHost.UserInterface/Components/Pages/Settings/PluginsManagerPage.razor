@@ -152,17 +152,17 @@
                                             case AvailableState.Staged:
                                                 <span class="kh-badge kh-badge--warning">Restart to install</span>
                                                 <button type="button" class="kh-button kh-button--secondary"
-                                                        @onclick="() => ClearStaged(entry.Id)">Undo</button>
+                                                        @onclick="() => ClearStagedAsync(entry.Id)">Undo</button>
                                                 break;
                                             case AvailableState.PendingRemoval:
                                                 <span class="kh-badge kh-badge--warning">Restart to remove</span>
                                                 <button type="button" class="kh-button kh-button--secondary"
-                                                        @onclick="() => ClearStaged(entry.Id)">Undo</button>
+                                                        @onclick="() => ClearStagedAsync(entry.Id)">Undo</button>
                                                 break;
                                             case AvailableState.StageFailed:
                                                 <span class="kh-badge kh-badge--danger">Install failed</span>
                                                 <button type="button" class="kh-button kh-button--secondary"
-                                                        @onclick="() => ClearStaged(entry.Id)">Dismiss</button>
+                                                        @onclick="() => ClearStagedAsync(entry.Id)">Dismiss</button>
                                                 break;
                                             case AvailableState.UpdateAvailable:
                                                 <button type="button" class="kh-button" @onclick="() => ConfirmInstallAsync(entry)">
@@ -380,7 +380,7 @@
                                             @if (_staging.Removals.Contains(manifest.Id))
                                             {
                                                 <button type="button" class="kh-button kh-button--secondary"
-                                                        @onclick="() => ClearStaged(manifest.Id)">Keep it</button>
+                                                        @onclick="() => ClearStagedAsync(manifest.Id)">Keep it</button>
                                             }
                                             else
                                             {
