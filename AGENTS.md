@@ -48,7 +48,7 @@ Three things deliberately stay plain C# events, and should stay that way: Screen
 
 ## Plugin catalog and installs
 
-The Available tab on the Plugins page installs from a published `catalog.json` (this repo's root,
+The Available tab on the Plugins page installs from a published `plugin-catalog.json` (this repo's root,
 served raw from `master`; `PluginCatalog:Url`). The catalog is the **trust root** — a plugin runs
 in-process with the host's own access — so a release is only offered when it is served over https
 and carries a `sha256`, and the download is hashed, the zip's entries are all checked for escapes
