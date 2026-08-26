@@ -76,6 +76,56 @@ public class PluginCatalogEntryTests
     }
 
     [Fact]
+    public void LatestCompatible_ABuildForAnotherPlatform_IsSkipped()
+    {
+        var other = PluginRid.Current == "win" ? "linux" : "win";
+        var entry = EntryWith(Release("1.0.0"), Release("2.0.0", rid: other));
+
+        Assert.Equal("1.0.0", entry.LatestCompatible()?.Version);
+    }
+
+    [Fact]
+    public void LatestCompatible_OnlyBuildsForOtherPlatforms_ReturnsNull()
+    {
+        var other = PluginRid.Current == "win" ? "linux" : "win";
+
+        Assert.Null(EntryWith(Release("1.0.0", rid: other)).LatestCompatible());
+    }
+
+    [Fact]
+    public void LatestCompatible_SameVersionNeutralAndPlatform_PrefersThePlatformBuild()
+    {
+        // At one version the platform build is the more capable package — it exists precisely
+        // because some OS API needed it.
+        var entry = EntryWith(Release("1.0.0"), Release("1.0.0", rid: PluginRid.Current, url: "https://example.test/p2.zip"));
+
+        Assert.Equal(PluginRid.Current, entry.LatestCompatible()?.Rid);
+    }
+
+    [Fact]
+    public void LatestCompatible_NewerNeutralThanPlatformBuild_TakesTheNewer()
+    {
+        var entry = EntryWith(Release("1.0.0", rid: PluginRid.Current), Release("2.0.0"));
+
+        Assert.Equal("2.0.0", entry.LatestCompatible()?.Version);
+        Assert.Null(entry.LatestCompatible()?.Rid);
+    }
+
+    [Fact]
+    public void HasReleaseForThisPlatform_OnlyOtherPlatforms_IsFalse()
+    {
+        var other = PluginRid.Current == "win" ? "linux" : "win";
+        var entry = EntryWith(Release("1.0.0", rid: other));
+
+        Assert.True(entry.HasReleaseForThisHost());
+        Assert.False(entry.HasReleaseForThisPlatform());
+    }
+
+    [Fact]
+    public void HasReleaseForThisPlatform_ANeutralBuild_IsTrue()
+        => Assert.True(EntryWith(Release("1.0.0")).HasReleaseForThisPlatform());
+
+    [Fact]
     public void LatestCompatible_NoReleases_ReturnsNull()
         => Assert.Null(EntryWith().LatestCompatible());
 
@@ -90,11 +140,13 @@ public class PluginCatalogEntryTests
         string version,
         int? apiVersion = null,
         string sha256 = "abc123",
-        string url = "https://example.test/plugin.zip") => new()
+        string url = "https://example.test/plugin.zip",
+        string? rid = null) => new()
     {
         Version = version,
         ApiVersion = apiVersion ?? PluginApi.CurrentVersion,
         Url = url,
         Sha256 = sha256,
+        Rid = rid,
     };
 }
