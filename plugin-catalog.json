@@ -2,6 +2,33 @@
   "schemaVersion": 1,
   "plugins": [
     {
+      "id": "6b1d3a58-4f27-4c0e-9a11-2e5c7d8b4f36",
+      "name": "Spotify Break Music",
+      "author": "KHost",
+      "description": "Plays break music through the Spotify desktop app on this machine.",
+      "repository": "https://github.com/riddlemd/KHost.Plugins.Spotify",
+      "capabilities": [
+        "Break music"
+      ],
+      "releases": [
+        {
+          "version": "1.0.0",
+          "apiVersion": 1,
+          "url": "https://github.com/riddlemd/KHost.Plugins.Spotify/releases/download/v1.0.0/KHost.Plugins.Spotify-1.0.0.zip",
+          "sha256": "ab7929bcd52c8a4cea56e0dd44ccae9277559e2ec49337cdb6a082c94b0d53da",
+          "sizeBytes": 24024
+        },
+        {
+          "version": "1.0.0",
+          "apiVersion": 1,
+          "url": "https://github.com/riddlemd/KHost.Plugins.Spotify/releases/download/v1.0.0/KHost.Plugins.Spotify-1.0.0-win.zip",
+          "sha256": "3c54eb6c8a002374a00ba6d888145785602b5d3eb72c3ee7cd3fcf7eb428dbd9",
+          "sizeBytes": 6370966,
+          "rid": "win"
+        }
+      ]
+    },
+    {
       "id": "88f42c92-f15a-443c-afa0-0983f05fdbb4",
       "name": "YouTube Search",
       "author": "riddlemd",
