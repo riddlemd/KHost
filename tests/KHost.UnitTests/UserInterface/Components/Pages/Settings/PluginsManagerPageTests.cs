@@ -463,7 +463,7 @@ public class PluginsManagerPageTests : BunitContext
     {
         Arrange(Plugin(PluginStatus.Loaded), enabled: true);
 
-        var cut = RenderAvailable(CatalogEntry(Guid.NewGuid(), "KaraFun", CatalogRelease("2.0.0")));
+        var cut = RenderAvailable(CatalogEntry(Guid.NewGuid(), "Available", CatalogRelease("2.0.0")));
 
         Assert.Contains("Install", cut.Find($"{AvailableRowSelector} button.kh-button").TextContent);
     }

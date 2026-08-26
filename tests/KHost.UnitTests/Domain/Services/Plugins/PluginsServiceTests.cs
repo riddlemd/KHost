@@ -91,7 +91,7 @@ public class PluginsServiceTests
     public async Task SaveSettingsAsync_KeepsOtherPluginsSettings()
     {
         await _service.SaveSettingsAsync("khost.youtube", new() { ["a"] = JsonSerializer.SerializeToElement(1) });
-        await _service.SaveSettingsAsync("khost.karafun", new() { ["b"] = JsonSerializer.SerializeToElement(2) });
+        await _service.SaveSettingsAsync("khost.spotify", new() { ["b"] = JsonSerializer.SerializeToElement(2) });
 
         Assert.Equal(2, _savedState!.Settings.Count);
     }
