@@ -1,6 +1,7 @@
 using KHost.Abstractions.Models.Plugins;
 using KHost.Domain.Services.Plugins;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace KHost.CatalogSync;
 
@@ -145,9 +146,14 @@ internal static class Program
         return JsonSerializer.Deserialize<PluginCatalog>(File.ReadAllText(path), JsonSerializerOptions.Web) ?? fresh;
     }
 
+    // Nulls are omitted, not written: a neutral release carrying "rid": null is noise in a
+    // document people review, and syncing one plugin would rewrite every other entry to add it.
     private static string Serialize(PluginCatalog catalog)
-        => JsonSerializer.Serialize(catalog, new JsonSerializerOptions(JsonSerializerOptions.Web) { WriteIndented = true })
-           + Environment.NewLine;
+        => JsonSerializer.Serialize(catalog, new JsonSerializerOptions(JsonSerializerOptions.Web)
+        {
+            WriteIndented = true,
+            DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+        }) + Environment.NewLine;
 
     private static GitHubAsset? SelectAsset(GitHubRelease release, string? named)
     {
