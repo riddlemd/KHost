@@ -49,14 +49,28 @@ public sealed class PluginCatalogEntry
         => Releases.Exists(release => release.ApiVersion == PluginApi.CurrentVersion);
 
     /// <summary>
+    /// True when some release targets this host's plugin API *and* its platform. Separates "no
+    /// build for your OS" from the other two reasons nothing is installable, so a Windows-only
+    /// plugin does not tell a Mac host it needs a different KHost.
+    /// </summary>
+    public bool HasReleaseForThisPlatform()
+        => Releases.Exists(release => release.ApiVersion == PluginApi.CurrentVersion
+                                   && PluginRid.Matches(release.Rid));
+
+    /// <summary>
     /// The newest release this host can actually load, or null when every release targets a
     /// different plugin API. The loader compares API versions for equality, not a minimum, so a
     /// mismatch here would install cleanly and then sit as Incompatible after the restart.
     /// </summary>
     public PluginCatalogRelease? LatestCompatible()
         => Releases
-            .Where(release => release.ApiVersion == PluginApi.CurrentVersion && release.IsInstallable)
+            .Where(release => release.ApiVersion == PluginApi.CurrentVersion
+                           && release.IsInstallable
+                           && PluginRid.Matches(release.Rid))
             .OrderByDescending(release => PluginVersion.Parse(release.Version))
+            // Version first, platform second: a newer neutral build beats an older one built for
+            // this OS, and at the same version the platform build is the more capable package.
+            .ThenByDescending(release => string.IsNullOrWhiteSpace(release.Rid) ? 0 : 1)
             .FirstOrDefault();
 }
 
@@ -76,6 +90,13 @@ public sealed class PluginCatalogRelease
     public string Sha256 { get; set; } = string.Empty;
 
     public long? SizeBytes { get; set; }
+
+    /// <summary>
+    /// The platform this build is for — "win", "osx", "linux", optionally with an architecture
+    /// ("win-x64"). Blank means it runs anywhere, which is what a plugin should ship unless some
+    /// OS API forces a separate build.
+    /// </summary>
+    public string? Rid { get; set; }
 
     // Derived, so it must never be written: the catalog is a published document, and a persisted
     // isInstallable would read like a field a publisher could set, which it is not.
