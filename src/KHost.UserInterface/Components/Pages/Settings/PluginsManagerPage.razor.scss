@@ -41,18 +41,22 @@
         text-align: left;
     }
 
-    &[aria-checked="true"] &__track {
-        background: var(--kh-primary);
+    &:hover:not(:disabled) &__track {
         border-color: var(--kh-primary-bright);
+    }
+
+    // Success, not primary: a theme is free to make primary a neutral (famicom's is the console's
+    // grey plastic), which leaves on and off telling each other apart by knob position alone.
+    // Must also sit after the hover rule — same specificity, so hover would otherwise repaint an
+    // enabled switch's border.
+    &[aria-checked="true"] &__track {
+        background: var(--kh-success);
+        border-color: var(--kh-success);
 
         &::after {
             transform: translateX(17px);
-            background: var(--kh-button-primary-text);
+            background: var(--kh-bg);
         }
-    }
-
-    &:hover:not(:disabled) &__track {
-        border-color: var(--kh-primary-bright);
     }
 
     &:disabled {
@@ -164,14 +168,17 @@
         color: var(--kh-text);
     }
 
+    // A capability is a neutral label, so it takes the surface tokens the glyph box uses. The
+    // accent is the theme's loudest colour — famicom reserves it for danger outright — and a
+    // plugin saying it provides break music is not a warning.
     &__chip {
         font-size: 0.72rem;
         padding: 0.15em 0.5em;
         border-radius: 4px;
         white-space: nowrap;
         color: var(--kh-text-secondary);
-        background: var(--kh-accent-subtle);
-        border: 1px solid var(--kh-border-bright);
+        background: var(--kh-bg-elevated);
+        border: 1px solid var(--kh-border);
     }
 
     &__unsaved {
@@ -312,6 +319,129 @@
         color: var(--kh-success);
     }
 
+
+    &__tabs {
+        display: flex;
+        gap: 0.25em;
+        padding: 0 12px;
+        border-bottom: 1px solid var(--kh-border);
+    }
+
+    &__tab {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.45em;
+        padding: 0.6em 0.9em;
+        background: none;
+        border: 0;
+        // Sits on the strip's own border, so the active tab reads as joined to the list below it.
+        border-bottom: 2px solid transparent;
+        margin-bottom: -1px;
+        color: var(--kh-text-muted);
+        cursor: pointer;
+
+        &:hover {
+            color: var(--kh-text);
+        }
+
+        &--active {
+            color: var(--kh-text);
+            border-bottom-color: var(--kh-primary-bright);
+        }
+
+        &:focus-visible {
+            outline: 2px solid var(--kh-border-bright);
+            outline-offset: -2px;
+        }
+    }
+
+    &__count {
+        font-size: 0.72rem;
+        padding: 0.1em 0.45em;
+        border-radius: 999px;
+        background: var(--kh-bg-elevated);
+        border: 1px solid var(--kh-border);
+        color: var(--kh-text-secondary);
+    }
+
+    &__catalog-bar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.75em;
+        padding: 0.6em 12px;
+        border-bottom: 1px solid var(--kh-border);
+    }
+
+    &__catalog-state {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5em;
+        min-width: 0;
+        font-size: 0.85rem;
+        color: var(--kh-text-muted);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    // The browse row has no disclosure button to carry the padding the installed row gets from it.
+    &__head--static {
+        padding: 10px 12px;
+
+        &:hover {
+            background: none;
+        }
+    }
+
+    // The panel supplies its own spacing through a flex gap; these two sit loose in the card body.
+    &__catalog-bar + &__notice {
+        margin: 0.75em 12px;
+    }
+
+    &__row > &__notice {
+        margin: 0 12px 12px 58px;
+    }
+
+    &__progress {
+        display: flex;
+        align-items: center;
+        gap: 0.6em;
+        padding: 0 12px 12px 58px;
+    }
+
+    &__progress-track {
+        position: relative;
+        flex: 1;
+        height: 6px;
+        overflow: hidden;
+        border-radius: 999px;
+        background: var(--kh-track-bg);
+
+        &--indeterminate::after {
+            content: "";
+            position: absolute;
+            inset: 0 auto 0 0;
+            width: 35%;
+            border-radius: 999px;
+            background: var(--kh-primary);
+            animation: kh-plugins-manager-sweep 1.1s ease-in-out infinite;
+        }
+    }
+
+    &__progress-fill {
+        height: 100%;
+        border-radius: 999px;
+        background: var(--kh-primary);
+        transition: width var(--kh-transition);
+    }
+
+    &__progress-label {
+        flex: none;
+        font-size: 0.8rem;
+        color: var(--kh-text-muted);
+    }
+
     // The settings page has no splitter between it and the viewport, so it answers to the window.
     // Measured against the console's own narrow point: below this the indent costs more than it
     // buys, and the row's description is the first thing that can go.
@@ -327,5 +457,18 @@
         &__glyph {
             display: none;
         }
+
+        &__progress {
+            padding-left: 12px;
+        }
+
+        &__row > &__notice {
+            margin-left: 12px;
+        }
     }
+}
+
+@keyframes kh-plugins-manager-sweep {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(320%); }
 }

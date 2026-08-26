@@ -32,8 +32,200 @@
                     </span>
                 </div>
             }
+            @if (!_staging.IsEmpty)
+            {
+                <div class="kh-plugins-manager__restart">
+                    <Icon Name="box-arrow-in-down" />
+                    <span>
+                        @($"{StagingSummary} — restart KHost to apply.")
+                    </span>
+                </div>
+            }
+            <div class="kh-plugins-manager__tabs" role="tablist">
+                <button type="button" role="tab" class="kh-plugins-manager__tab @(_tab == Tab.Installed ? "kh-plugins-manager__tab--active" : null)"
+                        aria-selected="@(_tab == Tab.Installed ? "true" : "false")"
+                        @onclick="() => SelectTabAsync(Tab.Installed)">
+                    <Icon Name="plug-fill" /> Installed <span class="kh-plugins-manager__count">@Plugins.Count</span>
+                </button>
+                <button type="button" role="tab" class="kh-plugins-manager__tab @(_tab == Tab.Available ? "kh-plugins-manager__tab--active" : null)"
+                        aria-selected="@(_tab == Tab.Available ? "true" : "false")"
+                        @onclick="() => SelectTabAsync(Tab.Available)">
+                    <Icon Name="cloud-arrow-down" /> Available
+                    @if (CatalogEntries.Count > 0)
+                    {
+                        <span class="kh-plugins-manager__count">@CatalogEntries.Count</span>
+                    }
+                </button>
+            </div>
             <div class="kh-card__body">
-                @if (Plugins.Count == 0)
+                @if (_tab == Tab.Available)
+                {
+                    var snapshot = Catalog?.Current;
+
+                    <div class="kh-plugins-manager__catalog-bar">
+                        <span class="kh-plugins-manager__catalog-state">
+                            @if (_catalogBusy)
+                            {
+                                <Loader Type="Loader.LoaderType.Spinner" />
+                                <span>Checking&hellip;</span>
+                            }
+                            else if (snapshot is not null)
+                            {
+                                <span>Last checked @snapshot.FetchedUtc.ToLocalTime().ToString("MM/dd/yyyy HH:mm")</span>
+                            }
+                            else
+                            {
+                                <span>Not checked yet.</span>
+                            }
+                        </span>
+                        <button type="button" class="kh-button kh-button--secondary" disabled="@_catalogBusy"
+                                @onclick="RefreshCatalogAsync">
+                            <Icon Name="arrow-clockwise" /> Check now
+                        </button>
+                    </div>
+
+                    @if (Catalog?.LastError is { } catalogError)
+                    {
+                        <div class="kh-plugins-manager__notice kh-plugins-manager__notice--warning">
+                            <Icon Name="exclamation-circle" />
+                            <span>@catalogError @(snapshot is null ? null : "Showing the last list this host downloaded.")</span>
+                        </div>
+                    }
+
+                    @if (CatalogEntries.Count == 0)
+                    {
+                        <div class="kh-panel--empty kh-panel--empty-lg">
+                            <Icon Name="cloud-arrow-down" />
+                            <span>No plugins to show yet. Check again, or drop a plugin folder into <span class="kh-emphasis">@_pluginsDirectory</span>.</span>
+                        </div>
+                    }
+                    else
+                    {
+                        @foreach (var entry in CatalogEntries.OrderBy(e => e.Name, StringComparer.CurrentCultureIgnoreCase))
+                        {
+                            var state = GetAvailableState(entry);
+                            var release = entry.LatestCompatible();
+                            var install = GetActiveInstall(entry.Id);
+                            var installedVersion = GetInstalledVersion(entry.Id);
+
+                            <div class="kh-plugins-manager__row" @key="entry.Id">
+                                <div class="kh-plugins-manager__head kh-plugins-manager__head--static">
+                                    <span class="kh-plugins-manager__glyph"><Icon Name="@GetAvailableGlyph(entry)" /></span>
+                                    <span class="kh-plugins-manager__identity">
+                                        <span class="kh-plugins-manager__title">
+                                            <span class="kh-plugins-manager__name">@entry.Name</span>
+                                            @if (release is not null)
+                                            {
+                                                <span class="kh-badge kh-badge--ext">v@(release.Version)</span>
+                                            }
+                                            @if (installedVersion is not null && state == AvailableState.UpdateAvailable)
+                                            {
+                                                <span class="kh-plugins-manager__chip">v@(installedVersion) installed</span>
+                                            }
+                                            @foreach (var capability in entry.Capabilities)
+                                            {
+                                                <span class="kh-plugins-manager__chip">@capability</span>
+                                            }
+                                        </span>
+                                        <span class="kh-plugins-manager__sub">
+                                            @(string.IsNullOrWhiteSpace(entry.Description) ? "No description." : entry.Description)
+                                            @if (!string.IsNullOrWhiteSpace(entry.Author))
+                                            {
+                                                @($" — by {entry.Author}")
+                                            }
+                                        </span>
+                                    </span>
+                                    <div class="kh-plugins-manager__aside">
+                                        @if (!string.IsNullOrWhiteSpace(entry.Repository))
+                                        {
+                                            <button type="button" class="kh-button kh-button--secondary kh-button--icon-minimal"
+                                                    title="Open the source repository" @onclick="() => OpenRepository(entry.Repository)">
+                                                <Icon Name="box-arrow-up-right" />
+                                            </button>
+                                        }
+                                        @switch (state)
+                                        {
+                                            case AvailableState.Installing:
+                                                <button type="button" class="kh-button kh-button--outline-danger"
+                                                        @onclick="() => CancelInstall(entry.Id)">Cancel</button>
+                                                break;
+                                            case AvailableState.Staged:
+                                                <span class="kh-badge kh-badge--warning">Restart to install</span>
+                                                <button type="button" class="kh-button kh-button--secondary"
+                                                        @onclick="() => ClearStaged(entry.Id)">Undo</button>
+                                                break;
+                                            case AvailableState.PendingRemoval:
+                                                <span class="kh-badge kh-badge--warning">Restart to remove</span>
+                                                <button type="button" class="kh-button kh-button--secondary"
+                                                        @onclick="() => ClearStaged(entry.Id)">Undo</button>
+                                                break;
+                                            case AvailableState.StageFailed:
+                                                <span class="kh-badge kh-badge--danger">Install failed</span>
+                                                <button type="button" class="kh-button kh-button--secondary"
+                                                        @onclick="() => ClearStaged(entry.Id)">Dismiss</button>
+                                                break;
+                                            case AvailableState.UpdateAvailable:
+                                                <button type="button" class="kh-button" @onclick="() => ConfirmInstallAsync(entry)">
+                                                    <Icon Name="arrow-up-circle" /> Update
+                                                </button>
+                                                break;
+                                            case AvailableState.Installable:
+                                                <button type="button" class="kh-button" @onclick="() => ConfirmInstallAsync(entry)">
+                                                    <Icon Name="download" /> Install
+                                                </button>
+                                                break;
+                                            case AvailableState.Incompatible:
+                                                <span class="kh-badge kh-badge--info" title="No release targets this host's plugin API.">Not compatible</span>
+                                                break;
+                                            case AvailableState.Unverified:
+                                                <span class="kh-badge kh-badge--warning"
+                                                      title="The catalog publishes this release without an https download and a checksum, so KHost cannot verify what it downloads.">Not verifiable</span>
+                                                break;
+                                            default:
+                                                <span class="kh-badge kh-badge--success">Installed</span>
+                                                break;
+                                        }
+                                    </div>
+                                </div>
+
+                                @if (install is not null)
+                                {
+                                    <div class="kh-plugins-manager__progress">
+                                        @if (install.Progress is { } fraction)
+                                        {
+                                            <div class="kh-plugins-manager__progress-track">
+                                                <div class="kh-plugins-manager__progress-fill" style="width:@(Percent(fraction))%"></div>
+                                            </div>
+                                            <span class="kh-plugins-manager__progress-label">@(Percent(fraction))%</span>
+                                        }
+                                        else
+                                        {
+                                            <div class="kh-plugins-manager__progress-track kh-plugins-manager__progress-track--indeterminate"></div>
+                                        }
+                                        <span class="kh-plugins-manager__progress-label">
+                                            @(install.State == PluginInstallState.Verifying ? "Verifying" : "Downloading")
+                                        </span>
+                                    </div>
+                                }
+                                else if (state == AvailableState.StageFailed && _staging.Failures.TryGetValue(entry.Id, out var stageError))
+                                {
+                                    <div class="kh-plugins-manager__notice kh-plugins-manager__notice--error">
+                                        <Icon Name="exclamation-triangle-fill" />
+                                        <span>@stageError</span>
+                                    </div>
+                                }
+                                else if (GetLastInstall(entry.Id) is { State: PluginInstallState.Failed, Error: { } failure })
+                                {
+                                    <div class="kh-plugins-manager__notice kh-plugins-manager__notice--error">
+                                        <Icon Name="exclamation-triangle-fill" />
+                                        <span>@failure</span>
+                                    </div>
+                                }
+                            </div>
+                        }
+                    }
+                }
+                else if (Plugins.Count == 0)
                 {
                     <div class="kh-panel--empty kh-panel--empty-lg">
                         <Icon Name="plug" />
@@ -79,7 +271,14 @@
                                     </span>
                                 </button>
                                 <div class="kh-plugins-manager__aside">
-                                    <span class="kh-badge @GetStateBadgeClass(state)">@GetStateLabel(state)</span>
+                                    @if (manifest is not null && _staging.Removals.Contains(manifest.Id))
+                                    {
+                                        <span class="kh-badge kh-badge--warning">Restart to remove</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="kh-badge @GetStateBadgeClass(state)">@GetStateLabel(state)</span>
+                                    }
                                     <button type="button" role="switch" aria-checked="@(enabled ? "true" : "false")" class="kh-switch"
                                             aria-label="@($"Enable {plugin.DisplayName}")"
                                             disabled="@(!CanEnable(plugin, enabled))"
@@ -176,6 +375,21 @@
                                                 @onclick="() => OpenFolder(plugin.Directory)">
                                             <Icon Name="folder2-open" /> @Path.GetFileName(plugin.Directory)
                                         </button>
+                                        @if (manifest is not null)
+                                        {
+                                            @if (_staging.Removals.Contains(manifest.Id))
+                                            {
+                                                <button type="button" class="kh-button kh-button--secondary"
+                                                        @onclick="() => ClearStaged(manifest.Id)">Keep it</button>
+                                            }
+                                            else
+                                            {
+                                                <button type="button" class="kh-button kh-button--outline-danger"
+                                                        @onclick="() => ConfirmUninstallAsync(plugin)">
+                                                    <Icon Name="trash" /> Remove
+                                                </button>
+                                            }
+                                        }
                                         @if (fields is not null && dirty)
                                         {
                                             <button type="button" class="kh-button kh-button--secondary" @onclick="() => Revert(plugin.Id)">Revert</button>

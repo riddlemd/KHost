@@ -47,6 +47,24 @@ namespace KHost.Domain
             serviceCollection.AddOptions<AdService.ServiceOptions>()
                 .BindConfiguration(AdService.ServiceOptions.SectionName);
 
+            serviceCollection.AddOptions<PluginCatalogService.ServiceOptions>()
+                .BindConfiguration(PluginCatalogService.ServiceOptions.SectionName);
+
+            // Named clients, not typed ones: AddHttpClient<TInterface, TImplementation> registers
+            // the service as transient, and every domain service here is a singleton.
+            serviceCollection.AddHttpClient(PluginCatalogService.HttpClientName, http =>
+            {
+                http.Timeout = TimeSpan.FromSeconds(20);
+                http.DefaultRequestHeaders.UserAgent.ParseAdd("KHost/2.0 (+https://github.com/riddlemd/KHost)");
+            });
+
+            serviceCollection.AddHttpClient(PluginInstallerService.HttpClientName, http =>
+            {
+                // No overall timeout: it would cap the whole download, not the time between bytes.
+                http.Timeout = Timeout.InfiniteTimeSpan;
+                http.DefaultRequestHeaders.UserAgent.ParseAdd("KHost/2.0 (+https://github.com/riddlemd/KHost)");
+            });
+
             serviceCollection.AddSingleton(TimeProvider.System);
             serviceCollection.AddSingleton<IMessageBroker, MessageBroker>();
             serviceCollection.AddSingleton<IFlashService, FlashService>();
@@ -82,6 +100,9 @@ namespace KHost.Domain
             // IPerformanceService, and PerformanceService depends on IDownloadsService, so the
             // service has to be its own dependency-free singleton to avoid a constructor cycle.
             serviceCollection.AddSingleton<IDownloadsService, DownloadsService>();
+            serviceCollection.AddSingleton<IPluginStagingArea>(new PluginStagingArea(PluginPaths.Plugins, PluginPaths.Staging));
+            serviceCollection.AddSingleton<IPluginCatalogService, PluginCatalogService>();
+            serviceCollection.AddSingleton<IPluginInstallerService, PluginInstallerService>();
             serviceCollection.AddSingleton<PluginLibrary>();
             serviceCollection.AddSingleton<IPluginLibrary>(sp => sp.GetRequiredService<PluginLibrary>());
 
@@ -108,8 +129,13 @@ namespace KHost.Domain
         /// </summary>
         public static IServiceCollection AddPlugins(this IServiceCollection serviceCollection)
         {
-            var state = PluginLoader.ReadState(Path.Combine(AppContext.BaseDirectory, "cache"));
-            var plugins = PluginLoader.Discover(Path.Combine(AppContext.BaseDirectory, "plugins"), state);
+            // Before Discover, so a payload staged by the last run is a plugin this one can see.
+            // Its own instance: the container that holds the singleton does not exist yet, and the
+            // staging area keeps no state outside the folder, so the two agree regardless.
+            new PluginStagingArea(PluginPaths.Plugins, PluginPaths.Staging).ApplyPending();
+
+            var state = PluginLoader.ReadState(PluginPaths.Cache);
+            var plugins = PluginLoader.Discover(PluginPaths.Plugins, state);
 
             PluginLoader.LoadAndRegister(serviceCollection, plugins, state);
 

@@ -46,15 +46,17 @@ public partial class SettingsButton : IDisposable
 
     private static readonly List<SettingsPage> _allPages =
     [
-        new SettingsPage { Title = "Users Manager", Icon = "person-fill", Route = "/settings/users-manager", Requires = KHostPermission.EditUser },
-        new SettingsPage { Title = "User Groups Manager", Icon = "people-fill", Route = "/settings/user-groups-manager", Requires = KHostPermission.EditGroup },
-        new SettingsPage { Title = "Venues Manager", Icon = "geo-alt-fill", Route = "/settings/venues-manager", Requires = KHostPermission.EditVenue },
-        new SettingsPage { Title = "Tips Manager", Icon = "coin", Route = "/settings/tips-manager" },
-        new SettingsPage { Title = "Media Manager", Icon = "music-note-list", Route = "/settings/media-manager", Requires = KHostPermission.ManageMedia },
-        new SettingsPage { Title = "Downloads Manager", Icon = "cloud-download", Route = "/settings/downloads-manager", Requires = KHostPermission.ManageMedia },
-        new SettingsPage { Title = "Break Music Manager", Icon = "music-note-beamed", Route = "/settings/break-music-manager", Requires = KHostPermission.ManageMedia },
+        // Manage is listed alphabetically by title; Application below is not, so keep new entries
+        // in place rather than appending.
         new SettingsPage { Title = "Ads Manager", Icon = "megaphone", Route = "/settings/ads-manager", Requires = KHostPermission.ManageMedia },
+        new SettingsPage { Title = "Break Music Manager", Icon = "music-note-beamed", Route = "/settings/break-music-manager", Requires = KHostPermission.ManageMedia },
+        new SettingsPage { Title = "Downloads Manager", Icon = "cloud-download", Route = "/settings/downloads-manager", Requires = KHostPermission.ManageMedia },
+        new SettingsPage { Title = "Media Manager", Icon = "music-note-list", Route = "/settings/media-manager", Requires = KHostPermission.ManageMedia },
         new SettingsPage { Title = "Plugins Manager", Icon = "plug-fill", Route = "/settings/plugins-manager", AdminOnly = true },
+        new SettingsPage { Title = "Tips Manager", Icon = "coin", Route = "/settings/tips-manager" },
+        new SettingsPage { Title = "User Groups Manager", Icon = "people-fill", Route = "/settings/user-groups-manager", Requires = KHostPermission.EditGroup },
+        new SettingsPage { Title = "Users Manager", Icon = "person-fill", Route = "/settings/users-manager", Requires = KHostPermission.EditUser },
+        new SettingsPage { Title = "Venues Manager", Icon = "geo-alt-fill", Route = "/settings/venues-manager", Requires = KHostPermission.EditVenue },
         new SettingsPage { Title = "App Settings", Icon = "gear-fill", Route = "/settings/app-settings", Group = ApplicationGroup, AdminOnly = true },
         new SettingsPage { Title = "Keyboard Shortcuts", Icon = "keyboard", Group = ApplicationGroup, Opens = menu => menu.ShowShortcutsAsync() },
         new SettingsPage { Title = "About", Icon = "info-circle", Route = "/settings/about", Group = ApplicationGroup }
