@@ -309,6 +309,68 @@ public class PluginsManagerPageTests : BunitContext
             .Single(c => c.GetMethodInfo().Name == nameof(IPluginsService.SaveSettingsAsync))
             .GetArguments()[1]!;
 
+    [Fact]
+    public void Undo_AStagedFirstInstall_DisablesTheIdInstallingEnabled()
+    {
+        Arrange(Plugin(PluginStatus.Loaded), enabled: true);
+
+        var fresh = Guid.NewGuid();
+
+        _installer.Staged().Returns(new PluginStagingState { Installs = new HashSet<Guid> { fresh } });
+
+        var cut = RenderAvailable(CatalogEntry(fresh, "Fresh", CatalogRelease("1.0.0")));
+
+        cut.Find($"{AvailableRowSelector} .kh-button--secondary").Click();
+
+        _installer.Received(1).ClearStaged(fresh);
+        _pluginsService.Received(1).SetEnabledAsync(fresh.ToString(), false);
+    }
+
+    [Fact]
+    public void Undo_AStagedUpdate_LeavesTheInstalledCopyEnabled()
+    {
+        // The installed copy keeps running, and it was enabled before the update was staged, so
+        // dropping the payload must not switch it off.
+        Arrange(Plugin(PluginStatus.Loaded), enabled: true);
+
+        _installer.Staged().Returns(new PluginStagingState { Installs = new HashSet<Guid> { PluginId } });
+
+        var cut = RenderAvailable(CatalogEntry(PluginId, "Test Plugin", CatalogRelease("2.0.0")));
+
+        cut.Find($"{AvailableRowSelector} .kh-button--secondary").Click();
+
+        _installer.Received(1).ClearStaged(PluginId);
+        _pluginsService.DidNotReceive().SetEnabledAsync(PluginId.ToString(), false);
+    }
+
+    [Fact]
+    public void Undo_APendingRemovalOnALoadedPlugin_EnablesItAgain()
+    {
+        Arrange(Plugin(PluginStatus.Loaded), enabled: false);
+
+        _installer.Staged().Returns(new PluginStagingState { Removals = new HashSet<Guid> { PluginId } });
+
+        var cut = RenderAvailable(CatalogEntry(PluginId, "Test Plugin", CatalogRelease("1.0.0")));
+
+        cut.Find($"{AvailableRowSelector} .kh-button--secondary").Click();
+
+        _pluginsService.Received(1).SetEnabledAsync(PluginId.ToString(), true);
+    }
+
+    [Fact]
+    public void Undo_APendingRemovalOnAPluginThatWasNeverLoaded_LeavesItOff()
+    {
+        Arrange(Plugin(PluginStatus.Disabled), enabled: false);
+
+        _installer.Staged().Returns(new PluginStagingState { Removals = new HashSet<Guid> { PluginId } });
+
+        var cut = RenderAvailable(CatalogEntry(PluginId, "Test Plugin", CatalogRelease("1.0.0")));
+
+        cut.Find($"{AvailableRowSelector} .kh-button--secondary").Click();
+
+        _pluginsService.DidNotReceive().SetEnabledAsync(PluginId.ToString(), true);
+    }
+
     /// <summary>Renders the page and switches to the browse list, which is where a catalog entry shows.</summary>
     private IRenderedComponent<PluginsManagerPage> RenderAvailable(params PluginCatalogEntry[] entries)
     {
