@@ -56,7 +56,8 @@
     }
 
     &__body {
-        overflow-y: scroll;
+        // auto, not scroll: scroll paints a gutter on every card body, overflow or not.
+        overflow-y: auto;
 
         > form {
             padding: 0.5em;
