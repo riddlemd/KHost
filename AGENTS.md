@@ -46,6 +46,37 @@ SCSS compiles inside `dotnet build` (AspNetCore.SassCompiler) — no separate sa
 
 Three things deliberately stay plain C# events, and should stay that way: Screen2's `IMediaPlayer` and `IScreenClient` (a separate process — the broker is in-process and SignalR is the transport), `IDialogService.ShowRequested` (a request with a payload and one legitimate subscriber, not a notification), and `IPlaybackService.PositionChanged` (twice a second for a whole night; it says only that `Position` moved, so take it to redraw a playhead and nothing else).
 
+## Plugin catalog and installs
+
+The Available tab on the Plugins page installs from a published `catalog.json` (this repo's root,
+served raw from `master`; `PluginCatalog:Url`). The catalog is the **trust root** — a plugin runs
+in-process with the host's own access — so a release is only offered when it is served over https
+and carries a `sha256`, and the download is hashed, the zip's entries are all checked for escapes
+*before* one is written, and the manifest inside must declare the same id and
+`ApiVersion == PluginApi.CurrentVersion`. `EntryAssembly` is checked to resolve inside the plugin
+folder: `PluginLoader` hands that string straight to `LoadFromAssemblyPath`.
+
+- Presentation metadata (repository, author, capabilities) belongs in the catalog, not
+  `PluginManifest` — the manifest is in the SDK, so adding a field breaks every external plugin's
+  build, the same argument as `MediaSearchEntity`.
+- Nothing installs into a running host. `IPluginStagingArea` parks payloads in `plugins-staging/`,
+  a **sibling** of `plugins/` — `PluginLoader.Discover` treats every subdirectory of `plugins/` as
+  a plugin, so nesting staging inside it renders a broken row. `<id>/` is a staged install,
+  `<id>.remove` a pending removal, `<id>.failed/` a payload the last start could not apply (with
+  `error.txt` beside it, so it stops retrying), `.work/` download scratch — inside staging so the
+  final `Directory.Move` never crosses a volume.
+- `ApplyPending()` runs from `AddPlugins` before `Discover`, so it predates the container: no DI,
+  no logger, and a failure must never stop the app starting. It maps id → folder by reading each
+  manifest, so an update replaces a plugin dropped in by hand under any folder name.
+- `LatestCompatible()` returning null means two different things, and the page must keep them
+  apart: no release for this plugin API ("Not compatible") versus a release published without a
+  checksum ("Not verifiable"). Telling a host the wrong one sends them after an upgrade that
+  changes nothing — that is what `HasReleaseForThisHost()` exists for.
+- The catalog is fetched only when the Available tab opens, never at startup — a console runs on
+  whatever wifi the room has. A failed fetch keeps the cached copy and shows the error beside it;
+  an unknown `schemaVersion` rejects the whole document rather than guessing at the fields that
+  carry the checksum.
+
 ## Components
 
 - Component logic lives in a code-behind partial (`Foo.razor.cs`, `public partial class Foo`), never an inline `@code` block. `@inject` becomes an `[Inject]` property; `@implements` becomes an interface on the partial. `@page`, `@using`, `@inherits`, `@layout`, `@attribute` stay in the `.razor`.
