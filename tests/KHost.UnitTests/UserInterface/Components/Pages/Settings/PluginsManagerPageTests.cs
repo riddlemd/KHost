@@ -421,6 +421,34 @@ public class PluginsManagerPageTests : BunitContext
     }
 
     [Fact]
+    public void AvailableRow_BuiltOnlyForOtherPlatforms_ReadsNotCompatibleAndSaysWhy()
+    {
+        // Same badge as a plugin-API mismatch — neither will run here — but the tooltip has to
+        // name the platform, or the host is left to guess which kind of incompatible it is.
+        Arrange(Plugin(PluginStatus.Loaded), enabled: true);
+
+        var other = PluginRid.Current == "win" ? "linux" : "win";
+        var release = CatalogRelease("1.0.0");
+        release.Rid = other;
+
+        var cut = RenderAvailable(CatalogEntry(Guid.NewGuid(), "Elsewhere", release));
+        var badge = cut.Find(AvailableBadgeSelector);
+
+        Assert.Equal("Not compatible", badge.TextContent.Trim());
+        Assert.Contains(PluginRid.Current, badge.GetAttribute("title"));
+    }
+
+    [Fact]
+    public void AvailableRow_EveryReleaseTargetsAnotherApi_SaysSoInTheTooltip()
+    {
+        Arrange(Plugin(PluginStatus.Loaded), enabled: true);
+
+        var cut = RenderAvailable(CatalogEntry(Guid.NewGuid(), "Future", CatalogRelease("1.0.0", apiVersion: 99)));
+
+        Assert.Contains("plugin API", cut.Find(AvailableBadgeSelector).GetAttribute("title"));
+    }
+
+    [Fact]
     public void AvailableRow_EveryReleaseTargetsAnotherApi_ReadsNotCompatible()
     {
         Arrange(Plugin(PluginStatus.Loaded), enabled: true);

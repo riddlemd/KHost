@@ -45,17 +45,24 @@ public static class CatalogMerge
         if (entry.Capabilities.Count == 0 && facts.Capabilities.Count > 0)
             entry.Capabilities = [.. facts.Capabilities];
 
-        // Re-syncing a tag replaces its release rather than listing it twice.
-        entry.Releases.RemoveAll(r => string.Equals(r.Version, facts.Release.Version, StringComparison.OrdinalIgnoreCase));
+        // Keyed by version *and* platform: one version can ship a neutral build alongside a
+        // per-platform one, and matching on version alone would have the second evict the first.
+        entry.Releases.RemoveAll(r => string.Equals(r.Version, facts.Release.Version, StringComparison.OrdinalIgnoreCase)
+                                   && string.Equals(r.Rid ?? string.Empty, facts.Release.Rid ?? string.Empty, StringComparison.OrdinalIgnoreCase));
         entry.Releases.Add(facts.Release);
 
         entry.Releases.Sort((a, b) =>
         {
             var byVersion = PluginVersion.Parse(b.Version).CompareTo(PluginVersion.Parse(a.Version));
 
-            // Ordinal tiebreak so two releases parsing equal (1.0 and 1.0.0) still order the same
-            // way on every run, which is what keeps a re-sync diff-free.
-            return byVersion != 0 ? byVersion : string.CompareOrdinal(b.Version, a.Version);
+            if (byVersion != 0)
+                return byVersion;
+
+            // Ordinal tiebreaks so releases that parse equal (1.0 and 1.0.0, or one version's two
+            // platform builds) still order the same way on every run, keeping a re-sync diff-free.
+            var byRid = string.CompareOrdinal(a.Rid ?? string.Empty, b.Rid ?? string.Empty);
+
+            return byRid != 0 ? byRid : string.CompareOrdinal(b.Version, a.Version);
         });
 
         catalog.Plugins.Sort((a, b) =>

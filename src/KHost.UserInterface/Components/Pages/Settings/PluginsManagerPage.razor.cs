@@ -309,7 +309,13 @@ public partial class PluginsManagerPage : IDisposable
         {
             if (installed is not null) return AvailableState.Installed;
 
-            return entry.HasReleaseForThisHost() ? AvailableState.Unverified : AvailableState.Incompatible;
+            // A build for another platform is not compatible either — same badge, and the reason
+            // goes in the tooltip. Unverifiable is the one that earns its own state: that plugin
+            // would run here, and only its publisher can fix it.
+            if (!entry.HasReleaseForThisHost() || !entry.HasReleaseForThisPlatform())
+                return AvailableState.Incompatible;
+
+            return AvailableState.Unverified;
         }
 
         if (installed is null) return AvailableState.Installable;
@@ -438,6 +444,13 @@ public partial class PluginsManagerPage : IDisposable
         }
     }
 
+    /// <summary>Why nothing is installable, for the badge's tooltip — the two causes need
+    /// different things from a host, even though neither is actionable on this page.</summary>
+    private static string IncompatibleReason(PluginCatalogEntry entry)
+        => entry.HasReleaseForThisHost()
+            ? $"The catalog publishes no build for {PluginRid.Current}."
+            : "No release targets this host's plugin API.";
+
     private static string GetAvailableGlyph(PluginCatalogEntry entry) => entry.Capabilities switch
     {
         var c when c.Contains("Media provider") => "music-note-beamed",
@@ -462,11 +475,14 @@ public partial class PluginsManagerPage : IDisposable
         Staged,
         StageFailed,
         PendingRemoval,
-        /// <summary>The catalog lists it, but no release targets this host's plugin API.</summary>
+        /// <summary>Nothing the catalog lists will run here — wrong plugin API, or no build for
+        /// this platform. <see cref="IncompatibleReason"/> says which.</summary>
         Incompatible,
         /// <summary>A release targets this host, but is published without an https URL and a
         /// checksum — so the host has no way to know it got what the catalog described.</summary>
         Unverified,
+        /// <summary>Built for this plugin API, but only for other platforms.</summary>
+        Unsupported,
     }
 
     private enum RowState
