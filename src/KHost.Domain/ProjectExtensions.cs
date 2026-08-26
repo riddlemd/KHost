@@ -101,6 +101,7 @@ namespace KHost.Domain
             // service has to be its own dependency-free singleton to avoid a constructor cycle.
             serviceCollection.AddSingleton<IDownloadsService, DownloadsService>();
             serviceCollection.AddSingleton<IPluginStagingArea>(new PluginStagingArea(PluginPaths.Plugins, PluginPaths.Staging));
+            serviceCollection.AddSingleton<IPluginPayloadReader, PluginPayloadReader>();
             serviceCollection.AddSingleton<IPluginCatalogService, PluginCatalogService>();
             serviceCollection.AddSingleton<IPluginInstallerService, PluginInstallerService>();
             serviceCollection.AddSingleton<PluginLibrary>();

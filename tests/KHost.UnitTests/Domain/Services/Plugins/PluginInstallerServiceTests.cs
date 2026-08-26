@@ -331,6 +331,7 @@ public class PluginInstallerServiceTests : IDisposable
             NullLogger<PluginInstallerService>.Instance,
             factory,
             new PluginStagingArea(Path.Combine(_root.FullName, "plugins"), StagingDir),
+            new PluginPayloadReader(),
             TimeProvider.System,
             _broker);
     }

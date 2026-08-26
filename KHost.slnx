@@ -15,6 +15,10 @@
   </Folder>
 
 
+  <Folder Name="/tools/">
+    <Project Path="tools/KHost.CatalogSync/KHost.CatalogSync.csproj" />
+  </Folder>
+
   <Folder Name="/tests/">
     <Project Path="tests/KHost.IntegrationTests/KHost.IntegrationTests.csproj" Id="835b7ddc-0cbd-4cab-afc2-111955af7e02" />
     <Project Path="tests/KHost.UnitTests/KHost.UnitTests.csproj" Id="c60047ab-adb0-484d-b5c2-5c153c037c07" />

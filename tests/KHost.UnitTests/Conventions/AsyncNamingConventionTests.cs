@@ -18,6 +18,7 @@ public class AsyncNamingConventionTests
         typeof(global::KHost.Plugins.Sdk.PluginApi).Assembly,
         typeof(global::KHost.Telemetry.KHostActivitySource).Assembly,
         typeof(global::KHost.UserInterface.Services.ThemeService).Assembly,
+        typeof(global::KHost.CatalogSync.GitHubClient).Assembly,
     ];
 
     [Fact]
