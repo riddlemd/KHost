@@ -80,6 +80,49 @@ public class CatalogMergeTests
     }
 
     [Fact]
+    public void Apply_SameVersionForTwoPlatforms_KeepsBoth()
+    {
+        // The whole point of the rid: one version can ship a neutral build and a per-platform one.
+        var catalog = Catalog();
+
+        CatalogMerge.Apply(catalog, Facts("1.0.0"));
+        CatalogMerge.Apply(catalog, Facts("1.0.0", rid: "win"));
+
+        var releases = Assert.Single(catalog.Plugins).Releases;
+
+        Assert.Equal(2, releases.Count);
+        Assert.Equal([null, "win"], releases.Select(r => r.Rid).OrderBy(r => r ?? string.Empty));
+    }
+
+    [Fact]
+    public void Apply_SameVersionAndPlatformTwice_ReplacesRatherThanDuplicates()
+    {
+        var catalog = Catalog();
+
+        CatalogMerge.Apply(catalog, Facts("1.0.0", rid: "win", sha256: "aaa"));
+        CatalogMerge.Apply(catalog, Facts("1.0.0", rid: "win", sha256: "bbb"));
+
+        var release = Assert.Single(Assert.Single(catalog.Plugins).Releases);
+
+        Assert.Equal("bbb", release.Sha256);
+    }
+
+    [Fact]
+    public void Apply_TwoPlatformsAtOneVersion_OrdersThemTheSameWayEveryRun()
+    {
+        var catalog = Catalog();
+
+        CatalogMerge.Apply(catalog, Facts("1.0.0", rid: "win"));
+        CatalogMerge.Apply(catalog, Facts("1.0.0", rid: "linux"));
+
+        var first = Snapshot(catalog);
+
+        CatalogMerge.Apply(catalog, Facts("1.0.0", rid: "win"));
+
+        Assert.Equal(first, Snapshot(catalog));
+    }
+
+    [Fact]
     public void Apply_RerunningTheSameRelease_ChangesNothing()
     {
         var catalog = Catalog();
@@ -173,7 +216,7 @@ public class CatalogMergeTests
     private static string Snapshot(PluginCatalog catalog)
         => System.Text.Json.JsonSerializer.Serialize(catalog, System.Text.Json.JsonSerializerOptions.Web);
 
-    private static SyncFacts Facts(string version, string sha256 = "abc123") => new()
+    private static SyncFacts Facts(string version, string sha256 = "abc123", string? rid = null) => new()
     {
         Id = PluginId,
         Name = "YouTube Search",
@@ -187,6 +230,7 @@ public class CatalogMergeTests
             Url = $"https://example.test/p-{version}.zip",
             Sha256 = sha256,
             SizeBytes = 26934,
+            Rid = rid,
         },
     };
 }

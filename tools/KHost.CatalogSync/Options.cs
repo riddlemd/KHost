@@ -11,6 +11,7 @@ public sealed record Options
           --asset <name.zip>      Which asset to publish, when a release carries more than one zip.
           --catalog <path>        Catalog file to update (default plugin-catalog.json).
           --capabilities <a,b>    What the plugin provides; the manifest does not carry this.
+          --rid <win|osx|linux>   Platform this build is for; omit for a build that runs anywhere.
           --include-prerelease    Allow a release marked prerelease.
         """;
 
@@ -24,6 +25,9 @@ public sealed record Options
 
     public IReadOnlyList<string> Capabilities { get; init; } = [];
 
+    /// <summary>Null for a platform-neutral build, which is what most plugins should ship.</summary>
+    public string? Rid { get; init; }
+
     public bool IncludePrerelease { get; init; }
 
     /// <summary>Null when the arguments do not name a repository, or a flag is missing its value.</summary>
@@ -32,7 +36,7 @@ public sealed record Options
         if (args.Length == 0 || args[0].StartsWith('-') || !args[0].Contains('/'))
             return null;
 
-        string? tag = null, asset = null, capabilities = null;
+        string? tag = null, asset = null, capabilities = null, rid = null;
         var catalog = "plugin-catalog.json";
         var includePrerelease = false;
 
@@ -45,6 +49,7 @@ public sealed record Options
                 case "--asset" when i + 1 < args.Length: asset = args[++i]; break;
                 case "--catalog" when i + 1 < args.Length: catalog = args[++i]; break;
                 case "--capabilities" when i + 1 < args.Length: capabilities = args[++i]; break;
+                case "--rid" when i + 1 < args.Length: rid = args[++i]; break;
                 default: return null;
             }
         }
@@ -55,6 +60,7 @@ public sealed record Options
             Tag = tag,
             Asset = asset,
             CatalogPath = catalog,
+            Rid = rid,
             IncludePrerelease = includePrerelease,
             Capabilities = capabilities is null
                 ? []
