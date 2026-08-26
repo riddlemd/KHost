@@ -50,6 +50,12 @@ public sealed record DownloadsChanged;
 
 public sealed record PluginsChanged;
 
+/// <summary>The published list of installable plugins was re-read, from the network or the cache.</summary>
+public sealed record PluginCatalogChanged;
+
+/// <summary>An install moved — progress, a settled result, or a change to what is staged for the next start.</summary>
+public sealed record PluginInstallsChanged;
+
 
 public sealed record FlashChanged;
 

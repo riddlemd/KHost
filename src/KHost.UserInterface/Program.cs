@@ -347,6 +347,11 @@ internal static class Program
         app.Lifetime.ApplicationStopping.Register(() =>
             app.Services.GetRequiredService<IDownloadsService>().CancelAll());
 
+        // A half-written plugin payload is scratch under plugins-staging/.work, which the next
+        // install overwrites; cancelling only stops the transfer outliving the host.
+        app.Lifetime.ApplicationStopping.Register(() =>
+            app.Services.GetRequiredService<IPluginInstallerService>().CancelAll());
+
         // Screens we started are ours to close, and nothing else does it: on macOS closing the
         // window tears the process down inside Photino, so container disposal never runs and the
         // screen would be left on the display announcing a lost host.
