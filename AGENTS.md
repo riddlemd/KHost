@@ -2,7 +2,7 @@
 
 **KHost** — karaoke host app. .NET 10 + Blazor Server UI, Photino screen app. Solution: `KHost.slnx` (no `.sln`).
 
-Projects (`src/`): `Plugins.Sdk` (plugin contracts + the message broker — no project refs, so it is the bottom layer everything may reference) ← `Abstractions` (all interfaces + shared models) ← `Domain` (services) / `DataAccess` (EF Core 10 + SQLite) ← `UserInterface` (Blazor Server) and `Screen2` (Photino video output), plus `IPC.SignalR` (UI↔Screen), `Cast` (Chromecast), `LrcLib`, `Telemetry`, `ServiceDefaults`/`AppHost` (Aspire), and `tests/` (`KHost.UnitTests` — hermetic, no skips; `KHost.IntegrationTests` — needs ffmpeg/ffprobe, Cast tests skip without the Chromecast emulator on 127.0.0.1:8009).
+Projects (`src/`): `Plugins.Sdk` (plugin contracts + the message broker — no project refs, so it is the bottom layer everything may reference) ← `Abstractions` (all interfaces + shared models) ← `Domain` (services) / `DataAccess` (EF Core 10 + SQLite) ← `UserInterface` (Blazor Server) and `Screen2` (Photino video output), plus `IPC.SignalR` (UI↔Screen), `Cast` (Chromecast), `LrcLib`, `Telemetry`, `ServiceDefaults`/`AppHost` (Aspire), `tools/` (`KHost.CatalogSync`, the CLI that writes `plugin-catalog.json` entries), and `tests/` (`KHost.UnitTests` — hermetic, no skips; `KHost.IntegrationTests` — needs ffmpeg/ffprobe, Cast tests skip without the Chromecast emulator on 127.0.0.1:8009).
 
 ## Commands
 
@@ -12,6 +12,8 @@ dotnet run --project src/KHost.UserInterface -- --headless  # no window; console
 dotnet build KHost.slnx "-p:BaseOutputPath=./obj/_build"    # build (redirected so VS's bin/ isn't locked)
 dotnet test tests/KHost.UnitTests                           # --filter "FullyQualifiedName~Name" to narrow
 dotnet test tests/KHost.IntegrationTests                    # drives real ffmpeg; fails without it (KHOST_SKIP_ENVIRONMENT_TESTS=1 to accept)
+
+dotnet run --project tools/KHost.CatalogSync -- <owner/repo> # add a plugin's GitHub release to plugin-catalog.json
 ```
 
 **Prefer `--headless` for testing.** The console is then an ordinary page at `http://localhost:5251`, so it drives with browser tooling and reads with the DOM instead of screenshot coordinate math — the Photino window reaches neither, and a Screen2 window launched over it turns every later capture into a black rectangle. Only the window itself needs the windowed run: native chrome, `SetSize`, and the appliance lockdown. Port 5251 is held by an exclusive `.instance.lock`, so stop one before starting the other.
@@ -118,6 +120,7 @@ folder: `PluginLoader` hands that string straight to `LoadFromAssemblyPath`.
 - The console owns the viewport and never scrolls; every other route scrolls as a document, so the status bar follows the content rather than sitting pinned above it. `MainLayout` puts `--scroll` on `.kh-shell` off `/`, which releases the height caps inside it. Release heights only: `.kh-settings-page`'s `flex` is horizontal — it sits in the row `.kh-app__body` lays out — so zeroing it there collapses every settings card to content width. A settings page that skips the `kh-app__body` > `kh-settings-page` wrapper grows until it paints over the footer.
 - An auto margin on the cross axis switches off a flex item's stretch, so `max-width` + `margin-inline: auto` leaves a card at its content width until you also give it `width: 100%`.
 - A flex item needs `min-width: 0` as well as `white-space: nowrap` before it will truncate; without it, it pushes its neighbours off the row instead.
+- A modifier that turns a filled control into an outline one has to clear the fill as well as the border and text: `.kh-button` sets a `--kh-primary` gradient, so overriding only the two left `--outline-danger` painting a solid primary background under red text. Nor is `--kh-primary` a safe stand-in for "active" — a theme may make it a neutral (famicom's is the console's grey plastic), which leaves a switch's on and off states telling each other apart by knob position alone. Use `--kh-success` for on, and `--kh-danger-bright` rather than `--kh-danger-text-subtle` for danger text, which these dark themes define for exactly that.
 - `.kh-card__body` pads a direct `<form>` child and nothing else — a card body without a form needs its own padding. A `<select>` needs `kh-form-select`, not `kh-form-control`, or WebKit draws the native macOS pop-up and discards the styling (correct in a browser, wrong only in the Photino window).
 
 ## Tests

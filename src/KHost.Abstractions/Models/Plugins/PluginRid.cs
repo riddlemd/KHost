@@ -47,11 +47,8 @@ public static class PluginRid
             || string.Equals(architecture, CurrentArchitecture, StringComparison.OrdinalIgnoreCase);
     }
 
-    /// <summary>
-    /// Whether a catalog may publish this rid at all. A spelling the host does not recognise would
-    /// match nothing and read as "no build for your platform" on every machine, so it is refused
-    /// where the catalog is reviewed rather than left to puzzle a host later.
-    /// </summary>
+    /// <summary>Whether a catalog may publish this rid at all. A spelling the host cannot parse
+    /// matches nothing, so it reads as unavailable on every machine.</summary>
     public static bool IsKnown(string? rid)
     {
         if (string.IsNullOrWhiteSpace(rid))
