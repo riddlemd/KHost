@@ -235,6 +235,40 @@ public class BreakMusicBarTests : BunitContext
     }
 
     [Fact]
+    public void PlayButton_WhileASongIsLoaded_NamesTheSong()
+    {
+        _breakMusic.StartAsync(Arg.Any<CancellationToken>()).Returns(Task.FromResult(false));
+        _playback.CurrentPerformance.Returns(new Performance());
+
+        Render().Find("[title='Play break music']").Click();
+
+        _flash.Received(1).Show(Arg.Is<string>(m => m.Contains("a song is loaded")), FlashType.Warning);
+    }
+
+    [Fact]
+    public void PlayButton_WhenPausedAndASongIsLoaded_StillSaysSo()
+    {
+        // Resume returns nothing, so this path once refused in silence and read as a dead button.
+        _breakMusic.State.Returns(BreakMusicState.Paused);
+        _playback.CurrentPerformance.Returns(new Performance());
+
+        Render().Find("[title='Play break music']").Click();
+
+        _flash.Received(1).Show(Arg.Is<string>(m => m.Contains("a song is loaded")), FlashType.Warning);
+    }
+
+    [Fact]
+    public void SkipButton_WhileASongIsLoaded_SaysItDidNotSkip()
+    {
+        _breakMusic.State.Returns(BreakMusicState.Paused);
+        _playback.CurrentPerformance.Returns(new Performance());
+
+        Render().Find("[title='Skip to the next track']").Click();
+
+        _flash.Received(1).Show(Arg.Is<string>(m => m.Contains("did not skip")), FlashType.Warning);
+    }
+
+    [Fact]
     public void AdButton_WhenNothingPlays_SaysSo()
     {
         _ads.IsConfigured.Returns(true);

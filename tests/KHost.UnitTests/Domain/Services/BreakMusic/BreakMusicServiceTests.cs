@@ -42,6 +42,90 @@ public class BreakMusicServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task StartAsync_WhileASongHasTheRoom_IsRefused()
+    {
+        // The bed was the one thing that could reach the room from the host's own button over a
+        // singer; PlaybackService refuses ads the same way.
+        await _service.InitializeAsync();
+        await _service.SuspendAsync();
+
+        var started = await _service.StartAsync();
+
+        Assert.False(started);
+        Assert.NotEqual(BreakMusicState.Playing, _service.State);
+        await _provider.DidNotReceive().StartAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task ResumeAsync_WhileASongHasTheRoom_IsRefused()
+    {
+        // The path the button actually takes when the bed was paused. A song loading over a paused
+        // bed leaves it paused, not suspended, so Suspend's own state check never fires.
+        await PlayingAsync();
+        await _service.PauseAsync();
+        await _service.SuspendAsync();
+
+        await _service.ResumeAsync();
+
+        Assert.Equal(BreakMusicState.Paused, _service.State);
+        await _provider.DidNotReceive().ResumeAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task SkipAsync_WhileASongHasTheRoom_IsRefused()
+    {
+        // Skipping starts the next track on every provider, so it reaches the room exactly as
+        // Resume does.
+        await PlayingAsync();
+        await _service.PauseAsync();
+        await _service.SuspendAsync();
+
+        await _service.SkipAsync();
+
+        Assert.Equal(BreakMusicState.Paused, _service.State);
+        await _provider.DidNotReceive().SkipAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task ResumeAsync_OnceTheSongIsOver_ResumesNormally()
+    {
+        await PlayingAsync();
+        await _service.PauseAsync();
+        await _service.SuspendAsync();
+        await _service.RestoreAsync();
+
+        await _service.ResumeAsync();
+
+        Assert.Equal(BreakMusicState.Playing, _service.State);
+    }
+
+    [Fact]
+    public async Task StartAsync_AfterTheSongHandsTheRoomBack_PlaysAgain()
+    {
+        await _service.InitializeAsync();
+        await _service.SuspendAsync();
+        await _service.RestoreAsync();
+
+        Assert.True(await _service.StartAsync());
+        Assert.Equal(BreakMusicState.Playing, _service.State);
+    }
+
+    [Fact]
+    public async Task RestoreAsync_AfterABedThatWasPlaying_BringsItBack()
+    {
+        // Restore starts the bed through StartAsync, so the refusal has to be lifted before that
+        // call rather than after it, or the automatic return never happens.
+        await PlayingAsync();
+        await _service.SuspendAsync();
+
+        Assert.Equal(BreakMusicState.Suspended, _service.State);
+
+        await _service.RestoreAsync();
+
+        Assert.Equal(BreakMusicState.Playing, _service.State);
+    }
+
+    [Fact]
     public void NewService_StartsStopped()
     {
         Assert.Equal(BreakMusicState.Stopped, _service.State);

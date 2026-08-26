@@ -49,19 +49,43 @@ public partial class BreakMusicBar : IDisposable
         if (BreakMusic.State == BreakMusicState.Paused)
         {
             await BreakMusic.ResumeAsync();
+
+            // Resume reports nothing, so the refusal is read off the state it did not reach.
+            if (BreakMusic.State != BreakMusicState.Playing)
+                WarnItDidNotStart();
+
             return;
         }
 
-        // Both causes named, because the service reports only that it did not start: a venue with
-        // no playlist chosen and a venue with no screen attached look identical from here, and
-        // blaming the wrong one sends the host to the wrong page.
         if (!await BreakMusic.StartAsync())
-            Flash.Show("Break music did not start — check this venue has a playlist and a screen is connected.", FlashType.Warning);
+            WarnItDidNotStart();
     }
+
+    /// <summary>
+    /// A loaded song is the one cause the console can name for itself, and the one a host would
+    /// otherwise go hunting for in the venue's settings. The rest report only that it did not
+    /// start: no playlist chosen and no screen attached look identical from here, and blaming the
+    /// wrong one sends the host to the wrong page.
+    /// </summary>
+    private void WarnItDidNotStart()
+        => Flash.Show(
+            Playback.CurrentPerformance is not null
+                ? "Break music did not start — a song is loaded. It comes back on its own after the song."
+                : "Break music did not start — check this venue has a playlist and a screen is connected.",
+            FlashType.Warning);
 
     private Task PauseAsync() => BreakMusic.PauseAsync();
 
-    private Task SkipAsync() => BreakMusic.SkipAsync();
+    private async Task SkipAsync()
+    {
+        var before = BreakMusic.CurrentTrack;
+
+        await BreakMusic.SkipAsync();
+
+        // Skipping is refused over a singer too, and silently doing nothing reads as a dead button.
+        if (Playback.CurrentPerformance is not null && ReferenceEquals(before, BreakMusic.CurrentTrack))
+            Flash.Show("Break music did not skip — a song is loaded.", FlashType.Warning);
+    }
 
     private async Task PlayAdAsync()
     {
