@@ -107,7 +107,7 @@
                                     <td>
                                         <span class="kh-badge @GetStatusBadgeClass(media.Status)">@media.Status</span>
                                     </td>
-                                    <td>@media.DateAdded.ToString("yyyy-MM-dd")</td>
+                                    <td>@media.DateAdded.ToLocalTime().ToString("yyyy-MM-dd")</td>
                                     <td class="kh-media-manager__col--actions">
                                         <button class="kh-button kh-button--outline-secondary kh-button--icon-minimal" title="Edit" @onclick="() => EditAsync(media)" type="button">
                                             <Icon Name="pencil" />
