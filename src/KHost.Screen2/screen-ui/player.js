@@ -3,7 +3,14 @@
 // but a web view that cannot run hls.js cannot serve as a screen anyway, and carrying a second
 // path meant the two platforms failed differently and only one of them got tested.
 
-const video = document.getElementById('video');
+// Two players. `video` is the one the room is hearing; `incoming` is one being brought up to
+// speed behind it, so a rebuilt stream can take over without the room hearing the join.
+const videos = [document.getElementById('video'), document.getElementById('video-b')];
+let video = videos[0];
+let incoming = null;
+
+/// Commands shape the player that is about to be heard, which during a handover is the new one.
+function target() { return incoming ?? video; }
 const background = document.getElementById('background');
 const still = document.getElementById('still');
 
@@ -25,6 +32,11 @@ function reportError(message) {
 let currentVolume = 1;
 
 let hls = null;
+let incomingHls = null;
+
+/// A handover that never becomes ready must not strand the change; take it anyway.
+const HANDOVER_TIMEOUT_MS = 4000;
+const CROSSFADE_MS = 120;
 
 // A decode glitch can usually be recovered in place, but a source that never decodes would
 // otherwise recover forever, so give up and let the host hear about it.
@@ -32,10 +44,17 @@ const MAX_MEDIA_RECOVERIES = 2;
 let mediaRecoveries = 0;
 
 function detachHls() {
-    if (!hls) return;
-
-    try { hls.destroy(); } catch { /* ignore */ }
+    destroyHls(hls);
     hls = null;
+
+    // A handover still in flight has to go with it, or its element keeps decoding into nothing.
+    destroyHls(incomingHls);
+    incomingHls = null;
+
+    if (incoming) {
+        retire(incoming);
+        incoming = null;
+    }
 }
 
 function onHlsError(_, data) {
@@ -57,11 +76,46 @@ function onHlsError(_, data) {
 }
 
 function load(url, autoplay) {
-    video.style.transition = 'opacity 120ms linear';
-    video.style.opacity = '1';
-    video.volume = currentVolume;
+    // Nothing to hand over from: a stopped or unstarted player takes the stream directly, which
+    // is the path every fresh song uses and the one that has always worked.
+    if (!hls || video.paused || video.readyState < 3) {
+        video.style.transition = `opacity ${CROSSFADE_MS}ms linear`;
+        video.style.opacity = '1';
+        video.volume = currentVolume;
 
-    detachHls();
+        detachHls();
+        attach(video, url, autoplay, (h) => { hls = h; });
+        return;
+    }
+
+    // Something is playing. Bring the replacement up behind it silently, and only swap once it
+    // has sound to give — tearing the old one down first is the gap this exists to remove.
+    const next = videos.find((v) => v !== video);
+
+    retire(next);
+    incoming = next;
+
+    next.volume = 0;
+    next.style.transition = 'none';
+    next.style.opacity = '0';
+
+    let swapped = false;
+    const swap = () => {
+        if (swapped) return;
+        swapped = true;
+        clearTimeout(timer);
+        handOver(next);
+    };
+
+    const timer = setTimeout(swap, HANDOVER_TIMEOUT_MS);
+
+    next.addEventListener('playing', swap, { once: true });
+
+    attach(next, url, true, (h) => { incomingHls = h; });
+}
+
+/// Wires one element to a stream. The engine dance below is why this is shared rather than copied.
+function attach(el, url, autoplay, keep) {
     mediaRecoveries = 0;
 
     if (!window.Hls || !Hls.isSupported()) {
@@ -69,13 +123,15 @@ function load(url, autoplay) {
         return;
     }
 
-    hls = new Hls({ preferManagedMediaSource: false });
-    hls.on(Hls.Events.ERROR, onHlsError);
+    const instance = new Hls({ preferManagedMediaSource: false });
+    keep(instance);
+
+    instance.on(Hls.Events.ERROR, onHlsError);
     // Autoplay waits for the manifest: the media element has nothing to play until then.
-    hls.on(Hls.Events.MANIFEST_PARSED, () => {
-        if (autoplay) video.play().catch((e) => reportError(`play: ${e}`));
+    instance.on(Hls.Events.MANIFEST_PARSED, () => {
+        if (autoplay) el.play().catch((e) => reportError(`play: ${e}`));
     });
-    hls.loadSource(url);
+    instance.loadSource(url);
 
     // The two engines reject opposite things, so this tries the one that is fussier about origins
     // first and falls back rather than choosing by name.
@@ -89,17 +145,62 @@ function load(url, autoplay) {
     // Chromium: srcObject takes only a MediaStream or a MediaSourceHandle, and throws TypeError on
     // a bare MediaSource — it has no MediaSource.handle to offer either. It has no quarrel with the
     // blob: URL, so hls.js attaches the ordinary way. Thrown, not silent: assigning to srcObject
-    // outside a try would abandon load() with the screen black and nothing reported to the host.
+    // outside a try would abandon this with the screen black and nothing reported to the host.
     const mediaSource = new MediaSource();
 
     try {
-        video.srcObject = mediaSource;
+        el.srcObject = mediaSource;
     } catch {
-        hls.attachMedia(video);
+        instance.attachMedia(el);
         return;
     }
 
-    hls.attachMedia({ media: video, mediaSource });
+    instance.attachMedia({ media: el, mediaSource });
+}
+
+/// Dissolves picture and sound from the outgoing player to the incoming one.
+function handOver(next) {
+    if (incoming !== next) return;
+
+    const outgoing = video;
+    const outgoingHls = hls;
+
+    incoming = null;
+    video = next;
+    hls = incomingHls;
+    incomingHls = null;
+
+    next.style.transition = `opacity ${CROSSFADE_MS}ms linear`;
+    next.style.opacity = '1';
+    outgoing.style.transition = `opacity ${CROSSFADE_MS}ms linear`;
+    outgoing.style.opacity = '0';
+
+    const startedAt = Date.now();
+    const fade = setInterval(() => {
+        const progress = Math.min(1, (Date.now() - startedAt) / CROSSFADE_MS);
+
+        try { next.volume = currentVolume * progress; } catch { /* detached mid-fade */ }
+        try { outgoing.volume = currentVolume * (1 - progress); } catch { /* same */ }
+
+        if (progress < 1) return;
+
+        clearInterval(fade);
+        destroyHls(outgoingHls);
+        retire(outgoing);
+    }, 16);
+}
+
+/// Stops an element and lets go of its source, without touching whatever is playing.
+function retire(el) {
+    try { el.pause(); } catch { /* ignore */ }
+    try { el.srcObject = null; } catch { /* ignore */ }
+    try { el.removeAttribute('src'); el.load(); } catch { /* ignore */ }
+}
+
+function destroyHls(instance) {
+    if (!instance) return;
+
+    try { instance.destroy(); } catch { /* ignore */ }
 }
 
 function teardown() {
@@ -281,14 +382,18 @@ function handleCommand(raw) {
         case 'play':
             playbackGeneration++;
             placeholder.hidden = true;
-            // A fade leaves these mid-ramp.
-            video.style.transition = 'opacity 120ms linear';
-            video.style.opacity = '1';
-            video.volume = currentVolume;
-            video.play().catch((e) => reportError(`play: ${e}`));
+            // A fade leaves these mid-ramp. Left alone during a handover: the incoming player is
+            // deliberately silent and invisible until it has sound to give.
+            if (!incoming) {
+                video.style.transition = `opacity ${CROSSFADE_MS}ms linear`;
+                video.style.opacity = '1';
+                video.volume = currentVolume;
+            }
+
+            target().play().catch((e) => reportError(`play: ${e}`));
             break;
         case 'pause':
-            video.pause();
+            target().pause();
             break;
         case 'stop':
             timeline = null;
@@ -296,7 +401,7 @@ function handleCommand(raw) {
             break;
         case 'seek':
             // Seeking within a stream the page already holds, rather than restarting a transcode.
-            try { video.currentTime = message.position || 0; } catch (e) { reportError(`seek: ${e}`); }
+            try { target().currentTime = message.position || 0; } catch (e) { reportError(`seek: ${e}`); }
             break;
         case 'hostLost':
             hostLost.hidden = message.lost !== true;
@@ -306,12 +411,12 @@ function handleCommand(raw) {
             // paused element would drift the moment it was turned back on. visibility, not display:
             // display:none drops the element from the rendering tree, which lets WebKit suspend the
             // decoder and stall on catch-up when the picture comes back.
-            video.style.visibility = message.enabled === false ? 'hidden' : '';
+            videos.forEach((v) => { v.style.visibility = message.enabled === false ? 'hidden' : ''; });
             blanked.hidden = message.enabled !== false;
             break;
         case 'volume':
             currentVolume = Math.max(0, Math.min(1, message.value));
-            video.volume = currentVolume;
+            if (!incoming) video.volume = currentVolume;
             break;
         case 'show-image':
             // The placeholder is the 'nothing here' card, so it goes while a still is up.
@@ -356,8 +461,12 @@ window.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') send({ type: 'exit-fullscreen' });
 });
 
-video.addEventListener('loadeddata', () => { placeholder.hidden = true; });
-video.addEventListener('ended', () => send({ type: 'ended' }));
+videos.forEach((v) => {
+    v.addEventListener('loadeddata', () => { placeholder.hidden = true; });
+    // Only from the player the room is hearing: the outgoing one runs out during a handover, and
+    // that would retire the singer on the strength of a stream nobody is listening to any more.
+    v.addEventListener('ended', () => { if (v === video) send({ type: 'ended' }); });
+});
 
 // Its own message, never 'ended': the host runs the singer's performance off that one, and a bed
 // track finishing must not retire the song on screen.

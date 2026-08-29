@@ -959,6 +959,8 @@ public class PlaybackService : BaseService, IPlaybackService
                 "Reopening '{Title}' at {Position} pitched {Semitones:+#;-#;0} tempo {Tempo:+#;-#;0}%",
                 media.Title, position, Pitch, Tempo);
 
+            var startedAt = DateTime.UtcNow;
+
             // Opened at the playhead, not opened at zero and seeked: the stream's own zero moves
             // with it, which is what StreamStartOffset carries to the screens.
             await SendToScreensAsync(await BuildLoadCommandAsync(media, position));
@@ -970,11 +972,24 @@ public class PlaybackService : BaseService, IPlaybackService
                 return;
             }
 
+            // The room did not stop while the rebuild ran — the screens played on from their
+            // buffer — so resuming where the playhead stood would replay what was just heard.
+            // Only for a rate change: a host who asked to seek somewhere means that place, and
+            // carrying them past it would answer a different question.
+            var resumeAt = at is null
+                ? Clamp(position + ((DateTime.UtcNow - startedAt) * Rate), media.Duration)
+                : position;
+
+            Position = resumeAt;
+
+            if (resumeAt > position)
+                await SendToScreensAsync(new SeekCommand { Position = resumeAt });
+
             await SendToScreensAsync(new PlayCommand());
             await CastAsync(c => c.PlayAsync());
 
             // The reload froze the clock, so the whole group has to be re-anchored.
-            await PublishTimelineAsync(isPlaying: true, position, scheduleAhead: true);
+            await PublishTimelineAsync(isPlaying: true, resumeAt, scheduleAhead: true);
         }
         catch (Exception ex)
         {
