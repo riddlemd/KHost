@@ -55,6 +55,42 @@ public class CastServiceTests : IAsyncLifetime
     }
 
     [RequiresCastEmulatorFact]
+    public async Task Connect_OpensASession()
+    {
+        await _cast.ConnectAsync(DeviceName);
+
+        Assert.NotNull(_cast.SessionId);
+    }
+
+    [RequiresCastEmulatorFact]
+    public async Task Connect_IsIdempotent_DownToTheSession()
+    {
+        await _cast.ConnectAsync(DeviceName);
+        var session = _cast.SessionId;
+
+        await _cast.ConnectAsync(DeviceName);
+
+        // The second call launches nothing, so reporting a new session would have the caller
+        // reload a receiver that is already playing the song.
+        Assert.Equal(session, _cast.SessionId);
+    }
+
+    [RequiresCastEmulatorFact]
+    public async Task Reconnecting_OpensADifferentSession()
+    {
+        await _cast.ConnectAsync(DeviceName);
+        var first = _cast.SessionId;
+
+        await _cast.DisconnectAsync();
+        await _cast.ConnectAsync(DeviceName);
+
+        // The app was launched again, so the receiver knows nothing — which is the whole reason
+        // the id exists rather than a connected flag.
+        Assert.NotNull(_cast.SessionId);
+        Assert.NotEqual(first, _cast.SessionId);
+    }
+
+    [RequiresCastEmulatorFact]
     public async Task Connect_IsRefused_ForAnUnknownDevice()
         => Assert.False(await _cast.ConnectAsync("No Such TV"));
 
@@ -100,6 +136,7 @@ public class CastServiceTests : IAsyncLifetime
         await _cast.DisconnectAsync();
 
         Assert.Null(_cast.ConnectedDeviceId);
+        Assert.Null(_cast.SessionId);
         Assert.DoesNotContain(_cast.Devices, d => d.IsConnected);
     }
 }
