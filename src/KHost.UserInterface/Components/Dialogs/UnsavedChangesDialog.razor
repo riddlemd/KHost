@@ -1,0 +1,14 @@
+@using KHost.UserInterface.Models
+
+<Dialog IsOpen="IsOpen" Class="kh-unsaved-changes-dialog" OnClose="StayAsync">
+    <Header>
+        <Icon Name="exclamation-triangle-fill" /> Unsaved changes
+    </Header>
+    <Body>
+        <div class="kh-unsaved-changes-dialog__message">@Message</div>
+    </Body>
+    <Footer>
+        <button class="kh-button kh-button--outline-danger" @onclick="DiscardAsync">Leave without saving</button>
+        <button class="kh-button kh-button--primary" @onclick="SaveAsync">Save and leave</button>
+    </Footer>
+</Dialog>

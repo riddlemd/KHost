@@ -4,7 +4,7 @@ using KHost.UserInterface.Models;
 namespace KHost.UserInterface.Services;
 
 /// <summary>The machine-level settings the App Settings page edits, as one snapshot.</summary>
-public sealed class AppSettings
+public sealed record AppSettings
 {
     public bool RequireLogin { get; set; } = true;
     public string? FFmpegPath { get; set; }
