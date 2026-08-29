@@ -13,8 +13,12 @@ public sealed record AudioMix(IReadOnlyList<AudioTrack> Tracks, int LeadVolume, 
     /// <summary>The singer is there to replace the lead, so it starts out of the way.</summary>
     public const int DefaultLeadVolume = 0;
 
-    /// <summary>Only what the machine setting cannot answer for; the console's own default is 100.</summary>
-    public const int DefaultBackingVolume = 100;
+    /// <summary>
+    /// Only what the machine setting cannot answer for. Out of the way like the lead, because a
+    /// harmony sung over a singer is still a voice competing with them; a room that wants the
+    /// guide raises it, per venue or per song.
+    /// </summary>
+    public const int DefaultBackingVolume = 0;
 
     /// <summary>
     /// Whether there is anything to mix. One named voice is enough — a file may carry a lead
