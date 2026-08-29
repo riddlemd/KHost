@@ -65,6 +65,12 @@ public class PlaybackService : BaseService, IPlaybackService
     // can interleave and a reconnect's resume races the disconnect's pause.
     private readonly SemaphoreSlim _screenSyncLock = new(1, 1);
 
+    // The receiver app session the current song was loaded into. Compared rather than the device
+    // id: a receiver that restarts is the same device having forgotten everything.
+    private Guid? _castSessionId;
+
+    private IDisposable? _castSubscription;
+
     private IAnalyticsActivity? _sessionActivity;
 
     // The host-side transcode currently feeding the screens, if any.
@@ -160,6 +166,7 @@ public class PlaybackService : BaseService, IPlaybackService
         _screenServer.ScreenDisconnected += OnScreenDisconnected;
         _screenServer.StateReceived += OnScreenStateReceived;
         _cast.PlaybackStatusChanged += OnCastStatusReceived;
+        _castSubscription = _broker.Subscribe<CastChanged>(message => { _ = Task.Run(SyncCastSessionAsync); });
     }
 
     public async Task<bool> HasConnectedScreenAsync()
@@ -683,6 +690,8 @@ public class PlaybackService : BaseService, IPlaybackService
             _screenServer.ScreenDisconnected -= OnScreenDisconnected;
             _screenServer.StateReceived -= OnScreenStateReceived;
             _cast.PlaybackStatusChanged -= OnCastStatusReceived;
+            _castSubscription?.Dispose();
+            _castSubscription = null;
 
             // _screenSyncLock is deliberately not disposed: a detached sync may still be holding
             // it at shutdown, and its Release would then throw.
@@ -697,6 +706,54 @@ public class PlaybackService : BaseService, IPlaybackService
 
     private void OnScreenDisconnected(object? sender, ScreenConnectionEventArgs e) =>
         _ = Task.Run(HandleScreenLossAsync);
+
+    /// <summary>
+    /// A receiver holds no timeline and nothing catches it up — it plays whatever it was last
+    /// handed, so one selected mid-song sits idle until the next load. Keyed on the app session
+    /// rather than the device, which also covers a receiver that restarted: same device, new
+    /// session, and it has forgotten the song it was playing a moment ago.
+    /// </summary>
+    private async Task SyncCastSessionAsync()
+    {
+        if (_cast.SessionId is null)
+        {
+            _castSessionId = null;
+            return;
+        }
+
+        await _screenSyncLock.WaitAsync();
+        try
+        {
+            // Read inside the lock: CastChanged is announced for discovery as well, so several
+            // land close together and only one of them may claim the session.
+            if (_cast.SessionId is not { } session || session == _castSessionId) return;
+
+            _castSessionId = session;
+
+            var media = CurrentMedia;
+
+            // Hand over the transcode already running rather than opening a second one — and if
+            // there is none, nothing is playing to hand over: whatever starts next casts itself
+            // on load. An image sits on the screens and has no stream a receiver could take.
+            if (_stream is not { PlaylistUrl.Length: > 0 } stream
+                || media is null
+                || MediaFormats.IsImage(media.Format)) return;
+
+            var position = Position;
+
+            Logger.LogInformation(
+                "Cast session is new; loading '{Title}' at {Position}", media.Title, position);
+
+            await CastAsync(c => c.LoadAsync(stream.PlaylistUrl, stream.StartOffset, stream.Tempo));
+
+            if (position > stream.StartOffset)
+                await CastAsync(c => c.SeekAsync(position));
+
+            if (State == PlaybackState.Playing)
+                await CastAsync(c => c.PlayAsync());
+        }
+        finally { _screenSyncLock.Release(); }
+    }
 
     /// <summary>A screen joining mid-session has nothing loaded, so PlayCommand alone is rejected.</summary>
     private async Task SyncNewScreenAsync()
