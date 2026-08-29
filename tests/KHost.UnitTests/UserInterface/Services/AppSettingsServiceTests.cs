@@ -29,6 +29,37 @@ public class AppSettingsServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task BackingVocalVolume_DefaultsToFull_AndRoundTripsThroughTheOverlay()
+    {
+        var service = Service();
+
+        Assert.Equal(100, service.Current.BackingVocalVolume);
+
+        await service.SaveAsync(new AppSettings { BackingVocalVolume = 60 });
+
+        using var overlay = JsonDocument.Parse(
+            await File.ReadAllTextAsync(Path.Combine(_directory, AppSettingsService.OverlayFileName)));
+        Assert.Equal(60, overlay.RootElement.GetProperty("Playback").GetProperty("DefaultBackingVolume").GetInt32());
+    }
+
+    [Theory]
+    [InlineData("240", 100)]
+    [InlineData("-30", 0)]
+    public async Task BackingVocalVolume_IsClampedOnReadAsWellAsOnSave(string stored, int expected)
+    {
+        var service = Service(new KeyValuePair<string, string?>("Playback:DefaultBackingVolume", stored));
+
+        // A hand-edited overlay reaches ffmpeg as a volume multiplier, and nothing on the console
+        // would undo a song mixed at 240%.
+        Assert.Equal(expected, service.Current.BackingVocalVolume);
+
+        await service.SaveAsync(new AppSettings { BackingVocalVolume = int.Parse(stored) });
+        using var overlay = JsonDocument.Parse(
+            await File.ReadAllTextAsync(Path.Combine(_directory, AppSettingsService.OverlayFileName)));
+        Assert.Equal(expected, overlay.RootElement.GetProperty("Playback").GetProperty("DefaultBackingVolume").GetInt32());
+    }
+
+    [Fact]
     public async Task SaveAsync_RefusesRequiringLogin_WhileNoAdminHasAPassword()
     {
         _users.HasAdminWithPasswordAsync().Returns(false);
