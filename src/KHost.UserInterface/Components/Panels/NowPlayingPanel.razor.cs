@@ -1,4 +1,3 @@
-using System.Globalization;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.JSInterop;
@@ -56,22 +55,7 @@ public partial class NowPlayingPanel : IDisposable
         await PlaybackService.SeekAsync(duration * fraction);
     }
 
-    /// <summary>Ten presses to either end, where one percent a press would be fifty.</summary>
-    private const int TempoStep = 5;
-
-    private Task AdjustPitchAsync(int delta)
-        => PlaybackService!.SetPitchAsync(PlaybackService.Pitch + delta);
-
-    private Task AdjustTempoAsync(int delta)
-        => PlaybackService!.SetTempoAsync(PlaybackService.Tempo + delta);
-
     private void OnStateChanged(object? sender, EventArgs e) => InvokeAsync(StateHasChanged);
-
-    private static string FormatPitch(int semitones) =>
-        semitones.ToString("+#;\u2212#;0", CultureInfo.InvariantCulture);
-
-    private static string FormatTempo(int tempo) =>
-        tempo.ToString("+#;\u2212#;0", CultureInfo.InvariantCulture) + "%";
 
     private static string FormatTime(TimeSpan ts) =>
         $"{(int)ts.TotalMinutes}:{ts.Seconds:D2}";
