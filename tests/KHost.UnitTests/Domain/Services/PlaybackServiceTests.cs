@@ -2948,6 +2948,54 @@ public class PlaybackServiceTests : IDisposable
         Assert.Equal(TimeSpan.FromSeconds(90), LastBroadcast<SeekCommand>()?.Position);
     }
 
+    [Fact]
+    public async Task Reopen_OpensTheReplacementBeforeClosingWhatIsPlaying()
+    {
+        var closedWhileOpening = new List<string>();
+        var (performance, media) = CreatePerformance();
+
+        await _service.LoadAsync(performance, media);
+        await _service.PlayAsync();
+
+        // Records what had already been closed at the moment the replacement was asked for.
+        _mediaStreams
+            .When(m => m.OpenAsync(Arg.Any<string>(), Arg.Any<TimeSpan>(), Arg.Any<int>(), Arg.Any<int>(),
+                                   Arg.Any<AudioMix?>(), Arg.Any<CancellationToken>()))
+            .Do(_ => closedWhileOpening.AddRange(
+                _mediaStreams.ReceivedCalls()
+                    .Where(c => c.GetMethodInfo().Name == nameof(IMediaStreamService.CloseAsync))
+                    .Select(c => (string)c.GetArguments()[0]!)));
+
+        await _service.SetPitchAsync(2);
+        Assert.True(await WaitForStreamsOpenedAsync(2));
+
+        // The screens play on from their buffer while ffmpeg spins up, and hear nothing at all if
+        // the old transcode was already gone.
+        Assert.DoesNotContain("stream-1", closedWhileOpening);
+        await _mediaStreams.Received().CloseAsync("stream-1");
+    }
+
+    [Fact]
+    public async Task Reopen_KeepsTheSongPlaying_WhenTheReplacementCannotBeBuilt()
+    {
+        var (performance, media) = CreatePerformance();
+        await _service.LoadAsync(performance, media);
+        await _service.PlayAsync();
+
+        _mediaStreams
+            .OpenAsync(Arg.Any<string>(), Arg.Any<TimeSpan>(), Arg.Any<int>(), Arg.Any<int>(),
+                       Arg.Any<AudioMix?>(), Arg.Any<CancellationToken>())
+            .Returns<MediaStreamSession>(_ => throw new InvalidOperationException("ffmpeg said no"));
+
+        await _service.SetPitchAsync(2);
+        await Task.Delay(200);
+
+        // A rebuild that fails costs the host their change, not the song: the old session is still
+        // open and the screens are still playing it.
+        await _mediaStreams.DidNotReceive().CloseAsync("stream-1");
+        Assert.Equal(PlaybackState.Playing, _service.State);
+    }
+
     private async Task<bool> WaitForStreamsOpenedAsync(int count, int attempts = 50)
     {
         for (var i = 0; i < attempts; i++)

@@ -891,7 +891,10 @@ public class PlaybackService : BaseService, IPlaybackService
     /// <summary>Throws when the transcode will not start: there is no playback without it.</summary>
     private async Task<LoadMediaCommand> BuildLoadCommandAsync(Media media, TimeSpan startOffset)
     {
-        await CloseStreamAsync();
+        // Held, not closed. Tearing the old transcode down first leaves the room on whatever the
+        // screens have buffered while the new one spins up, and leaves them on nothing at all if
+        // it never does — a rebuild that fails now costs the change, not the song.
+        var superseded = _stream;
 
         // Not swallowed: every screen plays the host's stream, so without one there is nothing to
         // send and pretending otherwise leaves the room staring at a screen that never starts.
@@ -908,6 +911,13 @@ public class PlaybackService : BaseService, IPlaybackService
                 "Check the file is still on the drive, then try again.",
                 "KH-STREAM-OPEN",
                 ex);
+        }
+        finally
+        {
+            // After the attempt either way: on failure _stream still points at the old session,
+            // and closing it there would take the song with the change.
+            if (!ReferenceEquals(superseded, _stream))
+                await CloseSessionAsync(superseded);
         }
 
         var command = DescribeStream(media);
@@ -1048,6 +1058,12 @@ public class PlaybackService : BaseService, IPlaybackService
         var stream = _stream;
         _stream = null;
 
+        await CloseSessionAsync(stream);
+    }
+
+    /// <summary>Never throws: an orphaned ffmpeg is worth a warning, not the song.</summary>
+    private async Task CloseSessionAsync(MediaStreamSession? stream)
+    {
         if (stream is null) return;
 
         try { await _mediaStreams.CloseAsync(stream.Id); }
