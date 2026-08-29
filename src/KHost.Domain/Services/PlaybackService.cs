@@ -20,6 +20,11 @@ public class PlaybackService : BaseService, IPlaybackService
 
         /// <summary>Must cover the slowest screen's command latency.</summary>
         public TimeSpan SyncStartLead { get; set; } = TimeSpan.FromMilliseconds(400);
+
+        /// <summary>
+        /// Collapses a burst of presses into one restart; each restart is a hole in the song.
+        /// </summary>
+        public TimeSpan PitchSettleDelay { get; set; } = TimeSpan.FromMilliseconds(600);
     }
 
     private const int ClockIntervalMs = 500;
@@ -51,6 +56,8 @@ public class PlaybackService : BaseService, IPlaybackService
 
     // The host-side transcode currently feeding the screens, if any.
     private MediaStreamSession? _stream;
+
+    private CancellationTokenSource? _pitchSettle;
 
     // An ad's own audio track, which borrows the background channel from break music.
     private MediaStreamSession? _adAudioStream;
@@ -85,6 +92,7 @@ public class PlaybackService : BaseService, IPlaybackService
     public TimeSpan Position { get; private set; }
     public Guid? CurrentlyPerformingUserId { get; private set; }
     public TimeSpan? StopFadeDuration { get; private set; }
+    public int Pitch { get; private set; }
 
     public PlaybackService(
         ILogger<PlaybackService> logger,
@@ -167,6 +175,9 @@ public class PlaybackService : BaseService, IPlaybackService
         CurrentPerformance = performance;
         CurrentMedia = media;
         Position = TimeSpan.Zero;
+
+        // After ResetState, which cleared it: a performance carries the key it was sung in.
+        Pitch = performance.Pitch;
 
         _sessionActivity = _analytics.StartActivity(AnalyticActivities.Session);
         _sessionActivity.SetTag("media_id", media.Id);
@@ -419,6 +430,71 @@ public class PlaybackService : BaseService, IPlaybackService
             StartClock();
 
         _broker.Announce(new PlaybackChanged());
+    }
+
+    public async Task SetPitchAsync(int semitones)
+    {
+        var target = Math.Clamp(
+            semitones, IPlaybackService.MinPitch, IPlaybackService.MaxPitch);
+
+        if (target == Pitch) return;
+
+        Pitch = target;
+
+        // Before the transcode is touched, so the readout answers the button rather than ffmpeg.
+        _broker.Announce(new PlaybackChanged());
+
+        Logger.LogInformation("Pitch set to {Semitones:+#;-#;0}", target);
+
+        // Not on the settle below: a song ending inside that window would lose the key.
+        await PersistPitchAsync(target);
+
+        // Nothing open to re-pitch; the row is written and the next load reads it back.
+        if (_stream is null) return;
+
+        var settle = new CancellationTokenSource();
+        var superseded = Interlocked.Exchange(ref _pitchSettle, settle);
+        superseded?.Cancel();
+        superseded?.Dispose();
+
+        var token = settle.Token;
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await Task.Delay(_options.PitchSettleDelay, token);
+                await ReopenStreamAsync();
+            }
+            catch (OperationCanceledException)
+            {
+                // Another press landed inside the delay, or the song ended.
+            }
+            finally
+            {
+                Interlocked.CompareExchange(ref _pitchSettle, null, settle);
+                settle.Dispose();
+            }
+        }, CancellationToken.None);
+    }
+
+    /// <summary>Writes the key onto the row the history is read from. An ad has none.</summary>
+    private async Task PersistPitchAsync(int semitones)
+    {
+        if (CurrentPerformance is not { } performance) return;
+
+        performance.Pitch = semitones;
+
+        try
+        {
+            await _performanceService.UpdateAsync(performance);
+        }
+        catch (Exception ex)
+        {
+            // Never fatal: the room already has the new key, and losing the record must not
+            // take the song off the screens.
+            Logger.LogWarning(ex, "Could not record the pitch on performance {PerformanceId}", performance.Id);
+        }
     }
 
     private static TimeSpan Clamp(TimeSpan position, TimeSpan? duration)
@@ -698,9 +774,16 @@ public class PlaybackService : BaseService, IPlaybackService
         CurrentlyPerformingUserId = null;
         _resumeWhenScreenReturns = false;
 
+        // Cancelled rather than left to fire: it would otherwise reopen a transcode for the song
+        // that has just been torn down.
+        Interlocked.Exchange(ref _pitchSettle, null)?.Cancel();
+
         State = PlaybackState.Stopped;
         StopFadeDuration = null;
         Position = TimeSpan.Zero;
+
+        // Cleared, not carried: the next thing loaded brings its own key, and an ad has none.
+        Pitch = 0;
     }
 
     /// <summary>Throws when the transcode will not start: there is no playback without it.</summary>
@@ -712,7 +795,8 @@ public class PlaybackService : BaseService, IPlaybackService
         // send and pretending otherwise leaves the room staring at a screen that never starts.
         try
         {
-            _stream = await _mediaStreams.OpenAsync(media.FilePath, startOffset);
+            // The ad path reaches here and reads zero — PlayAdAsync resets the state first.
+            _stream = await _mediaStreams.OpenAsync(media.FilePath, startOffset, Pitch);
         }
         catch (Exception ex)
         {
@@ -729,6 +813,64 @@ public class PlaybackService : BaseService, IPlaybackService
             await CastAsync(c => c.LoadAsync(url, command.StreamStartOffset));
 
         return command;
+    }
+
+    /// <summary>
+    /// ffmpeg fixes its filter graph at process start, so rebuilding is the only way a pitch
+    /// change reaches a playing song. Costs a short silence while the first segment is written.
+    /// </summary>
+    private async Task ReopenStreamAsync()
+    {
+        await _screenSyncLock.WaitAsync();
+        try
+        {
+            // A still holds no stream to rebuild, and an ad is nobody's song to transpose.
+            if (CurrentMedia is not { } media || IsPlayingAd || _stream is null)
+                return;
+
+            var resume = State == PlaybackState.Playing;
+            var position = Position;
+
+            // Stopped first, as in SeekAsync: a tick mid-reload carries the old position past
+            // the point the new stream is opening at.
+            StopClock();
+
+            Logger.LogInformation(
+                "Reopening '{Title}' at {Position} pitched {Semitones:+#;-#;0}",
+                media.Title, position, Pitch);
+
+            // Opened at the playhead, not opened at zero and seeked: the stream's own zero moves
+            // with it, which is what StreamStartOffset carries to the screens.
+            await SendToScreensAsync(await BuildLoadCommandAsync(media, position));
+
+            if (!resume)
+            {
+                // Or a synced screen holds the frame the old stream died on.
+                await PublishTimelineAsync(isPlaying: false, position);
+                return;
+            }
+
+            await SendToScreensAsync(new PlayCommand());
+            await CastAsync(c => c.PlayAsync());
+
+            // The reload froze the clock, so the whole group has to be re-anchored.
+            await PublishTimelineAsync(isPlaying: true, position, scheduleAhead: true);
+        }
+        catch (Exception ex)
+        {
+            // Never rethrown: this runs on the settle continuation, where nothing observes it.
+            Logger.LogError(ex, "Failed to reopen the stream");
+        }
+        finally
+        {
+            // Also covers the throwing path: a stopped clock under Playing freezes the UI.
+            if (State == PlaybackState.Playing)
+                EnsureClockRunning();
+
+            _screenSyncLock.Release();
+
+            _broker.Announce(new PlaybackChanged());
+        }
     }
 
     private LoadMediaCommand DescribeStream(Media media) => new()

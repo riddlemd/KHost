@@ -1,5 +1,14 @@
 .kh-singer-performance-history-dialog {
 
+    &__pitch {
+        display: inline-block;
+        margin-left: 6px;
+        font-size: 0.7rem;
+        font-weight: 600;
+        font-variant-numeric: tabular-nums;
+        color: var(--kh-success);
+    }
+
     &__table-wrapper {
         max-height: 500px;
         overflow-y: auto;

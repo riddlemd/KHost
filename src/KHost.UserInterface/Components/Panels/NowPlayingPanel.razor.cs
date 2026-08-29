@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.JSInterop;
@@ -55,7 +56,32 @@ public partial class NowPlayingPanel : IDisposable
         await PlaybackService.SeekAsync(duration * fraction);
     }
 
+    private Task AdjustPitchAsync(int delta)
+        => PlaybackService!.SetPitchAsync(PlaybackService.Pitch + delta);
+
+    /// <summary>
+    /// Panel-scoped like the queue's arrows: matched in Blazor, so these keys must not reach the
+    /// circuit while a host is typing a singer's name.
+    /// </summary>
+    private Task OnKeyDownAsync(KeyboardEventArgs e)
+    {
+        if (PlaybackService?.CurrentPerformance is null) return Task.CompletedTask;
+
+        // Both spellings of each physical key: the host may or may not be holding shift.
+        var delta = e.Key switch
+        {
+            "+" or "=" => 1,
+            "-" or "_" => -1,
+            _ => 0,
+        };
+
+        return delta == 0 ? Task.CompletedTask : AdjustPitchAsync(delta);
+    }
+
     private void OnStateChanged(object? sender, EventArgs e) => InvokeAsync(StateHasChanged);
+
+    private static string FormatPitch(int semitones) =>
+        semitones.ToString("+#;\u2212#;0", CultureInfo.InvariantCulture);
 
     private static string FormatTime(TimeSpan ts) =>
         $"{(int)ts.TotalMinutes}:{ts.Seconds:D2}";

@@ -18,6 +18,14 @@ public sealed class PerformanceEndedEventArgs : EventArgs
 
 public interface IPlaybackService : IDisposable
 {
+    /// <summary>
+    /// Semitones. The filter is a resample plus WSOLA time-stretch, not a phase vocoder, so past
+    /// this the artefacts cost more than the transposition is worth.
+    /// </summary>
+    const int MaxPitch = 6;
+
+    const int MinPitch = -6;
+
 
     /// <summary>
     /// A singer's performance finished, raised in the gap before break music comes back.
@@ -44,6 +52,12 @@ public interface IPlaybackService : IDisposable
 
     /// <summary>How long the current stop is fading out for; null when not stopping.</summary>
     TimeSpan? StopFadeDuration { get; }
+
+    /// <summary>
+    /// Semitones, taken from the performance on load. The host's transcode applies it, so screens
+    /// and Cast receivers hear it without being sent anything of their own.
+    /// </summary>
+    int Pitch { get; }
 
     /// <summary>
     /// Whether at least one screen is connected. Screens render both audio and video, so
@@ -74,6 +88,12 @@ public interface IPlaybackService : IDisposable
     /// position rather than an error.
     /// </summary>
     Task SeekAsync(TimeSpan position);
+
+    /// <summary>
+    /// Clamped to <see cref="MinPitch"/>..<see cref="MaxPitch"/>. Returning means the value is
+    /// set, not that the room has heard it: the transcode is rebuilt after a settling delay.
+    /// </summary>
+    Task SetPitchAsync(int semitones);
 }
 
 // Stopping is appended so the existing numeric values stay stable for telemetry.

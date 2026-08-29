@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Globalization;
 using KHost.Domain.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -138,6 +139,103 @@ public class HlsMediaStreamServiceTranscodeTests : IDisposable
         Assert.NotNull(await WaitForArtifactAsync(session.Id, "seg_00000.ts"));
     }
 
+    [RequiresFfmpegFact]
+    public async Task OpenAsync_SegmentsAtTheConfiguredLength_WhateverTheSourceFrameRate()
+    {
+        // The sample is 15fps, where a GOP fixed at 60 frames is a four-second keyframe interval —
+        // and the muxer can only cut where a keyframe already is.
+        var source = await CreateSampleAsync(seconds: 8);
+
+        var session = await _service.OpenAsync(source);
+
+        var durations = ParseSegmentDurations(await WaitForCompletePlaylistAsync(session.Id));
+
+        Assert.NotEmpty(durations);
+
+        // The last one is whatever is left over; the rest are the interval under test.
+        Assert.All(durations.SkipLast(1), d => Assert.InRange(d, 1.5, 2.5));
+    }
+
+    [RequiresFfmpegFact]
+    public async Task OpenAsync_ShiftsPitchWithoutDriftingTheAudioOffThePicture()
+    {
+        // 48kHz on purpose: asetrate reinterprets whatever rate reaches it, so without a resample
+        // in front this source runs 8.8% long and slides behind the lyrics.
+        var source = await CreateSampleAsync(seconds: 10, sampleRate: 48000);
+
+        var session = await _service.OpenAsync(source, pitch: 4);
+
+        await WaitForCompletePlaylistAsync(session.Id);
+        var playlist = _service.ResolveArtifact(session.Id, "stream.m3u8")!;
+
+        // Segment durations are no use: the muxer cuts on video keyframes, so their sum tracks the
+        // picture whatever the audio does. Where the streams end is the drift.
+        var video = await ProbeLastTimestampAsync(playlist, 'v');
+        var audio = await ProbeLastTimestampAsync(playlist, 'a');
+
+        Assert.InRange(Math.Abs(audio - video), 0, 0.4);
+    }
+
+    private static List<double> ParseSegmentDurations(string playlist) =>
+    [
+        .. playlist
+            .Split('\n')
+            .Where(line => line.StartsWith("#EXTINF:", StringComparison.Ordinal))
+            .Select(line => double.Parse(
+                line["#EXTINF:".Length..].TrimEnd(',', '\r'), CultureInfo.InvariantCulture))
+    ];
+
+    /// <summary>Waits for ENDLIST: a growing event playlist is only whole once ffmpeg has exited.</summary>
+    private async Task<string> WaitForCompletePlaylistAsync(string sessionId)
+    {
+        for (var i = 0; i < 300; i++)
+        {
+            var path = _service.ResolveArtifact(sessionId, "stream.m3u8");
+
+            if (path is not null)
+            {
+                try
+                {
+                    var text = await File.ReadAllTextAsync(path);
+                    if (text.Contains("#EXT-X-ENDLIST", StringComparison.Ordinal)) return text;
+                }
+                catch (IOException)
+                {
+                    // ffmpeg is mid-rewrite; the next poll gets a whole file.
+                }
+            }
+
+            await Task.Delay(50);
+        }
+
+        throw new TimeoutException($"ffmpeg never finished the playlist for session {sessionId}");
+    }
+
+    /// <summary>Where one stream of the finished playlist stops, in presentation time.</summary>
+    private static async Task<double> ProbeLastTimestampAsync(string playlistPath, char stream)
+    {
+        using var process = Process.Start(new ProcessStartInfo("ffprobe",
+            $"-hide_banner -v error -select_streams {stream} -show_entries packet=pts_time "
+            + $"-of csv=p=0 \"{playlistPath}\"")
+        {
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+        })!;
+
+        var output = await process.StandardOutput.ReadToEndAsync();
+        await process.WaitForExitAsync();
+
+        var last = output
+            .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .LastOrDefault()
+            ?.TrimEnd(',');
+
+        Assert.False(string.IsNullOrWhiteSpace(last), $"ffprobe reported no '{stream}' packets");
+
+        return double.Parse(last!, CultureInfo.InvariantCulture);
+    }
+
     private async Task<string> ProbeStreamTypesAsync(string path)
     {
         using var process = Process.Start(new ProcessStartInfo("ffprobe",
@@ -177,18 +275,18 @@ public class HlsMediaStreamServiceTranscodeTests : IDisposable
         return null;
     }
 
-    private async Task<string> CreateSampleAsync(int seconds, bool audioOnly = false)
+    private async Task<string> CreateSampleAsync(int seconds, bool audioOnly = false, int sampleRate = 44100)
     {
         Directory.CreateDirectory(_workingDirectory);
-        var path = Path.Combine(_workingDirectory, audioOnly ? "sample.mp3" : "sample.mp4");
+        var path = Path.Combine(_workingDirectory, audioOnly ? "sample.mp3" : $"sample-{sampleRate}.mp4");
 
         // Synthetic: no karaoke media is checked in.
         var arguments = audioOnly
-            ? $"-hide_banner -loglevel error -y -f lavfi -i sine=frequency=440:sample_rate=44100 "
+            ? $"-hide_banner -loglevel error -y -f lavfi -i sine=frequency=440:sample_rate={sampleRate} "
               + $"-t {seconds} -c:a libmp3lame \"{path}\""
             : $"-hide_banner -loglevel error -y -f lavfi -i testsrc2=size=320x240:rate=15 "
-              + $"-f lavfi -i sine=frequency=440:sample_rate=44100 -t {seconds} "
-              + $"-c:v libx264 -preset ultrafast -pix_fmt yuv420p -c:a aac \"{path}\"";
+              + $"-f lavfi -i sine=frequency=440:sample_rate={sampleRate} -t {seconds} "
+              + $"-c:v libx264 -preset ultrafast -pix_fmt yuv420p -c:a aac -ar {sampleRate} \"{path}\"";
 
         using var process = Process.Start(new ProcessStartInfo("ffmpeg", arguments)
         {

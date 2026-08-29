@@ -23,6 +23,13 @@ public static class KeyboardShortcuts
         ],
         "Cmd works as well as Ctrl."),
 
+        new("Now playing",
+        [
+            new(["+"], "Raise the song's key by a semitone"),
+            new(["-"], "Lower the song's key by a semitone"),
+        ],
+        "Click the Now Playing panel first \u2014 the keys act on the panel holding focus."),
+
         new("Singer queue",
         [
             new(["↑"], "Select the singer above"),
