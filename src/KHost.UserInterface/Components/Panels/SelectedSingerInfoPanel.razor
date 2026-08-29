@@ -103,7 +103,8 @@
                         var disableMoveDown = idx == _performances.Count - 1;
                         var disableRemove = PlaybackService?.CurrentPerformance?.Id == performance.Id;
                         var rowClass = isSelected ? "kh-selected-singer-info-panel__row--selected" : isCurrent ? "kh-selected-singer-info-panel__row--current" : "";
-                        var nameClass = isCurrent ? "kh-selected-singer-info-panel__name--current" : "";
+                        var nameClass = "kh-selected-singer-info-panel__title"
+                            + (isCurrent ? " kh-selected-singer-info-panel__name--current" : "");
                         var disablePlay = PlaybackService?.CurrentPerformance != null;
                         _mediaCache.TryGetValue(performance.MediaId, out var rowMedia);
                         var isBroken = rowMedia?.Status == MediaStatus.Broken;
@@ -125,7 +126,25 @@
                                 }
                             </td>
                             <td class="kh-selected-singer-info-panel__name kh-table__cell--fill" title="@(rowMedia?.Title ?? "")">
-                                <span class="@nameClass">@(rowMedia?.Title ?? "—")</span>
+                                <div class="kh-selected-singer-info-panel__name-inner">
+                                    <span class="@nameClass">@(rowMedia?.Title ?? "—")</span>
+
+                                    @if (performance.Pitch != 0)
+                                    {
+                                        <span class="kh-selected-singer-info-panel__pitch"
+                                              title="Queued in this key">
+                                            @FormatPitch(performance.Pitch)
+                                        </span>
+                                    }
+
+                                    @if (performance.Tempo != 0)
+                                    {
+                                        <span class="kh-selected-singer-info-panel__tempo"
+                                              title="Queued at this speed">
+                                            @FormatTempo(performance.Tempo)
+                                        </span>
+                                    }
+                                </div>
                             </td>
                             <td class="kh-table__cell--fill" title="@(rowMedia?.Artist ?? "")">@(rowMedia?.Artist ?? "")</td>
                             <td class="kh-selected-singer-info-panel__duration">

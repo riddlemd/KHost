@@ -71,10 +71,32 @@
         padding: 0 0.5em;
     }
 
-    &__name {
-        &--current {
-            color: var(--kh-text-muted);
-        }
+    // Inside the cell, never on the <td>: flex there drops the cell's contribution to the auto
+    // table layout and the column collapses. Lets the title, not the key, lose to the ellipsis.
+    &__name-inner {
+        display: flex;
+        align-items: baseline;
+        min-width: 0;
+    }
+
+    &__title {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    &__pitch,
+    &__tempo {
+        flex: 0 0 auto;
+        margin-left: 6px;
+        font-size: 0.7rem;
+        font-weight: 600;
+        font-variant-numeric: tabular-nums;
+        color: var(--kh-success);
+    }
+
+    &__name--current {
+        color: var(--kh-text-muted);
     }
 
     &__row {
