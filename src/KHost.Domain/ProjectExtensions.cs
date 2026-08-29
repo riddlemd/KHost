@@ -74,6 +74,7 @@ namespace KHost.Domain
             serviceCollection.AddSingleton<ICacheService, JsonFileCacheService>();
             serviceCollection.AddSingleton<ISingerQueueService, SingerQueueService>();
             serviceCollection.AddSingleton<IMediaStreamService, HlsMediaStreamService>();
+            serviceCollection.AddSingleton<IAudioTrackService, AudioTrackService>();
             serviceCollection.AddSingleton<IScreenCoordinationService, ScreenCoordinationService>();
             serviceCollection.AddSingleton<IPlaybackService, PlaybackService>();
             serviceCollection.AddSingleton<IMediaSearchService, MediaSearchService>();

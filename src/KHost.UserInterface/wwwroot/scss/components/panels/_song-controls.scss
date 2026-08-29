@@ -54,98 +54,181 @@
     z-index: 2;
 
     display: flex;
-    flex-direction: column;
-    gap: 8px;
-    padding: 7px 9px 8px;
-    min-width: 176px;
-
     background: var(--kh-bg-elevated);
     border: 1px solid var(--kh-border-bright);
     border-radius: var(--kh-radius);
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
 }
 
-.kh-song-controls__row {
-    display: flex;
+// One line per control, not two: four stacked pairs came to 160px in a card that is 180px at a
+// 900px window, and the last of them fell off the bottom.
+.kh-song-controls__panel--sliders {
     flex-direction: column;
-    gap: 1px;
+    gap: 5px;
+    padding: 6px 7px;
+    width: 264px;
 }
 
-.kh-song-controls__head {
+// Four across, which is shorter than the trigger row and clears the card's width with room over.
+.kh-song-controls__panel--dials {
+    gap: 6px;
+    padding: 8px 9px 6px;
+}
+
+.kh-song-control {
+    &__value {
+        font-variant-numeric: tabular-nums;
+        font-weight: 600;
+        color: var(--kh-text-muted);
+    }
+
+    // Matches the track: the number and the bar must never disagree about the sign.
+    &__value--up { color: var(--kh-success); }
+    &__value--down { color: var(--kh-danger); }
+
+    &__label {
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--kh-text-muted);
+    }
+}
+
+/* ── sliders ─────────────────────────────────────────────────────────── */
+
+.kh-song-control--slider {
     display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: 10px;
+    align-items: center;
+    gap: 7px;
+
+    // Fixed, so every track starts at the same x however long the word is.
+    .kh-song-control__label {
+        flex: 0 0 46px;
+        font-size: 0.66rem;
+    }
+
+    .kh-song-control__value {
+        flex: 0 0 40px;
+        text-align: right;
+        font-size: 0.74rem;
+    }
 }
 
-.kh-song-controls__label {
-    font-size: 0.68rem;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--kh-text-muted);
-}
+.kh-song-control--slider .kh-song-control__track {
+    --thumb: 12px;
 
-.kh-song-controls__value {
-    font-size: 0.78rem;
-    font-weight: 600;
-    font-variant-numeric: tabular-nums;
-    color: var(--kh-text-muted);
-}
+    // Set per element from the component; the rest at zero, so an untouched panel paints nothing.
+    --from-frac: 0;
+    --to-frac: 0;
+    --fill: transparent;
 
-.kh-song-controls__value--on {
-    color: var(--kh-success);
-}
+    // The thumb's centre only travels between half a thumb from each end, so a raw percentage
+    // runs ahead of it and the fill overshoots at both extremes.
+    --from-pos: calc(var(--thumb) / 2 + var(--from-frac) * (100% - var(--thumb)));
+    --to-pos: calc(var(--thumb) / 2 + var(--to-frac) * (100% - var(--thumb)));
 
-.kh-song-controls__slider {
     -webkit-appearance: none;
     appearance: none;
-    width: 100%;
+    flex: 1;
+    min-width: 0;
     height: 14px;
     margin: 0;
     background: transparent;
     cursor: pointer;
 
+    // Hard stops rather than a gradient: each colour is declared at both ends of its span.
     &::-webkit-slider-runnable-track {
-        height: 3px;
+        height: 4px;
         border-radius: 2px;
-        background: var(--kh-track-bg, rgba(200, 200, 200, 0.2));
+        background-color: var(--kh-track-bg, rgba(200, 200, 200, 0.2));
+        background-image: linear-gradient(to right,
+            transparent var(--from-pos),
+            var(--fill) var(--from-pos),
+            var(--fill) var(--to-pos),
+            transparent var(--to-pos));
     }
 
     &::-moz-range-track {
-        height: 3px;
+        height: 4px;
         border-radius: 2px;
-        background: var(--kh-track-bg, rgba(200, 200, 200, 0.2));
+        background-color: var(--kh-track-bg, rgba(200, 200, 200, 0.2));
+        background-image: linear-gradient(to right,
+            transparent var(--from-pos),
+            var(--fill) var(--from-pos),
+            var(--fill) var(--to-pos),
+            transparent var(--to-pos));
     }
 
-    // Margin-top is half the track height minus half the thumb, or WebKit hangs it off the track.
     &::-webkit-slider-thumb {
         -webkit-appearance: none;
-        width: 12px;
-        height: 12px;
-        margin-top: -4.5px;
+        width: var(--thumb);
+        height: var(--thumb);
+        margin-top: -4px;
         border: none;
         border-radius: 50%;
         background: var(--kh-text-secondary);
     }
 
     &::-moz-range-thumb {
-        width: 12px;
-        height: 12px;
+        width: var(--thumb);
+        height: var(--thumb);
         border: none;
         border-radius: 50%;
         background: var(--kh-text-secondary);
     }
 
-    &:hover::-webkit-slider-thumb {
-        background: var(--kh-text);
+    &:hover::-webkit-slider-thumb { background: var(--kh-text); }
+    &:hover::-moz-range-thumb { background: var(--kh-text); }
+
+    &:focus-visible { outline: 2px solid var(--kh-success); outline-offset: 2px; }
+}
+
+/* ── dials ───────────────────────────────────────────────────────────── */
+
+.kh-song-control--dial {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    width: 58px;
+
+    .kh-song-control__label { font-size: 0.6rem; }
+}
+
+.kh-song-control__knob {
+    position: relative;
+    width: 58px;
+    height: 58px;
+    display: grid;
+    place-items: center;
+
+    .kh-song-control__arc {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
     }
 
-    &:hover::-moz-range-thumb {
-        background: var(--kh-text);
+    .kh-song-control__value {
+        font-size: 0.72rem;
+        pointer-events: none;
     }
+}
+
+// Laid over the arc, invisible but real: it carries the drag, the keyboard and the announcement,
+// none of which a bare SVG would. Horizontal, because a rotary drag is the worst of both.
+.kh-song-control__grip {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    opacity: 0;
+    cursor: ew-resize;
 
     &:focus-visible {
+        opacity: 1;
         outline: 2px solid var(--kh-success);
-        outline-offset: 2px;
+        outline-offset: -2px;
+        background: transparent;
     }
 }

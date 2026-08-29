@@ -25,6 +25,12 @@ public class PlaybackService : BaseService, IPlaybackService
         /// Collapses a burst of presses into one restart; each restart is a hole in the song.
         /// </summary>
         public TimeSpan PitchSettleDelay { get; set; } = TimeSpan.FromMilliseconds(600);
+
+        /// <summary>
+        /// Where the backing voices sit on a song nobody has mixed by hand. The lead has no
+        /// setting: a singer is there to replace it, so it always starts out of the way.
+        /// </summary>
+        public int DefaultBackingVolume { get; set; } = AudioMix.DefaultBackingVolume;
     }
 
     private const int ClockIntervalMs = 500;
@@ -78,7 +84,12 @@ public class PlaybackService : BaseService, IPlaybackService
     private readonly ICastService _cast;
     private readonly IBreakMusicService _breakMusic;
     private readonly IMediaService _mediaService;
-    private readonly ServiceOptions _options;
+    private readonly IOptionsMonitor<ServiceOptions> _optionsMonitor;
+    private readonly IAudioTrackService _audioTracks;
+
+    // Read per use rather than captured: the App Settings page writes the overlay live, and a
+    // value snapshotted at startup would leave the console needing a restart to honour it.
+    private ServiceOptions Options => _optionsMonitor.CurrentValue;
 
     public event EventHandler? PositionChanged;
     public event EventHandler<PerformanceEndedEventArgs>? PerformanceEnded;
@@ -94,6 +105,12 @@ public class PlaybackService : BaseService, IPlaybackService
     public TimeSpan? StopFadeDuration { get; private set; }
     public int Pitch { get; private set; }
     public int Tempo { get; private set; }
+
+    /// <summary>The named voices in the loaded file, empty for the ordinary single-track song.</summary>
+    public IReadOnlyList<AudioTrack> AudioTracks { get; private set; } = [];
+
+    public int LeadVolume { get; private set; }
+    public int BackingVolume { get; private set; } = AudioMix.DefaultBackingVolume;
 
     /// <summary>
     /// Song seconds per second of wall clock. Taken from the open stream rather than the wanted
@@ -113,7 +130,8 @@ public class PlaybackService : BaseService, IPlaybackService
         ICastService cast,
         IBreakMusicService breakMusic,
         IMediaService mediaService,
-        IOptions<ServiceOptions> options,
+        IOptionsMonitor<ServiceOptions> options,
+        IAudioTrackService audioTracks,
         IMessageBroker broker)
         : base(logger)
     {
@@ -128,7 +146,8 @@ public class PlaybackService : BaseService, IPlaybackService
         _cast = cast;
         _breakMusic = breakMusic;
         _mediaService = mediaService;
-        _options = options.Value;
+        _optionsMonitor = options;
+        _audioTracks = audioTracks;
 
         _screenServer.ScreenConnected += OnScreenConnected;
         _screenServer.ScreenDisconnected += OnScreenDisconnected;
@@ -186,6 +205,15 @@ public class PlaybackService : BaseService, IPlaybackService
         // After ResetState, which cleared them: a performance carries how it was sung.
         Pitch = performance.Pitch;
         Tempo = performance.Tempo;
+        LeadVolume = AudioMix.Clamp(performance.LeadVolume);
+
+        // Null means nobody has mixed this one, so the machine setting answers — and goes on
+        // answering if that setting later changes.
+        BackingVolume = AudioMix.Clamp(performance.BackingVolume ?? Options.DefaultBackingVolume);
+
+        // Probed rather than stored: the answer costs one ffprobe, and a file replaced on disk
+        // would otherwise keep whatever its tracks were called at import.
+        AudioTracks = await _audioTracks.ReadTracksAsync(media.FilePath);
 
         _sessionActivity = _analytics.StartActivity(AnalyticActivities.Session);
         _sessionActivity.SetTag("media_id", media.Id);
@@ -419,6 +447,18 @@ public class PlaybackService : BaseService, IPlaybackService
             return;
 
         var target = Clamp(position, media.Duration);
+
+        // A stream opened part-way through a song holds nothing before its own zero — a pitch,
+        // tempo or mix change rebuilds it at the playhead — so a seek back past that point would
+        // clamp to wherever the transcode began and the song would carry on from there.
+        if (_stream is { } open && target < open.StartOffset)
+        {
+            Logger.LogInformation("Seeking to {Position}, behind the stream; rebuilding it", target);
+
+            await ReopenStreamAsync(target);
+            return;
+        }
+
         var wasPlaying = State == PlaybackState.Playing;
 
         // Stopped first: the tick would otherwise carry the old position over the new one.
@@ -448,6 +488,34 @@ public class PlaybackService : BaseService, IPlaybackService
 
         Pitch = target;
         Logger.LogInformation("Pitch set to {Semitones:+#;-#;0}", target);
+
+        await AfterRateChangeAsync();
+    }
+
+    /// <summary>What the open stream is mixed to, or null when the file has nothing to balance.</summary>
+    private AudioMix? CurrentMix =>
+        AudioTracks.Count == 0 ? null : new AudioMix(AudioTracks, LeadVolume, BackingVolume);
+
+    public async Task SetLeadVolumeAsync(int volume)
+    {
+        var target = AudioMix.Clamp(volume);
+
+        if (target == LeadVolume) return;
+
+        LeadVolume = target;
+        Logger.LogInformation("Lead vocal set to {Volume}%", target);
+
+        await AfterRateChangeAsync();
+    }
+
+    public async Task SetBackingVolumeAsync(int volume)
+    {
+        var target = AudioMix.Clamp(volume);
+
+        if (target == BackingVolume) return;
+
+        BackingVolume = target;
+        Logger.LogInformation("Backing vocals set to {Volume}%", target);
 
         await AfterRateChangeAsync();
     }
@@ -489,7 +557,7 @@ public class PlaybackService : BaseService, IPlaybackService
         {
             try
             {
-                await Task.Delay(_options.PitchSettleDelay, token);
+                await Task.Delay(Options.PitchSettleDelay, token);
                 await ReopenStreamAsync();
             }
             catch (OperationCanceledException)
@@ -511,6 +579,8 @@ public class PlaybackService : BaseService, IPlaybackService
 
         performance.Pitch = Pitch;
         performance.Tempo = Tempo;
+        performance.LeadVolume = LeadVolume;
+        performance.BackingVolume = BackingVolume;
 
         try
         {
@@ -559,7 +629,7 @@ public class PlaybackService : BaseService, IPlaybackService
 
         // Screens can only fade while frames are flowing, so a paused stop is instant on the
         // screen — showing "Fading out…" here would just stall the UI over a blanked screen.
-        var fade = State == PlaybackState.Playing ? _options.StopFadeDuration : TimeSpan.Zero;
+        var fade = State == PlaybackState.Playing ? Options.StopFadeDuration : TimeSpan.Zero;
 
         // Hold CurrentPerformance/CurrentMedia until the screens have finished fading, so the
         // UI can show the song winding down instead of blanking while it is still audible.
@@ -812,6 +882,10 @@ public class PlaybackService : BaseService, IPlaybackService
         // Cleared, not carried: the next thing loaded brings its own, and an ad has neither.
         Pitch = 0;
         Tempo = 0;
+
+        AudioTracks = [];
+        LeadVolume = AudioMix.DefaultLeadVolume;
+        BackingVolume = Options.DefaultBackingVolume;
     }
 
     /// <summary>Throws when the transcode will not start: there is no playback without it.</summary>
@@ -824,7 +898,8 @@ public class PlaybackService : BaseService, IPlaybackService
         try
         {
             // The ad path reaches here and reads zero — PlayAdAsync resets the state first.
-            _stream = await _mediaStreams.OpenAsync(media.FilePath, startOffset, Pitch, Tempo);
+            _stream = await _mediaStreams.OpenAsync(
+                media.FilePath, startOffset, Pitch, Tempo, CurrentMix);
         }
         catch (Exception ex)
         {
@@ -847,7 +922,10 @@ public class PlaybackService : BaseService, IPlaybackService
     /// ffmpeg fixes its filter graph at process start, so rebuilding is the only way a pitch
     /// change reaches a playing song. Costs a short silence while the first segment is written.
     /// </summary>
-    private async Task ReopenStreamAsync()
+    /// <summary>
+    /// Rebuilds at <paramref name="at"/>, or at the playhead when a rate change asked for it.
+    /// </summary>
+    private async Task ReopenStreamAsync(TimeSpan? at = null)
     {
         await _screenSyncLock.WaitAsync();
         try
@@ -857,11 +935,15 @@ public class PlaybackService : BaseService, IPlaybackService
                 return;
 
             var resume = State == PlaybackState.Playing;
-            var position = Position;
+            var position = at ?? Position;
 
             // Stopped first, as in SeekAsync: a tick mid-reload carries the old position past
             // the point the new stream is opening at.
             StopClock();
+
+            // Moves the playhead as well when a seek asked for this, so the bar answers the click
+            // rather than waiting for the first report off the new stream.
+            Position = position;
 
             Logger.LogInformation(
                 "Reopening '{Title}' at {Position} pitched {Semitones:+#;-#;0} tempo {Tempo:+#;-#;0}%",
@@ -1098,7 +1180,7 @@ public class PlaybackService : BaseService, IPlaybackService
     /// <summary>A start is anchored ahead so every synced screen begins on the same instant.</summary>
     private async Task PublishTimelineAsync(bool isPlaying, TimeSpan? position = null, bool scheduleAhead = false)
     {
-        var anchor = DateTime.UtcNow + (scheduleAhead ? _options.SyncStartLead : TimeSpan.Zero);
+        var anchor = DateTime.UtcNow + (scheduleAhead ? Options.SyncStartLead : TimeSpan.Zero);
 
         await PublishTimelineAsync(position ?? Position, anchor, isPlaying);
     }

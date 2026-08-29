@@ -1,0 +1,30 @@
+<div class="kh-song-control kh-song-control--dial">
+    <div class="kh-song-control__knob">
+        <svg viewBox="0 0 @Size @Size" class="kh-song-control__arc" aria-hidden="true">
+            @* The unlit travel: three quarters of the circle, its gap turned to the bottom. *@
+            <circle cx="@Centre" cy="@Centre" r="@Radius" fill="none"
+                    stroke="var(--kh-track-bg, rgba(200, 200, 200, 0.2))" stroke-width="4"
+                    stroke-linecap="round"
+                    stroke-dasharray="@Dashes(Travel) @Dashes(Circumference)"
+                    transform="rotate(135 @Centre @Centre)" />
+
+            @* The lit span, dashed to its own length and pushed along the path to where it starts. *@
+            <circle cx="@Centre" cy="@Centre" r="@Radius" fill="none"
+                    stroke="@Span.Colour" stroke-width="4" stroke-linecap="round"
+                    stroke-dasharray="@Dashes((Span.To - Span.From) * Travel) @Dashes(Circumference)"
+                    stroke-dashoffset="@Dashes(-Span.From * Travel)"
+                    transform="rotate(135 @Centre @Centre)" />
+        </svg>
+
+        <span class="kh-song-control__value @Span.ValueClass">@Format(Value)</span>
+
+        @* Laid over the arc so the knob drags: a range input is already keyboard-reachable and
+           announces its own value, which a bare SVG would not. *@
+        <input type="range" class="kh-song-control__grip"
+               min="@Min" max="@Max" step="@Step" value="@Value"
+               @oninput="OnInputAsync" @onchange="OnChangeAsync"
+               aria-label="@(AriaLabel ?? Label)" />
+    </div>
+
+    <span class="kh-song-control__label">@Label</span>
+</div>

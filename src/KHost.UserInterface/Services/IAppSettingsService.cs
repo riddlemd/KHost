@@ -1,3 +1,6 @@
+using KHost.Abstractions.Models;
+using KHost.UserInterface.Models;
+
 namespace KHost.UserInterface.Services;
 
 /// <summary>The machine-level settings the App Settings page edits, as one snapshot.</summary>
@@ -21,6 +24,18 @@ public sealed class AppSettings
     public int TipsPageSize { get; set; } = DefaultPageSize;
     public int VenuesPageSize { get; set; } = DefaultPageSize;
     public int PerformanceHistoryPageSize { get; set; } = DefaultPerformanceHistoryPageSize;
+
+    /// <summary>
+    /// Where the backing voices start on a multi-track song nobody has mixed by hand. The lead
+    /// vocal has no setting: a singer is there to replace it, so it always starts silent.
+    /// </summary>
+    public int BackingVocalVolume { get; set; } = AudioMix.DefaultBackingVolume;
+
+    /// <summary>
+    /// Which shape the key, tempo and vocal controls take. Presentation only — both drive the
+    /// same values, so switching mid-song changes nothing the room can hear.
+    /// </summary>
+    public SongControlStyle SongControlStyle { get; set; } = SongControlStyle.Sliders;
 
     public const double DefaultAdDurationSeconds = 10;
     // A spot has to be long enough to read and short enough that the room does not turn back to

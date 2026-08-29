@@ -1,5 +1,7 @@
 using System.Text.Json;
+using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
+using KHost.UserInterface.Models;
 using Microsoft.Extensions.Configuration;
 
 namespace KHost.UserInterface.Services;
@@ -46,6 +48,16 @@ internal sealed class AppSettingsService : IAppSettingsService
         TipsPageSize = PageSize("Tips"),
         VenuesPageSize = PageSize("Venues"),
         PerformanceHistoryPageSize = PageSize("PerformanceHistory", AppSettings.DefaultPerformanceHistoryPageSize),
+        // Clamped on read as well as on save: a hand-edited value outside a fader's range would
+        // otherwise reach ffmpeg as a volume multiplier nobody can undo from the console.
+        BackingVocalVolume = AudioMix.Clamp(
+            _configuration.GetValue<int?>("Playback:DefaultBackingVolume") ?? AudioMix.DefaultBackingVolume),
+        // Parsed rather than cast: a hand-edited word that names no shape falls back to sliders
+        // instead of reaching the console as an enum value with no case to render it.
+        SongControlStyle = Enum.TryParse<SongControlStyle>(
+            _configuration["Console:SongControlStyle"], ignoreCase: true, out var style)
+            ? style
+            : SongControlStyle.Sliders,
     };
 
     private int PageSize(string key, int fallback = AppSettings.DefaultPageSize) =>
@@ -80,6 +92,7 @@ internal sealed class AppSettingsService : IAppSettingsService
             {
                 ["StopFadeDuration"] = TimeSpan.FromSeconds(settings.StopFadeSeconds).ToString(),
                 ["SyncStartLead"] = TimeSpan.FromMilliseconds(settings.SyncStartLeadMilliseconds).ToString(),
+                ["DefaultBackingVolume"] = AudioMix.Clamp(settings.BackingVocalVolume),
             },
             ["MediaStream"] = new Dictionary<string, object?> { ["SegmentSeconds"] = settings.SegmentSeconds },
             ["Ads"] = new Dictionary<string, object?>
@@ -95,6 +108,11 @@ internal sealed class AppSettingsService : IAppSettingsService
                 ["Venues"] = PaginationClamp(settings.VenuesPageSize),
                 ["PerformanceHistory"] = PaginationClamp(settings.PerformanceHistoryPageSize),
             },
+        };
+
+        overlay["Console"] = new Dictionary<string, object?>
+        {
+            ["SongControlStyle"] = settings.SongControlStyle.ToString(),
         };
 
         if (!string.IsNullOrWhiteSpace(settings.FFmpegPath))

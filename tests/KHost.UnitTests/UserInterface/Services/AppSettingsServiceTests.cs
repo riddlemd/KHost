@@ -1,5 +1,6 @@
 using System.Text.Json;
 using KHost.Abstractions.Services;
+using KHost.UserInterface.Models;
 using KHost.UserInterface.Services;
 using Microsoft.Extensions.Configuration;
 
@@ -26,6 +27,65 @@ public class AppSettingsServiceTests : IDisposable
         Assert.False(overlay.RootElement.GetProperty("Auth").GetProperty("RequireLogin").GetBoolean());
         Assert.Equal(4, overlay.RootElement.GetProperty("MediaStream").GetProperty("SegmentSeconds").GetInt32());
         Assert.Equal("00:00:05", overlay.RootElement.GetProperty("Playback").GetProperty("StopFadeDuration").GetString());
+    }
+
+    [Fact]
+    public async Task BackingVocalVolume_DefaultsToFull_AndRoundTripsThroughTheOverlay()
+    {
+        var service = Service();
+
+        Assert.Equal(100, service.Current.BackingVocalVolume);
+
+        await service.SaveAsync(new AppSettings { BackingVocalVolume = 60 });
+
+        using var overlay = JsonDocument.Parse(
+            await File.ReadAllTextAsync(Path.Combine(_directory, AppSettingsService.OverlayFileName)));
+        Assert.Equal(60, overlay.RootElement.GetProperty("Playback").GetProperty("DefaultBackingVolume").GetInt32());
+    }
+
+    [Theory]
+    [InlineData("240", 100)]
+    [InlineData("-30", 0)]
+    public async Task BackingVocalVolume_IsClampedOnReadAsWellAsOnSave(string stored, int expected)
+    {
+        var service = Service(new KeyValuePair<string, string?>("Playback:DefaultBackingVolume", stored));
+
+        // A hand-edited overlay reaches ffmpeg as a volume multiplier, and nothing on the console
+        // would undo a song mixed at 240%.
+        Assert.Equal(expected, service.Current.BackingVocalVolume);
+
+        await service.SaveAsync(new AppSettings { BackingVocalVolume = int.Parse(stored) });
+        using var overlay = JsonDocument.Parse(
+            await File.ReadAllTextAsync(Path.Combine(_directory, AppSettingsService.OverlayFileName)));
+        Assert.Equal(expected, overlay.RootElement.GetProperty("Playback").GetProperty("DefaultBackingVolume").GetInt32());
+    }
+
+    [Fact]
+    public async Task SongControlStyle_DefaultsToSliders_AndRoundTrips()
+    {
+        var service = Service();
+
+        Assert.Equal(SongControlStyle.Sliders, service.Current.SongControlStyle);
+
+        await service.SaveAsync(new AppSettings { SongControlStyle = SongControlStyle.Dials });
+
+        using var overlay = JsonDocument.Parse(
+            await File.ReadAllTextAsync(Path.Combine(_directory, AppSettingsService.OverlayFileName)));
+        Assert.Equal("Dials", overlay.RootElement.GetProperty("Console").GetProperty("SongControlStyle").GetString());
+    }
+
+    [Theory]
+    [InlineData("dials", SongControlStyle.Dials)]
+    [InlineData("Sliders", SongControlStyle.Sliders)]
+    [InlineData("knobs", SongControlStyle.Sliders)]
+    [InlineData("", SongControlStyle.Sliders)]
+    public void SongControlStyle_FallsBackToSliders_ForAnythingItCannotRead(string stored, SongControlStyle expected)
+    {
+        var service = Service(new KeyValuePair<string, string?>("Console:SongControlStyle", stored));
+
+        // A hand-edited word naming no shape must not reach the console as a value with no case
+        // to render it, which would leave the panel empty.
+        Assert.Equal(expected, service.Current.SongControlStyle);
     }
 
     [Fact]
