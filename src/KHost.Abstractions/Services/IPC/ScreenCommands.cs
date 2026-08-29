@@ -50,6 +50,12 @@ public sealed class LoadMediaCommand : ScreenCommandBase
 
     /// <summary>Song position the stream's zero maps to; add it before reporting a position.</summary>
     public TimeSpan StreamStartOffset { get; init; }
+
+    /// <summary>
+    /// Tempo percentage the stream was transcoded at. The screen's own clock runs in stream
+    /// seconds, so every position crossing this boundary has to be scaled by it.
+    /// </summary>
+    public int Tempo { get; init; }
 }
 
 public sealed class PlayCommand : ScreenCommandBase { }

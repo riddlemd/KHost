@@ -43,14 +43,15 @@ public class PlaybackServiceTests : IDisposable
         ConnectScreens(1);
 
         _mediaStreams
-            .OpenAsync(Arg.Any<string>(), Arg.Any<TimeSpan>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .OpenAsync(Arg.Any<string>(), Arg.Any<TimeSpan>(), Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
             .Returns(call => new MediaStreamSession
             {
                 Id = $"stream-{Interlocked.Increment(ref _streamsOpened)}",
                 SourcePath = call.ArgAt<string>(0),
                 PlaylistUrl = $"http://host/media/stream-{_streamsOpened}/stream.m3u8",
                 StartOffset = call.ArgAt<TimeSpan>(1),
-                PitchSemitones = call.ArgAt<int>(2),
+                Pitch = call.ArgAt<int>(2),
+                Tempo = call.ArgAt<int>(3),
             });
 
         // Zero fade keeps stop synchronous; the fading behaviour has its own tests below.
@@ -105,7 +106,7 @@ public class PlaybackServiceTests : IDisposable
         await Task.CompletedTask;
     }
 
-    private PlaybackService MakeService(TimeSpan stopFadeDuration) => new(
+    private PlaybackService MakeService(TimeSpan stopFadeDuration, TimeSpan? pitchSettleDelay = null) => new(
         _logger,
         _queueService,
         _performanceService,
@@ -117,7 +118,12 @@ public class PlaybackServiceTests : IDisposable
         _cast,
         _breakMusic,
         _mediaService,
-        Options.Create(new PlaybackService.ServiceOptions { StopFadeDuration = stopFadeDuration }),
+        Options.Create(new PlaybackService.ServiceOptions
+        {
+            StopFadeDuration = stopFadeDuration,
+            // The delay exists to collapse a burst of presses; the collapsing has its own test.
+            PitchSettleDelay = pitchSettleDelay ?? TimeSpan.Zero,
+        }),
         _broker);
 
     public void Dispose() => _service.Dispose();
@@ -136,7 +142,7 @@ public class PlaybackServiceTests : IDisposable
     /// reached Playing, so the host cannot clear the song that failed.
     /// </summary>
     private void FailTheStreamOpen() => _mediaStreams
-        .OpenAsync(Arg.Any<string>(), Arg.Any<TimeSpan>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+        .OpenAsync(Arg.Any<string>(), Arg.Any<TimeSpan>(), Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
         .Returns<MediaStreamSession>(_ => throw new FileNotFoundException("Media file not found: /gone.cdg"));
 
     [Fact]
@@ -231,14 +237,15 @@ public class PlaybackServiceTests : IDisposable
 
         // The stream opens again, as it would for a different song.
         _mediaStreams
-            .OpenAsync(Arg.Any<string>(), Arg.Any<TimeSpan>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .OpenAsync(Arg.Any<string>(), Arg.Any<TimeSpan>(), Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
             .Returns(call => new MediaStreamSession
             {
                 Id = "stream-recovered",
                 SourcePath = call.ArgAt<string>(0),
                 PlaylistUrl = "http://host/media/stream-recovered/stream.m3u8",
                 StartOffset = call.ArgAt<TimeSpan>(1),
-                PitchSemitones = call.ArgAt<int>(2),
+                Pitch = call.ArgAt<int>(2),
+                Tempo = call.ArgAt<int>(3),
             });
 
         var (next, nextMedia) = CreatePerformance();
@@ -876,7 +883,7 @@ public class PlaybackServiceTests : IDisposable
 
         // A receiver is not a screen, so nothing broadcasts to it — playback has to drive it.
         await _cast.Received(1).LoadAsync(
-            "http://host/media/stream-1/stream.m3u8", TimeSpan.Zero, Arg.Any<CancellationToken>());
+            "http://host/media/stream-1/stream.m3u8", TimeSpan.Zero, 0, Arg.Any<CancellationToken>());
         await _cast.Received(1).PlayAsync(Arg.Any<CancellationToken>());
     }
 
@@ -891,7 +898,7 @@ public class PlaybackServiceTests : IDisposable
         await _service.PauseAsync();
 
         await _cast.DidNotReceive().LoadAsync(
-            Arg.Any<string>(), Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>());
+            Arg.Any<string>(), Arg.Any<TimeSpan>(), Arg.Any<int>(), Arg.Any<CancellationToken>());
         await _cast.DidNotReceive().PlayAsync(Arg.Any<CancellationToken>());
     }
 
@@ -917,7 +924,7 @@ public class PlaybackServiceTests : IDisposable
 
         await _service.LoadAsync(performance, media);
 
-        await _mediaStreams.Received(1).OpenAsync(media.FilePath, TimeSpan.Zero, 0, Arg.Any<CancellationToken>());
+        await _mediaStreams.Received(1).OpenAsync(media.FilePath, TimeSpan.Zero, 0, 0, Arg.Any<CancellationToken>());
 
         var command = LastBroadcast<LoadMediaCommand>();
         Assert.NotNull(command);
@@ -936,7 +943,7 @@ public class PlaybackServiceTests : IDisposable
 
         // One host transcode feeding every screen is the whole reason ffmpeg moved off the screens.
         await _mediaStreams.Received(1).OpenAsync(
-            Arg.Any<string>(), Arg.Any<TimeSpan>(), Arg.Any<int>(), Arg.Any<CancellationToken>());
+            Arg.Any<string>(), Arg.Any<TimeSpan>(), Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -969,7 +976,7 @@ public class PlaybackServiceTests : IDisposable
     public async Task Load_FailsPresentably_WhenTheTranscodeCannotStart()
     {
         _mediaStreams
-            .OpenAsync(Arg.Any<string>(), Arg.Any<TimeSpan>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .OpenAsync(Arg.Any<string>(), Arg.Any<TimeSpan>(), Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
             .Returns<MediaStreamSession>(_ => throw new FileNotFoundException("gone"));
 
         var (performance, media) = CreatePerformance();
@@ -1138,7 +1145,7 @@ public class PlaybackServiceTests : IDisposable
             .Select(c => c.GetArguments().FirstOrDefault() as TCommand)
             .LastOrDefault(c => c is not null);
 
-    private void RaisePrimaryState(TimeSpan position)
+    private void RaisePrimaryState(TimeSpan position, TimeSpan? sampledAgo = null)
         => _screenServer.StateReceived += Raise.EventWith(_screenServer, new ScreenStateReceivedEventArgs
         {
             ScreenId = _screenCoordination.PrimaryScreenId!,
@@ -1148,7 +1155,7 @@ public class PlaybackServiceTests : IDisposable
                 IsPlaying = true,
                 Position = position,
                 Duration = TimeSpan.FromMinutes(4),
-                SampledAtUtc = DateTime.UtcNow,
+                SampledAtUtc = DateTime.UtcNow - (sampledAgo ?? TimeSpan.Zero),
             },
         });
 
@@ -1916,7 +1923,7 @@ public class PlaybackServiceTests : IDisposable
         Assert.True(await _service.PlayAdAsync(CreateStillAd()));
 
         await _screenServer.Received().BroadcastCommandAsync(Arg.Any<ShowImageCommand>());
-        await _mediaStreams.DidNotReceive().OpenAsync(Arg.Any<string>(), Arg.Any<TimeSpan>(), Arg.Any<int>(), Arg.Any<CancellationToken>());
+        await _mediaStreams.DidNotReceive().OpenAsync(Arg.Any<string>(), Arg.Any<TimeSpan>(), Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>());
         await _screenServer.DidNotReceive().BroadcastCommandAsync(Arg.Any<LoadMediaCommand>());
     }
 
@@ -2180,7 +2187,7 @@ public class PlaybackServiceTests : IDisposable
         await _service.PlayAdAsync(ad);
 
         await _mediaStreams.Received().OpenAsync("/media/voiceover.mp3", TimeSpan.FromSeconds(90),
-            Arg.Any<int>(), Arg.Any<CancellationToken>());
+            Arg.Any<int>(), 0, Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -2342,7 +2349,7 @@ public class PlaybackServiceTests : IDisposable
 
         Assert.True(await WaitForBroadcastAsync<ShowImageCommand>());
         await _mediaStreams.DidNotReceive().OpenAsync(Arg.Any<string>(), Arg.Any<TimeSpan>(),
-            Arg.Any<int>(), Arg.Any<CancellationToken>());
+            Arg.Any<int>(), 0, Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -2397,6 +2404,364 @@ public class PlaybackServiceTests : IDisposable
 
         await _screenServer.Received().BroadcastCommandAsync(
             Arg.Is<ShowImageCommand>(c => c.Scaling == ImageScaling.Stretch));
+    }
+
+    [Theory]
+    [InlineData(9, 6)]
+    [InlineData(-9, -6)]
+    [InlineData(3, 3)]
+    public async Task SetPitch_ClampsToTheSupportedRange(int requested, int expected)
+    {
+        var (performance, media) = CreatePerformance();
+        await _service.LoadAsync(performance, media);
+
+        await _service.SetPitchAsync(requested);
+
+        Assert.Equal(expected, _service.Pitch);
+    }
+
+    [Fact]
+    public async Task SetPitch_ReopensTheTranscodeAtThePlayhead_WithTheNewPitch()
+    {
+        var (performance, media) = CreatePerformance();
+        await _service.LoadAsync(performance, media);
+        await _service.PlayAsync();
+        await _service.SeekAsync(TimeSpan.FromSeconds(30));
+
+        await _service.SetPitchAsync(2);
+
+        // ffmpeg fixes its filter graph at process start, so only a fresh transcode carries the
+        // change; opening at the playhead is what stops the song restarting.
+        Assert.True(await WaitForStreamsOpenedAsync(2));
+        await _mediaStreams.Received(1).OpenAsync(
+            media.FilePath, TimeSpan.FromSeconds(30), 2, 0, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task SetPitch_SendsTheNewStreamToTheScreens_AndKeepsPlaying()
+    {
+        var (performance, media) = CreatePerformance();
+        await _service.LoadAsync(performance, media);
+        await _service.PlayAsync();
+
+        await _service.SetPitchAsync(-2);
+
+        Assert.True(await WaitForStreamsOpenedAsync(2));
+
+        // The screens hold no decoder: without the new URL they sit on the stream that just died.
+        var load = LastBroadcast<LoadMediaCommand>();
+        Assert.NotNull(load);
+        Assert.Equal("http://host/media/stream-2/stream.m3u8", load.StreamUrl);
+        Assert.Equal(PlaybackState.Playing, _service.State);
+    }
+
+    [Fact]
+    public async Task SetPitch_ClosesThePreviousTranscode()
+    {
+        var (performance, media) = CreatePerformance();
+        await _service.LoadAsync(performance, media);
+        await _service.PlayAsync();
+
+        await _service.SetPitchAsync(1);
+
+        Assert.True(await WaitForStreamsOpenedAsync(2));
+
+        // Two ffmpegs on one song is the cost of every key change, all night.
+        await _mediaStreams.Received().CloseAsync("stream-1");
+    }
+
+    [Fact]
+    public async Task SetPitch_LeavesAPausedSongPaused()
+    {
+        var (performance, media) = CreatePerformance();
+        await _service.LoadAsync(performance, media);
+        await _service.PlayAsync();
+        await _service.PauseAsync();
+
+        await _service.SetPitchAsync(4);
+
+        Assert.True(await WaitForStreamsOpenedAsync(2));
+
+        // Rebuilding the stream must not start the song over the top of a host who paused it.
+        Assert.Equal(PlaybackState.Paused, _service.State);
+    }
+
+    [Fact]
+    public async Task SetPitch_DoesNotOpenATranscode_WhenNothingIsLoaded()
+    {
+        await _service.SetPitchAsync(3);
+
+        Assert.Equal(3, _service.Pitch);
+        Assert.False(await WaitForStreamsOpenedAsync(1, attempts: 10));
+    }
+
+    [Fact]
+    public async Task SetPitch_DoesNothing_WhenTheValueHasNotChanged()
+    {
+        var (performance, media) = CreatePerformance();
+        await _service.LoadAsync(performance, media);
+        await _service.PlayAsync();
+        await _service.SetPitchAsync(2);
+        Assert.True(await WaitForStreamsOpenedAsync(2));
+
+        await _service.SetPitchAsync(2);
+
+        // A repeat press on a clamped end must not cost the song another hole.
+        Assert.False(await WaitForStreamsOpenedAsync(3, attempts: 10));
+    }
+
+    [Fact]
+    public async Task SetPitch_AnnouncesBeforeTheTranscodeIsRebuilt()
+    {
+        // A settle long enough that the reopen cannot have run: the announcement under test is
+        // the one landing before ffmpeg is touched.
+        using var _service = MakeService(TimeSpan.Zero, TimeSpan.FromSeconds(30));
+        var (performance, media) = CreatePerformance();
+        await _service.LoadAsync(performance, media);
+        await _service.PlayAsync();
+
+        var announcements = 0;
+        using var subscription = _broker.Subscribe<PlaybackChanged>(_ => announcements++);
+
+        await _service.SetPitchAsync(5);
+
+        // Waiting out the settle would leave the readout a beat behind every press.
+        Assert.Equal(1, announcements);
+        Assert.Equal(5, _service.Pitch);
+    }
+
+    [Fact]
+    public async Task SetPitch_CollapsesRepeatedPresses_IntoOneReopen()
+    {
+        // The only test that uses a real delay: the collapsing is what it is measuring.
+        using var service = MakeService(TimeSpan.Zero, TimeSpan.FromMilliseconds(200));
+        var (performance, media) = CreatePerformance();
+        await service.LoadAsync(performance, media);
+        await service.PlayAsync();
+
+        await service.SetPitchAsync(1);
+        await service.SetPitchAsync(2);
+        await service.SetPitchAsync(3);
+
+        Assert.True(await WaitForStreamsOpenedAsync(2));
+        await Task.Delay(300);
+
+        // Three presses, one hole in the song — and it lands on the key the host settled on.
+        Assert.Equal(2, _streamsOpened);
+        await _mediaStreams.Received(1).OpenAsync(
+            media.FilePath, Arg.Any<TimeSpan>(), 3, 0, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Load_DoesNotCarryTheKeyToTheNextSinger()
+    {
+        var (firstPerformance, firstMedia) = CreatePerformance();
+        await _service.LoadAsync(firstPerformance, firstMedia);
+        await _service.SetPitchAsync(4);
+
+        var (nextPerformance, nextMedia) = CreatePerformance();
+        await _service.LoadAsync(nextPerformance, nextMedia);
+
+        // The next performance brings its own key rather than inheriting the console's.
+        Assert.Equal(0, _service.Pitch);
+        await _mediaStreams.Received().OpenAsync(
+            nextMedia.FilePath, TimeSpan.Zero, 0, 0, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Stop_ResetsThePitch()
+    {
+        var (performance, media) = CreatePerformance();
+        await _service.LoadAsync(performance, media);
+        await _service.PlayAsync();
+        await _service.SetPitchAsync(-3);
+
+        await _service.StopAsync();
+
+        Assert.Equal(0, _service.Pitch);
+    }
+
+    [Fact]
+    public async Task Load_TakesTheKeyFromThePerformance()
+    {
+        var (performance, media) = CreatePerformance();
+        performance.Pitch = -3;
+
+        await _service.LoadAsync(performance, media);
+
+        // A performance re-queued from history carries the key it was sung in.
+        Assert.Equal(-3, _service.Pitch);
+        await _mediaStreams.Received(1).OpenAsync(
+            media.FilePath, TimeSpan.Zero, -3, 0, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task SetPitch_RecordsTheKeyOnThePerformance()
+    {
+        var (performance, media) = CreatePerformance();
+        await _service.LoadAsync(performance, media);
+        await _service.PlayAsync();
+
+        await _service.SetPitchAsync(-2);
+
+        // The history is read back from the row; a key not written there is lost at song end.
+        await _performanceService.Received().UpdateAsync(
+            Arg.Is<Performance>(p => p.Id == performance.Id && p.Pitch == -2));
+    }
+
+    [Fact]
+    public async Task SetPitch_RecordsTheKeyBeforeTheSettleElapses()
+    {
+        // A song that ends inside the settle window must not lose the key the singer just found.
+        using var _service = MakeService(TimeSpan.Zero, TimeSpan.FromSeconds(30));
+        var (performance, media) = CreatePerformance();
+        await _service.LoadAsync(performance, media);
+        await _service.PlayAsync();
+
+        await _service.SetPitchAsync(4);
+
+        await _performanceService.Received().UpdateAsync(
+            Arg.Is<Performance>(p => p.Pitch == 4));
+        Assert.Equal(1, _streamsOpened);
+    }
+
+    [Fact]
+    public async Task SetPitch_RecordsNothing_ForAnAd()
+    {
+        var ad = new Media
+        {
+            Id = Guid.NewGuid(),
+            FilePath = "/media/ad.mp4",
+            Title = "Ad",
+            Status = MediaStatus.Ready,
+            Duration = TimeSpan.FromSeconds(20),
+        };
+        await _service.PlayAdAsync(ad);
+
+        await _service.SetPitchAsync(3);
+
+        // An ad is nobody's turn and nobody's key, and it has no row to write one on.
+        await _performanceService.DidNotReceive().UpdateAsync(Arg.Any<Performance>());
+    }
+
+    [Theory]
+    [InlineData(80, 50)]
+    [InlineData(-80, -50)]
+    [InlineData(-25, -25)]
+    public async Task SetTempo_ClampsToTheSupportedRange(int requested, int expected)
+    {
+        var (performance, media) = CreatePerformance();
+        await _service.LoadAsync(performance, media);
+
+        await _service.SetTempoAsync(requested);
+
+        Assert.Equal(expected, _service.Tempo);
+    }
+
+    [Fact]
+    public async Task SetTempo_ReopensTheTranscodeAtTheNewTempo()
+    {
+        var (performance, media) = CreatePerformance();
+        await _service.LoadAsync(performance, media);
+        await _service.PlayAsync();
+        await _service.SeekAsync(TimeSpan.FromSeconds(30));
+
+        await _service.SetTempoAsync(-20);
+
+        Assert.True(await WaitForStreamsOpenedAsync(2));
+        await _mediaStreams.Received(1).OpenAsync(
+            media.FilePath, TimeSpan.FromSeconds(30), 0, -20, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task SetTempo_AndSetPitchTogether_CostOneReopen()
+    {
+        using var service = MakeService(TimeSpan.Zero, TimeSpan.FromMilliseconds(200));
+        var (performance, media) = CreatePerformance();
+        await service.LoadAsync(performance, media);
+        await service.PlayAsync();
+
+        await service.SetPitchAsync(2);
+        await service.SetTempoAsync(-10);
+
+        Assert.True(await WaitForStreamsOpenedAsync(2));
+        await Task.Delay(300);
+
+        // One settle covers both, or finding a key and then a speed takes two holes in the song.
+        Assert.Equal(2, _streamsOpened);
+        await _mediaStreams.Received(1).OpenAsync(
+            media.FilePath, Arg.Any<TimeSpan>(), 2, -10, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task PrimaryReport_ExtrapolatesSongTimeByTheTempo()
+    {
+        var (performance, media) = CreatePerformance();
+        performance.Tempo = 50;
+        await _service.LoadAsync(performance, media);
+        await _service.PlayAsync();
+
+        RaisePrimaryState(TimeSpan.FromSeconds(60), sampledAgo: TimeSpan.FromSeconds(2));
+
+        // The report is two seconds old in wall time, and at 1.5x the song moved three seconds in
+        // it. Extrapolating one-to-one would leave the host's playhead a second behind the room.
+        Assert.InRange(
+            _service.Position,
+            TimeSpan.FromSeconds(62.9),
+            TimeSpan.FromSeconds(63.3));
+    }
+
+    [Fact]
+    public async Task Load_TellsTheScreensAndTheReceiverTheTempo()
+    {
+        _cast.ConnectedDeviceId.Returns("Living Room TV");
+
+        var (performance, media) = CreatePerformance();
+        performance.Tempo = -30;
+
+        await _service.LoadAsync(performance, media);
+
+        // Both keep their own clock in stream seconds, so neither recovers song time without it.
+        Assert.Equal(-30, LastBroadcast<LoadMediaCommand>()?.Tempo);
+        await _cast.Received(1).LoadAsync(
+            Arg.Any<string>(), Arg.Any<TimeSpan>(), -30, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Load_TakesTheTempoFromThePerformance()
+    {
+        var (performance, media) = CreatePerformance();
+        performance.Tempo = -40;
+
+        await _service.LoadAsync(performance, media);
+
+        Assert.Equal(-40, _service.Tempo);
+        await _mediaStreams.Received(1).OpenAsync(
+            media.FilePath, TimeSpan.Zero, 0, -40, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task SetTempo_RecordsTheSpeedOnThePerformance()
+    {
+        var (performance, media) = CreatePerformance();
+        await _service.LoadAsync(performance, media);
+        await _service.PlayAsync();
+
+        await _service.SetTempoAsync(15);
+
+        await _performanceService.Received().UpdateAsync(
+            Arg.Is<Performance>(p => p.Id == performance.Id && p.Tempo == 15));
+    }
+
+    private async Task<bool> WaitForStreamsOpenedAsync(int count, int attempts = 50)
+    {
+        for (var i = 0; i < attempts; i++)
+        {
+            if (Volatile.Read(ref _streamsOpened) >= count) return true;
+            await Task.Delay(10);
+        }
+
+        return false;
     }
 
     private static (Performance, Media) CreatePerformance()

@@ -1,0 +1,46 @@
+@using KHost.Abstractions.Services
+
+<div class="kh-song-controls" @onkeydown="OnKeyDown">
+    <button type="button" class="kh-song-controls__trigger"
+            disabled="@(PlaybackService?.CurrentPerformance is null)"
+            title="@TriggerTitle"
+            aria-expanded="@_open" aria-haspopup="true"
+            @onclick="Toggle">
+        <Icon Name="sliders" Class="@($"kh-song-controls__icon {(IsChanged ? "kh-song-controls__icon--on" : "")}")" />
+    </button>
+
+    @if (_open)
+    {
+        <div class="kh-song-controls__scrim" @onclick="Close"></div>
+
+        <div class="kh-song-controls__panel">
+            <div class="kh-song-controls__row">
+                <div class="kh-song-controls__head">
+                    <span class="kh-song-controls__label">Key</span>
+                    <span class="kh-song-controls__value @(_pitch != 0 ? "kh-song-controls__value--on" : "")">
+                        @FormatPitch(_pitch)
+                    </span>
+                </div>
+                <input type="range" class="kh-song-controls__slider"
+                       min="@IPlaybackService.MinPitch" max="@IPlaybackService.MaxPitch" step="1"
+                       value="@_pitch"
+                       @oninput="OnPitchInput" @onchange="CommitPitchAsync"
+                       aria-label="Key, in semitones from the recording" />
+            </div>
+
+            <div class="kh-song-controls__row">
+                <div class="kh-song-controls__head">
+                    <span class="kh-song-controls__label">Tempo</span>
+                    <span class="kh-song-controls__value @(_tempo != 0 ? "kh-song-controls__value--on" : "")">
+                        @FormatTempo(_tempo)
+                    </span>
+                </div>
+                <input type="range" class="kh-song-controls__slider"
+                       min="@IPlaybackService.MinTempo" max="@IPlaybackService.MaxTempo" step="@TempoStep"
+                       value="@_tempo"
+                       @oninput="OnTempoInput" @onchange="CommitTempoAsync"
+                       aria-label="Tempo, as a percentage of the recording" />
+            </div>
+        </div>
+    }
+</div>

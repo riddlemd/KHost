@@ -49,7 +49,8 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, ID
     public async Task<MediaStreamSession> OpenAsync(
         string filePath,
         TimeSpan startOffset = default,
-        int pitchSemitones = 0,
+        int pitch = 0,
+        int tempo = 0,
         CancellationToken cancellationToken = default)
     {
         if (!File.Exists(filePath))
@@ -64,7 +65,7 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, ID
             Logger.LogWarning("No companion audio beside '{FilePath}'; the stream will be silent", filePath);
 
         var arguments = BuildArguments(
-            filePath, startOffset, pitchSemitones, _options.SegmentSeconds, companionAudio);
+            filePath, startOffset, pitch, tempo, _options.SegmentSeconds, companionAudio);
 
         Logger.LogInformation("Opening stream {SessionId} for '{FilePath}' at {Offset}", id, filePath, startOffset);
         Logger.LogDebug("ffmpeg {Arguments}", arguments);
@@ -106,7 +107,8 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, ID
             SourcePath = filePath,
             PlaylistUrl = $"{_options.BaseAddress.TrimEnd('/')}/media/{id}/{PlaylistFileName}",
             StartOffset = startOffset,
-            PitchSemitones = pitchSemitones,
+            Pitch = pitch,
+            Tempo = tempo,
         };
     }
 
@@ -199,7 +201,8 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, ID
     internal static string BuildArguments(
         string filePath,
         TimeSpan startOffset,
-        int pitchSemitones,
+        int pitch,
+        int tempo,
         int segmentSeconds,
         string? companionAudioPath = null)
     {
@@ -224,12 +227,23 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, ID
         if (startOffset > TimeSpan.Zero && seekOnOutput)
             arguments += string.Format(CultureInfo.InvariantCulture, " -ss {0:F3}", startOffset.TotalSeconds);
 
-        // Fixed GOP with no scene-cut detection, so every segment starts on a keyframe.
-        arguments += " -c:v libx264 -preset veryfast -profile:v main -level 4.1 -pix_fmt yuv420p"
-                   + " -g 60 -keyint_min 60 -sc_threshold 0";
+        var segment = Math.Max(1, segmentSeconds);
 
-        var pitch = BuildPitchFilter(pitchSemitones);
-        if (pitch.Length > 0) arguments += $" -af \"{pitch}\"";
+        // Keyframes on time, not a frame count: -g is in frames, so it matches the segment length
+        // at exactly one source frame rate, and the muxer can only cut where a keyframe already is.
+        arguments += " -c:v libx264 -preset veryfast -profile:v main -level 4.1 -pix_fmt yuv420p"
+                   + string.Format(
+                        CultureInfo.InvariantCulture,
+                        " -force_key_frames \"expr:gte(t,n_forced*{0})\" -sc_threshold 0",
+                        segment);
+
+        var audioFilter = BuildAudioFilter(pitch, tempo);
+        if (audioFilter.Length > 0) arguments += $" -af \"{audioFilter}\"";
+
+        // -vf rather than a filter_complex: it composes with the CDG mapping above, and ffmpeg
+        // drops it silently on a source with no video rather than failing on an unmatched label.
+        var videoFilter = BuildVideoFilter(tempo);
+        if (videoFilter.Length > 0) arguments += $" -vf \"{videoFilter}\"";
 
         arguments += " -c:a aac -ar 44100 -ac 2 -b:a 128k";
 
@@ -238,7 +252,7 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, ID
             CultureInfo.InvariantCulture,
             " -f hls -hls_time {0} -hls_playlist_type event -hls_flags independent_segments"
             + " -hls_segment_filename seg_%05d.ts",
-            Math.Max(1, segmentSeconds));
+            segment);
 
         return arguments + $" {PlaylistFileName}";
     }
@@ -258,15 +272,61 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, ID
         return File.Exists(companion) ? companion : null;
     }
 
-    private static string BuildPitchFilter(int semitones)
+    private static string BuildAudioFilter(int pitch, int tempo)
     {
-        if (semitones == 0) return string.Empty;
+        var rate = MediaStreamSession.RateFor(tempo);
 
-        double ratio = Math.Pow(2.0, semitones / 12.0);
-        return string.Format(
-            CultureInfo.InvariantCulture,
-            "asetrate=44100*{0:F6},aresample=44100,atempo={1:F6}",
-            ratio, 1.0 / ratio);
+        if (pitch == 0 && rate == 1.0) return string.Empty;
+
+        var ratio = Math.Pow(2.0, pitch / 12.0);
+
+        // asetrate reinterprets whatever rate reaches it, so the leading resample is what makes
+        // its base true: a 48kHz source would otherwise carry an uncorrected 44100/48000 as well.
+        var stages = new List<string> { "aresample=44100" };
+
+        if (pitch != 0)
+        {
+            stages.Add(FormattableString.Invariant($"asetrate=44100*{ratio:F6}"));
+            stages.Add("aresample=44100");
+        }
+
+        // One factor, not two: asetrate already moved the speed by the pitch ratio, so undoing
+        // that and applying the wanted tempo is a single atempo.
+        stages.AddRange(TempoStages(rate / ratio));
+
+        return string.Join(',', stages);
+    }
+
+    /// <summary>
+    /// atempo rejects anything below 0.5, and the supported pitch and tempo ranges reach 0.354
+    /// together — pitch up against tempo down. Two stages cover the whole envelope.
+    /// </summary>
+    private static IEnumerable<string> TempoStages(double factor)
+    {
+        if (Math.Abs(factor - 1.0) < 1e-9) yield break;
+
+        if (factor >= 0.5)
+        {
+            yield return FormattableString.Invariant($"atempo={factor:F6}");
+            yield break;
+        }
+
+        var stage = Math.Sqrt(factor);
+        yield return FormattableString.Invariant($"atempo={stage:F6}");
+        yield return FormattableString.Invariant($"atempo={stage:F6}");
+    }
+
+    /// <summary>
+    /// Retimes the picture to match. Output frame rate becomes the source's times the rate, which
+    /// the keyframe expression above is immune to because it is written in output time.
+    /// </summary>
+    private static string BuildVideoFilter(int tempo)
+    {
+        var rate = MediaStreamSession.RateFor(tempo);
+
+        return rate == 1.0
+            ? string.Empty
+            : FormattableString.Invariant($"setpts=PTS/{rate:F6}");
     }
 
     private static string ResolveFfmpegPath()
