@@ -2912,6 +2912,42 @@ public class PlaybackServiceTests : IDisposable
             new AudioTrack(2, AudioTrackRole.Lead, "Lead Vocal"),
         ]);
 
+    [Fact]
+    public async Task Seek_RebuildsTheStream_WhenTheTargetIsBehindWhereItBegan()
+    {
+        var (performance, media) = CreatePerformance();
+        await _service.LoadAsync(performance, media);
+        await _service.PlayAsync();
+        await _service.SeekAsync(TimeSpan.FromSeconds(200));
+
+        // A rate change rebuilds the transcode at the playhead, so the stream now starts at 200s.
+        await _service.SetPitchAsync(2);
+        Assert.True(await WaitForStreamsOpenedAsync(2));
+
+        await _service.SeekAsync(TimeSpan.FromSeconds(30));
+
+        // The stream holds nothing before its own zero. Sending a bare seek would clamp to 200s
+        // and the song would carry on from there, which is what a host reads as a dead scrub bar.
+        Assert.True(await WaitForStreamsOpenedAsync(3));
+        await _mediaStreams.Received(1).OpenAsync(
+            media.FilePath, TimeSpan.FromSeconds(30), 2, 0, null, Arg.Any<CancellationToken>());
+        Assert.Equal(TimeSpan.FromSeconds(30), _service.Position);
+    }
+
+    [Fact]
+    public async Task Seek_SendsAPlainSeek_WhenTheTargetIsInsideTheStream()
+    {
+        var (performance, media) = CreatePerformance();
+        await _service.LoadAsync(performance, media);
+        await _service.PlayAsync();
+
+        await _service.SeekAsync(TimeSpan.FromSeconds(90));
+
+        // Forwards, or backwards inside a stream that began at zero, costs no ffmpeg restart.
+        Assert.False(await WaitForStreamsOpenedAsync(2, attempts: 10));
+        Assert.Equal(TimeSpan.FromSeconds(90), LastBroadcast<SeekCommand>()?.Position);
+    }
+
     private async Task<bool> WaitForStreamsOpenedAsync(int count, int attempts = 50)
     {
         for (var i = 0; i < attempts; i++)

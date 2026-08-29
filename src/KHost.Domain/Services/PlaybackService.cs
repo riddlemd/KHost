@@ -447,6 +447,18 @@ public class PlaybackService : BaseService, IPlaybackService
             return;
 
         var target = Clamp(position, media.Duration);
+
+        // A stream opened part-way through a song holds nothing before its own zero — a pitch,
+        // tempo or mix change rebuilds it at the playhead — so a seek back past that point would
+        // clamp to wherever the transcode began and the song would carry on from there.
+        if (_stream is { } open && target < open.StartOffset)
+        {
+            Logger.LogInformation("Seeking to {Position}, behind the stream; rebuilding it", target);
+
+            await ReopenStreamAsync(target);
+            return;
+        }
+
         var wasPlaying = State == PlaybackState.Playing;
 
         // Stopped first: the tick would otherwise carry the old position over the new one.
@@ -910,7 +922,10 @@ public class PlaybackService : BaseService, IPlaybackService
     /// ffmpeg fixes its filter graph at process start, so rebuilding is the only way a pitch
     /// change reaches a playing song. Costs a short silence while the first segment is written.
     /// </summary>
-    private async Task ReopenStreamAsync()
+    /// <summary>
+    /// Rebuilds at <paramref name="at"/>, or at the playhead when a rate change asked for it.
+    /// </summary>
+    private async Task ReopenStreamAsync(TimeSpan? at = null)
     {
         await _screenSyncLock.WaitAsync();
         try
@@ -920,11 +935,15 @@ public class PlaybackService : BaseService, IPlaybackService
                 return;
 
             var resume = State == PlaybackState.Playing;
-            var position = Position;
+            var position = at ?? Position;
 
             // Stopped first, as in SeekAsync: a tick mid-reload carries the old position past
             // the point the new stream is opening at.
             StopClock();
+
+            // Moves the playhead as well when a seek asked for this, so the bar answers the click
+            // rather than waiting for the first report off the new stream.
+            Position = position;
 
             Logger.LogInformation(
                 "Reopening '{Title}' at {Position} pitched {Semitones:+#;-#;0} tempo {Tempo:+#;-#;0}%",
