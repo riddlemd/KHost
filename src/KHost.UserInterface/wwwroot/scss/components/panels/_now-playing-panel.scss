@@ -103,6 +103,58 @@
         gap: 14px;
     }
 
+    &__key {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        margin-right: 6px;
+    }
+
+    &__key-btn {
+        width: 26px;
+        height: 26px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0;
+        font-size: 11px;
+        cursor: pointer;
+        background: var(--kh-bg-elevated);
+        border: 1px solid var(--kh-border);
+        color: var(--kh-text-secondary);
+        transition: all var(--kh-transition);
+
+        &:hover:not(:disabled) {
+            border-color: var(--kh-primary-bright);
+            color: var(--kh-text);
+        }
+
+        &:active:not(:disabled) {
+            transform: scale(0.9);
+        }
+
+        &:disabled {
+            opacity: 0.25;
+            cursor: default;
+        }
+    }
+
+    &__key-value {
+        // Wide enough for the sign, or the buttons shuffle every time it crosses zero.
+        min-width: 22px;
+        text-align: center;
+        font-size: 0.78rem;
+        font-variant-numeric: tabular-nums;
+        color: var(--kh-text-muted);
+    }
+
+    // Not primary: a theme may make that a neutral, losing the distinction from the written key.
+    &__key-value--shifted {
+        color: var(--kh-success);
+        font-weight: 600;
+    }
+
     &__btn--play,
     &__btn--stop {
         border-radius: 50%;

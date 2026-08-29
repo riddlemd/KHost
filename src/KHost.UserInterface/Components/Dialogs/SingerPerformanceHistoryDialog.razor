@@ -42,6 +42,14 @@
                                     else
                                     {
                                         @media.Title
+
+                                        @if (perf.Pitch != 0)
+                                        {
+                                            <span class="@(_rootClassName)__pitch"
+                                                  title="Sung in this key; re-queueing brings it back">
+                                                @FormatPitch(perf.Pitch)
+                                            </span>
+                                        }
                                     }
                                 </td>
                                 <td class="kh-table__cell--fill">@(media?.Artist ?? "—")</td>
@@ -49,7 +57,7 @@
                                 <td class="kh-table__cell--actions">
                                     <SplitButton
                                             PrimaryDisabled="@(!isReady)"
-                                            @onclick="async () => await EnqueueAsync(media!)"
+                                            @onclick="async () => await EnqueueAsync(media!, perf)"
                                             title="@enqueueDescription">
                                         <Text><Icon Name="plus-lg" /></Text>
                                         <Buttons>

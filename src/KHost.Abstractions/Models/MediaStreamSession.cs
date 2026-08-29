@@ -19,5 +19,6 @@ public sealed class MediaStreamSession
     /// </summary>
     public required TimeSpan StartOffset { get; init; }
 
-    public required int PitchSemitones { get; init; }
+    /// <summary>Semitones; zero for the written key.</summary>
+    public required int Pitch { get; init; }
 }

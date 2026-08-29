@@ -1,3 +1,4 @@
+using System.Globalization;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using KHost.UserInterface.Models;
@@ -75,6 +76,9 @@ public partial class SingerPerformanceHistoryDialog
         StateHasChanged();
     }
 
+    private static string FormatPitch(int semitones) =>
+        semitones.ToString("+#;\u2212#;0", CultureInfo.InvariantCulture);
+
     public async Task CloseAsync()
     {
         IsOpen = false;
@@ -82,7 +86,7 @@ public partial class SingerPerformanceHistoryDialog
         await OnClose.InvokeAsync();
     }
 
-    private async Task EnqueueAsync(Media media)
+    private async Task EnqueueAsync(Media media, Performance sung)
     {
         if (PerformanceService is null)
             return;
@@ -90,7 +94,9 @@ public partial class SingerPerformanceHistoryDialog
         var enqueued = await PerformanceService.CreateAndEnqueueAsync(new Performance
         {
             SingerId = UserId,
-            MediaId = media.Id
+            MediaId = media.Id,
+            // The row the host picked, not the newest take: the same song may have two keys.
+            Pitch = sung.Pitch,
         });
 
         // Stay open when the duplicate warning was declined, so the choice isn't lost.

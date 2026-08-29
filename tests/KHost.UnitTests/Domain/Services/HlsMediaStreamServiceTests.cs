@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using KHost.Domain.Services;
@@ -103,6 +104,60 @@ public class HlsMediaStreamServiceTests : IDisposable
     {
         Assert.DoesNotContain("asetrate", HlsMediaStreamService.BuildArguments("/songs/a.mp4", TimeSpan.Zero, 0, 2));
         Assert.Contains("asetrate", HlsMediaStreamService.BuildArguments("/songs/a.mp4", TimeSpan.Zero, 2, 2));
+    }
+
+    [Fact]
+    public void BuildArguments_ForcesKeyframesOnTime_NotOnAFrameCount()
+    {
+        var arguments = HlsMediaStreamService.BuildArguments("/songs/a.mp4", TimeSpan.Zero, 0, 2);
+
+        // -g is frames, so it equals the segment length at one source frame rate only, and the
+        // muxer cuts only where a keyframe already is.
+        Assert.Contains("-force_key_frames \"expr:gte(t,n_forced*2)\"", arguments);
+        Assert.DoesNotContain("-g 60", arguments);
+        Assert.DoesNotContain("-keyint_min", arguments);
+    }
+
+    [Fact]
+    public void BuildArguments_TiesForcedKeyframesToTheSegmentLength()
+    {
+        var arguments = HlsMediaStreamService.BuildArguments("/songs/a.mp4", TimeSpan.Zero, 0, 4);
+
+        // A keyframe interval disagreeing with hls_time gives ragged segments.
+        Assert.Contains("-force_key_frames \"expr:gte(t,n_forced*4)\"", arguments);
+        Assert.Contains("-hls_time 4", arguments);
+    }
+
+    [Fact]
+    public void BuildArguments_ResamplesBeforeReinterpretingTheSampleRate()
+    {
+        var arguments = HlsMediaStreamService.BuildArguments("/songs/a.mp4", TimeSpan.Zero, 2, 2);
+
+        // asetrate reinterprets whatever rate reaches it, and the atempo below compensates only
+        // for the intended ratio — so a 48kHz source drifts off the video without this.
+        Assert.Contains("aresample=44100,asetrate=", arguments);
+        Assert.True(
+            arguments.IndexOf("aresample=44100,asetrate=", StringComparison.Ordinal)
+                < arguments.IndexOf("atempo=", StringComparison.Ordinal),
+            arguments);
+    }
+
+    [Theory]
+    [InlineData(-6)]
+    [InlineData(-1)]
+    [InlineData(1)]
+    [InlineData(6)]
+    public void BuildArguments_KeepsTheCompensatingTempoWithinWhatAtempoAccepts(int semitones)
+    {
+        var arguments = HlsMediaStreamService.BuildArguments("/songs/a.mp4", TimeSpan.Zero, semitones, 2);
+
+        var start = arguments.IndexOf("atempo=", StringComparison.Ordinal) + "atempo=".Length;
+        var end = arguments.IndexOf('"', start);
+        var tempo = double.Parse(arguments[start..end], CultureInfo.InvariantCulture);
+
+        // atempo rejects anything under 0.5, and chaining is the only way past it. Across the
+        // supported range pitch alone never gets there — combining it with a tempo change would.
+        Assert.InRange(tempo, 0.5, 100.0);
     }
 
     [Fact]
