@@ -936,6 +936,130 @@ public class PlaybackServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task ACastSessionAppearingMidSong_IsCaughtUpToWhereTheRoomIs()
+    {
+        var (performance, media) = CreatePerformance();
+        await _service.LoadAsync(performance, media);
+        await _service.PlayAsync();
+        _cast.ClearReceivedCalls();
+
+        // Selected after the song started: a receiver holds no timeline and hears nothing about
+        // a load it was not connected for.
+        ConnectCast();
+
+        Assert.True(await WaitForCastLoadAsync());
+        await _cast.Received(1).PlayAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task ACastSessionAppearingMidSong_IsNotStarted_WhenTheSongIsPaused()
+    {
+        var (performance, media) = CreatePerformance();
+        await _service.LoadAsync(performance, media);
+        await _service.PlayAsync();
+        await _service.PauseAsync();
+        _cast.ClearReceivedCalls();
+
+        ConnectCast();
+
+        // Loaded so the picture is there, but starting it would have the television playing on
+        // its own while the room is parked.
+        Assert.True(await WaitForCastLoadAsync());
+        await _cast.DidNotReceive().PlayAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task ACastSessionAppearingMidSong_IsMovedToTheCurrentPosition()
+    {
+        var (performance, media) = CreatePerformance();
+        await _service.LoadAsync(performance, media);
+        await _service.PlayAsync();
+        await _service.SeekAsync(TimeSpan.FromSeconds(45));
+        _cast.ClearReceivedCalls();
+
+        ConnectCast();
+
+        // Loading alone starts the stream from its own zero, which is a receiver forty-five
+        // seconds behind the room.
+        Assert.True(await WaitForCastLoadAsync());
+        await _cast.Received().SeekAsync(TimeSpan.FromSeconds(45), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task ARestartedCastReceiver_IsPutBackOnTheSong()
+    {
+        var (performance, media) = CreatePerformance();
+        await _service.LoadAsync(performance, media);
+        await _service.PlayAsync();
+
+        ConnectCast();
+        Assert.True(await WaitForCastLoadAsync());
+        _cast.ClearReceivedCalls();
+
+        // Same device, new session: what a receiver that restarted looks like. It has forgotten
+        // the song, so being told nothing would leave a black television and a playing room.
+        _cast.SessionId.Returns(Guid.NewGuid());
+        await _broker.PublishAsync(new CastChanged());
+
+        Assert.True(await WaitForCastLoadAsync());
+    }
+
+    [Fact]
+    public async Task ACastSessionThatHasNotChanged_IsLeftAlone()
+    {
+        var (performance, media) = CreatePerformance();
+        await _service.LoadAsync(performance, media);
+        await _service.PlayAsync();
+
+        ConnectCast();
+        Assert.True(await WaitForCastLoadAsync());
+        _cast.ClearReceivedCalls();
+
+        // CastChanged is announced for discovery too; reloading on every one of them would
+        // restart the song on the television whenever a device appeared on the network.
+        await _broker.PublishAsync(new CastChanged());
+        await Task.Delay(100);
+
+        await _cast.DidNotReceive().LoadAsync(
+            Arg.Any<string>(), Arg.Any<TimeSpan>(), Arg.Any<int>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task ACastSessionAppearingWithNothingPlaying_LoadsNothing()
+    {
+        ConnectCast();
+        await Task.Delay(100);
+
+        // Nothing is open to hand over, and opening one to fill the silence would start an
+        // ffmpeg for a song no one asked for.
+        await _cast.DidNotReceive().LoadAsync(
+            Arg.Any<string>(), Arg.Any<TimeSpan>(), Arg.Any<int>(), Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>Selecting a device, as the Screens dialog does: a connection and an announcement.</summary>
+    private void ConnectCast()
+    {
+        _cast.ConnectedDeviceId.Returns("Living Room TV");
+        _cast.SessionId.Returns(Guid.NewGuid());
+
+        _broker.Announce(new CastChanged());
+    }
+
+    private async Task<bool> WaitForCastLoadAsync()
+    {
+        for (var i = 0; i < 100; i++)
+        {
+            if (_cast.ReceivedCalls().Any(c =>
+                    c.GetMethodInfo().Name == nameof(ICastService.LoadAsync)))
+                return true;
+
+            await Task.Delay(10);
+        }
+
+        return false;
+    }
+
+    [Fact]
     public async Task Load_OpensAHostStream_AndSendsItsUrlToTheScreens()
     {
         var (performance, media) = CreatePerformance();
