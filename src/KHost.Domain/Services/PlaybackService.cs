@@ -31,6 +31,13 @@ public class PlaybackService : BaseService, IPlaybackService
         /// setting: a singer is there to replace it, so it always starts out of the way.
         /// </summary>
         public int DefaultBackingVolume { get; set; } = AudioMix.DefaultBackingVolume;
+
+        /// <summary>
+        /// How long a replaced transcode is left standing before its directory is deleted. A
+        /// consumer that has not moved to the replacement yet is still fetching segments out of
+        /// it, and a receiver has no second player to cross to — it reads the 404 body as media.
+        /// </summary>
+        public TimeSpan StreamRetireGrace { get; set; } = TimeSpan.FromSeconds(8);
     }
 
     private const int ClockIntervalMs = 500;
@@ -914,10 +921,10 @@ public class PlaybackService : BaseService, IPlaybackService
         }
         finally
         {
-            // After the attempt either way: on failure _stream still points at the old session,
-            // and closing it there would take the song with the change.
+            // Retired rather than closed, and only if the replacement actually took: on failure
+            // _stream still points at the old session, and closing it would take the song too.
             if (!ReferenceEquals(superseded, _stream))
-                await CloseSessionAsync(superseded);
+                RetireSession(superseded);
         }
 
         var command = DescribeStream(media);
@@ -1080,6 +1087,26 @@ public class PlaybackService : BaseService, IPlaybackService
         _stream = null;
 
         await CloseSessionAsync(stream);
+    }
+
+    /// <summary>Lets a replaced session stand until whatever is still reading it has moved on.</summary>
+    private void RetireSession(MediaStreamSession? stream)
+    {
+        if (stream is null) return;
+
+        var grace = Options.StreamRetireGrace;
+
+        if (grace <= TimeSpan.Zero)
+        {
+            _ = CloseSessionAsync(stream);
+            return;
+        }
+
+        _ = Task.Run(async () =>
+        {
+            await Task.Delay(grace);
+            await CloseSessionAsync(stream);
+        }, CancellationToken.None);
     }
 
     /// <summary>Never throws: an orphaned ffmpeg is worth a warning, not the song.</summary>
