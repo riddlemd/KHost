@@ -2996,6 +2996,70 @@ public class PlaybackServiceTests : IDisposable
         Assert.Equal(PlaybackState.Playing, _service.State);
     }
 
+    [Fact]
+    public async Task Reopen_ResumesPastWhereTheRebuildStarted_NotBackAtIt()
+    {
+        // A slow rebuild, so the compensation is larger than the clock's own resolution.
+        _mediaStreams
+            .OpenAsync(Arg.Any<string>(), Arg.Any<TimeSpan>(), Arg.Any<int>(), Arg.Any<int>(),
+                       Arg.Any<AudioMix?>(), Arg.Any<CancellationToken>())
+            .Returns(async call =>
+            {
+                await Task.Delay(250);
+                return new MediaStreamSession
+                {
+                    Id = $"stream-{Interlocked.Increment(ref _streamsOpened)}",
+                    SourcePath = call.ArgAt<string>(0),
+                    PlaylistUrl = $"http://host/media/stream-{_streamsOpened}/stream.m3u8",
+                    StartOffset = call.ArgAt<TimeSpan>(1),
+                    Pitch = call.ArgAt<int>(2),
+                    Tempo = call.ArgAt<int>(3),
+                };
+            });
+
+        var (performance, media) = CreatePerformance();
+        await _service.LoadAsync(performance, media);
+        await _service.PlayAsync();
+        await _service.SeekAsync(TimeSpan.FromSeconds(60));
+
+        await _service.SetPitchAsync(2);
+        Assert.True(await WaitForStreamsOpenedAsync(2));
+        await Task.Delay(100);
+
+        // The screens played on from their buffer for the whole rebuild, so coming back at 60
+        // would replay what the room just heard.
+        Assert.True(_service.Position > TimeSpan.FromSeconds(60.2),
+            $"resumed at {_service.Position}, which repeats the rebuild");
+        Assert.Equal(TimeSpan.FromSeconds(60), LastOpenedAt());
+
+        // The group is anchored on the timeline, not on the host's own clock: left at the old
+        // position it would drag every synced screen back over what it had already played.
+        Assert.True(LastTimeline()?.Position > TimeSpan.FromSeconds(60.2),
+            $"timeline anchored at {LastTimeline()?.Position}");
+    }
+
+    [Fact]
+    public async Task Seek_LandsWhereItWasAsked_NotPastIt()
+    {
+        var (performance, media) = CreatePerformance();
+        await _service.LoadAsync(performance, media);
+        await _service.PlayAsync();
+        await _service.SeekAsync(TimeSpan.FromSeconds(200));
+        await _service.SetPitchAsync(2);
+        Assert.True(await WaitForStreamsOpenedAsync(2));
+
+        await _service.SeekAsync(TimeSpan.FromSeconds(30));
+        Assert.True(await WaitForStreamsOpenedAsync(3));
+
+        // A rebuild driven by a seek must not carry the host past the place they asked for: the
+        // room heard nothing there to avoid repeating.
+        Assert.Equal(TimeSpan.FromSeconds(30), _service.Position);
+    }
+
+    private TimeSpan LastOpenedAt() => (TimeSpan)_mediaStreams.ReceivedCalls()
+        .Last(c => c.GetMethodInfo().Name == nameof(IMediaStreamService.OpenAsync))
+        .GetArguments()[1]!;
+
     private async Task<bool> WaitForStreamsOpenedAsync(int count, int attempts = 50)
     {
         for (var i = 0; i < attempts; i++)
