@@ -2999,6 +2999,8 @@ public class PlaybackServiceTests : IDisposable
     [Fact]
     public async Task Reopen_ResumesPastWhereTheRebuildStarted_NotBackAtIt()
     {
+        _cast.ConnectedDeviceId.Returns("Living Room TV");
+
         // A slow rebuild, so the compensation is larger than the clock's own resolution.
         _mediaStreams
             .OpenAsync(Arg.Any<string>(), Arg.Any<TimeSpan>(), Arg.Any<int>(), Arg.Any<int>(),
@@ -3036,6 +3038,11 @@ public class PlaybackServiceTests : IDisposable
         // position it would drag every synced screen back over what it had already played.
         Assert.True(LastTimeline()?.Position > TimeSpan.FromSeconds(60.2),
             $"timeline anchored at {LastTimeline()?.Position}");
+
+        // A receiver takes no timeline and cannot be corrected onto one, so it has to be told
+        // outright or it is the only thing in the room still replaying the rebuild.
+        await _cast.Received().SeekAsync(
+            Arg.Is<TimeSpan>(t => t > TimeSpan.FromSeconds(60.2)), Arg.Any<CancellationToken>());
     }
 
     [Fact]
