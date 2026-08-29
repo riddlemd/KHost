@@ -113,19 +113,148 @@ public class SongControlsTests : BunitContext
     }
 
     [Theory]
-    [InlineData(0, 0, false)]
-    [InlineData(2, 0, true)]
-    [InlineData(0, -10, true)]
-    public void Readout_IsMarked_OnlyWhenItIsNotAsRecorded(int pitch, int tempo, bool marked)
+    [InlineData(0, null)]
+    [InlineData(2, "kh-song-controls__value--up")]
+    [InlineData(-2, "kh-song-controls__value--down")]
+    public void Readout_TakesItsColourFromTheSign(int pitch, string? expected)
     {
         _playback.Pitch.Returns(pitch);
-        _playback.Tempo.Returns(tempo);
 
         var cut = Open();
-        var markedCount = cut.FindAll(".kh-song-controls__value--on").Count;
+        var className = cut.FindAll(Values)[0].ClassName ?? "";
 
-        Assert.Equal(marked, markedCount > 0);
+        // The number and the bar must never disagree about which way the song moved.
+        if (expected is null)
+        {
+            Assert.DoesNotContain("--up", className);
+            Assert.DoesNotContain("--down", className);
+        }
+        else
+        {
+            Assert.Contains(expected, className);
+        }
     }
+
+    [Fact]
+    public void Track_PaintsNothingAtRest()
+    {
+        _playback.Pitch.Returns(0);
+
+        var cut = Open();
+
+        // No line at zero: an untouched panel should read as untouched.
+        Assert.Contains("--fill:transparent", cut.FindAll(Sliders)[0].GetAttribute("style"));
+    }
+
+    [Fact]
+    public void Track_PaintsRightwardInGreen_AndLeftwardInRed()
+    {
+        _playback.Pitch.Returns(3);
+        _playback.Tempo.Returns(-25);
+
+        var cut = Open();
+        var sliders = cut.FindAll(Sliders);
+
+        // Key +3 of −6..+6: from the centre (0.5) rightward to 0.75.
+        var key = sliders[0].GetAttribute("style")!;
+        Assert.Contains("--from-frac:0.5000", key);
+        Assert.Contains("--to-frac:0.7500", key);
+        Assert.Contains("--fill:var(--kh-success)", key);
+
+        // Tempo −25 of ±50: leftward from 0.25 back to the centre.
+        var tempo = sliders[1].GetAttribute("style")!;
+        Assert.Contains("--from-frac:0.2500", tempo);
+        Assert.Contains("--to-frac:0.5000", tempo);
+        Assert.Contains("--fill:var(--kh-danger)", tempo);
+    }
+
+    [Fact]
+    public void Track_PaintsAVolumeFromTheLeft_NotTheMiddle()
+    {
+        GiveVocalTracks();
+        _playback.LeadVolume.Returns(40);
+
+        var cut = Open();
+        var lead = cut.FindAll(Sliders)[2].GetAttribute("style")!;
+
+        // A volume has no negative side, so its rest is the left edge.
+        Assert.Contains("--from-frac:0.0000", lead);
+        Assert.Contains("--to-frac:0.4000", lead);
+        Assert.Contains("--fill:var(--kh-success)", lead);
+    }
+
+    [Fact]
+    public void VocalRows_AreHidden_ForAnOrdinarySingleTrackSong()
+    {
+        var cut = Open();
+
+        // Most songs carry one audio stream; offering faders for voices that are not there
+        // would be two controls that do nothing.
+        Assert.Equal(2, cut.FindAll(Sliders).Count);
+    }
+
+    [Fact]
+    public void VocalRows_AppearForAFileThatShipsItsVoicesApart()
+    {
+        GiveVocalTracks();
+
+        var cut = Open();
+
+        Assert.Equal(4, cut.FindAll(Sliders).Count);
+    }
+
+    [Fact]
+    public void VocalRows_ShowOnlyTheVoicesTheFileHas()
+    {
+        _playback.AudioTracks.Returns<IReadOnlyList<AudioTrack>>(
+        [
+            new AudioTrack(0, AudioTrackRole.Music, "Instrumental"),
+            new AudioTrack(1, AudioTrackRole.Lead, "Lead Vocal"),
+        ]);
+
+        var cut = Open();
+
+        // A file with no harmonies gets no backing fader.
+        Assert.Equal(3, cut.FindAll(Sliders).Count);
+        Assert.DoesNotContain("Backing", cut.Markup);
+    }
+
+    [Fact]
+    public void VocalSliders_CommitOnRelease()
+    {
+        GiveVocalTracks();
+
+        var cut = Open();
+        var sliders = cut.FindAll(Sliders);
+
+        sliders[2].Change("60");
+        sliders[3].Change("35");
+
+        _playback.Received(1).SetLeadVolumeAsync(60);
+        _playback.Received(1).SetBackingVolumeAsync(35);
+    }
+
+    [Fact]
+    public void Trigger_IsNotMarkedByTheVocalLevels()
+    {
+        GiveVocalTracks();
+        _playback.CurrentPerformance.Returns(new Performance { SingerId = Guid.NewGuid() });
+        _playback.LeadVolume.Returns(0);
+        _playback.BackingVolume.Returns(100);
+
+        var cut = Render<SongControls>();
+
+        // Those are where every song starts, so counting them marks the trigger all night.
+        Assert.Empty(cut.FindAll(".kh-song-controls__icon--on"));
+    }
+
+    private void GiveVocalTracks() =>
+        _playback.AudioTracks.Returns<IReadOnlyList<AudioTrack>>(
+        [
+            new AudioTrack(0, AudioTrackRole.Music, "Instrumental"),
+            new AudioTrack(1, AudioTrackRole.Backing, "Backing Vocal"),
+            new AudioTrack(2, AudioTrackRole.Lead, "Lead Vocal"),
+        ]);
 
     [Fact]
     public void ClosedTrigger_SaysWhenTheSongIsNotAsRecorded()

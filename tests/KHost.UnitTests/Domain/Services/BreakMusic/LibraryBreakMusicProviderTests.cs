@@ -30,7 +30,7 @@ public class LibraryBreakMusicProviderTests : IDisposable
         _screenCoordination.EnsureRolesAsync(Arg.Any<CancellationToken>()).Returns(Task.FromResult<string?>(AudioScreenId));
         _screenServer.SendCommandAsync(Arg.Any<string>(), Arg.Do<IScreenCommand>(_sent.Add)).Returns(Task.CompletedTask);
 
-        _streams.OpenAsync(Arg.Any<string>(), Arg.Any<TimeSpan>(), Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+        _streams.OpenAsync(Arg.Any<string>(), Arg.Any<TimeSpan>(), Arg.Any<int>(), Arg.Any<int>(), Arg.Any<AudioMix?>(), Arg.Any<CancellationToken>())
             .Returns(call => Task.FromResult(new MediaStreamSession
             {
                 Id = "bed-stream",

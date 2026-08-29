@@ -51,6 +51,7 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, ID
         TimeSpan startOffset = default,
         int pitch = 0,
         int tempo = 0,
+        AudioMix? mix = null,
         CancellationToken cancellationToken = default)
     {
         if (!File.Exists(filePath))
@@ -65,7 +66,7 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, ID
             Logger.LogWarning("No companion audio beside '{FilePath}'; the stream will be silent", filePath);
 
         var arguments = BuildArguments(
-            filePath, startOffset, pitch, tempo, _options.SegmentSeconds, companionAudio);
+            filePath, startOffset, pitch, tempo, _options.SegmentSeconds, companionAudio, mix);
 
         Logger.LogInformation("Opening stream {SessionId} for '{FilePath}' at {Offset}", id, filePath, startOffset);
         Logger.LogDebug("ffmpeg {Arguments}", arguments);
@@ -204,7 +205,8 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, ID
         int pitch,
         int tempo,
         int segmentSeconds,
-        string? companionAudioPath = null)
+        string? companionAudioPath = null,
+        AudioMix? mix = null)
     {
         var arguments = "-hide_banner -loglevel error";
 
@@ -238,7 +240,18 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, ID
                         segment);
 
         var audioFilter = BuildAudioFilter(pitch, tempo);
-        if (audioFilter.Length > 0) arguments += $" -af \"{audioFilter}\"";
+        var mixGraph = BuildMixGraph(mix, audioFilter);
+
+        if (mixGraph.Length > 0)
+        {
+            // Explicit maps: the graph names the audio output, and without saying so ffmpeg would
+            // also carry one of the raw tracks through beside it.
+            arguments += $" -filter_complex \"{mixGraph}\" -map 0:v:0 -map \"[a]\"";
+        }
+        else if (audioFilter.Length > 0)
+        {
+            arguments += $" -af \"{audioFilter}\"";
+        }
 
         // -vf rather than a filter_complex: it composes with the CDG mapping above, and ffmpeg
         // drops it silently on a source with no video rather than failing on an unmatched label.
@@ -314,6 +327,50 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, ID
         var stage = Math.Sqrt(factor);
         yield return FormattableString.Invariant($"atempo={stage:F6}");
         yield return FormattableString.Invariant($"atempo={stage:F6}");
+    }
+
+    /// <summary>
+    /// Balances the named voices over the music. Empty when the file carries nothing to balance,
+    /// which is the ordinary case and leaves the simpler <c>-af</c> path in place.
+    /// </summary>
+    private static string BuildMixGraph(AudioMix? mix, string audioFilter)
+    {
+        if (mix is not { IsMixable: true }) return string.Empty;
+
+        var stages = new List<string>();
+        var labels = new List<string>();
+
+        foreach (var track in mix.Tracks)
+        {
+            var volume = track.Role switch
+            {
+                // The reference the others are set against, so it is never anything but full.
+                AudioTrackRole.Music => 100,
+                AudioTrackRole.Lead => AudioMix.Clamp(mix.LeadVolume),
+                _ => AudioMix.Clamp(mix.BackingVolume),
+            };
+
+            var label = track.Role switch
+            {
+                AudioTrackRole.Music => "m",
+                AudioTrackRole.Lead => "l",
+                _ => "b",
+            };
+
+            stages.Add(FormattableString.Invariant(
+                $"[0:a:{track.Index}]volume={volume / 100.0:F3}[{label}]"));
+            labels.Add($"[{label}]");
+        }
+
+        // normalize=0 or amix divides by the number of inputs, quietly dropping the whole mix by
+        // several decibels the moment a second track joins.
+        stages.Add(FormattableString.Invariant(
+            $"{string.Concat(labels)}amix=inputs={labels.Count}:normalize=0[x]"));
+
+        // The pitch and tempo chain rides on the mixed result rather than any one track.
+        stages.Add(audioFilter.Length > 0 ? $"[x]{audioFilter}[a]" : "[x]anull[a]");
+
+        return string.Join(';', stages);
     }
 
     /// <summary>

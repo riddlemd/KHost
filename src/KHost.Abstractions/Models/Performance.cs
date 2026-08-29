@@ -19,5 +19,17 @@ public class Performance : RepositoryModel
     /// </summary>
     public int Tempo { get; set; }
 
+    /// <summary>
+    /// How loud the original lead vocal rode, for a file that ships its voices apart. Zero by
+    /// default: the singer is there to replace it.
+    /// </summary>
+    public int LeadVolume { get; set; }
+
+    /// <summary>
+    /// How loud the backing voices rode. Null means the host never touched it, so the machine
+    /// setting answers — and keeps answering if that setting later changes.
+    /// </summary>
+    public int? BackingVolume { get; set; }
+
     public DateTime CreatedDate { get; set; }
 }

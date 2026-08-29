@@ -115,6 +115,30 @@ public interface IPlaybackService : IDisposable
     /// changing both gets one break in the song rather than two.
     /// </summary>
     Task SetTempoAsync(int tempo);
+
+    /// <summary>
+    /// The separately-mixable voices in the loaded file. Empty for an ordinary single-track song,
+    /// which is most of them — the two volumes below mean nothing when it is.
+    /// </summary>
+    IReadOnlyList<AudioTrack> AudioTracks { get; }
+
+    /// <summary>Percent of the original lead vocal riding on the music. Zero by default.</summary>
+    int LeadVolume { get; }
+
+    /// <summary>
+    /// Percent of the backing voices riding on the music. Starts at the machine setting, which
+    /// itself defaults to full.
+    /// </summary>
+    int BackingVolume { get; }
+
+    /// <summary>
+    /// Clamped to 0..100. Rebuilds the transcode on the same settle the key and tempo share, so
+    /// a host balancing the whole mix costs the song one break rather than four.
+    /// </summary>
+    Task SetLeadVolumeAsync(int volume);
+
+    /// <inheritdoc cref="SetLeadVolumeAsync"/>
+    Task SetBackingVolumeAsync(int volume);
 }
 
 // Stopping is appended so the existing numeric values stay stable for telemetry.
