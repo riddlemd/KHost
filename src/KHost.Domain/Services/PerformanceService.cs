@@ -93,6 +93,11 @@ public class PerformanceService : BaseRepositoryService<Performance, IPerformanc
         // follow the host to whatever venue is selected when the history is read back.
         performance.VenueId ??= _venuesService.SelectedVenueId;
 
+        // Here rather than left to each caller: history sorts on this, so an unstamped row sinks
+        // below every real one and the singer's newest performance is the one they cannot find.
+        if (performance.CreatedDate == default)
+            performance.CreatedDate = DateTime.UtcNow;
+
         await Repository.CreateAsync(performance);
 
         Logger.LogInformation("Enqueued media {MediaId} for singer {SingerId} at position {Position}", performance.MediaId, performance.SingerId, nextPosition);
