@@ -41,7 +41,7 @@ public class ScreenDisconnectPausesPlaybackTests : IDisposable
         // command no screen could act on.
         var mediaStreams = Substitute.For<IMediaStreamService>();
         mediaStreams
-            .OpenAsync(Arg.Any<string>(), Arg.Any<TimeSpan>(), Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .OpenAsync(Arg.Any<string>(), Arg.Any<TimeSpan>(), Arg.Any<int>(), Arg.Any<int>(), Arg.Any<AudioMix?>(), Arg.Any<CancellationToken>())
             .Returns(call => new MediaStreamSession
             {
                 Id = "stream-1",
@@ -64,8 +64,17 @@ public class ScreenDisconnectPausesPlaybackTests : IDisposable
             Substitute.For<ICastService>(),
             Substitute.For<IBreakMusicService>(),
             Substitute.For<IMediaService>(),
-            Options.Create(new PlaybackService.ServiceOptions { StopFadeDuration = TimeSpan.Zero }),
+            Monitor(new PlaybackService.ServiceOptions { StopFadeDuration = TimeSpan.Zero }),
+            Substitute.For<IAudioTrackService>(),
             _broker);
+    }
+
+    /// <summary>The service reads options per use, so a test's values have to answer every read.</summary>
+    private static IOptionsMonitor<T> Monitor<T>(T value) where T : class
+    {
+        var monitor = Substitute.For<IOptionsMonitor<T>>();
+        monitor.CurrentValue.Returns(value);
+        return monitor;
     }
 
     public void Dispose() => _playbackService.Dispose();

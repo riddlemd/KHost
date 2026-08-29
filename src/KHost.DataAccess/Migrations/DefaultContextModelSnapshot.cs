@@ -294,8 +294,14 @@ namespace KHost.DataAccess.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("TEXT");
 
+                    b.Property<int?>("BackingVolume")
+                        .HasColumnType("INTEGER");
+
                     b.Property<DateTime>("CreatedDate")
                         .HasColumnType("TEXT");
+
+                    b.Property<int>("LeadVolume")
+                        .HasColumnType("INTEGER");
 
                     b.Property<Guid>("MediaId")
                         .HasColumnType("TEXT");

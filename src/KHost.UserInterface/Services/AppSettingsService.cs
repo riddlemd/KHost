@@ -1,4 +1,5 @@
 using System.Text.Json;
+using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using Microsoft.Extensions.Configuration;
 
@@ -46,6 +47,10 @@ internal sealed class AppSettingsService : IAppSettingsService
         TipsPageSize = PageSize("Tips"),
         VenuesPageSize = PageSize("Venues"),
         PerformanceHistoryPageSize = PageSize("PerformanceHistory", AppSettings.DefaultPerformanceHistoryPageSize),
+        // Clamped on read as well as on save: a hand-edited value outside a fader's range would
+        // otherwise reach ffmpeg as a volume multiplier nobody can undo from the console.
+        BackingVocalVolume = AudioMix.Clamp(
+            _configuration.GetValue<int?>("Playback:DefaultBackingVolume") ?? AudioMix.DefaultBackingVolume),
     };
 
     private int PageSize(string key, int fallback = AppSettings.DefaultPageSize) =>
@@ -80,6 +85,7 @@ internal sealed class AppSettingsService : IAppSettingsService
             {
                 ["StopFadeDuration"] = TimeSpan.FromSeconds(settings.StopFadeSeconds).ToString(),
                 ["SyncStartLead"] = TimeSpan.FromMilliseconds(settings.SyncStartLeadMilliseconds).ToString(),
+                ["DefaultBackingVolume"] = AudioMix.Clamp(settings.BackingVocalVolume),
             },
             ["MediaStream"] = new Dictionary<string, object?> { ["SegmentSeconds"] = settings.SegmentSeconds },
             ["Ads"] = new Dictionary<string, object?>
