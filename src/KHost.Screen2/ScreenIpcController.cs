@@ -130,7 +130,7 @@ internal sealed class ScreenIpcController : IAsyncDisposable
         switch (command)
         {
             case LoadMediaCommand cmd:
-                _player.LoadStream(cmd.StreamUrl, cmd.StreamStartOffset);
+                _player.LoadStream(cmd.StreamUrl, cmd.StreamStartOffset, cmd.Tempo);
                 break;
             case PlayCommand:
                 _player.Play();
