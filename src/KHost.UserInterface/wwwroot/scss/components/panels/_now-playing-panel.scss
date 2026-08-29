@@ -103,11 +103,28 @@
         gap: 14px;
     }
 
-    &__key {
+    // Stacked, not side by side: two rows of buttons fit beside the transport where four in a
+    // line would push it off a narrow panel.
+    &__rate {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        margin-right: 6px;
+    }
+
+    &__key,
+    &__tempo {
         display: flex;
         align-items: center;
         gap: 4px;
-        margin-right: 6px;
+    }
+
+    // Tells the two rows apart: without it they are the same pair of buttons twice.
+    &__rate-icon {
+        font-size: 0.7rem;
+        color: var(--kh-text-muted);
+        width: 12px;
+        text-align: center;
     }
 
     &__key-btn {
@@ -141,8 +158,8 @@
     }
 
     &__key-value {
-        // Wide enough for the sign, or the buttons shuffle every time it crosses zero.
-        min-width: 22px;
+        // Wide enough for the sign and a percentage, or the buttons shuffle as the value changes.
+        min-width: 38px;
         text-align: center;
         font-size: 0.78rem;
         font-variant-numeric: tabular-nums;

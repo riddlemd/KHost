@@ -50,6 +50,14 @@
                                                 @FormatPitch(perf.Pitch)
                                             </span>
                                         }
+
+                                        @if (perf.Tempo != 0)
+                                        {
+                                            <span class="@(_rootClassName)__tempo"
+                                                  title="Sung at this speed; re-queueing brings it back">
+                                                @FormatTempo(perf.Tempo)
+                                            </span>
+                                        }
                                     }
                                 </td>
                                 <td class="kh-table__cell--fill">@(media?.Artist ?? "—")</td>

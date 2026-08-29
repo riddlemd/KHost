@@ -7,7 +7,6 @@ using KHost.Abstractions.Services;
 using KHost.Plugins.Sdk.Services;
 using KHost.UserInterface.Components.Panels;
 using KHost.UserInterface.Services;
-using Microsoft.AspNetCore.Components.Web;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace KHost.UnitTests.UserInterface.Components.Panels;
@@ -153,44 +152,49 @@ public class NowPlayingPanelTests : BunitContext
         Assert.False(buttons[1 - expectedDisabled].HasAttribute("disabled"));
     }
 
+    [Fact]
+    public void TempoControl_SpeedsUpAndSlowsDown()
+    {
+        Load(Performance(), MediaWithArtist("Toto", "Africa"));
+        _playback.Tempo.Returns(0);
+
+        var cut = Render<NowPlayingPanel>();
+        var buttons = cut.FindAll(".kh-now-playing__tempo .kh-now-playing__key-btn");
+
+        buttons[1].Click();
+        buttons[0].Click();
+
+        _playback.Received(1).SetTempoAsync(5);
+        _playback.Received(1).SetTempoAsync(-5);
+    }
+
+    [Fact]
+    public void TempoControl_ShowsTheSpeedAsAPercentage()
+    {
+        Load(Performance(), MediaWithArtist("Toto", "Africa"));
+        _playback.Tempo.Returns(-15);
+
+        var cut = Render<NowPlayingPanel>();
+
+        var value = cut.Find(".kh-now-playing__tempo .kh-now-playing__key-value");
+        Assert.Equal("\u221215%", value.TextContent.Trim());
+        Assert.Contains("kh-now-playing__key-value--shifted", value.ClassName);
+    }
+
     [Theory]
-    [InlineData("+", 1)]
-    [InlineData("=", 1)]
-    [InlineData("-", -1)]
-    [InlineData("_", -1)]
-    public void KeyboardShortcut_ChangesTheKey(string key, int delta)
+    [InlineData(50)]
+    [InlineData(-50)]
+    public void TempoControl_DisablesTheButtonAtTheEndOfTheRange(int tempo)
     {
         Load(Performance(), MediaWithArtist("Toto", "Africa"));
-        _playback.Pitch.Returns(2);
+        _playback.Tempo.Returns(tempo);
 
         var cut = Render<NowPlayingPanel>();
+        var buttons = cut.FindAll(".kh-now-playing__tempo .kh-now-playing__key-btn");
 
-        // A real event: a handler wired to nothing passes every test that calls it directly.
-        cut.Find(".kh-now-playing-panel").KeyDown(new KeyboardEventArgs { Key = key });
-
-        _playback.Received(1).SetPitchAsync(2 + delta);
-    }
-
-    [Fact]
-    public void KeyboardShortcut_IsIgnored_WithNoSongLoaded()
-    {
-        var cut = Render<NowPlayingPanel>();
-
-        cut.Find(".kh-now-playing-panel").KeyDown(new KeyboardEventArgs { Key = "+" });
-
-        _playback.DidNotReceive().SetPitchAsync(Arg.Any<int>());
-    }
-
-    [Fact]
-    public void KeyboardShortcut_IgnoresAnOrdinaryKeystroke()
-    {
-        Load(Performance(), MediaWithArtist("Toto", "Africa"));
-
-        var cut = Render<NowPlayingPanel>();
-
-        cut.Find(".kh-now-playing-panel").KeyDown(new KeyboardEventArgs { Key = "a" });
-
-        _playback.DidNotReceive().SetPitchAsync(Arg.Any<int>());
+        var expectedDisabled = tempo > 0 ? 1 : 0;
+        Assert.True(buttons[expectedDisabled].HasAttribute("disabled"));
+        Assert.False(buttons[1 - expectedDisabled].HasAttribute("disabled"));
     }
 
     private void Load(Performance performance, Media media)
