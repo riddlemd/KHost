@@ -1,6 +1,6 @@
 @using KHost.UserInterface.Services
 
-<div class="kh-now-playing-panel" tabindex="0" @onkeydown="OnKeyDownAsync">
+<div class="kh-now-playing-panel" tabindex="0">
     <div class="kh-card kh-now-playing">
     <div class="kh-card__header">
         <Icon Name="music-note-beamed" />
@@ -54,21 +54,42 @@
                 </div>
 
                 <div class="kh-now-playing__controls">
-                    <div class="kh-now-playing__key">
-                        <button class="kh-now-playing__key-btn" @onclick="() => AdjustPitchAsync(-1)"
-                                disabled="@(PlaybackService.Pitch <= IPlaybackService.MinPitch)"
-                                title="Lower the key a semitone (−)">
-                            <Icon Name="dash-lg" />
-                        </button>
-                        <span class="kh-now-playing__key-value @(PlaybackService.Pitch != 0 ? "kh-now-playing__key-value--shifted" : "")"
-                              title="Key, in semitones from the recording">
-                            @FormatPitch(PlaybackService.Pitch)
-                        </span>
-                        <button class="kh-now-playing__key-btn" @onclick="() => AdjustPitchAsync(1)"
-                                disabled="@(PlaybackService.Pitch >= IPlaybackService.MaxPitch)"
-                                title="Raise the key a semitone (+)">
-                            <Icon Name="plus-lg" />
-                        </button>
+                    <div class="kh-now-playing__rate">
+                        <div class="kh-now-playing__key">
+                            <Icon Name="music-note" Class="kh-now-playing__rate-icon" />
+                            <button class="kh-now-playing__key-btn" @onclick="() => AdjustPitchAsync(-1)"
+                                    disabled="@(PlaybackService.Pitch <= IPlaybackService.MinPitch)"
+                                    title="Lower the key a semitone">
+                                <Icon Name="dash-lg" />
+                            </button>
+                            <span class="kh-now-playing__key-value @(PlaybackService.Pitch != 0 ? "kh-now-playing__key-value--shifted" : "")"
+                                  title="Key, in semitones from the recording">
+                                @FormatPitch(PlaybackService.Pitch)
+                            </span>
+                            <button class="kh-now-playing__key-btn" @onclick="() => AdjustPitchAsync(1)"
+                                    disabled="@(PlaybackService.Pitch >= IPlaybackService.MaxPitch)"
+                                    title="Raise the key a semitone">
+                                <Icon Name="plus-lg" />
+                            </button>
+                        </div>
+
+                        <div class="kh-now-playing__tempo">
+                            <Icon Name="speedometer2" Class="kh-now-playing__rate-icon" />
+                            <button class="kh-now-playing__key-btn" @onclick="() => AdjustTempoAsync(-TempoStep)"
+                                    disabled="@(PlaybackService.Tempo <= IPlaybackService.MinTempo)"
+                                    title="Slow the song down">
+                                <Icon Name="dash-lg" />
+                            </button>
+                            <span class="kh-now-playing__key-value @(PlaybackService.Tempo != 0 ? "kh-now-playing__key-value--shifted" : "")"
+                                  title="Speed, as a percentage of the recording">
+                                @FormatTempo(PlaybackService.Tempo)
+                            </span>
+                            <button class="kh-now-playing__key-btn" @onclick="() => AdjustTempoAsync(TempoStep)"
+                                    disabled="@(PlaybackService.Tempo >= IPlaybackService.MaxTempo)"
+                                    title="Speed the song up">
+                                <Icon Name="plus-lg" />
+                            </button>
+                        </div>
                     </div>
 
                     @if (isPlaying)

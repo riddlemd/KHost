@@ -101,6 +101,44 @@ public class SingerPerformanceHistoryDialogPitchTests : BunitContext
     }
 
     [Fact]
+    public void Enqueue_CarriesTheSpeedTheSongWasSungAt()
+    {
+        History(new Performance { Id = Guid.NewGuid(), SingerId = _singerId, MediaId = _media.Id, Tempo = -20 });
+
+        var dialog = Render<SingerPerformanceHistoryDialog>(p => p
+            .Add(d => d.IsOpen, true)
+            .Add(d => d.UserId, _singerId));
+
+        dialog.Find(EnqueueSelector).Click();
+
+        _performances.Received(1).CreateAndEnqueueAsync(Arg.Is<Performance>(p => p.Tempo == -20));
+    }
+
+    [Fact]
+    public void Row_ShowsTheSpeedItWasSungAt()
+    {
+        History(new Performance { Id = Guid.NewGuid(), SingerId = _singerId, MediaId = _media.Id, Tempo = 15 });
+
+        var dialog = Render<SingerPerformanceHistoryDialog>(p => p
+            .Add(d => d.IsOpen, true)
+            .Add(d => d.UserId, _singerId));
+
+        Assert.Equal("+15%", dialog.Find(".kh-singer-performance-history-dialog__tempo").TextContent.Trim());
+    }
+
+    [Fact]
+    public void Row_ShowsNoSpeed_ForASongSungAsRecorded()
+    {
+        History(new Performance { Id = Guid.NewGuid(), SingerId = _singerId, MediaId = _media.Id, Tempo = 0 });
+
+        var dialog = Render<SingerPerformanceHistoryDialog>(p => p
+            .Add(d => d.IsOpen, true)
+            .Add(d => d.UserId, _singerId));
+
+        Assert.Empty(dialog.FindAll(".kh-singer-performance-history-dialog__tempo"));
+    }
+
+    [Fact]
     public void Row_ShowsNoKey_ForASongSungAsWritten()
     {
         History(new Performance { Id = Guid.NewGuid(), SingerId = _singerId, MediaId = _media.Id, Pitch = 0 });

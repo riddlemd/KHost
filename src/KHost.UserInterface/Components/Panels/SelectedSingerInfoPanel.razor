@@ -136,6 +136,14 @@
                                             @FormatPitch(performance.Pitch)
                                         </span>
                                     }
+
+                                    @if (performance.Tempo != 0)
+                                    {
+                                        <span class="kh-selected-singer-info-panel__tempo"
+                                              title="Queued at this speed">
+                                            @FormatTempo(performance.Tempo)
+                                        </span>
+                                    }
                                 </div>
                             </td>
                             <td class="kh-table__cell--fill" title="@(rowMedia?.Artist ?? "")">@(rowMedia?.Artist ?? "")</td>

@@ -79,6 +79,9 @@ public partial class SingerPerformanceHistoryDialog
     private static string FormatPitch(int semitones) =>
         semitones.ToString("+#;\u2212#;0", CultureInfo.InvariantCulture);
 
+    private static string FormatTempo(int tempo) =>
+        tempo.ToString("+#;\u2212#;0", CultureInfo.InvariantCulture) + "%";
+
     public async Task CloseAsync()
     {
         IsOpen = false;
@@ -97,6 +100,7 @@ public partial class SingerPerformanceHistoryDialog
             MediaId = media.Id,
             // The row the host picked, not the newest take: the same song may have two keys.
             Pitch = sung.Pitch,
+            Tempo = sung.Tempo,
         });
 
         // Stay open when the duplicate warning was declined, so the choice isn't lost.

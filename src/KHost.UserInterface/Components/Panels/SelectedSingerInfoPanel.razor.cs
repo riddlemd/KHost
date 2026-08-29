@@ -330,6 +330,9 @@ public partial class SelectedSingerInfoPanel : IDisposable
     private static string FormatPitch(int semitones) =>
         semitones.ToString("+#;\u2212#;0", CultureInfo.InvariantCulture);
 
+    private static string FormatTempo(int tempo) =>
+        tempo.ToString("+#;\u2212#;0", CultureInfo.InvariantCulture) + "%";
+
     public void Dispose()
     {
         _subscriptions.Dispose();
