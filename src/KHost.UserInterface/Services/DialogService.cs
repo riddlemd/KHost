@@ -112,6 +112,21 @@ public class DialogService : IDialogService
         return Task.CompletedTask;
     }
 
+    public Task ShowUnsavedChangesAsync(
+        Func<Task> onSave,
+        Func<Task> onDiscard,
+        string? message = null,
+        Action? onStay = null)
+    {
+        var request = new UnsavedChangesDialog.DialogRequest(
+            message ?? "You have changes that have not been saved yet.", onSave, onDiscard, onStay);
+
+        _logger.LogDebug("Dialog requested: {DialogType}", nameof(UnsavedChangesDialog));
+        ShowRequested?.Invoke(this, request);
+
+        return Task.CompletedTask;
+    }
+
     public Task ShowNoScreensAsync()
         => ShowConfirmationAsync(
             "Playback needs a screen for audio and video output.",
