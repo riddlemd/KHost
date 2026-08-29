@@ -1,5 +1,6 @@
 @using KHost.Abstractions.Models
 @using KHost.Abstractions.Services
+@using KHost.UserInterface.Models
 
 <div class="kh-song-controls" @onkeydown="OnKeyDown">
     <button type="button" class="kh-song-controls__trigger"
@@ -14,52 +15,23 @@
     {
         <div class="kh-song-controls__scrim" @onclick="Close"></div>
 
-        <div class="kh-song-controls__panel">
-            <div class="kh-song-controls__row">
-                <span class="kh-song-controls__label">Key</span>
-                <input type="range" class="kh-song-controls__slider" style="@Fill(_pitch, IPlaybackService.MinPitch, IPlaybackService.MaxPitch)"
-                       min="@IPlaybackService.MinPitch" max="@IPlaybackService.MaxPitch" step="1"
-                       value="@_pitch"
-                       @oninput="OnPitchInput" @onchange="CommitPitchAsync"
-                       aria-label="Key, in semitones from the recording" />
-                <span class="kh-song-controls__value @SignClass(_pitch)">@FormatPitch(_pitch)</span>
-            </div>
-
-            <div class="kh-song-controls__row">
-                <span class="kh-song-controls__label">Tempo</span>
-                <input type="range" class="kh-song-controls__slider" style="@Fill(_tempo, IPlaybackService.MinTempo, IPlaybackService.MaxTempo)"
-                       min="@IPlaybackService.MinTempo" max="@IPlaybackService.MaxTempo" step="@TempoStep"
-                       value="@_tempo"
-                       @oninput="OnTempoInput" @onchange="CommitTempoAsync"
-                       aria-label="Tempo, as a percentage of the recording" />
-                <span class="kh-song-controls__value @SignClass(_tempo)">@FormatTempo(_tempo)</span>
-            </div>
-
-            @* Only a file that ships its voices apart has anything here to balance. *@
-            @if (HasTrack(AudioTrackRole.Lead))
+        <div class="kh-song-controls__panel kh-song-controls__panel--@(Style.ToString().ToLowerInvariant())">
+            @foreach (var control in Controls())
             {
-                <div class="kh-song-controls__row">
-                    <span class="kh-song-controls__label">Lead</span>
-                    <input type="range" class="kh-song-controls__slider" style="@Fill(_lead, AudioMix.MinVolume, AudioMix.MaxVolume)"
-                           min="@AudioMix.MinVolume" max="@AudioMix.MaxVolume" step="@VolumeStep"
-                           value="@_lead"
-                           @oninput="OnLeadInput" @onchange="CommitLeadAsync"
-                           aria-label="Lead vocal volume, as a percentage" />
-                    <span class="kh-song-controls__value @SignClass(_lead)">@FormatVolume(_lead)</span>
-                </div>
-            }
-
-            @if (HasTrack(AudioTrackRole.Backing))
-            {
-                <div class="kh-song-controls__row">
-                    <span class="kh-song-controls__label">Backing</span>
-                    <input type="range" class="kh-song-controls__slider" style="@Fill(_backing, AudioMix.MinVolume, AudioMix.MaxVolume)"
-                           min="@AudioMix.MinVolume" max="@AudioMix.MaxVolume" step="@VolumeStep"
-                           value="@_backing"
-                           @oninput="OnBackingInput" @onchange="CommitBackingAsync"
-                           aria-label="Backing vocal volume, as a percentage" />
-                    <span class="kh-song-controls__value @SignClass(_backing)">@FormatVolume(_backing)</span>
-                </div>
+                @if (Style == SongControlStyle.Dials)
+                {
+                    <SongControlDial Label="@control.Label" AriaLabel="@control.AriaLabel"
+                                     Value="@control.Value" Min="@control.Min" Max="@control.Max"
+                                     Step="@control.Step" Format="@control.Format"
+                                     ValueInput="@control.OnInput" ValueCommitted="@control.OnCommit" />
+                }
+                else
+                {
+                    <SongControlSlider Label="@control.Label" AriaLabel="@control.AriaLabel"
+                                       Value="@control.Value" Min="@control.Min" Max="@control.Max"
+                                       Step="@control.Step" Format="@control.Format"
+                                       ValueInput="@control.OnInput" ValueCommitted="@control.OnCommit" />
+                }
             }
         </div>
     }

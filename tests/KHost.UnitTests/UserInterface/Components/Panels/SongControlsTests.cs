@@ -4,6 +4,8 @@ using KHost.Abstractions.Services;
 using KHost.Domain.Services.Messaging;
 using KHost.Plugins.Sdk.Messaging;
 using KHost.UserInterface.Components.Panels;
+using KHost.UserInterface.Models;
+using KHost.UserInterface.Services;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -18,16 +20,21 @@ namespace KHost.UnitTests.UserInterface.Components.Panels;
 public class SongControlsTests : BunitContext
 {
     private const string Trigger = ".kh-song-controls__trigger";
-    private const string Sliders = ".kh-song-controls__slider";
-    private const string Values = ".kh-song-controls__value";
+    private const string Sliders = ".kh-song-control--slider .kh-song-control__track";
+    private const string Values = ".kh-song-control__value";
 
     private readonly IPlaybackService _playback = Substitute.For<IPlaybackService>();
+    private readonly IAppSettingsService _appSettings = Substitute.For<IAppSettingsService>();
+    private readonly AppSettings _settings = new();
 
     public SongControlsTests()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
 
+        _appSettings.Current.Returns(_settings);
+
         Services.AddSingleton(_playback);
+        Services.AddSingleton(_appSettings);
         Services.AddSingleton<IMessageBroker>(new MessageBroker(NullLogger<MessageBroker>.Instance));
     }
 
@@ -114,8 +121,8 @@ public class SongControlsTests : BunitContext
 
     [Theory]
     [InlineData(0, null)]
-    [InlineData(2, "kh-song-controls__value--up")]
-    [InlineData(-2, "kh-song-controls__value--down")]
+    [InlineData(2, "kh-song-control__value--up")]
+    [InlineData(-2, "kh-song-control__value--down")]
     public void Readout_TakesItsColourFromTheSign(int pitch, string? expected)
     {
         _playback.Pitch.Returns(pitch);
@@ -246,6 +253,78 @@ public class SongControlsTests : BunitContext
 
         // Those are where every song starts, so counting them marks the trigger all night.
         Assert.Empty(cut.FindAll(".kh-song-controls__icon--on"));
+    }
+
+    [Fact]
+    public void Panel_DrawsDials_WhenTheSettingSaysSo()
+    {
+        _settings.SongControlStyle = SongControlStyle.Dials;
+        GiveVocalTracks();
+
+        var cut = Open();
+
+        Assert.Equal(4, cut.FindAll(".kh-song-control--dial").Count);
+        Assert.Empty(cut.FindAll(".kh-song-control--slider"));
+    }
+
+    [Fact]
+    public void Panel_DrawsSlidersByDefault()
+    {
+        GiveVocalTracks();
+
+        var cut = Open();
+
+        Assert.Equal(4, cut.FindAll(".kh-song-control--slider").Count);
+        Assert.Empty(cut.FindAll(".kh-song-control--dial"));
+    }
+
+    [Fact]
+    public void Dials_CommitTheSameValuesAsSliders()
+    {
+        _settings.SongControlStyle = SongControlStyle.Dials;
+        GiveVocalTracks();
+
+        var cut = Open();
+        var grips = cut.FindAll(".kh-song-control__grip");
+
+        grips[0].Change("-3");
+        grips[3].Change("45");
+
+        // Both shapes drive the same values; only the drawing differs.
+        _playback.Received(1).SetPitchAsync(-3);
+        _playback.Received(1).SetBackingVolumeAsync(45);
+    }
+
+    [Theory]
+    [InlineData(0, "transparent")]
+    [InlineData(3, "var(--kh-success)")]
+    [InlineData(-3, "var(--kh-danger)")]
+    public void Dial_ColoursItsArcBySign(int pitch, string expected)
+    {
+        _settings.SongControlStyle = SongControlStyle.Dials;
+        _playback.Pitch.Returns(pitch);
+
+        var cut = Open();
+
+        // A round cap paints a dot even on a zero-length dash, so rest has to draw in nothing
+        // rather than draw nothing.
+        var arcs = cut.FindAll(".kh-song-control--dial .kh-song-control__arc circle");
+        Assert.Equal(expected, arcs[1].GetAttribute("stroke"));
+    }
+
+    [Fact]
+    public void Dial_PushesTheArcToWhereTheSpanStarts()
+    {
+        _settings.SongControlStyle = SongControlStyle.Dials;
+        _playback.Tempo.Returns(25);
+
+        var cut = Open();
+        var arc = cut.FindAll(".kh-song-control--dial .kh-song-control__arc circle")[3];
+
+        // Tempo +25 of ±50 runs from the centre of the travel to three quarters along it. The
+        // segment is dashed to its own length and pushed there by a negative offset.
+        Assert.Equal("30.63 163.36", arc.GetAttribute("stroke-dasharray"));
+        Assert.Equal("-61.26", arc.GetAttribute("stroke-dashoffset"));
     }
 
     private void GiveVocalTracks() =>

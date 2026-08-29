@@ -1,5 +1,6 @@
 using System.Text.Json;
 using KHost.Abstractions.Services;
+using KHost.UserInterface.Models;
 using KHost.UserInterface.Services;
 using Microsoft.Extensions.Configuration;
 
@@ -57,6 +58,34 @@ public class AppSettingsServiceTests : IDisposable
         using var overlay = JsonDocument.Parse(
             await File.ReadAllTextAsync(Path.Combine(_directory, AppSettingsService.OverlayFileName)));
         Assert.Equal(expected, overlay.RootElement.GetProperty("Playback").GetProperty("DefaultBackingVolume").GetInt32());
+    }
+
+    [Fact]
+    public async Task SongControlStyle_DefaultsToSliders_AndRoundTrips()
+    {
+        var service = Service();
+
+        Assert.Equal(SongControlStyle.Sliders, service.Current.SongControlStyle);
+
+        await service.SaveAsync(new AppSettings { SongControlStyle = SongControlStyle.Dials });
+
+        using var overlay = JsonDocument.Parse(
+            await File.ReadAllTextAsync(Path.Combine(_directory, AppSettingsService.OverlayFileName)));
+        Assert.Equal("Dials", overlay.RootElement.GetProperty("Console").GetProperty("SongControlStyle").GetString());
+    }
+
+    [Theory]
+    [InlineData("dials", SongControlStyle.Dials)]
+    [InlineData("Sliders", SongControlStyle.Sliders)]
+    [InlineData("knobs", SongControlStyle.Sliders)]
+    [InlineData("", SongControlStyle.Sliders)]
+    public void SongControlStyle_FallsBackToSliders_ForAnythingItCannotRead(string stored, SongControlStyle expected)
+    {
+        var service = Service(new KeyValuePair<string, string?>("Console:SongControlStyle", stored));
+
+        // A hand-edited word naming no shape must not reach the console as a value with no case
+        // to render it, which would leave the panel empty.
+        Assert.Equal(expected, service.Current.SongControlStyle);
     }
 
     [Fact]
