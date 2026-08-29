@@ -49,7 +49,7 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, ID
     public async Task<MediaStreamSession> OpenAsync(
         string filePath,
         TimeSpan startOffset = default,
-        int pitchSemitones = 0,
+        int pitch = 0,
         CancellationToken cancellationToken = default)
     {
         if (!File.Exists(filePath))
@@ -64,7 +64,7 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, ID
             Logger.LogWarning("No companion audio beside '{FilePath}'; the stream will be silent", filePath);
 
         var arguments = BuildArguments(
-            filePath, startOffset, pitchSemitones, _options.SegmentSeconds, companionAudio);
+            filePath, startOffset, pitch, _options.SegmentSeconds, companionAudio);
 
         Logger.LogInformation("Opening stream {SessionId} for '{FilePath}' at {Offset}", id, filePath, startOffset);
         Logger.LogDebug("ffmpeg {Arguments}", arguments);
@@ -106,7 +106,7 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, ID
             SourcePath = filePath,
             PlaylistUrl = $"{_options.BaseAddress.TrimEnd('/')}/media/{id}/{PlaylistFileName}",
             StartOffset = startOffset,
-            PitchSemitones = pitchSemitones,
+            Pitch = pitch,
         };
     }
 
@@ -199,7 +199,7 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, ID
     internal static string BuildArguments(
         string filePath,
         TimeSpan startOffset,
-        int pitchSemitones,
+        int pitch,
         int segmentSeconds,
         string? companionAudioPath = null)
     {
@@ -224,12 +224,18 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, ID
         if (startOffset > TimeSpan.Zero && seekOnOutput)
             arguments += string.Format(CultureInfo.InvariantCulture, " -ss {0:F3}", startOffset.TotalSeconds);
 
-        // Fixed GOP with no scene-cut detection, so every segment starts on a keyframe.
-        arguments += " -c:v libx264 -preset veryfast -profile:v main -level 4.1 -pix_fmt yuv420p"
-                   + " -g 60 -keyint_min 60 -sc_threshold 0";
+        var segment = Math.Max(1, segmentSeconds);
 
-        var pitch = BuildPitchFilter(pitchSemitones);
-        if (pitch.Length > 0) arguments += $" -af \"{pitch}\"";
+        // Keyframes on time, not a frame count: -g is in frames, so it matches the segment length
+        // at exactly one source frame rate, and the muxer can only cut where a keyframe already is.
+        arguments += " -c:v libx264 -preset veryfast -profile:v main -level 4.1 -pix_fmt yuv420p"
+                   + string.Format(
+                        CultureInfo.InvariantCulture,
+                        " -force_key_frames \"expr:gte(t,n_forced*{0})\" -sc_threshold 0",
+                        segment);
+
+        var pitchFilter = BuildPitchFilter(pitch);
+        if (pitchFilter.Length > 0) arguments += $" -af \"{pitchFilter}\"";
 
         arguments += " -c:a aac -ar 44100 -ac 2 -b:a 128k";
 
@@ -238,7 +244,7 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, ID
             CultureInfo.InvariantCulture,
             " -f hls -hls_time {0} -hls_playlist_type event -hls_flags independent_segments"
             + " -hls_segment_filename seg_%05d.ts",
-            Math.Max(1, segmentSeconds));
+            segment);
 
         return arguments + $" {PlaylistFileName}";
     }
@@ -263,9 +269,12 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, ID
         if (semitones == 0) return string.Empty;
 
         double ratio = Math.Pow(2.0, semitones / 12.0);
+
+        // asetrate reinterprets whatever rate reaches it, so the leading resample is what makes
+        // its base true: a 48kHz source would otherwise carry an uncorrected 44100/48000 as well.
         return string.Format(
             CultureInfo.InvariantCulture,
-            "asetrate=44100*{0:F6},aresample=44100,atempo={1:F6}",
+            "aresample=44100,asetrate=44100*{0:F6},aresample=44100,atempo={1:F6}",
             ratio, 1.0 / ratio);
     }
 

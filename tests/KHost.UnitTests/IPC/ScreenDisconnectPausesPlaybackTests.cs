@@ -48,7 +48,7 @@ public class ScreenDisconnectPausesPlaybackTests : IDisposable
                 SourcePath = call.ArgAt<string>(0),
                 PlaylistUrl = "http://host/media/stream-1/stream.m3u8",
                 StartOffset = call.ArgAt<TimeSpan>(1),
-                PitchSemitones = 0,
+                Pitch = 0,
             });
 
         _playbackService = new PlaybackService(

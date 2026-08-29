@@ -300,6 +300,9 @@ namespace KHost.DataAccess.Migrations
                     b.Property<Guid>("MediaId")
                         .HasColumnType("TEXT");
 
+                    b.Property<int>("Pitch")
+                        .HasColumnType("INTEGER");
+
                     b.Property<int?>("QueuePosition")
                         .HasColumnType("INTEGER");
 

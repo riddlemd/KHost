@@ -37,7 +37,7 @@ public class LibraryBreakMusicProviderTests : IDisposable
                 SourcePath = call.ArgAt<string>(0),
                 PlaylistUrl = "http://host/media/bed-stream/stream.m3u8",
                 StartOffset = TimeSpan.Zero,
-                PitchSemitones = 0,
+                Pitch = 0,
             }));
 
         _provider = new LibraryBreakMusicProvider(

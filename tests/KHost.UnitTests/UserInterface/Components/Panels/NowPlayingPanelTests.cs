@@ -7,6 +7,7 @@ using KHost.Abstractions.Services;
 using KHost.Plugins.Sdk.Services;
 using KHost.UserInterface.Components.Panels;
 using KHost.UserInterface.Services;
+using Microsoft.AspNetCore.Components.Web;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace KHost.UnitTests.UserInterface.Components.Panels;
@@ -90,6 +91,106 @@ public class NowPlayingPanelTests : BunitContext
         var cut = Render<NowPlayingPanel>();
 
         Assert.Empty(cut.FindAll(ArtistSelector));
+    }
+
+    [Fact]
+    public void KeyControl_RaisesAndLowersTheKey()
+    {
+        Load(Performance(), MediaWithArtist("Toto", "Africa"));
+        _playback.Pitch.Returns(0);
+
+        var cut = Render<NowPlayingPanel>();
+        var buttons = cut.FindAll(".kh-now-playing__key-btn");
+
+        buttons[1].Click();
+        buttons[0].Click();
+
+        _playback.Received(1).SetPitchAsync(1);
+        _playback.Received(1).SetPitchAsync(-1);
+    }
+
+    [Fact]
+    public void KeyControl_ShowsTheShiftAgainstTheRecording()
+    {
+        Load(Performance(), MediaWithArtist("Toto", "Africa"));
+        _playback.Pitch.Returns(-2);
+
+        var cut = Render<NowPlayingPanel>();
+
+        // A host glancing at the console has to see it is not the written key without reading it.
+        var value = cut.Find(".kh-now-playing__key-value");
+        Assert.Equal("\u22122", value.TextContent.Trim());
+        Assert.Contains("kh-now-playing__key-value--shifted", value.ClassName);
+    }
+
+    [Fact]
+    public void KeyControl_IsNotMarkedShifted_InTheWrittenKey()
+    {
+        Load(Performance(), MediaWithArtist("Toto", "Africa"));
+        _playback.Pitch.Returns(0);
+
+        var cut = Render<NowPlayingPanel>();
+
+        var value = cut.Find(".kh-now-playing__key-value");
+        Assert.Equal("0", value.TextContent.Trim());
+        Assert.DoesNotContain("--shifted", value.ClassName);
+    }
+
+    [Theory]
+    [InlineData(6)]
+    [InlineData(-6)]
+    public void KeyControl_DisablesTheButtonAtTheEndOfTheRange(int pitch)
+    {
+        Load(Performance(), MediaWithArtist("Toto", "Africa"));
+        _playback.Pitch.Returns(pitch);
+
+        var cut = Render<NowPlayingPanel>();
+        var buttons = cut.FindAll(".kh-now-playing__key-btn");
+
+        // The far end stays live; only the one that would leave the range is off.
+        var expectedDisabled = pitch > 0 ? 1 : 0;
+        Assert.True(buttons[expectedDisabled].HasAttribute("disabled"));
+        Assert.False(buttons[1 - expectedDisabled].HasAttribute("disabled"));
+    }
+
+    [Theory]
+    [InlineData("+", 1)]
+    [InlineData("=", 1)]
+    [InlineData("-", -1)]
+    [InlineData("_", -1)]
+    public void KeyboardShortcut_ChangesTheKey(string key, int delta)
+    {
+        Load(Performance(), MediaWithArtist("Toto", "Africa"));
+        _playback.Pitch.Returns(2);
+
+        var cut = Render<NowPlayingPanel>();
+
+        // A real event: a handler wired to nothing passes every test that calls it directly.
+        cut.Find(".kh-now-playing-panel").KeyDown(new KeyboardEventArgs { Key = key });
+
+        _playback.Received(1).SetPitchAsync(2 + delta);
+    }
+
+    [Fact]
+    public void KeyboardShortcut_IsIgnored_WithNoSongLoaded()
+    {
+        var cut = Render<NowPlayingPanel>();
+
+        cut.Find(".kh-now-playing-panel").KeyDown(new KeyboardEventArgs { Key = "+" });
+
+        _playback.DidNotReceive().SetPitchAsync(Arg.Any<int>());
+    }
+
+    [Fact]
+    public void KeyboardShortcut_IgnoresAnOrdinaryKeystroke()
+    {
+        Load(Performance(), MediaWithArtist("Toto", "Africa"));
+
+        var cut = Render<NowPlayingPanel>();
+
+        cut.Find(".kh-now-playing-panel").KeyDown(new KeyboardEventArgs { Key = "a" });
+
+        _playback.DidNotReceive().SetPitchAsync(Arg.Any<int>());
     }
 
     private void Load(Performance performance, Media media)
