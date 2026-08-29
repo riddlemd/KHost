@@ -1,3 +1,4 @@
+@using KHost.UserInterface.Models
 @page "/settings/app-settings"
 @attribute [Authorize(Roles = KHost.UserInterface.Auth.KHostClaimsFactory.AdminRole)]
 
@@ -50,6 +51,23 @@
                         <span class="kh-app-settings__apply">applies immediately</span>
                     </span>
                     <InputNumber class="kh-form-control kh-app-settings__number" @bind-Value="_model.SegmentSeconds" min="1" step="1" />
+                </label>
+                <label class="kh-app-settings__row">
+                    <span>
+                        Song controls
+                        <span class="kh-app-settings__apply">applies immediately</span>
+                    </span>
+                    <select class="kh-form-select kh-app-settings__number" @bind="_model.SongControlStyle">
+                        <option value="@SongControlStyle.Sliders">Sliders</option>
+                        <option value="@SongControlStyle.Dials">Dials</option>
+                    </select>
+                </label>
+                <label class="kh-app-settings__row">
+                    <span>
+                        Backing vocals (%)
+                        <span class="kh-app-settings__apply">applies immediately</span>
+                    </span>
+                    <InputNumber class="kh-form-control kh-app-settings__number" @bind-Value="_model.BackingVocalVolume" min="0" max="100" step="5" />
                 </label>
 
                 <div class="kh-app-settings__section">Ads</div>

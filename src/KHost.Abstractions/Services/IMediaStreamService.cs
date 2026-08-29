@@ -10,13 +10,15 @@ public interface IMediaStreamService
     /// <summary>
     /// <paramref name="startOffset"/> is where the stream begins within the song.
     /// <paramref name="pitch"/> is in semitones and <paramref name="tempo"/> a percentage either
-    /// side of the recorded speed; both are fixed for the session's lifetime.
+    /// side of the recorded speed. <paramref name="mix"/> balances the separate voices of a
+    /// multi-track file. All three are fixed for the session's lifetime.
     /// </summary>
     Task<MediaStreamSession> OpenAsync(
         string filePath,
         TimeSpan startOffset = default,
         int pitch = 0,
         int tempo = 0,
+        AudioMix? mix = null,
         CancellationToken cancellationToken = default);
 
     /// <summary>Unknown ids are ignored.</summary>

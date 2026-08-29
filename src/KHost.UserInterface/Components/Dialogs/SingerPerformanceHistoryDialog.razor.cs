@@ -101,6 +101,8 @@ public partial class SingerPerformanceHistoryDialog
             // The row the host picked, not the newest take: the same song may have two keys.
             Pitch = sung.Pitch,
             Tempo = sung.Tempo,
+            LeadVolume = sung.LeadVolume,
+            BackingVolume = sung.BackingVolume,
         });
 
         // Stay open when the duplicate warning was declined, so the choice isn't lost.

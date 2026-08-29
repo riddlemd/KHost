@@ -27,7 +27,13 @@ public class NowPlayingPanelTests : BunitContext
         _playback.State.Returns(PlaybackState.Playing);
         _playback.Position.Returns(TimeSpan.Zero);
 
+        // The header hosts SongControls, which reads the control shape from the machine settings;
+        // without one registered every render of this panel throws.
+        var appSettings = Substitute.For<IAppSettingsService>();
+        appSettings.Current.Returns(new AppSettings());
+
         Services.AddSingleton(_playback);
+        Services.AddSingleton(appSettings);
         Services.AddSingleton<IMessageBroker>(_broker);
         Services.AddSingleton(Substitute.For<ISingerQueueService>());
         Services.AddSingleton(Substitute.For<IDialogService>());
