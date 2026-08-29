@@ -69,6 +69,39 @@ public class SelectedSingerInfoPanelQueuedPitchTests : BunitContext
         Assert.Equal(expected, panel.Find(PitchSelector).TextContent.Trim());
     }
 
+    [Theory]
+    [InlineData(-20, "\u221220%")]
+    [InlineData(15, "+15%")]
+    public void QueuedRow_MarksASongThatWillPlayAtAnotherSpeed(int tempo, string expected)
+    {
+        _performance.Tempo = tempo;
+
+        var panel = Render<SelectedSingerInfoPanel>();
+
+        Assert.Equal(expected, panel.Find(".kh-selected-singer-info-panel__tempo").TextContent.Trim());
+    }
+
+    [Fact]
+    public void QueuedRow_MarksKeyAndSpeedSeparately_WhenBothAreSet()
+    {
+        _performance.Pitch = 2;
+        _performance.Tempo = -10;
+
+        var panel = Render<SelectedSingerInfoPanel>();
+
+        // Two changes, two marks: one merged badge hides which of them the host actually made.
+        Assert.Equal("+2", panel.Find(PitchSelector).TextContent.Trim());
+        Assert.Equal("\u221210%", panel.Find(".kh-selected-singer-info-panel__tempo").TextContent.Trim());
+    }
+
+    [Fact]
+    public void QueuedRow_IsNotMarked_ForASongAtTheRecordedSpeed()
+    {
+        var panel = Render<SelectedSingerInfoPanel>();
+
+        Assert.Empty(panel.FindAll(".kh-selected-singer-info-panel__tempo"));
+    }
+
     [Fact]
     public void QueuedRow_IsNotMarked_ForASongInTheWrittenKey()
     {

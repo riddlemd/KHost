@@ -85,7 +85,8 @@
         text-overflow: ellipsis;
     }
 
-    &__pitch {
+    &__pitch,
+    &__tempo {
         flex: 0 0 auto;
         margin-left: 6px;
         font-size: 0.7rem;
