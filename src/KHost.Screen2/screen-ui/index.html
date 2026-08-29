@@ -9,18 +9,27 @@
             height: 100%;
             background: #000;
             overflow: hidden;
+            position: relative;
             /* Double-click toggles full screen; without this it also selects the placeholder text. */
             user-select: none;
             -webkit-user-select: none;
         }
 
-        #video {
+        .video {
+            position: absolute;
+            inset: 0;
             width: 100%;
             height: 100%;
             object-fit: contain;
-            background: #000;
+            /* Only the lower one paints black, or the incoming element hides the outgoing one
+               behind an opaque backdrop instead of dissolving into it. */
+            background: transparent;
             transition: opacity 120ms linear;
         }
+
+        /* Two elements so a rebuilt stream can be brought up to speed behind the one still
+           playing, and swapped for it once it has sound to give. */
+        #video-b { opacity: 0; }
 
         #still {
             position: absolute;
@@ -82,7 +91,8 @@
     </style>
 </head>
 <body>
-    <video id="video" playsinline></video>
+    <video id="video" class="video" playsinline></video>
+    <video id="video-b" class="video" playsinline></video>
     <!-- Break music and an ad's own bed. Audio-only and never on the group timeline, so it is a
          separate element rather than a second source on the video above. -->
     <audio id="background"></audio>
