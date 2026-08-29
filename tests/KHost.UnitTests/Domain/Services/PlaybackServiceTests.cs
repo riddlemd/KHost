@@ -110,7 +110,8 @@ public class PlaybackServiceTests : IDisposable
     private PlaybackService MakeService(
         TimeSpan stopFadeDuration,
         TimeSpan? pitchSettleDelay = null,
-        int defaultBackingVolume = AudioMix.DefaultBackingVolume) => new(
+        int defaultBackingVolume = AudioMix.DefaultBackingVolume,
+        TimeSpan? retireGrace = null) => new(
         _logger,
         _queueService,
         _performanceService,
@@ -128,6 +129,9 @@ public class PlaybackServiceTests : IDisposable
             // The delay exists to collapse a burst of presses; the collapsing has its own test.
             PitchSettleDelay = pitchSettleDelay ?? TimeSpan.Zero,
             DefaultBackingVolume = defaultBackingVolume,
+            // The grace exists so a consumer can finish reading the old session; the tests assert
+            // on what was closed, not on when.
+            StreamRetireGrace = retireGrace ?? TimeSpan.Zero,
         }),
         _audioTracks,
         _broker);
@@ -3066,6 +3070,24 @@ public class PlaybackServiceTests : IDisposable
     private TimeSpan LastOpenedAt() => (TimeSpan)_mediaStreams.ReceivedCalls()
         .Last(c => c.GetMethodInfo().Name == nameof(IMediaStreamService.OpenAsync))
         .GetArguments()[1]!;
+
+    [Fact]
+    public async Task Reopen_LeavesTheOldSessionStanding_ForConsumersStillReadingIt()
+    {
+        // A real grace, so the assertion is about the delay rather than the eventual close.
+        using var service = MakeService(TimeSpan.Zero, retireGrace: TimeSpan.FromSeconds(30));
+        var (performance, media) = CreatePerformance();
+        await service.LoadAsync(performance, media);
+        await service.PlayAsync();
+
+        await service.SetPitchAsync(2);
+        Assert.True(await WaitForStreamsOpenedAsync(2));
+        await Task.Delay(200);
+
+        // Closing deletes the directory. A receiver has no second player to cross to, so it is
+        // still fetching segments from the old one and would read the 404 body as media.
+        await _mediaStreams.DidNotReceive().CloseAsync("stream-1");
+    }
 
     private async Task<bool> WaitForStreamsOpenedAsync(int count, int attempts = 50)
     {
