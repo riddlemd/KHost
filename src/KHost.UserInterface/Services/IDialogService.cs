@@ -17,6 +17,12 @@ public interface IDialogService
     Task RequestEditAsync(Tip? item, Func<Tip?, Task> onSave, Action? onCancel = null, Action? onClose = null);
 
     Task<bool> ShowConfirmationAsync(string message, Func<Task> onConfirm, string title = "Confirm", string confirmText = "Confirm", Action? onCancel = null, Action? onClose = null);
+    /// <summary>
+    /// Offers the two ways out of a page holding edits. Closing it is the third and means staying,
+    /// so a host who reached the crossroads by accident loses nothing.
+    /// </summary>
+    Task ShowUnsavedChangesAsync(Func<Task> onSave, Func<Task> onDiscard, string? message = null, Action? onStay = null);
+
     Task ShowSingerPerformanceHistoryAsync(Guid userId, Action? onClose = null);
     Task ShowLyricsAsync(string query, Action? onClose = null);
     Task ShowScreensAsync(Action? onClose = null);
