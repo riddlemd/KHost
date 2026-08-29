@@ -309,6 +309,9 @@ namespace KHost.DataAccess.Migrations
                     b.Property<Guid>("SingerId")
                         .HasColumnType("TEXT");
 
+                    b.Property<int>("Tempo")
+                        .HasColumnType("INTEGER");
+
                     b.Property<Guid?>("VenueId")
                         .HasColumnType("TEXT");
 

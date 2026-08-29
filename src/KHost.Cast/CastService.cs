@@ -2,6 +2,9 @@ using System.Net;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using KHost.Abstractions.Services;
+
+// Aliased rather than importing the namespace: Sharpcaster has its own MediaStatus.
+using MediaStreamSession = KHost.Abstractions.Models.MediaStreamSession;
 using KHost.Plugins.Sdk.Messaging;
 using KHost.Plugins.Sdk.Messaging.Messages;
 using Microsoft.Extensions.Logging;
@@ -33,6 +36,7 @@ public sealed class CastService : ICastService, IDisposable
     private ChromecastClient? _client;
     private string? _connectedDeviceId;
     private TimeSpan _streamStartOffset;
+    private double _rate = 1.0;
 
     public event EventHandler<CastPlaybackStatus>? PlaybackStatusChanged;
 
@@ -155,6 +159,7 @@ public sealed class CastService : ICastService, IDisposable
         _client = client;
         _connectedDeviceId = deviceId;
         _streamStartOffset = TimeSpan.Zero;
+        _rate = 1.0;
 
         RaiseStateChanged();
         return true;
@@ -185,12 +190,13 @@ public sealed class CastService : ICastService, IDisposable
         RaiseStateChanged();
     }
 
-    public async Task LoadAsync(string streamUrl, TimeSpan startOffset, CancellationToken cancellationToken = default)
+    public async Task LoadAsync(string streamUrl, TimeSpan startOffset, int tempo = 0, CancellationToken cancellationToken = default)
     {
         if (_client is not { } client) return;
 
         var reachable = MakeReachableFromDevice(streamUrl, LanAddress());
         _streamStartOffset = startOffset;
+        _rate = MediaStreamSession.RateFor(tempo);
 
         _logger.LogInformation("Casting {Url} to {Name}", reachable, _connectedDeviceId);
 
@@ -210,7 +216,7 @@ public sealed class CastService : ICastService, IDisposable
 
     public Task SeekAsync(TimeSpan position, CancellationToken cancellationToken = default)
         => _client is { } c
-            ? GuardAsync(() => c.MediaChannel.SeekAsync((position - _streamStartOffset).TotalSeconds))
+            ? GuardAsync(() => c.MediaChannel.SeekAsync((position - _streamStartOffset).TotalSeconds / _rate))
             : Task.CompletedTask;
 
     /// <summary>A television switched off mid-song must not fail the performance.</summary>
@@ -247,7 +253,7 @@ public sealed class CastService : ICastService, IDisposable
 
         PlaybackStatusChanged?.Invoke(this, new CastPlaybackStatus
         {
-            Position = _streamStartOffset + TimeSpan.FromSeconds(status.CurrentTime),
+            Position = _streamStartOffset + (TimeSpan.FromSeconds(status.CurrentTime) * _rate),
             IsPlaying = status.PlayerState == PlayerStateType.Playing,
             SampledAtUtc = DateTime.UtcNow,
         });

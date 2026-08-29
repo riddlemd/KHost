@@ -176,6 +176,50 @@ public class HlsMediaStreamServiceTranscodeTests : IDisposable
         Assert.InRange(Math.Abs(audio - video), 0, 0.4);
     }
 
+    [RequiresFfmpegFact]
+    public async Task OpenAsync_ShortensTheSongAtAFasterTempo()
+    {
+        var source = await CreateSampleAsync(seconds: 10);
+
+        var session = await _service.OpenAsync(source, tempo: 50);
+
+        var total = ParseSegmentDurations(await WaitForCompletePlaylistAsync(session.Id)).Sum();
+
+        // Ten seconds at 1.5x. -af alone would leave the picture running the full ten.
+        Assert.InRange(total, 6.3, 7.1);
+    }
+
+    [RequiresFfmpegFact]
+    public async Task OpenAsync_KeepsTheAudioWithThePicture_AtAChangedTempo()
+    {
+        var source = await CreateSampleAsync(seconds: 10);
+
+        var session = await _service.OpenAsync(source, tempo: -25);
+
+        await WaitForCompletePlaylistAsync(session.Id);
+        var playlist = _service.ResolveArtifact(session.Id, "stream.m3u8")!;
+
+        var video = await ProbeLastTimestampAsync(playlist, 'v');
+        var audio = await ProbeLastTimestampAsync(playlist, 'a');
+
+        // setpts and atempo have to move by the same factor, or the lyrics slide off the music.
+        Assert.InRange(Math.Abs(audio - video), 0, 0.4);
+    }
+
+    [RequiresFfmpegFact]
+    public async Task OpenAsync_TranscodesPitchUpAgainstTempoDown()
+    {
+        var source = await CreateSampleAsync(seconds: 6);
+
+        // The corner where one atempo stage would ask for 0.354: ffmpeg rejects that outright, so
+        // without chaining this throws rather than playing slightly wrong.
+        var session = await _service.OpenAsync(source, pitch: 6, tempo: -50);
+
+        var total = ParseSegmentDurations(await WaitForCompletePlaylistAsync(session.Id)).Sum();
+
+        Assert.InRange(total, 11.0, 13.0);
+    }
+
     private static List<double> ParseSegmentDurations(string playlist) =>
     [
         .. playlist

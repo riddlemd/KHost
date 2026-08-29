@@ -57,7 +57,7 @@ public class PlaybackService : BaseService, IPlaybackService
     // The host-side transcode currently feeding the screens, if any.
     private MediaStreamSession? _stream;
 
-    private CancellationTokenSource? _pitchSettle;
+    private CancellationTokenSource? _reopenSettle;
 
     // An ad's own audio track, which borrows the background channel from break music.
     private MediaStreamSession? _adAudioStream;
@@ -93,6 +93,13 @@ public class PlaybackService : BaseService, IPlaybackService
     public Guid? CurrentlyPerformingUserId { get; private set; }
     public TimeSpan? StopFadeDuration { get; private set; }
     public int Pitch { get; private set; }
+    public int Tempo { get; private set; }
+
+    /// <summary>
+    /// Song seconds per second of wall clock. Taken from the open stream rather than the wanted
+    /// tempo: between a change and the transcode reopening, the room is still on the old rate.
+    /// </summary>
+    private double Rate => _stream?.Rate ?? 1.0;
 
     public PlaybackService(
         ILogger<PlaybackService> logger,
@@ -176,8 +183,9 @@ public class PlaybackService : BaseService, IPlaybackService
         CurrentMedia = media;
         Position = TimeSpan.Zero;
 
-        // After ResetState, which cleared it: a performance carries the key it was sung in.
+        // After ResetState, which cleared them: a performance carries how it was sung.
         Pitch = performance.Pitch;
+        Tempo = performance.Tempo;
 
         _sessionActivity = _analytics.StartActivity(AnalyticActivities.Session);
         _sessionActivity.SetTag("media_id", media.Id);
@@ -434,26 +442,44 @@ public class PlaybackService : BaseService, IPlaybackService
 
     public async Task SetPitchAsync(int semitones)
     {
-        var target = Math.Clamp(
-            semitones, IPlaybackService.MinPitch, IPlaybackService.MaxPitch);
+        var target = Math.Clamp(semitones, IPlaybackService.MinPitch, IPlaybackService.MaxPitch);
 
         if (target == Pitch) return;
 
         Pitch = target;
+        Logger.LogInformation("Pitch set to {Semitones:+#;-#;0}", target);
 
+        await AfterRateChangeAsync();
+    }
+
+    public async Task SetTempoAsync(int tempo)
+    {
+        var target = Math.Clamp(tempo, IPlaybackService.MinTempo, IPlaybackService.MaxTempo);
+
+        if (target == Tempo) return;
+
+        Tempo = target;
+        Logger.LogInformation("Tempo set to {Tempo:+#;-#;0}%", target);
+
+        await AfterRateChangeAsync();
+    }
+
+    /// <summary>
+    /// Shared by key and speed, so changing both costs the song one break rather than two.
+    /// </summary>
+    private async Task AfterRateChangeAsync()
+    {
         // Before the transcode is touched, so the readout answers the button rather than ffmpeg.
         _broker.Announce(new PlaybackChanged());
 
-        Logger.LogInformation("Pitch set to {Semitones:+#;-#;0}", target);
+        // Not on the settle below: a song ending inside that window would lose the change.
+        await PersistRateAsync();
 
-        // Not on the settle below: a song ending inside that window would lose the key.
-        await PersistPitchAsync(target);
-
-        // Nothing open to re-pitch; the row is written and the next load reads it back.
+        // Nothing open to rebuild; the row is written and the next load reads it back.
         if (_stream is null) return;
 
         var settle = new CancellationTokenSource();
-        var superseded = Interlocked.Exchange(ref _pitchSettle, settle);
+        var superseded = Interlocked.Exchange(ref _reopenSettle, settle);
         superseded?.Cancel();
         superseded?.Dispose();
 
@@ -472,18 +498,19 @@ public class PlaybackService : BaseService, IPlaybackService
             }
             finally
             {
-                Interlocked.CompareExchange(ref _pitchSettle, null, settle);
+                Interlocked.CompareExchange(ref _reopenSettle, null, settle);
                 settle.Dispose();
             }
         }, CancellationToken.None);
     }
 
-    /// <summary>Writes the key onto the row the history is read from. An ad has none.</summary>
-    private async Task PersistPitchAsync(int semitones)
+    /// <summary>Writes key and speed onto the row the history is read from. An ad has neither.</summary>
+    private async Task PersistRateAsync()
     {
         if (CurrentPerformance is not { } performance) return;
 
-        performance.Pitch = semitones;
+        performance.Pitch = Pitch;
+        performance.Tempo = Tempo;
 
         try
         {
@@ -493,7 +520,7 @@ public class PlaybackService : BaseService, IPlaybackService
         {
             // Never fatal: the room already has the new key, and losing the record must not
             // take the song off the screens.
-            Logger.LogWarning(ex, "Could not record the pitch on performance {PerformanceId}", performance.Id);
+            Logger.LogWarning(ex, "Could not record the rate on performance {PerformanceId}", performance.Id);
         }
     }
 
@@ -776,14 +803,15 @@ public class PlaybackService : BaseService, IPlaybackService
 
         // Cancelled rather than left to fire: it would otherwise reopen a transcode for the song
         // that has just been torn down.
-        Interlocked.Exchange(ref _pitchSettle, null)?.Cancel();
+        Interlocked.Exchange(ref _reopenSettle, null)?.Cancel();
 
         State = PlaybackState.Stopped;
         StopFadeDuration = null;
         Position = TimeSpan.Zero;
 
-        // Cleared, not carried: the next thing loaded brings its own key, and an ad has none.
+        // Cleared, not carried: the next thing loaded brings its own, and an ad has neither.
         Pitch = 0;
+        Tempo = 0;
     }
 
     /// <summary>Throws when the transcode will not start: there is no playback without it.</summary>
@@ -796,7 +824,7 @@ public class PlaybackService : BaseService, IPlaybackService
         try
         {
             // The ad path reaches here and reads zero — PlayAdAsync resets the state first.
-            _stream = await _mediaStreams.OpenAsync(media.FilePath, startOffset, Pitch);
+            _stream = await _mediaStreams.OpenAsync(media.FilePath, startOffset, Pitch, Tempo);
         }
         catch (Exception ex)
         {
@@ -810,7 +838,7 @@ public class PlaybackService : BaseService, IPlaybackService
         var command = DescribeStream(media);
 
         if (command.StreamUrl is { Length: > 0 } url)
-            await CastAsync(c => c.LoadAsync(url, command.StreamStartOffset));
+            await CastAsync(c => c.LoadAsync(url, command.StreamStartOffset, command.Tempo));
 
         return command;
     }
@@ -836,8 +864,8 @@ public class PlaybackService : BaseService, IPlaybackService
             StopClock();
 
             Logger.LogInformation(
-                "Reopening '{Title}' at {Position} pitched {Semitones:+#;-#;0}",
-                media.Title, position, Pitch);
+                "Reopening '{Title}' at {Position} pitched {Semitones:+#;-#;0} tempo {Tempo:+#;-#;0}%",
+                media.Title, position, Pitch, Tempo);
 
             // Opened at the playhead, not opened at zero and seeked: the stream's own zero moves
             // with it, which is what StreamStartOffset carries to the screens.
@@ -878,6 +906,7 @@ public class PlaybackService : BaseService, IPlaybackService
         StreamUrl = _stream?.PlaylistUrl
             ?? throw new InvalidOperationException($"No host stream is open for '{media.Title}'."),
         StreamStartOffset = _stream?.StartOffset ?? TimeSpan.Zero,
+        Tempo = _stream?.Tempo ?? 0,
     };
 
     /// <summary>
@@ -1117,7 +1146,7 @@ public class PlaybackService : BaseService, IPlaybackService
         var now = DateTime.UtcNow;
 
         // The position always follows the primary; only the republish is rate-limited.
-        Position = state.Position + (now - sampledAt);
+        Position = state.Position + ((now - sampledAt) * Rate);
         _lastTick = now;
 
         if (now - _lastReanchorUtc < ReanchorInterval) return;
@@ -1138,7 +1167,7 @@ public class PlaybackService : BaseService, IPlaybackService
         // offset, where a receiver's are only timestamped on arrival.
         if (_screenCoordination.PrimaryScreenId is not null) return;
 
-        Position = status.Position + (DateTime.UtcNow - status.SampledAtUtc);
+        Position = status.Position + ((DateTime.UtcNow - status.SampledAtUtc) * Rate);
         _lastTick = DateTime.UtcNow;
     }
 
@@ -1183,7 +1212,10 @@ public class PlaybackService : BaseService, IPlaybackService
     internal async Task TickAsync()
     {
         var now = DateTime.UtcNow;
-        Position += now - _lastTick;
+
+        // Position is song time and the clock is wall time, so a retimed song covers more or less
+        // of itself per tick.
+        Position += (now - _lastTick) * Rate;
         _lastTick = now;
 
         if (HasPlaybackEnded())
