@@ -21,6 +21,13 @@
                 OnClose="@(() => { r.OnCancel?.Invoke(); Close(r); })" />
             break;
 
+        case UnsavedChangesDialog.DialogRequest r:
+            <UnsavedChangesDialog @key="r.Id" IsOpen="true" Message="@r.Message"
+                OnSave="@(async () => { Close(r); await r.OnSave(); })"
+                OnDiscard="@(async () => { Close(r); await r.OnDiscard(); })"
+                OnStay="@(() => { r.OnClose?.Invoke(); Close(r); })" />
+            break;
+
         case EditUserDialog.DialogRequest r:
             <EditUserDialog @key="r.Id" IsOpen="true" User="@r.Value"
                 OnSave="@(async (user) => { if (r.OnSave is not null) await r.OnSave(user); Close(r); })"
