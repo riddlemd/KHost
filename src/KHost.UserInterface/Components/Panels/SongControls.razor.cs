@@ -3,6 +3,7 @@ using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using KHost.Plugins.Sdk.Messaging;
 using KHost.Plugins.Sdk.Messaging.Messages;
+using KHost.UserInterface.Models;
 using KHost.UserInterface.Services;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
@@ -18,6 +19,7 @@ public partial class SongControls : IDisposable
     private const int VolumeStep = 5;
 
     [Inject] private IPlaybackService? PlaybackService { get; set; }
+    [Inject] private IAppSettingsService? AppSettings { get; set; }
     [Inject] private IMessageBroker Broker { get; set; } = default!;
 
     private readonly SubscriptionSet _subscriptions = new();
@@ -32,6 +34,51 @@ public partial class SongControls : IDisposable
     // The volumes are deliberately not part of this. Lead sits at zero and backing at the house
     // setting on every song, so counting them would leave the trigger marked all night.
     private bool IsChanged => _pitch != 0 || _tempo != 0;
+
+    private SongControlStyle Style => AppSettings?.Current.SongControlStyle ?? SongControlStyle.Sliders;
+
+    /// <summary>
+    /// The panel as data, so the two shapes are one list rendered twice over rather than two
+    /// copies of the same four controls drifting apart.
+    /// </summary>
+    private IEnumerable<SongControl> Controls()
+    {
+        yield return new SongControl("Key", "Key, in semitones from the recording",
+            _pitch, IPlaybackService.MinPitch, IPlaybackService.MaxPitch, 1,
+            FormatPitch, v => _pitch = v, CommitPitchAsync);
+
+        yield return new SongControl("Tempo", "Tempo, as a percentage of the recording",
+            _tempo, IPlaybackService.MinTempo, IPlaybackService.MaxTempo, TempoStep,
+            FormatTempo, v => _tempo = v, CommitTempoAsync);
+
+        // Only a file that ships its voices apart has anything here to balance.
+        if (HasTrack(AudioTrackRole.Lead))
+            yield return new SongControl("Lead", "Lead vocal volume, as a percentage",
+                _lead, AudioMix.MinVolume, AudioMix.MaxVolume, VolumeStep,
+                FormatVolume, v => _lead = v, CommitLeadAsync);
+
+        if (HasTrack(AudioTrackRole.Backing))
+            yield return new SongControl("Backing", "Backing vocal volume, as a percentage",
+                _backing, AudioMix.MinVolume, AudioMix.MaxVolume, VolumeStep,
+                FormatVolume, v => _backing = v, CommitBackingAsync);
+    }
+
+    private sealed record SongControl(
+        string Label,
+        string AriaLabel,
+        int Value,
+        int Min,
+        int Max,
+        int Step,
+        Func<int, string> Format,
+        Action<int> Track,
+        Func<int, Task> Commit)
+    {
+        /// <summary>Moves the readout with the drag; the service hears nothing yet.</summary>
+        public EventCallback<int> OnInput => EventCallback.Factory.Create<int>(this, Track);
+
+        public EventCallback<int> OnCommit => EventCallback.Factory.Create<int>(this, Commit);
+    }
 
     private bool HasTrack(AudioTrackRole role) =>
         PlaybackService?.AudioTracks.Any(t => t.Role == role) ?? false;
@@ -78,78 +125,33 @@ public partial class SongControls : IDisposable
         if (e.Key == "Escape") Close();
     }
 
-    private void OnPitchInput(ChangeEventArgs e) => _pitch = Parse(e, _pitch);
-
-    private void OnTempoInput(ChangeEventArgs e) => _tempo = Parse(e, _tempo);
-
-    // Both commits read the event rather than the field the readout follows. A change can arrive
-    // without an input before it, and then the field still holds the value the drag started from.
-    private Task CommitPitchAsync(ChangeEventArgs e)
+    private Task CommitPitchAsync(int value)
     {
-        _pitch = Parse(e, _pitch);
+        _pitch = value;
 
-        return PlaybackService?.SetPitchAsync(_pitch) ?? Task.CompletedTask;
+        return PlaybackService?.SetPitchAsync(value) ?? Task.CompletedTask;
     }
 
-    private Task CommitTempoAsync(ChangeEventArgs e)
+    private Task CommitTempoAsync(int value)
     {
-        _tempo = Parse(e, _tempo);
+        _tempo = value;
 
-        return PlaybackService?.SetTempoAsync(_tempo) ?? Task.CompletedTask;
+        return PlaybackService?.SetTempoAsync(value) ?? Task.CompletedTask;
     }
 
-    private static int Parse(ChangeEventArgs e, int fallback) =>
-        int.TryParse(e.Value?.ToString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var value)
-            ? value
-            : fallback;
-
-    private void OnLeadInput(ChangeEventArgs e) => _lead = Parse(e, _lead);
-
-    private void OnBackingInput(ChangeEventArgs e) => _backing = Parse(e, _backing);
-
-    private Task CommitLeadAsync(ChangeEventArgs e)
+    private Task CommitLeadAsync(int value)
     {
-        _lead = Parse(e, _lead);
+        _lead = value;
 
-        return PlaybackService?.SetLeadVolumeAsync(_lead) ?? Task.CompletedTask;
+        return PlaybackService?.SetLeadVolumeAsync(value) ?? Task.CompletedTask;
     }
 
-    private Task CommitBackingAsync(ChangeEventArgs e)
+    private Task CommitBackingAsync(int value)
     {
-        _backing = Parse(e, _backing);
+        _backing = value;
 
-        return PlaybackService?.SetBackingVolumeAsync(_backing) ?? Task.CompletedTask;
+        return PlaybackService?.SetBackingVolumeAsync(value) ?? Task.CompletedTask;
     }
-
-    /// <summary>
-    /// Paints the track from the middle of a control's travel out to the thumb — left in red,
-    /// right in green, nothing at all at rest. The thumb inset is not optional: its centre only
-    /// travels between half a thumb from each end, so a raw percentage runs ahead of it.
-    /// </summary>
-    private static string Fill(int value, int min, int max)
-    {
-        var span = max - min == 0 ? 1 : max - min;
-
-        double Fraction(double at) => (at - min) / span;
-
-        // Zero is where all four rest, and the same expression paints both kinds: it is the centre
-        // of the key and tempo travel, and the left edge of a volume that cannot go negative.
-        var (from, to, colour) = value.CompareTo(0) switch
-        {
-            0 => (Fraction(0), Fraction(0), "transparent"),
-            > 0 => (Fraction(0), Fraction(value), "var(--kh-success)"),
-            _ => (Fraction(value), Fraction(0), "var(--kh-danger)"),
-        };
-
-        return FormattableString.Invariant($"--from-frac:{from:F4};--to-frac:{to:F4};--fill:{colour}");
-    }
-
-    private static string SignClass(int value) => value switch
-    {
-        0 => "",
-        > 0 => "kh-song-controls__value--up",
-        _ => "kh-song-controls__value--down",
-    };
 
     private static string FormatVolume(int volume) =>
         volume.ToString(CultureInfo.InvariantCulture) + "%";

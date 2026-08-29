@@ -1,6 +1,7 @@
 using System.Text.Json;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
+using KHost.UserInterface.Models;
 using Microsoft.Extensions.Configuration;
 
 namespace KHost.UserInterface.Services;
@@ -51,6 +52,12 @@ internal sealed class AppSettingsService : IAppSettingsService
         // otherwise reach ffmpeg as a volume multiplier nobody can undo from the console.
         BackingVocalVolume = AudioMix.Clamp(
             _configuration.GetValue<int?>("Playback:DefaultBackingVolume") ?? AudioMix.DefaultBackingVolume),
+        // Parsed rather than cast: a hand-edited word that names no shape falls back to sliders
+        // instead of reaching the console as an enum value with no case to render it.
+        SongControlStyle = Enum.TryParse<SongControlStyle>(
+            _configuration["Console:SongControlStyle"], ignoreCase: true, out var style)
+            ? style
+            : SongControlStyle.Sliders,
     };
 
     private int PageSize(string key, int fallback = AppSettings.DefaultPageSize) =>
@@ -101,6 +108,11 @@ internal sealed class AppSettingsService : IAppSettingsService
                 ["Venues"] = PaginationClamp(settings.VenuesPageSize),
                 ["PerformanceHistory"] = PaginationClamp(settings.PerformanceHistoryPageSize),
             },
+        };
+
+        overlay["Console"] = new Dictionary<string, object?>
+        {
+            ["SongControlStyle"] = settings.SongControlStyle.ToString(),
         };
 
         if (!string.IsNullOrWhiteSpace(settings.FFmpegPath))
