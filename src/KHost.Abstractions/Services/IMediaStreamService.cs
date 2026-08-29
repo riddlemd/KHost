@@ -8,13 +8,15 @@ namespace KHost.Abstractions.Services;
 public interface IMediaStreamService
 {
     /// <summary>
-    /// <paramref name="startOffset"/> is where the stream begins within the song;
-    /// <paramref name="pitch"/> is in semitones and is fixed for the session's lifetime.
+    /// <paramref name="startOffset"/> is where the stream begins within the song.
+    /// <paramref name="pitch"/> is in semitones and <paramref name="tempo"/> a percentage either
+    /// side of the recorded speed; both are fixed for the session's lifetime.
     /// </summary>
     Task<MediaStreamSession> OpenAsync(
         string filePath,
         TimeSpan startOffset = default,
         int pitch = 0,
+        int tempo = 0,
         CancellationToken cancellationToken = default);
 
     /// <summary>Unknown ids are ignored.</summary>

@@ -34,7 +34,11 @@ public interface ICastService
     Task DisconnectAsync(CancellationToken cancellationToken = default);
 
     /// <summary><paramref name="startOffset"/> is the song position the stream's zero maps to.</summary>
-    Task LoadAsync(string streamUrl, TimeSpan startOffset, CancellationToken cancellationToken = default);
+    /// <summary>
+    /// <paramref name="tempo"/> is the percentage the stream was transcoded at; a receiver reports
+    /// stream seconds, so it is what turns those back into song seconds.
+    /// </summary>
+    Task LoadAsync(string streamUrl, TimeSpan startOffset, int tempo = 0, CancellationToken cancellationToken = default);
 
     Task PlayAsync(CancellationToken cancellationToken = default);
     Task PauseAsync(CancellationToken cancellationToken = default);

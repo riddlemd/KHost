@@ -24,6 +24,9 @@ internal sealed class StreamMediaPlayer : IMediaPlayer
     /// <summary>Song position the current stream's zero maps to; added to reported positions.</summary>
     private TimeSpan _streamStartOffset;
 
+    /// <summary>Stream seconds times this are song seconds. The page never learns of it.</summary>
+    private double _rate = 1.0;
+
     /// <summary>This machine's clock plus this equals the host's. Near zero on the host's own box.</summary>
     private TimeSpan _clockOffset;
 
@@ -66,12 +69,13 @@ internal sealed class StreamMediaPlayer : IMediaPlayer
     }
 
     /// <summary>Points the page at a host stream. Not a file load — nothing local is opened.</summary>
-    public void LoadStream(string url, TimeSpan streamStartOffset)
+    public void LoadStream(string url, TimeSpan streamStartOffset, int tempo = 0)
     {
         lock (_lock)
         {
             _info = new IMediaPlayer.MediaInfo { FilePath = url };
             _streamStartOffset = streamStartOffset;
+            _rate = MediaStreamSession.RateFor(tempo);
             _position = streamStartOffset;
             _duration = TimeSpan.Zero;
             _isPlaying = false;
@@ -91,13 +95,17 @@ internal sealed class StreamMediaPlayer : IMediaPlayer
         Send(new { type = "clock", offsetMs = offset.TotalMilliseconds });
     }
 
-    /// <summary>Converted to stream time here, so the page never needs the song offset.</summary>
+    /// <summary>
+    /// Converted to stream time here, so the page never needs the song offset or the tempo: a
+    /// retimed stream still advances one stream second per second, which is all the page assumes.
+    /// </summary>
     public void SetTimeline(TimeSpan position, DateTime anchorUtc, bool isPlaying, bool isPrimary)
     {
         TimeSpan offset;
-        lock (_lock) offset = _streamStartOffset;
+        double rate;
+        lock (_lock) { offset = _streamStartOffset; rate = _rate; }
 
-        var withinStream = position - offset;
+        var withinStream = (position - offset) / rate;
 
         Send(new
         {
@@ -222,9 +230,10 @@ internal sealed class StreamMediaPlayer : IMediaPlayer
     public void Seek(TimeSpan position)
     {
         TimeSpan offset;
-        lock (_lock) offset = _streamStartOffset;
+        double rate;
+        lock (_lock) { offset = _streamStartOffset; rate = _rate; }
 
-        var within = position - offset;
+        var within = (position - offset) / rate;
         Send(new { type = "seek", position = Math.Max(0, within.TotalSeconds) });
     }
 
@@ -244,7 +253,7 @@ internal sealed class StreamMediaPlayer : IMediaPlayer
                     lock (_lock)
                     {
                         var reported = TimeSpan.FromSeconds(root.GetProperty("position").GetDouble());
-                        _position = _streamStartOffset + reported;
+                        _position = _streamStartOffset + (reported * _rate);
                         _isPlaying = root.GetProperty("playing").GetBoolean();
                         _isPaused = !_isPlaying && reported > TimeSpan.Zero;
 
@@ -255,7 +264,7 @@ internal sealed class StreamMediaPlayer : IMediaPlayer
 
                         // Unknown until the playlist gains an ENDLIST, so zero means "not yet".
                         if (root.TryGetProperty("duration", out var d) && d.GetDouble() > 0)
-                            _duration = _streamStartOffset + TimeSpan.FromSeconds(d.GetDouble());
+                            _duration = _streamStartOffset + (TimeSpan.FromSeconds(d.GetDouble()) * _rate);
                     }
                     return true;
 

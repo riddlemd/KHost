@@ -26,6 +26,14 @@ public interface IPlaybackService : IDisposable
 
     const int MinPitch = -6;
 
+    /// <summary>
+    /// Percent either side of the recorded speed. Past this the time-stretch smears badly enough
+    /// that a singer cannot follow it.
+    /// </summary>
+    const int MaxTempo = 50;
+
+    const int MinTempo = -50;
+
 
     /// <summary>
     /// A singer's performance finished, raised in the gap before break music comes back.
@@ -58,6 +66,12 @@ public interface IPlaybackService : IDisposable
     /// and Cast receivers hear it without being sent anything of their own.
     /// </summary>
     int Pitch { get; }
+
+    /// <summary>
+    /// Percent either side of the recorded speed; zero as recorded. Retimes the picture with the
+    /// audio, so the song is genuinely shorter or longer in wall-clock time than its duration says.
+    /// </summary>
+    int Tempo { get; }
 
     /// <summary>
     /// Whether at least one screen is connected. Screens render both audio and video, so
@@ -94,6 +108,13 @@ public interface IPlaybackService : IDisposable
     /// set, not that the room has heard it: the transcode is rebuilt after a settling delay.
     /// </summary>
     Task SetPitchAsync(int semitones);
+
+    /// <summary>
+    /// Clamped to <see cref="MinTempo"/>..<see cref="MaxTempo"/>. Settles and rebuilds the
+    /// transcode exactly as <see cref="SetPitchAsync"/> does, and the two share one settle: a host
+    /// changing both gets one break in the song rather than two.
+    /// </summary>
+    Task SetTempoAsync(int tempo);
 }
 
 // Stopping is appended so the existing numeric values stay stable for telemetry.

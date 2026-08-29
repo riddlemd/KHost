@@ -13,5 +13,11 @@ public class Performance : RepositoryModel
     /// </summary>
     public int Pitch { get; set; }
 
+    /// <summary>
+    /// Percent either side of the recorded speed. Survives the song for the same reason as
+    /// <see cref="Pitch"/>, and comes back with it when the row is re-queued.
+    /// </summary>
+    public int Tempo { get; set; }
+
     public DateTime CreatedDate { get; set; }
 }
