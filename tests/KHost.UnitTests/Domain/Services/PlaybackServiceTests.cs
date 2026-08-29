@@ -110,7 +110,8 @@ public class PlaybackServiceTests : IDisposable
     private PlaybackService MakeService(
         TimeSpan stopFadeDuration,
         TimeSpan? pitchSettleDelay = null,
-        int defaultBackingVolume = AudioMix.DefaultBackingVolume) => new(
+        int defaultBackingVolume = AudioMix.DefaultBackingVolume,
+        TimeSpan? retireGrace = null) => new(
         _logger,
         _queueService,
         _performanceService,
@@ -128,6 +129,9 @@ public class PlaybackServiceTests : IDisposable
             // The delay exists to collapse a burst of presses; the collapsing has its own test.
             PitchSettleDelay = pitchSettleDelay ?? TimeSpan.Zero,
             DefaultBackingVolume = defaultBackingVolume,
+            // The grace exists so a consumer can finish reading the old session; the tests assert
+            // on what was closed, not on when.
+            StreamRetireGrace = retireGrace ?? TimeSpan.Zero,
         }),
         _audioTracks,
         _broker);
@@ -2946,6 +2950,143 @@ public class PlaybackServiceTests : IDisposable
         // Forwards, or backwards inside a stream that began at zero, costs no ffmpeg restart.
         Assert.False(await WaitForStreamsOpenedAsync(2, attempts: 10));
         Assert.Equal(TimeSpan.FromSeconds(90), LastBroadcast<SeekCommand>()?.Position);
+    }
+
+    [Fact]
+    public async Task Reopen_OpensTheReplacementBeforeClosingWhatIsPlaying()
+    {
+        var closedWhileOpening = new List<string>();
+        var (performance, media) = CreatePerformance();
+
+        await _service.LoadAsync(performance, media);
+        await _service.PlayAsync();
+
+        // Records what had already been closed at the moment the replacement was asked for.
+        _mediaStreams
+            .When(m => m.OpenAsync(Arg.Any<string>(), Arg.Any<TimeSpan>(), Arg.Any<int>(), Arg.Any<int>(),
+                                   Arg.Any<AudioMix?>(), Arg.Any<CancellationToken>()))
+            .Do(_ => closedWhileOpening.AddRange(
+                _mediaStreams.ReceivedCalls()
+                    .Where(c => c.GetMethodInfo().Name == nameof(IMediaStreamService.CloseAsync))
+                    .Select(c => (string)c.GetArguments()[0]!)));
+
+        await _service.SetPitchAsync(2);
+        Assert.True(await WaitForStreamsOpenedAsync(2));
+
+        // The screens play on from their buffer while ffmpeg spins up, and hear nothing at all if
+        // the old transcode was already gone.
+        Assert.DoesNotContain("stream-1", closedWhileOpening);
+        await _mediaStreams.Received().CloseAsync("stream-1");
+    }
+
+    [Fact]
+    public async Task Reopen_KeepsTheSongPlaying_WhenTheReplacementCannotBeBuilt()
+    {
+        var (performance, media) = CreatePerformance();
+        await _service.LoadAsync(performance, media);
+        await _service.PlayAsync();
+
+        _mediaStreams
+            .OpenAsync(Arg.Any<string>(), Arg.Any<TimeSpan>(), Arg.Any<int>(), Arg.Any<int>(),
+                       Arg.Any<AudioMix?>(), Arg.Any<CancellationToken>())
+            .Returns<MediaStreamSession>(_ => throw new InvalidOperationException("ffmpeg said no"));
+
+        await _service.SetPitchAsync(2);
+        await Task.Delay(200);
+
+        // A rebuild that fails costs the host their change, not the song: the old session is still
+        // open and the screens are still playing it.
+        await _mediaStreams.DidNotReceive().CloseAsync("stream-1");
+        Assert.Equal(PlaybackState.Playing, _service.State);
+    }
+
+    [Fact]
+    public async Task Reopen_ResumesPastWhereTheRebuildStarted_NotBackAtIt()
+    {
+        _cast.ConnectedDeviceId.Returns("Living Room TV");
+
+        // A slow rebuild, so the compensation is larger than the clock's own resolution.
+        _mediaStreams
+            .OpenAsync(Arg.Any<string>(), Arg.Any<TimeSpan>(), Arg.Any<int>(), Arg.Any<int>(),
+                       Arg.Any<AudioMix?>(), Arg.Any<CancellationToken>())
+            .Returns(async call =>
+            {
+                await Task.Delay(250);
+                return new MediaStreamSession
+                {
+                    Id = $"stream-{Interlocked.Increment(ref _streamsOpened)}",
+                    SourcePath = call.ArgAt<string>(0),
+                    PlaylistUrl = $"http://host/media/stream-{_streamsOpened}/stream.m3u8",
+                    StartOffset = call.ArgAt<TimeSpan>(1),
+                    Pitch = call.ArgAt<int>(2),
+                    Tempo = call.ArgAt<int>(3),
+                };
+            });
+
+        var (performance, media) = CreatePerformance();
+        await _service.LoadAsync(performance, media);
+        await _service.PlayAsync();
+        await _service.SeekAsync(TimeSpan.FromSeconds(60));
+
+        await _service.SetPitchAsync(2);
+        Assert.True(await WaitForStreamsOpenedAsync(2));
+        await Task.Delay(100);
+
+        // The screens played on from their buffer for the whole rebuild, so coming back at 60
+        // would replay what the room just heard.
+        Assert.True(_service.Position > TimeSpan.FromSeconds(60.2),
+            $"resumed at {_service.Position}, which repeats the rebuild");
+        Assert.Equal(TimeSpan.FromSeconds(60), LastOpenedAt());
+
+        // The group is anchored on the timeline, not on the host's own clock: left at the old
+        // position it would drag every synced screen back over what it had already played.
+        Assert.True(LastTimeline()?.Position > TimeSpan.FromSeconds(60.2),
+            $"timeline anchored at {LastTimeline()?.Position}");
+
+        // A receiver takes no timeline and cannot be corrected onto one, so it has to be told
+        // outright or it is the only thing in the room still replaying the rebuild.
+        await _cast.Received().SeekAsync(
+            Arg.Is<TimeSpan>(t => t > TimeSpan.FromSeconds(60.2)), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Seek_LandsWhereItWasAsked_NotPastIt()
+    {
+        var (performance, media) = CreatePerformance();
+        await _service.LoadAsync(performance, media);
+        await _service.PlayAsync();
+        await _service.SeekAsync(TimeSpan.FromSeconds(200));
+        await _service.SetPitchAsync(2);
+        Assert.True(await WaitForStreamsOpenedAsync(2));
+
+        await _service.SeekAsync(TimeSpan.FromSeconds(30));
+        Assert.True(await WaitForStreamsOpenedAsync(3));
+
+        // A rebuild driven by a seek must not carry the host past the place they asked for: the
+        // room heard nothing there to avoid repeating.
+        Assert.Equal(TimeSpan.FromSeconds(30), _service.Position);
+    }
+
+    private TimeSpan LastOpenedAt() => (TimeSpan)_mediaStreams.ReceivedCalls()
+        .Last(c => c.GetMethodInfo().Name == nameof(IMediaStreamService.OpenAsync))
+        .GetArguments()[1]!;
+
+    [Fact]
+    public async Task Reopen_LeavesTheOldSessionStanding_ForConsumersStillReadingIt()
+    {
+        // A real grace, so the assertion is about the delay rather than the eventual close.
+        using var service = MakeService(TimeSpan.Zero, retireGrace: TimeSpan.FromSeconds(30));
+        var (performance, media) = CreatePerformance();
+        await service.LoadAsync(performance, media);
+        await service.PlayAsync();
+
+        await service.SetPitchAsync(2);
+        Assert.True(await WaitForStreamsOpenedAsync(2));
+        await Task.Delay(200);
+
+        // Closing deletes the directory. A receiver has no second player to cross to, so it is
+        // still fetching segments from the old one and would read the 404 body as media.
+        await _mediaStreams.DidNotReceive().CloseAsync("stream-1");
     }
 
     private async Task<bool> WaitForStreamsOpenedAsync(int count, int attempts = 50)
