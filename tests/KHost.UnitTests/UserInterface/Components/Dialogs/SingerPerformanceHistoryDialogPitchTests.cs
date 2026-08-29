@@ -88,6 +88,43 @@ public class SingerPerformanceHistoryDialogPitchTests : BunitContext
     }
 
     [Fact]
+    public void Enqueue_CarriesTheVocalLevelsTheSongWasMixedAt()
+    {
+        History(new Performance
+        {
+            Id = Guid.NewGuid(),
+            SingerId = _singerId,
+            MediaId = _media.Id,
+            LeadVolume = 35,
+            BackingVolume = 70,
+        });
+
+        var dialog = Render<SingerPerformanceHistoryDialog>(p => p
+            .Add(d => d.IsOpen, true)
+            .Add(d => d.UserId, _singerId));
+
+        dialog.Find(EnqueueSelector).Click();
+
+        _performances.Received(1).CreateAndEnqueueAsync(
+            Arg.Is<Performance>(p => p.LeadVolume == 35 && p.BackingVolume == 70));
+    }
+
+    [Fact]
+    public void Enqueue_LeavesAnUnmixedSongUnmixed()
+    {
+        History(new Performance { Id = Guid.NewGuid(), SingerId = _singerId, MediaId = _media.Id });
+
+        var dialog = Render<SingerPerformanceHistoryDialog>(p => p
+            .Add(d => d.IsOpen, true)
+            .Add(d => d.UserId, _singerId));
+
+        dialog.Find(EnqueueSelector).Click();
+
+        // Null, not zero: nobody balanced this one, so the machine setting still answers for it.
+        _performances.Received(1).CreateAndEnqueueAsync(Arg.Is<Performance>(p => p.BackingVolume == null));
+    }
+
+    [Fact]
     public void Row_ShowsTheKeyItWasSungIn()
     {
         History(new Performance { Id = Guid.NewGuid(), SingerId = _singerId, MediaId = _media.Id, Pitch = -2 });

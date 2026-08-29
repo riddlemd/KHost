@@ -171,6 +171,31 @@ public class PerformanceServiceTests
     }
 
     [Fact]
+    public async Task CreateAndEnqueueAsync_StampsACreatedDate_WhenTheCallerDidNot()
+    {
+        var before = DateTime.UtcNow;
+
+        var performance = await _service.CreateAndEnqueueAsync(
+            new Performance { Id = Guid.NewGuid(), SingerId = Guid.NewGuid(), MediaId = Guid.NewGuid() });
+
+        // History is ordered on this. Unstamped, a performance sorts below every real one and the
+        // singer's newest song is the one missing from the first page of their history.
+        Assert.NotNull(performance);
+        Assert.InRange(performance.CreatedDate, before, DateTime.UtcNow);
+    }
+
+    [Fact]
+    public async Task CreateAndEnqueueAsync_KeepsACreatedDateTheCallerSupplied()
+    {
+        var sungAt = new DateTime(2026, 3, 4, 5, 6, 7, DateTimeKind.Utc);
+
+        var performance = await _service.CreateAndEnqueueAsync(
+            new Performance { Id = Guid.NewGuid(), SingerId = Guid.NewGuid(), MediaId = Guid.NewGuid(), CreatedDate = sungAt });
+
+        Assert.Equal(sungAt, performance!.CreatedDate);
+    }
+
+    [Fact]
     public async Task CreateAndEnqueueAsync_AnnouncesPerformancesChanged()
     {
         var raised = false;

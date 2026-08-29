@@ -232,6 +232,99 @@ public class HlsMediaStreamServiceTests : IDisposable
         Assert.Equal(Math.Pow(2.0, pitch / 12.0), AsetrateRatio(arguments), 4);
     }
 
+    [Fact]
+    public void BuildArguments_BalancesTheVoicesOverTheMusic()
+    {
+        var arguments = HlsMediaStreamService.BuildArguments(
+            "/songs/a.mp4", TimeSpan.Zero, 0, 0, 2, null, ThreeTrackMix(lead: 40, backing: 80));
+
+        // The music is the reference the voices are set against, so it is never anything but full.
+        Assert.Contains("[0:a:0]volume=1.000[m]", arguments);
+        Assert.Contains("[0:a:2]volume=0.400[l]", arguments);
+        Assert.Contains("[0:a:1]volume=0.800[b]", arguments);
+    }
+
+    [Fact]
+    public void BuildArguments_KeepsAmixFromNormalising()
+    {
+        var arguments = HlsMediaStreamService.BuildArguments(
+            "/songs/a.mp4", TimeSpan.Zero, 0, 0, 2, null, ThreeTrackMix(100, 100));
+
+        // Left to normalise, amix divides by the input count and drops the whole mix several dB.
+        Assert.Contains("amix=inputs=3:normalize=0", arguments);
+    }
+
+    [Fact]
+    public void BuildArguments_MapsTheMixedResult_NotARawTrack()
+    {
+        var arguments = HlsMediaStreamService.BuildArguments(
+            "/songs/a.mp4", TimeSpan.Zero, 0, 0, 2, null, ThreeTrackMix(0, 100));
+
+        // Without saying which streams to take, ffmpeg carries a raw track through beside the mix.
+        Assert.Contains("-map 0:v:0 -map \"[a]\"", arguments);
+        Assert.DoesNotContain("-af", arguments);
+    }
+
+    [Fact]
+    public void BuildArguments_RidesPitchAndTempoOnTheMix_NotOnOneTrack()
+    {
+        var arguments = HlsMediaStreamService.BuildArguments(
+            "/songs/a.mp4", TimeSpan.Zero, 2, -10, 2, null, ThreeTrackMix(50, 50));
+
+        // The transposition belongs to the song, so it has to come after the voices are combined.
+        var mix = arguments.IndexOf("amix=", StringComparison.Ordinal);
+        var pitch = arguments.IndexOf("asetrate=", StringComparison.Ordinal);
+
+        Assert.True(mix < pitch, arguments);
+        Assert.Contains("[x]aresample=", arguments);
+    }
+
+    [Fact]
+    public void BuildArguments_LeavesASingleTrackFileOnTheSimplePath()
+    {
+        var arguments = HlsMediaStreamService.BuildArguments(
+            "/songs/a.mp4", TimeSpan.Zero, 2, 0, 2, null,
+            new AudioMix([new AudioTrack(0, AudioTrackRole.Music, "Instrumental")], 0, 100));
+
+        // One track is nothing to balance; building a graph for it would only add ways to fail.
+        Assert.DoesNotContain("filter_complex", arguments);
+        Assert.Contains("-af", arguments);
+    }
+
+    [Fact]
+    public void BuildArguments_MixesWhatTheFileHas_WhenThereIsNoBackingTrack()
+    {
+        var arguments = HlsMediaStreamService.BuildArguments(
+            "/songs/a.mp4", TimeSpan.Zero, 0, 0, 2, null,
+            new AudioMix(
+            [
+                new AudioTrack(0, AudioTrackRole.Music, "Instrumental"),
+                new AudioTrack(1, AudioTrackRole.Lead, "Lead Vocal"),
+            ], LeadVolume: 30, BackingVolume: 100));
+
+        Assert.Contains("amix=inputs=2:normalize=0", arguments);
+        Assert.Contains("[0:a:1]volume=0.300[l]", arguments);
+    }
+
+    [Theory]
+    [InlineData(-40, "0.000")]
+    [InlineData(180, "1.000")]
+    public void BuildArguments_ClampsAVolumeToWhatAFaderCanAsk(int lead, string expected)
+    {
+        var arguments = HlsMediaStreamService.BuildArguments(
+            "/songs/a.mp4", TimeSpan.Zero, 0, 0, 2, null, ThreeTrackMix(lead, 100));
+
+        Assert.Contains($"volume={expected}[l]", arguments);
+    }
+
+    /// <summary>Named and ordered as the real files are: music first, then backing, then lead.</summary>
+    private static AudioMix ThreeTrackMix(int lead, int backing) => new(
+    [
+        new AudioTrack(0, AudioTrackRole.Music, "Instrumental"),
+        new AudioTrack(1, AudioTrackRole.Backing, "Backing Vocal"),
+        new AudioTrack(2, AudioTrackRole.Lead, "Lead Vocal"),
+    ], lead, backing);
+
     private static int CountOccurrences(string haystack, string needle)
     {
         var count = 0;

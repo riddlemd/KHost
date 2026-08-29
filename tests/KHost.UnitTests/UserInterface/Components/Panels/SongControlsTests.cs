@@ -4,6 +4,8 @@ using KHost.Abstractions.Services;
 using KHost.Domain.Services.Messaging;
 using KHost.Plugins.Sdk.Messaging;
 using KHost.UserInterface.Components.Panels;
+using KHost.UserInterface.Models;
+using KHost.UserInterface.Services;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -18,16 +20,21 @@ namespace KHost.UnitTests.UserInterface.Components.Panels;
 public class SongControlsTests : BunitContext
 {
     private const string Trigger = ".kh-song-controls__trigger";
-    private const string Sliders = ".kh-song-controls__slider";
-    private const string Values = ".kh-song-controls__value";
+    private const string Sliders = ".kh-song-control--slider .kh-song-control__track";
+    private const string Values = ".kh-song-control__value";
 
     private readonly IPlaybackService _playback = Substitute.For<IPlaybackService>();
+    private readonly IAppSettingsService _appSettings = Substitute.For<IAppSettingsService>();
+    private readonly AppSettings _settings = new();
 
     public SongControlsTests()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
 
+        _appSettings.Current.Returns(_settings);
+
         Services.AddSingleton(_playback);
+        Services.AddSingleton(_appSettings);
         Services.AddSingleton<IMessageBroker>(new MessageBroker(NullLogger<MessageBroker>.Instance));
     }
 
@@ -113,19 +120,220 @@ public class SongControlsTests : BunitContext
     }
 
     [Theory]
-    [InlineData(0, 0, false)]
-    [InlineData(2, 0, true)]
-    [InlineData(0, -10, true)]
-    public void Readout_IsMarked_OnlyWhenItIsNotAsRecorded(int pitch, int tempo, bool marked)
+    [InlineData(0, null)]
+    [InlineData(2, "kh-song-control__value--up")]
+    [InlineData(-2, "kh-song-control__value--down")]
+    public void Readout_TakesItsColourFromTheSign(int pitch, string? expected)
     {
         _playback.Pitch.Returns(pitch);
-        _playback.Tempo.Returns(tempo);
 
         var cut = Open();
-        var markedCount = cut.FindAll(".kh-song-controls__value--on").Count;
+        var className = cut.FindAll(Values)[0].ClassName ?? "";
 
-        Assert.Equal(marked, markedCount > 0);
+        // The number and the bar must never disagree about which way the song moved.
+        if (expected is null)
+        {
+            Assert.DoesNotContain("--up", className);
+            Assert.DoesNotContain("--down", className);
+        }
+        else
+        {
+            Assert.Contains(expected, className);
+        }
     }
+
+    [Fact]
+    public void Track_PaintsNothingAtRest()
+    {
+        _playback.Pitch.Returns(0);
+
+        var cut = Open();
+
+        // No line at zero: an untouched panel should read as untouched.
+        Assert.Contains("--fill:transparent", cut.FindAll(Sliders)[0].GetAttribute("style"));
+    }
+
+    [Fact]
+    public void Track_PaintsRightwardInGreen_AndLeftwardInRed()
+    {
+        _playback.Pitch.Returns(3);
+        _playback.Tempo.Returns(-25);
+
+        var cut = Open();
+        var sliders = cut.FindAll(Sliders);
+
+        // Key +3 of −6..+6: from the centre (0.5) rightward to 0.75.
+        var key = sliders[0].GetAttribute("style")!;
+        Assert.Contains("--from-frac:0.5000", key);
+        Assert.Contains("--to-frac:0.7500", key);
+        Assert.Contains("--fill:var(--kh-success)", key);
+
+        // Tempo −25 of ±50: leftward from 0.25 back to the centre.
+        var tempo = sliders[1].GetAttribute("style")!;
+        Assert.Contains("--from-frac:0.2500", tempo);
+        Assert.Contains("--to-frac:0.5000", tempo);
+        Assert.Contains("--fill:var(--kh-danger)", tempo);
+    }
+
+    [Fact]
+    public void Track_PaintsAVolumeFromTheLeft_NotTheMiddle()
+    {
+        GiveVocalTracks();
+        _playback.LeadVolume.Returns(40);
+
+        var cut = Open();
+        var lead = cut.FindAll(Sliders)[2].GetAttribute("style")!;
+
+        // A volume has no negative side, so its rest is the left edge.
+        Assert.Contains("--from-frac:0.0000", lead);
+        Assert.Contains("--to-frac:0.4000", lead);
+        Assert.Contains("--fill:var(--kh-success)", lead);
+    }
+
+    [Fact]
+    public void VocalRows_AreHidden_ForAnOrdinarySingleTrackSong()
+    {
+        var cut = Open();
+
+        // Most songs carry one audio stream; offering faders for voices that are not there
+        // would be two controls that do nothing.
+        Assert.Equal(2, cut.FindAll(Sliders).Count);
+    }
+
+    [Fact]
+    public void VocalRows_AppearForAFileThatShipsItsVoicesApart()
+    {
+        GiveVocalTracks();
+
+        var cut = Open();
+
+        Assert.Equal(4, cut.FindAll(Sliders).Count);
+    }
+
+    [Fact]
+    public void VocalRows_ShowOnlyTheVoicesTheFileHas()
+    {
+        _playback.AudioTracks.Returns<IReadOnlyList<AudioTrack>>(
+        [
+            new AudioTrack(0, AudioTrackRole.Music, "Instrumental"),
+            new AudioTrack(1, AudioTrackRole.Lead, "Lead Vocal"),
+        ]);
+
+        var cut = Open();
+
+        // A file with no harmonies gets no backing fader.
+        Assert.Equal(3, cut.FindAll(Sliders).Count);
+        Assert.DoesNotContain("Backing", cut.Markup);
+    }
+
+    [Fact]
+    public void VocalSliders_CommitOnRelease()
+    {
+        GiveVocalTracks();
+
+        var cut = Open();
+        var sliders = cut.FindAll(Sliders);
+
+        sliders[2].Change("60");
+        sliders[3].Change("35");
+
+        _playback.Received(1).SetLeadVolumeAsync(60);
+        _playback.Received(1).SetBackingVolumeAsync(35);
+    }
+
+    [Fact]
+    public void Trigger_IsNotMarkedByTheVocalLevels()
+    {
+        GiveVocalTracks();
+        _playback.CurrentPerformance.Returns(new Performance { SingerId = Guid.NewGuid() });
+        _playback.LeadVolume.Returns(0);
+        _playback.BackingVolume.Returns(100);
+
+        var cut = Render<SongControls>();
+
+        // Those are where every song starts, so counting them marks the trigger all night.
+        Assert.Empty(cut.FindAll(".kh-song-controls__icon--on"));
+    }
+
+    [Fact]
+    public void Panel_DrawsDials_WhenTheSettingSaysSo()
+    {
+        _settings.SongControlStyle = SongControlStyle.Dials;
+        GiveVocalTracks();
+
+        var cut = Open();
+
+        Assert.Equal(4, cut.FindAll(".kh-song-control--dial").Count);
+        Assert.Empty(cut.FindAll(".kh-song-control--slider"));
+    }
+
+    [Fact]
+    public void Panel_DrawsSlidersByDefault()
+    {
+        GiveVocalTracks();
+
+        var cut = Open();
+
+        Assert.Equal(4, cut.FindAll(".kh-song-control--slider").Count);
+        Assert.Empty(cut.FindAll(".kh-song-control--dial"));
+    }
+
+    [Fact]
+    public void Dials_CommitTheSameValuesAsSliders()
+    {
+        _settings.SongControlStyle = SongControlStyle.Dials;
+        GiveVocalTracks();
+
+        var cut = Open();
+        var grips = cut.FindAll(".kh-song-control__grip");
+
+        grips[0].Change("-3");
+        grips[3].Change("45");
+
+        // Both shapes drive the same values; only the drawing differs.
+        _playback.Received(1).SetPitchAsync(-3);
+        _playback.Received(1).SetBackingVolumeAsync(45);
+    }
+
+    [Theory]
+    [InlineData(0, "transparent")]
+    [InlineData(3, "var(--kh-success)")]
+    [InlineData(-3, "var(--kh-danger)")]
+    public void Dial_ColoursItsArcBySign(int pitch, string expected)
+    {
+        _settings.SongControlStyle = SongControlStyle.Dials;
+        _playback.Pitch.Returns(pitch);
+
+        var cut = Open();
+
+        // A round cap paints a dot even on a zero-length dash, so rest has to draw in nothing
+        // rather than draw nothing.
+        var arcs = cut.FindAll(".kh-song-control--dial .kh-song-control__arc circle");
+        Assert.Equal(expected, arcs[1].GetAttribute("stroke"));
+    }
+
+    [Fact]
+    public void Dial_PushesTheArcToWhereTheSpanStarts()
+    {
+        _settings.SongControlStyle = SongControlStyle.Dials;
+        _playback.Tempo.Returns(25);
+
+        var cut = Open();
+        var arc = cut.FindAll(".kh-song-control--dial .kh-song-control__arc circle")[3];
+
+        // Tempo +25 of ±50 runs from the centre of the travel to three quarters along it. The
+        // segment is dashed to its own length and pushed there by a negative offset.
+        Assert.Equal("30.63 163.36", arc.GetAttribute("stroke-dasharray"));
+        Assert.Equal("-61.26", arc.GetAttribute("stroke-dashoffset"));
+    }
+
+    private void GiveVocalTracks() =>
+        _playback.AudioTracks.Returns<IReadOnlyList<AudioTrack>>(
+        [
+            new AudioTrack(0, AudioTrackRole.Music, "Instrumental"),
+            new AudioTrack(1, AudioTrackRole.Backing, "Backing Vocal"),
+            new AudioTrack(2, AudioTrackRole.Lead, "Lead Vocal"),
+        ]);
 
     [Fact]
     public void ClosedTrigger_SaysWhenTheSongIsNotAsRecorded()
