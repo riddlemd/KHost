@@ -983,7 +983,13 @@ public class PlaybackService : BaseService, IPlaybackService
             Position = resumeAt;
 
             if (resumeAt > position)
+            {
                 await SendToScreensAsync(new SeekCommand { Position = resumeAt });
+
+                // A receiver was loaded at the stream's own start like everything else, so without
+                // this it alone resumes behind the room by however long the rebuild took.
+                await CastAsync(c => c.SeekAsync(resumeAt));
+            }
 
             await SendToScreensAsync(new PlayCommand());
             await CastAsync(c => c.PlayAsync());
