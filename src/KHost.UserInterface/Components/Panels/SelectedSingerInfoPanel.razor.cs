@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.JSInterop;
@@ -325,6 +326,12 @@ public partial class SelectedSingerInfoPanel : IDisposable
             _lifetimeTotalInCents = 0;
         }
     }
+
+    private static string FormatPitch(int semitones) =>
+        semitones.ToString("+#;\u2212#;0", CultureInfo.InvariantCulture);
+
+    private static string FormatTempo(int tempo) =>
+        tempo.ToString("+#;\u2212#;0", CultureInfo.InvariantCulture) + "%";
 
     public void Dispose()
     {

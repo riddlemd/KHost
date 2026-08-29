@@ -41,14 +41,15 @@ public class ScreenDisconnectPausesPlaybackTests : IDisposable
         // command no screen could act on.
         var mediaStreams = Substitute.For<IMediaStreamService>();
         mediaStreams
-            .OpenAsync(Arg.Any<string>(), Arg.Any<TimeSpan>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .OpenAsync(Arg.Any<string>(), Arg.Any<TimeSpan>(), Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
             .Returns(call => new MediaStreamSession
             {
                 Id = "stream-1",
                 SourcePath = call.ArgAt<string>(0),
                 PlaylistUrl = "http://host/media/stream-1/stream.m3u8",
                 StartOffset = call.ArgAt<TimeSpan>(1),
-                PitchSemitones = 0,
+                Pitch = 0,
+                Tempo = 0,
             });
 
         _playbackService = new PlaybackService(
