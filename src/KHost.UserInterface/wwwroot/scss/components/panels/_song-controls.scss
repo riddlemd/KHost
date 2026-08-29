@@ -201,6 +201,15 @@
     display: grid;
     place-items: center;
 
+    // The ring goes on the knob, not on the input inside it: that input is the whole native
+    // range control held at zero opacity, so lighting it up to carry a focus ring paints a
+    // slider across the dial it is meant to be driving.
+    &:has(.kh-song-control__grip:focus-visible) {
+        border-radius: 50%;
+        outline: 2px solid var(--kh-success);
+        outline-offset: 2px;
+    }
+
     .kh-song-control__arc {
         position: absolute;
         inset: 0;
@@ -225,10 +234,8 @@
     opacity: 0;
     cursor: ew-resize;
 
+    // Stays invisible even when focused; the knob around it draws the ring.
     &:focus-visible {
-        opacity: 1;
-        outline: 2px solid var(--kh-success);
-        outline-offset: -2px;
-        background: transparent;
+        outline: none;
     }
 }

@@ -28,6 +28,14 @@ public interface ICastService
 
     string? ConnectedDeviceId { get; }
 
+    /// <summary>
+    /// Identifies the receiver app session, not the device. It changes whenever the app is
+    /// launched — on a fresh connection, and again if a receiver that restarted has to be picked
+    /// back up — so a caller can tell "still the session I loaded into" from "a session that has
+    /// forgotten everything". Null when nothing is connected.
+    /// </summary>
+    Guid? SessionId { get; }
+
     /// <summary>Replaces whatever was connected before: one song, one receiver.</summary>
     Task<bool> ConnectAsync(string deviceId, CancellationToken cancellationToken = default);
 
