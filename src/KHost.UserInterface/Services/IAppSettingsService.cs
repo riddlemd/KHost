@@ -1,4 +1,5 @@
 using KHost.Abstractions.Models;
+using KHost.UserInterface.Models;
 
 namespace KHost.UserInterface.Services;
 
@@ -29,6 +30,12 @@ public sealed class AppSettings
     /// vocal has no setting: a singer is there to replace it, so it always starts silent.
     /// </summary>
     public int BackingVocalVolume { get; set; } = AudioMix.DefaultBackingVolume;
+
+    /// <summary>
+    /// Which shape the key, tempo and vocal controls take. Presentation only — both drive the
+    /// same values, so switching mid-song changes nothing the room can hear.
+    /// </summary>
+    public SongControlStyle SongControlStyle { get; set; } = SongControlStyle.Sliders;
 
     public const double DefaultAdDurationSeconds = 10;
     // A spot has to be long enough to read and short enough that the room does not turn back to

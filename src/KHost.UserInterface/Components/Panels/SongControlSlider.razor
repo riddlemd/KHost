@@ -1,0 +1,9 @@
+<div class="kh-song-control kh-song-control--slider">
+    <span class="kh-song-control__label">@Label</span>
+    <input type="range" class="kh-song-control__track"
+           style="@FillStyle"
+           min="@Min" max="@Max" step="@Step" value="@Value"
+           @oninput="OnInputAsync" @onchange="OnChangeAsync"
+           aria-label="@(AriaLabel ?? Label)" />
+    <span class="kh-song-control__value @Span.ValueClass">@Format(Value)</span>
+</div>
