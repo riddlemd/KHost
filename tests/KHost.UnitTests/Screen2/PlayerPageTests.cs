@@ -61,8 +61,8 @@ public class PlayerPageTests
     {
         var page = Program.BuildPlayerPage();
 
-        Assert.Contains("video.srcObject = mediaSource", page, StringComparison.Ordinal);
-        Assert.Contains("hls.attachMedia({ media: video, mediaSource })", page, StringComparison.Ordinal);
+        Assert.Contains("el.srcObject = mediaSource", page, StringComparison.Ordinal);
+        Assert.Contains("instance.attachMedia({ media: el, mediaSource })", page, StringComparison.Ordinal);
     }
 
     // Chromium's srcObject takes only a MediaStream or a MediaSourceHandle and throws TypeError on
@@ -74,7 +74,7 @@ public class PlayerPageTests
         var page = Program.BuildPlayerPage();
 
         Assert.Contains("try {", page, StringComparison.Ordinal);
-        Assert.Contains("hls.attachMedia(video);", page, StringComparison.Ordinal);
+        Assert.Contains("instance.attachMedia(el);", page, StringComparison.Ordinal);
     }
 
     // teardown clears src; an attached MediaSource outlives that, and the next song would then
@@ -84,13 +84,18 @@ public class PlayerPageTests
     {
         var page = Program.BuildPlayerPage();
 
-        Assert.Contains("video.srcObject = null", page, StringComparison.Ordinal);
+        Assert.Contains("el.srcObject = null", page, StringComparison.Ordinal);
     }
 
     [Fact]
     public void BuildPlayerPage_Always_KeepsTheElementsThePlayerDrives()
     {
         var page = Program.BuildPlayerPage();
+
+        // Two players, stacked: a rebuilt stream is brought up behind the one still sounding and
+        // swapped for it, so the room never hears the join.
+        Assert.Contains("id=\"video-b\"", page);
+        Assert.Contains("function handOver(next)", page, StringComparison.Ordinal);
 
         Assert.Contains("id=\"video\"", page);
         Assert.Contains("id=\"background\"", page);

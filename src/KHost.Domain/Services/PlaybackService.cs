@@ -31,6 +31,13 @@ public class PlaybackService : BaseService, IPlaybackService
         /// setting: a singer is there to replace it, so it always starts out of the way.
         /// </summary>
         public int DefaultBackingVolume { get; set; } = AudioMix.DefaultBackingVolume;
+
+        /// <summary>
+        /// How long a replaced transcode is left standing before its directory is deleted. A
+        /// consumer that has not moved to the replacement yet is still fetching segments out of
+        /// it, and a receiver has no second player to cross to — it reads the 404 body as media.
+        /// </summary>
+        public TimeSpan StreamRetireGrace { get; set; } = TimeSpan.FromSeconds(8);
     }
 
     private const int ClockIntervalMs = 500;
@@ -891,7 +898,10 @@ public class PlaybackService : BaseService, IPlaybackService
     /// <summary>Throws when the transcode will not start: there is no playback without it.</summary>
     private async Task<LoadMediaCommand> BuildLoadCommandAsync(Media media, TimeSpan startOffset)
     {
-        await CloseStreamAsync();
+        // Held, not closed. Tearing the old transcode down first leaves the room on whatever the
+        // screens have buffered while the new one spins up, and leaves them on nothing at all if
+        // it never does — a rebuild that fails now costs the change, not the song.
+        var superseded = _stream;
 
         // Not swallowed: every screen plays the host's stream, so without one there is nothing to
         // send and pretending otherwise leaves the room staring at a screen that never starts.
@@ -908,6 +918,13 @@ public class PlaybackService : BaseService, IPlaybackService
                 "Check the file is still on the drive, then try again.",
                 "KH-STREAM-OPEN",
                 ex);
+        }
+        finally
+        {
+            // Retired rather than closed, and only if the replacement actually took: on failure
+            // _stream still points at the old session, and closing it would take the song too.
+            if (!ReferenceEquals(superseded, _stream))
+                RetireSession(superseded);
         }
 
         var command = DescribeStream(media);
@@ -949,6 +966,8 @@ public class PlaybackService : BaseService, IPlaybackService
                 "Reopening '{Title}' at {Position} pitched {Semitones:+#;-#;0} tempo {Tempo:+#;-#;0}%",
                 media.Title, position, Pitch, Tempo);
 
+            var startedAt = DateTime.UtcNow;
+
             // Opened at the playhead, not opened at zero and seeked: the stream's own zero moves
             // with it, which is what StreamStartOffset carries to the screens.
             await SendToScreensAsync(await BuildLoadCommandAsync(media, position));
@@ -960,11 +979,30 @@ public class PlaybackService : BaseService, IPlaybackService
                 return;
             }
 
+            // The room did not stop while the rebuild ran — the screens played on from their
+            // buffer — so resuming where the playhead stood would replay what was just heard.
+            // Only for a rate change: a host who asked to seek somewhere means that place, and
+            // carrying them past it would answer a different question.
+            var resumeAt = at is null
+                ? Clamp(position + ((DateTime.UtcNow - startedAt) * Rate), media.Duration)
+                : position;
+
+            Position = resumeAt;
+
+            if (resumeAt > position)
+            {
+                await SendToScreensAsync(new SeekCommand { Position = resumeAt });
+
+                // A receiver was loaded at the stream's own start like everything else, so without
+                // this it alone resumes behind the room by however long the rebuild took.
+                await CastAsync(c => c.SeekAsync(resumeAt));
+            }
+
             await SendToScreensAsync(new PlayCommand());
             await CastAsync(c => c.PlayAsync());
 
             // The reload froze the clock, so the whole group has to be re-anchored.
-            await PublishTimelineAsync(isPlaying: true, position, scheduleAhead: true);
+            await PublishTimelineAsync(isPlaying: true, resumeAt, scheduleAhead: true);
         }
         catch (Exception ex)
         {
@@ -1048,6 +1086,32 @@ public class PlaybackService : BaseService, IPlaybackService
         var stream = _stream;
         _stream = null;
 
+        await CloseSessionAsync(stream);
+    }
+
+    /// <summary>Lets a replaced session stand until whatever is still reading it has moved on.</summary>
+    private void RetireSession(MediaStreamSession? stream)
+    {
+        if (stream is null) return;
+
+        var grace = Options.StreamRetireGrace;
+
+        if (grace <= TimeSpan.Zero)
+        {
+            _ = CloseSessionAsync(stream);
+            return;
+        }
+
+        _ = Task.Run(async () =>
+        {
+            await Task.Delay(grace);
+            await CloseSessionAsync(stream);
+        }, CancellationToken.None);
+    }
+
+    /// <summary>Never throws: an orphaned ffmpeg is worth a warning, not the song.</summary>
+    private async Task CloseSessionAsync(MediaStreamSession? stream)
+    {
         if (stream is null) return;
 
         try { await _mediaStreams.CloseAsync(stream.Id); }
