@@ -10,6 +10,11 @@
     display: flex;
     align-items: center;
 
+    // Claims the end of the header row. The break music bar used to do this and everything after
+    // it came along for the ride; with that gone to a band of its own, the trigger has to hold the
+    // right edge itself or it sits against the title.
+    margin-left: auto;
+
     &__trigger {
         display: flex;
         align-items: center;
