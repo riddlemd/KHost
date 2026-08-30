@@ -74,6 +74,26 @@ public class BreakMusicBarTests : BunitContext
     }
 
     [Fact]
+    public void TheBandNamesItself_WhateverIsPlayingOnIt()
+    {
+        _breakMusic.State.Returns(BreakMusicState.Playing);
+        _breakMusic.CurrentTrack.Returns(new BreakMusicTrack { Title = "House Record", Artist = "DJ" });
+
+        // The band sits under a heading that says Now Playing, which is the song. Without this the
+        // row is a second track and three buttons with nothing saying whose they are.
+        Assert.Equal("Break Music", Render().Find(".kh-break-music-bar__label").TextContent);
+    }
+
+    [Fact]
+    public void TheBandNamesItself_EvenWithNoTrackToShow()
+    {
+        _breakMusic.State.Returns(BreakMusicState.Stopped);
+        _breakMusic.CurrentTrack.Returns((BreakMusicTrack?)null);
+
+        Assert.Equal("Break Music", Render().Find(".kh-break-music-bar__label").TextContent);
+    }
+
+    [Fact]
     public void WhilePlayingAProviderThatNamesATrack_TheBarShowsTheTrack()
     {
         _breakMusic.State.Returns(BreakMusicState.Playing);

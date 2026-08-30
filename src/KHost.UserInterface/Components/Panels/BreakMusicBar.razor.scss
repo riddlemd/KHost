@@ -16,10 +16,27 @@
     background: var(--kh-bg-strip, rgba(255, 255, 255, 0.028));
     border-bottom: 1px solid var(--kh-border);
 
-    // Icon renders its own markup, so a class handed to it never carries this component's scope.
-    ::deep .kh-break-music-bar__icon {
+    // The caption and the track it captions, stacked. Centred as a pair so the band reads as one
+    // block rather than text pinned to its top edge.
+    &__stack {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        gap: 1px;
+        min-width: 0;
+        flex: 1 1 auto;
+    }
+
+    // Quieter and smaller than the track under it: it names the row once, and the track is what a
+    // host is actually reading.
+    &__label {
+        font-size: 0.625rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        line-height: 1.1;
         color: var(--kh-text-muted);
-        flex: none;
+        white-space: nowrap;
     }
 
     &__info {
