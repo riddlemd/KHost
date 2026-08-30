@@ -1,7 +1,9 @@
 .kh-now-playing-panel {
     // The band's full height, border included. One number, used here and by the band itself, so
-    // the room made for it cannot drift from what it takes.
-    --kh-break-music-band: 39px;
+    // the room made for it cannot drift from what it takes. Two lines: the caption naming the band
+    // sits over the track rather than beside it, which is what keeps a long track title off the
+    // ellipsis on a narrow panel.
+    --kh-break-music-band: 52px;
 
     height: 20vh;
     max-height: 20vh;
