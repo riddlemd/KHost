@@ -1,9 +1,29 @@
 .kh-now-playing-panel {
+    // The band's full height, border included. One number, used here and by the band itself, so
+    // the room made for it cannot drift from what it takes.
+    --kh-break-music-band: 39px;
+
     height: 20vh;
     max-height: 20vh;
     min-height: 72px;
     flex-shrink: 0;
     overflow: hidden;
+
+    // The panel clips rather than reflows, so a band living inside the cap would cut the seek bar
+    // off the song — at a 720-tall window the body has about a pixel to spare. The band is added
+    // to the height instead, and only while there is a band: break music is not always configured,
+    // and a venue without it should not pay for the room.
+    &:has(.kh-break-music-bar) {
+        height: calc(20vh + var(--kh-break-music-band));
+        max-height: calc(20vh + var(--kh-break-music-band));
+        min-height: calc(72px + var(--kh-break-music-band));
+    }
+
+    // It appears and disappears with the provider, mid-show, which without this reads as a glitch
+    // rather than as the card changing shape.
+    @media (prefers-reduced-motion: no-preference) {
+        transition: height var(--kh-transition);
+    }
     // Named container so the break music controls sharing the header row answer to this panel's
     // width. The detail column is dragged by the splitter, so it is not the window's width.
     container: kh-now-playing / inline-size;

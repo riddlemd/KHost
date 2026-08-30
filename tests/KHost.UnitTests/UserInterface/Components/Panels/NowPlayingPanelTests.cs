@@ -47,11 +47,12 @@ public class NowPlayingPanelTests : BunitContext
     }
 
     /// <summary>
-    /// The break music controls ride this panel's header rather than a strip of their own, so the
-    /// console does not give up a row to three buttons.
+    /// The break music controls sit in a band of their own under the header. Sharing the title row
+    /// put a cluster of loose parts beside the song controls' single dropdown, and the two read as
+    /// different kinds of thing.
     /// </summary>
     [Fact]
-    public void BreakMusicControls_RenderInsideThisPanelsHeader()
+    public void BreakMusicControls_RenderInABandOfTheirOwn()
     {
         _breakMusic.ActiveProvider.Returns(Substitute.For<IBreakMusicProvider>());
 
@@ -59,11 +60,11 @@ public class NowPlayingPanelTests : BunitContext
 
         var cut = Render<NowPlayingPanel>();
 
-        Assert.NotEmpty(cut.FindAll(".kh-card__header .kh-break-music-bar .kh-break-music-bar__controls button"));
+        Assert.NotEmpty(cut.FindAll(".kh-break-music-bar .kh-break-music-bar__controls button"));
     }
 
     [Fact]
-    public void BreakMusicControls_AreNotRenderedOutsideTheHeader()
+    public void BreakMusicControls_AreNotInTheHeader()
     {
         _breakMusic.ActiveProvider.Returns(Substitute.For<IBreakMusicProvider>());
 
@@ -71,11 +72,10 @@ public class NowPlayingPanelTests : BunitContext
 
         var cut = Render<NowPlayingPanel>();
 
-        // Every bar the panel renders has to be the one in the header — a second, or a stray one
-        // in the body, would be the old strip come back.
-        Assert.Equal(
-            cut.FindAll(".kh-break-music-bar").Count,
-            cut.FindAll(".kh-card__header .kh-break-music-bar").Count);
+        // The band is a sibling of the header, not inside it: the panel reserves height for one
+        // there, and a bar back on the title row would take that room from the song instead.
+        Assert.Single(cut.FindAll(".kh-break-music-bar"));
+        Assert.Empty(cut.FindAll(".kh-card__header .kh-break-music-bar"));
     }
 
     [Fact]
