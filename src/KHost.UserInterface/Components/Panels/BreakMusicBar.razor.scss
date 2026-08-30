@@ -3,10 +3,18 @@
     align-items: center;
     gap: 0.5rem;
 
-    // Rides the end of the panel header's row. The header's own title is already told how to
-    // shrink, so this only has to claim what is left of it.
-    margin-left: auto;
+    // A band of its own under the header rather than the end of its row. flex: none because the
+    // card is a column with a capped height — left to share it, the band would take room from the
+    // song and the panel clips rather than reflows.
+    flex: none;
     min-width: 0;
+
+    // The panel makes room for exactly this, so the two read the same variable rather than two
+    // numbers that agree until one of them is edited.
+    height: var(--kh-break-music-band, 39px);
+    padding: 0 12px;
+    background: var(--kh-bg-strip, rgba(255, 255, 255, 0.028));
+    border-bottom: 1px solid var(--kh-border);
 
     // Icon renders its own markup, so a class handed to it never carries this component's scope.
     ::deep .kh-break-music-bar__icon {
@@ -54,18 +62,22 @@
         align-items: center;
         gap: 0.25rem;
         flex: none;
+
+        // The band is full width, so the buttons sit at its end rather than against the title.
+        margin-left: auto;
     }
 }
 
-// Sharing one row with the panel title, the text goes before the controls do: a host can read
-// what is playing in Spotify's own window, but these buttons are the only ones there are.
-@container kh-now-playing (max-width: 560px) {
+// The band has the card's full width now, so the text survives far narrower than it did sharing
+// the title row. The controls still go last: a host can read what is playing in Spotify's own
+// window, but these buttons are the only ones there are.
+@container kh-now-playing (max-width: 320px) {
     .kh-break-music-bar__artist {
         display: none;
     }
 }
 
-@container kh-now-playing (max-width: 420px) {
+@container kh-now-playing (max-width: 220px) {
     .kh-break-music-bar__info {
         display: none;
     }
