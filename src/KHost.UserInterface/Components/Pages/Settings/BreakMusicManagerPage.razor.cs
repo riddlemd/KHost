@@ -58,11 +58,26 @@ public partial class BreakMusicManagerPage : IDisposable
         _venueId = venue?.Id;
         _venueName = venue?.Name;
         _activePoolId = venue?.Settings.BreakMusicPoolId;
-        _providerSource = venue?.Settings.BreakMusicProvider ?? BreakMusic.ActiveProvider?.SourceName;
+        var stored = venue?.Settings.BreakMusicProvider;
+
+        // Blank, not just null: a venue whose setting was cleared holds "", which no option carries
+        // either, and would leave the select as empty as a missing provider does.
+        _providerSource = string.IsNullOrWhiteSpace(stored) ? BreakMusic.ActiveProvider?.SourceName : stored;
 
         _pools = [.. (await MediaPools.ReadAllWithEntriesAsync(PoolPurpose.BreakMusic, _venueId)).OrderBy(p => p.Name)];
         _activePoolName = _pools.FirstOrDefault(pool => pool.Id == _activePoolId)?.Name;
     }
+
+    /// <summary>
+    /// The venue's provider when nothing loaded answers for it — a plugin that failed to load, was
+    /// switched off, or has been removed. It still has to appear in the list and stay selected: a
+    /// select whose value matches no option renders blank, which reads as "no mode set" for a venue
+    /// that has one, and hides that the next pick replaces a choice the host could not see.
+    /// </summary>
+    private string? UnavailableProviderSource
+        => BreakMusic.Providers.Any(p => string.Equals(p.SourceName, _providerSource, StringComparison.OrdinalIgnoreCase))
+            ? null
+            : _providerSource;
 
     /// <summary>
     /// The built-in one is the mode a host thinks of as "my own music"; a plugin names itself.
