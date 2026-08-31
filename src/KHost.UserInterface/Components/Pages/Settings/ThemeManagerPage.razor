@@ -1,0 +1,76 @@
+@page "/settings/theme-manager"
+@using KHost.UserInterface.Models
+@using KHost.UserInterface.Services
+
+<PageTitle>KHost &mdash; Manage Themes</PageTitle>
+
+<div class="kh-app__body">
+    <div class="kh-settings-page">
+        <div class="kh-card">
+            <div class="kh-card__header">
+                <span class="kh-card__title"><Icon Name="palette-fill" /> Theme Manager</span>
+                <button class="kh-button kh-button--primary" @onclick="OpenAddDialogAsync" type="button">
+                    <Icon Name="plus-lg" /> Add Theme
+                </button>
+            </div>
+            <div class="kh-card__body">
+                <table class="kh-table">
+                    <thead>
+                        <tr>
+                            <th>Theme</th>
+                            <th>Type</th>
+                            <th>Enabled</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var theme in _themes)
+                        {
+                            var isCurrent = ThemeService?.CurrentTheme == theme.Id;
+                            <tr>
+                                <td class="kh-table__cell--fill">
+                                    @theme.Name
+                                    @if (isCurrent)
+                                    {
+                                        <span class="kh-theme-manager__in-use">In use</span>
+                                    }
+                                </td>
+                                <td>@(theme.IsBuiltIn ? "Built-in" : "Custom")</td>
+                                <td>
+                                    <button type="button" role="switch"
+                                            aria-checked="@(theme.IsEnabled ? "true" : "false")"
+                                            class="kh-switch"
+                                            aria-label="@($"{theme.Name} enabled")"
+                                            title="@DisableHint(theme, isCurrent)"
+                                            disabled="@(!CanToggle(theme, isCurrent))"
+                                            @onclick="() => ToggleAsync(theme, !theme.IsEnabled)">
+                                        <span class="kh-switch__track"></span>
+                                    </button>
+                                </td>
+                                <td>
+                                    <button class="kh-theme-manager__edit-btn kh-button--icon-minimal"
+                                            title="@(theme.IsBuiltIn ? "Built-in themes cannot be edited — clone it to make changes" : "Edit this theme")"
+                                            disabled="@theme.IsBuiltIn"
+                                            @onclick="() => OpenEditDialogAsync(theme)" type="button">
+                                        <Icon Name="pencil" />
+                                    </button>
+                                    <button class="kh-theme-manager__clone-btn kh-button--icon-minimal"
+                                            title="Clone this theme"
+                                            @onclick="() => CloneAsync(theme)" type="button">
+                                        <Icon Name="copy" />
+                                    </button>
+                                    <button class="kh-theme-manager__delete-btn kh-button--icon-minimal"
+                                            title="@(theme.IsBuiltIn ? "Built-in themes cannot be deleted" : "Delete this theme")"
+                                            disabled="@theme.IsBuiltIn"
+                                            @onclick="() => StartDeleteAsync(theme)" type="button">
+                                        <Icon Name="trash" />
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>

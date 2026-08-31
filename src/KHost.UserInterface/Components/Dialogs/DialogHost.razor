@@ -46,6 +46,12 @@
                 OnClose="@(() => { r.OnCancel?.Invoke(); Close(r); })" />
             break;
 
+        case EditThemeDialog.DialogRequest r:
+            <EditThemeDialog @key="r.Id" IsOpen="true" Theme="@r.Value"
+                OnSave="@(async (theme) => { if (r.OnSave is not null) await r.OnSave(theme); Close(r); })"
+                OnClose="@(() => { r.OnCancel?.Invoke(); Close(r); })" />
+            break;
+
         case EditTipDialog.DialogRequest r:
             <EditTipDialog @key="r.Id" IsOpen="true" Tip="@r.Value" UserId="@r.UserId" ShowDate="@r.ShowDate"
                 OnSave="@(async (tip) => { if (r.OnSave is not null) await r.OnSave(tip); Close(r); })"

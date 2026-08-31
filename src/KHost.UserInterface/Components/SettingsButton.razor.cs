@@ -53,6 +53,7 @@ public partial class SettingsButton : IDisposable
         new SettingsPage { Title = "Downloads Manager", Icon = "cloud-download", Route = "/settings/downloads-manager", Requires = KHostPermission.ManageMedia },
         new SettingsPage { Title = "Media Manager", Icon = "music-note-list", Route = "/settings/media-manager", Requires = KHostPermission.ManageMedia },
         new SettingsPage { Title = "Plugins Manager", Icon = "plug-fill", Route = "/settings/plugins-manager", AdminOnly = true },
+        new SettingsPage { Title = "Theme Manager", Icon = "palette-fill", Route = "/settings/theme-manager", AdminOnly = true },
         new SettingsPage { Title = "Tips Manager", Icon = "coin", Route = "/settings/tips-manager" },
         new SettingsPage { Title = "User Groups Manager", Icon = "people-fill", Route = "/settings/user-groups-manager", Requires = KHostPermission.EditGroup },
         new SettingsPage { Title = "Users Manager", Icon = "person-fill", Route = "/settings/users-manager", Requires = KHostPermission.EditUser },
@@ -84,6 +85,7 @@ public partial class SettingsButton : IDisposable
             _subscriptions.Add(Broker.Subscribe<VenuesChanged>(_ => OnServiceChanged(null, EventArgs.Empty)));
 
         _subscriptions.Add(Broker.Subscribe<ThemeChanged>(_ => OnServiceChanged(null, EventArgs.Empty)));
+        _subscriptions.Add(Broker.Subscribe<ThemesChanged>(_ => OnServiceChanged(null, EventArgs.Empty)));
 
         _groups = [.. (await VisiblePagesAsync()).GroupBy(page => page.Group)];
 
@@ -165,8 +167,9 @@ public partial class SettingsButton : IDisposable
         });
     }
 
-    private static string ThemeName(string? theme)
-        => string.IsNullOrEmpty(theme) ? "" : char.ToUpper(theme[0]) + theme[1..];
+    // A custom theme carries a name of its own; only a built-in is named by its filename.
+    private string ThemeName(string? theme)
+        => string.IsNullOrEmpty(theme) ? "" : ThemeService?.DisplayNameFor(theme) ?? theme;
 
     // The menu keeps itself open so a section can expand in place, so anything that finishes a
     // choice has to close it by hand.

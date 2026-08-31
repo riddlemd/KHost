@@ -57,6 +57,9 @@ public class DialogService : IDialogService
     public async Task RequestEditAsync(Tip? item, Func<Tip?, Task> onSave, Action? onCancel = null, Action? onClose = null)
         => await RequestEditAsync<EditTipDialog.DialogRequest, Tip>(item, onSave, onCancel, onClose);
 
+    public async Task RequestEditAsync(ThemeDefinition? item, Func<ThemeDefinition?, Task> onSave, Action? onCancel = null, Action? onClose = null)
+        => await RequestEditAsync<EditThemeDialog.DialogRequest, ThemeDefinition>(item, onSave, onCancel, onClose);
+
     public Task RequestEditAsync(Tip? item, Guid userId, Func<Tip?, Task> onSave, Action? onCancel = null, Action? onClose = null, bool showDate = true)
     {
         var request = new EditTipDialog.DialogRequest(item, userId, onSave, onCancel, onClose, showDate);
