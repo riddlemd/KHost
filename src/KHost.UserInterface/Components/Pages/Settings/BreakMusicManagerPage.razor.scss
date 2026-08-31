@@ -11,5 +11,12 @@
         margin: 0;
         font-size: 0.8rem;
         opacity: 0.6;
+
+        // Says the venue is pointed at something that is not there, so it has to read as a problem
+        // rather than as the dimmed aside the other hints are.
+        &--warning {
+            opacity: 1;
+            color: var(--kh-danger-bright);
+        }
     }
 }
