@@ -239,14 +239,14 @@
                         var manifest = plugin.Manifest;
                         var state = GetRowState(plugin);
                         var enabled = IsEnabled(plugin.Id);
-                        var open = IsOpen(plugin.Id);
+                        var open = IsOpen(plugin);
                         var dirty = IsDirty(plugin.Id);
                         _settingFields.TryGetValue(plugin.Id, out var fields);
 
                         <div class="kh-plugins-manager__row @(open ? "kh-plugins-manager__row--open" : null)" @key="plugin.Directory">
                             <div class="kh-plugins-manager__head">
                                 <button type="button" class="kh-plugins-manager__disclosure" aria-expanded="@(open ? "true" : "false")"
-                                        @onclick="() => ToggleOpen(plugin.Id)">
+                                        @onclick="() => ToggleOpen(plugin)">
                                     <span class="kh-plugins-manager__chevron"><Icon Name="chevron-right" /></span>
                                     <span class="kh-plugins-manager__glyph"><Icon Name="@GetGlyph(plugin)" /></span>
                                     <span class="kh-plugins-manager__identity">
@@ -271,7 +271,7 @@
                                     </span>
                                 </button>
                                 <div class="kh-plugins-manager__aside">
-                                    @if (manifest is not null && _staging.Removals.Contains(manifest.Id))
+                                    @if (manifest is not null && IsPendingRemoval(plugin))
                                     {
                                         <span class="kh-badge kh-badge--warning">Restart to remove</span>
                                     }
@@ -377,10 +377,10 @@
                                         </button>
                                         @if (manifest is not null)
                                         {
-                                            @if (_staging.Removals.Contains(manifest.Id))
+                                            @if (IsPendingRemoval(plugin))
                                             {
                                                 <button type="button" class="kh-button kh-button--secondary"
-                                                        @onclick="() => ClearStagedAsync(manifest.Id)">Keep it</button>
+                                                        @onclick="() => ClearRemovalAsync(plugin)">Keep it</button>
                                             }
                                             else
                                             {
