@@ -28,9 +28,13 @@ public interface IPluginInstallerService
     /// <summary>Cancels every in-flight download, so none outlives the host on shutdown.</summary>
     void CancelAll();
 
-    /// <summary>Marks an installed plugin for deletion on the next start.</summary>
-    void MarkForRemoval(Guid pluginId);
+    /// <summary>Marks one installed folder for deletion on the next start.</summary>
+    void MarkForRemoval(string pluginFolderName);
 
-    /// <summary>Drops a staged install, a pending removal, or a failed stage for this id.</summary>
+    /// <summary>Drops a staged install or a failed stage for this id, and any pending removal of
+    /// every folder carrying it.</summary>
     void ClearStaged(Guid pluginId);
+
+    /// <summary>Drops the pending removal of one folder, leaving any other copy's alone.</summary>
+    void ClearRemoval(string pluginFolderName);
 }
