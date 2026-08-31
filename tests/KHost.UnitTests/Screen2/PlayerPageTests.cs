@@ -142,4 +142,39 @@ public class PlayerPageTests
         Assert.Contains("stretch: 'fill'", page);
         Assert.Contains("original: 'none'", page);
     }
+
+    // A handover brought up behind the song is silent until it swaps, and a stop that leaves it
+    // running gets that swap part way through the fade: the replacement arrives at full volume
+    // with nothing ramping it, so the room hears no fade and then the song cut off in one step.
+    [Fact]
+    public void BuildPlayerPage_Always_DropsAPendingHandoverBeforeFadingOut()
+    {
+        var page = Program.BuildPlayerPage();
+
+        var fade = page[page.IndexOf("async function fadeOutAndStop", StringComparison.Ordinal)..];
+
+        Assert.StartsWith(
+            "async function fadeOutAndStop(fadeMs) {\n    const generation = playbackGeneration;\n\n    //",
+            fade.ReplaceLineEndings("\n"),
+            StringComparison.Ordinal);
+
+        Assert.Contains("cancelHandover();", fade[..600], StringComparison.Ordinal);
+    }
+
+    // Checked only after the ramp, a fade the host has already superseded goes on pulling the
+    // volume down over the song that replaced it, which arrives and then quietly disappears.
+    [Fact]
+    public void BuildPlayerPage_Always_AbandonsAFadeTheHostHasSuperseded()
+    {
+        var page = Program.BuildPlayerPage();
+
+        var ramp = page[page.IndexOf("async function fadeOutAndStop", StringComparison.Ordinal)..];
+        ramp = ramp[..ramp.IndexOf("teardown();", StringComparison.Ordinal)];
+
+        // Inside the tick, not merely after the await it is driving.
+        Assert.Contains("if (generation !== playbackGeneration) return resolve(false);", ramp, StringComparison.Ordinal);
+
+        // And the level goes back, or the element the next song is already using stays silent.
+        Assert.Contains("element.volume = currentVolume;", ramp, StringComparison.Ordinal);
+    }
 }
