@@ -26,9 +26,14 @@ public interface IPluginStagingArea
     /// <summary>Takes over a validated payload folder, replacing anything already staged for this id.</summary>
     void Stage(string payloadRoot, Guid pluginId);
 
-    /// <summary>Marks an installed plugin for deletion on the next start.</summary>
-    void MarkForRemoval(Guid pluginId);
+    /// <summary>Marks one installed folder for deletion on the next start. A name that does not
+    /// resolve to a direct child of <c>plugins/</c> is ignored rather than followed.</summary>
+    void MarkForRemoval(string pluginFolderName);
 
-    /// <summary>Drops a staged install, a pending removal, or a failed stage for this id.</summary>
+    /// <summary>Drops a staged install or a failed stage for this id, and any pending removal of
+    /// every folder carrying it.</summary>
     void Clear(Guid pluginId);
+
+    /// <summary>Drops the pending removal of one folder, leaving any other copy's alone.</summary>
+    void ClearRemoval(string pluginFolderName);
 }
