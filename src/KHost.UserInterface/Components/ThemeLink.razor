@@ -1,3 +1,3 @@
 @using KHost.UserInterface.Services
 
-<link rel="stylesheet" href="/css/themes/@(ThemeService?.CurrentTheme ?? "grape").css" />
+<link rel="stylesheet" href="@(ThemeService?.CurrentThemeHref ?? "/css/themes/grape.css")" />

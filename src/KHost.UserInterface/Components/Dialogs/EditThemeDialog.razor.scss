@@ -1,0 +1,69 @@
+.kh-theme-edit-dialog {
+    &__meta {
+        display: grid;
+        gap: 12px;
+    }
+
+    // .kh-form-check is `display: inline`, which leaves the box and its wording on different
+    // baselines once the wording wraps.
+    &__toggle {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        cursor: pointer;
+    }
+
+    // The shared card body pads a direct <form> child and nothing else, and these hold a grid —
+    // without this the fields sit flush against the card's border.
+    &__group {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 12px 16px;
+        padding: 14px;
+    }
+
+    &__field {
+        // Without this a long font stack stretches its column and drags the grid wider.
+        min-width: 0;
+
+        .kh-form-label {
+            // The shared label is inline, so the margin it already carries does nothing until
+            // it is a block.
+            display: block;
+        }
+    }
+
+    &__inputs {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+
+        .kh-form-control {
+            flex: 1;
+            min-width: 0;
+            // These hold CSS values, so they read better in the theme's own face than in the
+            // display one a heading would use.
+            font-family: var(--kh-font);
+        }
+    }
+
+    &__swatch {
+        flex: 0 0 auto;
+        width: 42px;
+        height: var(--kh-control-height);
+        padding: 2px;
+        background: var(--kh-bg-input);
+        border: 1px solid var(--kh-border);
+        border-radius: var(--kh-radius);
+        cursor: pointer;
+
+        &:hover {
+            border-color: var(--kh-border-bright);
+        }
+
+        &:focus-visible {
+            outline: 2px solid var(--kh-border-bright);
+            outline-offset: 2px;
+        }
+    }
+}
