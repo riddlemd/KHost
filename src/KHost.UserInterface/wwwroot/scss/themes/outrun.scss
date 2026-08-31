@@ -1,0 +1,84 @@
+:root {
+    --kh-primary: #FF2A6D;
+    --kh-primary-hover: #E01B5A;
+    --kh-primary-bright: #FF6AD5;
+    --kh-primary-glow: rgba(255, 42, 109, 0.45);
+    --kh-primary-subtle: rgba(255, 42, 109, 0.14);
+    --kh-primary-dim: rgba(255, 42, 109, 0.08);
+    --kh-accent: #05D9E8;
+    --kh-accent-hover: #04B2BF;
+    --kh-accent-bright: #4DEEEA;
+    --kh-accent-glow: rgba(5, 217, 232, 0.45);
+    --kh-accent-subtle: rgba(5, 217, 232, 0.14);
+    --kh-bg: #0D0221;
+    --kh-button-primary-text: #FFF0F8;
+    --kh-bg-card: #1A0B2E;
+    --kh-bg-card-dark: #140722;
+    --kh-bg-elevated: #2A1247;
+    --kh-bg-input: #12062A;
+    --kh-border: rgba(255, 42, 109, 0.28);
+    --kh-border-bright: rgba(255, 42, 109, 0.55);
+    --kh-text: #F5E6FF;
+    --kh-text-secondary: #B08FD9;
+    --kh-text-muted: #8A6BB0;
+    --kh-success: #00F5A0;
+    --kh-warning: #FFB800;
+    --kh-info: #05D9E8;
+    --kh-danger: #FF3864;
+    --kh-danger-glow: rgba(255, 56, 100, 0.3);
+    --kh-radius: 8px;
+    --kh-radius-lg: 12px;
+    --kh-transition: 0.15s ease;
+    --kh-font: 'Segoe UI', sans-serif;
+    --kh-font-display: 'Segoe UI', sans-serif;
+
+    --bs-body-bg: var(--kh-bg);
+    --bs-body-color: var(--kh-text);
+    --bs-secondary-color: var(--kh-text-secondary);
+    --bs-tertiary-color: var(--kh-text-muted);
+    --bs-card-bg: var(--kh-bg-card);
+    --bs-card-border-color: var(--kh-border);
+    --bs-border-color: var(--kh-border);
+    --bs-border-color-translucent: var(--kh-border);
+    --bs-link-color: var(--kh-accent-bright);
+    --bs-link-hover-color: #8FFFF9;
+    --bs-primary: var(--kh-primary);
+    --bs-primary-rgb: 255, 42, 109;
+    --bs-table-hover-bg: var(--kh-primary-subtle);
+    --bs-table-striped-bg: var(--kh-primary-dim);
+
+    --kh-bg-header: linear-gradient(180deg, #3B1259 0%, #1A0B2E 100%);
+    --kh-logo-from: #FF2A6D;
+    --kh-logo-to: #05D9E8;
+    --kh-np-gradient-from: #3B1259;
+    --kh-card-header-bg: rgba(255, 42, 109, 0.12);
+
+    --kh-primary-active: rgba(255, 42, 109, 0.3);
+    --kh-primary-glow-strong: rgba(255, 42, 109, 0.7);
+    --kh-primary-bright-glow: rgba(255, 106, 213, 0.7);
+
+    --kh-badge-info-bg: rgba(255, 106, 213, 0.2);
+    --kh-badge-info-text: #6AF7FF;
+    --kh-badge-info-border: rgba(255, 106, 213, 0.4);
+
+    --kh-scrim: rgba(0, 0, 0, 0.6);
+    --kh-track-bg: rgba(255, 255, 255, 0.08);
+    --kh-table-stripe: rgba(0, 0, 0, 0.2);
+    --kh-badge-pending-bg: rgba(255, 255, 255, 0.04);
+    --kh-error-bg: linear-gradient(135deg, #2D0A0A, #1A0A0A);
+
+    --kh-danger-bg-subtle: rgba(255, 56, 100, 0.1);
+    --kh-danger-bg-dim: rgba(255, 56, 100, 0.2);
+    --kh-danger-border-subtle: rgba(255, 56, 100, 0.35);
+    --kh-danger-text-subtle: rgba(255, 56, 100, 0.7);
+    --kh-danger-bright: #FF6B8A;
+
+    --kh-warning-subtle: rgba(255, 184, 0, 0.1);
+    --kh-warning-border-subtle: rgba(255, 184, 0, 0.3);
+
+    --kh-success-subtle: rgba(0, 245, 160, 0.1);
+    --kh-success-border-subtle: rgba(0, 245, 160, 0.25);
+
+    --kh-flag-tipper: #00F5A0;
+    --kh-flag-regular: #FF6AD5;
+}
