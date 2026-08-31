@@ -21,12 +21,26 @@
                             <label for="break-music-mode" class="kh-form-label">Mode</label>
                             <select id="break-music-mode" class="kh-form-select"
                                     value="@_providerSource" @onchange="OnProviderChangedAsync">
+                                @if (UnavailableProviderSource is { } unavailable)
+                                {
+                                    <option value="@unavailable">@unavailable &mdash; not loaded</option>
+                                }
                                 @foreach (var provider in BreakMusic.Providers)
                                 {
                                     <option value="@provider.SourceName">@DescribeProvider(provider)</option>
                                 }
                             </select>
                         </div>
+
+                        @if (UnavailableProviderSource is not null)
+                        {
+                            <p class="kh-break-music-manager__hint kh-break-music-manager__hint--warning">
+                                Nothing loaded provides this mode &mdash; check its plugin under
+                                Settings &rsaquo; Plugins Manager. Break music is coming from
+                                <span class="kh-emphasis">@(BreakMusic.ActiveProvider?.DisplayName ?? "nothing")</span>
+                                meanwhile, and picking another mode here replaces the venue's choice for good.
+                            </p>
+                        }
 
                         @if (BreakMusic.ActiveProvider is { RendersThroughHost: false })
                         {
