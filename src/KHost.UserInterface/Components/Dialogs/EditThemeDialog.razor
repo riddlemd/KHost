@@ -1,0 +1,71 @@
+@using KHost.UserInterface.Models
+@using KHost.UserInterface.Services
+
+<Dialog IsOpen="IsOpen" Class="@($"{_rootClassName} {Class?.Trim()}".Trim())" OnClose="OnClose" CloseOnScrimClick="CloseOnScrimClick">
+    <Header>
+        <Icon Name="palette-fill" /> @(Theme is null ? "Add Theme" : "Edit Theme")
+    </Header>
+    <Body>
+        <EditForm EditContext="_editContext" OnSubmit="SaveAsync">
+            <DataAnnotationsValidator />
+            <ValidationSummary />
+
+            <div class="@(_rootClassName)__meta">
+                <div class="@(_rootClassName)__field">
+                    <label class="kh-form-label" for="theme-name">Name</label>
+                    <InputText id="theme-name" class="kh-form-control" @bind-Value="_model.Name" autofocus />
+                    <ValidationMessage For="() => _model.Name" />
+                </div>
+
+                <label class="@(_rootClassName)__toggle kh-form-check">
+                    <InputCheckbox class="kh-form-check-input" @bind-Value="_model.IsEnabled" />
+                    <span>Enabled &mdash; offer this theme in the theme picker</span>
+                </label>
+            </div>
+
+            @foreach (var group in ThemeVariableCatalog.Groups)
+            {
+                <div class="kh-card">
+                    <div class="kh-card__header">
+                        <span class="kh-card__title">@group</span>
+                        @if (group == ThemeVariableCatalog.ShadesGroup)
+                        {
+                            <button type="button" class="kh-button kh-button--secondary"
+                                    title="Rebuild every shade from the colour it is made from, keeping its opacity"
+                                    @onclick="DeriveShades">
+                                <Icon Name="magic" /> Derive from base colours
+                            </button>
+                        }
+                    </div>
+                    <div class="kh-card__body @(_rootClassName)__group">
+                        @foreach (var field in ThemeVariableCatalog.FieldsIn(group))
+                        {
+                            <div class="@(_rootClassName)__field">
+                                <label class="kh-form-label" for="@FieldId(field)">@field.Label</label>
+                                <div class="@(_rootClassName)__inputs">
+                                    @if (field.Kind == ThemeVariableKind.Color)
+                                    {
+                                        <input type="color" class="@(_rootClassName)__swatch"
+                                               aria-label="@($"{field.Label} colour picker")"
+                                               value="@Swatch(field)"
+                                               @onchange="e => Set(field.Key, e.Value?.ToString())" />
+                                    }
+                                    <input type="text" id="@FieldId(field)" class="kh-form-control"
+                                           autocomplete="off" spellcheck="false"
+                                           value="@Value(field)"
+                                           @onchange="e => Set(field.Key, e.Value?.ToString())" />
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+
+            <button type="submit" class="kh-hidden"></button>
+        </EditForm>
+    </Body>
+    <Footer>
+        <button class="@(_rootClassName)__cancel-btn kh-button kh-button--secondary" @onclick="CancelAsync">Cancel</button>
+        <button class="@(_rootClassName)__save-btn kh-button kh-button--primary" @onclick="SaveAsync">Save</button>
+    </Footer>
+</Dialog>

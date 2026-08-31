@@ -16,6 +16,7 @@ public partial class ThemeSelector : IDisposable
     protected override void OnInitialized()
     {
         _subscriptions.Add(Broker.Subscribe<ThemeChanged>(_ => OnStateChanged(null, EventArgs.Empty)));
+        _subscriptions.Add(Broker.Subscribe<ThemesChanged>(_ => OnStateChanged(null, EventArgs.Empty)));
     }
 
     private async Task SetThemeAsync(string theme)
@@ -24,8 +25,9 @@ public partial class ThemeSelector : IDisposable
             await ThemeService.SetThemeAsync(theme);
     }
 
-    private static string DisplayName(string? theme)
-        => string.IsNullOrEmpty(theme) ? "" : char.ToUpper(theme[0]) + theme[1..];
+    // A custom theme carries a name of its own; only a built-in is named by its filename.
+    private string DisplayName(string? theme)
+        => string.IsNullOrEmpty(theme) ? "" : ThemeService?.DisplayNameFor(theme) ?? theme;
 
     private async void OnStateChanged(object? sender, EventArgs e)
     {
