@@ -43,6 +43,17 @@ const CROSSFADE_MS = 120;
 const MAX_MEDIA_RECOVERIES = 2;
 let mediaRecoveries = 0;
 
+/// Drops a handover that has not swapped yet, leaving whatever is playing alone.
+function cancelHandover() {
+    destroyHls(incomingHls);
+    incomingHls = null;
+
+    if (!incoming) return;
+
+    retire(incoming);
+    incoming = null;
+}
+
 function detachHls() {
     destroyHls(hls);
     hls = null;
@@ -218,23 +229,43 @@ let playbackGeneration = 0;
 
 async function fadeOutAndStop(fadeMs) {
     const generation = playbackGeneration;
-    const startVolume = video.volume;
+
+    // A handover that has not swapped yet is silent now and would arrive at full volume part way
+    // through the fade, with nothing ramping it: the room hears no fade at all, then the song cut
+    // off in one step when this finishes. Dropped first, so there is one thing to fade and it is
+    // the thing being heard.
+    cancelHandover();
+
+    // Held locally rather than read each tick: a handover that swaps mid-fade would otherwise move
+    // the ramp onto the element that just took the room over.
+    const element = video;
+    const startVolume = element.volume;
     const startedAt = performance.now();
 
-    video.style.transition = `opacity ${fadeMs}ms linear`;
-    video.style.opacity = '0';
+    element.style.transition = `opacity ${fadeMs}ms linear`;
+    element.style.opacity = '0';
 
-    await new Promise((resolve) => {
+    // The generation is checked inside the ramp, not only after it: a fade the host has already
+    // superseded would otherwise go on pulling the volume down over the song that replaced it.
+    const completed = await new Promise((resolve) => {
         const tick = () => {
+            if (generation !== playbackGeneration) return resolve(false);
+
             const progress = Math.min(1, (performance.now() - startedAt) / fadeMs);
-            video.volume = startVolume * (1 - progress);
-            if (progress < 1) requestAnimationFrame(tick); else resolve();
+            element.volume = startVolume * (1 - progress);
+
+            if (progress < 1) requestAnimationFrame(tick); else resolve(true);
         };
         tick();
     });
 
-    // Superseded: the host started playing again during the fade, so leave everything alone.
-    if (generation !== playbackGeneration) return;
+    // Superseded: the host started playing again during the fade. The level goes back because the
+    // song that replaced this one is using the element, and a ramp abandoned part way leaves it
+    // playing into a room that cannot hear it.
+    if (!completed) {
+        element.volume = currentVolume;
+        return;
+    }
 
     teardown();
     video.style.transition = 'opacity 120ms linear';
