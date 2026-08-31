@@ -348,7 +348,7 @@ public class PluginsManagerPageTests : BunitContext
     {
         Arrange(Plugin(PluginStatus.Loaded), enabled: false);
 
-        _installer.Staged().Returns(new PluginStagingState { Removals = new HashSet<Guid> { PluginId } });
+        _installer.Staged().Returns(new PluginStagingState { Removals = new HashSet<string> { "test-plugin" } });
 
         var cut = RenderAvailable(CatalogEntry(PluginId, "Test Plugin", CatalogRelease("1.0.0")));
 
@@ -362,7 +362,7 @@ public class PluginsManagerPageTests : BunitContext
     {
         Arrange(Plugin(PluginStatus.Disabled), enabled: false);
 
-        _installer.Staged().Returns(new PluginStagingState { Removals = new HashSet<Guid> { PluginId } });
+        _installer.Staged().Returns(new PluginStagingState { Removals = new HashSet<string> { "test-plugin" } });
 
         var cut = RenderAvailable(CatalogEntry(PluginId, "Test Plugin", CatalogRelease("1.0.0")));
 
@@ -488,6 +488,95 @@ public class PluginsManagerPageTests : BunitContext
         Assert.Equal("Installed", cut.Find(AvailableBadgeSelector).TextContent.Trim());
     }
 
+    [Fact]
+    public void Remove_TwoFoldersShareAnId_MarksOnlyTheFolderTheRowStandsFor()
+    {
+        ArrangeDuplicates();
+        ConfirmDialogs();
+
+        var cut = Render<PluginsManagerPage>();
+
+        cut.FindAll(DisclosureSelector)[1].Click();
+        cut.Find($"{RowSelector}--open .kh-button--outline-danger").Click();
+
+        _installer.Received(1).MarkForRemoval("youtube-copy");
+        _installer.DidNotReceive().MarkForRemoval("youtube");
+    }
+
+    [Fact]
+    public void Remove_TwoFoldersShareAnId_LeavesTheOtherCopyEnabled()
+    {
+        ArrangeDuplicates();
+        ConfirmDialogs();
+
+        var cut = Render<PluginsManagerPage>();
+
+        cut.FindAll(DisclosureSelector)[1].Click();
+        cut.Find($"{RowSelector}--open .kh-button--outline-danger").Click();
+
+        _pluginsService.DidNotReceive().SetEnabledAsync(PluginId.ToString(), false);
+    }
+
+    [Fact]
+    public void PendingRemoval_TwoFoldersShareAnId_OnlyTheMarkedRowSaysSo()
+    {
+        ArrangeDuplicates();
+
+        _installer.Staged().Returns(new PluginStagingState { Removals = new HashSet<string> { "youtube-copy" } });
+
+        var badges = Render<PluginsManagerPage>().FindAll(StateBadgeSelector);
+
+        Assert.DoesNotContain("Restart to remove", badges[0].TextContent);
+        Assert.Contains("Restart to remove", badges[1].TextContent);
+    }
+
+    [Fact]
+    public void KeepIt_TwoFoldersShareAnId_ClearsOnlyThatFoldersRemoval()
+    {
+        ArrangeDuplicates();
+
+        _installer.Staged().Returns(new PluginStagingState { Removals = new HashSet<string> { "youtube-copy" } });
+
+        var cut = Render<PluginsManagerPage>();
+
+        cut.FindAll(DisclosureSelector)[1].Click();
+        cut.Find($"{RowSelector}--open .kh-button--secondary").Click();
+
+        _installer.Received(1).ClearRemoval("youtube-copy");
+    }
+
+    [Fact]
+    public void Disclosure_TwoFoldersShareAnId_OpensOnlyTheRowItSitsOn()
+    {
+        ArrangeDuplicates();
+
+        var cut = Render<PluginsManagerPage>();
+
+        cut.FindAll(DisclosureSelector)[1].Click();
+
+        Assert.Single(cut.FindAll($"{RowSelector}--open"));
+    }
+
+    /// <summary>The state a plugin dropped in by hand under a second name leaves behind: two rows,
+    /// one manifest id, and the second discovered copy errored as a duplicate.</summary>
+    private void ArrangeDuplicates()
+    {
+        var loaded = Plugin(PluginStatus.Loaded, folderName: "youtube");
+        var duplicate = Plugin(PluginStatus.Errored, folderName: "youtube-copy");
+
+        duplicate.Error = $"Duplicate plugin id '{PluginId}'.";
+
+        _pluginsService.Plugins.Returns([loaded, duplicate]);
+        _pluginsService.ReadEnabledIdsAsync().Returns(new HashSet<string> { loaded.Id });
+        _pluginsService.ReadSettingsAsync(loaded.Id).Returns([]);
+    }
+
+    private void ConfirmDialogs()
+        => _dialogs.ShowConfirmationAsync(
+                Arg.Any<string>(), Arg.Any<Func<Task>>(), Arg.Any<string>(),
+                Arg.Any<string>(), Arg.Any<Action?>(), Arg.Any<Action?>())
+            .Returns(async call => { await call.Arg<Func<Task>>()(); return true; });
+
     private void Arrange(DiscoveredPlugin plugin, bool enabled, Dictionary<string, JsonElement>? stored = null)
     {
         _pluginsService.Plugins.Returns([plugin]);
@@ -495,9 +584,12 @@ public class PluginsManagerPageTests : BunitContext
         _pluginsService.ReadSettingsAsync(plugin.Id).Returns(stored ?? []);
     }
 
-    private static DiscoveredPlugin Plugin(PluginStatus status, params PluginSettingDefinition[] settings) => new()
+    private static DiscoveredPlugin Plugin(PluginStatus status, params PluginSettingDefinition[] settings)
+        => Plugin(status, "test-plugin", settings);
+
+    private static DiscoveredPlugin Plugin(PluginStatus status, string folderName, params PluginSettingDefinition[] settings) => new()
     {
-        Directory = Path.Combine("plugins", "test-plugin"),
+        Directory = Path.Combine("plugins", folderName),
         Status = status,
         Manifest = new PluginManifest
         {

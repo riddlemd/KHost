@@ -141,9 +141,9 @@ public class PluginInstallerService : BaseService, IPluginInstallerService
             active.Cts.Cancel();
     }
 
-    public void MarkForRemoval(Guid pluginId)
+    public void MarkForRemoval(string pluginFolderName)
     {
-        _staging.MarkForRemoval(pluginId);
+        _staging.MarkForRemoval(pluginFolderName);
 
         Announce();
     }
@@ -151,6 +151,13 @@ public class PluginInstallerService : BaseService, IPluginInstallerService
     public void ClearStaged(Guid pluginId)
     {
         _staging.Clear(pluginId);
+
+        Announce();
+    }
+
+    public void ClearRemoval(string pluginFolderName)
+    {
+        _staging.ClearRemoval(pluginFolderName);
 
         Announce();
     }

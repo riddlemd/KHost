@@ -64,12 +64,16 @@ folder: `PluginLoader` hands that string straight to `LoadFromAssemblyPath`.
 - Nothing installs into a running host. `IPluginStagingArea` parks payloads in `plugins-staging/`,
   a **sibling** of `plugins/` — `PluginLoader.Discover` treats every subdirectory of `plugins/` as
   a plugin, so nesting staging inside it renders a broken row. `<id>/` is a staged install,
-  `<id>.remove` a pending removal, `<id>.failed/` a payload the last start could not apply (with
-  `error.txt` beside it, so it stops retrying), `.work/` download scratch — inside staging so the
-  final `Directory.Move` never crosses a volume.
+  `<folder>.remove` a pending removal, `<id>.failed/` a payload the last start could not apply
+  (with `error.txt` beside it, so it stops retrying), `.work/` download scratch — inside staging so
+  the final `Directory.Move` never crosses a volume. Installs are keyed by id and removals by
+  folder name, because two folders may carry one id: an install replaces the plugin wherever it
+  sits, while a removal is a host pointing at one row on the Plugins page. A marker naming anything
+  but a direct child of `plugins/` is ignored rather than followed.
 - `ApplyPending()` runs from `AddPlugins` before `Discover`, so it predates the container: no DI,
-  no logger, and a failure must never stop the app starting. It maps id → folder by reading each
-  manifest, so an update replaces a plugin dropped in by hand under any folder name.
+  no logger, and a failure must never stop the app starting. It maps id → folders by reading each
+  manifest, so an update replaces a plugin dropped in by hand under any folder name — and every
+  copy of it, so a duplicate id does not outlive the install meant to replace it.
 - **Add a release with the tool, never by hand**:
   `dotnet run --project tools/KHost.CatalogSync -- <owner/repo> [--rid win] [--capabilities "a,b"]`.
   It fetches the release **unauthenticated**, hashes what it downloads, unpacks it through the
