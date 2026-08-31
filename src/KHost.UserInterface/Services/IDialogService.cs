@@ -15,6 +15,7 @@ public interface IDialogService
     Task RequestEditAsync(KHostUserGroup? item, Func<KHostUserGroup?, Task> onSave, Action? onCancel = null, Action? onClose = null);
     Task RequestEditAsync(Venue? item, Func<Venue?, Task> onSave, Action? onCancel = null, Action? onClose = null);
     Task RequestEditAsync(Tip? item, Func<Tip?, Task> onSave, Action? onCancel = null, Action? onClose = null);
+    Task RequestEditAsync(ThemeDefinition? item, Func<ThemeDefinition?, Task> onSave, Action? onCancel = null, Action? onClose = null);
 
     Task<bool> ShowConfirmationAsync(string message, Func<Task> onConfirm, string title = "Confirm", string confirmText = "Confirm", Action? onCancel = null, Action? onClose = null);
     /// <summary>

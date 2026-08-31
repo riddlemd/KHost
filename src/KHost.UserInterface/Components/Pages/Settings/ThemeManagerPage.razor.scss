@@ -1,0 +1,20 @@
+.kh-theme-manager {
+    &__edit-btn,
+    &__clone-btn,
+    &__delete-btn {
+        & + & {
+            margin-left: 4px;
+        }
+    }
+
+    &__in-use {
+        margin-left: 8px;
+        padding: 1px 8px;
+        border-radius: 999px;
+        background: var(--kh-badge-info-bg);
+        border: 1px solid var(--kh-badge-info-border);
+        color: var(--kh-badge-info-text);
+        font-size: 0.72rem;
+        white-space: nowrap;
+    }
+}
