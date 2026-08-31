@@ -59,7 +59,7 @@ public class PluginStagingAreaTests : IDisposable
     public void ApplyPending_RemovalMarker_DeletesTheInstalledFolderAndTheMarker()
     {
         WriteInstalled("youtube", PluginId, "1.0.0");
-        WriteRemovalMarker(PluginId);
+        WriteRemovalMarker("youtube");
 
         Area().ApplyPending();
 
@@ -71,7 +71,7 @@ public class PluginStagingAreaTests : IDisposable
     public void ApplyPending_RemovalMarkerForAPluginThatIsNotInstalled_ClearsTheMarker()
     {
         Directory.CreateDirectory(PluginsDir);
-        WriteRemovalMarker(PluginId);
+        WriteRemovalMarker("never-installed");
 
         Area().ApplyPending();
 
@@ -82,7 +82,7 @@ public class PluginStagingAreaTests : IDisposable
     public void ApplyPending_StagedInstallAndRemovalForTheSameId_KeepsTheInstall()
     {
         WriteInstalled("old", PluginId, "1.0.0");
-        WriteRemovalMarker(PluginId);
+        WriteRemovalMarker("old");
         WriteStaged(PluginId, "2.0.0");
 
         Area().ApplyPending();
@@ -169,11 +169,11 @@ public class PluginStagingAreaTests : IDisposable
     [Fact]
     public void Read_RemovalMarker_ReportsIt()
     {
-        WriteRemovalMarker(PluginId);
+        WriteRemovalMarker("youtube");
 
         var state = Area().Read();
 
-        Assert.Equal([PluginId], state.Removals);
+        Assert.Equal(["youtube"], state.Removals);
         Assert.Empty(state.Installs);
     }
 
@@ -199,6 +199,117 @@ public class PluginStagingAreaTests : IDisposable
         Assert.True(Area().Read().IsEmpty);
     }
 
+    [Fact]
+    public void ApplyPending_TwoFoldersShareAnId_RemovalTakesOnlyTheOneNamed()
+    {
+        WriteInstalled("youtube", PluginId, "1.0.0");
+        WriteInstalled("youtube-copy", PluginId, "1.0.0");
+        WriteRemovalMarker("youtube-copy");
+
+        Area().ApplyPending();
+
+        Assert.True(Directory.Exists(Path.Combine(PluginsDir, "youtube")));
+        Assert.False(Directory.Exists(Path.Combine(PluginsDir, "youtube-copy")));
+    }
+
+    [Fact]
+    public void ApplyPending_TwoFoldersShareAnId_AStagedInstallReplacesEveryCopy()
+    {
+        WriteInstalled("youtube", PluginId, "1.0.0");
+        WriteInstalled("youtube-copy", PluginId, "1.0.0");
+        WriteStaged(PluginId, "2.0.0");
+
+        Area().ApplyPending();
+
+        Assert.False(Directory.Exists(Path.Combine(PluginsDir, "youtube")));
+        Assert.False(Directory.Exists(Path.Combine(PluginsDir, "youtube-copy")));
+        Assert.Equal("2.0.0", ReadVersion(Path.Combine(PluginsDir, PluginId.ToString())));
+    }
+
+    [Fact]
+    public void ApplyPending_RemovalMarkerNamingAPathOutsideThePluginsFolder_DeletesNothing()
+    {
+        WriteInstalled("youtube", PluginId, "1.0.0");
+
+        var sibling = Directory.CreateDirectory(Path.Combine(_root.FullName, "not-plugins"));
+
+        // ".." + the suffix: the only escaping name a single file name can carry.
+        WriteRemovalMarker("..");
+
+        Area().ApplyPending();
+
+        Assert.True(sibling.Exists);
+        Assert.True(Directory.Exists(Path.Combine(PluginsDir, "youtube")));
+    }
+
+    [Fact]
+    public void MarkForRemoval_FolderNameThatEscapesThePluginsFolder_WritesNoMarker()
+    {
+        Directory.CreateDirectory(PluginsDir);
+
+        Area().MarkForRemoval("..");
+
+        Assert.Empty(Area().Read().Removals);
+    }
+
+    [Fact]
+    public void MarkForRemoval_StagedInstallForTheSameId_DropsIt()
+    {
+        WriteInstalled("youtube", PluginId, "1.0.0");
+        WriteStaged(PluginId, "2.0.0");
+
+        Area().MarkForRemoval("youtube");
+
+        var state = Area().Read();
+
+        Assert.Empty(state.Installs);
+        Assert.Equal(["youtube"], state.Removals);
+    }
+
+    [Fact]
+    public void ClearRemoval_TwoCopiesPendingRemoval_ClearsOnlyTheOneNamed()
+    {
+        WriteInstalled("youtube", PluginId, "1.0.0");
+        WriteInstalled("youtube-copy", PluginId, "1.0.0");
+        WriteRemovalMarker("youtube");
+        WriteRemovalMarker("youtube-copy");
+
+        Area().ClearRemoval("youtube-copy");
+
+        Assert.Equal(["youtube"], Area().Read().Removals);
+    }
+
+    [Fact]
+    public void Clear_TwoCopiesPendingRemoval_ClearsBoth()
+    {
+        WriteInstalled("youtube", PluginId, "1.0.0");
+        WriteInstalled("youtube-copy", PluginId, "1.0.0");
+        WriteRemovalMarker("youtube");
+        WriteRemovalMarker("youtube-copy");
+
+        Area().Clear(PluginId);
+
+        Assert.Empty(Area().Read().Removals);
+    }
+
+    [Fact]
+    public void Stage_PendingRemovalOfAnotherCopy_ClearsIt()
+    {
+        WriteInstalled("youtube", PluginId, "1.0.0");
+        WriteRemovalMarker("youtube");
+
+        var payload = Path.Combine(_root.FullName, "payload");
+
+        WriteManifest(payload, PluginId, "2.0.0");
+
+        Area().Stage(payload, PluginId);
+
+        var state = Area().Read();
+
+        Assert.Empty(state.Removals);
+        Assert.Equal([PluginId], state.Installs);
+    }
+
     private PluginStagingArea Area() => new(PluginsDir, StagingDir);
 
     private void WriteStaged(Guid id, string version)
@@ -207,10 +318,10 @@ public class PluginStagingAreaTests : IDisposable
     private void WriteInstalled(string folderName, Guid id, string version)
         => WriteManifest(Path.Combine(PluginsDir, folderName), id, version);
 
-    private void WriteRemovalMarker(Guid id)
+    private void WriteRemovalMarker(string folderName)
     {
         Directory.CreateDirectory(StagingDir);
-        File.WriteAllText(Path.Combine(StagingDir, id + PluginPaths.RemovalSuffix), string.Empty);
+        File.WriteAllText(Path.Combine(StagingDir, folderName + PluginPaths.RemovalSuffix), string.Empty);
     }
 
     private static void WriteManifest(string directory, Guid id, string version)
