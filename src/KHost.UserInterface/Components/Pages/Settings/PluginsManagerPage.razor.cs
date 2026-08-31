@@ -24,7 +24,9 @@ public partial class PluginsManagerPage : IDisposable
 
     private readonly string _pluginsDirectory = PluginPaths.Plugins;
     private readonly Dictionary<string, List<SettingField>> _settingFields = new(StringComparer.OrdinalIgnoreCase);
-    private readonly HashSet<string> _openIds = new(StringComparer.OrdinalIgnoreCase);
+    /// <summary>Which rows are expanded, by folder rather than by plugin id: two rows may carry one
+    /// id, and opening either would otherwise open both.</summary>
+    private readonly HashSet<string> _openFolders = new(StringComparer.Ordinal);
     private readonly HashSet<string> _savedIds = new(StringComparer.OrdinalIgnoreCase);
     private HashSet<string> _enabledIds = new(StringComparer.OrdinalIgnoreCase);
 
@@ -87,12 +89,14 @@ public partial class PluginsManagerPage : IDisposable
         return field;
     }
 
-    private bool IsOpen(string pluginId) => _openIds.Contains(pluginId);
+    private bool IsOpen(DiscoveredPlugin plugin) => _openFolders.Contains(FolderNameOf(plugin));
 
-    private void ToggleOpen(string pluginId)
+    private void ToggleOpen(DiscoveredPlugin plugin)
     {
-        if (!_openIds.Add(pluginId))
-            _openIds.Remove(pluginId);
+        var folder = FolderNameOf(plugin);
+
+        if (!_openFolders.Add(folder))
+            _openFolders.Remove(folder);
     }
 
     private bool IsEnabled(string pluginId) => _enabledIds.Contains(pluginId);
@@ -300,7 +304,7 @@ public partial class PluginsManagerPage : IDisposable
         if (GetActiveInstall(entry.Id) is not null) return AvailableState.Installing;
         if (_staging.Failures.ContainsKey(entry.Id)) return AvailableState.StageFailed;
         if (_staging.Installs.Contains(entry.Id)) return AvailableState.Staged;
-        if (_staging.Removals.Contains(entry.Id)) return AvailableState.PendingRemoval;
+        if (IsPendingRemoval(entry.Id)) return AvailableState.PendingRemoval;
 
         var installed = GetInstalledVersion(entry.Id);
         var release = entry.LatestCompatible();
@@ -395,7 +399,7 @@ public partial class PluginsManagerPage : IDisposable
                 _enabledIds.Remove(id);
             }
         }
-        else if (staged.Removals.Contains(pluginId) && WasLoadedAtStartup(pluginId))
+        else if (IsPendingRemoval(pluginId, staged) && WasLoadedAtStartup(pluginId))
         {
             // Loaded is the only honest signal that it was enabled when this process started; a
             // plugin already switched off before the removal was marked stays off.
@@ -408,6 +412,40 @@ public partial class PluginsManagerPage : IDisposable
     private bool WasLoadedAtStartup(Guid pluginId)
         => Plugins.Any(p => p.Manifest?.Id == pluginId && p.Status == PluginStatus.Loaded);
 
+    /// <summary>The folder a row stands for. Two rows may share a manifest id — a plugin dropped
+    /// in by hand under a second name — and only this tells them apart.</summary>
+    private static string FolderNameOf(DiscoveredPlugin plugin) => Path.GetFileName(
+        plugin.Directory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+
+    private bool IsPendingRemoval(DiscoveredPlugin plugin) => _staging.Removals.Contains(FolderNameOf(plugin));
+
+    /// <summary>The Available tab has a catalog id and no folder, so it answers for any copy.</summary>
+    private bool IsPendingRemoval(Guid pluginId, PluginStagingState? staging = null)
+    {
+        var removals = (staging ?? _staging).Removals;
+
+        return Plugins.Any(p => p.Manifest?.Id == pluginId && removals.Contains(FolderNameOf(p)));
+    }
+
+    /// <summary>Undoes the removal of one folder. Re-enabling is still keyed by id, since that is
+    /// what the enabled flag is — and only a copy that was loaded is one the flag was ever on for.</summary>
+    private async Task ClearRemovalAsync(DiscoveredPlugin plugin)
+    {
+        if (Installer is null || plugin.Manifest is not { } manifest) return;
+
+        var restoreEnabled = WasLoadedAtStartup(manifest.Id);
+
+        Installer.ClearRemoval(FolderNameOf(plugin));
+
+        if (PluginsService is null || !restoreEnabled) return;
+
+        var id = manifest.Id.ToString();
+
+        await PluginsService.SetEnabledAsync(id, true);
+
+        _enabledIds.Add(id);
+    }
+
     private async Task ConfirmUninstallAsync(DiscoveredPlugin plugin)
     {
         if (Dialogs is null || Installer is null || plugin.Manifest is not { } manifest) return;
@@ -417,14 +455,15 @@ public partial class PluginsManagerPage : IDisposable
             + "<p>Its saved settings are kept, so reinstalling restores them.</p>",
             onConfirm: async () =>
             {
-                Installer.MarkForRemoval(manifest.Id);
+                Installer.MarkForRemoval(FolderNameOf(plugin));
 
-                if (PluginsService is not null)
-                {
-                    await PluginsService.SetEnabledAsync(manifest.Id.ToString(), false);
+                // The enabled flag is the id's, not the folder's: switching it off while another
+                // copy of the same plugin stays installed would disable the copy that is running.
+                if (PluginsService is null || Plugins.Count(p => p.Manifest?.Id == manifest.Id) > 1) return;
 
-                    _enabledIds.Remove(manifest.Id.ToString());
-                }
+                await PluginsService.SetEnabledAsync(manifest.Id.ToString(), false);
+
+                _enabledIds.Remove(manifest.Id.ToString());
             },
             title: $"Remove {plugin.DisplayName}",
             confirmText: "Remove");

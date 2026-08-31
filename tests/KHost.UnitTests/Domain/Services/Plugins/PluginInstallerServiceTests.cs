@@ -262,9 +262,32 @@ public class PluginInstallerServiceTests : IDisposable
     {
         var service = BuildService([]);
 
-        service.MarkForRemoval(PluginId);
+        service.MarkForRemoval(InstallFolder("youtube"));
 
-        Assert.Equal([PluginId], service.Staged().Removals);
+        Assert.Equal(["youtube"], service.Staged().Removals);
+    }
+
+    [Fact]
+    public void MarkForRemoval_TwoFoldersShareAnId_MarksOnlyTheOneNamed()
+    {
+        var service = BuildService([]);
+
+        InstallFolder("youtube");
+        service.MarkForRemoval(InstallFolder("youtube-copy"));
+
+        Assert.Equal(["youtube-copy"], service.Staged().Removals);
+    }
+
+    [Fact]
+    public void ClearRemoval_TwoFoldersShareAnId_ClearsOnlyTheOneNamed()
+    {
+        var service = BuildService([]);
+
+        service.MarkForRemoval(InstallFolder("youtube"));
+        service.MarkForRemoval(InstallFolder("youtube-copy"));
+        service.ClearRemoval("youtube-copy");
+
+        Assert.Equal(["youtube"], service.Staged().Removals);
     }
 
     [Fact]
@@ -274,12 +297,12 @@ public class PluginInstallerServiceTests : IDisposable
         var service = BuildService(zip);
 
         await service.InstallAsync(Entry(), Release(Sha256(zip)));
-        service.MarkForRemoval(PluginId);
+        service.MarkForRemoval(InstallFolder("youtube"));
 
         var staged = service.Staged();
 
         Assert.Empty(staged.Installs);
-        Assert.Equal([PluginId], staged.Removals);
+        Assert.Equal(["youtube"], staged.Removals);
     }
 
     [Fact]
@@ -288,7 +311,7 @@ public class PluginInstallerServiceTests : IDisposable
         var zip = BuildZip();
         var service = BuildService(zip);
 
-        service.MarkForRemoval(PluginId);
+        service.MarkForRemoval(InstallFolder("youtube"));
         await service.InstallAsync(Entry(), Release(Sha256(zip)));
 
         var staged = service.Staged();
@@ -314,10 +337,32 @@ public class PluginInstallerServiceTests : IDisposable
     {
         var service = BuildService([]);
 
-        service.MarkForRemoval(PluginId);
+        service.MarkForRemoval(InstallFolder("youtube"));
         service.ClearStaged(PluginId);
 
         Assert.True(service.Staged().IsEmpty);
+    }
+
+    /// <summary>An installed plugin folder. A removal names a folder, and the id it carries is only
+    /// readable from the manifest inside.</summary>
+    private string InstallFolder(string folderName, Guid? id = null)
+    {
+        var directory = Directory.CreateDirectory(Path.Combine(_root.FullName, "plugins", folderName));
+
+        var manifest = new PluginManifest
+        {
+            Id = id ?? PluginId,
+            Name = "Test Plugin",
+            Version = "1.0.0",
+            EntryAssembly = "Test.dll",
+            ApiVersion = PluginApi.CurrentVersion,
+        };
+
+        File.WriteAllText(
+            Path.Combine(directory.FullName, PluginLoader.ManifestFileName),
+            JsonSerializer.Serialize(manifest, JsonSerializerOptions.Web));
+
+        return folderName;
     }
 
     private PluginInstallerService BuildService(byte[] payload, HttpStatusCode status = HttpStatusCode.OK, SemaphoreSlim? gate = null)
