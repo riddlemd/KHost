@@ -1,4 +1,4 @@
-using KHost.Plugins.Sdk.Exceptions;
+using KHost.Abstractions.Exceptions;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using KHost.Abstractions.Services.IPC;
@@ -7,7 +7,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using KHost.Domain.Services;
 using KHost.Domain.Services.Messaging;
-using KHost.Plugins.Sdk.Messaging.Messages;
+using KHost.Abstractions.Messaging.Messages;
 
 namespace KHost.UnitTests.Domain.Services;
 

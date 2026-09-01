@@ -1,7 +1,6 @@
 using KHost.Abstractions.Models.Plugins;
-using KHost.Plugins.Sdk;
-using KHost.Plugins.Sdk.Models;
-using KHost.Plugins.Sdk.Services;
+using KHost.Abstractions.Models;
+using KHost.Abstractions.Services;
 using System.Text.Json;
 using KHost.Domain.Services.Plugins;
 
@@ -123,7 +122,7 @@ public class PluginContextTests
             ],
         };
 
-        return new PluginContext(manifest, stored, new DiscoveredPlugin { Directory = "/plugins/test", Manifest = manifest }, Substitute.For<IPluginLibrary>());
+        return new PluginContext(manifest, stored, new DiscoveredPlugin { Directory = "/plugins/test", Manifest = manifest });
     }
 
     private class TestSettings

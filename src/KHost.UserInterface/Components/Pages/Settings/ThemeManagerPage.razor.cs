@@ -1,4 +1,4 @@
-using KHost.Plugins.Sdk.Messaging;
+using KHost.Abstractions.Messaging;
 using KHost.UserInterface.Messaging;
 using KHost.UserInterface.Models;
 using KHost.UserInterface.Services;

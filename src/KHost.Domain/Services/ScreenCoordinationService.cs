@@ -1,7 +1,7 @@
 using KHost.Abstractions.Services;
 using KHost.Abstractions.Services.IPC;
-using KHost.Plugins.Sdk.Messaging;
-using KHost.Plugins.Sdk.Messaging.Messages;
+using KHost.Abstractions.Messaging;
+using KHost.Abstractions.Messaging.Messages;
 using Microsoft.Extensions.Logging;
 using System.Collections.Concurrent;
 

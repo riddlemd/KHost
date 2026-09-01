@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using KHost.Abstractions.Models;
-using KHost.Plugins.Sdk.Models.QueueRotation;
+using KHost.Abstractions.Models.QueueRotation;
 
 namespace KHost.UserInterface.Models;
 

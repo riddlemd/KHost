@@ -1,7 +1,6 @@
 using KHost.Abstractions.Models.Plugins;
 using KHost.Abstractions.Services;
-using KHost.Plugins.Sdk;
-using KHost.Plugins.Sdk.Models;
+using KHost.Abstractions.Models;
 using System.IO.Compression;
 using System.Text.Json;
 

@@ -1,17 +1,16 @@
 using KHost.Abstractions.Models.Plugins;
 using KHost.Domain.Services.Messaging;
 using KHost.Domain.Services.Plugins;
-using KHost.Plugins.Sdk;
-using KHost.Plugins.Sdk.Messaging;
-using KHost.Plugins.Sdk.Messaging.Messages;
-using KHost.Plugins.Sdk.Models;
+using KHost.Abstractions.Messaging.Messages;
+using KHost.Abstractions.Messaging;
+using KHost.Abstractions.Models;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using System.IO.Compression;
 using System.Net;
 using System.Security.Cryptography;
-using System.Text;
 using System.Text.Json;
+using System.Text;
 
 namespace KHost.UnitTests.Domain.Services.Plugins;
 

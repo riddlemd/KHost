@@ -1,7 +1,7 @@
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
-using KHost.Plugins.Sdk.Messaging;
-using KHost.Plugins.Sdk.Messaging.Messages;
+using KHost.Abstractions.Messaging;
+using KHost.Abstractions.Messaging.Messages;
 using KHost.UserInterface.Models;
 using KHost.UserInterface.Services;
 using Microsoft.AspNetCore.Components;

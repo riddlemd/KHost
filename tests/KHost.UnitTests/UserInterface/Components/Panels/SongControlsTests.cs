@@ -2,7 +2,7 @@ using Bunit;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using KHost.Domain.Services.Messaging;
-using KHost.Plugins.Sdk.Messaging;
+using KHost.Abstractions.Messaging;
 using KHost.UserInterface.Components.Panels;
 using KHost.UserInterface.Models;
 using KHost.UserInterface.Services;

@@ -2,7 +2,7 @@
 
 **KHost** — karaoke host app. .NET 10 + Blazor Server UI, Photino screen app. Solution: `KHost.slnx` (no `.sln`).
 
-Projects (`src/`): `Plugins.Sdk` (plugin contracts + the message broker — no project refs, so it is the bottom layer everything may reference) ← `Abstractions` (all interfaces + shared models) ← `Domain` (services) / `DataAccess` (EF Core 10 + SQLite) ← `UserInterface` (Blazor Server) and `Screen2` (Photino video output), plus `IPC.SignalR` (UI↔Screen), `Cast` (Chromecast), `LrcLib`, `Telemetry`, `ServiceDefaults`/`AppHost` (Aspire), `tools/` (`KHost.CatalogSync`, the CLI that writes `plugin-catalog.json` entries), and `tests/` (`KHost.UnitTests` — hermetic, no skips; `KHost.IntegrationTests` — needs ffmpeg/ffprobe, Cast tests skip without the Chromecast emulator on 127.0.0.1:8009).
+Projects (`src/`): `Abstractions` (every interface, the shared models, and what a plugin is built against — MIT, no project refs, the bottom layer) ← `Common` (helpers over those contracts, MIT) ← `Domain` (services) / `DataAccess` (EF Core 10 + SQLite) ← `UserInterface` (Blazor Server) and `Screen2` (Photino video output), plus `IPC.SignalR` (UI↔Screen), `Cast` (Chromecast), `LrcLib`, `Telemetry`, `ServiceDefaults`/`AppHost` (Aspire), `tools/` (`KHost.CatalogSync`, the CLI that writes `plugin-catalog.json` entries), `build/` (`KHost.Analyzers`, a netstandard2.0 Roslyn analyzer referenced only at build time), and `tests/` (`KHost.UnitTests` — hermetic, no skips; `KHost.IntegrationTests` — needs ffmpeg/ffprobe, Cast tests skip without the Chromecast emulator on 127.0.0.1:8009).
 
 ## Commands
 
@@ -23,21 +23,50 @@ SCSS compiles inside `dotnet build` (AspNetCore.SassCompiler) — no separate sa
 ## Rules
 
 - Interfaces in `src/KHost.Abstractions` (`Services/`, `Repositories/`, `Models/`); implementations in `src/KHost.Domain` or `src/KHost.DataAccess`. Register in the project's `ProjectExtensions` (`AddDomain()` / `AddDataAccess()`); UI-only services in `Program.cs`. All domain services are singletons — guard mutable state with `SemaphoreSlim`.
+- A helper both the host and a plugin would want goes in `KHost.Common`, not `Abstractions`: it is MIT on purpose, so a plugin author may use it without taking PolyForm code into what they redistribute. `Common` is for helpers *over* the contracts — string folding aids, formatting, list surgery, the shared drop-position mechanic. A contract, a model or anything `Abstractions` itself needs belongs in `Abstractions`, which references nothing. `Abstractions` declares, it does not compute — see **No static methods in Abstractions** below. Group by area under `Common` (`Media/`, `Plugins/`) rather than dropping types in its root, and mirror that in the tests. Name its methods for what the call site needs to read, not for what the class already says: a plugin author sees `StreamRate.FromTempo(t)` and `AudioLevels.ClampVolume(v)` without this repo's context, so `For` and `Clamp` are too thin — `PluginRid.MatchesThisHost` names what it matches against, and `int.CentsToCurrencyString()` names the unit the receiver is in. Verbosity here is worth more than symmetry with a BCL name; the one exception is a member that exists to fill a BCL gap (`IList<T>.FindIndex`), where the familiar name *is* the point.
 - No "gate" services: behaviour that guards a call lives on the service that owns the call (enqueue rules go in `PerformanceService.CreateAndEnqueueAsync`, not an `IEnqueueGuard` around it).
 - New repositories/services copy the shape of an existing one: repositories extend `BaseRepository<T>` and implement `SortColumns` / `ApplySearchFilters`; services extend `BaseService` (or `BaseRepositoryService<,>` for CRUD).
 - In repositories, `using var context = await ContextFactory.CreateDbContextAsync();` per operation — never store a context.
-- Services announce, they do not raise events. There is no `StateChanged` and no `IKHostService`: a service that has something to say takes `IMessageBroker` in its own constructor (never through `BaseService`, which carries only `ILogger`) and calls `Broker.Announce(new ThingChanged())`. Messages are empty records in `KHost.Plugins.Sdk.Messaging.Messages`, one per service, named for the fact — see **Messaging** below.
+- Services announce, they do not raise events. There is no `StateChanged` and no `IKHostService`: a service that has something to say takes `IMessageBroker` in its own constructor (never through `BaseService`, which carries only `ILogger`) and calls `Broker.Announce(new ThingChanged())`. Messages are empty records in `KHost.Abstractions.Messaging.Messages`, one per service, named for the fact — see **Messaging** below.
 - Member order: fields → events → properties → public → protected → private → nested types.
 - Every `Task`/`ValueTask`-returning method ends in `Async` — enforced by reflection in `AsyncNamingConventionTests`; a new project must be a `ProjectReference` of `KHost.UnitTests` to be covered.
 - Method names that cross a string boundary (`[JSInvokable]` called from JS, SignalR hub methods invoked by name) break silently when renamed: pass the name as `nameof(...)` from C# and take it as a parameter in JS (see `SingerQueuePanel` / `sortable-interop.js`, `ScreenClient` / `ScreenHub`).
 - Library/users/groups persist in SQL; queue and venue state in the JSON cache (`ICacheService`, `./cache/`).
 - Dialogs go through `IInteractionDispatcher`, which resolves `IInteractionHandler<TReq, TRes>` from DI; handlers bridge dialogs into awaitable calls with `TaskCompletionSource` and are registered in `Program.cs`.
-- `KHost.Plugins.Sdk` is MIT; everything else is PolyForm Shield (`LICENSE`, and `src/KHost.Plugins.Sdk/LICENSE`). Its "no project refs" rule is now legal as well as structural — a reference out of the SDK pulls PolyForm-licensed code into an assembly plugin authors redistribute, which retroactively breaks the MIT grant they relied on. Keep first-party code that is not a plugin contract out of that project. The rule cuts both ways: `KHostException` lives in the SDK, not `Abstractions`, because it is the only way a plugin can report a failure the host can act on — a plugin referencing `Abstractions` to throw one would be the same breach from the other side.
+- `KHost.Abstractions` and `KHost.Common` are MIT; everything else is PolyForm Shield (`LICENSE`, and each MIT project's own `LICENSE`). `LicenceBoundaryTests` enforces it: an MIT project may reference only MIT projects, and must declare `PackageLicenseExpression` and ship a `LICENSE`. Note the compiler catches only the circular case — a reference to a leaf like `KHost.LrcLib` builds fine and breaks the licence silently, which is what that test is for. There is no separate plugin SDK: a plugin references `Abstractions` and `Common` directly, which is why `Abstractions` may reference nothing at all — `Common` sits above it, never the other way round. `KHostException` lives in `Abstractions` with the interfaces it is thrown across — it is the only way a plugin can report a failure the host can act on, so it has to sit where a plugin can reach it.
 - Do NOT commit unless explicitly asked.
+
+## No static methods in Abstractions
+
+`KHost.Abstractions` holds data and contracts. A static method there is a function, and a function
+is behaviour that belongs in `KHost.Common` where a plugin may also reach it. This is enforced at
+build time, not by review: `build/KHost.Analyzers` raises **KH0001** at the declaration, and it is
+fatal in that one project via the `.editorconfig` beside its `.csproj`.
+
+- The analyzer ships `DiagnosticSeverity.Hidden` so it can be referenced anywhere without biting;
+  the `.editorconfig` line is what makes it an error. `NoStaticMethodsInAbstractionsTests` checks
+  both halves of that wiring, because losing either one disables the rule with a green build.
+- The reference is `OutputItemType="Analyzer" ReferenceOutputAssembly="false"` — build-time only,
+  so no Roslyn assembly reaches what a plugin redistributes. `LicenceBoundaryTests` skips analyzer
+  references for that reason.
+- Exempt because the language requires `static`: `Main`, operators and conversions, static
+  constructors, `[ModuleInitializer]`, and extension methods. Static *fields* and *properties* are
+  not methods and are untouched — `ScreenCapabilities.None`, `MediaSearchOptions.Default` and
+  `PluginRid.Current` all stay. `#pragma warning disable KH0001` is the escape hatch, and wanting
+  one is usually a sign the member belongs in `Common`.
+- Where the existing ones went: `MediaFormats` (reads the disk for a `.cdg` sidecar) and
+  `AdPlayback.HasOwnAudio` to `Common/Media/`, alongside `AudioLevels.ClampVolume`,
+  `AudioTrackRoles.FromTrackName` and `StreamRate.FromTempo`; `PluginRid` and `PluginVersion` to
+  `Common/Plugins/`; `AuthResult`'s factories to `Common/Authentication/AuthResults`;
+  `RepositoryModel.IsBuiltIn` to `Common/Repositories/RepositoryModels.IsBuiltIn`.
+- `PluginCatalog` is the shape of the split: `IPluginCatalogService` returns it, so the data stays
+  in `Abstractions` while `LatestCompatibleRelease`, `HasReleaseForThisHost` and
+  `HasReleaseForThisPlatform` became extensions in `Common/Plugins/PluginCatalogExtensions` — they
+  needed `PluginRid` and `PluginVersion`, which had already moved.
 
 ## Messaging
 
-`IMessageBroker` (`KHost.Plugins.Sdk/Messaging/`) is how services and components hear about each other. It lives in the SDK, not `Abstractions`, so a plugin can subscribe to what the show is doing.
+`IMessageBroker` (`KHost.Abstractions/Messaging/`) is how services and components hear about each other. A plugin can subscribe to what the show is doing, `Abstractions` being what it builds against.
 
 - **`Announce(message)`** is fire-and-forget, for "this moved, redraw". **`await PublishAsync(message)`** waits for every handler and is for the case the publisher's next decision depends on: `PlaybackService` awaits the end-of-performance gap so an ad can claim it before break music comes back.
 - Handlers run **one at a time, in subscription order** — what one does decides what the next may do. A handler that throws is logged and skipped: a broken subscriber must not stop the queue reaching the next singer.
@@ -47,6 +76,22 @@ SCSS compiles inside `dotnet build` (AspNetCore.SassCompiler) — no separate sa
 - Components `[Inject] IMessageBroker Broker`, subscribe in `OnInitialized`, dispose the set in `Dispose`.
 
 Three things deliberately stay plain C# events, and should stay that way: Screen2's `IMediaPlayer` and `IScreenClient` (a separate process — the broker is in-process and SignalR is the transport), `IDialogService.ShowRequested` (a request with a payload and one legitimate subscriber, not a notification), and `IPlaybackService.PositionChanged` (twice a second for a whole night; it says only that `Position` moved, so take it to redraw a playhead and nothing else).
+
+## What a plugin can reach
+
+A plugin's entry point is constructed with `ActivatorUtilities.CreateInstance` against the host
+container, so it takes whatever it needs from `KHost.Abstractions` in its own constructor — the same
+service interfaces the host itself uses. There is deliberately no facade: an `IPluginLibrary`
+stood between plugins and the services for a while and only obscured which service actually owned
+each rule. `IPluginContext` carries the plugin's own manifest and stored settings, and nothing else.
+
+- Downloading media for the queue goes through `IMediaAcquisitionService` — an ordinary service, not
+  a plugin keyhole. It owns three rules nothing else may re-implement: an import is idempotent by
+  `FilePath`, the media row's status and the `IDownloadsService` entry move together, and
+  `DiscardImportAsync` deletes only a row still in `Downloading`. Enqueuing is *not* on it: a caller
+  composes `ISingerQueueService.SelectedUserId` with `IPerformanceService.CreateAndEnqueueAsync`,
+  because `SingerQueueService` already depends on `IPerformanceService` and folding the pair into
+  either one closes a constructor cycle.
 
 ## Plugin catalog and installs
 
@@ -59,7 +104,7 @@ and carries a `sha256`, and the download is hashed, the zip's entries are all ch
 folder: `PluginLoader` hands that string straight to `LoadFromAssemblyPath`.
 
 - Presentation metadata (repository, author, capabilities) belongs in the catalog, not
-  `PluginManifest` — the manifest is in the SDK, so adding a field breaks every external plugin's
+  `PluginManifest` — the manifest is MIT and a plugin builds against it, so adding a field breaks every external plugin's
   build, the same argument as `MediaSearchEntity`.
 - Nothing installs into a running host. `IPluginStagingArea` parks payloads in `plugins-staging/`,
   a **sibling** of `plugins/` — `PluginLoader.Discover` treats every subdirectory of `plugins/` as
@@ -88,8 +133,8 @@ folder: `PluginLoader` hands that string straight to `LoadFromAssemblyPath`.
   reviewed. The catalog's hash is the one the sync run computed.
 - A release zip holds `manifest.json` at its root (or in one wrapping folder), the entry assembly,
   and its `.deps.json` — `AssemblyDependencyResolver` reads that to find plugin-private
-  dependencies. Ship no `.pdb`, and no copy of `KHost.Plugins.Sdk.dll`: `PluginLoadContext.Load`
-  returns null for anything already in the default context, so a plugin-local SDK is never loaded.
+  dependencies. Ship no `.pdb`, and no copy of `KHost.Abstractions.dll` or `KHost.Common.dll`: `PluginLoadContext.Load`
+  returns null for anything already in the default context, so a plugin-local copy of either is never loaded.
 - `Rid` is blank for a build that runs anywhere, which is what a plugin should aim for. Name a
   platform only where an OS API forces a separate build — the Spotify provider's WinRT path is the
   case it exists for. Selection takes version first and platform second.
@@ -147,7 +192,7 @@ A component test renders the component (`BunitContext`, not the obsolete `TestCo
 - EF join entities: `UsingEntity<T>(l => ..., r => ..., j => ...)` with no string name — a string name makes a shared-type entity and breaks `context.Set<T>()`.
 - IPC screen commands are `[JsonPolymorphic]` on `ScreenCommandBase` — a new command needs a `[JsonDerivedType]` attribute on the base.
 - Times are stored UTC and converted where they are shown. `DateTime.Now` against a stored timestamp shifts by the host's offset — it moved the duplicate-song window by five hours here — and a test that arranges its data with the same local clock cancels the error and passes. Arrange in UTC, and remember such a test can only fail on a machine that is not already at UTC. Local time is right in exactly two places: a picker's own model (converted on save and load) and comparing a converted local date against a local today.
-- `MediaSearchEntity` lives in `KHost.Plugins.Sdk`, so it is a contract with providers outside this repo: changing it breaks their build. It carries `Title` and `Artist` separately — the library stores them apart, and rejoining them means the console has to re-parse a string it built. `ForeignKey` is the provider's own key, and only a local result's is already a library id; `Performance.MediaId` is a Guid into the library, so a remote result has to be imported before it can be enqueued.
+- `MediaSearchEntity` lives in `KHost.Abstractions`, so it is a contract with providers outside this repo: changing it breaks their build. It carries `Title` and `Artist` separately — the library stores them apart, and rejoining them means the console has to re-parse a string it built. `ForeignKey` is the provider's own key, and only a local result's is already a library id; `Performance.MediaId` is a Guid into the library, so a remote result has to be imported before it can be enqueued.
 - Only `Ready` and `Broken` are a host's to set (`MediaStatusDisplay.IsUserSettable`). Nothing writes `Downloading` or `Processing` yet, so a status control that lists them describes a pipeline that does not exist — leaving those states belongs to whatever provider eventually sets them.
 - Money is whole cents in an `INTEGER` (`Tip.AmountInCents`) — SQLite has no decimal type, and EF stores one as TEXT, which sorts lexicographically and makes `SUM` coerce through a float.
 - The appliance lockdown (no devtools, no page context menu) is gated on the build configuration, not the environment: an unpublished run must stay in Development or it serves no static web assets at all. Test it with `dotnet run -c Release`.

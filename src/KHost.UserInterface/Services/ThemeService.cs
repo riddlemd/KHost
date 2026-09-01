@@ -1,7 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using KHost.Abstractions.Services;
-using KHost.Plugins.Sdk.Messaging;
+using KHost.Abstractions.Messaging;
 using KHost.UserInterface.Messaging;
 using KHost.UserInterface.Models;
 using Microsoft.AspNetCore.Hosting;

@@ -1,9 +1,8 @@
 using System.Buffers.Binary;
 using KHost.Abstractions.Models.Plugins;
-using KHost.Plugins.Sdk;
-using KHost.Plugins.Sdk.Models;
-using KHost.Plugins.Sdk.Services;
-using KHost.Plugins.Sdk.Services.QueueRotation;
+using KHost.Abstractions.Models;
+using KHost.Abstractions.Services;
+using KHost.Abstractions.Services.QueueRotation;
 using Microsoft.Extensions.DependencyInjection;
 using System.Reflection;
 using System.Text.Json;
@@ -240,7 +239,7 @@ public static class PluginLoader
                 services.AddSingleton(extensionInterface, serviceProvider => ActivatorUtilities.CreateInstance(
                     serviceProvider,
                     implementationType,
-                    new PluginContext(manifest, storedValues, plugin, serviceProvider.GetRequiredService<IPluginLibrary>())));
+                    new PluginContext(manifest, storedValues, plugin)));
 
                 if (!plugin.Capabilities.Contains(capability))
                     plugin.Capabilities.Add(capability);
@@ -257,7 +256,7 @@ public static class PluginLoader
             services.AddSingleton<LoadedPlugin>(serviceProvider => new LoadedPlugin(
                 plugin,
                 (IPlugin)ActivatorUtilities.CreateInstance(serviceProvider, entryPointType),
-                new PluginContext(manifest, storedValues, plugin, serviceProvider.GetRequiredService<IPluginLibrary>())));
+                new PluginContext(manifest, storedValues, plugin)));
 
             registered++;
         }

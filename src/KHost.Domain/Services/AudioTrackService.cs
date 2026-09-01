@@ -2,6 +2,7 @@ using FFMpegCore;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using Microsoft.Extensions.Logging;
+using KHost.Common.Media;
 
 namespace KHost.Domain.Services;
 
@@ -37,7 +38,7 @@ public sealed class AudioTrackService(ILogger<AudioTrackService> logger) : IAudi
         for (var index = 0; index < analysis.AudioStreams.Count; index++)
         {
             var name = NameOf(analysis.AudioStreams[index]);
-            var role = AudioTrack.RoleFor(name);
+            var role = AudioTrackRoles.FromTrackName(name);
 
             if (role is { } known)
                 tracks.Add(new AudioTrack(index, known, name!));

@@ -1,4 +1,4 @@
-using KHost.Plugins.Sdk.Models.QueueRotation;
+using KHost.Abstractions.Models.QueueRotation;
 using Microsoft.AspNetCore.Components;
 
 namespace KHost.UserInterface.Components.Dialogs;

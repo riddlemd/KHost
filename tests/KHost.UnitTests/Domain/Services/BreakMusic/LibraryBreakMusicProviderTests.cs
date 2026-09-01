@@ -3,7 +3,7 @@ using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using KHost.Abstractions.Services.IPC;
 using KHost.Domain.Services.BreakMusic;
-using KHost.Plugins.Sdk.Messaging.Messages;
+using KHost.Abstractions.Messaging.Messages;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace KHost.UnitTests.Domain.Services.BreakMusic;

@@ -3,9 +3,8 @@ using Microsoft.AspNetCore.Components.Web;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using KHost.Domain.Services.MediaProviders;
-using KHost.Plugins.Sdk.Messaging;
-using KHost.Plugins.Sdk.Messaging.Messages;
-using KHost.Plugins.Sdk.Models;
+using KHost.Abstractions.Messaging;
+using KHost.Abstractions.Messaging.Messages;
 using KHost.UserInterface.Services;
 
 namespace KHost.UserInterface.Components.Panels;

@@ -1,5 +1,5 @@
-using KHost.Plugins.Sdk.Models;
-using KHost.Plugins.Sdk.Services;
+using KHost.Abstractions.Models;
+using KHost.Abstractions.Services;
 using KHost.UserInterface.Services;
 
 namespace KHost.UnitTests.UserInterface.Services;
