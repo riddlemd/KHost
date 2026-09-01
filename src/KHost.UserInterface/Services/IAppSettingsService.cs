@@ -37,6 +37,16 @@ public sealed record AppSettings
     /// </summary>
     public SongControlStyle SongControlStyle { get; set; } = SongControlStyle.Sliders;
 
+    /// <summary>
+    /// Opens a screen when the console starts, so a host running the same room every night does
+    /// not launch one by hand first. Off by default: a machine with no second display would put
+    /// the screen over the console.
+    /// </summary>
+    public bool LaunchScreenOnStartup { get; set; }
+
+    /// <summary>The screen launched at startup is named this, so it reclaims its own window.</summary>
+    public const string StartupScreenName = "Screen 1";
+
     public const double DefaultAdDurationSeconds = 10;
     // A spot has to be long enough to read and short enough that the room does not turn back to
     // its drinks, and the whole point of the setting is that a venue disagrees with the number.

@@ -29,6 +29,52 @@ public class AppSettingsServiceTests : IDisposable
         Assert.Equal("00:00:05", overlay.RootElement.GetProperty("Playback").GetProperty("StopFadeDuration").GetString());
     }
 
+    /// <summary>Off unless asked: a machine with one display would put the screen over the console.</summary>
+    [Fact]
+    public void LaunchScreenOnStartup_DefaultsToOff()
+        => Assert.False(Service().Current.LaunchScreenOnStartup);
+
+    [Fact]
+    public async Task LaunchScreenOnStartup_RoundTripsThroughTheOverlay()
+    {
+        var service = Service();
+
+        await service.SaveAsync(new AppSettings { LaunchScreenOnStartup = true });
+
+        using var overlay = JsonDocument.Parse(
+            await File.ReadAllTextAsync(Path.Combine(_directory, AppSettingsService.OverlayFileName)));
+
+        Assert.True(overlay.RootElement.GetProperty("LocalScreen").GetProperty("LaunchOnStartup").GetBoolean());
+    }
+
+    [Fact]
+    public void LaunchScreenOnStartup_ReadsWhatTheOverlayHolds()
+        => Assert.True(Service(new KeyValuePair<string, string?>("LocalScreen:LaunchOnStartup", "true")).Current.LaunchScreenOnStartup);
+
+    /// <summary>
+    /// Read once, on the way up. Turning it on now opens no screen and turning it off closes none,
+    /// so the page has to say a restart is needed rather than imply it took effect.
+    /// </summary>
+    [Fact]
+    public async Task SaveAsync_ChangingTheStartupScreen_AsksForARestart()
+    {
+        var service = Service();
+
+        await service.SaveAsync(new AppSettings { LaunchScreenOnStartup = true });
+
+        Assert.True(service.RestartRequired);
+    }
+
+    [Fact]
+    public async Task SaveAsync_LeavingTheStartupScreenAlone_AsksForNoRestart()
+    {
+        var service = Service();
+
+        await service.SaveAsync(new AppSettings { SegmentSeconds = 4 });
+
+        Assert.False(service.RestartRequired);
+    }
+
     [Fact]
     public async Task BackingVocalVolume_DefaultsToSilent_AndRoundTripsThroughTheOverlay()
     {
