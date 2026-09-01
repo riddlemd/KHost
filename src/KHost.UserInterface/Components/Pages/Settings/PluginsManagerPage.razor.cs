@@ -56,9 +56,23 @@ public partial class PluginsManagerPage : IDisposable
         {
             var stored = await PluginsService.ReadSettingsAsync(plugin.Id);
 
-            _settingFields[plugin.Id] = plugin.Manifest!.Settings.Select(definition => Build(definition, stored)).ToList();
+            _settingFields[plugin.Id] = [.. Order(plugin.Manifest!.Settings).Select(definition => Build(definition, stored))];
         }
     }
+
+    /// <summary>
+    /// Settings arrive in whatever order the plugin author wrote them, and a manifest has no group
+    /// to sort on — the definition carries a key, a type, a label and nothing else, and cannot gain
+    /// one without breaking every external plugin's build.
+    ///
+    /// A checkbox and a labelled input are different shapes, so interleaving them is what makes a
+    /// panel look scattered rather than the sequence itself. Toggles move to the end and the
+    /// author's order survives inside each run, which matters: Spotify declares a bridge toggle
+    /// immediately followed by the port it uses, and sorting within the group would separate them.
+    /// OrderBy is a stable sort, which is what preserves that.
+    /// </summary>
+    private static IEnumerable<PluginSettingDefinition> Order(IEnumerable<PluginSettingDefinition> settings)
+        => settings.OrderBy(definition => definition.Type == PluginSettingType.Bool);
 
     private static SettingField Build(PluginSettingDefinition definition, Dictionary<string, JsonElement> stored)
     {
