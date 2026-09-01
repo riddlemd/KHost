@@ -45,7 +45,7 @@
                                     Name @if (_sortColumn == "name") { <Icon Name="@(_sortDescending ? "sort-down" : "sort-up")" class="kh-table__sort-indicator" /> }
                                 </th>
                                 <th>Notes</th>
-                                <th class="kh-table__col--sortable" @onclick='() => OnSortColumnClicked("enabled")'>
+                                <th class="kh-table__col--sortable kh-table__cell--centered" @onclick='() => OnSortColumnClicked("enabled")'>
                                     Enabled @if (_sortColumn == "enabled") { <Icon Name="@(_sortDescending ? "sort-down" : "sort-up")" class="kh-table__sort-indicator" /> }
                                 </th>
                                 <th>Actions</th>
