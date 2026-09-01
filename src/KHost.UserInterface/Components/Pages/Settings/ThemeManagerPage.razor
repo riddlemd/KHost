@@ -19,7 +19,7 @@
                         <tr>
                             <th>Theme</th>
                             <th>Type</th>
-                            <th>Enabled</th>
+                            <th class="kh-table__cell--centered">Enabled</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
@@ -36,7 +36,7 @@
                                     }
                                 </td>
                                 <td>@(theme.IsBuiltIn ? "Built-in" : "Custom")</td>
-                                <td>
+                                <td class="kh-table__cell--centered">
                                     <input type="checkbox" class="kh-form-check-input"
                                            aria-label="@($"{theme.Name} enabled")"
                                            title="@DisableHint(theme, isCurrent)"
