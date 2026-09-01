@@ -1,3 +1,4 @@
+using System.Buffers.Binary;
 using KHost.Abstractions.Models.Plugins;
 using KHost.Plugins.Sdk;
 using KHost.Plugins.Sdk.Models;
@@ -118,7 +119,7 @@ public static class PluginLoader
         if (!File.Exists(Path.Combine(directory, manifest.EntryAssembly)))
             return Errored(directory, manifest, $"Entry assembly '{manifest.EntryAssembly}' not found.");
 
-        return new DiscoveredPlugin
+        var plugin = new DiscoveredPlugin
         {
             Directory = directory,
             Manifest = manifest,
@@ -126,6 +127,79 @@ public static class PluginLoader
                 ? PluginStatus.Enabled
                 : PluginStatus.Disabled,
         };
+
+        ApplyIcon(plugin, directory, manifest);
+
+        return plugin;
+    }
+
+    /// <summary>
+    /// Settles whether a plugin's own image can be drawn, here rather than at render: a row that
+    /// asked for an <c>img</c> and got a 404 shows a broken picture, where a glyph is a clean
+    /// fallback. A plugin that asked for an image and shipped a bad one is told so in Warnings —
+    /// silently substituting the glyph would leave the author with nothing to go on.
+    /// </summary>
+    private static void ApplyIcon(DiscoveredPlugin plugin, string directory, PluginManifest manifest)
+    {
+        if (!string.Equals(manifest.Icon, PluginIcon.ImageSpecifier, StringComparison.OrdinalIgnoreCase))
+            return;
+
+        // Joined to the plugin's own folder from a fixed name, so the manifest cannot steer it.
+        var path = Path.Combine(directory, PluginIcon.FileName);
+
+        if (!File.Exists(path))
+        {
+            plugin.Warnings.Add($"Manifest asks for an image icon but {PluginIcon.FileName} is missing.");
+            return;
+        }
+
+        if (!TryReadPngSize(path, out var width, out var height))
+        {
+            plugin.Warnings.Add($"{PluginIcon.FileName} is not a PNG.");
+            return;
+        }
+
+        if (width > PluginIcon.MaxDimension || height > PluginIcon.MaxDimension)
+        {
+            plugin.Warnings.Add(
+                $"{PluginIcon.FileName} is {width}x{height}; the limit is {PluginIcon.MaxDimension}x{PluginIcon.MaxDimension}.");
+            return;
+        }
+
+        plugin.HasIconImage = true;
+    }
+
+    /// <summary>
+    /// Reads the dimensions out of a PNG's IHDR, which is at a fixed offset right after the
+    /// signature. Enough to size-check an icon without taking an imaging dependency for it, and it
+    /// doubles as the format check — anything that is not a PNG fails the signature.
+    /// </summary>
+    private static bool TryReadPngSize(string path, out int width, out int height)
+    {
+        width = height = 0;
+
+        ReadOnlySpan<byte> signature = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
+        Span<byte> header = stackalloc byte[24];
+
+        try
+        {
+            using var file = File.OpenRead(path);
+
+            if (file.ReadAtLeast(header, header.Length, throwOnEndOfStream: false) < header.Length)
+                return false;
+        }
+        catch (IOException)
+        {
+            return false;
+        }
+
+        if (!header[..8].SequenceEqual(signature) || !header[12..16].SequenceEqual("IHDR"u8))
+            return false;
+
+        width = BinaryPrimitives.ReadInt32BigEndian(header[16..20]);
+        height = BinaryPrimitives.ReadInt32BigEndian(header[20..24]);
+
+        return width > 0 && height > 0;
     }
 
     private static void LoadOne(IServiceCollection services, DiscoveredPlugin plugin, PluginsState state)

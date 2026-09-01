@@ -248,7 +248,18 @@
                                 <button type="button" class="kh-plugins-manager__disclosure" aria-expanded="@(open ? "true" : "false")"
                                         @onclick="() => ToggleOpen(plugin)">
                                     <span class="kh-plugins-manager__chevron"><Icon Name="chevron-right" /></span>
-                                    <span class="kh-plugins-manager__glyph"><Icon Name="@GetGlyph(plugin)" /></span>
+                                    <span class="kh-plugins-manager__glyph">
+                                        @if (plugin.HasIconImage)
+                                        {
+                                            @* Decorative: the plugin's name is right beside it. *@
+                                            <img class="kh-plugins-manager__icon" alt=""
+                                                 src="@($"/plugins/{plugin.Id}/icon.png")" />
+                                        }
+                                        else
+                                        {
+                                            <Icon Name="@GetGlyph(plugin)" />
+                                        }
+                                    </span>
                                     <span class="kh-plugins-manager__identity">
                                         <span class="kh-plugins-manager__title">
                                             <span class="kh-plugins-manager__name">@plugin.DisplayName</span>

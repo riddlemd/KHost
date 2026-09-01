@@ -186,14 +186,20 @@ public partial class PluginsManagerPage : IDisposable
     private static string GetInputType(PluginSettingDefinition definition)
         => definition.Type == PluginSettingType.Int ? "number" : "text";
 
-    /// <summary>What the plugin provides drives the glyph; a plugin the host never loaded has no
-    /// verified capability, so it falls back to the generic one.</summary>
-    private static string GetGlyph(DiscoveredPlugin plugin) => plugin.Capabilities switch
-    {
-        var c when c.Contains("Media provider") => "music-note-beamed",
-        var c when c.Contains("Queue rotation") => "people-fill",
-        _ => "puzzle",
-    };
+    /// <summary>
+    /// A plugin's own choice wins. Failing that, what it registered on load stands in — which is
+    /// also why a plugin the host never loaded lands on the generic glyph: nothing scanned it, so
+    /// the host cannot claim it provides anything.
+    ///
+    /// The image specifier is not a glyph name; a plugin asking for one either shipped a usable
+    /// image, in which case the row draws that instead of calling here, or it did not and falls
+    /// through to the same place as a manifest that said nothing.
+    /// </summary>
+    private static string GetGlyph(DiscoveredPlugin plugin)
+        => plugin.Manifest?.Icon is { Length: > 0 } icon
+           && !string.Equals(icon, PluginIcon.ImageSpecifier, StringComparison.OrdinalIgnoreCase)
+            ? icon
+            : GlyphFor(plugin.Capabilities);
 
     private RowState GetRowState(DiscoveredPlugin plugin)
     {
@@ -487,11 +493,21 @@ public partial class PluginsManagerPage : IDisposable
             ? $"The catalog publishes no build for {PluginRid.Current}."
             : "No release targets this host's plugin API.";
 
-    private static string GetAvailableGlyph(PluginCatalogEntry entry) => entry.Capabilities switch
+    private static string GetAvailableGlyph(PluginCatalogEntry entry) => GlyphFor(entry.Capabilities);
+
+    /// <summary>
+    /// One table for both tabs. A plugin crosses from Available to Installed when a host takes it,
+    /// and two copies of this had already drifted — the installed side had no case for break music
+    /// at all, so Spotify wore the generic glyph on one tab and its own on the other.
+    ///
+    /// A media provider is something a host searches, which is what its row is for; break music is
+    /// something that plays.
+    /// </summary>
+    private static string GlyphFor(List<string> capabilities) => capabilities switch
     {
-        var c when c.Contains("Media provider") => "music-note-beamed",
+        var c when c.Contains("Media provider") => "search",
+        var c when c.Contains("Break music") => "music-note-beamed",
         var c when c.Contains("Queue rotation") => "people-fill",
-        var c when c.Contains("Break music") => "music-player",
         _ => "puzzle",
     };
 

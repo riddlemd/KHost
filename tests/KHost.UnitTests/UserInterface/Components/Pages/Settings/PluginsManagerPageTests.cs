@@ -591,6 +591,59 @@ public class PluginsManagerPageTests : BunitContext
         => [.. cut.FindAll(".kh-plugins-manager__field .kh-plugins-manager__label, .kh-plugins-manager__field .kh-form-check-label")
             .Select(l => l.TextContent.Trim())];
 
+    [Fact]
+    public void Glyph_AManifestNamingOne_Wins()
+    {
+        var plugin = Plugin(PluginStatus.Loaded);
+        plugin.Manifest!.Icon = "search";
+        plugin.Capabilities.Add("Break music");
+
+        Arrange(plugin, enabled: true);
+
+        Assert.NotEmpty(Render<PluginsManagerPage>().FindAll(".kh-plugins-manager__glyph .bi-search"));
+    }
+
+    /// <summary>
+    /// The specifier is not a glyph name. A plugin that asked for an image and did not ship a usable
+    /// one lands where a manifest that said nothing lands, rather than on a class called "image".
+    /// </summary>
+    [Fact]
+    public void Glyph_TheImageSpecifierWithoutAUsableImage_FallsBackRatherThanNamingAGlyph()
+    {
+        var plugin = Plugin(PluginStatus.Loaded);
+        plugin.Manifest!.Icon = PluginIcon.ImageSpecifier;
+        plugin.Capabilities.Add("Break music");
+
+        Arrange(plugin, enabled: true);
+
+        var cut = Render<PluginsManagerPage>();
+
+        Assert.Empty(cut.FindAll(".kh-plugins-manager__glyph img"));
+        Assert.NotEmpty(cut.FindAll(".kh-plugins-manager__glyph .bi-music-note-beamed"));
+    }
+
+    [Fact]
+    public void Glyph_AUsableImage_IsDrawnInsteadOfAGlyph()
+    {
+        var plugin = Plugin(PluginStatus.Loaded);
+        plugin.Manifest!.Icon = PluginIcon.ImageSpecifier;
+        plugin.HasIconImage = true;
+
+        Arrange(plugin, enabled: true);
+
+        var image = Render<PluginsManagerPage>().Find(".kh-plugins-manager__glyph img");
+
+        Assert.Equal($"/plugins/{PluginId}/icon.png", image.GetAttribute("src"));
+    }
+
+    [Fact]
+    public void Glyph_NothingSpecifiedAndNothingRegistered_IsTheGenericOne()
+    {
+        Arrange(Plugin(PluginStatus.Loaded), enabled: true);
+
+        Assert.NotEmpty(Render<PluginsManagerPage>().FindAll(".kh-plugins-manager__glyph .bi-puzzle"));
+    }
+
     private void ArrangeDuplicates()
     {
         var loaded = Plugin(PluginStatus.Loaded, folderName: "youtube");

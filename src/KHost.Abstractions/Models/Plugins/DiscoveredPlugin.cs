@@ -16,6 +16,12 @@ public class DiscoveredPlugin
 
     public List<string> Warnings { get; } = [];
 
+    /// <summary>
+    /// Set when the plugin asked for its own image and shipped a usable one. False leaves the row
+    /// on a glyph, so a missing or oversized file degrades rather than drawing a broken image.
+    /// </summary>
+    public bool HasIconImage { get; set; }
+
     /// <summary>What the plugin actually registered on load, for display. Empty until it loads —
     /// a disabled plugin's assembly is never scanned, so the host cannot claim it provides anything.</summary>
     public List<string> Capabilities { get; } = [];

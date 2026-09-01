@@ -190,6 +190,14 @@
         min-width: 0;
     }
 
+    // Matched to the glyph it replaces so a row keeps its height either way.
+    &__icon {
+        width: 1em;
+        height: 1em;
+        object-fit: contain;
+        display: block;
+    }
+
     &__label {
         font-size: 0.78rem;
         font-weight: 600;
