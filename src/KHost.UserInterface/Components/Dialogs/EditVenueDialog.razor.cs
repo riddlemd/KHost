@@ -12,6 +12,20 @@ public partial class EditVenueDialog
 
     private static readonly int[] DuplicateWindowOptions = [1, 2, 4, 8, 12];
 
+    // What the colour inputs show a venue that has never chosen: a native colour picker has no
+    // empty state, so it would otherwise open on black and read as a deliberate choice.
+    private const string DefaultMarqueeBackground = "#000000";
+    private const string DefaultMarqueeText = "#f2f2f5";
+
+    /// <summary>What a venue turning the marquee on for the first time is offered.</summary>
+    private const int DefaultMarqueeSingerCount = 3;
+
+    /// <summary>Matches the screen's own default, so the dialog opens on what the room is seeing.</summary>
+    private const int DefaultMarqueeFontSizePixels = 28;
+
+    /// <summary>Also the screen's own, for the same reason.</summary>
+    private const int DefaultMarqueeScrollSpeed = 90;
+
     [Parameter] public bool IsOpen { get; set; }
     [Parameter] public Venue? Venue { get; set; }
     [Parameter] public string Class { get; set; } = "";
@@ -115,6 +129,27 @@ public partial class EditVenueDialog
                         ? BreakMusic.ActiveProvider?.SourceName
                         : Venue.Settings.BreakMusicProvider,
 
+                    MarqueeEnabled = Venue.Settings.MarqueeEnabled,
+                    // A venue that has never had a marquee stores zero here, which is
+                    // indistinguishable from a deliberate message-only band — except that it
+                    // cannot have chosen one while the marquee was off. So the suggestion stands
+                    // until the venue has enabled it once, and its own zero is kept after that.
+                    MarqueeSingerCount = Venue.Settings.MarqueeEnabled
+                        ? Venue.Settings.MarqueeSingerCount
+                        : DefaultMarqueeSingerCount,
+                    MarqueeMessage = Venue.Settings.MarqueeMessage,
+                    MarqueePosition = Venue.Settings.MarqueePosition,
+                    MarqueeBackgroundColor = Venue.Settings.MarqueeBackgroundColor ?? DefaultMarqueeBackground,
+                    MarqueeTextColor = Venue.Settings.MarqueeTextColor ?? DefaultMarqueeText,
+                    // Zero is "the screen decides", which a number input cannot say — it shows the
+                    // size the screen would pick instead, and saving it back changes nothing.
+                    MarqueeFontSizePixels = Venue.Settings.MarqueeFontSizePixels > 0
+                        ? Venue.Settings.MarqueeFontSizePixels
+                        : DefaultMarqueeFontSizePixels,
+                    MarqueeScrollSpeed = Venue.Settings.MarqueeScrollSpeed > 0
+                        ? Venue.Settings.MarqueeScrollSpeed
+                        : DefaultMarqueeScrollSpeed,
+                    MarqueePinLabel = Venue.Settings.MarqueePinLabel,
                 };
             _editContext = new EditContext(_model);
 
@@ -206,6 +241,15 @@ public partial class EditVenueDialog
         venue.Settings.AdPoolId = _model.AdPoolId;
         venue.Settings.BrandingImageMediaId = _model.BrandingImageMediaId;
         venue.Settings.BreakMusicProvider = _model.BreakMusicProvider;
+        venue.Settings.MarqueeEnabled = _model.MarqueeEnabled;
+        venue.Settings.MarqueeSingerCount = Math.Clamp(_model.MarqueeSingerCount, 0, 20);
+        venue.Settings.MarqueeMessage = _model.MarqueeMessage;
+        venue.Settings.MarqueePosition = _model.MarqueePosition;
+        venue.Settings.MarqueeBackgroundColor = _model.MarqueeBackgroundColor;
+        venue.Settings.MarqueeTextColor = _model.MarqueeTextColor;
+        venue.Settings.MarqueeFontSizePixels = Math.Clamp(_model.MarqueeFontSizePixels, 12, 96);
+        venue.Settings.MarqueeScrollSpeed = Math.Clamp(_model.MarqueeScrollSpeed, 15, 400);
+        venue.Settings.MarqueePinLabel = _model.MarqueePinLabel;
 
         await OnSave.InvokeAsync(venue);
 

@@ -148,6 +148,34 @@ folder: `PluginLoader` hands that string straight to `LoadFromAssemblyPath`.
   an unknown `schemaVersion` rejects the whole document rather than guessing at the fields that
   carry the checksum.
 
+## The screen marquee
+
+The band of text across the screen. `ScreenMarqueeService` composes it and pushes it whole on
+every change — there is no patch command, so a screen that reconnects mid-show is correct after
+one `SetMarqueeCommand`.
+
+- It is **one line, always**. `white-space: nowrap` is restated on the track and its spans rather
+  than left to inherit, and the venue's message is collapsed to a single line host-side, because
+  the band is fixed to an edge: a second line grows over the picture instead of pushing the page.
+- Entries read `Song - Singer`, composed by the host from the queue order and each singer's first
+  queued performance. A singer with nothing queued is named alone rather than dropped — the host
+  has them on the list, and the band must not disagree with the queue on screen.
+- Every marquee venue setting reads as "off" when its key is missing (`false`, `0`, `null`), so
+  the feature needed **no backfill migration** — see the `Venue.Settings` note above. Zero means
+  "the screen decides" for size and speed; the dialog offers the screen's own values instead,
+  which a number input can show and zero cannot.
+- The screen holds no library and no queue, so the command carries finished strings and CSS
+  colours, never ids — the same reason `ShowImageCommand` carries a URL.
+- Colours come from the venue as `--marquee-bg` / `--marquee-fg`, and the band's own colour sits
+  on a `::before` layer rather than its background: the layer can then be held under full opacity
+  without taking the text down with it.
+- Speed is pixels a second, not a lap time. A duration would make a long line race to keep a
+  short one's pace.
+- `MarqueePinLabel` holds "Up next" at the leading edge instead of scrolling it past, and the
+  renderer then leaves it out of the track — pinned and scrolling are the same label, so drawing
+  both puts it on screen twice. It is a **modifier**, not a style: it changes where the label sits,
+  not how the band is painted, so it composes with whatever else the venue chose.
+
 ## Components
 
 - Component logic lives in a code-behind partial (`Foo.razor.cs`, `public partial class Foo`), never an inline `@code` block. `@inject` becomes an `[Inject]` property; `@implements` becomes an interface on the partial. `@page`, `@using`, `@inherits`, `@layout`, `@attribute` stay in the `.razor`.

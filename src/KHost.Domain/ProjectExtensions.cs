@@ -74,6 +74,7 @@ namespace KHost.Domain
             serviceCollection.AddSingleton<IMediaStreamService, HlsMediaStreamService>();
             serviceCollection.AddSingleton<IAudioTrackService, AudioTrackService>();
             serviceCollection.AddSingleton<IScreenCoordinationService, ScreenCoordinationService>();
+            serviceCollection.AddSingleton<IScreenMarqueeService, ScreenMarqueeService>();
             serviceCollection.AddSingleton<IPlaybackService, PlaybackService>();
             serviceCollection.AddSingleton<IMediaSearchService, MediaSearchService>();
             serviceCollection.AddSingleton<IVenuesService, VenuesService>();
