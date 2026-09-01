@@ -1,10 +1,8 @@
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using KHost.Abstractions.Services.IPC;
-using KHost.Plugins.Sdk.Messaging;
-using KHost.Plugins.Sdk.Messaging.Messages;
-using KHost.Plugins.Sdk.Models;
-using KHost.Plugins.Sdk.Services;
+using KHost.Abstractions.Messaging;
+using KHost.Abstractions.Messaging.Messages;
 using Microsoft.Extensions.Logging;
 
 namespace KHost.Domain.Services.BreakMusic;

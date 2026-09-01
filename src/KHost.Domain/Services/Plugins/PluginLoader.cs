@@ -1,9 +1,8 @@
 using System.Buffers.Binary;
 using KHost.Abstractions.Models.Plugins;
-using KHost.Plugins.Sdk;
-using KHost.Plugins.Sdk.Models;
-using KHost.Plugins.Sdk.Services;
-using KHost.Plugins.Sdk.Services.QueueRotation;
+using KHost.Abstractions.Models;
+using KHost.Abstractions.Services;
+using KHost.Abstractions.Services.QueueRotation;
 using Microsoft.Extensions.DependencyInjection;
 using System.Reflection;
 using System.Text.Json;

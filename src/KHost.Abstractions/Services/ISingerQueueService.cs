@@ -1,5 +1,4 @@
 using KHost.Abstractions.Models;
-using KHost.Plugins.Sdk.Models;
 
 namespace KHost.Abstractions.Services;
 

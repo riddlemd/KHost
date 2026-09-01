@@ -1,5 +1,5 @@
 using Microsoft.Extensions.Logging.Abstractions;
-using KHost.Plugins.Sdk.Messaging;
+using KHost.Abstractions.Messaging;
 using KHost.Domain.Services.Messaging;
 using Bunit;
 using KHost.Abstractions.Models;

@@ -1,10 +1,8 @@
 using KHost.Abstractions.Models.Plugins;
 using KHost.Abstractions.Services;
-using KHost.Common.Plugins;
-using KHost.Plugins.Sdk.Messaging.Messages;
-using KHost.Plugins.Sdk.Messaging;
-using KHost.Plugins.Sdk.Models;
-using KHost.Plugins.Sdk;
+using KHost.Abstractions.Messaging.Messages;
+using KHost.Abstractions.Messaging;
+using KHost.Abstractions.Models;
 using Microsoft.Extensions.Logging;
 using System.Collections.Concurrent;
 using System.Security.Cryptography;

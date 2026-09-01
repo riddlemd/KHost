@@ -11,7 +11,7 @@ namespace KHost.UnitTests.Conventions;
 /// </summary>
 public class LicenceBoundaryTests
 {
-    private static readonly string[] MitProjects = ["KHost.Plugins.Sdk", "KHost.Common"];
+    private static readonly string[] MitProjects = ["KHost.Abstractions", "KHost.Common"];
 
     public static TheoryData<string> MitProjectNames()
     {

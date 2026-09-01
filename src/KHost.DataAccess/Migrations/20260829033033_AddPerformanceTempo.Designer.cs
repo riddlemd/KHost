@@ -501,7 +501,7 @@ namespace KHost.DataAccess.Migrations
                             b1.WithOwner()
                                 .HasForeignKey("VenueId");
 
-                            b1.OwnsOne("KHost.Plugins.Sdk.Models.QueueRotation.QueueRotationConfig", "QueueRotation", b2 =>
+                            b1.OwnsOne("KHost.Abstractions.Models.QueueRotation.QueueRotationConfig", "QueueRotation", b2 =>
                                 {
                                     b2.Property<Guid>("VenueSettingsVenueId");
 

@@ -8,7 +8,6 @@
     <Project Path="src/KHost.Cast/KHost.Cast.csproj" />
     <Project Path="src/KHost.IPC.SignalR/KHost.IPC.SignalR.csproj" />
     <Project Path="src/KHost.LrcLib/KHost.LrcLib.csproj" />
-    <Project Path="src/KHost.Plugins.Sdk/KHost.Plugins.Sdk.csproj" />
     <Project Path="src/KHost.Screen2/KHost.Screen2.csproj" />
     <Project Path="src/KHost.ServiceDefaults/KHost.ServiceDefaults.csproj" />
     <Project Path="src/KHost.Telemetry/KHost.Telemetry.csproj" />

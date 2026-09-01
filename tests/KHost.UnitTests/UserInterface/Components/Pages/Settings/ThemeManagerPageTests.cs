@@ -2,7 +2,7 @@ using AngleSharp.Html.Dom;
 using Bunit;
 using KHost.Domain.Services.Messaging;
 using KHost.UserInterface.Messaging;
-using KHost.Plugins.Sdk.Messaging;
+using KHost.Abstractions.Messaging;
 using KHost.UserInterface.Components.Pages.Settings;
 using KHost.UserInterface.Models;
 using KHost.UserInterface.Services;
