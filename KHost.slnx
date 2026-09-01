@@ -2,18 +2,22 @@
   <Folder Name="/src/">
     <Project Path="src/KHost.Abstractions/KHost.Abstractions.csproj" Id="91bcf8fe-4b91-4bd3-87cb-87d7192c5819" />
     <Project Path="src/KHost.AppHost/KHost.AppHost.csproj" />
+    <Project Path="src/KHost.Common/KHost.Common.csproj" />
     <Project Path="src/KHost.DataAccess/KHost.DataAccess.csproj" Id="611fb917-39fe-4005-b0d3-0add2fc77483" />
     <Project Path="src/KHost.Domain/KHost.Domain.csproj" Id="826b87ab-7a57-46aa-97df-819af6f09206" />
     <Project Path="src/KHost.Cast/KHost.Cast.csproj" />
     <Project Path="src/KHost.IPC.SignalR/KHost.IPC.SignalR.csproj" />
     <Project Path="src/KHost.LrcLib/KHost.LrcLib.csproj" />
-    <Project Path="src/KHost.Plugins.Sdk/KHost.Plugins.Sdk.csproj" />
     <Project Path="src/KHost.Screen2/KHost.Screen2.csproj" />
     <Project Path="src/KHost.ServiceDefaults/KHost.ServiceDefaults.csproj" />
     <Project Path="src/KHost.Telemetry/KHost.Telemetry.csproj" />
     <Project Path="src/KHost.UserInterface/KHost.UserInterface.csproj" />
   </Folder>
 
+
+  <Folder Name="/build/">
+    <Project Path="build/KHost.Analyzers/KHost.Analyzers.csproj" />
+  </Folder>
 
   <Folder Name="/tools/">
     <Project Path="tools/KHost.CatalogSync/KHost.CatalogSync.csproj" />

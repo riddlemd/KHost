@@ -1,4 +1,4 @@
-using KHost.Plugins.Sdk.Exceptions;
+using KHost.Abstractions.Exceptions;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using KHost.UserInterface.Models;

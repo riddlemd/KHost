@@ -1,5 +1,6 @@
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
+using KHost.Common.Media;
 
 namespace KHost.UserInterface.Endpoints;
 

@@ -1,4 +1,4 @@
-@using KHost.Domain.Monetary
+@using KHost.Common.Monetary
 @page "/settings/tips-manager"
 @using KHost.Abstractions.Models
 @using KHost.UserInterface.Models
@@ -63,7 +63,7 @@
                                 <tr>
                                     <td>@tip.CreatedDate.ToLocalTime().ToString("MM/dd/yyyy HH:mm")</td>
                                     <td>@GetSingerName(tip.UserId)</td>
-                                    <td>@tip.AmountInCents.ToCurrency()</td>
+                                    <td>@tip.AmountInCents.CentsToCurrencyString()</td>
                                     <td>@tip.PaymentMethod</td>
                                     <td>@GetVenueName(tip.VenueId)</td>
                                     <td class="kh-table__cell--fill">@tip.Notes</td>

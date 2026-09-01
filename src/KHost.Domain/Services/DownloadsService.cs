@@ -1,15 +1,14 @@
 using System.Collections.Concurrent;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
-using KHost.Plugins.Sdk.Messaging;
-using KHost.Plugins.Sdk.Messaging.Messages;
+using KHost.Abstractions.Messaging;
+using KHost.Abstractions.Messaging.Messages;
 
 namespace KHost.Domain.Services;
 
-// Dependency-free like the registry it replaces: PluginLibrary depends on IPerformanceService, and
-// PerformanceService depends on IDownloadsService (to cancel a download on dequeue), so this has to
-// carry no dependencies of its own to avoid a constructor cycle between the two. IMessageBroker has
-// no dependencies of its own, so it is safe to inject here.
+// A leaf on purpose: both PerformanceService (cancelling a download on dequeue) and
+// MediaAcquisitionService depend on this, so taking either back would close a constructor cycle.
+// IMessageBroker has no dependencies of its own, so it is safe to inject here.
 public class DownloadsService : IDownloadsService
 {
     private const int RecentCap = 50;

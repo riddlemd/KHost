@@ -1,7 +1,5 @@
 using KHost.Abstractions.Models;
 using KHost.Domain.Services.MediaProviders;
-using KHost.Plugins.Sdk.Models;
-using KHost.Plugins.Sdk.Services;
 using KHost.Abstractions.Services;
 using Microsoft.Extensions.Logging;
 

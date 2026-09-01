@@ -1,8 +1,8 @@
-using KHost.Domain.Monetary;
+using KHost.Common.Monetary;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
-using KHost.Plugins.Sdk.Messaging;
-using KHost.Plugins.Sdk.Messaging.Messages;
+using KHost.Abstractions.Messaging;
+using KHost.Abstractions.Messaging.Messages;
 using KHost.UserInterface.Models;
 using KHost.UserInterface.Services;
 using Microsoft.AspNetCore.Components;
@@ -125,7 +125,7 @@ public partial class TipsManagerPage : IDisposable
         var singer = GetSingerName(tip.UserId);
 
         await DialogService.ShowConfirmationAsync(
-            $"Are you sure you want to delete the tip from <span class=\"kh-emphasis\">{singer}</span> for {tip.AmountInCents.ToCurrency()}?",
+            $"Are you sure you want to delete the tip from <span class=\"kh-emphasis\">{singer}</span> for {tip.AmountInCents.CentsToCurrencyString()}?",
             async () => await TipsService.DeleteAsync(tip.Id),
             "Delete Tip",
             "Delete"

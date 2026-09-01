@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using KHost.Abstractions.Models;
 using KHost.Domain.Services;
+using KHost.Common.Media;
 
 namespace KHost.UnitTests.Domain.Services;
 
@@ -217,7 +218,7 @@ public class HlsMediaStreamServiceTests : IDisposable
         // come out right, and getting it wrong drifts the audio off the picture rather than failing.
         var speed = AsetrateRatio(arguments) * AtempoFactors(arguments).Aggregate(1.0, (a, f) => a * f);
 
-        Assert.Equal(MediaStreamSession.RateFor(tempo), speed, 4);
+        Assert.Equal(StreamRate.FromTempo(tempo), speed, 4);
     }
 
     [Theory]

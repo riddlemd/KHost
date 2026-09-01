@@ -5,6 +5,7 @@ using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using KHost.Common.Media;
 
 namespace KHost.Domain.Services;
 
@@ -287,7 +288,7 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, ID
 
     private static string BuildAudioFilter(int pitch, int tempo)
     {
-        var rate = MediaStreamSession.RateFor(tempo);
+        var rate = StreamRate.FromTempo(tempo);
 
         if (pitch == 0 && rate == 1.0) return string.Empty;
 
@@ -346,8 +347,8 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, ID
             {
                 // The reference the others are set against, so it is never anything but full.
                 AudioTrackRole.Music => 100,
-                AudioTrackRole.Lead => AudioMix.Clamp(mix.LeadVolume),
-                _ => AudioMix.Clamp(mix.BackingVolume),
+                AudioTrackRole.Lead => AudioLevels.ClampVolume(mix.LeadVolume),
+                _ => AudioLevels.ClampVolume(mix.BackingVolume),
             };
 
             var label = track.Role switch
@@ -379,7 +380,7 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, ID
     /// </summary>
     private static string BuildVideoFilter(int tempo)
     {
-        var rate = MediaStreamSession.RateFor(tempo);
+        var rate = StreamRate.FromTempo(tempo);
 
         return rate == 1.0
             ? string.Empty

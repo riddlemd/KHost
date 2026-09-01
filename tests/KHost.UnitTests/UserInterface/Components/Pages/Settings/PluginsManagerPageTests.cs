@@ -1,15 +1,16 @@
-using Microsoft.Extensions.Logging.Abstractions;
-using KHost.Plugins.Sdk.Messaging;
-using KHost.Domain.Services.Messaging;
-using System.Text.Json;
 using AngleSharp.Html.Dom;
 using Bunit;
 using KHost.Abstractions.Models.Plugins;
 using KHost.Abstractions.Services;
-using KHost.Plugins.Sdk.Models;
+using KHost.Domain.Services.Messaging;
+using KHost.Abstractions.Messaging;
+using KHost.Abstractions.Models;
 using KHost.UserInterface.Components.Pages.Settings;
 using KHost.UserInterface.Services;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
+using System.Text.Json;
+using KHost.Common.Plugins;
 
 namespace KHost.UnitTests.UserInterface.Components.Pages.Settings;
 

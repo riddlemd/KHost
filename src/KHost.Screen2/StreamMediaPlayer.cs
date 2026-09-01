@@ -2,6 +2,7 @@ using KHost.Abstractions.Models;
 using System.Text.Json;
 using KHost.Abstractions.MediaPlayer;
 using Microsoft.Extensions.Logging;
+using KHost.Common.Media;
 
 namespace KHost.Screen2;
 
@@ -75,7 +76,7 @@ internal sealed class StreamMediaPlayer : IMediaPlayer
         {
             _info = new IMediaPlayer.MediaInfo { FilePath = url };
             _streamStartOffset = streamStartOffset;
-            _rate = MediaStreamSession.RateFor(tempo);
+            _rate = StreamRate.FromTempo(tempo);
             _position = streamStartOffset;
             _duration = TimeSpan.Zero;
             _isPlaying = false;
