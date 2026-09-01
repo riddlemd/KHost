@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Text;
 
-namespace KHost.Domain.Chronography
+namespace KHost.Common.Chronography
 {
     public static class TimeSpanExtensions
     {

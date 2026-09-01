@@ -1,4 +1,4 @@
-﻿namespace KHost.Domain.Collections.Generics
+﻿namespace KHost.Common.Collections.Generic
 {
     public static class ListExtensions
     {

@@ -1,6 +1,6 @@
-using KHost.Domain.Orthography;
+using KHost.Common.Orthography;
 
-namespace KHost.UnitTests.Domain.Orthography;
+namespace KHost.UnitTests.Common.Orthography;
 
 public class StylisedSpellingTests
 {

@@ -1,8 +1,9 @@
+using KHost.Common.QueueRotation;
 using KHost.Plugins.Sdk.Models.QueueRotation;
 
-namespace KHost.Domain.Services.QueueRotation.Modes;
+namespace KHost.Common.QueueRotation;
 
-internal static class DropPositionHelper
+public static class DropPositionHelper
 {
     public static IReadOnlyList<Guid> ApplyDropPosition(
         IReadOnlyList<Guid> queue,

@@ -1,6 +1,6 @@
 using System.Text;
 
-namespace KHost.Domain.Orthography;
+namespace KHost.Common.Orthography;
 
 /// <summary>
 /// Resolves the stylised spellings artists use, where a symbol stands in for a letter, so "Ke$ha"
