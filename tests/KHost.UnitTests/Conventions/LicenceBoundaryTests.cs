@@ -33,6 +33,9 @@ public class LicenceBoundaryTests
 
         var referenced = XDocument.Load(project)
             .Descendants("ProjectReference")
+            // An analyzer runs in the compiler and its assembly is never referenced by the output,
+            // so it carries no code into what a plugin redistributes.
+            .Where(reference => reference.Attribute("OutputItemType")?.Value != "Analyzer")
             .Select(reference => Path.GetFileNameWithoutExtension(
                 reference.Attribute("Include")!.Value.Replace('\\', Path.DirectorySeparatorChar)))
             .ToList();

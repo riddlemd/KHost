@@ -11,7 +11,7 @@ public class StylisedSpellingTests
     // Substitutes a lowercase letter; the fold that follows lowercases everything anyway.
     [InlineData("A$AP Rocky", "AsAP Rocky")]
     public void Resolve_ReplacesSymbolsStandingInForLetters(string value, string expected)
-        => Assert.Equal(expected, StylisedSpelling.Resolve(value));
+        => Assert.Equal(expected, StylisedSpelling.ResolveToPlainSpelling(value));
 
     [Theory]
     [InlineData("Blink-182")]
@@ -19,18 +19,18 @@ public class StylisedSpellingTests
     [InlineData("Deadmau5")]
     public void Resolve_LeavesDigitsAlone(string value)
         // The rule that turns Deadmau5 into deadmaus also ruins these, so digits stay put.
-        => Assert.Equal(value, StylisedSpelling.Resolve(value));
+        => Assert.Equal(value, StylisedSpelling.ResolveToPlainSpelling(value));
 
     [Theory]
     [InlineData("Björk")]
     [InlineData("Ordinary Artist")]
     [InlineData("O'Connor")]
     public void Resolve_LeavesOrdinaryTextAlone(string value)
-        => Assert.Equal(value, StylisedSpelling.Resolve(value));
+        => Assert.Equal(value, StylisedSpelling.ResolveToPlainSpelling(value));
 
     [Theory]
     [InlineData(null)]
     [InlineData("")]
     public void Resolve_ReturnsEmpty_ForNothing(string? value)
-        => Assert.Equal(string.Empty, StylisedSpelling.Resolve(value));
+        => Assert.Equal(string.Empty, StylisedSpelling.ResolveToPlainSpelling(value));
 }

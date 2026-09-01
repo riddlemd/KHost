@@ -3,6 +3,7 @@ using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using KHost.UserInterface.Models;
 using Microsoft.Extensions.Configuration;
+using KHost.Common.Media;
 
 namespace KHost.UserInterface.Services;
 
@@ -50,7 +51,7 @@ internal sealed class AppSettingsService : IAppSettingsService
         PerformanceHistoryPageSize = PageSize("PerformanceHistory", AppSettings.DefaultPerformanceHistoryPageSize),
         // Clamped on read as well as on save: a hand-edited value outside a fader's range would
         // otherwise reach ffmpeg as a volume multiplier nobody can undo from the console.
-        BackingVocalVolume = AudioMix.Clamp(
+        BackingVocalVolume = AudioLevels.ClampVolume(
             _configuration.GetValue<int?>("Playback:DefaultBackingVolume") ?? AudioMix.DefaultBackingVolume),
         // Parsed rather than cast: a hand-edited word that names no shape falls back to sliders
         // instead of reaching the console as an enum value with no case to render it.
@@ -92,7 +93,7 @@ internal sealed class AppSettingsService : IAppSettingsService
             {
                 ["StopFadeDuration"] = TimeSpan.FromSeconds(settings.StopFadeSeconds).ToString(),
                 ["SyncStartLead"] = TimeSpan.FromMilliseconds(settings.SyncStartLeadMilliseconds).ToString(),
-                ["DefaultBackingVolume"] = AudioMix.Clamp(settings.BackingVocalVolume),
+                ["DefaultBackingVolume"] = AudioLevels.ClampVolume(settings.BackingVocalVolume),
             },
             ["MediaStream"] = new Dictionary<string, object?> { ["SegmentSeconds"] = settings.SegmentSeconds },
             ["Ads"] = new Dictionary<string, object?>

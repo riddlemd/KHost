@@ -27,13 +27,4 @@ public sealed class MediaStreamSession
     /// stream time, so song time is only recovered by scaling back through this.
     /// </summary>
     public required int Tempo { get; init; }
-
-    /// <summary>Multiplier <see cref="Tempo"/> stands for. Stream seconds times this are song seconds.</summary>
-    public double Rate => RateFor(Tempo);
-
-    /// <summary>
-    /// The one definition of what a tempo percentage means. Every consumer that keeps a clock —
-    /// the host's, a screen's, a Cast receiver's — converts through it, and they must agree.
-    /// </summary>
-    public static double RateFor(int tempo) => 1.0 + (tempo / 100.0);
 }

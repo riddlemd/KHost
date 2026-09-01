@@ -6,6 +6,7 @@ using KHost.Abstractions.Messaging.Messages;
 using KHost.Abstractions.Messaging;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using KHost.Common.Media;
 
 namespace KHost.Domain.Services;
 
@@ -129,7 +130,7 @@ public class PlaybackService : BaseService, IPlaybackService
     /// Song seconds per second of wall clock. Taken from the open stream rather than the wanted
     /// tempo: between a change and the transcode reopening, the room is still on the old rate.
     /// </summary>
-    private double Rate => _stream?.Rate ?? 1.0;
+    private double Rate => _stream is { } stream ? stream.PlaybackRate() : 1.0;
 
     public PlaybackService(
         ILogger<PlaybackService> logger,
@@ -219,11 +220,11 @@ public class PlaybackService : BaseService, IPlaybackService
         // After ResetState, which cleared them: a performance carries how it was sung.
         Pitch = performance.Pitch;
         Tempo = performance.Tempo;
-        LeadVolume = AudioMix.Clamp(performance.LeadVolume);
+        LeadVolume = AudioLevels.ClampVolume(performance.LeadVolume);
 
         // Null means nobody has mixed this one, so the machine setting answers — and goes on
         // answering if that setting later changes.
-        BackingVolume = AudioMix.Clamp(performance.BackingVolume ?? Options.DefaultBackingVolume);
+        BackingVolume = AudioLevels.ClampVolume(performance.BackingVolume ?? Options.DefaultBackingVolume);
 
         // Probed rather than stored: the answer costs one ffprobe, and a file replaced on disk
         // would otherwise keep whatever its tracks were called at import.
@@ -333,12 +334,12 @@ public class PlaybackService : BaseService, IPlaybackService
 
         // Only what the room can hear takes the room. A silent still leaves the bed playing under
         // it rather than dropping the venue into fifteen seconds of nothing.
-        if (ad.HasOwnAudio)
+        if (ad.HasOwnAudio())
             await _breakMusic.SuspendAsync();
 
         CurrentMedia = ad.Visual;
         _adDuration = ad.Duration;
-        _adHasOwnAudio = ad.HasOwnAudio;
+        _adHasOwnAudio = ad.HasOwnAudio();
         IsPlayingAd = true;
         Position = TimeSpan.Zero;
 
@@ -512,7 +513,7 @@ public class PlaybackService : BaseService, IPlaybackService
 
     public async Task SetLeadVolumeAsync(int volume)
     {
-        var target = AudioMix.Clamp(volume);
+        var target = AudioLevels.ClampVolume(volume);
 
         if (target == LeadVolume) return;
 
@@ -524,7 +525,7 @@ public class PlaybackService : BaseService, IPlaybackService
 
     public async Task SetBackingVolumeAsync(int volume)
     {
-        var target = AudioMix.Clamp(volume);
+        var target = AudioLevels.ClampVolume(volume);
 
         if (target == BackingVolume) return;
 

@@ -29,6 +29,4 @@ public sealed record AudioMix(IReadOnlyList<AudioTrack> Tracks, int LeadVolume, 
         && Tracks.Any(t => t.Role is AudioTrackRole.Lead or AudioTrackRole.Backing);
 
     public bool Has(AudioTrackRole role) => Tracks.Any(t => t.Role == role);
-
-    public static int Clamp(int volume) => Math.Clamp(volume, MinVolume, MaxVolume);
 }

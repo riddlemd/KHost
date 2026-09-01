@@ -17,14 +17,14 @@ public class MoneyExtensionsTests
     [InlineData(100000, "$1,000.00")]
     [InlineData(9999999, "$99,999.99")]
     public void ToCurrency_FormatsCentsAsMoney(int cents, string expected)
-        => Assert.Equal(expected, cents.ToCurrency());
+        => Assert.Equal(expected, cents.CentsToCurrencyString());
 
     [Theory]
     [InlineData(29, 0.29)]
     [InlineData(1250, 12.50)]
     [InlineData(1, 0.01)]
     public void ToDecimal_ConvertsWithoutLosingCents(int cents, double expected)
-        => Assert.Equal((decimal)expected, cents.ToDecimal());
+        => Assert.Equal((decimal)expected, cents.CentsToDecimal());
 
     [Fact]
     public void Cents_AddUpExactly_WhereFloatingPointWouldNot()
@@ -33,6 +33,6 @@ public class MoneyExtensionsTests
         int[] tips = [10, 20];
 
         Assert.Equal(30, tips.Sum());
-        Assert.Equal("$0.30", tips.Sum().ToCurrency());
+        Assert.Equal("$0.30", tips.Sum().CentsToCurrencyString());
     }
 }

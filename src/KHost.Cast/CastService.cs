@@ -12,6 +12,7 @@ using Microsoft.Extensions.Options;
 using Sharpcaster;
 using Sharpcaster.Models;
 using Sharpcaster.Models.Media;
+using KHost.Common.Media;
 
 namespace KHost.Cast;
 
@@ -243,7 +244,7 @@ public sealed class CastService : ICastService, IDisposable
 
         var reachable = MakeReachableFromDevice(streamUrl, LanAddress());
         _streamStartOffset = startOffset;
-        _rate = MediaStreamSession.RateFor(tempo);
+        _rate = StreamRate.FromTempo(tempo);
 
         _logger.LogInformation("Casting {Url} to {Name}", reachable, _connectedDeviceId);
 

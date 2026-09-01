@@ -8,6 +8,7 @@ using KHost.UserInterface.Services;
 using Microsoft.AspNetCore.Components;
 using System.Net;
 using System.Text.Json;
+using KHost.Common.Plugins;
 
 namespace KHost.UserInterface.Components.Pages.Settings;
 
@@ -318,7 +319,7 @@ public partial class PluginsManagerPage : IDisposable
         if (IsPendingRemoval(entry.Id)) return AvailableState.PendingRemoval;
 
         var installed = GetInstalledVersion(entry.Id);
-        var release = entry.LatestCompatible();
+        var release = entry.LatestCompatibleRelease();
 
         if (release is null)
         {
@@ -339,7 +340,7 @@ public partial class PluginsManagerPage : IDisposable
 
     private async Task ConfirmInstallAsync(PluginCatalogEntry entry)
     {
-        if (Dialogs is null || entry.LatestCompatible() is not { } release) return;
+        if (Dialogs is null || entry.LatestCompatibleRelease() is not { } release) return;
 
         var name = WebUtility.HtmlEncode(entry.Name);
         var author = WebUtility.HtmlEncode(entry.Author ?? "an unnamed publisher");

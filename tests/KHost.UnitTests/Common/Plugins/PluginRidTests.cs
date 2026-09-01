@@ -1,4 +1,5 @@
 using KHost.Abstractions.Models.Plugins;
+using KHost.Common.Plugins;
 
 namespace KHost.UnitTests.Common.Plugins;
 
@@ -7,25 +8,25 @@ public class PluginRidTests
     [Fact]
     public void Matches_NoRid_RunsAnywhere()
     {
-        Assert.True(PluginRid.Matches(null));
-        Assert.True(PluginRid.Matches(""));
-        Assert.True(PluginRid.Matches("   "));
+        Assert.True(PluginRid.MatchesThisHost(null));
+        Assert.True(PluginRid.MatchesThisHost(""));
+        Assert.True(PluginRid.MatchesThisHost("   "));
     }
 
     [Fact]
     public void Matches_ThisPlatform_IsTrue()
-        => Assert.True(PluginRid.Matches(PluginRid.Current));
+        => Assert.True(PluginRid.MatchesThisHost(PluginRid.Current));
 
     [Fact]
     public void Matches_ThisPlatformAndArchitecture_IsTrue()
-        => Assert.True(PluginRid.Matches($"{PluginRid.Current}-{PluginRid.CurrentArchitecture}"));
+        => Assert.True(PluginRid.MatchesThisHost($"{PluginRid.Current}-{PluginRid.CurrentArchitecture}"));
 
     [Fact]
     public void Matches_ThisPlatformWithAnotherArchitecture_IsFalse()
     {
         var other = PluginRid.CurrentArchitecture == "arm64" ? "x64" : "arm64";
 
-        Assert.False(PluginRid.Matches($"{PluginRid.Current}-{other}"));
+        Assert.False(PluginRid.MatchesThisHost($"{PluginRid.Current}-{other}"));
     }
 
     [Fact]
@@ -33,7 +34,7 @@ public class PluginRidTests
     {
         var other = PluginRid.Current == "win" ? "linux" : "win";
 
-        Assert.False(PluginRid.Matches(other));
+        Assert.False(PluginRid.MatchesThisHost(other));
     }
 
     [Theory]
@@ -41,7 +42,7 @@ public class PluginRidTests
     [InlineData("linux-musl-arm64")]
     [InlineData("nonsense")]
     public void Matches_ARidThisHostDoesNotModel_IsFalse(string rid)
-        => Assert.False(PluginRid.Matches(rid));
+        => Assert.False(PluginRid.MatchesThisHost(rid));
 
     [Fact]
     public void Current_IsOneOfThePlatformsTheCatalogAllows()

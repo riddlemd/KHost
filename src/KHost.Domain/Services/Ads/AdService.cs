@@ -4,6 +4,7 @@ using KHost.Abstractions.Messaging.Messages;
 using KHost.Abstractions.Messaging;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using KHost.Common.Media;
 
 namespace KHost.Domain.Services.Ads;
 

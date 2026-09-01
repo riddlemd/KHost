@@ -1,6 +1,6 @@
 using System.Runtime.InteropServices;
 
-namespace KHost.Abstractions.Models.Plugins;
+namespace KHost.Common.Plugins;
 
 /// <summary>
 /// The platform a release is built for. Deliberately coarser than a .NET RID: a plugin splits by
@@ -32,7 +32,7 @@ public static class PluginRid
     /// Whether this host can run a release built for <paramref name="rid"/>. Blank means the
     /// release is platform-neutral, which is the common case and the one a plugin should aim for.
     /// </summary>
-    public static bool Matches(string? rid)
+    public static bool MatchesThisHost(string? rid)
     {
         if (string.IsNullOrWhiteSpace(rid))
             return true;
