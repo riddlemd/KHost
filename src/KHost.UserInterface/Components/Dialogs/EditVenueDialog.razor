@@ -64,17 +64,13 @@
                               Placeholder="None — silence between singers" />
                 </div>
                 }
-                else
-                {
-                    <p class="kh-venue-settings__hint">
-                        This mode brings its own music, so a playlist here would not apply to it.
-                    </p>
-                }
 
+                @* Reads on its own: the sentence that used to precede it is gone, and the picker
+                   simply not being there says the playlist does not apply. *@
                 @if (SelectedProvider is { RendersThroughHost: false })
                 {
                     <p class="kh-venue-settings__hint">
-                        It also plays through its own app, so the sound comes out of this machine
+                        This mode plays through its own app, so the sound comes out of this machine
                         rather than the screens &mdash; it will not reach a Cast device.
                     </p>
                 }
