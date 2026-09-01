@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using KHost.Plugins.Sdk.Messaging;
 using KHost.Domain.Services.Messaging;
 using System.Text.Json;
+using AngleSharp.Html.Dom;
 using Bunit;
 using KHost.Abstractions.Models.Plugins;
 using KHost.Abstractions.Services;
@@ -16,7 +17,7 @@ public class PluginsManagerPageTests : BunitContext
 {
     private const string RowSelector = ".kh-plugins-manager__row";
     private const string DisclosureSelector = ".kh-plugins-manager__disclosure";
-    private const string EnableSwitchSelector = ".kh-plugins-manager__aside .kh-switch";
+    private const string EnableToggleSelector = ".kh-plugins-manager__aside .kh-form-check-input";
     private const string StateBadgeSelector = ".kh-plugins-manager__aside .kh-badge";
     private const string SettingInputSelector = ".kh-plugins-manager__field .kh-form-control";
     private const string SaveButtonSelector = "button[type=submit]";
@@ -138,10 +139,10 @@ public class PluginsManagerPageTests : BunitContext
         Arrange(Plugin(PluginStatus.Disabled), enabled: false);
 
         var cut = Render<PluginsManagerPage>();
-        cut.Find(EnableSwitchSelector).Click();
+        cut.Find(EnableToggleSelector).Change(true);
 
         _pluginsService.Received(1).SetEnabledAsync(PluginId.ToString(), true);
-        Assert.Equal("true", cut.Find(EnableSwitchSelector).GetAttribute("aria-checked"));
+        Assert.True(((IHtmlInputElement)cut.Find(EnableToggleSelector)).IsChecked);
     }
 
     [Fact]
@@ -153,7 +154,7 @@ public class PluginsManagerPageTests : BunitContext
 
         var cut = Render<PluginsManagerPage>();
 
-        Assert.True(cut.Find(EnableSwitchSelector).HasAttribute("disabled"));
+        Assert.True(cut.Find(EnableToggleSelector).HasAttribute("disabled"));
     }
 
     [Fact]

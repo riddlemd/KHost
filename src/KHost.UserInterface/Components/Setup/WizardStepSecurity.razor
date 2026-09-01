@@ -6,7 +6,7 @@
 
     <div class="kh-setup-wizard__form kh-wizard-security">
         <label class="kh-wizard-security__choice">
-            <input type="checkbox" checked="@_requireLogin"
+            <input type="checkbox" class="kh-form-check-input" checked="@_requireLogin"
                    @onchange="e => _requireLogin = (bool)(e.Value ?? true)" />
             <span class="kh-wizard-security__label">
                 Require sign-in to use KHost
