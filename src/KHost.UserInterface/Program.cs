@@ -299,6 +299,7 @@ internal static class Program
         app.MapMediaStream();
         app.MapMediaImages();
         app.MapThemeStylesheets();
+        app.MapPluginIcons();
 
         // Point launched screen processes at this host's live listening address, so they
         // connect regardless of the (possibly dynamic, e.g. Aspire-assigned) port.

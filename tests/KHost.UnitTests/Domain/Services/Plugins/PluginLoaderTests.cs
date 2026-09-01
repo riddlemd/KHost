@@ -239,6 +239,123 @@ public class PluginLoaderTests : IDisposable
         Assert.Equal(["khost.youtube"], state.EnabledPluginIds);
     }
 
+    [Fact]
+    public void Icon_AnImageWithinTheCap_IsUsable()
+    {
+        var directory = WritePluginWithIcon("with-icon", PluginIcon.ImageSpecifier);
+        WritePng(directory, 128, 128);
+
+        var plugin = Assert.Single(PluginLoader.Discover(PluginsDir, new PluginsState()));
+
+        Assert.True(plugin.HasIconImage);
+        Assert.Empty(plugin.Warnings);
+    }
+
+    /// <summary>
+    /// One pixel over on either axis. The row draws it small, so the cap is about what the host is
+    /// handed rather than what it shows.
+    /// </summary>
+    [Theory]
+    [InlineData(129, 128)]
+    [InlineData(128, 129)]
+    public void Icon_AnImageOverTheCap_IsRefusedAndSaysWhy(int width, int height)
+    {
+        var directory = WritePluginWithIcon("too-big", PluginIcon.ImageSpecifier);
+        WritePng(directory, width, height);
+
+        var plugin = Assert.Single(PluginLoader.Discover(PluginsDir, new PluginsState()));
+
+        Assert.False(plugin.HasIconImage);
+        Assert.Contains(plugin.Warnings, w => w.Contains($"{width}x{height}"));
+    }
+
+    [Fact]
+    public void Icon_AFileThatIsNotAPng_IsRefused()
+    {
+        var directory = WritePluginWithIcon("not-a-png", PluginIcon.ImageSpecifier);
+        File.WriteAllText(Path.Combine(directory, PluginIcon.FileName),
+            "GIF89a followed by well over twenty-four bytes of nothing in particular");
+
+        var plugin = Assert.Single(PluginLoader.Discover(PluginsDir, new PluginsState()));
+
+        Assert.False(plugin.HasIconImage);
+        Assert.Contains(plugin.Warnings, w => w.Contains("not a PNG"));
+    }
+
+    /// <summary>
+    /// Asking for an image and shipping none is the author's mistake to see; the row still draws,
+    /// on a glyph.
+    /// </summary>
+    [Fact]
+    public void Icon_AnImageAskedForButNotShipped_WarnsRatherThanFailingTheLoad()
+    {
+        WritePluginWithIcon("no-file", PluginIcon.ImageSpecifier);
+
+        var plugin = Assert.Single(PluginLoader.Discover(PluginsDir, new PluginsState()));
+
+        Assert.False(plugin.HasIconImage);
+        Assert.NotEqual(PluginStatus.Errored, plugin.Status);
+        Assert.Contains(plugin.Warnings, w => w.Contains(PluginIcon.FileName) && w.Contains("missing"));
+    }
+
+    /// <summary>A glyph name is not the image specifier, so the file beside it is never looked at.</summary>
+    [Fact]
+    public void Icon_AGlyphName_LeavesTheImageAlone()
+    {
+        var directory = WritePluginWithIcon("glyph", "search");
+        WritePng(directory, 16, 16);
+
+        var plugin = Assert.Single(PluginLoader.Discover(PluginsDir, new PluginsState()));
+
+        Assert.False(plugin.HasIconImage);
+        Assert.Equal("search", plugin.Manifest!.Icon);
+    }
+
+    [Fact]
+    public void Icon_NotSpecified_LeavesTheRowOnAGlyph()
+    {
+        WritePlugin("plain", "11111111-1111-1111-1111-111111111111");
+
+        var plugin = Assert.Single(PluginLoader.Discover(PluginsDir, new PluginsState()));
+
+        Assert.False(plugin.HasIconImage);
+        Assert.Null(plugin.Manifest!.Icon);
+    }
+
+    private string WritePluginWithIcon(string folder, string icon)
+    {
+        var manifest = new
+        {
+            id = Guid.NewGuid().ToString(),
+            name = folder,
+            version = "1.0.0",
+            entryAssembly = "Plugin.dll",
+            apiVersion = PluginApi.CurrentVersion,
+            icon,
+        };
+        var directory = WriteRawManifest(folder, JsonSerializer.Serialize(manifest));
+
+        File.WriteAllText(Path.Combine(directory, "Plugin.dll"), "not a real assembly");
+
+        return directory;
+    }
+
+    /// <summary>
+    /// Just a signature and an IHDR — the loader reads the dimensions out of a fixed offset and
+    /// never decodes the image, so nothing past the header has to be real.
+    /// </summary>
+    private static void WritePng(string directory, int width, int height)
+    {
+        var bytes = new List<byte> { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A };
+
+        bytes.AddRange([0, 0, 0, 13]);
+        bytes.AddRange("IHDR"u8.ToArray());
+        bytes.AddRange(BitConverter.GetBytes(width).Reverse());
+        bytes.AddRange(BitConverter.GetBytes(height).Reverse());
+
+        File.WriteAllBytes(Path.Combine(directory, PluginIcon.FileName), [.. bytes]);
+    }
+
     private string WritePlugin(string folder, string id, int apiVersion = PluginApi.CurrentVersion,
         string entryAssembly = "Plugin.dll", bool createEntryAssembly = true)
     {
