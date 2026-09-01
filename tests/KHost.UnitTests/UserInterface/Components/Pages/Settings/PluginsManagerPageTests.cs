@@ -561,12 +561,12 @@ public class PluginsManagerPageTests : BunitContext
     /// <summary>The state a plugin dropped in by hand under a second name leaves behind: two rows,
     /// one manifest id, and the second discovered copy errored as a duplicate.</summary>
     /// <summary>
-    /// A manifest has no group to sort on, and cannot gain one — the definition is in the SDK. So
-    /// the panel groups by the only thing that changes a row's shape: a checkbox against a labelled
-    /// input. Interleaving the two is what made Spotify's six settings read as scattered.
+    /// An author groups settings by meaning and the host has no better idea: a definition carries a
+    /// key, a type and a label, with no group to sort on. Spotify declares the Spicetify bridge
+    /// immediately before the port it uses, and any reordering here parts them.
     /// </summary>
     [Fact]
-    public void Settings_PutTheTogglesAfterTheInputs()
+    public void Settings_AreShownInTheOrderTheManifestDeclares()
     {
         Arrange(Plugin(PluginStatus.Loaded,
             Setting("playlistUri", PluginSettingType.String, "Playlist"),
@@ -578,34 +578,15 @@ public class PluginsManagerPageTests : BunitContext
         var cut = Render<PluginsManagerPage>();
         cut.Find(DisclosureSelector).Click();
 
+        // Declared order exactly: not grouped by type, and not alphabetical either — both of which
+        // would move "Port the extension connects on" away from the toggle that turns it on.
         Assert.Equal(
-            ["Playlist", "Port the extension connects on", "Fade length", "Shuffle the playlist", "Listen for the extension"],
+            ["Playlist", "Shuffle the playlist", "Listen for the extension", "Port the extension connects on", "Fade length"],
             FieldLabels(cut));
     }
 
-    /// <summary>
-    /// Spotify declares a bridge toggle and immediately after it the port that toggle uses. Sorting
-    /// inside the group — by label, or by type again — would put "Fade length" between them.
-    /// </summary>
-    [Fact]
-    public void Settings_KeepTheAuthorsOrderWithinEachRun()
-    {
-        Arrange(Plugin(PluginStatus.Loaded,
-            Setting("spicetifyBridgePort", PluginSettingType.Int, "Port the extension connects on"),
-            Setting("fadeMilliseconds", PluginSettingType.Int, "Fade length"),
-            Setting("shuffle", PluginSettingType.Bool, "Shuffle the playlist"),
-            Setting("launchIfNotRunning", PluginSettingType.Bool, "Launch Spotify")), enabled: true);
-
-        var cut = Render<PluginsManagerPage>();
-        cut.Find(DisclosureSelector).Click();
-
-        // Alphabetically these would each come the other way round, so a sort inside the run fails.
-        Assert.Equal(
-            ["Port the extension connects on", "Fade length", "Shuffle the playlist", "Launch Spotify"],
-            FieldLabels(cut));
-    }
-
-    // The two shapes label themselves differently, which is the whole reason the order matters.
+    // The two shapes label themselves differently, which is why a row each is what makes the panel
+    // readable — packed into columns, a checkbox sat beside an input.
     private static List<string> FieldLabels(IRenderedComponent<PluginsManagerPage> cut)
         => [.. cut.FindAll(".kh-plugins-manager__field .kh-plugins-manager__label, .kh-plugins-manager__field .kh-form-check-label")
             .Select(l => l.TextContent.Trim())];
