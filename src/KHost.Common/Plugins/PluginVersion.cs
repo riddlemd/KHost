@@ -1,4 +1,4 @@
-namespace KHost.Abstractions.Models.Plugins;
+namespace KHost.Common.Plugins;
 
 /// <summary>
 /// Comparing the version strings plugins and catalogs publish. <c>PluginManifest.Version</c> is a

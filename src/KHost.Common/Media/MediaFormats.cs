@@ -1,4 +1,4 @@
-namespace KHost.Common;
+namespace KHost.Common.Media;
 
 /// <summary>
 /// Whether a row is a still rather than something that plays. Kept apart from
