@@ -37,6 +37,7 @@ public class SettingsButtonShortcutsTests : BunitContext
         Services.AddSingleton(venues);
         Services.AddSingleton(appSettings);
         Services.AddSingleton(Substitute.For<IThemeService>());
+        Services.AddSingleton(Substitute.For<IBreakMusicService>());
     }
 
     private IElement OpenMenuAndFindShortcutsItem()
