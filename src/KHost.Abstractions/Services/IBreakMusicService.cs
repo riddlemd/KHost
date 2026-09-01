@@ -20,6 +20,14 @@ public interface IBreakMusicService
     IReadOnlyList<IBreakMusicProvider> Providers { get; }
     IBreakMusicProvider? ActiveProvider { get; }
 
+    /// <summary>
+    /// The provider fed by this host's own break music playlists, if it is loaded. It is the only
+    /// mode a playlist means anything to; every other provider brings its own catalogue. Deliberately
+    /// not the same question as <c>RendersThroughHost</c>, which says who plays the audio — a
+    /// provider may well render through the host and still bring its own music.
+    /// </summary>
+    IBreakMusicProvider? LibraryProvider { get; }
+
     BreakMusicState State { get; }
     BreakMusicTrack? CurrentTrack { get; }
 

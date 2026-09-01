@@ -9,60 +9,7 @@
     <div class="kh-settings-page">
         <div class="kh-card">
             <div class="kh-card__header">
-                <span class="kh-card__title"><Icon Name="music-note-beamed" /> Break Music Manager</span>
-            </div>
-
-            <div class="kh-card__body">
-                <div class="kh-venue-settings">
-                    <div class="kh-venue-settings__section kh-venue-settings__section--head">
-                        <span class="kh-venue-settings__section-title">Where break music comes from</span>
-
-                        <div class="kh-venue-settings__row">
-                            <label for="break-music-mode" class="kh-form-label">Mode</label>
-                            <select id="break-music-mode" class="kh-form-select"
-                                    value="@_providerSource" @onchange="OnProviderChangedAsync">
-                                @if (UnavailableProviderSource is { } unavailable)
-                                {
-                                    <option value="@unavailable">@unavailable &mdash; not loaded</option>
-                                }
-                                @foreach (var provider in BreakMusic.Providers)
-                                {
-                                    <option value="@provider.SourceName">@DescribeProvider(provider)</option>
-                                }
-                            </select>
-                        </div>
-
-                        @if (UnavailableProviderSource is not null)
-                        {
-                            <p class="kh-break-music-manager__hint kh-break-music-manager__hint--warning">
-                                Nothing loaded provides this mode &mdash; check its plugin under
-                                Settings &rsaquo; Plugins Manager. Break music is coming from
-                                <span class="kh-emphasis">@(BreakMusic.ActiveProvider?.DisplayName ?? "nothing")</span>
-                                meanwhile, and picking another mode here replaces the venue's choice for good.
-                            </p>
-                        }
-
-                        @if (BreakMusic.ActiveProvider is { RendersThroughHost: false })
-                        {
-                            <p class="kh-break-music-manager__hint">
-                                This provider plays through its own app, so the sound comes out of this
-                                machine rather than the screens &mdash; it will not reach a Cast device.
-                            </p>
-                        }
-
-                        <p class="kh-break-music-manager__hint">
-                            <span class="kh-emphasis">@(_venueName ?? "No venue selected")</span> plays
-                            <span class="kh-emphasis">@(_activePoolName ?? "nothing")</span> between singers,
-                            chosen on the venue itself under Settings &rsaquo; Venues Manager.
-                        </p>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="kh-card">
-            <div class="kh-card__header">
-                <span class="kh-card__title"><Icon Name="collection-play" /> Playlists</span>
+                <span class="kh-card__title"><Icon Name="music-note-beamed" /> Break Music Playlists</span>
                 <button class="kh-button kh-button--primary" @onclick="OpenAddDialog" type="button">
                     <Icon Name="plus-lg" /> Add Playlist
                 </button>
