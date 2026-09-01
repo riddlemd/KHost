@@ -22,6 +22,7 @@ public partial class SettingsButton : IDisposable
     [Inject] private IAppSettingsService? AppSettings { get; set; }
     [Inject] private IVenuesService? VenuesService { get; set; }
     [Inject] private IThemeService? ThemeService { get; set; }
+    [Inject] private IBreakMusicService? BreakMusic { get; set; }
     [Inject] private IDialogService? DialogService { get; set; }
     [Inject] private IJSRuntime JS { get; set; } = default!;
     [Inject] private IMessageBroker Broker { get; set; } = default!;
@@ -40,6 +41,9 @@ public partial class SettingsButton : IDisposable
 
         public bool AdminOnly { get; set; }
 
+        /// <summary>Set for a page that only means anything under some other setting.</summary>
+        public Func<SettingsButton, bool>? Applies { get; set; }
+
         /// <summary>Set instead of Route for an item that opens a dialog rather than navigating.</summary>
         public Func<SettingsButton, Task>? Opens { get; set; }
     }
@@ -49,12 +53,12 @@ public partial class SettingsButton : IDisposable
         // Manage is listed alphabetically by title; Application below is not, so keep new entries
         // in place rather than appending.
         new SettingsPage { Title = "Ads Manager", Icon = "megaphone", Route = "/settings/ads-manager", Requires = KHostPermission.ManageMedia },
-        new SettingsPage { Title = "Break Music Manager", Icon = "music-note-beamed", Route = "/settings/break-music-manager", Requires = KHostPermission.ManageMedia },
+        new SettingsPage { Title = "Break Music Manager", Icon = "music-note-beamed", Route = "/settings/break-music-manager", Requires = KHostPermission.ManageMedia, Applies = menu => menu.VenuePlaysLocalBreakMusic },
         new SettingsPage { Title = "Downloads Manager", Icon = "cloud-download", Route = "/settings/downloads-manager", Requires = KHostPermission.ManageMedia },
         new SettingsPage { Title = "Media Manager", Icon = "music-note-list", Route = "/settings/media-manager", Requires = KHostPermission.ManageMedia },
         new SettingsPage { Title = "Plugins Manager", Icon = "plug-fill", Route = "/settings/plugins-manager", AdminOnly = true },
         new SettingsPage { Title = "Theme Manager", Icon = "palette-fill", Route = "/settings/theme-manager", AdminOnly = true },
-        new SettingsPage { Title = "Tips Manager", Icon = "coin", Route = "/settings/tips-manager" },
+        new SettingsPage { Title = "Tips Manager", Icon = "coin", Route = "/settings/tips-manager", Applies = menu => menu.VenueTakesTips },
         new SettingsPage { Title = "User Groups Manager", Icon = "people-fill", Route = "/settings/user-groups-manager", Requires = KHostPermission.EditGroup },
         new SettingsPage { Title = "Users Manager", Icon = "person-fill", Route = "/settings/users-manager", Requires = KHostPermission.EditUser },
         new SettingsPage { Title = "Venues Manager", Icon = "geo-alt-fill", Route = "/settings/venues-manager", Requires = KHostPermission.EditVenue },
@@ -82,15 +86,37 @@ public partial class SettingsButton : IDisposable
         _canLock = AppSettings?.Current.RequireLogin != false;
 
         if (VenuesService is not null)
-            _subscriptions.Add(Broker.Subscribe<VenuesChanged>(_ => OnServiceChanged(null, EventArgs.Empty)));
+        {
+            _subscriptions.Add(Broker.Subscribe<VenuesChanged>(_ => QueueRebuild()));
 
-        _subscriptions.Add(Broker.Subscribe<ThemeChanged>(_ => OnServiceChanged(null, EventArgs.Empty)));
-        _subscriptions.Add(Broker.Subscribe<ThemesChanged>(_ => OnServiceChanged(null, EventArgs.Empty)));
+            // Not VenuesChanged: that one fires for any venue's edit, and which pages apply is a
+            // question about the venue the console is running.
+            _subscriptions.Add(Broker.Subscribe<SelectedVenueChanged>(_ => QueueRebuild()));
+        }
+
+        _subscriptions.Add(Broker.Subscribe<ThemeChanged>(_ => QueueRebuild()));
+        _subscriptions.Add(Broker.Subscribe<BreakMusicChanged>(_ => QueueRebuild()));
+        _subscriptions.Add(Broker.Subscribe<ThemesChanged>(_ => QueueRebuild()));
+
+        await RebuildAsync();
+    }
+
+    // Handlers run in subscription order and a slow one holds up the rest, so the rebuild is
+    // started rather than awaited here.
+    private void QueueRebuild() => _ = RebuildAsync();
+
+    /// <summary>
+    /// The venue decides both which venues the switcher lists and which pages apply, so one rebuild
+    /// serves every message that can move either. The venue is read before the list is filtered:
+    /// judging a venue-dependent page against a venue that has not arrived yet hides it.
+    /// </summary>
+    private async Task RebuildAsync()
+    {
+        await RefreshVenuesAsync();
 
         _groups = [.. (await VisiblePagesAsync()).GroupBy(page => page.Group)];
 
-        if (VenuesService is not null)
-            await RefreshVenuesAsync();
+        await InvokeAsync(StateHasChanged);
     }
 
     private async Task RefreshVenuesAsync()
@@ -106,11 +132,23 @@ public partial class SettingsButton : IDisposable
         _venues = [.. result.Items.Where(v => v.Enabled || v.Id == _selectedVenue?.Id)];
     }
 
-    private async void OnServiceChanged(object? sender, EventArgs e)
-    {
-        await RefreshVenuesAsync();
-        await InvokeAsync(StateHasChanged);
-    }
+    /// <summary>
+    /// The break music playlists only feed one mode. A venue playing Spotify has nothing to manage
+    /// there, so the page goes rather than sitting in the menu describing someone else's music.
+    /// Asked of the running provider rather than of RendersThroughHost, which says who plays the
+    /// audio — a provider may render through the host and still bring its own catalogue.
+    /// </summary>
+    /// <summary>
+    /// Tips are a venue's choice and the manager is a list of them, so a venue that does not take
+    /// them has nothing to show there. No venue at all counts as not taking them — there is nothing
+    /// for a tip to belong to yet.
+    /// </summary>
+    private bool VenueTakesTips => _selectedVenue?.Settings.TippingEnabled ?? false;
+
+    private bool VenuePlaysLocalBreakMusic
+        => BreakMusic?.LibraryProvider is { } library
+           && BreakMusic.ActiveProvider is { } active
+           && string.Equals(active.SourceName, library.SourceName, StringComparison.OrdinalIgnoreCase);
 
     private bool IsOpen(string section) => _openSection == section;
 
@@ -195,7 +233,7 @@ public partial class SettingsButton : IDisposable
                 _ => true,
             };
 
-            if (allowed) visible.Add(page);
+            if (allowed && (page.Applies?.Invoke(this) ?? true)) visible.Add(page);
         }
 
         return visible;
