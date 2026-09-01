@@ -163,6 +163,13 @@
     display: flex;
     flex-direction: column;
 
+    // A flex item's min-width is auto, so without this the page refuses to go narrower than its
+    // widest card and pushes out of .kh-app__body — which .kh-card clips, cutting a wide table's
+    // last columns off with nothing to scroll. Zeroing the width lets the card reach the viewport
+    // and hands the overflow to .kh-card__body, which already scrolls. Note this is min-width, not
+    // flex: zeroing the flex here collapses every settings card to its content width instead.
+    min-width: 0;
+
     // Matches the 1em a nested card already gets in _cards.scss. A page with one card is
     // unaffected; the break music and ads managers stack two and were running them together.
     gap: 1em;

@@ -279,13 +279,14 @@
                                     {
                                         <span class="kh-badge @GetStateBadgeClass(state)">@GetStateLabel(state)</span>
                                     }
-                                    <button type="button" role="switch" aria-checked="@(enabled ? "true" : "false")" class="kh-switch"
-                                            aria-label="@($"Enable {plugin.DisplayName}")"
-                                            disabled="@(!CanEnable(plugin, enabled))"
-                                            @onclick="() => ToggleAsync(plugin.Id, !enabled)">
-                                        <span class="kh-switch__track"></span>
-                                        <span class="kh-switch__label">@(enabled ? "Enabled" : "Disabled")</span>
-                                    </button>
+                                    <label class="kh-plugins-manager__enable kh-form-check">
+                                        <input type="checkbox" class="kh-form-check-input"
+                                               aria-label="@($"Enable {plugin.DisplayName}")"
+                                               checked="@enabled"
+                                               disabled="@(!CanEnable(plugin, enabled))"
+                                               @onchange="e => ToggleAsync(plugin.Id, (bool)(e.Value ?? false))" />
+                                        <span class="kh-form-check-label">Enabled</span>
+                                    </label>
                                 </div>
                             </div>
 
@@ -316,15 +317,12 @@
                                                 <div class="kh-plugins-manager__field">
                                                     @if (field.Definition.Type == PluginSettingType.Bool)
                                                     {
-                                                        <span class="kh-plugins-manager__toggle">
-                                                            <button type="button" role="switch" aria-checked="@(field.Flag ? "true" : "false")"
-                                                                    class="kh-switch kh-switch--bare"
-                                                                    aria-label="@field.Definition.Label"
-                                                                    @onclick="() => { field.Flag = !field.Flag; MarkEdited(plugin.Id); }">
-                                                                <span class="kh-switch__track"></span>
-                                                            </button>
-                                                            <span>@field.Definition.Label</span>
-                                                        </span>
+                                                        <label class="kh-plugins-manager__toggle kh-form-check">
+                                                            <input type="checkbox" class="kh-form-check-input"
+                                                                   checked="@field.Flag"
+                                                                   @onchange="e => { field.Flag = (bool)(e.Value ?? false); MarkEdited(plugin.Id); }" />
+                                                            <span class="kh-form-check-label">@field.Definition.Label</span>
+                                                        </label>
                                                     }
                                                     else if (field.Definition.Secret)
                                                     {

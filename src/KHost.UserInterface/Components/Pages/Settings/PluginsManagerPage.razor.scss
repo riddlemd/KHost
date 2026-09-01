@@ -1,4 +1,14 @@
 .kh-plugins-manager {
+    // The row's own control, so it sits on the badge's baseline rather than reading as body text.
+    &__enable {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5em;
+        font-size: 0.78rem;
+        color: var(--kh-text-muted);
+        cursor: pointer;
+    }
+
     &__restart {
         display: flex;
         align-items: center;

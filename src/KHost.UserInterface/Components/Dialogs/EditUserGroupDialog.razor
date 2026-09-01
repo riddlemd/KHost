@@ -25,16 +25,16 @@
             </div>
 
             <div >
-                <label class="kh-checkbox">
-                    <InputCheckbox @bind-Value="_model.IsAdmin" />
-                    <span>Admin (all permissions)</span>
+                <label class="kh-form-check">
+                    <InputCheckbox class="kh-form-check-input" @bind-Value="_model.IsAdmin" />
+                    <span class="kh-form-check-label">Admin (all permissions)</span>
                 </label>
             </div>
 
             <div >
-                <label class="kh-checkbox">
-                    <InputCheckbox @bind-Value="_model.ExcludeFromSingerQueue" />
-                    <span>Not A Singer (leave out of the singer queue)</span>
+                <label class="kh-form-check">
+                    <InputCheckbox class="kh-form-check-input" @bind-Value="_model.ExcludeFromSingerQueue" />
+                    <span class="kh-form-check-label">Not A Singer (leave out of the singer queue)</span>
                 </label>
             </div>
 
@@ -62,7 +62,7 @@
                                     var isChecked = _model.Permissions.Contains(permission);
                                     <tr>
                                         <td>
-                                            <input type="checkbox" checked="@isChecked" disabled="@_model.IsAdmin"
+                                            <input type="checkbox" class="kh-form-check-input" checked="@isChecked" disabled="@_model.IsAdmin"
                                                 @onchange="e => TogglePermission(permission, (bool)(e.Value ?? false))" />
                                         </td>
                                         <td>@permission.ToString()</td>
