@@ -59,10 +59,6 @@ public partial class EditVenueDialog
             ? null
             : _model.BreakMusicProvider;
 
-    private IBreakMusicProvider? SelectedProvider
-        => BreakMusic.Providers.FirstOrDefault(p =>
-            string.Equals(p.SourceName, _model.BreakMusicProvider, StringComparison.OrdinalIgnoreCase));
-
     /// <summary>
     /// Whether the chosen mode is the one this host's own playlists feed — not whether the host
     /// renders the audio, which is a separate question a provider may answer either way. An
