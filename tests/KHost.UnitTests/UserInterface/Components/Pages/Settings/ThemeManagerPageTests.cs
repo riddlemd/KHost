@@ -1,3 +1,4 @@
+using AngleSharp.Html.Dom;
 using Bunit;
 using KHost.Domain.Services.Messaging;
 using KHost.UserInterface.Messaging;
@@ -16,7 +17,7 @@ namespace KHost.UnitTests.UserInterface.Components.Pages.Settings;
 /// </summary>
 public class ThemeManagerPageTests : BunitContext
 {
-    private const string SwitchSelector = ".kh-switch";
+    private const string ToggleSelector = "tbody .kh-form-check-input";
     private const string CloneSelector = ".kh-theme-manager__clone-btn";
     private const string EditSelector = ".kh-theme-manager__edit-btn";
     private const string DeleteSelector = ".kh-theme-manager__delete-btn";
@@ -52,8 +53,8 @@ public class ThemeManagerPageTests : BunitContext
 
         // The column header carries the wording, so state reaches a reader through aria-checked
         // rather than a label beside each switch.
-        Assert.Equal(["true", "true", "false"],
-            page.FindAll(SwitchSelector).Select(s => s.GetAttribute("aria-checked")));
+        Assert.Equal([true, true, false],
+            page.FindAll(ToggleSelector).Cast<IHtmlInputElement>().Select(box => box.IsChecked));
     }
 
     [Fact]
@@ -72,7 +73,7 @@ public class ThemeManagerPageTests : BunitContext
     {
         var page = Render<ThemeManagerPage>();
 
-        page.FindAll(SwitchSelector)[2].Click();
+        page.FindAll(ToggleSelector)[2].Change(true);
 
         _themes.Received(1).SetEnabledAsync("night-shift", true);
     }
@@ -82,7 +83,7 @@ public class ThemeManagerPageTests : BunitContext
     {
         var page = Render<ThemeManagerPage>();
 
-        page.FindAll(SwitchSelector)[1].Click();
+        page.FindAll(ToggleSelector)[1].Change(false);
 
         _themes.Received(1).SetEnabledAsync("cherry", false);
     }
@@ -92,7 +93,7 @@ public class ThemeManagerPageTests : BunitContext
     {
         var page = Render<ThemeManagerPage>();
 
-        var inUseSwitch = page.FindAll(SwitchSelector)[0];
+        var inUseSwitch = page.FindAll(ToggleSelector)[0];
 
         Assert.True(inUseSwitch.HasAttribute("disabled"));
         Assert.Contains("Switch to another theme", inUseSwitch.GetAttribute("title"));
@@ -110,7 +111,7 @@ public class ThemeManagerPageTests : BunitContext
 
         var page = Render<ThemeManagerPage>();
 
-        Assert.True(page.FindAll(SwitchSelector)[0].HasAttribute("disabled"));
+        Assert.True(page.FindAll(ToggleSelector)[0].HasAttribute("disabled"));
     }
 
     [Fact]
