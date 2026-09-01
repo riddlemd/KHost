@@ -88,6 +88,164 @@
         }
 
         #hostlost[hidden] { display: none; }
+
+        /* Above everything, including a full-bleed still: the room reads it while an ad card or
+           the venue card is up, which is most of the night. */
+        #marquee {
+            position: absolute;
+            left: 0;
+            right: 0;
+            z-index: 10;
+            overflow: hidden;
+            white-space: nowrap;
+            color: var(--marquee-fg, #f2f2f5);
+            font: 500 var(--marquee-font-size, 28px)/1 system-ui, -apple-system, "Segoe UI", sans-serif;
+            letter-spacing: 0.01em;
+            padding: 0.62em 0;
+            pointer-events: none;
+            /* The video shows through, so the band reads as glass over the picture rather than a
+               panel bolted across it. */
+            backdrop-filter: blur(16px) saturate(140%);
+            -webkit-backdrop-filter: blur(16px) saturate(140%);
+        }
+
+        /* The venue's colour as a layer rather than the band's own background: it can then be held
+           under full opacity without taking the text down with it. */
+        #marquee::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: var(--marquee-bg, #000);
+            opacity: 0.82;
+        }
+
+        #marquee[hidden] { display: none; }
+
+        #marquee[data-position="top"] { top: 0; }
+        #marquee[data-position="bottom"] { bottom: 0; }
+
+        /* A hairline of the text colour on the edge facing the picture. It reads as the band
+           having a lit edge rather than as a box someone drew a border around. */
+        #marquee::after {
+            content: '';
+            position: absolute;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, currentColor, transparent);
+            opacity: 0.35;
+        }
+
+        #marquee[data-position="top"]::after { bottom: 0; }
+        #marquee[data-position="bottom"]::after { top: 0; }
+
+        /* The one change that dates it most: text sliding under a hard edge reads as a 90s ticker,
+           while the same text dissolving at both ends reads as depth. */
+        #marquee-viewport {
+            position: relative;
+            overflow: hidden;
+            mask-image: linear-gradient(90deg, transparent, #000 4%, #000 96%, transparent);
+            -webkit-mask-image: linear-gradient(90deg, transparent, #000 4%, #000 96%, transparent);
+        }
+
+        /* Pinned: the label is held at the leading edge and the text runs past it, so a room
+           glancing up always sees what the list is. A modifier on whatever the band otherwise
+           looks like — it changes where the label sits, not how the band is painted. */
+        #marquee-pin {
+            position: relative;
+            z-index: 1;
+            display: none;
+            box-sizing: border-box;
+            width: 7.5em;
+            flex: 0 0 7.5em;
+            align-self: stretch;
+            text-align: center;
+            font-size: 0.55em;
+            font-weight: 800;
+            letter-spacing: 0.16em;
+            text-transform: uppercase;
+            background: var(--marquee-fg, #f2f2f5);
+            color: var(--marquee-bg, #000);
+            /* Padded in its own em, which is 0.55 of the band's, so it fills the band's height
+               whatever size the venue picked. */
+            padding: 1.15em 0;
+        }
+
+        #marquee[data-pinned="true"] {
+            display: flex;
+            align-items: stretch;
+            padding: 0;
+        }
+
+        #marquee[data-pinned="true"] #marquee-pin { display: block; }
+
+        #marquee[data-pinned="true"] #marquee-viewport {
+            flex: 1 1 auto;
+            min-width: 0;
+            padding: 0.62em 0 0.62em 1.1em;
+            /* Only the far end fades: the near end is the label, and a fade there would wash it
+               into the text running out from under it. */
+            mask-image: linear-gradient(90deg, #000 94%, transparent);
+            -webkit-mask-image: linear-gradient(90deg, #000 94%, transparent);
+        }
+
+        /* Two copies chase each other so the text never leaves a gap the width of the screen —
+           the second starts where the first ends, and the pair translates by exactly half. */
+        #marquee-track {
+            display: inline-block;
+            /* Restated rather than inherited: the band is fixed to an edge of the picture, so a
+               second line would grow it over the video rather than push the page down. */
+            white-space: nowrap;
+            will-change: transform;
+            animation: marquee-scroll var(--marquee-duration, 30s) linear infinite;
+        }
+
+        #marquee-track > span {
+            display: inline-block;
+            white-space: nowrap;
+            padding-right: 4rem;
+        }
+
+        /* "Up next" as its own chip rather than a word in the sentence: the room is scanning for
+           names, and a label it can skip is a label it stops re-reading. */
+        /* Filled rather than outlined: at this size a 999px border reads as a pair of brackets
+           around the words. Both colours come from the venue's own pair, inverted. */
+        .marquee-label {
+            font-size: 0.55em;
+            font-weight: 700;
+            letter-spacing: 0.16em;
+            text-transform: uppercase;
+            background: var(--marquee-fg, #f2f2f5);
+            color: var(--marquee-bg, #000);
+            border-radius: 999px;
+            padding: 0.5em 1em 0.45em;
+            margin-right: 1em;
+            vertical-align: 0.22em;
+        }
+
+        .marquee-sep {
+            opacity: 0.38;
+            padding: 0 0.55em;
+            font-weight: 400;
+        }
+
+        /* The venue's own line, set apart from the names so it does not read as another singer. */
+        .marquee-message {
+            font-weight: 400;
+            opacity: 0.88;
+        }
+
+        @keyframes marquee-scroll {
+            from { transform: translateX(0); }
+            to   { transform: translateX(-50%); }
+        }
+
+        /* A scrolling band is the worst case for anyone who asked the OS to stop motion, so it
+           holds still and shows the text from the start instead of hiding it. */
+        @media (prefers-reduced-motion: reduce) {
+            #marquee-track { animation: none; }
+        }
+
     </style>
 </head>
 <body>
@@ -101,6 +259,13 @@
     <div id="placeholder">KHost</div>
     <div id="blanked" hidden>Video off</div>
     <div id="hostlost" hidden>Lost the host<small>Paused until KHost comes back</small></div>
+    <!-- Next singers and the venue's own line. Hidden until a venue turns it on. -->
+    <div id="marquee" hidden data-position="bottom">
+        <div id="marquee-pin">Up next</div>
+        <div id="marquee-viewport">
+            <div id="marquee-track"><span></span><span></span></div>
+        </div>
+    </div>
     <script src="hls.light.min.js"></script>
     <script src="player.js"></script>
 </body>

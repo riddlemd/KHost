@@ -174,6 +174,9 @@ internal sealed class ScreenIpcController : IAsyncDisposable
             case HideImageCommand:
                 _player.HideImage();
                 break;
+            case SetMarqueeCommand cmd:
+                _player.SetMarquee(cmd);
+                break;
             default:
                 _logger.LogWarning("Unhandled command: {Type}", command.GetType().Name);
                 break;

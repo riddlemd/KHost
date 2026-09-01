@@ -37,6 +37,18 @@ public class ScreenCommandSerializationTests
         [nameof(SetBackgroundVolumeCommand)] = new SetBackgroundVolumeCommand { Volume = 0.4f },
         [nameof(ShowImageCommand)] = new ShowImageCommand { Url = "http://host/media/image/abc", Scaling = ImageScaling.Fill },
         [nameof(HideImageCommand)] = new HideImageCommand(),
+        [nameof(SetMarqueeCommand)] = new SetMarqueeCommand
+        {
+            Enabled = true,
+            Singers = ["Ada", "Grace"],
+            Message = "Happy hour until 8",
+            Position = MarqueePosition.Top,
+            BackgroundColor = "#101820",
+            TextColor = "#f2f2f5",
+            FontSizePixels = 36,
+            ScrollSpeed = 140,
+            PinLabel = true,
+        },
     };
 
     public static TheoryData<string> CommandNames => [.. Samples.Keys];
