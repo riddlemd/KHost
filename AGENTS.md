@@ -2,7 +2,7 @@
 
 **KHost** — karaoke host app. .NET 10 + Blazor Server UI, Photino screen app. Solution: `KHost.slnx` (no `.sln`).
 
-Projects (`src/`): `Abstractions` (every interface, the shared models, and what a plugin is built against — MIT, no project refs, the bottom layer) ← `Common` (helpers over those contracts, MIT) ← `Domain` (services) / `DataAccess` (EF Core 10 + SQLite) ← `UserInterface` (Blazor Server) and `Screen2` (Photino video output), plus `IPC.SignalR` (UI↔Screen), `Cast` (Chromecast), `LrcLib`, `Telemetry`, `ServiceDefaults`/`AppHost` (Aspire), `tools/` (`KHost.CatalogSync`, the CLI that writes `plugin-catalog.json` entries), and `tests/` (`KHost.UnitTests` — hermetic, no skips; `KHost.IntegrationTests` — needs ffmpeg/ffprobe, Cast tests skip without the Chromecast emulator on 127.0.0.1:8009).
+Projects (`src/`): `Abstractions` (every interface, the shared models, and what a plugin is built against — MIT, no project refs, the bottom layer) ← `Common` (helpers over those contracts, MIT) ← `Domain` (services) / `DataAccess` (EF Core 10 + SQLite) ← `UserInterface` (Blazor Server) and `Screen2` (Photino video output), plus `IPC.SignalR` (UI↔Screen), `Cast` (Chromecast), `LrcLib`, `Telemetry`, `ServiceDefaults`/`AppHost` (Aspire), `tools/` (`KHost.CatalogSync`, the CLI that writes `plugin-catalog.json` entries), `build/` (`KHost.Analyzers`, a netstandard2.0 Roslyn analyzer referenced only at build time), and `tests/` (`KHost.UnitTests` — hermetic, no skips; `KHost.IntegrationTests` — needs ffmpeg/ffprobe, Cast tests skip without the Chromecast emulator on 127.0.0.1:8009).
 
 ## Commands
 
@@ -23,7 +23,7 @@ SCSS compiles inside `dotnet build` (AspNetCore.SassCompiler) — no separate sa
 ## Rules
 
 - Interfaces in `src/KHost.Abstractions` (`Services/`, `Repositories/`, `Models/`); implementations in `src/KHost.Domain` or `src/KHost.DataAccess`. Register in the project's `ProjectExtensions` (`AddDomain()` / `AddDataAccess()`); UI-only services in `Program.cs`. All domain services are singletons — guard mutable state with `SemaphoreSlim`.
-- A helper both the host and a plugin would want goes in `KHost.Common`, not `Abstractions`: it is MIT on purpose, so a plugin author may use it without taking PolyForm code into what they redistribute. `Common` is for helpers *over* the contracts — string folding aids, formatting, list surgery, the shared drop-position mechanic. A contract, a model or anything `Abstractions` itself needs belongs in `Abstractions`, which references nothing. Group by area under `Common` (`Media/`, `Plugins/`) rather than dropping types in its root, and mirror that in the tests.
+- A helper both the host and a plugin would want goes in `KHost.Common`, not `Abstractions`: it is MIT on purpose, so a plugin author may use it without taking PolyForm code into what they redistribute. `Common` is for helpers *over* the contracts — string folding aids, formatting, list surgery, the shared drop-position mechanic. A contract, a model or anything `Abstractions` itself needs belongs in `Abstractions`, which references nothing. `Abstractions` declares, it does not compute — see **No static methods in Abstractions** below. Group by area under `Common` (`Media/`, `Plugins/`) rather than dropping types in its root, and mirror that in the tests. Name its methods for what the call site needs to read, not for what the class already says: a plugin author sees `StreamRate.FromTempo(t)` and `AudioLevels.ClampVolume(v)` without this repo's context, so `For` and `Clamp` are too thin — `PluginRid.MatchesThisHost` names what it matches against, and `int.CentsToCurrencyString()` names the unit the receiver is in. Verbosity here is worth more than symmetry with a BCL name; the one exception is a member that exists to fill a BCL gap (`IList<T>.FindIndex`), where the familiar name *is* the point.
 - No "gate" services: behaviour that guards a call lives on the service that owns the call (enqueue rules go in `PerformanceService.CreateAndEnqueueAsync`, not an `IEnqueueGuard` around it).
 - New repositories/services copy the shape of an existing one: repositories extend `BaseRepository<T>` and implement `SortColumns` / `ApplySearchFilters`; services extend `BaseService` (or `BaseRepositoryService<,>` for CRUD).
 - In repositories, `using var context = await ContextFactory.CreateDbContextAsync();` per operation — never store a context.
@@ -35,6 +35,34 @@ SCSS compiles inside `dotnet build` (AspNetCore.SassCompiler) — no separate sa
 - Dialogs go through `IInteractionDispatcher`, which resolves `IInteractionHandler<TReq, TRes>` from DI; handlers bridge dialogs into awaitable calls with `TaskCompletionSource` and are registered in `Program.cs`.
 - `KHost.Abstractions` and `KHost.Common` are MIT; everything else is PolyForm Shield (`LICENSE`, and each MIT project's own `LICENSE`). `LicenceBoundaryTests` enforces it: an MIT project may reference only MIT projects, and must declare `PackageLicenseExpression` and ship a `LICENSE`. Note the compiler catches only the circular case — a reference to a leaf like `KHost.LrcLib` builds fine and breaks the licence silently, which is what that test is for. There is no separate plugin SDK: a plugin references `Abstractions` and `Common` directly, which is why `Abstractions` may reference nothing at all — `Common` sits above it, never the other way round. `KHostException` lives in `Abstractions` with the interfaces it is thrown across — it is the only way a plugin can report a failure the host can act on, so it has to sit where a plugin can reach it.
 - Do NOT commit unless explicitly asked.
+
+## No static methods in Abstractions
+
+`KHost.Abstractions` holds data and contracts. A static method there is a function, and a function
+is behaviour that belongs in `KHost.Common` where a plugin may also reach it. This is enforced at
+build time, not by review: `build/KHost.Analyzers` raises **KH0001** at the declaration, and it is
+fatal in that one project via the `.editorconfig` beside its `.csproj`.
+
+- The analyzer ships `DiagnosticSeverity.Hidden` so it can be referenced anywhere without biting;
+  the `.editorconfig` line is what makes it an error. `NoStaticMethodsInAbstractionsTests` checks
+  both halves of that wiring, because losing either one disables the rule with a green build.
+- The reference is `OutputItemType="Analyzer" ReferenceOutputAssembly="false"` — build-time only,
+  so no Roslyn assembly reaches what a plugin redistributes. `LicenceBoundaryTests` skips analyzer
+  references for that reason.
+- Exempt because the language requires `static`: `Main`, operators and conversions, static
+  constructors, `[ModuleInitializer]`, and extension methods. Static *fields* and *properties* are
+  not methods and are untouched — `ScreenCapabilities.None`, `MediaSearchOptions.Default` and
+  `PluginRid.Current` all stay. `#pragma warning disable KH0001` is the escape hatch, and wanting
+  one is usually a sign the member belongs in `Common`.
+- Where the existing ones went: `MediaFormats` (reads the disk for a `.cdg` sidecar) and
+  `AdPlayback.HasOwnAudio` to `Common/Media/`, alongside `AudioLevels.ClampVolume`,
+  `AudioTrackRoles.FromTrackName` and `StreamRate.FromTempo`; `PluginRid` and `PluginVersion` to
+  `Common/Plugins/`; `AuthResult`'s factories to `Common/Authentication/AuthResults`;
+  `RepositoryModel.IsBuiltIn` to `Common/Repositories/RepositoryModels.IsBuiltIn`.
+- `PluginCatalog` is the shape of the split: `IPluginCatalogService` returns it, so the data stays
+  in `Abstractions` while `LatestCompatibleRelease`, `HasReleaseForThisHost` and
+  `HasReleaseForThisPlatform` became extensions in `Common/Plugins/PluginCatalogExtensions` — they
+  needed `PluginRid` and `PluginVersion`, which had already moved.
 
 ## Messaging
 

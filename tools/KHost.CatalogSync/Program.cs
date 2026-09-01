@@ -2,6 +2,7 @@ using KHost.Abstractions.Models.Plugins;
 using KHost.Domain.Services.Plugins;
 using System.Text.Json.Serialization;
 using System.Text.Json;
+using KHost.Common.Plugins;
 
 namespace KHost.CatalogSync;
 

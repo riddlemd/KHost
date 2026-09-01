@@ -125,7 +125,7 @@ public partial class TipsManagerPage : IDisposable
         var singer = GetSingerName(tip.UserId);
 
         await DialogService.ShowConfirmationAsync(
-            $"Are you sure you want to delete the tip from <span class=\"kh-emphasis\">{singer}</span> for {tip.AmountInCents.ToCurrency()}?",
+            $"Are you sure you want to delete the tip from <span class=\"kh-emphasis\">{singer}</span> for {tip.AmountInCents.CentsToCurrencyString()}?",
             async () => await TipsService.DeleteAsync(tip.Id),
             "Delete Tip",
             "Delete"

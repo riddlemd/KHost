@@ -1,0 +1,4 @@
+# KH0001 ships hidden and is fatal here alone: this project declares contracts and computes
+# nothing, so a static method in it is logic that belongs in KHost.Common.
+[*.cs]
+dotnet_diagnostic.KH0001.severity = error

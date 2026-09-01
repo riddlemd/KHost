@@ -1,4 +1,5 @@
 using KHost.Abstractions.Models.Plugins;
+using KHost.Common.Plugins;
 
 namespace KHost.UnitTests.Common.Plugins;
 

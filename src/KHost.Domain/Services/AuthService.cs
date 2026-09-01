@@ -2,6 +2,7 @@ using KHost.Abstractions.Models;
 using KHost.Abstractions.Repositories;
 using KHost.Abstractions.Services;
 using Microsoft.Extensions.Logging;
+using KHost.Common.Authentication;
 
 namespace KHost.Domain.Services;
 
@@ -34,7 +35,7 @@ public class AuthService : BaseService, IAuthService
         {
             Logger.LogWarning("Login failed: no user found for name '{Name}'", name);
             activity.SetError("Invalid name or password");
-            return AuthResult.Fail("Invalid name or password");
+            return AuthResults.Failed("Invalid name or password");
         }
 
         var provider = _providers.FirstOrDefault(p => p.CanHandle(user));
@@ -42,7 +43,7 @@ public class AuthService : BaseService, IAuthService
         {
             Logger.LogError("No auth provider registered for user '{UserId}'", user.Id);
             activity.SetError("Authentication is not configured for this account");
-            return AuthResult.Fail("Authentication is not configured for this account");
+            return AuthResults.Failed("Authentication is not configured for this account");
         }
 
         var result = await provider.AuthenticateAsync(user, password);

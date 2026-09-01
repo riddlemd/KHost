@@ -3,6 +3,7 @@
 @using KHost.Common.Monetary
 @using KHost.UserInterface.Models
 @using KHost.UserInterface.Services
+@using KHost.Common.Repositories
 
 <PageTitle>KHost &mdash; Manage Users</PageTitle>
 
@@ -67,7 +68,7 @@
                                             <span >—</span>
                                         }
                                     </td>
-                                    <td>@_tipTotals.GetValueOrDefault(user.Id).ToCurrency()</td>
+                                    <td>@_tipTotals.GetValueOrDefault(user.Id).CentsToCurrencyString()</td>
                                     <td class="kh-table__cell--actions">
                                         <button class="kh-singer-manager__edit-btn kh-button--icon-minimal" title="Edit User" @onclick="() => OpenEditDialogAsync(user)">
                                             <Icon Name="pencil" />
@@ -75,7 +76,7 @@
                                         <button class="kh-singer-manager__history-btn kh-button--icon-minimal" title="View Performance History" @onclick="() => OpenPerformanceHistoryAsync(user)">
                                             <Icon Name="music-note-list" />
                                         </button>
-                                        @if (!KHostUser.IsBuiltIn(user.Id))
+                                        @if (!RepositoryModels.IsBuiltIn(user.Id))
                                         {
                                             <AuthorizeView Policy="@nameof(KHostPermission.DeleteUser)" Context="_auth">
                                             <button class="kh-singer-manager__delete-btn kh-button--icon-minimal" title="Delete User" @onclick="@(async () => await StartDeleteAsync(user))">
