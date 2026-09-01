@@ -39,8 +39,8 @@ namespace KHost.Domain
             serviceCollection.AddOptions<HlsMediaStreamService.ServiceOptions>()
                 .BindConfiguration(HlsMediaStreamService.ServiceOptions.SectionName);
 
-            serviceCollection.AddOptions<PluginLibrary.ServiceOptions>()
-                .BindConfiguration(PluginLibrary.ServiceOptions.SectionName);
+            serviceCollection.AddOptions<MediaAcquisitionService.ServiceOptions>()
+                .BindConfiguration(MediaAcquisitionService.ServiceOptions.SectionName);
 
             serviceCollection.AddOptions<AdService.ServiceOptions>()
                 .BindConfiguration(AdService.ServiceOptions.SectionName);
@@ -95,7 +95,7 @@ namespace KHost.Domain
             serviceCollection.AddSingleton<IScreenKeyStore, FileScreenKeyStore>();
 
             serviceCollection.AddSingleton<IMediaProvider, LocalMediaProvider>();
-            // Registered ahead of PluginLibrary and independent of it: PluginLibrary depends on
+            // Registered ahead of MediaAcquisitionService and independent of it: it depends on
             // IPerformanceService, and PerformanceService depends on IDownloadsService, so the
             // service has to be its own dependency-free singleton to avoid a constructor cycle.
             serviceCollection.AddSingleton<IDownloadsService, DownloadsService>();
@@ -103,8 +103,8 @@ namespace KHost.Domain
             serviceCollection.AddSingleton<IPluginPayloadReader, PluginPayloadReader>();
             serviceCollection.AddSingleton<IPluginCatalogService, PluginCatalogService>();
             serviceCollection.AddSingleton<IPluginInstallerService, PluginInstallerService>();
-            serviceCollection.AddSingleton<PluginLibrary>();
-            serviceCollection.AddSingleton<IPluginLibrary>(sp => sp.GetRequiredService<PluginLibrary>());
+            serviceCollection.AddSingleton<MediaAcquisitionService>();
+            serviceCollection.AddSingleton<IMediaAcquisitionService>(sp => sp.GetRequiredService<MediaAcquisitionService>());
 
             // Queue Rotation (built-in modes register before plugins so their ids win)
             serviceCollection.AddSingleton<IQueueRotationStrategyFactory, QueueRotationStrategyFactory>();

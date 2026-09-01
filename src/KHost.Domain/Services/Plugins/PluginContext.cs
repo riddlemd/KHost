@@ -11,7 +11,7 @@ public class PluginContext : IPluginContext
     private readonly Dictionary<string, JsonElement> _defaults;
     private readonly DiscoveredPlugin _plugin;
 
-    public PluginContext(PluginManifest manifest, Dictionary<string, JsonElement>? storedValues, DiscoveredPlugin plugin, IPluginLibrary library)
+    public PluginContext(PluginManifest manifest, Dictionary<string, JsonElement>? storedValues, DiscoveredPlugin plugin)
     {
         _plugin = plugin;
 
@@ -22,10 +22,8 @@ public class PluginContext : IPluginContext
         foreach (var setting in manifest.Settings.Where(s => s.Default is not null))
             _defaults[setting.Key] = setting.Default!.Value;
 
-        Library = library;
     }
 
-    public IPluginLibrary Library { get; }
 
     public T? GetSetting<T>(string key)
     {

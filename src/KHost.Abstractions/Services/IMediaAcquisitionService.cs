@@ -2,8 +2,16 @@ using KHost.Abstractions.Models;
 
 namespace KHost.Abstractions.Services;
 
-/// <summary>Lets a media-provider plugin hand a downloaded file into the host's own library and queue.</summary>
-public interface IPluginLibrary
+/// <summary>
+/// Bringing a file into the library, and keeping its download entry and its row in step. One owner
+/// on purpose: a caller settling the download without moving the media status, or the reverse,
+/// leaves the Downloads page and the library disagreeing about the same file.
+///
+/// Resolved from DI like any other service. It was reached through IPluginContext.Library when a
+/// plugin could reach nothing else; a plugin now injects this beside IMediaService or
+/// IPerformanceService as it needs them.
+/// </summary>
+public interface IMediaAcquisitionService
 {
     /// <summary>
     /// The directory downloads and imports should live under. Always non-empty; may not exist
@@ -55,9 +63,4 @@ public interface IPluginLibrary
     /// </summary>
     Task DiscardImportAsync(Guid mediaId);
 
-    /// <summary>
-    /// Enqueues already-imported media for whichever singer is currently selected in the host UI,
-    /// under the same rules as the local library's own enqueue action.
-    /// </summary>
-    Task EnqueueAsync(Guid mediaId);
 }

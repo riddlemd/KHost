@@ -122,7 +122,7 @@ public class PluginContextTests
             ],
         };
 
-        return new PluginContext(manifest, stored, new DiscoveredPlugin { Directory = "/plugins/test", Manifest = manifest }, Substitute.For<IPluginLibrary>());
+        return new PluginContext(manifest, stored, new DiscoveredPlugin { Directory = "/plugins/test", Manifest = manifest });
     }
 
     private class TestSettings
