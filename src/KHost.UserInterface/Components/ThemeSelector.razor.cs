@@ -1,4 +1,4 @@
-using KHost.Plugins.Sdk.Messaging;
+using KHost.Abstractions.Messaging;
 using KHost.UserInterface.Messaging;
 using Microsoft.AspNetCore.Components;
 using KHost.UserInterface.Services;

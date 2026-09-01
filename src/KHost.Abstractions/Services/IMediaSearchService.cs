@@ -1,5 +1,5 @@
-using KHost.Plugins.Sdk.Models;
-using KHost.Plugins.Sdk.Services;
+using KHost.Abstractions.Models;
+using KHost.Abstractions.Services;
 
 namespace KHost.Abstractions.Services;
 

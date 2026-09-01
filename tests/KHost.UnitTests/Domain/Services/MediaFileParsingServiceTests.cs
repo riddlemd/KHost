@@ -1,6 +1,5 @@
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
-using KHost.Common.Media;
 using KHost.Domain.Services;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;

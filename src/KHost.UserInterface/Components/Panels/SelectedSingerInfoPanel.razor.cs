@@ -2,12 +2,12 @@ using System.Globalization;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.JSInterop;
-using KHost.Plugins.Sdk.Exceptions;
+using KHost.Abstractions.Exceptions;
 using KHost.Abstractions.Models;
 using KHost.UserInterface.Models;
 using KHost.Abstractions.Services;
-using KHost.Plugins.Sdk.Messaging;
-using KHost.Plugins.Sdk.Messaging.Messages;
+using KHost.Abstractions.Messaging;
+using KHost.Abstractions.Messaging.Messages;
 using KHost.UserInterface.Services;
 
 namespace KHost.UserInterface.Components.Panels;

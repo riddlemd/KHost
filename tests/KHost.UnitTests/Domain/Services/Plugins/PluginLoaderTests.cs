@@ -1,9 +1,8 @@
 using KHost.Abstractions.Models.Plugins;
 using KHost.Domain.Services.MediaProviders;
 using KHost.Domain.Services.Plugins;
-using KHost.Plugins.Sdk;
-using KHost.Plugins.Sdk.Models;
-using KHost.Plugins.Sdk.Services;
+using KHost.Abstractions.Models;
+using KHost.Abstractions.Services;
 using Microsoft.Extensions.DependencyInjection;
 using System.Text.Json;
 

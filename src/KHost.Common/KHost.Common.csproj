@@ -14,8 +14,9 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- MIT to MIT: PluginApi.CurrentVersion is what a catalog release is matched against. -->
-    <ProjectReference Include="..\KHost.Plugins.Sdk\KHost.Plugins.Sdk.csproj" />
+    <!-- MIT to MIT. Common sits above Abstractions: helpers may use the contracts, never
+         the other way round. -->
+    <ProjectReference Include="..\KHost.Abstractions\KHost.Abstractions.csproj" />
   </ItemGroup>
 
 </Project>

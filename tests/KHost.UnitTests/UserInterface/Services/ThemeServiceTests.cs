@@ -1,7 +1,7 @@
 using System.Text.Json;
 using KHost.Abstractions.Services;
 using KHost.Domain.Services.Messaging;
-using KHost.Plugins.Sdk.Messaging;
+using KHost.Abstractions.Messaging;
 using KHost.UserInterface.Messaging;
 using KHost.UserInterface.Models;
 using KHost.UserInterface.Services;

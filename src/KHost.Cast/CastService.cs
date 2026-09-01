@@ -5,8 +5,8 @@ using KHost.Abstractions.Services;
 
 // Aliased rather than importing the namespace: Sharpcaster has its own MediaStatus.
 using MediaStreamSession = KHost.Abstractions.Models.MediaStreamSession;
-using KHost.Plugins.Sdk.Messaging;
-using KHost.Plugins.Sdk.Messaging.Messages;
+using KHost.Abstractions.Messaging;
+using KHost.Abstractions.Messaging.Messages;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Sharpcaster;

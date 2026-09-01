@@ -1,4 +1,4 @@
-﻿using KHost.Plugins.Sdk.Messaging;
+﻿using KHost.Abstractions.Messaging;
 using KHost.Abstractions.Services;
 using KHost.Abstractions.Services.IPC;
 using KHost.Domain.Services;
@@ -14,8 +14,6 @@ using KHost.Domain.Services.Plugins;
 using KHost.Domain.Services.QueueRotation;
 using KHost.Domain.Services.QueueRotation.Modes;
 using KHost.LrcLib;
-using KHost.Plugins.Sdk.Services;
-using KHost.Plugins.Sdk.Services.QueueRotation;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace KHost.Domain

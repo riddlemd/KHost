@@ -1,10 +1,9 @@
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services.IPC;
 using KHost.Abstractions.Services;
-using KHost.Common.Media;
-using KHost.Plugins.Sdk.Exceptions;
-using KHost.Plugins.Sdk.Messaging.Messages;
-using KHost.Plugins.Sdk.Messaging;
+using KHost.Abstractions.Exceptions;
+using KHost.Abstractions.Messaging.Messages;
+using KHost.Abstractions.Messaging;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
