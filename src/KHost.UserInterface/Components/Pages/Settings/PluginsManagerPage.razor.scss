@@ -176,10 +176,11 @@
         }
     }
 
+    // One setting per row. These were packed into as many columns as fit, which put a checkbox
+    // beside a labelled input and left the panel with no shape to read down.
     &__settings {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
-        gap: 0.9em 1.25em;
+        gap: 0.9em;
     }
 
     &__field {
