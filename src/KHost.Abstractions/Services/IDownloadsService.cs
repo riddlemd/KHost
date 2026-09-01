@@ -5,7 +5,7 @@ namespace KHost.Abstractions.Services;
 /// <summary>
 /// Tracks every plugin download the host knows about — active and recently settled — behind the
 /// Downloads management page. Also the host-side entry point a queue dequeue uses to cancel a
-/// download it owns, and the registration surface <c>PluginLibrary</c> uses to begin, report
+/// download it owns, and the registration surface <see cref="IMediaAcquisitionService"/> uses to begin, report
 /// progress on, and settle one.
 /// </summary>
 public interface IDownloadsService

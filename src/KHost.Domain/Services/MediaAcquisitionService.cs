@@ -6,26 +6,19 @@ using KHost.Abstractions.Messaging.Messages;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-namespace KHost.Domain.Services.Plugins;
+namespace KHost.Domain.Services;
 
-/// <summary>
-/// Host implementation behind every plugin's <see cref="IPluginContext.Library"/>.
-/// </summary>
-public class PluginLibrary : BaseService, IPluginLibrary
+public class MediaAcquisitionService : BaseService, IMediaAcquisitionService
 {
     private readonly IMediaRepository _repository;
     private readonly IMediaService _mediaService;
-    private readonly ISingerQueueService _singerQueueService;
-    private readonly IPerformanceService _performanceService;
     private readonly IOptionsMonitor<ServiceOptions> _options;
     private readonly IDownloadsService _downloadsService;
 
-    public PluginLibrary(
-        ILogger<PluginLibrary> logger,
+    public MediaAcquisitionService(
+        ILogger<MediaAcquisitionService> logger,
         IMediaRepository repository,
         IMediaService mediaService,
-        ISingerQueueService singerQueueService,
-        IPerformanceService performanceService,
         IOptionsMonitor<ServiceOptions> options,
         IDownloadsService downloadsService,
         IMessageBroker broker)
@@ -33,8 +26,6 @@ public class PluginLibrary : BaseService, IPluginLibrary
     {
         _repository = repository;
         _mediaService = mediaService;
-        _singerQueueService = singerQueueService;
-        _performanceService = performanceService;
         _options = options;
         _downloadsService = downloadsService;
     }
@@ -121,30 +112,13 @@ public class PluginLibrary : BaseService, IPluginLibrary
         var media = await _mediaService.ReadAsync(mediaId);
 
         // Ready and Broken rows are never deleted here — only a still-Downloading row can be,
-        // which is the caller's proof (per the SDK contract) that no file survived the cancel.
+        // which is the caller's proof (per the import contract) that no file survived the cancel.
         if (media is null || media.Status != MediaStatus.Downloading)
             return;
 
         await _mediaService.DeleteAsync(mediaId);
     }
 
-    public async Task EnqueueAsync(Guid mediaId)
-    {
-        if (_singerQueueService.SelectedUserId is not { } singerId)
-        {
-            Logger.LogWarning("Cannot enqueue: no singer selected");
-            return;
-        }
-
-        await _performanceService.CreateAndEnqueueAsync(new()
-        {
-            MediaId = mediaId,
-            SingerId = singerId,
-            CreatedDate = DateTime.UtcNow
-        });
-
-        Logger.LogInformation("Enqueued media {MediaId} for singer {SingerId}", mediaId, singerId);
-    }
 
     private async Task SettleAsync(Guid mediaId, MediaStatus status, DownloadState downloadState)
     {

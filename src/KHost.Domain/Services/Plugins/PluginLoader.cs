@@ -239,7 +239,7 @@ public static class PluginLoader
                 services.AddSingleton(extensionInterface, serviceProvider => ActivatorUtilities.CreateInstance(
                     serviceProvider,
                     implementationType,
-                    new PluginContext(manifest, storedValues, plugin, serviceProvider.GetRequiredService<IPluginLibrary>())));
+                    new PluginContext(manifest, storedValues, plugin)));
 
                 if (!plugin.Capabilities.Contains(capability))
                     plugin.Capabilities.Add(capability);
@@ -256,7 +256,7 @@ public static class PluginLoader
             services.AddSingleton<LoadedPlugin>(serviceProvider => new LoadedPlugin(
                 plugin,
                 (IPlugin)ActivatorUtilities.CreateInstance(serviceProvider, entryPointType),
-                new PluginContext(manifest, storedValues, plugin, serviceProvider.GetRequiredService<IPluginLibrary>())));
+                new PluginContext(manifest, storedValues, plugin)));
 
             registered++;
         }

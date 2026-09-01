@@ -2,13 +2,12 @@ namespace KHost.Abstractions.Services;
 
 /// <summary>
 /// What the host hands a plugin: its settings, and a way to tell the host something the person
-/// running it should know. Setting values come from what the host collected for the manifest's
+/// running it should know. Everything else a plugin needs it takes in its constructor — the host's
+/// container builds it, so any registered service is available the same way it is to the host. Setting values come from what the host collected for the manifest's
 /// settings schema and are fixed for the lifetime of the process (restart applies changes).
 /// </summary>
 public interface IPluginContext
 {
-    /// <summary>Imports downloaded files into the host library and enqueues them for the selected singer.</summary>
-    IPluginLibrary Library { get; }
 
     T? GetSetting<T>(string key);
 
