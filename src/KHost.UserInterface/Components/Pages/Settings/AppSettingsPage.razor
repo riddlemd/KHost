@@ -30,6 +30,16 @@
                     <InputCheckbox class="kh-form-check-input" @bind-Value="_model.RequireLogin" />
                 </label>
 
+                <div class="kh-app-settings__section">Screens</div>
+                <label class="kh-app-settings__row kh-form-check">
+                    <span class="kh-form-check-label">
+                        Open a screen when KHost starts
+                        <span class="kh-app-settings__apply">applies at next start</span>
+                    </span>
+                    <InputCheckbox id="launch-screen-on-startup" class="kh-form-check-input"
+                                   @bind-Value="_model.LaunchScreenOnStartup" />
+                </label>
+
                 <div class="kh-app-settings__section">Playback</div>
                 <label class="kh-app-settings__row">
                     <span>

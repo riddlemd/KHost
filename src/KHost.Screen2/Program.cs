@@ -10,6 +10,7 @@ namespace KHost.Screen2;
 internal static class Program
 {
     private static ScreenIpcController? _ipc;
+    private static WindowPlacementStore? _placement;
 
     private static bool _isFullScreen;
     private static int _restoreLeft, _restoreTop, _restoreWidth, _restoreHeight;
@@ -36,6 +37,23 @@ internal static class Program
             player,
             loggerFactory.CreateLogger<ScreenIpcController>());
 
+        _placement = new WindowPlacementStore(screenId, AppContext.BaseDirectory, logger);
+
+        // Where this screen was last left. A first run has none, so it opens at a size that fits
+        // any monitor rather than filling whatever it landed on.
+        var stored = _placement.Read();
+        var (left, top) = (stored?.Left ?? 80, stored?.Top ?? 80);
+        var (width, height) = (stored?.Width ?? 1280, stored?.Height ?? 720);
+
+        // Seeded so leaving full screen returns to the remembered window, not to 0x0.
+        (_restoreLeft, _restoreTop, _restoreWidth, _restoreHeight) = (left, top, width, height);
+
+        logger.LogInformation(
+            stored is null
+                ? "No stored window placement; opening at {Left},{Top} {Width}x{Height}"
+                : "Restoring window placement {Left},{Top} {Width}x{Height} (full screen {FullScreen})",
+            left, top, width, height, stored?.FullScreen ?? false);
+
         PhotinoWindow? window = null;
         var ready = false;
         window = new PhotinoWindow()
@@ -50,9 +68,15 @@ internal static class Program
             .SetChromeless(false)
             .SetUseOsDefaultSize(false)
             .SetUseOsDefaultLocation(false)
-            .SetSize(1280, 720)
-            .SetLeft(80)
-            .SetTop(80)
+            .SetSize(width, height)
+            .SetLeft(left)
+            .SetTop(top)
+            // Saved as it moves, not on the way out: the host closes a screen by killing the
+            // process, so an exit handler would never run on the ordinary path.
+            .RegisterLocationChangedHandler((_, _) => Remember(window!))
+            .RegisterSizeChangedHandler((_, _) => Remember(window!))
+            .RegisterMaximizedHandler((_, _) => Remember(window!))
+            .RegisterRestoredHandler((_, _) => Remember(window!))
             .RegisterWebMessageReceivedHandler((_, message) =>
             {
                 if (message is null) return;
@@ -70,6 +94,12 @@ internal static class Program
                     _ = PublishStateAsync();
                     _ = ResyncClockAsync();
 
+                    // Applied here rather than at construction: full screen resizes the window,
+                    // which needs one that exists. The page saying it is ready is the first
+                    // moment that is true.
+                    if (stored?.FullScreen == true)
+                        SetFullScreen(window!, true, logger);
+
                     return;
                 }
 
@@ -83,6 +113,7 @@ internal static class Program
 
         window.WaitForClose();
 
+        _placement.Dispose();
         _ipc.DisposeAsync().AsTask().GetAwaiter().GetResult();
         Log.CloseAndFlush();
     }
@@ -120,6 +151,27 @@ internal static class Program
 
         using var reader = new StreamReader(stream);
         return reader.ReadToEnd();
+    }
+
+    /// <summary>
+    /// Records where the window is now. Full screen is remembered as a flag rather than as the
+    /// monitor's own bounds: the screen may come back on a different monitor, and restoring
+    /// yesterday's pixels there would leave it part-way off the picture.
+    /// </summary>
+    private static void Remember(PhotinoWindow window)
+    {
+        if (_placement is null) return;
+
+        try
+        {
+            _placement.Schedule(_isFullScreen
+                ? new WindowPlacement(_restoreLeft, _restoreTop, _restoreWidth, _restoreHeight, true)
+                : new WindowPlacement(window.Left, window.Top, window.Width, window.Height, false));
+        }
+        catch
+        {
+            // Reading the window can throw while it is being torn down; a lost position is nothing.
+        }
     }
 
     /// <summary>Handles the page messages that drive the window rather than the player.</summary>
@@ -181,6 +233,7 @@ internal static class Program
             }
 
             _isFullScreen = fullScreen;
+            Remember(window);
         }
         catch (Exception ex)
         {
