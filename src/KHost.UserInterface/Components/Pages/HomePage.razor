@@ -13,6 +13,10 @@
     <VerticalResizeHandle />
 
     <div class="kh-app__col--detail">
+        @* Outside the singer branch: it carries the break music band, and a room between singers
+           — or before the first one — is exactly when a host reaches for it. *@
+        <NowPlayingPanel />
+
         @if (QueueService?.SelectedUser is null)
         {
             <div class="kh-panel--empty">
@@ -30,8 +34,6 @@
         }
         else
         {
-            <NowPlayingPanel />
-
             <MediaSearchPanel />
 
             <HorizontalResizeHandle />
