@@ -1,6 +1,6 @@
 using System.Collections.Concurrent;
 using System.Collections.Immutable;
-using KHost.Plugins.Sdk.Messaging;
+using KHost.Abstractions.Messaging;
 using Microsoft.Extensions.Logging;
 
 namespace KHost.Domain.Services.Messaging;

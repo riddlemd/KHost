@@ -4,7 +4,7 @@ using KHost.Abstractions.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 using KHost.Domain.Services;
 using KHost.Domain.Services.Messaging;
-using KHost.Plugins.Sdk.Messaging.Messages;
+using KHost.Abstractions.Messaging.Messages;
 
 namespace KHost.UnitTests.Domain.Services;
 

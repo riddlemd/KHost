@@ -1,4 +1,4 @@
-using KHost.Plugins.Sdk.Models.QueueRotation;
+using KHost.Abstractions.Models.QueueRotation;
 
 namespace KHost.Abstractions.Models;
 

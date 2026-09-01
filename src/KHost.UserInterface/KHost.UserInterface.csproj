@@ -34,6 +34,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\KHost.Common\KHost.Common.csproj" />
     <ProjectReference Include="..\KHost.DataAccess\KHost.DataAccess.csproj" />
     <ProjectReference Include="..\KHost.ServiceDefaults\KHost.ServiceDefaults.csproj" />
     <ProjectReference Include="..\KHost.Abstractions\KHost.Abstractions.csproj" />

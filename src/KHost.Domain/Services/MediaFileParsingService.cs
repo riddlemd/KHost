@@ -1,7 +1,6 @@
 using FFMpegCore;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
-using KHost.Common.Media;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using System.Diagnostics;

@@ -1,4 +1,4 @@
-using KHost.Common.Plugins;
+using KHost.Abstractions.Models.Plugins;
 namespace KHost.Abstractions.Models.Plugins;
 
 /// <summary>

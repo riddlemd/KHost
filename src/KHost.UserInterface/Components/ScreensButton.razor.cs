@@ -1,8 +1,8 @@
 using Microsoft.AspNetCore.Components;
 using KHost.Abstractions.Services;
 using KHost.Abstractions.Services.IPC;
-using KHost.Plugins.Sdk.Messaging;
-using KHost.Plugins.Sdk.Messaging.Messages;
+using KHost.Abstractions.Messaging;
+using KHost.Abstractions.Messaging.Messages;
 using KHost.UserInterface.Services;
 
 namespace KHost.UserInterface.Components;

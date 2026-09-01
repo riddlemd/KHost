@@ -2,8 +2,8 @@ namespace KHost.Domain.Services;
 
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
-using KHost.Plugins.Sdk.Messaging;
-using KHost.Plugins.Sdk.Messaging.Messages;
+using KHost.Abstractions.Messaging;
+using KHost.Abstractions.Messaging.Messages;
 
 /// <summary>
 /// Holds the current message and nothing else. How long it stays is a matter for whatever shows it:

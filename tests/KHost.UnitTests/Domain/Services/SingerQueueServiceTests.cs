@@ -1,15 +1,12 @@
-using KHost.Plugins.Sdk.Models;
-using KHost.Plugins.Sdk.Models.QueueRotation;
-using KHost.Plugins.Sdk.Services;
-using KHost.Plugins.Sdk.Services.QueueRotation;
 using KHost.Abstractions.Models;
+using KHost.Abstractions.Models.QueueRotation;
 using KHost.Abstractions.Services;
 using KHost.Abstractions.Services.QueueRotation;
 using KHost.Domain.Services;
 using KHost.Domain.Services.Messaging;
 using KHost.Domain.Services.QueueRotation;
 using KHost.Domain.Services.QueueRotation.Modes;
-using KHost.Plugins.Sdk.Messaging.Messages;
+using KHost.Abstractions.Messaging.Messages;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 

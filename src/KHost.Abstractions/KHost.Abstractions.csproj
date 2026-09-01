@@ -4,6 +4,12 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <!-- A plugin compiles against this assembly and ships a copy of it, so a non-compete term here
+         would forbid copyleft plugins outright. MIT while the rest of KHost is PolyForm Shield.
+         See ./LICENSE. -->
+    <Description>Contracts KHost is built on, and what a plugin is built against.</Description>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <Copyright>Copyright (c) 2026 Michael Riddle</Copyright>
   </PropertyGroup>
 
   <ItemGroup>
@@ -17,8 +23,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\KHost.Common\KHost.Common.csproj" />
-    <ProjectReference Include="..\KHost.Plugins.Sdk\KHost.Plugins.Sdk.csproj" />
+    <None Include="Models/Plugins/manifest.schema.json" Pack="true" PackagePath="content" />
   </ItemGroup>
 
 </Project>

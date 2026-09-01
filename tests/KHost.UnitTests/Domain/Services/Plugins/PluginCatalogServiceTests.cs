@@ -1,10 +1,9 @@
 using KHost.Abstractions.Models.Plugins;
 using KHost.Abstractions.Services;
-using KHost.Common.Plugins;
 using KHost.Domain.Services.Messaging;
 using KHost.Domain.Services.Plugins;
-using KHost.Plugins.Sdk.Messaging.Messages;
-using KHost.Plugins.Sdk.Messaging;
+using KHost.Abstractions.Messaging.Messages;
+using KHost.Abstractions.Messaging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using NSubstitute;

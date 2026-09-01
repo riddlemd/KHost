@@ -1,5 +1,4 @@
 using KHost.Abstractions.Models.Plugins;
-using KHost.Common.Plugins;
 using KHost.Domain.Services.Plugins;
 using System.Text.Json.Serialization;
 using System.Text.Json;
