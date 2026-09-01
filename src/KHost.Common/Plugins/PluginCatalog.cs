@@ -1,7 +1,7 @@
 using KHost.Plugins.Sdk;
 using System.Text.Json.Serialization;
 
-namespace KHost.Abstractions.Models.Plugins;
+namespace KHost.Common.Plugins;
 
 /// <summary>
 /// The published list of installable plugins. Optional-with-defaults rather than <c>required</c>

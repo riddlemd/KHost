@@ -1,4 +1,4 @@
-using KHost.Common;
+using KHost.Common.Media;
 namespace KHost.Abstractions.Models;
 
 /// <summary>

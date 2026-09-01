@@ -1,5 +1,6 @@
 using KHost.Abstractions.Models.Plugins;
 using KHost.CatalogSync;
+using KHost.Common.Plugins;
 
 namespace KHost.UnitTests.CatalogSync;
 

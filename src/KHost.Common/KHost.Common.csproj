@@ -13,4 +13,9 @@
     <Copyright>Copyright (c) 2026 Michael Riddle</Copyright>
   </PropertyGroup>
 
+  <ItemGroup>
+    <!-- MIT to MIT: PluginApi.CurrentVersion is what a catalog release is matched against. -->
+    <ProjectReference Include="..\KHost.Plugins.Sdk\KHost.Plugins.Sdk.csproj" />
+  </ItemGroup>
+
 </Project>

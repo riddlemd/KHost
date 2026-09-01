@@ -1,7 +1,7 @@
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Repositories;
 using KHost.Abstractions.Services;
-using KHost.Common;
+using KHost.Common.Media;
 using Microsoft.AspNetCore.Components;
 
 namespace KHost.UserInterface.Components.Dialogs;

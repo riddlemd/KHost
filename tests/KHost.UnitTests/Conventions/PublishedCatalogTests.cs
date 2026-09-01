@@ -1,4 +1,5 @@
 using KHost.Abstractions.Models.Plugins;
+using KHost.Common.Plugins;
 using System.Text.Json;
 
 namespace KHost.UnitTests.Conventions;
