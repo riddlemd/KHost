@@ -16,6 +16,10 @@
     "version": { "type": "string", "description": "Plugin version; should match the entry assembly's version." },
     "author": { "type": "string" },
     "description": { "type": "string" },
+    "icon": {
+      "type": "string",
+      "description": "A Bootstrap Icons glyph name, or \"image\" to use the plugin.icon.png shipped beside this manifest (PNG, at most 128x128). Omit for the generic glyph."
+    },
     "entryAssembly": {
       "type": "string",
       "pattern": "\\.dll$",
