@@ -35,6 +35,7 @@ internal sealed class AppSettingsService : IAppSettingsService
     public AppSettings Current => new()
     {
         RequireLogin = _configuration.GetValue<bool?>("Auth:RequireLogin") ?? true,
+        LaunchScreenOnStartup = _configuration.GetValue<bool?>("LocalScreen:LaunchOnStartup") ?? false,
         FFmpegPath = _configuration["FFmpegPath"],
         MediaDirectory = NormalizeMediaDirectory(_configuration["Plugins:MediaDirectory"]),
         StopFadeSeconds = (_configuration.GetValue<TimeSpan?>("Playback:StopFadeDuration") ?? TimeSpan.FromSeconds(5)).TotalSeconds,
@@ -116,6 +117,11 @@ internal sealed class AppSettingsService : IAppSettingsService
             ["SongControlStyle"] = settings.SongControlStyle.ToString(),
         };
 
+        overlay["LocalScreen"] = new Dictionary<string, object?>
+        {
+            ["LaunchOnStartup"] = settings.LaunchScreenOnStartup,
+        };
+
         if (!string.IsNullOrWhiteSpace(settings.FFmpegPath))
             overlay["FFmpegPath"] = settings.FFmpegPath;
 
@@ -128,7 +134,10 @@ internal sealed class AppSettingsService : IAppSettingsService
             _overlayPath,
             JsonSerializer.Serialize(overlay, new JsonSerializerOptions { WriteIndented = true }));
 
-        if (settings.FFmpegPath != before.FFmpegPath)
+        // Read once, on the way up: turning it on now would not open a screen, and turning it
+        // off would not close the one already running.
+        if (settings.FFmpegPath != before.FFmpegPath
+            || settings.LaunchScreenOnStartup != before.LaunchScreenOnStartup)
             RestartRequired = true;
 
         return new AppSettingsSaveResult(true);

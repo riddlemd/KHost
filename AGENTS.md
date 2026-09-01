@@ -176,6 +176,25 @@ one `SetMarqueeCommand`.
   both puts it on screen twice. It is a **modifier**, not a style: it changes where the label sits,
   not how the band is painted, so it composes with whatever else the venue chose.
 
+## Screens on startup, and where their windows sit
+
+- `LocalScreen:LaunchOnStartup` (the App Settings page's "Open a screen when KHost starts") opens
+  one screen named `AppSettings.StartupScreenName`. It runs from `ApplicationStarted`, registered
+  **after** the two callbacks that resolve the live listening address — callbacks run in order, so
+  the screen is launched pointing at the real IPC URI rather than the configured default. Read once
+  on the way up, so changing it flips `RestartRequired` rather than pretending to take effect.
+- A screen remembers its own window in `cache/screens/<screen id>.window.json`, **on the machine
+  the window is on**. Not host-side: a screen on another machine keeps its own place, and one
+  started by hand remembers as much as one the host launched.
+- Written as the window moves, never on the way out. `LocalScreenProvider.CloseSpawnedScreens`
+  kills the process, so an exit handler would never run on the ordinary path — Photino's
+  location/size/maximized/restored handlers schedule a debounced write instead.
+- Full screen is stored as a flag, not the monitor's bounds: the screen may come back on a
+  different monitor, where yesterday's pixels would leave it part-way off the picture. It is
+  applied when the page reports ready, since resizing needs a window that exists.
+- A stored window with no width or height is treated as nothing stored — it would open invisible
+  and could not be dragged back.
+
 ## Components
 
 - Component logic lives in a code-behind partial (`Foo.razor.cs`, `public partial class Foo`), never an inline `@code` block. `@inject` becomes an `[Inject]` property; `@implements` becomes an interface on the partial. `@page`, `@using`, `@inherits`, `@layout`, `@attribute` stay in the `.razor`.

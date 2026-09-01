@@ -340,6 +340,35 @@ internal static class Program
             });
         }
 
+        // Registered after the two above, and callbacks run in order, so the screen is launched
+        // with the resolved IPC address rather than the default one.
+        app.Lifetime.ApplicationStarted.Register(() =>
+        {
+            if (!app.Services.GetRequiredService<IAppSettingsService>().Current.LaunchScreenOnStartup)
+                return;
+
+            try
+            {
+                var provider = app.Services.GetServices<IScreenProvider>()
+                    .FirstOrDefault(candidate => candidate.IsAvailable);
+
+                if (provider is null)
+                {
+                    Log.Warning("A screen was set to launch at startup, but no screen provider is available here");
+                    return;
+                }
+
+                // The same name every night, which is what lets the screen reclaim the window
+                // placement it saved last time.
+                provider.LaunchAsync(AppSettings.StartupScreenName).GetAwaiter().GetResult();
+            }
+            catch (Exception ex)
+            {
+                // A console that cannot open a screen is still a console.
+                Log.Warning(ex, "Could not launch the startup screen");
+            }
+        });
+
         // Segments outlive the process, so sweep them on the way down.
         app.Lifetime.ApplicationStopping.Register(() =>
             app.Services.GetRequiredService<IMediaStreamService>().CloseAllAsync().GetAwaiter().GetResult());
