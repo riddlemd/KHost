@@ -26,9 +26,34 @@
                 <span class="kh-venue-settings__section-title">Between singers</span>
 
                 <div class="kh-venue-settings__row">
+                    <label for="venue-break-music-mode" class="kh-form-label">Break music mode</label>
+                    <select id="venue-break-music-mode" class="kh-form-select" @bind="_model.BreakMusicProvider">
+                        @if (UnavailableProviderSource is { } unavailable)
+                        {
+                            <option value="@unavailable">@unavailable &mdash; not loaded</option>
+                        }
+                        @foreach (var provider in BreakMusic.Providers)
+                        {
+                            <option value="@provider.SourceName">@DescribeProvider(provider)</option>
+                        }
+                    </select>
+                </div>
+
+                @if (UnavailableProviderSource is not null)
+                {
+                    <p class="kh-venue-settings__hint kh-venue-settings__hint--warning">
+                        Nothing loaded provides this mode &mdash; check its plugin under
+                        Settings &rsaquo; Plugins Manager. Picking another mode here replaces this
+                        venue's choice for good.
+                    </p>
+                }
+
+                @if (UsesLocalPlaylists)
+                {
+                <div class="kh-venue-settings__row">
                     <label class="kh-form-label">Break music playlist</label>
                     <ComboBox TItem="MediaPool"
-                              Class="kh-venue-settings__picker"
+                              Class="kh-venue-settings__picker kh-venue-settings__picker--break-music"
                               Value="_breakMusicPool"
                               ValueChanged="OnBreakMusicPoolChanged"
                               @bind-Text="_breakMusicPoolText"
@@ -38,6 +63,21 @@
                               OpenWhenEmpty="true"
                               Placeholder="None — silence between singers" />
                 </div>
+                }
+                else
+                {
+                    <p class="kh-venue-settings__hint">
+                        This mode brings its own music, so a playlist here would not apply to it.
+                    </p>
+                }
+
+                @if (SelectedProvider is { RendersThroughHost: false })
+                {
+                    <p class="kh-venue-settings__hint">
+                        It also plays through its own app, so the sound comes out of this machine
+                        rather than the screens &mdash; it will not reach a Cast device.
+                    </p>
+                }
 
                 <div class="kh-venue-settings__row">
                     <label class="kh-form-label">Ad playlist</label>

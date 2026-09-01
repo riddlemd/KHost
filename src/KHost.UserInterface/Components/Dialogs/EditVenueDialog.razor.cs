@@ -1,5 +1,6 @@
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
+using KHost.Plugins.Sdk.Services;
 using KHost.UserInterface.Models;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Forms;
@@ -23,6 +24,7 @@ public partial class EditVenueDialog
 
     [Inject] private IMediaService Media { get; set; } = default!;
     [Inject] private IMediaPoolService MediaPools { get; set; } = default!;
+    [Inject] private IBreakMusicService BreakMusic { get; set; } = default!;
 
     private IReadOnlyList<Media> _images = [];
     private IReadOnlyList<MediaPool> _breakMusicPools = [];
@@ -46,13 +48,48 @@ public partial class EditVenueDialog
         _editContext = new EditContext(_model);
     }
 
+    /// <summary>
+    /// The venue's mode when nothing loaded answers for it — a plugin that failed to load, was
+    /// switched off, or has been removed. It still has to appear in the list and stay selected: a
+    /// select whose value matches no option renders blank, which reads as "no mode set" for a venue
+    /// that has one, and hides that the next pick replaces a choice the host could not see.
+    /// </summary>
+    private string? UnavailableProviderSource
+        => BreakMusic.Providers.Any(p => string.Equals(p.SourceName, _model.BreakMusicProvider, StringComparison.OrdinalIgnoreCase))
+            ? null
+            : _model.BreakMusicProvider;
+
+    private IBreakMusicProvider? SelectedProvider
+        => BreakMusic.Providers.FirstOrDefault(p =>
+            string.Equals(p.SourceName, _model.BreakMusicProvider, StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>
+    /// Whether the chosen mode is the one this host's own playlists feed — not whether the host
+    /// renders the audio, which is a separate question a provider may answer either way. An
+    /// unloaded mode counts as one, so the playlist a venue already chose is not hidden by a plugin
+    /// that failed to start.
+    /// </summary>
+    private bool UsesLocalPlaylists
+        => UnavailableProviderSource is not null
+           || (BreakMusic.LibraryProvider is { } library
+               && string.Equals(_model.BreakMusicProvider, library.SourceName, StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>
+    /// The mode this host's own playlists feed is the one a host thinks of as "my own music", so it
+    /// says so; every other provider names itself.
+    /// </summary>
+    private string DescribeProvider(IBreakMusicProvider provider)
+        => ReferenceEquals(provider, BreakMusic.LibraryProvider)
+            ? $"{provider.DisplayName} playlist"
+            : provider.DisplayName;
+
     protected override async Task OnParametersSetAsync()
     {
         if (IsOpen && !_prevIsOpen)
         {
             _isNew = Venue is null;
             _model = Venue is null
-                ? new EditVenueModel()
+                ? new EditVenueModel { BreakMusicProvider = BreakMusic.ActiveProvider?.SourceName }
                 : new EditVenueModel
                 {
                     Id = Venue.Id,
@@ -76,7 +113,12 @@ public partial class EditVenueDialog
                     BreakMusicPoolId = Venue.Settings.BreakMusicPoolId,
                     AdPoolId = Venue.Settings.AdPoolId,
                     BrandingImageMediaId = Venue.Settings.BrandingImageMediaId,
-                    BreakMusicProvider = Venue.Settings.BreakMusicProvider,
+                    // Blank, not just null: a venue whose setting was cleared holds "", which no
+                    // option carries either, and would leave the select as empty as a missing
+                    // provider does.
+                    BreakMusicProvider = string.IsNullOrWhiteSpace(Venue.Settings.BreakMusicProvider)
+                        ? BreakMusic.ActiveProvider?.SourceName
+                        : Venue.Settings.BreakMusicProvider,
 
                 };
             _editContext = new EditContext(_model);

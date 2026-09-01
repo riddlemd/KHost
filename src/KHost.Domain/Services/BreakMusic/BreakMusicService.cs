@@ -41,6 +41,12 @@ public class BreakMusicService : BaseService, IBreakMusicService, IDisposable
     public IReadOnlyList<IBreakMusicProvider> Providers => _providers;
     public IBreakMusicProvider? ActiveProvider => _activeProvider;
 
+    // Matched on the source name like every other lookup here, rather than on the concrete type:
+    // that name is the key venues already store, so it cannot be renamed without a migration
+    // anyway, and matching it keeps this resolvable without constructing the real provider.
+    public IBreakMusicProvider? LibraryProvider => _providers.FirstOrDefault(p =>
+        string.Equals(p.SourceName, nameof(LibraryBreakMusicProvider), StringComparison.OrdinalIgnoreCase));
+
     /// <summary>
     /// True while a song or an audible ad holds the room. Kept here rather than asked of playback,
     /// which already depends on this service — the two calls playback makes on the way in and out
@@ -326,10 +332,22 @@ public class BreakMusicService : BaseService, IBreakMusicService, IDisposable
             ?? _providers.FirstOrDefault();
     }
 
+    // The mode is part of the venue's audio baseline just as its volume is: this message means the
+    // console is running a different venue, or the one it is running was edited, and either way the
+    // mode that venue names is the one that should be playing. Before, only the page that owned the
+    // selector applied it, so a mode changed anywhere else was not picked up until a restart.
     private void OnVenueChanged(SelectedVenueChanged message)
+        => _ = ReapplyVenueAsync(CancellationToken.None);
+
+    private async Task ReapplyVenueAsync(CancellationToken cancellationToken)
     {
+        var venue = await _venues.ReadSelectedVenueAsync();
+
+        if (venue?.Settings.BreakMusicProvider is { } source && !string.IsNullOrWhiteSpace(source))
+            await SetActiveProviderAsync(source, cancellationToken);
+
         if (_activeProvider is { } provider)
-            _ = ApplyVenueVolumeAsync(provider, CancellationToken.None);
+            await ApplyVenueVolumeAsync(provider, cancellationToken);
     }
 
     private void OnProviderTrackChanged(BreakMusicTrackChanged message)
