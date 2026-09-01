@@ -4,14 +4,12 @@ using KHost.Plugins.Sdk.Messaging;
 using KHost.Plugins.Sdk.Messaging.Messages;
 using KHost.UserInterface.Services;
 using Microsoft.AspNetCore.Components;
-using KHost.Plugins.Sdk.Services;
 
 namespace KHost.UserInterface.Components.Pages.Settings;
 
 public partial class BreakMusicManagerPage : IDisposable
 {
     [Inject] private IMediaPoolService MediaPools { get; set; } = default!;
-    [Inject] private IBreakMusicService BreakMusic { get; set; } = default!;
     [Inject] private IVenuesService Venues { get; set; } = default!;
     [Inject] private IDialogService Dialogs { get; set; } = default!;
     [Inject] private IFlashService Flash { get; set; } = default!;
@@ -24,10 +22,7 @@ public partial class BreakMusicManagerPage : IDisposable
     private bool _dialogOpen;
 
     private Guid? _venueId;
-    private string? _venueName;
     private Guid? _activePoolId;
-    private string? _activePoolName;
-    private string? _providerSource;
 
     protected override async Task OnInitializedAsync()
     {
@@ -56,61 +51,9 @@ public partial class BreakMusicManagerPage : IDisposable
         var venue = await Venues.ReadSelectedVenueAsync();
 
         _venueId = venue?.Id;
-        _venueName = venue?.Name;
         _activePoolId = venue?.Settings.BreakMusicPoolId;
-        var stored = venue?.Settings.BreakMusicProvider;
-
-        // Blank, not just null: a venue whose setting was cleared holds "", which no option carries
-        // either, and would leave the select as empty as a missing provider does.
-        _providerSource = string.IsNullOrWhiteSpace(stored) ? BreakMusic.ActiveProvider?.SourceName : stored;
 
         _pools = [.. (await MediaPools.ReadAllWithEntriesAsync(PoolPurpose.BreakMusic, _venueId)).OrderBy(p => p.Name)];
-        _activePoolName = _pools.FirstOrDefault(pool => pool.Id == _activePoolId)?.Name;
-    }
-
-    /// <summary>
-    /// The venue's provider when nothing loaded answers for it — a plugin that failed to load, was
-    /// switched off, or has been removed. It still has to appear in the list and stay selected: a
-    /// select whose value matches no option renders blank, which reads as "no mode set" for a venue
-    /// that has one, and hides that the next pick replaces a choice the host could not see.
-    /// </summary>
-    private string? UnavailableProviderSource
-        => BreakMusic.Providers.Any(p => string.Equals(p.SourceName, _providerSource, StringComparison.OrdinalIgnoreCase))
-            ? null
-            : _providerSource;
-
-    /// <summary>
-    /// The built-in one is the mode a host thinks of as "my own music"; a plugin names itself.
-    /// </summary>
-    private static string DescribeProvider(IBreakMusicProvider provider)
-        => provider.RendersThroughHost ? $"{provider.DisplayName} playlist" : provider.DisplayName;
-
-    private async Task OnProviderChangedAsync(ChangeEventArgs e)
-    {
-        var source = e.Value?.ToString();
-
-        if (string.IsNullOrWhiteSpace(source))
-            return;
-
-        // Written to the venue as well as switched live, or the choice is forgotten on restart.
-        await BreakMusic.SetActiveProviderAsync(source);
-        await SaveVenueAsync(settings => settings.BreakMusicProvider = source);
-    }
-
-    private async Task SaveVenueAsync(Action<Venue.VenueSettings> apply)
-    {
-        var venue = await Venues.ReadSelectedVenueAsync();
-
-        if (venue is null)
-        {
-            Flash.Show("No venue is selected, so there is nothing to save this against.", FlashType.Warning);
-            return;
-        }
-
-        apply(venue.Settings);
-
-        await Venues.UpdateAsync(venue);
-        await RefreshAsync();
     }
 
     private void OpenAddDialog()
