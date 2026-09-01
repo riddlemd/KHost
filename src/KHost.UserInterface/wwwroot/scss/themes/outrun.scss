@@ -63,7 +63,7 @@
 
     --kh-scrim: rgba(0, 0, 0, 0.6);
     --kh-track-bg: rgba(255, 255, 255, 0.08);
-    --kh-table-stripe: rgba(0, 0, 0, 0.2);
+    --kh-table-stripe: repeating-linear-gradient(45deg, rgba(255, 42, 109, 0.16) 0 2px, transparent 2px 8px), rgba(0, 0, 0, 0.2);
     --kh-badge-pending-bg: rgba(255, 255, 255, 0.04);
     --kh-error-bg: linear-gradient(135deg, #2D0A0A, #1A0A0A);
 

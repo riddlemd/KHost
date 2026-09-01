@@ -255,6 +255,56 @@ public class BreakMusicServiceTests : IDisposable
         await _provider.Received().SetVolumeAsync(0.25f, Arg.Any<CancellationToken>());
     }
 
+    /// <summary>
+    /// The mode is part of the venue's audio baseline just as its volume is. Before, only the page
+    /// carrying the selector applied it, so a mode changed anywhere else — the venue dialog, which
+    /// is where it lives now — was not picked up until a restart.
+    /// </summary>
+    [Fact]
+    public async Task AVenueEdit_SwitchesToTheModeTheVenueNames()
+    {
+        var other = Substitute.For<IBreakMusicProvider>();
+        other.SourceName.Returns("JukeboxProvider");
+
+        var service = new BreakMusicService(NullLogger<BreakMusicService>.Instance, [_provider, other], _venues, _broker);
+
+        await service.InitializeAsync();
+
+        Assert.Same(_provider, service.ActiveProvider);
+
+        _venues.ReadSelectedVenueAsync().Returns(Task.FromResult<Venue?>(new Venue
+        {
+            Name = "The Bar",
+            Settings = new Venue.VenueSettings { BreakMusicProvider = "JukeboxProvider" },
+        }));
+
+        await _broker.PublishAsync(new SelectedVenueChanged());
+
+        Assert.Same(other, service.ActiveProvider);
+
+        service.Dispose();
+    }
+
+    [Fact]
+    public void LibraryProvider_IsTheOneNamedForTheBuiltIn()
+        => Assert.Same(_provider, _service.LibraryProvider);
+
+    /// <summary>
+    /// Null rather than a stand-in: the pages that ask this hide themselves when the venue is not
+    /// on the library's own playlists, and any fallback here would show them for a mode that has
+    /// nothing to do with them.
+    /// </summary>
+    [Fact]
+    public void LibraryProvider_IsNullWhenNothingLoadedIsIt()
+    {
+        var other = Substitute.For<IBreakMusicProvider>();
+        other.SourceName.Returns("JukeboxProvider");
+
+        using var service = new BreakMusicService(NullLogger<BreakMusicService>.Instance, [other], _venues, _broker);
+
+        Assert.Null(service.LibraryProvider);
+    }
+
     // Editing some other venue's details is not the room's business: pushing the level at an
     // external provider on every venue edit is a volume change the host never asked for.
     [Fact]
