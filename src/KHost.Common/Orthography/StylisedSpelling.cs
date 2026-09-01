@@ -22,7 +22,7 @@ public static class StylisedSpelling
         ['@'] = 'a',
     };
 
-    public static string Resolve(string? value)
+    public static string ResolveToPlainSpelling(string? value)
     {
         if (string.IsNullOrEmpty(value))
             return string.Empty;

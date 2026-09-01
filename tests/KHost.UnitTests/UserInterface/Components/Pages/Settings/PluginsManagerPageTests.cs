@@ -10,6 +10,7 @@ using KHost.UserInterface.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using System.Text.Json;
+using KHost.Common.Plugins;
 
 namespace KHost.UnitTests.UserInterface.Components.Pages.Settings;
 

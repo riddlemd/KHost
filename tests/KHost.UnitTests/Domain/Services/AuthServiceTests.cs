@@ -3,6 +3,7 @@ using KHost.Abstractions.Repositories;
 using KHost.Abstractions.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 using KHost.Domain.Services;
+using KHost.Common.Authentication;
 
 namespace KHost.UnitTests.Domain.Services;
 
@@ -53,7 +54,7 @@ public class AuthServiceTests
         var user = new KHostUser { Name = "alice" };
         _users.FindByNameAsync("alice").Returns(user);
         _provider.CanHandle(user).Returns(true);
-        _provider.AuthenticateAsync(user, "pass").Returns(AuthResult.Ok(user));
+        _provider.AuthenticateAsync(user, "pass").Returns(AuthResults.Succeeded(user));
 
         var result = await _service.LoginAsync("alice", "pass");
 
@@ -67,7 +68,7 @@ public class AuthServiceTests
         var user = new KHostUser { Name = "alice" };
         _users.FindByNameAsync("alice").Returns(user);
         _provider.CanHandle(user).Returns(true);
-        _provider.AuthenticateAsync(user, "wrong").Returns(AuthResult.Fail("Invalid name or password"));
+        _provider.AuthenticateAsync(user, "wrong").Returns(AuthResults.Failed("Invalid name or password"));
 
         var result = await _service.LoginAsync("alice", "wrong");
 

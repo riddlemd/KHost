@@ -12,6 +12,14 @@
     <Copyright>Copyright (c) 2026 Michael Riddle</Copyright>
   </PropertyGroup>
 
+  <!-- Build-time only: ReferenceOutputAssembly="false" keeps the analyzer out of this assembly,
+       so it carries no code into what a plugin redistributes. -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\build\KHost.Analyzers\KHost.Analyzers.csproj"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
   <ItemGroup>
     <Compile Remove="Entities\**" />
     <EmbeddedResource Remove="Entities\**" />

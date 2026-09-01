@@ -1,4 +1,5 @@
 using KHost.Abstractions.Models;
+using KHost.Common.Media;
 
 namespace KHost.UnitTests.Common.Media;
 

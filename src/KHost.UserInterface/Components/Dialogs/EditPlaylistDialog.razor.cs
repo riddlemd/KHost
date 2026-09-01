@@ -2,6 +2,7 @@ using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using KHost.UserInterface.Services;
 using Microsoft.AspNetCore.Components;
+using KHost.Common.Media;
 
 namespace KHost.UserInterface.Components.Dialogs;
 

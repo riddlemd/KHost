@@ -1,5 +1,6 @@
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
+using KHost.Common.Authentication;
 
 namespace KHost.Domain.Services.AuthProviders;
 
@@ -17,11 +18,11 @@ public class LocalAuthProvider : IAuthProvider
     public async Task<AuthResult> AuthenticateAsync(KHostUser user, string password)
     {
         if (user.PasswordHash is null)
-            return AuthResult.Fail("No password set for this user");
+            return AuthResults.Failed("No password set for this user");
 
         var valid = await _passwordHasher.VerifyAsync(password, user.PasswordHash);
         return valid
-            ? AuthResult.Ok(user)
-            : AuthResult.Fail("Invalid name or password");
+            ? AuthResults.Succeeded(user)
+            : AuthResults.Failed("Invalid name or password");
     }
 }

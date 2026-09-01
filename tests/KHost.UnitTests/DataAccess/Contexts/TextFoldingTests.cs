@@ -32,7 +32,7 @@ public class TextFoldingTests
     /// </summary>
     [Fact]
     public void Fold_AfterResolvingAStylisedSpelling_MatchesThePlainName()
-        => Assert.Equal(_folding.Fold("kesha"), _folding.Fold(StylisedSpelling.Resolve("Ke$ha")));
+        => Assert.Equal(_folding.Fold("kesha"), _folding.Fold(StylisedSpelling.ResolveToPlainSpelling("Ke$ha")));
 
     // The implementation is internal — a plugin resolves it from DI rather than naming the type,
     // which is the whole point of the interface.

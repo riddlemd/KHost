@@ -28,7 +28,7 @@ internal static class EntityFolding
     /// <see cref="Fold"/> with stylised spellings resolved first. Media only: a singer on the
     /// roster called "P!nk" is a different person from "Pink" and should stay that way.
     /// </summary>
-    internal static string FoldMedia(string? value) => Fold(StylisedSpelling.Resolve(value));
+    internal static string FoldMedia(string? value) => Fold(StylisedSpelling.ResolveToPlainSpelling(value));
 
     internal static void Apply(ChangeTracker changeTracker)
     {

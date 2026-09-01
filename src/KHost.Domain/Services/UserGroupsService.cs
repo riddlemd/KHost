@@ -4,6 +4,7 @@ using KHost.Abstractions.Services;
 using KHost.Abstractions.Messaging;
 using KHost.Abstractions.Messaging.Messages;
 using Microsoft.Extensions.Logging;
+using KHost.Common.Repositories;
 
 namespace KHost.Domain.Services;
 
@@ -17,7 +18,7 @@ public class UserGroupsService : BaseRepositoryService<KHostUserGroup, IUserGrou
 
     public override async Task<bool> DeleteAsync(Guid id)
     {
-        if (KHostUserGroup.IsBuiltIn(id))
+        if (RepositoryModels.IsBuiltIn(id))
         {
             Logger.LogWarning("Refused to delete built-in user group {GroupId}", id);
             return false;

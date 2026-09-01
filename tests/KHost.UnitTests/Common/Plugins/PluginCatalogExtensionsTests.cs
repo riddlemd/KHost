@@ -1,15 +1,16 @@
 using KHost.Abstractions.Models.Plugins;
+using KHost.Common.Plugins;
 
 namespace KHost.UnitTests.Common.Plugins;
 
-public class PluginCatalogEntryTests
+public class PluginCatalogExtensionsTests
 {
     [Fact]
     public void LatestCompatible_SeveralReleases_ReturnsHighestVersion()
     {
         var entry = EntryWith(Release("1.0.0"), Release("1.10.0"), Release("1.9.0"));
 
-        Assert.Equal("1.10.0", entry.LatestCompatible()?.Version);
+        Assert.Equal("1.10.0", entry.LatestCompatibleRelease()?.Version);
     }
 
     [Fact]
@@ -17,7 +18,7 @@ public class PluginCatalogEntryTests
     {
         var entry = EntryWith(Release("1.0.0"), Release("2.0.0", apiVersion: PluginApi.CurrentVersion + 1));
 
-        Assert.Equal("1.0.0", entry.LatestCompatible()?.Version);
+        Assert.Equal("1.0.0", entry.LatestCompatibleRelease()?.Version);
     }
 
     [Fact]
@@ -25,7 +26,7 @@ public class PluginCatalogEntryTests
     {
         var entry = EntryWith(Release("1.0.0", apiVersion: PluginApi.CurrentVersion + 1));
 
-        Assert.Null(entry.LatestCompatible());
+        Assert.Null(entry.LatestCompatibleRelease());
     }
 
     [Fact]
@@ -33,7 +34,7 @@ public class PluginCatalogEntryTests
     {
         var entry = EntryWith(Release("1.0.0"), Release("2.0.0", sha256: ""));
 
-        Assert.Equal("1.0.0", entry.LatestCompatible()?.Version);
+        Assert.Equal("1.0.0", entry.LatestCompatibleRelease()?.Version);
     }
 
     [Fact]
@@ -41,7 +42,7 @@ public class PluginCatalogEntryTests
     {
         var entry = EntryWith(Release("1.0.0"), Release("2.0.0", url: "http://example.test/plugin.zip"));
 
-        Assert.Equal("1.0.0", entry.LatestCompatible()?.Version);
+        Assert.Equal("1.0.0", entry.LatestCompatibleRelease()?.Version);
     }
 
     [Fact]
@@ -52,7 +53,7 @@ public class PluginCatalogEntryTests
         var entry = EntryWith(Release("1.0.0", sha256: ""));
 
         Assert.True(entry.HasReleaseForThisHost());
-        Assert.Null(entry.LatestCompatible());
+        Assert.Null(entry.LatestCompatibleRelease());
     }
 
     [Fact]
@@ -80,7 +81,7 @@ public class PluginCatalogEntryTests
         var other = PluginRid.Current == "win" ? "linux" : "win";
         var entry = EntryWith(Release("1.0.0"), Release("2.0.0", rid: other));
 
-        Assert.Equal("1.0.0", entry.LatestCompatible()?.Version);
+        Assert.Equal("1.0.0", entry.LatestCompatibleRelease()?.Version);
     }
 
     [Fact]
@@ -88,7 +89,7 @@ public class PluginCatalogEntryTests
     {
         var other = PluginRid.Current == "win" ? "linux" : "win";
 
-        Assert.Null(EntryWith(Release("1.0.0", rid: other)).LatestCompatible());
+        Assert.Null(EntryWith(Release("1.0.0", rid: other)).LatestCompatibleRelease());
     }
 
     [Fact]
@@ -98,7 +99,7 @@ public class PluginCatalogEntryTests
         // because some OS API needed it.
         var entry = EntryWith(Release("1.0.0"), Release("1.0.0", rid: PluginRid.Current, url: "https://example.test/p2.zip"));
 
-        Assert.Equal(PluginRid.Current, entry.LatestCompatible()?.Rid);
+        Assert.Equal(PluginRid.Current, entry.LatestCompatibleRelease()?.Rid);
     }
 
     [Fact]
@@ -106,8 +107,8 @@ public class PluginCatalogEntryTests
     {
         var entry = EntryWith(Release("1.0.0", rid: PluginRid.Current), Release("2.0.0"));
 
-        Assert.Equal("2.0.0", entry.LatestCompatible()?.Version);
-        Assert.Null(entry.LatestCompatible()?.Rid);
+        Assert.Equal("2.0.0", entry.LatestCompatibleRelease()?.Version);
+        Assert.Null(entry.LatestCompatibleRelease()?.Rid);
     }
 
     [Fact]
@@ -126,7 +127,7 @@ public class PluginCatalogEntryTests
 
     [Fact]
     public void LatestCompatible_NoReleases_ReturnsNull()
-        => Assert.Null(EntryWith().LatestCompatible());
+        => Assert.Null(EntryWith().LatestCompatibleRelease());
 
     private static PluginCatalogEntry EntryWith(params PluginCatalogRelease[] releases) => new()
     {

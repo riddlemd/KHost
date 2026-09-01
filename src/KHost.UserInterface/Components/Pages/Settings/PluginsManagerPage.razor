@@ -1,6 +1,7 @@
 @page "/settings/plugins-manager"
 @attribute [Authorize(Roles = KHost.UserInterface.Auth.KHostClaimsFactory.AdminRole)]
 @using KHost.Abstractions.Models.Plugins
+@using KHost.Common.Plugins
 
 <PageTitle>KHost &mdash; Manage Plugins</PageTitle>
 
@@ -104,7 +105,7 @@
                         @foreach (var entry in CatalogEntries.OrderBy(e => e.Name, StringComparer.CurrentCultureIgnoreCase))
                         {
                             var state = GetAvailableState(entry);
-                            var release = entry.LatestCompatible();
+                            var release = entry.LatestCompatibleRelease();
                             var install = GetActiveInstall(entry.Id);
                             var installedVersion = GetInstalledVersion(entry.Id);
 

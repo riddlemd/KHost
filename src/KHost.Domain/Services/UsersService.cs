@@ -5,6 +5,7 @@ using KHost.Abstractions.Messaging;
 using KHost.Abstractions.Messaging.Messages;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using KHost.Common.Repositories;
 
 namespace KHost.Domain.Services;
 
@@ -63,7 +64,7 @@ public class UsersService : BaseRepositoryService<KHostUser, IUsersRepository>, 
 
     public override async Task<bool> DeleteAsync(Guid id)
     {
-        if (KHostUser.IsBuiltIn(id))
+        if (RepositoryModels.IsBuiltIn(id))
         {
             Logger.LogWarning("Refused to delete built-in user {UserId}", id);
             return false;

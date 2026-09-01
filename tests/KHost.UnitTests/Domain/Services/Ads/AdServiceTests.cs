@@ -5,6 +5,7 @@ using KHost.Domain.Services.Messaging;
 using KHost.Abstractions.Messaging.Messages;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using KHost.Common.Media;
 
 namespace KHost.UnitTests.Domain.Services.Ads;
 
@@ -268,7 +269,8 @@ public class AdServiceTests : IDisposable
         var ad = await _service.ComposeAsync(new MediaPoolEntry { MediaId = video.Id });
 
         Assert.Equal(TimeSpan.FromSeconds(30), ad?.Duration);
-        Assert.True(ad?.HasOwnAudio);
+        Assert.NotNull(ad);
+        Assert.True(ad.HasOwnAudio());
     }
 
     // A silent card: break music keeps playing under it, which is what HasOwnAudio decides.
@@ -279,7 +281,8 @@ public class AdServiceTests : IDisposable
 
         var ad = await _service.ComposeAsync(new MediaPoolEntry { MediaId = still.Id });
 
-        Assert.False(ad?.HasOwnAudio);
+        Assert.NotNull(ad);
+        Assert.False(ad.HasOwnAudio());
 
         // Its own stamped length is deliberately passed over for the configured default.
         Assert.Equal(_options.DefaultDuration, ad?.Duration);
@@ -293,7 +296,8 @@ public class AdServiceTests : IDisposable
 
         var ad = await _service.ComposeAsync(new MediaPoolEntry { MediaId = still.Id, AudioMediaId = voice.Id });
 
-        Assert.True(ad?.HasOwnAudio);
+        Assert.NotNull(ad);
+        Assert.True(ad.HasOwnAudio());
     }
 
     // The picture and the words should end together, so a still takes its length from the clip
