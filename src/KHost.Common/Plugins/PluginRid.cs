@@ -1,6 +1,6 @@
 using System.Runtime.InteropServices;
 
-namespace KHost.Abstractions.Models.Plugins;
+namespace KHost.Common.Plugins;
 
 /// <summary>
 /// The platform a release is built for. Deliberately coarser than a .NET RID: a plugin splits by

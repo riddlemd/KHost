@@ -1,7 +1,8 @@
 using KHost.Abstractions.Models.Plugins;
+using KHost.Common.Plugins;
 using KHost.Plugins.Sdk;
 
-namespace KHost.UnitTests.Abstractions.Models.Plugins;
+namespace KHost.UnitTests.Common.Plugins;
 
 public class PluginCatalogEntryTests
 {

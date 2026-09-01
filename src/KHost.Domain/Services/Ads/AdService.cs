@@ -1,6 +1,6 @@
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
-using KHost.Common;
+using KHost.Common.Media;
 using KHost.Plugins.Sdk.Messaging.Messages;
 using KHost.Plugins.Sdk.Messaging;
 using Microsoft.Extensions.Logging;

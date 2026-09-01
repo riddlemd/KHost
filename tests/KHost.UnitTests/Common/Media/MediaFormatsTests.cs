@@ -1,7 +1,7 @@
 using KHost.Abstractions.Models;
-using KHost.Common;
+using KHost.Common.Media;
 
-namespace KHost.UnitTests.Domain.Models;
+namespace KHost.UnitTests.Common.Media;
 
 // The endpoint refuses by format, so this is what stops a song's file being served down an image
 // route — and what decides whether break music keeps playing under an ad.

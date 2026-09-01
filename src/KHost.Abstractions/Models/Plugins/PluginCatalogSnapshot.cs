@@ -1,3 +1,4 @@
+using KHost.Common.Plugins;
 namespace KHost.Abstractions.Models.Plugins;
 
 /// <summary>
