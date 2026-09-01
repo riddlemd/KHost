@@ -1,4 +1,4 @@
-namespace KHost.Abstractions.Models;
+namespace KHost.Common;
 
 /// <summary>
 /// Whether a row is a still rather than something that plays. Kept apart from
