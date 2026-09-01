@@ -596,11 +596,26 @@ public class PluginsManagerPageTests : BunitContext
     {
         var plugin = Plugin(PluginStatus.Loaded);
         plugin.Manifest!.Icon = "search";
-        plugin.Capabilities.Add("Break music");
 
         Arrange(plugin, enabled: true);
 
         Assert.NotEmpty(Render<PluginsManagerPage>().FindAll(".kh-plugins-manager__glyph .bi-search"));
+    }
+
+    /// <summary>
+    /// What a plugin registered says what it does, not what it looks like. The host used to guess a
+    /// glyph from it, which read as an opinion about the plugin's identity and disagreed with the
+    /// catalog's copy of the same guess.
+    /// </summary>
+    [Fact]
+    public void Glyph_ACapabilityWithoutAManifestIcon_IsStillTheGenericOne()
+    {
+        var plugin = Plugin(PluginStatus.Loaded);
+        plugin.Capabilities.Add("Break music");
+
+        Arrange(plugin, enabled: true);
+
+        Assert.NotEmpty(Render<PluginsManagerPage>().FindAll(".kh-plugins-manager__glyph .bi-puzzle"));
     }
 
     /// <summary>
@@ -612,14 +627,13 @@ public class PluginsManagerPageTests : BunitContext
     {
         var plugin = Plugin(PluginStatus.Loaded);
         plugin.Manifest!.Icon = PluginIcon.ImageSpecifier;
-        plugin.Capabilities.Add("Break music");
 
         Arrange(plugin, enabled: true);
 
         var cut = Render<PluginsManagerPage>();
 
         Assert.Empty(cut.FindAll(".kh-plugins-manager__glyph img"));
-        Assert.NotEmpty(cut.FindAll(".kh-plugins-manager__glyph .bi-music-note-beamed"));
+        Assert.NotEmpty(cut.FindAll(".kh-plugins-manager__glyph .bi-puzzle"));
     }
 
     [Fact]
@@ -637,7 +651,7 @@ public class PluginsManagerPageTests : BunitContext
     }
 
     [Fact]
-    public void Glyph_NothingSpecifiedAndNothingRegistered_IsTheGenericOne()
+    public void Glyph_NothingSpecified_IsTheGenericOne()
     {
         Arrange(Plugin(PluginStatus.Loaded), enabled: true);
 
