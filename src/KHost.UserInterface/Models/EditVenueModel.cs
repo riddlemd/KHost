@@ -34,4 +34,27 @@ public class EditVenueModel
     public Guid? BrandingImageMediaId { get; set; }
     public string? BreakMusicProvider { get; set; }
 
+    public bool MarqueeEnabled { get; set; }
+
+    // Three is the starting point the dialog offers, not what a stored venue reads: a row saved
+    // before the marquee existed has no key here and comes back as zero, which is a valid
+    // message-only band rather than something to correct.
+    [Range(0, 20, ErrorMessage = "Show between 0 and 20 singers.")]
+    public int MarqueeSingerCount { get; set; } = 3;
+
+    [MaxLength(255, ErrorMessage = "The marquee message cannot exceed 255 characters.")]
+    public string? MarqueeMessage { get; set; }
+
+    public MarqueePosition MarqueePosition { get; set; }
+
+    public string? MarqueeBackgroundColor { get; set; }
+    public string? MarqueeTextColor { get; set; }
+
+    [Range(12, 96, ErrorMessage = "Text size must be between 12 and 96 pixels.")]
+    public int MarqueeFontSizePixels { get; set; } = 28;
+
+    [Range(15, 400, ErrorMessage = "Scroll speed must be between 15 and 400 pixels per second.")]
+    public int MarqueeScrollSpeed { get; set; } = 90;
+
+    public bool MarqueePinLabel { get; set; }
 }

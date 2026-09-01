@@ -229,6 +229,7 @@ internal static class Program
         try
         {
             app.Services.GetRequiredService<IScreenCoordinationService>().InitializeAsync().GetAwaiter().GetResult();
+            app.Services.GetRequiredService<IScreenMarqueeService>().InitializeAsync().GetAwaiter().GetResult();
         }
         catch (Exception ex)
         {

@@ -18,6 +18,9 @@ const SCALING = { fit: 'contain', fill: 'cover', stretch: 'fill', original: 'non
 const placeholder = document.getElementById('placeholder');
 const blanked = document.getElementById('blanked');
 const hostLost = document.getElementById('hostlost');
+const marquee = document.getElementById('marquee');
+const marqueeTrack = document.getElementById('marquee-track');
+const marqueePin = document.getElementById('marquee-pin');
 
 function send(payload) {
     if (window.external && window.external.sendMessage) {
@@ -382,6 +385,89 @@ function correct() {
 // when a screen is most likely to have drifted.
 setInterval(correct, 200);
 
+// Pixels per second the band travels when a venue has not chosen. A rate, not a lap time, so a
+// long line does not race to keep the same pace as a short one.
+const MARQUEE_SPEED = 90;
+const MARQUEE_SPEED_MIN = 15;
+const MARQUEE_SPEED_MAX = 400;
+
+function setMarquee(message) {
+    if (message.enabled !== true) {
+        marquee.hidden = true;
+        return;
+    }
+
+    const singers = Array.isArray(message.singers) ? message.singers : [];
+    const hasSingers = singers.length > 0;
+
+    // Pinned only means anything while there are names to label; a message-only band pins nothing.
+    const pinned = message.pinLabel === true && hasSingers;
+
+    // Nothing to say is not a band across the screen. A venue can leave the message empty and
+    // run zero singers, and the room should just see the video.
+    if (!hasSingers && !message.message) {
+        marquee.hidden = true;
+        return;
+    }
+
+    // Built as nodes, not markup: a venue types the message and a singer types their own name,
+    // and neither may reach innerHTML.
+    const build = () => {
+        const span = document.createElement('span');
+
+        if (hasSingers) {
+            // Held at the edge instead when pinned, so it must not also scroll past.
+            if (!pinned) span.appendChild(chip('Up next', 'marquee-label'));
+
+            singers.forEach((name, index) => {
+                if (index > 0) span.appendChild(chip('\u2022', 'marquee-sep'));
+                span.appendChild(document.createTextNode(name));
+            });
+        }
+
+        if (message.message) {
+            if (hasSingers) span.appendChild(chip('\u2022', 'marquee-sep'));
+            span.appendChild(chip(message.message, 'marquee-message'));
+        }
+
+        return span;
+    };
+
+    // Both copies carry the same content: the keyframes translate the pair by half its width, so
+    // the second is what covers the screen while the first wraps around.
+    marqueeTrack.replaceChildren(build(), build());
+
+    marquee.dataset.position = message.position === 'top' ? 'top' : 'bottom';
+    marquee.dataset.pinned = pinned ? 'true' : 'false';
+    marquee.style.setProperty('--marquee-bg', message.backgroundColor || '#000000');
+    marquee.style.setProperty('--marquee-fg', message.textColor || '#f2f2f5');
+
+    // Zero means the venue never chose one, so the stylesheet's own size stands. Clamped because
+    // the band is fixed to an edge: a size past this covers the picture rather than sitting on it.
+    const size = Number(message.fontSizePixels) || 0;
+    if (size > 0) marquee.style.setProperty('--marquee-font-size', `${Math.min(96, Math.max(12, size))}px`);
+    else marquee.style.removeProperty('--marquee-font-size');
+
+    marquee.hidden = false;
+
+    // Clamped: a speed of zero never finishes a lap, and one past the cap is unreadable.
+    const chosen = Number(message.scrollSpeed) || 0;
+    const speed = chosen > 0
+        ? Math.min(MARQUEE_SPEED_MAX, Math.max(MARQUEE_SPEED_MIN, chosen))
+        : MARQUEE_SPEED;
+
+    // Measured after unhiding, or the track has no width to scale the duration against.
+    const distance = marqueeTrack.scrollWidth / 2;
+    marquee.style.setProperty('--marquee-duration', `${Math.max(4, distance / speed)}s`);
+}
+
+function chip(text, className) {
+    const el = document.createElement('span');
+    el.className = className;
+    el.textContent = text;
+    return el;
+}
+
 function handleCommand(raw) {
     let message;
     try { message = JSON.parse(raw); } catch { return; }
@@ -461,6 +547,9 @@ function handleCommand(raw) {
         case 'hide-image':
             still.hidden = true;
             still.removeAttribute('src');
+            break;
+        case 'marquee':
+            setMarquee(message);
             break;
         case 'bg-load':
             loadBackground(message.url, message.autoplay === true);

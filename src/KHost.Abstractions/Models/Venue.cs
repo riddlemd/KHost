@@ -58,6 +58,47 @@ public class Venue : RepositoryModel
         /// <summary><see cref="IBreakMusicProvider.SourceName"/>; null falls back to the built-in one.</summary>
         public string? BreakMusicProvider { get; set; }
 
+        // Every marquee setting reads as "off" when its key is missing, so a venue saved before
+        // the feature existed needs no backfill migration: EF ignores property initializers for
+        // absent JSON keys, and false/0/null are exactly the right answers for a venue that has
+        // never been asked. The dialog supplies the sensible starting values instead.
+
+        /// <summary>Whether the screen carries a marquee at all.</summary>
+        public bool MarqueeEnabled { get; set; }
+
+        /// <summary>How many singers ahead the room is shown. Zero is a message-only marquee.</summary>
+        public int MarqueeSingerCount { get; set; }
+
+        /// <summary>The venue's own line — a drink special, a closing time. Null shows only singers.</summary>
+        public string? MarqueeMessage { get; set; }
+
+        public MarqueePosition MarqueePosition { get; set; }
+
+        /// <summary>Null takes the screen's own default, which is what most venues want.</summary>
+        public string? MarqueeBackgroundColor { get; set; }
+
+        public string? MarqueeTextColor { get; set; }
+
+        /// <summary>
+        /// Height of the text in pixels. Zero takes the screen's own size — which is also what a
+        /// venue saved before this key existed reads as. Everything else in the band is sized in
+        /// em, so this scales the whole thing rather than only the letters.
+        /// </summary>
+        public int MarqueeFontSizePixels { get; set; }
+
+        /// <summary>
+        /// How fast the band travels, in pixels a second. Zero takes the screen's own speed. A
+        /// rate rather than a lap time, so a long line does not race to keep a short one's pace.
+        /// </summary>
+        public int MarqueeScrollSpeed { get; set; }
+
+        /// <summary>
+        /// Anchors the "Up next" label at the leading edge, outside the scroll, so a room glancing
+        /// up always sees what the list is. A modifier on whatever the band otherwise looks like,
+        /// not a look of its own.
+        /// </summary>
+        public bool MarqueePinLabel { get; set; }
+
         /// <summary>Memberwise copy plus a deep copy of the one reference-type member.</summary>
         public VenueSettings Clone()
         {
