@@ -140,6 +140,14 @@ input[type='number'] {
         outline: none;
         box-shadow: 0 0 0 3px var(--kh-primary-glow);
     }
+
+    // Carried over from the switch this replaced. Rows that cannot be toggled — the theme in use,
+    // a plugin that failed to load, every permission under an admin group — are the reason a
+    // disabled box has to look different from one that is merely unchecked.
+    &:disabled {
+        opacity: 0.35;
+        cursor: default;
+    }
 }
 
 .kh-form-label {
