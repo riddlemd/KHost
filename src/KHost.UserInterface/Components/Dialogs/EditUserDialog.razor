@@ -44,7 +44,7 @@
                         @foreach (var group in _availableGroups)
                         {
                             <label class="@(_rootClassName)__group">
-                                <input type="checkbox" checked="@_model.SelectedGroupIds.Contains(group.Id)"
+                                <input type="checkbox" class="kh-form-check-input" checked="@_model.SelectedGroupIds.Contains(group.Id)"
                                        @onchange="e => ToggleGroup(group.Id, (bool)(e.Value ?? false))" />
                                 <span class="@(_rootClassName)__group-name">@group.Name</span>
                                 <span class="@(_rootClassName)__group-description">@group.Description</span>
