@@ -1,7 +1,7 @@
 using System.Globalization;
-using KHost.Domain.Monetary;
+using KHost.Common.Monetary;
 
-namespace KHost.UnitTests.Domain.Monetary;
+namespace KHost.UnitTests.Common.Monetary;
 
 public class MoneyExtensionsTests
 {

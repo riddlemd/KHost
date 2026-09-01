@@ -1,6 +1,6 @@
-using KHost.Domain.Chronography;
+using KHost.Common.Chronography;
 
-namespace KHost.UnitTests.Domain.Chronography;
+namespace KHost.UnitTests.Common.Chronography;
 
 /// <summary>
 /// Every song duration in the library and the queue is printed through this, so the format is a
