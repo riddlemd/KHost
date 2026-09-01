@@ -17,6 +17,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\KHost.Common\KHost.Common.csproj" />
     <ProjectReference Include="..\KHost.Plugins.Sdk\KHost.Plugins.Sdk.csproj" />
   </ItemGroup>
 

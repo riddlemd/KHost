@@ -1,5 +1,6 @@
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
+using KHost.Common;
 using KHost.Domain.Services.Ads;
 using KHost.Domain.Services.Messaging;
 using KHost.Plugins.Sdk.Messaging.Messages;

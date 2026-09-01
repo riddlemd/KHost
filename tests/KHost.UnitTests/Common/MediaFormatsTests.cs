@@ -1,4 +1,5 @@
 using KHost.Abstractions.Models;
+using KHost.Common;
 
 namespace KHost.UnitTests.Domain.Models;
 
