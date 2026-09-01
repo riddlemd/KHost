@@ -5,13 +5,14 @@ using KHost.Abstractions.Services;
 
 // Aliased rather than importing the namespace: Sharpcaster has its own MediaStatus.
 using MediaStreamSession = KHost.Abstractions.Models.MediaStreamSession;
-using KHost.Plugins.Sdk.Messaging;
-using KHost.Plugins.Sdk.Messaging.Messages;
+using KHost.Abstractions.Messaging;
+using KHost.Abstractions.Messaging.Messages;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Sharpcaster;
 using Sharpcaster.Models;
 using Sharpcaster.Models.Media;
+using KHost.Common.Media;
 
 namespace KHost.Cast;
 
@@ -243,7 +244,7 @@ public sealed class CastService : ICastService, IDisposable
 
         var reachable = MakeReachableFromDevice(streamUrl, LanAddress());
         _streamStartOffset = startOffset;
-        _rate = MediaStreamSession.RateFor(tempo);
+        _rate = StreamRate.FromTempo(tempo);
 
         _logger.LogInformation("Casting {Url} to {Name}", reachable, _connectedDeviceId);
 

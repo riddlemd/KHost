@@ -1,6 +1,6 @@
-using KHost.Domain.Chronography;
-using KHost.Plugins.Sdk.Models;
-using KHost.Plugins.Sdk.Services;
+using KHost.Common.Chronography;
+using KHost.Abstractions.Models;
+using KHost.Abstractions.Services;
 
 namespace KHost.UserInterface.Services;
 

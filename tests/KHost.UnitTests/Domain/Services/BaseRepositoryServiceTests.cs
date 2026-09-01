@@ -3,7 +3,7 @@ using KHost.Abstractions.Repositories;
 using Microsoft.Extensions.Logging;
 using KHost.Domain.Services;
 using KHost.Domain.Services.Messaging;
-using KHost.Plugins.Sdk.Messaging;
+using KHost.Abstractions.Messaging;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace KHost.UnitTests.Domain.Services;

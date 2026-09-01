@@ -19,13 +19,6 @@ public sealed class AdPlayback
     /// <summary>The host clock ends the ad on this, whatever the underlying files are.</summary>
     public required TimeSpan Duration { get; init; }
 
-    /// <summary>
-    /// Whether the room hears the ad rather than the bed. A still with no audio of its own is
-    /// silent, so break music plays on underneath instead of leaving the room quiet.
-    /// </summary>
-    public bool HasOwnAudio => Audio is not null
-        || (Visual is not null && !MediaFormats.IsImage(Visual.Format));
-
     /// <summary>Nothing to look at and nothing to hear is not an ad.</summary>
     public bool IsEmpty => Visual is null && Audio is null;
 }

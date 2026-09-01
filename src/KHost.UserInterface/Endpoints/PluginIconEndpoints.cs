@@ -1,5 +1,6 @@
+using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
-using KHost.Plugins.Sdk.Models;
+using KHost.Abstractions.Models.Plugins;
 
 namespace KHost.UserInterface.Endpoints;
 

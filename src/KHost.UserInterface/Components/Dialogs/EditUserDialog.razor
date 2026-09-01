@@ -1,4 +1,4 @@
-@using KHost.Domain.Monetary
+@using KHost.Common.Monetary
 @using System.ComponentModel.DataAnnotations
 @using KHost.UserInterface.Models
 @using KHost.UserInterface.Services
@@ -63,7 +63,7 @@
             <aside class="@(_rootClassName)__stats">
                 <section class="@(_rootClassName)__stats-section">
                     <span class="@(_rootClassName)__stats-title">Total tips</span>
-                    <span class="@(_rootClassName)__stats-figure">@_totalTips.ToCurrency()</span>
+                    <span class="@(_rootClassName)__stats-figure">@_totalTips.CentsToCurrencyString()</span>
                 </section>
 
                 <section class="@(_rootClassName)__stats-section">

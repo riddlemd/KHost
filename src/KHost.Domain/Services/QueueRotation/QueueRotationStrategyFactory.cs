@@ -1,7 +1,6 @@
 using KHost.Abstractions.Services.QueueRotation;
 using KHost.Domain.Services.QueueRotation.Modifiers;
-using KHost.Plugins.Sdk.Models.QueueRotation;
-using KHost.Plugins.Sdk.Services.QueueRotation;
+using KHost.Abstractions.Models.QueueRotation;
 
 namespace KHost.Domain.Services.QueueRotation;
 

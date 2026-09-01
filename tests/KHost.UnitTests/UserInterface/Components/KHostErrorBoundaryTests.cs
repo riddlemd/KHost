@@ -1,5 +1,5 @@
 using System.Reflection;
-using KHost.Plugins.Sdk.Exceptions;
+using KHost.Abstractions.Exceptions;
 using KHost.UserInterface.Components;
 using KHost.UserInterface.Services;
 using NSubstitute;

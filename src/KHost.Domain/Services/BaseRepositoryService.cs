@@ -1,7 +1,7 @@
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Repositories;
 using KHost.Abstractions.Services;
-using KHost.Plugins.Sdk.Messaging;
+using KHost.Abstractions.Messaging;
 using Microsoft.Extensions.Logging;
 
 namespace KHost.Domain.Services;
