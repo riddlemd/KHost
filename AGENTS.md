@@ -33,7 +33,7 @@ SCSS compiles inside `dotnet build` (AspNetCore.SassCompiler) — no separate sa
 - Method names that cross a string boundary (`[JSInvokable]` called from JS, SignalR hub methods invoked by name) break silently when renamed: pass the name as `nameof(...)` from C# and take it as a parameter in JS (see `SingerQueuePanel` / `sortable-interop.js`, `ScreenClient` / `ScreenHub`).
 - Library/users/groups persist in SQL; queue and venue state in the JSON cache (`ICacheService`, `./cache/`).
 - Dialogs go through `IInteractionDispatcher`, which resolves `IInteractionHandler<TReq, TRes>` from DI; handlers bridge dialogs into awaitable calls with `TaskCompletionSource` and are registered in `Program.cs`.
-- `KHost.Abstractions` and `KHost.Common` are MIT; everything else is PolyForm Shield (`LICENSE`, and each MIT project's own `LICENSE`). `LicenceBoundaryTests` enforces it: an MIT project may reference only MIT projects, and must declare `PackageLicenseExpression` and ship a `LICENSE`. Note the compiler catches only the circular case — a reference to a leaf like `KHost.LrcLib` builds fine and breaks the licence silently, which is what that test is for. There is no separate plugin SDK: a plugin references `Abstractions` and `Common` directly, which is why `Abstractions` may reference nothing at all — `Common` sits above it, never the other way round. `KHostException` lives in `Abstractions` with the interfaces it is thrown across. The rule cuts both ways: `KHostException` lives in the SDK, not `Abstractions`, because it is the only way a plugin can report a failure the host can act on — a plugin referencing `Abstractions` to throw one would be the same breach from the other side.
+- `KHost.Abstractions` and `KHost.Common` are MIT; everything else is PolyForm Shield (`LICENSE`, and each MIT project's own `LICENSE`). `LicenceBoundaryTests` enforces it: an MIT project may reference only MIT projects, and must declare `PackageLicenseExpression` and ship a `LICENSE`. Note the compiler catches only the circular case — a reference to a leaf like `KHost.LrcLib` builds fine and breaks the licence silently, which is what that test is for. There is no separate plugin SDK: a plugin references `Abstractions` and `Common` directly, which is why `Abstractions` may reference nothing at all — `Common` sits above it, never the other way round. `KHostException` lives in `Abstractions` with the interfaces it is thrown across — it is the only way a plugin can report a failure the host can act on, so it has to sit where a plugin can reach it.
 - Do NOT commit unless explicitly asked.
 
 ## Messaging
@@ -48,6 +48,22 @@ SCSS compiles inside `dotnet build` (AspNetCore.SassCompiler) — no separate sa
 - Components `[Inject] IMessageBroker Broker`, subscribe in `OnInitialized`, dispose the set in `Dispose`.
 
 Three things deliberately stay plain C# events, and should stay that way: Screen2's `IMediaPlayer` and `IScreenClient` (a separate process — the broker is in-process and SignalR is the transport), `IDialogService.ShowRequested` (a request with a payload and one legitimate subscriber, not a notification), and `IPlaybackService.PositionChanged` (twice a second for a whole night; it says only that `Position` moved, so take it to redraw a playhead and nothing else).
+
+## What a plugin can reach
+
+A plugin's entry point is constructed with `ActivatorUtilities.CreateInstance` against the host
+container, so it takes whatever it needs from `KHost.Abstractions` in its own constructor — the same
+service interfaces the host itself uses. There is deliberately no facade: an `IPluginLibrary`
+stood between plugins and the services for a while and only obscured which service actually owned
+each rule. `IPluginContext` carries the plugin's own manifest and stored settings, and nothing else.
+
+- Downloading media for the queue goes through `IMediaAcquisitionService` — an ordinary service, not
+  a plugin keyhole. It owns three rules nothing else may re-implement: an import is idempotent by
+  `FilePath`, the media row's status and the `IDownloadsService` entry move together, and
+  `DiscardImportAsync` deletes only a row still in `Downloading`. Enqueuing is *not* on it: a caller
+  composes `ISingerQueueService.SelectedUserId` with `IPerformanceService.CreateAndEnqueueAsync`,
+  because `SingerQueueService` already depends on `IPerformanceService` and folding the pair into
+  either one closes a constructor cycle.
 
 ## Plugin catalog and installs
 

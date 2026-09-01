@@ -9,34 +9,30 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
-namespace KHost.UnitTests.Domain.Services.Plugins;
+namespace KHost.UnitTests.Domain.Services;
 
-public class PluginLibraryTests
+public class MediaAcquisitionServiceTests
 {
-    private readonly ILogger<PluginLibrary> _logger = Substitute.For<ILogger<PluginLibrary>>();
+    private readonly ILogger<MediaAcquisitionService> _logger = Substitute.For<ILogger<MediaAcquisitionService>>();
     private readonly IMediaRepository _repository = Substitute.For<IMediaRepository>();
     private readonly IMediaService _mediaService = Substitute.For<IMediaService>();
-    private readonly ISingerQueueService _singerQueueService = Substitute.For<ISingerQueueService>();
-    private readonly IPerformanceService _performanceService = Substitute.For<IPerformanceService>();
-    private readonly IOptionsMonitor<PluginLibrary.ServiceOptions> _options = Substitute.For<IOptionsMonitor<PluginLibrary.ServiceOptions>>();
+    private readonly IOptionsMonitor<MediaAcquisitionService.ServiceOptions> _options = Substitute.For<IOptionsMonitor<MediaAcquisitionService.ServiceOptions>>();
     private readonly DownloadsService _downloads = new(new MessageBroker(NullLogger<MessageBroker>.Instance));
     private readonly MessageBroker _broker = new(NullLogger<MessageBroker>.Instance);
-    private readonly PluginLibrary _service;
+    private readonly MediaAcquisitionService _service;
 
-    public PluginLibraryTests()
+    public MediaAcquisitionServiceTests()
     {
         _mediaService.CreateAsync(Arg.Any<Media>()).Returns(call => call.ArgAt<Media>(0));
-        _performanceService.CreateAndEnqueueAsync(Arg.Any<Performance>())
-            .Returns(call => Task.FromResult<Performance?>(call.ArgAt<Performance>(0)));
-        _options.CurrentValue.Returns(new PluginLibrary.ServiceOptions());
+        _options.CurrentValue.Returns(new MediaAcquisitionService.ServiceOptions());
 
-        _service = new PluginLibrary(_logger, _repository, _mediaService, _singerQueueService, _performanceService, _options, _downloads, _broker);
+        _service = new MediaAcquisitionService(_logger, _repository, _mediaService, _options, _downloads, _broker);
     }
 
     [Fact]
     public void MediaDirectory_ConfiguredValue_ReturnsItTrimmed()
     {
-        _options.CurrentValue.Returns(new PluginLibrary.ServiceOptions { MediaDirectory = "  /data/karaoke  " });
+        _options.CurrentValue.Returns(new MediaAcquisitionService.ServiceOptions { MediaDirectory = "  /data/karaoke  " });
 
         Assert.Equal("/data/karaoke", _service.MediaDirectory);
     }
@@ -47,7 +43,7 @@ public class PluginLibraryTests
     [InlineData("   ")]
     public void MediaDirectory_BlankOrMissing_FallsBackToUserProfileKaraoke(string? configured)
     {
-        _options.CurrentValue.Returns(new PluginLibrary.ServiceOptions { MediaDirectory = configured });
+        _options.CurrentValue.Returns(new MediaAcquisitionService.ServiceOptions { MediaDirectory = configured });
 
         var expected = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "karaoke");
         Assert.Equal(expected, _service.MediaDirectory);
@@ -221,14 +217,14 @@ public class PluginLibraryTests
     public async Task CompleteImportAsync_AnnouncesMediaLibraryChanged()
     {
         // A real MediaService rather than the substitute: BaseRepositoryService.UpdateAsync is
-        // what actually publishes MediaLibraryChanged, so this proves PluginLibrary reaches it rather than
+        // what actually publishes MediaLibraryChanged, so this proves MediaAcquisitionService reaches it rather than
         // asserting on a mock that we would have to wire the same behaviour into by hand.
         var repository = Substitute.For<IMediaRepository>();
         var mediaService = new MediaService(NullLogger<MediaService>.Instance, repository, _broker);
         var media = new Media { Id = Guid.NewGuid(), FilePath = "/downloads/song.mp4", Title = "Song Title", Status = MediaStatus.Downloading };
         repository.ReadAsync(media.Id).Returns(media);
 
-        var service = new PluginLibrary(_logger, repository, mediaService, _singerQueueService, _performanceService, _options, _downloads, _broker);
+        var service = new MediaAcquisitionService(_logger, repository, mediaService, _options, _downloads, _broker);
         var raised = 0;
         using var subscription = _broker.Subscribe<MediaLibraryChanged>(_ => raised++);
 
@@ -266,7 +262,7 @@ public class PluginLibraryTests
         var media = new Media { Id = Guid.NewGuid(), FilePath = "/downloads/song.mp4", Title = "Song Title", Status = MediaStatus.Downloading };
         repository.ReadAsync(media.Id).Returns(media);
 
-        var service = new PluginLibrary(_logger, repository, mediaService, _singerQueueService, _performanceService, _options, _downloads, _broker);
+        var service = new MediaAcquisitionService(_logger, repository, mediaService, _options, _downloads, _broker);
         var raised = 0;
         using var subscription = _broker.Subscribe<MediaLibraryChanged>(_ => raised++);
 
@@ -318,7 +314,7 @@ public class PluginLibraryTests
         repository.ReadAsync(media.Id).Returns(media);
         repository.DeleteAsync(media.Id).Returns(true);
 
-        var service = new PluginLibrary(_logger, repository, mediaService, _singerQueueService, _performanceService, _options, _downloads, _broker);
+        var service = new MediaAcquisitionService(_logger, repository, mediaService, _options, _downloads, _broker);
         var raised = 0;
         using var subscription = _broker.Subscribe<MediaLibraryChanged>(_ => raised++);
 
@@ -396,28 +392,7 @@ public class PluginLibraryTests
         Assert.True(ticketB.Cancellation.IsCancellationRequested);
     }
 
-    [Fact]
-    public async Task EnqueueAsync_NoSingerSelected_DoesNotEnqueue()
-    {
-        _singerQueueService.SelectedUserId.Returns((Guid?)null);
 
-        await _service.EnqueueAsync(Guid.NewGuid());
-
-        await _performanceService.DidNotReceive().CreateAndEnqueueAsync(Arg.Any<Performance>());
-    }
-
-    [Fact]
-    public async Task EnqueueAsync_SingerSelected_PassesSelectedSingerAndMediaId()
-    {
-        var singerId = Guid.NewGuid();
-        var mediaId = Guid.NewGuid();
-        _singerQueueService.SelectedUserId.Returns(singerId);
-
-        await _service.EnqueueAsync(mediaId);
-
-        await _performanceService.Received(1).CreateAndEnqueueAsync(
-            Arg.Is<Performance>(p => p.MediaId == mediaId && p.SingerId == singerId));
-    }
 
     [Fact]
     public async Task BeginImportAsync_NewRow_RegistersDownloadMetadataFromTheRequest()
