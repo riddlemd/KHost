@@ -56,6 +56,17 @@
             text-align: right;
         }
 
+        // A native colour input paints its swatch inside the control's own padding, so the
+        // text-input sizing above leaves a sliver of colour in a wide box. Sized to the swatch
+        // instead, and the padding taken back so the colour is what fills it.
+        .kh-venue-settings__color {
+            flex: 0 0 3rem;
+            width: 3rem;
+            height: 2rem;
+            padding: 2px;
+            cursor: pointer;
+        }
+
         .kh-form-check-input {
             margin: 0;
             flex-shrink: 0;

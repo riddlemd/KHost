@@ -19,6 +19,7 @@ namespace KHost.Abstractions.Services.IPC;
 [JsonDerivedType(typeof(SetBackgroundVolumeCommand), "setBackgroundVolume")]
 [JsonDerivedType(typeof(ShowImageCommand), "showImage")]
 [JsonDerivedType(typeof(HideImageCommand), "hideImage")]
+[JsonDerivedType(typeof(SetMarqueeCommand), "setMarquee")]
 public abstract class ScreenCommandBase : IScreenCommand { }
 
 /// <summary>
@@ -129,6 +130,43 @@ public sealed class ShowImageCommand : ScreenCommandBase
 }
 
 public sealed class HideImageCommand : ScreenCommandBase { }
+
+/// <summary>
+/// The band of text across the top or bottom of the screen. Singers arrive as names, not ids: a
+/// screen holds no library and no queue to resolve either against, the same reason
+/// <see cref="ShowImageCommand"/> carries a URL. Sent whole on every change rather than as a
+/// patch, so a screen that reconnects mid-show is correct after one command.
+/// </summary>
+public sealed class SetMarqueeCommand : ScreenCommandBase
+{
+    /// <summary>False takes the band off the screen entirely; the rest is then ignored.</summary>
+    public required bool Enabled { get; init; }
+
+    /// <summary>
+    /// One line per upcoming turn, in queue order and already cut to the venue's count: the song
+    /// and who is singing it, composed by the host. A screen holds neither a library nor a queue
+    /// to build these from, so they arrive ready to draw.
+    /// </summary>
+    public IReadOnlyList<string> Singers { get; init; } = [];
+
+    public string? Message { get; init; }
+
+    public MarqueePosition Position { get; init; }
+
+    /// <summary>Null leaves the screen's own default. CSS colours — the screen renders them.</summary>
+    public string? BackgroundColor { get; init; }
+
+    public string? TextColor { get; init; }
+
+    /// <summary>Text height in pixels; zero leaves the screen's own size.</summary>
+    public int FontSizePixels { get; init; }
+
+    /// <summary>Pixels a second; zero leaves the screen's own speed.</summary>
+    public int ScrollSpeed { get; init; }
+
+    /// <summary>Holds the "Up next" label at the leading edge instead of scrolling it past.</summary>
+    public bool PinLabel { get; init; }
+}
 
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "$type")]
 [JsonDerivedType(typeof(ScreenPlaybackState), "playback")]

@@ -1,4 +1,5 @@
 using KHost.Abstractions.Models;
+using KHost.Abstractions.Services.IPC;
 using System.Text.Json;
 using KHost.Abstractions.MediaPlayer;
 using Microsoft.Extensions.Logging;
@@ -190,6 +191,32 @@ internal sealed class StreamMediaPlayer : IMediaPlayer
         lock (_lock) _stillUrl = null;
 
         Send(new { type = "hide-image" });
+    }
+
+    /// <summary>
+    /// The whole band in one message: the host recomputes it on every queue and venue change and
+    /// sends it complete, so there is no partial state here to keep in step.
+    /// </summary>
+    public void SetMarquee(SetMarqueeCommand command)
+    {
+        _logger.LogInformation("Marquee {State} with {Count} singer(s)",
+            command.Enabled ? "on" : "off", command.Singers.Count);
+
+        // Lowercased here rather than in the page, the same as show-image's scaling: the page
+        // knows CSS words, not this enum's spelling.
+        Send(new
+        {
+            type = "marquee",
+            enabled = command.Enabled,
+            singers = command.Singers,
+            message = command.Message,
+            position = command.Position.ToString().ToLowerInvariant(),
+            backgroundColor = command.BackgroundColor,
+            textColor = command.TextColor,
+            fontSizePixels = command.FontSizePixels,
+            scrollSpeed = command.ScrollSpeed,
+            pinLabel = command.PinLabel,
+        });
     }
 
     public string? StillUrl { get { lock (_lock) return _stillUrl; } }
