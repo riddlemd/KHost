@@ -1,4 +1,4 @@
-namespace KHost.Domain.Monetary;
+namespace KHost.Common.Monetary;
 
 public static class MoneyExtensions
 {

@@ -1,6 +1,6 @@
-using KHost.Domain.Collections.Generics;
+using KHost.Common.Collections.Generic;
 
-namespace KHost.UnitTests.Domain.Collections.Generics;
+namespace KHost.UnitTests.Common.Collections.Generic;
 
 public class ListExtensionsTests
 {

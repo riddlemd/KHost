@@ -1,4 +1,4 @@
-using KHost.Domain.Monetary;
+using KHost.Common.Monetary;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using KHost.Plugins.Sdk.Messaging;
