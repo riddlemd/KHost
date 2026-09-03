@@ -380,6 +380,23 @@
                                         </div>
                                     }
 
+                                    @{
+                                        var buttons = PluginButtons?.ButtonsFor(plugin.Id) ?? [];
+                                    }
+                                    @if (buttons.Count > 0)
+                                    {
+                                        <div class="kh-plugins-manager__actions">
+                                            @foreach (var (definition, buttonState) in buttons)
+                                            {
+                                                <button type="button" class="kh-button @ButtonStyleClass(definition.Style)"
+                                                        disabled="@(!buttonState.Enabled || _runningButtons.Contains($"{plugin.Id}:{definition.Key}"))"
+                                                        @onclick="() => RunButtonAsync(plugin.Id, definition.Key)">
+                                                    @(buttonState.Label ?? definition.Label)
+                                                </button>
+                                            }
+                                        </div>
+                                    }
+
                                     <div class="kh-plugins-manager__foot">
                                         <button type="button" class="kh-plugins-manager__path" title="Open this plugin's folder"
                                                 @onclick="() => OpenFolder(plugin.Directory)">

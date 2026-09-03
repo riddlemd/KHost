@@ -98,6 +98,19 @@ each rule. `IPluginContext` carries the plugin's own manifest and stored setting
   `plugins.json`; the dialog is the only place the value exists outside the plugin's own
   variables, for exactly as long as answering the request takes. `KHost.Plugins.KaraFun`'s sign-in
   action is the first user of it.
+- A plugin puts **buttons on its Plugins-page row** by declaring them in the manifest
+  (`PluginButtonDefinition`, key + label + optional style) and implementing `IPluginButtonHandler`.
+  The host runs `InvokeButtonAsync(key)` on click and re-reads `DescribeButton(key)` after, so a
+  single button can toggle its own label — KaraFun's reads "Sign in" or "Sign out" from whether a
+  session is open. `DescribeButton` also hides or disables a button; its default keeps the manifest
+  label. Reached by plugin id through `IPluginButtonService`, populated from the loader's
+  `PluginButtonBinding`s — the container does not otherwise record which plugin owns a registration.
+- **A plugin extension type is one singleton, shared across every extension interface it
+  implements.** The loader registers the concrete type once and points each interface at it, so
+  KaraFun's `KaraFunMediaProvider` is both the `IMediaProvider` doing searches and the
+  `IPluginButtonHandler` behind its session button — one object, one `_sessionKey`. Registering per
+  interface instead (the old shape) built the type once for each, and signing in on the button
+  would not have signed in the search.
 
 ## Plugin catalog and installs
 

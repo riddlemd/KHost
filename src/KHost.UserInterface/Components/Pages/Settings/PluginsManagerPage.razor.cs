@@ -6,6 +6,7 @@ using KHost.Abstractions.Messaging;
 using KHost.Abstractions.Models;
 using KHost.UserInterface.Services;
 using Microsoft.AspNetCore.Components;
+using Microsoft.Extensions.Logging;
 using System.Net;
 using System.Text.Json;
 using KHost.Common.Plugins;
@@ -15,11 +16,13 @@ namespace KHost.UserInterface.Components.Pages.Settings;
 public partial class PluginsManagerPage : IDisposable
 {
     [Inject] private IPluginsService? PluginsService { get; set; }
+    [Inject] private IPluginButtonService? PluginButtons { get; set; }
     [Inject] private IPluginCatalogService? Catalog { get; set; }
     [Inject] private IPluginInstallerService? Installer { get; set; }
     [Inject] private IDialogService? Dialogs { get; set; }
     [Inject] private IExternalLinkService? ExternalLinks { get; set; }
     [Inject] private IMessageBroker Broker { get; set; } = default!;
+    [Inject] private ILogger<PluginsManagerPage>? Logger { get; set; }
 
     private readonly SubscriptionSet _subscriptions = new();
 
@@ -29,6 +32,9 @@ public partial class PluginsManagerPage : IDisposable
     /// id, and opening either would otherwise open both.</summary>
     private readonly HashSet<string> _openFolders = new(StringComparer.Ordinal);
     private readonly HashSet<string> _savedIds = new(StringComparer.OrdinalIgnoreCase);
+    /// <summary>"pluginId:key" of buttons whose action is still running, so a click cannot re-enter
+    /// a login prompt that is already open.</summary>
+    private readonly HashSet<string> _runningButtons = new(StringComparer.Ordinal);
     private HashSet<string> _enabledIds = new(StringComparer.OrdinalIgnoreCase);
 
     private Tab _tab = Tab.Installed;
@@ -186,6 +192,44 @@ public partial class PluginsManagerPage : IDisposable
 
     private static string GetInputType(PluginSettingDefinition definition)
         => definition.Type == PluginSettingType.Int ? "number" : "text";
+
+    /// <summary>An unknown style falls back to the primary look rather than a class that resolves to nothing.</summary>
+    private static string ButtonStyleClass(string? style) => style switch
+    {
+        "secondary" => "kh-button--secondary",
+        "danger" => "kh-button--danger",
+        _ => "kh-button--primary",
+    };
+
+    /// <summary>
+    /// Runs a plugin's own button and re-reads its state after — a login button reports "Sign out"
+    /// once it succeeds, and nothing else would tell the row to redraw. Guarded against a second
+    /// click while the first is still open, which for a login is a prompt already on screen.
+    /// </summary>
+    private async Task RunButtonAsync(string pluginId, string key)
+    {
+        if (PluginButtons is null)
+            return;
+
+        var token = $"{pluginId}:{key}";
+        if (!_runningButtons.Add(token))
+            return;
+
+        try
+        {
+            await PluginButtons.InvokeAsync(pluginId, key);
+        }
+        catch (Exception ex)
+        {
+            // A plugin's button throwing is the plugin's problem to report; the page stays up.
+            Logger?.LogWarning(ex, "Plugin button {Key} on {PluginId} threw", key, pluginId);
+        }
+        finally
+        {
+            _runningButtons.Remove(token);
+            await InvokeAsync(StateHasChanged);
+        }
+    }
 
     /// <summary>
     /// The manifest decides or nothing does. Guessing from what a plugin registered read as the

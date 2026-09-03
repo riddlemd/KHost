@@ -18,14 +18,21 @@ public static class PluginLoader
 {
     public const string ManifestFileName = "manifest.json";
 
-    /// <summary>Interfaces a plugin assembly is scanned for; implementations are registered as
-    /// singletons. The label is what the Plugins page shows a host the plugin provides.</summary>
-    private static readonly (Type Interface, string Capability)[] ExtensionInterfaces =
+    /// <summary>The interfaces whose implementations the Plugins page names as things the plugin
+    /// provides to the show. The label is what a host sees on the row.</summary>
+    private static readonly (Type Interface, string Capability)[] CapabilityInterfaces =
     [
         (typeof(IMediaProvider), "Media provider"),
         (typeof(IQueueRotationMode), "Queue rotation"),
         (typeof(IBreakMusicProvider), "Break music"),
     ];
+
+    /// <summary>Every plugin-facing interface the loader binds. <see cref="IPluginButtonHandler"/>
+    /// carries no capability label — a button is UI on the plugin's row, not something it provides
+    /// to the show — but it is bound the same way, so the type behind it can also be a provider and
+    /// share one instance's state.</summary>
+    private static readonly Type[] ExtensionInterfaces =
+        [.. CapabilityInterfaces.Select(c => c.Interface), typeof(IPluginButtonHandler)];
 
     public static PluginsState ReadState(string cacheDirectory)
     {
@@ -230,23 +237,42 @@ public static class PluginLoader
         var registered = 0;
         var storedValues = state.Settings.GetValueOrDefault(manifest.Id.ToString());
 
-        foreach (var (extensionInterface, capability) in ExtensionInterfaces)
+        // One singleton per extension type, with every interface it implements pointing at that
+        // same instance. Registering per interface instead built the type once for each — so a
+        // type that is both a media provider and a session button would be two objects with two
+        // separate sessions, and signing in on one would not sign in the other.
+        var extensionTypes = types
+            .Where(t => t.IsClass && !t.IsAbstract && ExtensionInterfaces.Any(i => i.IsAssignableFrom(t)))
+            .ToList();
+
+        foreach (var type in extensionTypes)
         {
-            foreach (var type in types.Where(t => t.IsClass && !t.IsAbstract && extensionInterface.IsAssignableFrom(t)))
-            {
-                var implementationType = type;
+            var implementationType = type;
 
-                services.AddSingleton(extensionInterface, serviceProvider => ActivatorUtilities.CreateInstance(
-                    serviceProvider,
-                    implementationType,
-                    new PluginContext(manifest, storedValues, plugin)));
+            services.AddSingleton(implementationType, serviceProvider => ActivatorUtilities.CreateInstance(
+                serviceProvider,
+                implementationType,
+                new PluginContext(manifest, storedValues, plugin)));
 
-                if (!plugin.Capabilities.Contains(capability))
-                    plugin.Capabilities.Add(capability);
+            foreach (var extensionInterface in ExtensionInterfaces.Where(i => i.IsAssignableFrom(implementationType)))
+                services.AddSingleton(extensionInterface, sp => sp.GetRequiredService(implementationType));
 
-                registered++;
-            }
+            // The Plugins page reaches a button handler by plugin id; this is the only place the
+            // two are known together, since the container does not track which plugin owns a
+            // registration. Resolves the shared instance, not a fresh one.
+            if (typeof(IPluginButtonHandler).IsAssignableFrom(implementationType))
+                services.AddSingleton(sp => new PluginButtonBinding(
+                    manifest.Id.ToString(),
+                    (IPluginButtonHandler)sp.GetRequiredService(implementationType)));
+
+            registered++;
         }
+
+        // In interface order, not type-scan order, so the row's capability list reads the same
+        // every run.
+        foreach (var (extensionInterface, capability) in CapabilityInterfaces)
+            if (extensionTypes.Any(t => extensionInterface.IsAssignableFrom(t)))
+                plugin.Capabilities.Add(capability);
 
         // Optional: a plugin that only exposes providers needs no entry point, and loads as before.
         foreach (var type in types.Where(t => t.IsClass && !t.IsAbstract && typeof(IPlugin).IsAssignableFrom(t)))

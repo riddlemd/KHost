@@ -44,6 +44,20 @@
           "default": { "description": "Value used when the host has none stored." }
         }
       }
+    },
+    "buttons": {
+      "type": "array",
+      "description": "Buttons the host draws on the plugin's row and runs through IPluginButtonHandler.",
+      "items": {
+        "type": "object",
+        "required": ["key", "label"],
+        "additionalProperties": false,
+        "properties": {
+          "key": { "type": "string" },
+          "label": { "type": "string", "description": "Wording when the handler does not override it." },
+          "style": { "enum": ["primary", "secondary", "danger"], "description": "kh-button modifier; defaults to primary." }
+        }
+      }
     }
   }
 }

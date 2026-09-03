@@ -181,6 +181,63 @@ public class PluginLoaderTests : IDisposable
         Assert.Contains(services, d => d.ServiceType == typeof(IBreakMusicProvider));
     }
 
+    // A type that is both a provider and a button handler must be ONE object, or signing in through
+    // the button would not sign in the searches. This copies the test assembly, whose only
+    // extension type is SharedInstanceExtensionDouble.
+    [Fact]
+    public void LoadAndRegister_TypeImplementingTwoExtensionInterfaces_ResolvesToOneSharedInstance()
+    {
+        using var provider = LoadDoubleAssembly("0e100000-0000-4000-8000-00000000e101");
+
+        var asMediaProvider = provider.GetServices<IMediaProvider>()
+            .Single(p => p.GetType().Name == nameof(SharedInstanceExtensionDouble));
+        var asButtonHandler = provider.GetServices<IPluginButtonHandler>()
+            .Single(h => h.GetType().Name == nameof(SharedInstanceExtensionDouble));
+
+        Assert.Same(asMediaProvider, asButtonHandler);
+    }
+
+    // The Plugins page finds a button handler by plugin id through these bindings.
+    [Fact]
+    public void LoadAndRegister_ButtonHandler_IsBoundToItsPluginId()
+    {
+        const string id = "0e200000-0000-4000-8000-00000000e202";
+        using var provider = LoadDoubleAssembly(id);
+
+        var binding = Assert.Single(provider.GetServices<PluginButtonBinding>());
+
+        Assert.Equal(id, binding.PluginId);
+        Assert.Same(provider.GetServices<IMediaProvider>().Single(p => p.GetType().Name == nameof(SharedInstanceExtensionDouble)), binding.Handler);
+    }
+
+    // A provider-only plugin registers no button binding.
+    [Fact]
+    public void LoadAndRegister_ProviderWithoutAButtonHandler_RegistersNoBinding()
+    {
+        var directory = WritePlugin("no-buttons", "0e300000-0000-4000-8000-00000000e303", entryAssembly: "Entry.dll", createEntryAssembly: false);
+        File.Copy(typeof(LocalMediaProvider).Assembly.Location, Path.Combine(directory, "Entry.dll"));
+        var state = new PluginsState { EnabledPluginIds = ["0e300000-0000-4000-8000-00000000e303"] };
+        var plugins = PluginLoader.Discover(PluginsDir, state);
+        var services = new ServiceCollection();
+
+        PluginLoader.LoadAndRegister(services, plugins, state);
+
+        Assert.DoesNotContain(services, d => d.ServiceType == typeof(PluginButtonBinding));
+    }
+
+    private ServiceProvider LoadDoubleAssembly(string id)
+    {
+        var directory = WritePlugin($"double-{id[..8]}", id, entryAssembly: "Entry.dll", createEntryAssembly: false);
+        File.Copy(typeof(SharedInstanceExtensionDouble).Assembly.Location, Path.Combine(directory, "Entry.dll"));
+        var state = new PluginsState { EnabledPluginIds = [id] };
+        var plugins = PluginLoader.Discover(PluginsDir, state);
+        var services = new ServiceCollection();
+
+        PluginLoader.LoadAndRegister(services, plugins, state);
+
+        return services.BuildServiceProvider();
+    }
+
     [Fact]
     public void LoadAndRegister_AssemblyWithoutExtensions_RecordsNoCapabilities()
     {
