@@ -43,9 +43,9 @@
         @if (ReportingAvailable)
         {
             <div class="@(_rootClassName)__report">
-                <label>
+                <label class="kh-form-check">
+                    <span class="kh-form-check-label">Send this report to the developers</span>
                     <input type="checkbox" class="kh-form-check-input" @bind="_sendReport" />
-                    Send this report to the developers
                 </label>
                 <p class="@(_rootClassName)__report-note">
                     Includes the details above, the app version and your operating system —

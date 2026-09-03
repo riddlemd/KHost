@@ -292,12 +292,12 @@
                                         <span class="kh-badge @GetStateBadgeClass(state)">@GetStateLabel(state)</span>
                                     }
                                     <label class="kh-plugins-manager__enable kh-form-check">
+                                        <span class="kh-form-check-label">Enabled</span>
                                         <input type="checkbox" class="kh-form-check-input"
                                                aria-label="@($"Enable {plugin.DisplayName}")"
                                                checked="@enabled"
                                                disabled="@(!CanEnable(plugin, enabled))"
                                                @onchange="e => ToggleAsync(plugin.Id, (bool)(e.Value ?? false))" />
-                                        <span class="kh-form-check-label">Enabled</span>
                                     </label>
                                 </div>
                             </div>
@@ -330,10 +330,10 @@
                                                     @if (field.Definition.Type == PluginSettingType.Bool)
                                                     {
                                                         <label class="kh-plugins-manager__toggle kh-form-check">
+                                                            <span class="kh-form-check-label">@field.Definition.Label</span>
                                                             <input type="checkbox" class="kh-form-check-input"
                                                                    checked="@field.Flag"
                                                                    @onchange="e => { field.Flag = (bool)(e.Value ?? false); MarkEdited(plugin.Id); }" />
-                                                            <span class="kh-form-check-label">@field.Definition.Label</span>
                                                         </label>
                                                     }
                                                     else if (field.Definition.Secret)
