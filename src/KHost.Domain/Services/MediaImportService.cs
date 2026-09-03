@@ -1,4 +1,5 @@
 using KHost.Abstractions.Models;
+using KHost.Abstractions.Models.Plugins;
 using KHost.Abstractions.Repositories;
 using KHost.Abstractions.Services;
 using KHost.Abstractions.Messaging;
@@ -34,7 +35,10 @@ public class MediaImportService : BaseService, IMediaImportService
     public int ImportedCount { get; private set; }
     public int FailedCount { get; private set; }
     public string? CurrentFilePath { get; private set; }
-    public IReadOnlyList<string> SupportedExtensions { get; } = _supportedExtensions;
+    // The built-in formats plus whatever loaded plugins render into — a plugin declares an
+    // extension to assert the host can already play it, so the scanner stops skipping its output.
+    // Computed once: plugins are fixed until restart, and this is a singleton.
+    public IReadOnlyList<string> SupportedExtensions { get; }
 
     public MediaImportService(
         ILogger<MediaImportService> logger,
@@ -43,6 +47,7 @@ public class MediaImportService : BaseService, IMediaImportService
         IMediaService mediaService,
         IMediaFingerprintService fingerprints,
         IAnalyticsService analytics,
+        IPluginRegistry plugins,
         IMessageBroker broker)
         : base(logger)
     {
@@ -52,7 +57,22 @@ public class MediaImportService : BaseService, IMediaImportService
         _mediaService = mediaService;
         _fingerprints = fingerprints;
         _analytics = analytics;
+
+        SupportedExtensions = NormalizeExtensions(_supportedExtensions.Concat(
+            plugins.Plugins
+                // Loaded only: an unloaded plugin's format has no owner to have produced it.
+                .Where(plugin => plugin.Status == PluginStatus.Loaded)
+                .SelectMany(plugin => plugin.Manifest?.ImportFormats ?? [])));
     }
+
+    /// <summary>Leading-dot, lowercase, de-duped — a plugin may hand back "khv", "*.KHV" or ".Khv".</summary>
+    private static IReadOnlyList<string> NormalizeExtensions(IEnumerable<string> extensions) =>
+    [
+        .. extensions
+            .Select(extension => "." + extension.Trim().TrimStart('*').TrimStart('.').ToLowerInvariant())
+            .Where(extension => extension.Length > 1)
+            .Distinct()
+    ];
 
     public Task StartAsync(IEnumerable<string> filePaths)
     {

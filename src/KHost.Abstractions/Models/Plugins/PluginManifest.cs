@@ -23,4 +23,11 @@ public class PluginManifest
     /// <see cref="Services.IPluginButtonHandler"/>. Empty for a plugin that has none.
     /// </summary>
     public List<PluginButtonDefinition> Buttons { get; set; } = [];
+
+    /// <summary>
+    /// Extra file extensions (e.g. ".khv") this plugin's own output uses that the media importer's
+    /// folder scan should recognise. The plugin is asserting KHost can already play these as they
+    /// are — this teaches the scanner to stop skipping them, not how to convert anything.
+    /// </summary>
+    public List<string> ImportFormats { get; set; } = [];
 }

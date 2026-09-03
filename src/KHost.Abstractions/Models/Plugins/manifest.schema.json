@@ -58,6 +58,11 @@
           "style": { "enum": ["primary", "secondary", "danger"], "description": "kh-button modifier; defaults to primary." }
         }
       }
+    },
+    "importFormats": {
+      "type": "array",
+      "description": "Extra file extensions (e.g. \".khv\") this plugin's playable output uses, so the media importer's folder scan recognises them.",
+      "items": { "type": "string" }
     }
   }
 }
