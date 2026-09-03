@@ -22,6 +22,7 @@ public class EditVenueDialogMarqueeTests : BunitContext
     private const string SpeedSelector = "#marquee-speed";
     private const string PinSelector = "#venue-marquee-pin-label";
     private const string BackgroundSelector = "#marquee-background";
+    private const string EntryFormatSelector = "#marquee-entry-format";
 
     private readonly IBreakMusicService _breakMusic = Substitute.For<IBreakMusicService>();
     private readonly IMediaPoolService _mediaPools = Substitute.For<IMediaPoolService>();
@@ -137,6 +138,23 @@ public class EditVenueDialogMarqueeTests : BunitContext
         var cut = Render(new Venue.VenueSettings { MarqueeEnabled = true, MarqueeScrollSpeed = 140 });
 
         Assert.Equal("140", cut.Find(SpeedSelector).GetAttribute("value"));
+    }
+
+    /// <summary>An unset format leaves the field blank rather than pre-filling the default it falls back to.</summary>
+    [Fact]
+    public void MarqueeOn_NoEntryFormatStored_LeavesTheFieldBlank()
+    {
+        var cut = Render(new Venue.VenueSettings { MarqueeEnabled = true });
+
+        Assert.Null(cut.Find(EntryFormatSelector).GetAttribute("value"));
+    }
+
+    [Fact]
+    public void MarqueeOn_ShowsTheVenuesStoredEntryFormat()
+    {
+        var cut = Render(new Venue.VenueSettings { MarqueeEnabled = true, MarqueeEntryFormat = "{artist} - {song}" });
+
+        Assert.Equal("{artist} - {song}", cut.Find(EntryFormatSelector).GetAttribute("value"));
     }
 
     [Fact]

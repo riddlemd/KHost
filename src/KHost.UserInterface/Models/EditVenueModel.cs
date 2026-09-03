@@ -45,6 +45,9 @@ public class EditVenueModel
     [MaxLength(255, ErrorMessage = "The marquee message cannot exceed 255 characters.")]
     public string? MarqueeMessage { get; set; }
 
+    [MaxLength(255, ErrorMessage = "The entry format cannot exceed 255 characters.")]
+    public string? MarqueeEntryFormat { get; set; }
+
     public MarqueePosition MarqueePosition { get; set; }
 
     public string? MarqueeBackgroundColor { get; set; }

@@ -64,6 +64,62 @@ public class ScreenMarqueeServiceTests
         Assert.Equal(["Bohemian Rhapsody - Ada"], (await Service().BuildAsync()).Singers);
     }
 
+    /// <summary>A host's own wording replaces "{song} - {singer}", tag for tag.</summary>
+    [Fact]
+    public async Task BuildAsync_CustomEntryFormat_UsesTheVenuesWording()
+    {
+        var ada = Singer("Ada");
+        Arrange(
+            new Venue.VenueSettings { MarqueeEnabled = true, MarqueeSingerCount = 1, MarqueeEntryFormat = "{artist} - {song}" },
+            ada);
+        Queued(ada, "Bohemian Rhapsody", "Queen");
+
+        Assert.Equal(["Queen - Bohemian Rhapsody"], (await Service().BuildAsync()).Singers);
+    }
+
+    /// <summary>Numbering starts at one, matching how a host would read the list aloud.</summary>
+    [Fact]
+    public async Task BuildAsync_EntryFormatUsesPosition_NumbersFromOne()
+    {
+        var ada = Singer("Ada");
+        var grace = Singer("Grace");
+        Arrange(
+            new Venue.VenueSettings { MarqueeEnabled = true, MarqueeSingerCount = 2, MarqueeEntryFormat = "{position}. {song} - {singer}" },
+            ada, grace);
+        Queued(ada, "Africa");
+        Queued(grace, "Wonderwall");
+
+        Assert.Equal(["1. Africa - Ada", "2. Wonderwall - Grace"], (await Service().BuildAsync()).Singers);
+    }
+
+    /// <summary>Tags read the same regardless of how a host capitalises them while typing.</summary>
+    [Fact]
+    public async Task BuildAsync_EntryFormatTagsAreCaseInsensitive()
+    {
+        var ada = Singer("Ada");
+        Arrange(
+            new Venue.VenueSettings { MarqueeEnabled = true, MarqueeSingerCount = 1, MarqueeEntryFormat = "{SONG} by {Singer}" },
+            ada);
+        Queued(ada, "Africa");
+
+        Assert.Equal(["Africa by Ada"], (await Service().BuildAsync()).Singers);
+    }
+
+    /// <summary>A blank format is not a valid choice — it would compose empty lines — so it reads as unset.</summary>
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task BuildAsync_BlankEntryFormat_FallsBackToTheDefault(string blank)
+    {
+        var ada = Singer("Ada");
+        Arrange(
+            new Venue.VenueSettings { MarqueeEnabled = true, MarqueeSingerCount = 1, MarqueeEntryFormat = blank },
+            ada);
+        Queued(ada, "Bohemian Rhapsody");
+
+        Assert.Equal(["Bohemian Rhapsody - Ada"], (await Service().BuildAsync()).Singers);
+    }
+
     /// <summary>
     /// A singer with nothing queued is still up next — the host has them on the list. Dropping
     /// them would leave the band disagreeing with the queue on screen.
@@ -333,14 +389,14 @@ public class ScreenMarqueeServiceTests
 
     private static KHostUser Singer(string name) => new() { Id = Guid.NewGuid(), Name = name };
 
-    private void Queued(KHostUser singer, string title)
+    private void Queued(KHostUser singer, string title, string artist = "")
     {
         var mediaId = Guid.NewGuid();
         var queued = _performances.ReadQueuedAsync().Result;
 
         queued.Add(new Performance { SingerId = singer.Id, MediaId = mediaId });
         _performances.ReadQueuedAsync().Returns(queued);
-        _media.ReadAsync(mediaId).Returns(new Media { Id = mediaId, Title = title, FilePath = "/x.mp4" });
+        _media.ReadAsync(mediaId).Returns(new Media { Id = mediaId, Title = title, Artist = artist, FilePath = "/x.mp4" });
     }
 
     // The handlers hand off to Task.Run so the hub thread is never held, so an assertion made
