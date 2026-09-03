@@ -66,7 +66,16 @@ public class ScreenDisconnectPausesPlaybackTests : IDisposable
             Substitute.For<IMediaService>(),
             Monitor(new PlaybackService.ServiceOptions { StopFadeDuration = TimeSpan.Zero }),
             Substitute.For<IAudioTrackService>(),
+            AllowingGate(),
+            Substitute.For<IFlashService>(),
             _broker);
+    }
+
+    private static IMediaGateService AllowingGate()
+    {
+        var gate = Substitute.For<IMediaGateService>();
+        gate.EvaluateAsync(Arg.Any<Media>(), Arg.Any<CancellationToken>()).Returns(PlaybackGateResult.Ok);
+        return gate;
     }
 
     /// <summary>The service reads options per use, so a test's values have to answer every read.</summary>
