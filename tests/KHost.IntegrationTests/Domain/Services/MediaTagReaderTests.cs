@@ -38,13 +38,13 @@ public class MediaTagReaderTests : IDisposable
     public async Task ReadTag_MissingFile_IsNull()
         => Assert.Null(await _reader.ReadTagAsync(Path.Combine(_workingDirectory, "nope.mp4"), IMediaPlaybackGate.MetadataTag));
 
-    // A .kfv holding mp4 bytes — exactly what the KaraFun plugin writes: an obscuring extension,
+    // A .khv holding mp4 bytes — exactly what the KaraFun plugin writes: an obscuring extension,
     // the muxer forced with -f mp4, and the marker kept by +use_metadata_tags. Proves the reader
     // finds the tag by content, not by a .mp4 name.
     private async Task<string> CreateMarkedMp4Async(string providerId)
     {
         Directory.CreateDirectory(_workingDirectory);
-        var path = Path.Combine(_workingDirectory, "marked.kfv");
+        var path = Path.Combine(_workingDirectory, "marked.khv");
 
         await RunFfmpegAsync(
             "-f lavfi -i color=c=black:s=64x64:d=1 -movflags +faststart+use_metadata_tags "

@@ -110,7 +110,7 @@ each rule. `IPluginContext` carries the plugin's own manifest and stored setting
   (`khost_provider`) set to its own `ProviderId`, and `PlaybackService.LoadAsync` asks the matching gate
   before every load. KaraFun writes `khost_provider=KHost.Plugins.KaraFun` into the file (with ffmpeg's
   `+use_metadata_tags` movflag — a custom mp4 tag is dropped without it, confirmed by round trip)
-  and its gate allows play only while signed in. Its output also carries a `.kfv` extension rather
+  and its gate allows play only while signed in. Its output also carries a `.khv` extension rather
   than `.mp4` (the muxer forced with `-f mp4`, since ffmpeg picks the output format from the name):
   obscurity so the licensed content does not open on a double-click, not protection — KHost reads
   media by content, not extension. `IMediaGateService` reads the tag and routes to
