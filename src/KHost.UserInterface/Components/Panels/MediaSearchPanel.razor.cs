@@ -31,6 +31,14 @@ public partial class MediaSearchPanel : IDisposable
     /// <summary>What is being searched, for the wait message. Null while nothing is running.</summary>
     private string? _searchingSource;
 
+    /// <summary>
+    /// The last search run, kept so an action that invalidates its own results can repeat it —
+    /// the library and one named provider are different searches, and a refresh has to be the
+    /// same one the host was looking at.
+    /// </summary>
+    private Func<IMediaSearchService, Task<List<MediaSearchEntity>>>? _lastSearch;
+    private string _lastSearchSource = "the library";
+
     private CancellationTokenSource? _searchCts;
 
     private ElementReference _queryInputRef;
@@ -101,6 +109,9 @@ public partial class MediaSearchPanel : IDisposable
         if (MediaSearchService is null)
             return;
 
+        _lastSearch = search;
+        _lastSearchSource = sourceLabel;
+
         // A second search supersedes the first, so the one still running stops owning the panel.
         _searchCts?.Cancel();
         _searchCts?.Dispose();
@@ -140,16 +151,24 @@ public partial class MediaSearchPanel : IDisposable
             await RunSearchAsync();
     }
 
-    private async Task PerformActionAsync(Func<MediaSearchEntity, Task> func, MediaSearchEntity mediaSearchEntity)
+    private async Task PerformActionAsync(MediaProviderAction action, MediaSearchEntity mediaSearchEntity)
     {
         try
         {
-            await func(mediaSearchEntity);
+            await action.PerformAsync(mediaSearchEntity);
         }
         catch (OperationCanceledException)
         {
             // The host dequeuing the Downloading row cancels the plugin's own download token —
             // this is that cancel unwinding through the action, not a failure to report.
+            return;
+        }
+
+        // Signing in is the case this exists for: the row the host clicked was the provider saying
+        // it had nothing to search with, so leaving it on screen reads as the sign-in not working.
+        if (action.RefreshesResults && _lastSearch is { } search)
+        {
+            await RunSearchCoreAsync(_lastSearchSource, search);
             return;
         }
 
