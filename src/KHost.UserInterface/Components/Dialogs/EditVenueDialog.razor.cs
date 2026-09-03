@@ -138,6 +138,7 @@ public partial class EditVenueDialog
                         ? Venue.Settings.MarqueeSingerCount
                         : DefaultMarqueeSingerCount,
                     MarqueeMessage = Venue.Settings.MarqueeMessage,
+                    MarqueeEntryFormat = Venue.Settings.MarqueeEntryFormat,
                     MarqueePosition = Venue.Settings.MarqueePosition,
                     MarqueeBackgroundColor = Venue.Settings.MarqueeBackgroundColor ?? DefaultMarqueeBackground,
                     MarqueeTextColor = Venue.Settings.MarqueeTextColor ?? DefaultMarqueeText,
@@ -244,6 +245,7 @@ public partial class EditVenueDialog
         venue.Settings.MarqueeEnabled = _model.MarqueeEnabled;
         venue.Settings.MarqueeSingerCount = Math.Clamp(_model.MarqueeSingerCount, 0, 20);
         venue.Settings.MarqueeMessage = _model.MarqueeMessage;
+        venue.Settings.MarqueeEntryFormat = _model.MarqueeEntryFormat;
         venue.Settings.MarqueePosition = _model.MarqueePosition;
         venue.Settings.MarqueeBackgroundColor = _model.MarqueeBackgroundColor;
         venue.Settings.MarqueeTextColor = _model.MarqueeTextColor;

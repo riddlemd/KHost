@@ -62,7 +62,7 @@ public sealed class ScreenMarqueeService : BaseService, IScreenMarqueeService, I
         return new SetMarqueeCommand
         {
             Enabled = true,
-            Singers = await UpNextAsync(settings.MarqueeSingerCount),
+            Singers = await UpNextAsync(settings.MarqueeSingerCount, settings.MarqueeEntryFormat),
             Message = SingleLine(settings.MarqueeMessage),
             Position = settings.MarqueePosition,
             BackgroundColor = Blank(settings.MarqueeBackgroundColor),
@@ -73,32 +73,49 @@ public sealed class ScreenMarqueeService : BaseService, IScreenMarqueeService, I
         };
     }
 
+    /// <summary>Composed for a venue that has never chosen its own wording, and for one that cleared it.</summary>
+    private const string DefaultEntryFormat = "{song} - {singer}";
+
     /// <summary>
-    /// One line per upcoming turn: the song and who is singing it. A singer with nothing queued
-    /// is still up next — the host has them on the list — so they are named on their own rather
-    /// than dropped, which would make the band disagree with the queue on screen.
+    /// One line per upcoming turn: the song and who is singing it, shaped by the venue's own
+    /// format. A singer with nothing queued is still up next — the host has them on the list — so
+    /// they are named on their own rather than dropped, which would make the band disagree with
+    /// the queue on screen.
     /// </summary>
-    private async Task<List<string>> UpNextAsync(int wanted)
+    private async Task<List<string>> UpNextAsync(int wanted, string? entryFormat)
     {
         var singers = _singerQueue.Users.Take(wanted).ToList();
 
         if (singers.Count == 0)
             return [];
 
+        var format = string.IsNullOrWhiteSpace(entryFormat) ? DefaultEntryFormat : entryFormat;
         var queued = await _performances.ReadQueuedAsync();
         var lines = new List<string>(singers.Count);
 
-        foreach (var singer in singers)
+        for (var index = 0; index < singers.Count; index++)
         {
+            var singer = singers[index];
+
             // First by queue order, which is the one they are about to sing.
             var next = queued.FirstOrDefault(performance => performance.SingerId == singer.Id);
-            var title = next is null ? null : (await _media.ReadAsync(next.MediaId))?.Title;
+            var media = next is null ? null : await _media.ReadAsync(next.MediaId);
 
-            lines.Add(string.IsNullOrWhiteSpace(title) ? singer.Name : $"{title.Trim()} - {singer.Name}");
+            lines.Add(string.IsNullOrWhiteSpace(media?.Title)
+                ? singer.Name
+                : ComposeEntry(format, media, singer, index + 1));
         }
 
         return lines;
     }
+
+    /// <summary>Replaces every tag a host may use; one not present in the format is simply not shown.</summary>
+    private static string ComposeEntry(string format, Media media, KHostUser singer, int position)
+        => format
+            .Replace("{song}", media.Title.Trim(), StringComparison.OrdinalIgnoreCase)
+            .Replace("{artist}", media.Artist.Trim(), StringComparison.OrdinalIgnoreCase)
+            .Replace("{singer}", singer.Name, StringComparison.OrdinalIgnoreCase)
+            .Replace("{position}", position.ToString(), StringComparison.OrdinalIgnoreCase);
 
     public void Dispose()
     {

@@ -72,6 +72,13 @@ public class Venue : RepositoryModel
         /// <summary>The venue's own line — a drink special, a closing time. Null shows only singers.</summary>
         public string? MarqueeMessage { get; set; }
 
+        /// <summary>
+        /// How each up-next line reads. Tags <c>{song}</c>, <c>{artist}</c>, <c>{singer}</c> and
+        /// <c>{position}</c> are replaced per singer; null or blank falls back to
+        /// <c>"{song} - {singer}"</c> rather than composing an empty line.
+        /// </summary>
+        public string? MarqueeEntryFormat { get; set; }
+
         public MarqueePosition MarqueePosition { get; set; }
 
         /// <summary>Null takes the screen's own default, which is what most venues want.</summary>

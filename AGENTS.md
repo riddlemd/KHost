@@ -157,9 +157,12 @@ one `SetMarqueeCommand`.
 - It is **one line, always**. `white-space: nowrap` is restated on the track and its spans rather
   than left to inherit, and the venue's message is collapsed to a single line host-side, because
   the band is fixed to an edge: a second line grows over the picture instead of pushing the page.
-- Entries read `Song - Singer`, composed by the host from the queue order and each singer's first
-  queued performance. A singer with nothing queued is named alone rather than dropped — the host
-  has them on the list, and the band must not disagree with the queue on screen.
+- Entries are built from the venue's `MarqueeEntryFormat` — `{song} - {singer}` when a venue has
+  never set one, since a blank format would compose empty lines rather than reading as "unset".
+  Tags (`{song}`, `{artist}`, `{singer}`, `{position}`, matched case-insensitively) are replaced
+  per singer from the queue order and their first queued performance. A singer with nothing queued
+  is named alone rather than run through the format — the host has them on the list, and the band
+  must not disagree with the queue on screen.
 - Every marquee venue setting reads as "off" when its key is missing (`false`, `0`, `null`), so
   the feature needed **no backfill migration** — see the `Venue.Settings` note above. Zero means
   "the screen decides" for size and speed; the dialog offers the screen's own values instead,
