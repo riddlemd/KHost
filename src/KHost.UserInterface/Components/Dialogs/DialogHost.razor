@@ -89,5 +89,11 @@
             <ScreensDialog @key="r.Id" IsOpen="true"
                 OnClose="@(() => { r.OnClose?.Invoke(); Close(r); })" />
             break;
+
+        case TextPromptDialog.DialogRequest r:
+            <TextPromptDialog @key="r.Id" IsOpen="true" Title="@r.Title" Message="@r.Message" Fields="@r.Fields"
+                OnSubmit="@(async (values) => { await r.OnSubmit(values); Close(r); })"
+                OnClose="@(() => { r.OnCancel?.Invoke(); Close(r); })" />
+            break;
     }
 }

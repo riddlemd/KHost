@@ -1,0 +1,13 @@
+.kh-text-prompt-dialog {
+    &__message {
+        margin: 0 0 1em;
+        color: var(--kh-text-secondary);
+    }
+
+    &__field {
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+        margin-bottom: 1em;
+    }
+}

@@ -1,4 +1,5 @@
 using KHost.Abstractions.Exceptions;
+using KHost.Abstractions.Interactions.Requests;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using KHost.UserInterface.Components.Dialogs;
@@ -125,6 +126,17 @@ public class DialogService : IDialogService
             message ?? "You have changes that have not been saved yet.", onSave, onDiscard, onStay);
 
         _logger.LogDebug("Dialog requested: {DialogType}", nameof(UnsavedChangesDialog));
+        ShowRequested?.Invoke(this, request);
+
+        return Task.CompletedTask;
+    }
+
+    public Task RequestTextPromptAsync(
+        string title, string? message, IReadOnlyList<TextPromptField> fields,
+        Func<IReadOnlyDictionary<string, string>, Task> onSubmit, Action? onCancel = null, Action? onClose = null)
+    {
+        var request = new TextPromptDialog.DialogRequest(title, message, fields, onSubmit, onCancel, onClose);
+        _logger.LogDebug("Dialog requested: {DialogType} title={Title}", nameof(TextPromptDialog), title);
         ShowRequested?.Invoke(this, request);
 
         return Task.CompletedTask;
