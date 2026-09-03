@@ -12,8 +12,8 @@
             <DataAnnotationsValidator />
             <div >
                 <div class="kh-form-check">
-                    <InputCheckbox class="kh-form-check-input" id="updateArtistCheck" @bind-Value="_model.UpdateArtist" />
                     <label class="kh-form-check-label" for="updateArtistCheck">Update Artist</label>
+                    <InputCheckbox class="kh-form-check-input" id="updateArtistCheck" @bind-Value="_model.UpdateArtist" />
                 </div>
                 <InputText class="@($"kh-form-control {(_model.UpdateArtist ? "" : "disabled")}".Trim())"
                            disabled="@(!_model.UpdateArtist)"
@@ -23,8 +23,8 @@
             </div>
             <div >
                 <div class="kh-form-check">
-                    <InputCheckbox class="kh-form-check-input" id="swapCheck" @bind-Value="_model.SwapTitleAndArtist" />
                     <label class="kh-form-check-label" for="swapCheck">Swap Title and Artist</label>
+                    <InputCheckbox class="kh-form-check-input" id="swapCheck" @bind-Value="_model.SwapTitleAndArtist" />
                 </div>
             </div>
             <button type="submit" class="kh-hidden"></button>
