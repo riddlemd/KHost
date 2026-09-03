@@ -1,6 +1,7 @@
 using KHost.Abstractions.Services;
 using KHost.Abstractions.Messaging;
 using KHost.Abstractions.Messaging.Messages;
+using KHost.UserInterface.Components.Panels;
 using Microsoft.AspNetCore.Components;
 using Microsoft.JSInterop;
 
@@ -16,9 +17,11 @@ public partial class HomePage : IAsyncDisposable
     private readonly SubscriptionSet _subscriptions = new();
 
     private bool _hasMedia;
+    private bool _focusMediaSearchPending;
 
     private IJSObjectReference? _module;
     private IJSObjectReference? _handle;
+    private MediaSearchPanel? _mediaSearchPanel;
 
     protected override async Task OnInitializedAsync()
     {
@@ -30,22 +33,34 @@ public partial class HomePage : IAsyncDisposable
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (!firstRender) return;
-
-try
+        if (firstRender)
         {
-            if (JS is null) return;
+            try
+            {
+                if (JS is not null)
+                {
+                    _module = await JS.InvokeAsync<IJSObjectReference>("import", "/js/panel-resize.js");
 
-            _module = await JS.InvokeAsync<IJSObjectReference>("import", "/js/panel-resize.js");
+                    _handle = await _module.InvokeAsync<IJSObjectReference>("init");
+                }
+            }
+            catch
+            {
+            }
 
-            _handle = await _module.InvokeAsync<IJSObjectReference>("init");
+            await InvokeAsync(StateHasChanged);
         }
-        catch
+
+        // The panel does not exist until the render that the add put SelectedUser onto — checked
+        // every render, not just the first, since it may already have existed for an earlier singer.
+        if (_focusMediaSearchPending && _mediaSearchPanel is not null)
         {
+            _focusMediaSearchPending = false;
+            await _mediaSearchPanel.FocusQueryAsync();
         }
-
-        await InvokeAsync(StateHasChanged);
     }
+
+    private void OnSingerAdded() => _focusMediaSearchPending = true;
 
     public async ValueTask DisposeAsync()
     {
