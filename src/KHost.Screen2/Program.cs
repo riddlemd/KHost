@@ -11,6 +11,7 @@ internal static class Program
 {
     private static ScreenIpcController? _ipc;
     private static WindowPlacementStore? _placement;
+    private static readonly CancellationTokenSource _closing = new();
 
     private static bool _isFullScreen;
     private static int _restoreLeft, _restoreTop, _restoreWidth, _restoreHeight;
@@ -113,9 +114,14 @@ internal static class Program
 
         window.WaitForClose();
 
+        // Stops the connect retry loop, which otherwise keeps a closing screen alive waiting on
+        // its next delay.
+        _closing.Cancel();
+
         _placement.Dispose();
         _ipc.DisposeAsync().AsTask().GetAwaiter().GetResult();
         Log.CloseAndFlush();
+        _closing.Dispose();
     }
 
     /// <summary>Builds the player page with its script inlined, from the embedded resources.</summary>
@@ -241,16 +247,54 @@ internal static class Program
         }
     }
 
+    /// <summary>How long to wait before each retry of the first connection, then this far apart.</summary>
+    private static readonly TimeSpan[] ConnectBackoff =
+        [TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(4), TimeSpan.FromSeconds(8)];
+
+    private static readonly TimeSpan ConnectRetryInterval = TimeSpan.FromSeconds(15);
+
+    /// <summary>
+    /// Keeps trying until the host answers or the window closes. The first connection is the one
+    /// attempt SignalR's automatic reconnect does not cover — it resumes a connection that was
+    /// established, and one that never was is not that — so without this a screen that started a
+    /// moment before its host gave up for the night. Retried rather than given a longer initial
+    /// wait: a screen has nothing to do until the host is there, and no way to know how long that
+    /// will be.
+    /// </summary>
     private static async Task ConnectAsync(Microsoft.Extensions.Logging.ILogger logger, string serverUri, string screenId, byte[] authKey)
     {
-        try
+        for (var attempt = 0; !_closing.IsCancellationRequested; attempt++)
         {
-            await _ipc!.ConnectAsync(serverUri, screenId, authKey);
-            logger.LogInformation("Connected to IPC server");
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "Failed to connect to IPC server at {Uri}", serverUri);
+            try
+            {
+                await _ipc!.ConnectAsync(serverUri, screenId, authKey, _closing.Token);
+                logger.LogInformation("Connected to IPC server");
+                return;
+            }
+            catch (OperationCanceledException) when (_closing.IsCancellationRequested)
+            {
+                return;
+            }
+            catch (Exception ex)
+            {
+                var wait = attempt < ConnectBackoff.Length ? ConnectBackoff[attempt] : ConnectRetryInterval;
+
+                // The first failure is the one worth a stack trace: a host that is simply not up
+                // yet would otherwise fill the night's log with the same exception.
+                if (attempt == 0)
+                    logger.LogWarning(ex, "Could not reach the IPC server at {Uri}; retrying", serverUri);
+                else
+                    logger.LogDebug("Still could not reach {Uri} (attempt {Attempt}): {Message}", serverUri, attempt + 1, ex.Message);
+
+                try
+                {
+                    await Task.Delay(wait, _closing.Token);
+                }
+                catch (OperationCanceledException)
+                {
+                    return;
+                }
+            }
         }
     }
 
