@@ -81,6 +81,14 @@ internal sealed class ScreenClient : IScreenClient, IAsyncDisposable
 
             _logger.LogInformation("Connecting to {Url}", serverUri);
 
+            // A failed attempt leaves its connection behind, and a caller retrying the first
+            // connect would abandon one per attempt.
+            if (_connection is not null)
+            {
+                await _connection.DisposeAsync();
+                _connection = null;
+            }
+
             _connection = new HubConnectionBuilder()
                 .WithUrl(serverUri)
                 .WithAutomaticReconnect()
