@@ -1,4 +1,5 @@
 using KHost.Abstractions.Models;
+using KHost.Abstractions.Models.Plugins;
 using KHost.Abstractions.Repositories;
 using KHost.Abstractions.Services;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -14,11 +15,14 @@ public class MediaImportServiceTests
     private readonly IMediaService _mediaService = Substitute.For<IMediaService>();
     private readonly IMediaFingerprintService _fingerprints = Substitute.For<IMediaFingerprintService>();
     private readonly IAnalyticsService _analytics = Substitute.For<IAnalyticsService>();
+    private readonly IPluginRegistry _plugins = Substitute.For<IPluginRegistry>();
     private readonly MessageBroker _broker = new(NullLogger<MessageBroker>.Instance);
     private readonly MediaImportService _service;
 
     public MediaImportServiceTests()
     {
+        _plugins.Plugins.Returns((IReadOnlyList<DiscoveredPlugin>)[]);
+
         _repository.GetExistingFilePathsAsync(Arg.Any<IEnumerable<string>>())
             .Returns(new HashSet<string>());
         _repository.GetByFileSizesAsync(Arg.Any<IEnumerable<long>>())
@@ -34,6 +38,7 @@ public class MediaImportServiceTests
             _mediaService,
             _fingerprints,
             _analytics,
+            _plugins,
             _broker);
     }
 
@@ -269,4 +274,62 @@ public class MediaImportServiceTests
             await Task.Delay(50);
         Assert.Equal(ImportState.Idle, _service.State);
     }
+
+    [Fact]
+    public void SupportedExtensions_IncludeTheBuiltInFormats()
+        => Assert.Superset(new HashSet<string> { ".mp4", ".mkv", ".cdg" }, Build().SupportedExtensions.ToHashSet());
+
+    [Fact]
+    public void SupportedExtensions_IncludeALoadedPluginsImportFormats()
+    {
+        var service = Build(Plugin(PluginStatus.Loaded, ".khv"));
+
+        Assert.Contains(".khv", service.SupportedExtensions);
+    }
+
+    [Fact]
+    public void SupportedExtensions_ExcludeAnUnloadedPluginsImportFormats()
+    {
+        var service = Build(Plugin(PluginStatus.Disabled, ".khv"));
+
+        Assert.DoesNotContain(".khv", service.SupportedExtensions);
+    }
+
+    /// <summary>A plugin may hand back any casing, with or without the dot or a glob — all one extension.</summary>
+    [Fact]
+    public void SupportedExtensions_NormalizeAndDeduplicatePluginFormats()
+    {
+        var service = Build(Plugin(PluginStatus.Loaded, "KHV", "*.khv", ".Khv"));
+
+        // Three spellings collapse to exactly one entry, lower-cased with a leading dot.
+        var khv = service.SupportedExtensions
+            .Where(extension => extension.Equals(".khv", StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        Assert.Equal([".khv"], khv);
+    }
+
+    private MediaImportService Build(params DiscoveredPlugin[] plugins)
+    {
+        var registry = Substitute.For<IPluginRegistry>();
+        registry.Plugins.Returns(plugins);
+        return new MediaImportService(
+            NullLogger<MediaImportService>.Instance, _parser, _repository, _mediaService,
+            _fingerprints, _analytics, registry, _broker);
+    }
+
+    private static DiscoveredPlugin Plugin(PluginStatus status, params string[] importFormats) => new()
+    {
+        Directory = "/plugins/x",
+        Status = status,
+        Manifest = new PluginManifest
+        {
+            Id = Guid.NewGuid(),
+            Name = "X",
+            Version = "1.0.0",
+            EntryAssembly = "X.dll",
+            ApiVersion = PluginApi.CurrentVersion,
+            ImportFormats = [.. importFormats],
+        },
+    };
 }
