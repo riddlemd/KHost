@@ -303,71 +303,16 @@ internal static class Program
         app.MapThemeStylesheets();
         app.MapPluginIcons();
 
-        // Point launched screen processes at this host's live listening address, so they
-        // connect regardless of the (possibly dynamic, e.g. Aspire-assigned) port.
-        // An explicit LocalScreen:ServerUri config value always wins.
-        if (string.IsNullOrWhiteSpace(app.Configuration["LocalScreen:ServerUri"]))
-        {
-            app.Lifetime.ApplicationStarted.Register(() =>
-            {
-                var baseUri = ResolveBaseAddress(app);
-                if (baseUri is null)
-                {
-                    Log.Warning("Could not resolve a host listening address; screens will use the LocalScreen.ServerUri default");
-                    return;
-                }
-
-                var options = app.Services.GetRequiredService<IOptions<LocalScreenProvider.ServiceOptions>>().Value;
-                options.ServerUri = $"{baseUri}/ipc/screen";
-                Log.Information("Local screen IPC URI resolved to {ServerUri}", options.ServerUri);
-            });
-        }
-
-        // A screen fetches HLS from this address, so it has to be the live one.
-        if (string.IsNullOrWhiteSpace(app.Configuration["MediaStream:BaseAddress"]))
-        {
-            app.Lifetime.ApplicationStarted.Register(() =>
-            {
-                var baseUri = ResolveBaseAddress(app);
-                if (baseUri is null)
-                {
-                    Log.Warning("Could not resolve a host listening address; screens will use the MediaStream.BaseAddress default");
-                    return;
-                }
-
-                var options = app.Services.GetRequiredService<IOptions<HlsMediaStreamService.ServiceOptions>>().Value;
-                options.BaseAddress = baseUri;
-                Log.Information("Media stream base address resolved to {BaseAddress}", options.BaseAddress);
-            });
-        }
-
-        // Registered after the two above, and callbacks run in order, so the screen is launched
-        // with the resolved IPC address rather than the default one.
+        // One callback, in this order, on purpose. ApplicationStarted is a CancellationToken, and
+        // its callbacks run in REVERSE registration order — so a screen launched from a callback
+        // registered "after" these would in fact start first, carrying the configured default port
+        // instead of the live one. A screen only tries its first connection once (automatic
+        // reconnect covers a connection that was established, not one that never was), so getting
+        // that address wrong is not a slow start: it is a screen that never connects at all.
         app.Lifetime.ApplicationStarted.Register(() =>
         {
-            if (!app.Services.GetRequiredService<IAppSettingsService>().Current.LaunchScreenOnStartup)
-                return;
-
-            try
-            {
-                var provider = app.Services.GetServices<IScreenProvider>()
-                    .FirstOrDefault(candidate => candidate.IsAvailable);
-
-                if (provider is null)
-                {
-                    Log.Warning("A screen was set to launch at startup, but no screen provider is available here");
-                    return;
-                }
-
-                // The same name every night, which is what lets the screen reclaim the window
-                // placement it saved last time.
-                provider.LaunchAsync(AppSettings.StartupScreenName).GetAwaiter().GetResult();
-            }
-            catch (Exception ex)
-            {
-                // A console that cannot open a screen is still a console.
-                Log.Warning(ex, "Could not launch the startup screen");
-            }
+            ApplyResolvedAddresses(app);
+            LaunchStartupScreen(app);
         });
 
         // Segments outlive the process, so sweep them on the way down.
@@ -624,6 +569,69 @@ internal static class Program
     }
 
     /// <summary>The host's live base address, or null if Kestrel reported none.</summary>
+    /// <summary>
+    /// Points launched screens at this host's live listening address, so they connect regardless of
+    /// the (possibly dynamic, e.g. Aspire-assigned) port. An explicit config value always wins:
+    /// someone who named an address meant it.
+    /// </summary>
+    private static void ApplyResolvedAddresses(WebApplication app)
+    {
+        var wantsIpcUri = string.IsNullOrWhiteSpace(app.Configuration["LocalScreen:ServerUri"]);
+        var wantsStreamAddress = string.IsNullOrWhiteSpace(app.Configuration["MediaStream:BaseAddress"]);
+
+        if (!wantsIpcUri && !wantsStreamAddress)
+            return;
+
+        var baseUri = ResolveBaseAddress(app);
+        if (baseUri is null)
+        {
+            Log.Warning("Could not resolve a host listening address; screens will use the configured defaults");
+            return;
+        }
+
+        if (wantsIpcUri)
+        {
+            var options = app.Services.GetRequiredService<IOptions<LocalScreenProvider.ServiceOptions>>().Value;
+            options.ServerUri = $"{baseUri}/ipc/screen";
+            Log.Information("Local screen IPC URI resolved to {ServerUri}", options.ServerUri);
+        }
+
+        // A screen fetches HLS from this address, so it has to be the live one.
+        if (wantsStreamAddress)
+        {
+            var options = app.Services.GetRequiredService<IOptions<HlsMediaStreamService.ServiceOptions>>().Value;
+            options.BaseAddress = baseUri;
+            Log.Information("Media stream base address resolved to {BaseAddress}", options.BaseAddress);
+        }
+    }
+
+    private static void LaunchStartupScreen(WebApplication app)
+    {
+        if (!app.Services.GetRequiredService<IAppSettingsService>().Current.LaunchScreenOnStartup)
+            return;
+
+        try
+        {
+            var provider = app.Services.GetServices<IScreenProvider>()
+                .FirstOrDefault(candidate => candidate.IsAvailable);
+
+            if (provider is null)
+            {
+                Log.Warning("A screen was set to launch at startup, but no screen provider is available here");
+                return;
+            }
+
+            // The same name every night, which is what lets the screen reclaim the window
+            // placement it saved last time.
+            provider.LaunchAsync(AppSettings.StartupScreenName).GetAwaiter().GetResult();
+        }
+        catch (Exception ex)
+        {
+            // A console that cannot open a screen is still a console.
+            Log.Warning(ex, "Could not launch the startup screen");
+        }
+    }
+
     private static string? ResolveBaseAddress(WebApplication app)
     {
         var addresses = app.Services.GetRequiredService<IServer>()
