@@ -142,6 +142,7 @@ namespace KHost.Domain
 
             serviceCollection.AddSingleton<IPluginRegistry>(new PluginRegistry(plugins));
             serviceCollection.AddSingleton<IPluginsService, PluginsService>();
+            serviceCollection.AddSingleton<IPluginButtonService, PluginButtonService>();
             serviceCollection.AddSingleton<IPluginInitializer, PluginInitializer>();
 
             return serviceCollection;
