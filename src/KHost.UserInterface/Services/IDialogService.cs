@@ -1,4 +1,5 @@
 using KHost.Abstractions.Exceptions;
+using KHost.Abstractions.Interactions.Requests;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using KHost.UserInterface.Models;
@@ -36,4 +37,9 @@ public interface IDialogService
     Task ShowErrorAsync(KHostException error, string title = "Something went wrong", Action? onRetry = null, Action? onClose = null);
     Task RequestEditAsync(Tip? item, Guid userId, Func<Tip?, Task> onSave, Action? onCancel = null, Action? onClose = null, bool showDate = true);
     Task RequestBulkEditAsync(IReadOnlyList<Media> items, Func<BulkEditMediaModel, Task> onSave, Action? onCancel = null, Action? onClose = null);
+
+    /// <summary>Collects values a caller will not persist — see <see cref="TextPromptRequest"/>.</summary>
+    Task RequestTextPromptAsync(
+        string title, string? message, IReadOnlyList<TextPromptField> fields,
+        Func<IReadOnlyDictionary<string, string>, Task> onSubmit, Action? onCancel = null, Action? onClose = null);
 }
