@@ -13,7 +13,7 @@ public class MediaGateServiceTests
     private static IMediaPlaybackGate Gate(string key, PlaybackGateResult result)
     {
         var gate = Substitute.For<IMediaPlaybackGate>();
-        gate.GateKey.Returns(key);
+        gate.ProviderId.Returns(key);
         gate.CanPlayAsync(Arg.Any<Media>(), Arg.Any<CancellationToken>()).Returns(result);
         return gate;
     }
