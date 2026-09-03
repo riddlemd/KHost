@@ -19,10 +19,17 @@ public sealed record PlaybackGateResult(bool Allowed, string? Reason)
 /// </summary>
 public interface IMediaPlaybackGate
 {
-    /// <summary>The container metadata tag a gated file carries, holding the owning gate's key.</summary>
-    public const string MetadataTag = "khost_gate";
+    /// <summary>
+    /// The container metadata tag a gated file carries, holding the owning gate's key. The key is
+    /// the plugin's own identifier — its assembly name, so it is unique without a registry — which
+    /// is why the tag reads <c>khost_provider</c>.
+    /// </summary>
+    public const string MetadataTag = "khost_provider";
 
-    /// <summary>Matched, case-insensitively, against a file's <see cref="MetadataTag"/> value.</summary>
+    /// <summary>
+    /// The plugin's identifier (its assembly name, e.g. <c>KHost.Plugins.KaraFun</c>), matched
+    /// case-insensitively against a file's <see cref="MetadataTag"/> value.
+    /// </summary>
     string GateKey { get; }
 
     /// <summary>

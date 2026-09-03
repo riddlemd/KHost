@@ -19,11 +19,11 @@ public class MediaTagReaderTests : IDisposable
     [RequiresFfmpegFact]
     public async Task ReadTag_ReadsAMarkerWrittenWithUseMetadataTags()
     {
-        var path = await CreateMarkedMp4Async("karafun");
+        var path = await CreateMarkedMp4Async("KHost.Plugins.KaraFun");
 
         var value = await _reader.ReadTagAsync(path, IMediaPlaybackGate.MetadataTag);
 
-        Assert.Equal("karafun", value);
+        Assert.Equal("KHost.Plugins.KaraFun", value);
     }
 
     [RequiresFfmpegFact]

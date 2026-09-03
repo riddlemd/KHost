@@ -34,7 +34,7 @@ public class MediaGateServiceTests
     public async Task Evaluate_FileHasNoMarker_Allows()
     {
         _tags.ReadTagAsync(Arg.Any<string>(), IMediaPlaybackGate.MetadataTag, Arg.Any<CancellationToken>()).Returns((string?)null);
-        var gate = Gate("karafun", new PlaybackGateResult(false, "no"));
+        var gate = Gate("KHost.Plugins.KaraFun", new PlaybackGateResult(false, "no"));
 
         Assert.True((await Service(gate).EvaluateAsync(Media())).Allowed);
         await gate.DidNotReceive().CanPlayAsync(Arg.Any<Media>(), Arg.Any<CancellationToken>());
@@ -43,16 +43,16 @@ public class MediaGateServiceTests
     [Fact]
     public async Task Evaluate_MarkerMatchesNoLoadedGate_Allows()
     {
-        _tags.ReadTagAsync(Arg.Any<string>(), IMediaPlaybackGate.MetadataTag, Arg.Any<CancellationToken>()).Returns("spotify");
+        _tags.ReadTagAsync(Arg.Any<string>(), IMediaPlaybackGate.MetadataTag, Arg.Any<CancellationToken>()).Returns("KHost.Plugins.Spotify");
 
-        Assert.True((await Service(Gate("karafun", new PlaybackGateResult(false, "no"))).EvaluateAsync(Media())).Allowed);
+        Assert.True((await Service(Gate("KHost.Plugins.KaraFun", new PlaybackGateResult(false, "no"))).EvaluateAsync(Media())).Allowed);
     }
 
     [Fact]
     public async Task Evaluate_MarkerMatchesAGate_ReturnsThatGatesDecision()
     {
-        _tags.ReadTagAsync(Arg.Any<string>(), IMediaPlaybackGate.MetadataTag, Arg.Any<CancellationToken>()).Returns("karafun");
-        var gate = Gate("karafun", new PlaybackGateResult(false, "Sign in to KaraFun."));
+        _tags.ReadTagAsync(Arg.Any<string>(), IMediaPlaybackGate.MetadataTag, Arg.Any<CancellationToken>()).Returns("KHost.Plugins.KaraFun");
+        var gate = Gate("KHost.Plugins.KaraFun", new PlaybackGateResult(false, "Sign in to KaraFun."));
 
         var result = await Service(gate).EvaluateAsync(Media());
 
@@ -64,8 +64,8 @@ public class MediaGateServiceTests
     [Fact]
     public async Task Evaluate_MarkerMatchesAGate_CaseInsensitively()
     {
-        _tags.ReadTagAsync(Arg.Any<string>(), IMediaPlaybackGate.MetadataTag, Arg.Any<CancellationToken>()).Returns("KaraFun");
-        var gate = Gate("karafun", new PlaybackGateResult(false, "blocked"));
+        _tags.ReadTagAsync(Arg.Any<string>(), IMediaPlaybackGate.MetadataTag, Arg.Any<CancellationToken>()).Returns("KHOST.PLUGINS.KARAFUN");
+        var gate = Gate("KHost.Plugins.KaraFun", new PlaybackGateResult(false, "blocked"));
 
         Assert.False((await Service(gate).EvaluateAsync(Media())).Allowed);
     }
