@@ -23,6 +23,80 @@
             </div>
 
             <div class="kh-venue-settings__section">
+                <span class="kh-venue-settings__section-title">Screen marquee</span>
+
+                <label class="kh-venue-settings__row kh-form-check">
+                    <span class="kh-form-check-label">Show a marquee on the screen</span>
+                    <input id="venue-marquee-enabled" type="checkbox" class="kh-form-check-input" @bind="_model.MarqueeEnabled" />
+                </label>
+
+                @if (_model.MarqueeEnabled)
+                {
+                    <div class="kh-venue-settings__row">
+                        <label for="marquee-singer-count" class="kh-form-label">Singers to show</label>
+                        <InputNumber id="marquee-singer-count" class="kh-form-control"
+                                     @bind-Value="_model.MarqueeSingerCount" min="0" max="20" />
+                    </div>
+
+                    <div class="kh-venue-settings__field">
+                        <label for="marquee-message" class="kh-form-label">Message</label>
+                        <InputText id="marquee-message" class="kh-form-control"
+                                   @bind-Value="_model.MarqueeMessage"
+                                   placeholder="Happy hour until 8 — ask your host about specials" />
+                    </div>
+
+                    <div class="kh-venue-settings__field">
+                        <label for="marquee-entry-format" class="kh-form-label">Entry format</label>
+                        <InputText id="marquee-entry-format" class="kh-form-control"
+                                   @bind-Value="_model.MarqueeEntryFormat"
+                                   placeholder="{song} - {singer}" />
+                        <p class="kh-venue-settings__hint">
+                            Tags: <code>{song}</code>, <code>{artist}</code>, <code>{singer}</code>, <code>{position}</code>.
+                            Left blank, entries read <code>{song} - {singer}</code>.
+                        </p>
+                    </div>
+
+                    <div class="kh-venue-settings__row">
+                        <label for="marquee-font-size" class="kh-form-label">Text size</label>
+                        <InputNumber id="marquee-font-size" class="kh-form-control"
+                                     @bind-Value="_model.MarqueeFontSizePixels" min="12" max="96" />
+                    </div>
+
+                    <div class="kh-venue-settings__row">
+                        <label for="marquee-speed" class="kh-form-label">Scroll speed</label>
+                        <InputNumber id="marquee-speed" class="kh-form-control"
+                                     @bind-Value="_model.MarqueeScrollSpeed" min="15" max="400" />
+                    </div>
+
+                    <div class="kh-venue-settings__row">
+                        <label for="marquee-position" class="kh-form-label">Position</label>
+                        <InputSelect id="marquee-position" class="kh-form-select" @bind-Value="_model.MarqueePosition">
+                            <option value="@MarqueePosition.Bottom">Bottom of the screen</option>
+                            <option value="@MarqueePosition.Top">Top of the screen</option>
+                        </InputSelect>
+                    </div>
+
+                    <div class="kh-venue-settings__row">
+                        <label for="marquee-background" class="kh-form-label">Background color</label>
+                        <InputText id="marquee-background" type="color" class="kh-form-control kh-venue-settings__color"
+                                   @bind-Value="_model.MarqueeBackgroundColor" />
+                    </div>
+
+                    <div class="kh-venue-settings__row">
+                        <label for="marquee-text" class="kh-form-label">Text color</label>
+                        <InputText id="marquee-text" type="color" class="kh-form-control kh-venue-settings__color"
+                                   @bind-Value="_model.MarqueeTextColor" />
+                    </div>
+
+                    <label class="kh-venue-settings__row kh-form-check">
+                        <span class="kh-form-check-label">Hold &ldquo;Up next&rdquo; at the edge instead of scrolling it</span>
+                        <input id="venue-marquee-pin-label" type="checkbox" class="kh-form-check-input"
+                               @bind="_model.MarqueePinLabel" />
+                    </label>
+                }
+            </div>
+
+            <div class="kh-venue-settings__section">
                 <span class="kh-venue-settings__section-title">Between singers</span>
 
                 <div class="kh-venue-settings__row">
@@ -112,73 +186,6 @@
                         <option value="@ScreenDisconnectBehavior.CancelPerformance">Cancel the song</option>
                     </InputSelect>
                 </div>
-            </div>
-
-            <div class="kh-venue-settings__section">
-                <span class="kh-venue-settings__section-title">Screen marquee</span>
-
-                <label class="kh-venue-settings__row kh-form-check">
-                    <input id="venue-marquee-enabled" type="checkbox" class="kh-form-check-input" @bind="_model.MarqueeEnabled" />
-                    <span class="kh-form-check-label">Show a marquee on the screen</span>
-                </label>
-
-                @if (_model.MarqueeEnabled)
-                {
-                    <div class="kh-venue-settings__row">
-                        <label for="marquee-singer-count" class="kh-form-label">Singers to show</label>
-                        <InputNumber id="marquee-singer-count" class="kh-form-control"
-                                     @bind-Value="_model.MarqueeSingerCount" min="0" max="20" />
-                    </div>
-
-                    <div class="kh-venue-settings__field">
-                        <label for="marquee-message" class="kh-form-label">Message</label>
-                        <InputText id="marquee-message" class="kh-form-control"
-                                   @bind-Value="_model.MarqueeMessage"
-                                   placeholder="Happy hour until 8 — ask your host about specials" />
-                    </div>
-
-                    <div class="kh-venue-settings__row">
-                        <label for="marquee-font-size" class="kh-form-label">Text size</label>
-                        <InputNumber id="marquee-font-size" class="kh-form-control"
-                                     @bind-Value="_model.MarqueeFontSizePixels" min="12" max="96" />
-                    </div>
-
-                    <div class="kh-venue-settings__row">
-                        <label for="marquee-speed" class="kh-form-label">Scroll speed</label>
-                        <InputNumber id="marquee-speed" class="kh-form-control"
-                                     @bind-Value="_model.MarqueeScrollSpeed" min="15" max="400" />
-                    </div>
-
-                    <div class="kh-venue-settings__row">
-                        <label for="marquee-position" class="kh-form-label">Position</label>
-                        <InputSelect id="marquee-position" class="kh-form-select" @bind-Value="_model.MarqueePosition">
-                            <option value="@MarqueePosition.Bottom">Bottom of the screen</option>
-                            <option value="@MarqueePosition.Top">Top of the screen</option>
-                        </InputSelect>
-                    </div>
-
-                    <div class="kh-venue-settings__row">
-                        <label for="marquee-background" class="kh-form-label">Background color</label>
-                        <InputText id="marquee-background" type="color" class="kh-form-control kh-venue-settings__color"
-                                   @bind-Value="_model.MarqueeBackgroundColor" />
-                    </div>
-
-                    <div class="kh-venue-settings__row">
-                        <label for="marquee-text" class="kh-form-label">Text color</label>
-                        <InputText id="marquee-text" type="color" class="kh-form-control kh-venue-settings__color"
-                                   @bind-Value="_model.MarqueeTextColor" />
-                    </div>
-
-                    <label class="kh-venue-settings__row kh-form-check">
-                        <input id="venue-marquee-pin-label" type="checkbox" class="kh-form-check-input"
-                               @bind="_model.MarqueePinLabel" />
-                        <span class="kh-form-check-label">Hold &ldquo;Up next&rdquo; at the edge instead of scrolling it</span>
-                    </label>
-
-                    <p class="kh-venue-settings__hint">
-                        Zero singers leaves a message-only marquee. Text size is in pixels; scroll speed is pixels a second.
-                    </p>
-                }
             </div>
 
             <div class="kh-venue-settings__section">
