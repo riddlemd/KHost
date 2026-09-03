@@ -188,10 +188,16 @@ one `SetMarqueeCommand`.
 ## Screens on startup, and where their windows sit
 
 - `LocalScreen:LaunchOnStartup` (the App Settings page's "Open a screen when KHost starts") opens
-  one screen named `AppSettings.StartupScreenName`. It runs from `ApplicationStarted`, registered
-  **after** the two callbacks that resolve the live listening address — callbacks run in order, so
-  the screen is launched pointing at the real IPC URI rather than the configured default. Read once
-  on the way up, so changing it flips `RestartRequired` rather than pretending to take effect.
+  one screen named `AppSettings.StartupScreenName`. Read once on the way up, so changing it flips
+  `RestartRequired` rather than pretending to take effect.
+- **Resolving the listening address and launching that screen are one `ApplicationStarted`
+  callback, in that order, and must stay one.** `ApplicationStarted` is a `CancellationToken`, and
+  its callbacks run in **reverse registration order** — registering the launch "after" the
+  resolution ran it *first*, so the screen carried `LocalScreenProvider.ServiceOptions`' default
+  `http://localhost:5000/ipc/screen` while the host was on another port. That is not a slow start
+  a screen recovers from: `ScreenClient` tries its first connection once, and
+  `WithAutomaticReconnect` covers a connection that was established, not one that never was — so a
+  wrong address at launch is a screen that sits there forever saying it lost the host.
 - A screen remembers its own window in `cache/screens/<screen id>.window.json`, **on the machine
   the window is on**. Not host-side: a screen on another machine keeps its own place, and one
   started by hand remembers as much as one the host launched.
