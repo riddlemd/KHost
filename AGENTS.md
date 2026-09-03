@@ -118,6 +118,14 @@ each rule. `IPluginContext` carries the plugin's own manifest and stored setting
   A block refuses the load like a non-Ready row and flashes the gate's reason — nothing on screen
   says why otherwise. The check runs on every load, so a gate stays cheap (the in-memory answer,
   not a round trip) unless the content is worth one.
+- A plugin adds file extensions the media importer's folder scan recognises with a manifest
+  `importFormats: [".khv"]` — declarative, like `settings` and `buttons`, so the importer reads it
+  from `IPluginRegistry` without resolving the plugin. `MediaImportService` unions the built-in
+  extensions with those of **loaded** plugins (an unloaded one has no owner), normalised to
+  leading-dot lowercase. It is an extension *filter* only — the plugin asserts the host can already
+  play the file as-is; teaching the host to *convert* an unplayable format would be a separate
+  import-handler contract. Deliberately not content-probing the folder: an ffprobe per file is
+  ~15–40ms, tens of minutes across a 50k-song library, where the extension check is free.
 - **A plugin extension type is one singleton, shared across every extension interface it
   implements.** The loader registers the concrete type once and points each interface at it, so
   KaraFun's `KaraFunMediaProvider` is its `IMediaProvider` search, its `IPluginButtonHandler`

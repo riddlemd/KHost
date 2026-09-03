@@ -57,6 +57,7 @@ public class MediaImportContentDedupTests : IDisposable
             mediaService,
             new MediaFingerprintService(NullLogger<MediaFingerprintService>.Instance),
             analytics,
+            EmptyRegistry(),
             new MessageBroker(NullLogger<MessageBroker>.Instance));
     }
 
@@ -181,5 +182,12 @@ public class MediaImportContentDedupTests : IDisposable
         }
 
         GC.SuppressFinalize(this);
+    }
+
+    private static IPluginRegistry EmptyRegistry()
+    {
+        var registry = Substitute.For<IPluginRegistry>();
+        registry.Plugins.Returns((IReadOnlyList<KHost.Abstractions.Models.Plugins.DiscoveredPlugin>)[]);
+        return registry;
     }
 }
