@@ -391,9 +391,14 @@ const MARQUEE_SPEED = 90;
 const MARQUEE_SPEED_MIN = 15;
 const MARQUEE_SPEED_MAX = 400;
 
+// What the band last read, so a resend that changes nothing readable (a colour tweak, the same
+// queue re-announced after an unrelated change) does not yank the scroll back to its start.
+let marqueeSignature = null;
+
 function setMarquee(message) {
     if (message.enabled !== true) {
         marquee.hidden = true;
+        marqueeSignature = null;
         return;
     }
 
@@ -407,6 +412,7 @@ function setMarquee(message) {
     // run zero singers, and the room should just see the video.
     if (!hasSingers && !message.message) {
         marquee.hidden = true;
+        marqueeSignature = null;
         return;
     }
 
@@ -433,9 +439,17 @@ function setMarquee(message) {
         return span;
     };
 
+    // Rebuilt only when what it reads actually changed. Swapping in identical nodes is where the
+    // glitch came from: the browser doesn't know the new pair reads the same as the old one, so it
+    // restarts the scroll anyway, and one host on top of another restarts the band every few
+    // seconds instead of scrolling.
+    const signature = JSON.stringify([singers, pinned, message.message || '']);
+    const contentChanged = signature !== marqueeSignature;
+    marqueeSignature = signature;
+
     // Both copies carry the same content: the keyframes translate the pair by half its width, so
     // the second is what covers the screen while the first wraps around.
-    marqueeTrack.replaceChildren(build(), build());
+    if (contentChanged) marqueeTrack.replaceChildren(build(), build());
 
     marquee.dataset.position = message.position === 'top' ? 'top' : 'bottom';
     marquee.dataset.pinned = pinned ? 'true' : 'false';
@@ -458,7 +472,19 @@ function setMarquee(message) {
 
     // Measured after unhiding, or the track has no width to scale the duration against.
     const distance = marqueeTrack.scrollWidth / 2;
-    marquee.style.setProperty('--marquee-duration', `${Math.max(4, distance / speed)}s`);
+    const duration = `${Math.max(4, distance / speed)}s`;
+    const durationChanged = duration !== marquee.style.getPropertyValue('--marquee-duration');
+    marquee.style.setProperty('--marquee-duration', duration);
+
+    // New or differently-timed text otherwise inherits however far the old lap had already run,
+    // so it can appear already partway across the room's screen instead of starting its scroll
+    // from the beginning. The animation is declared in the stylesheet, not inline, so clearing it
+    // and forcing a reflow before restoring it is what actually restarts its clock.
+    if (contentChanged || durationChanged) {
+        marqueeTrack.style.animation = 'none';
+        void marqueeTrack.offsetWidth;
+        marqueeTrack.style.animation = '';
+    }
 }
 
 function chip(text, className) {
