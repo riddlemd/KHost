@@ -136,7 +136,7 @@
                                         {
                                             <SplitButton
                                                     disabled="@(SingerQueueService?.SelectedUserId is null)"
-                                                    @onclick="() => PerformActionAsync(action.PerformAsync, mediaSearchEntity)"
+                                                    @onclick="() => PerformActionAsync(action, mediaSearchEntity)"
                                                     title="@action.Description">
                                                 <Text>
                                                     <Icon Name="@action.Icon" />
@@ -147,7 +147,7 @@
                                                     {
                                                         <button class="kh-button kh-button--primary"
                                                             disabled="@(SingerQueueService?.SelectedUserId is null)"
-                                                            @onclick="() => PerformActionAsync(subAction.PerformAsync, mediaSearchEntity)"
+                                                            @onclick="() => PerformActionAsync(subAction, mediaSearchEntity)"
                                                                 title="@subAction.Description">
                                                             <Icon Name="@subAction.Icon" /> @subAction.DisplayName
                                                         </button>    
