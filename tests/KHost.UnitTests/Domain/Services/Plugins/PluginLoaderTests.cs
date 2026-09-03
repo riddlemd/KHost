@@ -193,8 +193,11 @@ public class PluginLoaderTests : IDisposable
             .Single(p => p.GetType().Name == nameof(SharedInstanceExtensionDouble));
         var asButtonHandler = provider.GetServices<IPluginButtonHandler>()
             .Single(h => h.GetType().Name == nameof(SharedInstanceExtensionDouble));
+        var asGate = provider.GetServices<IMediaPlaybackGate>()
+            .Single(g => g.GetType().Name == nameof(SharedInstanceExtensionDouble));
 
         Assert.Same(asMediaProvider, asButtonHandler);
+        Assert.Same(asMediaProvider, asGate);
     }
 
     // The Plugins page finds a button handler by plugin id through these bindings.

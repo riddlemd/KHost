@@ -8,7 +8,7 @@ namespace KHost.UnitTests.Domain.Services.Plugins;
 /// test can prove the two interfaces resolve to one shared instance. Loaded by copying this test
 /// assembly in as a plugin entry — nothing else in it implements a plugin extension interface.
 /// </summary>
-public sealed class SharedInstanceExtensionDouble : IMediaProvider, IPluginButtonHandler
+public sealed class SharedInstanceExtensionDouble : IMediaProvider, IPluginButtonHandler, IMediaPlaybackGate
 {
     // The loader builds an extension with its PluginContext as an argument, so a constructor has
     // to accept it — a parameterless one leaves ActivatorUtilities with an unused argument and no
@@ -23,4 +23,8 @@ public sealed class SharedInstanceExtensionDouble : IMediaProvider, IPluginButto
         => Task.FromResult(new List<MediaSearchEntity>());
 
     public Task InvokeButtonAsync(string key, CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+    public string GateKey => "double";
+    public Task<PlaybackGateResult> CanPlayAsync(Media media, CancellationToken cancellationToken = default)
+        => Task.FromResult(PlaybackGateResult.Ok);
 }

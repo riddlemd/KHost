@@ -32,7 +32,7 @@ public static class PluginLoader
     /// to the show — but it is bound the same way, so the type behind it can also be a provider and
     /// share one instance's state.</summary>
     private static readonly Type[] ExtensionInterfaces =
-        [.. CapabilityInterfaces.Select(c => c.Interface), typeof(IPluginButtonHandler)];
+        [.. CapabilityInterfaces.Select(c => c.Interface), typeof(IPluginButtonHandler), typeof(IMediaPlaybackGate)];
 
     public static PluginsState ReadState(string cacheDirectory)
     {
