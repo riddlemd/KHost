@@ -33,6 +33,15 @@ public partial class MediaSearchPanel : IDisposable
 
     private CancellationTokenSource? _searchCts;
 
+    private ElementReference _queryInputRef;
+
+    /// <summary>
+    /// Puts the caret in the query field. For a caller that just gave the host someone to queue a
+    /// song for — added a singer, say — without it, typing the song means reaching for the mouse
+    /// first.
+    /// </summary>
+    public ValueTask FocusQueryAsync() => _queryInputRef.FocusAsync();
+
     protected override async Task OnInitializedAsync()
     {
         _subscriptions.Add(Broker.Subscribe<SingerQueueChanged>(_ => OnStateChanged()));

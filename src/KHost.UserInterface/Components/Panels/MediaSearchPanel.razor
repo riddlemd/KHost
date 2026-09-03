@@ -17,6 +17,7 @@
             <input type="text" class="kh-form-control" placeholder="Type a Title or Artist"
                     autocomplete="off"
                     data-kh-shortcut="media-search"
+                    @ref="_queryInputRef"
                     @bind="_query"
                     @bind:event="oninput"
                     @onkeydown="OnFilterKeyDownAsync" />

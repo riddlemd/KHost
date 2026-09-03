@@ -7,7 +7,7 @@
 
 <div class="kh-app__body">
     <div class="kh-app__col--queue" tabindex="0">
-        <SingerQueuePanel />
+        <SingerQueuePanel OnSingerAdded="OnSingerAdded" />
     </div>
 
     <VerticalResizeHandle />
@@ -34,7 +34,7 @@
         }
         else
         {
-            <MediaSearchPanel />
+            <MediaSearchPanel @ref="_mediaSearchPanel" />
 
             <HorizontalResizeHandle />
 

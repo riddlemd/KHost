@@ -23,6 +23,12 @@ public partial class SingerQueuePanel : IDisposable
     [Inject] private IVenuesService? VenuesService { get; set; }
     [Inject] private IMessageBroker Broker { get; set; } = default!;
 
+    /// <summary>
+    /// Fired once the add-singer form's target is queued and selected — never for a click on an
+    /// already-queued singer, which is a click to view them, not a request to type a song next.
+    /// </summary>
+    [Parameter] public EventCallback OnSingerAdded { get; set; }
+
     private readonly SubscriptionSet _subscriptions = new();
 
     private const int SingerSuggestionLimit = 20;
@@ -186,6 +192,8 @@ public partial class SingerQueuePanel : IDisposable
 
         _pickedSinger = null;
         _newSingerName = string.Empty;
+
+        await OnSingerAdded.InvokeAsync();
     }
 
     private async Task OnKeyDownAsync(KeyboardEventArgs e)
