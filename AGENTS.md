@@ -92,6 +92,12 @@ each rule. `IPluginContext` carries the plugin's own manifest and stored setting
   composes `ISingerQueueService.SelectedUserId` with `IPerformanceService.CreateAndEnqueueAsync`,
   because `SingerQueueService` already depends on `IPerformanceService` and folding the pair into
   either one closes a constructor cycle.
+- A plugin that needs a value it must not persist — a login it will trade for a session key and
+  hold only in memory — injects `IInteractionDispatcher` (same as the host) and sends a
+  `TextPromptRequest`. Unlike a plugin setting, nothing in that round trip ever reaches
+  `plugins.json`; the dialog is the only place the value exists outside the plugin's own
+  variables, for exactly as long as answering the request takes. `KHost.Plugins.KaraFun`'s sign-in
+  action is the first user of it.
 
 ## Plugin catalog and installs
 

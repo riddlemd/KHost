@@ -1,0 +1,34 @@
+@using KHost.Abstractions.Interactions.Requests
+@using KHost.UserInterface.Models
+
+<Dialog IsOpen="IsOpen" Class="@($"{_rootClassName} {Class.Trim()}".Trim())" OnClose="OnClose">
+    <Header>
+        <Icon Name="key-fill" /> @Title
+    </Header>
+    <Body>
+        @if (!string.IsNullOrWhiteSpace(Message))
+        {
+            <p class="@(_rootClassName)__message">@Message</p>
+        }
+
+        <form @onsubmit="SubmitAsync" @onsubmit:preventDefault>
+            @foreach (var field in Fields)
+            {
+                <div class="@(_rootClassName)__field">
+                    <label class="kh-form-label" for="@FieldId(field)">@field.Label</label>
+                    <input id="@FieldId(field)" class="kh-form-control"
+                           type="@(field.Secret ? "password" : "text")"
+                           autocomplete="@(field.Secret ? "current-password" : "off")"
+                           value="@Value(field.Key)"
+                           @oninput="e => SetValue(field.Key, e.Value?.ToString() ?? string.Empty)" />
+                </div>
+            }
+            <button type="submit" class="kh-hidden"></button>
+        </form>
+    </Body>
+    <Footer>
+        <button class="@(_rootClassName)__cancel-btn kh-button kh-button--secondary" @onclick="CloseAsync" type="button">Cancel</button>
+        <button class="@(_rootClassName)__submit-btn kh-button kh-button--primary" @onclick="SubmitAsync" type="button"
+                disabled="@(!AllFieldsFilled())">Continue</button>
+    </Footer>
+</Dialog>
