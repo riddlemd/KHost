@@ -108,9 +108,12 @@ each rule. `IPluginContext` carries the plugin's own manifest and stored setting
 - A plugin that renders media it must not let play without a live entitlement implements
   `IMediaPlaybackGate`: it stamps its files with the container tag `IMediaPlaybackGate.MetadataTag`
   (`khost_provider`) set to its own `ProviderId`, and `PlaybackService.LoadAsync` asks the matching gate
-  before every load. KaraFun writes `khost_provider=KHost.Plugins.KaraFun` into the mp4 (with ffmpeg's
+  before every load. KaraFun writes `khost_provider=KHost.Plugins.KaraFun` into the file (with ffmpeg's
   `+use_metadata_tags` movflag — a custom mp4 tag is dropped without it, confirmed by round trip)
-  and its gate allows play only while signed in. `IMediaGateService` reads the tag and routes to
+  and its gate allows play only while signed in. Its output also carries a `.kfv` extension rather
+  than `.mp4` (the muxer forced with `-f mp4`, since ffmpeg picks the output format from the name):
+  obscurity so the licensed content does not open on a double-click, not protection — KHost reads
+  media by content, not extension. `IMediaGateService` reads the tag and routes to
   the gate whose `ProviderId` matches; a file with no tag, or one no loaded gate claims, always plays.
   A block refuses the load like a non-Ready row and flashes the gate's reason — nothing on screen
   says why otherwise. The check runs on every load, so a gate stays cheap (the in-memory answer,
