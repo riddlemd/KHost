@@ -7,7 +7,7 @@ namespace KHost.Domain.Services;
 public sealed class MediaGateService(IMediaTagReader tags, IEnumerable<IMediaPlaybackGate> gates) : IMediaGateService
 {
     private readonly IReadOnlyDictionary<string, IMediaPlaybackGate> _gates = gates
-        .GroupBy(gate => gate.GateKey, StringComparer.OrdinalIgnoreCase)
+        .GroupBy(gate => gate.ProviderId, StringComparer.OrdinalIgnoreCase)
         .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
 
     public async Task<PlaybackGateResult> EvaluateAsync(Media media, CancellationToken cancellationToken = default)
