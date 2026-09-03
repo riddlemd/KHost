@@ -100,6 +100,8 @@ public class PlaybackService : BaseService, IPlaybackService
     private readonly IMediaService _mediaService;
     private readonly IOptionsMonitor<ServiceOptions> _optionsMonitor;
     private readonly IAudioTrackService _audioTracks;
+    private readonly IMediaGateService _mediaGate;
+    private readonly IFlashService _flash;
 
     // Read per use rather than captured: the App Settings page writes the overlay live, and a
     // value snapshotted at startup would leave the console needing a restart to honour it.
@@ -146,6 +148,8 @@ public class PlaybackService : BaseService, IPlaybackService
         IMediaService mediaService,
         IOptionsMonitor<ServiceOptions> options,
         IAudioTrackService audioTracks,
+        IMediaGateService mediaGate,
+        IFlashService flash,
         IMessageBroker broker)
         : base(logger)
     {
@@ -162,6 +166,8 @@ public class PlaybackService : BaseService, IPlaybackService
         _mediaService = mediaService;
         _optionsMonitor = options;
         _audioTracks = audioTracks;
+        _mediaGate = mediaGate;
+        _flash = flash;
 
         _screenServer.ScreenConnected += OnScreenConnected;
         _screenServer.ScreenDisconnected += OnScreenDisconnected;
@@ -196,6 +202,19 @@ public class PlaybackService : BaseService, IPlaybackService
         if (media.Status != MediaStatus.Ready)
         {
             Logger.LogWarning("Load refused: media {MediaId} is {Status}, not Ready", media.Id, media.Status);
+            return;
+        }
+
+        // A plugin can gate its own rendered content — KaraFun will not play a track from a paid
+        // account's .kit once that account is signed out. Refused like a non-Ready row, but with
+        // the gate's own reason flashed, since nothing on screen would otherwise say why the play
+        // did nothing.
+        var gate = await _mediaGate.EvaluateAsync(media);
+        if (!gate.Allowed)
+        {
+            Logger.LogInformation("Load refused: media {MediaId} is gated ({Reason})", media.Id, gate.Reason);
+            if (!string.IsNullOrWhiteSpace(gate.Reason))
+                _flash.Show(gate.Reason, FlashType.Warning);
             return;
         }
 

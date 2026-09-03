@@ -24,6 +24,8 @@ public class PlaybackServiceTests : IDisposable
     private readonly IBreakMusicService _breakMusic = Substitute.For<IBreakMusicService>();
     private readonly IMediaService _mediaService = Substitute.For<IMediaService>();
     private readonly IAudioTrackService _audioTracks = Substitute.For<IAudioTrackService>();
+    private readonly IMediaGateService _mediaGate = Substitute.For<IMediaGateService>();
+    private readonly IFlashService _flash = Substitute.For<IFlashService>();
 
     // Real: a substitute would make the IsPrimary assertions below test nothing.
     private readonly ScreenCoordinationService _screenCoordination;
@@ -34,6 +36,9 @@ public class PlaybackServiceTests : IDisposable
     {
         // NSubstitute returns string.Empty for unstubbed strings, so "no receiver" must be said.
         _cast.ConnectedDeviceId.Returns((string?)null);
+
+        // Nothing is gated by default; a Task wrapping null here would NRE the load's gate check.
+        _mediaGate.EvaluateAsync(Arg.Any<Media>(), Arg.Any<CancellationToken>()).Returns(PlaybackGateResult.Ok);
 
         _screenCoordination = new ScreenCoordinationService(NullLogger<ScreenCoordinationService>.Instance, _screenServer, Substitute.For<IVenuesService>(), _broker);
 
@@ -134,6 +139,8 @@ public class PlaybackServiceTests : IDisposable
             StreamRetireGrace = retireGrace ?? TimeSpan.Zero,
         }),
         _audioTracks,
+        _mediaGate,
+        _flash,
         _broker);
 
     /// <summary>The service reads options per use, so a test's values have to answer every read.</summary>
@@ -324,6 +331,33 @@ public class PlaybackServiceTests : IDisposable
         await _service.LoadAsync(performance, media);
 
         Assert.Same(performance, _service.CurrentPerformance);
+    }
+
+    [Fact]
+    public async Task LoadAsync_GateBlocksTheMedia_RefusesAndFlashesTheReason()
+    {
+        var (performance, media) = CreatePerformance();
+        _mediaGate.EvaluateAsync(media, Arg.Any<CancellationToken>())
+            .Returns(new PlaybackGateResult(false, "Sign in to KaraFun to play this track."));
+
+        await _service.LoadAsync(performance, media);
+
+        Assert.Null(_service.CurrentPerformance);
+        Assert.Null(_service.CurrentMedia);
+        await _screenServer.DidNotReceive().BroadcastCommandAsync(Arg.Any<LoadMediaCommand>());
+        _flash.Received(1).Show("Sign in to KaraFun to play this track.", FlashType.Warning);
+    }
+
+    [Fact]
+    public async Task LoadAsync_GateAllowsTheMedia_Loads()
+    {
+        var (performance, media) = CreatePerformance();
+        _mediaGate.EvaluateAsync(media, Arg.Any<CancellationToken>()).Returns(PlaybackGateResult.Ok);
+
+        await _service.LoadAsync(performance, media);
+
+        Assert.Same(performance, _service.CurrentPerformance);
+        _flash.DidNotReceive().Show(Arg.Any<string>(), Arg.Any<FlashType>());
     }
 
     [Fact]
