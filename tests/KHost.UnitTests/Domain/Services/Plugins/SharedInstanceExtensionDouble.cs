@@ -24,7 +24,7 @@ public sealed class SharedInstanceExtensionDouble : IMediaProvider, IPluginButto
 
     public Task InvokeButtonAsync(string key, CancellationToken cancellationToken = default) => Task.CompletedTask;
 
-    public string GateKey => "double";
+    public string ProviderId => "double";
     public Task<PlaybackGateResult> CanPlayAsync(Media media, CancellationToken cancellationToken = default)
         => Task.FromResult(PlaybackGateResult.Ok);
 }

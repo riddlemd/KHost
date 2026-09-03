@@ -107,11 +107,11 @@ each rule. `IPluginContext` carries the plugin's own manifest and stored setting
   `PluginButtonBinding`s — the container does not otherwise record which plugin owns a registration.
 - A plugin that renders media it must not let play without a live entitlement implements
   `IMediaPlaybackGate`: it stamps its files with the container tag `IMediaPlaybackGate.MetadataTag`
-  (`khost_provider`) set to its own `GateKey`, and `PlaybackService.LoadAsync` asks the matching gate
+  (`khost_provider`) set to its own `ProviderId`, and `PlaybackService.LoadAsync` asks the matching gate
   before every load. KaraFun writes `khost_provider=KHost.Plugins.KaraFun` into the mp4 (with ffmpeg's
   `+use_metadata_tags` movflag — a custom mp4 tag is dropped without it, confirmed by round trip)
   and its gate allows play only while signed in. `IMediaGateService` reads the tag and routes to
-  the gate whose `GateKey` matches; a file with no tag, or one no loaded gate claims, always plays.
+  the gate whose `ProviderId` matches; a file with no tag, or one no loaded gate claims, always plays.
   A block refuses the load like a non-Ready row and flashes the gate's reason — nothing on screen
   says why otherwise. The check runs on every load, so a gate stays cheap (the in-memory answer,
   not a round trip) unless the content is worth one.

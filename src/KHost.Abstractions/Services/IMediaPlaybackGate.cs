@@ -11,7 +11,7 @@ public sealed record PlaybackGateResult(bool Allowed, string? Reason)
 
 /// <summary>
 /// A plugin that renders media it does not want played without a live entitlement implements this.
-/// It stamps its own files with the tag <see cref="MetadataTag"/> set to its <see cref="GateKey"/>
+/// It stamps its own files with the tag <see cref="MetadataTag"/> set to its <see cref="ProviderId"/>
 /// (KaraFun renders a track from a paid account's .kit and does not want it played once that
 /// account is signed out), and the host asks the matching gate before every load — see
 /// <see cref="IMediaGateService"/>. A file with no such tag, or one whose key matches no loaded
@@ -30,7 +30,7 @@ public interface IMediaPlaybackGate
     /// The plugin's identifier (its assembly name, e.g. <c>KHost.Plugins.KaraFun</c>), matched
     /// case-insensitively against a file's <see cref="MetadataTag"/> value.
     /// </summary>
-    string GateKey { get; }
+    string ProviderId { get; }
 
     /// <summary>
     /// Whether a file this gate owns may play right now. Runs on every load of a marked file, so
