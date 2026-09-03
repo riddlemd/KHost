@@ -17,4 +17,10 @@ public class PluginManifest
     public string? Icon { get; set; }
 
     public List<PluginSettingDefinition> Settings { get; set; } = [];
+
+    /// <summary>
+    /// Buttons the host draws on this plugin's row, each run through
+    /// <see cref="Services.IPluginButtonHandler"/>. Empty for a plugin that has none.
+    /// </summary>
+    public List<PluginButtonDefinition> Buttons { get; set; } = [];
 }

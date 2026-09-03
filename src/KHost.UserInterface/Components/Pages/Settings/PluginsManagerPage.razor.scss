@@ -232,6 +232,15 @@
         color: var(--kh-success);
     }
 
+    // The plugin's own actions (a login/logout button, say), set apart from the row's settings
+    // above and its install controls below.
+    &__actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.6em;
+        margin-top: 0.9em;
+    }
+
     &__foot {
         display: flex;
         align-items: center;

@@ -37,11 +37,13 @@ public class PluginsManagerPageTests : BunitContext
     private readonly IPluginCatalogService _catalog = Substitute.For<IPluginCatalogService>();
     private readonly IPluginInstallerService _installer = Substitute.For<IPluginInstallerService>();
     private readonly IDialogService _dialogs = Substitute.For<IDialogService>();
+    private readonly IPluginButtonService _buttons = Substitute.For<IPluginButtonService>();
 
     public PluginsManagerPageTests()
     {
         _pluginsService.ReadEnabledIdsAsync().Returns(new HashSet<string>());
         _pluginsService.ReadSettingsAsync(Arg.Any<string>()).Returns(new Dictionary<string, JsonElement>());
+        _buttons.ButtonsFor(Arg.Any<string>()).Returns([]);
 
         Services.AddSingleton(_pluginsService);
         Services.AddSingleton<IMessageBroker>(_broker);
@@ -49,6 +51,7 @@ public class PluginsManagerPageTests : BunitContext
         Services.AddSingleton(_catalog);
         Services.AddSingleton(_installer);
         Services.AddSingleton(_dialogs);
+        Services.AddSingleton(_buttons);
 
         _installer.Snapshot().Returns([]);
         _installer.Staged().Returns(PluginStagingState.Empty);
@@ -676,6 +679,62 @@ public class PluginsManagerPageTests : BunitContext
                 Arg.Any<string>(), Arg.Any<Func<Task>>(), Arg.Any<string>(),
                 Arg.Any<string>(), Arg.Any<Action?>(), Arg.Any<Action?>())
             .Returns(async call => { await call.Arg<Func<Task>>()(); return true; });
+
+    private const string ActionButtonSelector = ".kh-plugins-manager__actions button";
+
+    [Fact]
+    public void Row_DrawsThePluginsButtons_WithTheHandlersLabel()
+    {
+        var plugin = Plugin(PluginStatus.Loaded);
+        _buttons.ButtonsFor(plugin.Id).Returns([(Button("session", "Sign in"), new PluginButtonState { Label = "Sign out" })]);
+        Arrange(plugin, enabled: true);
+
+        var cut = Render<PluginsManagerPage>();
+        cut.Find(DisclosureSelector).Click();
+
+        Assert.Equal("Sign out", cut.Find(ActionButtonSelector).TextContent.Trim());
+    }
+
+    [Fact]
+    public void Button_Clicked_InvokesItThroughTheService()
+    {
+        var plugin = Plugin(PluginStatus.Loaded);
+        _buttons.ButtonsFor(plugin.Id).Returns([(Button("session", "Sign in"), PluginButtonState.Default)]);
+        Arrange(plugin, enabled: true);
+
+        var cut = Render<PluginsManagerPage>();
+        cut.Find(DisclosureSelector).Click();
+        cut.Find(ActionButtonSelector).Click();
+
+        _buttons.Received(1).InvokeAsync(plugin.Id, "session", Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public void Button_ReportedDisabled_RendersDisabled()
+    {
+        var plugin = Plugin(PluginStatus.Loaded);
+        _buttons.ButtonsFor(plugin.Id).Returns([(Button("session", "Sign in"), new PluginButtonState { Enabled = false })]);
+        Arrange(plugin, enabled: true);
+
+        var cut = Render<PluginsManagerPage>();
+        cut.Find(DisclosureSelector).Click();
+
+        Assert.True(cut.Find(ActionButtonSelector).HasAttribute("disabled"));
+    }
+
+    [Fact]
+    public void Row_WithNoButtons_DrawsNoActionsBlock()
+    {
+        Arrange(Plugin(PluginStatus.Loaded), enabled: true);
+
+        var cut = Render<PluginsManagerPage>();
+        cut.Find(DisclosureSelector).Click();
+
+        Assert.Empty(cut.FindAll(ActionButtonSelector));
+    }
+
+    private static PluginButtonDefinition Button(string key, string label)
+        => new() { Key = key, Label = label };
 
     private void Arrange(DiscoveredPlugin plugin, bool enabled, Dictionary<string, JsonElement>? stored = null)
     {
