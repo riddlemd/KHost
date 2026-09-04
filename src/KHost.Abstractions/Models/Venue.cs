@@ -106,6 +106,22 @@ public class Venue : RepositoryModel
         /// </summary>
         public bool MarqueePinLabel { get; set; }
 
+        /// <summary>
+        /// Where a QR code sits when its owner does not name a corner. Nullable rather than the
+        /// enum's first member, so a venue that has never been asked reads as "no preference"
+        /// instead of silently meaning bottom-right — the same reason the marquee's sizes use zero.
+        /// </summary>
+        public ScreenCorner? QrCodeCorner { get; set; }
+
+        /// <summary>How big those codes are drawn, when the owner does not say. Null takes medium.</summary>
+        public ScreenQrSize? QrCodeSize { get; set; }
+
+        /// <summary>
+        /// Keeps the picture clean while someone is singing. Off for a venue that has never been
+        /// asked, since a code that vanishes mid-song is the surprising half of the pair.
+        /// </summary>
+        public bool QrCodeHideDuringSong { get; set; }
+
         /// <summary>Memberwise copy plus a deep copy of the one reference-type member.</summary>
         public VenueSettings Clone()
         {
