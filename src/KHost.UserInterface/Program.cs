@@ -157,6 +157,9 @@ internal static class Program
         builder.Services.AddCascadingAuthenticationState();
 
         builder.Services.AddScoped<IPermissionService, PermissionService>();
+        // Scoped, not singleton: a control's pick belongs to the circuit that made it, and a
+        // reconnecting browser is a new session rather than one resuming yesterday's choices.
+        builder.Services.AddScoped<IControlState, ControlState>();
         builder.Services.AddSingleton<IAppSettingsService>(sp => new AppSettingsService(
             sp.GetRequiredService<IConfiguration>(), sp.GetRequiredService<IUsersService>()));
         builder.Services.AddSingleton<IThemeService, ThemeService>();
