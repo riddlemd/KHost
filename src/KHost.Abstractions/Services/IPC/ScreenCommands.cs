@@ -20,6 +20,7 @@ namespace KHost.Abstractions.Services.IPC;
 [JsonDerivedType(typeof(ShowImageCommand), "showImage")]
 [JsonDerivedType(typeof(HideImageCommand), "hideImage")]
 [JsonDerivedType(typeof(SetMarqueeCommand), "setMarquee")]
+[JsonDerivedType(typeof(SetScreenQrCodesCommand), "setQrCodes")]
 public abstract class ScreenCommandBase : IScreenCommand { }
 
 /// <summary>
@@ -130,6 +131,31 @@ public sealed class ShowImageCommand : ScreenCommandBase
 }
 
 public sealed class HideImageCommand : ScreenCommandBase { }
+
+/// <summary>
+/// Every QR code that should be on the screen, sent whole on every change rather than as a patch
+/// — a screen that reconnects mid-show is correct after one command, the same as
+/// <see cref="SetMarqueeCommand"/>. An empty list takes them all down.
+/// </summary>
+public sealed class SetScreenQrCodesCommand : ScreenCommandBase
+{
+    public IReadOnlyList<ScreenQrCodePlacement> Codes { get; init; } = [];
+}
+
+/// <summary>
+/// One code, with the venue's defaults already worked out: the screen decides nothing about where
+/// this goes or how big it is beyond turning the size into pixels it can measure.
+/// </summary>
+public sealed class ScreenQrCodePlacement
+{
+    public required string ImageUrl { get; init; }
+
+    public string? Caption { get; init; }
+
+    public ScreenCorner Corner { get; init; }
+
+    public ScreenQrSize Size { get; init; }
+}
 
 /// <summary>
 /// The band of text across the top or bottom of the screen. Singers arrive as names, not ids: a

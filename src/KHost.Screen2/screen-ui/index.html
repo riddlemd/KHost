@@ -121,6 +121,49 @@
 
         #marquee[hidden] { display: none; }
 
+        /* Sized off the shorter side, so a code is the same share of the picture on any screen,
+           with a floor that keeps it scannable in a small window. The marquee sits above these:
+           a band across the edge is the thing a corner should give way to. */
+        .kh-qr {
+            position: absolute;
+            z-index: 9;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.4em;
+            padding: 0.9vmin;
+            border-radius: 0.8vmin;
+            background: #fff;
+            box-shadow: 0 0.4vmin 1.6vmin rgba(0, 0, 0, 0.45);
+            --kh-qr-size: 18vmin;
+        }
+
+        .kh-qr[data-size="small"] { --kh-qr-size: 12vmin; }
+        .kh-qr[data-size="medium"] { --kh-qr-size: 18vmin; }
+        .kh-qr[data-size="large"] { --kh-qr-size: 25vmin; }
+
+        .kh-qr img {
+            display: block;
+            width: max(96px, var(--kh-qr-size));
+            height: max(96px, var(--kh-qr-size));
+            /* A QR is a grid of square modules, so scaling it up loses nothing — the softness a
+               browser would otherwise add is its own smoothing. Does nothing to an SVG. */
+            image-rendering: pixelated;
+        }
+
+        .kh-qr figcaption {
+            max-width: max(96px, var(--kh-qr-size));
+            color: #101014;
+            font: 600 max(11px, calc(var(--kh-qr-size) / 11))/1.2 system-ui, -apple-system, "Segoe UI", sans-serif;
+            text-align: center;
+            overflow-wrap: anywhere;
+        }
+
+        .kh-qr[data-corner="bottomright"] { right: 2.4vmin; bottom: 2.4vmin; }
+        .kh-qr[data-corner="bottomleft"] { left: 2.4vmin; bottom: 2.4vmin; }
+        .kh-qr[data-corner="topright"] { right: 2.4vmin; top: 2.4vmin; }
+        .kh-qr[data-corner="topleft"] { left: 2.4vmin; top: 2.4vmin; }
+
         #marquee[data-position="top"] { top: 0; }
         #marquee[data-position="bottom"] { bottom: 0; }
 
@@ -266,6 +309,8 @@
             <div id="marquee-track"><span></span><span></span></div>
         </div>
     </div>
+    <!-- Scannable codes in the corners: filled by the host, empty until something asks for one. -->
+    <div id="qr-codes"></div>
     <script src="hls.light.min.js"></script>
     <script src="player.js"></script>
 </body>

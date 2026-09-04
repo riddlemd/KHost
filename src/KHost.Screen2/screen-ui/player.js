@@ -21,6 +21,7 @@ const hostLost = document.getElementById('hostlost');
 const marquee = document.getElementById('marquee');
 const marqueeTrack = document.getElementById('marquee-track');
 const marqueePin = document.getElementById('marquee-pin');
+const qrCodes = document.getElementById('qr-codes');
 
 function send(payload) {
     if (window.external && window.external.sendMessage) {
@@ -395,6 +396,37 @@ const MARQUEE_SPEED_MAX = 400;
 // queue re-announced after an unrelated change) does not yank the scroll back to its start.
 let marqueeSignature = null;
 
+const QR_CORNERS = ['bottomright', 'bottomleft', 'topright', 'topleft'];
+const QR_SIZES = ['small', 'medium', 'large'];
+
+function setQrCodes(message) {
+    const codes = Array.isArray(message.codes) ? message.codes : [];
+
+    // Built as nodes, not markup: the caption comes from a plugin and the URL from a server, and
+    // neither may reach innerHTML.
+    qrCodes.replaceChildren(...codes.filter((code) => code && code.imageUrl).map((code) => {
+        const figure = document.createElement('figure');
+        figure.className = 'kh-qr';
+        figure.dataset.corner = QR_CORNERS.includes(code.corner) ? code.corner : 'bottomright';
+        figure.dataset.size = QR_SIZES.includes(code.size) ? code.size : 'medium';
+
+        const image = document.createElement('img');
+        // Decorative in the accessibility sense — nobody is reading this screen with a reader,
+        // and the caption below already says what it is for.
+        image.alt = '';
+        image.src = code.imageUrl;
+        figure.appendChild(image);
+
+        if (code.caption) {
+            const caption = document.createElement('figcaption');
+            caption.textContent = code.caption;
+            figure.appendChild(caption);
+        }
+
+        return figure;
+    }));
+}
+
 function setMarquee(message) {
     if (message.enabled !== true) {
         marquee.hidden = true;
@@ -576,6 +608,9 @@ function handleCommand(raw) {
             break;
         case 'marquee':
             setMarquee(message);
+            break;
+        case 'qr-codes':
+            setQrCodes(message);
             break;
         case 'bg-load':
             loadBackground(message.url, message.autoplay === true);
