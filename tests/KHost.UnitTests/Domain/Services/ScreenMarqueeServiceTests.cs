@@ -16,10 +16,11 @@ public class ScreenMarqueeServiceTests
     private readonly ISingerQueueService _queue = Substitute.For<ISingerQueueService>();
     private readonly IPerformanceService _performances = Substitute.For<IPerformanceService>();
     private readonly IMediaService _media = Substitute.For<IMediaService>();
+    private readonly IPlaybackService _playback = Substitute.For<IPlaybackService>();
     private readonly MessageBroker _broker = new(NullLogger<MessageBroker>.Instance);
 
     private ScreenMarqueeService Service() => new(
-        NullLogger<ScreenMarqueeService>.Instance, _screens, _venues, _queue, _performances, _media, _broker);
+        NullLogger<ScreenMarqueeService>.Instance, _screens, _venues, _queue, _performances, _media, _playback, _broker);
 
     public ScreenMarqueeServiceTests()
         // NSubstitute hands back a task wrapping null otherwise, and the composition .Where()s it.
@@ -380,6 +381,74 @@ public class ScreenMarqueeServiceTests
 
         await _screens.DidNotReceive().BroadcastCommandAsync(Arg.Any<SetMarqueeCommand>());
     }
+
+    /// <summary>
+    /// The queue keeps the singer at the front while they sing, and "Up next" over the name of the
+    /// person the room is already watching reads as the band being a song behind.
+    /// </summary>
+    [Fact]
+    public async Task BuildAsync_SomeoneIsSinging_LeavesThemOutOfUpNext()
+    {
+        var ada = Singer("Ada");
+        var grace = Singer("Grace");
+        Arrange(new Venue.VenueSettings { MarqueeEnabled = true, MarqueeSingerCount = 3 }, ada, grace);
+        Singing(ada);
+
+        Assert.Equal(["Grace"], (await Service().BuildAsync()).Singers);
+    }
+
+    /// <summary>Dropping the singer must not cost the venue a slot on the band.</summary>
+    [Fact]
+    public async Task BuildAsync_SomeoneIsSinging_StillFillsTheVenuesSingerCount()
+    {
+        var ada = Singer("Ada");
+        Arrange(
+            new Venue.VenueSettings { MarqueeEnabled = true, MarqueeSingerCount = 2 },
+            ada, Singer("Grace"), Singer("Linus"));
+        Singing(ada);
+
+        Assert.Equal(["Grace", "Linus"], (await Service().BuildAsync()).Singers);
+    }
+
+    /// <summary>Nothing playing is the ordinary case: the whole queue is up next.</summary>
+    [Fact]
+    public async Task BuildAsync_NothingPlaying_NamesEveryQueuedSinger()
+    {
+        Arrange(
+            new Venue.VenueSettings { MarqueeEnabled = true, MarqueeSingerCount = 2 },
+            Singer("Ada"), Singer("Grace"));
+
+        Assert.Equal(["Ada", "Grace"], (await Service().BuildAsync()).Singers);
+    }
+
+    /// <summary>
+    /// A one-singer room leaves nothing up next, and the screen hides a band with no names and no
+    /// message rather than showing a bare "Up next".
+    /// </summary>
+    [Fact]
+    public async Task BuildAsync_TheOnlySingerIsSinging_NamesNobody()
+    {
+        var ada = Singer("Ada");
+        Arrange(new Venue.VenueSettings { MarqueeEnabled = true, MarqueeSingerCount = 3 }, ada);
+        Singing(ada);
+
+        Assert.Empty((await Service().BuildAsync()).Singers);
+    }
+
+    /// <summary>A song starting is what changes who is up next, so the screens have to hear about it.</summary>
+    [Fact]
+    public async Task PlaybackChanged_RepublishesTheMarquee()
+    {
+        Arrange(new Venue.VenueSettings { MarqueeEnabled = true, MarqueeSingerCount = 1 }, Singer("Ada"));
+        using var service = Service();
+
+        _broker.Announce(new PlaybackChanged());
+
+        await WaitForBroadcastAsync();
+    }
+
+    private void Singing(KHostUser singer)
+        => _playback.CurrentPerformance.Returns(new Performance { SingerId = singer.Id, MediaId = Guid.NewGuid() });
 
     private void Arrange(Venue.VenueSettings settings, params KHostUser[] queued)
     {

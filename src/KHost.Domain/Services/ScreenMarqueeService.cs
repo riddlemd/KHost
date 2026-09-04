@@ -20,6 +20,7 @@ public sealed class ScreenMarqueeService : BaseService, IScreenMarqueeService, I
     private readonly ISingerQueueService _singerQueue;
     private readonly IPerformanceService _performances;
     private readonly IMediaService _media;
+    private readonly IPlaybackService _playback;
     private readonly SubscriptionSet _subscriptions = new();
 
     public ScreenMarqueeService(
@@ -29,6 +30,7 @@ public sealed class ScreenMarqueeService : BaseService, IScreenMarqueeService, I
         ISingerQueueService singerQueue,
         IPerformanceService performances,
         IMediaService media,
+        IPlaybackService playback,
         IMessageBroker broker)
         : base(logger)
     {
@@ -37,12 +39,16 @@ public sealed class ScreenMarqueeService : BaseService, IScreenMarqueeService, I
         _singerQueue = singerQueue;
         _performances = performances;
         _media = media;
+        _playback = playback;
 
         // The queue's order is the marquee's content, and the venue owns everything about how it
         // looks — including whether there is one at all.
         _subscriptions.Add(broker.Subscribe<SingerQueueChanged>(_ => Republish()));
         _subscriptions.Add(broker.Subscribe<PerformancesChanged>(_ => Republish()));
         _subscriptions.Add(broker.Subscribe<SelectedVenueChanged>(_ => Republish()));
+
+        // Who is at the mic decides who the band leaves out, so it has to redraw when that moves.
+        _subscriptions.Add(broker.Subscribe<PlaybackChanged>(_ => Republish()));
 
         // A screen that joins mid-show has never been sent one.
         _screenServer.ScreenConnected += OnScreenConnected;
@@ -80,11 +86,19 @@ public sealed class ScreenMarqueeService : BaseService, IScreenMarqueeService, I
     /// One line per upcoming turn: the song and who is singing it, shaped by the venue's own
     /// format. A singer with nothing queued is still up next — the host has them on the list — so
     /// they are named on their own rather than dropped, which would make the band disagree with
-    /// the queue on screen.
+    /// the queue on screen. Whoever is singing now is left out: the queue puts them at the front
+    /// until their turn ends, and the band would announce the person the room is watching.
     /// </summary>
     private async Task<List<string>> UpNextAsync(int wanted, string? entryFormat)
     {
-        var singers = _singerQueue.Users.Take(wanted).ToList();
+        // The singer holding the mic is not up next, and the band says they are. Dropped before
+        // the count is taken, so a venue asking for three names still gets three.
+        var singing = _playback.CurrentPerformance?.SingerId;
+
+        var singers = _singerQueue.Users
+            .Where(singer => singer.Id != singing)
+            .Take(wanted)
+            .ToList();
 
         if (singers.Count == 0)
             return [];
