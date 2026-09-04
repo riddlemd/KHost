@@ -25,7 +25,7 @@
         <SplitButton
             @onclick="RunSearchAsync"
             disabled="@(_searching)"
-            Title="Search the local library">
+            Title="@($"Search {SearchTargetLabel}")">
                 <Text>
                     @if (_searching)
                     {
@@ -35,11 +35,12 @@
                     {
                         <Icon Name="search" />
                     }
+                    <span class="kh-media-search-panel__source">@SearchTargetLabel</span>
                 </Text>
                 <Buttons>
-                    @foreach (var provider in MediaSearchService?.Providers ?? [])
+                    @foreach (var provider in UnselectedProviders)
                     {
-                        <button @onclick="() => RunProviderSearchAsync(provider.SourceName, provider.DisplayName)">Search @provider.DisplayName</button>
+                        <button @onclick="() => SelectSource(provider.SourceName)">@provider.DisplayName</button>
                     }
                 </Buttons>
         </SplitButton>

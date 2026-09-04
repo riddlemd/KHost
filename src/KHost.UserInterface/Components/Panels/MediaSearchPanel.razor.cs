@@ -17,6 +17,7 @@ public partial class MediaSearchPanel : IDisposable
     [Inject] private IDialogService? DialogService { get; set; }
     [Inject] private IPermissionService? Permissions { get; set; }
     [Inject] private IMessageBroker Broker { get; set; } = default!;
+    [Inject] private IControlState ControlState { get; set; } = default!;
 
     private readonly SubscriptionSet _subscriptions = new();
 
@@ -90,11 +91,38 @@ public partial class MediaSearchPanel : IDisposable
         return classes;
     }
 
-    private Task RunSearchAsync()
-        => RunSearchCoreAsync("the library", service => service.SearchAsync(_query));
+    /// <summary>
+    /// What a plain press of the search button reaches: the source picked from its list last,
+    /// falling back to the local library when nothing is picked or the pick names a provider that
+    /// is gone — a plugin can be unloaded between one search and the next.
+    /// </summary>
+    private IMediaProvider? SearchTarget
+        => Provider(ControlState.MediaSearchSource) ?? Provider(nameof(LocalMediaProvider));
 
-    private Task RunProviderSearchAsync(string source, string displayName)
-        => RunSearchCoreAsync(displayName, service => service.SearchAsync(_query, source));
+    /// <summary>Names the button, so the host reads where a press goes without opening the list.</summary>
+    private string SearchTargetLabel => SearchTarget?.DisplayName ?? "Library";
+
+    /// <summary>
+    /// The list is what a press does not already do, so the source on the button is left out of it
+    /// — an entry that reselects what is already selected reads as a second way to search.
+    /// </summary>
+    private IEnumerable<IMediaProvider> UnselectedProviders
+        => (MediaSearchService?.Providers ?? []).Where(provider => provider != SearchTarget);
+
+    private IMediaProvider? Provider(string? source)
+        => MediaSearchService?.Providers.FirstOrDefault(provider =>
+            string.Equals(provider.SourceName, source, StringComparison.OrdinalIgnoreCase));
+
+    private Task RunSearchAsync()
+        => SearchTarget is { } provider
+            ? RunSearchCoreAsync(provider.DisplayName, service => service.SearchAsync(_query, provider.SourceName))
+            : RunSearchCoreAsync("the library", service => service.SearchAsync(_query));
+
+    /// <summary>
+    /// Picking a source only aims the search button — it does not run one. A remote provider is a
+    /// metered round trip, and the query is usually still half-typed when the source is chosen.
+    /// </summary>
+    private void SelectSource(string source) => ControlState.MediaSearchSource = source;
 
     /// <summary>
     /// Abandons the wait rather than the work: a provider is handed no token, so its request runs

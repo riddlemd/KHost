@@ -96,6 +96,7 @@ public class HomePageFocusTests : BunitContext
         Services.AddSingleton(Substitute.For<IAppSettingsService>());
         Services.AddSingleton(Substitute.For<IUserGroupsService>());
         Services.AddSingleton(Substitute.For<ITipsService>());
+        Services.AddSingleton<IControlState>(new ControlState());
     }
 
     [Fact]
