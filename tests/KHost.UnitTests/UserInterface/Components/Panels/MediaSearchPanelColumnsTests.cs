@@ -49,6 +49,7 @@ public class MediaSearchPanelColumnsTests : BunitContext
         Services.AddSingleton(permissions);
         Services.AddSingleton(_performances);
         Services.AddSingleton(Substitute.For<IDialogService>());
+        Services.AddSingleton<IControlState>(new ControlState());
     }
 
     private static MediaSearchEntity Result(Dictionary<string, string>? fields = null) => new()
@@ -153,7 +154,8 @@ public class MediaSearchPanelColumnsTests : BunitContext
         local.Columns.Returns(YouTubeShape);
 
         _search.Providers.Returns([local]);
-        _search.SearchAsync(Arg.Any<string>()).Returns([
+
+        List<MediaSearchEntity> results = [
             new MediaSearchEntity
             {
                 Source = nameof(LocalMediaProvider),
@@ -164,7 +166,12 @@ public class MediaSearchPanelColumnsTests : BunitContext
                 Duration = TimeSpan.FromSeconds(310),
                 Fields = new Dictionary<string, string> { ["thumbnail"] = "https://example.test/a.jpg" },
             }
-        ]);
+        ];
+
+        // The panel reaches the library by source name like any other provider once one is
+        // registered, so stub both overloads rather than betting on which it picks.
+        _search.SearchAsync(Arg.Any<string>()).Returns(results);
+        _search.SearchAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(results);
 
         var panel = Render<MediaSearchPanel>();
         panel.Find(".kh-split-button, button").Click();
