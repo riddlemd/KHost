@@ -27,6 +27,14 @@ public sealed record MediaResultColumn
     public const string DurationKey = "duration";
 
     /// <summary>
+    /// The conventional <see cref="MediaSearchEntity.Fields"/> key for a row's picture — what a
+    /// column declared <see cref="MediaResultColumnKind.Thumbnail"/> usually points at, and where a
+    /// <see cref="MediaSearchEntity.SpansAllColumns"/> row's own image is read from, that row
+    /// having no column to sit in.
+    /// </summary>
+    public const string ThumbnailKey = "thumbnail";
+
+    /// <summary>
     /// Which value fills the cell. The three keys above come from <see cref="MediaSearchEntity"/>'s
     /// own properties; anything else is looked up in <see cref="MediaSearchEntity.Fields"/>.
     /// </summary>

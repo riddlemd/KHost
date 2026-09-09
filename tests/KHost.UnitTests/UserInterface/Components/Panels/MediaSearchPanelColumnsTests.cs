@@ -85,6 +85,52 @@ public class MediaSearchPanelColumnsTests : BunitContext
         return panel;
     }
 
+    /// <summary>
+    /// A row that is an offer rather than a result gets the whole table: the columns describe a
+    /// song it is not, and an action named for what it does does not fit a column sized for
+    /// "Enqueue" — "Search Community Songs" rendered 249px wide in a 168px cell and spilled out.
+    /// </summary>
+    [Fact]
+    public void ASpanningRow_IsOneCellAcrossEveryColumnAndTheActions()
+    {
+        var offer = Result();
+        offer.Title = "Search Community Songs";
+        offer.SpansAllColumns = true;
+
+        var panel = RenderWith(YouTubeShape, offer);
+
+        var cell = panel.Find("tbody tr td");
+
+        // Four declared columns plus the console's own Actions.
+        Assert.Equal("5", cell.GetAttribute("colspan"));
+        Assert.Single(panel.FindAll("tbody tr td"));
+    }
+
+    [Fact]
+    public void ASpanningRow_ShowsItsNotesAndItsPicture()
+    {
+        var offer = Result(new Dictionary<string, string> { ["thumbnail"] = "https://example.test/qr.png" });
+        offer.SpansAllColumns = true;
+        offer.Notes = "Karaoke uploaded by other members.";
+
+        var panel = RenderWith(YouTubeShape, offer);
+
+        // Notes are on the entity but no column carries them, so this row is the only place they show.
+        Assert.Contains("Karaoke uploaded by other members.", panel.Markup);
+        Assert.Equal("https://example.test/qr.png",
+            panel.Find(".kh-media-search-panel__offer-image").GetAttribute("src"));
+    }
+
+    /// <summary>An ordinary result keeps its columns — one row spanning must not flatten the rest.</summary>
+    [Fact]
+    public void AnOrdinaryRow_KeepsACellPerColumn()
+    {
+        var panel = RenderWith(YouTubeShape, Result());
+
+        Assert.Equal(5, panel.FindAll("tbody tr td").Count);
+        Assert.Empty(panel.FindAll(".kh-media-search-panel__offer-image"));
+    }
+
     [Fact]
     public void AProvidersColumns_BecomeTheTablesHeadings()
     {

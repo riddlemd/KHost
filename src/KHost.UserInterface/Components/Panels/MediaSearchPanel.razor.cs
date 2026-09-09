@@ -113,6 +113,14 @@ public partial class MediaSearchPanel : IDisposable
         => MediaSearchService?.Providers.FirstOrDefault(provider =>
             string.Equals(provider.SourceName, source, StringComparison.OrdinalIgnoreCase));
 
+    /// <summary>
+    /// The picture on a row that spans the table. It has no thumbnail column to sit in — a
+    /// provider that draws one special row does not declare a column for it — so the row's own
+    /// field is read directly.
+    /// </summary>
+    private static string? OfferImage(MediaSearchEntity entity)
+        => entity.Fields.GetValueOrDefault(MediaResultColumn.ThumbnailKey);
+
     private Task RunSearchAsync()
         => SearchTarget is { } provider
             ? RunSearchCoreAsync(provider.DisplayName, service => service.SearchAsync(_query, provider.SourceName))
