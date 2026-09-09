@@ -381,3 +381,7 @@ FodyWeavers.xsd
 
 # Claude Code per-machine settings; shared skills under .claude/skills stay tracked
 .claude/settings.local.json
+
+# Worktrees live inside the repo they belong to, so a checkout holding one sees the whole
+# working copy as untracked files of its own.
+.claude/worktrees/
