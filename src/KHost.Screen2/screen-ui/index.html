@@ -142,17 +142,17 @@
         .kh-qr[data-size="medium"] { --kh-qr-size: 18vmin; }
         .kh-qr[data-size="large"] { --kh-qr-size: 25vmin; }
 
+        /* Three pixels a module is about where a phone camera stops reading one, so a long
+           payload holds the code above the size the venue asked for rather than shrinking into
+           something nobody can scan. The default covers a code drawn before its count arrives. */
         .kh-qr img {
             display: block;
-            width: max(96px, var(--kh-qr-size));
-            height: max(96px, var(--kh-qr-size));
-            /* A QR is a grid of square modules, so scaling it up loses nothing — the softness a
-               browser would otherwise add is its own smoothing. Does nothing to an SVG. */
-            image-rendering: pixelated;
+            width: max(calc(var(--kh-qr-modules, 33) * 3px), var(--kh-qr-size));
+            height: max(calc(var(--kh-qr-modules, 33) * 3px), var(--kh-qr-size));
         }
 
         .kh-qr figcaption {
-            max-width: max(96px, var(--kh-qr-size));
+            max-width: max(calc(var(--kh-qr-modules, 33) * 3px), var(--kh-qr-size));
             color: #101014;
             font: 600 max(11px, calc(var(--kh-qr-size) / 11))/1.2 system-ui, -apple-system, "Segoe UI", sans-serif;
             text-align: center;
