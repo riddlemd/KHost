@@ -97,6 +97,45 @@
             </div>
 
             <div class="kh-venue-settings__section">
+                <span class="kh-venue-settings__section-title">Screen QR codes</span>
+
+                <p class="kh-venue-settings__hint">
+                    Where a code sits when a plugin puts one on the screen &mdash; nothing here
+                    makes one appear.
+                </p>
+
+                <div class="kh-venue-settings__row">
+                    <label for="venue-qr-corner" class="kh-form-label">Corner</label>
+                    <InputSelect id="venue-qr-corner" class="kh-form-select" @bind-Value="_model.QrCodeCorner">
+                        <option value="@ScreenCorner.BottomRight">Bottom right</option>
+                        <option value="@ScreenCorner.BottomLeft">Bottom left</option>
+                        <option value="@ScreenCorner.TopRight">Top right</option>
+                        <option value="@ScreenCorner.TopLeft">Top left</option>
+                    </InputSelect>
+                </div>
+
+                <div class="kh-venue-settings__row">
+                    <label for="venue-qr-size" class="kh-form-label">Size</label>
+                    <InputSelect id="venue-qr-size" class="kh-form-select" @bind-Value="_model.QrCodeSize">
+                        <option value="@ScreenQrSize.Small">Small</option>
+                        <option value="@ScreenQrSize.Medium">Medium</option>
+                        <option value="@ScreenQrSize.Large">Large</option>
+                    </InputSelect>
+                </div>
+
+                <p class="kh-venue-settings__hint">
+                    A code in a corner is scanned from close to the screen: on a 55&Prime; set,
+                    roughly an arm&rsquo;s length at Small and a couple of metres at Large.
+                </p>
+
+                <label class="kh-venue-settings__row kh-form-check">
+                    <span class="kh-form-check-label">Hide codes while someone is singing</span>
+                    <input id="venue-qr-hide-during-song" type="checkbox" class="kh-form-check-input"
+                           @bind="_model.QrCodeHideDuringSong" />
+                </label>
+            </div>
+
+            <div class="kh-venue-settings__section">
                 <span class="kh-venue-settings__section-title">Between singers</span>
 
                 <div class="kh-venue-settings__row">
