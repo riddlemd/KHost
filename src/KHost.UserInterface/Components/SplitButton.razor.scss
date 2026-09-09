@@ -33,6 +33,12 @@
         box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
         animation: kh-split-btn-open 0.1s ease-out;
 
+        // The class's own display would otherwise beat the attribute's, and a closed menu would
+        // sit over the page.
+        &[hidden] {
+            display: none;
+        }
+
         // Items are supplied by the consumer, so they carry ITS scope id, not ours. Without
         // ::deep the scope attribute lands on the button and the rule can never match.
         ::deep button {
@@ -60,6 +66,23 @@
                 cursor: default;
             }
         }
+    }
+}
+
+// Nothing to open, so no way to open it: a menu whose items all came from an empty list or an
+// AuthorizeView that drew nothing leaves a chevron that does nothing when pressed. Asked of the
+// rendered markup rather than a parameter, because the caller cannot always know — a permission
+// decides it. Written unnested and in full: :has() is matched against the DOM, so the consumer's
+// own buttons inside it must not pick up this component's scope id.
+.kh-split-btn:not(:has(.kh-split-btn__menu button)) {
+    .kh-split-btn__toggle {
+        display: none;
+    }
+
+    // Alone now, so it takes back the corners and the edge it gave up to sit against the toggle.
+    .kh-split-btn__primary {
+        border-radius: var(--kh-radius);
+        border-right: 1px solid;
     }
 }
 
