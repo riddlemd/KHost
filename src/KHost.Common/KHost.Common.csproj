@@ -7,6 +7,10 @@
     <!-- Helpers a plugin may want as much as the host does: no project references, so taking one
          drags in nothing of KHost's own. -->
     <Description>Helpers shared by KHost and the plugins it loads.</Description>
+    <!-- Published beside KHost.Abstractions: a plugin builds against both. -->
+    <IsPackable>true</IsPackable>
+    <Version>$(ContractsVersion)</Version>
+    <PackageTags>khost;karaoke;plugin</PackageTags>
     <!-- MIT, while the rest of KHost is PolyForm Shield: a plugin ships a copy of this assembly,
          so a non-compete term here would forbid copyleft plugins outright. See ./LICENSE. -->
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
