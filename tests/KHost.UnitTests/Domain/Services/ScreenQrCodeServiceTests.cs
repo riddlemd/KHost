@@ -23,10 +23,12 @@ public class ScreenQrCodeServiceTests
         string owner, ScreenCorner? corner = null, ScreenQrSize? size = null, string? caption = null) => new()
     {
         OwnerId = owner,
-        ImageUrl = $"data:image/png;base64,{owner}",
+        Payload = $"https://example.test/{owner}",
         Corner = corner,
         Size = size,
-        Caption = caption,
+        // The placement carries a picture the host drew, not the string it came from, so the
+        // caption is what a test reads to tell whose code landed.
+        Caption = caption ?? owner,
     };
 
     private void Arrange(Venue.VenueSettings? settings = null)
@@ -95,8 +97,8 @@ public class ScreenQrCodeServiceTests
         var codes = (await service.BuildAsync()).Codes;
 
         Assert.Equal(2, codes.Count);
-        Assert.Contains(codes, code => code.ImageUrl.EndsWith("example"));
-        Assert.Contains(codes, code => code.ImageUrl.EndsWith("online"));
+        Assert.Contains(codes, code => code.Caption == "example");
+        Assert.Contains(codes, code => code.Caption == "online");
     }
 
     /// <summary>
@@ -113,7 +115,7 @@ public class ScreenQrCodeServiceTests
         await service.ShowAsync(Code("online", ScreenCorner.TopRight));
 
         var placed = Assert.Single((await service.BuildAsync()).Codes);
-        Assert.EndsWith("online", placed.ImageUrl);
+        Assert.Equal("online", placed.Caption);
     }
 
     /// <summary>Showing twice is how a caller changes its own code, not how it gets a second one.</summary>
@@ -140,7 +142,7 @@ public class ScreenQrCodeServiceTests
         await service.HideAsync("example");
 
         var placed = Assert.Single((await service.BuildAsync()).Codes);
-        Assert.EndsWith("online", placed.ImageUrl);
+        Assert.Equal("online", placed.Caption);
     }
 
     /// <summary>Hiding on the way out is right even when nothing was shown, so it must not throw.</summary>
@@ -191,6 +193,84 @@ public class ScreenQrCodeServiceTests
 
         Assert.Single((await service.BuildAsync()).Codes);
     }
+
+    /// <summary>
+    /// The caller hands over what the code should say and the host draws it. A provider that
+    /// renders its own (Example returns an SVG) passes the string instead: two codes carrying the
+    /// same text scan to the same place whatever they look like.
+    /// </summary>
+    [Fact]
+    public async Task ShowAsync_DrawsThePayloadAsAVector()
+    {
+        Arrange();
+        var service = Service();
+
+        await service.ShowAsync(Code("example"));
+
+        var placed = Assert.Single((await service.BuildAsync()).Codes);
+
+        // SVG, not pixels: the code sits in a corner a few centimetres across, where the module
+        // edges are the whole of whether a phone can read it.
+        Assert.StartsWith("data:image/svg+xml;base64,", placed.ImageUrl);
+        Assert.Contains("<svg", Decode(placed.ImageUrl), StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// The screen sizes off the module count, so a code that arrives without one has nothing to
+    /// hold it above the size a long payload makes unreadable.
+    /// </summary>
+    [Fact]
+    public async Task ShowAsync_SaysHowManyModulesTheCodeIsAcross()
+    {
+        Arrange();
+        var service = Service();
+
+        await service.ShowAsync(Code("example"));
+
+        var placed = Assert.Single((await service.BuildAsync()).Codes);
+
+        // 21 modules is the smallest a QR can be, before its four-module quiet zone.
+        Assert.True(placed.Modules >= 21, $"Expected a real module count, got {placed.Modules}");
+    }
+
+    /// <summary>A longer payload needs more modules — the reason the count is sent at all.</summary>
+    [Fact]
+    public async Task ShowAsync_ALongerPayload_NeedsMoreModules()
+    {
+        Arrange();
+        var service = Service();
+
+        await service.ShowAsync(new ScreenQrCode { OwnerId = "short", Payload = "https://k.test/a", Corner = ScreenCorner.TopLeft });
+        await service.ShowAsync(new ScreenQrCode
+        {
+            OwnerId = "long",
+            Corner = ScreenCorner.BottomRight,
+            Payload = "https://app.example.com/remote/join?channel=" + new string('x', 180),
+        });
+
+        var codes = (await service.BuildAsync()).Codes.ToDictionary(code => code.Corner);
+
+        Assert.True(codes[ScreenCorner.BottomRight].Modules > codes[ScreenCorner.TopLeft].Modules);
+    }
+
+    /// <summary>Two callers showing the same thing must not draw two different codes.</summary>
+    [Fact]
+    public async Task ShowAsync_TheSamePayloadTwice_DrawsTheSameCode()
+    {
+        Arrange();
+        var service = Service();
+
+        await service.ShowAsync(new ScreenQrCode { OwnerId = "a", Payload = "https://k.test/same", Corner = ScreenCorner.TopLeft });
+        await service.ShowAsync(new ScreenQrCode { OwnerId = "b", Payload = "https://k.test/same", Corner = ScreenCorner.TopRight });
+
+        var codes = (await service.BuildAsync()).Codes;
+
+        Assert.Equal(codes[0].ImageUrl, codes[1].ImageUrl);
+    }
+
+    private static string Decode(string dataUri)
+        => System.Text.Encoding.UTF8.GetString(
+            Convert.FromBase64String(dataUri["data:image/svg+xml;base64,".Length..]));
 
     [Fact]
     public async Task ShowAsync_SendsTheWholeSetToTheScreens()

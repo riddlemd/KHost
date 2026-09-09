@@ -4,6 +4,7 @@ using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using KHost.Abstractions.Services.IPC;
 using Microsoft.Extensions.Logging;
+using QRCoder;
 
 namespace KHost.Domain.Services;
 
@@ -119,9 +120,12 @@ public sealed class ScreenQrCodeService : BaseService, IScreenQrCodeService, IDi
         {
             var corner = code.Corner ?? settings?.QrCodeCorner ?? ScreenCorner.BottomRight;
 
+            var (image, modules) = Encode(code.Payload);
+
             placed.TryAdd(corner, new ScreenQrCodePlacement
             {
-                ImageUrl = code.ImageUrl,
+                ImageUrl = image,
+                Modules = modules,
                 Caption = code.Caption,
                 Corner = corner,
                 Size = code.Size ?? settings?.QrCodeSize ?? ScreenQrSize.Medium,
@@ -171,4 +175,40 @@ public sealed class ScreenQrCodeService : BaseService, IScreenQrCodeService, IDi
     });
 
     private void Republish() => _ = Task.Run(() => BroadcastAsync());
+
+    // Every venue edit and every song republishes the whole set, and the picture only changes when
+    // the payload does — encoding a few times a minute for an unchanged string is work for nothing.
+    private readonly Dictionary<string, (string Image, int Modules)> _encoded = [];
+
+    /// <summary>
+    /// The payload as a picture the screen can draw. SVG rather than pixels: a code sits in a
+    /// corner a few centimetres across, where the module edges are the whole of whether a phone
+    /// can read it. Correction level L on purpose — the code is on a clean lit panel, not a
+    /// printed flyer, and the lowest level spends the fewest modules on a payload of any length.
+    /// </summary>
+    private (string Image, int Modules) Encode(string payload)
+    {
+        lock (_encoded)
+        {
+            if (_encoded.TryGetValue(payload, out var cached))
+                return cached;
+        }
+
+        using var generator = new QRCodeGenerator();
+        using var data = generator.CreateQrCode(payload, QRCodeGenerator.ECCLevel.L);
+
+        // One unit per module, so the SVG's own coordinates are the module grid and every size the
+        // screen asks for is an exact multiple of it.
+        var svg = new SvgQRCode(data).GetGraphic(1);
+        var encoded = (
+            $"data:image/svg+xml;base64,{Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(svg))}",
+            data.ModuleMatrix.Count);
+
+        lock (_encoded)
+        {
+            _encoded[payload] = encoded;
+        }
+
+        return encoded;
+    }
 }
