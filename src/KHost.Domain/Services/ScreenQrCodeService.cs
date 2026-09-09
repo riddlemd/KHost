@@ -96,8 +96,13 @@ public sealed class ScreenQrCodeService : BaseService, IScreenQrCodeService, IDi
     {
         var settings = (await _venuesService.ReadSelectedVenueAsync())?.Settings;
 
+        // A venue that wants none gets none, whatever a plugin asks for — and a console with no
+        // venue selected has nobody to have chosen, so it is the same answer.
+        if (settings is null || !settings.QrCodeEnabled)
+            return new SetScreenQrCodesCommand();
+
         // Nothing is on screen while someone sings, if the venue asked for that.
-        if (settings?.QrCodeHideDuringSong == true && _playback.CurrentPerformance is not null)
+        if (settings.QrCodeHideDuringSong && _playback.CurrentPerformance is not null)
             return new SetScreenQrCodesCommand();
 
         List<(long Claim, ScreenQrCode Code)> claims;

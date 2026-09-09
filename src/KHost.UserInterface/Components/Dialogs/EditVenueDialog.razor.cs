@@ -154,6 +154,7 @@ public partial class EditVenueDialog
 
                     // Null is "no preference", which a select cannot show — it offers what a code
                     // would take anyway, and saving that back changes nothing.
+                    QrCodeEnabled = Venue.Settings.QrCodeEnabled,
                     QrCodeCorner = Venue.Settings.QrCodeCorner ?? ScreenCorner.BottomRight,
                     QrCodeSize = Venue.Settings.QrCodeSize ?? ScreenQrSize.Medium,
                     QrCodeHideDuringSong = Venue.Settings.QrCodeHideDuringSong,
@@ -258,6 +259,7 @@ public partial class EditVenueDialog
         venue.Settings.MarqueeFontSizePixels = Math.Clamp(_model.MarqueeFontSizePixels, 12, 96);
         venue.Settings.MarqueeScrollSpeed = Math.Clamp(_model.MarqueeScrollSpeed, 15, 400);
         venue.Settings.MarqueePinLabel = _model.MarqueePinLabel;
+        venue.Settings.QrCodeEnabled = _model.QrCodeEnabled;
         venue.Settings.QrCodeCorner = _model.QrCodeCorner;
         venue.Settings.QrCodeSize = _model.QrCodeSize;
         venue.Settings.QrCodeHideDuringSong = _model.QrCodeHideDuringSong;

@@ -481,11 +481,39 @@ namespace KHost.DataAccess.Migrations
 
                             b1.Property<int>("DuplicateSongWindowHours");
 
+                            b1.Property<string>("MarqueeBackgroundColor");
+
+                            b1.Property<bool>("MarqueeEnabled");
+
+                            b1.Property<string>("MarqueeEntryFormat");
+
+                            b1.Property<int>("MarqueeFontSizePixels");
+
+                            b1.Property<string>("MarqueeMessage");
+
+                            b1.Property<bool>("MarqueePinLabel");
+
+                            b1.Property<int>("MarqueePosition");
+
+                            b1.Property<int>("MarqueeScrollSpeed");
+
+                            b1.Property<int>("MarqueeSingerCount");
+
+                            b1.Property<string>("MarqueeTextColor");
+
                             b1.Property<int>("OnScreenDisconnect");
 
                             b1.Property<bool>("PromptBeforeRemovingPerformance");
 
                             b1.Property<bool>("PromptBeforeRemovingSinger");
+
+                            b1.Property<int?>("QrCodeCorner");
+
+                            b1.Property<bool>("QrCodeEnabled");
+
+                            b1.Property<bool>("QrCodeHideDuringSong");
+
+                            b1.Property<int?>("QrCodeSize");
 
                             b1.Property<bool>("ShowEstimatedWaitTime");
 

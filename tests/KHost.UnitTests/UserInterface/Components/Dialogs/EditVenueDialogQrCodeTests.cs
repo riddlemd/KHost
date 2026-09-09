@@ -10,12 +10,13 @@ using Microsoft.Extensions.Logging.Abstractions;
 namespace KHost.UnitTests.UserInterface.Components.Dialogs;
 
 /// <summary>
-/// These three settings decide where a QR code goes when a plugin puts one on the screen. Nothing
-/// else could set them — they are a JSON column with no other surface — so the dialog is the whole
-/// of whether the feature is reachable.
+/// Whether the screen carries QR codes at all, and where they go when a plugin puts one up.
+/// Nothing else could set them — they are a JSON column with no other surface — so the dialog is
+/// the whole of whether the feature is reachable, or refusable.
 /// </summary>
 public class EditVenueDialogQrCodeTests : BunitContext
 {
+    private const string EnabledSelector = "#venue-qr-enabled";
     private const string CornerSelector = "#venue-qr-corner";
     private const string SizeSelector = "#venue-qr-size";
     private const string HideSelector = "#venue-qr-hide-during-song";
@@ -39,18 +40,40 @@ public class EditVenueDialogQrCodeTests : BunitContext
         Services.AddSingleton<IMessageBroker>(_broker);
     }
 
-    /// <summary>
-    /// Unlike the marquee's, these are not behind a switch: a venue cannot turn codes on, only say
-    /// where they land when something else shows one.
-    /// </summary>
+    /// <summary>On unless a venue says otherwise, so a plugin's code is not silently swallowed.</summary>
     [Fact]
-    public void TheSettings_AreShownWithoutAnythingBeingTurnedOn()
+    public void AVenueThatHasNeverBeenAsked_HasThemOn_AndSeesWhereTheyGo()
     {
         var cut = Render(new Venue.VenueSettings());
 
+        Assert.True(cut.Find(EnabledSelector).HasAttribute("checked"));
         Assert.Single(cut.FindAll(CornerSelector));
         Assert.Single(cut.FindAll(SizeSelector));
         Assert.Single(cut.FindAll(HideSelector));
+    }
+
+    /// <summary>Where they go is noise to a venue that wants none — the same shape as the marquee.</summary>
+    [Fact]
+    public void CodesTurnedOff_ShowOnlyTheSwitch()
+    {
+        var cut = Render(new Venue.VenueSettings { QrCodeEnabled = false });
+
+        Assert.Single(cut.FindAll(EnabledSelector));
+        Assert.Empty(cut.FindAll(CornerSelector));
+        Assert.Empty(cut.FindAll(SizeSelector));
+    }
+
+    [Fact]
+    public void TurningThemOff_ReachesTheSavedVenue()
+    {
+        Venue? saved = null;
+        var cut = Render(new Venue.VenueSettings(), venue => saved = venue);
+
+        cut.Find(EnabledSelector).Change(false);
+        cut.Find("form").Submit();
+
+        Assert.NotNull(saved);
+        Assert.False(saved!.Settings.QrCodeEnabled);
     }
 
     /// <summary>
