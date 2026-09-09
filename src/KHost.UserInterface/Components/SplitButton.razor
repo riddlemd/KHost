@@ -17,9 +17,12 @@
     @if (_open)
     {
         <div class="kh-split-btn__overlay" @onclick="CloseMenu"></div>
-
-        <div class="kh-split-btn__menu" @ref="_menuRef" @onclick="CloseMenu">
-            @Buttons
-        </div>
     }
+
+    @* Rendered closed as well as open: whether there is anything to open is a question only the
+       markup can answer — a caller's menu may be a list that came back empty, or an AuthorizeView
+       that drew nothing — and the toggle beside it is hidden off exactly that. *@
+    <div class="kh-split-btn__menu" hidden="@(!_open)" @ref="_menuRef" @onclick="CloseMenu">
+        @Buttons
+    </div>
 </div>
