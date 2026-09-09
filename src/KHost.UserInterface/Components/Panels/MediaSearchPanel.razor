@@ -86,6 +86,36 @@
                 {
                     var columns = MediaResultColumnSet.For(_results, MediaSearchService?.Providers ?? []);
 
+                    RenderFragment<MediaSearchEntity> Actions = entity =>
+                        @<text>
+                            @if (_canAddToQueue)
+                            {
+                                @foreach (var action in CombineWithGlobalActions(entity.SupportedActions))
+                                {
+                                    <SplitButton
+                                            disabled="@(SingerQueueService?.SelectedUserId is null)"
+                                            @onclick="() => PerformActionAsync(action, entity)"
+                                            title="@action.Description">
+                                        <Text>
+                                            <Icon Name="@action.Icon" />
+                                            <span class="kh-media-search-panel__action-label">@action.DisplayName</span>
+                                        </Text>
+                                        <Buttons>
+                                            @foreach (var subAction in action.SubActions)
+                                            {
+                                                <button class="kh-button kh-button--primary"
+                                                        disabled="@(SingerQueueService?.SelectedUserId is null)"
+                                                        @onclick="() => PerformActionAsync(subAction, entity)"
+                                                        title="@subAction.Description">
+                                                    <Icon Name="@subAction.Icon" /> @subAction.DisplayName
+                                                </button>
+                                            }
+                                        </Buttons>
+                                    </SplitButton>
+                                }
+                            }
+                        </text>;
+
                     <table class="kh-table kh-media-search-panel__table">
                         <thead>
                             <tr>
@@ -99,8 +129,35 @@
                         <tbody>
                             @foreach (var mediaSearchEntity in _results.Take(300))
                             {
-                                    var queuedBy = GetSingersWithMediaQueued(mediaSearchEntity.ForeignKey, mediaSearchEntity.Source);
+                                var queuedBy = GetSingersWithMediaQueued(mediaSearchEntity.ForeignKey, mediaSearchEntity.Source);
 
+                                if (mediaSearchEntity.SpansAllColumns)
+                                {
+                                    <tr class="kh-media-search-panel__results__result kh-media-search-panel__offer">
+                                        @* One cell across the table and the header above it: the columns describe a
+                                           song this row is not, and an action named for what it does needs the width. *@
+                                        <td colspan="@(columns.Count + 1)">
+                                            <div class="kh-media-search-panel__offer-body">
+                                                @if (OfferImage(mediaSearchEntity) is { Length: > 0 } image)
+                                                {
+                                                    <img class="kh-media-search-panel__offer-image" src="@image" alt="" loading="lazy" />
+                                                }
+                                                <div class="kh-media-search-panel__offer-text">
+                                                    <span class="kh-media-search-panel__offer-title">@mediaSearchEntity.Title</span>
+                                                    @if (!string.IsNullOrWhiteSpace(mediaSearchEntity.Notes))
+                                                    {
+                                                        <span class="kh-media-search-panel__offer-notes">@mediaSearchEntity.Notes</span>
+                                                    }
+                                                </div>
+                                                <div class="kh-media-search-panel__offer-actions">
+                                                    @Actions(mediaSearchEntity)
+                                                </div>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                }
+                                else
+                                {
                                     <tr class="kh-media-search-panel__results__result @(queuedBy.Count > 0 ? "kh-media-search-panel__results__result--queued" : "")">
                                     @for (var i = 0; i < columns.Count; i++)
                                     {
@@ -131,34 +188,10 @@
                                         </td>
                                     }
                                     <td class="kh-table__cell--actions">
-                                        @if (_canAddToQueue)
-                                        {
-                                        @foreach(var action in CombineWithGlobalActions(mediaSearchEntity.SupportedActions))
-                                        {
-                                            <SplitButton
-                                                    disabled="@(SingerQueueService?.SelectedUserId is null)"
-                                                    @onclick="() => PerformActionAsync(action, mediaSearchEntity)"
-                                                    title="@action.Description">
-                                                <Text>
-                                                    <Icon Name="@action.Icon" />
-                                                    <span class="kh-media-search-panel__action-label">@action.DisplayName</span>
-                                                </Text>
-                                                <Buttons>
-                                                    @foreach(var subAction in action.SubActions)
-                                                    {
-                                                        <button class="kh-button kh-button--primary"
-                                                            disabled="@(SingerQueueService?.SelectedUserId is null)"
-                                                            @onclick="() => PerformActionAsync(subAction, mediaSearchEntity)"
-                                                                title="@subAction.Description">
-                                                            <Icon Name="@subAction.Icon" /> @subAction.DisplayName
-                                                        </button>    
-                                                    }
-                                                </Buttons>
-                                            </SplitButton>
-                                        }
-                                        }
+                                        @Actions(mediaSearchEntity)
                                     </td>
                                 </tr>
+                                }
                             }
                         </tbody>
                     </table>
