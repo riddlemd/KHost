@@ -66,6 +66,8 @@ public class EditVenueModel
     /// dialog shows the corner and size a code would take anyway, and saving that back changes
     /// nothing — the same trade the marquee's sizes make with zero.
     /// </summary>
+    public bool QrCodeEnabled { get; set; } = true;
+
     public ScreenCorner QrCodeCorner { get; set; } = ScreenCorner.BottomRight;
 
     public ScreenQrSize QrCodeSize { get; set; } = ScreenQrSize.Medium;

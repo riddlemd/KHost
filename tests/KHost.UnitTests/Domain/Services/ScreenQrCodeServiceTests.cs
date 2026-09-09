@@ -157,6 +157,30 @@ public class ScreenQrCodeServiceTests
         Assert.Empty((await service.BuildAsync()).Codes);
     }
 
+    /// <summary>A venue that wants none gets none, whatever a plugin asks for.</summary>
+    [Fact]
+    public async Task BuildAsync_CodesTurnedOff_SendsNone()
+    {
+        Arrange(new Venue.VenueSettings { QrCodeEnabled = false });
+        var service = Service();
+
+        await service.ShowAsync(Code("karafun"));
+
+        Assert.Empty((await service.BuildAsync()).Codes);
+    }
+
+    /// <summary>No venue is nobody to have chosen, so it is the same answer rather than a default.</summary>
+    [Fact]
+    public async Task BuildAsync_NoVenueSelected_SendsNone()
+    {
+        _venues.ReadSelectedVenueAsync().Returns((Venue?)null);
+        var service = Service();
+
+        await service.ShowAsync(Code("karafun"));
+
+        Assert.Empty((await service.BuildAsync()).Codes);
+    }
+
     /// <summary>The venue asked for a clean picture while someone is singing.</summary>
     [Fact]
     public async Task BuildAsync_HidingDuringSongs_SendsNoneWhileOneIsPlaying()
