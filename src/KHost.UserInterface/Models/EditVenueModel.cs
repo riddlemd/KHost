@@ -60,4 +60,15 @@ public class EditVenueModel
     public int MarqueeScrollSpeed { get; set; } = 90;
 
     public bool MarqueePinLabel { get; set; }
+
+    /// <summary>
+    /// Where a QR code sits, and how big. Not nullable here the way the venue stores them: the
+    /// dialog shows the corner and size a code would take anyway, and saving that back changes
+    /// nothing — the same trade the marquee's sizes make with zero.
+    /// </summary>
+    public ScreenCorner QrCodeCorner { get; set; } = ScreenCorner.BottomRight;
+
+    public ScreenQrSize QrCodeSize { get; set; } = ScreenQrSize.Medium;
+
+    public bool QrCodeHideDuringSong { get; set; }
 }
