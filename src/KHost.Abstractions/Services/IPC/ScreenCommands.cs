@@ -148,6 +148,7 @@ public sealed class SetScreenQrCodesCommand : ScreenCommandBase
 /// </summary>
 public sealed class ScreenQrCodePlacement
 {
+    /// <summary>The finished picture, an SVG data URI the host encoded — the screen holds no QR library.</summary>
     public required string ImageUrl { get; init; }
 
     public string? Caption { get; init; }
@@ -155,6 +156,13 @@ public sealed class ScreenQrCodePlacement
     public ScreenCorner Corner { get; init; }
 
     public ScreenQrSize Size { get; init; }
+
+    /// <summary>
+    /// How many modules the code is across, quiet zone included. The screen sizes off it: a long
+    /// payload needs more modules, and the same corner then draws each one smaller until no phone
+    /// can read it. A floor per module beats a floor in pixels, which cannot know either.
+    /// </summary>
+    public int Modules { get; init; }
 }
 
 /// <summary>

@@ -410,6 +410,12 @@ function setQrCodes(message) {
         figure.dataset.corner = QR_CORNERS.includes(code.corner) ? code.corner : 'bottomright';
         figure.dataset.size = QR_SIZES.includes(code.size) ? code.size : 'medium';
 
+        // A denser code drawn in the same corner has smaller modules; below about three pixels
+        // each, no phone reads it, so the module count sets a floor the venue's size cannot go
+        // under.
+        if (Number.isFinite(code.modules) && code.modules > 0)
+            figure.style.setProperty('--kh-qr-modules', String(code.modules));
+
         const image = document.createElement('img');
         // Decorative in the accessibility sense — nobody is reading this screen with a reader,
         // and the caption below already says what it is for.

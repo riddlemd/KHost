@@ -13,12 +13,12 @@ public sealed record ScreenQrCode
     public required string OwnerId { get; init; }
 
     /// <summary>
-    /// The picture, already a QR code — a <c>data:</c> URI or an http(s) URL. Raster or SVG:
-    /// a provider that renders its own codes server-side (Example returns an SVG) hands back an
-    /// image, not a payload, so this contract takes the image and no host or screen needs a QR
-    /// library. Nothing here is composed by the screen, the same as <c>ShowImageCommand</c>.
+    /// What the code says when it is scanned — usually a URL. The host encodes it, so a caller
+    /// with a provider that also renders its own codes passes the string rather than the picture:
+    /// two codes carrying the same text scan to the same place whatever they look like, and one
+    /// we drew ourselves is a vector that stays sharp in a corner a few centimetres across.
     /// </summary>
-    public required string ImageUrl { get; init; }
+    public required string Payload { get; init; }
 
     /// <summary>
     /// A line under the code. A QR with no words is a mystery, and the screen composes nothing —

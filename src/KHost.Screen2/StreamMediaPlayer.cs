@@ -235,6 +235,7 @@ internal sealed class StreamMediaPlayer : IMediaPlayer
             codes = command.Codes.Select(code => new
             {
                 imageUrl = code.ImageUrl,
+                modules = code.Modules,
                 caption = code.Caption,
                 corner = code.Corner.ToString().ToLowerInvariant(),
                 size = code.Size.ToString().ToLowerInvariant(),
