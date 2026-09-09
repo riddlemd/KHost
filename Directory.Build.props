@@ -1,0 +1,24 @@
+<Project>
+
+  <!--
+    Package identity for the two projects a plugin builds against. Everything else in the solution
+    inherits these harmlessly, because only KHost.Abstractions and KHost.Common set IsPackable.
+
+    The version here is the *contract* version, and it is not PluginApi.CurrentVersion. That one is
+    the runtime gate the host checks a manifest against and moves only on a break; this one moves
+    whenever the shape a plugin author compiles against changes at all, additions included. Keeping
+    them apart is the point: an author needs to know their source will still compile, which a
+    number that only ever counts breaks cannot tell them.
+
+    0.x on purpose. The contracts still move under people — ScreenQrCode changed shape twice in one
+    day — and a 1.0 would promise otherwise.
+  -->
+  <PropertyGroup>
+    <ContractsVersion>0.1.0</ContractsVersion>
+    <Authors>Michael Riddle</Authors>
+    <RepositoryUrl>https://github.com/riddlemd/KHost</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+  </PropertyGroup>
+
+</Project>
