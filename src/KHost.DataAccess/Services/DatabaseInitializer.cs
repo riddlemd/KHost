@@ -56,6 +56,7 @@ internal class DatabaseInitializer : IDatabaseInitializer
         await context.Database.MigrateAsync();
 
         await SweepStalledDownloadsAsync();
+        await SweepEphemeralForeignKeysAsync();
         await RefoldStoredTextAsync();
         await SeedDefaultAdminUserAsync();
         await SeedDefaultVenueAsync();
@@ -104,6 +105,22 @@ internal class DatabaseInitializer : IDatabaseInitializer
     /// file a download left behind may still be on disk, and a deleted row would let a later
     /// import silently re-register that partial file as Ready.
     /// </summary>
+    /// <summary>
+    /// Drops every ephemeral foreign key. An ephemeral key names a connection rather than a
+    /// person, so none can have outlived the process that issued it — and doing it here rather
+    /// than leaving it to whoever wrote them is what stops a plugin's rows outliving the plugin.
+    /// Durable keys are untouched.
+    /// </summary>
+    internal async Task SweepEphemeralForeignKeysAsync()
+    {
+        using var context = await _contextFactory.CreateDbContextAsync();
+
+        var dropped = await context.UserForeignKeys.Where(k => k.IsEphemeral).ExecuteDeleteAsync();
+
+        if (dropped > 0)
+            _logger.LogInformation("Dropped {Count} ephemeral singer foreign key(s) left by the last run", dropped);
+    }
+
     internal async Task SweepStalledDownloadsAsync()
     {
         using var context = await _contextFactory.CreateDbContextAsync();

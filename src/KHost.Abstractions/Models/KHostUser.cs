@@ -13,4 +13,11 @@ public class KHostUser : RepositoryModel
 
     public ICollection<KHostUserGroup> Groups { get; set; } = [];
     public ICollection<Tip> Tips { get; set; } = [];
+
+    /// <summary>
+    /// What providers outside KHost call this singer. Read back by
+    /// <see cref="Services.IUsersService.ReadByForeignKeyAsync"/>, which is how a returning guest
+    /// is recognised without matching on a name they may have typed differently.
+    /// </summary>
+    public ICollection<KHostUserForeignKey> ForeignKeys { get; set; } = [];
 }

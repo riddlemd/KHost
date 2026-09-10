@@ -259,6 +259,138 @@ public class UsersRepositoryTests : IDisposable
         Assert.Equal(2, result.Items.Count);
     }
 
+    // ---- foreign keys ----------------------------------------------------
+
+    [Fact]
+    public async Task ReadByForeignKey_FindsTheSingerThatKeyNames()
+    {
+        var ada = User("Ada");
+        await _database.SeedAsync(ada, User("Grace"));
+        await _repository.AddForeignKeyAsync(ada.Id, "Example", "remote-1", isEphemeral: true);
+
+        Assert.Equal("Ada", (await _repository.ReadByForeignKeyAsync("Example", "remote-1"))?.Name);
+        Assert.Null(await _repository.ReadByForeignKeyAsync("Example", "remote-2"));
+    }
+
+    /// <summary>Two providers may well hand out the same string; it is the pair that identifies.</summary>
+    [Fact]
+    public async Task ReadByForeignKey_TellsTwoSourcesApartOnTheSameKey()
+    {
+        var ada = User("Ada");
+        var grace = User("Grace");
+        await _database.SeedAsync(ada, grace);
+        await _repository.AddForeignKeyAsync(ada.Id, "Example", "42", isEphemeral: false);
+        await _repository.AddForeignKeyAsync(grace.Id, "YouTube", "42", isEphemeral: false);
+
+        Assert.Equal("Ada", (await _repository.ReadByForeignKeyAsync("Example", "42"))?.Name);
+        Assert.Equal("Grace", (await _repository.ReadByForeignKeyAsync("YouTube", "42"))?.Name);
+    }
+
+    /// <summary>
+    /// An external id is not a name. A provider may make case meaningful, and folding one would
+    /// merge two singers who are genuinely different people.
+    /// </summary>
+    [Fact]
+    public async Task ReadByForeignKey_MatchesExactlyRatherThanFolded()
+    {
+        var ada = User("Ada");
+        await _database.SeedAsync(ada);
+        await _repository.AddForeignKeyAsync(ada.Id, "Example", "ABC", isEphemeral: false);
+
+        Assert.NotNull(await _repository.ReadByForeignKeyAsync("Example", "ABC"));
+        Assert.Null(await _repository.ReadByForeignKeyAsync("Example", "abc"));
+    }
+
+    // The pair being unique is what makes a lookup worth anything, and a raw DbUpdateException
+    // out of a Blazor event handler takes the circuit down with it.
+    [Fact]
+    public async Task AddForeignKey_RefusesOneAnotherSingerAlreadyHolds()
+    {
+        var ada = User("Ada");
+        var grace = User("Grace");
+        await _database.SeedAsync(ada, grace);
+        await _repository.AddForeignKeyAsync(ada.Id, "Example", "remote-1", isEphemeral: false);
+
+        var taken = await Assert.ThrowsAsync<KHostException>(
+            () => _repository.AddForeignKeyAsync(grace.Id, "Example", "remote-1", isEphemeral: false));
+
+        Assert.Equal("KH-USER-FOREIGN-KEY-TAKEN", taken.ReferenceCode);
+    }
+
+    [Fact]
+    public async Task Read_BringsTheForeignKeysWithIt()
+    {
+        var ada = User("Ada");
+        await _database.SeedAsync(ada);
+        await _repository.AddForeignKeyAsync(ada.Id, "Example", "remote-1", isEphemeral: true);
+
+        var read = await _repository.ReadAsync(ada.Id);
+
+        var key = Assert.Single(read!.ForeignKeys);
+        Assert.Equal("Example", key.Source);
+        Assert.Equal("remote-1", key.Key);
+        Assert.True(key.IsEphemeral);
+    }
+
+    /// <summary>
+    /// Search results are saved back through UpdateAsync, which reconciles against what it is
+    /// handed — a result short of its keys would have them deleted on the next save.
+    /// </summary>
+    [Fact]
+    public async Task Search_BringsTheForeignKeysWithIt()
+    {
+        var ada = User("Ada");
+        await _database.SeedAsync(ada);
+        await _repository.AddForeignKeyAsync(ada.Id, "Example", "remote-1", isEphemeral: true);
+
+        var found = Assert.Single((await _repository.SearchAsync("Ada")).Items);
+
+        Assert.Equal("remote-1", Assert.Single(found.ForeignKeys).Key);
+    }
+
+    [Fact]
+    public async Task DeleteEphemeralForeignKeys_LeavesDurableOnesAndOtherSourcesAlone()
+    {
+        var ada = User("Ada");
+        await _database.SeedAsync(ada);
+        await _repository.AddForeignKeyAsync(ada.Id, "Example", "remote-1", isEphemeral: true);
+        await _repository.AddForeignKeyAsync(ada.Id, "Example", "account-1", isEphemeral: false);
+        await _repository.AddForeignKeyAsync(ada.Id, "YouTube", "remote-1", isEphemeral: true);
+
+        Assert.Equal(1, await _repository.DeleteEphemeralForeignKeysAsync("Example"));
+
+        Assert.Null(await _repository.ReadByForeignKeyAsync("Example", "remote-1"));
+        Assert.NotNull(await _repository.ReadByForeignKeyAsync("Example", "account-1"));
+        Assert.NotNull(await _repository.ReadByForeignKeyAsync("YouTube", "remote-1"));
+    }
+
+    [Fact]
+    public async Task RemoveForeignKey_FreesItForAnotherSinger()
+    {
+        var ada = User("Ada");
+        var grace = User("Grace");
+        await _database.SeedAsync(ada, grace);
+        await _repository.AddForeignKeyAsync(ada.Id, "Example", "remote-1", isEphemeral: false);
+
+        await _repository.RemoveForeignKeyAsync(ada.Id, "Example", "remote-1");
+        await _repository.AddForeignKeyAsync(grace.Id, "Example", "remote-1", isEphemeral: false);
+
+        Assert.Equal("Grace", (await _repository.ReadByForeignKeyAsync("Example", "remote-1"))?.Name);
+    }
+
+    /// <summary>A deleted singer must not leave a key behind that nothing can ever reach or reuse.</summary>
+    [Fact]
+    public async Task DeletingASinger_TakesTheirForeignKeysWithThem()
+    {
+        var ada = User("Ada");
+        await _database.SeedAsync(ada);
+        await _repository.AddForeignKeyAsync(ada.Id, "Example", "remote-1", isEphemeral: false);
+
+        await _repository.DeleteAsync(ada.Id);
+
+        Assert.Null(await _repository.ReadByForeignKeyAsync("Example", "remote-1"));
+    }
+
     private static KHostUser User(string name) => new() { Name = name };
 
     public void Dispose()
