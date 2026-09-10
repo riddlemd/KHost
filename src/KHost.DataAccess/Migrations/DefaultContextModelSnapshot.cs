@@ -55,6 +55,40 @@ namespace KHost.DataAccess.Migrations
                     b.ToTable("Users");
                 });
 
+            modelBuilder.Entity("KHost.Abstractions.Models.KHostUserForeignKey", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsEphemeral")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Key")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IsEphemeral");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("Source", "Key")
+                        .IsUnique();
+
+                    b.ToTable("UserForeignKeys");
+                });
+
             modelBuilder.Entity("KHost.Abstractions.Models.KHostUserGroup", b =>
                 {
                     b.Property<Guid>("Id")
@@ -433,6 +467,15 @@ namespace KHost.DataAccess.Migrations
                     b.ToTable("UserGroupMemberships", (string)null);
                 });
 
+            modelBuilder.Entity("KHost.Abstractions.Models.KHostUserForeignKey", b =>
+                {
+                    b.HasOne("KHost.Abstractions.Models.KHostUser", null)
+                        .WithMany("ForeignKeys")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("KHost.Abstractions.Models.MediaPoolEntry", b =>
                 {
                     b.HasOne("KHost.Abstractions.Models.MediaPool", null)
@@ -587,6 +630,8 @@ namespace KHost.DataAccess.Migrations
 
             modelBuilder.Entity("KHost.Abstractions.Models.KHostUser", b =>
                 {
+                    b.Navigation("ForeignKeys");
+
                     b.Navigation("Tips");
                 });
 
