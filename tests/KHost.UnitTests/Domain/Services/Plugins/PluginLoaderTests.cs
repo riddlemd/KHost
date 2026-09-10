@@ -1,6 +1,7 @@
 using KHost.Abstractions.Models.Plugins;
 using KHost.Domain.Services.MediaProviders;
 using KHost.Domain.Services.Plugins;
+using KHost.Domain.Services.Plugins.Secrets;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using Microsoft.Extensions.DependencyInjection;
@@ -241,6 +242,11 @@ public class PluginLoaderTests : IDisposable
         var state = new PluginsState { EnabledPluginIds = [id] };
         var plugins = PluginLoader.Discover(PluginsDir, state);
         var services = new ServiceCollection();
+
+        // A plugin context is built with one, and the loader asks for it outright rather than
+        // shrugging — a host that forgot to register it would otherwise lose every plugin's
+        // secrets silently.
+        services.AddSingleton<IPluginSecretStore>(new UnavailableSecretStore());
 
         PluginLoader.LoadAndRegister(services, plugins, state);
 
