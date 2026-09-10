@@ -12,7 +12,7 @@ using KHost.UserInterface.Services;
 
 namespace KHost.UserInterface.Components.Panels;
 
-public partial class SelectedSingerInfoPanel : IDisposable
+public partial class SelectedSingerInfoPanel : IAsyncDisposable
 {
     [Inject] private ISingerQueueService? SingerQueueService { get; set; }
     [Inject] private IPerformanceService? PerformanceService { get; set; }
@@ -333,10 +333,24 @@ public partial class SelectedSingerInfoPanel : IDisposable
     private static string FormatTempo(int tempo) =>
         tempo.ToString("+#;\u2212#;0", CultureInfo.InvariantCulture) + "%";
 
-    public void Dispose()
+    /// <summary>
+    /// Async because tearing the sortable down is a JS call, and a ValueTask dropped on the floor
+    /// in a synchronous Dispose is a call nobody knows the outcome of. The circuit is often already
+    /// gone by the time a component is disposed — that is what JSDisconnectedException means here,
+    /// and it is the ordinary path rather than a fault.
+    /// </summary>
+    public async ValueTask DisposeAsync()
     {
         _subscriptions.Dispose();
         _dotNetRef?.Dispose();
-        JS?.InvokeVoidAsync("khSortable.destroy", "songs");
+
+        try
+        {
+            if (JS is not null)
+                await JS.InvokeVoidAsync("khSortable.destroy", "songs");
+        }
+        catch (JSDisconnectedException)
+        {
+        }
     }
 }

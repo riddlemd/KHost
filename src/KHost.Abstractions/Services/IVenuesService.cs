@@ -9,6 +9,6 @@ public interface IVenuesService : IRepositoryService<Venue>
     /// <summary>Restores the previously selected venue. Call once at startup.</summary>
     Task InitializeAsync();
 
-    Task SelectVenueAsync(Guid? guid);
+    Task SelectVenueAsync(Guid? venueId);
     Task<Venue?> ReadSelectedVenueAsync();
 }

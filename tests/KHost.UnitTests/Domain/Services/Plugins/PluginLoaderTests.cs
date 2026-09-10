@@ -135,9 +135,15 @@ public class PluginLoaderTests : IDisposable
     [Fact]
     public void LoadAndRegister_RealAssemblyWithoutExtensions_LoadsWithWarning()
     {
-        // The Sdk dll is a convenient real assembly that contains no extension implementations.
-        var directory = WritePlugin("sdk-copy", "05d00000-0000-4000-8000-0000005dc09e", entryAssembly: "Entry.dll", createEntryAssembly: false);
-        File.Copy(typeof(PluginManifest).Assembly.Location, Path.Combine(directory, "Entry.dll"));
+        // A convenient real assembly that contains no extension implementations. Its version is
+        // read rather than assumed: it is a published package now, so it carries a real one and
+        // will carry a different one tomorrow — hardcoding it made this test fail the first time
+        // the contracts were versioned, for a mismatch the loader was right to report.
+        var assembly = typeof(PluginManifest).Assembly;
+        var directory = WritePlugin("sdk-copy", "05d00000-0000-4000-8000-0000005dc09e",
+            entryAssembly: "Entry.dll", createEntryAssembly: false,
+            version: assembly.GetName().Version!.ToString(3));
+        File.Copy(assembly.Location, Path.Combine(directory, "Entry.dll"));
         var state = new PluginsState { EnabledPluginIds = ["05d00000-0000-4000-8000-0000005dc09e"] };
         var plugins = PluginLoader.Discover(PluginsDir, state);
 
@@ -145,7 +151,7 @@ public class PluginLoaderTests : IDisposable
 
         Assert.Equal(PluginStatus.Loaded, plugins[0].Status);
         Assert.Contains(plugins[0].Warnings, w => w.Contains("No extension implementations"));
-        // Manifest "1.0.0" vs assembly 1.0.0.0 is the same version, not drift.
+        // The manifest was written from the assembly's own version, so there is no drift to report.
         Assert.DoesNotContain(plugins[0].Warnings, w => w.Contains("differs from assembly version"));
     }
 
@@ -416,13 +422,13 @@ public class PluginLoaderTests : IDisposable
     }
 
     private string WritePlugin(string folder, string id, int apiVersion = PluginApi.CurrentVersion,
-        string entryAssembly = "Plugin.dll", bool createEntryAssembly = true)
+        string entryAssembly = "Plugin.dll", bool createEntryAssembly = true, string version = "1.0.0")
     {
         var manifest = new
         {
             id,
             name = id,
-            version = "1.0.0",
+            version,
             entryAssembly,
             apiVersion,
         };

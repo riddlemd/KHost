@@ -56,6 +56,7 @@ public class MediaSearchPanelSearchingTests : BunitContext
         Services.AddSingleton(permissions);
         Services.AddSingleton(performances);
         Services.AddSingleton(Substitute.For<IDialogService>());
+        Services.AddSingleton<IControlState>(new ControlState());
     }
 
     [Fact]

@@ -177,6 +177,9 @@ internal sealed class ScreenIpcController : IAsyncDisposable
             case SetMarqueeCommand cmd:
                 _player.SetMarquee(cmd);
                 break;
+            case SetScreenQrCodesCommand cmd:
+                _player.SetQrCodes(cmd);
+                break;
             default:
                 _logger.LogWarning("Unhandled command: {Type}", command.GetType().Name);
                 break;

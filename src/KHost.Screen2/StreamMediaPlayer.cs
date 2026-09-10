@@ -219,6 +219,30 @@ internal sealed class StreamMediaPlayer : IMediaPlayer
         });
     }
 
+    /// <summary>
+    /// Every code at once, the same whole-state push as the marquee: an empty list is how they
+    /// come down, so there is no separate hide to keep in step.
+    /// </summary>
+    public void SetQrCodes(SetScreenQrCodesCommand command)
+    {
+        _logger.LogInformation("QR codes: {Count}", command.Codes.Count);
+
+        // Lowercased here rather than in the page, the same as show-image's scaling: the page
+        // knows CSS words, not these enums' spelling.
+        Send(new
+        {
+            type = "qr-codes",
+            codes = command.Codes.Select(code => new
+            {
+                imageUrl = code.ImageUrl,
+                modules = code.Modules,
+                caption = code.Caption,
+                corner = code.Corner.ToString().ToLowerInvariant(),
+                size = code.Size.ToString().ToLowerInvariant(),
+            }),
+        });
+    }
+
     public string? StillUrl { get { lock (_lock) return _stillUrl; } }
 
     /// <summary>Blanks the picture. Playback continues, so the screen stays on the timeline.</summary>
