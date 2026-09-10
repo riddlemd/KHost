@@ -101,9 +101,12 @@ internal class UsersRepository : BaseRepository<KHostUser>, IUsersRepository
     public override async Task<KHostUser?> ReadAsync(Guid id)
     {
         using var context = await ContextFactory.CreateDbContextAsync();
+        // Split, because two collection Includes on one query is a cartesian product: a singer in
+        // three groups holding two keys comes back as six rows to build one object.
         return await context.Set<KHostUser>()
             .Include(u => u.Groups.OrderBy(g => g.Name))
             .Include(u => u.ForeignKeys)
+            .AsSplitQuery()
             .FirstOrDefaultAsync(u => u.Id == id);
     }
 
@@ -183,7 +186,8 @@ internal class UsersRepository : BaseRepository<KHostUser>, IUsersRepository
         // short of it — UpdateAsync reconciles against what it is handed.
         queryable = queryable
             .Include(u => u.Groups.OrderBy(g => g.Name))
-            .Include(u => u.ForeignKeys);
+            .Include(u => u.ForeignKeys)
+            .AsSplitQuery();
 
         if (options is UserSearchOptions { SingersOnly: true })
             queryable = queryable.Where(u => !u.Groups.Any(g => g.ExcludeFromSingerQueue));
