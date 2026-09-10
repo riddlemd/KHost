@@ -106,6 +106,9 @@ public class UsersService : BaseRepositoryService<KHostUser, IUsersRepository>, 
         return await Repository.HasAdminUserAsync();
     }
 
+    public async Task<KHostUser?> FindByNameAsync(string name)
+        => await Repository.FindByNameAsync(name);
+
     public async Task<KHostUser?> ReadByForeignKeyAsync(string source, string key)
         => await Repository.ReadByForeignKeyAsync(source, key);
 
