@@ -352,6 +352,63 @@ public class DatabaseInitializerTests
             Guid.NewGuid().ToString().ToUpperInvariant(), name, folded, DateTime.UtcNow);
     }
 
+    /// <summary>
+    /// An ephemeral key names a connection, so none can have outlived the process that issued it.
+    /// Swept here rather than left to whoever wrote them, which is also what stops a plugin's rows
+    /// outliving the plugin.
+    /// </summary>
+    [Fact]
+    public async Task SweepEphemeralForeignKeysAsync_DropsEphemeralKeysAndKeepsDurableOnes()
+    {
+        var (factory, dbPath) = NewDatabase();
+        try
+        {
+            var ada = new KHostUser { Name = "Ada" };
+            using (var seed = factory.CreateDbContext())
+            {
+                seed.Users.Add(ada);
+                seed.UserForeignKeys.AddRange(
+                    new KHostUserForeignKey { UserId = ada.Id, Source = "KaraFun", Key = "remote-1", IsEphemeral = true },
+                    new KHostUserForeignKey { UserId = ada.Id, Source = "KaraFun", Key = "account-1", IsEphemeral = false });
+                await seed.SaveChangesAsync();
+            }
+
+            var sut = CreateSut(new ServiceOptions(), factory);
+
+            await sut.SweepEphemeralForeignKeysAsync();
+
+            using var context = factory.CreateDbContext();
+            Assert.Equal(["account-1"], context.UserForeignKeys.Select(k => k.Key).ToArray());
+        }
+        finally { Delete(dbPath); }
+    }
+
+    /// <summary>The singer stays; only the key naming their old connection goes.</summary>
+    [Fact]
+    public async Task SweepEphemeralForeignKeysAsync_NeverDeletesTheSinger()
+    {
+        var (factory, dbPath) = NewDatabase();
+        try
+        {
+            var ada = new KHostUser { Name = "Ada" };
+            using (var seed = factory.CreateDbContext())
+            {
+                seed.Users.Add(ada);
+                seed.UserForeignKeys.Add(
+                    new KHostUserForeignKey { UserId = ada.Id, Source = "KaraFun", Key = "remote-1", IsEphemeral = true });
+                await seed.SaveChangesAsync();
+            }
+
+            var sut = CreateSut(new ServiceOptions(), factory);
+
+            await sut.SweepEphemeralForeignKeysAsync();
+
+            using var context = factory.CreateDbContext();
+            Assert.Equal(1, context.Users.Count(u => u.Name == "Ada"));
+        }
+        finally { Delete(dbPath); }
+    }
+
     private static (IDbContextFactory<DefaultContext> Factory, string Path) NewDatabase()
     {
         var path = Path.Combine(Path.GetTempPath(), $"khost-refold-{Guid.NewGuid():N}.db");

@@ -215,4 +215,123 @@ public class UsersServiceTests
 
         Assert.Equal(1, writesWhenNotified);
     }
+
+    // ---- foreign keys ----------------------------------------------------
+
+    [Fact]
+    public async Task CreateAsync_WritesTheForeignKeysItWasHanded()
+    {
+        var user = new KHostUser
+        {
+            Name = "Ada",
+            ForeignKeys = [new KHostUserForeignKey { Source = "KaraFun", Key = "remote-1", IsEphemeral = true }],
+        };
+        // Read at call time, not asserted afterwards: the service hands the repository the same
+        // object it later puts the keys back on, so a substitute's captured argument shows the
+        // restored state and would pass whether or not anything was ever detached.
+        var keysWhenSaved = -1;
+        _repository.CreateAsync(Arg.Any<KHostUser>()).Returns(call =>
+        {
+            keysWhenSaved = call.Arg<KHostUser>().ForeignKeys.Count;
+            return call.Arg<KHostUser>();
+        });
+
+        var saved = await _service.CreateAsync(user);
+
+        // Detached before the row is written — the repository would otherwise cascade the graph —
+        // and put back afterwards, so the caller's entity still describes the singer.
+        Assert.Equal(0, keysWhenSaved);
+        await _repository.Received(1).AddForeignKeyAsync(user.Id, "KaraFun", "remote-1", true);
+        Assert.Single(saved.ForeignKeys);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_AddsNewKeysAndRemovesDroppedOnes()
+    {
+        var id = Guid.NewGuid();
+        _repository.ReadAsync(id).Returns(new KHostUser
+        {
+            Id = id,
+            Name = "Ada",
+            ForeignKeys =
+            [
+                new() { Source = "KaraFun", Key = "keep", IsEphemeral = false },
+                new() { Source = "KaraFun", Key = "drop", IsEphemeral = false },
+            ],
+        });
+
+        await _service.UpdateAsync(new KHostUser
+        {
+            Id = id,
+            Name = "Ada",
+            ForeignKeys =
+            [
+                new() { Source = "KaraFun", Key = "keep", IsEphemeral = false },
+                new() { Source = "KaraFun", Key = "add", IsEphemeral = true },
+            ],
+        });
+
+        await _repository.Received(1).AddForeignKeyAsync(id, "KaraFun", "add", true);
+        await _repository.Received(1).RemoveForeignKeyAsync(id, "KaraFun", "drop");
+        await _repository.DidNotReceive().AddForeignKeyAsync(id, "KaraFun", "keep", Arg.Any<bool>());
+        await _repository.DidNotReceive().RemoveForeignKeyAsync(id, "KaraFun", "keep");
+    }
+
+    /// <summary>
+    /// Diffed on the pair, not the row id: a caller building a key by hand has no id to give it,
+    /// so comparing ids would delete and re-add every key on every save.
+    /// </summary>
+    [Fact]
+    public async Task UpdateAsync_LeavesAnUnchangedKeyAloneEvenWithoutItsRowId()
+    {
+        var id = Guid.NewGuid();
+        _repository.ReadAsync(id).Returns(new KHostUser
+        {
+            Id = id,
+            Name = "Ada",
+            ForeignKeys = [new() { Id = Guid.NewGuid(), Source = "KaraFun", Key = "keep", IsEphemeral = false }],
+        });
+
+        await _service.UpdateAsync(new KHostUser
+        {
+            Id = id,
+            Name = "Ada",
+            ForeignKeys = [new() { Source = "KaraFun", Key = "keep", IsEphemeral = false }],
+        });
+
+        // Any call at all, not "no call naming this key": a diff keyed on the wrong field writes
+        // the same rows under a different source, which a narrower matcher walks straight past.
+        await _repository.DidNotReceive().RemoveForeignKeyAsync(
+            Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<string>());
+        await _repository.DidNotReceive().AddForeignKeyAsync(
+            Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<bool>());
+    }
+
+    [Fact]
+    public async Task ReadByForeignKeyAsync_AsksTheRepositoryForThatPair()
+    {
+        var ada = new KHostUser { Name = "Ada" };
+        _repository.ReadByForeignKeyAsync("KaraFun", "remote-1").Returns(ada);
+
+        Assert.Same(ada, await _service.ReadByForeignKeyAsync("KaraFun", "remote-1"));
+    }
+
+    /// <summary>
+    /// This runs on every reconnect. Announcing on a night where nothing moved would redraw every
+    /// singer list for nothing.
+    /// </summary>
+    [Fact]
+    public async Task DeleteEphemeralForeignKeysAsync_AnnouncesOnlyWhenSomethingWent()
+    {
+        var raised = 0;
+        using var subscription = _broker.Subscribe<UsersChanged>(_ => raised++);
+
+        _repository.DeleteEphemeralForeignKeysAsync("KaraFun").Returns(0);
+        await _service.DeleteEphemeralForeignKeysAsync("KaraFun");
+        Assert.Equal(0, raised);
+
+        _repository.DeleteEphemeralForeignKeysAsync("KaraFun").Returns(2);
+        Assert.Equal(2, await _service.DeleteEphemeralForeignKeysAsync("KaraFun"));
+        Assert.Equal(1, raised);
+    }
 }
