@@ -252,7 +252,8 @@ public static class PluginLoader
             services.AddSingleton(implementationType, serviceProvider => ActivatorUtilities.CreateInstance(
                 serviceProvider,
                 implementationType,
-                new PluginContext(manifest, storedValues, plugin)));
+                new PluginContext(manifest, storedValues, plugin,
+                    serviceProvider.GetRequiredService<Secrets.IPluginSecretStore>())));
 
             foreach (var extensionInterface in ExtensionInterfaces.Where(i => i.IsAssignableFrom(implementationType)))
                 services.AddSingleton(extensionInterface, sp => sp.GetRequiredService(implementationType));
@@ -282,7 +283,8 @@ public static class PluginLoader
             services.AddSingleton<LoadedPlugin>(serviceProvider => new LoadedPlugin(
                 plugin,
                 (IPlugin)ActivatorUtilities.CreateInstance(serviceProvider, entryPointType),
-                new PluginContext(manifest, storedValues, plugin)));
+                new PluginContext(manifest, storedValues, plugin,
+                    serviceProvider.GetRequiredService<Secrets.IPluginSecretStore>())));
 
             registered++;
         }
