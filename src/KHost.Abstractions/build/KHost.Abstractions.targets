@@ -1,0 +1,38 @@
+<Project>
+
+  <!--
+    Keeps the contracts out of a plugin's output without the plugin having to ask.
+
+    The host loads KHost.Abstractions and KHost.Common into its default context, and
+    PluginLoadContext.Load returns null for anything already there — so a copy shipped beside a
+    plugin is never the one loaded. It is dead weight in the release zip at best, and a stale copy
+    that disagrees with the host at worst.
+
+    Done here rather than with ExcludeAssets="runtime" on the reference, because that removes them
+    from the *reference*, and everything downstream loses them too: a plugin's own test project
+    then cannot load the contracts and has to name them a second time with different asset
+    settings. Nobody should have to know that to write a test.
+
+    This file lives under build/ rather than buildTransitive/ on purpose, which is what makes the
+    split work: build/ applies only where the package is referenced directly — the plugin — while a
+    test project, which picks the package up transitively through its ProjectReference, never sees
+    this target and keeps its copies.
+
+    Set KHostTrimContractsFromOutput to false if a project references these directly and genuinely
+    needs them beside it.
+  -->
+  <PropertyGroup>
+    <KHostTrimContractsFromOutput Condition="'$(KHostTrimContractsFromOutput)' == ''">true</KHostTrimContractsFromOutput>
+  </PropertyGroup>
+
+  <Target Name="KHostTrimContractsFromOutput"
+          AfterTargets="ResolveAssemblyReferences"
+          Condition="'$(KHostTrimContractsFromOutput)' == 'true'">
+    <ItemGroup>
+      <ReferenceCopyLocalPaths
+          Remove="@(ReferenceCopyLocalPaths)"
+          Condition="'%(Filename)' == 'KHost.Abstractions' or '%(Filename)' == 'KHost.Common'" />
+    </ItemGroup>
+  </Target>
+
+</Project>
