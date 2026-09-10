@@ -71,9 +71,9 @@ public class MessageBrokerTests
     public async Task PublishAsync_WaitsForAnAsyncHandlerToFinish()
     {
         var finished = false;
-        _broker.Subscribe<SongEnded>(async (_, _) =>
+        _broker.Subscribe<SongEnded>(async (_, token) =>
         {
-            await Task.Delay(30);
+            await Task.Delay(30, token);
             finished = true;
         });
 
@@ -87,9 +87,9 @@ public class MessageBrokerTests
     {
         var order = new List<string>();
 
-        _broker.Subscribe<SongEnded>(async (_, _) =>
+        _broker.Subscribe<SongEnded>(async (_, token) =>
         {
-            await Task.Delay(30);
+            await Task.Delay(30, token);
             order.Add("first");
         });
         _broker.Subscribe<SongEnded>(_ => order.Add("second"));

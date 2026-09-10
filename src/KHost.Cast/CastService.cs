@@ -182,10 +182,12 @@ public sealed class CastService : ICastService, IDisposable
         catch (Exception ex)
         {
             _logger.LogError("Could not connect to Cast device {Name}: {Reason}", name, ex.Message);
+            // Deliberately not the caller's token: this is the cleanup for a connection that
+            // already failed, and cancelling it would leave the client undisposed.
             _ = Task.Run(async () =>
             {
                 try { await client.DisconnectAsync(); } catch { /* already gone */ }
-            });
+            }, CancellationToken.None);
             return false;
         }
 

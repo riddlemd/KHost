@@ -185,7 +185,7 @@ public class DatabaseInitializerTests
     public async Task SeedDefaultMediaAsync_ContinuesAfterOneFileFailure()
     {
         _mediaService.HasAnyAsync().Returns(false);
-        _mediaFileParsingService.LoadAndParseAsync("bad.mp4").Returns(Task.FromException<Media>(new Exception("parse error")));
+        _mediaFileParsingService.LoadAndParseAsync("bad.mp4").Returns(Task.FromException<Media>(new InvalidOperationException("parse error")));
         var mediaB = new Media { Title = "B", FilePath = "good.mp4" };
         _mediaFileParsingService.LoadAndParseAsync("good.mp4").Returns(mediaB);
         _mediaService.CreateAsync(Arg.Any<Media>()).Returns(c => c.Arg<Media>());
