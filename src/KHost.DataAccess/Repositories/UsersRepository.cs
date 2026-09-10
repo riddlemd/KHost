@@ -30,6 +30,8 @@ internal class UsersRepository : BaseRepository<KHostUser>, IUsersRepository
 
     private const string FoldedNameIndex = "Users.NameFolded";
 
+    private const string ForeignKeyIndex = "UserForeignKeys.Source, UserForeignKeys.Key";
+
     // Translated here rather than in the service: the constraint is a fact of this layer, and an
     // untranslated DbUpdateException reaches Blazor as an unhandled exception and kills the circuit.
     public override async Task<KHostUser> CreateAsync(KHostUser entity)
@@ -99,8 +101,77 @@ internal class UsersRepository : BaseRepository<KHostUser>, IUsersRepository
     public override async Task<KHostUser?> ReadAsync(Guid id)
     {
         using var context = await ContextFactory.CreateDbContextAsync();
-        return await context.Set<KHostUser>().Include(u => u.Groups.OrderBy(g => g.Name)).FirstOrDefaultAsync(u => u.Id == id);
+        return await context.Set<KHostUser>()
+            .Include(u => u.Groups.OrderBy(g => g.Name))
+            .Include(u => u.ForeignKeys)
+            .FirstOrDefaultAsync(u => u.Id == id);
     }
+
+    public async Task<KHostUser?> ReadByForeignKeyAsync(string source, string key)
+    {
+        using var context = await ContextFactory.CreateDbContextAsync();
+
+        // Matched exactly. An external id is not a name, and a provider is free to make its case
+        // meaningful — folding one would merge two singers who are genuinely different people.
+        var owner = await context.Set<KHostUserForeignKey>()
+            .Where(k => k.Source == source && k.Key == key)
+            .Select(k => k.UserId)
+            .FirstOrDefaultAsync();
+
+        return owner == Guid.Empty ? null : await ReadAsync(owner);
+    }
+
+    public async Task AddForeignKeyAsync(Guid userId, string source, string key, bool isEphemeral)
+    {
+        using var context = await ContextFactory.CreateDbContextAsync();
+
+        context.Add(new KHostUserForeignKey
+        {
+            UserId = userId,
+            Source = source,
+            Key = key,
+            IsEphemeral = isEphemeral,
+        });
+
+        try
+        {
+            await context.SaveChangesAsync();
+        }
+        catch (DbUpdateException ex) when (IsForeignKeyTaken(ex))
+        {
+            throw ForeignKeyTaken(source, key, ex);
+        }
+    }
+
+    public async Task RemoveForeignKeyAsync(Guid userId, string source, string key)
+    {
+        using var context = await ContextFactory.CreateDbContextAsync();
+
+        await context.Set<KHostUserForeignKey>()
+            .Where(k => k.UserId == userId && k.Source == source && k.Key == key)
+            .ExecuteDeleteAsync();
+    }
+
+    public async Task<int> DeleteEphemeralForeignKeysAsync(string source)
+    {
+        using var context = await ContextFactory.CreateDbContextAsync();
+
+        return await context.Set<KHostUserForeignKey>()
+            .Where(k => k.IsEphemeral && k.Source == source)
+            .ExecuteDeleteAsync();
+    }
+
+    private static bool IsForeignKeyTaken(DbUpdateException ex)
+        => ex.InnerException is SqliteException { SqliteErrorCode: SqliteConstraintViolation } sqlite
+           && sqlite.Message.Contains(ForeignKeyIndex, StringComparison.Ordinal);
+
+    // Translated here for the same reason the taken name is: a raw DbUpdateException reaching
+    // Blazor kills the circuit, and this one is reachable from a plugin acting on a stale lookup.
+    private static KHostException ForeignKeyTaken(string source, string key, Exception inner)
+        => new($"Another singer is already registered as {source} “{key}”.",
+               "Remove it from them before giving it to this singer.",
+               "KH-USER-FOREIGN-KEY-TAKEN",
+               inner);
 
     protected override IReadOnlyDictionary<string, Expression<Func<KHostUser, object>>> SortColumns => _sortColumns;
     protected override Expression<Func<KHostUser, object>> DefaultSortExpression => u => u.Name.ToLower();
@@ -108,7 +179,11 @@ internal class UsersRepository : BaseRepository<KHostUser>, IUsersRepository
     protected override IQueryable<KHostUser> ApplySearchFilters<TOptions>(IQueryable<KHostUser> queryable, string query, TOptions? options = null)
         where TOptions : class
     {
-        queryable = queryable.Include(u => u.Groups.OrderBy(g => g.Name));
+        // Both collections, because an entity that comes back short of one is then saved back
+        // short of it — UpdateAsync reconciles against what it is handed.
+        queryable = queryable
+            .Include(u => u.Groups.OrderBy(g => g.Name))
+            .Include(u => u.ForeignKeys);
 
         if (options is UserSearchOptions { SingersOnly: true })
             queryable = queryable.Where(u => !u.Groups.Any(g => g.ExcludeFromSingerQueue));

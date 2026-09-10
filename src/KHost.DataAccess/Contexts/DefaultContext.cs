@@ -14,6 +14,7 @@ internal class DefaultContext : DbContext
     public DbSet<KHostUserGroup> UserGroups { get; set; }
     public DbSet<Performance> Performances { get; set; }
     public DbSet<Tip> Tips { get; set; }
+    public DbSet<KHostUserForeignKey> UserForeignKeys { get; set; }
     public DbSet<MediaPool> MediaPools { get; set; }
     public DbSet<MediaPoolEntry> MediaPoolEntries { get; set; }
 
@@ -206,6 +207,32 @@ internal class DefaultContext : DbContext
             .WithOne()
             .HasForeignKey(t => t.UserId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<KHostUser>()
+            .HasMany(u => u.ForeignKeys)
+            .WithOne()
+            .HasForeignKey(k => k.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<KHostUserForeignKey>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+
+            entity.Property(e => e.Source)
+                .IsRequired()
+                .HasMaxLength(100);
+
+            entity.Property(e => e.Key)
+                .IsRequired()
+                .HasMaxLength(255);
+
+            // The pair, not the key alone: two providers may well hand out the same string, and
+            // the point of the constraint is that one provider's id reaches one singer.
+            entity.HasIndex(e => new { e.Source, e.Key }).IsUnique();
+
+            // The sweep on the way up reads this, and nothing else selects on it.
+            entity.HasIndex(e => e.IsEphemeral);
+        });
 
         modelBuilder.Entity<KHostUserGroup>(entity =>
         {
