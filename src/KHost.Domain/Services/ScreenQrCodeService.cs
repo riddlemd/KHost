@@ -3,6 +3,7 @@ using KHost.Abstractions.Messaging.Messages;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using KHost.Abstractions.Services.IPC;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using QRCoder;
 
@@ -17,7 +18,17 @@ public sealed class ScreenQrCodeService : BaseService, IScreenQrCodeService, IDi
 {
     private readonly IScreenServer _screenServer;
     private readonly IVenuesService _venuesService;
-    private readonly IPlaybackService _playback;
+
+    // Resolved on use, never in the constructor, and this is not a style choice — taking
+    // IPlaybackService here hangs the app before it logs a line. A plugin is registered once and
+    // pointed at every extension interface it implements, so a plugin that shows a QR code and
+    // gates playback closes a ring: the plugin needs this service, this service needs playback,
+    // playback needs every IMediaPlaybackGate, and one of those is the plugin being built. Nothing
+    // asks for a code until long after the graph is up, so the lookup is free by then.
+    private readonly IServiceProvider _services;
+    private IPlaybackService? _playbackService;
+
+    private IPlaybackService Playback => _playbackService ??= _services.GetRequiredService<IPlaybackService>();
     private readonly SubscriptionSet _subscriptions = new();
 
     // Singleton, so the codes are guarded rather than assumed single-threaded: a plugin shows one
@@ -33,13 +44,13 @@ public sealed class ScreenQrCodeService : BaseService, IScreenQrCodeService, IDi
         ILogger<ScreenQrCodeService> logger,
         IScreenServer screenServer,
         IVenuesService venuesService,
-        IPlaybackService playback,
+        IServiceProvider services,
         IMessageBroker broker)
         : base(logger)
     {
         _screenServer = screenServer;
         _venuesService = venuesService;
-        _playback = playback;
+        _services = services;
 
         // The venue owns where these sit and how big they are, and whether a song hides them.
         _subscriptions.Add(broker.Subscribe<SelectedVenueChanged>(_ => Republish()));
@@ -102,7 +113,7 @@ public sealed class ScreenQrCodeService : BaseService, IScreenQrCodeService, IDi
             return new SetScreenQrCodesCommand();
 
         // Nothing is on screen while someone sings, if the venue asked for that.
-        if (settings.QrCodeHideDuringSong && _playback.CurrentPerformance is not null)
+        if (settings.QrCodeHideDuringSong && Playback.CurrentPerformance is not null)
             return new SetScreenQrCodesCommand();
 
         List<(long Claim, ScreenQrCode Code)> claims;
