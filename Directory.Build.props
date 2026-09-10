@@ -15,6 +15,20 @@
   -->
   <PropertyGroup>
     <ContractsVersion>0.1.0</ContractsVersion>
+    <!--
+      The assembly version is pinned and the package version is not, because they answer to
+      different people. A plugin's compiled reference binds to this number, so moving it makes
+      every plugin already in the wild fail to load — which is exactly what happened the first time
+      these were packed: KHost.Plugins.Spotify bound to 1.0.0.0, the host served 0.1.0.0, and its
+      break-music provider silently vanished with one line in the log.
+
+      So this moves only when PluginApi.CurrentVersion does, which is the host's real compatibility
+      gate and is checked against a manifest with a message a host can act on. ContractsVersion goes
+      on the package and the file version, where it tells an author what they are compiling against
+      without breaking anything already built.
+    -->
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>$(ContractsVersion).0</FileVersion>
     <Authors>Michael Riddle</Authors>
     <RepositoryUrl>https://github.com/riddlemd/KHost</RepositoryUrl>
     <RepositoryType>git</RepositoryType>

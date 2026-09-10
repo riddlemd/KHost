@@ -5,6 +5,7 @@ using KHost.Abstractions.Services;
 using KHost.Abstractions.Services.IPC;
 using KHost.Domain.Services;
 using KHost.Domain.Services.Messaging;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace KHost.UnitTests.Domain.Services;
@@ -16,8 +17,11 @@ public class ScreenQrCodeServiceTests
     private readonly IPlaybackService _playback = Substitute.For<IPlaybackService>();
     private readonly MessageBroker _broker = new(NullLogger<MessageBroker>.Instance);
 
+    // Through a container, because the service looks playback up rather than taking it: a plugin
+    // that shows a code and gates playback would otherwise close a constructor ring through it.
     private ScreenQrCodeService Service() => new(
-        NullLogger<ScreenQrCodeService>.Instance, _screens, _venues, _playback, _broker);
+        NullLogger<ScreenQrCodeService>.Instance, _screens, _venues,
+        new ServiceCollection().AddSingleton(_playback).BuildServiceProvider(), _broker);
 
     private static ScreenQrCode Code(
         string owner, ScreenCorner? corner = null, ScreenQrSize? size = null, string? caption = null) => new()
@@ -33,6 +37,26 @@ public class ScreenQrCodeServiceTests
 
     private void Arrange(Venue.VenueSettings? settings = null)
         => _venues.ReadSelectedVenueAsync().Returns(new Venue { Name = "The Bar", Settings = settings ?? new() });
+
+    /// <summary>
+    /// Taking IPlaybackService here hung the app before it logged a line, and nothing in the
+    /// suite noticed: a plugin is registered once and pointed at every extension interface it
+    /// implements, so a plugin that shows a code and gates playback closes a ring — the plugin
+    /// needs this service, this service needs playback, playback needs every IMediaPlaybackGate,
+    /// and one of those is the plugin still being constructed. Asserted against the constructor
+    /// rather than by building that graph, because the failure is an infinite recursion: a test
+    /// that reproduced it would hang the suite instead of failing it.
+    /// </summary>
+    [Fact]
+    public void TheService_DoesNotTakePlaybackInItsConstructor()
+    {
+        var taken = typeof(ScreenQrCodeService)
+            .GetConstructors()
+            .SelectMany(constructor => constructor.GetParameters())
+            .Select(parameter => parameter.ParameterType);
+
+        Assert.DoesNotContain(typeof(IPlaybackService), taken);
+    }
 
     [Fact]
     public async Task BuildAsync_NothingShown_SendsNoCodes()
