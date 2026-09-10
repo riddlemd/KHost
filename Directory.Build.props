@@ -1,0 +1,38 @@
+<Project>
+
+  <!--
+    Package identity for the two projects a plugin builds against. Everything else in the solution
+    inherits these harmlessly, because only KHost.Abstractions and KHost.Common set IsPackable.
+
+    The version here is the *contract* version, and it is not PluginApi.CurrentVersion. That one is
+    the runtime gate the host checks a manifest against and moves only on a break; this one moves
+    whenever the shape a plugin author compiles against changes at all, additions included. Keeping
+    them apart is the point: an author needs to know their source will still compile, which a
+    number that only ever counts breaks cannot tell them.
+
+    0.x on purpose. The contracts still move under people — ScreenQrCode changed shape twice in one
+    day — and a 1.0 would promise otherwise.
+  -->
+  <PropertyGroup>
+    <ContractsVersion>0.1.0</ContractsVersion>
+    <!--
+      The assembly version is pinned and the package version is not, because they answer to
+      different people. A plugin's compiled reference binds to this number, so moving it makes
+      every plugin already in the wild fail to load — which is exactly what happened the first time
+      these were packed: KHost.Plugins.Spotify bound to 1.0.0.0, the host served 0.1.0.0, and its
+      break-music provider silently vanished with one line in the log.
+
+      So this moves only when PluginApi.CurrentVersion does, which is the host's real compatibility
+      gate and is checked against a manifest with a message a host can act on. ContractsVersion goes
+      on the package and the file version, where it tells an author what they are compiling against
+      without breaking anything already built.
+    -->
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>$(ContractsVersion).0</FileVersion>
+    <Authors>Michael Riddle</Authors>
+    <RepositoryUrl>https://github.com/riddlemd/KHost</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+  </PropertyGroup>
+
+</Project>

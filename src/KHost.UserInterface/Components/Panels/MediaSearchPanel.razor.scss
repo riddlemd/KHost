@@ -123,6 +123,65 @@
 }
 
 // No overflow rule here: the actions cell holds a split button whose menu would be clipped by it.
+// A row that is an offer rather than a result: one cell across the table, so an action named for
+// what it does has room. Ordinary rows keep the fixed column widths beside it.
+.kh-media-search-panel__offer {
+    td {
+        // The columns above describe a song, and this row is not one — the borrowed alignment is
+        // what made it read as a broken result.
+        white-space: normal;
+    }
+
+    &-body {
+        display: flex;
+        align-items: center;
+        gap: 0.9em;
+    }
+
+    &-image {
+        flex: 0 0 auto;
+        width: 96px;
+        height: 96px;
+        border-radius: var(--kh-radius);
+        // A QR is a grid of modules, so scaling it loses nothing the browser's smoothing would not add.
+        image-rendering: pixelated;
+        background: #fff;
+    }
+
+    &-text {
+        display: flex;
+        flex-direction: column;
+        gap: 0.2em;
+        // Without this the text pushes the buttons off the row instead of wrapping.
+        min-width: 0;
+        flex: 1 1 auto;
+    }
+
+    &-title {
+        font-weight: 600;
+    }
+
+    &-notes {
+        color: var(--kh-text-muted);
+        font-size: 0.9em;
+    }
+
+    &-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5em;
+        flex: 0 0 auto;
+    }
+}
+
+// A label longer than the column gives way rather than spilling out of it: the icon and the
+// button's own tooltip still say which action it is.
+.kh-media-search-panel__action-label {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
 .kh-media-search-panel__col--actions {
     width: 168px;
 }

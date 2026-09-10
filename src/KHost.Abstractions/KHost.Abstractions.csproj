@@ -10,6 +10,10 @@
     <Description>Contracts KHost is built on, and what a plugin is built against.</Description>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <Copyright>Copyright (c) 2026 Michael Riddle</Copyright>
+    <!-- Published so a plugin author needs no checkout of KHost to compile against it. -->
+    <IsPackable>true</IsPackable>
+    <Version>$(ContractsVersion)</Version>
+    <PackageTags>khost;karaoke;plugin</PackageTags>
   </PropertyGroup>
 
   <!-- Build-time only: ReferenceOutputAssembly="false" keeps the analyzer out of this assembly,
@@ -17,7 +21,8 @@
   <ItemGroup>
     <ProjectReference Include="..\..\build\KHost.Analyzers\KHost.Analyzers.csproj"
                       OutputItemType="Analyzer"
-                      ReferenceOutputAssembly="false" />
+                      ReferenceOutputAssembly="false"
+                      PrivateAssets="all" />
   </ItemGroup>
 
   <ItemGroup>
@@ -32,6 +37,8 @@
 
   <ItemGroup>
     <None Include="Models/Plugins/manifest.schema.json" Pack="true" PackagePath="content" />
+    <!-- build/, not buildTransitive/: it must reach a plugin and not the plugin's test project. -->
+    <None Include="build/KHost.Abstractions.targets" Pack="true" PackagePath="build/" />
   </ItemGroup>
 
 </Project>

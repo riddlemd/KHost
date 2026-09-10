@@ -77,6 +77,7 @@ namespace KHost.Domain
             serviceCollection.AddSingleton<IMediaGateService, MediaGateService>();
             serviceCollection.AddSingleton<IScreenCoordinationService, ScreenCoordinationService>();
             serviceCollection.AddSingleton<IScreenMarqueeService, ScreenMarqueeService>();
+            serviceCollection.AddSingleton<IScreenQrCodeService, ScreenQrCodeService>();
             serviceCollection.AddSingleton<IPlaybackService, PlaybackService>();
             serviceCollection.AddSingleton<IMediaSearchService, MediaSearchService>();
             serviceCollection.AddSingleton<IVenuesService, VenuesService>();
