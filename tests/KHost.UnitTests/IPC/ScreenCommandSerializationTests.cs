@@ -49,6 +49,19 @@ public class ScreenCommandSerializationTests
             ScrollSpeed = 140,
             PinLabel = true,
         },
+        [nameof(SetScreenQrCodesCommand)] = new SetScreenQrCodesCommand
+        {
+            Codes =
+            [
+                new ScreenQrCodePlacement
+                {
+                    ImageUrl = "data:image/svg+xml;base64,PHN2Zy8+",
+                    Caption = "Scan to join the queue",
+                    Corner = ScreenCorner.TopLeft,
+                    Size = ScreenQrSize.Large,
+                },
+            ],
+        },
     };
 
     public static TheoryData<string> CommandNames => [.. Samples.Keys];

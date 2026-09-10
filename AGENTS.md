@@ -14,6 +14,8 @@ dotnet test tests/KHost.UnitTests                           # --filter "FullyQua
 dotnet test tests/KHost.IntegrationTests                    # drives real ffmpeg; fails without it (KHOST_SKIP_ENVIRONMENT_TESTS=1 to accept)
 
 dotnet run --project tools/KHost.CatalogSync -- <owner/repo> # add a plugin's GitHub release to plugin-catalog.json
+
+./build/pack-contracts.sh                                   # pack Abstractions + Common to the local NuGet feed
 ```
 
 **Prefer `--headless` for testing.** The console is then an ordinary page at `http://localhost:5251`, so it drives with browser tooling and reads with the DOM instead of screenshot coordinate math — the Photino window reaches neither, and a Screen2 window launched over it turns every later capture into a black rectangle. Only the window itself needs the windowed run: native chrome, `SetSize`, and the appliance lockdown. Port 5251 is held by an exclusive `.instance.lock`, so stop one before starting the other.
@@ -132,6 +134,34 @@ each rule. `IPluginContext` carries the plugin's own manifest and stored setting
   session button, and its `IMediaPlaybackGate` all at once — one object, one `_sessionKey`, so
   signing in anywhere gates everywhere. Registering per interface instead (the old shape) built the
   type once for each, and signing in on the button would not have signed in the search.
+
+## The published contracts
+
+`KHost.Abstractions` and `KHost.Common` are **NuGet packages**, and a plugin takes a
+`PackageReference` to them rather than a `ProjectReference` into a checkout of this repo beside it.
+That reference was a standing trap: the plugin repo failed to build whenever this one changed
+branch, for errors that named a missing member rather than the cause, and an outside author has no
+such checkout at all.
+
+- `<ContractsVersion>` in `Directory.Build.props` is the version of both, and it is **not**
+  `PluginApi.CurrentVersion`. That one is the runtime gate the host checks a manifest against and
+  moves only on a break; this one moves whenever the shape an author compiles against changes at
+  all, additions included. An author needs to know their source will still compile, which a number
+  that only counts breaks cannot tell them. 0.x while the contracts still move.
+- **A plugin excludes their runtime assets**
+  (`<PackageReference Include="KHost.Abstractions" ExcludeAssets="runtime" />`): the host already
+  has both in its default context and `PluginLoadContext.Load` returns null for anything that is,
+  so a copy beside the plugin is never loaded. A plugin's *test* project takes them normally — it
+  stands in for the host and has to load them.
+- While the contracts are unreleased, `./build/pack-contracts.sh` packs both into a local folder
+  feed. Register it once per machine:
+  `dotnet nuget add source ~/.nuget/khost-local -n khost-local`.
+- The script clears the matching entries from the global packages folder before packing, because
+  NuGet never re-reads a version it has already extracted. Re-packing the same version is the
+  normal case here, and without that step a plugin keeps building against whatever it restored
+  first — which looks like the source change simply not taking effect.
+- The analyzer reference in `KHost.Abstractions` carries `PrivateAssets="all"` so the package does
+  not declare a dependency on `KHost.Analyzers`, which is not published.
 
 ## Plugin catalog and installs
 
