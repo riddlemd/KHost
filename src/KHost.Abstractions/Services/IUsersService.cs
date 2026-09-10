@@ -9,6 +9,13 @@ public interface IUsersService : IRepositoryService<KHostUser>
     Task<bool> HasAdminWithPasswordAsync();
 
     /// <summary>
+    /// The singer with exactly this name, or null. Not a search: searching matches on *contains*
+    /// and returns a page, so an exact name can sit past the end of it and read as nobody — which
+    /// for a caller that creates on a miss is a duplicate singer.
+    /// </summary>
+    Task<KHostUser?> FindByNameAsync(string name);
+
+    /// <summary>
     /// The singer a provider's own id names, or null if nobody claims it — how a returning guest
     /// is recognised without matching on a name they may have typed differently this time.
     /// </summary>
