@@ -37,6 +37,8 @@
 
   <ItemGroup>
     <None Include="Models/Plugins/manifest.schema.json" Pack="true" PackagePath="content" />
+    <!-- build/, not buildTransitive/: it must reach a plugin and not the plugin's test project. -->
+    <None Include="build/KHost.Abstractions.targets" Pack="true" PackagePath="build/" />
   </ItemGroup>
 
 </Project>
