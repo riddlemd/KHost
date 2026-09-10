@@ -349,7 +349,11 @@ public partial class SingerQueuePanel : IAsyncDisposable
         try
         {
             if (JS is not null)
-                await JS.InvokeVoidAsync("singerQueueSortable.destroy");
+                // The key this panel registered under. The old single-instance global went when
+                // the two queues were keyed apart, and a call to a name JS no longer defines is
+                // not a quiet no-op — it throws out of DisposeAsync and takes the circuit with it,
+                // so navigating off the console left every control on the next page dead.
+                await JS.InvokeVoidAsync("khSortable.destroy", "singers");
         }
         catch (JSDisconnectedException)
         {
