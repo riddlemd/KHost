@@ -1,3 +1,5 @@
+using KHost.Abstractions.Models.Plugins;
+
 namespace KHost.Abstractions.Services;
 
 /// <summary>
@@ -23,4 +25,33 @@ public interface IPluginContext
     /// belong in the exception that caused them.
     /// </summary>
     void ReportWarning(string message);
+
+    /// <summary>
+    /// How well this machine can keep what <see cref="SetSecretAsync"/> is given. Read it before
+    /// deciding to store a credential at all: <see cref="PluginSecretProtection.None"/> means a
+    /// write goes nowhere, and a plugin that assumed otherwise would quietly ask a person for a
+    /// password on every launch with no idea why.
+    /// </summary>
+    PluginSecretProtection SecretProtection { get; }
+
+    /// <summary>
+    /// Reads back a secret this plugin stored, or null if it never did — or if the machine cannot
+    /// keep one. Keys are this plugin's own: two plugins using "session" do not collide, and
+    /// neither can read the other's, because the name they are filed under comes from the host and
+    /// not from the caller.
+    /// </summary>
+    Task<string?> GetSecretAsync(string key, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Keeps a value that must not sit in plugin settings — a credential the plugin will trade for
+    /// a session, the token behind a paid account. A null or empty value forgets it.
+    /// </summary>
+    /// <remarks>
+    /// This is for what a plugin must be able to read back. Anything it merely needs *once* should
+    /// be asked for through <c>IInteractionDispatcher</c> and never stored at all, and anything a
+    /// host should see and edit belongs in the manifest's settings, which the Plugins page shows.
+    /// Storing a secret is a decision to keep a credential on a venue's machine: make it because
+    /// the alternative is worse, not because it is convenient.
+    /// </remarks>
+    Task SetSecretAsync(string key, string? value, CancellationToken cancellationToken = default);
 }
