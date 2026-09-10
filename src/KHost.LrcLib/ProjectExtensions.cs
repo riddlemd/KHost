@@ -21,7 +21,7 @@ public static class ProjectExtensions
             var options = sp.GetRequiredService<IOptions<LrcLibOptions>>().Value;
 
             if (string.IsNullOrWhiteSpace(options.UserAgent))
-                throw new Exception("UserAgent is is required, see README.md for details.");
+                throw new InvalidOperationException("UserAgent is required, see README.md for details.");
 
             http.BaseAddress = new Uri(options.BaseAddress, UriKind.Absolute);
             http.DefaultRequestHeaders.UserAgent.ParseAdd(options.UserAgent);
