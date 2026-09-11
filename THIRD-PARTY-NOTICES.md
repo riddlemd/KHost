@@ -82,11 +82,15 @@ and a reader needs to know which files are derived and from what.
 |---|---|---|---|---|
 | `src/KHost.Secrets/Interop/**` | [git-ecosystem/git-credential-manager](https://github.com/git-ecosystem/git-credential-manager) (`src/Core/`) | `838e3496` | MIT — [`licenses/MIT-git-credential-manager.txt`](licenses/MIT-git-credential-manager.txt) | © GitHub, Inc. and contributors |
 
-The macOS Keychain interop — CoreFoundation and Security.framework marshalling, and
-the `SecItem` result-code handling — is upstream's. KHost changed the namespace,
-disabled nullable annotations (upstream is unannotated), and inlined two one-line
-guards (`PlatformUtils.EnsureMacOS`, `EnsureArgument.NotNullOrWhiteSpace`) rather than
-porting their host files. Each file records this in its own header.
+All three platform stores are upstream's: the macOS Keychain interop (CoreFoundation
+and Security.framework marshalling, `SecItem` result-code handling), the Windows
+Credential Manager interop (`Advapi32`, `Win32Error`), and the Linux Secret Service
+interop (`libsecret`, GLib, GObject). KHost changed the namespace, disabled nullable
+annotations (upstream is unannotated), inlined the one-line `PlatformUtils` and
+`EnsureArgument` guards rather than porting their host files, removed GCM's `ITrace2`
+tracing from `Win32Error` (optional there, and never passed by the credential manager),
+and took only the two `TrimUntilIndexOf` members from `StringExtensions`. Each file
+records what changed in its own header.
 
 The code is kept close to upstream deliberately: taking a later fix means diffing
 against that commit, which reformatting to KHost's house style would prevent. The
