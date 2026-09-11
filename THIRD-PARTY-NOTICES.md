@@ -96,6 +96,12 @@ The code is kept close to upstream deliberately: taking a later fix means diffin
 against that commit, which reformatting to KHost's house style would prevent. The
 `.editorconfig` in `src/KHost.Secrets` turns off the rules that would rewrite it.
 
+`src/KHost.Secrets/Interop/UPSTREAM` records what each file was ported from and two
+hashes of it, and `build/check-secrets-drift.sh` checks both: whether upstream has
+moved since the pinned commit (news — there may be a fix to take), and whether our
+copy has been edited since it was ported (a build failure, because that is how a port
+quietly stops being one).
+
 Note that the upstream project publishes no official reusable library — the code is
 vendored rather than referenced for that reason. A third-party NuGet repackaging of it
 exists but adds a maintenance-fee EULA on top of the MIT source; KHost does not use it.
