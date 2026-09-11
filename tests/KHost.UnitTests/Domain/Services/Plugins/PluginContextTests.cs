@@ -5,6 +5,7 @@ using System.Text.Json;
 using KHost.Domain.Services.Plugins;
 using KHost.Domain.Services.Plugins.Secrets;
 using KHost.Secrets;
+using KHost.UnitTests.Secrets;
 
 namespace KHost.UnitTests.Domain.Services.Plugins;
 
@@ -125,7 +126,7 @@ public class PluginContextTests
         };
 
         return new PluginContext(manifest, stored, new DiscoveredPlugin { Directory = "/plugins/test", Manifest = manifest },
-            new PluginSecretStore(new UnavailableSecretStore()));
+            new PluginSecretStore(new InMemorySecretStore()));
     }
 
     // ---- secrets ---------------------------------------------------------
@@ -138,7 +139,7 @@ public class PluginContextTests
     [Fact]
     public async Task Secrets_AreFiledUnderThePluginsOwnId()
     {
-        var store = new RecordingSecretStore();
+        var store = new PluginSecretStore(new InMemorySecretStore());
         var first = Guid.NewGuid();
         var second = Guid.NewGuid();
 
@@ -157,7 +158,7 @@ public class PluginContextTests
     [Fact]
     public async Task Secrets_ReadBackWhatWasWritten()
     {
-        var context = ContextFor(Guid.NewGuid(), new RecordingSecretStore());
+        var context = ContextFor(Guid.NewGuid(), new PluginSecretStore(new InMemorySecretStore()));
 
         Assert.Null(await context.GetSecretAsync("session"));
 
@@ -169,35 +170,10 @@ public class PluginContextTests
     [Fact]
     public async Task Secrets_ClearedByAnEmptyValue()
     {
-        var context = ContextFor(Guid.NewGuid(), new RecordingSecretStore());
+        var context = ContextFor(Guid.NewGuid(), new PluginSecretStore(new InMemorySecretStore()));
         await context.SetSecretAsync("session", "sk-1");
 
         await context.SetSecretAsync("session", null);
-
-        Assert.Null(await context.GetSecretAsync("session"));
-    }
-
-    /// <summary>
-    /// A plugin reads this before deciding to keep a credential at all, so it has to be the store's
-    /// answer rather than a hardcoded promise.
-    /// </summary>
-    [Fact]
-    public void SecretProtection_IsWhateverTheStoreCanActuallyDo()
-    {
-        Assert.Equal(PluginSecretProtection.None,
-            ContextFor(Guid.NewGuid(), new PluginSecretStore(new UnavailableSecretStore())).SecretProtection);
-
-        Assert.Equal(PluginSecretProtection.OperatingSystem,
-            ContextFor(Guid.NewGuid(), new RecordingSecretStore()).SecretProtection);
-    }
-
-    /// <summary>A machine with nowhere safe keeps nothing, rather than keeping it somewhere weak.</summary>
-    [Fact]
-    public async Task Secrets_OnAMachineWithNoStore_AreNotKept()
-    {
-        var context = ContextFor(Guid.NewGuid(), new PluginSecretStore(new UnavailableSecretStore()));
-
-        await context.SetSecretAsync("session", "sk-1");
 
         Assert.Null(await context.GetSecretAsync("session"));
     }
@@ -215,27 +191,6 @@ public class PluginContextTests
 
         return new PluginContext(manifest, null,
             new DiscoveredPlugin { Directory = "/plugins/test", Manifest = manifest }, store);
-    }
-
-    /// <summary>An in-memory store that answers like a real one, keyed the way a real one is.</summary>
-    private sealed class RecordingSecretStore : IPluginSecretStore
-    {
-        private readonly Dictionary<(string Plugin, string Key), string> _values = [];
-
-        public PluginSecretProtection Protection => PluginSecretProtection.OperatingSystem;
-
-        public Task<string?> ReadAsync(string pluginId, string key, CancellationToken cancellationToken = default)
-            => Task.FromResult(_values.TryGetValue((pluginId, key), out var value) ? value : null);
-
-        public Task WriteAsync(string pluginId, string key, string? value, CancellationToken cancellationToken = default)
-        {
-            if (string.IsNullOrEmpty(value))
-                _values.Remove((pluginId, key));
-            else
-                _values[(pluginId, key)] = value;
-
-            return Task.CompletedTask;
-        }
     }
 
     private class TestSettings

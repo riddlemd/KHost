@@ -1,5 +1,3 @@
-using KHost.Abstractions.Models.Plugins;
-
 namespace KHost.Abstractions.Services;
 
 /// <summary>
@@ -27,16 +25,7 @@ public interface IPluginContext
     void ReportWarning(string message);
 
     /// <summary>
-    /// How well this machine can keep what <see cref="SetSecretAsync"/> is given. Read it before
-    /// deciding to store a credential at all: <see cref="PluginSecretProtection.None"/> means a
-    /// write goes nowhere, and a plugin that assumed otherwise would quietly ask a person for a
-    /// password on every launch with no idea why.
-    /// </summary>
-    PluginSecretProtection SecretProtection { get; }
-
-    /// <summary>
-    /// Reads back a secret this plugin stored, or null if it never did — or if the machine cannot
-    /// keep one. Keys are this plugin's own: two plugins using "session" do not collide, and
+    /// Reads back a secret this plugin stored, or null if it never did. Keys are this plugin's own: two plugins using "session" do not collide, and
     /// neither can read the other's, because the name they are filed under comes from the host and
     /// not from the caller.
     /// </summary>

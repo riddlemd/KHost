@@ -1,28 +1,21 @@
-using System.Runtime.InteropServices;
-
 namespace KHost.Secrets;
 
-/// <summary>Picks the store this machine can actually use.</summary>
+/// <summary>Picks the store for the platform this is running on.</summary>
 public static class SecretStores
 {
     /// <summary>
-    /// The keychain on macOS, Credential Manager on Windows, the Secret Service on Linux — and
-    /// <see cref="UnavailableSecretStore"/> when the machine offers none.
+    /// The keychain on macOS, Credential Manager on Windows, the Secret Service on Linux.
     /// </summary>
     /// <remarks>
-    /// <para>
-    /// Linux is the only one that has to be checked rather than assumed. macOS and Windows carry
-    /// their store in the OS; a Linux box may have no libsecret at all, so the library is probed
-    /// for before the store claims it can keep anything.
-    /// </para>
-    /// <para>
-    /// The probe loads the library and stops there, deliberately: asking the Secret Service a real
-    /// question can raise an unlock prompt, and a karaoke console putting a password dialog on the
-    /// screen at startup is worse than the thing being guarded against. What it therefore cannot
-    /// rule out is libsecret present with no session bus behind it — common on a headless box —
-    /// which surfaces as a throw on first use rather than here. That is the intended failure: a
-    /// credential that cannot be kept must be reported, never quietly dropped.
-    /// </para>
+    /// There is no store for a machine that has nowhere to keep a secret, because there is no
+    /// useful behaviour for one: a caller that cannot store a credential cannot do the thing it
+    /// wanted the credential for, and quietly dropping it only moves the failure somewhere less
+    /// obvious. A platform without a store is a deployment that needs fixing, and this says so.
+    ///
+    /// Linux is the one where that can be true of the machine rather than the OS — libsecret is
+    /// not on every distribution. It is not probed for here, because a console that will never
+    /// touch a secret should still start; <see cref="LinuxSecretStore"/> reports it on first use
+    /// instead, when it is a real problem rather than a hypothetical one.
     /// </remarks>
     public static ISecretStore ForThisMachine()
     {
@@ -32,20 +25,10 @@ public static class SecretStores
         if (OperatingSystem.IsWindows())
             return new WindowsSecretStore();
 
-        if (OperatingSystem.IsLinux() && HasLibsecret())
+        if (OperatingSystem.IsLinux())
             return new LinuxSecretStore();
 
-        return new UnavailableSecretStore();
-    }
-
-    private static bool HasLibsecret()
-    {
-        if (NativeLibrary.TryLoad("libsecret-1.so.0", out var handle))
-        {
-            NativeLibrary.Free(handle);
-            return true;
-        }
-
-        return false;
+        throw new PlatformNotSupportedException(
+            "KHost has no secret store for this platform, and will not keep a credential without one.");
     }
 }
