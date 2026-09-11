@@ -71,6 +71,33 @@ License and with selling commercial licenses to KHost.
 
 ---
 
+## 1a. Source incorporated into KHost's own code
+
+Unlike everything in §1, this is not a package KHost depends on — it is third-party
+source copied into this repository and compiled as part of KHost. It is listed
+separately because the obligation is different: the files themselves carry the notice,
+and a reader needs to know which files are derived and from what.
+
+| Files | Upstream | Commit | License | Copyright |
+|---|---|---|---|---|
+| `src/KHost.Secrets/Interop/**` | [git-ecosystem/git-credential-manager](https://github.com/git-ecosystem/git-credential-manager) (`src/Core/`) | `838e3496` | MIT — [`licenses/MIT-git-credential-manager.txt`](licenses/MIT-git-credential-manager.txt) | © GitHub, Inc. and contributors |
+
+The macOS Keychain interop — CoreFoundation and Security.framework marshalling, and
+the `SecItem` result-code handling — is upstream's. KHost changed the namespace,
+disabled nullable annotations (upstream is unannotated), and inlined two one-line
+guards (`PlatformUtils.EnsureMacOS`, `EnsureArgument.NotNullOrWhiteSpace`) rather than
+porting their host files. Each file records this in its own header.
+
+The code is kept close to upstream deliberately: taking a later fix means diffing
+against that commit, which reformatting to KHost's house style would prevent. The
+`.editorconfig` in `src/KHost.Secrets` turns off the rules that would rewrite it.
+
+Note that the upstream project publishes no official reusable library — the code is
+vendored rather than referenced for that reason. A third-party NuGet repackaging of it
+exists but adds a maintenance-fee EULA on top of the MIT source; KHost does not use it.
+
+---
+
 ## 2. FFmpeg (NOT distributed with KHost)
 
 KHost uses **FFmpeg** (and `ffprobe`) for media decoding and metadata, invoked as a

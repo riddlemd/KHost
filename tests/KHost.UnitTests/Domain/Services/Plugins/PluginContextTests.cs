@@ -4,6 +4,7 @@ using KHost.Abstractions.Services;
 using System.Text.Json;
 using KHost.Domain.Services.Plugins;
 using KHost.Domain.Services.Plugins.Secrets;
+using KHost.Secrets;
 
 namespace KHost.UnitTests.Domain.Services.Plugins;
 
@@ -124,7 +125,7 @@ public class PluginContextTests
         };
 
         return new PluginContext(manifest, stored, new DiscoveredPlugin { Directory = "/plugins/test", Manifest = manifest },
-            new UnavailableSecretStore());
+            new PluginSecretStore(new UnavailableSecretStore()));
     }
 
     // ---- secrets ---------------------------------------------------------
@@ -184,7 +185,7 @@ public class PluginContextTests
     public void SecretProtection_IsWhateverTheStoreCanActuallyDo()
     {
         Assert.Equal(PluginSecretProtection.None,
-            ContextFor(Guid.NewGuid(), new UnavailableSecretStore()).SecretProtection);
+            ContextFor(Guid.NewGuid(), new PluginSecretStore(new UnavailableSecretStore())).SecretProtection);
 
         Assert.Equal(PluginSecretProtection.OperatingSystem,
             ContextFor(Guid.NewGuid(), new RecordingSecretStore()).SecretProtection);
@@ -194,7 +195,7 @@ public class PluginContextTests
     [Fact]
     public async Task Secrets_OnAMachineWithNoStore_AreNotKept()
     {
-        var context = ContextFor(Guid.NewGuid(), new UnavailableSecretStore());
+        var context = ContextFor(Guid.NewGuid(), new PluginSecretStore(new UnavailableSecretStore()));
 
         await context.SetSecretAsync("session", "sk-1");
 
