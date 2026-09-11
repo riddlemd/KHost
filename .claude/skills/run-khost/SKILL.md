@@ -218,9 +218,16 @@ into paths**, so `tasklist /FI ...` and `taskkill /PID ...` fail with
 `Invalid argument/option - 'C:/Program Files/Git/FI'`. Run those from PowerShell, or double the
 slash (`//PID`).
 
-**Find the host process** — it is `KHost.UserInterface`, not `dotnet`, once running.
-- macOS/Linux: `pgrep -fl "bin/Debug/net10.0/KHost.UserInterface"`
-- Windows: `Get-Process KHost.UserInterface`
+**Find the host process.** In Debug the UI project sets `UseAppHost=false`, so it runs as `dotnet
+exec …/KHost.UserInterface.dll` rather than as its own executable — match on the **dll path**,
+which is true either way. (Screen2 keeps its apphost and is still a `KHost.Screen2` process.)
+- macOS/Linux: `pgrep -fl "KHost.UserInterface.dll"`
+- Windows: `Get-Process | Where-Object { $_.CommandLine -like '*KHost.UserInterface.dll*' }`
+
+The reason is macOS-specific but the change is not: `dotnet run` rebuilds and ad-hoc re-signs a
+per-project apphost every build, so each build is a different application to the keychain and a
+stored secret prompts on every rebuild (dotnet/sdk#22544). Release still publishes a real
+executable, and that is the identity a signed KHost should be trusting.
 
 **What holds port 5251**
 - macOS: `lsof -nP -iTCP:5251 -sTCP:LISTEN`
