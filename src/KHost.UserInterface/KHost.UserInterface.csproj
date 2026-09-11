@@ -5,6 +5,18 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <BlazorDisableThrowNavigationException>true</BlazorDisableThrowNavigationException>
+    <!--
+      Debug only, and only this project. Since .NET 6 `dotnet run` starts the app through a
+      per-project apphost that is re-signed ad-hoc on every build, so each build is a different
+      application as far as macOS is concerned — and a keychain item only its creator may read
+      therefore prompts on every rebuild (dotnet/sdk#22544). Running through the shared `dotnet`
+      host instead gives one stable identity across builds.
+
+      Not Screen2: LocalScreenProvider launches it by executable path, and it has no keychain of
+      its own to be prompted for. Not Release either, where a published KHost is a real signed
+      executable and is the identity the keychain should be trusting.
+    -->
+    <UseAppHost Condition="'$(Configuration)' == 'Debug'">false</UseAppHost>
     <RepositoryUrl>https://github.com/riddlemd/KHost</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PackageProjectUrl>https://github.com/riddlemd/KHost</PackageProjectUrl>
