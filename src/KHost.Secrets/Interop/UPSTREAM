@@ -1,0 +1,34 @@
+# What KHost.Secrets/Interop was ported from, and what it looked like at the time.
+#
+# Two hashes per file, because they answer different questions. 'upstream' is the file as it
+# is at the pinned commit: if that stops matching, Git Credential Manager has moved and there
+# may be a fix worth taking. 'local' is our copy: if that stops matching, someone edited it
+# here, which is allowed but should never happen by accident — the whole point of keeping this
+# close to upstream is that a patch can still be diffed in.
+#
+# Checked by build/check-secrets-drift.sh. Re-pin by bumping commit and re-recording hashes.
+
+repo    https://github.com/git-ecosystem/git-credential-manager
+prefix  src/Core
+commit  838e34962c84e0b461ed879e5102731fe07672d2
+
+# local path                          upstream path                               upstream sha256   local sha256
+ICredentialStore.cs                   ICredentialStore.cs                         5555aa5c86223d4c  2a7bec4d61fc71da
+Credential.cs                         Credential.cs                               6eda17243e72ea3b  67ce24955a05f8dd
+StringExtensions.cs                   StringExtensions.cs                         e433ca8656368776  080dee491a3fab84
+InteropException.cs                   Interop/InteropException.cs                 f63ac3dc87a100da  20078a0ce07936d2
+InteropUtils.cs                       Interop/InteropUtils.cs                     01d516fac72829f3  bdf2c93e9cbd2cc0
+MacOS/MacOSKeychain.cs                Interop/MacOS/MacOSKeychain.cs              534b1f4481fb5c78  c60d2cc2697f99f8
+MacOS/MacOSKeychainCredential.cs      Interop/MacOS/MacOSKeychainCredential.cs    91dc8094c5a3e863  42ee0a83d95e6071
+MacOS/Native/CoreFoundation.cs        Interop/MacOS/Native/CoreFoundation.cs      89d575377a13c2a9  03da1fac3cd78a16
+MacOS/Native/SecurityFramework.cs     Interop/MacOS/Native/SecurityFramework.cs   6383624233f334bb  a7e2cbf1010697d4
+MacOS/Native/LibSystem.cs             Interop/MacOS/Native/LibSystem.cs           3ab2c7a9f62ce6bb  28d596e0bda8ae7b
+Windows/WindowsCredentialManager.cs   Interop/Windows/WindowsCredentialManager.cs b558129a93d19805  8a6983549c863b1a
+Windows/WindowsCredential.cs          Interop/Windows/WindowsCredential.cs        ec1e639651bebeb1  ddbbcffdf6b4c730
+Windows/Native/Advapi32.cs            Interop/Windows/Native/Advapi32.cs          4bf25db030887562  0f033108221176a1
+Windows/Native/Win32Error.cs          Interop/Windows/Native/Win32Error.cs        f09927f1a4f03e04  aefb58a3e9083aac
+Linux/SecretServiceCollection.cs      Interop/Linux/SecretServiceCollection.cs    948197e8ef1753df  13fc81dc79d91c69
+Linux/SecretServiceCredential.cs      Interop/Linux/SecretServiceCredential.cs    3e02dba476366ed8  8fec9f0af99525c7
+Linux/Native/Libsecret.cs             Interop/Linux/Native/Libsecret.cs           499661e96665ef35  69962965190a14f3
+Linux/Native/Glib.cs                  Interop/Linux/Native/Glib.cs                d7d8be27ab7b61e6  8be0df5104ddfd1a
+Linux/Native/Gobject.cs               Interop/Linux/Native/Gobject.cs             050860b5010cef54  3ce7ada3c9027a2d
