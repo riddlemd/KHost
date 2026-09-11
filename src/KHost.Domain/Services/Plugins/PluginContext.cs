@@ -70,8 +70,6 @@ public class PluginContext : IPluginContext
         }
     }
 
-    public PluginSecretProtection SecretProtection => _secrets.Protection;
-
     public Task<string?> GetSecretAsync(string key, CancellationToken cancellationToken = default)
         => _secrets.ReadAsync(_pluginId, key, cancellationToken);
 

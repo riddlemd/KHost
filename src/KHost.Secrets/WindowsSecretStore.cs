@@ -15,8 +15,6 @@ public sealed class WindowsSecretStore : ISecretStore
 {
     private readonly ICredentialStore _credentials = new WindowsCredentialManager();
 
-    public SecretProtection Protection => SecretProtection.OperatingSystem;
-
     public string? Get(string service, string account) => _credentials.Get(service, account)?.Password;
 
     public void Set(string service, string account, string secret)

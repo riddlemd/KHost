@@ -1,4 +1,3 @@
-using KHost.Abstractions.Models.Plugins;
 using KHost.Secrets;
 
 namespace KHost.Domain.Services.Plugins.Secrets;
@@ -16,14 +15,6 @@ public sealed class PluginSecretStore : IPluginSecretStore
     private readonly ISecretStore _store;
 
     public PluginSecretStore(ISecretStore store) => _store = store;
-
-    // Mapped rather than shared: the enum a plugin reads lives in Abstractions, which references
-    // nothing at all, so it cannot be the same type the secrets project uses.
-    public PluginSecretProtection Protection => _store.Protection switch
-    {
-        SecretProtection.OperatingSystem => PluginSecretProtection.OperatingSystem,
-        _ => PluginSecretProtection.None,
-    };
 
     public Task<string?> ReadAsync(string pluginId, string key, CancellationToken cancellationToken = default)
         => Task.FromResult(_store.Get(ServiceFor(pluginId), key));

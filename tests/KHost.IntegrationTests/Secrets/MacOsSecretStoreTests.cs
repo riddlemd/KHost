@@ -20,7 +20,6 @@ public class MacOsSecretStoreTests : IDisposable
     {
         var store = new MacOsSecretStore();
 
-        Assert.Equal(SecretProtection.OperatingSystem, store.Protection);
         Assert.Null(store.Get(_service, Account));
 
         store.Set(_service, Account, "hunter2");
