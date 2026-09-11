@@ -16,8 +16,6 @@ public sealed class MacOsSecretStore : ISecretStore
 {
     private readonly ICredentialStore _keychain = new MacOSKeychain();
 
-    public SecretProtection Protection => SecretProtection.OperatingSystem;
-
     public string? Get(string service, string account) => _keychain.Get(service, account)?.Password;
 
     public void Set(string service, string account, string secret)

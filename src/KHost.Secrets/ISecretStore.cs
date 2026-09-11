@@ -7,9 +7,6 @@ namespace KHost.Secrets;
 /// </summary>
 public interface ISecretStore
 {
-    /// <summary>What this machine can actually promise about a stored value.</summary>
-    SecretProtection Protection { get; }
-
     /// <summary>The stored secret, or null when nothing is filed under that pair.</summary>
     string? Get(string service, string account);
 
@@ -18,17 +15,4 @@ public interface ISecretStore
 
     /// <summary>Forgets a secret. Returns false when there was nothing to forget.</summary>
     bool Remove(string service, string account);
-}
-
-/// <summary>
-/// How well a machine can keep a secret. Carried so a caller can decide whether to store one at
-/// all rather than be told afterwards that it went nowhere.
-/// </summary>
-public enum SecretProtection
-{
-    /// <summary>Nothing is kept: writes are dropped and reads answer null.</summary>
-    None,
-
-    /// <summary>The operating system's own store, encrypted at rest under this account's key.</summary>
-    OperatingSystem,
 }

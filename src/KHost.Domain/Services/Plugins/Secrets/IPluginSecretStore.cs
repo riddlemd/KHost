@@ -1,5 +1,3 @@
-using KHost.Abstractions.Models.Plugins;
-
 namespace KHost.Domain.Services.Plugins.Secrets;
 
 /// <summary>
@@ -20,9 +18,6 @@ namespace KHost.Domain.Services.Plugins.Secrets;
 /// </remarks>
 public interface IPluginSecretStore
 {
-    /// <summary>What this machine can actually promise. Read by the Plugins page and by plugins.</summary>
-    PluginSecretProtection Protection { get; }
-
     /// <summary>The value, or null when nothing was stored under that name.</summary>
     Task<string?> ReadAsync(string pluginId, string key, CancellationToken cancellationToken = default);
 
