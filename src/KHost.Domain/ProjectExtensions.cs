@@ -108,9 +108,7 @@ namespace KHost.Domain
             // protect a secret is asked for one instead of having it written somewhere weaker.
             // Registered here rather than in AddPlugins because a plugin context is built during
             // discovery, which runs before that.
-            serviceCollection.AddSingleton<KHost.Secrets.ISecretStore>(_ => OperatingSystem.IsMacOS()
-                ? new KHost.Secrets.MacOsSecretStore()
-                : new KHost.Secrets.UnavailableSecretStore());
+            serviceCollection.AddSingleton(_ => KHost.Secrets.SecretStores.ForThisMachine());
 
             serviceCollection.AddSingleton<Services.Plugins.Secrets.IPluginSecretStore,
                 Services.Plugins.Secrets.PluginSecretStore>();
