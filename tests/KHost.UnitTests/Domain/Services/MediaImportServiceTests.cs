@@ -51,6 +51,61 @@ public class MediaImportServiceTests
         await _repository.DidNotReceive().GetExistingFilePathsAsync(Arg.Any<IEnumerable<string>>());
     }
 
+    /// <summary>
+    /// Everything scanned used to be parsed as karaoke, which was harmless only while the scanner
+    /// found nothing else. A still typed that way gets a fallback artist; an ad clip typed that
+    /// way turns up in the console's song search beside the songs.
+    /// </summary>
+    [Theory]
+    [InlineData("/room/venue-card.jpg", MediaType.Image)]
+    [InlineData("/room/free-fallin.mp3", MediaType.Audio)]
+    [InlineData("/room/livin-on-a-prayer.mp4", MediaType.Karaoke)]
+    public async Task StartAsync_ImportsEachFileAsWhatItIs(string path, MediaType expected)
+    {
+        _parser.LoadAndParseAsync(Arg.Any<string>(), Arg.Any<MediaType>())
+            .Returns(new Media { FilePath = path, Title = "A" });
+
+        await _service.StartAsync([path]);
+        await WaitForIdleAsync();
+
+        await _parser.Received(1).LoadAndParseAsync(path, expected);
+    }
+
+    /// <summary>
+    /// A karaoke video and an ad clip are the same formats, so a folder holding both cannot be
+    /// settled by one answer for the batch. The host's answer for this file beats anything worked
+    /// out from its name.
+    /// </summary>
+    [Fact]
+    public async Task StartAsync_TheHostAnsweredForThisFile_UsesThatRatherThanTheBatchAnswer()
+    {
+        _parser.LoadAndParseAsync(Arg.Any<string>(), Arg.Any<MediaType>())
+            .Returns(new Media { FilePath = "/room/spot.mp4", Title = "A" });
+
+        _service.VideoIsKaraoke = true;
+        _service.TypeOverrides["/room/spot.mp4"] = MediaType.Video;
+
+        await _service.StartAsync(["/room/spot.mp4"]);
+        await WaitForIdleAsync();
+
+        await _parser.Received(1).LoadAndParseAsync("/room/spot.mp4", MediaType.Video);
+    }
+
+    /// <summary>The batch answer still decides every file the host did not speak for.</summary>
+    [Fact]
+    public async Task StartAsync_TheHostSaidTheseAreAds_TypesVideoThatWay()
+    {
+        _parser.LoadAndParseAsync(Arg.Any<string>(), Arg.Any<MediaType>())
+            .Returns(new Media { FilePath = "/room/spot.mp4", Title = "A" });
+
+        _service.VideoIsKaraoke = false;
+
+        await _service.StartAsync(["/room/spot.mp4"]);
+        await WaitForIdleAsync();
+
+        await _parser.Received(1).LoadAndParseAsync("/room/spot.mp4", MediaType.Video);
+    }
+
     [Fact]
     public async Task StartAsync_SetsRunningState_ThenIdleWhenDone()
     {

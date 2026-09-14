@@ -5,6 +5,8 @@ using KHost.Abstractions.Messaging.Messages;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 using System.Collections.Concurrent;
+using KHost.Common.Media;
+using KHost.Abstractions.Models;
 
 namespace KHost.UserInterface.Components;
 
@@ -432,6 +434,102 @@ public partial class MediaBrowser : IAsyncDisposable
                 _selectedFolderPaths.Add(entry.FullPath);
         }
     }
+
+    /// <summary>
+    /// What this file will be imported as, drawn. Asked of the same function the import itself
+    /// asks, so the row cannot promise one thing and the library hold another — and it answers to
+    /// the video choice above, which makes that control's effect visible before it is used rather
+    /// than after.
+    /// </summary>
+    /// <remarks>
+    /// Every file used to show a music sheet, from a folder of stills to a folder of ad clips.
+    /// That was honest while the importer took nothing else and a lie the moment it did.
+    /// </remarks>
+    private string IconFor(FileEntry entry) => TypeFor(entry) switch
+    {
+        // Somebody sings this one, which is what separates it from the record beside it.
+        MediaType.Karaoke => "mic-fill",
+        MediaType.Audio => "file-earmark-music",
+        MediaType.Image => "file-earmark-image",
+        _ => "file-earmark-play",
+    };
+
+    /// <summary>
+    /// How the host is answering for video this time round. A folder is usually all one thing,
+    /// which is why two of these are a single click; <see cref="VideoImportKind.EachOne"/> is for
+    /// the folder that is not.
+    /// </summary>
+    private enum VideoImportKind { Karaoke, Ads, EachOne }
+
+    private VideoImportKind _videoKind = VideoImportKind.Karaoke;
+
+    private static string DescribeVideoKind(VideoImportKind kind) => kind switch
+    {
+        VideoImportKind.Karaoke => "Karaoke songs",
+        VideoImportKind.Ads => "Ads and other video",
+        _ => "Chosen file by file",
+    };
+
+    /// <summary>
+    /// Switches how video is read, and drops any file-by-file answers on the way out of that mode:
+    /// leaving them behind would have a later batch import quietly carry choices made for a folder
+    /// the host has since navigated away from.
+    /// </summary>
+    private void ChooseVideoKind(VideoImportKind kind)
+    {
+        _videoKind = kind;
+        VideoIsKaraoke = kind != VideoImportKind.Ads;
+
+        if (kind != VideoImportKind.EachOne)
+            ImportService!.TypeOverrides.Clear();
+    }
+
+    /// <summary>Whether this row is one the host may answer for. Only video is ever ambiguous.</summary>
+    private bool IsChoosable(FileEntry entry)
+        => !entry.IsDirectory
+           && MediaFormats.VideoExtensions.Contains(Path.GetExtension(entry.FullPath).ToLowerInvariant());
+
+    private bool ShowsPerFileChoice(FileEntry entry)
+        => _videoKind == VideoImportKind.EachOne && IsChoosable(entry);
+
+    /// <summary>What this file is being imported as, with the host's own answer taking precedence.</summary>
+    private MediaType TypeFor(FileEntry entry)
+        => ImportService!.TypeOverrides.TryGetValue(entry.FullPath, out var chosen)
+            ? chosen
+            : MediaFormats.TypeForFile(entry.FullPath, VideoIsKaraoke);
+
+    private void ChooseTypeFor(FileEntry entry, ChangeEventArgs args)
+        => ImportService!.TypeOverrides[entry.FullPath] =
+            string.Equals(args.Value?.ToString(), nameof(MediaType.Video), StringComparison.OrdinalIgnoreCase)
+                ? MediaType.Video
+                : MediaType.Karaoke;
+
+    /// <summary>
+    /// Only worth asking where the answer changes something. A folder of records and stills has no
+    /// video in it, and a control offering to call them ads would be noise.
+    /// </summary>
+    private bool SelectionMayHoldVideo
+        => _selectedFolderPaths.Count > 0
+           || _selectedPaths.Any(path => MediaFormats.VideoExtensions.Contains(
+               Path.GetExtension(path).ToLowerInvariant()));
+
+    /// <summary>
+    /// Bound through the service rather than kept here: the import runs on its own thread off that
+    /// singleton, so a copy on this component would be read after the host had navigated away.
+    /// </summary>
+    private bool VideoIsKaraoke
+    {
+        get => ImportService!.VideoIsKaraoke;
+        set => ImportService!.VideoIsKaraoke = value;
+    }
+
+    /// <summary>
+    /// Re-renders as well as recording, because the rows' icons read the same answer: changing this
+    /// turns every video in the listing from a microphone into a play symbol, which is the control
+    /// showing its effect before it is used rather than after.
+    /// </summary>
+    private void OnVideoKindChanged(ChangeEventArgs args)
+        => VideoIsKaraoke = !string.Equals(args.Value?.ToString(), "false", StringComparison.OrdinalIgnoreCase);
 
     private async Task StartImportAsync()
     {
