@@ -1,3 +1,4 @@
+@using KHost.Abstractions.Models
 @using KHost.Abstractions.Repositories
 @using KHost.Abstractions.Services
 @using System.Collections.Concurrent
@@ -40,17 +41,36 @@
                                 <Icon Name="@(_hideImported ? "eye-slash" : "eye")" /> @(_hideImported ? "Show in-library" : "Hide in-library")
                             </button>
                         }
-                        <button class="kh-button kh-button--primary"
-                                disabled="@(_selectedPaths.Count == 0 && _selectedFolderPaths.Count == 0)"
-                                @onclick="StartImportAsync"
-                                type="button">
-                            @{
-                                var _importParts = new List<string>();
-                                if (_selectedPaths.Count > 0) _importParts.Add($"{_selectedPaths.Count} file{(_selectedPaths.Count == 1 ? "" : "s")}");
-                                if (_selectedFolderPaths.Count > 0) _importParts.Add($"{_selectedFolderPaths.Count} folder{(_selectedFolderPaths.Count == 1 ? "" : "s")}");
-                            }
-                            <Icon Name="download" /> Import@(_importParts.Count > 0 ? $" ({string.Join(", ", _importParts)})" : "")
-                        </button>
+                        @{
+                            var _importParts = new List<string>();
+                            if (_selectedPaths.Count > 0) _importParts.Add($"{_selectedPaths.Count} file{(_selectedPaths.Count == 1 ? "" : "s")}");
+                            if (_selectedFolderPaths.Count > 0) _importParts.Add($"{_selectedFolderPaths.Count} folder{(_selectedFolderPaths.Count == 1 ? "" : "s")}");
+                        }
+                        @* The video question lives on the action it qualifies rather than beside
+                           it: a folder of records or stills has nothing ambiguous in it, and the
+                           toggle half is then not drawn at all. *@
+                        <SplitButton Class="kh-media-importer__import"
+                                     PrimaryDisabled="@(_selectedPaths.Count == 0 && _selectedFolderPaths.Count == 0)"
+                                     Title="@(SelectionMayHoldVideo ? $"Video files are: {DescribeVideoKind(_videoKind)}" : null)"
+                                     OnClick="@(_ => StartImportAsync())">
+                            <Text>
+                                <Icon Name="download" /> Import@(_importParts.Count > 0 ? $" ({string.Join(", ", _importParts)})" : "")
+                            </Text>
+                            <Buttons>
+                                @if (SelectionMayHoldVideo)
+                                {
+                                    <span class="kh-media-importer__import-heading">Video files are</span>
+                                    @foreach (var kind in new[] { VideoImportKind.Karaoke, VideoImportKind.Ads, VideoImportKind.EachOne })
+                                    {
+                                        <button class="kh-button kh-media-importer__import-option" type="button"
+                                                @onclick="() => ChooseVideoKind(kind)">
+                                            <Icon Name="@(_videoKind == kind ? "check2" : "dash")" />
+                                            @DescribeVideoKind(kind)
+                                        </button>
+                                    }
+                                }
+                            </Buttons>
+                        </SplitButton>
                     </div>
                 }
             </div>
@@ -190,9 +210,20 @@
                                         }
                                         else
                                         {
-                                            <Icon Name="file-earmark-music" />
+                                            <Icon Name="@IconFor(entry)" />
                                         }
                                         @entry.Name
+                                        @if (ShowsPerFileChoice(entry))
+                                        {
+                                            <select class="kh-form-select kh-media-importer__row-kind"
+                                                    @onchange="args => ChooseTypeFor(entry, args)"
+                                                    @onclick:stopPropagation>
+                                                <option value="@nameof(MediaType.Karaoke)"
+                                                        selected="@(TypeFor(entry) == MediaType.Karaoke)">Karaoke song</option>
+                                                <option value="@nameof(MediaType.Video)"
+                                                        selected="@(TypeFor(entry) == MediaType.Video)">Ad or other video</option>
+                                            </select>
+                                        }
                                         @if (entry.IsDirectory && entry.SupportedFileCount is not null)
                                         {
                                             <span class="kh-media-importer__folder-count"> (@entry.SupportedFileCount)</span>
