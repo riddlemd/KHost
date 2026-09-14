@@ -39,6 +39,7 @@
     <ProjectReference Include="..\..\src\KHost.LrcLib\KHost.LrcLib.csproj" />
     <!-- Not used by any test directly; AsyncNamingConventionTests reflects over this assembly. -->
     <ProjectReference Include="..\..\src\KHost.Screen2\KHost.Screen2.csproj" />
+    <ProjectReference Include="..\..\src\KHost.Secrets\KHost.Secrets.csproj" />
     <ProjectReference Include="..\..\src\KHost.Telemetry\KHost.Telemetry.csproj" />
     <ProjectReference Include="..\..\src\KHost.UserInterface\KHost.UserInterface.csproj" />
   </ItemGroup>

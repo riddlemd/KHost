@@ -24,6 +24,7 @@
   <ItemGroup>
     <ProjectReference Include="..\KHost.Common\KHost.Common.csproj" />
     <ProjectReference Include="..\KHost.Abstractions\KHost.Abstractions.csproj" />
+    <ProjectReference Include="..\KHost.Secrets\KHost.Secrets.csproj" />
     <ProjectReference Include="..\KHost.LrcLib\KHost.LrcLib.csproj" />
     <ProjectReference Include="..\KHost.Telemetry\KHost.Telemetry.csproj" />
   </ItemGroup>

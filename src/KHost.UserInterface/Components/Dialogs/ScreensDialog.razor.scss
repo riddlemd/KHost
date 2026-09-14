@@ -403,13 +403,6 @@
         line-height: 1.4;
     }
 
-    &__hint {
-        margin: 12px 0 0 0;
-        color: var(--kh-text-secondary);
-        font-size: 0.82rem;
-        line-height: 1.4;
-    }
-
     &__launch-form {
         display: grid;
         grid-template-columns: 1fr 170px auto;
