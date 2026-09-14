@@ -21,7 +21,33 @@ const hostLost = document.getElementById('hostlost');
 const marquee = document.getElementById('marquee');
 const marqueeTrack = document.getElementById('marquee-track');
 const marqueePin = document.getElementById('marquee-pin');
-const qrCodes = document.getElementById('qr-codes');
+const corners = new Map(
+    [...document.querySelectorAll('.kh-corner')].map((el) => [el.dataset.corner, el]));
+
+// What each owner last put in a corner, so a corner can be rebuilt without the other's command.
+// The card sits above the code: a caption reads as a label for what is under it, and in a top
+// corner the same order keeps the pair from swapping places when one of them comes and goes.
+const cornerItems = { breakMusic: null, qr: null };
+
+function renderCorners() {
+    for (const el of corners.values()) el.replaceChildren();
+
+    for (const key of ['breakMusic', 'qr']) {
+        const item = cornerItems[key];
+        if (!item) continue;
+
+        const corner = corners.get(item.corner);
+        if (corner) corner.appendChild(item.node);
+    }
+}
+
+// The inset belongs to the corner, so the last command carrying one sets it for every corner —
+// two things stacked against one edge have to agree on how far in it is.
+function setCornerOffset(offset) {
+    if (!Number.isFinite(offset) || offset <= 0) return;
+
+    document.documentElement.style.setProperty('--kh-corner-offset', `${offset}vmin`);
+}
 
 function send(payload) {
     if (window.external && window.external.sendMessage) {
@@ -399,15 +425,57 @@ let marqueeSignature = null;
 const QR_CORNERS = ['bottomright', 'bottomleft', 'topright', 'topleft'];
 const QR_SIZES = ['small', 'medium', 'large'];
 
+// What is playing between singers. Text only — a title and an artist off a provider, which is
+// exactly why it is built as nodes rather than markup.
+function setBreakMusicCard(message) {
+    if (!message.enabled || !message.title) {
+        cornerItems.breakMusic = null;
+        renderCorners();
+        return;
+    }
+
+    setCornerOffset(message.offset);
+
+    const card = document.createElement('div');
+    card.className = 'kh-break-music';
+
+    const title = document.createElement('span');
+    title.className = 'kh-break-music__title';
+    title.textContent = message.title;
+    card.appendChild(title);
+
+    if (message.artist) {
+        const artist = document.createElement('span');
+        artist.className = 'kh-break-music__artist';
+        artist.textContent = message.artist;
+        card.appendChild(artist);
+    }
+
+    cornerItems.breakMusic = {
+        corner: QR_CORNERS.includes(message.corner) ? message.corner : 'bottomleft',
+        node: card,
+    };
+
+    renderCorners();
+}
+
 function setQrCodes(message) {
     const codes = Array.isArray(message.codes) ? message.codes : [];
 
-    // Built as nodes, not markup: the caption comes from a plugin and the URL from a server, and
-    // neither may reach innerHTML.
-    qrCodes.replaceChildren(...codes.filter((code) => code && code.imageUrl).map((code) => {
+    // At most one is ever drawn — the venue names the source — so the first is the whole of it.
+    const code = codes.find((entry) => entry && entry.imageUrl);
+
+    if (!code) {
+        cornerItems.qr = null;
+        renderCorners();
+        return;
+    }
+
+    setCornerOffset(code.offset);
+
+    {
         const figure = document.createElement('figure');
         figure.className = 'kh-qr';
-        figure.dataset.corner = QR_CORNERS.includes(code.corner) ? code.corner : 'bottomright';
         figure.dataset.size = QR_SIZES.includes(code.size) ? code.size : 'medium';
 
         // A denser code drawn in the same corner has smaller modules; below about three pixels
@@ -416,13 +484,10 @@ function setQrCodes(message) {
         if (Number.isFinite(code.modules) && code.modules > 0)
             figure.style.setProperty('--kh-qr-modules', String(code.modules));
 
-        // Both already resolved host-side from the venue, so nothing here decides a default: a
-        // screen guessing one is how two screens in a room end up disagreeing.
+        // Already resolved host-side from the venue, so nothing here decides a default: a screen
+        // guessing one is how two screens in a room end up disagreeing.
         if (Number.isFinite(code.safeZone) && code.safeZone > 0)
             figure.style.setProperty('--kh-qr-safezone', String(code.safeZone));
-
-        if (Number.isFinite(code.offset) && code.offset > 0)
-            figure.style.setProperty('--kh-qr-offset', `${code.offset}vmin`);
 
         const image = document.createElement('img');
         // Decorative in the accessibility sense — nobody is reading a karaoke screen with a
@@ -437,8 +502,13 @@ function setQrCodes(message) {
             figure.appendChild(caption);
         }
 
-        return figure;
-    }));
+        cornerItems.qr = {
+            corner: QR_CORNERS.includes(code.corner) ? code.corner : 'bottomright',
+            node: figure,
+        };
+    }
+
+    renderCorners();
 }
 
 function setMarquee(message) {
@@ -625,6 +695,9 @@ function handleCommand(raw) {
             break;
         case 'qr-codes':
             setQrCodes(message);
+            break;
+        case 'break-music-card':
+            setBreakMusicCard(message);
             break;
         case 'bg-load':
             loadBackground(message.url, message.autoplay === true);

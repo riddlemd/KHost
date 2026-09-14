@@ -69,6 +69,10 @@ public class EditVenueModel
     /// <summary>The plugin whose code this venue shows, or null for none. Null is the default.</summary>
     public string? QrCodeSource { get; set; }
 
+    public bool BreakMusicCardEnabled { get; set; }
+
+    public ScreenCorner? BreakMusicCardCorner { get; set; }
+
     public ScreenCorner QrCodeCorner { get; set; } = ScreenCorner.BottomRight;
 
     public ScreenQrSize QrCodeSize { get; set; } = ScreenQrSize.Medium;

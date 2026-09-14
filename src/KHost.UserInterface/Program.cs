@@ -31,6 +31,7 @@ using Photino.NET;
 using Serilog;
 using Serilog.Events;
 using KHost.UserInterface.Services.RedirectProviders;
+using KHost.Domain.Services.Screens;
 
 namespace KHost.UserInterface;
 
@@ -234,6 +235,7 @@ internal static class Program
         {
             app.Services.GetRequiredService<IScreenCoordinationService>().InitializeAsync().GetAwaiter().GetResult();
             app.Services.GetRequiredService<IScreenMarqueeService>().InitializeAsync().GetAwaiter().GetResult();
+            app.Services.GetRequiredService<BreakMusicCardService>().InitializeAsync().GetAwaiter().GetResult();
         }
         catch (Exception ex)
         {

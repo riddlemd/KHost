@@ -220,6 +220,28 @@ internal sealed class StreamMediaPlayer : IMediaPlayer
     }
 
     /// <summary>
+    /// What is playing between singers. Disabled carries nothing else — it is how the card comes
+    /// down, so there is no separate hide to keep in step.
+    /// </summary>
+    public void SetBreakMusicCard(SetBreakMusicCardCommand command)
+    {
+        _logger.LogInformation("Break music card: {State}", command.Enabled ? command.Title : "off");
+
+        Send(new
+        {
+            type = "break-music-card",
+            enabled = command.Enabled,
+            title = command.Title,
+            artist = command.Artist,
+
+            // Lowercased here rather than in the page, the same as the codes': the page knows CSS
+            // words, not this enum's spelling.
+            corner = command.Corner.ToString().ToLowerInvariant(),
+            offset = command.Offset,
+        });
+    }
+
+    /// <summary>
     /// Every code at once, the same whole-state push as the marquee: an empty list is how they
     /// come down, so there is no separate hide to keep in step.
     /// </summary>

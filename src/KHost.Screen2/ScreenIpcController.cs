@@ -180,6 +180,9 @@ internal sealed class ScreenIpcController : IAsyncDisposable
             case SetScreenQrCodesCommand cmd:
                 _player.SetQrCodes(cmd);
                 break;
+            case SetBreakMusicCardCommand cmd:
+                _player.SetBreakMusicCard(cmd);
+                break;
             default:
                 _logger.LogWarning("Unhandled command: {Type}", command.GetType().Name);
                 break;

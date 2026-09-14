@@ -49,6 +49,14 @@ public class ScreenCommandSerializationTests
             ScrollSpeed = 140,
             PinLabel = true,
         },
+        [nameof(SetBreakMusicCardCommand)] = new SetBreakMusicCardCommand
+        {
+            Enabled = true,
+            Title = "Free Fallin'",
+            Artist = "Tom Petty",
+            Corner = ScreenCorner.BottomLeft,
+            Offset = 1.5,
+        },
         [nameof(SetScreenQrCodesCommand)] = new SetScreenQrCodesCommand
         {
             Codes =

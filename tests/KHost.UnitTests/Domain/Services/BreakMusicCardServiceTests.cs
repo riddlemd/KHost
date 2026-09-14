@@ -1,0 +1,222 @@
+using KHost.Abstractions.Messaging;
+using KHost.Abstractions.Messaging.Messages;
+using KHost.Abstractions.Models;
+using KHost.Abstractions.Services;
+using KHost.Abstractions.Services.IPC;
+using KHost.Domain.Services.Messaging;
+using KHost.Domain.Services.Screens;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
+
+namespace KHost.UnitTests.Domain.Services;
+
+/// <summary>
+/// What the screen says is playing between singers. The card has to be true at a glance or it is
+/// worse than nothing: a host reads it to know what the room is hearing, so every state where the
+/// room hears something else takes it down.
+/// </summary>
+public class BreakMusicCardServiceTests
+{
+    private readonly IScreenServer _screens = Substitute.For<IScreenServer>();
+    private readonly IVenuesService _venues = Substitute.For<IVenuesService>();
+    private readonly IBreakMusicService _breakMusic = Substitute.For<IBreakMusicService>();
+    private readonly MessageBroker _broker = new(NullLogger<MessageBroker>.Instance);
+
+    // Through a container, because break music reaches every provider a plugin registered and a
+    // plugin is one instance pointed at each extension interface it implements.
+    private BreakMusicCardService Service() => new(
+        NullLogger<BreakMusicCardService>.Instance, _screens, _venues,
+        new ServiceCollection().AddSingleton(_breakMusic).BuildServiceProvider(), _broker);
+
+    private void Arrange(
+        bool enabled = true,
+        BreakMusicState state = BreakMusicState.Playing,
+        string? title = "Free Fallin'",
+        string artist = "Tom Petty",
+        ScreenCorner? corner = null,
+        double offset = 0)
+    {
+        _venues.ReadSelectedVenueAsync().Returns(new Venue
+        {
+            Name = "The Bar",
+            Settings = new Venue.VenueSettings
+            {
+                BreakMusicCardEnabled = enabled,
+                BreakMusicCardCorner = corner,
+                QrCodeOffset = offset,
+            },
+        });
+
+        _breakMusic.State.Returns(state);
+        _breakMusic.CurrentTrack.Returns(title is null ? null : new BreakMusicTrack { Title = title, Artist = artist });
+    }
+
+    [Fact]
+    public async Task BuildAsync_Playing_NamesTheTrackAndTheArtist()
+    {
+        Arrange();
+
+        var command = await Service().BuildAsync();
+
+        Assert.True(command.Enabled);
+        Assert.Equal("Free Fallin'", command.Title);
+        Assert.Equal("Tom Petty", command.Artist);
+    }
+
+    /// <summary>A host who paused meant it, and the room is not hearing this.</summary>
+    [Fact]
+    public async Task BuildAsync_Paused_SaysNothing()
+    {
+        Arrange(state: BreakMusicState.Paused);
+
+        Assert.False((await Service().BuildAsync()).Enabled);
+    }
+
+    /// <summary>
+    /// Suspended is break music standing aside for a singer. A card naming a track over someone
+    /// else's performance is the one thing this must never do.
+    /// </summary>
+    [Fact]
+    public async Task BuildAsync_SuspendedForASinger_SaysNothing()
+    {
+        Arrange(state: BreakMusicState.Suspended);
+
+        Assert.False((await Service().BuildAsync()).Enabled);
+    }
+
+    [Fact]
+    public async Task BuildAsync_Stopped_SaysNothing()
+    {
+        Arrange(state: BreakMusicState.Stopped);
+
+        Assert.False((await Service().BuildAsync()).Enabled);
+    }
+
+    /// <summary>The venue's choice beats whatever is playing.</summary>
+    [Fact]
+    public async Task BuildAsync_VenueTurnedItOff_SaysNothingWhilePlaying()
+    {
+        Arrange(enabled: false);
+
+        Assert.False((await Service().BuildAsync()).Enabled);
+    }
+
+    /// <summary>No venue is nobody to have asked, so it is the same answer rather than a default.</summary>
+    [Fact]
+    public async Task BuildAsync_NoVenueSelected_SaysNothing()
+    {
+        _venues.ReadSelectedVenueAsync().Returns((Venue?)null);
+        _breakMusic.State.Returns(BreakMusicState.Playing);
+
+        Assert.False((await Service().BuildAsync()).Enabled);
+    }
+
+    /// <summary>A provider driving another app need not report an artist.</summary>
+    [Fact]
+    public async Task BuildAsync_NoArtistReported_NamesTheTrackAlone()
+    {
+        Arrange(artist: "");
+
+        var command = await Service().BuildAsync();
+
+        Assert.True(command.Enabled);
+        Assert.Null(command.Artist);
+    }
+
+    /// <summary>A provider with nothing to say has nothing worth a corner of the picture.</summary>
+    [Fact]
+    public async Task BuildAsync_NoTitleReported_SaysNothing()
+    {
+        Arrange(title: "");
+
+        Assert.False((await Service().BuildAsync()).Enabled);
+    }
+
+    /// <summary>Away from the codes' own default, so the two do not share a corner uninvited.</summary>
+    [Fact]
+    public async Task BuildAsync_VenueNeverChoseACorner_TakesBottomLeft()
+    {
+        Arrange();
+
+        Assert.Equal(ScreenCorner.BottomLeft, (await Service().BuildAsync()).Corner);
+    }
+
+    [Fact]
+    public async Task BuildAsync_VenueChoseACorner_UsesIt()
+    {
+        Arrange(corner: ScreenCorner.TopRight);
+
+        Assert.Equal(ScreenCorner.TopRight, (await Service().BuildAsync()).Corner);
+    }
+
+    /// <summary>
+    /// The inset belongs to the corner, not to what sits in it: a card and a code against one edge
+    /// have to agree on how far in it is, so both read the venue's one value.
+    /// </summary>
+    [Fact]
+    public async Task BuildAsync_VenueSetAnInset_SharesItWithTheCodes()
+    {
+        Arrange(offset: 6.5);
+
+        Assert.Equal(6.5, (await Service().BuildAsync()).Offset, 3);
+    }
+
+    [Fact]
+    public async Task BuildAsync_VenueNeverSetAnInset_TakesTheHostsOwn()
+    {
+        Arrange(offset: 0);
+
+        Assert.Equal(0.2, (await Service().BuildAsync()).Offset, 3);
+    }
+
+    /// <summary>
+    /// A provider moving to the next track on its own changes nothing about the state, so the card
+    /// would keep naming the track before it without this.
+    /// </summary>
+    [Fact]
+    public async Task TrackChanged_RepublishesWhatIsPlayingNow()
+    {
+        Arrange();
+        using var service = Service();
+        _screens.ClearReceivedCalls();
+
+        _breakMusic.CurrentTrack.Returns(new BreakMusicTrack { Title = "Runnin' Down a Dream", Artist = "Tom Petty" });
+        _broker.Announce(new BreakMusicTrackChanged("Spotify"));
+
+        await WaitForBroadcastAsync(command => command.Title == "Runnin' Down a Dream");
+    }
+
+    /// <summary>Starting, pausing and yielding to a singer all arrive as this one.</summary>
+    [Fact]
+    public async Task BreakMusicChanged_Republishes()
+    {
+        Arrange(state: BreakMusicState.Playing);
+        using var service = Service();
+        _screens.ClearReceivedCalls();
+
+        _breakMusic.State.Returns(BreakMusicState.Suspended);
+        _broker.Announce(new BreakMusicChanged());
+
+        await WaitForBroadcastAsync(command => !command.Enabled);
+    }
+
+    private async Task WaitForBroadcastAsync(Func<SetBreakMusicCardCommand, bool> settled)
+    {
+        var deadline = DateTime.UtcNow.AddSeconds(5);
+
+        while (DateTime.UtcNow < deadline)
+        {
+            var sent = _screens.ReceivedCalls()
+                .Where(call => call.GetMethodInfo().Name == nameof(IScreenServer.BroadcastCommandAsync))
+                .Select(call => call.GetArguments()[0])
+                .OfType<SetBreakMusicCardCommand>();
+
+            if (sent.Any(settled))
+                return;
+
+            await Task.Delay(5);
+        }
+
+        throw new TimeoutException("The card never reached the screens.");
+    }
+}
