@@ -21,6 +21,7 @@ namespace KHost.Abstractions.Services.IPC;
 [JsonDerivedType(typeof(HideImageCommand), "hideImage")]
 [JsonDerivedType(typeof(SetMarqueeCommand), "setMarquee")]
 [JsonDerivedType(typeof(SetScreenQrCodesCommand), "setQrCodes")]
+[JsonDerivedType(typeof(SetBreakMusicCardCommand), "setBreakMusicCard")]
 public abstract class ScreenCommandBase : IScreenCommand { }
 
 /// <summary>
@@ -175,6 +176,40 @@ public sealed class ScreenQrCodePlacement
     /// <summary>
     /// How far in from the screen's edges the code sits, as a percentage of the shorter side,
     /// already resolved from the venue.
+    /// </summary>
+    public double Offset { get; init; }
+}
+
+/// <summary>
+/// What is playing between singers, in a corner of the screen. Pushed whole on every change, the
+/// same as the marquee and the codes: a screen that reconnects mid-show is correct after one
+/// command, and there is no separate hide to keep in step.
+/// </summary>
+public sealed class SetBreakMusicCardCommand : ScreenCommandBase
+{
+    /// <summary>
+    /// False takes the card off and the rest is ignored. It is false whenever the room is not
+    /// actually hearing break music — a host's pause, and the hand-off to a singer, both count —
+    /// so what the card names is always what is playing.
+    /// </summary>
+    public required bool Enabled { get; init; }
+
+    /// <summary>The track, already composed: a screen holds no library to resolve an id against.</summary>
+    public string? Title { get; init; }
+
+    /// <summary>Empty where the provider could not say. An external app need not report one.</summary>
+    public string? Artist { get; init; }
+
+    /// <summary>
+    /// Which corner it sits in. It shares that corner with anything else there rather than
+    /// covering it — a QR code in the same corner still has to be scannable.
+    /// </summary>
+    public ScreenCorner Corner { get; init; }
+
+    /// <summary>
+    /// How far the corner sits in from the screen's edges, as a percentage of the shorter side and
+    /// already resolved from the venue. A property of the corner rather than of what is in it:
+    /// everything stacked there shares one inset, or they would not line up.
     /// </summary>
     public double Offset { get; init; }
 }
