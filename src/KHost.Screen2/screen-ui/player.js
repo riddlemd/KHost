@@ -416,9 +416,17 @@ function setQrCodes(message) {
         if (Number.isFinite(code.modules) && code.modules > 0)
             figure.style.setProperty('--kh-qr-modules', String(code.modules));
 
+        // Both already resolved host-side from the venue, so nothing here decides a default: a
+        // screen guessing one is how two screens in a room end up disagreeing.
+        if (Number.isFinite(code.safeZone) && code.safeZone > 0)
+            figure.style.setProperty('--kh-qr-safezone', String(code.safeZone));
+
+        if (Number.isFinite(code.offset) && code.offset > 0)
+            figure.style.setProperty('--kh-qr-offset', `${code.offset}vmin`);
+
         const image = document.createElement('img');
-        // Decorative in the accessibility sense — nobody is reading this screen with a reader,
-        // and the caption below already says what it is for.
+        // Decorative in the accessibility sense — nobody is reading a karaoke screen with a
+        // reader, and a code carries its meaning by being one.
         image.alt = '';
         image.src = code.imageUrl;
         figure.appendChild(image);
