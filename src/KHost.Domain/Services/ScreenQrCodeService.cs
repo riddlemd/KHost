@@ -145,6 +145,12 @@ public sealed class ScreenQrCodeService : BaseService, IScreenQrCodeService, IDi
                 Caption = code.Caption,
                 Corner = corner,
                 Size = code.Size ?? settings?.QrCodeSize ?? ScreenQrSize.Medium,
+
+                // Resolved here rather than on the screen, which decides nothing: a venue that has
+                // never been asked stores zero, and zero is the question "what would you do?"
+                // rather than an answer of none.
+                SafeZone = settings?.QrCodeSafeZone is > 0 and var zone ? zone : DefaultSafeZone,
+                Offset = settings?.QrCodeOffset is > 0 and var offset ? offset : DefaultOffset,
             });
         }
 
@@ -202,6 +208,19 @@ public sealed class ScreenQrCodeService : BaseService, IScreenQrCodeService, IDi
     /// can read it. Correction level L on purpose — the code is on a clean lit panel, not a
     /// printed flyer, and the lowest level spends the fewest modules on a payload of any length.
     /// </summary>
+    /// <summary>
+    /// One module of white. The standard four is a quarter of the code's width again, which over
+    /// video reads as a slab; one is enough against dark picture on a lit panel.
+    /// </summary>
+    private const int DefaultSafeZone = 1;
+
+    /// <summary>
+    /// Almost flush, as a percentage of the screen's shorter side. Not zero: a television
+    /// overscans and a projector is rarely framed exactly, and an edge cut off the picture is
+    /// worse than a hair of inset.
+    /// </summary>
+    private const double DefaultOffset = 0.2;
+
     private (string Image, int Modules) Encode(string payload)
     {
         lock (_encoded)
@@ -215,10 +234,18 @@ public sealed class ScreenQrCodeService : BaseService, IScreenQrCodeService, IDi
 
         // One unit per module, so the SVG's own coordinates are the module grid and every size the
         // screen asks for is an exact multiple of it.
-        var svg = new SvgQRCode(data).GetGraphic(1);
+        //
+        // No quiet zone drawn in the picture. The standard four-module border is a quarter of the
+        // code's width again in white, which over video reads as a slab rather than as a code —
+        // and having it inside the image put it out of reach of anything the screen could do about
+        // it. The screen paints the margin instead, so a venue's corner can be as tight as it likes.
+        var svg = new SvgQRCode(data).GetGraphic(1, "#000000", "#ffffff", drawQuietZones: false);
+
+        // ModuleMatrix counts the quiet zone whether or not it is drawn, so the eight rows and
+        // columns of it come off: what the screen sizes against has to be what is in the picture.
         var encoded = (
             $"data:image/svg+xml;base64,{Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(svg))}",
-            data.ModuleMatrix.Count);
+            data.ModuleMatrix.Count - 8);
 
         lock (_encoded)
         {

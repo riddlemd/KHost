@@ -158,11 +158,25 @@ public sealed class ScreenQrCodePlacement
     public ScreenQrSize Size { get; init; }
 
     /// <summary>
-    /// How many modules the code is across, quiet zone included. The screen sizes off it: a long
-    /// payload needs more modules, and the same corner then draws each one smaller until no phone
-    /// can read it. A floor per module beats a floor in pixels, which cannot know either.
+    /// How many modules the code is across. The picture carries no quiet zone of its own, so this
+    /// is only what is drawn, and the screen paints the margin around it — see
+    /// <see cref="SafeZone"/>. The screen sizes off this: a long payload needs more modules, and
+    /// the same corner then draws each one smaller until no phone can read it. A floor per module
+    /// beats a floor in pixels, which cannot know either.
     /// </summary>
     public int Modules { get; init; }
+
+    /// <summary>
+    /// The white margin around the code, in modules, already resolved from the venue. Never zero:
+    /// a code with no quiet zone at all is one a scanner struggles to find an edge on.
+    /// </summary>
+    public int SafeZone { get; init; }
+
+    /// <summary>
+    /// How far in from the screen's edges the code sits, as a percentage of the shorter side,
+    /// already resolved from the venue.
+    /// </summary>
+    public double Offset { get; init; }
 }
 
 /// <summary>

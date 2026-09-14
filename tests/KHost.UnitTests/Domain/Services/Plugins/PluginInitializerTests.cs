@@ -1,5 +1,8 @@
 using KHost.Abstractions.Models.Plugins;
 using KHost.Domain.Services.Plugins;
+using KHost.Domain.Services.Plugins.Secrets;
+using KHost.Secrets;
+using KHost.UnitTests.Secrets;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -64,7 +67,7 @@ public class PluginInitializerTests
 
         var discovered = new DiscoveredPlugin { Directory = "/plugins/test", Manifest = manifest };
 
-        return new LoadedPlugin(discovered, entryPoint, new PluginContext(manifest, null, discovered));
+        return new LoadedPlugin(discovered, entryPoint, new PluginContext(manifest, null, discovered, new PluginSecretStore(new InMemorySecretStore())));
     }
 
     private sealed class SpyPlugin : IPlugin

@@ -3,6 +3,9 @@ using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using System.Text.Json;
 using KHost.Domain.Services.Plugins;
+using KHost.Domain.Services.Plugins.Secrets;
+using KHost.Secrets;
+using KHost.UnitTests.Secrets;
 
 namespace KHost.UnitTests.Domain.Services.Plugins;
 
@@ -122,7 +125,72 @@ public class PluginContextTests
             ],
         };
 
-        return new PluginContext(manifest, stored, new DiscoveredPlugin { Directory = "/plugins/test", Manifest = manifest });
+        return new PluginContext(manifest, stored, new DiscoveredPlugin { Directory = "/plugins/test", Manifest = manifest },
+            new PluginSecretStore(new InMemorySecretStore()));
+    }
+
+    // ---- secrets ---------------------------------------------------------
+
+    /// <summary>
+    /// The whole guarantee: the name a secret is filed under comes from the manifest the host
+    /// read, never from the caller. Two plugins using "session" neither collide nor can read each
+    /// other, and a plugin has no way to ask for someone else's.
+    /// </summary>
+    [Fact]
+    public async Task Secrets_AreFiledUnderThePluginsOwnId()
+    {
+        var store = new PluginSecretStore(new InMemorySecretStore());
+        var first = Guid.NewGuid();
+        var second = Guid.NewGuid();
+
+        var one = ContextFor(first, store);
+        var two = ContextFor(second, store);
+
+        await one.SetSecretAsync("session", "one");
+        await two.SetSecretAsync("session", "two");
+
+        // Read back through the contexts, not the store: reading under the wrong name is as much a
+        // leak as writing under one, and a test that queries the store directly sees neither.
+        Assert.Equal("one", await one.GetSecretAsync("session"));
+        Assert.Equal("two", await two.GetSecretAsync("session"));
+    }
+
+    [Fact]
+    public async Task Secrets_ReadBackWhatWasWritten()
+    {
+        var context = ContextFor(Guid.NewGuid(), new PluginSecretStore(new InMemorySecretStore()));
+
+        Assert.Null(await context.GetSecretAsync("session"));
+
+        await context.SetSecretAsync("session", "sk-1");
+
+        Assert.Equal("sk-1", await context.GetSecretAsync("session"));
+    }
+
+    [Fact]
+    public async Task Secrets_ClearedByAnEmptyValue()
+    {
+        var context = ContextFor(Guid.NewGuid(), new PluginSecretStore(new InMemorySecretStore()));
+        await context.SetSecretAsync("session", "sk-1");
+
+        await context.SetSecretAsync("session", null);
+
+        Assert.Null(await context.GetSecretAsync("session"));
+    }
+
+    private static PluginContext ContextFor(Guid id, IPluginSecretStore store)
+    {
+        var manifest = new PluginManifest
+        {
+            Id = id,
+            Name = "Test",
+            Version = "1.0.0",
+            EntryAssembly = "Test.dll",
+            ApiVersion = PluginApi.CurrentVersion,
+        };
+
+        return new PluginContext(manifest, null,
+            new DiscoveredPlugin { Directory = "/plugins/test", Manifest = manifest }, store);
     }
 
     private class TestSettings
