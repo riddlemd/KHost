@@ -179,9 +179,47 @@
         align-items: center;
         gap: 8px;
 
+        // The header carries a title and two controls. Wrapping is what keeps the title readable
+        // on a narrow console instead of truncating it to "Media Import…".
+        flex-wrap: wrap;
+        justify-content: flex-end;
+
         .kh-button {
             margin-left: 0;
         }
+    }
+
+    // A heading inside the dropdown, not a control: it names what the choices below it answer.
+    &__import-heading {
+        display: block;
+        padding: 0.35rem 0.75rem 0.15rem;
+        color: var(--kh-text-muted);
+        font-size: 0.72rem;
+        font-weight: 600;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        white-space: nowrap;
+    }
+
+    // A menu row, so it reads as a list of answers rather than three buttons: full width, left
+    // aligned, square against its neighbours.
+    &__import-option {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        width: 100%;
+        justify-content: flex-start;
+        white-space: nowrap;
+    }
+
+    // Sits beside the file it answers for. Narrow and quiet — it is only ever on the handful of
+    // rows nothing can settle without being told.
+    &__row-kind {
+        width: auto;
+        margin-left: 0.6rem;
+        padding: 0.05rem 1.4rem 0.05rem 0.4rem;
+        font-size: 0.78rem;
+        vertical-align: baseline;
     }
 
     &__progress {

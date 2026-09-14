@@ -5,18 +5,21 @@ using KHost.Abstractions.Services;
 using KHost.Abstractions.Messaging;
 using KHost.Abstractions.Messaging.Messages;
 using Microsoft.Extensions.Logging;
+using KHost.Common.Media;
 
 namespace KHost.Domain.Services;
 
 public class MediaImportService : BaseService, IMediaImportService
 {
+    // Everything the host can already play, which is wider than the songs this scanner was first
+    // written for: a venue's break music, its ad clips and the card it puts up between singers are
+    // all ordinary library rows, and were reachable only one file at a time until this listed them.
     private static readonly string[] _supportedExtensions =
     [
-        ".cdg",
-        ".mp4",
-        ".mkv",
-        ".avi",
-        ".flv"
+        MediaFormats.KaraokeGraphicsExtension,
+        .. MediaFormats.VideoExtensions,
+        .. MediaFormats.AudioExtensions,
+        .. MediaFormats.ImageExtensions,
     ];
 
     private readonly IMediaFileParsingService _parser;
@@ -39,6 +42,18 @@ public class MediaImportService : BaseService, IMediaImportService
     // extension to assert the host can already play it, so the scanner stops skipping its output.
     // Computed once: plugins are fixed until restart, and this is a singleton.
     public IReadOnlyList<string> SupportedExtensions { get; }
+
+    /// <summary>
+    /// What a file with a picture track is taken to be. A karaoke video and an ad clip are the
+    /// same formats, so nothing in the file settles it and the host says which folder this is —
+    /// karaoke, because that is what a library is mostly made of.
+    /// </summary>
+    public bool VideoIsKaraoke { get; set; } = true;
+
+    /// <inheritdoc />
+    /// <remarks>Case-insensitive, because a path typed by a host and one read from a listing differ.</remarks>
+    public IDictionary<string, MediaType> TypeOverrides { get; } =
+        new Dictionary<string, MediaType>(StringComparer.OrdinalIgnoreCase);
 
     public MediaImportService(
         ILogger<MediaImportService> logger,
@@ -131,7 +146,14 @@ public class MediaImportService : BaseService, IMediaImportService
     {
         try
         {
-            var media = await _parser.LoadAndParseAsync(candidate.Path);
+            // Asked rather than assumed. Everything scanned used to be parsed as karaoke, which
+            // gave a still a fallback artist and put an ad clip in the console's song search. The
+            // host's own answer for this file beats anything worked out from its name.
+            var type = TypeOverrides.TryGetValue(candidate.Path, out var chosen)
+                ? chosen
+                : MediaFormats.TypeForFile(candidate.Path, VideoIsKaraoke);
+
+            var media = await _parser.LoadAndParseAsync(candidate.Path, type);
 
             media.FileSize = candidate.Size;
             media.SampledHash = candidate.SampledHash
