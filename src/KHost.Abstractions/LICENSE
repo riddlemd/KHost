@@ -2,7 +2,7 @@ KHost.Abstractions
 
 Copyright (c) 2026 Michael Riddle
 
-This project — KHost.Common, helpers shared by KHost and the plugins it loads —
+This project — KHost.Abstractions, the contracts and models a plugin is built against —
 is licensed under the MIT License, reproduced below. It is licensed separately
 from the rest of KHost, which is under the PolyForm Shield License 1.0.0 (see
 the LICENSE file at the root of this repository).
