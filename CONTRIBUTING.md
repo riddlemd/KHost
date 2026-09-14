@@ -26,8 +26,8 @@ project. Therefore, **by submitting a contribution you agree that:**
 
 - You license your contribution to the project and its users under the same
   **PolyForm Shield License 1.0.0** that covers KHost — except for contributions
-  to `src/KHost.Plugins.Sdk/`, which you license under the **MIT License**, the
-  license that project carries; **and**
+  to `src/KHost.Abstractions/` and `src/KHost.Common/`, which you license under
+  the **MIT License**, the license those projects carry; **and**
 - You grant **Michael Riddle** (the maintainer/licensor) a perpetual, worldwide,
   non-exclusive, royalty-free, irrevocable license to use, reproduce, modify,
   distribute, and **relicense** your contribution under any terms, **including
@@ -41,9 +41,11 @@ allowing the maintainer to offer the commercial/SaaS/OEM licenses described in
 the [README](README.md#license). You retain copyright in your contribution; you
 are simply granting these licenses.
 
-The plugin SDK is carved out because a plugin ships a copy of that assembly. A
-non-compete term on it would forbid copyleft plugins outright, so every line of
-`src/KHost.Plugins.Sdk/` has to be MIT — including yours.
+Those two are carved out because they are what a plugin is compiled against, and
+they are published as MIT NuGet packages. A non-compete term on what a plugin
+builds against would forbid copyleft plugins outright, so every line of
+`src/KHost.Abstractions/` and `src/KHost.Common/` has to be MIT — including
+yours.
 
 ## Sign your commits (DCO)
 

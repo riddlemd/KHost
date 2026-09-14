@@ -40,7 +40,8 @@ Contributions are accepted under the terms in [CONTRIBUTING.md](CONTRIBUTING.md)
 ## License
 
 KHost is licensed under the [PolyForm Shield License 1.0.0](LICENSE), **except
-for the plugin SDK**, which is [MIT](src/KHost.Plugins.Sdk/LICENSE).
+for the two projects a plugin builds against** — [KHost.Abstractions](src/KHost.Abstractions/LICENSE)
+and [KHost.Common](src/KHost.Common/LICENSE) — which are MIT.
 
 You may use, modify, and self-host KHost for any purpose, **including commercial
 use** (for example, running it to host your own karaoke events). You may **not**
@@ -48,10 +49,14 @@ use it to provide a product or service that competes with KHost — including
 offering KHost or a derivative as a hosted/managed service (SaaS), or
 redistributing it under a different brand — without a separate license.
 
-`KHost.Plugins.Sdk` is MIT so that plugins are unencumbered: you compile against
-that assembly, ship a copy of it with your plugin, and license your own plugin
-however you like — copyleft included. The non-compete term above applies to
-KHost itself, not to anything you build on the SDK.
+Those two are MIT so that plugins are unencumbered: you compile against them and
+license your own plugin however you like — copyleft included. The non-compete
+term above applies to KHost itself, not to anything you build on them.
+
+There is no separate SDK assembly. A plugin takes a `PackageReference` to
+`KHost.Abstractions` and `KHost.Common` with `ExcludeAssets="runtime"`, and ships
+no copy of either: the host already has both, and a plugin-local copy is never
+loaded.
 
 **Commercial, SaaS, and OEM licenses are available** for those uses — contact
 Michael Riddle <riddlemd@gmail.com>.

@@ -262,8 +262,41 @@ one `SetMarqueeCommand`.
   both puts it on screen twice. It is a **modifier**, not a style: it changes where the label sits,
   not how the band is painted, so it composes with whatever else the venue chose.
 
+## What is playing between singers
+
+`BreakMusicCardService` names the break music in a corner of the screen, pushed whole on every
+change the same way the marquee is.
+
+- **It says what is *playing*, not what is cued.** A host's pause and the hand-off to a singer both
+  take it down, so the screen never names a track over somebody else's performance — which is the
+  only way a caption in the corner can be trusted at a glance. `Suspended` counts as not playing.
+- Off for a venue that has never been asked, so the missing key reads as off and it needed no
+  backfill.
+- A provider that reports no title gets no card; one that reports no artist just loses the second
+  line. On macOS a Spotify advert arrives as a track with no artist and an em dash for a title, and
+  is drawn as one — recognising ads would mean reading the track id, which nothing does yet.
+
 ## Screens on startup, and where their windows sit
 
+- **A service that answers a screen connecting implements `IStartsWithTheHost`.** The container
+  builds a singleton the first time somebody asks for it, so one that wires the broker or a screen
+  event *in its constructor* has wired nothing until that moment — and a screen connecting before
+  then is answered by nobody, with no error anywhere to say so. That was found three times, each
+  time from the far end as a screen missing something: the marquee, the break music card, and the
+  codes, which on a host with no plugins installed was never built at all.
+  - The marker carries no members on purpose. It says "build me", not "do something": the work each
+    of these does on the way up is its own, and several already have an `InitializeAsync` for it.
+    What kept going missing was being constructed at all.
+  - Registered twice — once as itself, once under the marker pointing at the same singleton
+    (`sp => (IStartsWithTheHost)sp.GetRequiredService<IWhatever>()`). Registering it afresh would
+    build a second copy, and the copy nobody else holds would be the one listening.
+  - `Program.cs` enumerates the marker before `MapIPCServer()`. A loop rather than a line each,
+    because a line each is exactly what kept going missing.
+  - Being reachable through somebody else's constructor does **not** count and is not relied on:
+    `PlaybackService` was alive only because `ScreenMarqueeService` takes it, which is the marquee
+    needing playback for its own reasons. `StartupScreenServicesTests` reads the domain for
+    constructors wiring `ScreenConnected` and fails on any that does not wear the marker — so the
+    list maintains itself rather than being one more thing to remember.
 - `LocalScreen:LaunchOnStartup` (the App Settings page's "Open a screen when KHost starts") opens
   one screen named `AppSettings.StartupScreenName`. Read once on the way up, so changing it flips
   `RestartRequired` rather than pretending to take effect.
@@ -275,6 +308,12 @@ one `SetMarqueeCommand`.
   a screen recovers from: `ScreenClient` tries its first connection once, and
   `WithAutomaticReconnect` covers a connection that was established, not one that never was — so a
   wrong address at launch is a screen that sits there forever saying it lost the host.
+- The venue's **placeholder image** is what a screen shows when nothing is playing, and it is put
+  up on screen connect as well as on every playback transition and venue edit. Its scaling is an
+  *override*: `Venue.Settings.BrandingImageScaling` is null by default and the media row's own
+  `ImageScaling` answers, because scaling belongs to a picture — but the same picture can be the
+  card in two rooms whose screens are not the same shape. Only the idle card reads the override; an
+  ad's own still and a screen rejoining mid-still are not the venue's to reshape.
 - A screen remembers its own window in `cache/screens/<screen id>.window.json`, **on the machine
   the window is on**. Not host-side: a screen on another machine keeps its own place, and one
   started by hand remembers as much as one the host launched.
@@ -310,7 +349,32 @@ one `SetMarqueeCommand`.
 - An auto margin on the cross axis switches off a flex item's stretch, so `max-width` + `margin-inline: auto` leaves a card at its content width until you also give it `width: 100%`.
 - A flex item needs `min-width: 0` as well as `white-space: nowrap` before it will truncate; without it, it pushes its neighbours off the row instead.
 - A modifier that turns a filled control into an outline one has to clear the fill as well as the border and text: `.kh-button` sets a `--kh-primary` gradient, so overriding only the two left `--outline-danger` painting a solid primary background under red text. Nor is `--kh-primary` a safe stand-in for "active" — a theme may make it a neutral (famicom's is the console's grey plastic), so a state carried by hue alone stops reading. This is why every toggle is a checkbox: `.kh-form-check-input` fills with `--kh-primary` but says "on" with a check glyph, which survives a theme whose brand colour is grey. Use `--kh-danger-bright` rather than `--kh-danger-text-subtle` for danger text, which these dark themes define for exactly that.
+- A `.kh-note` explains **one control, and sits directly under it** — in the field's own markup or
+  as the next sibling, never after a run of rows carrying a fact about each. A row followed by one
+  gives up its bottom margin (`&__row:has(+ .kh-note)`), or the two margins collapse and the note
+  ends up as far from the field it explains as from the next one down. There is deliberately no
+  quieter half of a note: the ladder is `--kh-text`, `--kh-text-secondary`, `--kh-text-muted`, and a
+  note already sits on the dimmest rung, so every colour left to pick is brighter — an "aside"
+  emphasised the detail it meant to play down. A note needing two voices is a note saying too much.
 - `.kh-card__body` pads a direct `<form>` child and nothing else — a card body without a form needs its own padding. A `<select>` needs `kh-form-select`, not `kh-form-control`, or WebKit draws the native macOS pop-up and discards the styling (correct in a browser, wrong only in the Photino window).
+
+## Importing media
+
+The scanner takes everything the host can play, not only karaoke: a venue's break music, its ad
+clips and the card it puts up between singers are ordinary library rows.
+
+- **`MediaFormats` owns the extension lists and the question.** `TypeForFile(path, videoIsKaraoke)`
+  decides what a file is, and the scanner, the row icon and the import itself all ask it — so none
+  of them can disagree with the other two. Everything scanned used to be parsed as karaoke, which
+  was harmless only while it scanned nothing else.
+- Asked of the **path**, not the extension: an `.mp3` with a `.cdg` beside it is the audio half of a
+  karaoke pair, an instrumental with no singer on it, and does not belong in break music.
+- **A picture track is the one thing no file can settle** — a karaoke video and an ad clip are the
+  same formats. The host says which a folder is, on the Import button, and a folder that is not all
+  one thing is answered row by row through the Type column. Those answers go in
+  `IMediaImportService.TypeOverrides`, keyed by path, and beat anything worked out from the name.
+  Switching the batch answer clears them: they were disagreements with an answer that no longer
+  applies.
 
 ## Tests
 
@@ -338,5 +402,14 @@ A component test renders the component (`BunitContext`, not the obsolete `TestCo
 - Two venue messages, and picking the wrong one is a bug you will not see in a test that only checks the happy path. `VenuesChanged` says the list moved (add/edit/delete) and is for the UI. `SelectedVenueChanged` says the console is now running a different venue, or the one it is running was edited — that is the one `ScreenCoordinationService` and `BreakMusicService` take, because the venue carries the room's audio baseline. Subscribing them to `VenuesChanged` means editing an unrelated venue's phone number re-pushes volume to every screen mid-song.
 - - `Venue.Settings` is a JSON column (`OwnsOne(...ToJson())`): adding/removing properties needs no migration at all, but EF reads keys missing from stored rows as `default` (ignoring property initializers) — a new setting that defaults true needs a data-only `json_set` backfill migration.
 - `KHostUser.ForeignKeys` is how a provider outside KHost names a singer — `(Source, Key)`, unique across the whole table, so one provider's id reaches one singer and a returning guest is not added a second time. Matched exactly, never folded: an id is nobody's name, and a provider may make its case meaningful. `IsEphemeral` marks a key that names a *connection* rather than a person (KaraFun's guest ids belong to a phone on the remote channel), and **every ephemeral key is deleted on startup** by `DatabaseInitializer`, beside the stalled-downloads sweep — none can have outlived the process that issued it, and doing it host-side is what stops a plugin's rows outliving the plugin. A provider clears its own with `IUsersService.DeleteEphemeralForeignKeysAsync(source)`; there is deliberately no way for one to clear another's. Prefer `AddForeignKeyAsync`/`RemoveForeignKeyAsync` over mutating the collection and saving — `UpdateAsync` reconciles against what it is handed, so a user read without their keys is saved back without them (the same trap `Groups` already has, which is why both are `Include`d on every read that feeds an update).
+- **Performances carry no foreign keys, deliberately** — deleting a song, a singer or a venue must
+  leave the record of who sang what standing. That protects *history*, and the queue is not
+  history: a queued performance belongs to somebody who has not sung it, and when its singer or its
+  song is deleted nobody can. So deleting a user or a media row **deletes the queued performances**
+  that point at it, and leaves every sung one alone. `SingerQueueService` takes `UsersChanged` for
+  it rather than the users manager calling in — a singer deleted down any path leaves the same way
+  — and prunes only ids that no longer resolve, because that announcement also fires on a rename.
+  `MediaService` resolves `IPerformanceService` on use rather than in its constructor, since
+  `PerformanceService` takes `IMediaService` and asking up front closes a ring.
 - Schema changes (any `DbSet<T>` model): add a migration — `dotnet ef migrations add <Name> --project src/KHost.DataAccess`. Additive ones such as an index apply in place, keeping both the runtime DB and the hand-written `AddMediaFts`.
 - Regenerating the chain instead (delete `src/KHost.DataAccess/Migrations/` and the runtime DB, then `migrations add InitialSchema`) means recreating `AddMediaFts` by hand afterwards — the FTS5 table and its triggers are raw SQL EF won't regenerate, and search throws `no such table: media_fts` without it; copy the `Up`/`Down` SQL from a prior `AddMediaFts.cs`. It also destroys the local library, users and queue, so collapse the chain deliberately, not as a step in adding a column.
