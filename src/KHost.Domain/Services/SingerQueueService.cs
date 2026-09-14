@@ -8,7 +8,7 @@ using Microsoft.Extensions.Logging;
 
 namespace KHost.Domain.Services;
 
-public class SingerQueueService : ISingerQueueService
+public class SingerQueueService : ISingerQueueService, IDisposable
 {
     private const string _cacheKey = "singer-queue";
 
@@ -22,6 +22,7 @@ public class SingerQueueService : ISingerQueueService
     private readonly IMessageBroker _broker;
     private readonly List<Guid> _userIds = [];
     private List<KHostUser> _cachedUsers = [];
+    private readonly SubscriptionSet _subscriptions = new();
 
 
     public IReadOnlyList<KHostUser> Users => _cachedUsers.AsReadOnly();
@@ -50,7 +51,65 @@ public class SingerQueueService : ISingerQueueService
         _analytics = analytics;
         _rotationStrategyFactory = rotationStrategyFactory;
         _broker = broker;
+
+        // A singer deleted in the users manager is still in this queue: the order is a list of
+        // ids, and nothing here was told. Resolving simply skipped them, so the panel showed one
+        // fewer singer than the rotation was counting — the two disagreed, quietly, and the
+        // ghost's turn still came round with nobody there.
+        _subscriptions.Add(broker.Subscribe<UsersChanged>(message => { _ = Task.Run(PruneDeletedSingersAsync); }));
     }
+
+    /// <summary>
+    /// Drops singers who no longer exist, and the songs they had waiting. Driven by the
+    /// announcement rather than by the users manager calling in, so a singer deleted down any path
+    /// leaves the same way — and so this service keeps owning its own queue.
+    /// </summary>
+    /// <remarks>
+    /// The queued songs are deleted rather than unqueued. Nobody sang them and nobody now can, so
+    /// there is no record to keep standing — which is what separates them from the performances a
+    /// deletion deliberately leaves alone.
+    /// </remarks>
+    private async Task PruneDeletedSingersAsync()
+    {
+        try
+        {
+            List<Guid> missing = [];
+
+            foreach (var id in _userIds.ToList())
+                if (await _usersService.ReadAsync(id) is null)
+                    missing.Add(id);
+
+            if (missing.Count == 0)
+                return;
+
+            foreach (var id in missing)
+            {
+                _userIds.Remove(id);
+
+                if (SelectedUserId == id)
+                    SelectedUserId = null;
+
+                var queued = await _performanceService.ReadBySingerIdAsync(id, pageSize: 0, filter: PerformanceFilter.Queued);
+
+                foreach (var performance in queued.Items)
+                    await _performanceService.DeleteAsync(performance.Id);
+
+                _logger.LogInformation(
+                    "Took deleted singer {UserId} out of the queue with {Count} song(s) waiting",
+                    id, queued.Items.Count);
+            }
+
+            await NotifyAsync();
+        }
+        catch (Exception ex)
+        {
+            // A queue that fails to tidy itself must not take the announcement down with it; the
+            // next user change tries again.
+            _logger.LogWarning(ex, "Could not take deleted singers out of the queue");
+        }
+    }
+
+    public void Dispose() => _subscriptions.Dispose();
 
     public async Task SelectUserAsync(Guid? userId)
     {
