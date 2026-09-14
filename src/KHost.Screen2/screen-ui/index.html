@@ -89,8 +89,8 @@
 
         #hostlost[hidden] { display: none; }
 
-        /* Above everything, including a full-bleed still: the room reads it while an ad card or
-           the venue card is up, which is most of the night. */
+        /* Above a full-bleed still: the room reads it while an ad card or the venue card is up,
+           which is most of the night. Below the corners, though — see .kh-corner. */
         #marquee {
             position: absolute;
             left: 0;
@@ -121,15 +121,56 @@
 
         #marquee[hidden] { display: none; }
 
-        /* Sized off the shorter side, so a code is the same share of the picture on any screen,
-           with a floor that keeps it scannable in a small window. The marquee sits above these:
-           a band across the edge is the thing a corner should give way to. */
-        .kh-qr {
+        /* One stack per corner. The code and the break music card share a corner rather than
+           covering each other — a code with a caption drawn over it is one no phone can read, and
+           nothing on screen would say why. The inset belongs here rather than to either of them,
+           or two things in one corner would not line up against the edge.
+
+           Above the marquee, which is the whole reason this number is here. A band pinned to an
+           edge crosses both bottom corners, and a code it covers stops scanning with nothing on
+           screen to say why — where a band with a code over one end of it is still a readable
+           band. The card rides up with it rather than being raised on its own: when the two share
+           a corner, lifting only the code would leave the band slicing through the stack. */
+        .kh-corner {
             position: absolute;
-            z-index: 9;
+            z-index: 11;
+            display: flex;
+            flex-direction: column;
+            gap: 1vmin;
+        }
+
+        .kh-corner:empty { display: none; }
+
+        .kh-corner[data-corner="bottomright"] { right: var(--kh-corner-offset, 0.2vmin); bottom: var(--kh-corner-offset, 0.2vmin); align-items: flex-end; }
+        .kh-corner[data-corner="bottomleft"]  { left:  var(--kh-corner-offset, 0.2vmin); bottom: var(--kh-corner-offset, 0.2vmin); align-items: flex-start; }
+        .kh-corner[data-corner="topright"]    { right: var(--kh-corner-offset, 0.2vmin); top:    var(--kh-corner-offset, 0.2vmin); align-items: flex-end; }
+        .kh-corner[data-corner="topleft"]     { left:  var(--kh-corner-offset, 0.2vmin); top:    var(--kh-corner-offset, 0.2vmin); align-items: flex-start; }
+
+        /* What is playing between singers. Sized off the shorter side like the code beside it, so
+           the pair hold their proportions together on any screen. */
+        .kh-break-music {
+            max-width: 40vmin;
+            padding: 0.9vmin 1.4vmin;
+            border-radius: 0.6vmin;
+            background: rgba(16, 16, 20, 0.82);
+            box-shadow: 0 0.4vmin 1.6vmin rgba(0, 0, 0, 0.45);
+            color: #fff;
+            font: 400 2vmin/1.25 system-ui, -apple-system, "Segoe UI", sans-serif;
+            text-align: inherit;
+        }
+
+        /* The title carries the weight; the artist is the quieter half of the same line of
+           thought, so it reads as one card rather than two facts. */
+        .kh-break-music__title { display: block; font-weight: 600; }
+
+        .kh-break-music__artist { display: block; opacity: 0.75; font-size: 0.82em; }
+
+        /* Sized off the shorter side, so a code is the same share of the picture on any screen,
+           with a floor that keeps it scannable in a small window. */
+        .kh-qr {
             /* A figure, and every user-agent stylesheet gives one margin: 1em 40px. That fixed 40px
-               sat outside the corner offsets below and swamped them — the code looked pinned no
-               matter what they were set to. */
+               sat outside the corner offsets and swamped them — the code looked pinned no matter
+               what they were set to. */
             margin: 0;
             display: flex;
             flex-direction: column;
@@ -167,13 +208,6 @@
             overflow-wrap: anywhere;
         }
 
-        /* Pushed in from whichever two edges the corner touches. The fallback is almost flush but
-           not zero: a television overscans and a projector is rarely framed exactly, and an edge
-           cut off the picture is worse than a hair of inset. */
-        .kh-qr[data-corner="bottomright"] { right: var(--kh-qr-offset, 0.2vmin); bottom: var(--kh-qr-offset, 0.2vmin); }
-        .kh-qr[data-corner="bottomleft"]  { left:  var(--kh-qr-offset, 0.2vmin); bottom: var(--kh-qr-offset, 0.2vmin); }
-        .kh-qr[data-corner="topright"]    { right: var(--kh-qr-offset, 0.2vmin); top:    var(--kh-qr-offset, 0.2vmin); }
-        .kh-qr[data-corner="topleft"]     { left:  var(--kh-qr-offset, 0.2vmin); top:    var(--kh-qr-offset, 0.2vmin); }
 
         #marquee[data-position="top"] { top: 0; }
         #marquee[data-position="bottom"] { bottom: 0; }
@@ -320,8 +354,13 @@
             <div id="marquee-track"><span></span><span></span></div>
         </div>
     </div>
-    <!-- Scannable codes in the corners: filled by the host, empty until something asks for one. -->
-    <div id="qr-codes"></div>
+    <!-- One stack per corner, filled by the host. A corner holds whatever the venue put there —
+         a scannable code, what is playing between singers, or both — and stays out of the picture
+         while it is empty. -->
+    <div class="kh-corner" data-corner="topleft"></div>
+    <div class="kh-corner" data-corner="topright"></div>
+    <div class="kh-corner" data-corner="bottomleft"></div>
+    <div class="kh-corner" data-corner="bottomright"></div>
     <script src="hls.light.min.js"></script>
     <script src="player.js"></script>
 </body>

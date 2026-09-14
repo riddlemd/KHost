@@ -157,6 +157,20 @@ public class Venue : RepositoryModel
         /// </summary>
         public double QrCodeOffset { get; set; }
 
+        /// <summary>
+        /// Whether the screen names what is playing between singers. Off for a venue that has
+        /// never been asked, so the key missing from a stored row reads as off and the feature
+        /// needs no backfill — the same shape as every marquee setting.
+        /// </summary>
+        public bool BreakMusicCardEnabled { get; set; }
+
+        /// <summary>
+        /// Which corner names it. Null takes bottom-left rather than the QR code's bottom-right:
+        /// they stack rather than cover each other when they share a corner, but a venue that has
+        /// expressed no opinion is better served by them not sharing one at all.
+        /// </summary>
+        public ScreenCorner? BreakMusicCardCorner { get; set; }
+
         /// <summary>Memberwise copy plus a deep copy of the one reference-type member.</summary>
         public VenueSettings Clone()
         {
