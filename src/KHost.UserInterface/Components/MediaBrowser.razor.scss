@@ -212,14 +212,43 @@
         white-space: nowrap;
     }
 
-    // Sits beside the file it answers for. Narrow and quiet — it is only ever on the handful of
-    // rows nothing can settle without being told.
-    &__row-kind {
-        width: auto;
-        margin-left: 0.6rem;
-        padding: 0.05rem 1.4rem 0.05rem 0.4rem;
+    &__col--type {
+        width: 7.5rem;
+        white-space: nowrap;
+    }
+
+    // What the row will become. Quiet by default: on most rows it is a statement of fact, and a
+    // column of loud badges beside the names would compete with them for a glance.
+    &__type {
+        display: inline-block;
+        padding: 0.1rem 0.45rem;
+        border: 1px solid transparent;
+        border-radius: var(--kh-radius);
+        background: none;
+        color: var(--kh-text-muted);
         font-size: 0.78rem;
-        vertical-align: baseline;
+        line-height: 1.5;
+    }
+
+    // The rows a host may answer for. Given an edge so it reads as something to press — the other
+    // rows state what they are and cannot be argued with.
+    &__type--choosable {
+        border-color: var(--kh-border);
+        color: var(--kh-text-secondary);
+        cursor: pointer;
+
+        &:hover {
+            border-color: var(--kh-border-bright);
+            color: var(--kh-text);
+        }
+    }
+
+    // Answered by the host rather than worked out. Marked so a glance down the column separates
+    // what was decided from what was assumed — which is the whole reason the column is always on.
+    &__type--chosen {
+        border-color: var(--kh-primary);
+        color: var(--kh-text);
+        font-weight: 600;
     }
 
     &__progress {

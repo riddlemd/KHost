@@ -455,42 +455,51 @@ public partial class MediaBrowser : IAsyncDisposable
     };
 
     /// <summary>
-    /// How the host is answering for video this time round. A folder is usually all one thing,
-    /// which is why two of these are a single click; <see cref="VideoImportKind.EachOne"/> is for
-    /// the folder that is not.
+    /// How video is read for the batch. Only two answers, because a row that disagrees is settled
+    /// on the row — there is no third mode to be in, which is one fewer state for a host to have
+    /// left switched on from the last folder.
     /// </summary>
-    private enum VideoImportKind { Karaoke, Ads, EachOne }
+    private enum VideoImportKind { Karaoke, Ads }
 
     private VideoImportKind _videoKind = VideoImportKind.Karaoke;
 
-    private static string DescribeVideoKind(VideoImportKind kind) => kind switch
-    {
-        VideoImportKind.Karaoke => "Karaoke songs",
-        VideoImportKind.Ads => "Ads and other video",
-        _ => "Chosen file by file",
-    };
+    private static string DescribeVideoKind(VideoImportKind kind)
+        => kind == VideoImportKind.Karaoke ? "Karaoke songs" : "Ads and other video";
 
     /// <summary>
-    /// Switches how video is read, and drops any file-by-file answers on the way out of that mode:
-    /// leaving them behind would have a later batch import quietly carry choices made for a folder
-    /// the host has since navigated away from.
+    /// Switches how video is read, and drops the row-by-row answers with it: those were
+    /// disagreements with the old batch answer, and mean nothing against a new one.
     /// </summary>
     private void ChooseVideoKind(VideoImportKind kind)
     {
         _videoKind = kind;
-        VideoIsKaraoke = kind != VideoImportKind.Ads;
+        VideoIsKaraoke = kind == VideoImportKind.Karaoke;
 
-        if (kind != VideoImportKind.EachOne)
-            ImportService!.TypeOverrides.Clear();
+        ImportService!.TypeOverrides.Clear();
     }
 
-    /// <summary>Whether this row is one the host may answer for. Only video is ever ambiguous.</summary>
+    /// <summary>
+    /// What the Type column calls each kind. "Music" rather than "Audio": a host is looking at a
+    /// folder of records, and the row beside it that says Karaoke is audio too.
+    /// </summary>
+    private static string DescribeType(MediaType type) => type switch
+    {
+        MediaType.Karaoke => "Karaoke",
+        MediaType.Audio => "Music",
+        MediaType.Image => "Image",
+        _ => "Ads",
+    };
+
+    /// <summary>
+    /// Whether this row is one the host may answer for. Only a picture track is ever ambiguous:
+    /// a karaoke video and an ad clip are the same formats, and everything else states what it is.
+    /// </summary>
     private bool IsChoosable(FileEntry entry)
         => !entry.IsDirectory
            && MediaFormats.VideoExtensions.Contains(Path.GetExtension(entry.FullPath).ToLowerInvariant());
 
-    private bool ShowsPerFileChoice(FileEntry entry)
-        => _videoKind == VideoImportKind.EachOne && IsChoosable(entry);
+    /// <summary>Whether the host has spoken for this row, as opposed to it taking the batch answer.</summary>
+    private bool IsOverridden(FileEntry entry) => ImportService!.TypeOverrides.ContainsKey(entry.FullPath);
 
     /// <summary>What this file is being imported as, with the host's own answer taking precedence.</summary>
     private MediaType TypeFor(FileEntry entry)
@@ -498,11 +507,21 @@ public partial class MediaBrowser : IAsyncDisposable
             ? chosen
             : MediaFormats.TypeForFile(entry.FullPath, VideoIsKaraoke);
 
-    private void ChooseTypeFor(FileEntry entry, ChangeEventArgs args)
-        => ImportService!.TypeOverrides[entry.FullPath] =
-            string.Equals(args.Value?.ToString(), nameof(MediaType.Video), StringComparison.OrdinalIgnoreCase)
-                ? MediaType.Video
-                : MediaType.Karaoke;
+    /// <summary>
+    /// Flips one row between the two answers a video can have. Back to the batch answer rather than
+    /// to the other one, where that is what flipping lands on: a row that agrees with the batch
+    /// should stop being marked as chosen, or the marks stop meaning anything.
+    /// </summary>
+    private void FlipTypeFor(FileEntry entry)
+    {
+        var flipped = TypeFor(entry) == MediaType.Karaoke ? MediaType.Video : MediaType.Karaoke;
+        var batch = MediaFormats.TypeForFile(entry.FullPath, VideoIsKaraoke);
+
+        if (flipped == batch)
+            ImportService!.TypeOverrides.Remove(entry.FullPath);
+        else
+            ImportService!.TypeOverrides[entry.FullPath] = flipped;
+    }
 
     /// <summary>
     /// Only worth asking where the answer changes something. A folder of records and stills has no
@@ -522,14 +541,6 @@ public partial class MediaBrowser : IAsyncDisposable
         get => ImportService!.VideoIsKaraoke;
         set => ImportService!.VideoIsKaraoke = value;
     }
-
-    /// <summary>
-    /// Re-renders as well as recording, because the rows' icons read the same answer: changing this
-    /// turns every video in the listing from a microphone into a play symbol, which is the control
-    /// showing its effect before it is used rather than after.
-    /// </summary>
-    private void OnVideoKindChanged(ChangeEventArgs args)
-        => VideoIsKaraoke = !string.Equals(args.Value?.ToString(), "false", StringComparison.OrdinalIgnoreCase);
 
     private async Task StartImportAsync()
     {

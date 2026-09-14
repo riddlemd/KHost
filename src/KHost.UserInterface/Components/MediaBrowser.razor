@@ -60,7 +60,7 @@
                                 @if (SelectionMayHoldVideo)
                                 {
                                     <span class="kh-media-importer__import-heading">Video files are</span>
-                                    @foreach (var kind in new[] { VideoImportKind.Karaoke, VideoImportKind.Ads, VideoImportKind.EachOne })
+                                    @foreach (var kind in new[] { VideoImportKind.Karaoke, VideoImportKind.Ads })
                                     {
                                         <button class="kh-button kh-media-importer__import-option" type="button"
                                                 @onclick="() => ChooseVideoKind(kind)">
@@ -159,6 +159,7 @@
                                         <Icon Name="@(_sortAsc ? "sort-up" : "sort-down")" class="kh-media-importer__sort-indicator" />
                                     }
                                 </th>
+                                <th class="kh-media-importer__col--type">Type</th>
                                 <th class="kh-media-importer__col--size kh-media-importer__col--sortable" @onclick="() => OnSortColumnClicked(SortColumn.Size)" style="cursor: pointer;">
                                     Size
                                     @if (_sortColumn == SortColumn.Size)
@@ -213,20 +214,32 @@
                                             <Icon Name="@IconFor(entry)" />
                                         }
                                         @entry.Name
-                                        @if (ShowsPerFileChoice(entry))
-                                        {
-                                            <select class="kh-form-select kh-media-importer__row-kind"
-                                                    @onchange="args => ChooseTypeFor(entry, args)"
-                                                    @onclick:stopPropagation>
-                                                <option value="@nameof(MediaType.Karaoke)"
-                                                        selected="@(TypeFor(entry) == MediaType.Karaoke)">Karaoke song</option>
-                                                <option value="@nameof(MediaType.Video)"
-                                                        selected="@(TypeFor(entry) == MediaType.Video)">Ad or other video</option>
-                                            </select>
-                                        }
                                         @if (entry.IsDirectory && entry.SupportedFileCount is not null)
                                         {
                                             <span class="kh-media-importer__folder-count"> (@entry.SupportedFileCount)</span>
+                                        }
+                                    </td>
+                                    <td class="kh-media-importer__col--type">
+                                        @if (!entry.IsDirectory)
+                                        {
+                                            @if (IsChoosable(entry))
+                                            {
+                                                @* The one kind of row nothing can settle on its own.
+                                                   A button rather than a select: it is two answers,
+                                                   and a popup to pick between two is a popup too
+                                                   many. *@
+                                                <button type="button"
+                                                        class="kh-media-importer__type kh-media-importer__type--choosable @(IsOverridden(entry) ? "kh-media-importer__type--chosen" : "")"
+                                                        title="@(IsOverridden(entry) ? "You chose this. Click to change it back." : "Click if this one is not what the import assumed.")"
+                                                        @onclick="() => FlipTypeFor(entry)"
+                                                        @onclick:stopPropagation>
+                                                    @DescribeType(TypeFor(entry))
+                                                </button>
+                                            }
+                                            else
+                                            {
+                                                <span class="kh-media-importer__type">@DescribeType(TypeFor(entry))</span>
+                                            }
                                         }
                                     </td>
                                     <td class="kh-media-importer__col--size">
