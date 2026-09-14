@@ -29,7 +29,7 @@ Which of these you ran, and what happened. Say plainly if something was skipped.
 - [ ] Component logic is in a `.razor.cs` partial; no inline `@code` blocks
 - [ ] Styles are BEM `kh-` SCSS beside the component or under `wwwroot/scss` — no inline styles, no generated `.razor.css` committed
 - [ ] Every `Task`/`ValueTask` method ends in `Async`
-- [ ] A public contract change (`KHost.Plugins.Sdk`, IPC commands) is called out below
+- [ ] A public contract change (`KHost.Abstractions`, `KHost.Common`, IPC commands) is called out below
 
 ## Notes for reviewers
 
