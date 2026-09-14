@@ -20,6 +20,7 @@ const blanked = document.getElementById('blanked');
 const hostLost = document.getElementById('hostlost');
 const marquee = document.getElementById('marquee');
 const marqueeTrack = document.getElementById('marquee-track');
+const marqueeViewport = document.getElementById('marquee-viewport');
 const marqueePin = document.getElementById('marquee-pin');
 const corners = new Map(
     [...document.querySelectorAll('.kh-corner')].map((el) => [el.dataset.corner, el]));
@@ -418,6 +419,10 @@ const MARQUEE_SPEED = 90;
 const MARQUEE_SPEED_MIN = 15;
 const MARQUEE_SPEED_MAX = 400;
 
+// A ceiling on the tiling. A one-word band on a wide screen would otherwise ask for dozens of
+// copies, and past a point the band is full either way — what it buys is nodes, not smoothness.
+const MARQUEE_COPIES_MAX = 12;
+
 // What the band last read, so a resend that changes nothing readable (a colour tweak, the same
 // queue re-announced after an unrelated change) does not yank the scroll back to its start.
 let marqueeSignature = null;
@@ -563,8 +568,8 @@ function setMarquee(message) {
     const contentChanged = signature !== marqueeSignature;
     marqueeSignature = signature;
 
-    // Both copies carry the same content: the keyframes translate the pair by half its width, so
-    // the second is what covers the screen while the first wraps around.
+    // Every copy carries the same content: the keyframes translate the track by exactly one of
+    // them, so the next sits where the last began and the join never shows.
     if (contentChanged) marqueeTrack.replaceChildren(build(), build());
 
     marquee.dataset.position = message.position === 'top' ? 'top' : 'bottom';
@@ -586,8 +591,17 @@ function setMarquee(message) {
         ? Math.min(MARQUEE_SPEED_MAX, Math.max(MARQUEE_SPEED_MIN, chosen))
         : MARQUEE_SPEED;
 
-    // Measured after unhiding, or the track has no width to scale the duration against.
-    const distance = marqueeTrack.scrollWidth / 2;
+    // Measured after unhiding, or the track has no width to measure.
+    //
+    // Enough copies to cover the screen and one to spare. Two was assumed, and two of a short line
+    // on a full-screen band reach nowhere near the right-hand edge: the pair slid left out of a
+    // space nothing was coming into, so the text only ever left and never arrived.
+    const copies = copiesToCoverTheBand();
+    marquee.style.setProperty('--marquee-copies', String(copies));
+
+    // One copy's width — the distance a lap actually travels, which is what the venue's speed is
+    // in pixels a second of.
+    const distance = marqueeTrack.scrollWidth / copies;
     const duration = `${Math.max(4, distance / speed)}s`;
     const durationChanged = duration !== marquee.style.getPropertyValue('--marquee-duration');
     marquee.style.setProperty('--marquee-duration', duration);
@@ -601,6 +615,61 @@ function setMarquee(message) {
         void marqueeTrack.offsetWidth;
         marqueeTrack.style.animation = '';
     }
+}
+
+/// Re-tiles the track so one copy's width is never less than the band it has to cross, and
+/// returns how many there are. Measured rather than assumed: the same list is one copy wide on a
+/// windowed screen and a fraction of one on a television.
+function copiesToCoverTheBand() {
+    const first = marqueeTrack.firstElementChild;
+
+    if (!first) return 2;
+
+    const copyWidth = first.getBoundingClientRect().width;
+    const band = marqueeViewport?.clientWidth || marquee.clientWidth;
+
+    // A copy with no width yet, or a band with none, is nothing to divide by — two is the old
+    // behaviour and is right as soon as one copy is wider than the band anyway.
+    if (!(copyWidth > 0) || !(band > 0)) return 2;
+
+    // One to cover the band, one more to be arriving while it does.
+    const wanted = Math.min(MARQUEE_COPIES_MAX, Math.ceil(band / copyWidth) + 1);
+
+    if (wanted === marqueeTrack.childElementCount) return wanted;
+
+    const template = first.cloneNode(true);
+    const copies = [];
+
+    for (let i = 0; i < wanted; i++) copies.push(template.cloneNode(true));
+
+    marqueeTrack.replaceChildren(...copies);
+
+    return wanted;
+}
+
+// The band's width is not fixed. A screen goes full screen, or its window is dragged wider, and
+// the copies that covered it a moment ago cover a fraction of it — the text then slides left out
+// of a space nothing is coming into, which is what a full-screen band did.
+//
+// Nothing else re-measures: setMarquee runs when the *host* says the words changed, and a window
+// the room resized is not something the host is told about.
+function retileMarquee() {
+    if (marquee.hidden || !marqueeTrack.firstElementChild) return;
+
+    marquee.style.setProperty('--marquee-copies', String(copiesToCoverTheBand()));
+}
+
+if (marqueeViewport && typeof ResizeObserver === 'function') {
+    let pending = 0;
+
+    // Debounced: a drag reports every frame, and re-tiling replaces the track's children, which
+    // restarts the scroll. Once the drag settles is the only time worth doing that.
+    const observer = new ResizeObserver(() => {
+        clearTimeout(pending);
+        pending = setTimeout(retileMarquee, 150);
+    });
+
+    observer.observe(marqueeViewport);
 }
 
 function chip(text, className) {
