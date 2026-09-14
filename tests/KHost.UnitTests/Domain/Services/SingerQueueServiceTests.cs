@@ -623,6 +623,93 @@ public class SingerQueueServiceTests : IDisposable
         new QueueRotationStrategyFactory([new FifoStrategy()]),
         _broker);
 
+    /// <summary>
+    /// A singer deleted in the users manager was still in the queue: the order is a list of ids
+    /// and nothing here was told, so resolving skipped them and the panel showed one fewer singer
+    /// than the rotation was counting. The two lists disagreed, quietly.
+    /// </summary>
+    [Fact]
+    public async Task UsersChanged_ASingerWasDeleted_LeavesTheQueue()
+    {
+        var alice = await EnqueueAsync("Alice");
+        var bob = await EnqueueAsync("Bob");
+
+        _userDb.Remove(bob.Id);
+        _broker.Announce(new UsersChanged());
+
+        await WaitForQueueAsync(() => _service.Users.Count == 1);
+
+        Assert.Equal(alice.Id, Assert.Single(_service.Users).Id);
+    }
+
+    /// <summary>
+    /// Nobody sang them and nobody now can. They are deleted rather than unqueued, which is what
+    /// separates them from the performances a deletion deliberately leaves standing.
+    /// </summary>
+    [Fact]
+    public async Task UsersChanged_ASingerWasDeleted_TakesTheirWaitingSongsWithThem()
+    {
+        var bob = await EnqueueAsync("Bob");
+        var waiting = new Performance { Id = Guid.NewGuid(), SingerId = bob.Id, MediaId = Guid.NewGuid() };
+
+        _performanceService
+            .ReadBySingerIdAsync(bob.Id, Arg.Any<int>(), Arg.Any<int>(), PerformanceFilter.Queued, Arg.Any<DateTime?>())
+            .Returns(new PaginatedResult<Performance> { Items = [waiting] });
+
+        _userDb.Remove(bob.Id);
+        _broker.Announce(new UsersChanged());
+
+        await WaitForQueueAsync(() => _service.Users.Count == 0);
+
+        await _performanceService.Received(1).DeleteAsync(waiting.Id);
+    }
+
+    /// <summary>A console pointed at somebody who no longer exists has nobody selected.</summary>
+    [Fact]
+    public async Task UsersChanged_TheSelectedSingerWasDeleted_LeavesNobodySelected()
+    {
+        var bob = await EnqueueAsync("Bob");
+        await _service.SelectUserAsync(bob.Id);
+
+        _userDb.Remove(bob.Id);
+        _broker.Announce(new UsersChanged());
+
+        await WaitForQueueAsync(() => _service.SelectedUserId is null);
+
+        Assert.Null(_service.SelectedUserId);
+    }
+
+    /// <summary>
+    /// The announcement fires on every user edit, and a rename must not empty the room. Only an
+    /// id that no longer resolves is dropped.
+    /// </summary>
+    [Fact]
+    public async Task UsersChanged_NobodyWasDeleted_LeavesTheQueueAlone()
+    {
+        await EnqueueAsync("Alice");
+        await EnqueueAsync("Bob");
+
+        _broker.Announce(new UsersChanged());
+        await Task.Delay(80);
+
+        Assert.Equal(2, _service.Users.Count);
+    }
+
+    private static async Task WaitForQueueAsync(Func<bool> settled)
+    {
+        var deadline = DateTime.UtcNow.AddSeconds(5);
+
+        while (DateTime.UtcNow < deadline)
+        {
+            if (settled())
+                return;
+
+            await Task.Delay(5);
+        }
+
+        throw new TimeoutException("The queue never settled.");
+    }
+
     private async Task<KHostUser> EnqueueUserOnAsync(SingerQueueService service, string name)
     {
         var user = new KHostUser { Name = name };

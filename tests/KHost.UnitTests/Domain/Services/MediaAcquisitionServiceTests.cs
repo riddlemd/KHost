@@ -8,6 +8,7 @@ using KHost.Abstractions.Messaging.Messages;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace KHost.UnitTests.Domain.Services;
 
@@ -220,7 +221,7 @@ public class MediaAcquisitionServiceTests
         // what actually publishes MediaLibraryChanged, so this proves MediaAcquisitionService reaches it rather than
         // asserting on a mock that we would have to wire the same behaviour into by hand.
         var repository = Substitute.For<IMediaRepository>();
-        var mediaService = new MediaService(NullLogger<MediaService>.Instance, repository, _broker);
+        var mediaService = new MediaService(NullLogger<MediaService>.Instance, repository, _broker, new ServiceCollection().BuildServiceProvider());
         var media = new Media { Id = Guid.NewGuid(), FilePath = "/downloads/song.mp4", Title = "Song Title", Status = MediaStatus.Downloading };
         repository.ReadAsync(media.Id).Returns(media);
 
@@ -258,7 +259,7 @@ public class MediaAcquisitionServiceTests
     public async Task FailImportAsync_AnnouncesMediaLibraryChanged()
     {
         var repository = Substitute.For<IMediaRepository>();
-        var mediaService = new MediaService(NullLogger<MediaService>.Instance, repository, _broker);
+        var mediaService = new MediaService(NullLogger<MediaService>.Instance, repository, _broker, new ServiceCollection().BuildServiceProvider());
         var media = new Media { Id = Guid.NewGuid(), FilePath = "/downloads/song.mp4", Title = "Song Title", Status = MediaStatus.Downloading };
         repository.ReadAsync(media.Id).Returns(media);
 
@@ -309,7 +310,7 @@ public class MediaAcquisitionServiceTests
     public async Task DiscardImportAsync_AnnouncesMediaLibraryChanged()
     {
         var repository = Substitute.For<IMediaRepository>();
-        var mediaService = new MediaService(NullLogger<MediaService>.Instance, repository, _broker);
+        var mediaService = new MediaService(NullLogger<MediaService>.Instance, repository, _broker, new ServiceCollection().BuildServiceProvider());
         var media = new Media { Id = Guid.NewGuid(), FilePath = "/downloads/song.mp4", Title = "Song Title", Status = MediaStatus.Downloading };
         repository.ReadAsync(media.Id).Returns(media);
         repository.DeleteAsync(media.Id).Returns(true);
