@@ -50,6 +50,13 @@
         }
         margin-bottom: 1em;
 
+        // A note explains the row above it. The row's own bottom margin collapses against the
+        // note's top one and leaves the note sitting as far from the field it describes as from
+        // the next one down, which reads as belonging to neither.
+        &:has(+ .kh-note) {
+            margin-bottom: 0;
+        }
+
         .kh-form-control {
             flex: 0 0 10rem;
             width: 5rem;

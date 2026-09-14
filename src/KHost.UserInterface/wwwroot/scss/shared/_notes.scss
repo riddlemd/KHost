@@ -9,6 +9,12 @@
    dialog share. Alignment is what makes a column of settings legible, and a note is not important
    enough to leave it.
 
+   There is deliberately no quieter half of a note. One existed, meaning to dim the part that only
+   says what a field falls back to — but the ladder is --kh-text, then --kh-text-secondary, then
+   --kh-text-muted, and a note already sits on the dimmest rung. Every colour left to pick is
+   brighter, so the aside emphasised the detail it meant to play down. A note that needs two
+   voices is a note saying too much.
+
    Muted by a colour token rather than by opacity. Opacity fades text toward whatever is behind it,
    so the same note reads differently over a card than over a dialog, and the themes here already
    carry a colour that means "say this quietly". */
@@ -26,12 +32,6 @@
 
     + .kh-note {
         margin-top: 0.5em;
-    }
-
-    /* The quiet half of a note: the default a field falls back to, the unit a number is in. Dimmer
-       still, so a glance takes the sentence and a second look takes the detail. */
-    &__aside {
-        color: var(--kh-text-secondary);
     }
 
     /* A note about something actually wrong — a missing plugin, a choice that cannot be undone.
