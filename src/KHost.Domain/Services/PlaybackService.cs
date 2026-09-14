@@ -71,6 +71,7 @@ public class PlaybackService : BaseService, IPlaybackService
     private Guid? _castSessionId;
 
     private IDisposable? _castSubscription;
+    private IDisposable? _venueSubscription;
 
     private IAnalyticsActivity? _sessionActivity;
 
@@ -174,6 +175,25 @@ public class PlaybackService : BaseService, IPlaybackService
         _screenServer.StateReceived += OnScreenStateReceived;
         _cast.PlaybackStatusChanged += OnCastStatusReceived;
         _castSubscription = _broker.Subscribe<CastChanged>(message => { _ = Task.Run(SyncCastSessionAsync); });
+
+        // The card is the venue's, so a venue edit is news about what should be on screen. Without
+        // this it changed only at the next playback transition — a host who picked a new one sat
+        // looking at the old one until a singer had been and gone.
+        _venueSubscription = _broker.Subscribe<SelectedVenueChanged>(
+            message => { _ = Task.Run(RefreshIdleCardAsync); });
+    }
+
+    /// <summary>
+    /// Re-reads the venue's card, but only while nothing is playing. A still put up over a singer
+    /// is the one thing worse than a stale one, and the transitions below raise it anyway the
+    /// moment the song ends.
+    /// </summary>
+    private async Task RefreshIdleCardAsync()
+    {
+        if (CurrentPerformance is not null || IsPlayingAd)
+            return;
+
+        await ShowIdleCardAsync();
     }
 
     public async Task<bool> HasConnectedScreenAsync()
@@ -712,6 +732,8 @@ public class PlaybackService : BaseService, IPlaybackService
             _cast.PlaybackStatusChanged -= OnCastStatusReceived;
             _castSubscription?.Dispose();
             _castSubscription = null;
+            _venueSubscription?.Dispose();
+            _venueSubscription = null;
 
             // _screenSyncLock is deliberately not disposed: a detached sync may still be holding
             // it at shutdown, and its Release would then throw.
