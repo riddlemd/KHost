@@ -1,0 +1,44 @@
+/* A line of explanation beside a control: what a setting means, what leaving it alone does, what
+   the host should expect to see. Shared because four dialogs had each grown their own, three of
+   them the same declarations and the fourth nothing at all — which is how the same idea ends up
+   looking like four different things.
+
+   No rule down the side and no indent, though both were tried. A note here is usually one line
+   under a field, and a 2px rule beside one line reads as a stray mark rather than a device; worse,
+   indenting past it breaks the left edge that the label, the input and everything else in the
+   dialog share. Alignment is what makes a column of settings legible, and a note is not important
+   enough to leave it.
+
+   Muted by a colour token rather than by opacity. Opacity fades text toward whatever is behind it,
+   so the same note reads differently over a card than over a dialog, and the themes here already
+   carry a colour that means "say this quietly". */
+.kh-note {
+    /* Space on both sides of it. Closer above than below, so it reads as belonging to the control
+       it explains rather than to the one after — and there has to be something below, or the next
+       row butts straight against the last line of the sentence. */
+    margin: 0.4em 0 0.9em;
+    color: var(--kh-text-muted);
+    font-size: 0.82rem;
+
+    /* Notes are sentences, not labels: they wrap, and wrapped rows of small text need more room
+       between them than a control label does. */
+    line-height: 1.45;
+
+    + .kh-note {
+        margin-top: 0.5em;
+    }
+
+    /* The quiet half of a note: the default a field falls back to, the unit a number is in. Dimmer
+       still, so a glance takes the sentence and a second look takes the detail. */
+    &__aside {
+        color: var(--kh-text-secondary);
+    }
+
+    /* A note about something actually wrong — a missing plugin, a choice that cannot be undone.
+       Carried by colour alone: a filled block beside every ordinary note is what stops anyone
+       reading either. Danger-bright rather than the subtle token, which in these dark themes is a
+       background colour. */
+    &--warning {
+        color: var(--kh-danger-bright);
+    }
+}

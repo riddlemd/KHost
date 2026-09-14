@@ -158,6 +158,8 @@ public partial class EditVenueDialog
                     QrCodeCorner = Venue.Settings.QrCodeCorner ?? ScreenCorner.BottomRight,
                     QrCodeSize = Venue.Settings.QrCodeSize ?? ScreenQrSize.Medium,
                     QrCodeHideDuringSong = Venue.Settings.QrCodeHideDuringSong,
+                    QrCodeSafeZone = Venue.Settings.QrCodeSafeZone,
+                    QrCodeOffset = Venue.Settings.QrCodeOffset,
                 };
             _editContext = new EditContext(_model);
 
@@ -263,6 +265,8 @@ public partial class EditVenueDialog
         venue.Settings.QrCodeCorner = _model.QrCodeCorner;
         venue.Settings.QrCodeSize = _model.QrCodeSize;
         venue.Settings.QrCodeHideDuringSong = _model.QrCodeHideDuringSong;
+        venue.Settings.QrCodeSafeZone = _model.QrCodeSafeZone;
+        venue.Settings.QrCodeOffset = _model.QrCodeOffset;
 
         await OnSave.InvokeAsync(venue);
 
