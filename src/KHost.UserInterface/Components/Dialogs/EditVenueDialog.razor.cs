@@ -38,6 +38,7 @@ public partial class EditVenueDialog
     [Inject] private IMediaService Media { get; set; } = default!;
     [Inject] private IMediaPoolService MediaPools { get; set; } = default!;
     [Inject] private IBreakMusicService BreakMusic { get; set; } = default!;
+    [Inject] private IPluginRegistry Plugins { get; set; } = default!;
 
     private IReadOnlyList<Media> _images = [];
     private IReadOnlyList<MediaPool> _breakMusicPools = [];
@@ -71,6 +72,34 @@ public partial class EditVenueDialog
         => BreakMusic.Providers.Any(p => string.Equals(p.SourceName, _model.BreakMusicProvider, StringComparison.OrdinalIgnoreCase))
             ? null
             : _model.BreakMusicProvider;
+
+    /// <summary>
+    /// Every plugin that declared itself a QR source, whether or not it has a code to give right
+    /// now. Read from the manifests rather than from what has registered, so a venue can be set up
+    /// before the show — KaraFun has no code until a host signs in, and a list of what happens to
+    /// be live would be empty on the way in.
+    /// </summary>
+    private IEnumerable<(string Id, string Label)> QrCodeSources
+        => Plugins.Plugins
+            .Where(plugin => plugin.Manifest?.QrCode is not null)
+            .Select(plugin => (
+                plugin.Id,
+                Label: string.IsNullOrWhiteSpace(plugin.Manifest!.QrCode!.Label)
+                    ? plugin.DisplayName
+                    : plugin.Manifest.QrCode.Label!))
+            .OrderBy(source => source.Label, StringComparer.CurrentCultureIgnoreCase);
+
+    /// <summary>
+    /// The venue's source when no installed plugin declares it — removed, or its folder renamed.
+    /// Kept in the list and selected for the same reason the break music mode is: a select whose
+    /// value matches no option renders blank, which reads as "none chosen" for a venue that chose
+    /// one, and hides that the next pick replaces something the host could not see.
+    /// </summary>
+    private string? UnavailableQrCodeSource
+        => string.IsNullOrWhiteSpace(_model.QrCodeSource)
+           || QrCodeSources.Any(source => string.Equals(source.Id, _model.QrCodeSource, StringComparison.OrdinalIgnoreCase))
+            ? null
+            : _model.QrCodeSource;
 
     /// <summary>
     /// Whether the chosen mode is the one this host's own playlists feed — not whether the host
@@ -154,7 +183,7 @@ public partial class EditVenueDialog
 
                     // Null is "no preference", which a select cannot show — it offers what a code
                     // would take anyway, and saving that back changes nothing.
-                    QrCodeEnabled = Venue.Settings.QrCodeEnabled,
+                    QrCodeSource = Venue.Settings.QrCodeSource,
                     QrCodeCorner = Venue.Settings.QrCodeCorner ?? ScreenCorner.BottomRight,
                     QrCodeSize = Venue.Settings.QrCodeSize ?? ScreenQrSize.Medium,
                     QrCodeHideDuringSong = Venue.Settings.QrCodeHideDuringSong,
@@ -261,7 +290,7 @@ public partial class EditVenueDialog
         venue.Settings.MarqueeFontSizePixels = Math.Clamp(_model.MarqueeFontSizePixels, 12, 96);
         venue.Settings.MarqueeScrollSpeed = Math.Clamp(_model.MarqueeScrollSpeed, 15, 400);
         venue.Settings.MarqueePinLabel = _model.MarqueePinLabel;
-        venue.Settings.QrCodeEnabled = _model.QrCodeEnabled;
+        venue.Settings.QrCodeSource = _model.QrCodeSource;
         venue.Settings.QrCodeCorner = _model.QrCodeCorner;
         venue.Settings.QrCodeSize = _model.QrCodeSize;
         venue.Settings.QrCodeHideDuringSong = _model.QrCodeHideDuringSong;

@@ -107,21 +107,25 @@ public class Venue : RepositoryModel
         public bool MarqueePinLabel { get; set; }
 
         /// <summary>
-        /// Whether the screen carries QR codes at all. The one setting here that defaults true —
-        /// a venue that installs a plugin which shows one should see it — which is exactly the
-        /// case that needs a data-only backfill, since EF reads a key missing from a stored row as
-        /// default and ignores this initializer. See BackfillQrCodeEnabled.
+        /// The one plugin whose QR code this venue shows, by plugin id, or null for none. Null is
+        /// also the default, and deliberately: a code invites a room to scan it, and which one
+        /// that is belongs to whoever runs the venue rather than to whichever plugin happened to
+        /// register first. Plugins declare themselves as sources in their manifests; this names
+        /// the one that is taken up.
+        ///
+        /// A stored id whose plugin is no longer loaded still reads back, so the dialog can say so
+        /// rather than silently falling back — the same shape as <see cref="BreakMusicProvider"/>.
         /// </summary>
-        public bool QrCodeEnabled { get; set; } = true;
+        public string? QrCodeSource { get; set; }
 
         /// <summary>
-        /// Where a QR code sits when its owner does not name a corner. Nullable rather than the
-        /// enum's first member, so a venue that has never been asked reads as "no preference"
-        /// instead of silently meaning bottom-right — the same reason the marquee's sizes use zero.
+        /// Which corner the code sits in. Nullable rather than the enum's first member, so a venue
+        /// that has never been asked reads as "no preference" instead of silently meaning
+        /// bottom-right — the same reason the marquee's sizes use zero.
         /// </summary>
         public ScreenCorner? QrCodeCorner { get; set; }
 
-        /// <summary>How big those codes are drawn, when the owner does not say. Null takes medium.</summary>
+        /// <summary>How big it is drawn. Null takes medium.</summary>
         public ScreenQrSize? QrCodeSize { get; set; }
 
         /// <summary>

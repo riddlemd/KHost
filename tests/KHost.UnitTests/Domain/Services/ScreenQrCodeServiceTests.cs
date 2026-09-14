@@ -4,6 +4,7 @@ using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using KHost.Abstractions.Services.IPC;
 using KHost.Domain.Services;
+using KHost.Domain.Services.Screens;
 using KHost.Domain.Services.Messaging;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -23,20 +24,26 @@ public class ScreenQrCodeServiceTests
         NullLogger<ScreenQrCodeService>.Instance, _screens, _venues,
         new ServiceCollection().AddSingleton(_playback).BuildServiceProvider(), _broker);
 
-    private static ScreenQrCode Code(
-        string owner, ScreenCorner? corner = null, ScreenQrSize? size = null, string? caption = null) => new()
+    private static ScreenQrCode Code(string owner, string? caption = null) => new()
     {
         OwnerId = owner,
         Payload = $"https://example.test/{owner}",
-        Corner = corner,
-        Size = size,
         // The placement carries a picture the host drew, not the string it came from, so the
         // caption is what a test reads to tell whose code landed.
         Caption = caption ?? owner,
     };
 
-    private void Arrange(Venue.VenueSettings? settings = null)
-        => _venues.ReadSelectedVenueAsync().Returns(new Venue { Name = "The Bar", Settings = settings ?? new() });
+    /// <summary>
+    /// A venue that has chosen "karafun", since none is the default and none shows nothing. Pass
+    /// <paramref name="source"/> explicitly for the tests about choosing itself.
+    /// </summary>
+    private void Arrange(Venue.VenueSettings? settings = null, string? source = "karafun")
+    {
+        settings ??= new();
+        settings.QrCodeSource ??= source;
+
+        _venues.ReadSelectedVenueAsync().Returns(new Venue { Name = "The Bar", Settings = settings });
+    }
 
     /// <summary>
     /// Taking IPlaybackService here hung the app before it logged a line, and nothing in the
@@ -68,12 +75,12 @@ public class ScreenQrCodeServiceTests
 
     /// <summary>A venue that has never been asked still has to put a code somewhere sensible.</summary>
     [Fact]
-    public async Task ShowAsync_NoCornerAnywhere_LandsBottomRightAtMedium()
+    public async Task RegisterAsync_NoCornerAnywhere_LandsBottomRightAtMedium()
     {
         Arrange();
         var service = Service();
 
-        await service.ShowAsync(Code("karafun"));
+        await service.RegisterAsync(Code("karafun"));
 
         var placed = Assert.Single((await service.BuildAsync()).Codes);
         Assert.Equal(ScreenCorner.BottomRight, placed.Corner);
@@ -82,12 +89,12 @@ public class ScreenQrCodeServiceTests
 
     /// <summary>It is the venue's screen, so its choice stands over the fallback.</summary>
     [Fact]
-    public async Task ShowAsync_VenueChoseACorner_UsesIt()
+    public async Task RegisterAsync_VenueChoseACorner_UsesIt()
     {
         Arrange(new Venue.VenueSettings { QrCodeCorner = ScreenCorner.TopLeft, QrCodeSize = ScreenQrSize.Large });
         var service = Service();
 
-        await service.ShowAsync(Code("karafun"));
+        await service.RegisterAsync(Code("karafun"));
 
         var placed = Assert.Single((await service.BuildAsync()).Codes);
         Assert.Equal(ScreenCorner.TopLeft, placed.Corner);
@@ -100,12 +107,12 @@ public class ScreenQrCodeServiceTests
     /// screen must never be handed one, or a code arrives with no quiet zone and nothing to scan.
     /// </summary>
     [Fact]
-    public async Task ShowAsync_VenueNeverAsked_TakesTheHostsOwnSafeZoneAndOffset()
+    public async Task RegisterAsync_VenueNeverAsked_TakesTheHostsOwnSafeZoneAndOffset()
     {
         Arrange(new Venue.VenueSettings());
         var service = Service();
 
-        await service.ShowAsync(Code("karafun"));
+        await service.RegisterAsync(Code("karafun"));
 
         var placed = Assert.Single((await service.BuildAsync()).Codes);
         Assert.Equal(1, placed.SafeZone);
@@ -113,12 +120,12 @@ public class ScreenQrCodeServiceTests
     }
 
     [Fact]
-    public async Task ShowAsync_VenueChoseASafeZoneAndOffset_UsesThem()
+    public async Task RegisterAsync_VenueChoseASafeZoneAndOffset_UsesThem()
     {
         Arrange(new Venue.VenueSettings { QrCodeSafeZone = 4, QrCodeOffset = 3.5 });
         var service = Service();
 
-        await service.ShowAsync(Code("karafun"));
+        await service.RegisterAsync(Code("karafun"));
 
         var placed = Assert.Single((await service.BuildAsync()).Codes);
         Assert.Equal(4, placed.SafeZone);
@@ -131,12 +138,12 @@ public class ScreenQrCodeServiceTests
     /// it were eight modules wider, and the per-module scannability floor would measure nothing.
     /// </summary>
     [Fact]
-    public async Task ShowAsync_ModuleCount_IsWhatTheImageDraws()
+    public async Task RegisterAsync_ModuleCount_IsWhatTheImageDraws()
     {
         Arrange(new Venue.VenueSettings());
         var service = Service();
 
-        await service.ShowAsync(Code("karafun"));
+        await service.RegisterAsync(Code("karafun"));
 
         var placed = Assert.Single((await service.BuildAsync()).Codes);
         var svg = System.Text.Encoding.UTF8.GetString(
@@ -148,100 +155,106 @@ public class ScreenQrCodeServiceTests
     }
 
     /// <summary>An owner that names one knows something the venue does not — a code beside its own overlay.</summary>
+    /// <summary>
+    /// Only the chosen source is drawn. The others keep registering against a venue that may pick
+    /// them later, and nothing tells them they were passed over — which is what makes switching
+    /// source mid-show immediate.
+    /// </summary>
     [Fact]
-    public async Task ShowAsync_OwnerNamedACorner_OverridesTheVenue()
-    {
-        Arrange(new Venue.VenueSettings { QrCodeCorner = ScreenCorner.TopLeft });
-        var service = Service();
-
-        await service.ShowAsync(Code("karafun", corner: ScreenCorner.BottomLeft, size: ScreenQrSize.Small));
-
-        var placed = Assert.Single((await service.BuildAsync()).Codes);
-        Assert.Equal(ScreenCorner.BottomLeft, placed.Corner);
-        Assert.Equal(ScreenQrSize.Small, placed.Size);
-    }
-
-    /// <summary>Two owners is the case this is keyed for — the online service beside a plugin.</summary>
-    [Fact]
-    public async Task ShowAsync_TwoOwnersInDifferentCorners_BothAreShown()
+    public async Task BuildAsync_ASourceTheVenueDidNotChoose_IsHeldAndNotDrawn()
     {
         Arrange();
         var service = Service();
 
-        await service.ShowAsync(Code("karafun", ScreenCorner.BottomRight));
-        await service.ShowAsync(Code("online", ScreenCorner.TopLeft));
+        await service.RegisterAsync(Code("karafun"));
+        await service.RegisterAsync(Code("online"));
 
-        var codes = (await service.BuildAsync()).Codes;
+        Assert.Equal("karafun", Assert.Single((await service.BuildAsync()).Codes).Caption);
+    }
 
-        Assert.Equal(2, codes.Count);
-        Assert.Contains(codes, code => code.Caption == "karafun");
-        Assert.Contains(codes, code => code.Caption == "online");
+    /// <summary>The other one was already registered, so the switch needs nothing from its plugin.</summary>
+    [Fact]
+    public async Task BuildAsync_VenueSwitchesSource_DrawsTheOneAlreadyRegistered()
+    {
+        Arrange();
+        var service = Service();
+        await service.RegisterAsync(Code("karafun"));
+        await service.RegisterAsync(Code("online"));
+
+        Arrange(source: "online");
+
+        Assert.Equal("online", Assert.Single((await service.BuildAsync()).Codes).Caption);
     }
 
     /// <summary>
-    /// A corner holds one code. Two drawn on top of each other is worse than the older one going,
-    /// and the newest claim is the one someone just asked for.
+    /// A chosen source that has nothing to give — a plugin not signed in yet, or one that
+    /// withdrew. The venue's choice stands; there is simply nothing to draw against it.
     /// </summary>
     [Fact]
-    public async Task ShowAsync_TwoOwnersInOneCorner_TheNewestClaimWins()
+    public async Task BuildAsync_ChosenSourceRegisteredNothing_SendsNone()
     {
         Arrange();
         var service = Service();
 
-        await service.ShowAsync(Code("karafun", ScreenCorner.TopRight));
-        await service.ShowAsync(Code("online", ScreenCorner.TopRight));
+        await service.RegisterAsync(Code("online"));
 
-        var placed = Assert.Single((await service.BuildAsync()).Codes);
-        Assert.Equal("online", placed.Caption);
+        Assert.Empty((await service.BuildAsync()).Codes);
     }
 
     /// <summary>Showing twice is how a caller changes its own code, not how it gets a second one.</summary>
     [Fact]
-    public async Task ShowAsync_SameOwnerTwice_ReplacesRatherThanStacks()
+    public async Task RegisterAsync_SameOwnerTwice_ReplacesRatherThanStacks()
     {
         Arrange();
         var service = Service();
 
-        await service.ShowAsync(Code("karafun", ScreenCorner.TopRight, caption: "Old"));
-        await service.ShowAsync(Code("karafun", ScreenCorner.TopRight, caption: "New"));
+        await service.RegisterAsync(Code("karafun", "Old"));
+        await service.RegisterAsync(Code("karafun", "New"));
 
         Assert.Equal("New", Assert.Single((await service.BuildAsync()).Codes).Caption);
     }
 
     [Fact]
-    public async Task HideAsync_TakesDownOnlyThatOwnersCode()
+    public async Task UnregisterAsync_TakesDownOnlyThatOwnersCode()
     {
         Arrange();
         var service = Service();
-        await service.ShowAsync(Code("karafun", ScreenCorner.BottomRight));
-        await service.ShowAsync(Code("online", ScreenCorner.TopLeft));
+        await service.RegisterAsync(Code("karafun"));
+        await service.RegisterAsync(Code("online"));
 
-        await service.HideAsync("karafun");
+        // The one the venue is not showing. What is on screen must not move.
+        await service.UnregisterAsync("online");
 
-        var placed = Assert.Single((await service.BuildAsync()).Codes);
-        Assert.Equal("online", placed.Caption);
-    }
+        Assert.Equal("karafun", Assert.Single((await service.BuildAsync()).Codes).Caption);
 
-    /// <summary>Hiding on the way out is right even when nothing was shown, so it must not throw.</summary>
-    [Fact]
-    public async Task HideAsync_OwnerThatShowedNothing_IsNotAnError()
-    {
-        Arrange();
-        var service = Service();
-
-        await service.HideAsync("never-showed-anything");
+        await service.UnregisterAsync("karafun");
 
         Assert.Empty((await service.BuildAsync()).Codes);
     }
 
-    /// <summary>A venue that wants none gets none, whatever a plugin asks for.</summary>
+    /// <summary>Hiding on the way out is right even when nothing was shown, so it must not throw.</summary>
     [Fact]
-    public async Task BuildAsync_CodesTurnedOff_SendsNone()
+    public async Task UnregisterAsync_OwnerThatShowedNothing_IsNotAnError()
     {
-        Arrange(new Venue.VenueSettings { QrCodeEnabled = false });
+        Arrange();
         var service = Service();
 
-        await service.ShowAsync(Code("karafun"));
+        await service.UnregisterAsync("never-showed-anything");
+
+        Assert.Empty((await service.BuildAsync()).Codes);
+    }
+
+    /// <summary>
+    /// None is the default, and the answer whatever a plugin registers. A code invites a room to
+    /// scan it, so it goes up because a venue chose it and not because a plugin arrived.
+    /// </summary>
+    [Fact]
+    public async Task BuildAsync_VenueChoseNoSource_SendsNone()
+    {
+        Arrange(source: null);
+        var service = Service();
+
+        await service.RegisterAsync(Code("karafun"));
 
         Assert.Empty((await service.BuildAsync()).Codes);
     }
@@ -253,7 +266,7 @@ public class ScreenQrCodeServiceTests
         _venues.ReadSelectedVenueAsync().Returns((Venue?)null);
         var service = Service();
 
-        await service.ShowAsync(Code("karafun"));
+        await service.RegisterAsync(Code("karafun"));
 
         Assert.Empty((await service.BuildAsync()).Codes);
     }
@@ -266,7 +279,7 @@ public class ScreenQrCodeServiceTests
         _playback.CurrentPerformance.Returns(new Performance { SingerId = Guid.NewGuid(), MediaId = Guid.NewGuid() });
         var service = Service();
 
-        await service.ShowAsync(Code("karafun"));
+        await service.RegisterAsync(Code("karafun"));
 
         Assert.Empty((await service.BuildAsync()).Codes);
     }
@@ -277,7 +290,7 @@ public class ScreenQrCodeServiceTests
     {
         Arrange(new Venue.VenueSettings { QrCodeHideDuringSong = true });
         var service = Service();
-        await service.ShowAsync(Code("karafun"));
+        await service.RegisterAsync(Code("karafun"));
 
         Assert.Single((await service.BuildAsync()).Codes);
     }
@@ -290,7 +303,7 @@ public class ScreenQrCodeServiceTests
         _playback.CurrentPerformance.Returns(new Performance { SingerId = Guid.NewGuid(), MediaId = Guid.NewGuid() });
         var service = Service();
 
-        await service.ShowAsync(Code("karafun"));
+        await service.RegisterAsync(Code("karafun"));
 
         Assert.Single((await service.BuildAsync()).Codes);
     }
@@ -301,12 +314,12 @@ public class ScreenQrCodeServiceTests
     /// same text scan to the same place whatever they look like.
     /// </summary>
     [Fact]
-    public async Task ShowAsync_DrawsThePayloadAsAVector()
+    public async Task RegisterAsync_DrawsThePayloadAsAVector()
     {
         Arrange();
         var service = Service();
 
-        await service.ShowAsync(Code("karafun"));
+        await service.RegisterAsync(Code("karafun"));
 
         var placed = Assert.Single((await service.BuildAsync()).Codes);
 
@@ -321,12 +334,12 @@ public class ScreenQrCodeServiceTests
     /// hold it above the size a long payload makes unreadable.
     /// </summary>
     [Fact]
-    public async Task ShowAsync_SaysHowManyModulesTheCodeIsAcross()
+    public async Task RegisterAsync_SaysHowManyModulesTheCodeIsAcross()
     {
         Arrange();
         var service = Service();
 
-        await service.ShowAsync(Code("karafun"));
+        await service.RegisterAsync(Code("karafun"));
 
         var placed = Assert.Single((await service.BuildAsync()).Codes);
 
@@ -336,37 +349,41 @@ public class ScreenQrCodeServiceTests
 
     /// <summary>A longer payload needs more modules — the reason the count is sent at all.</summary>
     [Fact]
-    public async Task ShowAsync_ALongerPayload_NeedsMoreModules()
+    public async Task RegisterAsync_ALongerPayload_NeedsMoreModules()
     {
         Arrange();
         var service = Service();
 
-        await service.ShowAsync(new ScreenQrCode { OwnerId = "short", Payload = "https://k.test/a", Corner = ScreenCorner.TopLeft });
-        await service.ShowAsync(new ScreenQrCode
+        await service.RegisterAsync(new ScreenQrCode { OwnerId = "karafun", Payload = "https://k.test/a" });
+        var shortCode = Assert.Single((await service.BuildAsync()).Codes);
+
+        await service.RegisterAsync(new ScreenQrCode
         {
-            OwnerId = "long",
-            Corner = ScreenCorner.BottomRight,
+            OwnerId = "karafun",
             Payload = "https://app.karafun.com/remote/join?channel=" + new string('x', 180),
         });
+        var longCode = Assert.Single((await service.BuildAsync()).Codes);
 
-        var codes = (await service.BuildAsync()).Codes.ToDictionary(code => code.Corner);
-
-        Assert.True(codes[ScreenCorner.BottomRight].Modules > codes[ScreenCorner.TopLeft].Modules);
+        Assert.True(longCode.Modules > shortCode.Modules);
     }
 
-    /// <summary>Two callers showing the same thing must not draw two different codes.</summary>
+    /// <summary>
+    /// The same payload draws the same picture — the encoder caches, and a venue switching
+    /// between two sources pointing at one URL must not redraw it.
+    /// </summary>
     [Fact]
-    public async Task ShowAsync_TheSamePayloadTwice_DrawsTheSameCode()
+    public async Task RegisterAsync_TheSamePayloadTwice_DrawsTheSameCode()
     {
         Arrange();
         var service = Service();
 
-        await service.ShowAsync(new ScreenQrCode { OwnerId = "a", Payload = "https://k.test/same", Corner = ScreenCorner.TopLeft });
-        await service.ShowAsync(new ScreenQrCode { OwnerId = "b", Payload = "https://k.test/same", Corner = ScreenCorner.TopRight });
+        await service.RegisterAsync(new ScreenQrCode { OwnerId = "karafun", Payload = "https://k.test/same" });
+        var first = Assert.Single((await service.BuildAsync()).Codes);
 
-        var codes = (await service.BuildAsync()).Codes;
+        await service.RegisterAsync(new ScreenQrCode { OwnerId = "karafun", Payload = "https://k.test/same" });
+        var second = Assert.Single((await service.BuildAsync()).Codes);
 
-        Assert.Equal(codes[0].ImageUrl, codes[1].ImageUrl);
+        Assert.Equal(first.ImageUrl, second.ImageUrl);
     }
 
     private static string Decode(string dataUri)
@@ -374,12 +391,12 @@ public class ScreenQrCodeServiceTests
             Convert.FromBase64String(dataUri["data:image/svg+xml;base64,".Length..]));
 
     [Fact]
-    public async Task ShowAsync_SendsTheWholeSetToTheScreens()
+    public async Task RegisterAsync_SendsTheWholeSetToTheScreens()
     {
         Arrange();
         using var service = Service();
 
-        await service.ShowAsync(Code("karafun"));
+        await service.RegisterAsync(Code("karafun"));
 
         await _screens.Received(1).BroadcastCommandAsync(Arg.Is<SetScreenQrCodesCommand>(
             command => command.Codes.Count == 1));
@@ -394,13 +411,13 @@ public class ScreenQrCodeServiceTests
     {
         Arrange();
         using var service = Service();
-        await service.ShowAsync(Code("karafun"));
+        await service.RegisterAsync(Code("karafun"));
         _screens.ClearReceivedCalls();
 
         _venues.ReadSelectedVenueAsync().Returns(new Venue
         {
             Name = "The Bar",
-            Settings = new Venue.VenueSettings { QrCodeCorner = ScreenCorner.TopLeft },
+            Settings = new Venue.VenueSettings { QrCodeSource = "karafun", QrCodeCorner = ScreenCorner.TopLeft },
         });
 
         _broker.Announce(new SelectedVenueChanged());
@@ -414,7 +431,7 @@ public class ScreenQrCodeServiceTests
     {
         Arrange();
         using var service = Service();
-        await service.ShowAsync(Code("karafun"));
+        await service.RegisterAsync(Code("karafun"));
 
         _screens.ScreenConnected += Raise.EventWith(new ScreenConnectionEventArgs { Connection = Connection("screen-1") });
 
