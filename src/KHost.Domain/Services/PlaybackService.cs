@@ -7,10 +7,11 @@ using KHost.Abstractions.Messaging;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using KHost.Common.Media;
+using KHost.Domain.Services.Screens;
 
 namespace KHost.Domain.Services;
 
-public class PlaybackService : BaseService, IPlaybackService
+public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
 {
     public sealed class ServiceOptions
     {
