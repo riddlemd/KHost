@@ -73,4 +73,10 @@ public class EditVenueModel
     public ScreenQrSize QrCodeSize { get; set; } = ScreenQrSize.Medium;
 
     public bool QrCodeHideDuringSong { get; set; }
+
+    /// <summary>White around the code, in its own modules. Zero takes the screen's own.</summary>
+    public int QrCodeSafeZone { get; set; }
+
+    /// <summary>Inset from the two edges it sits against, as a percentage of the shorter side.</summary>
+    public double QrCodeOffset { get; set; }
 }

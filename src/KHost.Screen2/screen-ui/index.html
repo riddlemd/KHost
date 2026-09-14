@@ -127,12 +127,20 @@
         .kh-qr {
             position: absolute;
             z-index: 9;
+            /* A figure, and every user-agent stylesheet gives one margin: 1em 40px. That fixed 40px
+               sat outside the corner offsets below and swamped them — the code looked pinned no
+               matter what they were set to. */
+            margin: 0;
             display: flex;
             flex-direction: column;
             align-items: center;
             gap: 0.4em;
-            padding: 0.9vmin;
-            border-radius: 0.8vmin;
+            /* The white is the quiet zone, in modules, because that is the unit a scanner measures
+               it in — it has to hold its proportion whatever size the code is drawn. The SVG no
+               longer carries one, so this is the whole of it. Both fallbacks match what the host
+               resolves when a venue has no preference. */
+            padding: max(3px, calc(var(--kh-qr-size) / var(--kh-qr-modules, 25) * var(--kh-qr-safezone, 1)));
+            border-radius: 0.15vmin;
             background: #fff;
             box-shadow: 0 0.4vmin 1.6vmin rgba(0, 0, 0, 0.45);
             --kh-qr-size: 18vmin;
@@ -159,10 +167,13 @@
             overflow-wrap: anywhere;
         }
 
-        .kh-qr[data-corner="bottomright"] { right: 2.4vmin; bottom: 2.4vmin; }
-        .kh-qr[data-corner="bottomleft"] { left: 2.4vmin; bottom: 2.4vmin; }
-        .kh-qr[data-corner="topright"] { right: 2.4vmin; top: 2.4vmin; }
-        .kh-qr[data-corner="topleft"] { left: 2.4vmin; top: 2.4vmin; }
+        /* Pushed in from whichever two edges the corner touches. The fallback is almost flush but
+           not zero: a television overscans and a projector is rarely framed exactly, and an edge
+           cut off the picture is worse than a hair of inset. */
+        .kh-qr[data-corner="bottomright"] { right: var(--kh-qr-offset, 0.2vmin); bottom: var(--kh-qr-offset, 0.2vmin); }
+        .kh-qr[data-corner="bottomleft"]  { left:  var(--kh-qr-offset, 0.2vmin); bottom: var(--kh-qr-offset, 0.2vmin); }
+        .kh-qr[data-corner="topright"]    { right: var(--kh-qr-offset, 0.2vmin); top:    var(--kh-qr-offset, 0.2vmin); }
+        .kh-qr[data-corner="topleft"]     { left:  var(--kh-qr-offset, 0.2vmin); top:    var(--kh-qr-offset, 0.2vmin); }
 
         #marquee[data-position="top"] { top: 0; }
         #marquee[data-position="bottom"] { bottom: 0; }

@@ -94,6 +94,59 @@ public class ScreenQrCodeServiceTests
         Assert.Equal(ScreenQrSize.Large, placed.Size);
     }
 
+    /// <summary>
+    /// Zero is "no preference", not "none". A venue that has never been asked stores it, and the
+    /// stored default of a value type is zero whatever the property initializer says — so the
+    /// screen must never be handed one, or a code arrives with no quiet zone and nothing to scan.
+    /// </summary>
+    [Fact]
+    public async Task ShowAsync_VenueNeverAsked_TakesTheHostsOwnSafeZoneAndOffset()
+    {
+        Arrange(new Venue.VenueSettings());
+        var service = Service();
+
+        await service.ShowAsync(Code("example"));
+
+        var placed = Assert.Single((await service.BuildAsync()).Codes);
+        Assert.Equal(1, placed.SafeZone);
+        Assert.Equal(0.2, placed.Offset);
+    }
+
+    [Fact]
+    public async Task ShowAsync_VenueChoseASafeZoneAndOffset_UsesThem()
+    {
+        Arrange(new Venue.VenueSettings { QrCodeSafeZone = 4, QrCodeOffset = 3.5 });
+        var service = Service();
+
+        await service.ShowAsync(Code("example"));
+
+        var placed = Assert.Single((await service.BuildAsync()).Codes);
+        Assert.Equal(4, placed.SafeZone);
+        Assert.Equal(3.5, placed.Offset);
+    }
+
+    /// <summary>
+    /// The picture carries no quiet zone of its own any more, so the module count must be what is
+    /// actually drawn. Counting the undrawn border would have the screen size every code as though
+    /// it were eight modules wider, and the per-module scannability floor would measure nothing.
+    /// </summary>
+    [Fact]
+    public async Task ShowAsync_ModuleCount_IsWhatTheImageDraws()
+    {
+        Arrange(new Venue.VenueSettings());
+        var service = Service();
+
+        await service.ShowAsync(Code("example"));
+
+        var placed = Assert.Single((await service.BuildAsync()).Codes);
+        var svg = System.Text.Encoding.UTF8.GetString(
+            Convert.FromBase64String(placed.ImageUrl["data:image/svg+xml;base64,".Length..]));
+
+        // The SVG is drawn one unit per module, so its declared size is the module count.
+        Assert.Contains($"width=\"{placed.Modules}\"", svg);
+        Assert.Contains($"height=\"{placed.Modules}\"", svg);
+    }
+
     /// <summary>An owner that names one knows something the venue does not — a code beside its own overlay.</summary>
     [Fact]
     public async Task ShowAsync_OwnerNamedACorner_OverridesTheVenue()

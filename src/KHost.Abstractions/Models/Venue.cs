@@ -130,6 +130,29 @@ public class Venue : RepositoryModel
         /// </summary>
         public bool QrCodeHideDuringSong { get; set; }
 
+        /// <summary>
+        /// How much white sits around the code, counted in its own modules. The standard is four,
+        /// which is a quarter of the code's width again and reads as a slab over video; one is
+        /// enough on a lit panel. Counted in modules rather than pixels because that is what a
+        /// scanner measures — the margin has to keep its proportion whatever size the code is drawn.
+        ///
+        /// Zero means the screen's own, the same way the marquee's sizes do: a venue that has never
+        /// been asked has no opinion, and a number input cannot show "unset" any other way.
+        /// </summary>
+        public int QrCodeSafeZone { get; set; }
+
+        /// <summary>
+        /// How far in from the screen's edges the code sits, as a percentage of the shorter side.
+        /// A percentage rather than pixels because a venue may run screens of different sizes off
+        /// one host, and a corner that looks right on the television should not drift on the
+        /// projector beside it.
+        ///
+        /// Zero means the screen's own. Its own is not flush: televisions overscan and projectors
+        /// are rarely framed exactly, so a hair of inset is the difference between a code in the
+        /// corner and a code with its edge cut off the picture.
+        /// </summary>
+        public double QrCodeOffset { get; set; }
+
         /// <summary>Memberwise copy plus a deep copy of the one reference-type member.</summary>
         public VenueSettings Clone()
         {
