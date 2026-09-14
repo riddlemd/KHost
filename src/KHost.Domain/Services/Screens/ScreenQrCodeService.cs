@@ -7,12 +7,16 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using QRCoder;
 
-namespace KHost.Domain.Services;
+namespace KHost.Domain.Services.Screens;
 
 /// <summary>
-/// Holds the QR codes the screens should be showing and keeps them in step. Host-side state rather
+/// Holds what every owner is offering and draws the one the venue picked. Host-side state rather
 /// than a command a caller fires and forgets: a screen that reconnects mid-show has to be told
 /// again, and nothing else knows what was up.
+///
+/// Registering and showing are separate on purpose. A plugin cannot know which venue is selected
+/// or what it chose, so it registers whenever its payload changes and this decides — which also
+/// means a venue can switch source mid-show and the new one is already there to draw.
 /// </summary>
 public sealed class ScreenQrCodeService : BaseService, IScreenQrCodeService, IDisposable
 {
@@ -35,7 +39,7 @@ public sealed class ScreenQrCodeService : BaseService, IScreenQrCodeService, IDi
     // off its own task while a venue edit is recomposing.
     private readonly SemaphoreSlim _lock = new(1, 1);
 
-    /// <summary>By owner, with the order they claimed in — the newest claim wins a contested corner.</summary>
+    /// <summary>What each owner is currently offering. At most one of them is ever drawn.</summary>
     private readonly Dictionary<string, (long Claim, ScreenQrCode Code)> _codes = [];
 
     private long _claims;
@@ -62,7 +66,7 @@ public sealed class ScreenQrCodeService : BaseService, IScreenQrCodeService, IDi
         _screenServer.ScreenConnected += OnScreenConnected;
     }
 
-    public async Task ShowAsync(ScreenQrCode code)
+    public async Task RegisterAsync(ScreenQrCode code)
     {
         await _lock.WaitAsync();
         try
@@ -74,12 +78,12 @@ public sealed class ScreenQrCodeService : BaseService, IScreenQrCodeService, IDi
             _lock.Release();
         }
 
-        Logger.LogInformation("Showing a QR code for {OwnerId}", code.OwnerId);
+        Logger.LogInformation("{OwnerId} registered a QR code", code.OwnerId);
 
         await BroadcastAsync();
     }
 
-    public async Task HideAsync(string ownerId)
+    public async Task UnregisterAsync(string ownerId)
     {
         bool removed;
 
@@ -93,12 +97,12 @@ public sealed class ScreenQrCodeService : BaseService, IScreenQrCodeService, IDi
             _lock.Release();
         }
 
-        // A caller taking down what it never put up is not worth a broadcast, nor a complaint:
-        // hiding on the way out is the right shape even when nothing was shown.
+        // A caller withdrawing what it never registered is not worth a broadcast, nor a
+        // complaint: unregistering on the way out is the right shape either way.
         if (!removed)
             return;
 
-        Logger.LogInformation("Took down {OwnerId}'s QR code", ownerId);
+        Logger.LogInformation("{OwnerId} withdrew its QR code", ownerId);
 
         await BroadcastAsync();
     }
@@ -107,57 +111,60 @@ public sealed class ScreenQrCodeService : BaseService, IScreenQrCodeService, IDi
     {
         var settings = (await _venuesService.ReadSelectedVenueAsync())?.Settings;
 
-        // A venue that wants none gets none, whatever a plugin asks for — and a console with no
-        // venue selected has nobody to have chosen, so it is the same answer.
-        if (settings is null || !settings.QrCodeEnabled)
+        // The venue names the one source it takes. Nothing named is nothing shown, and that is
+        // also the default: a code invites the room to scan it, so it goes up because someone
+        // chose it and not because a plugin happened to register one. A console with no venue
+        // selected has nobody to have chosen, which is the same answer.
+        if (settings?.QrCodeSource is not { Length: > 0 } source)
             return new SetScreenQrCodesCommand();
 
         // Nothing is on screen while someone sings, if the venue asked for that.
         if (settings.QrCodeHideDuringSong && Playback.CurrentPerformance is not null)
             return new SetScreenQrCodesCommand();
 
-        List<(long Claim, ScreenQrCode Code)> claims;
+        ScreenQrCode? chosen;
 
         await _lock.WaitAsync(cancellationToken);
         try
         {
-            claims = [.. _codes.Values];
+            // Every other owner's code is held, not drawn. They keep registering against a venue
+            // that may pick them later, and nothing has to be told it was passed over.
+            chosen = _codes.TryGetValue(source, out var entry) ? entry.Code : null;
         }
         finally
         {
             _lock.Release();
         }
 
-        var placed = new Dictionary<ScreenCorner, ScreenQrCodePlacement>();
+        // The chosen source has nothing to offer yet — a plugin that is not signed in, or one that
+        // withdrew. The venue's choice stands; there is simply nothing to draw against it.
+        if (chosen is null)
+            return new SetScreenQrCodesCommand();
 
-        // Newest first, so TryAdd leaves a contested corner to the most recent claim and the one
-        // it displaced simply comes down.
-        foreach (var (_, code) in claims.OrderByDescending(entry => entry.Claim))
-        {
-            var corner = code.Corner ?? settings?.QrCodeCorner ?? ScreenCorner.BottomRight;
-
-            var (image, modules) = Encode(code.Payload);
-
-            placed.TryAdd(corner, new ScreenQrCodePlacement
-            {
-                ImageUrl = image,
-                Modules = modules,
-                Caption = code.Caption,
-                Corner = corner,
-                Size = code.Size ?? settings?.QrCodeSize ?? ScreenQrSize.Medium,
-
-                // Resolved here rather than on the screen, which decides nothing: a venue that has
-                // never been asked stores zero, and zero is the question "what would you do?"
-                // rather than an answer of none.
-                SafeZone = settings?.QrCodeSafeZone is > 0 and var zone ? zone : DefaultSafeZone,
-                Offset = settings?.QrCodeOffset is > 0 and var offset ? offset : DefaultOffset,
-            });
-        }
+        var (image, modules) = Encode(chosen.Payload);
 
         return new SetScreenQrCodesCommand
         {
-            // Ordered so two screens drawing the same set agree, and a test can read it.
-            Codes = [.. placed.Values.OrderBy(placement => placement.Corner)],
+            Codes =
+            [
+                new ScreenQrCodePlacement
+                {
+                    ImageUrl = image,
+                    Modules = modules,
+                    Caption = chosen.Caption,
+
+                    // The venue's, with no way for a plugin to say otherwise: it is the venue's
+                    // screen, and the host knows what else is on it.
+                    Corner = settings.QrCodeCorner ?? ScreenCorner.BottomRight,
+                    Size = settings.QrCodeSize ?? ScreenQrSize.Medium,
+
+                    // Resolved here rather than on the screen, which decides nothing: a venue that
+                    // has never been asked stores zero, and zero is the question "what would you
+                    // do?" rather than an answer of none.
+                    SafeZone = settings.QrCodeSafeZone is > 0 and var zone ? zone : DefaultSafeZone,
+                    Offset = settings.QrCodeOffset is > 0 and var offset ? offset : DefaultOffset,
+                },
+            ],
         };
     }
 

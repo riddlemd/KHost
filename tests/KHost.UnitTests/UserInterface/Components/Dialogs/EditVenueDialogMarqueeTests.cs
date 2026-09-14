@@ -41,6 +41,11 @@ public class EditVenueDialogMarqueeTests : BunitContext
         Services.AddSingleton(_mediaPools);
         Services.AddSingleton(_media);
         Services.AddSingleton<IMessageBroker>(_broker);
+
+        // The dialog lists QR sources from the manifests; none here, but it has to resolve.
+        var plugins = Substitute.For<IPluginRegistry>();
+        plugins.Plugins.Returns([]);
+        Services.AddSingleton(plugins);
     }
 
     /// <summary>Nothing but the switch until the venue wants one — the rest is noise otherwise.</summary>

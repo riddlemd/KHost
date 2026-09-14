@@ -249,6 +249,7 @@ public class PluginLoaderTests : IDisposable
         // shrugging — a host that forgot to register it would otherwise lose every plugin's
         // secrets silently.
         services.AddSingleton<IPluginSecretStore>(new PluginSecretStore(new InMemorySecretStore()));
+        services.AddSingleton(Substitute.For<KHost.Domain.Services.Screens.IScreenQrCodeService>());
 
         PluginLoader.LoadAndRegister(services, plugins, state);
 

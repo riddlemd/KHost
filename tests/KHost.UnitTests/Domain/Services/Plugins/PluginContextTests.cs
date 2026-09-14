@@ -6,6 +6,7 @@ using KHost.Domain.Services.Plugins;
 using KHost.Domain.Services.Plugins.Secrets;
 using KHost.Secrets;
 using KHost.UnitTests.Secrets;
+using KHost.Domain.Services.Screens;
 
 namespace KHost.UnitTests.Domain.Services.Plugins;
 
@@ -126,7 +127,7 @@ public class PluginContextTests
         };
 
         return new PluginContext(manifest, stored, new DiscoveredPlugin { Directory = "/plugins/test", Manifest = manifest },
-            new PluginSecretStore(new InMemorySecretStore()));
+            new PluginSecretStore(new InMemorySecretStore()), Substitute.For<IScreenQrCodeService>());
     }
 
     // ---- secrets ---------------------------------------------------------
@@ -178,7 +179,7 @@ public class PluginContextTests
         Assert.Null(await context.GetSecretAsync("session"));
     }
 
-    private static PluginContext ContextFor(Guid id, IPluginSecretStore store)
+    private static PluginContext ContextFor(Guid id, IPluginSecretStore store, IScreenQrCodeService? qrCodes = null)
     {
         var manifest = new PluginManifest
         {
@@ -190,7 +191,8 @@ public class PluginContextTests
         };
 
         return new PluginContext(manifest, null,
-            new DiscoveredPlugin { Directory = "/plugins/test", Manifest = manifest }, store);
+            new DiscoveredPlugin { Directory = "/plugins/test", Manifest = manifest }, store,
+            qrCodes ?? Substitute.For<IScreenQrCodeService>());
     }
 
     private class TestSettings

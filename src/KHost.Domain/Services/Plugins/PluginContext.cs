@@ -3,6 +3,7 @@ using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using KHost.Domain.Services.Plugins.Secrets;
 using System.Text.Json;
+using KHost.Domain.Services.Screens;
 
 namespace KHost.Domain.Services.Plugins;
 
@@ -12,16 +13,19 @@ public class PluginContext : IPluginContext
     private readonly Dictionary<string, JsonElement> _defaults;
     private readonly DiscoveredPlugin _plugin;
     private readonly IPluginSecretStore _secrets;
+    private readonly IScreenQrCodeService _screenQrCodes;
     private readonly string _pluginId;
 
     public PluginContext(
         PluginManifest manifest,
         Dictionary<string, JsonElement>? storedValues,
         DiscoveredPlugin plugin,
-        IPluginSecretStore secrets)
+        IPluginSecretStore secrets,
+        IScreenQrCodeService screenQrCodes)
     {
         _plugin = plugin;
         _secrets = secrets;
+        _screenQrCodes = screenQrCodes;
 
         // Taken from the manifest the host read, never from the plugin. It is what keeps one
         // plugin's secrets out of another's reach, so a caller must have no say in it.
@@ -75,6 +79,19 @@ public class PluginContext : IPluginContext
 
     public Task SetSecretAsync(string key, string? value, CancellationToken cancellationToken = default)
         => _secrets.WriteAsync(_pluginId, key, value, cancellationToken);
+
+    public Task RegisterQrCodeAsync(string payload, string? caption = null, CancellationToken cancellationToken = default)
+        // Same _pluginId the secrets are filed under, and for the same reason: the owner is the
+        // host's to say. Whether this reaches a screen is the venue's call, made later.
+        => _screenQrCodes.RegisterAsync(new ScreenQrCode
+        {
+            OwnerId = _pluginId,
+            Payload = payload,
+            Caption = caption,
+        });
+
+    public Task UnregisterQrCodeAsync(CancellationToken cancellationToken = default)
+        => _screenQrCodes.UnregisterAsync(_pluginId);
 
     /// <summary>Reported from a plugin's own background work, so the list is not appended to bare.</summary>
     public void ReportWarning(string message)

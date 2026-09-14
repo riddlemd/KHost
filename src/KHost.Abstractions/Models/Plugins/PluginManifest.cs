@@ -30,4 +30,11 @@ public class PluginManifest
     /// are — this teaches the scanner to stop skipping them, not how to convert anything.
     /// </summary>
     public List<string> ImportFormats { get; set; } = [];
+
+    /// <summary>
+    /// Set when this plugin can offer the screens a QR code. Declaring it only puts the plugin in
+    /// the venue's list of sources — the venue picks one, and until it picks this one nothing this
+    /// plugin registers is drawn.
+    /// </summary>
+    public PluginQrCodeDefinition? QrCode { get; set; }
 }
