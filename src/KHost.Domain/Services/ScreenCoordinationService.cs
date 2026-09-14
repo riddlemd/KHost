@@ -4,6 +4,7 @@ using KHost.Abstractions.Messaging;
 using KHost.Abstractions.Messaging.Messages;
 using Microsoft.Extensions.Logging;
 using System.Collections.Concurrent;
+using KHost.Domain.Services.Screens;
 
 namespace KHost.Domain.Services;
 
@@ -11,7 +12,7 @@ namespace KHost.Domain.Services;
 /// Decides which screen the room hears and which the others are held to. Everything else is
 /// muted: two screens playing the same song into one room fight each other.
 /// </summary>
-public sealed class ScreenCoordinationService : BaseService, IScreenCoordinationService, IDisposable
+public sealed class ScreenCoordinationService : BaseService, IScreenCoordinationService, IDisposable, IStartsWithTheHost
 {
     private const float AudibleVolume = 1.0f;
     private const float MutedVolume = 0.0f;

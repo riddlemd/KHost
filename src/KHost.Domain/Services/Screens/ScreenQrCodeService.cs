@@ -18,7 +18,7 @@ namespace KHost.Domain.Services.Screens;
 /// or what it chose, so it registers whenever its payload changes and this decides — which also
 /// means a venue can switch source mid-show and the new one is already there to draw.
 /// </summary>
-public sealed class ScreenQrCodeService : BaseService, IScreenQrCodeService, IDisposable
+public sealed class ScreenQrCodeService : BaseService, IScreenQrCodeService, IDisposable, IStartsWithTheHost
 {
     private readonly IScreenServer _screenServer;
     private readonly IVenuesService _venuesService;

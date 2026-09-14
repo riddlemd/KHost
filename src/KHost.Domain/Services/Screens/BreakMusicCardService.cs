@@ -18,7 +18,7 @@ namespace KHost.Domain.Services.Screens;
 /// both take it down, so the screen never names a track over someone else's performance — which is
 /// the only way a caption in the corner of a karaoke screen can be trusted at a glance.
 /// </remarks>
-public sealed class BreakMusicCardService : BaseService, IDisposable
+public sealed class BreakMusicCardService : BaseService, IDisposable, IStartsWithTheHost
 {
     /// <summary>
     /// Bottom-left, away from the codes' own default. They stack rather than cover each other in a
