@@ -277,8 +277,10 @@
             -webkit-mask-image: linear-gradient(90deg, #000 94%, transparent);
         }
 
-        /* Two copies chase each other so the text never leaves a gap the width of the screen —
-           the second starts where the first ends, and the pair translates by exactly half. */
+        /* Copies chase each other so the text never leaves a gap the width of the screen — each
+           starts where the last ends, and the track translates by exactly one of them. How many
+           there are is measured, not assumed: two of a short line do not reach across a full
+           screen, and the band then had nothing out to the right to scroll in. */
         #marquee-track {
             display: inline-block;
             /* Restated rather than inherited: the band is fixed to an edge of the picture, so a
@@ -323,9 +325,11 @@
             opacity: 0.88;
         }
 
+        /* One copy's width, whatever the copy count is: the track carries as many as it takes to
+           cover the screen, and shifting by exactly one puts the next where the last began. */
         @keyframes marquee-scroll {
             from { transform: translateX(0); }
-            to   { transform: translateX(-50%); }
+            to   { transform: translateX(calc(-100% / var(--marquee-copies, 2))); }
         }
 
         /* A scrolling band is the worst case for anyone who asked the OS to stop motion, so it
