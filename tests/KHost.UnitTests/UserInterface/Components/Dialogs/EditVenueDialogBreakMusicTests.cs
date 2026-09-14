@@ -18,7 +18,7 @@ namespace KHost.UnitTests.UserInterface.Components.Dialogs;
 public class EditVenueDialogBreakMusicTests : BunitContext
 {
     private const string ModeSelectSelector = "#venue-break-music-mode";
-    private const string WarningSelector = ".kh-venue-settings__hint--warning";
+    private const string WarningSelector = ".kh-note--warning";
     // The dialog carries three pickers; only the break music one answers to the mode above it.
     private const string PlaylistSelector = ".kh-venue-settings__picker--break-music";
 

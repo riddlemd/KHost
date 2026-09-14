@@ -50,7 +50,7 @@
                         <InputText id="marquee-entry-format" class="kh-form-control"
                                    @bind-Value="_model.MarqueeEntryFormat"
                                    placeholder="{song} - {singer}" />
-                        <p class="kh-venue-settings__hint">
+                        <p class="kh-note">
                             Tags: <code>{song}</code>, <code>{artist}</code>, <code>{singer}</code>, <code>{position}</code>.
                             Left blank, entries read <code>{song} - {singer}</code>.
                         </p>
@@ -107,7 +107,7 @@
 
                 @if (_model.QrCodeEnabled)
                 {
-                <p class="kh-venue-settings__hint">
+                <p class="kh-note">
                     Where a code sits when a plugin puts one up &mdash; nothing here makes one
                     appear.
                 </p>
@@ -131,9 +131,22 @@
                     </InputSelect>
                 </div>
 
-                <p class="kh-venue-settings__hint">
-                    A code in a corner is scanned from close to the screen: on a 55&Prime; set,
-                    roughly an arm&rsquo;s length at Small and a couple of metres at Large.
+                <div class="kh-venue-settings__row">
+                    <label for="venue-qr-safe-zone" class="kh-form-label">Safe zone</label>
+                    <InputNumber id="venue-qr-safe-zone" class="kh-form-control" min="0" max="8"
+                                 @bind-Value="_model.QrCodeSafeZone" />
+                </div>
+
+                <div class="kh-venue-settings__row">
+                    <label for="venue-qr-offset" class="kh-form-label">Offset</label>
+                    <InputNumber id="venue-qr-offset" class="kh-form-control" min="0" max="20" step="0.1"
+                                 @bind-Value="_model.QrCodeOffset" />
+                </div>
+
+                <p class="kh-note">
+                    Safe zone is the white around the code, in its own squares. Offset pushes it in
+                    from the edges it sits against, as a percentage of the screen&rsquo;s shorter
+                    side. Leave either at 0 for the screen&rsquo;s own.
                 </p>
 
                 <label class="kh-venue-settings__row kh-form-check">
@@ -163,7 +176,7 @@
 
                 @if (UnavailableProviderSource is not null)
                 {
-                    <p class="kh-venue-settings__hint kh-venue-settings__hint--warning">
+                    <p class="kh-note kh-note--warning">
                         Nothing loaded provides this mode &mdash; check its plugin under
                         Settings &rsaquo; Plugins Manager. Picking another mode here replaces this
                         venue's choice for good.
@@ -215,7 +228,7 @@
                               Placeholder="None — leave the screen blank" />
                 </div>
 
-                <p class="kh-venue-settings__hint">
+                <p class="kh-note">
                     The playlists themselves are built under Settings &rsaquo; Break Music Manager and Ads Manager.
                 </p>
             </div>
