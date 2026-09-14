@@ -1307,7 +1307,14 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
                 return;
             }
 
-            await SendToScreensAsync(new ShowImageCommand { Url = _mediaStreams.BuildImageUrl(media.Id), Scaling = media.ImageScaling });
+            // The venue's answer where it has one: the same picture can be the card in two rooms
+            // whose screens are not the same shape, and a host setting it here should not have to
+            // go and edit the image in the library to change how it sits.
+            await SendToScreensAsync(new ShowImageCommand
+            {
+                Url = _mediaStreams.BuildImageUrl(media.Id),
+                Scaling = venue!.Settings.BrandingImageScaling ?? media.ImageScaling,
+            });
         }
         catch (Exception ex)
         {

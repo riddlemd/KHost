@@ -158,6 +158,17 @@ public class Venue : RepositoryModel
         public double QrCodeOffset { get; set; }
 
         /// <summary>
+        /// How the placeholder image fills the screen, or null to take the image's own answer.
+        /// </summary>
+        /// <remarks>
+        /// An override rather than the only setting. Scaling belongs to a picture — a wide banner
+        /// and a portrait poster want opposite answers on the same television — so the media row
+        /// keeps its own, and this is for the venue that disagrees. Null by default, which is the
+        /// image's answer and therefore no change to any venue that never sets it.
+        /// </remarks>
+        public ImageScaling? BrandingImageScaling { get; set; }
+
+        /// <summary>
         /// Whether the screen names what is playing between singers. Off for a venue that has
         /// never been asked, so the key missing from a stored row reads as off and the feature
         /// needs no backfill — the same shape as every marquee setting.

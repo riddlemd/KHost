@@ -69,6 +69,9 @@ public class EditVenueModel
     /// <summary>The plugin whose code this venue shows, or null for none. Null is the default.</summary>
     public string? QrCodeSource { get; set; }
 
+    /// <summary>Null takes the image's own answer, which is what a venue that never asks gets.</summary>
+    public ImageScaling? BrandingImageScaling { get; set; }
+
     public bool BreakMusicCardEnabled { get; set; }
 
     public ScreenCorner? BreakMusicCardCorner { get; set; }
