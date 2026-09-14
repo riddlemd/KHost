@@ -2152,7 +2152,52 @@ public class PlaybackServiceTests : IDisposable
         Assert.Null(_service.CurrentMedia);
     }
 
+    /// <summary>
+    /// The card is the venue's, so editing the venue is news about what should be on screen. It
+    /// used to change only at the next playback transition: a host who picked a new one sat
+    /// looking at the old one until a singer had been and gone.
+    /// </summary>
     [Fact]
+    public async Task VenueChanged_NothingPlaying_PutsTheNewCardUpAtOnce()
+    {
+        var brandingId = Guid.NewGuid();
+        VenueBranding(brandingId);
+
+        _broker.Announce(new SelectedVenueChanged());
+
+        // The shared helper gives up quietly, so the assertion has to be made after it rather
+        // than left to it.
+        bool ShowsTheNewCard() => _screenServer.ReceivedCalls().Any(call =>
+            call.GetArguments().FirstOrDefault() is ShowImageCommand command
+            && command.Url.Contains(brandingId.ToString()));
+
+        await WaitForAsync(ShowsTheNewCard);
+
+        Assert.True(ShowsTheNewCard(), "The venue's new card never reached the screens.");
+    }
+
+    /// <summary>
+    /// A still put up over a singer is worse than a stale one. The transitions raise it anyway the
+    /// moment the song ends, so nothing is lost by waiting.
+    /// </summary>
+    [Fact]
+    public async Task VenueChanged_WhileSomeoneIsSinging_LeavesTheirSongAlone()
+    {
+        VenueBranding(Guid.NewGuid());
+
+        var (performance, media) = CreatePerformance();
+        media.Duration = TimeSpan.FromMinutes(3);
+
+        await _service.LoadAsync(performance, media);
+        await _service.PlayAsync();
+        _screenServer.ClearReceivedCalls();
+
+        _broker.Announce(new SelectedVenueChanged());
+        await Task.Delay(60);
+
+        await _screenServer.DidNotReceive().BroadcastCommandAsync(Arg.Any<ShowImageCommand>());
+    }
+
     public async Task PlaybackEnding_WithVenueBranding_ShowsTheCard()
     {
         var brandingId = Guid.NewGuid();
