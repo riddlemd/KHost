@@ -236,6 +236,13 @@ internal static class Program
             app.Services.GetRequiredService<IScreenCoordinationService>().InitializeAsync().GetAwaiter().GetResult();
             app.Services.GetRequiredService<IScreenMarqueeService>().InitializeAsync().GetAwaiter().GetResult();
             app.Services.GetRequiredService<BreakMusicCardService>().InitializeAsync().GetAwaiter().GetResult();
+
+            // Resolved for the same reason as the rest, and it is the one that hurt: PlaybackService
+            // subscribes to ScreenConnected in its constructor, so until something asks for it the
+            // first screen of the night connects to nobody. It then gets no venue card — the host
+            // sees a blank screen until the first song, and the setting looks broken rather than
+            // unheard.
+            app.Services.GetRequiredService<IPlaybackService>();
         }
         catch (Exception ex)
         {
