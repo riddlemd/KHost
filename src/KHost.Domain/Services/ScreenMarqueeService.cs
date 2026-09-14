@@ -4,6 +4,7 @@ using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using KHost.Abstractions.Services.IPC;
 using Microsoft.Extensions.Logging;
+using KHost.Domain.Services.Screens;
 
 namespace KHost.Domain.Services;
 
@@ -13,7 +14,7 @@ namespace KHost.Domain.Services;
 /// any of them shows, and apart from playback, which owns the picture and has no reason to know
 /// the queue's order.
 /// </summary>
-public sealed class ScreenMarqueeService : BaseService, IScreenMarqueeService, IDisposable
+public sealed class ScreenMarqueeService : BaseService, IScreenMarqueeService, IDisposable, IStartsWithTheHost
 {
     private readonly IScreenServer _screenServer;
     private readonly IVenuesService _venuesService;

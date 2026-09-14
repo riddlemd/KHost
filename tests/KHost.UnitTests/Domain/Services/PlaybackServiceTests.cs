@@ -2198,6 +2198,7 @@ public class PlaybackServiceTests : IDisposable
         await _screenServer.DidNotReceive().BroadcastCommandAsync(Arg.Any<ShowImageCommand>());
     }
 
+    [Fact]
     public async Task PlaybackEnding_WithVenueBranding_ShowsTheCard()
     {
         var brandingId = Guid.NewGuid();

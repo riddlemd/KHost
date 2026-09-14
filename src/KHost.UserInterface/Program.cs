@@ -237,12 +237,16 @@ internal static class Program
             app.Services.GetRequiredService<IScreenMarqueeService>().InitializeAsync().GetAwaiter().GetResult();
             app.Services.GetRequiredService<BreakMusicCardService>().InitializeAsync().GetAwaiter().GetResult();
 
-            // Resolved for the same reason as the rest, and it is the one that hurt: PlaybackService
-            // subscribes to ScreenConnected in its constructor, so until something asks for it the
-            // first screen of the night connects to nobody. It then gets no venue card — the host
-            // sees a blank screen until the first song, and the setting looks broken rather than
-            // unheard.
-            app.Services.GetRequiredService<IPlaybackService>();
+            // Building the list is the whole point of asking for it: every one of these wires
+            // itself to the broker or to a screen event in its constructor, and has therefore
+            // wired nothing until it exists. Enumerating is what makes them exist.
+            //
+            // A loop rather than a line each, because a line each is what kept going missing —
+            // three of them at different times, each found from the far end as a screen that was
+            // never told something.
+            foreach (var _ in app.Services.GetServices<KHost.Domain.Services.Screens.IStartsWithTheHost>())
+            {
+            }
         }
         catch (Exception ex)
         {

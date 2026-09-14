@@ -80,6 +80,20 @@ namespace KHost.Domain
             serviceCollection.AddSingleton<Services.Screens.IScreenQrCodeService, Services.Screens.ScreenQrCodeService>();
             serviceCollection.AddSingleton<Services.Screens.BreakMusicCardService>();
             serviceCollection.AddSingleton<IPlaybackService, PlaybackService>();
+
+            // The same singletons again, under the marker the host builds on the way up. Pointed
+            // at what is already registered rather than registered afresh, or each would be built
+            // a second time and the copy nobody else holds would be the one listening.
+            serviceCollection.AddSingleton<Services.Screens.IStartsWithTheHost>(
+                sp => (Services.Screens.IStartsWithTheHost)sp.GetRequiredService<IScreenCoordinationService>());
+            serviceCollection.AddSingleton<Services.Screens.IStartsWithTheHost>(
+                sp => (Services.Screens.IStartsWithTheHost)sp.GetRequiredService<IScreenMarqueeService>());
+            serviceCollection.AddSingleton<Services.Screens.IStartsWithTheHost>(
+                sp => (Services.Screens.IStartsWithTheHost)sp.GetRequiredService<Services.Screens.IScreenQrCodeService>());
+            serviceCollection.AddSingleton<Services.Screens.IStartsWithTheHost>(
+                sp => sp.GetRequiredService<Services.Screens.BreakMusicCardService>());
+            serviceCollection.AddSingleton<Services.Screens.IStartsWithTheHost>(
+                sp => (Services.Screens.IStartsWithTheHost)sp.GetRequiredService<IPlaybackService>());
             serviceCollection.AddSingleton<IMediaSearchService, MediaSearchService>();
             serviceCollection.AddSingleton<IVenuesService, VenuesService>();
             serviceCollection.AddSingleton<IUsersService, UsersService>();
