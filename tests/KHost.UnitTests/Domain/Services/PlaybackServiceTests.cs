@@ -2067,13 +2067,18 @@ public class PlaybackServiceTests : IDisposable
         Duration = TimeSpan.FromSeconds(15),
     };
 
-    private void VenueBranding(Guid? mediaId, string format = "PNG")
+    private void VenueBranding(Guid? mediaId, string format = "PNG",
+        ImageScaling? venueScaling = null, ImageScaling imageScaling = ImageScaling.Fit)
     {
         _venuesService.ReadSelectedVenueAsync().Returns(new Venue
         {
             Id = Guid.NewGuid(),
             Name = "Test Venue",
-            Settings = new Venue.VenueSettings { BrandingImageMediaId = mediaId },
+            Settings = new Venue.VenueSettings
+            {
+                BrandingImageMediaId = mediaId,
+                BrandingImageScaling = venueScaling,
+            },
         });
 
         if (mediaId is { } id)
@@ -2084,6 +2089,7 @@ public class PlaybackServiceTests : IDisposable
                 FilePath = "/media/brand.png",
                 Title = "Venue Card",
                 Status = MediaStatus.Ready,
+                ImageScaling = imageScaling,
                 Format = format,
             });
         }
@@ -2150,6 +2156,46 @@ public class PlaybackServiceTests : IDisposable
 
         Assert.False(_service.IsPlayingAd);
         Assert.Null(_service.CurrentMedia);
+    }
+
+    /// <summary>
+    /// Scaling belongs to a picture — a wide banner and a portrait poster want opposite answers on
+    /// the same television — so the library's answer stands unless the venue gives one.
+    /// </summary>
+    [Fact]
+    public async Task TheCard_VenueSaidNothingAboutScaling_TakesTheImagesOwn()
+    {
+        VenueBranding(Guid.NewGuid(), venueScaling: null, imageScaling: ImageScaling.Original);
+
+        _broker.Announce(new SelectedVenueChanged());
+
+        bool Scaled() => _screenServer.ReceivedCalls().Any(call =>
+            call.GetArguments().FirstOrDefault() is ShowImageCommand command
+            && command.Scaling == ImageScaling.Original);
+
+        await WaitForAsync(Scaled);
+
+        Assert.True(Scaled(), "The image's own scaling never reached the screens.");
+    }
+
+    /// <summary>
+    /// The same picture can be the card in two rooms whose screens are not the same shape, so the
+    /// venue's answer wins where it has one.
+    /// </summary>
+    [Fact]
+    public async Task TheCard_VenueChoseScaling_UsesItOverTheImagesOwn()
+    {
+        VenueBranding(Guid.NewGuid(), venueScaling: ImageScaling.Fill, imageScaling: ImageScaling.Original);
+
+        _broker.Announce(new SelectedVenueChanged());
+
+        bool Scaled() => _screenServer.ReceivedCalls().Any(call =>
+            call.GetArguments().FirstOrDefault() is ShowImageCommand command
+            && command.Scaling == ImageScaling.Fill);
+
+        await WaitForAsync(Scaled);
+
+        Assert.True(Scaled(), "The venue's scaling never reached the screens.");
     }
 
     /// <summary>
