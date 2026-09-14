@@ -24,7 +24,7 @@ SCSS compiles inside `dotnet build` (AspNetCore.SassCompiler) — no separate sa
 
 ## Rules
 
-- Interfaces in `src/KHost.Abstractions` (`Services/`, `Repositories/`, `Models/`); implementations in `src/KHost.Domain` or `src/KHost.DataAccess`. Register in the project's `ProjectExtensions` (`AddDomain()` / `AddDataAccess()`); UI-only services in `Program.cs`. All domain services are singletons — guard mutable state with `SemaphoreSlim`.
+- Interfaces in `src/KHost.Abstractions` (`Services/`, `Repositories/`, `Models/`); implementations in `src/KHost.Domain` or `src/KHost.DataAccess`. The rule is about what a plugin builds against, so an interface a plugin must *not* reach sits with its implementation instead — `IScreenQrCodeService` takes an owner id, and a plugin able to pass any owner could register over another's QR code without either noticing. Register in the project's `ProjectExtensions` (`AddDomain()` / `AddDataAccess()`); UI-only services in `Program.cs`. All domain services are singletons — guard mutable state with `SemaphoreSlim`.
 - A helper both the host and a plugin would want goes in `KHost.Common`, not `Abstractions`: it is MIT on purpose, so a plugin author may use it without taking PolyForm code into what they redistribute. `Common` is for helpers *over* the contracts — string folding aids, formatting, list surgery, the shared drop-position mechanic. A contract, a model or anything `Abstractions` itself needs belongs in `Abstractions`, which references nothing. `Abstractions` declares, it does not compute — see **No static methods in Abstractions** below. Group by area under `Common` (`Media/`, `Plugins/`) rather than dropping types in its root, and mirror that in the tests. Name its methods for what the call site needs to read, not for what the class already says: a plugin author sees `StreamRate.FromTempo(t)` and `AudioLevels.ClampVolume(v)` without this repo's context, so `For` and `Clamp` are too thin — `PluginRid.MatchesThisHost` names what it matches against, and `int.CentsToCurrencyString()` names the unit the receiver is in. Verbosity here is worth more than symmetry with a BCL name; the one exception is a member that exists to fill a BCL gap (`IList<T>.FindIndex`), where the familiar name *is* the point.
 - No "gate" services: behaviour that guards a call lives on the service that owns the call (enqueue rules go in `PerformanceService.CreateAndEnqueueAsync`, not an `IEnqueueGuard` around it).
 - New repositories/services copy the shape of an existing one: repositories extend `BaseRepository<T>` and implement `SortColumns` / `ApplySearchFilters`; services extend `BaseService` (or `BaseRepositoryService<,>` for CRUD).
@@ -85,7 +85,9 @@ A plugin's entry point is constructed with `ActivatorUtilities.CreateInstance` a
 container, so it takes whatever it needs from `KHost.Abstractions` in its own constructor — the same
 service interfaces the host itself uses. There is deliberately no facade: an `IPluginLibrary`
 stood between plugins and the services for a while and only obscured which service actually owned
-each rule. `IPluginContext` carries the plugin's own manifest and stored settings, and nothing else.
+each rule. `IPluginContext` carries the plugin's own manifest and stored settings — and the calls where the
+*host* has to supply the identity, so that a plugin cannot name another's: its secrets, and the QR
+code it offers the screens.
 
 - Downloading media for the queue goes through `IMediaAcquisitionService` — an ordinary service, not
   a plugin keyhole. It owns three rules nothing else may re-implement: an import is idempotent by
@@ -120,6 +122,17 @@ each rule. `IPluginContext` carries the plugin's own manifest and stored setting
   A block refuses the load like a non-Ready row and flashes the gate's reason — nothing on screen
   says why otherwise. The check runs on every load, so a gate stays cheap (the in-memory answer,
   not a round trip) unless the content is worth one.
+- **A plugin offers the screens a QR code; the venue decides whether it is drawn.** Two steps, and
+  they are deliberately apart. The manifest's `qrCode` is the standing registration — it puts the
+  plugin in the venue's source list, and is read without resolving the plugin so a venue can be set
+  up before the show (Example has no code until a host signs in). `IPluginContext.RegisterQrCodeAsync`
+  is the live one: what that source points at right now. The venue names **one** source in
+  `Venue.Settings.QrCodeSource`, and **none is the default** — a code invites a room to scan it, so
+  it goes up because someone chose it, not because a plugin was installed. Every other owner's code
+  is held and not drawn, which is what makes switching source mid-show immediate: the new one is
+  already registered. The owner is stamped from the manifest the host loaded, never passed by the
+  caller, for the same reason a secret's key is. Placement is the venue's alone — a plugin passes a
+  payload and a caption and has no say in corner or size, because it is the venue's screen.
 - A plugin adds file extensions the media importer's folder scan recognises with a manifest
   `importFormats: [".khv"]` — declarative, like `settings` and `buttons`, so the importer reads it
   from `IPluginRegistry` without resolving the plugin. `MediaImportService` unions the built-in

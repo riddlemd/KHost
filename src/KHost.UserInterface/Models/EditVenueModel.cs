@@ -66,7 +66,8 @@ public class EditVenueModel
     /// dialog shows the corner and size a code would take anyway, and saving that back changes
     /// nothing — the same trade the marquee's sizes make with zero.
     /// </summary>
-    public bool QrCodeEnabled { get; set; } = true;
+    /// <summary>The plugin whose code this venue shows, or null for none. Null is the default.</summary>
+    public string? QrCodeSource { get; set; }
 
     public ScreenCorner QrCodeCorner { get; set; } = ScreenCorner.BottomRight;
 

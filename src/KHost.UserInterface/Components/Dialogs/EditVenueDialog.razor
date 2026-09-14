@@ -99,18 +99,31 @@
             <div class="kh-venue-settings__section">
                 <span class="kh-venue-settings__section-title">Screen QR codes</span>
 
-                <label class="kh-venue-settings__row kh-form-check">
-                    <span class="kh-form-check-label">Let plugins put QR codes on the screen</span>
-                    <input id="venue-qr-enabled" type="checkbox" class="kh-form-check-input"
-                           @bind="_model.QrCodeEnabled" />
-                </label>
-
-                @if (_model.QrCodeEnabled)
+                <div class="kh-venue-settings__row">
+                    <label for="venue-qr-source" class="kh-form-label">Code shown</label>
+                    <InputSelect id="venue-qr-source" class="kh-form-select" @bind-Value="_model.QrCodeSource">
+                        <option value="">None</option>
+                        @if (UnavailableQrCodeSource is { } missing)
+                        {
+                            <option value="@missing">@missing &mdash; not installed</option>
+                        }
+                        @foreach (var (id, label) in QrCodeSources)
+                        {
+                            <option value="@id">@label</option>
+                        }
+                    </InputSelect>
+                </div>
+                @if (UnavailableQrCodeSource is not null)
                 {
-                <p class="kh-note">
-                    Where a code sits when a plugin puts one up &mdash; nothing here makes one
-                    appear.
-                </p>
+                    <p class="kh-note kh-note--warning">
+                        No installed plugin provides this code &mdash; check it under
+                        Settings &rsaquo; Plugins Manager. Picking another here replaces this
+                        venue's choice for good.
+                    </p>
+                }
+
+                @if (!string.IsNullOrWhiteSpace(_model.QrCodeSource))
+                {
 
                 <div class="kh-venue-settings__row">
                     <label for="venue-qr-corner" class="kh-form-label">Corner</label>

@@ -43,4 +43,30 @@ public interface IPluginContext
     /// the alternative is worse, not because it is convenient.
     /// </remarks>
     Task SetSecretAsync(string key, string? value, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Offers the screens a QR code, replacing whatever this plugin offered before. The manifest's
+    /// <c>qrCode</c> is the standing registration — "this plugin is a source a venue may pick" —
+    /// and this is the live one: what that source is pointing at right now.
+    /// </summary>
+    /// <remarks>
+    /// Registering is not showing. The venue names one source, and a code from any other is held
+    /// and not drawn; a venue that has named none shows nothing at all. So call this whenever the
+    /// payload changes and let the host decide — a plugin that checks first would be guessing at a
+    /// setting that can change under it.
+    /// <para>
+    /// The owner is filled in from the manifest the host loaded, never passed by the caller, for
+    /// the same reason a secret's key is: two plugins cannot collide, and neither can register
+    /// over the other's code.
+    /// </para>
+    /// </remarks>
+    /// <param name="payload">What the code says when scanned, usually a URL. The host draws it.</param>
+    /// <param name="caption">A line under it. A QR with no words is a mystery.</param>
+    Task RegisterQrCodeAsync(string payload, string? caption = null, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Withdraws this plugin's code. Safe when nothing was registered, so it is the right thing to
+    /// call on the way out whether or not a code ever went up.
+    /// </summary>
+    Task UnregisterQrCodeAsync(CancellationToken cancellationToken = default);
 }

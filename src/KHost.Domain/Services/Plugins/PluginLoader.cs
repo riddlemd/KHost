@@ -253,7 +253,8 @@ public static class PluginLoader
                 serviceProvider,
                 implementationType,
                 new PluginContext(manifest, storedValues, plugin,
-                    serviceProvider.GetRequiredService<Secrets.IPluginSecretStore>())));
+                    serviceProvider.GetRequiredService<Secrets.IPluginSecretStore>(),
+                    serviceProvider.GetRequiredService<Screens.IScreenQrCodeService>())));
 
             foreach (var extensionInterface in ExtensionInterfaces.Where(i => i.IsAssignableFrom(implementationType)))
                 services.AddSingleton(extensionInterface, sp => sp.GetRequiredService(implementationType));
@@ -284,7 +285,8 @@ public static class PluginLoader
                 plugin,
                 (IPlugin)ActivatorUtilities.CreateInstance(serviceProvider, entryPointType),
                 new PluginContext(manifest, storedValues, plugin,
-                    serviceProvider.GetRequiredService<Secrets.IPluginSecretStore>())));
+                    serviceProvider.GetRequiredService<Secrets.IPluginSecretStore>(),
+                    serviceProvider.GetRequiredService<Screens.IScreenQrCodeService>())));
 
             registered++;
         }

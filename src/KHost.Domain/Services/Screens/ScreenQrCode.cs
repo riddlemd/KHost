@@ -1,15 +1,17 @@
-namespace KHost.Abstractions.Models;
+namespace KHost.Domain.Services.Screens;
 
 /// <summary>
-/// A QR code someone wants on the screens. Handed to
-/// <see cref="Services.IScreenQrCodeService"/>, which places it and keeps the screens in step.
+/// A QR code someone has offered the screens, with the host's own name for who offered it.
 /// </summary>
+/// <remarks>
+/// Host-internal, and deliberately not in <c>KHost.Abstractions</c>. A plugin reaches the screens
+/// through <c>IPluginContext.RegisterQrCodeAsync</c>, which fills <see cref="OwnerId"/> in from the
+/// manifest the host loaded — so one plugin cannot register a code under another's name by
+/// mistake. A contract carrying an owner the caller chooses would hand that footgun back.
+/// </remarks>
 public sealed record ScreenQrCode
 {
-    /// <summary>
-    /// Who is asking, usually a plugin's id. One code per owner: showing a second replaces the
-    /// first rather than stacking, so a caller never has to take down what it put up.
-    /// </summary>
+    /// <summary>The plugin's id, stamped by the host. One code per owner: a second replaces the first.</summary>
     public required string OwnerId { get; init; }
 
     /// <summary>
@@ -25,10 +27,4 @@ public sealed record ScreenQrCode
     /// this arrives ready to draw.
     /// </summary>
     public string? Caption { get; init; }
-
-    /// <summary>Null takes the venue's corner: it is the venue's screen, and the host knows what else is on it.</summary>
-    public ScreenCorner? Corner { get; init; }
-
-    /// <summary>Null takes the venue's size.</summary>
-    public ScreenQrSize? Size { get; init; }
 }

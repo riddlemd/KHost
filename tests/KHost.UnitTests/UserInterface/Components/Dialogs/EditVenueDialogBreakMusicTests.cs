@@ -45,6 +45,11 @@ public class EditVenueDialogBreakMusicTests : BunitContext
         Services.AddSingleton(_mediaPools);
         Services.AddSingleton(_media);
         Services.AddSingleton<IMessageBroker>(_broker);
+
+        // The dialog lists QR sources from the manifests; none here, but it has to resolve.
+        var plugins = Substitute.For<IPluginRegistry>();
+        plugins.Plugins.Returns([]);
+        Services.AddSingleton(plugins);
     }
 
     [Fact]
