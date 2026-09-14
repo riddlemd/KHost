@@ -239,6 +239,13 @@ internal sealed class StreamMediaPlayer : IMediaPlayer
                 caption = code.Caption,
                 corner = code.Corner.ToString().ToLowerInvariant(),
                 size = code.Size.ToString().ToLowerInvariant(),
+
+                // Forwarded, not re-derived. Leaving them out is how both silently did nothing
+                // for as long as they existed: the page's CSS falls back to the same numbers the
+                // host resolves to, so a venue at zero looked right and every other value was
+                // dropped on the way here.
+                safeZone = code.SafeZone,
+                offset = code.Offset,
             }),
         });
     }
