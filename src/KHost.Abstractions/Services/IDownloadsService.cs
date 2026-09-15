@@ -31,13 +31,11 @@ public interface IDownloadsService
     CancellationToken TokenForInFlight(Guid mediaId, string title, string artist, string source);
 
     /// <summary>Moves an active entry to a terminal state and into the recent list. No-op for an id with no active entry.</summary>
-    void Settle(Guid mediaId, DownloadState state);
-
     /// <summary>
-    /// Settles with a short reason the Downloads page shows beside the state — what a host needs
-    /// to decide whether to try again, not a stack trace.
+    /// <paramref name="reason"/> is shown beside the state on the Downloads page — what a host
+    /// needs to decide whether to try again, not a stack trace.
     /// </summary>
-    void Settle(Guid mediaId, DownloadState state, string? reason);
+    void Settle(Guid mediaId, DownloadState state, string? reason = null);
 
     /// <summary>
     /// Says which half of the acquisition is now running, so the page can stop reading a render's
