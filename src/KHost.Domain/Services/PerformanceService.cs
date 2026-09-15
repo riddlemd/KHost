@@ -6,6 +6,7 @@ using KHost.Abstractions.Services;
 using KHost.Abstractions.Messaging;
 using KHost.Abstractions.Messaging.Messages;
 using Microsoft.Extensions.Logging;
+using KHost.Common.Media;
 
 namespace KHost.Domain.Services;
 
@@ -47,7 +48,7 @@ public class PerformanceService : BaseRepositoryService<Performance, IPerformanc
         if (deleted && mediaId is { } removedMediaId)
         {
             var media = await _mediaService.ReadAsync(removedMediaId);
-            if (media?.Status == MediaStatus.Downloading)
+            if (media?.Status.IsAcquiring() == true)
                 await _downloadsService.CancelAsync(removedMediaId);
         }
 
