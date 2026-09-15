@@ -142,7 +142,7 @@ internal class DatabaseInitializer : IDatabaseInitializer
 
         await context.SaveChangesAsync();
 
-        _logger.LogWarning("Swept {Count} stalled download(s) left Downloading by an unclean shutdown to Broken", stalled.Count);
+        _logger.LogWarning("Swept {Count} stalled download(s) left mid-download by an unclean shutdown to Broken", stalled.Count);
     }
 
     private int Repair<T>(
