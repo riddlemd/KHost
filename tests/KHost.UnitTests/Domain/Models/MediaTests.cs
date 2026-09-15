@@ -38,6 +38,7 @@ public class MediaTests
 
         Assert.Equal(string.Empty, media.Artist);
         Assert.Equal(string.Empty, media.Format);
+        Assert.Equal(string.Empty, media.Source);
         Assert.Equal("", media.Notes);
     }
 
