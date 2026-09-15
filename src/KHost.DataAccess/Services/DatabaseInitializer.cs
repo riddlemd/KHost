@@ -1,5 +1,6 @@
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
+using KHost.Common.Media;
 using KHost.DataAccess.Contexts;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -125,7 +126,9 @@ internal class DatabaseInitializer : IDatabaseInitializer
     {
         using var context = await _contextFactory.CreateDbContextAsync();
 
-        var stalled = await context.Media.Where(m => m.Status == MediaStatus.Downloading).ToListAsync();
+        // MediaStatuses.Acquiring rather than IsAcquiring(): this has to reach SQL as an IN clause,
+        // and a row left mid-render is as stalled as one left mid-download.
+        var stalled = await context.Media.Where(m => MediaStatuses.Acquiring.Contains(m.Status)).ToListAsync();
         if (stalled.Count == 0)
             return;
 
@@ -139,7 +142,7 @@ internal class DatabaseInitializer : IDatabaseInitializer
 
         await context.SaveChangesAsync();
 
-        _logger.LogWarning("Swept {Count} stalled download(s) left Downloading by an unclean shutdown to Broken", stalled.Count);
+        _logger.LogWarning("Swept {Count} stalled download(s) left mid-download by an unclean shutdown to Broken", stalled.Count);
     }
 
     private int Repair<T>(

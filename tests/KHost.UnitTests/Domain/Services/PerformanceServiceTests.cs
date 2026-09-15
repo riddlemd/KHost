@@ -233,6 +233,19 @@ public class PerformanceServiceTests
     }
 
     [Fact]
+    public async Task DeleteAsync_RemovesAProcessingPerformancesMedia_CancelsThatMediasImport()
+    {
+        var singerId = Guid.NewGuid();
+        var performance = await EnqueueForAsync(singerId);
+        // Still in flight, just past the download half — dequeuing has to stop the render too.
+        _mediaService.ReadAsync(performance.MediaId).Returns(new Media { Id = performance.MediaId, FilePath = "/downloads/song.khv", Title = "Song", Status = MediaStatus.Processing });
+
+        await _service.DeleteAsync(performance.Id);
+
+        await _downloadsService.Received(1).CancelAsync(performance.MediaId);
+    }
+
+    [Fact]
     public async Task DeleteAsync_RemovesAReadyPerformancesMedia_DoesNotCancelAnyImport()
     {
         var singerId = Guid.NewGuid();

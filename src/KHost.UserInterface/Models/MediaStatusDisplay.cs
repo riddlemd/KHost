@@ -8,7 +8,11 @@ public static class MediaStatusDisplay
     public static string BadgeClass(MediaStatus status) => status switch
     {
         MediaStatus.Ready       => "kh-badge--success",
+        // Processing shares Downloading's colour on purpose: it is that download's second phase,
+        // and the word in the badge is what says which one. A colour of its own would read as a
+        // different kind of state.
         MediaStatus.Downloading => "kh-badge--info",
+        MediaStatus.Processing  => "kh-badge--info",
         MediaStatus.Broken      => "kh-badge--danger",
         _                       => "kh-badge--secondary",
     };
