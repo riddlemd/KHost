@@ -87,7 +87,7 @@ public class MediaSearchServiceTests
         analytics.StartActivity(Arg.Any<string>()).Returns(Substitute.For<IAnalyticsActivity>());
         var emptyService = new MediaSearchService(_logger, [], analytics);
 
-        var results = await emptyService.SearchAllAsync("test");
+        var results = await emptyService.SearchAsync("test", "FileSystem");
 
         Assert.Empty(results);
     }
@@ -98,7 +98,7 @@ public class MediaSearchServiceTests
         _provider.SearchAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<int>())
             .Returns(Task.FromException<List<MediaSearchEntity>>(new HttpRequestException("network error")));
 
-        var results = await _service.SearchAllAsync("song");
+        var results = await _service.SearchAsync("song", "FileSystem");
 
         Assert.Empty(results);
     }
@@ -109,13 +109,13 @@ public class MediaSearchServiceTests
         _provider.SearchAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<int>())
             .Returns(Task.FromResult(new List<MediaSearchEntity>()));
 
-        var results = await _service.SearchAllAsync("nonexistent");
+        var results = await _service.SearchAsync("nonexistent", "FileSystem");
 
         Assert.Empty(results);
     }
 
     [Fact]
-    public async Task SearchAsync_AggregatesResultsFromAllProviders()
+    public async Task SearchAsync_BySource_ReturnsEveryRowTheProviderAnswered()
     {
         var mediaId1 = Guid.NewGuid();
         var mediaId2 = Guid.NewGuid();
@@ -128,7 +128,7 @@ public class MediaSearchServiceTests
         _provider.SearchAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<int>())
             .Returns(Task.FromResult(entities));
 
-        var results = await _service.SearchAllAsync("test");
+        var results = await _service.SearchAsync("test", "FileSystem");
 
         Assert.Equal(2, results.Count);
         Assert.Equal("Media1", results[0].Title);
@@ -175,19 +175,6 @@ public class MediaSearchServiceTests
 
         Assert.Empty(results);
         await remote.DidNotReceive().SearchAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<int>());
-    }
-
-    [Fact]
-    public async Task SearchAllAsync_AsksEveryProvider()
-    {
-        var (service, local, remote) = ServiceWithLocalAnd(_provider);
-        local.SearchAsync("song", 0, 0).Returns([Entity(MediaSearchService.LocalSourceName, "local hit")]);
-        remote.SearchAsync("song", 0, 0).Returns([Entity("FileSystem", "remote hit")]);
-
-        var results = await service.SearchAllAsync("song");
-
-        Assert.Equal(2, results.Count);
-        await remote.Received(1).SearchAsync("song", 0, 0);
     }
 
     [Fact]

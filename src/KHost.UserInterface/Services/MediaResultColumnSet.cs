@@ -22,10 +22,17 @@ public static class MediaResultColumnSet
     private const string NoDuration = "--:--";
 
     /// <summary>
-    /// The declaring provider's columns when every result came from it. Results from more than one
-    /// source share one table, so they fall back to the default rather than showing one provider's
-    /// headings over another's rows.
+    /// The declaring provider's columns when every result came from it, and the console's own set
+    /// otherwise — one provider's headings must never sit over another's rows.
     /// </summary>
+    /// <remarks>
+    /// A search now asks one source at a time, so the disagreeing case is not something the app
+    /// can currently produce. Kept as a guard rather than an assumption: this reads a list handed
+    /// to it, and the cost of being wrong is a table whose headings describe rows they do not
+    /// belong to. Note the test is on the entity's Source — who answered the search — and not on
+    /// where a row's file came from, which is a per-row fact and genuinely does differ inside one
+    /// set of local results.
+    /// </remarks>
     public static IReadOnlyList<MediaResultColumn> For(
         IReadOnlyList<MediaSearchEntity> results, IReadOnlyList<IMediaProvider> providers)
     {

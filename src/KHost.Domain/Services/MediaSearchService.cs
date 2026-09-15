@@ -33,9 +33,6 @@ public class MediaSearchService : BaseService, IMediaSearchService
         return SearchProvidersAsync([local], query, local.SourceName, pageNumber, pageSize);
     }
 
-    public Task<List<MediaSearchEntity>> SearchAllAsync(string query, int pageNumber = 0, int pageSize = 0)
-        => SearchProvidersAsync(_providers, query, source: null, pageNumber, pageSize);
-
     public Task<List<MediaSearchEntity>> SearchAsync(string query, string source, int pageNumber = 0, int pageSize = 0)
     {
         var matching = _providers.Where(p => p.SourceName == source).ToList();
@@ -46,12 +43,16 @@ public class MediaSearchService : BaseService, IMediaSearchService
         return SearchProvidersAsync(matching, query, source, pageNumber, pageSize);
     }
 
+    /// <summary>
+    /// Still plural, because two providers may declare the same SourceName — nothing stops them,
+    /// and both then answer. It is no longer a way to ask everything at once.
+    /// </summary>
     private async Task<List<MediaSearchEntity>> SearchProvidersAsync(
-        List<IMediaProvider> providers, string query, string? source, int pageNumber, int pageSize)
+        List<IMediaProvider> providers, string query, string source, int pageNumber, int pageSize)
     {
         using var activity = _analytics.StartActivity(AnalyticActivities.Search);
         activity.SetTag("query", query);
-        activity.SetTag("source", source ?? "all");
+        activity.SetTag("source", source);
 
         Logger.LogDebug("Searching {ProviderCount} providers for '{Query}'", providers.Count, query);
 
