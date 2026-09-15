@@ -70,15 +70,13 @@ public interface IMediaAcquisitionService
     /// </summary>
     Task CompleteImportAsync(Guid mediaId);
 
-    /// <summary>Marks a row begun with <see cref="BeginImportAsync"/> Broken — the download failed.</summary>
-    Task FailImportAsync(Guid mediaId);
-
     /// <summary>
-    /// The same, with a short reason the Downloads page shows beside the failure. Say what a host
+    /// Marks a row begun with <see cref="BeginImportAsync"/> Broken — the download failed.
+    /// <paramref name="reason"/> is shown beside the failure on the Downloads page: say what a host
     /// could act on — "checksum did not match", "ffmpeg exited 1" — never a stack trace, since it
     /// is read at a glance in the middle of a show.
     /// </summary>
-    Task FailImportAsync(Guid mediaId, string? reason);
+    Task FailImportAsync(Guid mediaId, string? reason = null);
 
     /// <summary>
     /// Removes a row begun with <see cref="BeginImportAsync"/> whose download was cancelled, in

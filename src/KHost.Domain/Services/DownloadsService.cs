@@ -82,9 +82,7 @@ public class DownloadsService : IDownloadsService
             RaiseStateChanged();
     }
 
-    public void Settle(Guid mediaId, DownloadState state) => Settle(mediaId, state, reason: null);
-
-    public void Settle(Guid mediaId, DownloadState state, string? reason)
+    public void Settle(Guid mediaId, DownloadState state, string? reason = null)
     {
         if (state == DownloadState.Downloading) return;
         if (!_active.TryRemove(mediaId, out var entry)) return;

@@ -110,10 +110,18 @@ code it offers the screens.
   render starting wherever the fetch stopped. A provider that counts bytes reports them with the
   byte overload of `ReportDownloadProgressAsync` and the page shows how much of how much; one that
   cannot still moves a count with an indeterminate bar. `FailImportAsync` takes an optional reason
-  the page shows beside the failure — a line a host can act on, never a stack trace. Both are
-  **overloads, never changed signatures**: a plugin binary built against an older contract calls
-  the old method, and altering one in place would break it at runtime without
-  `PluginApi.CurrentVersion` moving to say so.
+  the page shows beside the failure — a line a host can act on, never a stack trace.
+  Widening a method a plugin calls is a **runtime** break even when it is a source-compatible
+  optional parameter, because the default compiles into the call site: a binary built against the
+  older contract goes on calling a method that no longer exists. So `PluginApi.CurrentVersion`
+  moves with it, and the host refuses that build at load time instead of throwing a
+  `MissingMethodException` at the moment a download fails. It moved to **2** for exactly this,
+  which is what that number is for — and a published catalog release declaring `1` reads as
+  incompatible until it is rebuilt and re-released. While the contracts are 0.x this is the trade
+  taken on purpose: an overload pair would have kept old binaries alive at the cost of two methods
+  meaning one thing forever. The same widening also silently changes what
+  `Received(1).FailImportAsync(id)` asserts in a plugin's own tests — it becomes `reason: null` —
+  so assert the reason rather than the bare call.
   Ask `MediaStatuses.IsAcquiring()` (`Common/Media/`) rather than `== MediaStatus.Downloading` —
   spelling "in flight" as phase one strands a row that reached phase two, which is what the startup
   sweep, the cancellation token and the dequeue cancel each want. `MediaStatuses.Acquiring` is the
