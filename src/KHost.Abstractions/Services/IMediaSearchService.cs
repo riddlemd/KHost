@@ -16,8 +16,12 @@ public interface IMediaSearchService
     Task<List<MediaSearchEntity>> SearchAsync(string query, int pageNumber = 0, int pageSize = 0);
 
     /// <summary><paramref name="source"/> is a provider's SourceName; an unknown one finds nothing.</summary>
+    /// <remarks>
+    /// One source at a time, always. A search-everything method lived here and had no caller
+    /// outside its own tests, while the single result set it could produce was the reason
+    /// everything downstream had to cope with rows from several providers sharing one table — the
+    /// headings, the queued badge, and anything else keyed on a row's source. A console asks one
+    /// source at a time because that is what a host picked.
+    /// </remarks>
     Task<List<MediaSearchEntity>> SearchAsync(string query, string source, int pageNumber = 0, int pageSize = 0);
-
-    /// <summary>Searches every registered provider at once. Only call this when the host asked for it.</summary>
-    Task<List<MediaSearchEntity>> SearchAllAsync(string query, int pageNumber = 0, int pageSize = 0);
 }
