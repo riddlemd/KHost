@@ -51,6 +51,23 @@ public class Media : RepositoryModel
     public string Format { get; set; } = string.Empty;
 
     /// <summary>
+    /// The provider that produced this file, as it named itself on import — "KaraFun", "YouTube".
+    /// Empty for anything the host found on its own disk, which is what a folder scan imports.
+    /// </summary>
+    /// <remarks>
+    /// The provider's claim about itself, not something the host checked: <c>IMediaAcquisitionService</c>
+    /// is an ordinary service and does not know who called it, unlike the QR registration where
+    /// the owner is stamped from the manifest. Nothing may be gated on this — a file that must not
+    /// play without an entitlement is protected by the container tag <c>IMediaPlaybackGate</c>
+    /// reads, which travels with the file rather than with a row anyone can write.
+    ///
+    /// Display-grade rather than a key, and deliberately not folded into
+    /// <see cref="SearchFolded"/>: "youtube" is not a word anyone is searching their library for,
+    /// and it would pull every video up as a match.
+    /// </remarks>
+    public string Source { get; set; } = string.Empty;
+
+    /// <summary>
     /// What the host has learned about this file. Deliberately not searchable: notes describe media
     /// already found, so a word buried in one should not pull the song up as a match.
     /// </summary>

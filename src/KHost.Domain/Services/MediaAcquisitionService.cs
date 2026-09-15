@@ -57,6 +57,7 @@ public class MediaAcquisitionService : BaseService, IMediaAcquisitionService
             Duration = request.Duration,
             Notes = request.Notes,
             Format = Path.GetExtension(request.FilePath).TrimStart('.').ToUpperInvariant(),
+            Source = request.Source,
             Status = MediaStatus.Ready,
             DateAdded = DateTime.UtcNow,
         });
@@ -78,6 +79,7 @@ public class MediaAcquisitionService : BaseService, IMediaAcquisitionService
             Duration = request.Duration,
             Notes = request.Notes,
             Format = Path.GetExtension(request.FilePath).TrimStart('.').ToUpperInvariant(),
+            Source = request.Source,
             Status = MediaStatus.Downloading,
             DateAdded = DateTime.UtcNow,
         });

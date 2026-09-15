@@ -74,6 +74,60 @@ public class MediaAcquisitionServiceTests
             m.Status == MediaStatus.Ready));
     }
 
+    /// <summary>
+    /// Where a file came from is worth keeping: a library that mixes downloads from two plugins
+    /// with a host's own folder of files cannot otherwise say which is which, and the file's own
+    /// path says only where it was put.
+    /// </summary>
+    [Fact]
+    public async Task ImportAsync_RequestNamesAProvider_RecordsItAsTheRowsSource()
+    {
+        _repository.FindByFilePathAsync(Arg.Any<string>()).Returns((Media?)null);
+        var request = new MediaImportRequest
+        {
+            FilePath = "/downloads/song.mp4",
+            Title = "Song Title",
+            Source = "KaraFun",
+        };
+
+        await _service.ImportAsync(request);
+
+        await _mediaService.Received(1).CreateAsync(Arg.Is<Media>(m => m.Source == "KaraFun"));
+    }
+
+    /// <summary>The download is registered before the file exists, and it is the same file.</summary>
+    [Fact]
+    public async Task BeginImportAsync_RequestNamesAProvider_RecordsItAsTheRowsSource()
+    {
+        _repository.FindByFilePathAsync(Arg.Any<string>()).Returns((Media?)null);
+        var request = new MediaImportRequest
+        {
+            FilePath = "/downloads/song.mp4",
+            Title = "Song Title",
+            Source = "YouTube",
+        };
+
+        await _service.BeginImportAsync(request);
+
+        await _mediaService.Received(1).CreateAsync(Arg.Is<Media>(m => m.Source == "YouTube"));
+    }
+
+    /// <summary>
+    /// Nothing named a provider, so nothing is claimed. This is the folder scan's shape — a file
+    /// the host found on its own disk has no provider, and inventing one would be a lie a later
+    /// filter would act on.
+    /// </summary>
+    [Fact]
+    public async Task ImportAsync_RequestNamesNoProvider_LeavesTheSourceEmpty()
+    {
+        _repository.FindByFilePathAsync(Arg.Any<string>()).Returns((Media?)null);
+        var request = new MediaImportRequest { FilePath = "/karaoke/song.mp4", Title = "Song Title" };
+
+        await _service.ImportAsync(request);
+
+        await _mediaService.Received(1).CreateAsync(Arg.Is<Media>(m => m.Source == string.Empty));
+    }
+
     [Fact]
     public async Task ImportAsync_NewFilePath_ReturnsCreatedRowId()
     {
