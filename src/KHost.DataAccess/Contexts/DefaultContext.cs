@@ -61,6 +61,12 @@ internal class DefaultContext : DbContext
                 .IsRequired()
                 .HasMaxLength(10);
 
+            // Longer than any provider needs, because the name is the provider's to choose and a
+            // truncated one names nobody.
+            entity.Property(e => e.Source)
+                .IsRequired()
+                .HasMaxLength(100);
+
             entity.Property(e => e.Notes)
                 .HasMaxLength(1000);
 

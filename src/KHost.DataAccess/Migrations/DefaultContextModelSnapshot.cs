@@ -205,6 +205,11 @@ namespace KHost.DataAccess.Migrations
                         .HasMaxLength(600)
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
                     b.Property<int>("Status")
                         .HasColumnType("INTEGER");
 
@@ -514,6 +519,12 @@ namespace KHost.DataAccess.Migrations
 
                             b1.Property<Guid?>("BrandingImageMediaId");
 
+                            b1.Property<int?>("BrandingImageScaling");
+
+                            b1.Property<int?>("BreakMusicCardCorner");
+
+                            b1.Property<bool>("BreakMusicCardEnabled");
+
                             b1.Property<Guid?>("BreakMusicPoolId");
 
                             b1.Property<string>("BreakMusicProvider");
@@ -552,11 +563,15 @@ namespace KHost.DataAccess.Migrations
 
                             b1.Property<int?>("QrCodeCorner");
 
-                            b1.Property<bool>("QrCodeEnabled");
-
                             b1.Property<bool>("QrCodeHideDuringSong");
 
+                            b1.Property<double>("QrCodeOffset");
+
+                            b1.Property<int>("QrCodeSafeZone");
+
                             b1.Property<int?>("QrCodeSize");
+
+                            b1.Property<string>("QrCodeSource");
 
                             b1.Property<bool>("ShowEstimatedWaitTime");
 
