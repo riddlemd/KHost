@@ -36,6 +36,27 @@
         text-overflow: ellipsis;
     }
 
+    // Under the bar, naming which half of the acquisition it measures. A note's type and colour,
+    // because that is what it is — the quiet half of the cell.
+    &__phase {
+        display: block;
+        margin-top: 0.25rem;
+        font-size: 0.75rem;
+        line-height: 1.5;
+        color: var(--kh-text-muted);
+    }
+
+    // A failure's reason has no length it can be trusted to keep, and the row must not grow a
+    // second line mid-table: it truncates and the title attribute carries the whole of it.
+    &__detail {
+        min-width: 0;
+        max-width: 22rem;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        color: var(--kh-text-secondary);
+    }
+
     &__col--progress {
         width: 200px;
     }

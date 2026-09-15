@@ -2,6 +2,13 @@ namespace KHost.Abstractions.Models;
 
 public enum DownloadState { Downloading, Completed, Failed, Cancelled }
 
+/// <summary>
+/// Which half of an acquisition is running. The entry stays <see cref="DownloadState.Downloading"/>
+/// across both — this says which one the progress is measuring, so a render's percentage is not
+/// read as a download's.
+/// </summary>
+public enum DownloadPhase { Fetching, Processing }
+
 /// <summary>A snapshot of one plugin download, active or settled, for the Downloads management page.</summary>
 public sealed record DownloadInfo
 {
@@ -13,8 +20,27 @@ public sealed record DownloadInfo
     public string Source { get; init; } = string.Empty;
 
     public required DateTime StartedUtc { get; init; }
+
+    /// <summary>When it reached a terminal state; null while it is still running.</summary>
+    public DateTime? SettledUtc { get; init; }
+
     public DownloadState State { get; init; } = DownloadState.Downloading;
+
+    /// <summary>Fetching until a provider says otherwise, since most never have a second phase.</summary>
+    public DownloadPhase Phase { get; init; } = DownloadPhase.Fetching;
 
     /// <summary>0..1, or null while unreported — rendered as an indeterminate progress bar.</summary>
     public double? Progress { get; init; }
+
+    /// <summary>Bytes in so far, when the provider counts them. Null leaves the size line off.</summary>
+    public long? BytesReceived { get; init; }
+
+    /// <summary>Expected total, when the provider knows it up front.</summary>
+    public long? TotalBytes { get; init; }
+
+    /// <summary>
+    /// Why it ended this way, for a state a host may need to act on. Null for a download that
+    /// simply finished, and never a stack trace — this is read at a glance, mid-show.
+    /// </summary>
+    public string? Reason { get; init; }
 }
