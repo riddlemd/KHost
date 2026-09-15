@@ -327,6 +327,90 @@ public class MediaAcquisitionServiceTests
     }
 
     [Fact]
+    public async Task BeginProcessingAsync_DownloadingRow_SetsStatusToProcessing()
+    {
+        var media = new Media { Id = Guid.NewGuid(), FilePath = "/downloads/song.kit", Title = "Song Title", Status = MediaStatus.Downloading };
+        _mediaService.ReadAsync(media.Id).Returns(media);
+
+        await _service.BeginProcessingAsync(media.Id);
+
+        await _mediaService.Received(1).UpdateAsync(Arg.Is<Media>(m => m.Id == media.Id && m.Status == MediaStatus.Processing));
+    }
+
+    [Fact]
+    public async Task BeginProcessingAsync_DownloadingRow_LeavesTheDownloadEntryInFlight()
+    {
+        var media = new Media { Id = Guid.NewGuid(), FilePath = "/downloads/song.kit", Title = "Song Title", Status = MediaStatus.Downloading };
+        _repository.FindByFilePathAsync("/downloads/song.kit").Returns((Media?)null);
+        _mediaService.CreateAsync(Arg.Any<Media>()).Returns(media);
+        await _service.BeginImportAsync(new MediaImportRequest { FilePath = "/downloads/song.kit", Title = "Song Title" });
+        _mediaService.ReadAsync(media.Id).Returns(media);
+
+        await _service.BeginProcessingAsync(media.Id);
+
+        // Processing is the download's second phase, so the Downloads page must not settle yet.
+        Assert.Equal(DownloadState.Downloading, _downloads.Snapshot().Single(d => d.MediaId == media.Id).State);
+    }
+
+    [Theory]
+    [InlineData(MediaStatus.Ready)]
+    [InlineData(MediaStatus.Broken)]
+    public async Task BeginProcessingAsync_SettledRow_NeverDragsItBackIntoFlight(MediaStatus status)
+    {
+        var media = new Media { Id = Guid.NewGuid(), FilePath = "/downloads/song.kit", Title = "Song Title", Status = status };
+        _mediaService.ReadAsync(media.Id).Returns(media);
+
+        await _service.BeginProcessingAsync(media.Id);
+
+        await _mediaService.DidNotReceive().UpdateAsync(Arg.Any<Media>());
+    }
+
+    [Fact]
+    public async Task BeginProcessingAsync_NoSuchMedia_NoOps()
+    {
+        _mediaService.ReadAsync(Arg.Any<Guid>()).Returns((Media?)null);
+
+        await _service.BeginProcessingAsync(Guid.NewGuid());
+
+        await _mediaService.DidNotReceive().UpdateAsync(Arg.Any<Media>());
+    }
+
+    [Fact]
+    public async Task BeginImportAsync_ExistingProcessingRow_StillReusesTheInFlightToken()
+    {
+        var media = new Media { Id = Guid.NewGuid(), FilePath = "/downloads/song.kit", Title = "Song Title", Status = MediaStatus.Downloading };
+        _repository.FindByFilePathAsync("/downloads/song.kit").Returns((Media?)null);
+        _mediaService.CreateAsync(Arg.Any<Media>()).Returns(media);
+        var request = new MediaImportRequest { FilePath = "/downloads/song.kit", Title = "Song Title" };
+        var first = await _service.BeginImportAsync(request);
+
+        // Phase two is still in flight: a token of None here would leave the render uncancellable.
+        media.Status = MediaStatus.Processing;
+        _repository.FindByFilePathAsync("/downloads/song.kit").Returns(media);
+        var second = await _service.BeginImportAsync(request);
+
+        Assert.NotEqual(CancellationToken.None, second.Cancellation);
+
+        await _downloads.CancelAsync(media.Id);
+
+        Assert.True(first.Cancellation.IsCancellationRequested);
+        Assert.True(second.Cancellation.IsCancellationRequested);
+    }
+
+    [Fact]
+    public async Task DiscardImportAsync_ProcessingRow_NeverDeletesIt()
+    {
+        // Phase two is what writes the file, so a Processing row may have a partial on disk —
+        // deleting it here would orphan that file for the folder scan to re-import as Ready.
+        var media = new Media { Id = Guid.NewGuid(), FilePath = "/downloads/song.khv", Title = "Song Title", Status = MediaStatus.Processing };
+        _mediaService.ReadAsync(media.Id).Returns(media);
+
+        await _service.DiscardImportAsync(media.Id);
+
+        await _mediaService.DidNotReceive().DeleteAsync(Arg.Any<Guid>());
+    }
+
+    [Fact]
     public async Task DiscardImportAsync_DownloadingRow_DeletesIt()
     {
         var media = new Media { Id = Guid.NewGuid(), FilePath = "/downloads/song.mp4", Title = "Song Title", Status = MediaStatus.Downloading };

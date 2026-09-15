@@ -4,6 +4,7 @@
 @using KHost.UserInterface.Models
 @using KHost.UserInterface.Services
 @using KHost.Common.Chronography
+@using KHost.Common.Media
 
 <div class="kh-selected-singer-info-panel kh-card">
     <div class="kh-card__header">
@@ -108,7 +109,7 @@
                         var disablePlay = PlaybackService?.CurrentPerformance != null;
                         _mediaCache.TryGetValue(performance.MediaId, out var rowMedia);
                         var isBroken = rowMedia?.Status == MediaStatus.Broken;
-                        var isDownloading = rowMedia?.Status == MediaStatus.Downloading;
+                        var isAcquiring = rowMedia?.Status.IsAcquiring() == true;
                         var isReady = rowMedia?.Status == MediaStatus.Ready;
 
                         <tr class="kh-selected-singer-info-panel__row @rowClass @(isCurrent && PlaybackService?.State == PlaybackState.Playing ? "kh-selected-singer-info-panel__row--playing" : "")"
@@ -160,12 +161,12 @@
                                 <SplitButton
                                         Title="@(isBroken
                                             ? "This song is marked broken and can't be played"
-                                            : isDownloading ? "This song is still downloading"
+                                            : isAcquiring ? "This song is still downloading"
                                             : disablePlay ? "Cannot Load and Play while another Song is loaded" : "Load and Play Song")"
                                         PrimaryDisabled="@(disablePlay || !isReady)"
                                         @onclick="() => LoadAndPlayAsync(performance)">
                                      <Text>
-                                        @if (isDownloading)
+                                        @if (isAcquiring)
                                         {
                                             <Loader Type="Loader.LoaderType.Spinner" />
                                         }
