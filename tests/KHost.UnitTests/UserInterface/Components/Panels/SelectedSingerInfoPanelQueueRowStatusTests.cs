@@ -73,6 +73,20 @@ public class SelectedSingerInfoPanelQueueRowStatusTests : BunitContext
     }
 
     [Fact]
+    public void ProcessingMedia_ShowsSpinnerInsteadOfPlay_AndDisablesTheButton()
+    {
+        _media.Status = MediaStatus.Processing;
+
+        var panel = Render<SelectedSingerInfoPanel>();
+
+        var button = panel.Find(PlayButtonSelector);
+
+        Assert.NotEmpty(panel.FindAll($"{PlayButtonSelector} .kh-loader__spinner"));
+        Assert.Empty(panel.FindAll($"{PlayButtonSelector} .bi-play-fill"));
+        Assert.True(button.HasAttribute("disabled"));
+    }
+
+    [Fact]
     public void ReadyMedia_ShowsThePlayIcon_AndEnablesTheButton()
     {
         _media.Status = MediaStatus.Ready;
