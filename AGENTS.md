@@ -96,6 +96,21 @@ code it offers the screens.
   composes `ISingerQueueService.SelectedUserId` with `IPerformanceService.CreateAndEnqueueAsync`,
   because `SingerQueueService` already depends on `IPerformanceService` and folding the pair into
   either one closes a constructor cycle.
+- **An acquisition has two phases, and `Processing` is the second half of `Downloading`, not a
+  different kind of state.** A provider that has to turn the bytes into something playable — KaraFun
+  renders a `.kit`'s stems and timing into a `.khv` through ffmpeg, a real transcode — calls
+  `BeginProcessingAsync(mediaId)` when the download is in and verified. That is the only transition
+  a plugin may make besides the three settles, it moves only a `Downloading` row, and it leaves the
+  `IDownloadsService` entry alone: the entry says in-flight-or-settled, the row says which phase, so
+  `DownloadState` needs no member for it and the two still move together. Ask
+  `MediaStatuses.IsAcquiring()` (`Common/Media/`) rather than `== MediaStatus.Downloading` —
+  spelling "in flight" as phase one strands a row that reached phase two, which is what the startup
+  sweep, the cancellation token and the dequeue cancel each want. `MediaStatuses.Acquiring` is the
+  same question as data, for the sweep's EF query, which cannot call an extension method.
+  `DiscardImportAsync` is the deliberate exception and stays `Downloading`-only: phase two is what
+  writes the file, so a row that reached it may have a partial on disk and has to go `Broken`
+  instead of being deleted out from under a file the folder scan would re-import as `Ready`.
+  Splitting the phase is what makes that guard mean what it already claimed.
 - A plugin that needs a value it must not persist — a login it will trade for a session key and
   hold only in memory — injects `IInteractionDispatcher` (same as the host) and sends a
   `TextPromptRequest`. Unlike a plugin setting, nothing in that round trip ever reaches
