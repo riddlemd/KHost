@@ -67,17 +67,15 @@ public interface IMediaAcquisitionService
     Task FailImportAsync(Guid mediaId);
 
     /// <summary>
-    /// Removes a row begun with <see cref="BeginImportAsync"/> whose download was cancelled before
-    /// any file survived. Call this ONLY after verifying no destination file remains on disk — a
-    /// row is deleted here only while it is still Downloading (never once it is Ready or Broken),
-    /// so that a file left behind by a cancel can never be silently unregistered. If any file
-    /// remains, call <see cref="FailImportAsync"/> instead so the row stays Broken.
+    /// Removes a row begun with <see cref="BeginImportAsync"/> whose download was cancelled, in
+    /// either phase — delete any partial file first. The host checks
+    /// <see cref="MediaImportRequest.FilePath"/> itself rather than taking the caller's word: with
+    /// nothing there the row goes, and a row whose file outlived the cancel is kept as Broken
+    /// instead. So a file can never be left on disk with no row pointing at it, whatever the
+    /// caller believes it cleaned up, and a delete that quietly failed shows up as a Broken row
+    /// rather than as a file the folder scan re-imports later as Ready.
     ///
-    /// Downloading and not <see cref="BeginProcessingAsync"/>'s Processing, though both are in
-    /// flight: phase one is the only one that can promise nothing was written yet, since phase two
-    /// is what writes the file. A cancelled render leaves a partial behind and belongs in
-    /// <see cref="FailImportAsync"/>, or the row would be deleted out from under a file the
-    /// folder scan would later re-import as Ready.
+    /// A settled row (Ready or Broken) is left alone entirely.
     /// </summary>
     Task DiscardImportAsync(Guid mediaId);
 
