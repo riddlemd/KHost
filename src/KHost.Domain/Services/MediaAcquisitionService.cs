@@ -129,9 +129,7 @@ public class MediaAcquisitionService : BaseService, IMediaAcquisitionService
 
     public Task CompleteImportAsync(Guid mediaId) => SettleAsync(mediaId, MediaStatus.Ready, DownloadState.Completed);
 
-    public Task FailImportAsync(Guid mediaId) => FailImportAsync(mediaId, reason: null);
-
-    public Task FailImportAsync(Guid mediaId, string? reason)
+    public Task FailImportAsync(Guid mediaId, string? reason = null)
         => SettleAsync(mediaId, MediaStatus.Broken, DownloadState.Failed, reason);
 
     public async Task DiscardImportAsync(Guid mediaId)
