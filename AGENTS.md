@@ -349,10 +349,21 @@ change the same way the marquee is.
 - An auto margin on the cross axis switches off a flex item's stretch, so `max-width` + `margin-inline: auto` leaves a card at its content width until you also give it `width: 100%`.
 - A flex item needs `min-width: 0` as well as `white-space: nowrap` before it will truncate; without it, it pushes its neighbours off the row instead.
 - A modifier that turns a filled control into an outline one has to clear the fill as well as the border and text: `.kh-button` sets a `--kh-primary` gradient, so overriding only the two left `--outline-danger` painting a solid primary background under red text. Nor is `--kh-primary` a safe stand-in for "active" — a theme may make it a neutral (famicom's is the console's grey plastic), so a state carried by hue alone stops reading. This is why every toggle is a checkbox: `.kh-form-check-input` fills with `--kh-primary` but says "on" with a check glyph, which survives a theme whose brand colour is grey. Use `--kh-danger-bright` rather than `--kh-danger-text-subtle` for danger text, which these dark themes define for exactly that.
-- A `.kh-note` explains **one control, and sits directly under it** — in the field's own markup or
-  as the next sibling, never after a run of rows carrying a fact about each. A row followed by one
-  gives up its bottom margin (`&__row:has(+ .kh-note)`), or the two margins collapse and the note
-  ends up as far from the field it explains as from the next one down. There is deliberately no
+- A `.kh-note` explains **one control, and sits directly under it** — never after a run of rows
+  carrying a fact about each. In a label-beside-control row it goes **inside the label's own
+  column** (`<span class="kh-venue-settings__labelled">` around the label and the note, or inside
+  the `.kh-form-check-label` for a checkbox), which is the shape `.kh-app-settings__row` keeps.
+  Left as the row's next sibling it is flush to the *row box* but not to the *label*: the control
+  sets the row's height, so the note lands a control's worth below the words it explains, and that
+  gap is what makes it read as a paragraph between rows rather than as part of the field. A note
+  that has no label column to join — one under a stacked `&__field`, or one about a whole section —
+  stays a sibling `<p>`, and then the row above gives up its bottom margin
+  (`&__row:has(+ .kh-note)`) so the two still meet. **`.kh-note` and `.kh-app-settings__apply` are
+  the same idea and share their type**: `display: block`, `0.75rem` at `1.5`, in
+  `--kh-text-muted`. Two sizes of muted hint is a difference that says nothing, so move them
+  together or not at all. The note's space *below* is a `rem` rather than an `em` — it stands in for
+  the row's own `margin-bottom`, and in the note's smaller `em` it would shrink, leaving a row with
+  a note under it closer to the next row than one without. There is deliberately no
   quieter half of a note: the ladder is `--kh-text`, `--kh-text-secondary`, `--kh-text-muted`, and a
   note already sits on the dimmest rung, so every colour left to pick is brighter — an "aside"
   emphasised the detail it meant to play down. A note needing two voices is a note saying too much.
