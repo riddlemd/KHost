@@ -33,6 +33,24 @@ public interface IDownloadsService
     /// <summary>Moves an active entry to a terminal state and into the recent list. No-op for an id with no active entry.</summary>
     void Settle(Guid mediaId, DownloadState state);
 
+    /// <summary>
+    /// Settles with a short reason the Downloads page shows beside the state — what a host needs
+    /// to decide whether to try again, not a stack trace.
+    /// </summary>
+    void Settle(Guid mediaId, DownloadState state, string? reason);
+
+    /// <summary>
+    /// Says which half of the acquisition is now running, so the page can stop reading a render's
+    /// progress as a download's. Unknown or settled ids are a silent no-op.
+    /// </summary>
+    void ReportPhase(Guid mediaId, DownloadPhase phase);
+
+    /// <summary>
+    /// Progress as a byte count rather than a bare fraction, so the page can show how much of how
+    /// much. <paramref name="totalBytes"/> null means the size is unknown and only the count shows.
+    /// </summary>
+    void ReportProgress(Guid mediaId, long bytesReceived, long? totalBytes);
+
     /// <summary>Records progress for an active download. Fraction is clamped to [0,1]; unknown/settled ids are a silent no-op.</summary>
     void ReportProgress(Guid mediaId, double fraction);
 }

@@ -103,7 +103,18 @@ code it offers the screens.
   a plugin may make besides the three settles, it moves only a `Downloading` row, and it leaves the
   `IDownloadsService` entry alone: the entry says in-flight-or-settled, the row says which phase, so
   `DownloadState` needs no member for it and the two still move together. Ask
-  `MediaStatuses.IsAcquiring()` (`Common/Media/`) rather than `== MediaStatus.Downloading` —
+  The download entry carries a `DownloadPhase` alongside its unchanged `Downloading` state, set by
+  `MediaAcquisitionService` when it moves the row, so the Downloads page names which half a
+  percentage is measuring instead of reporting a render as a download. Changing phase clears the
+  progress with it — each half measures its own work, and a carried-over fraction would show the
+  render starting wherever the fetch stopped. A provider that counts bytes reports them with the
+  byte overload of `ReportDownloadProgressAsync` and the page shows how much of how much; one that
+  cannot still moves a count with an indeterminate bar. `FailImportAsync` takes an optional reason
+  the page shows beside the failure — a line a host can act on, never a stack trace. Both are
+  **overloads, never changed signatures**: a plugin binary built against an older contract calls
+  the old method, and altering one in place would break it at runtime without
+  `PluginApi.CurrentVersion` moving to say so.
+  Ask `MediaStatuses.IsAcquiring()` (`Common/Media/`) rather than `== MediaStatus.Downloading` —
   spelling "in flight" as phase one strands a row that reached phase two, which is what the startup
   sweep, the cancellation token and the dequeue cancel each want. `MediaStatuses.Acquiring` is the
   same question as data, for the sweep's EF query, which cannot call an extension method.

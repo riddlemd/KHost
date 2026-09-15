@@ -258,6 +258,50 @@ public class MediaAcquisitionServiceTests
     }
 
     [Fact]
+    public async Task BeginProcessingAsync_MovesTheDownloadEntryToTheProcessingPhase()
+    {
+        var media = new Media { Id = Guid.NewGuid(), FilePath = "/downloads/song.kit", Title = "Song Title", Status = MediaStatus.Downloading };
+        _repository.FindByFilePathAsync("/downloads/song.kit").Returns((Media?)null);
+        _mediaService.CreateAsync(Arg.Any<Media>()).Returns(media);
+        await _service.BeginImportAsync(new MediaImportRequest { FilePath = "/downloads/song.kit", Title = "Song Title" });
+        _mediaService.ReadAsync(media.Id).Returns(media);
+
+        await _service.BeginProcessingAsync(media.Id);
+
+        // The row and the entry move together — the page reads the phase off the entry.
+        Assert.Equal(DownloadPhase.Processing, _downloads.Snapshot().Single(d => d.MediaId == media.Id).Phase);
+    }
+
+    [Fact]
+    public async Task FailImportAsync_WithAReason_PutsItOnTheDownloadEntry()
+    {
+        var media = new Media { Id = Guid.NewGuid(), FilePath = "/downloads/song.kit", Title = "Song Title", Status = MediaStatus.Downloading };
+        _repository.FindByFilePathAsync("/downloads/song.kit").Returns((Media?)null);
+        _mediaService.CreateAsync(Arg.Any<Media>()).Returns(media);
+        await _service.BeginImportAsync(new MediaImportRequest { FilePath = "/downloads/song.kit", Title = "Song Title" });
+        _mediaService.ReadAsync(media.Id).Returns(media);
+
+        await _service.FailImportAsync(media.Id, "ffmpeg exited 1");
+
+        Assert.Equal("ffmpeg exited 1", _downloads.Snapshot().Single(d => d.MediaId == media.Id).Reason);
+    }
+
+    [Fact]
+    public async Task ReportDownloadProgressAsync_InBytes_ReachesTheDownloadEntry()
+    {
+        var media = new Media { Id = Guid.NewGuid(), FilePath = "/downloads/song.kit", Title = "Song Title", Status = MediaStatus.Downloading };
+        _repository.FindByFilePathAsync("/downloads/song.kit").Returns((Media?)null);
+        _mediaService.CreateAsync(Arg.Any<Media>()).Returns(media);
+        await _service.BeginImportAsync(new MediaImportRequest { FilePath = "/downloads/song.kit", Title = "Song Title" });
+
+        await _service.ReportDownloadProgressAsync(media.Id, 512L, 1024L);
+
+        var entry = _downloads.Snapshot().Single(d => d.MediaId == media.Id);
+        Assert.Equal(512L, entry.BytesReceived);
+        Assert.Equal(0.5, entry.Progress);
+    }
+
+    [Fact]
     public async Task CompleteImportAsync_ExistingRow_SetsStatusToReady()
     {
         var media = new Media { Id = Guid.NewGuid(), FilePath = "/downloads/song.mp4", Title = "Song Title", Status = MediaStatus.Downloading };
