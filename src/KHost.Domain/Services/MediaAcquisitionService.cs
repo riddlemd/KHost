@@ -128,12 +128,22 @@ public class MediaAcquisitionService : BaseService, IMediaAcquisitionService
 
         var media = await _mediaService.ReadAsync(mediaId);
 
-        // Ready and Broken rows are never deleted here — only a still-Downloading row can be,
-        // which is the caller's proof (per the import contract) that no file survived the cancel.
-        // Not IsAcquiring: Processing is the phase that writes the file, so a row that reached it
-        // may have a partial on disk and has to go Broken instead of vanishing out from under it.
-        if (media is null || media.Status != MediaStatus.Downloading)
+        // Ready and Broken rows are never deleted here — only one still in flight, in either phase.
+        if (media is null || !media.Status.IsAcquiring())
             return;
+
+        // The file is what the status used to stand in for, and the host can just look. A row
+        // whose file outlived the cancel keeps the row: deleting it would leave the file on disk
+        // with nothing pointing at it, for the folder scan to find later and import as Ready.
+        if (File.Exists(media.FilePath))
+        {
+            Logger.LogWarning("Keeping media {MediaId} as Broken: {FilePath} outlived the cancel", mediaId, media.FilePath);
+
+            media.Status = MediaStatus.Broken;
+            await _mediaService.UpdateAsync(media);
+
+            return;
+        }
 
         await _mediaService.DeleteAsync(mediaId);
     }
