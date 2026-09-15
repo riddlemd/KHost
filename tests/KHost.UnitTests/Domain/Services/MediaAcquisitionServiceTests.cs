@@ -398,22 +398,53 @@ public class MediaAcquisitionServiceTests
     }
 
     [Fact]
-    public async Task DiscardImportAsync_ProcessingRow_NeverDeletesIt()
+    public async Task DiscardImportAsync_ProcessingRowWhoseFileIsGone_DeletesIt()
     {
-        // Phase two is what writes the file, so a Processing row may have a partial on disk —
-        // deleting it here would orphan that file for the folder scan to re-import as Ready.
-        var media = new Media { Id = Guid.NewGuid(), FilePath = "/downloads/song.khv", Title = "Song Title", Status = MediaStatus.Processing };
+        // A cancelled render that cleaned up after itself is as discardable as a cancelled
+        // download: what decides is the file, not which phase it reached.
+        var media = new Media { Id = Guid.NewGuid(), FilePath = NoSuchPath(), Title = "Song Title", Status = MediaStatus.Processing };
         _mediaService.ReadAsync(media.Id).Returns(media);
 
         await _service.DiscardImportAsync(media.Id);
 
-        await _mediaService.DidNotReceive().DeleteAsync(Arg.Any<Guid>());
+        await _mediaService.Received(1).DeleteAsync(media.Id);
+    }
+
+    [Theory]
+    [InlineData(MediaStatus.Downloading)]
+    [InlineData(MediaStatus.Processing)]
+    public async Task DiscardImportAsync_FileOutlivedTheCancel_KeepsTheRowAsBroken(MediaStatus status)
+    {
+        // Whatever the caller believed it deleted, the file is still there — and a file with no
+        // row pointing at it is one the folder scan imports again later as Ready.
+        var file = NewTempFile();
+        try
+        {
+            var media = new Media { Id = Guid.NewGuid(), FilePath = file, Title = "Song Title", Status = status };
+            _mediaService.ReadAsync(media.Id).Returns(media);
+
+            await _service.DiscardImportAsync(media.Id);
+
+            await _mediaService.DidNotReceive().DeleteAsync(Arg.Any<Guid>());
+            await _mediaService.Received(1).UpdateAsync(Arg.Is<Media>(m => m.Id == media.Id && m.Status == MediaStatus.Broken));
+        }
+        finally { File.Delete(file); }
+    }
+
+    private static string NoSuchPath()
+        => Path.Combine(Path.GetTempPath(), $"khost-absent-{Guid.NewGuid():N}.khv");
+
+    private static string NewTempFile()
+    {
+        var path = NoSuchPath();
+        File.WriteAllText(path, "half a download");
+        return path;
     }
 
     [Fact]
     public async Task DiscardImportAsync_DownloadingRow_DeletesIt()
     {
-        var media = new Media { Id = Guid.NewGuid(), FilePath = "/downloads/song.mp4", Title = "Song Title", Status = MediaStatus.Downloading };
+        var media = new Media { Id = Guid.NewGuid(), FilePath = NoSuchPath(), Title = "Song Title", Status = MediaStatus.Downloading };
         _mediaService.ReadAsync(media.Id).Returns(media);
 
         await _service.DiscardImportAsync(media.Id);
