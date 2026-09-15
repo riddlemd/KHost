@@ -107,10 +107,11 @@ code it offers the screens.
   spelling "in flight" as phase one strands a row that reached phase two, which is what the startup
   sweep, the cancellation token and the dequeue cancel each want. `MediaStatuses.Acquiring` is the
   same question as data, for the sweep's EF query, which cannot call an extension method.
-  `DiscardImportAsync` is the deliberate exception and stays `Downloading`-only: phase two is what
-  writes the file, so a row that reached it may have a partial on disk and has to go `Broken`
-  instead of being deleted out from under a file the folder scan would re-import as `Ready`.
-  Splitting the phase is what makes that guard mean what it already claimed.
+  `DiscardImportAsync` takes a row in either phase and asks the question the status was standing
+  in for: it reads `FilePath` itself rather than trusting the caller, deleting the row only when
+  nothing is there and keeping it as `Broken` when a file outlived the cancel. So a partial can
+  never be left on disk with no row pointing at it — which is what the folder scan would later
+  import as `Ready` — and a cleanup that quietly failed surfaces as a `Broken` row instead.
 - A plugin that needs a value it must not persist — a login it will trade for a session key and
   hold only in memory — injects `IInteractionDispatcher` (same as the host) and sends a
   `TextPromptRequest`. Unlike a plugin setting, nothing in that round trip ever reaches
