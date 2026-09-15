@@ -145,24 +145,27 @@
                 </div>
 
                 <div class="kh-venue-settings__row">
-                    <label for="venue-qr-safe-zone" class="kh-form-label">Safe zone</label>
+                    <span class="kh-venue-settings__labelled">
+                        <label for="venue-qr-safe-zone" class="kh-form-label">Safe zone</label>
+                        <span class="kh-note">
+                            The white around the code, measured in the code&rsquo;s own squares.
+                        </span>
+                    </span>
                     <InputNumber id="venue-qr-safe-zone" class="kh-form-control" min="0" max="8"
                                  @bind-Value="_model.QrCodeSafeZone" />
                 </div>
-                <p class="kh-note">
-                    The white around the code, measured in the code&rsquo;s own squares.
-                    0 leaves it to the screen.
-                </p>
 
                 <div class="kh-venue-settings__row">
-                    <label for="venue-qr-offset" class="kh-form-label">Offset</label>
+                    <span class="kh-venue-settings__labelled">
+                        <label for="venue-qr-offset" class="kh-form-label">Offset</label>
+                        <span class="kh-note">
+                            Pushes the code in from the edges it sits against, as a percentage of
+                            the screen&rsquo;s shorter side.
+                        </span>
+                    </span>
                     <InputNumber id="venue-qr-offset" class="kh-form-control" min="0" max="20" step="0.1"
                                  @bind-Value="_model.QrCodeOffset" />
                 </div>
-                <p class="kh-note">
-                    Pushes the code in from the edges it sits against, as a percentage of the
-                    screen&rsquo;s shorter side. 0 leaves it to the screen.
-                </p>
 
                 <label class="kh-venue-settings__row kh-form-check">
                     <span class="kh-form-check-label">Hide codes while someone is singing</span>
@@ -213,9 +216,6 @@
                               OpenWhenEmpty="true"
                               Placeholder="None — silence between singers" />
                 </div>
-                <p class="kh-note">
-                    Built under Settings &rsaquo; Break Music Manager.
-                </p>
                 }
 
                 <div class="kh-venue-settings__row">
@@ -231,19 +231,18 @@
                               OpenWhenEmpty="true"
                               Placeholder="None — this venue runs no ads" />
                 </div>
-                <p class="kh-note">
-                    Built under Settings &rsaquo; Ads Manager.
-                </p>
 
                 <label class="kh-venue-settings__row kh-form-check">
-                    <span class="kh-form-check-label">Name the break music on screen</span>
+                    <span class="kh-form-check-label">
+                        Name the break music on screen
+                        <span class="kh-note">
+                            Only while it is actually playing &mdash; it comes down for a singer,
+                            and for a pause.
+                        </span>
+                    </span>
                     <input id="venue-break-music-card" type="checkbox" class="kh-form-check-input"
                            @bind="_model.BreakMusicCardEnabled" />
                 </label>
-                <p class="kh-note">
-                    Only while it is actually playing &mdash; it comes down for a singer, and for a
-                    pause.
-                </p>
 
                 @if (_model.BreakMusicCardEnabled)
                 {

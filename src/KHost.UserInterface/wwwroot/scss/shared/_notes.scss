@@ -19,17 +19,27 @@
    so the same note reads differently over a card than over a dialog, and the themes here already
    carry a colour that means "say this quietly". */
 .kh-note {
-    /* Space on both sides of it. Closer above than below, so it reads as belonging to the control
-       it explains rather than to the one after — and there has to be something below, or the next
-       row butts straight against the last line of the sentence. */
-    margin: 0.4em 0 0.9em;
+    /* Block on purpose. A note under a label is a <span> inside that label's column — the same
+       shape .kh-app-settings__apply has, and for the same reason — so it cannot rely on <p>. */
+    display: block;
+
+    /* Nothing above it. The App Settings page says the same kind of thing in
+       .kh-app-settings__apply — a hint sitting hard under the control's own label, no gap at all —
+       and that reads as belonging to the field in a way a floated paragraph does not.
+
+       The space below is a rem, not an em. It stands in for the row's own margin-bottom, which is
+       1em of the row's 14px — expressed in the note's smaller em it would shrink, and a row with a
+       note under it would sit closer to the next row than one without. */
+    margin: 0 0 1rem;
     color: var(--kh-text-muted);
-    font-size: 0.82rem;
 
-    /* Notes are sentences, not labels: they wrap, and wrapped rows of small text need more room
-       between them than a control label does. */
-    line-height: 1.45;
+    /* The same size and leading as .kh-app-settings__apply, which is the other half of this idea
+       and the one a host sees most often. Two sizes of muted hint is a difference that says
+       nothing. */
+    font-size: 0.75rem;
+    line-height: 1.5;
 
+    /* Two notes in a row still need telling apart; only the field above gets the tight join. */
     + .kh-note {
         margin-top: 0.5em;
     }

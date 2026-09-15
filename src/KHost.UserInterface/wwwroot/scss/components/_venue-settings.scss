@@ -36,6 +36,17 @@
         white-space: nowrap;
     }
 
+    // A label with its note under it, as one block, so the control beside them centres against the
+    // pair. A note left as the row's next sibling is flush to the row box but not to the label —
+    // the control sets the row's height, so the note lands a control's worth below the words it
+    // explains. This is the shape .kh-app-settings__row keeps, and the reason its hints read as
+    // belonging to their field.
+    &__labelled {
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+    }
+
     &__row {
         display: flex;
         align-items: center;
@@ -55,6 +66,12 @@
         // the next one down, which reads as belonging to neither.
         &:has(+ .kh-note) {
             margin-bottom: 0;
+        }
+
+        // A note inside the row is part of a label's column, and the column's own stacking is all
+        // the space it needs — its margin is for the case where it follows the row instead.
+        .kh-note {
+            margin: 0;
         }
 
         .kh-form-control {
