@@ -40,9 +40,11 @@
     &__queued-badge {
         display: inline-flex;
         align-items: center;
-        gap: 0.4em;
+
+        // No gap and even padding: the badge holds one glyph, so the pill is round rather than a
+        // capsule sized for a name that is no longer in it.
         margin-left: 0.75em;
-        padding: 0.15em 0.6em;
+        padding: 0.2em 0.35em;
         border-radius: 999px;
         font-size: 0.72rem;
         vertical-align: middle;
