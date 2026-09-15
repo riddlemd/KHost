@@ -62,9 +62,34 @@ public class LocalMediaProvider : BaseService, IMediaProvider
         ];
     }
 
+    /// <summary>
+    /// The <see cref="MediaSearchEntity.Fields"/> key carrying a row's own <see cref="Media.Source"/>
+    /// — the provider that produced the file. Not <see cref="MediaSearchEntity.Source"/>, which
+    /// names whoever answered the search: here that is always this provider, and it would say
+    /// "Local" on every row whatever the file's origin.
+    /// </summary>
+    public const string OriginKey = "origin";
+
     public string DisplayName => "Local";
 
     public string SourceName => nameof(LocalMediaProvider);
+
+    /// <summary>
+    /// The console's own three, plus where each file came from. Declared in full because declaring
+    /// any column replaces the default set rather than adding to it.
+    /// </summary>
+    /// <remarks>
+    /// Last, so it lands between the length and the actions the console appends after the final
+    /// column. Droppable, and rightmost of the droppable ones, so a narrow panel loses it before
+    /// anything a host is choosing between.
+    /// </remarks>
+    public IReadOnlyList<MediaResultColumn> Columns =>
+    [
+        new() { Key = MediaResultColumn.TitleKey, Header = "Title" },
+        new() { Key = MediaResultColumn.ArtistKey, Header = "Artist", Essential = false },
+        new() { Key = MediaResultColumn.DurationKey, Header = "Duration" },
+        new() { Key = OriginKey, Header = "Source", Essential = false },
+    ];
 
     public IEnumerable<MediaProviderAction> Actions { get; }
 
@@ -127,6 +152,7 @@ public class LocalMediaProvider : BaseService, IMediaProvider
                 Source = SourceName,
                 Duration = media.Duration,
                 ForeignKey = media.Id.ToString(),
+                Fields = new Dictionary<string, string> { [OriginKey] = media.Source },
                 SupportedActions = Actions
             })];
     }

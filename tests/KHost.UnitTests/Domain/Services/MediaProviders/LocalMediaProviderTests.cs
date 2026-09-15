@@ -116,6 +116,56 @@ public class LocalMediaProviderTests
         Assert.Equal("LocalMediaProvider", result[0].Source);
     }
 
+    /// <summary>
+    /// The row's own provider, which is a different question from who answered the search — that
+    /// one is this provider on every local result, whatever produced the file.
+    /// </summary>
+    [Fact]
+    public async Task SearchAsync_CarriesTheRowsOwnSource_SeparatelyFromTheSearchsSource()
+    {
+        _mediaStore.Add(new Media { Title = "Track", Artist = "Artist", FilePath = "/a.khv", Source = "Example" });
+
+        var result = await _service.SearchAsync("Track");
+
+        Assert.Equal("Example", result[0].Fields[LocalMediaProvider.OriginKey]);
+        Assert.Equal("LocalMediaProvider", result[0].Source);
+    }
+
+    /// <summary>A file the host found on its own disk names no provider, and the cell reads empty.</summary>
+    [Fact]
+    public async Task SearchAsync_RowWithNoSource_CarriesAnEmptyOrigin()
+    {
+        _mediaStore.Add(new Media { Title = "Track", Artist = "Artist", FilePath = "/a.mp3" });
+
+        var result = await _service.SearchAsync("Track");
+
+        Assert.Equal(string.Empty, result[0].Fields[LocalMediaProvider.OriginKey]);
+    }
+
+    /// <summary>
+    /// The console appends the actions after the final column, so the source has to be last to sit
+    /// beside them — and declaring any column replaces the default set, so all four are named.
+    /// </summary>
+    [Fact]
+    public void Columns_PutTheSourceLast_SoItLandsBesideTheActions()
+    {
+        var columns = _service.Columns;
+
+        Assert.Equal(
+            [MediaResultColumn.TitleKey, MediaResultColumn.ArtistKey, MediaResultColumn.DurationKey, LocalMediaProvider.OriginKey],
+            columns.Select(c => c.Key));
+
+        Assert.Equal("Source", columns[^1].Header);
+    }
+
+    /// <summary>
+    /// Shed before anything a host chooses between. It is the rightmost droppable column, which is
+    /// the order the panel sheds in.
+    /// </summary>
+    [Fact]
+    public void Columns_TheSourceIsDroppable_OnANarrowPanel()
+        => Assert.False(_service.Columns[^1].Essential);
+
     [Fact]
     public async Task SearchAsync_SetsForeignKey_ToMediaIdString()
     {
