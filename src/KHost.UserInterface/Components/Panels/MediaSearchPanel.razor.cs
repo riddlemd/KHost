@@ -239,6 +239,13 @@ public partial class MediaSearchPanel : IDisposable
                 group => group.Select(performance => singerNames[performance.SingerId]).Distinct().ToList());
     }
 
+    /// <summary>
+    /// Every name, not a count: the badge shows only its glyph, so this is the one place a host
+    /// can find out who — from the hover, or from a screen reader reading the same words.
+    /// </summary>
+    private static string QueuedByLabel(IReadOnlyList<string> queuedBy)
+        => $"Already queued by {string.Join(", ", queuedBy)}";
+
     private List<string> GetSingersWithMediaQueued(string foreignKey, string source)
     {
         if (!source.Equals(nameof(LocalMediaProvider), StringComparison.InvariantCultureIgnoreCase))

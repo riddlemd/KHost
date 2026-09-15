@@ -179,10 +179,14 @@
 
                                             @if (i == MediaResultColumnSet.PrimaryIndex(columns) && queuedBy.Count > 0)
                                             {
+                                                @* The glyph alone. Who has it queued is in the title,
+                                                   and a name repeated beside the song it is queued
+                                                   against says nothing the hover does not. *@
                                                 <span class="kh-badge kh-badge--info kh-media-search-panel__queued-badge"
-                                                      title="@($"Already queued by {string.Join(", ", queuedBy)}")">
+                                                      title="@QueuedByLabel(queuedBy)"
+                                                      aria-label="@QueuedByLabel(queuedBy)"
+                                                      role="img">
                                                     <Icon Name="person-check-fill" />
-                                                    @(queuedBy.Count == 1 ? queuedBy[0] : $"{queuedBy[0]} +{queuedBy.Count - 1}")
                                                 </span>
                                             }
                                         </td>

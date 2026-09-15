@@ -227,5 +227,13 @@ public class MediaSearchPanelColumnsTests : BunitContext
 
         // -1 would mean the badge vanished entirely; 0 would mean it landed on the thumbnail.
         Assert.Equal(1, badgeCell);
+
+        // The glyph alone. The name is in the title, where a host who wants it can hover, and
+        // beside the song it is queued against it only repeats what the hover already says.
+        var badge = cells[badgeCell].QuerySelector(BadgeSelector)!;
+
+        Assert.DoesNotContain("Mike", badge.TextContent);
+        Assert.Equal("Already queued by Mike", badge.GetAttribute("title"));
+        Assert.Equal("Already queued by Mike", badge.GetAttribute("aria-label"));
     }
 }
