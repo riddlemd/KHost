@@ -222,6 +222,25 @@ public class DatabaseInitializerTests
     }
 
     [Fact]
+    public async Task SweepStalledDownloadsAsync_FlipsProcessingRowsToBroken()
+    {
+        var (factory, dbPath) = NewDatabase();
+        try
+        {
+            // A row left mid-render is as stalled as one left mid-download: nothing survives the
+            // process to finish it, and nothing else in the app can move it out of Processing.
+            SeedMedia(factory, ("rendering.khv", MediaStatus.Processing));
+            var sut = CreateSut(new ServiceOptions(), factory);
+
+            await sut.SweepStalledDownloadsAsync();
+
+            using var context = factory.CreateDbContext();
+            Assert.Equal(MediaStatus.Broken, context.Media.Single(m => m.FilePath == "rendering.khv").Status);
+        }
+        finally { Delete(dbPath); }
+    }
+
+    [Fact]
     public async Task SweepStalledDownloadsAsync_NeverDeletesTheRow()
     {
         var (factory, dbPath) = NewDatabase();

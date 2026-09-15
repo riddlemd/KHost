@@ -46,6 +46,18 @@ public interface IMediaAcquisitionService
     Task ReportDownloadProgressAsync(Guid mediaId, double fraction);
 
     /// <summary>
+    /// Phase two of a download begun with <see cref="BeginImportAsync"/>: the bytes are in, and
+    /// the file is being turned into something playable. Not a settle — the row is still in
+    /// flight, its download entry still reads Downloading, and one of
+    /// <see cref="CompleteImportAsync"/>, <see cref="FailImportAsync"/> or
+    /// <see cref="DiscardImportAsync"/> still has to resolve it. Only a Downloading row moves; an
+    /// unknown or already-settled media id is a silent no-op, so a late call cannot drag a
+    /// finished row back into flight. Optional: a plugin that goes straight from bytes to a
+    /// playable file never calls it and stays Downloading throughout.
+    /// </summary>
+    Task BeginProcessingAsync(Guid mediaId);
+
+    /// <summary>
     /// Marks a row begun with <see cref="BeginImportAsync"/> Ready — the download finished and the
     /// file is playable.
     /// </summary>
@@ -60,6 +72,12 @@ public interface IMediaAcquisitionService
     /// row is deleted here only while it is still Downloading (never once it is Ready or Broken),
     /// so that a file left behind by a cancel can never be silently unregistered. If any file
     /// remains, call <see cref="FailImportAsync"/> instead so the row stays Broken.
+    ///
+    /// Downloading and not <see cref="BeginProcessingAsync"/>'s Processing, though both are in
+    /// flight: phase one is the only one that can promise nothing was written yet, since phase two
+    /// is what writes the file. A cancelled render leaves a partial behind and belongs in
+    /// <see cref="FailImportAsync"/>, or the row would be deleted out from under a file the
+    /// folder scan would later re-import as Ready.
     /// </summary>
     Task DiscardImportAsync(Guid mediaId);
 

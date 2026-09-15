@@ -3,6 +3,7 @@ using KHost.Abstractions.Repositories;
 using KHost.Abstractions.Services;
 using KHost.Abstractions.Messaging;
 using KHost.Abstractions.Messaging.Messages;
+using KHost.Common.Media;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -97,9 +98,23 @@ public class MediaAcquisitionService : BaseService, IMediaAcquisitionService
 
     // A settled row (Ready/Broken) has nothing left to cancel; an in-flight one reuses its
     // registered source rather than handing out a second, unreachable one for the same download.
-    private CancellationToken TokenFor(Media media, MediaImportRequest request) => media.Status == MediaStatus.Downloading
+    private CancellationToken TokenFor(Media media, MediaImportRequest request) => media.Status.IsAcquiring()
         ? _downloadsService.TokenForInFlight(media.Id, request.Title, request.Artist, request.Source)
         : CancellationToken.None;
+
+    public async Task BeginProcessingAsync(Guid mediaId)
+    {
+        var media = await _mediaService.ReadAsync(mediaId);
+
+        // The download entry is deliberately untouched: processing is the download's second phase,
+        // so the entry stays Downloading until one of the settles resolves it.
+        if (media is null || media.Status != MediaStatus.Downloading)
+            return;
+
+        media.Status = MediaStatus.Processing;
+
+        await _mediaService.UpdateAsync(media);
+    }
 
     public Task CompleteImportAsync(Guid mediaId) => SettleAsync(mediaId, MediaStatus.Ready, DownloadState.Completed);
 
@@ -115,6 +130,8 @@ public class MediaAcquisitionService : BaseService, IMediaAcquisitionService
 
         // Ready and Broken rows are never deleted here — only a still-Downloading row can be,
         // which is the caller's proof (per the import contract) that no file survived the cancel.
+        // Not IsAcquiring: Processing is the phase that writes the file, so a row that reached it
+        // may have a partial on disk and has to go Broken instead of vanishing out from under it.
         if (media is null || media.Status != MediaStatus.Downloading)
             return;
 
