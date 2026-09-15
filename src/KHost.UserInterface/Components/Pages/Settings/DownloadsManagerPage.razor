@@ -31,7 +31,7 @@
                             <tr>
                                 <th>Media</th>
                                 <th class="kh-downloads-manager__col--progress">Progress</th>
-                                <th class="kh-downloads-manager__col--started">Started</th>
+                                <th class="kh-downloads-manager__col--started">Elapsed</th>
                                 <th class="kh-downloads-manager__col--actions"></th>
                             </tr>
                         </thead>
@@ -67,8 +67,14 @@
                                         {
                                             <Loader Type="Loader.LoaderType.Spinner" />
                                         }
+                                        <span class="kh-downloads-manager__phase">
+                                            @PhaseLabel(download.Phase)@if (Sizes(download) is { } sizes)
+                                            {
+                                                <text> &middot; @sizes</text>
+                                            }
+                                        </span>
                                     </td>
-                                    <td class="kh-downloads-manager__col--started">@download.StartedUtc.ToLocalTime().ToString("MM/dd/yyyy HH:mm")</td>
+                                    <td class="kh-downloads-manager__col--started">@Elapsed(download)</td>
                                     <td class="kh-table__cell--actions kh-downloads-manager__actions">
                                         <button class="kh-button kh-button--outline-danger kh-button--icon-minimal" title="Cancel" @onclick="() => CancelAsync(download.MediaId)" type="button">
                                             <Icon Name="x-lg" />
@@ -96,6 +102,7 @@
                             <tr>
                                 <th>Media</th>
                                 <th class="kh-downloads-manager__col--state">State</th>
+                                <th>Detail</th>
                                 <th class="kh-downloads-manager__col--started">Started</th>
                             </tr>
                         </thead>
@@ -117,6 +124,7 @@
                                         </div>
                                     </td>
                                     <td><span class="kh-badge @StateBadgeClass(download.State)">@download.State</span></td>
+                                    <td class="kh-downloads-manager__detail" title="@Detail(download)">@Detail(download)</td>
                                     <td class="kh-downloads-manager__col--started">@download.StartedUtc.ToLocalTime().ToString("MM/dd/yyyy HH:mm")</td>
                                 </tr>
                             }

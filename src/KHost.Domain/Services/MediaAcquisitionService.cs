@@ -96,6 +96,12 @@ public class MediaAcquisitionService : BaseService, IMediaAcquisitionService
         return Task.CompletedTask;
     }
 
+    public Task ReportDownloadProgressAsync(Guid mediaId, long bytesReceived, long? totalBytes)
+    {
+        _downloadsService.ReportProgress(mediaId, bytesReceived, totalBytes);
+        return Task.CompletedTask;
+    }
+
     // A settled row (Ready/Broken) has nothing left to cancel; an in-flight one reuses its
     // registered source rather than handing out a second, unreachable one for the same download.
     private CancellationToken TokenFor(Media media, MediaImportRequest request) => media.Status.IsAcquiring()
@@ -113,12 +119,20 @@ public class MediaAcquisitionService : BaseService, IMediaAcquisitionService
 
         media.Status = MediaStatus.Processing;
 
+        // The row and its download entry move together, which is this service's whole job — the
+        // entry stays Downloading and carries the phase, so the page stops reading a render's
+        // progress as a download's.
+        _downloadsService.ReportPhase(mediaId, DownloadPhase.Processing);
+
         await _mediaService.UpdateAsync(media);
     }
 
     public Task CompleteImportAsync(Guid mediaId) => SettleAsync(mediaId, MediaStatus.Ready, DownloadState.Completed);
 
-    public Task FailImportAsync(Guid mediaId) => SettleAsync(mediaId, MediaStatus.Broken, DownloadState.Failed);
+    public Task FailImportAsync(Guid mediaId) => FailImportAsync(mediaId, reason: null);
+
+    public Task FailImportAsync(Guid mediaId, string? reason)
+        => SettleAsync(mediaId, MediaStatus.Broken, DownloadState.Failed, reason);
 
     public async Task DiscardImportAsync(Guid mediaId)
     {
@@ -149,9 +163,9 @@ public class MediaAcquisitionService : BaseService, IMediaAcquisitionService
     }
 
 
-    private async Task SettleAsync(Guid mediaId, MediaStatus status, DownloadState downloadState)
+    private async Task SettleAsync(Guid mediaId, MediaStatus status, DownloadState downloadState, string? reason = null)
     {
-        _downloadsService.Settle(mediaId, downloadState);
+        _downloadsService.Settle(mediaId, downloadState, reason);
 
         var media = await _mediaService.ReadAsync(mediaId);
         if (media is null)
