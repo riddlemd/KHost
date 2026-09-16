@@ -69,10 +69,17 @@
                 display: flex;
                 position: relative;
                 justify-content: center;
+                align-items: center;
                 margin-right: 0.75rem;
                 font-size: 1.5em;
                 min-width: 1em;
                 flex-shrink: 0;
+
+                // The box hugs the glyph. Inherited, the 1.5 line-height made this 31.5px tall
+                // around a 21px circle, and the mark below — anchored to the box — hung five pixels
+                // clear of the avatar it belongs to. The row is sized by the text column beside
+                // this, so tightening it moves nothing else.
+                line-height: 1;
             }
 
             // A singer who joined from a phone. It sits on the avatar rather than beside the name
