@@ -82,6 +82,14 @@ public partial class DownloadsManagerPage : IDisposable
         { BytesReceived: { } received } => Megabytes(received),
     };
 
+    /// <summary>
+    /// Only while the bytes are still arriving. The counts outlive that phase on purpose — a
+    /// settled row reports them — but a render is not measured in the download's megabytes, and a
+    /// count standing still beside a moving bar reads as a stall.
+    /// </summary>
+    private static string? SizesWhileFetching(DownloadInfo download)
+        => download.Phase == DownloadPhase.Fetching ? Sizes(download) : null;
+
     private static string Megabytes(long bytes) => $"{bytes / 1024d / 1024d:0.#} MB";
 
     private static string Elapsed(DownloadInfo download)

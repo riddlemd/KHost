@@ -80,6 +80,7 @@ public partial class MediaSearchPanel : IDisposable
         {
             MediaResultColumnKind.Thumbnail => "kh-media-search-panel__col--thumb",
             MediaResultColumnKind.Duration => "kh-media-search-panel__col--duration",
+            MediaResultColumnKind.Label => "kh-media-search-panel__col--label",
             _ => "kh-media-search-panel__col--text",
         };
 

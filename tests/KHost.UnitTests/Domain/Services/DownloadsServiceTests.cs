@@ -391,4 +391,18 @@ public class DownloadsServiceTests
         Assert.NotNull(_service.Snapshot().Single(d => d.MediaId == _mediaId).SettledUtc);
     }
 
+    [Fact]
+    public void ReportPhase_KeepsTheBytesTheLastPhaseCounted()
+    {
+        _service.Register(_mediaId, "Song", "Artist", "Example");
+        _service.ReportProgress(_mediaId, 24_222_925L, 24_222_925L);
+
+        _service.ReportPhase(_mediaId, DownloadPhase.Processing);
+
+        // The size of what was fetched is still true after the fetch, and is what a settled row
+        // has left to report once the elapsed time is the only other thing known about it.
+        var entry = _service.Snapshot().Single(d => d.MediaId == _mediaId);
+        Assert.Equal(24_222_925L, entry.BytesReceived);
+    }
+
 }
