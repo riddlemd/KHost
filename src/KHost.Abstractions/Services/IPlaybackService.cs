@@ -52,6 +52,14 @@ public interface IPlaybackService : IDisposable
     Performance? CurrentPerformance { get; }
     Media? CurrentMedia { get; }
 
+    /// <summary>
+    /// What to call whoever is singing. Resolved here beside <see cref="CurrentMedia"/> rather
+    /// than by each caller, because the answer is not simply the account's name: a performance
+    /// records the name it was queued under, and the venue decides whether one that differs from
+    /// the singer's own is the one the room sees. Null when nothing is playing.
+    /// </summary>
+    string? CurrentSingerName { get; }
+
     /// <summary>Whether the main channel is carrying an ad rather than a singer's song.</summary>
     bool IsPlayingAd { get; }
     PlaybackState State { get; }

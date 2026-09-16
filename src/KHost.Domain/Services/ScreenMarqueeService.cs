@@ -5,7 +5,6 @@ using KHost.Abstractions.Services;
 using KHost.Abstractions.Services.IPC;
 using Microsoft.Extensions.Logging;
 using KHost.Domain.Services.Screens;
-using KHost.Common.Performances;
 
 namespace KHost.Domain.Services;
 
@@ -117,9 +116,11 @@ public sealed class ScreenMarqueeService : BaseService, IScreenMarqueeService, I
             var next = queued.FirstOrDefault(performance => performance.SingerId == singer.Id);
             var media = next is null ? null : await _media.ReadAsync(next.MediaId);
 
-            // The name comes off the performance they are about to sing, not off the account: on a
-            // song-first remote a guest types it per pick, and the band should say what they typed.
-            var name = next?.DisplayName(singer, aliasesAllowed) ?? singer.Name;
+            // Off the performance they are about to sing rather than off the account: on a
+            // song-first remote a guest types a name per pick, and the band should say what they
+            // typed. Resolved here rather than asked of playback, which owns only the one song
+            // that is playing — every name on this band belongs to a turn that has not started.
+            var name = NameFor(next, singer, aliasesAllowed);
 
             lines.Add(string.IsNullOrWhiteSpace(media?.Title)
                 ? name
@@ -127,6 +128,17 @@ public sealed class ScreenMarqueeService : BaseService, IScreenMarqueeService, I
         }
 
         return lines;
+    }
+
+    /// <summary>
+    /// The name recorded when the song was queued, unless the venue would rather see the singer it
+    /// knows. A singer with nothing queued has no performance to have recorded one.
+    /// </summary>
+    private static string NameFor(Performance? next, KHostUser singer, bool aliasesAllowed)
+    {
+        var recorded = next?.SungAs?.Trim();
+
+        return string.IsNullOrEmpty(recorded) || !aliasesAllowed ? singer.Name : recorded;
     }
 
     /// <summary>Replaces every tag a host may use; one not present in the format is simply not shown.</summary>
