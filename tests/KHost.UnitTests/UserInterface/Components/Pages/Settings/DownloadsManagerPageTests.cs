@@ -15,6 +15,8 @@ public class DownloadsManagerPageTests : BunitContext
     private const string ProgressTrackSelector = ".kh-downloads-manager__progress-track";
     private const string CancelButtonSelector = ".kh-downloads-manager__actions button";
     private const string RecentRowSelector = ".kh-downloads-manager__recent-row";
+    private const string PhaseSelector = ".kh-downloads-manager__phase";
+    private const string DetailSelector = ".kh-downloads-manager__detail";
 
     private readonly IDownloadsService _downloadsService = Substitute.For<IDownloadsService>();
     private readonly IPerformanceService _performanceService = Substitute.For<IPerformanceService>();
@@ -133,4 +135,118 @@ public class DownloadsManagerPageTests : BunitContext
         StartedUtc = DateTime.UtcNow,
         State = state,
     };
+    [Theory]
+    [InlineData(DownloadPhase.Fetching, "Fetching")]
+    [InlineData(DownloadPhase.Processing, "Processing")]
+    public void ActiveEntry_NamesTheHalfItsProgressIsMeasuring(DownloadPhase phase, string expected)
+    {
+        var mediaId = Guid.NewGuid();
+        _downloadsService.Snapshot().Returns([Downloading(mediaId, progress: 0.68) with { Phase = phase }]);
+
+        var cut = Render<DownloadsManagerPage>();
+
+        Assert.Contains(expected, cut.Find(PhaseSelector).TextContent);
+    }
+
+    [Fact]
+    public void ActiveEntry_CountingBytes_ShowsHowMuchOfHowMuch()
+    {
+        var mediaId = Guid.NewGuid();
+        _downloadsService.Snapshot().Returns([Downloading(mediaId, progress: 0.5) with
+        {
+            BytesReceived = 14_889_779,
+            TotalBytes = 24_222_925,
+        }]);
+
+        var cut = Render<DownloadsManagerPage>();
+
+        var phase = cut.Find(PhaseSelector).TextContent;
+        Assert.Contains("14.2 MB", phase);
+        Assert.Contains("23.1 MB", phase);
+    }
+
+    [Fact]
+    public void ActiveEntry_CountingNoBytes_ShowsThePhaseAloneWithNoTrailingSeparator()
+    {
+        var mediaId = Guid.NewGuid();
+        _downloadsService.Snapshot().Returns([Downloading(mediaId, progress: 0.5)]);
+
+        var cut = Render<DownloadsManagerPage>();
+
+        Assert.Equal("Fetching", cut.Find(PhaseSelector).TextContent.Trim());
+    }
+
+    [Fact]
+    public void SettledFailure_ShowsItsReasonRatherThanTheBadgeAlone()
+    {
+        var mediaId = Guid.NewGuid();
+        _downloadsService.Snapshot().Returns([Settled(mediaId, DownloadState.Failed) with
+        {
+            Reason = "checksum did not match",
+            SettledUtc = DateTime.UtcNow,
+        }]);
+
+        var cut = Render<DownloadsManagerPage>();
+
+        Assert.Equal("checksum did not match", cut.Find(DetailSelector).TextContent.Trim());
+    }
+
+    [Fact]
+    public void SettledCompletion_ShowsWhatItCostInstead()
+    {
+        var mediaId = Guid.NewGuid();
+        var started = DateTime.UtcNow.AddSeconds(-124);
+        _downloadsService.Snapshot().Returns([Settled(mediaId, DownloadState.Completed) with
+        {
+            StartedUtc = started,
+            SettledUtc = started.AddSeconds(124),
+            BytesReceived = 24_222_925,
+        }]);
+
+        var cut = Render<DownloadsManagerPage>();
+
+        var detail = cut.Find(DetailSelector).TextContent;
+        Assert.Contains("2:04", detail);
+        Assert.Contains("23.1 MB", detail);
+    }
+
+    [Fact]
+    public void CancelAll_CancelsEveryActiveDownloadAndDequeuesTheirPerformances()
+    {
+        var first = Guid.NewGuid();
+        var second = Guid.NewGuid();
+        _downloadsService.Snapshot().Returns([Downloading(first, 0.1), Downloading(second, 0.2)]);
+        _performanceService.ReadQueuedAsync().Returns(
+        [
+            new Performance { Id = Guid.NewGuid(), MediaId = first },
+            new Performance { Id = Guid.NewGuid(), MediaId = Guid.NewGuid() },
+        ]);
+
+        var cut = Render<DownloadsManagerPage>();
+        cut.Find(".kh-card__header .kh-button--danger").Click();
+
+        _downloadsService.Received(1).CancelAll();
+        _performanceService.Received(1).DeleteAsync(Arg.Any<Guid>());
+    }
+
+    [Fact]
+    public void ActiveEntry_PastTheFetch_StopsShowingItsByteCount()
+    {
+        var mediaId = Guid.NewGuid();
+        _downloadsService.Snapshot().Returns([Downloading(mediaId, progress: 0.2) with
+        {
+            Phase = DownloadPhase.Processing,
+            BytesReceived = 24_222_925,
+            TotalBytes = 24_222_925,
+        }]);
+
+        var cut = Render<DownloadsManagerPage>();
+
+        // A render is not measured in the download's megabytes, and a count standing still beside
+        // a moving bar reads as a stall.
+        var phase = cut.Find(PhaseSelector).TextContent;
+        Assert.Equal("Processing", phase.Trim());
+        Assert.DoesNotContain("MB", phase);
+    }
+
 }

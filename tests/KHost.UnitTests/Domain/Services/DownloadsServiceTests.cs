@@ -9,6 +9,7 @@ namespace KHost.UnitTests.Domain.Services;
 public class DownloadsServiceTests
 {
     private readonly MessageBroker _broker = new(NullLogger<MessageBroker>.Instance);
+    private readonly Guid _mediaId = Guid.NewGuid();
     private readonly DownloadsService _service;
 
     public DownloadsServiceTests()
@@ -305,4 +306,103 @@ public class DownloadsServiceTests
         Assert.Contains(snapshot, d => d.MediaId == activeId && d.State == DownloadState.Downloading);
         Assert.Contains(snapshot, d => d.MediaId == settledId && d.State == DownloadState.Failed);
     }
+    [Fact]
+    public void ReportPhase_MovesTheEntryWithoutSettlingIt()
+    {
+        _service.Register(_mediaId, "Song", "Artist", "KaraFun");
+
+        _service.ReportPhase(_mediaId, DownloadPhase.Processing);
+
+        var entry = _service.Snapshot().Single(d => d.MediaId == _mediaId);
+        Assert.Equal(DownloadPhase.Processing, entry.Phase);
+        Assert.Equal(DownloadState.Downloading, entry.State);
+    }
+
+    [Fact]
+    public void ReportPhase_ClearsTheProgressTheLastPhaseReported()
+    {
+        _service.Register(_mediaId, "Song", "Artist", "KaraFun");
+        _service.ReportProgress(_mediaId, 0.9);
+
+        _service.ReportPhase(_mediaId, DownloadPhase.Processing);
+
+        // Each half measures its own work: carrying 90% over would show the render starting there.
+        Assert.Null(_service.Snapshot().Single(d => d.MediaId == _mediaId).Progress);
+    }
+
+    [Fact]
+    public void ReportPhase_SamePhaseTwice_AnnouncesOnce()
+    {
+        _service.Register(_mediaId, "Song", "Artist", "KaraFun");
+        var raised = 0;
+        using var subscription = _broker.Subscribe<DownloadsChanged>(_ => raised++);
+
+        _service.ReportPhase(_mediaId, DownloadPhase.Processing);
+        _service.ReportPhase(_mediaId, DownloadPhase.Processing);
+
+        Assert.Equal(1, raised);
+    }
+
+    [Fact]
+    public void ReportProgress_InBytes_RecordsBothCountsAndTheFraction()
+    {
+        _service.Register(_mediaId, "Song", "Artist", "KaraFun");
+
+        _service.ReportProgress(_mediaId, 512L, 1024L);
+
+        var entry = _service.Snapshot().Single(d => d.MediaId == _mediaId);
+        Assert.Equal(512L, entry.BytesReceived);
+        Assert.Equal(1024L, entry.TotalBytes);
+        Assert.Equal(0.5, entry.Progress);
+    }
+
+    [Fact]
+    public void ReportProgress_InBytesWithNoTotal_CountsUpWithoutAFraction()
+    {
+        _service.Register(_mediaId, "Song", "Artist", "KaraFun");
+
+        _service.ReportProgress(_mediaId, 900L, null);
+
+        var entry = _service.Snapshot().Single(d => d.MediaId == _mediaId);
+        Assert.Equal(900L, entry.BytesReceived);
+        Assert.Null(entry.TotalBytes);
+        Assert.Null(entry.Progress);
+    }
+
+    [Fact]
+    public void Settle_WithAReason_KeepsItOnTheSettledEntry()
+    {
+        _service.Register(_mediaId, "Song", "Artist", "KaraFun");
+
+        _service.Settle(_mediaId, DownloadState.Failed, "checksum did not match");
+
+        var entry = _service.Snapshot().Single(d => d.MediaId == _mediaId);
+        Assert.Equal("checksum did not match", entry.Reason);
+        Assert.NotNull(entry.SettledUtc);
+    }
+
+    [Fact]
+    public void CancelAsync_StampsWhenItEnded()
+    {
+        _service.Register(_mediaId, "Song", "Artist", "KaraFun");
+
+        _ = _service.CancelAsync(_mediaId);
+
+        Assert.NotNull(_service.Snapshot().Single(d => d.MediaId == _mediaId).SettledUtc);
+    }
+
+    [Fact]
+    public void ReportPhase_KeepsTheBytesTheLastPhaseCounted()
+    {
+        _service.Register(_mediaId, "Song", "Artist", "KaraFun");
+        _service.ReportProgress(_mediaId, 24_222_925L, 24_222_925L);
+
+        _service.ReportPhase(_mediaId, DownloadPhase.Processing);
+
+        // The size of what was fetched is still true after the fetch, and is what a settled row
+        // has left to report once the elapsed time is the only other thing known about it.
+        var entry = _service.Snapshot().Single(d => d.MediaId == _mediaId);
+        Assert.Equal(24_222_925L, entry.BytesReceived);
+    }
+
 }

@@ -64,11 +64,63 @@ public partial class DownloadsManagerPage : IDisposable
 
     private static int Percent(double fraction) => (int)Math.Round(fraction * 100);
 
+    /// <summary>What the bar beside it is measuring — the two halves of one acquisition.</summary>
+    private static string PhaseLabel(DownloadPhase phase) => phase switch
+    {
+        DownloadPhase.Processing => "Processing",
+        _ => "Fetching",
+    };
+
+    /// <summary>
+    /// Null when the provider counts no bytes, which leaves the phase word standing alone rather
+    /// than trailing a separator with nothing after it.
+    /// </summary>
+    private static string? Sizes(DownloadInfo download) => download switch
+    {
+        { BytesReceived: null } => null,
+        { BytesReceived: { } received, TotalBytes: { } total } => $"{Megabytes(received)} of {Megabytes(total)}",
+        { BytesReceived: { } received } => Megabytes(received),
+    };
+
+    /// <summary>
+    /// Only while the bytes are still arriving. The counts outlive that phase on purpose — a
+    /// settled row reports them — but a render is not measured in the download's megabytes, and a
+    /// count standing still beside a moving bar reads as a stall.
+    /// </summary>
+    private static string? SizesWhileFetching(DownloadInfo download)
+        => download.Phase == DownloadPhase.Fetching ? Sizes(download) : null;
+
+    private static string Megabytes(long bytes) => $"{bytes / 1024d / 1024d:0.#} MB";
+
+    private static string Elapsed(DownloadInfo download)
+    {
+        var span = (download.SettledUtc ?? DateTime.UtcNow) - download.StartedUtc;
+
+        // Clamped: a row whose clock is a moment ahead of this render would otherwise count down.
+        return span < TimeSpan.Zero ? "0:00" : $"{(int)span.TotalMinutes}:{span.Seconds:00}";
+    }
+
+    /// <summary>
+    /// The one line a host reads to decide what to do about a settled row. A failure says why; a
+    /// download that simply finished says what it cost, which is the only thing left to know.
+    /// </summary>
+    private static string Detail(DownloadInfo download)
+    {
+        if (!string.IsNullOrWhiteSpace(download.Reason))
+            return download.Reason;
+
+        if (download.State != DownloadState.Completed)
+            return string.Empty;
+
+        var size = Sizes(download with { TotalBytes = null });
+
+        return size is null ? Elapsed(download) : $"{Elapsed(download)} · {size}";
+    }
+
     private static string StateBadgeClass(DownloadState state) => state switch
     {
         DownloadState.Completed => "kh-badge--success",
         DownloadState.Failed => "kh-badge--danger",
-        DownloadState.Cancelled => "kh-badge--secondary",
         _ => "kh-badge--secondary",
     };
 

@@ -397,7 +397,9 @@ public class PluginsManagerPageTests : BunitContext
 
     private static PluginCatalogRelease CatalogRelease(
         string version,
-        int apiVersion = 1,
+        // The gate itself, not the number it currently holds: a release built for this host is
+        // what these tests mean, and a literal here fails every time that legitimately moves.
+        int apiVersion = PluginApi.CurrentVersion,
         string sha256 = "abc123",
         string url = "https://example.test/plugin.zip")
         => new() { Version = version, ApiVersion = apiVersion, Url = url, Sha256 = sha256 };
@@ -757,7 +759,7 @@ public class PluginsManagerPageTests : BunitContext
             Version = "1.0.0",
             Description = "A plugin used by the tests.",
             EntryAssembly = "Test.dll",
-            ApiVersion = 1,
+            ApiVersion = PluginApi.CurrentVersion,
             Settings = [.. settings],
         },
     };
