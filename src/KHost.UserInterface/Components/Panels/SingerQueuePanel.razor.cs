@@ -158,6 +158,18 @@ public partial class SingerQueuePanel : IAsyncDisposable
         ];
     }
 
+    /// <summary>
+    /// Whether this singer arrived from a phone rather than from the host typing their name.
+    /// Asked of the key being ephemeral rather than of the provider that issued it: an ephemeral
+    /// key names a connection instead of a person, which is exactly what a guest on a remote has,
+    /// and it keeps the console from knowing any one plugin by name.
+    ///
+    /// So the mark says "tonight", not "this is a Example singer" — every ephemeral key is deleted
+    /// on startup, and a regular marked last night is a plain row today.
+    /// </summary>
+    private static bool JoinedFromTheRoom(KHostUser singer)
+        => singer.ForeignKeys.Any(key => key.IsEphemeral);
+
     private string? GroupForSinger(KHostUser singer)
         => _lastVenues.TryGetValue(singer.Id, out var visit)
             ? _venueNames.GetValueOrDefault(visit.VenueId, UnknownVenueGroup)
