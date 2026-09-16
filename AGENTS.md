@@ -462,10 +462,12 @@ A component test renders the component (`BunitContext`, not the obsolete `TestCo
   carries the nickname a guest types per pick, its queue being song-first so the name belongs to
   the song rather than to the account it reached. `Venue.Settings.AllowAliases` decides whether a
   recorded name that differs from the singer's own is the one the room sees — off for a venue never
-  asked, so it needed no backfill. Every surface asks
-  `PerformanceNames.DisplayName(performance, singer, aliasesAllowed)` (`Common/Performances/`)
-  rather than reading `user.Name`: the answer has three inputs and one of them is the venue's, so a
-  copy per surface is a copy that forgets to ask. The column also makes history self-describing —
+  asked, so it needed no backfill. Resolving it belongs to whoever owns the performance, not to a
+  shared helper: `IPlaybackService.CurrentSingerName` answers for the song that is playing, beside
+  `CurrentMedia` and for the same reason, and `ScreenMarqueeService` answers for the turns that
+  have not started, which playback knows nothing about. Playback resolves it **at load** — the
+  performance cannot change, and a venue edited mid-song must not rename whoever is at the
+  microphone. The column also makes history self-describing —
   a sung performance outlives its singer, and before this nothing could name one whose singer had
   been deleted. Never feed a recorded name back into the add-a-singer lookup: that path creates a
   user on no match, and a one-off name would mint a phantom singer.
