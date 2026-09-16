@@ -68,7 +68,7 @@
                                             <Loader Type="Loader.LoaderType.Spinner" />
                                         }
                                         <span class="kh-downloads-manager__phase">
-                                            @PhaseLabel(download.Phase)@if (Sizes(download) is { } sizes)
+                                            @PhaseLabel(download.Phase)@if (SizesWhileFetching(download) is { } sizes)
                                             {
                                                 <text> &middot; @sizes</text>
                                             }

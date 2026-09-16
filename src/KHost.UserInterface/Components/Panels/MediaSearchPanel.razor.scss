@@ -120,8 +120,24 @@
     text-overflow: ellipsis;
 }
 
+// Every one of these is a measured minimum. table-layout is fixed, so a column without a width
+// takes an equal share of the table — which is how a one-word column ends up as wide as the title.
+// Title and artist are the only ones left unsized, and so the only ones that grow: they split
+// whatever the sized columns leave, and a search with no artist column gives all of it to title.
+//
+// "Duration" the heading is wider than "03:53" the value, so the heading sets this floor.
 .kh-media-search-panel__col--duration {
-    width: 76px;
+    width: 64px;
+}
+
+// Wide enough for a provider's own heading, which runs longer than the one word beneath it —
+// "Published by" is 61px where "Example" is 50. Anything longer ellipsises; the title attribute
+// on the cell already carries the whole of it.
+.kh-media-search-panel__col--label {
+    width: 96px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 // No overflow rule here: the actions cell holds a split button whose menu would be clipped by it.
@@ -184,16 +200,19 @@
     text-overflow: ellipsis;
 }
 
+// Measured, not guessed: the split button is 137px with its label and the cell pads 12 each side.
+// No overflow rule here (see below), so this cannot be trimmed to the pixel — a longer primary
+// action would spill rather than ellipsise. Sub-actions live in the menu and do not widen it.
 .kh-media-search-panel__col--actions {
-    width: 168px;
+    width: 162px;
 }
 
 .kh-media-search-panel__col--thumb {
-    width: 104px;
+    width: 64px;
 
     img.kh-media-search-panel__thumb {
         display: block;
-        width: 88px;
+        width: 52px;
         max-width: none;
         // 16:9, the crop YouTube already serves. Fixed so a row with no picture yet is the same
         // height as one that has it, and the table does not jump as thumbnails arrive.
@@ -220,21 +239,9 @@
         display: none;
     }
 
-    // The label goes with it, so the buttons need less room.
+    // The label goes with it, so the buttons need less room: 76px of icons plus the same padding.
     .kh-media-search-panel__col--actions {
-        width: 110px;
-    }
-}
-
-// Narrower still, the picture gives up width rather than the title: it is what a host picks a
-// karaoke track on, so it shrinks long before it is dropped.
-@container kh-media-search (max-width: 420px) {
-    .kh-media-search-panel__col--thumb {
-        width: 72px;
-
-        img.kh-media-search-panel__thumb {
-            width: 56px;
-        }
+        width: 104px;
     }
 }
 

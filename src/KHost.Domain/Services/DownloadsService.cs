@@ -97,9 +97,10 @@ public class DownloadsService : IDownloadsService
         if (!_active.TryGetValue(mediaId, out var entry)) return;
         if (entry.Info.Phase == phase) return;
 
-        // Each phase measures its own work, so the fraction carried over from the last one would
-        // otherwise show the new one starting at wherever the old one stopped.
-        entry.Info = entry.Info with { Phase = phase, Progress = null, BytesReceived = null, TotalBytes = null };
+        // The fraction goes: each phase measures its own work, and the one carried over would show
+        // the new phase starting wherever the old one stopped. The byte counts stay — they are the
+        // size of what was fetched, which is still true afterwards and is what a settled row shows.
+        entry.Info = entry.Info with { Phase = phase, Progress = null };
 
         RaiseStateChanged();
     }
