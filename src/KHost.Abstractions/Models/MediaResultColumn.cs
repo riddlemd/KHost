@@ -13,6 +13,13 @@ public enum MediaResultColumnKind
 
     /// <summary>The value is an image URL. Empty leaves the cell blank rather than broken.</summary>
     Thumbnail,
+
+    /// <summary>
+    /// Short text — a provider name, a format, a badge. Sized to its own words rather than taking
+    /// an equal share of the table, which is what Text columns do: a one-word column beside a song
+    /// title should not be as wide as the title.
+    /// </summary>
+    Label,
 }
 
 /// <summary>

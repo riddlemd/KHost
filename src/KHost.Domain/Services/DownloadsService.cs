@@ -82,14 +82,44 @@ public class DownloadsService : IDownloadsService
             RaiseStateChanged();
     }
 
-    public void Settle(Guid mediaId, DownloadState state)
+    public void Settle(Guid mediaId, DownloadState state, string? reason = null)
     {
         if (state == DownloadState.Downloading) return;
         if (!_active.TryRemove(mediaId, out var entry)) return;
 
         entry.Cts.Dispose();
-        AddToRecent(entry.Info with { State = state });
+        AddToRecent(entry.Info with { State = state, Reason = reason, SettledUtc = DateTime.UtcNow });
         RaiseStateChanged();
+    }
+
+    public void ReportPhase(Guid mediaId, DownloadPhase phase)
+    {
+        if (!_active.TryGetValue(mediaId, out var entry)) return;
+        if (entry.Info.Phase == phase) return;
+
+        // The fraction goes: each phase measures its own work, and the one carried over would show
+        // the new phase starting wherever the old one stopped. The byte counts stay — they are the
+        // size of what was fetched, which is still true afterwards and is what a settled row shows.
+        entry.Info = entry.Info with { Phase = phase, Progress = null };
+
+        RaiseStateChanged();
+    }
+
+    public void ReportProgress(Guid mediaId, long bytesReceived, long? totalBytes)
+    {
+        if (!_active.TryGetValue(mediaId, out var entry)) return;
+
+        var received = Math.Max(bytesReceived, 0);
+        var total = totalBytes is { } declared && declared > 0 ? declared : (long?)null;
+
+        entry.Info = entry.Info with { BytesReceived = received, TotalBytes = total };
+
+        // Without a total there is no fraction to report, and the bar stays indeterminate — the
+        // byte count alone still tells a host something is moving.
+        if (total is { } size)
+            ReportProgress(mediaId, received / (double)size);
+        else
+            RaiseStateChanged();
     }
 
     public Task CancelAsync(Guid mediaId)
@@ -98,7 +128,7 @@ public class DownloadsService : IDownloadsService
         {
             entry.Cts.Cancel();
             entry.Cts.Dispose();
-            AddToRecent(entry.Info with { State = DownloadState.Cancelled });
+            AddToRecent(entry.Info with { State = DownloadState.Cancelled, SettledUtc = DateTime.UtcNow });
             RaiseStateChanged();
         }
 
@@ -116,7 +146,7 @@ public class DownloadsService : IDownloadsService
 
             entry.Cts.Cancel();
             entry.Cts.Dispose();
-            AddToRecent(entry.Info with { State = DownloadState.Cancelled });
+            AddToRecent(entry.Info with { State = DownloadState.Cancelled, SettledUtc = DateTime.UtcNow });
             any = true;
         }
 
