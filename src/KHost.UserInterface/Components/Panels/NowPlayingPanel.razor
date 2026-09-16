@@ -1,3 +1,4 @@
+@using KHost.Common.Performances
 @using KHost.UserInterface.Services
 
 <div class="kh-now-playing-panel" tabindex="0">
@@ -52,7 +53,7 @@
                     {
                         <div class="kh-now-playing__singer-name">
                             <Icon Name="person-fill" />
-                            @(singer?.Name ?? "Unknown")
+                            @performance.DisplayName(singer, _allowAliases)
                         </div>
                     }
                 </div>
