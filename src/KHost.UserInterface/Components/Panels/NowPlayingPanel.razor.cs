@@ -14,15 +14,33 @@ public partial class NowPlayingPanel : IDisposable
     [Inject] private ISingerQueueService? SingerQueueService { get; set; }
     [Inject] private IDialogService? DialogService { get; set; }
     [Inject] private IJSRuntime JS { get; set; } = default!;
+    [Inject] private IVenuesService? VenuesService { get; set; }
     [Inject] private IMessageBroker Broker { get; set; } = default!;
+
+    /// <summary>
+    /// The venue's say on whether a name queued alongside a song is honoured. Read on the way in
+    /// and on SelectedVenueChanged, which is the message that fires both when the console changes
+    /// venue and when the one it is running is edited.
+    /// </summary>
+    private bool _allowAliases;
 
     private readonly SubscriptionSet _subscriptions = new();
 
     private ElementReference _trackRef;
     private IJSObjectReference? _seekBar;
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
+        await ReadVenueAsync();
+
+        // SelectedVenueChanged, not VenuesChanged: this only cares when the console is running a
+        // different venue or the one it is running was edited, not when some other venue moved.
+        _subscriptions.Add(Broker.Subscribe<SelectedVenueChanged>(async _ =>
+        {
+            await ReadVenueAsync();
+            await InvokeAsync(StateHasChanged);
+        }));
+
         if (PlaybackService is null) return;
 
         _subscriptions.Add(Broker.Subscribe<PlaybackChanged>(_ => OnStateChanged(null, EventArgs.Empty)));
@@ -31,6 +49,10 @@ public partial class NowPlayingPanel : IDisposable
         // it does with either event.
         PlaybackService.PositionChanged += OnStateChanged;
     }
+
+    private async Task ReadVenueAsync()
+        => _allowAliases = VenuesService is null
+            || (await VenuesService.ReadSelectedVenueAsync())?.Settings.AllowAliases == true;
 
     private async Task PlayAsync()
     {

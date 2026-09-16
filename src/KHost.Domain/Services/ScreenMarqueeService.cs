@@ -5,6 +5,7 @@ using KHost.Abstractions.Services;
 using KHost.Abstractions.Services.IPC;
 using Microsoft.Extensions.Logging;
 using KHost.Domain.Services.Screens;
+using KHost.Common.Performances;
 
 namespace KHost.Domain.Services;
 
@@ -69,7 +70,7 @@ public sealed class ScreenMarqueeService : BaseService, IScreenMarqueeService, I
         return new SetMarqueeCommand
         {
             Enabled = true,
-            Singers = await UpNextAsync(settings.MarqueeSingerCount, settings.MarqueeEntryFormat),
+            Singers = await UpNextAsync(settings.MarqueeSingerCount, settings.MarqueeEntryFormat, settings.AllowAliases),
             Message = SingleLine(settings.MarqueeMessage),
             Position = settings.MarqueePosition,
             BackgroundColor = Blank(settings.MarqueeBackgroundColor),
@@ -90,7 +91,7 @@ public sealed class ScreenMarqueeService : BaseService, IScreenMarqueeService, I
     /// the queue on screen. Whoever is singing now is left out: the queue puts them at the front
     /// until their turn ends, and the band would announce the person the room is watching.
     /// </summary>
-    private async Task<List<string>> UpNextAsync(int wanted, string? entryFormat)
+    private async Task<List<string>> UpNextAsync(int wanted, string? entryFormat, bool aliasesAllowed)
     {
         // The singer holding the mic is not up next, and the band says they are. Dropped before
         // the count is taken, so a venue asking for three names still gets three.
@@ -116,20 +117,24 @@ public sealed class ScreenMarqueeService : BaseService, IScreenMarqueeService, I
             var next = queued.FirstOrDefault(performance => performance.SingerId == singer.Id);
             var media = next is null ? null : await _media.ReadAsync(next.MediaId);
 
+            // The name comes off the performance they are about to sing, not off the account: on a
+            // song-first remote a guest types it per pick, and the band should say what they typed.
+            var name = next?.DisplayName(singer, aliasesAllowed) ?? singer.Name;
+
             lines.Add(string.IsNullOrWhiteSpace(media?.Title)
-                ? singer.Name
-                : ComposeEntry(format, media, singer, index + 1));
+                ? name
+                : ComposeEntry(format, media, name, index + 1));
         }
 
         return lines;
     }
 
     /// <summary>Replaces every tag a host may use; one not present in the format is simply not shown.</summary>
-    private static string ComposeEntry(string format, Media media, KHostUser singer, int position)
+    private static string ComposeEntry(string format, Media media, string singer, int position)
         => format
             .Replace("{song}", media.Title.Trim(), StringComparison.OrdinalIgnoreCase)
             .Replace("{artist}", media.Artist.Trim(), StringComparison.OrdinalIgnoreCase)
-            .Replace("{singer}", singer.Name, StringComparison.OrdinalIgnoreCase)
+            .Replace("{singer}", singer, StringComparison.OrdinalIgnoreCase)
             .Replace("{position}", position.ToString(), StringComparison.OrdinalIgnoreCase);
 
     public void Dispose()

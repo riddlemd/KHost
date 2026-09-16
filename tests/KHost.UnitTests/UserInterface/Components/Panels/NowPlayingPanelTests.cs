@@ -31,6 +31,14 @@ public class NowPlayingPanelTests : BunitContext
         var appSettings = Substitute.For<IAppSettingsService>();
         appSettings.Current.Returns(new AppSettings());
 
+        // The panel reads the venue's say on whether a name queued with a song is honoured.
+
+        var venues = Substitute.For<IVenuesService>();
+
+        venues.ReadSelectedVenueAsync().Returns((Venue?)null);
+
+        Services.AddSingleton(venues);
+
         Services.AddSingleton(_playback);
         Services.AddSingleton(appSettings);
         Services.AddSingleton<IMessageBroker>(_broker);
