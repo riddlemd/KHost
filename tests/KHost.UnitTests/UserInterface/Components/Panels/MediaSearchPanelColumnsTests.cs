@@ -236,4 +236,23 @@ public class MediaSearchPanelColumnsTests : BunitContext
         Assert.Equal("Already queued by Mike", badge.GetAttribute("title"));
         Assert.Equal("Already queued by Mike", badge.GetAttribute("aria-label"));
     }
+    [Fact]
+    public void ALabelColumn_IsSizedApartFromTheTextColumns()
+    {
+        // table-layout is fixed, so a column with no width of its own takes the same share as the
+        // title beside it — which is what a one-word source column must not do.
+        var columns = new List<MediaResultColumn>
+        {
+            new() { Key = MediaResultColumn.TitleKey, Header = "Title" },
+            new() { Key = "origin", Header = "Source", Kind = MediaResultColumnKind.Label },
+        };
+
+        var cut = RenderWith(columns, Result(new Dictionary<string, string> { ["origin"] = "KaraFun" }));
+
+        var headers = cut.FindAll("thead th");
+        Assert.Contains("kh-media-search-panel__col--text", headers[0].ClassName);
+        Assert.Contains("kh-media-search-panel__col--label", headers[1].ClassName);
+        Assert.DoesNotContain("kh-media-search-panel__col--text", headers[1].ClassName);
+    }
+
 }

@@ -259,4 +259,14 @@ public class LocalMediaProviderTests
         await _performanceService.Received(1)
             .CreateAndEnqueueAsync(Arg.Is<Performance>(p => p.SingerId == singerId));
     }
+    [Fact]
+    public void Columns_DeclaresSourceAsALabel_SoItIsNotAsWideAsTheTitle()
+    {
+        var source = Assert.Single(_service.Columns, column => column.Header == "Source");
+
+        // The console sizes on the kind: a Text column takes an equal share of the table, which
+        // for one word beside a song title is most of the room the title wanted.
+        Assert.Equal(MediaResultColumnKind.Label, source.EffectiveKind);
+    }
+
 }

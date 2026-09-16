@@ -229,4 +229,24 @@ public class DownloadsManagerPageTests : BunitContext
         _performanceService.Received(1).DeleteAsync(Arg.Any<Guid>());
     }
 
+    [Fact]
+    public void ActiveEntry_PastTheFetch_StopsShowingItsByteCount()
+    {
+        var mediaId = Guid.NewGuid();
+        _downloadsService.Snapshot().Returns([Downloading(mediaId, progress: 0.2) with
+        {
+            Phase = DownloadPhase.Processing,
+            BytesReceived = 24_222_925,
+            TotalBytes = 24_222_925,
+        }]);
+
+        var cut = Render<DownloadsManagerPage>();
+
+        // A render is not measured in the download's megabytes, and a count standing still beside
+        // a moving bar reads as a stall.
+        var phase = cut.Find(PhaseSelector).TextContent;
+        Assert.Equal("Processing", phase.Trim());
+        Assert.DoesNotContain("MB", phase);
+    }
+
 }

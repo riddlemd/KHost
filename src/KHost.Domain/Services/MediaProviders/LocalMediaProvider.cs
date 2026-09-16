@@ -88,7 +88,7 @@ public class LocalMediaProvider : BaseService, IMediaProvider
         new() { Key = MediaResultColumn.TitleKey, Header = "Title" },
         new() { Key = MediaResultColumn.ArtistKey, Header = "Artist", Essential = false },
         new() { Key = MediaResultColumn.DurationKey, Header = "Duration" },
-        new() { Key = OriginKey, Header = "Source", Essential = false },
+        new() { Key = OriginKey, Header = "Source", Kind = MediaResultColumnKind.Label, Essential = false },
     ];
 
     public IEnumerable<MediaProviderAction> Actions { get; }
