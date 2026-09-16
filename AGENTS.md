@@ -237,6 +237,13 @@ folder: `PluginLoader` hands that string straight to `LoadFromAssemblyPath`.
   no logger, and a failure must never stop the app starting. It maps id → folders by reading each
   manifest, so an update replaces a plugin dropped in by hand under any folder name — and every
   copy of it, so a duplicate id does not outlive the install meant to replace it.
+- **The catalog lists what the current host can install, and nothing else.** When
+  `PluginApi.CurrentVersion` moves, every entry declaring the old one is rebuilt, re-released and
+  the superseded entry **removed** — `LatestCompatibleRelease` matches the api version *exactly*,
+  so an entry the gate has passed by is one no host will ever select again. It is a list for
+  people on the current build, not an archive: the GitHub releases are the record of what was
+  published, and the catalog is the answer to "what can I install now". Removing is the one catalog
+  edit made by hand, since nothing about it asserts a checksum.
 - **Add a release with the tool, never by hand**:
   `dotnet run --project tools/KHost.CatalogSync -- <owner/repo> [--rid win] [--capabilities "a,b"]`.
   It fetches the release **unauthenticated**, hashes what it downloads, unpacks it through the
