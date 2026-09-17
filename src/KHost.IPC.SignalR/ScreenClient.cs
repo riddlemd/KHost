@@ -243,12 +243,24 @@ internal sealed class ScreenClient : IScreenClient, IAsyncDisposable
         var envelope = SignedEnvelope.TryParse(envelopeJson);
         if (envelope is null || _key is null || _nonce is null) return;
 
-        // A command whose MAC does not verify, or whose sequence does not advance, is a forgery or a
-        // replay — dropped, never dispatched to the player.
-        if (!ScreenMessageAuth.Verify(_key, _nonce, envelope.Seq, envelope.Payload, envelope.Mac)
-            || envelope.Seq <= _inboundSeq)
+        // Both are dropped and neither is dispatched to the player, but they are not the same thing
+        // and one log line for both cannot be acted on. A MAC that does not verify is a forgery or
+        // the wrong key. A sequence that does not advance is a replay — or, far more often, this
+        // host's own command overtaken in flight by the one behind it, which is a bug at the far
+        // end rather than an attack. Reporting the second as "did not verify" sent a real ordering
+        // fault looking for an attacker.
+        if (!ScreenMessageAuth.Verify(_key, _nonce, envelope.Seq, envelope.Payload, envelope.Mac))
         {
-            _logger.LogWarning("Dropped a command that did not verify (seq {Seq})", envelope.Seq);
+            _logger.LogWarning("Dropped a command whose signature did not verify (seq {Seq})", envelope.Seq);
+            return;
+        }
+
+        if (envelope.Seq <= _inboundSeq)
+        {
+            _logger.LogWarning(
+                "Dropped a command that did not advance the sequence (seq {Seq}, last accepted {Accepted}) "
+                    + "— a replay, or one overtaken on the way here",
+                envelope.Seq, _inboundSeq);
             return;
         }
 

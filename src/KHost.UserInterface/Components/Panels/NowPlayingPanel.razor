@@ -52,7 +52,7 @@
                     {
                         <div class="kh-now-playing__singer-name">
                             <Icon Name="person-fill" />
-                            @(singer?.Name ?? "Unknown")
+                            @(PlaybackService.CurrentSingerName ?? "Unknown")
                         </div>
                     }
                 </div>

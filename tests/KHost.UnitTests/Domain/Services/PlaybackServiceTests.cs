@@ -187,6 +187,10 @@ public class PlaybackServiceTests : IDisposable
     {
         var (performance, media) = CreatePerformance();
 
+        // Named before the failing step, so the clear has something to clear rather than passing
+        // on a name that was never resolved.
+        ArrangeSinger(performance.SingerId, "Priya");
+
         FailTheStreamOpen();
 
         await Assert.ThrowsAsync<KHostException>(() => _service.LoadAsync(performance, media));
@@ -194,6 +198,7 @@ public class PlaybackServiceTests : IDisposable
         // Left set, this disables the row's own remove button and every row's play button.
         Assert.Null(_service.CurrentPerformance);
         Assert.Null(_service.CurrentMedia);
+        Assert.Null(_service.CurrentSingerName);
     }
 
     [Fact]
@@ -3365,4 +3370,71 @@ public class PlaybackServiceTests : IDisposable
         var media = new Media { Id = mediaId, FilePath = "/music/media.mp4", Title = "Media", Status = MediaStatus.Ready };
         return (performance, media);
     }
+    /// <summary>
+    /// A performance records the name it was queued under, and the venue decides whether one that
+    /// differs from the singer's own is the one the room sees. Resolved here rather than by each
+    /// caller, so every screen showing who is singing shows the same thing.
+    /// </summary>
+    [Theory]
+    [InlineData(true, "DJ P")]
+    [InlineData(false, "Priya")]
+    public async Task LoadAsync_ANameQueuedWithTheSong_IsHonouredOnlyIfTheVenueAllowsIt(bool allowAliases, string expected)
+    {
+        var (performance, media) = CreatePerformance();
+        performance.SungAs = "DJ P";
+        ArrangeSinger(performance.SingerId, "Priya");
+        ArrangeVenue(allowAliases);
+
+        await _service.LoadAsync(performance, media);
+
+        Assert.Equal(expected, _service.CurrentSingerName);
+    }
+
+    [Fact]
+    public async Task LoadAsync_NoNameQueuedWithTheSong_NamesTheSinger()
+    {
+        var (performance, media) = CreatePerformance();
+        ArrangeSinger(performance.SingerId, "Priya");
+        ArrangeVenue(allowAliases: true);
+
+        await _service.LoadAsync(performance, media);
+
+        Assert.Equal("Priya", _service.CurrentSingerName);
+    }
+
+    [Fact]
+    public async Task LoadAsync_TheSingerIsGoneButTheNameWasRecorded_StillNamesThem()
+    {
+        // Why the name is kept on the row at all: a performance outlives the singer it points at.
+        var (performance, media) = CreatePerformance();
+        performance.SungAs = "DJ P";
+        _queueService.Users.Returns([]);
+        ArrangeVenue(allowAliases: false);
+
+        await _service.LoadAsync(performance, media);
+
+        Assert.Equal("DJ P", _service.CurrentSingerName);
+    }
+
+    [Fact]
+    public async Task StoppingPlayback_TakesTheNameDownWithTheSong()
+    {
+        var (performance, media) = CreatePerformance();
+        performance.SungAs = "DJ P";
+        ArrangeSinger(performance.SingerId, "Priya");
+        ArrangeVenue(allowAliases: true);
+        await _service.LoadAsync(performance, media);
+
+        await _service.StopAsync();
+
+        Assert.Null(_service.CurrentSingerName);
+    }
+
+    private void ArrangeSinger(Guid id, string name)
+        => _queueService.Users.Returns([new KHostUser { Id = id, Name = name }]);
+
+    private void ArrangeVenue(bool allowAliases)
+        => _venuesService.ReadSelectedVenueAsync().Returns(
+            new Venue { Name = "The Bar", Settings = new Venue.VenueSettings { AllowAliases = allowAliases } });
+
 }
