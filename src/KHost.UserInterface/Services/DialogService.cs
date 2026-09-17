@@ -142,6 +142,18 @@ public class DialogService : IDialogService
         return Task.CompletedTask;
     }
 
+    public Task RequestSingingAsAsync(
+        Performance performance, string? singerName, Func<Performance?, Task> onSave,
+        Action? onCancel = null, Action? onClose = null)
+    {
+        var request = new SingingAsDialog.DialogRequest(performance, singerName, onSave, onCancel, onClose);
+        _logger.LogDebug("Dialog requested: {DialogType} performance={PerformanceId}",
+            nameof(SingingAsDialog), performance.Id);
+        ShowRequested?.Invoke(this, request);
+
+        return Task.CompletedTask;
+    }
+
     public Task ShowNoScreensAsync()
         => ShowConfirmationAsync(
             "Playback needs a screen for audio and video output.",

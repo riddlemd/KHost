@@ -456,6 +456,61 @@ public class ScreenServerServiceTests
         Duration = TimeSpan.FromMinutes(3),
     };
 
+    /// <summary>
+    /// Two commands pushed at once must reach a screen in the order their sequence numbers were
+    /// handed out. The receiver drops anything whose sequence does not advance, and there is no
+    /// retry — so a command overtaken by the one behind it is not late, it is gone.
+    /// </summary>
+    /// <remarks>
+    /// Deterministic rather than timing-dependent: the first send is held inside the transport
+    /// until the second has had its chance to pass it. Nothing here sleeps waiting for a race to
+    /// show up — if delivery can overtake, it does so on every run.
+    /// </remarks>
+    [Fact]
+    public async Task SendCommandAsync_TwoAtOnce_ReachTheScreenInSequenceOrder()
+    {
+        Register("conn-a", "Screen 1");
+
+        var firstIsHeld = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var delivered = new List<long>();
+        var entered = 0;
+
+        // Recorded after the hold, not before: the question is the order the screen is handed
+        // them, which is what its replay guard judges.
+        _singleClient.SendCoreAsync(Arg.Any<string>(), Arg.Any<object?[]>(), Arg.Any<CancellationToken>())
+            .Returns(async call =>
+            {
+                var seq = SignedEnvelope.TryParse(call.Arg<object?[]>()[0] as string ?? "")!.Seq;
+
+                if (Interlocked.Increment(ref entered) == 1)
+                {
+                    firstIsHeld.TrySetResult();
+                    await release.Task;
+                }
+
+                lock (delivered) delivered.Add(seq);
+            });
+
+        var first = _service.SendCommandAsync("Screen 1", new PlayCommand());
+        await firstIsHeld.Task;
+
+        // Issued while the first is still in the transport. Ordered delivery parks it behind;
+        // unordered delivery lets it straight past.
+        var second = _service.SendCommandAsync("Screen 1", new PauseCommand());
+        var overtook = await Task.WhenAny(second, Task.Delay(TimeSpan.FromMilliseconds(250))) == second;
+
+        release.TrySetResult();
+        await Task.WhenAll(first, second);
+
+        List<long> order;
+        lock (delivered) order = [.. delivered];
+
+        Assert.Equal(2, order.Count);
+        Assert.False(overtook, "the second command was delivered while the first was still in flight");
+        Assert.Equal(order.OrderBy(seq => seq), order);
+    }
+
     private sealed class FakeKeyStore : IScreenKeyStore
     {
         private readonly Dictionary<string, byte[]> _keys = [];

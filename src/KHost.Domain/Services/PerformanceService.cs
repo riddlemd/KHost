@@ -13,6 +13,7 @@ namespace KHost.Domain.Services;
 public class PerformanceService : BaseRepositoryService<Performance, IPerformancesRepository>, IPerformanceService
 {
     private readonly IMediaService _mediaService;
+    private readonly IUsersService _usersService;
     private readonly IMessageBroker _broker;
     private readonly IVenuesService _venuesService;
     private readonly IInteractionDispatcher _interactions;
@@ -22,6 +23,7 @@ public class PerformanceService : BaseRepositoryService<Performance, IPerformanc
         ILogger<PerformanceService> logger,
         IPerformancesRepository repository,
         IMediaService mediaService,
+        IUsersService usersService,
         IVenuesService venuesService,
         IInteractionDispatcher interactions,
         IDownloadsService downloadsService,
@@ -30,6 +32,7 @@ public class PerformanceService : BaseRepositoryService<Performance, IPerformanc
     {
         _broker = broker;
         _mediaService = mediaService;
+        _usersService = usersService;
         _venuesService = venuesService;
         _interactions = interactions;
         _downloadsService = downloadsService;
@@ -86,6 +89,12 @@ public class PerformanceService : BaseRepositoryService<Performance, IPerformanc
             Logger.LogInformation("Enqueue of media {MediaId} declined at the duplicate warning", performance.MediaId);
             return null;
         }
+
+        // Filled here rather than by each caller: there are five of them, two in plugins, and a
+        // line each is exactly what goes missing. A caller that had a name of its own to record —
+        // a nickname typed on a remote — has already set it, and this leaves that alone.
+        if (string.IsNullOrWhiteSpace(performance.SungAs))
+            performance.SungAs = (await _usersService.ReadAsync(performance.SingerId))?.Name;
 
         var nextPosition = await Repository.ReadNextQueuePositionForSingerAsync(performance.SingerId);
 

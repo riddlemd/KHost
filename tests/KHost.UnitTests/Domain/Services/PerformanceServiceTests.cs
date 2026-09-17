@@ -17,6 +17,7 @@ public class PerformanceServiceTests
     private readonly IPerformancesRepository _repository = Substitute.For<IPerformancesRepository>();
     private readonly ILogger<PerformanceService> _logger = Substitute.For<ILogger<PerformanceService>>();
     private readonly IMediaService _mediaService = Substitute.For<IMediaService>();
+    private readonly IUsersService _usersService = Substitute.For<IUsersService>();
     private readonly IVenuesService _venuesService = Substitute.For<IVenuesService>();
     private readonly IInteractionDispatcher _interactions = Substitute.For<IInteractionDispatcher>();
     private readonly IDownloadsService _downloadsService = Substitute.For<IDownloadsService>();
@@ -141,7 +142,7 @@ public class PerformanceServiceTests
 
         _venuesService.ReadSelectedVenueAsync().Returns(_venue);
 
-        _service = new PerformanceService(_logger, _repository, _mediaService, _venuesService, _interactions, _downloadsService, _broker);
+        _service = new PerformanceService(_logger, _repository, _mediaService, _usersService, _venuesService, _interactions, _downloadsService, _broker);
     }
 
     [Fact]
@@ -292,7 +293,7 @@ public class PerformanceServiceTests
         repository.DeleteAsync(performance.Id).Returns(false);
         _mediaService.ReadAsync(performance.MediaId).Returns(new Media { Id = performance.MediaId, FilePath = "/downloads/song.mp4", Title = "Song", Status = MediaStatus.Downloading });
 
-        var service = new PerformanceService(_logger, repository, _mediaService, _venuesService, _interactions, _downloadsService, _broker);
+        var service = new PerformanceService(_logger, repository, _mediaService, _usersService, _venuesService, _interactions, _downloadsService, _broker);
 
         var deleted = await service.DeleteAsync(performance.Id);
 
@@ -535,4 +536,53 @@ public class PerformanceServiceTests
     private async Task<Performance?> EnqueueMediaAsync(Guid singerId, Guid mediaId)
         => await _service.CreateAndEnqueueAsync(
             new Performance { Id = Guid.NewGuid(), SingerId = singerId, MediaId = mediaId });
+    [Fact]
+    public async Task CreateAndEnqueueAsync_RecordsTheNameTheSingerHadAtTheTime()
+    {
+        var singer = new KHostUser { Id = Guid.NewGuid(), Name = "Priya" };
+        _usersService.ReadAsync(singer.Id).Returns(singer);
+
+        var enqueued = await _service.CreateAndEnqueueAsync(new Performance
+        {
+            SingerId = singer.Id,
+            MediaId = Guid.NewGuid(),
+        });
+
+        // Written here rather than by each caller — there are five, two of them in plugins.
+        Assert.Equal("Priya", enqueued!.SungAs);
+    }
+
+    [Fact]
+    public async Task CreateAndEnqueueAsync_ACallerThatBroughtItsOwnName_KeepsIt()
+    {
+        var singer = new KHostUser { Id = Guid.NewGuid(), Name = "Priya" };
+        _usersService.ReadAsync(singer.Id).Returns(singer);
+
+        var enqueued = await _service.CreateAndEnqueueAsync(new Performance
+        {
+            SingerId = singer.Id,
+            MediaId = Guid.NewGuid(),
+            SungAs = "DJ P",
+        });
+
+        // A nickname typed on a song-first remote is the same person under another name, and the
+        // row has to keep the one they typed rather than the one the account carries.
+        Assert.Equal("DJ P", enqueued!.SungAs);
+    }
+
+    [Fact]
+    public async Task CreateAndEnqueueAsync_ASingerWhoCannotBeRead_LeavesTheNameUnknownRatherThanFailing()
+    {
+        _usersService.ReadAsync(Arg.Any<Guid>()).Returns((KHostUser?)null);
+
+        var enqueued = await _service.CreateAndEnqueueAsync(new Performance
+        {
+            SingerId = Guid.NewGuid(),
+            MediaId = Guid.NewGuid(),
+        });
+
+        Assert.NotNull(enqueued);
+        Assert.Null(enqueued.SungAs);
+    }
+
 }

@@ -458,12 +458,12 @@ public class ScreenMarqueeServiceTests
 
     private static KHostUser Singer(string name) => new() { Id = Guid.NewGuid(), Name = name };
 
-    private void Queued(KHostUser singer, string title, string artist = "")
+    private void Queued(KHostUser singer, string title, string artist = "", string? sungAs = null)
     {
         var mediaId = Guid.NewGuid();
         var queued = _performances.ReadQueuedAsync().Result;
 
-        queued.Add(new Performance { SingerId = singer.Id, MediaId = mediaId });
+        queued.Add(new Performance { SingerId = singer.Id, MediaId = mediaId, SungAs = sungAs });
         _performances.ReadQueuedAsync().Returns(queued);
         _media.ReadAsync(mediaId).Returns(new Media { Id = mediaId, Title = title, Artist = artist, FilePath = "/x.mp4" });
     }
@@ -482,4 +482,42 @@ public class ScreenMarqueeServiceTests
 
         Assert.Fail("The marquee was never broadcast.");
     }
+    [Fact]
+    public async Task UpNext_ANameQueuedWithTheSong_IsTheOneTheBandSays()
+    {
+        var singer = Singer("Priya");
+        Arrange(new Venue.VenueSettings { MarqueeEnabled = true, MarqueeSingerCount = 1, AllowAliases = true }, singer);
+        Queued(singer, "Africa", sungAs: "DJ P");
+
+        var command = await Service().BuildAsync();
+
+        // The room is watching someone who typed their own name into a phone; the band saying the
+        // account name would be naming a person nobody in the room is looking for.
+        Assert.Equal("Africa - DJ P", Assert.Single(command.Singers));
+    }
+
+    [Fact]
+    public async Task UpNext_TheVenueRefusesAliases_SaysTheSingerItKnows()
+    {
+        var singer = Singer("Priya");
+        Arrange(new Venue.VenueSettings { MarqueeEnabled = true, MarqueeSingerCount = 1, AllowAliases = false }, singer);
+        Queued(singer, "Africa", sungAs: "DJ P");
+
+        var command = await Service().BuildAsync();
+
+        Assert.Equal("Africa - Priya", Assert.Single(command.Singers));
+    }
+
+    [Fact]
+    public async Task UpNext_NoNameQueuedWithTheSong_StillNamesTheSinger()
+    {
+        var singer = Singer("Priya");
+        Arrange(new Venue.VenueSettings { MarqueeEnabled = true, MarqueeSingerCount = 1, AllowAliases = true }, singer);
+        Queued(singer, "Africa");
+
+        var command = await Service().BuildAsync();
+
+        Assert.Equal("Africa - Priya", Assert.Single(command.Singers));
+    }
+
 }

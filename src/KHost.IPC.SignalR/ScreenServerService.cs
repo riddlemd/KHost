@@ -211,27 +211,39 @@ internal sealed class ScreenServerService : IScreenServer, IHubCallback
     {
         var payload = ScreenIpcSerializer.SerializeCommand(Reachable(command, connection));
 
-        string nonce;
-        byte[] key;
-        long seq;
+        SessionAuth session;
 
         await _lock.WaitAsync();
         try
         {
             // Only a screen that finished the handshake has a key; one still registering is skipped
             // rather than sent an unsigned command it would reject anyway.
-            if (!_sessions.TryGetValue(connection.ConnectionId, out var session) || session.Key is null) return;
+            if (!_sessions.TryGetValue(connection.ConnectionId, out var found) || found.Key is null) return;
 
-            nonce = session.Nonce;
-            key = session.Key;
-            seq = ++session.OutboundSeq;
+            session = found;
         }
         finally { _lock.Release(); }
 
-        var envelope = new SignedEnvelope(
-            connection.ScreenId, seq, payload, ScreenMessageAuth.Sign(key, nonce, seq, payload));
+        // Numbering and delivery are one step, not two. The screen judges order by the sequence and
+        // drops anything that does not advance, with nothing behind it to retry — so allocating a
+        // number in one critical section and sending outside it lets two commands overtake each
+        // other on the way out and the loser is discarded for good. Held per screen, so this
+        // serialises one screen's queue rather than every screen's.
+        await session.SendGate.WaitAsync();
+        try
+        {
+            // Re-read under the gate: a command queued behind another may have outlived its session,
+            // and OutboundSeq is only ever touched here, which is what makes it safe outside _lock.
+            if (session.Key is not { } key) return;
 
-        await _hubContext.Clients.Client(connection.ConnectionId).SendAsync("ReceiveCommand", envelope.ToJson());
+            var seq = ++session.OutboundSeq;
+
+            var envelope = new SignedEnvelope(
+                connection.ScreenId, seq, payload, ScreenMessageAuth.Sign(key, session.Nonce, seq, payload));
+
+            await _hubContext.Clients.Client(connection.ConnectionId).SendAsync("ReceiveCommand", envelope.ToJson());
+        }
+        finally { session.SendGate.Release(); }
     }
 
     private IScreenCommand Reachable(IScreenCommand command, ScreenConnection connection)
@@ -259,6 +271,13 @@ internal sealed class ScreenServerService : IScreenServer, IHubCallback
         public string? ScreenId { get; set; }
         public long ExpectedInboundSeq { get; set; }
         public long OutboundSeq { get; set; }
+
+        /// <summary>
+        /// This screen's outbound queue. One at a time so a sequence number and the send it belongs
+        /// to cannot be split apart — see <c>SendToAsync</c>. Per session rather than shared, so a
+        /// screen that is slow to take a command holds up nobody else's.
+        /// </summary>
+        public SemaphoreSlim SendGate { get; } = new(1, 1);
     }
 
     private sealed class ScreenConnection : IScreenConnection

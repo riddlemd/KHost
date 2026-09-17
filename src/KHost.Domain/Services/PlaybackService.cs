@@ -114,6 +114,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
 
     public Performance? CurrentPerformance { get; private set; }
     public Media? CurrentMedia { get; private set; }
+    public string? CurrentSingerName { get; private set; }
 
     /// <summary>Whether the main channel is carrying an ad rather than a singer's song.</summary>
     public bool IsPlayingAd { get; private set; }
@@ -182,6 +183,28 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         // looking at the old one until a singer had been and gone.
         _venueSubscription = _broker.Subscribe<SelectedVenueChanged>(
             message => { _ = Task.Run(RefreshIdleCardAsync); });
+    }
+
+    /// <summary>
+    /// The name to put on screen for a performance: the one recorded when it was queued, unless
+    /// the venue would rather see the singer it knows. Read at load, which is the only moment it
+    /// can change — the performance does not, and a venue edited mid-song must not rename whoever
+    /// is at the microphone.
+    /// </summary>
+    private async Task<string?> NameForAsync(Performance performance)
+    {
+        var singer = _singerQueueService.Users.FirstOrDefault(user => user.Id == performance.SingerId)?.Name?.Trim();
+        var recorded = performance.SungAs?.Trim();
+
+        if (string.IsNullOrEmpty(recorded))
+            return string.IsNullOrEmpty(singer) ? null : singer;
+
+        if (string.IsNullOrEmpty(singer))
+            return recorded;
+
+        var venue = await _venuesService.ReadSelectedVenueAsync();
+
+        return venue?.Settings.AllowAliases == true ? recorded : singer;
     }
 
     /// <summary>
@@ -255,6 +278,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
 
         CurrentPerformance = performance;
         CurrentMedia = media;
+        CurrentSingerName = await NameForAsync(performance);
         Position = TimeSpan.Zero;
 
         // After ResetState, which cleared them: a performance carries how it was sung.
@@ -305,6 +329,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
 
         CurrentPerformance = null;
         CurrentMedia = null;
+        CurrentSingerName = null;
 
         _singerQueueService.UnlockTopSlot();
 
@@ -1229,6 +1254,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
 
         CurrentPerformance = null;
         CurrentMedia = null;
+        CurrentSingerName = null;
         IsPlayingAd = false;
 
         if (wasAd)

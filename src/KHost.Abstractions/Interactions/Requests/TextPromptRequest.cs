@@ -5,11 +5,11 @@ namespace KHost.Abstractions.Interactions.Requests;
 public sealed record TextPromptField(string Key, string Label, bool Secret = false);
 
 /// <summary>
-/// Asks the host to type in one or more values the requester will not persist — a plugin's own
-/// login for a session it will hold only in memory, say. Unlike a plugin setting, nothing here
-/// ever reaches <c>plugins.json</c> or any other stored settings; the dialog is the only place
-/// these values exist outside the caller's own variables, for exactly as long as it takes to
-/// answer the request. A null response means the host cancelled.
+/// Asks the host to type in one or more values the caller has no setting for — a plugin's own
+/// login, say. What the caller then does with them is its own: nothing here reaches
+/// <c>plugins.json</c> or any other stored settings, so a caller that keeps what it collected puts
+/// it in the secret store rather than leaving it where a settings file would carry it. A null
+/// response means the host cancelled.
 /// </summary>
 public sealed record TextPromptRequest(
     string Title,

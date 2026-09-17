@@ -146,6 +146,14 @@
                                         </span>
                                     }
                                 </div>
+
+                                @if (_allowAliases && SungUnderAnotherName(performance, selected))
+                                {
+                                    <span class="kh-selected-singer-info-panel__sung-as"
+                                          title="Queued under this name">
+                                        singing as @performance.SungAs
+                                    </span>
+                                }
                             </td>
                             <td class="kh-table__cell--fill" title="@(rowMedia?.Artist ?? "")">@(rowMedia?.Artist ?? "")</td>
                             <td class="kh-selected-singer-info-panel__duration">
@@ -179,8 +187,16 @@
                                         <button class="kh-button kh-button--primary"
                                                 @onclick="() => OpenMediaEditDialogAsync(rowMedia)"
                                                 title="Edit Song">
-                                            <Icon Name="pencil-fill" /> Edit
+                                            <Icon Name="pencil-fill" /> Edit Song
                                         </button>
+                                        @if (_allowAliases)
+                                        {
+                                            <button class="kh-button kh-button--primary"
+                                                    @onclick="() => OpenSingingAsDialogAsync(performance, selected)"
+                                                    title="Change the name this song is announced under">
+                                                <Icon Name="person" /> Change Singer Alias
+                                            </button>
+                                        }
                                     </Buttons>
                                 </SplitButton>
                                 @if (_canReorderQueue)

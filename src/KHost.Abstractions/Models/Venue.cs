@@ -58,6 +58,16 @@ public class Venue : RepositoryModel
         /// <summary><see cref="IBreakMusicProvider.SourceName"/>; null falls back to the built-in one.</summary>
         public string? BreakMusicProvider { get; set; }
 
+        /// <summary>
+        /// Whether a name queued alongside a song is honoured. A guest on a song-first remote types
+        /// a nickname per pick, and a venue that would rather see the singer it knows leaves this
+        /// off — the name is recorded either way, so turning it on later shows what was already
+        /// there rather than starting from nothing.
+        ///
+        /// Off for a venue that has never been asked, which is why it needs no backfill.
+        /// </summary>
+        public bool AllowAliases { get; set; }
+
         // Every marquee setting reads as "off" when its key is missing, so a venue saved before
         // the feature existed needs no backfill migration: EF ignores property initializers for
         // absent JSON keys, and false/0/null are exactly the right answers for a venue that has

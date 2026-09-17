@@ -69,7 +69,7 @@ public sealed class ScreenMarqueeService : BaseService, IScreenMarqueeService, I
         return new SetMarqueeCommand
         {
             Enabled = true,
-            Singers = await UpNextAsync(settings.MarqueeSingerCount, settings.MarqueeEntryFormat),
+            Singers = await UpNextAsync(settings.MarqueeSingerCount, settings.MarqueeEntryFormat, settings.AllowAliases),
             Message = SingleLine(settings.MarqueeMessage),
             Position = settings.MarqueePosition,
             BackgroundColor = Blank(settings.MarqueeBackgroundColor),
@@ -90,7 +90,7 @@ public sealed class ScreenMarqueeService : BaseService, IScreenMarqueeService, I
     /// the queue on screen. Whoever is singing now is left out: the queue puts them at the front
     /// until their turn ends, and the band would announce the person the room is watching.
     /// </summary>
-    private async Task<List<string>> UpNextAsync(int wanted, string? entryFormat)
+    private async Task<List<string>> UpNextAsync(int wanted, string? entryFormat, bool aliasesAllowed)
     {
         // The singer holding the mic is not up next, and the band says they are. Dropped before
         // the count is taken, so a venue asking for three names still gets three.
@@ -116,20 +116,37 @@ public sealed class ScreenMarqueeService : BaseService, IScreenMarqueeService, I
             var next = queued.FirstOrDefault(performance => performance.SingerId == singer.Id);
             var media = next is null ? null : await _media.ReadAsync(next.MediaId);
 
+            // Off the performance they are about to sing rather than off the account: on a
+            // song-first remote a guest types a name per pick, and the band should say what they
+            // typed. Resolved here rather than asked of playback, which owns only the one song
+            // that is playing — every name on this band belongs to a turn that has not started.
+            var name = NameFor(next, singer, aliasesAllowed);
+
             lines.Add(string.IsNullOrWhiteSpace(media?.Title)
-                ? singer.Name
-                : ComposeEntry(format, media, singer, index + 1));
+                ? name
+                : ComposeEntry(format, media, name, index + 1));
         }
 
         return lines;
     }
 
+    /// <summary>
+    /// The name recorded when the song was queued, unless the venue would rather see the singer it
+    /// knows. A singer with nothing queued has no performance to have recorded one.
+    /// </summary>
+    private static string NameFor(Performance? next, KHostUser singer, bool aliasesAllowed)
+    {
+        var recorded = next?.SungAs?.Trim();
+
+        return string.IsNullOrEmpty(recorded) || !aliasesAllowed ? singer.Name : recorded;
+    }
+
     /// <summary>Replaces every tag a host may use; one not present in the format is simply not shown.</summary>
-    private static string ComposeEntry(string format, Media media, KHostUser singer, int position)
+    private static string ComposeEntry(string format, Media media, string singer, int position)
         => format
             .Replace("{song}", media.Title.Trim(), StringComparison.OrdinalIgnoreCase)
             .Replace("{artist}", media.Artist.Trim(), StringComparison.OrdinalIgnoreCase)
-            .Replace("{singer}", singer.Name, StringComparison.OrdinalIgnoreCase)
+            .Replace("{singer}", singer, StringComparison.OrdinalIgnoreCase)
             .Replace("{position}", position.ToString(), StringComparison.OrdinalIgnoreCase);
 
     public void Dispose()

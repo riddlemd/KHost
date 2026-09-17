@@ -354,6 +354,10 @@ namespace KHost.DataAccess.Migrations
                     b.Property<Guid>("SingerId")
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("SungAs")
+                        .HasMaxLength(255)
+                        .HasColumnType("TEXT");
+
                     b.Property<int>("Tempo")
                         .HasColumnType("INTEGER");
 
@@ -516,6 +520,8 @@ namespace KHost.DataAccess.Migrations
                             b1.Property<Guid>("VenueId");
 
                             b1.Property<Guid?>("AdPoolId");
+
+                            b1.Property<bool>("AllowAliases");
 
                             b1.Property<Guid?>("BrandingImageMediaId");
 

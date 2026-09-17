@@ -10,16 +10,34 @@ const MinHeight = 120;
 
 export function positionMenu(anchorEl, menuEl) {
     const rect = anchorEl.getBoundingClientRect();
-    const top = rect.bottom + Gap;
 
-    menuEl.style.top = `${top}px`;
+    const below = window.innerHeight - rect.bottom - Gap - Margin;
+    const above = rect.top - Gap - Margin;
+
+    // Open upwards when the room below cannot hold a usable menu. The floor is what makes this
+    // necessary rather than merely tidy: the height is never shrunk past MinHeight, so a trigger
+    // near the bottom of the window gets a menu hanging off it — and fixed positioning means
+    // nothing can scroll those rows back, the console itself never scrolling either. A row at the
+    // foot of the queue could not reach its own last menu item.
+    const flip = below < MinHeight && above > below;
+
+    // Bound to the room on whichever side it opens, so a long menu scrolls itself rather than
+    // running off the edge, and never taller than the window whichever side that is.
+    menuEl.style.maxHeight =
+        `${Math.min(window.innerHeight - 2 * Margin, Math.max(MinHeight, flip ? above : below))}px`;
+
     menuEl.style.right = `${window.innerWidth - rect.right}px`;
     menuEl.style.minWidth = `${rect.width}px`;
 
-    // Fixed positioning means nothing can scroll a too-tall menu back into view: rows past the
-    // bottom of the window are simply unreachable. Bound it to the room there is and let the menu
-    // scroll itself, so adding a venue or a theme can never hide the rows below.
-    menuEl.style.maxHeight = `${Math.max(MinHeight, window.innerHeight - top - Margin)}px`;
+    // Anchored by the edge it grows from, and the opposite one cleared: the element is reused
+    // across opens, so a stale top would fight the bottom that replaces it.
+    if (flip) {
+        menuEl.style.top = 'auto';
+        menuEl.style.bottom = `${window.innerHeight - rect.top + Gap}px`;
+    } else {
+        menuEl.style.bottom = 'auto';
+        menuEl.style.top = `${rect.bottom + Gap}px`;
+    }
 }
 
 // A panel beside a row of an open menu, rather than inside it. Same reasoning as above: fixed, so
