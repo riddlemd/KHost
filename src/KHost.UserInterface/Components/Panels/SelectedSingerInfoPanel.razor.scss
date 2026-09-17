@@ -95,6 +95,19 @@
         color: var(--kh-success);
     }
 
+    // Under the title rather than beside it: a name has no length worth budgeting for, and the
+    // chips above already spend what the title can spare. Its own line clips independently, so a
+    // long name shortens itself instead of the song.
+    &__sung-as {
+        display: block;
+        margin-top: 0.1rem;
+        font-size: 0.7rem;
+        color: var(--kh-text-muted);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
     &__name--current {
         color: var(--kh-text-muted);
     }
