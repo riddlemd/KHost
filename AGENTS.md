@@ -131,12 +131,16 @@ code it offers the screens.
   nothing is there and keeping it as `Broken` when a file outlived the cancel. So a partial can
   never be left on disk with no row pointing at it — which is what the folder scan would later
   import as `Ready` — and a cleanup that quietly failed surfaces as a `Broken` row instead.
-- A plugin that needs a value it must not persist — a login it will trade for a session key and
-  hold only in memory — injects `IInteractionDispatcher` (same as the host) and sends a
-  `TextPromptRequest`. Unlike a plugin setting, nothing in that round trip ever reaches
-  `plugins.json`; the dialog is the only place the value exists outside the plugin's own
-  variables, for exactly as long as answering the request takes. `KHost.Plugins.Example`'s sign-in
-  action is the first user of it.
+- A plugin that needs to **ask the host for a value** — a login, a room code, anything it has no
+  setting for — injects `IInteractionDispatcher` (same as the host) and sends a
+  `TextPromptRequest`. The line it holds is **settings versus secrets**, not persisted versus not:
+  nothing from that round trip reaches `plugins.json`, and a plugin that keeps what it collected
+  puts it in the secret store with `IPluginContext.SetSecretAsync`. `KHost.Plugins.Example`'s
+  sign-in is the first user of it and does keep what it asked for — the email verbatim and the
+  password as a hash, serialised into one secret — because a venue that restarts mid-show has
+  nobody standing at the console to sign in again. The raw password is the one thing never kept:
+  it reaches the hashing call and nothing else, which is also what goes to Example. Mark a field
+  `Secret: true` to mask the input; that is about the screen in a busy room, not about storage.
 - A plugin puts **buttons on its Plugins-page row** by declaring them in the manifest
   (`PluginButtonDefinition`, key + label + optional style) and implementing `IPluginButtonHandler`.
   The host runs `InvokeButtonAsync(key)` on click and re-reads `DescribeButton(key)` after, so a
@@ -471,6 +475,19 @@ A component test renders the component (`BunitContext`, not the obsolete `TestCo
   a sung performance outlives its singer, and before this nothing could name one whose singer had
   been deleted. Never feed a recorded name back into the add-a-singer lookup: that path creates a
   user on no match, and a one-off name would mint a phantom singer.
+  - **Nothing host-facing may key off the column being *set*** — every enqueue records one, so
+    presence is true of nearly every row and a mark on it appears on the whole list saying nothing.
+    The question is always whether the recorded name **differs from the singer's own**, trimmed and
+    case-insensitively: typing your own name back in lower case has not renamed anybody, and a row
+    reading "singing as Ada" under Ada is noise. `SelectedSingerInfoPanel.SungUnderAnotherName` is
+    that question, and the row draws a muted `__sung-as` line under the title when it holds.
+  - A host changes one through `IDialogService.RequestSingingAsAsync` (the **Singing As** dialog,
+    off the song row's split-button menu). It edits the *turn*, never the account: the dialog
+    mutates `SungAs` and hands the performance back, and the caller persists it with
+    `IPerformanceService.UpdateAsync` — inherited from `IRepositoryService<Performance>`, so no
+    queue-specific method was needed — whose announcement redraws the row. A blank field stores
+    **null**, not `""`: every reader spells "their own name" as an empty recorded name, and null is
+    what a row that was never given one already carries.
 - **Performances carry no foreign keys, deliberately** — deleting a song, a singer or a venue must
   leave the record of who sang what standing. That protects *history*, and the queue is not
   history: a queued performance belongs to somebody who has not sung it, and when its singer or its

@@ -1,0 +1,31 @@
+@using System.ComponentModel.DataAnnotations
+@using KHost.Abstractions.Models
+@using KHost.UserInterface.Models
+@using KHost.UserInterface.Services
+
+<Dialog IsOpen="IsOpen" Class="@($"{_rootClassName} {Class?.Trim()}".Trim())" OnClose="OnClose" CloseOnScrimClick="CloseOnScrimClick">
+    <Header>
+        <Icon Name="person-badge" /> Singing As
+    </Header>
+    <Body>
+        <EditForm EditContext="_editContext" OnValidSubmit="SaveAsync">
+            <DataAnnotationsValidator />
+
+            <div>
+                <label for="singing-as-name" class="kh-form-label">Alias</label>
+                <InputText id="singing-as-name" class="kh-form-control" @bind-Value="_model.SungAs"
+                           placeholder="@SingerName" />
+                <span class="kh-note">
+                    Blank uses @_fallbackName. Only announced where the venue allows aliases.
+                </span>
+                <ValidationMessage For="() => _model.SungAs" />
+            </div>
+
+            <button type="submit" class="kh-hidden"></button>
+        </EditForm>
+    </Body>
+    <Footer>
+        <button class="@(_rootClassName)__cancel-btn kh-button kh-button--secondary" @onclick="CloseAsync" type="button">Cancel</button>
+        <button class="@(_rootClassName)__save-btn kh-button kh-button--primary" @onclick="SubmitAsync" type="button">Save</button>
+    </Footer>
+</Dialog>

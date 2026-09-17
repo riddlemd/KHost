@@ -318,6 +318,16 @@
                     <InputCheckbox class="kh-form-check-input" @bind-Value="_model.ShowEstimatedWaitTime" />
                 </label>
                 <label class="kh-venue-settings__row kh-form-check">
+                    <span class="kh-form-check-label">
+                        Allow Singer Aliases
+                        <span class="kh-note">
+                            Announce the name a song was signed up under, rather than the
+                            singer&rsquo;s own.
+                        </span>
+                    </span>
+                    <InputCheckbox id="venue-allow-aliases" class="kh-form-check-input" @bind-Value="_model.AllowAliases" />
+                </label>
+                <label class="kh-venue-settings__row kh-form-check">
                     <span class="kh-form-check-label">Warn when queueing a song already queued or recently sung</span>
                     <InputCheckbox class="kh-form-check-input" @bind-Value="_model.WarnOnDuplicateSong" />
                 </label>
