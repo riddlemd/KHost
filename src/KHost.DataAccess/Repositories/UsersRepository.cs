@@ -25,7 +25,7 @@ internal class UsersRepository : BaseRepository<KHostUser>, IUsersRepository
     {
     }
 
-    /// <summary>SQLITE_CONSTRAINT — every constraint, so the column has to be checked as well.</summary>
+    /// <summary>SQLITE_CONSTRAINT covers every constraint, so the column has to be checked as well.</summary>
     private const int SqliteConstraintViolation = 19;
 
     private const string FoldedNameIndex = "Users.NameFolded";
@@ -76,10 +76,8 @@ internal class UsersRepository : BaseRepository<KHostUser>, IUsersRepository
 
         using var context = await ContextFactory.CreateDbContextAsync();
 
-        // Exact spelling first: NameFolded is unique so the folded lookup can only ever return one
-        // row, but a pre-upgrade database may hold two names the fold now considers equal (Andre
-        // and Ándre), of which only one could be refolded. Typing a name exactly as stored must
-        // always reach that account, or the losing side of the collision cannot sign in at all.
+        // Exact spelling first: a pre-upgrade database may hold two names the fold now considers
+        // equal, of which only one could be refolded. That one must still sign in by exact spelling.
         return await context.Set<KHostUser>().FirstOrDefaultAsync(u => u.Name == name)
             ?? await context.Set<KHostUser>().FirstOrDefaultAsync(u => u.NameFolded == folded);
     }
@@ -115,7 +113,7 @@ internal class UsersRepository : BaseRepository<KHostUser>, IUsersRepository
         using var context = await ContextFactory.CreateDbContextAsync();
 
         // Matched exactly. An external id is not a name, and a provider is free to make its case
-        // meaningful — folding one would merge two singers who are genuinely different people.
+        // meaningful. Folding one would merge two singers who are genuinely different people.
         var owner = await context.Set<KHostUserForeignKey>()
             .Where(k => k.Source == source && k.Key == key)
             .Select(k => k.UserId)
@@ -183,7 +181,7 @@ internal class UsersRepository : BaseRepository<KHostUser>, IUsersRepository
         where TOptions : class
     {
         // Both collections, because an entity that comes back short of one is then saved back
-        // short of it — UpdateAsync reconciles against what it is handed.
+        // short of it: UpdateAsync reconciles against what it is handed.
         queryable = queryable
             .Include(u => u.Groups.OrderBy(g => g.Name))
             .Include(u => u.ForeignKeys)

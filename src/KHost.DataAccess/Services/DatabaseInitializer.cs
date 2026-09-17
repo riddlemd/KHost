@@ -66,12 +66,8 @@ internal class DatabaseInitializer : IDatabaseInitializer
         _logger.LogInformation("Database initialization complete");
     }
 
-    /// <summary>
-    /// Rewrites folded columns whose source text no longer folds to what is stored. Needed because
-    /// a migration can only seed them with SQLite's lower(), which folds ASCII and nothing else,
-    /// and because changing the folding rule itself has to reach rows already in the database.
-    /// Saving is what refolds them — the context folds on the way out.
-    /// </summary>
+    /// <summary>Rewrites folded columns whose source text no longer folds to what is stored.</summary>
+    /// <remarks>A migration can only seed them with SQLite's ASCII-only lower().</remarks>
     internal async Task RefoldStoredTextAsync()
     {
         using var context = await _contextFactory.CreateDbContextAsync();
@@ -94,24 +90,13 @@ internal class DatabaseInitializer : IDatabaseInitializer
         catch (DbUpdateException ex)
         {
             // Two rows the old rule kept apart now fold together, and a unique index refuses the
-            // write. Nothing is lost: the rows stay as they are, one of them still folded the old
-            // way, and it remains reachable by its exact spelling.
+            // write. Nothing is lost: the rows stay as they are, one still reachable by its exact spelling.
             _logger.LogError(ex, "Could not refold stored text: two rows fold to the same value");
         }
     }
 
-    /// <summary>
-    /// Flips every still-Downloading row to Broken — the host process that owned those downloads'
-    /// cancellation tokens is gone, so nothing will ever settle them otherwise. Never deleted: the
-    /// file a download left behind may still be on disk, and a deleted row would let a later
-    /// import silently re-register that partial file as Ready.
-    /// </summary>
-    /// <summary>
-    /// Drops every ephemeral foreign key. An ephemeral key names a connection rather than a
-    /// person, so none can have outlived the process that issued it — and doing it here rather
-    /// than leaving it to whoever wrote them is what stops a plugin's rows outliving the plugin.
-    /// Durable keys are untouched.
-    /// </summary>
+    /// <summary>Drops every ephemeral foreign key; none can have outlived its process.</summary>
+    /// <remarks>Doing it host-side, not in the plugin, stops a plugin's rows outliving the plugin.</remarks>
     internal async Task SweepEphemeralForeignKeysAsync()
     {
         using var context = await _contextFactory.CreateDbContextAsync();

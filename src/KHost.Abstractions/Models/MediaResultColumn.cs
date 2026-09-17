@@ -1,9 +1,6 @@
 namespace KHost.Abstractions.Models;
 
-/// <summary>
-/// How the console should render a column's values. The provider hands over the raw value and
-/// the host formats it, so a plugin never has to guess a width, a locale, or a theme.
-/// </summary>
+/// <summary>How the console renders a column. The provider hands the raw value, host formats it.</summary>
 public enum MediaResultColumnKind
 {
     Text,
@@ -14,18 +11,11 @@ public enum MediaResultColumnKind
     /// <summary>The value is an image URL. Empty leaves the cell blank rather than broken.</summary>
     Thumbnail,
 
-    /// <summary>
-    /// Short text — a provider name, a format, a badge. Sized to its own words rather than taking
-    /// an equal share of the table, which is what Text columns do: a one-word column beside a song
-    /// title should not be as wide as the title.
-    /// </summary>
+    /// <summary>Short text sized to its own words, not an equal table share like Text columns.</summary>
     Label,
 }
 
-/// <summary>
-/// One column of a provider's search results. A provider that declares none gets the console's
-/// default title/artist/length, which is what the local library wants and little else does.
-/// </summary>
+/// <summary>One search-result column; none declared gets the console's default title/artist/length.</summary>
 public sealed record MediaResultColumn
 {
     /// <summary>Title, artist and duration read from the entity itself.</summary>
@@ -33,36 +23,20 @@ public sealed record MediaResultColumn
     public const string ArtistKey = "artist";
     public const string DurationKey = "duration";
 
-    /// <summary>
-    /// The conventional <see cref="MediaSearchEntity.Fields"/> key for a row's picture — what a
-    /// column declared <see cref="MediaResultColumnKind.Thumbnail"/> usually points at, and where a
-    /// <see cref="MediaSearchEntity.SpansAllColumns"/> row's own image is read from, that row
-    /// having no column to sit in.
-    /// </summary>
+    /// <summary>Fields key for a row's picture: Thumbnail's target, and a spanning row's image.</summary>
     public const string ThumbnailKey = "thumbnail";
 
-    /// <summary>
-    /// Which value fills the cell. The three keys above come from <see cref="MediaSearchEntity"/>'s
-    /// own properties; anything else is looked up in <see cref="MediaSearchEntity.Fields"/>.
-    /// </summary>
+    /// <summary>Which value fills the cell: the three keys above, else a Fields lookup.</summary>
     public required string Key { get; init; }
 
     public required string Header { get; init; }
 
     public MediaResultColumnKind Kind { get; init; } = MediaResultColumnKind.Text;
 
-    /// <summary>
-    /// How this column is actually laid out. The reserved duration key implies
-    /// <see cref="MediaResultColumnKind.Duration"/> whatever was declared, so a provider naming
-    /// that column does not have to say the same thing twice — and cannot say it two ways.
-    /// </summary>
+    /// <summary>How this column lays out; the duration key always implies Duration regardless.</summary>
     public MediaResultColumnKind EffectiveKind =>
         Key == DurationKey ? MediaResultColumnKind.Duration : Kind;
 
-    /// <summary>
-    /// False lets the console drop this column when the panel is too narrow to carry every one,
-    /// rightmost droppable first. The first column is never dropped — something has to name the
-    /// row a host is choosing between.
-    /// </summary>
+    /// <summary>False drops this column when narrow; the first column is never dropped.</summary>
     public bool Essential { get; init; } = true;
 }

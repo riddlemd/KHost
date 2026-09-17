@@ -1,10 +1,5 @@
-/* ═══════════════════════════════════════════════════════════════════════════
-   ComboBox
-   Type-to-search picker. The menu is absolute rather than fixed like
-   .kh-dropdown: it opens into space its own container already has, so unlike
-   the dropdown it needs no JS to place it — keep it out of a short, clipping
-   scroll container.
-   ═══════════════════════════════════════════════════════════════════════════ */
+/* The menu is absolute, not fixed like .kh-dropdown: it opens into space its own container
+   already has, needing no JS to place it; keep it out of a short, clipping container. */
 
 .kh-combobox {
     position: relative;

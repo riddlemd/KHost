@@ -193,7 +193,7 @@ public class LocalScreenProviderTests
             new NoOpKeyStore(),
             NullLogger<LocalScreenProvider>.Instance);
 
-    // These tests exercise process lifecycle, not keys — a store that does nothing keeps them focused.
+    // These tests exercise process lifecycle, not keys; a store that does nothing keeps them focused.
     private sealed class NoOpKeyStore : KHost.Abstractions.Services.IPC.IScreenKeyStore
     {
         public string Provision(string screenId) => $"/keys/{screenId}.key";

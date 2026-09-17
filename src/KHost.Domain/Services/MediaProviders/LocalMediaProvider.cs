@@ -62,27 +62,15 @@ public class LocalMediaProvider : BaseService, IMediaProvider
         ];
     }
 
-    /// <summary>
-    /// The <see cref="MediaSearchEntity.Fields"/> key carrying a row's own <see cref="Media.Source"/>
-    /// — the provider that produced the file. Not <see cref="MediaSearchEntity.Source"/>, which
-    /// names whoever answered the search: here that is always this provider, and it would say
-    /// "Local" on every row whatever the file's origin.
-    /// </summary>
+    /// <summary>Fields key for a row's real source; MediaSearchEntity.Source always says "Local".</summary>
     public const string OriginKey = "origin";
 
     public string DisplayName => "Local";
 
     public string SourceName => nameof(LocalMediaProvider);
 
-    /// <summary>
-    /// The console's own three, plus where each file came from. Declared in full because declaring
-    /// any column replaces the default set rather than adding to it.
-    /// </summary>
-    /// <remarks>
-    /// Last, so it lands between the length and the actions the console appends after the final
-    /// column. Droppable, and rightmost of the droppable ones, so a narrow panel loses it before
-    /// anything a host is choosing between.
-    /// </remarks>
+    /// <summary>The console's own three columns plus origin, replacing the defaults.</summary>
+    /// <remarks>Last and rightmost of the droppable columns, so a narrow panel loses it first.</remarks>
     public IReadOnlyList<MediaResultColumn> Columns =>
     [
         new() { Key = MediaResultColumn.TitleKey, Header = "Title" },

@@ -1,7 +1,5 @@
 namespace KHost.UserInterface.Messaging;
 
-/// <summary>
-/// The host picked a different theme. Lives here rather than in the plugin SDK: what the console
-/// looks like is nobody's business but the console's.
-/// </summary>
+/// <summary>The host picked a different theme.</summary>
+/// <remarks>Lives here, not the plugin SDK: how it looks is nobody's business but its own.</remarks>
 public sealed record ThemeChanged;

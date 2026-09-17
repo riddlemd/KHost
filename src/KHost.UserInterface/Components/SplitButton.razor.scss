@@ -44,7 +44,7 @@
         ::deep button {
             display: block;
             width: 100%;
-            // Menu rows are list items, not controls — opt out of the fixed control height.
+            // Menu rows are list items, not controls, so opt out of the fixed control height.
             height: auto;
             padding: 0.75em 1em;
             text-align: left;
@@ -69,11 +69,8 @@
     }
 }
 
-// Nothing to open, so no way to open it: a menu whose items all came from an empty list or an
-// AuthorizeView that drew nothing leaves a chevron that does nothing when pressed. Asked of the
-// rendered markup rather than a parameter, because the caller cannot always know — a permission
-// decides it. Written unnested and in full: :has() is matched against the DOM, so the consumer's
-// own buttons inside it must not pick up this component's scope id.
+// Nothing to open, so no way to open it: asked of the rendered markup, not a parameter.
+// Unnested, in full: :has() matches the DOM, so a caller's own buttons must not share this scope.
 .kh-split-btn:not(:has(.kh-split-btn__menu button)) {
     .kh-split-btn__toggle {
         display: none;

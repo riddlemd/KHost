@@ -37,10 +37,7 @@ public partial class SongControls : IDisposable
 
     private SongControlStyle Style => AppSettings?.Current.SongControlStyle ?? SongControlStyle.Sliders;
 
-    /// <summary>
-    /// The panel as data, so the two shapes are one list rendered twice over rather than two
-    /// copies of the same four controls drifting apart.
-    /// </summary>
+    /// <summary>The panel as data: one list rendered twice, not copies that could drift apart.</summary>
     private IEnumerable<SongControl> Controls()
     {
         yield return new SongControl("Key", "Key, in semitones from the recording",
@@ -83,7 +80,7 @@ public partial class SongControls : IDisposable
     private bool HasTrack(AudioTrackRole role) =>
         PlaybackService?.AudioTracks.Any(t => t.Role == role) ?? false;
 
-    /// <summary>Says so on the closed trigger, or a song left transposed is invisible until it plays.</summary>
+    /// <summary>Says so on the closed trigger, or a transposed song is invisible until it plays.</summary>
     private string TriggerTitle => IsChanged
         ? $"Key {FormatPitch(_pitch)}, tempo {FormatTempo(_tempo)}"
         : "Key and tempo";

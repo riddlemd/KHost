@@ -174,7 +174,7 @@ public class SingerQueueServiceTests : IDisposable
             Arg.Is<Performance>(p => p.CreatedDate >= before && p.CreatedDate <= DateTime.UtcNow));
     }
 
-    // A remote provider's key is its own — a video id, a URL — and names nothing in the library.
+    // A remote provider's key is its own (a video id, a URL) and names nothing in the library.
     [Theory]
     [InlineData("/music/media.mp4")]
     [InlineData("dQw4w9WgXcQ")]
@@ -623,11 +623,7 @@ public class SingerQueueServiceTests : IDisposable
         new QueueRotationStrategyFactory([new FifoStrategy()]),
         _broker);
 
-    /// <summary>
-    /// A singer deleted in the users manager was still in the queue: the order is a list of ids
-    /// and nothing here was told, so resolving skipped them and the panel showed one fewer singer
-    /// than the rotation was counting. The two lists disagreed, quietly.
-    /// </summary>
+    /// <summary>An unresolvable id must be dropped, or the count disagrees with the rotation.</summary>
     [Fact]
     public async Task UsersChanged_ASingerWasDeleted_LeavesTheQueue()
     {
@@ -642,10 +638,7 @@ public class SingerQueueServiceTests : IDisposable
         Assert.Equal(alice.Id, Assert.Single(_service.Users).Id);
     }
 
-    /// <summary>
-    /// Nobody sang them and nobody now can. They are deleted rather than unqueued, which is what
-    /// separates them from the performances a deletion deliberately leaves standing.
-    /// </summary>
+    /// <summary>Waiting performances are deleted, not left standing; nobody can sing them now.</summary>
     [Fact]
     public async Task UsersChanged_ASingerWasDeleted_TakesTheirWaitingSongsWithThem()
     {
@@ -664,7 +657,6 @@ public class SingerQueueServiceTests : IDisposable
         await _performanceService.Received(1).DeleteAsync(waiting.Id);
     }
 
-    /// <summary>A console pointed at somebody who no longer exists has nobody selected.</summary>
     [Fact]
     public async Task UsersChanged_TheSelectedSingerWasDeleted_LeavesNobodySelected()
     {
@@ -679,10 +671,7 @@ public class SingerQueueServiceTests : IDisposable
         Assert.Null(_service.SelectedUserId);
     }
 
-    /// <summary>
-    /// The announcement fires on every user edit, and a rename must not empty the room. Only an
-    /// id that no longer resolves is dropped.
-    /// </summary>
+    /// <summary>Fires on every user edit, not just deletes, so a rename must not empty the room.</summary>
     [Fact]
     public async Task UsersChanged_NobodyWasDeleted_LeavesTheQueueAlone()
     {

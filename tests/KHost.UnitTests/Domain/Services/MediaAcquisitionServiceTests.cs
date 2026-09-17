@@ -74,11 +74,7 @@ public class MediaAcquisitionServiceTests
             m.Status == MediaStatus.Ready));
     }
 
-    /// <summary>
-    /// Where a file came from is worth keeping: a library that mixes downloads from two plugins
-    /// with a host's own folder of files cannot otherwise say which is which, and the file's own
-    /// path says only where it was put.
-    /// </summary>
+    /// <summary>Two plugins' downloads and a host's folder can't be told apart by path alone.</summary>
     [Fact]
     public async Task ImportAsync_RequestNamesAProvider_RecordsItAsTheRowsSource()
     {
@@ -112,11 +108,7 @@ public class MediaAcquisitionServiceTests
         await _mediaService.Received(1).CreateAsync(Arg.Is<Media>(m => m.Source == "YouTube"));
     }
 
-    /// <summary>
-    /// Nothing named a provider, so nothing is claimed. This is the folder scan's shape — a file
-    /// the host found on its own disk has no provider, and inventing one would be a lie a later
-    /// filter would act on.
-    /// </summary>
+    /// <summary>A file found on the host's own disk has no provider; inventing one is a lie.</summary>
     [Fact]
     public async Task ImportAsync_RequestNamesNoProvider_LeavesTheSourceEmpty()
     {
@@ -268,7 +260,7 @@ public class MediaAcquisitionServiceTests
 
         await _service.BeginProcessingAsync(media.Id);
 
-        // The row and the entry move together — the page reads the phase off the entry.
+        // The row and the entry move together; the page reads the phase off the entry.
         Assert.Equal(DownloadPhase.Processing, _downloads.Snapshot().Single(d => d.MediaId == media.Id).Phase);
     }
 
@@ -315,9 +307,8 @@ public class MediaAcquisitionServiceTests
     [Fact]
     public async Task CompleteImportAsync_AnnouncesMediaLibraryChanged()
     {
-        // A real MediaService rather than the substitute: BaseRepositoryService.UpdateAsync is
-        // what actually publishes MediaLibraryChanged, so this proves MediaAcquisitionService reaches it rather than
-        // asserting on a mock that we would have to wire the same behaviour into by hand.
+        // A real MediaService, not the substitute: BaseRepositoryService.UpdateAsync is what
+        // actually publishes MediaLibraryChanged, so a mock would only assert its own wiring.
         var repository = Substitute.For<IMediaRepository>();
         var mediaService = new MediaService(NullLogger<MediaService>.Instance, repository, _broker, new ServiceCollection().BuildServiceProvider());
         var media = new Media { Id = Guid.NewGuid(), FilePath = "/downloads/song.mp4", Title = "Song Title", Status = MediaStatus.Downloading };
@@ -459,7 +450,7 @@ public class MediaAcquisitionServiceTests
     [InlineData(MediaStatus.Processing)]
     public async Task DiscardImportAsync_FileOutlivedTheCancel_KeepsTheRowAsBroken(MediaStatus status)
     {
-        // Whatever the caller believed it deleted, the file is still there — and a file with no
+        // Whatever the caller believed it deleted, the file is still there, and a file with no
         // row pointing at it is one the folder scan imports again later as Ready.
         var file = NewTempFile();
         try
@@ -647,7 +638,7 @@ public class MediaAcquisitionServiceTests
     [Fact]
     public async Task ReportDownloadProgressAsync_UnknownMediaId_NoOps()
     {
-        // Nothing to assert against but that it does not throw — DownloadsService itself already
+        // Nothing to assert against but that it does not throw. DownloadsService itself already
         // covers the silent-no-op behaviour for an id it never registered.
         await _service.ReportDownloadProgressAsync(Guid.NewGuid(), 0.5);
     }

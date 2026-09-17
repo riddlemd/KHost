@@ -6,15 +6,12 @@ namespace KHost.Screen2;
 /// <summary>Where a screen's window was last left, so it comes back there.</summary>
 internal sealed record WindowPlacement(int Left, int Top, int Width, int Height, bool FullScreen);
 
-/// <summary>
-/// Keeps a screen's window placement on the machine the window is on, not on the host: a screen
-/// on another machine keeps its own place, and one started by hand remembers as much as one the
-/// host launched.
-/// </summary>
+/// <summary>Keeps a screen's window placement on the machine the window is on, not the host.</summary>
+/// <remarks>A screen elsewhere, or one started by hand, keeps its own place.</remarks>
 internal sealed class WindowPlacementStore : IDisposable
 {
     // Long enough that a drag writes once rather than per pixel, short enough that the host
-    // killing the process — which is how it closes screens — rarely beats the write.
+    // killing the process (which is how it closes screens) rarely beats the write.
     private static readonly TimeSpan WriteDelay = TimeSpan.FromMilliseconds(400);
 
     private readonly string _path;
@@ -93,7 +90,7 @@ internal sealed class WindowPlacementStore : IDisposable
         }
     }
 
-    /// <summary>A screen id is a host's free text — "Screen 1", or anything a host typed.</summary>
+    /// <summary>A screen id is a host's free text: "Screen 1", or anything a host typed.</summary>
     internal static string SafeFileName(string screenId)
     {
         var safe = screenId.Trim();

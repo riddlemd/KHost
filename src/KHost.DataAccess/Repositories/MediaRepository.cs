@@ -14,9 +14,8 @@ internal class MediaRepository : BaseRepository<Media>, IMediaRepository
 {
     private const int TrigramLength = 3;
 
-    // Only the quote. Every other FTS5 operator character is inert inside a quoted phrase, and
-    // stripping them instead made a hyphenated title unsearchable by its own name: "Track-004"
-    // became "track004", which matches no trigram in "track-004".
+    // Only the quote. Every other FTS5 operator character is inert inside a quoted phrase;
+    // stripping them instead made a hyphenated title unsearchable by its own name.
     private const char FtsQuote = '"';
 
     // Linux filesystems are case-sensitive; Windows and default macOS volumes are not. Folding case
@@ -208,12 +207,11 @@ internal class MediaRepository : BaseRepository<Media>, IMediaRepository
     protected override IQueryable<Media> ApplySearchFilters<TOptions>(IQueryable<Media> queryable, string query, TOptions? options = null)
         where TOptions : class
     {
-        // Anything that is not MediaSearchOptions — including the null the sort-only overloads
-        // pass — lands on the default, which is karaoke. Forgetting to pass options narrows the
-        // result rather than widening it.
+        // Anything that is not MediaSearchOptions, including the null the sort-only overloads pass,
+        // lands on the default, karaoke: forgetting to pass options narrows the result, not widens it.
         queryable = ApplyTypeAndStatus(queryable, options as MediaSearchOptions);
 
-        // Only reached when the query cannot go to FTS - a term too short for the trigram index,
+        // Only reached when the query cannot go to FTS: a term too short for the trigram index,
         // or one left empty once the metacharacters were stripped.
         if (string.IsNullOrWhiteSpace(query))
             return queryable;
@@ -221,10 +219,8 @@ internal class MediaRepository : BaseRepository<Media>, IMediaRepository
         return queryable.Where(m => EF.Functions.Like(m.SearchFolded, FoldedContainsPattern(query), "\\"));
     }
 
-    /// <summary>
-    /// The SQL twin of <see cref="ApplyTypeAndStatus"/>, for the FTS path that cannot compose LINQ.
-    /// Interpolating is safe here and only here: both values are enum members of ours, never input.
-    /// </summary>
+    /// <summary>SQL twin of <see cref="ApplyTypeAndStatus"/> for the FTS path; cannot compose LINQ.</summary>
+    /// <remarks>Interpolating is safe: both values are our own enum members, never input.</remarks>
     private static string BuildOptionFilterSql(MediaSearchOptions? options)
     {
         options ??= MediaSearchOptions.Default;
@@ -240,12 +236,8 @@ internal class MediaRepository : BaseRepository<Media>, IMediaRepository
         return sql;
     }
 
-    /// <summary>
-    /// Relevance-ranked search, filtered and paged inside the one query that ranks it. Composing
-    /// LINQ on top instead makes EF wrap this as a subquery and put LIMIT/OFFSET outside it, where
-    /// there is no ORDER BY — the bm25 ranking is then whatever SQLite happens to preserve, so a
-    /// later page can repeat or skip rows an earlier one already showed.
-    /// </summary>
+    /// <summary>Relevance-ranked search, filtered and paged inside the one query that ranks it.</summary>
+    /// <remarks>Composing LINQ on top loses ORDER BY, so a later page can repeat or skip rows.</remarks>
     private async Task<PaginatedResult<Media>> SearchRankedAsync(
         string match, string query, int pageNumber, int pageSize, MediaSearchOptions? options)
     {
@@ -311,9 +303,8 @@ internal class MediaRepository : BaseRepository<Media>, IMediaRepository
     {
         var match = BuildFtsMatchExpression(query);
 
-        // Neither base overload carries a sort and options at once, so the fallback is built here
-        // rather than delegated — handing options to base.SearchAsync picks the generic overload
-        // and silently drops the sort.
+        // Neither base overload carries a sort and options at once, so the fallback is built here:
+        // handing options to base.SearchAsync picks the generic overload and silently drops the sort.
         if (match is null)
         {
             return await SearchableComponent.SearchAsync(query, pageNumber, pageSize,
@@ -323,9 +314,8 @@ internal class MediaRepository : BaseRepository<Media>, IMediaRepository
         var sw = Stopwatch.StartNew();
         try
         {
-            // An explicit sort supersedes relevance rather than combining with it: the caller asked
-            // for that column's order, and bm25 could only break ties within it. With no sort the
-            // ranking is the order, and that has to be paged in the query that produces it.
+            // An explicit sort supersedes relevance rather than combining with it (bm25 could only
+            // break ties within it), but with no sort the ranking is the order, paged in this query.
             if (sort is null)
                 return await SearchRankedAsync(match, query, pageNumber, pageSize, options);
 
@@ -384,9 +374,8 @@ internal class MediaRepository : BaseRepository<Media>, IMediaRepository
         if (tokens.Length == 0 || Array.Exists(tokens, token => token.Length < TrigramLength))
             return null;
 
-        // Each token becomes a quoted phrase, so punctuation a host typed is matched literally
-        // rather than read as syntax. A quote inside one is escaped by doubling it, which is how
-        // FTS5 spells a literal quote — dropping it would end the phrase early and change the query.
+        // Each token becomes a quoted phrase, so punctuation a host typed is matched literally rather
+        // than read as syntax; a quote inside one is doubled, which is how FTS5 spells a literal quote.
         return string.Join(' ', tokens.Select(token =>
             $"{FtsQuote}{token.Replace("\"", "\"\"")}{FtsQuote}"));
     }

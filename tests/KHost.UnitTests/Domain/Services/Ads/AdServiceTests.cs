@@ -85,10 +85,7 @@ public class AdServiceTests : IDisposable
         return pool;
     }
 
-    /// <summary>
-    /// The button to play one hangs off this. A host turning ads on mid-shift saw nothing until a
-    /// song had finished, because the service worked it out at startup and then never again.
-    /// </summary>
+    /// <summary>Turning ads on mid-shift must not wait for a song to finish.</summary>
     [Fact]
     public async Task IsConfigured_AdsTurnedOnAfterStartup_PicksItUpWithoutWaitingForASongToEnd()
     {
@@ -148,11 +145,7 @@ public class AdServiceTests : IDisposable
         Assert.Equal(0, raised);
     }
 
-    /// <summary>
-    /// A playlist deleted out from under the venue leaves its id behind. Startup used to take the
-    /// id at its word and offer a button that could not play anything, while the check after a
-    /// performance resolved the playlist properly — so the button appeared and then vanished.
-    /// </summary>
+    /// <summary>A deleted playlist's id must not offer a button that cannot play.</summary>
     [Fact]
     public async Task IsConfigured_ThePlaylistTheVenueNamesIsGone_IsFalseFromStartup()
     {
@@ -164,10 +157,7 @@ public class AdServiceTests : IDisposable
         Assert.False(_service.IsConfigured);
     }
 
-    /// <summary>
-    /// A still stamps a nominal length on its media row at import. Reading that would outrank the
-    /// configured default and leave the setting looking like it did nothing.
-    /// </summary>
+    /// <summary>A still's nominal import length must not outrank the configured default.</summary>
     [Fact]
     public async Task ComposeAsync_AStillWithNothingToHear_RunsForTheConfiguredDefault()
     {
@@ -219,7 +209,7 @@ public class AdServiceTests : IDisposable
         Assert.Equal(TimeSpan.FromSeconds(7), ad!.Duration);
     }
 
-    /// <summary>The picture and the words still end together — the default does not cut a voiceover.</summary>
+    /// <summary>The picture and words end together; the default must not cut a voiceover.</summary>
     [Fact]
     public async Task ComposeAsync_AStillWithAVoiceover_RunsForWhatIsLeftOfTheVoiceover()
     {
@@ -428,7 +418,7 @@ public class AdServiceTests : IDisposable
         await _playback.Received(2).PlayAdAsync(Arg.Any<AdPlayback>());
     }
 
-    // A zero interval reads the same either way here — the counter is already 1 by the time it
+    // A zero interval reads the same either way here: the counter is already 1 by the time it
     // is compared. The clamp that matters is on the minutes trigger below.
     [Fact]
     public async Task EveryNPerformances_WithAZeroInterval_FiresEveryGap()
@@ -469,9 +459,8 @@ public class AdServiceTests : IDisposable
     [Fact]
     public async Task EveryNMinutes_NeverPlayedYet_IsDueAtTheFirstGap()
     {
-        // Startup calls InitializeAsync, so the clock is normally already stamped and this branch
-        // does not come up. It is what the mode falls back to if that ordering ever changes:
-        // treat "never played" as due rather than waiting on a null.
+        // Startup calls InitializeAsync so the clock is normally already stamped; this is the
+        // fallback if that ordering ever changes: treat "never played" as due, not null.
         ConfigureVenue(AdTriggerMode.EveryNMinutes, interval: 20);
 
         Assert.Null(_service.LastAdAtUtc);
@@ -652,10 +641,8 @@ public class AdServiceTests : IDisposable
     [Fact]
     public async Task PerformanceEnded_TheGapWaitsForTheAdToStart()
     {
-        // WhenFilledAsync completes immediately when nothing registered, so asserting the ad
-        // played after awaiting it passes whether or not the work was ever handed to the gap.
-        // Holding PlayAdAsync open is what tells the two apart — and break music coming up over
-        // an ad is exactly what an unheld gap would cause.
+        // WhenFilledAsync completes immediately when nothing registered, so asserting play after
+        // awaiting it would pass either way; holding PlayAdAsync open is what tells them apart.
         var started = new TaskCompletionSource();
         var finish = new TaskCompletionSource<bool>();
 

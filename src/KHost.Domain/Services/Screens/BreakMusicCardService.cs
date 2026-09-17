@@ -8,34 +8,22 @@ using Microsoft.Extensions.Logging;
 
 namespace KHost.Domain.Services.Screens;
 
-/// <summary>
-/// Names what the room is hearing between singers, in a corner of the screen. Host-side state
-/// pushed whole, the same as the marquee and the codes: a screen that reconnects mid-show is
-/// correct after one command.
-/// </summary>
-/// <remarks>
-/// The card says what is *playing*, not what is cued. A host's pause and the hand-off to a singer
-/// both take it down, so the screen never names a track over someone else's performance — which is
-/// the only way a caption in the corner of a karaoke screen can be trusted at a glance.
-/// </remarks>
+/// <summary>Names the break music in a corner of the screen; pushed whole so a reconnect is right.</summary>
+/// <remarks>Says what is playing, not what is cued: pause and hand-off both take it down.</remarks>
 public sealed class BreakMusicCardService : BaseService, IDisposable, IStartsWithTheHost
 {
-    /// <summary>
-    /// Bottom-left, away from the codes' own default. They stack rather than cover each other in a
-    /// shared corner, but a venue that has expressed nothing is better served by them apart.
-    /// </summary>
+    /// <summary>Bottom-left, away from the code's default corner, so the two stack when unset.</summary>
     private const ScreenCorner DefaultCorner = ScreenCorner.BottomLeft;
 
-    /// <summary>The codes' own, and for the same reason: an inset belongs to the corner, not to what sits in it.</summary>
+    /// <summary>The code's own default: an inset belongs to the corner, not to what sits in it.</summary>
     private const double DefaultOffset = 0.2;
 
     private readonly IScreenServer _screenServer;
     private readonly IVenuesService _venuesService;
     private readonly SubscriptionSet _subscriptions = new();
 
-    // Resolved on use, never in the constructor. Break music reaches every provider a plugin
-    // registered, and a plugin is one instance pointed at each extension interface it implements —
-    // so taking it here would close the same ring the codes service documents.
+    // Resolved on use, never in the constructor. Taking it there would close the same DI ring
+    // ScreenQrCodeService documents, since a plugin is one instance across every extension interface.
     private readonly IServiceProvider _services;
     private IBreakMusicService? _breakMusic;
 
@@ -56,7 +44,7 @@ public sealed class BreakMusicCardService : BaseService, IDisposable, IStartsWit
         // Starting, pausing, stopping, and yielding to a singer all land here.
         _subscriptions.Add(broker.Subscribe<BreakMusicChanged>(_ => Republish()));
 
-        // A provider moving to the next track on its own says so separately — the state did not
+        // A provider moving to the next track on its own says so separately: the state did not
         // change, only what is playing under it.
         _subscriptions.Add(broker.Subscribe<BreakMusicTrackChanged>(_ => Republish()));
 
@@ -66,11 +54,7 @@ public sealed class BreakMusicCardService : BaseService, IDisposable, IStartsWit
         _screenServer.ScreenConnected += OnScreenConnected;
     }
 
-    /// <summary>
-    /// Pushes the card's state once on the way up. Resolving this is also what subscribes it — a
-    /// service nobody has asked for has not subscribed to anything, so a console that never
-    /// touches it would never draw a card at all.
-    /// </summary>
+    /// <summary>Pushes the card's state once on the way up; resolving it is what subscribes it.</summary>
     public Task InitializeAsync(CancellationToken cancellationToken = default)
         => BroadcastAsync(cancellationToken);
 
@@ -83,9 +67,8 @@ public sealed class BreakMusicCardService : BaseService, IDisposable, IStartsWit
         if (settings is null || !settings.BreakMusicCardEnabled)
             return new SetBreakMusicCardCommand { Enabled = false };
 
-        // Playing only. Paused is a host who stopped it on purpose, and Suspended is break music
-        // standing aside for a singer — in both the room is hearing something else, and a card
-        // naming a track nobody can hear is worse than no card.
+        // Playing only: Paused and Suspended both mean the room is hearing something else, and a
+        // card naming a track nobody can hear is worse than no card.
         if (BreakMusic.State != BreakMusicState.Playing || BreakMusic.CurrentTrack is not { } track)
             return new SetBreakMusicCardCommand { Enabled = false };
 

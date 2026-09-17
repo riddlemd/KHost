@@ -90,7 +90,7 @@
         #hostlost[hidden] { display: none; }
 
         /* Above a full-bleed still: the room reads it while an ad card or the venue card is up,
-           which is most of the night. Below the corners, though — see .kh-corner. */
+           which is most of the night. Below the corners, though; see .kh-corner. */
         #marquee {
             position: absolute;
             left: 0;
@@ -121,16 +121,8 @@
 
         #marquee[hidden] { display: none; }
 
-        /* One stack per corner. The code and the break music card share a corner rather than
-           covering each other — a code with a caption drawn over it is one no phone can read, and
-           nothing on screen would say why. The inset belongs here rather than to either of them,
-           or two things in one corner would not line up against the edge.
-
-           Above the marquee, which is the whole reason this number is here. A band pinned to an
-           edge crosses both bottom corners, and a code it covers stops scanning with nothing on
-           screen to say why — where a band with a code over one end of it is still a readable
-           band. The card rides up with it rather than being raised on its own: when the two share
-           a corner, lifting only the code would leave the band slicing through the stack. */
+        /* One stack per corner, shared by the code and the break card; both sit above the marquee
+           so a band pinned to the edge never covers a code or slices the card. */
         .kh-corner {
             position: absolute;
             z-index: 11;
@@ -168,18 +160,15 @@
         /* Sized off the shorter side, so a code is the same share of the picture on any screen,
            with a floor that keeps it scannable in a small window. */
         .kh-qr {
-            /* A figure, and every user-agent stylesheet gives one margin: 1em 40px. That fixed 40px
-               sat outside the corner offsets and swamped them — the code looked pinned no matter
-               what they were set to. */
+            /* A figure, and every user-agent stylesheet gives one a fixed 1em 40px margin that sat
+               outside the corner offsets and swamped them, pinning the code regardless of setting. */
             margin: 0;
             display: flex;
             flex-direction: column;
             align-items: center;
             gap: 0.4em;
-            /* The white is the quiet zone, in modules, because that is the unit a scanner measures
-               it in — it has to hold its proportion whatever size the code is drawn. The SVG no
-               longer carries one, so this is the whole of it. Both fallbacks match what the host
-               resolves when a venue has no preference. */
+            /* The white is the quiet zone, sized in modules (the unit a scanner measures it in) so it
+               holds proportion at any size. The SVG no longer carries one, so this is the whole of it. */
             padding: max(3px, calc(var(--kh-qr-size) / var(--kh-qr-modules, 25) * var(--kh-qr-safezone, 1)));
             border-radius: 0.15vmin;
             background: #fff;
@@ -191,9 +180,8 @@
         .kh-qr[data-size="medium"] { --kh-qr-size: 18vmin; }
         .kh-qr[data-size="large"] { --kh-qr-size: 25vmin; }
 
-        /* Three pixels a module is about where a phone camera stops reading one, so a long
-           payload holds the code above the size the venue asked for rather than shrinking into
-           something nobody can scan. The default covers a code drawn before its count arrives. */
+        /* Three pixels a module is about where a phone camera stops reading one, so a long payload
+           holds the code above the venue's requested size rather than shrinking past scannable. */
         .kh-qr img {
             display: block;
             width: max(calc(var(--kh-qr-modules, 33) * 3px), var(--kh-qr-size));
@@ -236,9 +224,8 @@
             -webkit-mask-image: linear-gradient(90deg, transparent, #000 4%, #000 96%, transparent);
         }
 
-        /* Pinned: the label is held at the leading edge and the text runs past it, so a room
-           glancing up always sees what the list is. A modifier on whatever the band otherwise
-           looks like — it changes where the label sits, not how the band is painted. */
+        /* Pinned: the label holds the leading edge and the text runs past it, so a room glancing up
+           always sees what the list is. It modifies the band rather than styling it. */
         #marquee-pin {
             position: relative;
             z-index: 1;
@@ -277,10 +264,8 @@
             -webkit-mask-image: linear-gradient(90deg, #000 94%, transparent);
         }
 
-        /* Copies chase each other so the text never leaves a gap the width of the screen — each
-           starts where the last ends, and the track translates by exactly one of them. How many
-           there are is measured, not assumed: two of a short line do not reach across a full
-           screen, and the band then had nothing out to the right to scroll in. */
+        /* Copies chase each other so the text never leaves a gap the width of the screen; how many
+           there are is measured, not assumed: two of a short line would not reach across a full screen. */
         #marquee-track {
             display: inline-block;
             /* Restated rather than inherited: the band is fixed to an edge of the picture, so a
@@ -296,10 +281,8 @@
             padding-right: 4rem;
         }
 
-        /* "Up next" as its own chip rather than a word in the sentence: the room is scanning for
-           names, and a label it can skip is a label it stops re-reading. */
-        /* Filled rather than outlined: at this size a 999px border reads as a pair of brackets
-           around the words. Both colours come from the venue's own pair, inverted. */
+        /* "Up next" as its own chip the room can skip, filled rather than outlined: at this size a
+           999px border reads as brackets. Both colours are the venue's pair, inverted. */
         .marquee-label {
             font-size: 0.55em;
             font-weight: 700;
@@ -358,9 +341,8 @@
             <div id="marquee-track"><span></span><span></span></div>
         </div>
     </div>
-    <!-- One stack per corner, filled by the host. A corner holds whatever the venue put there —
-         a scannable code, what is playing between singers, or both — and stays out of the picture
-         while it is empty. -->
+    <!-- One stack per corner, filled by the host with whatever the venue put there; stays out of
+         the picture while empty. -->
     <div class="kh-corner" data-corner="topleft"></div>
     <div class="kh-corner" data-corner="topright"></div>
     <div class="kh-corner" data-corner="bottomleft"></div>

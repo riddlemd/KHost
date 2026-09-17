@@ -3,9 +3,7 @@ using System.Runtime.Loader;
 
 namespace KHost.Domain.Services.Plugins;
 
-/// <summary>
-/// One non-collectible context per plugin. Reload happens by restarting the app.
-/// </summary>
+/// <summary>One non-collectible context per plugin: reload happens by restarting the app.</summary>
 internal sealed class PluginLoadContext : AssemblyLoadContext
 {
     private readonly AssemblyDependencyResolver _resolver;
@@ -19,7 +17,7 @@ internal sealed class PluginLoadContext : AssemblyLoadContext
     protected override Assembly? Load(AssemblyName assemblyName)
     {
         // Anything the host has loaded (the Sdk above all) must come from the default
-        // context — a plugin-local copy would break type identity across the boundary.
+        // context: a plugin-local copy would break type identity across the boundary.
         if (Default.Assemblies.Any(a => a.GetName().Name == assemblyName.Name))
             return null;
 

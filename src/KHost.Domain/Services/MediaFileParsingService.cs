@@ -50,9 +50,8 @@ namespace KHost.Domain.Services
                 FilePath = filePath,
                 Title = probe?.Title ?? parsedTitle,
                 Type = type,
-                // The fallback is only for something with a performer. A card or an ad clip has no
-                // artist to be unknown, and inventing one puts "Unknown Artist" beside every still
-                // in the pickers that name a row by title and artist.
+                // The fallback is only for something with a performer. A card or ad has no artist to be
+                // unknown, and inventing one would put "Unknown Artist" beside every still in the pickers.
                 Artist = probe?.Artist ?? parsedArtist ?? (HasArtist(type) ? opts.FallbackArtistName : string.Empty),
                 Duration = probe?.Duration ?? (isStill ? MediaFormats.DefaultImageDuration : null),
                 Format = Path.GetExtension(filePath).TrimStart('.').ToUpperInvariant(),

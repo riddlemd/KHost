@@ -65,9 +65,8 @@ public class ThemeService : IThemeService
         {
             var custom = _store.Custom.FirstOrDefault(t => IdMatches(t.Id, CurrentTheme));
 
-            // A custom theme is served from a route rather than a file, and its URL never changes
-            // on its own — without the content stamp an edit to the running theme would repaint
-            // nothing until the browser happened to drop the stylesheet from cache.
+            // A custom theme's URL never changes on its own, so without the content stamp an edit
+            // would repaint nothing until the browser dropped the stylesheet from cache.
             return custom is null
                 ? $"/css/themes/{CurrentTheme}.css"
                 : $"/css/themes/custom/{custom.Id}.css?v={Stamp(custom)}";
@@ -179,7 +178,7 @@ public class ThemeService : IThemeService
             return;
         }
 
-        // The editor's Enabled box must not switch off the theme on screen — that is the same
+        // The editor's Enabled box must not switch off the theme on screen; that is the same
         // stranding SetEnabledAsync refuses, reached through the other door.
         var enabled = theme.IsEnabled || IdMatches(CurrentTheme, theme.Id);
 

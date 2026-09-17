@@ -89,7 +89,7 @@ public partial class VenuesManagerPage : IDisposable
         {
             var suffix = attempt == 1 ? " (copy)" : $" (copy {attempt})";
 
-            // Trim the stem, not the suffix — an over-length name fails the editor's validation
+            // Trim the stem, not the suffix. An over-length name fails the editor's validation
             // the moment someone opens the clone.
             var stem = baseName.Length + suffix.Length > NameMaxLength
                 ? baseName[..Math.Max(0, NameMaxLength - suffix.Length)].TrimEnd()

@@ -153,7 +153,7 @@ public class PluginCatalogService : BaseService, IPluginCatalogService
         }
         catch (Exception ex)
         {
-            // The cached catalog is kept on purpose — a bar's wifi should cost a stale list, not none.
+            // The cached catalog is kept on purpose: a bar's wifi should cost a stale list, not none.
             LastError = ex.Message;
 
             Logger.LogWarning(ex, "Could not fetch the plugin catalog from {Url}", uri);
@@ -188,7 +188,7 @@ public class PluginCatalogService : BaseService, IPluginCatalogService
     {
         public const string SectionName = "PluginCatalog";
 
-        /// <summary>Blank disables browsing entirely — the page then offers only manual installs.</summary>
+        /// <summary>Blank disables browsing entirely: the page then offers only manual installs.</summary>
         public string? Url { get; set; }
 
         public TimeSpan CacheLifetime { get; set; } = TimeSpan.FromHours(6);

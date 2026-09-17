@@ -211,7 +211,7 @@ public class ThemeServiceTests : IDisposable
         await service.SaveAsync(new ThemeDefinition { Id = "grape", Name = "Hijacked", IsBuiltIn = true });
 
         // Asserting on Read alone would pass even if a custom row were stored, because built-ins
-        // are listed first — so check nothing was added at all.
+        // are listed first, so check nothing was added at all.
         Assert.Equal(2, service.AllThemes.Count);
         Assert.DoesNotContain(service.AllThemes, t => t.Name == "Hijacked");
     }
@@ -383,10 +383,7 @@ public class ThemeServiceTests : IDisposable
         Assert.DoesNotContain("isEnabled", _cache.Raw("themes"));
     }
 
-    /// <summary>
-    /// AllThemes walks the stored lists without taking the write lock, so a save must publish a new
-    /// store rather than grow the one a render is midway through.
-    /// </summary>
+    /// <summary>Reads unlocked, so a save publishes a new store rather than growing one mid-render.</summary>
     [Fact]
     public async Task AllThemes_CanBeReadWhileThemesAreBeingSaved()
     {

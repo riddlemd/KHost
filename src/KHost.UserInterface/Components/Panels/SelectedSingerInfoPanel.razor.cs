@@ -152,10 +152,8 @@ public partial class SelectedSingerInfoPanel : IAsyncDisposable
         if (!_mediaCache.TryGetValue(performance.MediaId, out var media) || media is null)
             return;
 
-        // Not just the disabled button: the row's cached media can be a render behind a status
-        // change made elsewhere, so refuse the play here too. PlaybackService.LoadAsync carries
-        // the same guard, but a no-op there would fall through to the PlayAsync below and resume
-        // whatever performance was already loaded — this stops that before either call happens.
+        // Not just the disabled button: cached media can be a render behind a status change.
+        // LoadAsync guards too, but a no-op falls through to PlayAsync, resuming the old performance.
         if (media.Status != MediaStatus.Ready)
             return;
 
@@ -245,10 +243,7 @@ public partial class SelectedSingerInfoPanel : IAsyncDisposable
         });
     }
 
-    /// <summary>
-    /// The name is the turn's, not the singer's, so this saves the performance and leaves the
-    /// account alone. The row redraws off the <c>PerformancesChanged</c> the update announces.
-    /// </summary>
+    /// <summary>The turn's name, not the singer's: saves the performance, not the account.</summary>
     private async Task OpenSingingAsDialogAsync(Performance performance, KHostUser singer)
     {
         if (PerformanceService is null || DialogService is null) return;
@@ -286,7 +281,7 @@ public partial class SelectedSingerInfoPanel : IAsyncDisposable
         StateHasChanged();
     });
 
-    // Rendering needs this synchronously, and the venue read is async — cache it and refresh
+    // Rendering needs this synchronously, and the venue read is async, so cache it and refresh
     // on venue state changes so toggling tipping takes effect without a reload.
     private async Task RefreshVenueSettingsAsync()
     {
@@ -352,17 +347,8 @@ public partial class SelectedSingerInfoPanel : IAsyncDisposable
     private static string FormatTempo(int tempo) =>
         tempo.ToString("+#;\u2212#;0", CultureInfo.InvariantCulture) + "%";
 
-    /// <summary>
-    /// Whether this turn was queued under a name other than the singer's own, which is the only
-    /// case worth a line on the row.
-    /// </summary>
-    /// <remarks>
-    /// Asked of the two names, never of whether <see cref="Performance.SungAs"/> is set:
-    /// <c>CreateAndEnqueueAsync</c> records one on every enqueue, filling in the singer's own name
-    /// when the caller has none, so presence is true of nearly every row and marks the whole list.
-    /// Case-insensitive because a guest typing their own name back in a different case has not
-    /// renamed themselves, and a row saying "singing as Ada" under Ada is noise.
-    /// </remarks>
+    /// <summary>Whether this turn was queued under a name other than the singer's own.</summary>
+    /// <remarks>Compares names, not SungAs presence: that field is filled by default on every row.</remarks>
     private static bool SungUnderAnotherName(Performance performance, KHostUser singer)
     {
         var recorded = performance.SungAs?.Trim();
@@ -371,12 +357,7 @@ public partial class SelectedSingerInfoPanel : IAsyncDisposable
             && !string.Equals(recorded, singer.Name?.Trim(), StringComparison.OrdinalIgnoreCase);
     }
 
-    /// <summary>
-    /// Async because tearing the sortable down is a JS call, and a ValueTask dropped on the floor
-    /// in a synchronous Dispose is a call nobody knows the outcome of. The circuit is often already
-    /// gone by the time a component is disposed — that is what JSDisconnectedException means here,
-    /// and it is the ordinary path rather than a fault.
-    /// </summary>
+    /// <summary>Async: tearing the sortable down is a JS call, and the circuit is usually gone.</summary>
     public async ValueTask DisposeAsync()
     {
         _subscriptions.Dispose();

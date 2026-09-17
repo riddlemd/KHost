@@ -3,9 +3,8 @@ using KHost.Domain.Services.MediaPools;
 
 namespace KHost.UnitTests.Domain.Services.MediaPools;
 
-// The selector is the whole reason a pool is more than a list, so every mode is exercised against
-// a seeded Random rather than trusted. A pick that repeats, or a nested pool that never gets
-// reached, is silence or the same jingle twice in a row out in the room.
+// Every mode is exercised against a seeded Random rather than trusted: a pick that repeats, or a
+// nested pool that never gets reached, is silence or the same jingle twice in a row.
 public class MediaPoolSelectorTests
 {
     private static readonly Guid _trackA = Guid.NewGuid();
@@ -40,7 +39,7 @@ public class MediaPoolSelectorTests
     private static MediaPoolEntry? SelectEntry(MediaPool root, PoolSelectionState state, Random random, params MediaPool[] others)
         => MediaPoolSelector.SelectNext(root, others.ToDictionary(p => p.Id), state, random);
 
-    // An audio-only ad — a radio-style spot over whatever is already on screen — carries no
+    // An audio-only ad (a radio-style spot over whatever is already on screen) carries no
     // MediaId at all, so a filter that only looks there makes the whole entry unreachable.
     [Fact]
     public void SelectNext_AnEntryWithOnlyAudio_IsStillPicked()
@@ -64,7 +63,7 @@ public class MediaPoolSelectorTests
         Assert.Equal(_trackA, Select(pool, new PoolSelectionState(), new Random(1)));
     }
 
-    // Two entries for the same track — a host weighting it by listing it twice — must not let it
+    // Two entries for the same track (a host weighting it by listing it twice) must not let it
     // play back to back, so the window remembers the media rather than the line.
     [Fact]
     public void SelectNext_TheSameTrackListedTwice_StillHonoursTheNoRepeatWindow()
@@ -203,7 +202,7 @@ public class MediaPoolSelectorTests
     }
 
     // A pool smaller than its own no-repeat window would have nothing eligible, and silence in
-    // the room is worse than a repeat — so the window is relaxed rather than obeyed.
+    // the room is worse than a repeat, so the window is relaxed rather than obeyed.
     [Fact]
     public void SelectNext_PoolSmallerThanItsNoRepeatWindow_StillPlays()
     {
@@ -260,7 +259,7 @@ public class MediaPoolSelectorTests
         Assert.Equal(_trackA, Select(root, new PoolSelectionState(), new Random(1), empty));
     }
 
-    // Saving rejects a cycle, so this only happens to rows edited outside the app — but it must
+    // Saving rejects a cycle, so this only happens to rows edited outside the app, but it must
     // terminate rather than hang the console mid-show.
     [Fact]
     public void SelectNext_PoolThatReachesItself_TerminatesAndReturnsTheReachableTrack()

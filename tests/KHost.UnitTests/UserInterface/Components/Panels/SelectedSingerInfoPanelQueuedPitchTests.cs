@@ -10,10 +10,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace KHost.UnitTests.UserInterface.Components.Panels;
 
-/// <summary>
-/// A song re-queued from history arrives already transposed. Without a mark on the row the host
-/// only finds that out when it starts, which is the wrong moment to be surprised by a key change.
-/// </summary>
+/// <summary>Without a row mark, a re-queued song's transposed pitch surfaces only once it plays.</summary>
 public class SelectedSingerInfoPanelQueuedPitchTests : BunitContext
 {
     private const string PitchSelector = ".kh-selected-singer-info-panel__pitch";

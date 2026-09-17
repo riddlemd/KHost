@@ -2,11 +2,7 @@ using KHost.Abstractions.Models;
 
 namespace KHost.Abstractions.Services;
 
-/// <summary>
-/// Carries the gap after a performance. Handlers are void and cannot be awaited, so anything
-/// filling the gap registers its work here — otherwise break music would be brought back before
-/// the ad it is meant to make way for had even started.
-/// </summary>
+/// <summary>Gap after a performance; handlers can't await, so filling work registers here instead.</summary>
 public sealed class PerformanceEndedEventArgs : EventArgs
 {
     private readonly List<Task> _fills = [];
@@ -18,46 +14,27 @@ public sealed class PerformanceEndedEventArgs : EventArgs
 
 public interface IPlaybackService : IDisposable
 {
-    /// <summary>
-    /// Semitones. The filter is a resample plus WSOLA time-stretch, not a phase vocoder, so past
-    /// this the artefacts cost more than the transposition is worth.
-    /// </summary>
+    /// <summary>Semitones; past this, WSOLA artefacts cost more than the transposition is worth.</summary>
     const int MaxPitch = 6;
 
     const int MinPitch = -6;
 
-    /// <summary>
-    /// Percent either side of the recorded speed. Past this the time-stretch smears badly enough
-    /// that a singer cannot follow it.
-    /// </summary>
+    /// <summary>Percent either side of recorded speed; past this the stretch smears too badly.</summary>
     const int MaxTempo = 50;
 
     const int MinTempo = -50;
 
 
-    /// <summary>
-    /// A singer's performance finished, raised in the gap before break music comes back.
-    /// Deliberately not raised for an ad: one that re-entered here would count itself towards
-    /// the next ad and could chain them without a singer ever getting back on.
-    /// </summary>
+    /// <summary>A performance finished, raised before break music returns; never raised for an ad.</summary>
     event EventHandler<PerformanceEndedEventArgs>? PerformanceEnded;
 
-    /// <summary>
-    /// Raised by the position clock alone, twice a second while a song plays. Nothing but
-    /// <see cref="Position"/> has moved, so a subscriber that re-queries on it repeats that query
-    /// all night — take it only to redraw a playhead, and take PlaybackChanged for the rest.
-    /// </summary>
+    /// <summary>Twice a second while playing; only <see cref="Position"/> moves, so redraw only.</summary>
     event EventHandler? PositionChanged;
 
     Performance? CurrentPerformance { get; }
     Media? CurrentMedia { get; }
 
-    /// <summary>
-    /// What to call whoever is singing. Resolved here beside <see cref="CurrentMedia"/> rather
-    /// than by each caller, because the answer is not simply the account's name: a performance
-    /// records the name it was queued under, and the venue decides whether one that differs from
-    /// the singer's own is the one the room sees. Null when nothing is playing.
-    /// </summary>
+    /// <summary>Who's singing; the venue decides if a differing recorded name shows. Null if idle.</summary>
     string? CurrentSingerName { get; }
 
     /// <summary>Whether the main channel is carrying an ad rather than a singer's song.</summary>
@@ -69,80 +46,45 @@ public interface IPlaybackService : IDisposable
     /// <summary>How long the current stop is fading out for; null when not stopping.</summary>
     TimeSpan? StopFadeDuration { get; }
 
-    /// <summary>
-    /// Semitones, taken from the performance on load. The host's transcode applies it, so screens
-    /// and Cast receivers hear it without being sent anything of their own.
-    /// </summary>
+    /// <summary>Semitones from the performance on load; applied in the transcode, not sent out.</summary>
     int Pitch { get; }
 
-    /// <summary>
-    /// Percent either side of the recorded speed; zero as recorded. Retimes the picture with the
-    /// audio, so the song is genuinely shorter or longer in wall-clock time than its duration says.
-    /// </summary>
+    /// <summary>Percent either side of recorded speed; retimes the picture with the audio.</summary>
     int Tempo { get; }
 
-    /// <summary>
-    /// Whether at least one screen is connected. Screens render both audio and video, so
-    /// playback with none attached produces no output at all.
-    /// </summary>
+    /// <summary>Whether a screen is connected; with none, playback produces no output.</summary>
     Task<bool> HasConnectedScreenAsync();
 
     Task LoadAsync(Performance performance, Media media);
 
-    /// <summary>
-    /// Plays media on the main channel that is nobody's turn, and starts it — an ad is not cued
-    /// by a host the way a song is. It ends without dequeuing or rotating, so the singer at the top
-    /// of the queue still has their turn afterwards. False when it was refused or had nowhere to play.
-    /// </summary>
+    /// <summary>Plays media on nobody's turn; ends without dequeuing. False if refused or nowhere.</summary>
     Task<bool> PlayAdAsync(Media media);
 
-    /// <summary>
-    /// The composed form: a visual, audio of its own, or both. An ad that brings audio takes the
-    /// room from break music; a silent still lets the bed play on underneath it.
-    /// </summary>
+    /// <summary>Composed form: visual, own audio, or both; a silent still lets the bed play.</summary>
     Task<bool> PlayAdAsync(AdPlayback ad);
     Task PlayAsync();
     Task PauseAsync();
     Task StopAsync();
 
-    /// <summary>
-    /// Moves the playhead. Clamped to the song, so a click at either end of a progress bar is a
-    /// position rather than an error.
-    /// </summary>
+    /// <summary>Moves the playhead, clamped to the song; an end click is a position, not error.</summary>
     Task SeekAsync(TimeSpan position);
 
-    /// <summary>
-    /// Clamped to <see cref="MinPitch"/>..<see cref="MaxPitch"/>. Returning means the value is
-    /// set, not that the room has heard it: the transcode is rebuilt after a settling delay.
-    /// </summary>
+    /// <summary>Clamped to Min/MaxPitch: set, not heard; the transcode rebuilds after a delay.</summary>
     Task SetPitchAsync(int semitones);
 
-    /// <summary>
-    /// Clamped to <see cref="MinTempo"/>..<see cref="MaxTempo"/>. Settles and rebuilds the
-    /// transcode exactly as <see cref="SetPitchAsync"/> does, and the two share one settle: a host
-    /// changing both gets one break in the song rather than two.
-    /// </summary>
+    /// <summary>Clamped to Min/MaxTempo; shares one settle with <see cref="SetPitchAsync"/>.</summary>
     Task SetTempoAsync(int tempo);
 
-    /// <summary>
-    /// The separately-mixable voices in the loaded file. Empty for an ordinary single-track song,
-    /// which is most of them — the two volumes below mean nothing when it is.
-    /// </summary>
+    /// <summary>Separately-mixable voices in the file; empty for an ordinary single-track song.</summary>
     IReadOnlyList<AudioTrack> AudioTracks { get; }
 
     /// <summary>Percent of the original lead vocal riding on the music. Zero by default.</summary>
     int LeadVolume { get; }
 
-    /// <summary>
-    /// Percent of the backing voices riding on the music. Starts at the machine setting, which
-    /// itself defaults to full.
-    /// </summary>
+    /// <summary>Backing voice percent; starts at the machine setting, which defaults to full.</summary>
     int BackingVolume { get; }
 
-    /// <summary>
-    /// Clamped to 0..100. Rebuilds the transcode on the same settle the key and tempo share, so
-    /// a host balancing the whole mix costs the song one break rather than four.
-    /// </summary>
+    /// <summary>Clamped to 0..100; shares the pitch/tempo settle, so a balance costs one break.</summary>
     Task SetLeadVolumeAsync(int volume);
 
     /// <inheritdoc cref="SetLeadVolumeAsync"/>

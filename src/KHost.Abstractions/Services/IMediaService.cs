@@ -4,14 +4,11 @@ namespace KHost.Abstractions.Services;
 
 public interface IMediaService : IRepositoryService<Media>
 {
-    /// <summary>
-    /// Listing and search that can reach past karaoke. The inherited overloads answer with songs
-    /// alone; break music and ads are only visible to a caller that asks for them by name.
-    /// </summary>
+    /// <summary>Listing and search reaching past karaoke; the plain overloads answer songs alone.</summary>
     Task<PaginatedResult<Media>> ReadAllAsync(int pageNumber, int pageSize, SortDescriptor? sort, MediaSearchOptions? options);
 
     Task<PaginatedResult<Media>> SearchAsync(string query, int pageNumber, int pageSize, SortDescriptor? sort, MediaSearchOptions? options);
 
-    /// <summary>Every row of these types, unpaged and title-ordered — what a picker needs.</summary>
+    /// <summary>Every row of these types, unpaged and title-ordered, which is what a picker needs.</summary>
     Task<IReadOnlyList<Media>> ReadAllByTypesAsync(params MediaType[] types);
 }

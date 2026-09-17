@@ -1,9 +1,6 @@
 namespace KHost.Abstractions.Models;
 
-/// <summary>
-/// Where an overlay sits on a screen. Separate from <see cref="MarqueePosition"/>, which names the
-/// edge a full-width band is fixed to rather than a corner something small can occupy.
-/// </summary>
+/// <summary>Where an overlay sits: a corner, not the edge <see cref="MarqueePosition"/> uses.</summary>
 public enum ScreenCorner
 {
     BottomRight,

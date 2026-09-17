@@ -46,18 +46,13 @@ public class NowPlayingPanelTests : BunitContext
         Services.AddSingleton(Substitute.For<IDialogService>());
 
         // The break music controls ride this panel's header, so their services have to resolve
-        // even in tests that only care about the song. The substitute names no provider, which is
-        // what keeps the bar from rendering into these assertions.
+        // even in tests that only care about the song; naming no provider keeps the bar out of scope.
         Services.AddSingleton(_breakMusic);
         Services.AddSingleton(Substitute.For<IAdService>());
         Services.AddSingleton(Substitute.For<IFlashService>());
     }
 
-    /// <summary>
-    /// The break music controls sit in a band of their own under the header. Sharing the title row
-    /// put a cluster of loose parts beside the song controls' single dropdown, and the two read as
-    /// different kinds of thing.
-    /// </summary>
+    /// <summary>Sharing the title row read as unrelated loose parts beside the single dropdown.</summary>
     [Fact]
     public void BreakMusicControls_RenderInABandOfTheirOwn()
     {

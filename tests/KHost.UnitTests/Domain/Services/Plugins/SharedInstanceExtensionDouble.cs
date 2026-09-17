@@ -3,16 +3,11 @@ using KHost.Abstractions.Services;
 
 namespace KHost.UnitTests.Domain.Services.Plugins;
 
-/// <summary>
-/// A public plugin extension type that is BOTH a media provider and a button handler, so a loader
-/// test can prove the two interfaces resolve to one shared instance. Loaded by copying this test
-/// assembly in as a plugin entry — nothing else in it implements a plugin extension interface.
-/// </summary>
+/// <summary>Implements multiple extension interfaces to prove they resolve to one instance.</summary>
 public sealed class SharedInstanceExtensionDouble : IMediaProvider, IPluginButtonHandler, IMediaPlaybackGate
 {
-    // The loader builds an extension with its PluginContext as an argument, so a constructor has
-    // to accept it — a parameterless one leaves ActivatorUtilities with an unused argument and no
-    // match.
+    // ActivatorUtilities constructs the extension with a PluginContext argument, so a parameterless
+    // constructor would leave it unmatched.
     public SharedInstanceExtensionDouble(IPluginContext context) => _ = context;
 
     public string DisplayName => "Double";

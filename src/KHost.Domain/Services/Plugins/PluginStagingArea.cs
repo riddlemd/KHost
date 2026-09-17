@@ -5,17 +5,8 @@ using System.Text.Json;
 
 namespace KHost.Domain.Services.Plugins;
 
-/// <summary>
-/// Holds no state of its own — staging is the folder on disk — so the copy <c>AddPlugins</c> builds
-/// to apply pending work before the container exists and the singleton the installer resolves later
-/// are interchangeable.
-/// </summary>
-/// <remarks>
-/// Installs are keyed by plugin id and removals by folder name, because the two answer different
-/// questions. An install replaces a plugin wherever it already sits, so it takes every folder
-/// carrying that id. A removal is a host pointing at one row on the Plugins page — and the row it
-/// pointed at is only identifiable by its folder once two of them share an id.
-/// </remarks>
+/// <summary>Holds no state of its own: staging is the folder on disk.</summary>
+/// <remarks>Installs are keyed by plugin id; removals by folder name, since two can share an id.</remarks>
 public class PluginStagingArea(string pluginsDirectory, string stagingDirectory) : IPluginStagingArea
 {
     public void ApplyPending()
@@ -50,9 +41,8 @@ public class PluginStagingArea(string pluginsDirectory, string stagingDirectory)
 
             try
             {
-                // Every copy, not just the first found: an id spread across two hand-named folders
-                // would otherwise outlive the install meant to replace it, and the leftover shows
-                // on the Plugins page as a duplicate the host never installed.
+                // Every copy, not just the first: an id spread across hand-named folders would otherwise
+                // outlive the install meant to replace it, showing as a duplicate on the Plugins page.
                 foreach (var directory in installed.GetValueOrDefault(id, []))
                     DeleteInstalled(Path.GetFileName(directory));
 
@@ -155,11 +145,8 @@ public class PluginStagingArea(string pluginsDirectory, string stagingDirectory)
             ? null
             : Path.Combine(stagingDirectory, pluginFolderName + PluginPaths.RemovalSuffix);
 
-    /// <summary>
-    /// Where a marker's folder name sits under <c>plugins/</c>, or null if it does not. A marker
-    /// names a direct child and never a path: one that resolves anywhere else is a corrupt or
-    /// hostile name, and following it would delete a directory outside the plugins folder.
-    /// </summary>
+    /// <summary>Where a marker's folder name sits under plugins/, or null if it resolves outside.</summary>
+    /// <remarks>A corrupt or hostile name must never delete elsewhere.</remarks>
     private string? InstalledPath(string pluginFolderName)
     {
         if (string.IsNullOrWhiteSpace(pluginFolderName))
@@ -189,10 +176,8 @@ public class PluginStagingArea(string pluginsDirectory, string stagingDirectory)
             ClearRemoval(Path.GetFileName(directory));
     }
 
-    // Folder names under plugins/ are the host's to choose — one dropped in by hand is named
-    // whatever the host called it — so an id is only ever resolved through the manifest inside.
-    // Two folders may well carry one id, which is a state the Plugins page reports and a host
-    // recovers from by removing the copy it does not want.
+    // Folder names under plugins/ are the hosts to choose, so an id resolves only through the manifest.
+    // Two folders may carry one id; the Plugins page reports it and a host removes the one it wants gone.
     private Dictionary<Guid, List<string>> MapInstalled()
     {
         var map = new Dictionary<Guid, List<string>>();

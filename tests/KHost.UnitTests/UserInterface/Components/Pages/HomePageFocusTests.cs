@@ -11,11 +11,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace KHost.UnitTests.UserInterface.Components.Pages;
 
-/// <summary>
-/// A host who just added a singer is reaching for the song search next — moving focus there is
-/// the whole point of the feature, and only rendering the real page and submitting the real form
-/// catches a handler that exists but never reaches the field it claims to focus.
-/// </summary>
+/// <summary>Only a real page and form submission catch a handler that never reaches the field.</summary>
 public class HomePageFocusTests : BunitContext
 {
     private const string FocusIdentifier = "Blazor._internal.domWrapper.focus";
@@ -49,9 +45,7 @@ public class HomePageFocusTests : BunitContext
             return Task.CompletedTask;
         });
 
-        // A name that matches nobody is a new singer — AddUserAsync creates it. The combo box also
-        // runs its own debounced search (a different overload, with UserSearchOptions) to fill its
-        // dropdown, which needs a non-null result just as much even though nothing here reads it.
+        // The combo box's own debounced search overload also needs a non-null result, unread here.
         _users.SearchAsync(Arg.Any<string>()).Returns(new PaginatedResult<KHostUser>());
         _users.SearchAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<int>(), Arg.Any<UserSearchOptions>())
             .Returns(new PaginatedResult<KHostUser>());
@@ -112,11 +106,7 @@ public class HomePageFocusTests : BunitContext
         JSInterop.VerifyInvoke(FocusIdentifier);
     }
 
-    /// <summary>
-    /// Clicking a singer already in the queue reveals the same panel, through the same
-    /// <see cref="SingerQueueChanged"/> broadcast a real add would also cause — but it is a click to
-    /// view them, not a request to type their next song, so it must not steal the host's typing focus.
-    /// </summary>
+    /// <summary>Viewing an existing singer isn't asking to type a song, so it must not steal focus.</summary>
     [Fact]
     public async Task SelectingAnExistingSinger_DoesNotStealFocus()
     {

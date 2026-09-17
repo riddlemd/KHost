@@ -38,18 +38,16 @@ public sealed class AppInfoService : IAppInfoService
             new ReferencedLicense("SIL Open Font License 1.1", ReadResource(assembly, "SIL-OFL-1.1.txt")),
         ];
 
-        // The csproj's RepositoryUrl becomes an AssemblyMetadataAttribute automatically (no
-        // SourceLink needed) — it's the same URL `git remote get-url origin` resolves to, minus
-        // the .git suffix, so this can't drift from the csproj without drifting with it. No runtime
-        // .git access, so it still resolves in a published build with no repo checked out.
+        // The csproj's RepositoryUrl becomes an AssemblyMetadataAttribute automatically: the same
+        // URL `git remote get-url origin` gives, minus .git, and it resolves with no repo checked out.
         RepositoryUrl = assembly.GetCustomAttributes<AssemblyMetadataAttribute>()
             .FirstOrDefault(a => a.Key == "RepositoryUrl")?.Value ?? "";
 
         // GitHub gives every repository these paths for free; no separate metadata to keep in sync.
         IssuesUrl = RepositoryUrl.Length > 0 ? $"{RepositoryUrl}/issues" : "";
         WikiUrl = RepositoryUrl.Length > 0 ? $"{RepositoryUrl}/wiki" : "";
-        // "master" is this repo's current default branch (git symbolic-ref refs/remotes/origin/HEAD) —
-        // not derivable from build metadata, so it needs updating by hand if that branch is ever renamed.
+        // "master" is this repo's current default branch (git symbolic-ref refs/remotes/origin/HEAD).
+        // It is not derivable from build metadata, so it needs updating by hand if that branch is renamed.
         ContributingUrl = RepositoryUrl.Length > 0 ? $"{RepositoryUrl}/blob/master/CONTRIBUTING.md" : "";
     }
 

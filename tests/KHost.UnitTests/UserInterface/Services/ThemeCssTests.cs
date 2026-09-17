@@ -18,11 +18,7 @@ public class ThemeCssTests
         return data;
     }
 
-    /// <summary>
-    /// A clone has to be the theme the host actually picked, so every shipped theme is round-tripped
-    /// through the editable set and compared property by property. This is what caught the shipped
-    /// themes tuning their own shade alphas, which an earlier derive-everything build got wrong.
-    /// </summary>
+    /// <summary>Round-tripped property by property; derive-everything got shade alphas wrong.</summary>
     [Theory]
     [MemberData(nameof(ShippedThemes))]
     public void Build_FromShippedTheme_ReproducesEveryProperty(string themeName)
@@ -170,10 +166,7 @@ public class ThemeCssTests
     public void IsValidFor_RequiresAHexLiteralOnlyForAColourField(string key, string value, bool expected)
         => Assert.Equal(expected, ThemeCss.IsValidFor(ThemeVariableCatalog.Find(key)!, value));
 
-    /// <summary>
-    /// --bs-primary-rgb is Bootstrap's copy of --kh-primary, and every alpha Bootstrap derives comes
-    /// from it. A value the triplet cannot parse used to leave the two describing different colours.
-    /// </summary>
+    /// <summary>An unparseable RGB triplet left --bs-primary-rgb describing a different colour.</summary>
     [Theory]
     [InlineData("#0A141E")]
     [InlineData("#abc")]

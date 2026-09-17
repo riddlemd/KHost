@@ -15,10 +15,7 @@ public class MessageBrokerTests
 
     public MessageBrokerTests() => _broker = new MessageBroker(_logger);
 
-    /// <summary>
-    /// Delivering to a handler of the wrong type throws inside the cast, which the broker catches
-    /// and logs — so mis-routing is invisible unless a test watches what was logged.
-    /// </summary>
+    /// <summary>A wrong-type handler throws inside the cast; the broker must catch and log it.</summary>
     private sealed class RecordingLogger : ILogger<MessageBroker>
     {
         public List<Exception> Errors { get; } = [];

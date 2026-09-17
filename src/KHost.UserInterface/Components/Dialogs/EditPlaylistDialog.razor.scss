@@ -1,5 +1,4 @@
 .kh-playlist-dialog {
-    // The row of controls that appends an entry, below the table rather than in it.
     &__add {
         display: flex;
         align-items: center;
@@ -21,7 +20,7 @@
             flex-shrink: 0;
         }
 
-        // Collapsed, the row holds one button and nothing to stretch, so it goes to the end —
+        // Collapsed, the row holds one button and nothing to stretch, so it goes to the end,
         // where the entries table's own actions column already is.
         &--collapsed {
             justify-content: flex-end;

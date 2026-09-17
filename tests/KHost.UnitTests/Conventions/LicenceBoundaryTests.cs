@@ -2,13 +2,7 @@ using System.Xml.Linq;
 
 namespace KHost.UnitTests.Conventions;
 
-/// <summary>
-/// Two projects are MIT while the rest of KHost is PolyForm Shield, and a plugin ships copies of
-/// them alongside itself. A reference from either into a PolyForm project would pull that code
-/// into an assembly a third party redistributes, retroactively breaking the MIT grant its author
-/// relied on — so the boundary is a licence term, not a layering preference, and is checked here
-/// rather than left to whoever adds the next reference.
-/// </summary>
+/// <summary>An MIT project referencing PolyForm code pulls it into what a plugin redistributes.</summary>
 public class LicenceBoundaryTests
 {
     private static readonly string[] MitProjects = ["KHost.Abstractions", "KHost.Common"];
@@ -47,7 +41,7 @@ public class LicenceBoundaryTests
             + $"PolyForm-licensed {string.Join(", ", offending)}.");
     }
 
-    /// <summary>Every MIT project has to say so itself, or a package built from it claims the wrong terms.</summary>
+    /// <summary>Every MIT project must say so itself, or its package claims the wrong terms.</summary>
     [Theory]
     [MemberData(nameof(MitProjectNames))]
     public void AnMitProject_DeclaresTheLicenceAndShipsIt(string projectName)

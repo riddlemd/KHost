@@ -9,15 +9,14 @@
     align-items: center;
     justify-content: center;
     gap: 0.4em;
-    // Height is the token, not padding+content — otherwise a taller glyph silently grows the
+    // Height is the token, not padding+content. Otherwise a taller glyph silently grows the
     // button and it stops matching the input or icon buttons beside it. Horizontal padding only.
     height: var(--kh-control-height);
     line-height: 1;
     padding: 0 1em;
     background: linear-gradient(135deg, var(--kh-primary), var(--kh-primary-hover));
-    // The reset strips borders from every button, so every border-color below this — the outline
-    // and secondary modifiers included — had nothing to paint and those buttons rendered as bare
-    // text. Width and style belong here; border-box keeps the fixed height.
+    // The reset strips borders from every button, so border-color alone below paints nothing:
+    // width and style belong here; border-box keeps the fixed height.
     border: 1px solid;
     border-color: var(--kh-primary-hover);
     box-sizing: border-box;
@@ -35,8 +34,7 @@
     }
 
     // Both outline modifiers have to clear the fill: the base sets a primary gradient, and
-    // overriding only border and text leaves an "outline" button wearing a solid primary
-    // background — grey in famicom, whose primary is the console's plastic.
+    // overriding only border and text leaves an "outline" button wearing a solid primary background.
     &--outline-secondary {
         background: transparent;
         border-color: var(--kh-border-bright);

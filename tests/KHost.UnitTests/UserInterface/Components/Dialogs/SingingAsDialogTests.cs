@@ -4,10 +4,7 @@ using KHost.UserInterface.Components.Dialogs;
 
 namespace KHost.UnitTests.UserInterface.Components.Dialogs;
 
-/// <summary>
-/// Changing the name one turn is announced under. The singer it belongs to is not touched — the
-/// name rides on the performance, which is what makes a song-first queue's aliases possible.
-/// </summary>
+/// <summary>Changes the name a turn is announced under; the singer itself stays untouched.</summary>
 public class SingingAsDialogTests
 {
     private readonly Performance _performance = new()
@@ -44,11 +41,7 @@ public class SingingAsDialogTests
         Assert.Equal("flo", _performance.SungAs);
     }
 
-    /// <summary>
-    /// Blank means "their own name", and null is how every reader spells that — an empty string
-    /// would be a recorded name that happens to be empty, which the marquee would compose into a
-    /// blank where a singer should be.
-    /// </summary>
+    /// <summary>Blank means "their own name", spelled as null; an empty string composes as blank.</summary>
     [Fact]
     public async Task Saving_ABlankName_ClearsItRatherThanRecordingAnEmptyOne()
     {
@@ -72,7 +65,7 @@ public class SingingAsDialogTests
         Assert.Equal("flo", _performance.SungAs);
     }
 
-    /// <summary>The singer is whose turn it is, not what the name is; changing one must not move the other.</summary>
+    /// <summary>The singer is whose turn it is, not the name; changing one must not move the other.</summary>
     [Fact]
     public async Task Saving_LeavesTheSingerTheTurnBelongsTo()
     {
@@ -85,7 +78,7 @@ public class SingingAsDialogTests
         Assert.Equal(singerId, _performance.SingerId);
     }
 
-    // ---- reflection helpers: BL0005 forbids assigning a [Parameter] from outside the framework ----
+    // BL0005 forbids assigning a [Parameter] from outside the framework, hence reflection below.
 
     private static SingingAsDialog Open(Performance? performance, string? singerName = "Ann")
     {

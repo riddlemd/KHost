@@ -11,11 +11,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace KHost.UnitTests.UserInterface.Components.Panels;
 
-/// <summary>
-/// The arrow-key rules themselves live in ListKeyboardShortcutsTests. These exist because the
-/// handler was written but never attached to an element, so the shortcuts the buttons advertise
-/// did nothing — only rendering the panel and pressing a key catches that.
-/// </summary>
+/// <summary>Catches a handler attached to nothing; advertised arrow keys that do nothing.</summary>
 public class SingerQueuePanelKeyboardTests : BunitContext
 {
     private const string QueueSelector = ".kh-singer-queue-panel__singer-queue";

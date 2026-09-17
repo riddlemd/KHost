@@ -1,18 +1,12 @@
-/* ═══════════════════════════════════════════════════════════════════════════
-   Song controls
-   Key and tempo, off the Now Playing header. The panel opens down into the
-   card's own body rather than floating over the page, so it needs no fixed
-   positioning and the card's overflow bounds it.
-   ═══════════════════════════════════════════════════════════════════════════ */
-
+// Key and tempo, off the Now Playing header. The panel opens down into the card's own body rather
+// than floating over the page, so it needs no fixed positioning and the card's overflow bounds it.
 .kh-song-controls {
     position: relative;
     display: flex;
     align-items: center;
 
-    // Claims the end of the header row. The break music bar used to do this and everything after
-    // it came along for the ride; with that gone to a band of its own, the trigger has to hold the
-    // right edge itself or it sits against the title.
+    // Claims the end of the header row. With the break music bar gone to a band of its own, the
+    // trigger has to hold the right edge itself or it sits against the title.
     margin-left: auto;
 
     &__trigger {
@@ -97,8 +91,6 @@
         color: var(--kh-text-muted);
     }
 }
-
-/* ── sliders ─────────────────────────────────────────────────────────── */
 
 .kh-song-control--slider {
     display: flex;
@@ -187,8 +179,6 @@
     &:focus-visible { outline: 2px solid var(--kh-success); outline-offset: 2px; }
 }
 
-/* ── dials ───────────────────────────────────────────────────────────── */
-
 .kh-song-control--dial {
     display: flex;
     flex-direction: column;
@@ -206,9 +196,8 @@
     display: grid;
     place-items: center;
 
-    // The ring goes on the knob, not on the input inside it: that input is the whole native
-    // range control held at zero opacity, so lighting it up to carry a focus ring paints a
-    // slider across the dial it is meant to be driving.
+    // The ring goes on the knob, not the input inside it. That input is the whole native range
+    // control held at zero opacity, so lighting it up would paint a slider across the dial.
     &:has(.kh-song-control__grip:focus-visible) {
         border-radius: 50%;
         outline: 2px solid var(--kh-success);

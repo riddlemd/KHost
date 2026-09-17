@@ -3,10 +3,7 @@ using KHost.UserInterface.Components;
 
 namespace KHost.UnitTests.UserInterface.Components;
 
-/// <summary>
-/// Rendered rather than driven by reflection: what this behaviour is, is a menu appearing, and the
-/// search that fills it asks for a render the plain-instance tests have no renderer for.
-/// </summary>
+/// <summary>Rendered, not reflection-driven: the menu needs a renderer plain instances lack.</summary>
 public class ComboBoxFocusTests : BunitContext
 {
     // Deliberately not a KHost model: the box must not care what its rows are.
@@ -30,10 +27,7 @@ public class ComboBoxFocusTests : BunitContext
                 return Task.FromResult<IReadOnlyList<Song>>(_catalogue);
             }));
 
-    /// <summary>
-    /// Off by default. Against a list of every song in the library, a menu that opens itself is a
-    /// wall of rows in front of a field the host meant to type into.
-    /// </summary>
+    /// <summary>Off by default: a self-opening menu is a wall of rows over a library-sized list.</summary>
     [Fact]
     public void Focusing_AnEmptyBox_StaysShutUnlessAskedToOpen()
     {
@@ -55,10 +49,7 @@ public class ComboBoxFocusTests : BunitContext
         Assert.Equal(_catalogue.Count, combo.FindAll(OptionSelector).Count);
     }
 
-    /// <summary>
-    /// A chosen row puts its name in the field. Reopening over that would sit a menu between the
-    /// host and the answer they already gave.
-    /// </summary>
+    /// <summary>Reopening over a chosen value sits a menu between the host and their own answer.</summary>
     [Fact]
     public void Focusing_ABoxThatAlreadyHasAValue_LeavesItShut()
     {

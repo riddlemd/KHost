@@ -4,15 +4,8 @@ using Microsoft.EntityFrameworkCore;
 
 namespace KHost.UnitTests.DataAccess;
 
-/// <summary>
-/// A real SQLite database held in memory. Repositories are mostly LINQ that only becomes SQL at the
-/// provider, so a substitute would test the expression tree rather than the query — the case
-/// sensitivity of a search, or whether a total count is taken before paging, only shows up here.
-///
-/// The connection stays open because an in-memory database lives exactly as long as its connection.
-/// The schema comes from the model rather than the migrations, which carry raw FTS5 SQL these
-/// tests do not need.
-/// </summary>
+/// <summary>A substitute tests the expression tree, not the query; case and paging show here only.</summary>
+/// <remarks>The connection stays open; an in-memory database lives only as long as its connection.</remarks>
 internal sealed class SqliteTestDatabase : IDbContextFactory<DefaultContext>, IDisposable
 {
     private readonly SqliteConnection _connection;

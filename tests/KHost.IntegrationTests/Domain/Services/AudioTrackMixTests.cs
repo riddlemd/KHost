@@ -7,11 +7,7 @@ using Microsoft.Extensions.Options;
 
 namespace KHost.IntegrationTests.Domain.Services;
 
-/// <summary>
-/// Drives real ffprobe and ffmpeg against a file shaped like the karaoke ones: three named audio
-/// tracks, ordered instrumental, backing, lead — so anything reading position rather than name
-/// puts the singer's own part on the control marked backing.
-/// </summary>
+/// <summary>Reading track position instead of name puts the singer on the control marked backing.</summary>
 public class AudioTrackMixTests : IDisposable
 {
     private readonly string _workingDirectory =
@@ -167,10 +163,7 @@ public class AudioTrackMixTests : IDisposable
         throw new TimeoutException($"ffmpeg never finished the playlist for session {sessionId}");
     }
 
-    /// <summary>
-    /// Three tones at distinct pitches so the mix is measurable, tagged the way a real karaoke
-    /// file is: MP4 keeps the name on the stream handler, not a title.
-    /// </summary>
+    /// <summary>MP4 keeps the track name on the stream handler, not a title tag.</summary>
     private async Task<string> CreateMultiTrackAsync(int seconds = 5, bool named = true)
     {
         Directory.CreateDirectory(_workingDirectory);

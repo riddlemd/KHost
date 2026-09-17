@@ -49,7 +49,7 @@ public class MediaPoolCyclesTests
         Assert.True(MediaPoolCycles.CreatesCycle(a, new Dictionary<Guid, MediaPool> { [bId] = b, [cId] = c }));
     }
 
-    // Two branches meeting at the same child is a diamond, not a loop — rejecting it would stop a
+    // Two branches meeting at the same child is a diamond, not a loop. Rejecting it would stop a
     // venue putting one shared jingle list inside two others.
     [Fact]
     public void CreatesCycle_TwoBranchesSharingAChild_IsNotACycle()

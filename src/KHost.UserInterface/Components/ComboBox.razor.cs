@@ -4,51 +4,34 @@ using Microsoft.JSInterop;
 
 namespace KHost.UserInterface.Components;
 
-/// <summary>
-/// Type-to-search replacement for a native select, for lists too long to scroll. Binds the chosen
-/// item itself, not a key, and takes every row from <see cref="Search"/> — so it works the same
-/// against a list in memory, in SQL or over HTTP.
-/// </summary>
+/// <summary>Type-to-search replacement for a native select, binding the chosen item, not a key.</summary>
 /// <typeparam name="TItem">Whatever is being chosen.</typeparam>
 public partial class ComboBox<TItem> : IAsyncDisposable
 {
-    /// <summary>Long enough that a typist is not searching on every keystroke, short enough to feel immediate.</summary>
+    /// <summary>Long enough to not search on every keystroke, short enough to feel immediate.</summary>
     private const int DebounceMilliseconds = 150;
 
     [Inject] private IJSRuntime JS { get; set; } = default!;
 
-    /// <summary>
-    /// Finds the rows for what has been typed. Cap the row count here — the box does not.
-    /// </summary>
+    /// <summary>Finds the rows for what was typed. Cap the row count here; the box does not.</summary>
     [Parameter, EditorRequired] public Func<string, Task<IReadOnlyList<TItem>>>? Search { get; set; }
 
     /// <summary>What to show for a row, in the menu and in the field once it is chosen.</summary>
     [Parameter, EditorRequired] public Func<TItem, string> DisplayName { get; set; } = _ => "";
 
-    /// <summary>
-    /// Which group a row belongs to. Rows are shown in the order <see cref="Search"/> returned them
-    /// and a heading is drawn wherever the group changes, so the caller groups by sorting — the box
-    /// never reorders. Return null or empty for rows that should carry no heading.
-    /// </summary>
+    /// <summary>Which group a row belongs to; the caller groups by sorting, not this component.</summary>
     [Parameter] public Func<TItem, string?>? GroupName { get; set; }
 
     /// <summary>Characters needed before the menu opens.</summary>
     [Parameter] public int MinimumSearchLength { get; set; } = 3;
 
-    /// <summary>
-    /// Opens the menu on focus while the field is empty, so a short list can be browsed the way a
-    /// native select is. Off by default: against a list of every song in the library, a menu that
-    /// opens itself is a wall of rows in front of the field a host meant to type into.
-    /// </summary>
+    /// <summary>Opens the menu on focus while empty. Off by default to not bury a big list.</summary>
     [Parameter] public bool OpenWhenEmpty { get; set; }
 
     [Parameter] public TItem? Value { get; set; }
     [Parameter] public EventCallback<TItem?> ValueChanged { get; set; }
 
-    /// <summary>
-    /// What is in the field. Bind it when the caller accepts text that matches no row — a new name
-    /// being typed for the first time — or to clear the field from outside.
-    /// </summary>
+    /// <summary>What is in the field. Bind it to accept unmatched text, or clear it from outside.</summary>
     [Parameter] public string? Text { get; set; }
 
     [Parameter] public EventCallback<string> TextChanged { get; set; }
@@ -101,10 +84,7 @@ public partial class ComboBox<TItem> : IAsyncDisposable
         await TextChanged.InvokeAsync(text);
     }
 
-    /// <summary>
-    /// Puts the caret in the field. For a caller that revealed the box on purpose — without it,
-    /// showing a box costs the host a second click to reach the thing they just asked for.
-    /// </summary>
+    /// <summary>Puts the caret in the field: without it, opening the box costs a second click.</summary>
     public ValueTask FocusAsync() => _inputRef.FocusAsync();
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -119,10 +99,7 @@ public partial class ComboBox<TItem> : IAsyncDisposable
 
     private void OnFocusOut() => Close();
 
-    /// <summary>
-    /// Only while the field is empty: once a row is chosen its name is in the field, and reopening
-    /// over it would put a menu between the host and what they already picked.
-    /// </summary>
+    /// <summary>Only while empty: reopening after a pick would cover what was chosen.</summary>
     private async Task OnFocusAsync()
     {
         if (!OpenWhenEmpty || _query.Trim().Length > 0)
@@ -247,10 +224,7 @@ public partial class ComboBox<TItem> : IAsyncDisposable
         await ValueChanged.InvokeAsync(value);
     }
 
-    /// <summary>
-    /// Closes and forgets the rows. Only for a change that came from the caller: what the menu was
-    /// answering is gone with the text it was answering about.
-    /// </summary>
+    /// <summary>Only for a change from the caller: the menu's answer no longer matches the text.</summary>
     private void Dismiss()
     {
         _results = [];

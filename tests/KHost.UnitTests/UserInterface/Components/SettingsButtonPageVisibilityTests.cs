@@ -11,10 +11,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace KHost.UnitTests.UserInterface.Components;
 
-/// <summary>
-/// Two pages only mean anything under a venue setting, so the menu drops them rather than offering
-/// a page that describes someone else's music or lists tips a venue does not take.
-/// </summary>
+/// <summary>Two pages mean anything only under a venue setting; the menu drops the irrelevant one.</summary>
 public class SettingsButtonPageVisibilityTests : BunitContext
 {
     private readonly IVenuesService _venues = Substitute.For<IVenuesService>();
@@ -52,10 +49,7 @@ public class SettingsButtonPageVisibilityTests : BunitContext
         Assert.Contains(MenuItems(), i => i.TextContent.Contains("Break Music Manager"));
     }
 
-    /// <summary>
-    /// The other provider renders through the host on purpose: the page follows what feeds the
-    /// playlists, not who plays the audio.
-    /// </summary>
+    /// <summary>The page follows what feeds the playlists, not who plays the audio.</summary>
     [Fact]
     public void BreakMusicManager_GoesWhenTheVenuesModeBringsItsOwnMusic()
     {

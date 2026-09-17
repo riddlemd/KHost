@@ -4,7 +4,7 @@ using System.Runtime.CompilerServices;
 
 namespace KHost.UnitTests.Conventions;
 
-// .editorconfig cannot express this — naming rules have no return-type predicate, so they key
+// .editorconfig cannot express this: naming rules have no return-type predicate, so they key
 // off the `async` keyword and never see `Task Foo() => Bar()`.
 public class AsyncNamingConventionTests
 {

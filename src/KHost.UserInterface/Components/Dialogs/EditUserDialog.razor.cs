@@ -80,8 +80,8 @@ public partial class EditUserDialog
 
         if (User is null || UsersService is null || PerformanceService is null) return;
 
-        // The add flow hands us an unsaved KHostUser, so identity alone cannot tell the two apart —
-        // only a round trip can, and stats would be empty for a user who does not exist yet.
+        // The add flow hands us an unsaved KHostUser, so identity alone cannot tell the two apart.
+        // Only a round trip can, and stats would be empty for a user who does not exist yet.
         if (await UsersService.ReadAsync(User.Id) is null) return;
 
         _isExistingUser = true;
@@ -117,7 +117,7 @@ public partial class EditUserDialog
         }
     }
 
-    // pageSize 0 is not "unpaged" — it falls back to the repository default of 50 and would
+    // pageSize 0 is not "unpaged"; it falls back to the repository default of 50 and would
     // silently hide groups from the picker.
     private const int GroupPageSize = 1000;
 

@@ -35,16 +35,15 @@
 
     &__pos {
         position: relative;
-        // Anchors the number badge and holds the playing bars, nothing else — so it shrinks to
+        // Anchors the number badge and holds the playing bars, nothing else, so it shrinks to
         // them rather than reserving a column the title then starts well clear of.
         width: 1px;
         padding-right: 0;
         text-align: center;
         white-space: nowrap;
 
-        // The same corner badge the singer rows carry. On the cell rather than the row: a <tr> is
-        // not a reliable containing block for an absolutely positioned child, and this is the
-        // leftmost cell, so its corner is the row's.
+        // The same corner badge the singer rows carry. On the cell, not the row: a <tr> isn't a
+        // reliable containing block for an absolutely positioned child, and this is the leftmost cell anyway.
         &::before {
             content: counter(kh-song-row);
             position: absolute;
@@ -95,9 +94,8 @@
         color: var(--kh-success);
     }
 
-    // Under the title rather than beside it: a name has no length worth budgeting for, and the
-    // chips above already spend what the title can spare. Its own line clips independently, so a
-    // long name shortens itself instead of the song.
+    // Under the title, not beside it: a name has no length worth budgeting, and the chips above
+    // already spend what the title can spare. Its own line clips independently of the song's.
     &__sung-as {
         display: block;
         margin-top: 0.1rem;
@@ -129,7 +127,7 @@
             color: var(--kh-primary-bright);
         }
 
-        // Marks the row's leading edge — on every cell it renders as column dividers.
+        // Marks the row's leading edge; on every cell it renders as column dividers.
         &--selected td:first-child {
             border-left: 2px solid var(--kh-primary);
         }
@@ -180,7 +178,7 @@
         margin: 0 0.5em 0 auto;
         padding-left: 0.5em;
         white-space: nowrap;
-        // The title beside them truncates instead — it is the one thing here that can.
+        // The title beside them truncates instead; it is the one thing here that can.
         flex-shrink: 0;
 
         + .kh-selected-singer-info-panel__quick-menu {
@@ -219,9 +217,8 @@
         font-size: 1.5em;
         align-items: center;
         gap: 0.5em;
-        // The totals normally carry the auto margin that pushes this row right, but a venue can
-        // hide them — so own it here, and hand it back when they are present so the two stay
-        // together as one right-aligned cluster rather than splitting the free space.
+        // The totals normally carry the auto margin pushing this row right, but a venue can hide
+        // them, so own it here, and hand it back when they're present, to stay one right-aligned cluster.
         margin-left: auto;
         --kh-quick-menu-size: 32px;
 
@@ -254,9 +251,8 @@
         }
     }
 
-    // Handed to <Icon>, so it renders on that component's element, not ours. The leading `&`
-    // is load-bearing: `::deep &__x` makes ::deep the first token, which Blazor can't rewrite,
-    // and the browser then drops the whole rule.
+    // Handed to <Icon>, so it renders on that component's element, not ours. The leading `&` is
+    // load-bearing: `::deep &__x` would put ::deep first, which Blazor can't rewrite, dropping the rule.
     & ::deep &__flag-icon {
         &--tipper {
             color: var(--kh-flag-tipper);
@@ -283,14 +279,14 @@
     }
 
     // "Ready" on all but a broken or downloading song, and the play button already carries that
-    // distinction — greyed out, or a spinner in place of the icon.
+    // distinction: greyed out, or a spinner in place of the icon.
     .kh-selected-singer-info-panel__col--status,
     .kh-selected-singer-info-panel__status {
         display: none;
     }
 
     // The drag handle reorders too, so the arrows are the first thing that can go to buy the
-    // song's title some room — the same trade the singer queue makes.
+    // song's title some room, which is the same trade the singer queue makes.
     .kh-selected-singer-info-panel__move-up-btn,
     .kh-selected-singer-info-panel__move-down-btn {
         display: none;

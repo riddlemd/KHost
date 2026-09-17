@@ -110,10 +110,8 @@ public class LibraryBreakMusicProviderTests : IDisposable
         Assert.Equal("http://host/media/bed-stream/stream.m3u8", load.StreamUrl);
     }
 
-    // Only the screen the room hears: the bed carries no timeline, so a second screen playing it
-    // would be a second bed in the room rather than the same one.
-    // The console redraws off this message alone now that the provider raises no event, so a
-    // provider that plays without announcing leaves the panel showing the previous track forever.
+    // The console redraws off this message alone since the provider raises no event; a provider
+    // that plays without announcing leaves the panel showing the previous track forever.
     [Fact]
     public async Task StartAsync_AnnouncesTheTrackUnderItsOwnSourceName()
     {

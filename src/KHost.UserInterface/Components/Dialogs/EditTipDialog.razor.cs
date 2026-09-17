@@ -20,10 +20,7 @@ public partial class EditTipDialog : IAsyncDisposable
     [Parameter] public Tip? Tip { get; set; }
     [Parameter] public Guid? UserId { get; set; }
 
-    /// <summary>
-    /// False when the tip is being taken as it happens, which is every tip added from the console:
-    /// a date field there is a question with only one sensible answer.
-    /// </summary>
+    /// <summary>False for a tip added from the console, where a date field has only one answer.</summary>
     [Parameter] public bool ShowDate { get; set; } = true;
 
     [Parameter] public string Class { get; set; } = "";
@@ -116,8 +113,8 @@ public partial class EditTipDialog : IAsyncDisposable
         tip.UserId = userId;
         tip.VenueId = _model.VenueId;
         tip.AmountInCents = _model.AmountInCents;
-        // And ToUniversalTime reads Unspecified as local, which is what the picker hands back — the
-        // two are not symmetric, they are each right for the direction they are used in.
+        // And ToUniversalTime reads Unspecified as local, which is what the picker hands back. The
+        // two are not symmetric; they are each right for the direction they are used in.
         tip.CreatedDate = _model.CreatedDate.ToUniversalTime();
         tip.PaymentMethod = _model.PaymentMethod;
         tip.Notes = _model.Notes;

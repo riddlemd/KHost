@@ -2,10 +2,7 @@ using System.Text.Json;
 
 namespace KHost.Abstractions.Models.Plugins;
 
-/// <summary>
-/// Persisted plugin state (cache/plugins.json). Read directly at startup before DI exists;
-/// written through ICacheService with key "Plugins" — keep the shapes in sync.
-/// </summary>
+/// <summary>Persisted plugin state, read at startup before DI exists; keep the shapes in sync.</summary>
 public class PluginsState
 {
     public List<string> EnabledPluginIds { get; set; } = [];

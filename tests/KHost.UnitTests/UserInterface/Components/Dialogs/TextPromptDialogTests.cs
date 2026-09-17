@@ -87,10 +87,7 @@ public class TextPromptDialogTests : BunitContext
         Assert.True(closed);
     }
 
-    /// <summary>
-    /// The hidden submit button that lets Enter submit the form is not disabled the way the visible
-    /// one is, so the guard against a blank submission has to live in code, not in markup.
-    /// </summary>
+    /// <summary>The hidden Enter-submit button isn't disabled, so the guard must live in code.</summary>
     [Fact]
     public void SubmitViaForm_FieldsBlank_DoesNotSubmit()
     {

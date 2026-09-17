@@ -1,6 +1,5 @@
-// Nothing here may hold an element captured at startup: the now-playing, search and singer-info
-// panels mount only once a singer is selected, so on a fresh page none of them exist yet. Handles
-// are reached by delegation and panels are looked up per drag.
+// Nothing here may hold an element captured at startup: right-hand panels mount only once a singer
+// is selected. Handles are reached by delegation and panels are looked up per drag.
 
 const KEYS = {
     queueWidth:   'khost-queue-width',
@@ -32,9 +31,8 @@ export function init() {
     let startSize = 0;
     let saveTimer = null;
 
-    // The stored width is the preference; what gets applied is that preference clamped to the
-    // window as it is now. Clamping without storing means a session at 720px does not throw away
-    // the width chosen at 1440.
+    // The stored width is the preference; what applies is that preference clamped to the window now.
+    // Clamping without storing means a session at 720px doesn't throw away the width chosen at 1440.
     function applyQueueWidth() {
         const queue = find(SELECTORS.queue);
         const desired = parseFloat(localStorage.getItem(KEYS.queueWidth));
@@ -48,7 +46,7 @@ export function init() {
         const search = find(SELECTORS.search);
         const saved = parseFloat(localStorage.getItem(KEYS.searchHeight));
 
-        // An inline height means this panel has already been sized — either restored or dragged —
+        // An inline height means this panel has already been sized, either restored or dragged,
         // and re-applying the stored value mid-session would undo the drag in progress.
         if (mode || !search || !(saved > 0) || search.style.height) return;
 

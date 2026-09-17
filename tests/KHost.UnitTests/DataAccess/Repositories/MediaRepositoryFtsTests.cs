@@ -130,9 +130,8 @@ public class MediaRepositoryFtsTests : IDisposable
         Assert.Equal("Bohemian Rhapsody", result.Items[0].Title);
     }
 
-    // Punctuation inside a title is indexed by the trigram tokenizer, so a host typing the title
-    // as they see it must find it. Stripping the hyphen made "Track-004" search for "track004",
-    // which matches no trigram in "track-004" — the row was only reachable by typing "Track".
+    // Stripping the hyphen made "Track-004" search for "track004", which matches no trigram in
+    // "track-004": the row was only reachable by typing "Track".
     [Fact]
     public async Task SearchAsync_HyphenatedTitle_IsFoundByTypingTheHyphen()
     {
@@ -153,9 +152,8 @@ public class MediaRepositoryFtsTests : IDisposable
         Assert.Equal("99 Problems", Assert.Single(result.Items).Title);
     }
 
-    // A quote inside a token is escaped by doubling it, which is how FTS5 spells a literal quote.
-    // Dropping it instead would end the phrase early and quietly widen the search: the trigram
-    // index holds the punctuation, so the quoted title must match and the unquoted one must not.
+    // A quote is escaped by doubling it; dropping it instead ends the phrase early and quietly
+    // widens the search to match the unquoted title too.
     [Fact]
     public async Task SearchAsync_QuoteInTheQuery_MatchesOnlyTheTitleThatHasOne()
     {
@@ -180,9 +178,8 @@ public class MediaRepositoryFtsTests : IDisposable
         Assert.NotNull(result);
     }
 
-    // Paging composed on top of the raw FTS query put LIMIT/OFFSET outside it, where there was no
-    // ORDER BY — so which rows landed on which page was SQLite's choice, and a second page could
-    // repeat or skip what the first already showed.
+    // Paging put LIMIT/OFFSET outside the raw FTS query with no ORDER BY, so a second page could
+    // repeat or skip rows the first already showed.
     [Fact]
     public async Task SearchAsync_PagingTheSameQuery_CoversEveryRowExactlyOnce()
     {

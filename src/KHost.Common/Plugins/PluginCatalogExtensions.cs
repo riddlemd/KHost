@@ -2,11 +2,8 @@ using KHost.Abstractions.Models.Plugins;
 
 namespace KHost.Common.Plugins;
 
-/// <summary>
-/// What a host may do with a published catalog entry. Apart from the entry itself because a
-/// catalog row is a contract — a plugin and the sync tool both bind to it — while deciding what
-/// this host can install is behaviour.
-/// </summary>
+/// <summary>What a host may do with a published catalog entry, apart from the entry itself.</summary>
+/// <remarks>A catalog row is a contract; deciding what installs is behaviour.</remarks>
 public static class PluginCatalogExtensions
 {
     /// <summary>True when some release targets this host's plugin API, whatever else is wrong
@@ -19,11 +16,8 @@ public static class PluginCatalogExtensions
         => entry.Releases.Exists(release => release.ApiVersion == PluginApi.CurrentVersion
                                    && PluginRid.MatchesThisHost(release.Rid));
 
-    /// <summary>
-    /// The newest release this host can actually load, or null when every release targets a
-    /// different plugin API. The loader compares API versions for equality, not a minimum, so a
-    /// mismatch here would install cleanly and then sit as Incompatible after the restart.
-    /// </summary>
+    /// <summary>The newest release this host can load, or null when none target its API.</summary>
+    /// <remarks>The loader compares versions for equality, not a minimum.</remarks>
     public static PluginCatalogRelease? LatestCompatibleRelease(this PluginCatalogEntry entry)
         => entry.Releases
             .Where(release => release.ApiVersion == PluginApi.CurrentVersion

@@ -6,10 +6,8 @@ using System.Text.Json;
 
 namespace KHost.Domain.Services.Plugins;
 
-/// <summary>
-/// The rules a plugin zip has to satisfy. Shared by the installer and the catalog-sync tool: the
-/// tool exists to reject a release the host would refuse, so the two must not drift.
-/// </summary>
+/// <summary>Rules a plugin zip must satisfy, shared by the installer and catalog-sync tool.</summary>
+/// <remarks>So the two never drift.</remarks>
 public class PluginPayloadReader : IPluginPayloadReader
 {
     /// <summary>Bounds a zip that unpacks to fill the disk.</summary>

@@ -22,7 +22,7 @@
         padding-bottom: 16px;
     }
 
-    // Sits on the section heading, which inherits uppercase and letter-spacing — both are undone
+    // Sits on the section heading, which inherits uppercase and letter-spacing; both are undone
     // here so it reads as an aside rather than part of the title.
     &__search {
         display: inline-flex;
@@ -179,7 +179,7 @@
         opacity: 0.6;
     }
 
-    // A radio, because exactly one screen can hold the role — the shape states the rule.
+    // A radio, because exactly one screen can hold the role: the shape states the rule.
     &__radio {
         width: 18px;
         height: 18px;

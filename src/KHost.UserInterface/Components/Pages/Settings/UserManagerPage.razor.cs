@@ -104,8 +104,7 @@ public partial class UserManagerPage : IDisposable
         catch (KHostException taken)
         {
             // Caught here rather than left to the error boundary: a name already in use is the
-            // host's mistake to correct, and replacing the page they were working on is no way to
-            // tell them.
+            // host's mistake to correct, not a reason to replace the page they were working on.
             Flash?.Show(taken.WhatHappened, FlashType.Warning);
         }
     }

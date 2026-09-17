@@ -63,8 +63,8 @@ public partial class PluginsManagerPage : IDisposable
         {
             var stored = await PluginsService.ReadSettingsAsync(plugin.Id);
 
-            // Declared order, deliberately: an author groups settings by meaning — Spotify puts the
-            // Spicetify bridge next to the port it uses — and nothing here knows better.
+            // Declared order, deliberately: an author groups settings by meaning. Spotify puts the
+            // Spicetify bridge next to the port it uses, and nothing here knows better.
             _settingFields[plugin.Id] = [.. plugin.Manifest!.Settings.Select(definition => Build(definition, stored))];
         }
     }
@@ -78,7 +78,7 @@ public partial class PluginsManagerPage : IDisposable
 
         if (definition.Secret)
         {
-            // The value itself never reaches the markup — only whether one is held, so a saved key
+            // The value itself never reaches the markup, only whether one is held, so a saved key
             // stops looking like a never-set one.
             field.StoredSecret = hasStored && storedValue.ValueKind == JsonValueKind.String
                 && !string.IsNullOrEmpty(storedValue.GetString())
@@ -193,7 +193,7 @@ public partial class PluginsManagerPage : IDisposable
     private static string GetInputType(PluginSettingDefinition definition)
         => definition.Type == PluginSettingType.Int ? "number" : "text";
 
-    /// <summary>An unknown style falls back to the primary look rather than a class that resolves to nothing.</summary>
+    /// <summary>An unknown style falls back to primary, not a class that resolves to nothing.</summary>
     private static string ButtonStyleClass(string? style) => style switch
     {
         "secondary" => "kh-button--secondary",
@@ -201,11 +201,8 @@ public partial class PluginsManagerPage : IDisposable
         _ => "kh-button--primary",
     };
 
-    /// <summary>
-    /// Runs a plugin's own button and re-reads its state after — a login button reports "Sign out"
-    /// once it succeeds, and nothing else would tell the row to redraw. Guarded against a second
-    /// click while the first is still open, which for a login is a prompt already on screen.
-    /// </summary>
+    /// <summary>Runs a plugin's button and re-reads its state. Nothing else redraws the row when
+    /// login reports "Sign out"; blocked from re-entering while already running.</summary>
     private async Task RunButtonAsync(string pluginId, string key)
     {
         if (PluginButtons is null)
@@ -231,16 +228,8 @@ public partial class PluginsManagerPage : IDisposable
         }
     }
 
-    /// <summary>
-    /// The manifest decides or nothing does. Guessing from what a plugin registered read as the
-    /// host having an opinion about a plugin's identity, and it disagreed with itself besides —
-    /// the same plugin wore one glyph installed and another in the catalog.
-    ///
-    /// The image specifier is not a glyph name; a plugin asking for one either shipped a usable
-    /// image, in which case the row draws that instead of calling here, or it did not and lands
-    /// where a manifest that said nothing lands.
-    /// </summary>
-    /// <summary>Worn by anything that has not said otherwise.</summary>
+    /// <summary>Manifest-only, never guessed: guessing would let the same plugin wear a different
+    /// glyph installed than in the catalog; worn by anything that has not said otherwise.</summary>
     private const string DefaultGlyph = "puzzle";
 
     private static string GetGlyph(DiscoveredPlugin plugin)
@@ -287,7 +276,7 @@ public partial class PluginsManagerPage : IDisposable
     private void OnStateChanged(object message) => InvokeAsync(StateHasChanged);
 
     // Staging is read from disk, not held in memory, so it has to be re-read whenever an install
-    // moves — that is the only signal that a payload landed or a pending action was dropped.
+    // moves. That is the only signal that a payload landed or a pending action was dropped.
     private void OnInstallsChanged(PluginInstallsChanged message) => InvokeAsync(() =>
     {
         _staging = Installer?.Staged() ?? PluginStagingState.Empty;
@@ -413,7 +402,7 @@ public partial class PluginsManagerPage : IDisposable
 
         var result = await Installer.InstallAsync(entry, release);
 
-        // Enabling is the Plugins service's to record, not the installer's — the host asked for
+        // Enabling is the Plugins service's to record, not the installer's. The host asked for
         // this plugin by installing it, so it should be on when the payload lands.
         if (result.State == PluginInstallState.Staged && PluginsService is not null)
         {
@@ -468,8 +457,8 @@ public partial class PluginsManagerPage : IDisposable
     private bool WasLoadedAtStartup(Guid pluginId)
         => Plugins.Any(p => p.Manifest?.Id == pluginId && p.Status == PluginStatus.Loaded);
 
-    /// <summary>The folder a row stands for. Two rows may share a manifest id — a plugin dropped
-    /// in by hand under a second name — and only this tells them apart.</summary>
+    /// <summary>The folder a row stands for. Two rows may share a manifest id (a plugin dropped
+    /// in by hand under a second name), and only this tells them apart.</summary>
     private static string FolderNameOf(DiscoveredPlugin plugin) => Path.GetFileName(
         plugin.Directory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
 
@@ -483,8 +472,7 @@ public partial class PluginsManagerPage : IDisposable
         return Plugins.Any(p => p.Manifest?.Id == pluginId && removals.Contains(FolderNameOf(p)));
     }
 
-    /// <summary>Undoes the removal of one folder. Re-enabling is still keyed by id, since that is
-    /// what the enabled flag is — and only a copy that was loaded is one the flag was ever on for.</summary>
+    /// <summary>Undoes a removal: re-enabling is keyed by id, valid only if a copy loaded.</summary>
     private async Task ClearRemovalAsync(DiscoveredPlugin plugin)
     {
         if (Installer is null || plugin.Manifest is not { } manifest) return;
@@ -541,11 +529,8 @@ public partial class PluginsManagerPage : IDisposable
             ? $"The catalog publishes no build for {PluginRid.Current}."
             : "No release targets this host's plugin API.";
 
-    /// <summary>
-    /// A catalog entry carries no manifest, so there is nothing for it to declare an icon with:
-    /// the Available tab shows the generic glyph until a plugin is installed and its manifest can
-    /// speak. Kept as a method so the row reads the same as the installed one.
-    /// </summary>
+    /// <summary>A catalog entry has no manifest to declare an icon with, so this stays the generic
+    /// glyph until install, kept as a method so the row reads the same as the installed one.</summary>
     private static string GetAvailableGlyph(PluginCatalogEntry entry) => DefaultGlyph;
 
 
@@ -564,11 +549,11 @@ public partial class PluginsManagerPage : IDisposable
         Staged,
         StageFailed,
         PendingRemoval,
-        /// <summary>Nothing the catalog lists will run here — wrong plugin API, or no build for
+        /// <summary>Nothing the catalog lists will run here: wrong plugin API, or no build for
         /// this platform. <see cref="IncompatibleReason"/> says which.</summary>
         Incompatible,
         /// <summary>A release targets this host, but is published without an https URL and a
-        /// checksum — so the host has no way to know it got what the catalog described.</summary>
+        /// checksum, so the host has no way to know it got what the catalog described.</summary>
         Unverified,
     }
 
@@ -590,7 +575,7 @@ public partial class PluginsManagerPage : IDisposable
 
         public bool Flag { get; set; }
 
-        /// <summary>The persisted secret, held so saving an unrelated field cannot drop it —
+        /// <summary>The persisted secret, held so saving an unrelated field cannot drop it.
         /// SaveSettingsAsync replaces a plugin's whole value set, and an omitted key is a deletion.</summary>
         public JsonElement? StoredSecret { get; set; }
 

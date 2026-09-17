@@ -5,7 +5,7 @@ using KHost.Common.Plugins;
 namespace KHost.UnitTests.Conventions;
 
 // The catalog at the repo root is served raw from master and read by every installed host, so a
-// bad edit is live the moment it merges — there is no build between it and the Available tab.
+// bad edit is live the moment it merges. There is no build between it and the Available tab.
 public class PublishedCatalogTests
 {
     private const string CatalogFileName = "plugin-catalog.json";
@@ -93,7 +93,7 @@ public class PublishedCatalogTests
     public void CatalogReleases_NameAPlatformTheHostRecognises()
     {
         // A rid this host cannot parse matches nothing, so the release reads as "not for this
-        // platform" on every machine — a failure that looks like a deliberate omission.
+        // platform" on every machine, a failure that looks like a deliberate omission.
         var offenders = Read().Plugins
             .SelectMany(entry => entry.Releases.Select(release => (entry, release)))
             .Where(pair => !PluginRid.IsKnown(pair.release.Rid))

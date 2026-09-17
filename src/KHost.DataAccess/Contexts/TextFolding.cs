@@ -2,11 +2,8 @@ using KHost.Abstractions.Services;
 
 namespace KHost.DataAccess.Contexts;
 
-/// <summary>
-/// The host's own folding, handed out through DI. Wraps <see cref="EntityFolding"/> rather than
-/// reimplementing it: the folded columns are written on save by that class, so anything that
-/// folded differently here would quietly stop matching what is stored.
-/// </summary>
+/// <summary>Wraps <see cref="EntityFolding"/> rather than reimplementing it.</summary>
+/// <remarks>Folding differently here would quietly stop matching what that class wrote on save.</remarks>
 internal sealed class TextFolding : ITextFolding
 {
     public string Fold(string? value) => EntityFolding.Fold(value);

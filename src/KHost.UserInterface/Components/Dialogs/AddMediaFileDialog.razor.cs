@@ -6,10 +6,7 @@ using KHost.Common.Media;
 
 namespace KHost.UserInterface.Components.Dialogs;
 
-/// <summary>
-/// A single file, added deliberately. The folder importer stays karaoke-only on purpose — pointed
-/// at a music folder it would sweep every piece of album art in as a song.
-/// </summary>
+/// <summary>A single file, added deliberately, since the folder importer stays karaoke-only.</summary>
 public partial class AddMediaFileDialog
 {
     [Inject] private IMediaFileParsingService Parser { get; set; } = default!;

@@ -6,13 +6,13 @@ public interface IThemeService
 {
     string CurrentTheme { get; }
 
-    /// <summary>Ids a host may switch to — enabled only, so the pickers hide what the manager disabled.</summary>
+    /// <summary>Ids a host may switch to: enabled only, hidden from the picker if disabled.</summary>
     IReadOnlyList<string> AvailableThemes { get; }
 
     /// <summary>Every theme, enabled or not, built-in first. The manager page's list.</summary>
     IReadOnlyList<ThemeDefinition> AllThemes { get; }
 
-    /// <summary>Stylesheet URL for the current theme; built-ins are static files, custom ones are rendered.</summary>
+    /// <summary>Stylesheet URL for the current theme; built-ins are static, custom ones rendered.</summary>
     string CurrentThemeHref { get; }
 
     Task InitializeAsync();

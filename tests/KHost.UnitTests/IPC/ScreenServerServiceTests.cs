@@ -456,16 +456,8 @@ public class ScreenServerServiceTests
         Duration = TimeSpan.FromMinutes(3),
     };
 
-    /// <summary>
-    /// Two commands pushed at once must reach a screen in the order their sequence numbers were
-    /// handed out. The receiver drops anything whose sequence does not advance, and there is no
-    /// retry — so a command overtaken by the one behind it is not late, it is gone.
-    /// </summary>
-    /// <remarks>
-    /// Deterministic rather than timing-dependent: the first send is held inside the transport
-    /// until the second has had its chance to pass it. Nothing here sleeps waiting for a race to
-    /// show up — if delivery can overtake, it does so on every run.
-    /// </remarks>
+    /// <summary>Concurrent sends reach the screen in order; a non-advancing sequence is dropped.</summary>
+    /// <remarks>Deterministic: the first send is held until the second could overtake.</remarks>
     [Fact]
     public async Task SendCommandAsync_TwoAtOnce_ReachTheScreenInSequenceOrder()
     {

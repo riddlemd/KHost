@@ -1,22 +1,18 @@
 namespace KHost.UserInterface.Models;
 
-/// <summary>Which shape the song controls take. Presentation only — both drive the same values.</summary>
+/// <summary>Which shape the song controls take. Presentation only: both drive the same values.</summary>
 public enum SongControlStyle
 {
     Sliders,
     Dials,
 }
 
-/// <summary>
-/// Where a control's coloured span starts and ends, as fractions of its travel. Shared by the
-/// slider and the dial so the same value can never read one way on one and another on the other.
-/// </summary>
+/// <summary>Where a control's coloured span starts and ends, as fractions of its travel.</summary>
+/// <remarks>Shared by the slider and dial so the same value never reads two ways.</remarks>
 public readonly record struct SongControlSpan(double From, double To, bool IsPositive, bool IsAtRest)
 {
-    /// <summary>
-    /// Zero is where all of them rest, and the same arithmetic serves both kinds: it is the middle
-    /// of a key or tempo travel, and the left edge of a volume that cannot go negative.
-    /// </summary>
+    /// <summary>Zero is where all of them rest, so the same arithmetic works for every control.</summary>
+    /// <remarks>Middle of key/tempo travel; left edge of a volume that cannot go negative.</remarks>
     public static SongControlSpan For(int value, int min, int max)
     {
         var travel = max - min == 0 ? 1 : max - min;
@@ -33,10 +29,8 @@ public readonly record struct SongControlSpan(double From, double To, bool IsPos
         };
     }
 
-    /// <summary>
-    /// Nothing at rest. A round line cap paints a dot even on a zero-length dash, so the dial has
-    /// to be told to draw in nothing rather than to draw nothing.
-    /// </summary>
+    /// <summary>Nothing at rest paints as transparent, not a zero-length coloured dash.</summary>
+    /// <remarks>A round line cap draws a dot even on a zero-length dash.</remarks>
     public string Colour => IsAtRest
         ? "transparent"
         : IsPositive ? "var(--kh-success)" : "var(--kh-danger)";

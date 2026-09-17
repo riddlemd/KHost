@@ -74,7 +74,7 @@ public class MediaPoolRepositoryTests : IDisposable
     }
 
     // The repository copies an entry field by field, so a column added to the model and not here
-    // is dropped in silence — which is exactly how an ad lost its voiceover on every save.
+    // is dropped in silence. That is exactly how an ad lost its voiceover on every save.
     [Fact]
     public async Task ReplaceEntriesAsync_KeepsTheWholeComposition()
     {

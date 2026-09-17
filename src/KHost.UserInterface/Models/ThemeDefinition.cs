@@ -2,11 +2,8 @@ using System.Text.Json.Serialization;
 
 namespace KHost.UserInterface.Models;
 
-/// <summary>
-/// A theme as data rather than as a stylesheet. Built-in themes are authored as SCSS and compiled
-/// at build time, so a theme a host creates at runtime cannot be one of those — it is stored here
-/// and rendered to CSS on request instead.
-/// </summary>
+/// <summary>A theme as data rather than a stylesheet; built-ins are authored as SCSS at build time.</summary>
+/// <remarks>A runtime-created theme is stored here and rendered on request instead.</remarks>
 public sealed class ThemeDefinition
 {
     /// <summary>Filename-safe slug. Doubles as the stylesheet URL segment, so it must stay unique.</summary>
@@ -17,18 +14,12 @@ public sealed class ThemeDefinition
     /// <summary>Set for the themes shipped as SCSS; those are read-only and clone rather than edit.</summary>
     public bool IsBuiltIn { get; set; }
 
-    /// <summary>
-    /// Carried on the way in and computed on the way out, never stored: the store's disabled list
-    /// is the one authority, and a persisted copy here would read as authoritative while losing.
-    /// </summary>
+    /// <summary>Never stored: the store's disabled list is the one authority on IsEnabled.</summary>
     [JsonIgnore]
     public bool IsEnabled { get; set; } = true;
 
-    /// <summary>
-    /// Only the values a host actually chooses (<see cref="ThemeVariableCatalog"/>). The rest of the
-    /// 73 properties a theme needs are derived when the stylesheet is built, so a stored theme never
-    /// carries a stale copy of something computed.
-    /// </summary>
+    /// <summary>Only the values a host actually chooses (<see cref="ThemeVariableCatalog"/>).</summary>
+    /// <remarks>The rest are derived when the stylesheet is built, so nothing stored goes stale.</remarks>
     public Dictionary<string, string> Variables { get; set; } = [];
 
     public ThemeDefinition CloneAs(string id, string name) => new()

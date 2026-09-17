@@ -2,22 +2,14 @@ using KHost.Abstractions.Models;
 
 namespace KHost.Domain.Services.MediaPools;
 
-/// <summary>
-/// Picks the next media out of a pool tree. Pure and seedable on purpose: the randomised modes
-/// are only testable if the caller owns the <see cref="Random"/>.
-/// </summary>
+/// <summary>Picks the next media from a pool tree, pure and seedable so random modes are testable.</summary>
 public static class MediaPoolSelector
 {
-    /// <summary>
-    /// Backstop for a pool graph that references itself. Saving rejects a cycle, so reaching this
-    /// means the rows were edited outside the app — it must not hang the console mid-show.
-    /// </summary>
+    /// <summary>Backstop for a pool graph that references itself: saving rejects a cycle.</summary>
+    /// <remarks>Reaching this means rows were edited outside the app.</remarks>
     private const int MaxDepth = 16;
 
-    /// <summary>
-    /// Null when the tree holds nothing playable. Tried twice: once honouring the no-repeat
-    /// window, then once ignoring it, so a two-track pool still plays rather than falling silent.
-    /// </summary>
+    /// <summary>Null when the tree holds nothing playable; tries no-repeat, then ignores it.</summary>
     public static MediaPoolEntry? SelectNext(
         MediaPool root,
         IReadOnlyDictionary<Guid, MediaPool> poolsById,
@@ -89,10 +81,7 @@ public static class MediaPoolSelector
         }
     }
 
-    /// <summary>
-    /// What the no-repeat window remembers. The media where there is one, so the same track listed
-    /// twice to weight it does not get to play back to back; the entry itself otherwise.
-    /// </summary>
+    /// <summary>The id the no-repeat window remembers, so a doubled listing does not repeat.</summary>
     private static Guid IdentityOf(MediaPoolEntry entry) => entry.MediaId ?? entry.AudioMediaId ?? entry.Id;
 
     private static bool IsBlocked(Guid mediaId, int noRepeatCount, PoolSelectionState state)

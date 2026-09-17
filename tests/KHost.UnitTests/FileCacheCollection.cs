@@ -1,9 +1,6 @@
 namespace KHost.UnitTests;
 
-/// <summary>
-/// One cache test deletes the shared cache directory outright, so every class touching that
-/// directory must share a collection or xUnit's parallel classes race the delete.
-/// </summary>
+/// <summary>One test deletes the shared directory, so every class touching it shares a collection.</summary>
 [CollectionDefinition(Name, DisableParallelization = true)]
 public class FileCacheCollection
 {

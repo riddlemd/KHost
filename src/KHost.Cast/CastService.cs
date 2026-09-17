@@ -21,23 +21,17 @@ public sealed class CastService : ICastService, IDisposable
 {
     public sealed class ServiceOptions
     {
-        /// <summary>Google's Default Media Receiver — plays a plain URL, no app of our own.</summary>
+        /// <summary>Google's Default Media Receiver, which plays a plain URL: no app of our own.</summary>
         public string ReceiverAppId { get; set; } = "CC1AD845";
 
         public TimeSpan DiscoveryTimeout { get; set; } = TimeSpan.FromSeconds(5);
 
-        /// <summary>
-        /// How often a connected receiver is checked for a pulse. It has to catch a receiver that
-        /// died well inside Sharpcaster's ten-second heartbeat — see <c>WatchAsync</c>.
-        /// </summary>
+        /// <summary>How often a connected receiver is checked for a pulse.</summary>
+        /// <remarks>Must catch a death well inside Sharpcaster's ten-second heartbeat.</remarks>
         public TimeSpan LivenessInterval { get; set; } = TimeSpan.FromSeconds(2);
 
-        /// <summary>
-        /// How long a receiver has to answer before the console stops waiting on it. Discovery
-        /// reports whatever address mDNS advertised, and a device can advertise one nothing on
-        /// this network can reach — a VPN interface is enough — which otherwise hangs the connect
-        /// for as long as the TCP stack cares to keep trying.
-        /// </summary>
+        /// <summary>How long a receiver has to answer before giving up.</summary>
+        /// <remarks>mDNS can advertise an address nothing here can reach (a VPN interface does it).</remarks>
         public TimeSpan ConnectTimeout { get; set; } = TimeSpan.FromSeconds(10);
     }
 
@@ -151,7 +145,7 @@ public sealed class CastService : ICastService, IDisposable
     {
         if (_connectedDeviceId == deviceId) return true;
 
-        // One song, one receiver — a second would be a room hearing it seconds out of step.
+        // One song, one receiver. A second would be a room hearing it seconds out of step.
         if (_connectedDeviceId is not null) await DisconnectAsync(cancellationToken);
 
         ChromecastReceiver? receiver;
@@ -171,9 +165,8 @@ public sealed class CastService : ICastService, IDisposable
         {
             var opening = OpenAsync(client, receiver);
 
-            // Sharpcaster's connect takes no token, so the wait is bounded here instead. The
-            // attempt is left to finish on its own — abandoned, not cancelled, which is why the
-            // client below is torn down rather than reused.
+            // Sharpcaster's connect takes no token, so the wait is bounded here instead; the attempt
+            // runs to completion abandoned, not cancelled. The client below is torn down, never reused.
             if (await Task.WhenAny(opening, Task.Delay(_options.ConnectTimeout, cancellationToken)) != opening)
                 throw new TimeoutException($"{name} did not answer within {_options.ConnectTimeout.TotalSeconds:0} seconds");
 
@@ -274,11 +267,8 @@ public sealed class CastService : ICastService, IDisposable
     {
         var client = _client;
 
-        // Silence Sharpcaster's heartbeat across our own write. Writing to a receiver that has
-        // gone is what provokes the reset, and the heartbeat's next ping then throws from an
-        // async void — off a timer thread, where it is nobody's to catch and the host dies with
-        // it. Stopped, that ping never happens; a receiver still there pings us, and answering it
-        // starts the timer again on its own.
+        // Silences Sharpcaster's heartbeat across the write: pinging a gone receiver throws from its
+        // async void on a timer thread, which nothing can catch and takes the host down with it.
         Hush(client);
 
         try
@@ -327,14 +317,8 @@ public sealed class CastService : ICastService, IDisposable
         liveness?.Dispose();
     }
 
-    /// <summary>
-    /// Watches for a receiver that has died without saying so — unplugged, restarted, or simply
-    /// switched off. This has to be noticed rather than waited for: Sharpcaster's heartbeat pings
-    /// on a ten-second timer from an async void, so once the socket is gone its next ping throws
-    /// where nothing can catch it and the whole host goes down. Two missed checks is well inside
-    /// that, and the check opens its own connection rather than writing to the cast socket, which
-    /// is what arms the throw in the first place.
-    /// </summary>
+    /// <summary>Watches for a receiver that died silently.</summary>
+    /// <remarks>Sharpcaster's heartbeat throws via async void, uncatchable, so this probes instead.</remarks>
     private async Task WatchAsync(string deviceId, string host, CancellationToken cancellationToken)
     {
         var missed = 0;
@@ -350,7 +334,7 @@ public sealed class CastService : ICastService, IDisposable
                 continue;
             }
 
-            // One refusal is a busy receiver, not a dead one — a Chromecast serving a room does
+            // One refusal is a busy receiver, not a dead one. A Chromecast serving a room does
             // not always answer a second connection immediately.
             if (++missed < 2) continue;
 
@@ -382,12 +366,8 @@ public sealed class CastService : ICastService, IDisposable
         }
     }
 
-    /// <summary>
-    /// A refused command means the app session is gone, which is what a receiver that restarted
-    /// looks like: it answers its socket and has forgotten what was launched on it. Launching
-    /// again is the only way back, and if that fails the connection is let go rather than left
-    /// claiming to cast while nothing reaches the room.
-    /// </summary>
+    /// <summary>A refused command means the session is gone: a restart forgot what was launched.</summary>
+    /// <remarks>Relaunch is the only way back; otherwise the connection is let go.</remarks>
     private async Task RecoverAsync()
     {
         if (_client is not { } client || _connectedDeviceId is not { } deviceId) return;
@@ -402,7 +382,7 @@ public sealed class CastService : ICastService, IDisposable
         {
             await client.LaunchApplicationAsync(_options.ReceiverAppId, false);
 
-            // A new session, so whatever was playing has to be put back on it — announcing the
+            // A new session, so whatever was playing has to be put back on it. Announcing the
             // change is how the caller learns it has a receiver that knows nothing.
             SessionId = Guid.NewGuid();
 
@@ -421,11 +401,8 @@ public sealed class CastService : ICastService, IDisposable
         await PickBackUpAsync(deviceId);
     }
 
-    /// <summary>
-    /// One attempt at the same device, on a new client. If the television is simply switched off
-    /// it fails and the connection stays let go, which leaves the console honest rather than
-    /// showing a cast that is reaching nothing.
-    /// </summary>
+    /// <summary>One attempt at the same device on a new client.</summary>
+    /// <remarks>A television left off just fails; the console never shows a cast reaching nothing.</remarks>
     private async Task PickBackUpAsync(string deviceId)
     {
         try
@@ -439,10 +416,8 @@ public sealed class CastService : ICastService, IDisposable
         }
     }
 
-    /// <summary>
-    /// The host resolves its base address to localhost, which on a television means the
-    /// television. Anything already routable is left alone so a configured address wins.
-    /// </summary>
+    /// <summary>Resolves the host's base address to localhost, which on a television means itself.</summary>
+    /// <remarks>Anything already routable is left alone, so a configured address wins.</remarks>
     internal static string MakeReachableFromDevice(string url, string? lanAddress)
     {
         if (lanAddress is null || !Uri.TryCreate(url, UriKind.Absolute, out var uri)) return url;
@@ -474,7 +449,7 @@ public sealed class CastService : ICastService, IDisposable
 
     /// <param name="source">
     /// The client that said so, when the news came from one. A receiver picked back up is the same
-    /// device on a new client, and the old one raises Disconnected as it is torn down — seconds
+    /// device on a new client, and the old one raises Disconnected as it is torn down, seconds
     /// after the replacement is already playing. Without this that farewell drops the live
     /// connection, and with nothing left to play on the song stops.
     /// </param>
@@ -494,10 +469,8 @@ public sealed class CastService : ICastService, IDisposable
         _connectedDeviceId = null;
         SessionId = null;
 
-        // Letting go of the reference is not enough: Sharpcaster keeps a heartbeat timer on the
-        // client, and its ping is an async void, so a write to a socket that is gone throws where
-        // nothing can catch it and takes the whole host down with it. Detached because this also
-        // arrives on the client's own Disconnected event.
+        // Letting go of the reference isn't enough: Sharpcaster's heartbeat ping is an async void, so
+        // a write to a gone socket throws where nothing catches it. Disconnecting also raises Disconnected.
         if (client is not null)
         {
             _ = Task.Run(async () =>

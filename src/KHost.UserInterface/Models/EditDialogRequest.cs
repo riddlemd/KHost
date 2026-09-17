@@ -11,10 +11,7 @@ public abstract record EditDialogRequest<T> : BaseDialogRequest
     }
 
     public T? Value { get; }
-    /// <summary>
-    /// A Task, not an Action: an async void handler's failure never reaches the error boundary, it
-    /// reaches the circuit.
-    /// </summary>
+    /// <summary>A Task, not an Action: an async void failure never reaches the error boundary.</summary>
     public Func<T?, Task>? OnSave { get; }
     public Action? OnCancel { get; }
 }

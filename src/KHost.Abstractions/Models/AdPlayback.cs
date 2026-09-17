@@ -1,13 +1,9 @@
 namespace KHost.Abstractions.Models;
 
-/// <summary>
-/// One ad as it reaches the room: something to look at, something to hear, or both. Composed
-/// rather than a single file so a still can carry a voiceover, and so an audio spot can play over
-/// whatever is already on screen.
-/// </summary>
+/// <summary>One ad as it reaches the room: a visual, an audio spot, or both, composed together.</summary>
 public sealed class AdPlayback
 {
-    /// <summary>Video or still. Null leaves whatever is on screen — usually the venue card.</summary>
+    /// <summary>Video or still. Null leaves whatever is on screen, usually the venue card.</summary>
     public Media? Visual { get; init; }
 
     /// <summary>Audio of its own. Null means the visual's own track, if it has one.</summary>

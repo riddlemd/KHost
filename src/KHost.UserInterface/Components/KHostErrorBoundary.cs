@@ -6,11 +6,7 @@ using Microsoft.Extensions.Logging;
 
 namespace KHost.UserInterface.Components;
 
-/// <summary>
-/// Catches what call sites do not, and turns it into a dialog the host can read and dismiss rather
-/// than swapping the page for error content. A console runs a room: losing the queue and the
-/// now-playing panel because a settings page threw is a worse outcome than the failure itself.
-/// </summary>
+/// <summary>Shows a dialog instead of swapping the page, which would lose the queue mid-show.</summary>
 public sealed class KHostErrorBoundary : ErrorBoundary
 {
     [Inject] private IDialogService? DialogService { get; set; }

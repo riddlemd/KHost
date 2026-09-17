@@ -4,10 +4,8 @@ using Microsoft.Extensions.Logging;
 
 namespace KHost.Domain.Services.Plugins;
 
-/// <summary>
-/// The second half of loading. Discovery runs before the container exists and so runs no plugin
-/// code; this runs afterwards and gives each entry point its one chance to do something.
-/// </summary>
+/// <summary>The second half of loading; discovery runs no plugin code, no container yet.</summary>
+/// <remarks>This runs after and gives each entry point its one chance.</remarks>
 internal sealed class PluginInitializer : IPluginInitializer
 {
     private readonly ILogger<PluginInitializer> _logger;

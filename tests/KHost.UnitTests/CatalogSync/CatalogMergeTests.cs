@@ -49,9 +49,8 @@ public class CatalogMergeTests
     [Fact]
     public void Apply_TwoVersionsThatParseAlike_StillOrdersThemTheSameWayEveryRun()
     {
-        // "1.0" and "1.0.0" are distinct strings that parse to one version, so the version compare
-        // ties and List.Sort is free to order them either way. Without a tiebreak a re-sync could
-        // reshuffle them and produce a diff for nothing.
+        // "1.0" and "1.0.0" parse to one version, so the compare ties and List.Sort is free to
+        // order them either way. Without a tiebreak a re-sync could reshuffle for no reason.
         var catalog = Catalog();
 
         CatalogMerge.Apply(catalog, Facts("1.0"));

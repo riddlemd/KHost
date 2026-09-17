@@ -2,29 +2,20 @@ using KHost.Abstractions.Services.IPC;
 
 namespace KHost.Abstractions.Services;
 
-/// <summary>
-/// Assigns which screen the room hears and which screen the others are held to. One role until a
-/// Cast device made them separable: a receiver can carry audio but can never hold a schedule.
-/// </summary>
+/// <summary>Which screen the room hears, and which sync to it; a Cast device can't hold sync.</summary>
 public interface IScreenCoordinationService
 {
 
-    /// <summary>
-    /// Must run at startup: screens register as soon as the hub is mapped, and a service nobody
-    /// has resolved yet cannot mute the first one to arrive.
-    /// </summary>
+    /// <summary>Must run at startup, or nobody mutes the first screen to arrive.</summary>
     Task InitializeAsync(CancellationToken cancellationToken = default);
 
-    /// <summary>The screen the room hears. Does not require sync — a Cast device can hold it.</summary>
+    /// <summary>The screen the room hears. Does not require sync; a Cast device can hold it.</summary>
     string? AudioScreenId { get; }
 
-    /// <summary>
-    /// Whose position the others are held to. Derived: the audio screen whenever it can sync,
-    /// because correcting a screen means seeking it and seeking the audible one is a glitch.
-    /// </summary>
+    /// <summary>Whose position the others sync to: the audio screen, whenever it can sync.</summary>
     string? PrimaryScreenId { get; }
 
-    /// <summary>True when the two landed on different screens, so the followers can drift from the room.</summary>
+    /// <summary>True when the two land on different screens, so followers can drift from the room.</summary>
     bool RolesAreSplit { get; }
 
     /// <summary>Fills both roles if vacant. Returns the screen the room hears.</summary>
@@ -43,10 +34,7 @@ public interface IScreenCoordinationService
 
     bool HasAudioOverride(string screenId);
 
-    /// <summary>
-    /// Whether the screen is rendering a picture. On by default for anything that can; blanking
-    /// one does not take it off the timeline, so it stays in step and can be turned back on.
-    /// </summary>
+    /// <summary>Whether the screen renders a picture; blanking doesn't take it off the timeline.</summary>
     bool IsVideoEnabled(string screenId);
 
     Task SetVideoEnabledAsync(string screenId, bool enabled, CancellationToken cancellationToken = default);

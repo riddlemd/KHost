@@ -15,11 +15,7 @@ public class ScreensDialogCastSearchTests
             .GetProperty("Cast", BindingFlags.NonPublic | BindingFlags.Instance)!
             .SetValue(_dialog, _cast);
 
-    /// <summary>
-    /// The component is never rendered here, so the redraw it asks for at the end throws. That is a
-    /// lifecycle artifact of testing the handler directly — the service call it is about has
-    /// already happened. Only that one exception is swallowed.
-    /// </summary>
+    /// <summary>Unrendered, so its end-of-method redraw throws after the call under test ran.</summary>
     private async Task ToggleAsync()
     {
         try { await _dialog.ToggleCastSearchAsync(); }

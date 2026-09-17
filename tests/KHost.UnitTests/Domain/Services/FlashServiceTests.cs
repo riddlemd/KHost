@@ -51,10 +51,7 @@ public class FlashServiceTests : IDisposable
         Assert.Equal(1, _changes);
     }
 
-    /// <summary>
-    /// Dismissing twice would otherwise announce a change that did not happen, and every banner in
-    /// the app re-renders for it.
-    /// </summary>
+    /// <summary>Dismissing twice must not announce a change that did not happen.</summary>
     [Fact]
     public void Dismiss_WithNothingShowing_AnnouncesNothing()
     {
@@ -72,10 +69,7 @@ public class FlashServiceTests : IDisposable
         Assert.Equal("Second.", _flash.Current?.Text);
     }
 
-    /// <summary>
-    /// The banner tells one message from another by identity to decide whether its countdown is
-    /// still the current one, so re-showing the same words has to be a different message.
-    /// </summary>
+    /// <summary>The banner tells messages apart by identity, so the same words must still differ.</summary>
     [Fact]
     public void EachShow_IsADistinctMessage()
     {

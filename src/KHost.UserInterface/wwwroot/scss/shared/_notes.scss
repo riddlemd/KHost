@@ -1,41 +1,17 @@
-/* A line of explanation beside a control: what a setting means, what leaving it alone does, what
-   the host should expect to see. Shared because four dialogs had each grown their own, three of
-   them the same declarations and the fourth nothing at all — which is how the same idea ends up
-   looking like four different things.
-
-   No rule down the side and no indent, though both were tried. A note here is usually one line
-   under a field, and a 2px rule beside one line reads as a stray mark rather than a device; worse,
-   indenting past it breaks the left edge that the label, the input and everything else in the
-   dialog share. Alignment is what makes a column of settings legible, and a note is not important
-   enough to leave it.
-
-   There is deliberately no quieter half of a note. One existed, meaning to dim the part that only
-   says what a field falls back to — but the ladder is --kh-text, then --kh-text-secondary, then
-   --kh-text-muted, and a note already sits on the dimmest rung. Every colour left to pick is
-   brighter, so the aside emphasised the detail it meant to play down. A note that needs two
-   voices is a note saying too much.
-
-   Muted by a colour token rather than by opacity. Opacity fades text toward whatever is behind it,
-   so the same note reads differently over a card than over a dialog, and the themes here already
-   carry a colour that means "say this quietly". */
+/* A line of explanation under the field it describes, shared so dialogs stop growing their own copies.
+   No rule or indent: alignment is what keeps a settings page legible; muted by token, not opacity. */
 .kh-note {
-    /* Block on purpose. A note under a label is a <span> inside that label's column — the same
-       shape .kh-app-settings__apply has, and for the same reason — so it cannot rely on <p>. */
+    /* Block on purpose: a note under a label is a <span> inside that label's column, the same
+       shape .kh-app-settings__apply has, and for the same reason it cannot rely on <p>. */
     display: block;
 
-    /* Nothing above it. The App Settings page says the same kind of thing in
-       .kh-app-settings__apply — a hint sitting hard under the control's own label, no gap at all —
-       and that reads as belonging to the field in a way a floated paragraph does not.
-
-       The space below is a rem, not an em. It stands in for the row's own margin-bottom, which is
-       1em of the row's 14px — expressed in the note's smaller em it would shrink, and a row with a
-       note under it would sit closer to the next row than one without. */
+    /* No margin above, so it sits hard under the field's own label. Below is a rem, not an em: it
+       stands in for the row's margin-bottom, which would shrink in the note's smaller em. */
     margin: 0 0 1rem;
     color: var(--kh-text-muted);
 
-    /* The same size and leading as .kh-app-settings__apply, which is the other half of this idea
-       and the one a host sees most often. Two sizes of muted hint is a difference that says
-       nothing. */
+    /* Same size and leading as .kh-app-settings__apply: two sizes of muted hint is a
+       difference that says nothing. */
     font-size: 0.75rem;
     line-height: 1.5;
 
@@ -44,10 +20,8 @@
         margin-top: 0.5em;
     }
 
-    /* A note about something actually wrong — a missing plugin, a choice that cannot be undone.
-       Carried by colour alone: a filled block beside every ordinary note is what stops anyone
-       reading either. Danger-bright rather than the subtle token, which in these dark themes is a
-       background colour. */
+    /* Something actually wrong. Colour alone, not a filled block, so it doesn't drown neighbours;
+       danger-bright, not the subtle token, which these dark themes use as a background. */
     &--warning {
         color: var(--kh-danger-bright);
     }

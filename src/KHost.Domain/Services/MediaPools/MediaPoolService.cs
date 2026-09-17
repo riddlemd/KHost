@@ -71,7 +71,7 @@ public class MediaPoolService : BaseRepositoryService<MediaPool, IMediaPoolRepos
         var byId = pools.ToDictionary(p => p.Id);
 
         // The root is read separately and may be scoped to another venue, so it is added rather
-        // than assumed present — selection would otherwise stop at a pool it cannot resolve.
+        // than assumed present. Selection would otherwise stop at a pool it cannot resolve.
         byId[pool.Id] = pool;
 
         await _lock.WaitAsync();

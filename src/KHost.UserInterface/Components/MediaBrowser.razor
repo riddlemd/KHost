@@ -46,9 +46,8 @@
                             if (_selectedPaths.Count > 0) _importParts.Add($"{_selectedPaths.Count} file{(_selectedPaths.Count == 1 ? "" : "s")}");
                             if (_selectedFolderPaths.Count > 0) _importParts.Add($"{_selectedFolderPaths.Count} folder{(_selectedFolderPaths.Count == 1 ? "" : "s")}");
                         }
-                        @* The video question lives on the action it qualifies rather than beside
-                           it: a folder of records or stills has nothing ambiguous in it, and the
-                           toggle half is then not drawn at all. *@
+                        @* Lives on the action it qualifies: a folder of stills has nothing ambiguous,
+                           so the toggle half is not drawn. *@
                         <SplitButton Class="kh-media-importer__import"
                                      PrimaryDisabled="@(_selectedPaths.Count == 0 && _selectedFolderPaths.Count == 0)"
                                      Title="@(SelectionMayHoldVideo ? $"Video files are: {DescribeVideoKind(_videoKind)}" : null)"
@@ -224,10 +223,7 @@
                                         {
                                             @if (IsChoosable(entry))
                                             {
-                                                @* The one kind of row nothing can settle on its own.
-                                                   A button rather than a select: it is two answers,
-                                                   and a popup to pick between two is a popup too
-                                                   many. *@
+                                                @* A button, not a select: a popup for two is too many. *@
                                                 <button type="button"
                                                         class="kh-media-importer__type kh-media-importer__type--choosable @(IsOverridden(entry) ? "kh-media-importer__type--chosen" : "")"
                                                         title="@(IsOverridden(entry) ? "You chose this. Click to change it back." : "Click if this one is not what the import assumed.")"

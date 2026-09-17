@@ -20,7 +20,7 @@ public interface ISingerQueueService
     Task MoveUserToStartAsync(Guid userId);
     Task MoveUserToEndAsync(Guid userId);
     Task MoveUserToIndexAsync(Guid userId, int newIndex);
-    /// <summary>Reorders the queue after a performance using the venue's rotation config (fifo drop-to-end by default).</summary>
+    /// <summary>Reorders the queue after a performance per the rotation config (fifo default).</summary>
     Task RotateQueueAsync(Guid finishedSingerId);
     Task SelectFirstUserInQueueAsync();
     Task RefreshAsync();

@@ -98,30 +98,23 @@
 }
 
 @container kh-media-search (max-width: 560px) {
-    // The icon and the button's own title carry the action; the word is what pushes the results
-    // table wider than the panel. ::deep because the label sits in a fragment handed to
-    // SplitButton — reached through the panel root, which this component does render.
+    // The word pushes the table wider than the panel; icon and tooltip still carry the action.
+    // ::deep because the label sits in a fragment handed to SplitButton, reached through the panel root.
     .kh-media-search-panel ::deep .kh-media-search-panel__action-label {
         display: none;
     }
 
 }
 
-// Fixed layout: the columns below keep the width they are given and the text columns divide what
-// is left, evenly and predictably. Under auto layout the browser kept resolving the same set of
-// width hints differently depending on which columns were showing.
-// Auto rather than fixed: fixed resolves every column once, so a panel the splitter widens keeps
-// the widths it had at the old size and the table stops short of its own right edge. Auto also
-// means no column needs a measured pixel width — each one below says what it *is* and the browser
-// sizes it from its own contents.
+// Auto rather than fixed: fixed resolves widths once, so a panel the splitter widens keeps the old
+// widths and the table stops short of its own edge. Auto re-sizes each column from its contents.
 .kh-media-search-panel__table {
     table-layout: auto;
     width: 100%;
 }
 
-// "As narrow as my contents." A 1px width in an auto-layout table cannot be honoured, so the
-// browser falls back to the column's minimum — and nowrap makes that minimum one line of content
-// rather than one word. This is the shrink-to-fit idiom; the 1px is not a size, it is the request.
+// Shrink-to-fit idiom. The 1px is a request, not a size: auto layout can't honour it, so the
+// browser falls back to the column's minimum, and nowrap keeps that minimum to one line, not one word.
 .kh-media-search-panel__col--thumb,
 .kh-media-search-panel__col--duration,
 .kh-media-search-panel__col--label,
@@ -130,10 +123,8 @@
     white-space: nowrap;
 }
 
-// The columns that grow. Equal shares of whatever the shrink-to-fit ones leave, and a search
-// with only one of them gives it the lot. max-width:0 is what makes the ellipsis work at all: an
-// auto-layout cell sizes to its content first, so without it a long title widens the column
-// instead of truncating in it.
+// Columns that grow, splitting whatever the shrink-to-fit ones leave. max-width:0 makes the
+// ellipsis work. Without it a long title widens the column instead of truncating.
 .kh-media-search-panel__col--text {
     width: 50%;
     max-width: 0;
@@ -145,12 +136,11 @@
 
 
 
-// No overflow rule here: the actions cell holds a split button whose menu would be clipped by it.
-// A row that is an offer rather than a result: one cell across the table, so an action named for
-// what it does has room. Ordinary rows keep the fixed column widths beside it.
+// No overflow here: the actions cell holds a split button whose menu would be clipped by it.
+// An offer row spans one cell for room to name its action; ordinary rows keep fixed column widths.
 .kh-media-search-panel__offer {
     td {
-        // The columns above describe a song, and this row is not one — the borrowed alignment is
+        // The columns above describe a song, and this row is not one. The borrowed alignment is
         // what made it read as a broken result.
         white-space: normal;
     }
@@ -227,13 +217,8 @@
     }
 }
 
-// A provider names its own columns, so which one goes is its call rather than this file's: the
-// panel numbers the droppable ones from the right and they leave in that order. Only the column
-// naming the row is pinned.
-//
-// Measured, not guessed: this panel is 1108px beside a maximised window and 371px beside a 733px
-// one. At 371 the picture, length and actions alone take 280, so a second text column would leave
-// the title about 45 — two characters. It goes first.
+// A provider names its own columns, so shedding order is this file's call: droppable columns are
+// numbered from the right and leave in that order; only the column naming the row is pinned.
 @container kh-media-search (max-width: 560px) {
     .kh-media-search-panel__col--shed1 {
         display: none;

@@ -105,9 +105,8 @@
         color: var(--kh-text);
     }
 
-    // A capability is a neutral label, so it takes the surface tokens the glyph box uses. The
-    // accent is the theme's loudest colour — famicom reserves it for danger outright — and a
-    // plugin saying it provides break music is not a warning.
+    // A capability is a neutral label, so it takes the surface tokens rather than the accent:
+    // famicom reserves that for danger, and a plugin providing break music is not a warning.
     &__chip {
         font-size: 0.72rem;
         padding: 0.15em 0.5em;
@@ -397,9 +396,8 @@
         color: var(--kh-text-muted);
     }
 
-    // The settings page has no splitter between it and the viewport, so it answers to the window.
-    // Measured against the console's own narrow point: below this the indent costs more than it
-    // buys, and the row's description is the first thing that can go.
+    // Answers to the window, not a container: the settings page has no splitter beside it.
+    // Threshold is the console's own narrow point, where the indent costs more than it buys.
     @media (max-width: 720px) {
         &__panel {
             padding-left: 12px;

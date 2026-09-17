@@ -12,11 +12,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace KHost.UnitTests.UserInterface.Components.Panels;
 
-/// <summary>
-/// Key and tempo open into the Now Playing card from its header. Both are sliders, and a drag
-/// emits a value per pixel — so what reaches the service is the value the host let go of, not
-/// every one they passed over on the way.
-/// </summary>
+/// <summary>Both sliders emit a value per pixel; only the value released reaches the service.</summary>
 public class SongControlsTests : BunitContext
 {
     private const string Trigger = ".kh-song-controls__trigger";
@@ -84,7 +80,7 @@ public class SongControlsTests : BunitContext
         var cut = Open();
         cut.FindAll(Sliders)[0].Input("5");
 
-        // Closed without a change event, so nothing was committed and nothing announced — the only
+        // Closed without a change event, so nothing was committed and nothing announced. The only
         // thing that puts the thumb back where the song actually is, is reading it again on open.
         cut.Find(Trigger).Click();
         cut.Find(Trigger).Click();

@@ -238,7 +238,7 @@ public class PerformanceServiceTests
     {
         var singerId = Guid.NewGuid();
         var performance = await EnqueueForAsync(singerId);
-        // Still in flight, just past the download half — dequeuing has to stop the render too.
+        // Still in flight, just past the download half; dequeuing has to stop the render too.
         _mediaService.ReadAsync(performance.MediaId).Returns(new Media { Id = performance.MediaId, FilePath = "/downloads/song.khv", Title = "Song", Status = MediaStatus.Processing });
 
         await _service.DeleteAsync(performance.Id);
@@ -280,10 +280,8 @@ public class PerformanceServiceTests
         await _downloadsService.DidNotReceive().CancelAsync(Arg.Any<Guid>());
     }
 
-    // A dedicated repository substitute, not the shared one: reconfiguring the shared repository's
-    // DeleteAsync for one specific id re-triggers its existing Arg.Any callback as a side effect
-    // (NSubstitute routes the call once while recording it, before the new Returns takes over),
-    // which would silently delete the row out from under this test before it ever calls DeleteAsync.
+    // A dedicated substitute, not the shared one: reconfiguring DeleteAsync for one id re-triggers
+    // the shared repository's existing Arg.Any callback as a side effect, deleting the row first.
     [Fact]
     public async Task DeleteAsync_RepositoryDeleteFails_DoesNotCancelAnyImport()
     {
@@ -386,9 +384,8 @@ public class PerformanceServiceTests
         await EnqueueForAsync(singerId);
         await EnqueueForAsync(otherSinger);
         await EnqueueForAsync(otherSinger);
-        // Read now, not after: the repository hands back the same instances, so comparing the rows
-        // to themselves once the move has run would pass however badly they were renumbered. Two
-        // songs each, because renumbering everyone leaves the first of them on position 1 anyway.
+        // Read now, not after: the repository hands back the same instances, so a post-move compare
+        // would pass however badly they were renumbered; two songs each so renumbering can't coincide.
         var before = (await _service.ReadBySingerIdAsync(otherSinger, filter: PerformanceFilter.Queued))
             .Items.Select(p => p.QueuePosition).ToList();
 
@@ -548,7 +545,7 @@ public class PerformanceServiceTests
             MediaId = Guid.NewGuid(),
         });
 
-        // Written here rather than by each caller — there are five, two of them in plugins.
+        // Written here rather than by each caller: there are five, two of them in plugins.
         Assert.Equal("Priya", enqueued!.SungAs);
     }
 

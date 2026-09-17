@@ -16,11 +16,7 @@ public partial class DropdownMenu : IAsyncDisposable
     /// <summary>Set false for menus holding toggles, which should survive being clicked.</summary>
     [Parameter] public bool CloseOnItemClick { get; set; } = true;
 
-    /// <summary>
-    /// Raised when the menu opens or closes. Opening and closing are this component's own state, so
-    /// without this a consumer never re-renders for them — and anything it draws inside the menu is
-    /// left holding whatever it decided last time.
-    /// </summary>
+    /// <summary>Raised on open/close; without it a consumer never re-renders content inside.</summary>
     [Parameter] public EventCallback<bool> OpenChanged { get; set; }
 
     private bool _open;

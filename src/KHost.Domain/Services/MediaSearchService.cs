@@ -43,10 +43,8 @@ public class MediaSearchService : BaseService, IMediaSearchService
         return SearchProvidersAsync(matching, query, source, pageNumber, pageSize);
     }
 
-    /// <summary>
-    /// Still plural, because two providers may declare the same SourceName — nothing stops them,
-    /// and both then answer. It is no longer a way to ask everything at once.
-    /// </summary>
+    /// <summary>Still plural: two providers may share a SourceName and both answer.</summary>
+    /// <remarks>No longer a way to ask everything at once.</remarks>
     private async Task<List<MediaSearchEntity>> SearchProvidersAsync(
         List<IMediaProvider> providers, string query, string source, int pageNumber, int pageSize)
     {

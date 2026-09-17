@@ -12,7 +12,7 @@ public class ScreenCommandSerializationTests
 {
     private static readonly JsonSerializerOptions Options = new(JsonSerializerDefaults.Web);
 
-    // Every concrete command must appear here — the RegisteredCommands_… tests fail if this
+    // Every concrete command must appear here. The RegisteredCommands_… tests fail if this
     // drifts from the [JsonDerivedType] list.
     private static readonly Dictionary<string, ScreenCommandBase> Samples = new()
     {

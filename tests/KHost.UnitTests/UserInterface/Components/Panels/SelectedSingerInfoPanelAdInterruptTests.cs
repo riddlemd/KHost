@@ -10,11 +10,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace KHost.UnitTests.UserInterface.Components.Panels;
 
-/// <summary>
-/// An ad plays with State Playing and no CurrentPerformance, which is the exact shape the "another
-/// song is loaded" guard reads as a foreign performance. Left alone it swallowed the click on an
-/// enabled-looking button, so a host could not take the room back from a fifteen-second card.
-/// </summary>
+/// <summary>An ad's Playing-with-no-song shape reads as a foreign one, swallowing the click.</summary>
 public class SelectedSingerInfoPanelAdInterruptTests : BunitContext
 {
     private const string PlayButtonSelector = ".kh-selected-singer-info-panel__row .kh-split-btn__primary";

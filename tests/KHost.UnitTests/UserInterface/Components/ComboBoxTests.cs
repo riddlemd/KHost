@@ -136,7 +136,7 @@ public class ComboBoxTests
         Assert.Equal("half-typed", Field<string>("_query"));
     }
 
-    // With nothing to choose, Enter belongs to whatever surrounds the box — a form that accepts a
+    // With nothing to choose, Enter belongs to whatever surrounds the box: a form that accepts a
     // name matching no row.
     [Fact]
     public async Task Enter_WithNoMatches_ChoosesNothing()
@@ -219,8 +219,8 @@ public class ComboBoxTests
         await _combo.DisposeAsync();
     }
 
-    // Disposing releases the debounce delay, so the search — and the render it asks for, which
-    // needs a renderer these tests do not have — never runs.
+    // Disposing releases the debounce delay, so the search (and the render it asks for, which
+    // needs a renderer these tests do not have) never runs.
     private async Task TypeAsync(string text)
     {
         var typing = InvokeAsync("OnQueryChangedAsync", new ChangeEventArgs { Value = text });
@@ -237,7 +237,7 @@ public class ComboBoxTests
         Assert.False(StartsGroup(1));
     }
 
-    // Rows arrive already sorted, so a heading belongs wherever the group changes — and only there.
+    // Rows arrive already sorted, so a heading belongs wherever the group changes, and only there.
     [Fact]
     public void WithAGroupName_AHeadingStartsEachRunOfRows()
     {

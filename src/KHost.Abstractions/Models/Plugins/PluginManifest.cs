@@ -9,32 +9,17 @@ public class PluginManifest
     public string? Description { get; set; }
     public required string EntryAssembly { get; set; }
     public required int ApiVersion { get; set; }
-    /// <summary>
-    /// A Bootstrap Icons glyph name, or <see cref="PluginIcon.ImageSpecifier"/> to use the
-    /// <see cref="PluginIcon.FileName"/> shipped beside this manifest. Optional — a plugin that
-    /// says nothing gets a generic glyph.
-    /// </summary>
+    /// <summary>A Bootstrap Icons glyph, or <see cref="PluginIcon.ImageSpecifier"/> for its image.</summary>
     public string? Icon { get; set; }
 
     public List<PluginSettingDefinition> Settings { get; set; } = [];
 
-    /// <summary>
-    /// Buttons the host draws on this plugin's row, each run through
-    /// <see cref="Services.IPluginButtonHandler"/>. Empty for a plugin that has none.
-    /// </summary>
+    /// <summary>Buttons the host draws, run through <see cref="Services.IPluginButtonHandler"/>.</summary>
     public List<PluginButtonDefinition> Buttons { get; set; } = [];
 
-    /// <summary>
-    /// Extra file extensions (e.g. ".khv") this plugin's own output uses that the media importer's
-    /// folder scan should recognise. The plugin is asserting KHost can already play these as they
-    /// are — this teaches the scanner to stop skipping them, not how to convert anything.
-    /// </summary>
+    /// <summary>Extra extensions the folder scan recognises; it asserts, it does not convert.</summary>
     public List<string> ImportFormats { get; set; } = [];
 
-    /// <summary>
-    /// Set when this plugin can offer the screens a QR code. Declaring it only puts the plugin in
-    /// the venue's list of sources — the venue picks one, and until it picks this one nothing this
-    /// plugin registers is drawn.
-    /// </summary>
+    /// <summary>Lists this plugin as a QR code source; nothing draws until the venue picks it.</summary>
     public PluginQrCodeDefinition? QrCode { get; set; }
 }

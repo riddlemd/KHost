@@ -5,10 +5,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace KHost.IntegrationTests.Domain.Services;
 
-/// <summary>
-/// Drives real ffmpeg and ffprobe: proves the gate marker written with the +use_metadata_tags
-/// movflag survives in an mp4 and is read back, the round trip the whole playback gate rests on.
-/// </summary>
+/// <summary>Proves the +use_metadata_tags marker survives an mp4 round trip, which gating rests on.</summary>
 public class MediaTagReaderTests : IDisposable
 {
     private readonly string _workingDirectory =
@@ -38,9 +35,8 @@ public class MediaTagReaderTests : IDisposable
     public async Task ReadTag_MissingFile_IsNull()
         => Assert.Null(await _reader.ReadTagAsync(Path.Combine(_workingDirectory, "nope.mp4"), IMediaPlaybackGate.MetadataTag));
 
-    // A .khv holding mp4 bytes — exactly what the Example plugin writes: an obscuring extension,
-    // the muxer forced with -f mp4, and the marker kept by +use_metadata_tags. Proves the reader
-    // finds the tag by content, not by a .mp4 name.
+    // A .khv holding mp4 bytes, exactly what Example writes: obscuring extension, muxer forced
+    // with -f mp4; proves the reader finds the tag by content, not by a .mp4 name.
     private async Task<string> CreateMarkedMp4Async(string providerId)
     {
         Directory.CreateDirectory(_workingDirectory);

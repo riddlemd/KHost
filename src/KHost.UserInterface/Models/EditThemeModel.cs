@@ -15,10 +15,8 @@ public class EditThemeModel : IValidatableObject
 
     public Dictionary<string, string> Values { get; set; } = [];
 
-    /// <summary>
-    /// Values are typed in free-form and end up inside a stylesheet, so they are checked here as
-    /// well as at render time — the dialog can say which field is wrong, the renderer only drops it.
-    /// </summary>
+    /// <summary>Checked here as well as at render time, since values are free-form.</summary>
+    /// <remarks>The dialog can say which field is wrong; the renderer only drops it.</remarks>
     public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
     {
         foreach (var field in ThemeVariableCatalog.Fields)

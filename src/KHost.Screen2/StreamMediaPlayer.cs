@@ -7,10 +7,8 @@ using KHost.Common.Media;
 
 namespace KHost.Screen2;
 
-/// <summary>
-/// <see cref="IMediaPlayer"/> over an HTML <c>&lt;video&gt;</c> on the host's HLS stream. Nothing
-/// is decoded here, so every property is a cache of what the page last reported.
-/// </summary>
+/// <summary>IMediaPlayer over an HTML &lt;video&gt; on the host's HLS stream.</summary>
+/// <remarks>Nothing is decoded here; every property is a cache of what the page last reported.</remarks>
 internal sealed class StreamMediaPlayer : IMediaPlayer
 {
     private readonly ILogger<StreamMediaPlayer> _logger;
@@ -70,7 +68,7 @@ internal sealed class StreamMediaPlayer : IMediaPlayer
         }
     }
 
-    /// <summary>Points the page at a host stream. Not a file load — nothing local is opened.</summary>
+    /// <summary>Points the page at a host stream rather than a file load: nothing local is opened.</summary>
     public void LoadStream(string url, TimeSpan streamStartOffset, int tempo = 0)
     {
         lock (_lock)
@@ -97,10 +95,8 @@ internal sealed class StreamMediaPlayer : IMediaPlayer
         Send(new { type = "clock", offsetMs = offset.TotalMilliseconds });
     }
 
-    /// <summary>
-    /// Converted to stream time here, so the page never needs the song offset or the tempo: a
-    /// retimed stream still advances one stream second per second, which is all the page assumes.
-    /// </summary>
+    /// <summary>Converted to stream time here so the page never needs the song offset or tempo.</summary>
+    /// <remarks>A retimed stream still advances one stream second per second, all the page assumes.</remarks>
     public void SetTimeline(TimeSpan position, DateTime anchorUtc, bool isPlaying, bool isPrimary)
     {
         TimeSpan offset;
@@ -119,10 +115,8 @@ internal sealed class StreamMediaPlayer : IMediaPlayer
         });
     }
 
-    /// <summary>
-    /// Points the second channel at a stream. No timeline and no correction: only the screen the
-    /// room hears is sent any of this, so there is no group for it to stay in step with.
-    /// </summary>
+    /// <summary>Points the second channel at a stream with no timeline and no correction.</summary>
+    /// <remarks>Only the screen the room hears gets this, so nothing needs to stay in step with it.</remarks>
     public void LoadBackground(string url, bool autoPlay)
     {
         lock (_lock)
@@ -171,10 +165,7 @@ internal sealed class StreamMediaPlayer : IMediaPlayer
     public string? BackgroundUrl { get { lock (_lock) return _backgroundUrl; } }
     public bool IsBackgroundPlaying { get { lock (_lock) return _backgroundPlaying; } }
 
-    /// <summary>
-    /// Puts a still up. Nothing is opened and nothing plays, so the host clock is the only thing
-    /// that takes it down again.
-    /// </summary>
+    /// <summary>Puts a still up: nothing opens or plays, so only the host clock takes it down.</summary>
     public void ShowImage(string url, ImageScaling scaling)
     {
         lock (_lock) _stillUrl = url;
@@ -193,10 +184,8 @@ internal sealed class StreamMediaPlayer : IMediaPlayer
         Send(new { type = "hide-image" });
     }
 
-    /// <summary>
-    /// The whole band in one message: the host recomputes it on every queue and venue change and
-    /// sends it complete, so there is no partial state here to keep in step.
-    /// </summary>
+    /// <summary>The whole band in one message.</summary>
+    /// <remarks>Recomputed every queue/venue change, sent complete: no partial state to keep.</remarks>
     public void SetMarquee(SetMarqueeCommand command)
     {
         _logger.LogInformation("Marquee {State} with {Count} singer(s)",
@@ -219,10 +208,7 @@ internal sealed class StreamMediaPlayer : IMediaPlayer
         });
     }
 
-    /// <summary>
-    /// What is playing between singers. Disabled carries nothing else — it is how the card comes
-    /// down, so there is no separate hide to keep in step.
-    /// </summary>
+    /// <summary>What is playing between singers. Disabled carries nothing, so the card drops.</summary>
     public void SetBreakMusicCard(SetBreakMusicCardCommand command)
     {
         _logger.LogInformation("Break music card: {State}", command.Enabled ? command.Title : "off");
@@ -241,10 +227,8 @@ internal sealed class StreamMediaPlayer : IMediaPlayer
         });
     }
 
-    /// <summary>
-    /// Every code at once, the same whole-state push as the marquee: an empty list is how they
-    /// come down, so there is no separate hide to keep in step.
-    /// </summary>
+    /// <summary>Every code at once, the same whole-state push as the marquee.</summary>
+    /// <remarks>An empty list is how they come down: no separate hide to keep in step.</remarks>
     public void SetQrCodes(SetScreenQrCodesCommand command)
     {
         _logger.LogInformation("QR codes: {Count}", command.Codes.Count);
@@ -262,10 +246,8 @@ internal sealed class StreamMediaPlayer : IMediaPlayer
                 corner = code.Corner.ToString().ToLowerInvariant(),
                 size = code.Size.ToString().ToLowerInvariant(),
 
-                // Forwarded, not re-derived. Leaving them out is how both silently did nothing
-                // for as long as they existed: the page's CSS falls back to the same numbers the
-                // host resolves to, so a venue at zero looked right and every other value was
-                // dropped on the way here.
+                // Forwarded, not re-derived: the page's CSS falls back to the same numbers the host
+                // resolves to, so a venue at zero looked right while dropping these silently did nothing.
                 safeZone = code.SafeZone,
                 offset = code.Offset,
             }),
@@ -281,10 +263,8 @@ internal sealed class StreamMediaPlayer : IMediaPlayer
         Send(new { type = "video", enabled });
     }
 
-    /// <summary>
-    /// The host is the clock and the only way to stop this screen, so losing it pauses rather than
-    /// letting the song run on unattended, and says so on the screen instead of looking frozen.
-    /// </summary>
+    /// <summary>The host is the clock and the only way to stop this screen.</summary>
+    /// <remarks>Losing it pauses rather than running unattended, and says so instead of frozen.</remarks>
     public void SetHostLost(bool lost)
     {
         _logger.LogWarning("Host {State}", lost ? "lost" : "back");
@@ -307,7 +287,7 @@ internal sealed class StreamMediaPlayer : IMediaPlayer
     public void Stop(TimeSpan? fadeDuration = null)
         => Send(new { type = "stop", fadeMs = (fadeDuration ?? TimeSpan.FromSeconds(5)).TotalMilliseconds });
 
-    /// <summary>A move within the stream the page already holds — no transcode restart.</summary>
+    /// <summary>A move within the stream the page already holds: no transcode restart.</summary>
     public void Seek(TimeSpan position)
     {
         TimeSpan offset;

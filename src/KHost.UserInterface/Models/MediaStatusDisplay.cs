@@ -8,19 +8,16 @@ public static class MediaStatusDisplay
     public static string BadgeClass(MediaStatus status) => status switch
     {
         MediaStatus.Ready       => "kh-badge--success",
-        // Processing shares Downloading's colour on purpose: it is that download's second phase,
-        // and the word in the badge is what says which one. A colour of its own would read as a
-        // different kind of state.
+        // Processing shares Downloading's colour on purpose: it's the second phase of that
+        // download, and the badge word says which; a colour of its own would misread as a state.
         MediaStatus.Downloading => "kh-badge--info",
         MediaStatus.Processing  => "kh-badge--info",
         MediaStatus.Broken      => "kh-badge--danger",
         _                       => "kh-badge--secondary",
     };
 
-    /// <summary>
-    /// Downloading and Processing belong to whatever is doing the work, and Unknown means we
-    /// never established one — only the two settled states are the host's to set by hand.
-    /// </summary>
+    /// <summary>Only Ready and Broken are the host's to set.</summary>
+    /// <remarks>Downloading/Processing belong to the worker; Unknown means none was ever set.</remarks>
     public static bool IsUserSettable(MediaStatus status)
         => status is MediaStatus.Ready or MediaStatus.Broken;
 }

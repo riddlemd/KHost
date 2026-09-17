@@ -3,9 +3,8 @@
     align-items: center;
     gap: 0.5rem;
 
-    // A band of its own under the header rather than the end of its row. flex: none because the
-    // card is a column with a capped height — left to share it, the band would take room from the
-    // song and the panel clips rather than reflows.
+    // Flex none, since the card is a column with a capped height, so sharing it lets the band take
+    // room from the song and the panel clips instead of reflowing.
     flex: none;
     min-width: 0;
 
@@ -85,9 +84,8 @@
     }
 }
 
-// The band has the card's full width now, so the text survives far narrower than it did sharing
-// the title row. The controls still go last: a host can read what is playing in Spotify's own
-// window, but these buttons are the only ones there are.
+// The band spans the card's full width, so text survives narrower than in the title row. Controls
+// go last: Spotify's own window says what is playing, but these buttons are the only ones here.
 @container kh-now-playing (max-width: 320px) {
     .kh-break-music-bar__artist {
         display: none;

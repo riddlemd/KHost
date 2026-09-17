@@ -23,10 +23,8 @@ async function retry() {
     document.removeEventListener("visibilitychange", retryWhenDocumentBecomesVisible);
 
     try {
-        // Reconnect will asynchronously return:
-        // - true to mean success
-        // - false to mean we reached the server, but it rejected the connection (e.g., unknown circuit ID)
-        // - exception to mean we didn't reach the server (this can be sync or async)
+        // false means the server was reached but rejected the connection (unknown circuit id);
+        // that falls through to resumeCircuit below, while an unreachable server throws instead.
         const successful = await Blazor.reconnect();
         if (!successful) {
             const resumeSuccessful = await Blazor.resumeCircuit();

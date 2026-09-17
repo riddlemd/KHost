@@ -6,28 +6,21 @@ using Unidecode.NET;
 
 namespace KHost.DataAccess.Contexts;
 
-/// <summary>
-/// Keeps every folded column in step with the text it mirrors. Applied on save rather than in the
-/// model, so the models stay plain data and nothing that writes through EF — repository, seeder or
-/// test — can forget to fold.
-/// </summary>
+/// <summary>Keeps every folded column in step with the text it mirrors.</summary>
+/// <remarks>Applied on save rather than in the model, so nothing writing through EF forgets.</remarks>
 internal static class EntityFolding
 {
     // Named rather than relying on Unidecoder.Algorithm, which is process-wide mutable state
     // anything in the process could flip, changing what every stored folded value means.
     private const UnidecodeAlgorithm Algorithm = UnidecodeAlgorithm.Complete;
 
-    /// <summary>
-    /// Transliterates to ASCII and lowercases, so accents and non-Latin scripts both reduce to
-    /// something a host can type: "Björk" to "bjork", "Ελλάδα" to "ellada".
-    /// </summary>
+    /// <summary>Transliterates to ASCII and lowercases: "Björk" to "bjork".</summary>
+    /// <remarks>Accents and non-Latin scripts both reduce to something a host can type.</remarks>
     internal static string Fold(string? value)
         => string.IsNullOrEmpty(value) ? string.Empty : value.Unidecode(Algorithm).ToLowerInvariant().Trim();
 
-    /// <summary>
-    /// <see cref="Fold"/> with stylised spellings resolved first. Media only: a singer on the
-    /// roster called "P!nk" is a different person from "Pink" and should stay that way.
-    /// </summary>
+    /// <summary><see cref="Fold"/> with stylised spellings resolved first; media only.</summary>
+    /// <remarks>A roster singer called "P!nk" is a different person from "Pink".</remarks>
     internal static string FoldMedia(string? value) => Fold(StylisedSpelling.ResolveToPlainSpelling(value));
 
     internal static void Apply(ChangeTracker changeTracker)

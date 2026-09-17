@@ -14,11 +14,8 @@ export function positionMenu(anchorEl, menuEl) {
     const below = window.innerHeight - rect.bottom - Gap - Margin;
     const above = rect.top - Gap - Margin;
 
-    // Open upwards when the room below cannot hold a usable menu. The floor is what makes this
-    // necessary rather than merely tidy: the height is never shrunk past MinHeight, so a trigger
-    // near the bottom of the window gets a menu hanging off it — and fixed positioning means
-    // nothing can scroll those rows back, the console itself never scrolling either. A row at the
-    // foot of the queue could not reach its own last menu item.
+    // Opens upward when the room below can't hold MinHeight. Fixed positioning means nothing
+    // scrolls a menu back into view, so a trigger near the bottom would strand its own last item.
     const flip = below < MinHeight && above > below;
 
     // Bound to the room on whichever side it opens, so a long menu scrolls itself rather than
@@ -51,7 +48,7 @@ export function positionFlyout(rowEl, panelEl) {
     const panel = panelEl.getBoundingClientRect();
 
     // Opens to the left. The menus this belongs to hang off the right of the header, so the space
-    // on the far side is the space there is — but fall back rather than run off the edge.
+    // on the far side is the space there is, but fall back rather than run off the edge.
     let left = row.left - panel.width - Gap;
     if (left < Margin)
         left = Math.min(row.right + Gap, window.innerWidth - panel.width - Margin);

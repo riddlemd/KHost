@@ -82,9 +82,8 @@ internal static class Program
             {
                 if (message is null) return;
 
-                // The page saying it is wired up. Registering before this lets the host answer
-                // with a command, and SendWebMessage into a web view with no page yet is a native
-                // crash that takes the screen down with no managed exception to log.
+                // The page saying it is wired up. SendWebMessage into a web view with no page yet is
+                // a native crash that takes the screen down with no managed exception to log.
                 if (message.Contains("\"ready\"", StringComparison.Ordinal) && !ready)
                 {
                     ready = true;
@@ -96,8 +95,7 @@ internal static class Program
                     _ = ResyncClockAsync();
 
                     // Applied here rather than at construction: full screen resizes the window,
-                    // which needs one that exists. The page saying it is ready is the first
-                    // moment that is true.
+                    // which needs one that exists, and the page being ready is the first moment that is true.
                     if (stored?.FullScreen == true)
                         SetFullScreen(window!, true, logger);
 
@@ -136,11 +134,8 @@ internal static class Program
         return html;
     }
 
-    /// <summary>
-    /// Replaces a script tag with the script itself. Without the guard, renaming a tag in
-    /// index.html yields a page missing that script: a black window, no error, and nothing in
-    /// the log to say why.
-    /// </summary>
+    /// <summary>Replaces a script tag with the script itself.</summary>
+    /// <remarks>A renamed tag in index.html then throws, instead of showing a silent black window.</remarks>
     private static string Inline(string html, string fileName)
     {
         var scriptTag = $"<script src=\"{fileName}\"></script>";
@@ -159,11 +154,8 @@ internal static class Program
         return reader.ReadToEnd();
     }
 
-    /// <summary>
-    /// Records where the window is now. Full screen is remembered as a flag rather than as the
-    /// monitor's own bounds: the screen may come back on a different monitor, and restoring
-    /// yesterday's pixels there would leave it part-way off the picture.
-    /// </summary>
+    /// <summary>Full screen is remembered as a flag, not the monitor's own bounds.</summary>
+    /// <remarks>A screen may return on a different monitor, where old pixels leave it part-way off.</remarks>
     private static void Remember(PhotinoWindow window)
     {
         if (_placement is null) return;
@@ -205,10 +197,8 @@ internal static class Program
         }
     }
 
-    /// <summary>
-    /// Photino's SetFullScreen does nothing on macOS, so the window is grown to cover the monitor.
-    /// macOS clamps the top edge below the menu bar.
-    /// </summary>
+    /// <summary>Photino's SetFullScreen is a no-op on macOS, so the window is grown to cover it.</summary>
+    /// <remarks>macOS clamps the top edge below the menu bar.</remarks>
     private static void SetFullScreen(PhotinoWindow window, bool fullScreen, Microsoft.Extensions.Logging.ILogger logger)
     {
         try
@@ -253,14 +243,8 @@ internal static class Program
 
     private static readonly TimeSpan ConnectRetryInterval = TimeSpan.FromSeconds(15);
 
-    /// <summary>
-    /// Keeps trying until the host answers or the window closes. The first connection is the one
-    /// attempt SignalR's automatic reconnect does not cover — it resumes a connection that was
-    /// established, and one that never was is not that — so without this a screen that started a
-    /// moment before its host gave up for the night. Retried rather than given a longer initial
-    /// wait: a screen has nothing to do until the host is there, and no way to know how long that
-    /// will be.
-    /// </summary>
+    /// <summary>Keeps trying until the host answers or the window closes.</summary>
+    /// <remarks>SignalR's auto-reconnect resumes an established connection; this one never was one.</remarks>
     private static async Task ConnectAsync(Microsoft.Extensions.Logging.ILogger logger, string serverUri, string screenId, byte[] authKey)
     {
         for (var attempt = 0; !_closing.IsCancellationRequested; attempt++)
@@ -298,7 +282,7 @@ internal static class Program
         }
     }
 
-    /// <summary>The host writes this file and hands its path in; its absence means an unprovisioned launch.</summary>
+    /// <summary>The host writes this file, its path handed in; absence means unprovisioned.</summary>
     private static byte[] ReadAuthKey(string? keyFilePath)
     {
         if (string.IsNullOrWhiteSpace(keyFilePath))
@@ -329,11 +313,8 @@ internal static class Program
         }
     }
 
-    /// <summary>
-    /// Anchored to the executable, not the working directory: a screen the host launches inherits
-    /// whatever directory the host happened to be in, and its log would land somewhere nobody looks.
-    /// The screen id is in the name because a venue runs several at once.
-    /// </summary>
+    /// <summary>Anchored to the executable, not the working directory.</summary>
+    /// <remarks>A launched screen inherits the host's working directory; the log would land unseen.</remarks>
     private static Serilog.Core.Logger CreateSerilog(string screenId, LogLevel minimum)
     {
         var logDirectory = Path.Combine(AppContext.BaseDirectory, "logs");
@@ -358,10 +339,7 @@ internal static class Program
             .CreateLogger();
     }
 
-    /// <summary>
-    /// Debug carries the raw state the page reports each tick, which is the only way to see what a
-    /// screen thinks its playhead is doing.
-    /// </summary>
+    /// <summary>Debug carries the raw per-tick state a page reports, the only view of a playhead.</summary>
     private static LogLevel ParseLogLevel(string? value)
         => Enum.TryParse<LogLevel>(value, ignoreCase: true, out var level) ? level : LogLevel.Information;
 

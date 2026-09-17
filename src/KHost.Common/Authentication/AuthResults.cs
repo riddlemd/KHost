@@ -2,10 +2,8 @@ using KHost.Abstractions.Models;
 
 namespace KHost.Common.Authentication;
 
-/// <summary>
-/// Named constructors for <see cref="AuthResult"/>. A failure that forgets to leave
-/// <c>User</c> null is a successful login by another name, so neither field is set by hand.
-/// </summary>
+/// <summary>Named constructors for <see cref="AuthResult"/>; a failure must leave User null.</summary>
+/// <remarks>Forgetting that makes a failure read as a successful login.</remarks>
 public static class AuthResults
 {
     public static AuthResult Succeeded(KHostUser user) => new() { Success = true, User = user };

@@ -7,11 +7,8 @@ using KHost.Common.Media;
 
 namespace KHost.UserInterface.Services;
 
-/// <summary>
-/// Edits the configuration overlay at cache/settings.json. The overlay is registered as the
-/// last configuration source with reload-on-change, so options bound through IOptionsMonitor
-/// apply as soon as the file lands; startup-only settings flip RestartRequired instead.
-/// </summary>
+/// <summary>Edits the overlay at cache/settings.json; options bound via IOptionsMonitor apply live.</summary>
+/// <remarks>A startup-only setting flips RestartRequired instead.</remarks>
 internal sealed class AppSettingsService : IAppSettingsService
 {
     internal const string OverlayFileName = "settings.json";

@@ -22,10 +22,7 @@ public partial class SongControlSlider
 
     private SongControlSpan Span => SongControlSpan.For(Value, Min, Max);
 
-    /// <summary>
-    /// The track is painted from custom properties rather than a stylesheet because the span is a
-    /// value, not a state. Hard stops, so the colour does not bleed past where it ends.
-    /// </summary>
+    /// <summary>Painted from custom properties, since the span is a value, not a stylesheet state.</summary>
     private string FillStyle => FormattableString.Invariant(
         $"--from-frac:{Span.From:F4};--to-frac:{Span.To:F4};--fill:{Span.Colour}");
 

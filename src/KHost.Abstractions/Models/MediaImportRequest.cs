@@ -5,7 +5,7 @@ public record MediaImportRequest
     public required string FilePath { get; set; }
     public required string Title { get; set; }
 
-    /// <summary>Empty when the source cannot tell the two apart — a video title, say.</summary>
+    /// <summary>Empty when the source cannot tell the two apart, such as a video title.</summary>
     public string Artist { get; set; } = string.Empty;
     public TimeSpan? Duration { get; set; }
     public string Notes { get; set; } = string.Empty;

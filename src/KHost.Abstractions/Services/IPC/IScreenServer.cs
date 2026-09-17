@@ -20,7 +20,7 @@ public interface IScreenConnection
     ScreenCapabilities Capabilities { get; }
 }
 
-/// <summary>Declared at registration — the host cannot infer it.</summary>
+/// <summary>Declared at registration; the host cannot infer it.</summary>
 public sealed class ScreenCapabilities
 {
     /// <summary>Conservative default for an unknown screen.</summary>

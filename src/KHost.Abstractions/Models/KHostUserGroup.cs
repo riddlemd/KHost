@@ -12,10 +12,7 @@ public class KHostUserGroup : RepositoryModel
     public string Description { get; set; } = "";
     public bool IsAdmin { get; set; }
 
-    /// <summary>
-    /// Members of this group are not singers — a login account rather than someone on the roster —
-    /// so the singer queue leaves them out of its suggestions.
-    /// </summary>
+    /// <summary>Members are login accounts, not singers; left out of the queue's suggestions.</summary>
     public bool ExcludeFromSingerQueue { get; set; }
 
     public List<KHostPermission> Permissions { get; set; } = [];

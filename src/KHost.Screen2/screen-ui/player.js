@@ -1,7 +1,5 @@
-// Plays the host's HLS stream through hls.js, which demuxes the MPEG-TS segments in JS and feeds
-// them to MSE. There is no native-HLS path: WKWebView would play the playlist from a bare src,
-// but a web view that cannot run hls.js cannot serve as a screen anyway, and carrying a second
-// path meant the two platforms failed differently and only one of them got tested.
+// Plays the host's HLS stream through hls.js (demuxes MPEG-TS in JS, feeds MSE). There is no
+// native-HLS path, since a web view that can't run hls.js can't serve as a screen anyway.
 
 // Two players. `video` is the one the room is hearing; `incoming` is one being brought up to
 // speed behind it, so a rebuilt stream can take over without the room hearing the join.
@@ -26,8 +24,7 @@ const corners = new Map(
     [...document.querySelectorAll('.kh-corner')].map((el) => [el.dataset.corner, el]));
 
 // What each owner last put in a corner, so a corner can be rebuilt without the other's command.
-// The card sits above the code: a caption reads as a label for what is under it, and in a top
-// corner the same order keeps the pair from swapping places when one of them comes and goes.
+// The card sits above the code, which keeps the pair from swapping places as each comes and goes.
 const cornerItems = { breakMusic: null, qr: null };
 
 function renderCorners() {
@@ -42,8 +39,8 @@ function renderCorners() {
     }
 }
 
-// The inset belongs to the corner, so the last command carrying one sets it for every corner —
-// two things stacked against one edge have to agree on how far in it is.
+// The inset belongs to the corner, so the last command carrying one sets it for every corner.
+// Two things stacked against one edge have to agree on how far in it is.
 function setCornerOffset(offset) {
     if (!Number.isFinite(offset) || offset <= 0) return;
 
@@ -131,7 +128,7 @@ function load(url, autoplay) {
     }
 
     // Something is playing. Bring the replacement up behind it silently, and only swap once it
-    // has sound to give — tearing the old one down first is the gap this exists to remove.
+    // has sound to give. Tearing the old one down first is the gap this exists to remove.
     const next = videos.find((v) => v !== video);
 
     retire(next);
@@ -175,19 +172,8 @@ function attach(el, url, autoplay, keep) {
     });
     instance.loadSource(url);
 
-    // The two engines reject opposite things, so this tries the one that is fussier about origins
-    // first and falls back rather than choosing by name.
-    //
-    // WebKit: hls.js left to itself reaches the element through URL.createObjectURL, and this page
-    // is handed to the web view as a raw string — an opaque origin — so that URL comes out as
-    // blob:null/… and WebKit refuses to load it (MEDIA_ERR_SRC_NOT_SUPPORTED, before hls.js sees
-    // anything to report). srcObject carries no origin, and handing the source to attachMedia
-    // makes hls.js adopt it instead of minting a URL.
-    //
-    // Chromium: srcObject takes only a MediaStream or a MediaSourceHandle, and throws TypeError on
-    // a bare MediaSource — it has no MediaSource.handle to offer either. It has no quarrel with the
-    // blob: URL, so hls.js attaches the ordinary way. Thrown, not silent: assigning to srcObject
-    // outside a try would abandon this with the screen black and nothing reported to the host.
+    // WebKit refuses hls.js's blob: URL on this opaque-origin page, so this uses srcObject; Chromium's
+    // srcObject throws on a bare MediaSource, so it falls back to attachMedia in a try (else silent).
     const mediaSource = new MediaSource();
 
     try {
@@ -261,10 +247,8 @@ let playbackGeneration = 0;
 async function fadeOutAndStop(fadeMs) {
     const generation = playbackGeneration;
 
-    // A handover that has not swapped yet is silent now and would arrive at full volume part way
-    // through the fade, with nothing ramping it: the room hears no fade at all, then the song cut
-    // off in one step when this finishes. Dropped first, so there is one thing to fade and it is
-    // the thing being heard.
+    // A handover that hasn't swapped yet is silent now and would arrive at full volume mid-fade with
+    // nothing ramping it. Dropped first, so there is one thing to fade and it is the thing being heard.
     cancelHandover();
 
     // Held locally rather than read each tick: a handover that swaps mid-fade would otherwise move
@@ -290,9 +274,8 @@ async function fadeOutAndStop(fadeMs) {
         tick();
     });
 
-    // Superseded: the host started playing again during the fade. The level goes back because the
-    // song that replaced this one is using the element, and a ramp abandoned part way leaves it
-    // playing into a room that cannot hear it.
+    // Superseded: the host started playing again during the fade, and the song that replaced this
+    // one is using the element now. A ramp abandoned part way would leave it playing unheard.
     if (!completed) {
         element.volume = currentVolume;
         return;
@@ -349,9 +332,8 @@ async function fadeOutBackground(fadeMs) {
     background.volume = backgroundVolume;
 }
 
-// Screens attach at different moments, so each steers onto the host's timeline rather than its
-// own start time. Never by trimming playbackRate: that is a pitch error, and WKWebView walks
-// currentTime *backwards* when the rate is off 1.0. At 1.0 the drift is ~1ms/s.
+// Screens attach at different moments, so each steers onto the host's timeline rather than its own
+// start time, never via playbackRate: that pitches audio, and WKWebView walks currentTime backwards.
 const REALIGN_THRESHOLD = 0.15;
 
 // A seek costs a rebuffer, so the drift has to be genuine rather than one noisy sample.
@@ -378,8 +360,8 @@ function expectedStreamTime() {
 }
 
 function correct() {
-    // The primary defines the timeline rather than chasing one, so it is never
-    // corrected — there is nothing for it to be corrected towards.
+    // The primary defines the timeline rather than chasing one, so it is never corrected.
+    // There is nothing for it to be corrected towards.
     if (isPrimary) {
         video.playbackRate = 1;
         return;
@@ -420,7 +402,7 @@ const MARQUEE_SPEED_MIN = 15;
 const MARQUEE_SPEED_MAX = 400;
 
 // A ceiling on the tiling. A one-word band on a wide screen would otherwise ask for dozens of
-// copies, and past a point the band is full either way — what it buys is nodes, not smoothness.
+// copies, and past a point the band is full either way. What it buys is nodes, not smoothness.
 const MARQUEE_COPIES_MAX = 12;
 
 // What the band last read, so a resend that changes nothing readable (a colour tweak, the same
@@ -430,7 +412,7 @@ let marqueeSignature = null;
 const QR_CORNERS = ['bottomright', 'bottomleft', 'topright', 'topleft'];
 const QR_SIZES = ['small', 'medium', 'large'];
 
-// What is playing between singers. Text only — a title and an artist off a provider, which is
+// What is playing between singers. Text only: a title and an artist off a provider, which is
 // exactly why it is built as nodes rather than markup.
 function setBreakMusicCard(message) {
     if (!message.enabled || !message.title) {
@@ -467,7 +449,7 @@ function setBreakMusicCard(message) {
 function setQrCodes(message) {
     const codes = Array.isArray(message.codes) ? message.codes : [];
 
-    // At most one is ever drawn — the venue names the source — so the first is the whole of it.
+    // At most one is ever drawn, since the venue names the source, so the first is the whole of it.
     const code = codes.find((entry) => entry && entry.imageUrl);
 
     if (!code) {
@@ -483,9 +465,8 @@ function setQrCodes(message) {
         figure.className = 'kh-qr';
         figure.dataset.size = QR_SIZES.includes(code.size) ? code.size : 'medium';
 
-        // A denser code drawn in the same corner has smaller modules; below about three pixels
-        // each, no phone reads it, so the module count sets a floor the venue's size cannot go
-        // under.
+        // A denser code drawn in the same corner has smaller modules; below about three pixels each
+        // no phone reads it, so the module count sets a floor the venue's size cannot go under.
         if (Number.isFinite(code.modules) && code.modules > 0)
             figure.style.setProperty('--kh-qr-modules', String(code.modules));
 
@@ -495,7 +476,7 @@ function setQrCodes(message) {
             figure.style.setProperty('--kh-qr-safezone', String(code.safeZone));
 
         const image = document.createElement('img');
-        // Decorative in the accessibility sense — nobody is reading a karaoke screen with a
+        // Decorative in the accessibility sense: nobody is reading a karaoke screen with a
         // reader, and a code carries its meaning by being one.
         image.alt = '';
         image.src = code.imageUrl;
@@ -560,10 +541,8 @@ function setMarquee(message) {
         return span;
     };
 
-    // Rebuilt only when what it reads actually changed. Swapping in identical nodes is where the
-    // glitch came from: the browser doesn't know the new pair reads the same as the old one, so it
-    // restarts the scroll anyway, and one host on top of another restarts the band every few
-    // seconds instead of scrolling.
+    // Rebuilt only when what it reads actually changed: swapping in identical nodes still restarts
+    // the scroll. That showed as the band restarting every few seconds instead of scrolling.
     const signature = JSON.stringify([singers, pinned, message.message || '']);
     const contentChanged = signature !== marqueeSignature;
     marqueeSignature = signature;
@@ -591,25 +570,20 @@ function setMarquee(message) {
         ? Math.min(MARQUEE_SPEED_MAX, Math.max(MARQUEE_SPEED_MIN, chosen))
         : MARQUEE_SPEED;
 
-    // Measured after unhiding, or the track has no width to measure.
-    //
-    // Enough copies to cover the screen and one to spare. Two was assumed, and two of a short line
-    // on a full-screen band reach nowhere near the right-hand edge: the pair slid left out of a
-    // space nothing was coming into, so the text only ever left and never arrived.
+    // Measured after unhiding, or the track has no width to measure. Enough copies to cover the
+    // screen plus one spare; a fixed two left a gap on a full-screen band with a short line.
     const copies = copiesToCoverTheBand();
     marquee.style.setProperty('--marquee-copies', String(copies));
 
-    // One copy's width — the distance a lap actually travels, which is what the venue's speed is
+    // One copy's width: the distance a lap actually travels, which is what the venue's speed is
     // in pixels a second of.
     const distance = marqueeTrack.scrollWidth / copies;
     const duration = `${Math.max(4, distance / speed)}s`;
     const durationChanged = duration !== marquee.style.getPropertyValue('--marquee-duration');
     marquee.style.setProperty('--marquee-duration', duration);
 
-    // New or differently-timed text otherwise inherits however far the old lap had already run,
-    // so it can appear already partway across the room's screen instead of starting its scroll
-    // from the beginning. The animation is declared in the stylesheet, not inline, so clearing it
-    // and forcing a reflow before restoring it is what actually restarts its clock.
+    // Otherwise new or differently-timed text inherits however far the old lap had already run.
+    // The animation lives in the stylesheet; clearing it and forcing a reflow restarts its clock.
     if (contentChanged || durationChanged) {
         marqueeTrack.style.animation = 'none';
         void marqueeTrack.offsetWidth;
@@ -617,9 +591,8 @@ function setMarquee(message) {
     }
 }
 
-/// Re-tiles the track so one copy's width is never less than the band it has to cross, and
-/// returns how many there are. Measured rather than assumed: the same list is one copy wide on a
-/// windowed screen and a fraction of one on a television.
+/// Re-tiles the track so one copy's width is never less than the band it has to cross, returns
+/// how many there are. One copy is window-wide, a fraction of one on a television.
 function copiesToCoverTheBand() {
     const first = marqueeTrack.firstElementChild;
 
@@ -628,7 +601,7 @@ function copiesToCoverTheBand() {
     const copyWidth = first.getBoundingClientRect().width;
     const band = marqueeViewport?.clientWidth || marquee.clientWidth;
 
-    // A copy with no width yet, or a band with none, is nothing to divide by — two is the old
+    // A copy with no width yet, or a band with none, is nothing to divide by. Two is the old
     // behaviour and is right as soon as one copy is wider than the band anyway.
     if (!(copyWidth > 0) || !(band > 0)) return 2;
 
@@ -647,12 +620,8 @@ function copiesToCoverTheBand() {
     return wanted;
 }
 
-// The band's width is not fixed. A screen goes full screen, or its window is dragged wider, and
-// the copies that covered it a moment ago cover a fraction of it — the text then slides left out
-// of a space nothing is coming into, which is what a full-screen band did.
-//
-// Nothing else re-measures: setMarquee runs when the *host* says the words changed, and a window
-// the room resized is not something the host is told about.
+// The band's width is not fixed: a screen going full screen or a resized window leaves the
+// copies that covered it a moment ago covering only a fraction. This is the only re-measure.
 function retileMarquee() {
     if (marquee.hidden || !marqueeTrack.firstElementChild) return;
 
@@ -735,10 +704,8 @@ function handleCommand(raw) {
             hostLost.hidden = message.lost !== true;
             break;
         case 'video':
-            // Hidden, not paused: the screen has to keep running to stay on the timeline, and a
-            // paused element would drift the moment it was turned back on. visibility, not display:
-            // display:none drops the element from the rendering tree, which lets WebKit suspend the
-            // decoder and stall on catch-up when the picture comes back.
+            // Hidden, not paused: a paused element would drift the moment it's turned back on.
+            // visibility, not display: display:none drops it from the render tree, stalling WebKit's decoder.
             videos.forEach((v) => { v.style.visibility = message.enabled === false ? 'hidden' : ''; });
             blanked.hidden = message.enabled !== false;
             break;
@@ -841,8 +808,6 @@ if (window.external && window.external.receiveMessage) {
     window.external.receiveMessage(handleCommand);
 }
 
-// Last line on purpose: everything above is wired, so the host may now send. Until this arrives
-// the screen has not told the host it exists — a command pushed into a web view that has no page
-// yet takes the whole process down inside Photino's native SendWebMessage, and the page is large
-// enough that the gap between the window appearing and this running is real.
+// Last line on purpose: until this arrives the host doesn't know the screen exists, and a command
+// pushed into a page-less web view crashes the whole process inside Photino's SendWebMessage.
 send({ type: 'ready' });

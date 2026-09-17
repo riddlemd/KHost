@@ -35,7 +35,7 @@
         margin: 16px 0 4px;
     }
 
-    // A button, not an <a>: it never navigates the shell — it hands the URL to
+    // A button, not an <a>: it never navigates the shell. It hands the URL to
     // IExternalLinkService, which shells out to the OS's own browser.
     &__link {
         display: inline-flex;
@@ -54,7 +54,7 @@
         }
     }
 
-    // The section header doubles as the expand/collapse control — collapsed by default, since
+    // The section header doubles as the expand/collapse control, collapsed by default since
     // both bodies run long enough to push the links and each other off the initial view.
     &__toggle {
         display: flex;
@@ -85,7 +85,7 @@
         font-weight: 600;
     }
 
-    // Scrolls in place — the card and page stay put — for text long enough that scrolling the
+    // Scrolls in place (the card and page stay put) for text long enough that scrolling the
     // whole settings page would lose the section headings above it.
     &__scroll-text {
         max-height: 320px;

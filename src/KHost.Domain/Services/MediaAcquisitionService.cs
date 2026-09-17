@@ -119,9 +119,8 @@ public class MediaAcquisitionService : BaseService, IMediaAcquisitionService
 
         media.Status = MediaStatus.Processing;
 
-        // The row and its download entry move together, which is this service's whole job — the
-        // entry stays Downloading and carries the phase, so the page stops reading a render's
-        // progress as a download's.
+        // The row and its download entry move together, which is this service's whole job. The entry
+        // stays Downloading and carries the phase, so the page reads which half a percentage measures.
         _downloadsService.ReportPhase(mediaId, DownloadPhase.Processing);
 
         await _mediaService.UpdateAsync(media);
@@ -134,19 +133,18 @@ public class MediaAcquisitionService : BaseService, IMediaAcquisitionService
 
     public async Task DiscardImportAsync(Guid mediaId)
     {
-        // A no-op if the host already cancelled it from the Downloads page — CancelAsync there
+        // A no-op if the host already cancelled it from the Downloads page: CancelAsync there
         // settles the entry itself, and this call has nothing left to find.
         _downloadsService.Settle(mediaId, DownloadState.Cancelled);
 
         var media = await _mediaService.ReadAsync(mediaId);
 
-        // Ready and Broken rows are never deleted here — only one still in flight, in either phase.
+        // Ready and Broken rows are never deleted here. Only one still in flight, in either phase, is.
         if (media is null || !media.Status.IsAcquiring())
             return;
 
-        // The file is what the status used to stand in for, and the host can just look. A row
-        // whose file outlived the cancel keeps the row: deleting it would leave the file on disk
-        // with nothing pointing at it, for the folder scan to find later and import as Ready.
+        // The file is what the status stood in for, and the host can just look. A row whose file
+        // outlived the cancel stays, since deleting it would leave an orphan the scan would reimport.
         if (File.Exists(media.FilePath))
         {
             Logger.LogWarning("Keeping media {MediaId} as Broken: {FilePath} outlived the cancel", mediaId, media.FilePath);
@@ -182,7 +180,7 @@ public class MediaAcquisitionService : BaseService, IMediaAcquisitionService
     {
         public const string SectionName = "Plugins";
 
-        /// <summary>Blank/null means "use the user-profile default" — resolved in <see cref="MediaDirectory"/>.</summary>
+        /// <summary>Blank/null means "use the user-profile default".</summary>
         public string? MediaDirectory { get; set; }
     }
 }

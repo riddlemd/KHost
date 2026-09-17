@@ -4,12 +4,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace KHost.UnitTests.DataAccess.Repositories;
 
-/// <summary>
-/// The user↔group join is a many-to-many through UserGroupMembership, so these run against real
-/// SQLite: every caller elsewhere mocks the repository, which leaves the EF join query itself —
-/// the part that breaks silently when the relationship is misconfigured — with nothing exercising
-/// it. The Admin and Regular groups exist from the model's seed data once the schema is created.
-/// </summary>
+/// <summary>Runs against real SQLite; every other caller mocks this, leaving the EF join untested.</summary>
 public class UserGroupsRepositoryTests : IDisposable
 {
     private static readonly Guid Group = KHostUserGroup.AdminGroupId;

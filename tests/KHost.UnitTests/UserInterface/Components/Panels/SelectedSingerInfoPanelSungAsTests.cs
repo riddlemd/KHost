@@ -10,10 +10,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace KHost.UnitTests.UserInterface.Components.Panels;
 
-/// <summary>
-/// A guest picking from their phone types a name per song, so a turn on somebody's list can belong
-/// to a name that is not theirs. Nothing on the row said so, and the host reads the row out.
-/// </summary>
+/// <summary>Guards the "singing as" mark: a turn can belong to a name that is not the singer's.</summary>
 public class SelectedSingerInfoPanelSungAsTests : BunitContext
 {
     private const string SungAsSelector = ".kh-selected-singer-info-panel__sung-as";
@@ -26,10 +23,7 @@ public class SelectedSingerInfoPanelSungAsTests : BunitContext
     private readonly Performance _performance;
     private readonly Media _media;
 
-    /// <summary>
-    /// Aliases on, because that is the venue these tests are about. A venue that has not asked for
-    /// them shows neither the line nor the action, which the two tests at the end cover.
-    /// </summary>
+    /// <summary>Aliases on; an opted-out venue shows neither the line nor the action.</summary>
     private readonly Venue _venue = new()
     {
         Id = Guid.NewGuid(),
@@ -76,15 +70,11 @@ public class SelectedSingerInfoPanelSungAsTests : BunitContext
 
         var panel = Render<SelectedSingerInfoPanel>();
 
-        // The name itself, not just that there is one — the host reads this off the row.
+        // The name itself, not just that there is one, because the host reads this off the row.
         Assert.Equal("singing as flo", panel.Find(SungAsSelector).TextContent.Trim());
     }
 
-    /// <summary>
-    /// The one that matters. Every enqueue records a name, filling in the singer's own when the
-    /// caller has none, so a mark keyed on the column being set would appear on nearly every row
-    /// and mean nothing.
-    /// </summary>
+    /// <summary>Every enqueue records a name; keying the mark on it would flag nearly every row.</summary>
     [Fact]
     public void QueuedRow_IsNotMarked_WhenTheTurnCarriesTheSingersOwnName()
     {
@@ -119,10 +109,7 @@ public class SelectedSingerInfoPanelSungAsTests : BunitContext
         Assert.Empty(Render<SelectedSingerInfoPanel>().FindAll(SungAsSelector));
     }
 
-    /// <summary>
-    /// A venue that announces everyone by their own name has no use for the recorded one, so the
-    /// line would say something the room will never hear. Still recorded, just not shown.
-    /// </summary>
+    /// <summary>Naming everyone by their own name shows a line the room never hears.</summary>
     [Fact]
     public void QueuedRow_IsNotMarked_WhenTheVenueDoesNotAllowAliases()
     {
@@ -140,7 +127,7 @@ public class SelectedSingerInfoPanelSungAsTests : BunitContext
         Assert.Contains(AliasActionLabel, Render<SelectedSingerInfoPanel>().Markup);
     }
 
-    /// <summary>Nothing to change when the room would not hear it — the action goes with the line.</summary>
+    /// <summary>Nothing to change when the room would not hear it; the action follows the line.</summary>
     [Fact]
     public void TheAliasAction_IsHidden_WhenTheVenueDoesNotAllowAliases()
     {

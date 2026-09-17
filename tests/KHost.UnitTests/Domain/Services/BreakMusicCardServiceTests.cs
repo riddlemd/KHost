@@ -10,11 +10,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace KHost.UnitTests.Domain.Services;
 
-/// <summary>
-/// What the screen says is playing between singers. The card has to be true at a glance or it is
-/// worse than nothing: a host reads it to know what the room is hearing, so every state where the
-/// room hears something else takes it down.
-/// </summary>
+/// <summary>Every state where the room hears something else takes the card down.</summary>
 public class BreakMusicCardServiceTests
 {
     private readonly IScreenServer _screens = Substitute.For<IScreenServer>();
@@ -72,10 +68,7 @@ public class BreakMusicCardServiceTests
         Assert.False((await Service().BuildAsync()).Enabled);
     }
 
-    /// <summary>
-    /// Suspended is break music standing aside for a singer. A card naming a track over someone
-    /// else's performance is the one thing this must never do.
-    /// </summary>
+    /// <summary>Suspended is break music standing aside; the card must not name it over a singer.</summary>
     [Fact]
     public async Task BuildAsync_SuspendedForASinger_SaysNothing()
     {
@@ -149,10 +142,7 @@ public class BreakMusicCardServiceTests
         Assert.Equal(ScreenCorner.TopRight, (await Service().BuildAsync()).Corner);
     }
 
-    /// <summary>
-    /// The inset belongs to the corner, not to what sits in it: a card and a code against one edge
-    /// have to agree on how far in it is, so both read the venue's one value.
-    /// </summary>
+    /// <summary>The inset belongs to the corner, not what sits in it: a card and a code must agree.</summary>
     [Fact]
     public async Task BuildAsync_VenueSetAnInset_SharesItWithTheCodes()
     {
@@ -169,10 +159,7 @@ public class BreakMusicCardServiceTests
         Assert.Equal(0.2, (await Service().BuildAsync()).Offset, 3);
     }
 
-    /// <summary>
-    /// A provider moving to the next track on its own changes nothing about the state, so the card
-    /// would keep naming the track before it without this.
-    /// </summary>
+    /// <summary>A provider moving to the next track changes no state, so the card must republish.</summary>
     [Fact]
     public async Task TrackChanged_RepublishesWhatIsPlayingNow()
     {

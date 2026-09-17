@@ -18,9 +18,8 @@ public class MediaFileParsingServiceTests
         return new MediaFileParsingService(logger, monitor, analytics);
     }
 
-    // Separator must match the host OS: on Unix a literal "C:\dir\x.mp4" is one long
-    // filename, so the directory would survive into the parsed artist/title.
-    // The file need not exist — TryProbeAsync treats a failed probe as "no metadata".
+    // Separator must match the host OS, or on Unix "C:\dir\x.mp4" is one filename and the
+    // directory survives into the parsed artist/title. The file need not exist.
     private static string MediaPath(string fileName) =>
         Path.Combine(Path.GetTempPath(), "khost-parsing-tests", fileName);
 
@@ -108,7 +107,7 @@ public class MediaFileParsingServiceTests
         Assert.Null(artist);
     }
 
-    // A still has no duration to probe for, and the host clock is what takes one down — without
+    // A still has no duration to probe for, and the host clock is what takes one down. Without
     // a default it would arrive null and PlayAdAsync would refuse to show it at all.
     [Fact]
     public async Task LoadAndParseAsync_AnImage_GetsADefaultDuration()
@@ -141,18 +140,13 @@ public class MediaFileParsingServiceTests
             FallbackArtistName = "No Artist"
         });
 
-        // Use a path that does not exist so FFprobe fails and we exercise the fallback branch.
         var media = await svc.LoadAndParseAsync(MediaPath("JustATitle.mp4"));
 
         Assert.Equal("JustATitle", media.Title);
         Assert.Equal("No Artist", media.Artist);
     }
 
-    /// <summary>
-    /// A card and an ad clip have no performer, so there is no artist for the fallback to stand in
-    /// for. Inventing one put "Unknown Artist" beside every still in the pickers that name a row by
-    /// title and artist.
-    /// </summary>
+    /// <summary>A card or ad has no performer; inventing one puts "Unknown Artist" on every still.</summary>
     [Theory]
     [InlineData(MediaType.Image, "card-001.png")]
     [InlineData(MediaType.Video, "house-spot.mp4")]
@@ -188,7 +182,7 @@ public class MediaFileParsingServiceTests
         Assert.Equal(MediaType.Image, media.Type);
     }
 
-    /// <summary>An artist the filename states is kept whatever the type — only the invented one goes.</summary>
+    /// <summary>A filename-stated artist is kept whatever the type; only the invented one goes.</summary>
     [Fact]
     public async Task LoadAndParseAsync_AVideoWhoseNameStatesAnArtist_KeepsIt()
     {

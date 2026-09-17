@@ -11,11 +11,7 @@ using KHost.Domain.Services.Messaging;
 
 namespace KHost.UnitTests.Domain.Services;
 
-/// <summary>
-/// The dedup path end to end over real bytes and a real SQLite file — only the metadata parser is
-/// stubbed. Mocked hashes cannot show that a moved file is recognised or that two same-size songs
-/// stay apart, which is the whole point of the feature.
-/// </summary>
+/// <summary>Real bytes, real SQLite, only the metadata parser stubbed; hashes can't be mocked.</summary>
 public class MediaImportContentDedupTests : IDisposable
 {
     private readonly string _directory = Path.Combine(Path.GetTempPath(), $"khost-dedup-e2e-{Guid.NewGuid():N}");
@@ -136,7 +132,7 @@ public class MediaImportContentDedupTests : IDisposable
 
     private static byte[] Song()
     {
-        // Shared head and tail, so only the middle or the length can tell two of these apart —
+        // Shared head and tail, so only the middle or the length can tell two of these apart,
         // exactly the case the sampled hash cannot decide on its own.
         var bytes = new byte[300_000];
         for (var i = 0; i < bytes.Length; i++)

@@ -2,11 +2,7 @@ using System.Diagnostics;
 
 namespace KHost.IntegrationTests;
 
-/// <summary>
-/// Several suites skip themselves when the tool they drive is absent, which makes a run that lost
-/// their coverage look exactly like a clean one. This is the counterweight: it fails, once and in
-/// plain words, rather than letting the summary claim more than it tested.
-/// </summary>
+/// <summary>Fails loudly rather than letting lost tool-gated coverage look like a clean run.</summary>
 public class EnvironmentCoverageTests
 {
     /// <summary>Set when you knowingly cannot install the tooling and want the run to proceed.</summary>

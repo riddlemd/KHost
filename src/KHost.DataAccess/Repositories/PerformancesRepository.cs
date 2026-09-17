@@ -123,10 +123,8 @@ internal class PerformancesRepository : BaseRepository<Performance>, IPerformanc
 
         query = ApplyFilter(query, PerformanceFilter.UnQueued);
 
-        // Ordered by each venue's most recent visit, not by the raw performance dates, so a venue
-        // sung at often does not push the others out of the list.
-        // Projecting straight into RecentVenueVisit does not translate over a GroupBy — the
-        // anonymous type does, so the grouping and Take still run in SQL.
+        // Ordered by each venue's last visit, not raw dates, so a frequent venue doesn't push out others.
+        // Projected into an anonymous type; RecentVenueVisit itself doesn't translate over a GroupBy.
         var visits = await query
             .GroupBy(p => p.VenueId!.Value)
             .Select(g => new { VenueId = g.Key, LastSungOn = g.Max(p => p.CreatedDate) })
@@ -220,8 +218,7 @@ internal class PerformancesRepository : BaseRepository<Performance>, IPerformanc
             return queryable;
 
         // A performance holds only ids and dates, so nothing here can match a text query. Passing
-        // the queryable straight through would return the whole table and read as "everything
-        // matched"; search the singer or the media instead.
+        // the queryable straight through would return the whole table and read as "everything matched".
         return queryable.Where(_ => false);
     }
 }

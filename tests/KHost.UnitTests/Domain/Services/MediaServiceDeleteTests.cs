@@ -9,12 +9,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace KHost.UnitTests.Domain.Services;
 
-/// <summary>
-/// There are deliberately no foreign keys on a performance: deleting a song, a singer or a venue
-/// must leave the record of who sang what standing. That protects history and said nothing about
-/// the queue, so a deleted song's row survived it — sitting in a singer's queue looking ordinary,
-/// and failing only when somebody tried to play it.
-/// </summary>
+/// <summary>Performance has no foreign keys, so deleting a song must clear its queued rows itself.</summary>
 public class MediaServiceDeleteTests
 {
     private readonly IMediaRepository _repository = Substitute.For<IMediaRepository>();
@@ -68,10 +63,7 @@ public class MediaServiceDeleteTests
         await _performances.Received(1).DeleteAsync(second.Id);
     }
 
-    /// <summary>
-    /// Queued rows only. A performance already sung keeps its media id whether or not the file is
-    /// still in the library — that is the record this schema drops foreign keys to protect.
-    /// </summary>
+    /// <summary>Only queued rows are read; a sung performance keeps its media id regardless.</summary>
     [Fact]
     public async Task DeleteAsync_OnlyAsksForTheOnesStillWaiting()
     {
@@ -98,10 +90,7 @@ public class MediaServiceDeleteTests
         await _repository.Received(1).DeleteAsync(_mediaId);
     }
 
-    /// <summary>
-    /// Dequeuing reads the media to see whether a download is still running, so the row has to
-    /// outlive the tidy-up by exactly one step.
-    /// </summary>
+    /// <summary>Dequeuing reads the media, so the row must outlive the tidy-up by one step.</summary>
     [Fact]
     public async Task DeleteAsync_ClearsTheQueueBeforeTheSongItself()
     {

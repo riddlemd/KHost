@@ -8,9 +8,8 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace KHost.UnitTests.DataAccess.Repositories;
 
-// Every repository read defaults to pageSize: 0, which PaginationComponent turns into the
-// default page size. The result must report that effective size — reporting the raw 0 made
-// PaginatedResult.TotalPages divide by zero for every caller using the defaults.
+// A pageSize: 0 read must report the effective page size it resolved to. Reporting the raw 0
+// made PaginatedResult.TotalPages divide by zero for every caller using the defaults.
 public class MediaRepositoryPaginationTests : IDisposable
 {
     private const int BaseDefaultPageSize = 50;

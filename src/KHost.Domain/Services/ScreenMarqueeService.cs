@@ -8,12 +8,8 @@ using KHost.Domain.Services.Screens;
 
 namespace KHost.Domain.Services;
 
-/// <summary>
-/// Keeps the screens' marquee saying what the room should see. Apart from
-/// <see cref="ScreenCoordinationService"/>, which decides which screen is heard rather than what
-/// any of them shows, and apart from playback, which owns the picture and has no reason to know
-/// the queue's order.
-/// </summary>
+/// <summary>Keeps the screens marquee saying what the room should see.</summary>
+/// <remarks>Separate from ScreenCoordinationService (heard) and playback (owns the picture).</remarks>
 public sealed class ScreenMarqueeService : BaseService, IScreenMarqueeService, IDisposable, IStartsWithTheHost
 {
     private readonly IScreenServer _screenServer;
@@ -43,7 +39,7 @@ public sealed class ScreenMarqueeService : BaseService, IScreenMarqueeService, I
         _playback = playback;
 
         // The queue's order is the marquee's content, and the venue owns everything about how it
-        // looks — including whether there is one at all.
+        // looks, including whether there is one at all.
         _subscriptions.Add(broker.Subscribe<SingerQueueChanged>(_ => Republish()));
         _subscriptions.Add(broker.Subscribe<PerformancesChanged>(_ => Republish()));
         _subscriptions.Add(broker.Subscribe<SelectedVenueChanged>(_ => Republish()));
@@ -80,16 +76,11 @@ public sealed class ScreenMarqueeService : BaseService, IScreenMarqueeService, I
         };
     }
 
-    /// <summary>Composed for a venue that has never chosen its own wording, and for one that cleared it.</summary>
+    /// <summary>Composed for a venue with no wording of its own, or one that cleared it.</summary>
     private const string DefaultEntryFormat = "{song} - {singer}";
 
-    /// <summary>
-    /// One line per upcoming turn: the song and who is singing it, shaped by the venue's own
-    /// format. A singer with nothing queued is still up next — the host has them on the list — so
-    /// they are named on their own rather than dropped, which would make the band disagree with
-    /// the queue on screen. Whoever is singing now is left out: the queue puts them at the front
-    /// until their turn ends, and the band would announce the person the room is watching.
-    /// </summary>
+    /// <summary>One line per upcoming turn; a singer with nothing queued is named alone.</summary>
+    /// <remarks>Whoever is singing now is left out of the count entirely.</remarks>
     private async Task<List<string>> UpNextAsync(int wanted, string? entryFormat, bool aliasesAllowed)
     {
         // The singer holding the mic is not up next, and the band says they are. Dropped before
@@ -116,10 +107,8 @@ public sealed class ScreenMarqueeService : BaseService, IScreenMarqueeService, I
             var next = queued.FirstOrDefault(performance => performance.SingerId == singer.Id);
             var media = next is null ? null : await _media.ReadAsync(next.MediaId);
 
-            // Off the performance they are about to sing rather than off the account: on a
-            // song-first remote a guest types a name per pick, and the band should say what they
-            // typed. Resolved here rather than asked of playback, which owns only the one song
-            // that is playing — every name on this band belongs to a turn that has not started.
+            // Off the performance, not the account: a song-first remote lets a guest type a name per pick.
+            // Playback only resolves the song playing; every name here belongs to a turn not yet started.
             var name = NameFor(next, singer, aliasesAllowed);
 
             lines.Add(string.IsNullOrWhiteSpace(media?.Title)
@@ -130,10 +119,7 @@ public sealed class ScreenMarqueeService : BaseService, IScreenMarqueeService, I
         return lines;
     }
 
-    /// <summary>
-    /// The name recorded when the song was queued, unless the venue would rather see the singer it
-    /// knows. A singer with nothing queued has no performance to have recorded one.
-    /// </summary>
+    /// <summary>The name recorded at queue time, unless the venue prefers the singer it knows.</summary>
     private static string NameFor(Performance? next, KHostUser singer, bool aliasesAllowed)
     {
         var recorded = next?.SungAs?.Trim();
@@ -141,7 +127,7 @@ public sealed class ScreenMarqueeService : BaseService, IScreenMarqueeService, I
         return string.IsNullOrEmpty(recorded) || !aliasesAllowed ? singer.Name : recorded;
     }
 
-    /// <summary>Replaces every tag a host may use; one not present in the format is simply not shown.</summary>
+    /// <summary>Replaces every tag a host may use; one absent from the format is simply not shown.</summary>
     private static string ComposeEntry(string format, Media media, string singer, int position)
         => format
             .Replace("{song}", media.Title.Trim(), StringComparison.OrdinalIgnoreCase)
@@ -184,14 +170,10 @@ public sealed class ScreenMarqueeService : BaseService, IScreenMarqueeService, I
 
     private void Republish() => _ = Task.Run(() => BroadcastAsync());
 
-    /// <summary>A colour the host cleared is no colour, not an empty CSS value the screen would take.</summary>
+    /// <summary>A cleared colour is no colour, not an empty CSS value the screen would take.</summary>
     private static string? Blank(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
-    /// <summary>
-    /// The band is one line and cannot become two, so a pasted message keeps its words and loses
-    /// its shape. Done here rather than on the screen: every consumer of this command gets the
-    /// same string, and a venue's stored message is not rewritten behind their back.
-    /// </summary>
+    /// <summary>Collapses a message to one line so the stored version is never rewritten.</summary>
     private static string? SingleLine(string? value)
         => string.IsNullOrWhiteSpace(value)
             ? null

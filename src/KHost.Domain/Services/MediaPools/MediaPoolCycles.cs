@@ -2,16 +2,12 @@ using KHost.Abstractions.Models;
 
 namespace KHost.Domain.Services.MediaPools;
 
-/// <summary>
-/// Save-time guard against a pool that can reach itself. The selector caps its own depth as a
-/// backstop, but a cycle stored in the database is a bug a host cannot see or fix from the page.
-/// </summary>
+/// <summary>Save-time guard against a pool that can reach itself, a backstop past the depth cap.</summary>
+/// <remarks>A stored cycle is a bug a host cannot fix from the page.</remarks>
 public static class MediaPoolCycles
 {
-    /// <summary>
-    /// True when <paramref name="pool"/> can reach itself through its entries. The pool being
-    /// saved is passed in separately because its edited entries are not in the map yet.
-    /// </summary>
+    /// <summary>True when a pool can reach itself through its own entries.</summary>
+    /// <remarks>Pool is passed separately since its edited entries are not in the map yet.</remarks>
     public static bool CreatesCycle(MediaPool pool, IReadOnlyDictionary<Guid, MediaPool> poolsById)
     {
         var edited = poolsById.ToDictionary(p => p.Key, p => p.Value);
@@ -31,7 +27,7 @@ public static class MediaPoolCycles
                 return true;
 
             // A pool reached twice down different branches is not a cycle, so this only stops the
-            // walk from repeating work — the cycle itself is the childId == target test above.
+            // walk from repeating work. The cycle itself is the childId == target test above.
             if (!seen.Add(childId))
                 continue;
 

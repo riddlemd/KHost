@@ -94,9 +94,8 @@ internal sealed class ScreenClient : IScreenClient, IAsyncDisposable
                 .WithAutomaticReconnect()
                 .Build();
 
-            // The nonce arrives before anything is registered. Resetting the sequences here is what
-            // makes a reconnect a fresh session: the host issues a new nonce on the new connection,
-            // and a re-register re-establishes the screen (which the old client never did).
+            // Resetting the sequences on a new nonce is what makes a reconnect a fresh session
+            // rather than one the host rejects for repeating the old one.
             _connection.On<string>("Session", nonce =>
             {
                 _nonce = nonce;
@@ -184,10 +183,7 @@ internal sealed class ScreenClient : IScreenClient, IAsyncDisposable
         }
     }
 
-    /// <summary>
-    /// NTP's estimator: keep the shortest round trip, whose "half of it" assumption is least
-    /// wrong. Averaging lets one delayed probe drag the estimate off.
-    /// </summary>
+    /// <summary>NTP's estimator: keeps the shortest round trip, so one slow probe can't skew it.</summary>
     public async Task<TimeSpan> EstimateClockOffsetAsync(CancellationToken cancellationToken = default)
     {
         if (_connection is null || State != ScreenClientState.Connected)
@@ -243,12 +239,8 @@ internal sealed class ScreenClient : IScreenClient, IAsyncDisposable
         var envelope = SignedEnvelope.TryParse(envelopeJson);
         if (envelope is null || _key is null || _nonce is null) return;
 
-        // Both are dropped and neither is dispatched to the player, but they are not the same thing
-        // and one log line for both cannot be acted on. A MAC that does not verify is a forgery or
-        // the wrong key. A sequence that does not advance is a replay — or, far more often, this
-        // host's own command overtaken in flight by the one behind it, which is a bug at the far
-        // end rather than an attack. Reporting the second as "did not verify" sent a real ordering
-        // fault looking for an attacker.
+        // Logged apart: a bad MAC is a forgery or wrong key; a stale sequence is usually our own
+        // command overtaken in flight. One message for both sends an ordering bug looking for an attacker.
         if (!ScreenMessageAuth.Verify(_key, _nonce, envelope.Seq, envelope.Payload, envelope.Mac))
         {
             _logger.LogWarning("Dropped a command whose signature did not verify (seq {Seq})", envelope.Seq);

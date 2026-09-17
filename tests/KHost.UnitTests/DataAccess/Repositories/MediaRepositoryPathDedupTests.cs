@@ -98,9 +98,8 @@ public class MediaRepositoryPathDedupTests : IDisposable
     [Fact]
     public async Task GetExistingFilePathsAsync_FindsNonAsciiCaseVariant_WhenStoredPathIsUppercase()
     {
-        // The stored side must hold the uppercase non-ASCII char for the defect to show: SQLite's
-        // lower() folds ASCII only, so it leaves Ö alone while .NET folds it to ö, the row is
-        // missed, the file re-imports, and the unique index on FilePath rejects it.
+        // SQLite's lower() folds ASCII only and leaves Ö alone while .NET folds it to ö, so the
+        // row is missed, the file re-imports, and the unique index on FilePath rejects it.
         await SeedAsync(MakeMedia("/library/SÖNG.mp4"));
 
         var result = await _repository.GetExistingFilePathsAsync(["/library/söng.mp4"]);
@@ -124,7 +123,7 @@ public class MediaRepositoryPathDedupTests : IDisposable
     public async Task GetExistingFilePathsAsync_ReturnedSetMatchesTheCallersInputCasing()
     {
         // MediaImportService filters with existing.Contains(inputPath), so the returned set's
-        // comparer — not just its contents — decides whether a file is treated as new.
+        // comparer, not just its contents, decides whether a file is treated as new.
         await SeedAsync(MakeMedia("/library/SÖNG.mp4"));
 
         var result = await _repository.GetExistingFilePathsAsync(["/library/söng.mp4"]);

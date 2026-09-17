@@ -144,7 +144,7 @@ public class ScreensDialogSyncTests
     [Fact]
     public void SyncIcon_ForAScreenThatCannotSync_IsADifferentGlyph()
     {
-        // Not a worse value of the same fact — this screen has no timeline to be on, ever.
+        // Not a worse value of the same fact. This screen has no timeline to be on, ever.
         Assert.Equal("bi-slash-circle", _dialog.SyncIcon(Screen("Living Room", ScreenCapabilities.CastDevice)));
     }
 

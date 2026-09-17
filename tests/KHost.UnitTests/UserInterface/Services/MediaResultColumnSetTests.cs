@@ -65,10 +65,7 @@ public class MediaResultColumnSetTests
         Assert.Equal(MediaResultColumnSet.Default, columns);
     }
 
-    /// <summary>
-    /// One table cannot carry two providers' headings, so a mixed set drops to the shape every
-    /// provider fills in rather than showing YouTube's columns over library rows.
-    /// </summary>
+    /// <summary>One table can't carry two providers' headings, so a mixed set drops to default.</summary>
     [Fact]
     public void For_ResultsFromMoreThanOneSource_FallsBackToTheDefault()
     {
@@ -109,16 +106,7 @@ public class MediaResultColumnSetTests
     public void Value_AKeyTheResultDidNotFillIn_IsEmpty()
         => Assert.Equal(string.Empty, MediaResultColumnSet.Value(Result(), Publisher));
 
-    /// <summary>
-    /// The badge and the pin ride the column that names the row. A picture names nothing, so a
-    /// provider leading with one does not lose the title to it.
-    /// </summary>
-    /// <summary>
-    /// Value reads the reserved keys off the entity while the panel lays a column out by its kind.
-    /// A provider naming the duration column without also declaring the kind — which is the
-    /// obvious way to write it — had the two disagree, and the length was laid out as free text
-    /// and given a share of the row meant for titles.
-    /// </summary>
+    /// <summary>A duration column without Kind set rendered as text, stealing title row space.</summary>
     [Fact]
     public void EffectiveKind_TheReservedDurationKey_IsADurationWhateverWasDeclared()
     {
@@ -152,10 +140,7 @@ public class MediaResultColumnSetTests
     public void ShedOrder_AnEssentialColumn_NeverSheds()
         => Assert.Equal(0, MediaResultColumnSet.ShedOrder(YouTubeShape, 3));
 
-    /// <summary>
-    /// Counting droppable columns from the right must not sweep up an essential one standing
-    /// between them. Only checking the last column hides this, because nothing is to its right.
-    /// </summary>
+    /// <summary>Counting droppable columns from the right must not sweep an essential one between.</summary>
     [Fact]
     public void ShedOrder_AnEssentialColumnWithADroppableOneToItsRight_StillNeverSheds()
     {

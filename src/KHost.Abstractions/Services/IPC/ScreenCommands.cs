@@ -24,10 +24,7 @@ namespace KHost.Abstractions.Services.IPC;
 [JsonDerivedType(typeof(SetBreakMusicCardCommand), "setBreakMusicCard")]
 public abstract class ScreenCommandBase : IScreenCommand { }
 
-/// <summary>
-/// Where the song should be, against the host's clock rather than "now" — screens receive a
-/// command at different moments and take different times to act on it. Sync-capable screens only.
-/// </summary>
+/// <summary>Song position against the host's clock, not "now"; sync-capable screens only.</summary>
 public sealed class SetTimelineCommand : ScreenCommandBase
 {
     /// <summary>Song position that <see cref="AnchorUtc"/> corresponds to.</summary>
@@ -45,19 +42,13 @@ public sealed class SetTimelineCommand : ScreenCommandBase
 
 public sealed class LoadMediaCommand : ScreenCommandBase
 {
-    /// <summary>
-    /// The host transcodes once and every screen plays that stream, so there is no file path here:
-    /// no screen has a decoder, and none can reach the host's filesystem.
-    /// </summary>
+    /// <summary>The host transcodes once; every screen plays the stream, with no decoder.</summary>
     public required string StreamUrl { get; init; }
 
     /// <summary>Song position the stream's zero maps to; add it before reporting a position.</summary>
     public TimeSpan StreamStartOffset { get; init; }
 
-    /// <summary>
-    /// Tempo percentage the stream was transcoded at. The screen's own clock runs in stream
-    /// seconds, so every position crossing this boundary has to be scaled by it.
-    /// </summary>
+    /// <summary>Tempo percent the stream was transcoded at; scales every position crossing it.</summary>
     public int Tempo { get; init; }
 }
 
@@ -79,20 +70,13 @@ public sealed class SetVolumeCommand : ScreenCommandBase
     public required float Volume { get; init; }
 }
 
-/// <summary>
-/// Blanks the picture without stopping playback — a screen driving speakers in another room has
-/// no reason to render, and a blanked one still has to stay on the group timeline.
-/// </summary>
+/// <summary>Blanks the picture without stopping playback; still on the group timeline.</summary>
 public sealed class SetVideoCommand : ScreenCommandBase
 {
     public required bool Enabled { get; init; }
 }
 
-/// <summary>
-/// The second audio channel, for break music and an ad's own bed. Deliberately thin next to the
-/// song commands: it carries no timeline and is never corrected, because only the screen the room
-/// hears is given any of it — there is nothing for it to stay in step with.
-/// </summary>
+/// <summary>Second audio channel for break music and an ad's bed; no timeline, never corrected.</summary>
 public sealed class LoadBackgroundCommand : ScreenCommandBase
 {
     public required string StreamUrl { get; init; }
@@ -109,20 +93,13 @@ public sealed class StopBackgroundCommand : ScreenCommandBase
     public TimeSpan? FadeDuration { get; init; }
 }
 
-/// <summary>
-/// Separate from <see cref="SetVolumeCommand"/>: a bed sits under the room at its own level, and
-/// the song's volume is the host's fader.
-/// </summary>
+/// <summary>Separate from <see cref="SetVolumeCommand"/>: a bed sits under the song's fader.</summary>
 public sealed class SetBackgroundVolumeCommand : ScreenCommandBase
 {
     public required float Volume { get; init; }
 }
 
-/// <summary>
-/// Puts a still on screen — an image ad, or the venue's own card while nothing is playing. It
-/// carries no duration because there is nothing here to time: no transcode is opened and no
-/// element is playing, so the host's clock is the only thing that decides when it comes down.
-/// </summary>
+/// <summary>Puts a still on screen; no duration, so the host's clock decides when it comes down.</summary>
 public sealed class ShowImageCommand : ScreenCommandBase
 {
     public required string Url { get; init; }
@@ -133,23 +110,16 @@ public sealed class ShowImageCommand : ScreenCommandBase
 
 public sealed class HideImageCommand : ScreenCommandBase { }
 
-/// <summary>
-/// Every QR code that should be on the screen, sent whole on every change rather than as a patch
-/// — a screen that reconnects mid-show is correct after one command, the same as
-/// <see cref="SetMarqueeCommand"/>. An empty list takes them all down.
-/// </summary>
+/// <summary>Every QR code on screen, sent whole on change, like <see cref="SetMarqueeCommand"/>.</summary>
 public sealed class SetScreenQrCodesCommand : ScreenCommandBase
 {
     public IReadOnlyList<ScreenQrCodePlacement> Codes { get; init; } = [];
 }
 
-/// <summary>
-/// One code, with the venue's defaults already worked out: the screen decides nothing about where
-/// this goes or how big it is beyond turning the size into pixels it can measure.
-/// </summary>
+/// <summary>One code with the venue's defaults resolved; the screen decides nothing itself.</summary>
 public sealed class ScreenQrCodePlacement
 {
-    /// <summary>The finished picture, an SVG data URI the host encoded — the screen holds no QR library.</summary>
+    /// <summary>The finished picture, an SVG data URI; the screen holds no QR library.</summary>
     public required string ImageUrl { get; init; }
 
     public string? Caption { get; init; }
@@ -158,40 +128,20 @@ public sealed class ScreenQrCodePlacement
 
     public ScreenQrSize Size { get; init; }
 
-    /// <summary>
-    /// How many modules the code is across. The picture carries no quiet zone of its own, so this
-    /// is only what is drawn, and the screen paints the margin around it — see
-    /// <see cref="SafeZone"/>. The screen sizes off this: a long payload needs more modules, and
-    /// the same corner then draws each one smaller until no phone can read it. A floor per module
-    /// beats a floor in pixels, which cannot know either.
-    /// </summary>
+    /// <summary>Modules across; the picture carries no quiet zone (see <see cref="SafeZone"/>).</summary>
     public int Modules { get; init; }
 
-    /// <summary>
-    /// The white margin around the code, in modules, already resolved from the venue. Never zero:
-    /// a code with no quiet zone at all is one a scanner struggles to find an edge on.
-    /// </summary>
+    /// <summary>White margin around the code, in modules, resolved from the venue; never zero.</summary>
     public int SafeZone { get; init; }
 
-    /// <summary>
-    /// How far in from the screen's edges the code sits, as a percentage of the shorter side,
-    /// already resolved from the venue.
-    /// </summary>
+    /// <summary>Inset from the screen's edges, as a percentage of the shorter side.</summary>
     public double Offset { get; init; }
 }
 
-/// <summary>
-/// What is playing between singers, in a corner of the screen. Pushed whole on every change, the
-/// same as the marquee and the codes: a screen that reconnects mid-show is correct after one
-/// command, and there is no separate hide to keep in step.
-/// </summary>
+/// <summary>What's playing between singers; pushed whole on change like the marquee.</summary>
 public sealed class SetBreakMusicCardCommand : ScreenCommandBase
 {
-    /// <summary>
-    /// False takes the card off and the rest is ignored. It is false whenever the room is not
-    /// actually hearing break music — a host's pause, and the hand-off to a singer, both count —
-    /// so what the card names is always what is playing.
-    /// </summary>
+    /// <summary>False takes the card off; false when the room isn't actually hearing break music.</summary>
     public required bool Enabled { get; init; }
 
     /// <summary>The track, already composed: a screen holds no library to resolve an id against.</summary>
@@ -200,43 +150,27 @@ public sealed class SetBreakMusicCardCommand : ScreenCommandBase
     /// <summary>Empty where the provider could not say. An external app need not report one.</summary>
     public string? Artist { get; init; }
 
-    /// <summary>
-    /// Which corner it sits in. It shares that corner with anything else there rather than
-    /// covering it — a QR code in the same corner still has to be scannable.
-    /// </summary>
+    /// <summary>Which corner it sits in; shares the corner rather than covering what's there.</summary>
     public ScreenCorner Corner { get; init; }
 
-    /// <summary>
-    /// How far the corner sits in from the screen's edges, as a percentage of the shorter side and
-    /// already resolved from the venue. A property of the corner rather than of what is in it:
-    /// everything stacked there shares one inset, or they would not line up.
-    /// </summary>
+    /// <summary>Inset from the edges as a percent of the shorter side; a property of the corner.</summary>
     public double Offset { get; init; }
 }
 
-/// <summary>
-/// The band of text across the top or bottom of the screen. Singers arrive as names, not ids: a
-/// screen holds no library and no queue to resolve either against, the same reason
-/// <see cref="ShowImageCommand"/> carries a URL. Sent whole on every change rather than as a
-/// patch, so a screen that reconnects mid-show is correct after one command.
-/// </summary>
+/// <summary>The marquee band. Singers arrive as names; a screen has no library to resolve ids.</summary>
 public sealed class SetMarqueeCommand : ScreenCommandBase
 {
     /// <summary>False takes the band off the screen entirely; the rest is then ignored.</summary>
     public required bool Enabled { get; init; }
 
-    /// <summary>
-    /// One line per upcoming turn, in queue order and already cut to the venue's count: the song
-    /// and who is singing it, composed by the host. A screen holds neither a library nor a queue
-    /// to build these from, so they arrive ready to draw.
-    /// </summary>
+    /// <summary>One line per upcoming turn, in queue order, composed host-side.</summary>
     public IReadOnlyList<string> Singers { get; init; } = [];
 
     public string? Message { get; init; }
 
     public MarqueePosition Position { get; init; }
 
-    /// <summary>Null leaves the screen's own default. CSS colours — the screen renders them.</summary>
+    /// <summary>Null leaves the screen's own default; sent as CSS colours for the screen to render.</summary>
     public string? BackgroundColor { get; init; }
 
     public string? TextColor { get; init; }
@@ -256,11 +190,7 @@ public sealed class SetMarqueeCommand : ScreenCommandBase
 [JsonDerivedType(typeof(ScreenBackgroundState), "background")]
 public abstract class ScreenStateBase : IScreenState { }
 
-/// <summary>
-/// Sent when the background track ends or stops, which is how the host learns to pick the next
-/// one. The song's position clock must not see any of this — reporting it as playback state
-/// would run the singer's performance to completion off the wrong channel.
-/// </summary>
+/// <summary>Sent when the background track ends; the song's position clock must not see this.</summary>
 public sealed class ScreenBackgroundState : ScreenStateBase
 {
     public required string? StreamUrl { get; init; }
@@ -272,15 +202,12 @@ public sealed class ScreenBackgroundState : ScreenStateBase
 
 public sealed class ScreenPlaybackState : ScreenStateBase
 {
-    /// <summary>The stream the screen is playing, not a file — a screen opens nothing local.</summary>
+    /// <summary>The stream the screen is playing, not a file; a screen opens nothing local.</summary>
     public required string? StreamUrl { get; init; }
     public required bool IsPlaying { get; init; }
     public required TimeSpan Position { get; init; }
     public required TimeSpan Duration { get; init; }
 
-    /// <summary>
-    /// Sample time in host clock, via the screen's measured offset. Guessing the delivery latency
-    /// instead would bias the timeline permanently. Null before an offset is established.
-    /// </summary>
+    /// <summary>Sample time via the screen's measured offset. Null before one is established.</summary>
     public DateTime? SampledAtUtc { get; init; }
 }

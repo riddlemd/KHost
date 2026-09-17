@@ -4,11 +4,8 @@ using KHost.Abstractions.Models.Plugins;
 
 namespace KHost.UserInterface.Endpoints;
 
-/// <summary>
-/// Serves a plugin's own icon, which lives beside its manifest under plugins/ and so is outside
-/// wwwroot. The id picks a plugin the host already discovered and the filename is fixed, so the
-/// path is built from what the host knows rather than from anything in the request.
-/// </summary>
+/// <summary>Serves a plugin's icon from outside wwwroot.</summary>
+/// <remarks>Built from what the host knows, plugin and filename, never anything in the request.</remarks>
 public static class PluginIconEndpoints
 {
     public static IEndpointConventionBuilder MapPluginIcons(this IEndpointRouteBuilder endpoints)

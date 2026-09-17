@@ -8,10 +8,7 @@ using Microsoft.Extensions.Options;
 
 namespace KHost.UnitTests.Cast;
 
-/// <summary>
-/// The paths a host hits with no receiver attached, which is most of a night. These reach no
-/// network, so unlike <see cref="CastServiceTests"/> they run without the emulator.
-/// </summary>
+/// <summary>No receiver attached; unlike <see cref="CastServiceTests"/> these need no emulator.</summary>
 public class CastServiceDisconnectedTests : IDisposable
 {
     private readonly CastService _cast = new(
@@ -64,8 +61,7 @@ public class CastServiceDisconnectedTests : IDisposable
     [Fact]
     public async Task ConnectAsync_GivesUp_WhenTheReceiverNeverAnswers()
     {
-        // A socket that accepts and then says nothing — a receiver reachable at the address mDNS
-        // advertised but unable to hold up its end. Sharpcaster's connect takes no token, so
+        // A receiver that accepts but never answers. Sharpcaster's connect takes no token, so
         // without a bound of our own the Screens dialog says "connecting" for the whole night.
         using var silent = new TcpListener(IPAddress.Loopback, 0);
         silent.Start();

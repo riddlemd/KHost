@@ -13,10 +13,8 @@ public sealed record AppSettings
     public double SyncStartLeadMilliseconds { get; set; } = 400;
     public int SegmentSeconds { get; set; } = 2;
 
-    /// <summary>
-    /// How long an ad runs when its playlist entry does not say and the media cannot answer — a
-    /// still with no voiceover. A video ad runs for its own length regardless.
-    /// </summary>
+    /// <summary>How long an ad runs when its playlist entry and the media itself say nothing.</summary>
+    /// <remarks>A still with no voiceover; a video ad runs its own length regardless.</remarks>
     public double AdDefaultDurationSeconds { get; set; } = DefaultAdDurationSeconds;
     public int MediaPageSize { get; set; } = DefaultPageSize;
     public int UsersPageSize { get; set; } = DefaultPageSize;
@@ -25,23 +23,16 @@ public sealed record AppSettings
     public int VenuesPageSize { get; set; } = DefaultPageSize;
     public int PerformanceHistoryPageSize { get; set; } = DefaultPerformanceHistoryPageSize;
 
-    /// <summary>
-    /// Where the backing voices start on a multi-track song nobody has mixed by hand. The lead
-    /// vocal has no setting: a singer is there to replace it, so it always starts silent.
-    /// </summary>
+    /// <summary>Where the backing voices start on an unmixed multi-track song.</summary>
+    /// <remarks>The lead vocal has none; a singer is there to replace it and starts silent.</remarks>
     public int BackingVocalVolume { get; set; } = AudioMix.DefaultBackingVolume;
 
-    /// <summary>
-    /// Which shape the key, tempo and vocal controls take. Presentation only — both drive the
-    /// same values, so switching mid-song changes nothing the room can hear.
-    /// </summary>
+    /// <summary>Which shape the key, tempo and vocal controls take. Presentation only.</summary>
+    /// <remarks>Both shapes drive the same underlying values.</remarks>
     public SongControlStyle SongControlStyle { get; set; } = SongControlStyle.Sliders;
 
-    /// <summary>
-    /// Opens a screen when the console starts, so a host running the same room every night does
-    /// not launch one by hand first. Off by default: a machine with no second display would put
-    /// the screen over the console.
-    /// </summary>
+    /// <summary>Opens a screen at startup, for a host running the same room nightly.</summary>
+    /// <remarks>Off by default: a machine with no second display puts the screen over the console.</remarks>
     public bool LaunchScreenOnStartup { get; set; }
 
     /// <summary>The screen launched at startup is named this, so it reclaims its own window.</summary>
@@ -62,19 +53,17 @@ public sealed record AppSettings
 
 public interface IAppSettingsService
 {
-    /// <summary>The effective values — deployment defaults with the overlay applied.</summary>
+    /// <summary>The effective values: deployment defaults with the overlay applied.</summary>
     AppSettings Current { get; }
 
     /// <summary>A change to a startup-only setting was saved and waits for a restart.</summary>
     bool RestartRequired { get; }
 
-    /// <summary>The directory used in place of a blank <see cref="AppSettings.MediaDirectory"/>, for display.</summary>
+    /// <summary>The directory used in place of a blank <see cref="AppSettings.MediaDirectory"/>.</summary>
     string DefaultMediaDirectory { get; }
 
-    /// <summary>
-    /// Writes the overlay. Turning the login requirement on is refused while no admin-group
-    /// user has a password — that would lock every operator out of the console.
-    /// </summary>
+    /// <summary>Writes the overlay; turning login on is refused while no admin has a password.</summary>
+    /// <remarks>That would lock every operator out.</remarks>
     Task<AppSettingsSaveResult> SaveAsync(AppSettings settings);
 }
 

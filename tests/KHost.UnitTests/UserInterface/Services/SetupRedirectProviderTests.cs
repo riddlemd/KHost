@@ -88,7 +88,7 @@ public class SetupRedirectProviderTests
     {
         var provider = MakeProvider(hasAdminUser: false, hasVenue: false);
 
-        // "/setupsomething" shares the prefix, so it is also exempt — documenting current behaviour.
+        // "/setupsomething" shares the "/setup" prefix, so it is treated as exempt too.
         var result = await provider.ShouldRedirectAsync(MakeContext("/setupsomething"));
 
         Assert.False(result);

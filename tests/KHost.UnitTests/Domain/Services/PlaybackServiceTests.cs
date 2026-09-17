@@ -161,11 +161,7 @@ public class PlaybackServiceTests : IDisposable
         Assert.Equal(TimeSpan.Zero, _service.Position);
     }
 
-    /// <summary>
-    /// A load that throws leaves the console wedged unless it puts its state back: remove is
-    /// disabled for the current performance, play for every row, and stop for a state that never
-    /// reached Playing, so the host cannot clear the song that failed.
-    /// </summary>
+    /// <summary>A load that throws must restore state, or the console wedges with disabled buttons.</summary>
     private void FailTheStreamOpen() => _mediaStreams
         .OpenAsync(Arg.Any<string>(), Arg.Any<TimeSpan>(), Arg.Any<int>(), Arg.Any<int>(), Arg.Any<AudioMix?>(), Arg.Any<CancellationToken>())
         .Returns<MediaStreamSession>(_ => throw new FileNotFoundException("Media file not found: /gone.cdg"));
@@ -805,7 +801,7 @@ public class PlaybackServiceTests : IDisposable
         _screenServer.ClearReceivedCalls();
 
         // A screen answers every command with a state report, so an unthrottled re-anchor turned
-        // one report into a timeline into another report — a command storm that aborted play().
+        // one report into a timeline into another report, a command storm that aborted play().
         for (var i = 0; i < 25; i++) RaisePrimaryState(TimeSpan.FromSeconds(i));
 
         var timelines = _screenServer.ReceivedCalls()
@@ -938,7 +934,7 @@ public class PlaybackServiceTests : IDisposable
         await _service.LoadAsync(performance, media);
         await _service.PlayAsync();
 
-        // A receiver is not a screen, so nothing broadcasts to it — playback has to drive it.
+        // A receiver is not a screen, so nothing broadcasts to it; playback has to drive it.
         await _cast.Received(1).LoadAsync(
             "http://host/media/stream-1/stream.m3u8", TimeSpan.Zero, 0, Arg.Any<CancellationToken>());
         await _cast.Received(1).PlayAsync(Arg.Any<CancellationToken>());
@@ -1764,9 +1760,8 @@ public class PlaybackServiceTests : IDisposable
         await _service.LoadAsync(performance, media);
         await _service.PlayAsync();
 
-        // Seek stops the clock and starts it again, so concurrent seeks drive two threads through
-        // that swap at once. Unsynchronised, one of them assigns a Timer the other has already
-        // replaced — orphaned, unreachable, and never disposed by the stop below.
+        // Seek stops and restarts the clock, so concurrent seeks race that swap: unsynchronised,
+        // one assigns a Timer the other has already replaced, orphaned and never disposed.
         await Task.WhenAll(Enumerable.Range(0, 64).Select(i =>
             Task.Run(() => _service.SeekAsync(TimeSpan.FromSeconds(i % 5)))));
 
@@ -1831,11 +1826,7 @@ public class PlaybackServiceTests : IDisposable
         await _breakMusic.Received(1).RestoreAsync(Arg.Any<CancellationToken>());
     }
 
-    /// <summary>
-    /// A still with no voiceover is silent, and starting one deliberately leaves the bed alone —
-    /// but the song that just ended had already put it down, so nothing was picking it back up.
-    /// The room heard the whole ad in silence.
-    /// </summary>
+    /// <summary>A silent still leaves the bed alone, but the ended song already put it down.</summary>
     [Fact]
     public async Task PlaybackEnding_ASilentAdTakesTheGap_BringsTheBedBackUnderIt()
     {
@@ -1943,7 +1934,7 @@ public class PlaybackServiceTests : IDisposable
     }
 
     // Nothing watches an ad the way a host watches a song, and the clock ends playback by
-    // duration — one without a duration would hold the main channel all night.
+    // duration. One without a duration would hold the main channel all night.
     [Fact]
     public async Task PlayAdAsync_RefusesMediaWithNoDuration()
     {
@@ -2163,10 +2154,7 @@ public class PlaybackServiceTests : IDisposable
         Assert.Null(_service.CurrentMedia);
     }
 
-    /// <summary>
-    /// Scaling belongs to a picture — a wide banner and a portrait poster want opposite answers on
-    /// the same television — so the library's answer stands unless the venue gives one.
-    /// </summary>
+    /// <summary>Scaling belongs to a picture; the library's answer stands unless overridden.</summary>
     [Fact]
     public async Task TheCard_VenueSaidNothingAboutScaling_TakesTheImagesOwn()
     {
@@ -2183,10 +2171,7 @@ public class PlaybackServiceTests : IDisposable
         Assert.True(Scaled(), "The image's own scaling never reached the screens.");
     }
 
-    /// <summary>
-    /// The same picture can be the card in two rooms whose screens are not the same shape, so the
-    /// venue's answer wins where it has one.
-    /// </summary>
+    /// <summary>The same picture cards two rooms with different screen shapes; the venue wins.</summary>
     [Fact]
     public async Task TheCard_VenueChoseScaling_UsesItOverTheImagesOwn()
     {
@@ -2203,11 +2188,7 @@ public class PlaybackServiceTests : IDisposable
         Assert.True(Scaled(), "The venue's scaling never reached the screens.");
     }
 
-    /// <summary>
-    /// The card is the venue's, so editing the venue is news about what should be on screen. It
-    /// used to change only at the next playback transition: a host who picked a new one sat
-    /// looking at the old one until a singer had been and gone.
-    /// </summary>
+    /// <summary>An edit to the venue's card updates the screen now, not on the next transition.</summary>
     [Fact]
     public async Task VenueChanged_NothingPlaying_PutsTheNewCardUpAtOnce()
     {
@@ -2227,10 +2208,7 @@ public class PlaybackServiceTests : IDisposable
         Assert.True(ShowsTheNewCard(), "The venue's new card never reached the screens.");
     }
 
-    /// <summary>
-    /// A still put up over a singer is worse than a stale one. The transitions raise it anyway the
-    /// moment the song ends, so nothing is lost by waiting.
-    /// </summary>
+    /// <summary>A still over a singer is worse than stale; raised once the song ends.</summary>
     [Fact]
     public async Task VenueChanged_WhileSomeoneIsSinging_LeavesTheirSongAlone()
     {
@@ -2513,7 +2491,7 @@ public class PlaybackServiceTests : IDisposable
     }
 
     // The main channel is reloaded with the song either way; the ad's own audio is on the other
-    // channel, and only this hands it back — otherwise a voiceover plays under the singer.
+    // channel, and only this hands it back. Otherwise a voiceover plays under the singer.
     [Fact]
     public async Task LoadAsync_WhileAnAdWithItsOwnAudioIsPlaying_HandsTheChannelBack()
     {
@@ -2819,7 +2797,7 @@ public class PlaybackServiceTests : IDisposable
         Assert.True(await WaitForStreamsOpenedAsync(2));
         await Task.Delay(300);
 
-        // Three presses, one hole in the song — and it lands on the key the host settled on.
+        // Three presses, one hole in the song, and it lands on the key the host settled on.
         Assert.Equal(2, _streamsOpened);
         await _mediaStreams.Received(1).OpenAsync(
             media.FilePath, Arg.Any<TimeSpan>(), 3, 0, Arg.Any<AudioMix?>(), Arg.Any<CancellationToken>());
@@ -3370,11 +3348,7 @@ public class PlaybackServiceTests : IDisposable
         var media = new Media { Id = mediaId, FilePath = "/music/media.mp4", Title = "Media", Status = MediaStatus.Ready };
         return (performance, media);
     }
-    /// <summary>
-    /// A performance records the name it was queued under, and the venue decides whether one that
-    /// differs from the singer's own is the one the room sees. Resolved here rather than by each
-    /// caller, so every screen showing who is singing shows the same thing.
-    /// </summary>
+    /// <summary>The venue decides whether a queued name that differs from the singer's is shown.</summary>
     [Theory]
     [InlineData(true, "DJ P")]
     [InlineData(false, "Priya")]

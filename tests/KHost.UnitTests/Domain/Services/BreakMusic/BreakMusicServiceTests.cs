@@ -8,9 +8,8 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace KHost.UnitTests.Domain.Services.BreakMusic;
 
-// The whole point of this service is the two automatic transitions. Suspend must respect what the
-// host set — a bed they paused on purpose must not come back on the song's behalf — and restore
-// must bring back only what suspend took away.
+// Suspend must respect what the host set (a bed paused on purpose must not come back on the
+// song's behalf), and restore must bring back only what suspend took away.
 public class BreakMusicServiceTests : IDisposable
 {
     private readonly IBreakMusicProvider _provider = Substitute.For<IBreakMusicProvider>();
@@ -137,7 +136,7 @@ public class BreakMusicServiceTests : IDisposable
         Assert.Same(_provider, _service.ActiveProvider);
     }
 
-    // Plugins register after the domain today, so the built-in happens to be first — but a venue's
+    // Plugins register after the domain today, so the built-in happens to be first, but a venue's
     // default must not rest on that. A plugin ahead of it in the list must not become the default.
     [Fact]
     public async Task InitializeAsync_WithAPluginProviderRegisteredFirst_StillDefaultsToTheBuiltIn()
@@ -203,7 +202,7 @@ public class BreakMusicServiceTests : IDisposable
     }
 
     // One venue level covers every channel, so a provider the host cannot reach is told it and
-    // one that renders through the host is not — ScreenCoordination already sets that channel.
+    // one that renders through the host is not, because ScreenCoordination already sets that channel.
     [Fact]
     public async Task StartAsync_AnExternalProvider_IsGivenTheVenueVolume()
     {
@@ -253,11 +252,7 @@ public class BreakMusicServiceTests : IDisposable
         await _provider.Received().SetVolumeAsync(0.25f, Arg.Any<CancellationToken>());
     }
 
-    /// <summary>
-    /// The mode is part of the venue's audio baseline just as its volume is. Before, only the page
-    /// carrying the selector applied it, so a mode changed anywhere else — the venue dialog, which
-    /// is where it lives now — was not picked up until a restart.
-    /// </summary>
+    /// <summary>The mode is part of the venue's audio baseline like its volume.</summary>
     [Fact]
     public async Task AVenueEdit_SwitchesToTheModeTheVenueNames()
     {
@@ -287,11 +282,7 @@ public class BreakMusicServiceTests : IDisposable
     public void LibraryProvider_IsTheOneNamedForTheBuiltIn()
         => Assert.Same(_provider, _service.LibraryProvider);
 
-    /// <summary>
-    /// Null rather than a stand-in: the pages that ask this hide themselves when the venue is not
-    /// on the library's own playlists, and any fallback here would show them for a mode that has
-    /// nothing to do with them.
-    /// </summary>
+    /// <summary>Null rather than a stand-in, so a page hides instead of misreporting a mode.</summary>
     [Fact]
     public void LibraryProvider_IsNullWhenNothingLoadedIsIt()
     {
@@ -554,9 +545,8 @@ public class BreakMusicServiceTests : IDisposable
         await _provider.Received(1).SkipAsync(Arg.Any<CancellationToken>());
     }
 
-    // Skipping starts the next track whichever provider is on — the library one plays what it
-    // loads, and a media-key next resumes a paused Spotify. Staying Paused left the bar offering
-    // play while the room could hear music.
+    // Skipping starts the next track on any provider (a media-key next resumes a paused Spotify),
+    // so staying Paused left the bar offering play while the room could already hear music.
     [Fact]
     public async Task SkipAsync_WhilePaused_ReportsPlaying()
     {

@@ -95,7 +95,7 @@ public class PluginCatalogExtensionsTests
     [Fact]
     public void LatestCompatible_SameVersionNeutralAndPlatform_PrefersThePlatformBuild()
     {
-        // At one version the platform build is the more capable package — it exists precisely
+        // At one version the platform build is the more capable package: it exists precisely
         // because some OS API needed it.
         var entry = EntryWith(Release("1.0.0"), Release("1.0.0", rid: PluginRid.Current, url: "https://example.test/p2.zip"));
 

@@ -32,11 +32,7 @@ public partial class MediaSearchPanel : IDisposable
     /// <summary>What is being searched, for the wait message. Null while nothing is running.</summary>
     private string? _searchingSource;
 
-    /// <summary>
-    /// The last search run, kept so an action that invalidates its own results can repeat it —
-    /// the library and one named provider are different searches, and a refresh has to be the
-    /// same one the host was looking at.
-    /// </summary>
+    /// <summary>The last search run, so an action that invalidates results can repeat it.</summary>
     private Func<IMediaSearchService, Task<List<MediaSearchEntity>>>? _lastSearch;
     private string _lastSearchSource = "the library";
 
@@ -44,11 +40,7 @@ public partial class MediaSearchPanel : IDisposable
 
     private ElementReference _queryInputRef;
 
-    /// <summary>
-    /// Puts the caret in the query field. For a caller that just gave the host someone to queue a
-    /// song for — added a singer, say — without it, typing the song means reaching for the mouse
-    /// first.
-    /// </summary>
+    /// <summary>Puts the caret in the query field, so typing after adding a singer needs no mouse.</summary>
     public ValueTask FocusQueryAsync() => _queryInputRef.FocusAsync();
 
     protected override async Task OnInitializedAsync()
@@ -65,15 +57,7 @@ public partial class MediaSearchPanel : IDisposable
         await UpdateQueuedMediaAsync();
     }
 
-    /// <summary>
-    /// Marks the cell so the narrow-panel rules can shed it. The first column carries the fill
-    /// class instead — it is the one that should give up width before any other is dropped.
-    /// </summary>
-    /// <summary>
-    /// Classes for a column's header and cells. The table is laid out fixed, so the kinds given a
-    /// width keep it and the text columns share what is left. Auto layout could not be talked
-    /// into that: every hint that rescued one column took the width back out of another.
-    /// </summary>
+    /// <summary>Column classes: width columns keep their width, text columns split what's left.</summary>
     private static string ColumnClass(IReadOnlyList<MediaResultColumn> columns, int index)
     {
         var classes = columns[index].EffectiveKind switch
@@ -92,21 +76,14 @@ public partial class MediaSearchPanel : IDisposable
         return classes;
     }
 
-    /// <summary>
-    /// What a plain press of the search button reaches: the source picked from its list last,
-    /// falling back to the local library when nothing is picked or the pick names a provider that
-    /// is gone — a plugin can be unloaded between one search and the next.
-    /// </summary>
+    /// <summary>What a plain search press reaches: the last source picked, or the library.</summary>
     private IMediaProvider? SearchTarget
         => Provider(ControlState.MediaSearchSource) ?? Provider(nameof(LocalMediaProvider));
 
     /// <summary>Names the button, so the host reads where a press goes without opening the list.</summary>
     private string SearchTargetLabel => SearchTarget?.DisplayName ?? "Library";
 
-    /// <summary>
-    /// The list is what a press does not already do, so the source on the button is left out of it
-    /// — an entry that reselects what is already selected reads as a second way to search.
-    /// </summary>
+    /// <summary>Omits the source already on the button: picking it again would be redundant.</summary>
     private IEnumerable<IMediaProvider> UnselectedProviders
         => (MediaSearchService?.Providers ?? []).Where(provider => provider != SearchTarget);
 
@@ -114,11 +91,7 @@ public partial class MediaSearchPanel : IDisposable
         => MediaSearchService?.Providers.FirstOrDefault(provider =>
             string.Equals(provider.SourceName, source, StringComparison.OrdinalIgnoreCase));
 
-    /// <summary>
-    /// The picture on a row that spans the table. It has no thumbnail column to sit in — a
-    /// provider that draws one special row does not declare a column for it — so the row's own
-    /// field is read directly.
-    /// </summary>
+    /// <summary>The picture for a row spanning the table, which declares no thumbnail column.</summary>
     private static string? OfferImage(MediaSearchEntity entity)
         => entity.Fields.GetValueOrDefault(MediaResultColumn.ThumbnailKey);
 
@@ -127,16 +100,10 @@ public partial class MediaSearchPanel : IDisposable
             ? RunSearchCoreAsync(provider.DisplayName, service => service.SearchAsync(_query, provider.SourceName))
             : RunSearchCoreAsync("the library", service => service.SearchAsync(_query));
 
-    /// <summary>
-    /// Picking a source only aims the search button — it does not run one. A remote provider is a
-    /// metered round trip, and the query is usually still half-typed when the source is chosen.
-    /// </summary>
+    /// <summary>Picking a source only aims the button, since a remote provider is a metered call.</summary>
     private void SelectSource(string source) => ControlState.MediaSearchSource = source;
 
-    /// <summary>
-    /// Abandons the wait rather than the work: a provider is handed no token, so its request runs
-    /// on to completion in the background. The host gets the panel back either way.
-    /// </summary>
+    /// <summary>Abandons the wait, not the work. The provider has no token to cancel by.</summary>
     private void CancelSearch() => _searchCts?.Cancel();
 
     private async Task RunSearchCoreAsync(
@@ -196,8 +163,8 @@ public partial class MediaSearchPanel : IDisposable
         }
         catch (OperationCanceledException)
         {
-            // The host dequeuing the Downloading row cancels the plugin's own download token —
-            // this is that cancel unwinding through the action, not a failure to report.
+            // The host dequeuing the Downloading row cancels the plugin's own download token.
+            // This is that cancel unwinding through the action, not a failure to report.
             return;
         }
 
@@ -221,10 +188,7 @@ public partial class MediaSearchPanel : IDisposable
         StateHasChanged();
     });
 
-    /// <summary>
-    /// Every singer's queue, not just the selected one — a song already claimed by anyone in the
-    /// room is worth knowing about before handing it to someone else.
-    /// </summary>
+    /// <summary>Tracks what each singer already queued, so a claimed song is not offered again.</summary>
     private async Task UpdateQueuedMediaAsync()
     {
         if (PerformanceService is null || SingerQueueService is null) return;
@@ -240,10 +204,7 @@ public partial class MediaSearchPanel : IDisposable
                 group => group.Select(performance => singerNames[performance.SingerId]).Distinct().ToList());
     }
 
-    /// <summary>
-    /// Every name, not a count: the badge shows only its glyph, so this is the one place a host
-    /// can find out who — from the hover, or from a screen reader reading the same words.
-    /// </summary>
+    /// <summary>Shows every name, not a count, since the badge's glyph alone can't say who.</summary>
     private static string QueuedByLabel(IReadOnlyList<string> queuedBy)
         => $"Already queued by {string.Join(", ", queuedBy)}";
 

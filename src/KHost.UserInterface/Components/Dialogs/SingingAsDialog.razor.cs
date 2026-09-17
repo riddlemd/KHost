@@ -6,14 +6,8 @@ using KHost.UserInterface.Models;
 
 namespace KHost.UserInterface.Components.Dialogs;
 
-/// <summary>
-/// Changes the name one turn is queued under, without touching the singer it belongs to.
-/// </summary>
-/// <remarks>
-/// Its own dialog rather than a field on an edit-the-performance form, because a turn has nothing
-/// else a host would change: the song and the singer are what the row already is, and moving either
-/// is a different action with its own control.
-/// </remarks>
+/// <summary>Changes the name one turn is queued under, without touching the singer it belongs to.</summary>
+/// <remarks>Its own dialog, not a field on the edit-performance form, since nothing else changes.</remarks>
 public partial class SingingAsDialog
 {
     private const string _rootClassName = "kh-singing-as-dialog";

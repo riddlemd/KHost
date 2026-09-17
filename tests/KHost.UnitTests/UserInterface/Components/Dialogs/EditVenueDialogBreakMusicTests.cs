@@ -9,12 +9,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace KHost.UnitTests.UserInterface.Components.Dialogs;
 
-/// <summary>
-/// A venue keeps the source name of the mode it chose, and a plugin that fails to load takes that
-/// provider out of the list without touching the venue. The select then holds a value no option
-/// carries, which browsers render blank — the state a Spotify plugin with an unparseable manifest
-/// left the page in. The selector lives on the venue now, which is where the setting always was.
-/// </summary>
+/// <summary>A failed plugin load drops its provider, leaving a select value no option carries.</summary>
 public class EditVenueDialogBreakMusicTests : BunitContext
 {
     private const string ModeSelectSelector = "#venue-break-music-mode";
@@ -108,10 +103,7 @@ public class EditVenueDialogBreakMusicTests : BunitContext
     public void ModeIsTheLibraryOne_OffersAPlaylist()
         => Assert.NotEmpty(Render(nameof(LibraryBreakMusicProviderStub)).FindAll(PlaylistSelector));
 
-    /// <summary>
-    /// Deliberately a provider that renders through the host: a playlist applies to the mode this
-    /// host's playlists feed, which is not the same question as who plays the audio.
-    /// </summary>
+    /// <summary>A playlist applies to the mode the host's playlists feed, not who renders audio.</summary>
     [Fact]
     public void ModeBringsItsOwnMusic_OffersNoPlaylistEvenWhenTheHostRendersIt()
     {

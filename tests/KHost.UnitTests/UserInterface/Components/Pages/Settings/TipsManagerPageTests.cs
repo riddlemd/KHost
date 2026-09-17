@@ -19,7 +19,7 @@ public class TipsManagerPageTests
     }
 
     // A blank tip standing in for "nothing yet" reads as an edit, and carries Guid.Empty as its
-    // singer — the value [Required] cannot reject.
+    // singer, a value [Required] cannot reject.
     [Fact]
     public async Task OpenAddDialog_AsksForAnAdd_NotAnEditOfABlankTip()
     {

@@ -4,11 +4,8 @@ using KHost.Abstractions.Services;
 
 namespace KHost.UserInterface.Services;
 
-/// <summary>
-/// Works out which columns a set of search results is shown in, and what goes in each cell. Split
-/// out of the panel because picking the columns is the whole point of the feature and a component
-/// that renders them is a poor place to prove it.
-/// </summary>
+/// <summary>Which columns a search result set shows, and what goes in each cell.</summary>
+/// <remarks>Split out of the panel since picking the columns is the whole point.</remarks>
 public static class MediaResultColumnSet
 {
     /// <summary>What a provider gets for declaring nothing: the shape the local library wants.</summary>
@@ -21,18 +18,8 @@ public static class MediaResultColumnSet
 
     private const string NoDuration = "--:--";
 
-    /// <summary>
-    /// The declaring provider's columns when every result came from it, and the console's own set
-    /// otherwise — one provider's headings must never sit over another's rows.
-    /// </summary>
-    /// <remarks>
-    /// A search now asks one source at a time, so the disagreeing case is not something the app
-    /// can currently produce. Kept as a guard rather than an assumption: this reads a list handed
-    /// to it, and the cost of being wrong is a table whose headings describe rows they do not
-    /// belong to. Note the test is on the entity's Source — who answered the search — and not on
-    /// where a row's file came from, which is a per-row fact and genuinely does differ inside one
-    /// set of local results.
-    /// </remarks>
+    /// <summary>The declaring provider's columns if every result is theirs, else the console's own.</summary>
+    /// <remarks>One provider's headings must never sit over another's rows.</remarks>
     public static IReadOnlyList<MediaResultColumn> For(
         IReadOnlyList<MediaSearchEntity> results, IReadOnlyList<IMediaProvider> providers)
     {
@@ -51,10 +38,8 @@ public static class MediaResultColumnSet
         return declared is { Count: > 0 } ? declared : Default;
     }
 
-    /// <summary>
-    /// The cell's text. Title, artist and duration come off the entity itself so a provider does
-    /// not have to copy what it already filled in; everything else is its own.
-    /// </summary>
+    /// <summary>The cell's text; title, artist and duration come off the entity itself.</summary>
+    /// <remarks>A provider need not copy what it already filled in.</remarks>
     public static string Value(MediaSearchEntity result, MediaResultColumn column) => column.Key switch
     {
         MediaResultColumn.TitleKey => result.Title,
@@ -63,11 +48,8 @@ public static class MediaResultColumnSet
         _ => result.Fields.GetValueOrDefault(column.Key, string.Empty),
     };
 
-    /// <summary>
-    /// The column that names the row: the first that is not a picture. It carries the "already
-    /// queued" badge and is never dropped, however narrow the panel gets — a row a host cannot
-    /// read is not one they can choose between.
-    /// </summary>
+    /// <summary>The first non-picture column; carries the "already queued" badge.</summary>
+    /// <remarks>Never dropped, however narrow the panel gets.</remarks>
     public static int PrimaryIndex(IReadOnlyList<MediaResultColumn> columns)
     {
         for (var i = 0; i < columns.Count; i++)
@@ -79,10 +61,8 @@ public static class MediaResultColumnSet
         return 0;
     }
 
-    /// <summary>
-    /// How many droppable columns sit at or to the right of this one, so the panel sheds the
-    /// rightmost first. 0 never sheds.
-    /// </summary>
+    /// <summary>How many droppable columns sit at or right of this one; 0 never sheds.</summary>
+    /// <remarks>So the panel sheds the rightmost column first.</remarks>
     public static int ShedOrder(IReadOnlyList<MediaResultColumn> columns, int index)
     {
         if (index == PrimaryIndex(columns) || columns[index].Essential)

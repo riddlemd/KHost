@@ -102,7 +102,7 @@ public class PaginationComponentTests
     {
         var result = MakeComponent().BuildResult(["a"], totalCount: 200, pageNumber: 1, pageSize: 0);
 
-        // 200 items at the default 25 per page — meaningless if PageSize reported the raw 0.
+        // 200 items at the default 25 per page: meaningless if PageSize reported the raw 0.
         Assert.Equal(8, result.TotalPages);
         Assert.True(result.HasNextPage);
     }

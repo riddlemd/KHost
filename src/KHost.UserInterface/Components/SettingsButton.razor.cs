@@ -105,11 +105,7 @@ public partial class SettingsButton : IDisposable
     // started rather than awaited here.
     private void QueueRebuild() => _ = RebuildAsync();
 
-    /// <summary>
-    /// The venue decides both which venues the switcher lists and which pages apply, so one rebuild
-    /// serves every message that can move either. The venue is read before the list is filtered:
-    /// judging a venue-dependent page against a venue that has not arrived yet hides it.
-    /// </summary>
+    /// <summary>Reads the venue before filtering, or a venue-dependent page is judged too soon.</summary>
     private async Task RebuildAsync()
     {
         await RefreshVenuesAsync();
@@ -126,25 +122,15 @@ public partial class SettingsButton : IDisposable
         var result = await VenuesService.ReadAllAsync(pageSize: 1000);
         _selectedVenue = await VenuesService.ReadSelectedVenueAsync();
 
-        // Disabled venues are managed, not sung at: they stay in the venues manager but not in this
-        // switcher. The selected one always shows, so disabling the venue in use never makes the
-        // menu lie about where tonight's queue is running.
+        // Disabled venues stay in the manager but drop from this switcher, except the selected
+        // one, so disabling it mid-use can't make the menu lie about where tonight's queue runs.
         _venues = [.. result.Items.Where(v => v.Enabled || v.Id == _selectedVenue?.Id)];
     }
 
-    /// <summary>
-    /// The break music playlists only feed one mode. A venue playing Spotify has nothing to manage
-    /// there, so the page goes rather than sitting in the menu describing someone else's music.
-    /// Asked of the running provider rather than of RendersThroughHost, which says who plays the
-    /// audio — a provider may render through the host and still bring its own catalogue.
-    /// </summary>
-    /// <summary>
-    /// Tips are a venue's choice and the manager is a list of them, so a venue that does not take
-    /// them has nothing to show there. No venue at all counts as not taking them — there is nothing
-    /// for a tip to belong to yet.
-    /// </summary>
+    /// <summary>No venue at all counts as not taking tips: nothing yet for a tip to belong to.</summary>
     private bool VenueTakesTips => _selectedVenue?.Settings.TippingEnabled ?? false;
 
+    /// <summary>Checked against the running provider, not RendersThroughHost, which it may bypass.</summary>
     private bool VenuePlaysLocalBreakMusic
         => BreakMusic?.LibraryProvider is { } library
            && BreakMusic.ActiveProvider is { } active
@@ -153,7 +139,7 @@ public partial class SettingsButton : IDisposable
     private bool IsOpen(string section) => _openSection == section;
 
     // A section must not outlive the menu it was opened in, or the next open shows a flyout nobody
-    // asked for — and one that was never placed, because opening the menu does not render this.
+    // asked for and never placed, since opening the menu does not render this.
     private void OnMenuOpenChanged(bool open)
     {
         if (!open) _openSection = null;

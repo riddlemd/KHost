@@ -81,9 +81,8 @@ namespace KHost.Domain
             serviceCollection.AddSingleton<Services.Screens.BreakMusicCardService>();
             serviceCollection.AddSingleton<IPlaybackService, PlaybackService>();
 
-            // The same singletons again, under the marker the host builds on the way up. Pointed
-            // at what is already registered rather than registered afresh, or each would be built
-            // a second time and the copy nobody else holds would be the one listening.
+            // The same singletons again, under the marker the host builds on the way up: pointed at what is
+            // already registered. A fresh registration would build twice, and the extra copy would listen.
             serviceCollection.AddSingleton<Services.Screens.IStartsWithTheHost>(
                 sp => (Services.Screens.IStartsWithTheHost)sp.GetRequiredService<IScreenCoordinationService>());
             serviceCollection.AddSingleton<Services.Screens.IStartsWithTheHost>(
@@ -114,15 +113,12 @@ namespace KHost.Domain
             serviceCollection.AddSingleton<IScreenKeyStore, FileScreenKeyStore>();
 
             serviceCollection.AddSingleton<IMediaProvider, LocalMediaProvider>();
-            // Registered ahead of MediaAcquisitionService and independent of it: it depends on
-            // IPerformanceService, and PerformanceService depends on IDownloadsService, so the
-            // service has to be its own dependency-free singleton to avoid a constructor cycle.
+            // Registered ahead of MediaAcquisitionService: it depends on IPerformanceService, which
+            // depends on IDownloadsService, so this must stay its own dependency-free singleton.
             serviceCollection.AddSingleton<IDownloadsService, DownloadsService>();
             serviceCollection.AddSingleton<IPluginStagingArea>(new PluginStagingArea(PluginPaths.Plugins, PluginPaths.Staging));
-            // Chosen for the machine, and honest when it has nowhere safe: a venue that cannot
-            // protect a secret is asked for one instead of having it written somewhere weaker.
-            // Registered here rather than in AddPlugins because a plugin context is built during
-            // discovery, which runs before that.
+            // Chosen for the machine, honest when it has nowhere safe: a venue that cannot protect a
+            // secret is asked instead. Registered here since a plugin context builds during discovery.
             serviceCollection.AddSingleton(_ => KHost.Secrets.SecretStores.ForThisMachine());
 
             serviceCollection.AddSingleton<Services.Plugins.Secrets.IPluginSecretStore,
@@ -151,15 +147,11 @@ namespace KHost.Domain
             return serviceCollection;
         }
 
-        /// <summary>
-        /// Discovers and loads enabled plugins. Must run before the container is built;
-        /// changes to the plugins folder or enabled list apply on restart.
-        /// </summary>
+        /// <summary>Discovers and loads enabled plugins; must run before the container is built.</summary>
         public static IServiceCollection AddPlugins(this IServiceCollection serviceCollection)
         {
-            // Before Discover, so a payload staged by the last run is a plugin this one can see.
-            // Its own instance: the container that holds the singleton does not exist yet, and the
-            // staging area keeps no state outside the folder, so the two agree regardless.
+            // Before Discover, so a payload staged by the last run is a plugin this one can see. Its own
+            // instance: the singleton does not exist yet, and staging keeps no state outside the folder.
             new PluginStagingArea(PluginPaths.Plugins, PluginPaths.Staging).ApplyPending();
 
             var state = PluginLoader.ReadState(PluginPaths.Cache);

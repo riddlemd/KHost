@@ -6,17 +6,16 @@ using KHost.Abstractions.Messaging.Messages;
 
 namespace KHost.Domain.Services;
 
-// A leaf on purpose: both PerformanceService (cancelling a download on dequeue) and
-// MediaAcquisitionService depend on this, so taking either back would close a constructor cycle.
-// IMessageBroker has no dependencies of its own, so it is safe to inject here.
+// A leaf on purpose: both PerformanceService (cancelling a download on dequeue) and MediaAcquisitionService
+// depend on this, so taking either back would close a cycle; IMessageBroker has none, so it is safe.
 public class DownloadsService : IDownloadsService
 {
     private const int RecentCap = 50;
 
     private readonly ConcurrentDictionary<Guid, ActiveEntry> _active = new();
 
-    // Newest first; trimmed to RecentCap under _recentLock, which guards nothing but this list —
-    // everything else here is already safe under ConcurrentDictionary's own atomics.
+    // Newest first; trimmed to RecentCap under _recentLock, which guards nothing but this list.
+    // Everything else here is already safe under ConcurrentDictionary's own atomics.
     private readonly List<DownloadInfo> _recent = [];
     private readonly object _recentLock = new();
     private readonly IMessageBroker _broker;
@@ -75,9 +74,8 @@ public class DownloadsService : IDownloadsService
 
         entry.Info = entry.Info with { Progress = clamped };
 
-        // Raised only on an integer-percent change: a plugin can report every few milliseconds,
-        // and a DownloadsChanged per call is the chatty-event-stream failure mode this repo has
-        // already lived through once.
+        // Raised only on an integer-percent change: a plugin can report every few milliseconds, and a
+        // DownloadsChanged per call is the chatty-event-stream failure mode this repo has lived through.
         if (newPercent != previousPercent)
             RaiseStateChanged();
     }
@@ -97,9 +95,8 @@ public class DownloadsService : IDownloadsService
         if (!_active.TryGetValue(mediaId, out var entry)) return;
         if (entry.Info.Phase == phase) return;
 
-        // The fraction goes: each phase measures its own work, and the one carried over would show
-        // the new phase starting wherever the old one stopped. The byte counts stay — they are the
-        // size of what was fetched, which is still true afterwards and is what a settled row shows.
+        // The fraction goes: each phase measures its own work, and a carried-over fraction would show the
+        // new phase starting wherever the old one stopped. Byte counts stay true after, and settled.
         entry.Info = entry.Info with { Phase = phase, Progress = null };
 
         RaiseStateChanged();
@@ -114,7 +111,7 @@ public class DownloadsService : IDownloadsService
 
         entry.Info = entry.Info with { BytesReceived = received, TotalBytes = total };
 
-        // Without a total there is no fraction to report, and the bar stays indeterminate — the
+        // Without a total there is no fraction to report, and the bar stays indeterminate. The
         // byte count alone still tells a host something is moving.
         if (total is { } size)
             ReportProgress(mediaId, received / (double)size);

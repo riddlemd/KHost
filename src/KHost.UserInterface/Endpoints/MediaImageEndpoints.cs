@@ -4,10 +4,8 @@ using KHost.Common.Media;
 
 namespace KHost.UserInterface.Endpoints;
 
-/// <summary>
-/// Serves stills to the screens. Plain HTTP for the same reason the stream is: a screen holds no
-/// credentials, and it can reach nothing on the host's filesystem itself.
-/// </summary>
+/// <summary>Serves stills to the screens.</summary>
+/// <remarks>Same as the stream: a screen holds no credentials, nor reaches the host's filesystem.</remarks>
 public static class MediaImageEndpoints
 {
     public static IEndpointConventionBuilder MapMediaImages(this IEndpointRouteBuilder endpoints)
@@ -21,9 +19,8 @@ public static class MediaImageEndpoints
             if (row is null)
                 return Results.NotFound();
 
-            // Refused by format rather than by type: this route exists to put a picture on a
-            // screen, and handing out a song's file through it is not that. The path itself comes
-            // from the library, never from the request, so there is nothing to traverse with.
+            // Refused by format, not type: this route is for pictures, not a song's file. Path
+            // comes from the library, never the request, so there is nothing to traverse with.
             if (MediaFormats.ContentTypeFor(row.Format) is not { } contentType)
                 return Results.NotFound();
 

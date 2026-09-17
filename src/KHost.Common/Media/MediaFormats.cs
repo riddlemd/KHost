@@ -2,11 +2,8 @@ using KHost.Abstractions.Models;
 
 namespace KHost.Common.Media;
 
-/// <summary>
-/// Whether a row is a still rather than something that plays. Kept apart from
-/// <see cref="KHost.Abstractions.Models.MediaType"/>: type is what the file is, this is how it reaches the screen.
-/// A still opens no transcode, so the host clock alone decides how long it stays up.
-/// </summary>
+/// <summary>Whether a row is a still rather than something that plays.</summary>
+/// <remarks>A still opens no transcode, so the host clock alone times it.</remarks>
 public static class MediaFormats
 {
     private static readonly Dictionary<string, string> _imageContentTypes = new(StringComparer.OrdinalIgnoreCase)
@@ -22,17 +19,13 @@ public static class MediaFormats
     /// <summary>How long a still stays up when nothing has said otherwise.</summary>
     public static readonly TimeSpan DefaultImageDuration = TimeSpan.FromSeconds(15);
 
-    /// <summary>
-    /// Records, and the audio half of a karaoke pair. Which of the two a given file is cannot be
-    /// read off the extension — see <see cref="IsKaraokeTrack"/>.
-    /// </summary>
+    /// <summary>Records, and the audio half of a karaoke pair; not readable from the extension.</summary>
+    /// <remarks>See <see cref="IsKaraokeTrack"/> for how the two are told apart.</remarks>
     public static readonly IReadOnlyList<string> AudioExtensions =
         [".mp3", ".m4a", ".aac", ".flac", ".wav", ".ogg", ".opus", ".wma"];
 
-    /// <summary>
-    /// Anything with a picture track. A karaoke video and an ad clip are the same formats, so the
-    /// extension cannot tell them apart and the importer is told which it is looking at.
-    /// </summary>
+    /// <summary>Anything with a picture track; a karaoke video and an ad clip are the same formats.</summary>
+    /// <remarks>So the importer is told which it is looking at.</remarks>
     public static readonly IReadOnlyList<string> VideoExtensions =
         [".mp4", ".mkv", ".avi", ".flv", ".mov", ".webm", ".m4v"];
 
@@ -40,19 +33,13 @@ public static class MediaFormats
     public static readonly IReadOnlyList<string> ImageExtensions =
         [.. _imageContentTypes.Keys.Select(key => "." + key.ToLowerInvariant()).Order()];
 
-    /// <summary>
-    /// The graphics half of a karaoke pair, which is never imported as a row of its own — the
-    /// audio beside it is the row, and this is found through it.
-    /// </summary>
+    /// <summary>The graphics half of a karaoke pair; never imported as a row of its own.</summary>
+    /// <remarks>Only found through the audio file beside it.</remarks>
     public const string KaraokeGraphicsExtension = ".cdg";
 
     public static bool IsImage(string? format) => ContentTypeFor(format) is not null;
 
-    /// <summary>
-    /// Whether the file is a karaoke backing track rather than a record. A .cdg says so outright,
-    /// and an audio file with a .cdg beside it is the other half of the same pair — both are
-    /// instrumentals with no singer on them, so neither belongs in break music.
-    /// </summary>
+    /// <summary>A .cdg says so outright; an audio file with one beside it is the pair's other half.</summary>
     public static bool IsKaraokeTrack(string filePath)
     {
         if (string.IsNullOrWhiteSpace(filePath))
@@ -64,16 +51,8 @@ public static class MediaFormats
         return File.Exists(Path.ChangeExtension(filePath, ".cdg"));
     }
 
-    /// <summary>
-    /// What a file is, from its name and what sits beside it. The importer asks rather than
-    /// assuming, because it used to assume karaoke for everything it scanned — which was harmless
-    /// only while it scanned nothing else.
-    /// </summary>
-    /// <param name="videoIsKaraoke">
-    /// What to call a file with a picture track. Both answers are ordinary: a karaoke video and an
-    /// ad clip are the same formats, and nothing in the file says which one a host just pointed at.
-    /// The caller knows, because the host told it.
-    /// </param>
+    /// <summary>What a file is, from its name and what sits beside it: asked, not assumed.</summary>
+    /// <param name="videoIsKaraoke">What to call a file with a picture track; a karaoke video and an ad clip are the same formats, so the caller has to say which.</param>
     public static MediaType TypeForFile(string filePath, bool videoIsKaraoke = true)
     {
         var extension = Path.GetExtension(filePath);

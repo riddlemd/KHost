@@ -53,10 +53,7 @@ public class EditTipDialogTests
         Assert.Equal(userId, model.UserId);
     }
 
-    /// <summary>
-    /// Stored UTC, edited in local: a host reads the time off a clock, not off Greenwich. The two
-    /// only agree in one timezone, which is why this asserts the conversion rather than equality.
-    /// </summary>
+    /// <summary>Stored UTC, edited local; the two agree in one timezone, so this asserts the fix.</summary>
     [Fact]
     public async Task Opening_ShowsTheStoredDateInLocalTime()
     {

@@ -5,11 +5,8 @@ using Microsoft.Extensions.Logging;
 
 namespace KHost.Domain.Services;
 
-/// <summary>
-/// Per-screen keys as files under cache/screens/. The filename is a hash of the screen id, never the
-/// id itself: a screen names its own id, so a crafted one carrying path separators must not be able
-/// to escape the directory or address another screen's key file.
-/// </summary>
+/// <summary>Per-screen keys as files, named by a hash of the screen id, never the id itself.</summary>
+/// <remarks>A crafted id with path separators could otherwise escape the directory.</remarks>
 public sealed class FileScreenKeyStore : IScreenKeyStore
 {
     private const int KeyBytes = 32;

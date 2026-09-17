@@ -11,9 +11,8 @@ namespace KHost.Domain.Services;
 public class MediaService : BaseRepositoryService<Media, IMediaRepository>, IMediaService
 {
 
-    // Resolved on use, never in the constructor: PerformanceService takes IMediaService, so asking
-    // for it here would close a ring and hang the app before it logs a line. Nothing deletes media
-    // until long after the graph is up, so the lookup is free by then.
+    // Resolved on use, never in the constructor: PerformanceService takes IMediaService, so asking here
+    // would close a ring and hang the app before it logs a line; nothing deletes media until long after.
     private readonly IServiceProvider _services;
     private IPerformanceService? _performanceService;
 
@@ -30,20 +29,8 @@ public class MediaService : BaseRepositoryService<Media, IMediaRepository>, IMed
         _services = services;
     }
 
-    /// <summary>
-    /// Takes the song out of every queue it is waiting in before deleting it. A queued performance
-    /// carries a media id and nothing else, and there are deliberately no foreign keys here — so
-    /// without this the row survived its song, sat in a singer's queue looking ordinary, and
-    /// failed only when somebody tried to play it.
-    /// </summary>
-    /// <remarks>
-    /// Queued rows only. A performance already sung keeps its media id whether or not the file is
-    /// still in the library: that is the record this schema drops foreign keys to protect, and it
-    /// is exactly the thing a cleanup must not take with it.
-    ///
-    /// Before the media goes, not after: dequeuing reads the media to see whether a download is
-    /// still running, and there would be nothing left to read.
-    /// </remarks>
+    /// <summary>Takes the song out of every queue it waits in; no FK stops it outliving the song.</summary>
+    /// <remarks>Queued rows only; a sung performance keeps its media id.</remarks>
     public override async Task<bool> DeleteAsync(Guid id)
     {
         try

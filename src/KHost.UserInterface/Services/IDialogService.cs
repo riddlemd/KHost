@@ -19,10 +19,8 @@ public interface IDialogService
     Task RequestEditAsync(ThemeDefinition? item, Func<ThemeDefinition?, Task> onSave, Action? onCancel = null, Action? onClose = null);
 
     Task<bool> ShowConfirmationAsync(string message, Func<Task> onConfirm, string title = "Confirm", string confirmText = "Confirm", Action? onCancel = null, Action? onClose = null);
-    /// <summary>
-    /// Offers the two ways out of a page holding edits. Closing it is the third and means staying,
-    /// so a host who reached the crossroads by accident loses nothing.
-    /// </summary>
+    /// <summary>Offers the two ways out of a page holding edits, plus a third: closing it, staying.</summary>
+    /// <remarks>A host who reached the crossroads by accident loses nothing.</remarks>
     Task ShowUnsavedChangesAsync(Func<Task> onSave, Func<Task> onDiscard, string? message = null, Action? onStay = null);
 
     Task ShowSingerPerformanceHistoryAsync(Guid userId, Action? onClose = null);
@@ -38,15 +36,13 @@ public interface IDialogService
     Task RequestEditAsync(Tip? item, Guid userId, Func<Tip?, Task> onSave, Action? onCancel = null, Action? onClose = null, bool showDate = true);
     Task RequestBulkEditAsync(IReadOnlyList<Media> items, Func<BulkEditMediaModel, Task> onSave, Action? onCancel = null, Action? onClose = null);
 
-    /// <summary>
-    /// Changes the name one queued turn is announced under. <paramref name="singerName"/> is what a
-    /// blank field falls back to, so the dialog can say whose name that is rather than "leave blank".
-    /// </summary>
+    /// <summary>Changes a turn's announced name; blank falls back to <paramref name="singerName"/>.</summary>
     Task RequestSingingAsAsync(
         Performance performance, string? singerName, Func<Performance?, Task> onSave,
         Action? onCancel = null, Action? onClose = null);
 
-    /// <summary>Collects values a caller has no setting for — see <see cref="TextPromptRequest"/>.</summary>
+    /// <summary>Collects values a caller has no setting for.</summary>
+    /// <remarks>See <see cref="TextPromptRequest"/>.</remarks>
     Task RequestTextPromptAsync(
         string title, string? message, IReadOnlyList<TextPromptField> fields,
         Func<IReadOnlyDictionary<string, string>, Task> onSubmit, Action? onCancel = null, Action? onClose = null);

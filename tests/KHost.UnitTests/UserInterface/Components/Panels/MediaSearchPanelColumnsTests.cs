@@ -11,10 +11,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace KHost.UnitTests.UserInterface.Components.Panels;
 
-/// <summary>
-/// Rendered rather than asserted on the resolver alone: the point of the feature is what a host
-/// sees in the table, and a column set nothing draws is a column set that does not exist.
-/// </summary>
+/// <summary>Rendered, not asserted on the resolver alone: an undrawn column set does not exist.</summary>
 public class MediaSearchPanelColumnsTests : BunitContext
 {
     private const string ThumbSelector = ".kh-media-search-panel__thumb";
@@ -85,11 +82,7 @@ public class MediaSearchPanelColumnsTests : BunitContext
         return panel;
     }
 
-    /// <summary>
-    /// A row that is an offer rather than a result gets the whole table: the columns describe a
-    /// song it is not, and an action named for what it does does not fit a column sized for
-    /// "Enqueue" — "Search Community Songs" rendered 249px wide in a 168px cell and spilled out.
-    /// </summary>
+    /// <summary>An offer row rendered 249px wide in a 168px cell and spilled out.</summary>
     [Fact]
     public void ASpanningRow_IsOneCellAcrossEveryColumnAndTheActions()
     {
@@ -121,7 +114,7 @@ public class MediaSearchPanelColumnsTests : BunitContext
             panel.Find(".kh-media-search-panel__offer-image").GetAttribute("src"));
     }
 
-    /// <summary>An ordinary result keeps its columns — one row spanning must not flatten the rest.</summary>
+    /// <summary>An ordinary result keeps its columns; one spanning row must not flatten the rest.</summary>
     [Fact]
     public void AnOrdinaryRow_KeepsACellPerColumn()
     {
@@ -177,12 +170,7 @@ public class MediaSearchPanelColumnsTests : BunitContext
         Assert.Equal(["Title", "Artist", "Duration", "Actions"], headers);
     }
 
-    /// <summary>
-    /// The badge names who already has the song queued, so it has to sit on the cell that names
-    /// the song — never on the picture, which says nothing on its own. Driven through a local
-    /// result because the badge is local-only: a remote result's key is the provider's, not a
-    /// library id.
-    /// </summary>
+    /// <summary>The badge sits on the cell naming the song, not the picture; badges are local-only.</summary>
     [Fact]
     public void TheQueuedBadge_RidesTheColumnThatNamesTheRow_NotThePicture()
     {
@@ -240,7 +228,7 @@ public class MediaSearchPanelColumnsTests : BunitContext
     public void ALabelColumn_IsSizedApartFromTheTextColumns()
     {
         // table-layout is fixed, so a column with no width of its own takes the same share as the
-        // title beside it — which is what a one-word source column must not do.
+        // title beside it. That is what a one-word source column must not do.
         var columns = new List<MediaResultColumn>
         {
             new() { Key = MediaResultColumn.TitleKey, Header = "Title" },

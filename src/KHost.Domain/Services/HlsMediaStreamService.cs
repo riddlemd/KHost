@@ -16,7 +16,7 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, ID
     {
         public const string SectionName = "MediaStream";
 
-        /// <summary>Overwritten at startup with the live listening address, so a dynamic port works.</summary>
+        /// <summary>Overwritten at startup with the live address, so a dynamic port works.</summary>
         public string BaseAddress { get; set; } = "http://localhost:5000";
 
         /// <summary>Scratch: under temp, not cache/, which holds real state.</summary>
@@ -196,10 +196,8 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, ID
         return File.Exists(path) ? path : null;
     }
 
-    /// <summary>
-    /// EVENT so a consumer can start on the first segment. H.264 Main@4.1 with AAC-LC is the
-    /// intersection of what browsers, WKWebView and every Chromecast generation decode.
-    /// </summary>
+    /// <summary>EVENT playlist type so a consumer can start on the first segment.</summary>
+    /// <remarks>H.264 Main@4.1 + AAC-LC decodes on every browser, WKWebView and Chromecast.</remarks>
     internal static string BuildArguments(
         string filePath,
         TimeSpan startOffset,
@@ -274,10 +272,8 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, ID
     internal static bool IsGraphicsOnly(string filePath)
         => Path.GetExtension(filePath).Equals(".cdg", StringComparison.OrdinalIgnoreCase);
 
-    /// <summary>
-    /// A .cdg holds only graphics; its audio is the same-named .mp3 beside it. Only .mp3 — CD+G
-    /// rips have always shipped that way, so a same-named file in any other format is not the pair.
-    /// </summary>
+    /// <summary>A .cdg holds only graphics; its audio is the same-named .mp3 beside it.</summary>
+    /// <remarks>Only .mp3: CD+G rips have always shipped that way.</remarks>
     internal static string? ResolveCompanionAudio(string filePath)
     {
         if (!IsGraphicsOnly(filePath)) return null;
@@ -311,10 +307,8 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, ID
         return string.Join(',', stages);
     }
 
-    /// <summary>
-    /// atempo rejects anything below 0.5, and the supported pitch and tempo ranges reach 0.354
-    /// together — pitch up against tempo down. Two stages cover the whole envelope.
-    /// </summary>
+    /// <summary>atempo rejects below 0.5, but pitch-up with tempo-down can reach 0.354 together.</summary>
+    /// <remarks>Two chained stages cover the whole envelope.</remarks>
     private static IEnumerable<string> TempoStages(double factor)
     {
         if (Math.Abs(factor - 1.0) < 1e-9) yield break;
@@ -330,10 +324,8 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, ID
         yield return FormattableString.Invariant($"atempo={stage:F6}");
     }
 
-    /// <summary>
-    /// Balances the named voices over the music. Empty when the file carries nothing to balance,
-    /// which is the ordinary case and leaves the simpler <c>-af</c> path in place.
-    /// </summary>
+    /// <summary>Balances the named voices over the music; empty when there is nothing to balance.</summary>
+    /// <remarks>Leaves the simpler -af path in place.</remarks>
     private static string BuildMixGraph(AudioMix? mix, string audioFilter)
     {
         if (mix is not { IsMixable: true }) return string.Empty;
@@ -374,10 +366,8 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, ID
         return string.Join(';', stages);
     }
 
-    /// <summary>
-    /// Retimes the picture to match. Output frame rate becomes the source's times the rate, which
-    /// the keyframe expression above is immune to because it is written in output time.
-    /// </summary>
+    /// <summary>Retimes the picture: output frame rate becomes the source times the rate.</summary>
+    /// <remarks>The keyframe expression is immune, since it is written in output time.</remarks>
     private static string BuildVideoFilter(int tempo)
     {
         var rate = StreamRate.FromTempo(tempo);

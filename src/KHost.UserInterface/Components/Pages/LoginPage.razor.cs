@@ -11,11 +11,7 @@ public partial class LoginPage
     private ElementReference _usernameInput;
     private ElementReference _passwordInput;
 
-    /// <summary>
-    /// Set by the login endpoint's redirect when the credentials were wrong. A string, not a
-    /// bool: the query binder throws on anything but true/false, and a crashed circuit renders
-    /// a white window instead of an error banner.
-    /// </summary>
+    /// <summary>A string, not a bool: the query binder throws on anything but true/false.</summary>
     [SupplyParameterFromQuery(Name = "failed")]
     public string? Failed { get; set; }
 
@@ -26,7 +22,7 @@ public partial class LoginPage
     }
 
     // The page renders interactively without prerender, so the form enters the DOM after page
-    // load and the browser ignores the autofocus attribute — focus has to be programmatic.
+    // load and the browser ignores the autofocus attribute. Focus has to be programmatic.
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender)

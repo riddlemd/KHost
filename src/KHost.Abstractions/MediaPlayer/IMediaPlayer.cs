@@ -1,8 +1,6 @@
 namespace KHost.Abstractions.MediaPlayer;
 
-/// <summary>
-/// Platform-neutral — no dependency on System.Drawing or any OS-specific graphics API.
-/// </summary>
+/// <summary>Platform-neutral: no dependency on System.Drawing or any OS-specific graphics API.</summary>
 public interface IMediaPlayer : IDisposable
 {
 
@@ -19,11 +17,7 @@ public interface IMediaPlayer : IDisposable
     /// <summary>Total duration of the loaded media. Zero if nothing is loaded.</summary>
     TimeSpan Duration { get; }
 
-    /// <summary>
-    /// Audio output gain.  0.0 = silent, 1.0 = unity (full volume).
-    /// Values above 1.0 amplify beyond the recorded level.
-    /// Always safe to set — no-op when the file has no audio or no device is available.
-    /// </summary>
+    /// <summary>Audio gain: 0.0 silent, 1.0 unity, above amplifies; no-op with no audio/device.</summary>
     float Volume { get; set; }
 
     event EventHandler? PlaybackEnded;
@@ -34,17 +28,10 @@ public interface IMediaPlayer : IDisposable
     /// <summary>Pauses playback, preserving the current position.</summary>
     void Pause();
 
-    /// <summary>
-    /// Stops playback and resets the position to the beginning.
-    /// Audio and video fade out over <paramref name="fadeDuration"/> before the segment is torn down.
-    /// Defaults to 5 seconds when not specified.
-    /// </summary>
+    /// <summary>Resets to start, fading out over <paramref name="fadeDuration"/> before teardown.</summary>
     void Stop(TimeSpan? fadeDuration = null);
 
-    /// <summary>
-    /// Seeks to <paramref name="position"/>.
-    /// Continues playing if already playing; stays paused/stopped otherwise.
-    /// </summary>
+    /// <summary>Seeks to <paramref name="position"/>; stays playing or paused, whichever it was.</summary>
     void Seek(TimeSpan position);
 
     /// <summary>Metadata about a media file populated by ffprobe.</summary>

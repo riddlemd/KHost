@@ -2,11 +2,7 @@ using KHost.Abstractions.Services.IPC;
 
 namespace KHost.Abstractions.Services;
 
-/// <summary>
-/// Composes the screens' marquee from the venue's settings and the queue's order, and pushes it
-/// whenever either moves. A plugin that wants to know what the room is being told can build the
-/// same command without waiting for one to be sent.
-/// </summary>
+/// <summary>Composes the marquee from the venue and queue, pushing it whenever either moves.</summary>
 public interface IScreenMarqueeService
 {
     /// <summary>Sends the current marquee to every connected screen.</summary>

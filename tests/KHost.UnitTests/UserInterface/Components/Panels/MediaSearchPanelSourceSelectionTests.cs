@@ -11,10 +11,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace KHost.UnitTests.UserInterface.Components.Panels;
 
-/// <summary>
-/// The pick has to outlive the panel, which is rebuilt whenever the selected singer changes, so it
-/// is read back off <see cref="IControlState"/> rather than off a field the rebuild would clear.
-/// </summary>
+/// <summary>The pick outlives a rebuild via <see cref="IControlState"/>, not a field.</summary>
 public class MediaSearchPanelSourceSelectionTests : BunitContext
 {
     private const string PrimarySelector = ".kh-split-btn__primary";
@@ -80,10 +77,7 @@ public class MediaSearchPanelSourceSelectionTests : BunitContext
         _search.DidNotReceive().SearchAsync(Arg.Any<string>(), LocalSource);
     }
 
-    /// <summary>
-    /// A remote provider is a metered round trip, and the query is usually still half-typed when
-    /// the source is picked — aiming the button must not spend a search.
-    /// </summary>
+    /// <summary>A remote provider is a metered call; aiming the button must not spend a search.</summary>
     [Fact]
     public void PickingAProvider_DoesNotSearchOnItsOwn()
     {
@@ -96,10 +90,7 @@ public class MediaSearchPanelSourceSelectionTests : BunitContext
         _search.DidNotReceive().SearchAsync(Arg.Any<string>(), Arg.Any<string>());
     }
 
-    /// <summary>
-    /// A rebuilt panel is a fresh component reading the same state — the pick has to survive that,
-    /// which is the whole reason it is not a field.
-    /// </summary>
+    /// <summary>A rebuilt panel reads the same state fresh; the pick has to survive that.</summary>
     [Fact]
     public void APickMadeBeforeARebuild_StillDrivesTheButtonAfterIt()
     {
@@ -114,10 +105,7 @@ public class MediaSearchPanelSourceSelectionTests : BunitContext
         _search.DidNotReceive().SearchAsync(Arg.Any<string>(), LocalSource);
     }
 
-    /// <summary>
-    /// The remembered provider can be gone by the next search — a plugin is unloaded between them —
-    /// and a button that then searches nothing reads as the search being broken.
-    /// </summary>
+    /// <summary>A remembered provider can be gone next search; a dead button reads as broken.</summary>
     [Fact]
     public void ARememberedProviderThatIsNoLongerRegistered_FallsBackToTheLibrary()
     {
@@ -155,10 +143,7 @@ public class MediaSearchPanelSourceSelectionTests : BunitContext
         Assert.Equal("Example", panel.Find(PrimarySelector).TextContent.Trim());
     }
 
-    /// <summary>
-    /// An entry that reselects the source already on the button is a second way to do what the
-    /// press does — the list is meant to be what a press is not.
-    /// </summary>
+    /// <summary>The list is what a press is not; reselecting the button's own source is redundant.</summary>
     [Fact]
     public void TheList_LeavesOutTheSourceOnTheButton()
     {

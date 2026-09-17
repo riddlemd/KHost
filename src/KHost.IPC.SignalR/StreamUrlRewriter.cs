@@ -2,11 +2,8 @@ using System.Net;
 
 namespace KHost.IPC.SignalR;
 
-/// <summary>
-/// The host advertises its stream on loopback, which is only fetchable by a screen on this machine.
-/// A screen elsewhere is handed the host address it actually reached us on, so a box with several
-/// interfaces answers on the one that screen can already route to.
-/// </summary>
+/// <summary>The host advertises its stream on loopback.</summary>
+/// <remarks>A remote screen gets the address it actually reached the host on, not a loopback one.</remarks>
 internal static class StreamUrlRewriter
 {
     internal static string ForScreen(string streamUrl, string? hostAddress)

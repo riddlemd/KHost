@@ -3,10 +3,8 @@ using KHost.Abstractions.Services.IPC;
 
 namespace KHost.IPC.SignalR;
 
-/// <summary>
-/// The signed body of a registration: the capabilities a screen declares. The screen id is not here
-/// — it names the key on the envelope, so it is authenticated as part of the MAC either way.
-/// </summary>
+/// <summary>The signed body of a registration.</summary>
+/// <remarks>No screen id: it names the envelope's key, so the MAC covers it either way.</remarks>
 internal sealed record RegisterPayload(bool SupportsSync, bool SupportsAudio, bool SupportsVideo)
 {
     private static readonly JsonSerializerOptions Options = new(JsonSerializerDefaults.Web);

@@ -26,10 +26,7 @@ public class KHostErrorBoundaryTests
         await _dialogs.Received(1).ShowErrorAsync(error, Arg.Any<string>(), Arg.Any<Action?>(), Arg.Any<Action?>());
     }
 
-    /// <summary>
-    /// A console runs a room. Replacing the page with error content because a settings page threw
-    /// loses the queue and the now-playing panel, which is worse than the failure that caused it.
-    /// </summary>
+    /// <summary>Replacing the page with error content loses the queue and now-playing panel.</summary>
     [Fact]
     public async Task AnUnexpectedFailure_AlsoBecomesADialog()
     {

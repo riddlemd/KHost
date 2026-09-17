@@ -32,10 +32,7 @@ public partial class ThemeManagerPage : IDisposable
         _ = InvokeAsync(StateHasChanged);
     }
 
-    /// <summary>
-    /// Mirrors the service's own refusals so the row explains itself rather than looking broken:
-    /// the theme on screen has to stay reachable, and one has to be left to switch to.
-    /// </summary>
+    /// <summary>Mirrors the service, so the shown theme stays reachable and one is left to pick.</summary>
     private bool CanToggle(ThemeDefinition theme, bool isCurrent)
     {
         if (!theme.IsEnabled)

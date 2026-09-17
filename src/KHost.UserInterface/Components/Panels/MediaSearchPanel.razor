@@ -134,8 +134,8 @@
                                 if (mediaSearchEntity.SpansAllColumns)
                                 {
                                     <tr class="kh-media-search-panel__results__result kh-media-search-panel__offer">
-                                        @* One cell across the table and the header above it: the columns describe a
-                                           song this row is not, and an action named for what it does needs the width. *@
+                                        @* Spans the whole table. This row is not a song, so the header
+                                           columns above do not describe it. *@
                                         <td colspan="@(columns.Count + 1)">
                                             <div class="kh-media-search-panel__offer-body">
                                                 @if (OfferImage(mediaSearchEntity) is { Length: > 0 } image)
@@ -179,9 +179,8 @@
 
                                             @if (i == MediaResultColumnSet.PrimaryIndex(columns) && queuedBy.Count > 0)
                                             {
-                                                @* The glyph alone. Who has it queued is in the title,
-                                                   and a name repeated beside the song it is queued
-                                                   against says nothing the hover does not. *@
+                                                @* The glyph alone. Who queued it is in the hover title,
+                                                   so repeating a name beside the song says nothing more. *@
                                                 <span class="kh-badge kh-badge--info kh-media-search-panel__queued-badge"
                                                       title="@QueuedByLabel(queuedBy)"
                                                       aria-label="@QueuedByLabel(queuedBy)"

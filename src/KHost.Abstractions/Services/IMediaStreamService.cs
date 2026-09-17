@@ -2,17 +2,10 @@ using KHost.Abstractions.Models;
 
 namespace KHost.Abstractions.Services;
 
-/// <summary>
-/// Owns transcoding on the host, so a screen needs neither ffmpeg nor access to the library.
-/// </summary>
+/// <summary>Owns transcoding, so a screen needs neither ffmpeg nor library access.</summary>
 public interface IMediaStreamService
 {
-    /// <summary>
-    /// <paramref name="startOffset"/> is where the stream begins within the song.
-    /// <paramref name="pitch"/> is in semitones and <paramref name="tempo"/> a percentage either
-    /// side of the recorded speed. <paramref name="mix"/> balances the separate voices of a
-    /// multi-track file. All three are fixed for the session's lifetime.
-    /// </summary>
+    /// <summary>Pitch, tempo and mix are fixed for the session's lifetime.</summary>
     Task<MediaStreamSession> OpenAsync(
         string filePath,
         TimeSpan startOffset = default,
@@ -29,9 +22,6 @@ public interface IMediaStreamService
     /// <summary>Null rather than throwing, so the HTTP layer stays a plain 404.</summary>
     string? ResolveArtifact(string sessionId, string fileName);
 
-    /// <summary>
-    /// Where a screen fetches a library still from. It lives here because this service already
-    /// owns the address screens reach the host on; a still opens no session and no transcode.
-    /// </summary>
+    /// <summary>Where a screen fetches a library still; this service already owns that address.</summary>
     string BuildImageUrl(Guid mediaId);
 }

@@ -57,11 +57,7 @@ public class HomePageTests : BunitContext
         Services.AddSingleton(Substitute.For<IUsersService>());
     }
 
-    /// <summary>
-    /// The card carries the break music band, and the moments a host reaches for break music are
-    /// exactly the ones with nobody up: before the first singer, and between them. Rendering it
-    /// only for a selected singer put the controls out of reach when they were most wanted.
-    /// </summary>
+    /// <summary>Wanted most with nobody up, break music must not render only for a selected singer.</summary>
     [Fact]
     public void Render_NoSingersInTheQueue_StillShowsNowPlaying()
     {

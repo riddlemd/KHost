@@ -32,9 +32,7 @@ public class MediaManagerPageDateTests : BunitContext
         Services.AddSingleton(_dialogs);
         Services.AddSingleton<IMessageBroker>(_broker);
 
-        // The page wraps its rows in AuthorizeView; without the policy services the render throws
-        // before a single cell exists.
-        // The page renders its dialogs eagerly, so their dependencies have to be present too.
+        // AuthorizeView and the eager dialogs both need their services present or the render throws.
         Services.AddSingleton(Substitute.For<IMediaFileParsingService>());
         Services.AddSingleton(Substitute.For<IMediaImportService>());
         Services.AddSingleton(Substitute.For<IMediaPoolService>());
@@ -52,9 +50,8 @@ public class MediaManagerPageDateTests : BunitContext
     [Fact]
     public void DateAdded_AUtcStampThatIsAlreadyTomorrow_ShowsTheLocalDate()
     {
-        // Chosen so the UTC date and the local date differ wherever this runs: an instant just
-        // after midnight UTC is the previous day anywhere west of it, and just before midnight is
-        // the next day anywhere east. One of the two always straddles.
+        // Chosen so the UTC and local dates differ wherever this runs: just after UTC midnight is
+        // the previous day west of it, and just before is the next day east; one always straddles.
         var justAfterUtcMidnight = new DateTime(2026, 8, 26, 0, 30, 0, DateTimeKind.Utc);
         var justBeforeUtcMidnight = new DateTime(2026, 8, 26, 23, 30, 0, DateTimeKind.Utc);
 
@@ -73,9 +70,8 @@ public class MediaManagerPageDateTests : BunitContext
 
         Assert.Contains(local, shown);
 
-        // Not skipped on a machine already at UTC — the row still has to carry the converted date.
-        // There is simply no wrong answer to tell it apart from there, which is the whole reason
-        // this only reproduces away from UTC.
+        // Not skipped on a machine already at UTC: the row still carries the converted date,
+        // though only a non-UTC machine can tell right from wrong, so this only reproduces away from UTC.
         if (local != utc)
             Assert.DoesNotContain(utc, shown);
     }

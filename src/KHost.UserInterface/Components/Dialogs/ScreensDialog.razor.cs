@@ -66,10 +66,7 @@ public partial class ScreensDialog : IDisposable
 
     internal bool IsSearchingForCast => Cast?.IsDiscovering == true;
 
-    /// <summary>
-    /// Discovery is off at startup and lives only for this run — browsing sweeps the whole network,
-    /// so it should be something the host turns on for as long as they need it.
-    /// </summary>
+    /// <summary>Off at startup and for this run only, since browsing sweeps the whole network.</summary>
     internal async Task ToggleCastSearchAsync()
     {
         if (_castSearchBusy) return;
@@ -118,7 +115,7 @@ public partial class ScreensDialog : IDisposable
         await Task.CompletedTask;
     }
 
-    /// <summary>Picking the receiver already casting is a no-op — Stop is what disconnects.</summary>
+    /// <summary>Picking the receiver already casting is a no-op; Stop is what disconnects.</summary>
     private async Task SelectCastAsync(CastDevice device)
     {
         _castPickerOpen = false;
@@ -157,10 +154,7 @@ public partial class ScreensDialog : IDisposable
         }
     }
 
-    /// <summary>
-    /// Sync is relative, so the primary is the reference rather than a participant — it reads as
-    /// in sync by definition, and everyone else is judged against it.
-    /// </summary>
+    /// <summary>Sync is relative: the primary is the reference, not a participant.</summary>
     public enum SyncStatus { NotSupported, Unknown, Reference, InSync, Drifting }
 
     // Looser than the screen-side realign threshold (0.15s), so a screen the correction loop is
@@ -186,10 +180,7 @@ public partial class ScreensDialog : IDisposable
         return drift.Duration() <= SyncTolerance ? SyncStatus.InSync : SyncStatus.Drifting;
     }
 
-    /// <summary>
-    /// Rolls the last reported position forward to now. Without SampledAtUtc the report carries an
-    /// unknown delivery latency, which would read as drift the screen does not have.
-    /// </summary>
+    /// <summary>Without SampledAtUtc, unknown delivery latency reads as drift that is not there.</summary>
     private bool TryProjectPosition(string screenId, out TimeSpan position)
     {
         position = TimeSpan.Zero;
@@ -201,11 +192,7 @@ public partial class ScreensDialog : IDisposable
         return true;
     }
 
-    /// <summary>
-    /// One glyph for every state a screen can actually be in — colour carries the state, so the
-    /// column reads as a single column rather than four unrelated symbols. A screen that can never
-    /// sync is the exception: that is a different fact, not a worse value of the same one.
-    /// </summary>
+    /// <summary>Colour carries the state: NotSupported is a different fact, not a worse value.</summary>
     internal string SyncIcon(IScreenConnection screen) =>
         GetSyncStatus(screen) == SyncStatus.NotSupported ? "bi-slash-circle" : "bi-diagram-3";
 
@@ -330,7 +317,7 @@ public partial class ScreensDialog : IDisposable
         }
         catch (TaskCanceledException)
         {
-            return; // connected — already cleared
+            return; // connected, already cleared
         }
 
         if (_isLaunching && _pendingScreenId == name)
@@ -361,9 +348,8 @@ public partial class ScreensDialog : IDisposable
     {
         _launchCts?.Dispose();
 
-        // Browsing sweeps the network continuously, and nothing outside this dialog shows that it
-        // is happening. Closing the dialog is the point at which nobody is looking at the results.
-        // An established cast is unaffected — StopDiscoveryAsync leaves the connection alone.
+        // Browsing sweeps the network continuously with nothing outside this dialog showing it, so
+        // closing is when to stop. StopDiscoveryAsync leaves an established cast connection alone.
         if (Cast?.IsDiscovering == true) _ = Cast.StopDiscoveryAsync();
 
         _subscriptions.Dispose();

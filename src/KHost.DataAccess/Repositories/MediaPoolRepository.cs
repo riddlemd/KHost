@@ -67,9 +67,8 @@ internal class MediaPoolRepository : BaseRepository<MediaPool>, IMediaPoolReposi
                 MediaId = entry.MediaId,
                 ChildPoolId = entry.ChildPoolId,
 
-                // An ad is a picture and a sound together, so these travel with the line. Copying
-                // the row field by field is what dropped them: a new column has to be added here
-                // as well as to the model, and nothing complains when it is not.
+                // An ad is picture and sound together, so these travel with the line. A new column
+                // needs adding here as well as to the model, and nothing complains if it is missed.
                 AudioMediaId = entry.AudioMediaId,
                 AudioStart = entry.AudioStart,
                 Duration = entry.Duration,

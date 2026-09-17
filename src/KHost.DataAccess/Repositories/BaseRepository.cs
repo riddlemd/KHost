@@ -125,10 +125,8 @@ internal abstract class BaseRepository<T> : IRepository<T> where T : RepositoryM
     /// <summary>How this repository folds text. Media adds stylisations; everything else does not.</summary>
     protected virtual Func<string?, string> Folder => EntityFolding.Fold;
 
-    /// <summary>
-    /// Builds a contains-pattern for a folded column. The query is folded the same way the column
-    /// was, and LIKE's own wildcards are escaped so a singer called "50%" searches for itself.
-    /// </summary>
+    /// <summary>Builds a contains-pattern for a folded column, folding the query the same way.</summary>
+    /// <remarks>Escapes LIKE's own wildcards, so a singer called "50%" searches for itself.</remarks>
     protected string FoldedContainsPattern(string query)
     {
         var folded = Folder(query)

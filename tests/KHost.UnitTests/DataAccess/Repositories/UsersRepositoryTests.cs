@@ -47,10 +47,7 @@ public class UsersRepositoryTests : IDisposable
         await Assert.ThrowsAsync<KHostException>(() => _repository.UpdateAsync(mike));
     }
 
-    /// <summary>
-    /// SQLite reports every constraint as error 19, so a duplicate primary key looks identical to a
-    /// duplicate name until the column is checked. It must not be reported as a name already taken.
-    /// </summary>
+    /// <summary>SQLite reports every constraint as error 19; a PK collision must not misreport.</summary>
     [Fact]
     public async Task CreateAsync_DoesNotBlameTheNameForOtherConstraints()
     {
@@ -87,7 +84,7 @@ public class UsersRepositoryTests : IDisposable
     [Fact]
     public async Task FindByName_MatchesAcrossUnicodeNormalisation()
     {
-        // Composed on the way in, decomposed on the way back - what macOS hands out for the
+        // Composed on the way in, decomposed on the way back: what macOS hands out for the
         // same name read off a filesystem versus typed by hand.
         await _database.SeedAsync(User("Zo\u00EB"));
 
@@ -223,10 +220,7 @@ public class UsersRepositoryTests : IDisposable
         Assert.Equal(7, result.TotalCount);
     }
 
-    /// <summary>
-    /// The flag lives on the group, so a singer who is also an admin has to be excluded by the
-    /// group they share — not by anything on their own row.
-    /// </summary>
+    /// <summary>The flag lives on the group; exclusion goes through it, not the member's own row.</summary>
     [Fact]
     public async Task Search_WithSingersOnly_LeavesOutMembersOfAnExcludedGroup()
     {
@@ -259,8 +253,6 @@ public class UsersRepositoryTests : IDisposable
         Assert.Equal(2, result.Items.Count);
     }
 
-    // ---- foreign keys ----------------------------------------------------
-
     [Fact]
     public async Task ReadByForeignKey_FindsTheSingerThatKeyNames()
     {
@@ -286,10 +278,7 @@ public class UsersRepositoryTests : IDisposable
         Assert.Equal("Grace", (await _repository.ReadByForeignKeyAsync("YouTube", "42"))?.Name);
     }
 
-    /// <summary>
-    /// An external id is not a name. A provider may make case meaningful, and folding one would
-    /// merge two singers who are genuinely different people.
-    /// </summary>
+    /// <summary>An external id is not a name; folding it could merge distinct singers.</summary>
     [Fact]
     public async Task ReadByForeignKey_MatchesExactlyRatherThanFolded()
     {
@@ -332,10 +321,7 @@ public class UsersRepositoryTests : IDisposable
         Assert.True(key.IsEphemeral);
     }
 
-    /// <summary>
-    /// Search results are saved back through UpdateAsync, which reconciles against what it is
-    /// handed — a result short of its keys would have them deleted on the next save.
-    /// </summary>
+    /// <summary>Search results save through UpdateAsync, which deletes keys missing from the write.</summary>
     [Fact]
     public async Task Search_BringsTheForeignKeysWithIt()
     {

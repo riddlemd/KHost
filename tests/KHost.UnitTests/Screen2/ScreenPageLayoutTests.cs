@@ -4,11 +4,7 @@ using KHost.Screen2;
 
 namespace KHost.UnitTests.Screen2;
 
-/// <summary>
-/// Rules the page keeps that nothing else can check. The screen's markup is embedded in the
-/// executable and never runs in this suite, so a stacking order that reverses does so silently —
-/// and is only ever seen by someone standing in the room with a phone.
-/// </summary>
+/// <summary>The embedded markup never runs here, so a reversed stacking order fails silently.</summary>
 public class ScreenPageLayoutTests
 {
     private static readonly string Page = ReadEmbeddedPage();
@@ -37,20 +33,13 @@ public class ScreenPageLayoutTests
         return int.Parse(match.Groups[1].Value);
     }
 
-    /// <summary>
-    /// A band pinned to an edge crosses both corners on that edge. A code it covers stops scanning
-    /// with nothing on screen to say why, where a band with a code over one end of it is still a
-    /// readable band — so the corner wins, and a guest can always reach the code.
-    /// </summary>
+    /// <summary>A band covering a code stops it scanning with no sign why, so the corner must win.</summary>
     [Fact]
     public void ACornerSitsAboveTheMarquee()
         => Assert.True(ZIndexOf(".kh-corner") > ZIndexOf("#marquee"),
             "A QR code covered by the marquee cannot be scanned, and nothing on screen says so.");
 
-    /// <summary>
-    /// Both corner items share one stacking context, so the band cannot slice between a card and
-    /// the code under it when a venue puts them in the same corner.
-    /// </summary>
+    /// <summary>Both corner items share one stacking context; the band cannot slice between them.</summary>
     [Fact]
     public void TheCornerIsTheOneThatCarriesTheStackingOrder()
     {

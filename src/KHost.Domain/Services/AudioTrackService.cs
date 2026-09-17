@@ -6,10 +6,7 @@ using KHost.Common.Media;
 
 namespace KHost.Domain.Services;
 
-/// <summary>
-/// Reads track names straight off the file rather than storing them on the row: the answer costs
-/// one probe, and a file swapped on disk would otherwise keep whatever was recorded at import.
-/// </summary>
+/// <summary>Reads track names off the file, not the row: one probe, but survives a swap on disk.</summary>
 public sealed class AudioTrackService(ILogger<AudioTrackService> logger) : IAudioTrackService
 {
     public async Task<IReadOnlyList<AudioTrack>> ReadTracksAsync(
@@ -51,10 +48,7 @@ public sealed class AudioTrackService(ILogger<AudioTrackService> logger) : IAudi
         return tracks;
     }
 
-    /// <summary>
-    /// MP4 carries the name as a handler rather than a title, and Matroska the other way round,
-    /// so a file tagged in either shape answers.
-    /// </summary>
+    /// <summary>MP4 carries the name as a handler, Matroska as a title (or the reverse).</summary>
     private static string? NameOf(AudioStream stream)
     {
         if (stream.Tags is not { } tags) return null;

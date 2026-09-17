@@ -51,10 +51,7 @@ public class AppSettingsServiceTests : IDisposable
     public void LaunchScreenOnStartup_ReadsWhatTheOverlayHolds()
         => Assert.True(Service(new KeyValuePair<string, string?>("LocalScreen:LaunchOnStartup", "true")).Current.LaunchScreenOnStartup);
 
-    /// <summary>
-    /// Read once, on the way up. Turning it on now opens no screen and turning it off closes none,
-    /// so the page has to say a restart is needed rather than imply it took effect.
-    /// </summary>
+    /// <summary>Read once on start: toggling it opens no screen, so the page must flag a restart.</summary>
     [Fact]
     public async Task SaveAsync_ChangingTheStartupScreen_AsksForARestart()
     {

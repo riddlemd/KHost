@@ -64,7 +64,7 @@ public class AppInfoServiceTests
     public void RepositoryUrl_MatchesTheCsprojsRepositoryUrl()
     {
         // Same URL `git remote get-url origin` resolves to (https://github.com/riddlemd/KHost.git),
-        // minus the .git suffix — verified against the csproj's <RepositoryUrl>, not hardcoded here.
+        // minus the .git suffix, verified against the csproj's <RepositoryUrl>, not hardcoded here.
         Assert.Equal("https://github.com/riddlemd/KHost", _service.RepositoryUrl);
     }
 

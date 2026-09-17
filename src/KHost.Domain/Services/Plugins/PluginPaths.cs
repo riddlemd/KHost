@@ -1,10 +1,7 @@
 namespace KHost.Domain.Services.Plugins;
 
-/// <summary>
-/// Where plugin folders live. Staging is a sibling of <c>plugins/</c>, never a child:
-/// <see cref="PluginLoader.Discover"/> treats every subdirectory of the plugins folder as a plugin,
-/// so a staging folder nested inside it would render as a broken row on the Plugins page.
-/// </summary>
+/// <summary>Where plugin folders live.</summary>
+/// <remarks>Staging sits beside <c>plugins/</c>: Discover treats every subfolder as a plugin.</remarks>
 public static class PluginPaths
 {
     /// <summary>Marker file parked beside the staging folder to delete a plugin on the next start.</summary>
@@ -15,8 +12,7 @@ public static class PluginPaths
 
     public const string FailureFileName = "error.txt";
 
-    /// <summary>Download and extraction scratch, kept inside staging so the final move never
-    /// crosses a volume — <c>Directory.Move</c> cannot, and the system temp folder often is one.</summary>
+    /// <summary>Download/extraction scratch, kept in staging so the final move stays on one volume.</summary>
     public const string WorkFolderName = ".work";
 
     public static string Plugins => Path.Combine(AppContext.BaseDirectory, "plugins");
