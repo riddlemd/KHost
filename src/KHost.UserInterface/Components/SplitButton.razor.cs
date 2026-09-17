@@ -14,10 +14,7 @@ public partial class SplitButton : IAsyncDisposable
     /// <summary>Disables the whole control, dropdown included.</summary>
     [Parameter] public bool Disabled { get; set; }
 
-    /// <summary>
-    /// Disables only the primary action, leaving the dropdown reachable — for rows where the
-    /// main action can't apply but the menu still offers something useful, like deleting.
-    /// </summary>
+    /// <summary>Disables only the primary action: the dropdown may still offer deleting.</summary>
     [Parameter] public bool PrimaryDisabled { get; set; }
     [Parameter] public string Class { get; set; } = "";
     [Parameter] public string? Title { get; set; }

@@ -8,10 +8,7 @@ using KHost.Domain.Services.Screens;
 
 namespace KHost.Domain.Services;
 
-/// <summary>
-/// Decides which screen the room hears and which the others are held to. Everything else is
-/// muted: two screens playing the same song into one room fight each other.
-/// </summary>
+/// <summary>Decides which screen the room hears and which are held to it; all else is muted.</summary>
 public sealed class ScreenCoordinationService : BaseService, IScreenCoordinationService, IDisposable, IStartsWithTheHost
 {
     private const float AudibleVolume = 1.0f;
@@ -23,17 +20,15 @@ public sealed class ScreenCoordinationService : BaseService, IScreenCoordination
     private readonly SemaphoreSlim _lock = new(1, 1);
     private readonly IDisposable _venueChanged;
 
-    // Screens the user has pinned on or off. Absent means "follow the audio role".
-    // Concurrent, not plain: the writers below hold _lock, but IsAudioEnabled/IsVideoEnabled are
-    // synchronous and read straight from a Razor render while a disconnect mutates on a hub thread.
+    // Screens the user has pinned on or off; absent means "follow the audio role". Concurrent, not plain:
+    // writers hold _lock, but IsAudioEnabled/IsVideoEnabled read synchronously from a Razor render.
     private readonly ConcurrentDictionary<string, bool> _audioOverrides = new();
 
     // Only the blanked ones are tracked; a screen that can render is rendering unless told not to.
     private readonly ConcurrentDictionary<string, bool> _videoDisabled = new();
 
-    // One reference, swapped whole: readers poll these lock-free from other threads (Razor
-    // renders, PlaybackService), and two separate fields let them observe one role vacated
-    // while the other still names a screen that just left.
+    // One reference, swapped whole: readers poll lock-free from other threads (Razor renders, playback);
+    // two separate fields would let one see a vacated role while the other still names a screen that left.
     private volatile RoleSnapshot _roles = new(null, null);
 
     public ScreenCoordinationService(ILogger<ScreenCoordinationService> logger, IScreenServer screenServer, IVenuesService venuesService, IMessageBroker broker)
@@ -183,10 +178,7 @@ public sealed class ScreenCoordinationService : BaseService, IScreenCoordination
         => (screens.FirstOrDefault(s => s.Capabilities is { SupportsAudio: true, SupportsSync: true })
             ?? screens.FirstOrDefault(s => s.Capabilities.SupportsAudio))?.ScreenId;
 
-    /// <summary>
-    /// The audio screen whenever it can sync: correction is a seek, and seeking the screen the
-    /// room hears is audible.
-    /// </summary>
+    /// <summary>The audio screen whenever it can sync: correction is a seek, which is audible.</summary>
     private static string? DerivePrimaryScreen(List<IScreenConnection> screens, string? audioScreenId, string? incumbentPrimaryId)
     {
         var audio = screens.FirstOrDefault(s => s.ScreenId == audioScreenId);
@@ -225,10 +217,8 @@ public sealed class ScreenCoordinationService : BaseService, IScreenCoordination
             {
                 await _screenServer.SendCommandAsync(screen.ScreenId, new SetVolumeCommand { Volume = volume });
 
-                // The bed and an ad's own voiceover ride the second channel, and they are the same
-                // room through the same mixer — so one venue level covers both rather than leaving
-                // the host balancing two. This is the only place that sets it, and it re-runs on a
-                // venue edit, a role change and a screen connecting.
+                // The bed and an ad's own voiceover ride the second channel through one mixer, so one
+                // venue level covers both, set here and re-run on a venue edit, a role change or a connect.
                 await _screenServer.SendCommandAsync(screen.ScreenId, new SetBackgroundVolumeCommand { Volume = volume });
             }
             catch (Exception ex)

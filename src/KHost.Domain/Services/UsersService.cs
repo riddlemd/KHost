@@ -26,7 +26,7 @@ public class UsersService : BaseRepositoryService<KHostUser, IUsersRepository>, 
     }
 
     // Groups is detached first: BaseRepository's Add/Update cascade the graph and would rewrite
-    // the group rows. Repository directly, not base — base notifies before membership lands.
+    // the group rows. The repository is called directly, not the base: base notifies before membership lands.
     public override async Task<KHostUser> CreateAsync(KHostUser entity)
     {
         var groups = entity.Groups.ToArray();

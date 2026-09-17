@@ -5,10 +5,8 @@ using Microsoft.CodeAnalysis.Diagnostics;
 
 namespace KHost.Analyzers;
 
-/// <summary>
-/// Enforced only where an <c>.editorconfig</c> raises it: KHost.Abstractions declares contracts and
-/// computes nothing, so a static method there is logic that belongs in KHost.Common.
-/// </summary>
+/// <summary>Enforced only where an .editorconfig raises it: KH0001 is Hidden severity otherwise.</summary>
+/// <remarks>Abstractions declares contracts and computes nothing; static logic belongs in Common.</remarks>
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
 public sealed class NoStaticMethodsAnalyzer : DiagnosticAnalyzer
 {
@@ -43,7 +41,7 @@ public sealed class NoStaticMethodsAnalyzer : DiagnosticAnalyzer
                     return;
 
                 // Constructors, operators, conversions and property accessors are static by
-                // language rule, not by choice — flagging them would make the project uncompilable.
+                // language rule, not by choice. Flagging them would make the project uncompilable.
                 if (method.MethodKind != MethodKind.Ordinary && method.MethodKind != MethodKind.LocalFunction)
                     return;
 

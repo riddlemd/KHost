@@ -5,15 +5,12 @@ using Microsoft.Extensions.Logging;
 
 namespace KHost.Domain.Services;
 
-/// <summary>
-/// SHA-256 rather than a faster non-cryptographic hash: arm64 and modern x64 both carry hardware
-/// SHA extensions, so it beats XxHash3 here and needs no argument about collision resistance.
-/// </summary>
+/// <summary>SHA-256, not a faster non-cryptographic hash.</summary>
+/// <remarks>arm64 and modern x64 both carry hardware SHA extensions, beating XxHash3 here.</remarks>
 public class MediaFingerprintService : BaseService, IMediaFingerprintService
 {
-    // Enough of the file to separate same-size songs. Kept small because on a spinning or network
-    // library the open dominates, and CD+G sizes sit on a 96-byte grid, so same-size files are
-    // common enough that this tier runs more often than it would for arbitrary media.
+    // Enough of the file to separate same-size songs, kept small since a spinning or network drive
+    // open dominates. CD+G sizes sit on a 96-byte grid, so same-size files are common enough to matter.
     private const int SampleBytes = 64 * 1024;
 
     public MediaFingerprintService(ILogger<MediaFingerprintService> logger)
@@ -44,8 +41,8 @@ public class MediaFingerprintService : BaseService, IMediaFingerprintService
 
             using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
 
-            // The length is part of the hash so that a head and tail shared with a longer file —
-            // a truncated or padded copy — does not read as the same sample.
+            // The length is part of the hash so that a head and tail shared with a longer file (a
+            // truncated or padded copy) does not read as the same sample.
             Span<byte> lengthBytes = stackalloc byte[sizeof(long)];
             BinaryPrimitives.WriteInt64LittleEndian(lengthBytes, length);
             hash.AppendData(lengthBytes);

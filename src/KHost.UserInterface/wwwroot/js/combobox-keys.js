@@ -1,8 +1,5 @@
-// Stops the browser acting on the keys a combobox needs while its menu is open — chiefly Enter,
-// which a surrounding form would otherwise take as an implicit submit.
-//
-// Blazor cannot: @onkeydown:preventDefault is fixed at render time, so it could only suppress
-// every key, typing included.
+// Stops the browser acting on a key a combobox needs while its menu is open, e.g. Enter's implicit submit.
+// Blazor's @onkeydown:preventDefault can't: fixed at render time, it would suppress typing too.
 
 const NAVIGATION = ['ArrowUp', 'ArrowDown', 'Escape'];
 

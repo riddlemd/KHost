@@ -4,29 +4,11 @@ using KHost.Domain.Services.Screens;
 
 namespace KHost.UnitTests.UserInterface;
 
-/// <summary>
-/// Every service that answers a screen connecting has to be constructed before the host serves
-/// anything. They wire the event in their constructors, so one nobody has built has wired nothing,
-/// and a screen that connects is simply never told — with no error anywhere to say so.
-/// </summary>
-/// <remarks>
-/// <para>
-/// Found three times before this: the marquee, the break music card, and the codes. Each was found
-/// from the far end, as a screen missing something, rather than from anything that failed.
-/// </para>
-/// <para>
-/// The services are discovered rather than listed. A list here would be the same failure as the
-/// list it guards — complete only until somebody writes the next screen service, and silent about
-/// it when they do.
-/// </para>
-/// </remarks>
+/// <summary>A service wiring ScreenConnected in its constructor answers nothing until built.</summary>
+/// <remarks>Services are discovered, not hardcoded, so a new screen service isn't silently missed.</remarks>
 public class StartupScreenServicesTests
 {
-    /// <summary>
-    /// Every type in the domain whose constructor wires ScreenConnected. Read off the source
-    /// because that wiring is a statement inside a constructor body, which reflection cannot see —
-    /// unlike the marker it is checked against, which it can.
-    /// </summary>
+    /// <summary>Read off the source: wiring ScreenConnected is a statement reflection cannot see.</summary>
     public static TheoryData<string> ServicesThatAnswerAScreen()
     {
         var domain = Path.Combine(RepositoryRoot(), "src", "KHost.Domain");
@@ -64,12 +46,7 @@ public class StartupScreenServicesTests
         return directory!.FullName;
     }
 
-    /// <summary>
-    /// The marker is what the host builds on the way up, so wearing it is the whole of being
-    /// built. Being reachable through somebody else's constructor is not accepted: PlaybackService
-    /// was alive only because ScreenMarqueeService takes it, which is the marquee needing playback
-    /// for its own reasons — delete that parameter and screens stop being answered, silently.
-    /// </summary>
+    /// <summary>Reachable via another constructor doesn't count; losing it drops the answer.</summary>
     [Theory]
     [MemberData(nameof(ServicesThatAnswerAScreen))]
     public void AServiceThatAnswersAScreen_StartsWithTheHost(string service)
@@ -86,11 +63,7 @@ public class StartupScreenServicesTests
             + "is answered by nobody.");
     }
 
-    /// <summary>
-    /// Wearing the marker is no use unless the container can hand it over — and registered against
-    /// the singleton that is already there, not as a second copy that would listen while every
-    /// other caller holds the first.
-    /// </summary>
+    /// <summary>Must point at the existing singleton; a fresh instance would listen alone.</summary>
     [Theory]
     [MemberData(nameof(ServicesThatAnswerAScreen))]
     public void AServiceThatAnswersAScreen_IsRegisteredUnderTheMarker(string service)
@@ -115,10 +88,7 @@ public class StartupScreenServicesTests
             + "never builds it — whatever interfaces it says it implements.");
     }
 
-    /// <summary>
-    /// Before the host serves anything, and before the hub in particular: a screen can connect the
-    /// moment it is mapped, and a service built a line later has already missed it.
-    /// </summary>
+    /// <summary>A screen can connect once the hub is mapped; a late-built service has missed it.</summary>
     [Fact]
     public void TheMarkerIsEnumerated_BeforeTheHubIsMapped()
     {

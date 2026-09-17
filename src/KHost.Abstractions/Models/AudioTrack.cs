@@ -1,12 +1,9 @@
 namespace KHost.Abstractions.Models;
 
-/// <summary>
-/// What a file's audio track carries. A multi-track karaoke file ships the backing music apart
-/// from the voices so a host can decide how much of a guide the singer gets.
-/// </summary>
+/// <summary>What a track carries; multi-track karaoke ships backing music apart from the voices.</summary>
 public enum AudioTrackRole
 {
-    /// <summary>The backing track. Always full level — the others are set against it.</summary>
+    /// <summary>The backing track. Always full level; the others are set against it.</summary>
     Music,
 
     /// <summary>The original lead vocal, which the singer is there to replace.</summary>
@@ -16,8 +13,5 @@ public enum AudioTrackRole
     Backing,
 }
 
-/// <summary>
-/// One audio stream of a media file. <see cref="Index"/> is the stream's position among the
-/// audio streams, not in the container: it is what ffmpeg's <c>0:a:N</c> selects.
-/// </summary>
+/// <summary>One audio stream; <see cref="Index"/> is its stream position, ffmpeg's <c>0:a:N</c>.</summary>
 public sealed record AudioTrack(int Index, AudioTrackRole Role, string Name);

@@ -40,17 +40,12 @@ public class BreakMusicService : BaseService, IBreakMusicService, IDisposable
     public IReadOnlyList<IBreakMusicProvider> Providers => _providers;
     public IBreakMusicProvider? ActiveProvider => _activeProvider;
 
-    // Matched on the source name like every other lookup here, rather than on the concrete type:
-    // that name is the key venues already store, so it cannot be renamed without a migration
-    // anyway, and matching it keeps this resolvable without constructing the real provider.
+    // Matched on source name, like every lookup here, not the concrete type: that is the key venues
+    // already store (unrenameable without a migration), and resolvable without constructing the provider.
     public IBreakMusicProvider? LibraryProvider => _providers.FirstOrDefault(p =>
         string.Equals(p.SourceName, nameof(LibraryBreakMusicProvider), StringComparison.OrdinalIgnoreCase));
 
-    /// <summary>
-    /// True while a song or an audible ad holds the room. Kept here rather than asked of playback,
-    /// which already depends on this service — the two calls playback makes on the way in and out
-    /// are the same two that decide it.
-    /// </summary>
+    /// <summary>True while a song or an ad holds the room, kept here not asked of playback.</summary>
     private bool _roomTaken;
 
     public BreakMusicState State { get; private set; } = BreakMusicState.Stopped;
@@ -70,12 +65,8 @@ public class BreakMusicService : BaseService, IBreakMusicService, IDisposable
         _broker.Announce(new BreakMusicChanged());
     }
 
-    /// <summary>
-    /// Takes the provider's word for what is playing. One driving another app outlives this
-    /// process, so starting at Stopped would leave the console saying the bed is off while the
-    /// room hears it — and, worse, leave <see cref="SuspendAsync"/> with no reason to clear the
-    /// air for a singer. A provider that cannot tell leaves the state where it was.
-    /// </summary>
+    /// <summary>Takes the provider's word for what is playing: it may outlive this process.</summary>
+    /// <remarks>Starting at Stopped would lie while the room can still hear it.</remarks>
     private async Task AdoptProviderPlaybackAsync(CancellationToken cancellationToken)
     {
         if (_activeProvider is not { } provider)
@@ -103,9 +94,8 @@ public class BreakMusicService : BaseService, IBreakMusicService, IDisposable
             _ => State,
         };
 
-        // Said once per change, not once per look. Startup asks and the watcher binding says
-        // Spotify is there, so the same answer arrives twice within a second — and a provider
-        // announcing a track turnover is a look whose transport usually has not moved at all.
+        // Said once per change, not once per look. Startup and the watcher binding can both report
+        // the same answer within a second, and a track-turnover look usually finds the transport unmoved.
         var changed = adopted != State;
 
         State = adopted;
@@ -207,21 +197,16 @@ public class BreakMusicService : BaseService, IBreakMusicService, IDisposable
 
         await provider.SkipAsync(cancellationToken);
 
-        // Skipping is a request to hear the next track, and every provider starts it: the library
-        // one plays what it loads, and a media-key next resumes a paused Spotify. Left on Paused,
-        // the bar went on offering play while the room could already hear the music. Suspended is
-        // not promoted — that one is yielding to a singer, and it comes back on its own.
+        // Skipping is a request to hear the next track, and every provider starts it. Left on Paused,
+        // the bar would offer play while the room hears music; Suspended returns on its own, not promoted.
         if (State == BreakMusicState.Paused)
             State = BreakMusicState.Playing;
 
         _broker.Announce(new BreakMusicChanged());
     }
 
-    /// <summary>
-    /// Pushes the venue's level at a provider the host cannot reach. One that renders through the
-    /// host needs nothing here: its channel is set by ScreenCoordination alongside the song's, so
-    /// doing it again would be a second place for the same number to drift.
-    /// </summary>
+    /// <summary>Pushes the venue's level at a provider the host cannot reach directly.</summary>
+    /// <remarks>One rendering through the host is set by ScreenCoordination instead.</remarks>
     private async Task ApplyVenueVolumeAsync(IBreakMusicProvider provider, CancellationToken cancellationToken)
     {
         if (provider.RendersThroughHost)
@@ -240,11 +225,7 @@ public class BreakMusicService : BaseService, IBreakMusicService, IDisposable
         }
     }
 
-    /// <summary>
-    /// Every way the bed can reach the room goes through this. Start is not the only one: a paused
-    /// bed resumes, and a skip starts the next track on every provider — and a song loading over a
-    /// *paused* bed leaves it paused rather than suspended, so both were reachable mid-song.
-    /// </summary>
+    /// <summary>Every way the bed can reach the room goes through this: start, resume, skip.</summary>
     private bool RoomIsTaken(string action)
     {
         if (!_roomTaken)
@@ -264,9 +245,8 @@ public class BreakMusicService : BaseService, IBreakMusicService, IDisposable
         if (_activeProvider is not { } provider)
             return;
 
-        // Asked before deciding, because a provider driving another app can have started, stopped
-        // or been paused without this service hearing about it. Only what it cannot tell falls
-        // back to the state kept here.
+        // Asked before deciding: a provider driving another app can start, stop or pause without this
+        // service hearing about it. Only what it cannot tell falls back to the state kept here.
         await AdoptProviderPlaybackAsync(cancellationToken);
 
         // Only playback is interrupted. Paused and Stopped are where a host put it, and coming
@@ -331,10 +311,8 @@ public class BreakMusicService : BaseService, IBreakMusicService, IDisposable
             ?? _providers.FirstOrDefault();
     }
 
-    // The mode is part of the venue's audio baseline just as its volume is: this message means the
-    // console is running a different venue, or the one it is running was edited, and either way the
-    // mode that venue names is the one that should be playing. Before, only the page that owned the
-    // selector applied it, so a mode changed anywhere else was not picked up until a restart.
+    // The mode is part of the venue's audio baseline like its volume: this message means the console is
+    // running a different venue (or the current one was edited), and its named mode should play.
     private void OnVenueChanged(SelectedVenueChanged message)
         => _ = ReapplyVenueAsync(CancellationToken.None);
 
@@ -356,15 +334,12 @@ public class BreakMusicService : BaseService, IBreakMusicService, IDisposable
         if (message.ProviderSourceName != _activeProvider?.SourceName)
             return;
 
-        // Off the broker's chain, not awaited on it. Handlers run one at a time, and
-        // ScreenConnected arrives on the SignalR hub thread already holding a lock — asking
-        // another app what it is playing from here stalls that thread long enough to lose a
-        // screen that was in the middle of registering.
+        // Off the broker's chain, not awaited: handlers run one at a time, and ScreenConnected arrives on
+        // the SignalR hub thread already holding a lock. Asking another app here could stall registration.
         _ = Task.Run(async () =>
         {
-            // The transport may have moved as well as the track — this is what a host pressing
-            // pause in the other app's own window looks like from here. Suspended is left alone:
-            // the song that suspended it is still playing, and the provider does not end that.
+            // The transport may have moved as well as the track: a host pausing in the other app
+            // looks like this. Suspended is left alone, since the song that suspended it is still playing.
             if (State != BreakMusicState.Suspended)
                 await AdoptProviderPlaybackAsync(CancellationToken.None);
 

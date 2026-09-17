@@ -4,11 +4,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace KHost.UnitTests.Screen2;
 
-/// <summary>
-/// A screen comes back where it was left. The store lives on the screen's own machine, so it has
-/// to survive a host that closes screens by killing the process — which is why writes are
-/// scheduled as the window moves rather than done on the way out.
-/// </summary>
+/// <summary>The host kills the process to close a screen, so writes schedule as the window moves.</summary>
 public class WindowPlacementStoreTests : IDisposable
 {
     private readonly string _root = Path.Combine(Path.GetTempPath(), $"khost-placement-{Guid.NewGuid():N}");
@@ -34,7 +30,7 @@ public class WindowPlacementStoreTests : IDisposable
         Assert.Equal(new WindowPlacement(120, 80, 1600, 900, false), placement);
     }
 
-    /// <summary>Full screen is a flag, not the monitor's pixels — the screen may come back elsewhere.</summary>
+    /// <summary>Full screen is a flag, not the monitor's pixels, so it may come back elsewhere.</summary>
     [Fact]
     public void Schedule_FullScreen_RemembersTheFlagAndTheWindowUnderneath()
     {
@@ -61,10 +57,7 @@ public class WindowPlacementStoreTests : IDisposable
         Assert.Equal(1920, Store("Screen 2").Read()!.Width);
     }
 
-    /// <summary>
-    /// A zero-sized window is invisible and cannot be dragged back, so a stored one is treated as
-    /// nothing stored rather than restored faithfully.
-    /// </summary>
+    /// <summary>A zero-sized window is invisible and can't be dragged back, so it reads unstored.</summary>
     [Theory]
     [InlineData(0, 720)]
     [InlineData(1280, 0)]

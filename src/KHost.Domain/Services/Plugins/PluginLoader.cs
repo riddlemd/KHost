@@ -9,11 +9,7 @@ using System.Text.Json;
 
 namespace KHost.Domain.Services.Plugins;
 
-/// <summary>
-/// Runs before the container is built, so it cannot use DI services (including ICacheService
-/// and ILogger) — state is read straight from disk and failures land on DiscoveredPlugin.
-/// A failing plugin never stops the app from starting.
-/// </summary>
+/// <summary>Runs before the container is built: no DI, so failures land on DiscoveredPlugin.</summary>
 public static class PluginLoader
 {
     public const string ManifestFileName = "manifest.json";
@@ -27,10 +23,7 @@ public static class PluginLoader
         (typeof(IBreakMusicProvider), "Break music"),
     ];
 
-    /// <summary>Every plugin-facing interface the loader binds. <see cref="IPluginButtonHandler"/>
-    /// carries no capability label — a button is UI on the plugin's row, not something it provides
-    /// to the show — but it is bound the same way, so the type behind it can also be a provider and
-    /// share one instance's state.</summary>
+    /// <summary>Every plugin-facing interface the loader binds; a button handler has no capability.</summary>
     private static readonly Type[] ExtensionInterfaces =
         [.. CapabilityInterfaces.Select(c => c.Interface), typeof(IPluginButtonHandler), typeof(IMediaPlaybackGate)];
 
@@ -139,12 +132,8 @@ public static class PluginLoader
         return plugin;
     }
 
-    /// <summary>
-    /// Settles whether a plugin's own image can be drawn, here rather than at render: a row that
-    /// asked for an <c>img</c> and got a 404 shows a broken picture, where a glyph is a clean
-    /// fallback. A plugin that asked for an image and shipped a bad one is told so in Warnings —
-    /// silently substituting the glyph would leave the author with nothing to go on.
-    /// </summary>
+    /// <summary>Settles whether a plugin image can draw, here rather than at render time.</summary>
+    /// <remarks>A bad image is told to the author in Warnings, not silently swapped for a glyph.</remarks>
     private static void ApplyIcon(DiscoveredPlugin plugin, string directory, PluginManifest manifest)
     {
         if (!string.Equals(manifest.Icon, PluginIcon.ImageSpecifier, StringComparison.OrdinalIgnoreCase))
@@ -175,11 +164,7 @@ public static class PluginLoader
         plugin.HasIconImage = true;
     }
 
-    /// <summary>
-    /// Reads the dimensions out of a PNG's IHDR, which is at a fixed offset right after the
-    /// signature. Enough to size-check an icon without taking an imaging dependency for it, and it
-    /// doubles as the format check — anything that is not a PNG fails the signature.
-    /// </summary>
+    /// <summary>Reads dimensions from the PNG's IHDR, sizing an icon with no imaging dependency.</summary>
     private static bool TryReadPngSize(string path, out int width, out int height)
     {
         width = height = 0;
@@ -237,10 +222,8 @@ public static class PluginLoader
         var registered = 0;
         var storedValues = state.Settings.GetValueOrDefault(manifest.Id.ToString());
 
-        // One singleton per extension type, with every interface it implements pointing at that
-        // same instance. Registering per interface instead built the type once for each — so a
-        // type that is both a media provider and a session button would be two objects with two
-        // separate sessions, and signing in on one would not sign in the other.
+        // One singleton per extension type, every interface pointing at the same instance. Per-interface
+        // registration would build two, so signing in on one would not sign in the other.
         var extensionTypes = types
             .Where(t => t.IsClass && !t.IsAbstract && ExtensionInterfaces.Any(i => i.IsAssignableFrom(t)))
             .ToList();
@@ -259,9 +242,8 @@ public static class PluginLoader
             foreach (var extensionInterface in ExtensionInterfaces.Where(i => i.IsAssignableFrom(implementationType)))
                 services.AddSingleton(extensionInterface, sp => sp.GetRequiredService(implementationType));
 
-            // The Plugins page reaches a button handler by plugin id; this is the only place the
-            // two are known together, since the container does not track which plugin owns a
-            // registration. Resolves the shared instance, not a fresh one.
+            // The Plugins page reaches a button handler by plugin id; only here are the two known
+            // together, so this resolves the shared instance the container already built, not a fresh one.
             if (typeof(IPluginButtonHandler).IsAssignableFrom(implementationType))
                 services.AddSingleton(sp => new PluginButtonBinding(
                     manifest.Id.ToString(),
@@ -295,7 +277,7 @@ public static class PluginLoader
             plugin.Warnings.Add("No extension implementations found in the entry assembly.");
     }
 
-    // "1.0.0" must equal an assembly's 1.0.0.0 — Version treats absent components as -1.
+    // "1.0.0" must equal an assembly's 1.0.0.0: Version treats absent components as -1.
     private static Version Normalize(Version version)
         => new(version.Major, version.Minor, Math.Max(version.Build, 0), Math.Max(version.Revision, 0));
 

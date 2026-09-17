@@ -8,33 +8,18 @@ public interface IUsersService : IRepositoryService<KHostUser>
 
     Task<bool> HasAdminWithPasswordAsync();
 
-    /// <summary>
-    /// The singer with exactly this name, or null. Not a search: searching matches on *contains*
-    /// and returns a page, so an exact name can sit past the end of it and read as nobody — which
-    /// for a caller that creates on a miss is a duplicate singer.
-    /// </summary>
+    /// <summary>The singer with exactly this name, or null; not a paged, contains-matching search.</summary>
     Task<KHostUser?> FindByNameAsync(string name);
 
-    /// <summary>
-    /// The singer a provider's own id names, or null if nobody claims it — how a returning guest
-    /// is recognised without matching on a name they may have typed differently this time.
-    /// </summary>
+    /// <summary>The singer a provider's id names, or null; recognises a returning guest by id.</summary>
     Task<KHostUser?> ReadByForeignKeyAsync(string source, string key);
 
-    /// <summary>
-    /// Claims a provider's id for this singer. Prefer this over mutating
-    /// <see cref="Models.KHostUser.ForeignKeys"/> and saving: an entity read without its keys is
-    /// saved back without them, and this touches nothing else about the singer.
-    /// </summary>
+    /// <summary>Claims a provider's id; better than mutating ForeignKeys and saving directly.</summary>
     Task AddForeignKeyAsync(Guid userId, string source, string key, bool isEphemeral = false);
 
     /// <summary>Gives up one key. Unknown pairs are not an error.</summary>
     Task RemoveForeignKeyAsync(Guid userId, string source, string key);
 
-    /// <summary>
-    /// Drops the ephemeral keys a source issued — what a provider calls when whatever those keys
-    /// named has gone, such as a remote channel dropping every guest on a reconnect. Returns how
-    /// many went; durable keys are never touched.
-    /// </summary>
+    /// <summary>Drops the ephemeral keys a source issued, e.g. on reconnect; durable keys stay.</summary>
     Task<int> DeleteEphemeralForeignKeysAsync(string source);
 }

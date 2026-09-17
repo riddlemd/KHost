@@ -1,8 +1,5 @@
 // Where along a bar a click landed, as a fraction of its width.
-//
-// Blazor's MouseEventArgs cannot answer this: OffsetX is relative to whatever was clicked, which
-// for a progress bar is usually the fill sitting on top of the track, and the element's width is
-// not in the event at all. clientX against the track's own rect is independent of both.
+// Blazor's MouseEventArgs can't answer this: OffsetX is relative to whatever was clicked.
 
 export function fractionFromClick(trackEl, clientX) {
     const rect = trackEl.getBoundingClientRect();

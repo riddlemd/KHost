@@ -39,7 +39,7 @@ internal sealed class ScreenHub : Hub
         // must hand each screen the one it already routed to.
         var hostAddress = Context.GetHttpContext()?.Connection.LocalIpAddress?.ToString();
 
-        // A registration that does not verify is a stranger or a forgery — drop the connection
+        // A registration that does not verify is a stranger or a forgery. Drop the connection
         // rather than leave it half-open.
         if (!_callback.TryRegisterScreen(Context.ConnectionId, hostAddress, envelopeJson))
             Context.Abort();

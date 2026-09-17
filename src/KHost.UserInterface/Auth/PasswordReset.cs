@@ -4,11 +4,8 @@ using KHost.Abstractions.Services;
 
 namespace KHost.UserInterface.Auth;
 
-/// <summary>
-/// The recovery path for a forgotten admin password. Physical access to launch the process with
-/// a flag already implies ownership of the database file, so this grants nothing that access
-/// did not — it only makes recovery not require hand-crafting an Argon2 hash into SQLite.
-/// </summary>
+/// <summary>Physical access to launch this already implies ownership of the database file.</summary>
+/// <remarks>So this grants nothing new; it avoids hand-crafting an Argon2 hash into SQLite by hand.</remarks>
 internal static class PasswordReset
 {
     // No 0/O/1/l/I: this password gets read off a terminal and typed back in.

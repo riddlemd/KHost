@@ -11,9 +11,8 @@ namespace KHost.Domain.Services;
 
 public class MediaImportService : BaseService, IMediaImportService
 {
-    // Everything the host can already play, which is wider than the songs this scanner was first
-    // written for: a venue's break music, its ad clips and the card it puts up between singers are
-    // all ordinary library rows, and were reachable only one file at a time until this listed them.
+    // Everything the host can already play, not just songs: a venue's break music, its ad clips
+    // and the card it puts up between singers are all ordinary library rows too.
     private static readonly string[] _supportedExtensions =
     [
         MediaFormats.KaraokeGraphicsExtension,
@@ -38,20 +37,15 @@ public class MediaImportService : BaseService, IMediaImportService
     public int ImportedCount { get; private set; }
     public int FailedCount { get; private set; }
     public string? CurrentFilePath { get; private set; }
-    // The built-in formats plus whatever loaded plugins render into — a plugin declares an
-    // extension to assert the host can already play it, so the scanner stops skipping its output.
-    // Computed once: plugins are fixed until restart, and this is a singleton.
+    // The built-in formats plus whatever loaded plugins declare: asserting the host can already play it,
+    // so the scanner stops skipping their output. Computed once: plugins are fixed until restart.
     public IReadOnlyList<string> SupportedExtensions { get; }
 
-    /// <summary>
-    /// What a file with a picture track is taken to be. A karaoke video and an ad clip are the
-    /// same formats, so nothing in the file settles it and the host says which folder this is —
-    /// karaoke, because that is what a library is mostly made of.
-    /// </summary>
+    /// <summary>Karaoke or ad clip: the two share formats, so the host names the folder.</summary>
     public bool VideoIsKaraoke { get; set; } = true;
 
     /// <inheritdoc />
-    /// <remarks>Case-insensitive, because a path typed by a host and one read from a listing differ.</remarks>
+    /// <remarks>Case-insensitive: a path typed by a host and one read from a listing differ.</remarks>
     public IDictionary<string, MediaType> TypeOverrides { get; } =
         new Dictionary<string, MediaType>(StringComparer.OrdinalIgnoreCase);
 
@@ -80,7 +74,7 @@ public class MediaImportService : BaseService, IMediaImportService
                 .SelectMany(plugin => plugin.Manifest?.ImportFormats ?? [])));
     }
 
-    /// <summary>Leading-dot, lowercase, de-duped — a plugin may hand back "khv", "*.KHV" or ".Khv".</summary>
+    /// <summary>Leading-dot, lowercase, de-duped: a plugin may hand back "khv", "*.KHV", ".Khv".</summary>
     private static IReadOnlyList<string> NormalizeExtensions(IEnumerable<string> extensions) =>
     [
         .. extensions
@@ -146,9 +140,8 @@ public class MediaImportService : BaseService, IMediaImportService
     {
         try
         {
-            // Asked rather than assumed. Everything scanned used to be parsed as karaoke, which
-            // gave a still a fallback artist and put an ad clip in the console's song search. The
-            // host's own answer for this file beats anything worked out from its name.
+            // Asked rather than assumed: nothing in a picture-track file settles karaoke vs. ad clip, so
+            // the host's own answer for this file beats anything worked out from its name.
             var type = TypeOverrides.TryGetValue(candidate.Path, out var chosen)
                 ? chosen
                 : MediaFormats.TypeForFile(candidate.Path, VideoIsKaraoke);
@@ -221,11 +214,7 @@ public class MediaImportService : BaseService, IMediaImportService
         return toImport;
     }
 
-    /// <summary>
-    /// Drops files already in the library under a different path. Size prefilters cheaply; only a
-    /// size collision pays for a sampled hash, and only a sampled match pays for the full hash that
-    /// confirms it — skipping that confirmation risks silently losing a song to a false positive.
-    /// </summary>
+    /// <summary>Drops files already in the library; a size collision pays for a sampled hash.</summary>
     private async Task<List<ImportCandidate>> FilterKnownContentAsync(List<string> paths, CancellationToken ct)
     {
         await MeasureUnsizedLibraryRowsAsync(ct);
@@ -279,9 +268,8 @@ public class MediaImportService : BaseService, IMediaImportService
     private async Task<bool> MatchesKnownContentAsync(
         Fingerprint incoming, List<Fingerprint> bucket, HashSet<Media> updatedRows, CancellationToken ct)
     {
-        // Nothing to compare against, so leave the hash to the import itself. Same total work
-        // either way — the point is that filtering a large fresh library does no file I/O at all,
-        // and progress starts moving immediately instead of after a read of every selected file.
+        // Nothing to compare against, so leave the hash to the import itself. Same total work either way,
+        // but filtering a large fresh library does no file I/O, so progress starts moving immediately.
         if (bucket.Count == 0)
             return false;
 
@@ -348,11 +336,7 @@ public class MediaImportService : BaseService, IMediaImportService
         return true;
     }
 
-    /// <summary>
-    /// Gives rows imported before content dedup a size to match on. Stat only — no file is read —
-    /// so this stays cheap even on a large library, and a row whose file has gone is left alone
-    /// rather than marked, so it recovers if the drive comes back.
-    /// </summary>
+    /// <summary>Gives pre-dedup rows a size to match on; a missing file is left alone, not marked.</summary>
     private async Task MeasureUnsizedLibraryRowsAsync(CancellationToken ct)
     {
         var unsized = await _repository.GetWithoutFileSizeAsync();
@@ -402,7 +386,7 @@ public class MediaImportService : BaseService, IMediaImportService
 
     private sealed record ImportCandidate(string Path, long? Size, string? SampledHash, string? ContentHash);
 
-    /// <summary>A file's hashes, filled in on demand. <see cref="Row"/> is null for a file being imported.</summary>
+    /// <summary>A files hashes, filled in on demand. Row is null for a file being imported.</summary>
     private sealed record Fingerprint(string FilePath, Media? Row)
     {
         public string? Sampled { get; set; }

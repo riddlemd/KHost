@@ -91,7 +91,7 @@ public class HlsMediaStreamServiceTranscodeTests : IDisposable
         Assert.NotNull(await WaitForArtifactAsync(first.Id, "stream.m3u8"));
         Assert.NotNull(await WaitForArtifactAsync(second.Id, "stream.m3u8"));
 
-        // Closing one must not disturb the other — a second screen's stream outlives the first.
+        // Closing one must not disturb the other. A second screen's stream outlives the first.
         await _service.CloseAsync(first.Id);
         Assert.Null(_service.ResolveArtifact(first.Id, "stream.m3u8"));
         Assert.NotNull(_service.ResolveArtifact(second.Id, "stream.m3u8"));
@@ -142,7 +142,7 @@ public class HlsMediaStreamServiceTranscodeTests : IDisposable
     [RequiresFfmpegFact]
     public async Task OpenAsync_SegmentsAtTheConfiguredLength_WhateverTheSourceFrameRate()
     {
-        // The sample is 15fps, where a GOP fixed at 60 frames is a four-second keyframe interval —
+        // The sample is 15fps, where a GOP fixed at 60 frames is a four-second keyframe interval,
         // and the muxer can only cut where a keyframe already is.
         var source = await CreateSampleAsync(seconds: 8);
 

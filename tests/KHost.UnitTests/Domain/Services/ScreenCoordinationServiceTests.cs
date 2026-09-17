@@ -25,7 +25,7 @@ public class ScreenCoordinationServiceTests : IDisposable
     public async Task EnsureRoles_PrefersAScreenThatRendersAudio()
     {
         // A silent screen leading would make the room's audio a follower, and a follower is the
-        // thing that gets corrected — which must never happen to what the room hears.
+        // thing that gets corrected. That must never happen to what the room hears.
         Connect(
             Screen("Lyrics", sync: true, audio: false),
             Screen("Main", sync: true, audio: true));
@@ -90,7 +90,7 @@ public class ScreenCoordinationServiceTests : IDisposable
         Assert.Equal("Local", _service.PrimaryScreenId);
         Assert.True(_service.RolesAreSplit);
 
-        // And the audio actually moves — the local screen goes quiet.
+        // And the audio actually moves: the local screen goes quiet.
         Assert.True(_service.IsAudioEnabled("Chromecast"));
         Assert.False(_service.IsAudioEnabled("Local"));
     }
@@ -201,7 +201,7 @@ public class ScreenCoordinationServiceTests : IDisposable
         Disconnect(main);
         await WaitForAsync(() => _service.AudioScreenId == "Spare");
 
-        // Promotion has to reach the screen, not just the host's bookkeeping — it was muted.
+        // Promotion has to reach the screen, not just the host's bookkeeping: it was muted.
         Assert.True(_service.IsAudioEnabled("Spare"));
         await _screenServer.Received().SendCommandAsync("Spare",
             Arg.Is<SetVolumeCommand>(c => c.Volume > 0f));
@@ -235,7 +235,7 @@ public class ScreenCoordinationServiceTests : IDisposable
             Arg.Is<SetBackgroundVolumeCommand>(c => Math.Abs(c.Volume - 0.4f) < 0.001f));
     }
 
-    // A muted screen must not leak the bed either — it is the same speaker.
+    // A muted screen must not leak the bed either; it is the same speaker.
     [Fact]
     public async Task AMutedScreen_HasItsBackgroundChannelMutedAsWell()
     {

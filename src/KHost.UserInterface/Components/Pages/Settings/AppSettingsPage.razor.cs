@@ -37,10 +37,7 @@ public partial class AppSettingsPage : IDisposable
         _navigationGuard = Navigation.RegisterLocationChangingHandler(OnLocationChangingAsync);
     }
 
-    /// <summary>
-    /// Compares against what is stored rather than tracking each field: AppSettings is a record,
-    /// so a page that edits a field and puts it back is correctly not dirty.
-    /// </summary>
+    /// <summary>Compares to what is stored, so a field edited and put back reads as not dirty.</summary>
     private bool HasUnsavedChanges => AppSettings is not null && _model != AppSettings.Current;
 
     private async ValueTask OnLocationChangingAsync(LocationChangingContext context)

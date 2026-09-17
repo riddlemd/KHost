@@ -1,9 +1,5 @@
-// Makes the native window behave like an appliance rather than a browser. Loaded only when KHost
-// is running in its own window and not in Development — a browser tab keeps its normal behaviour,
-// and a developer keeps their tools.
-//
-// This is the web half. It cannot stop anything the host webview offers outside the page, notably
-// the "Inspect Element" item in a text field's own menu; that has to be turned off on the webview.
+// Makes the native window behave like an appliance; loaded only outside Development.
+// The web half only: a text field's own "Inspect Element" is the webview's to turn off.
 
 (function () {
     const editableTypes = new Set([

@@ -4,7 +4,7 @@ public class KHostUser : RepositoryModel
 {
     public required string Name { get; set; }
 
-    /// <summary>The name as it is compared and looked up. Written by the persistence layer, not by hand.</summary>
+    /// <summary>The name as compared and looked up. Written by the persistence layer.</summary>
     public string NameFolded { get; set; } = string.Empty;
 
     public string Notes { get; set; } = "";
@@ -14,10 +14,6 @@ public class KHostUser : RepositoryModel
     public ICollection<KHostUserGroup> Groups { get; set; } = [];
     public ICollection<Tip> Tips { get; set; } = [];
 
-    /// <summary>
-    /// What providers outside KHost call this singer. Read back by
-    /// <see cref="Services.IUsersService.ReadByForeignKeyAsync"/>, which is how a returning guest
-    /// is recognised without matching on a name they may have typed differently.
-    /// </summary>
+    /// <summary>What outside providers call this singer; read via ReadByForeignKeyAsync.</summary>
     public ICollection<KHostUserForeignKey> ForeignKeys { get; set; } = [];
 }

@@ -10,11 +10,7 @@ using KHost.Abstractions.Models.Plugins;
 
 namespace KHost.UnitTests.UserInterface.Components.Dialogs;
 
-/// <summary>
-/// Which plugin's code the screen carries, and where it goes. Nothing else could set these — they
-/// are a JSON column with no other surface — so the dialog is the whole of whether the feature is
-/// reachable, or refusable.
-/// </summary>
+/// <summary>Nothing else sets these JSON fields, so this dialog is the whole reachable surface.</summary>
 public class EditVenueDialogQrCodeTests : BunitContext
 {
     private const string SourceSelector = "#venue-qr-source";
@@ -61,10 +57,7 @@ public class EditVenueDialogQrCodeTests : BunitContext
         _plugins.Plugins.Returns([]);
     }
 
-    /// <summary>
-    /// None until a venue says otherwise. A code invites a room to scan it, so it goes up because
-    /// someone chose it — not because a plugin was installed.
-    /// </summary>
+    /// <summary>A code invites a room to scan it, so it goes up only because someone chose it.</summary>
     [Fact]
     public void AVenueThatHasNeverBeenAsked_ShowsNoCode()
     {
@@ -78,10 +71,7 @@ public class EditVenueDialogQrCodeTests : BunitContext
         Assert.Empty(cut.FindAll(SizeSelector));
     }
 
-    /// <summary>
-    /// Read from the manifest, not from what has registered: Example has no code until a host
-    /// signs in, and a venue that could only pick a live source would have to be set up mid-show.
-    /// </summary>
+    /// <summary>Read from the manifest, not what registered: Example has no code until sign-in.</summary>
     [Fact]
     public void ADeclaredSource_IsOfferedBeforeItHasAnyCodeToGive()
     {
@@ -134,11 +124,7 @@ public class EditVenueDialogQrCodeTests : BunitContext
         Assert.True(string.IsNullOrEmpty(saved!.Settings.QrCodeSource));
     }
 
-    /// <summary>
-    /// A source whose plugin was removed still has to hold the select: a value matching no option
-    /// renders blank, which reads as "none chosen" for a venue that chose one, and hides that the
-    /// next pick replaces something the host could not see.
-    /// </summary>
+    /// <summary>A value matching no option renders blank, hiding what the next pick would replace.</summary>
     [Fact]
     public void ASourceWhosePluginIsGone_StaysSelectedAndSaysSo()
     {
@@ -151,10 +137,7 @@ public class EditVenueDialogQrCodeTests : BunitContext
             note => note.TextContent.Contains("No installed plugin provides this code"));
     }
 
-    /// <summary>
-    /// The venue stores null for "no preference", which a select cannot show. It offers the corner
-    /// and size a code would take anyway, so saving without touching them changes nothing.
-    /// </summary>
+    /// <summary>A select can't show null "no preference", so it offers what a code would take.</summary>
     [Fact]
     public void AVenueThatHasNeverBeenAsked_ShowsWhatACodeWouldTakeAnyway()
     {
@@ -181,7 +164,6 @@ public class EditVenueDialogQrCodeTests : BunitContext
         Assert.True(cut.Find(HideSelector).HasAttribute("checked"));
     }
 
-    /// <summary>The whole point: what the host picks here has to reach the venue that is saved.</summary>
     [Fact]
     public void WhatTheHostPicks_ReachesTheSavedVenue()
     {
@@ -199,10 +181,7 @@ public class EditVenueDialogQrCodeTests : BunitContext
         Assert.True(saved.Settings.QrCodeHideDuringSong);
     }
 
-    /// <summary>
-    /// Saving a venue that never chose has to write the values it was shown, or the dialog would
-    /// have described a placement the screen then ignored.
-    /// </summary>
+    /// <summary>Saving without a choice must write the values shown, not a placement it ignores.</summary>
     [Fact]
     public void SavingWithoutTouchingThem_WritesWhatWasOffered()
     {

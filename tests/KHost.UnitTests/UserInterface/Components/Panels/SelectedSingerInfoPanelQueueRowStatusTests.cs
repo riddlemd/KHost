@@ -11,10 +11,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace KHost.UnitTests.UserInterface.Components.Panels;
 
-/// <summary>
-/// A queued row's media can be mid-download, so the play affordance has to say that rather than
-/// invite a click that PlaybackService is only going to refuse.
-/// </summary>
+/// <summary>A row's media can be mid-download; the play control must say so, not invite a refusal.</summary>
 public class SelectedSingerInfoPanelQueueRowStatusTests : BunitContext
 {
     private const string PlayButtonSelector = ".kh-selected-singer-info-panel__row .kh-split-btn__primary";

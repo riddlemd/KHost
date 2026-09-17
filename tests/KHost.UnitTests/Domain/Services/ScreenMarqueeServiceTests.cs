@@ -106,7 +106,7 @@ public class ScreenMarqueeServiceTests
         Assert.Equal(["Africa by Ada"], (await Service().BuildAsync()).Singers);
     }
 
-    /// <summary>A blank format is not a valid choice — it would compose empty lines — so it reads as unset.</summary>
+    /// <summary>A blank format would compose empty lines, so it reads as unset.</summary>
     [Theory]
     [InlineData("")]
     [InlineData("   ")]
@@ -121,10 +121,7 @@ public class ScreenMarqueeServiceTests
         Assert.Equal(["Bohemian Rhapsody - Ada"], (await Service().BuildAsync()).Singers);
     }
 
-    /// <summary>
-    /// A singer with nothing queued is still up next — the host has them on the list. Dropping
-    /// them would leave the band disagreeing with the queue on screen.
-    /// </summary>
+    /// <summary>A singer with nothing queued must still show, or the band disagrees with the queue.</summary>
     [Fact]
     public async Task BuildAsync_SingerHasNoSongQueued_NamesThemAlone()
     {
@@ -157,10 +154,7 @@ public class ScreenMarqueeServiceTests
         Assert.Equal(["Ada"], (await Service().BuildAsync()).Singers);
     }
 
-    /// <summary>
-    /// The band is one line and cannot become two, so a pasted message keeps its words and loses
-    /// its shape.
-    /// </summary>
+    /// <summary>The band is one line; a pasted message keeps its words and loses its shape.</summary>
     [Fact]
     public async Task BuildAsync_MessageSpansLines_ArrivesAsOneLine()
     {
@@ -219,7 +213,7 @@ public class ScreenMarqueeServiceTests
         await WaitForBroadcastAsync();
     }
 
-    /// <summary>Zero is a message-only band, not a broken one — the venue asked for no names.</summary>
+    /// <summary>Zero is a message-only band, not a broken one; the venue asked for no names.</summary>
     [Fact]
     public async Task BuildAsync_ZeroSingerCount_KeepsTheMessageAndNamesNobody()
     {
@@ -278,10 +272,7 @@ public class ScreenMarqueeServiceTests
         Assert.Equal("#f2f2f5", command.TextColor);
     }
 
-    /// <summary>
-    /// A cleared colour is no colour. Passing "" on would hand the screen an empty CSS value,
-    /// which paints nothing rather than falling back to the screen's own default.
-    /// </summary>
+    /// <summary>A cleared colour must not hand the screen an empty CSS value instead of a default.</summary>
     [Theory]
     [InlineData("")]
     [InlineData("   ")]
@@ -313,10 +304,7 @@ public class ScreenMarqueeServiceTests
             Arg.Is<SetMarqueeCommand>(c => c.Enabled && c.Singers.Count == 1));
     }
 
-    /// <summary>
-    /// The queue moving is the whole point of the band: a singer taken off it, or a reorder,
-    /// has to reach the room without waiting for the venue to be edited.
-    /// </summary>
+    /// <summary>A dequeue or reorder must reach the room without waiting for a venue edit.</summary>
     [Fact]
     public async Task SingerQueueChanged_ResendsTheMarquee()
     {
@@ -329,7 +317,7 @@ public class ScreenMarqueeServiceTests
         await WaitForBroadcastAsync();
     }
 
-    /// <summary>Editing the venue is how the marquee is turned on, so it cannot wait for a queue move.</summary>
+    /// <summary>Editing the venue turns the marquee on; it cannot wait for a queue move.</summary>
     [Fact]
     public async Task SelectedVenueChanged_ResendsTheMarquee()
     {
@@ -367,7 +355,7 @@ public class ScreenMarqueeServiceTests
         await _screens.DidNotReceive().BroadcastCommandAsync(Arg.Any<SetMarqueeCommand>());
     }
 
-    /// <summary>Disposing has to release the broker, or a rebuilt service leaves the old one publishing.</summary>
+    /// <summary>Disposing must release the broker, or a rebuilt service leaves the old publishing.</summary>
     [Fact]
     public async Task Dispose_StopsRespondingToTheQueue()
     {
@@ -382,10 +370,7 @@ public class ScreenMarqueeServiceTests
         await _screens.DidNotReceive().BroadcastCommandAsync(Arg.Any<SetMarqueeCommand>());
     }
 
-    /// <summary>
-    /// The queue keeps the singer at the front while they sing, and "Up next" over the name of the
-    /// person the room is already watching reads as the band being a song behind.
-    /// </summary>
+    /// <summary>"Up next" over who the room is already watching reads as the band a song behind.</summary>
     [Fact]
     public async Task BuildAsync_SomeoneIsSinging_LeavesThemOutOfUpNext()
     {
@@ -421,10 +406,7 @@ public class ScreenMarqueeServiceTests
         Assert.Equal(["Ada", "Grace"], (await Service().BuildAsync()).Singers);
     }
 
-    /// <summary>
-    /// A one-singer room leaves nothing up next, and the screen hides a band with no names and no
-    /// message rather than showing a bare "Up next".
-    /// </summary>
+    /// <summary>A one-singer room has nothing up next; the screen hides, not a bare label.</summary>
     [Fact]
     public async Task BuildAsync_TheOnlySingerIsSinging_NamesNobody()
     {
@@ -435,7 +417,7 @@ public class ScreenMarqueeServiceTests
         Assert.Empty((await Service().BuildAsync()).Singers);
     }
 
-    /// <summary>A song starting is what changes who is up next, so the screens have to hear about it.</summary>
+    /// <summary>A song starting changes who is up next, so the screens have to hear about it.</summary>
     [Fact]
     public async Task PlaybackChanged_RepublishesTheMarquee()
     {

@@ -347,7 +347,7 @@ public class DatabaseInitializerTests
 
             await sut.RefoldStoredTextAsync();
 
-            // The collision cannot be repaired - the unique index rightly refuses - but nothing
+            // The collision cannot be repaired (the unique index rightly refuses), but nothing
             // may be lost: both rows survive, one of them still stale.
             using var context = factory.CreateDbContext();
             Assert.Equal(2, context.Users.Count());
@@ -371,11 +371,7 @@ public class DatabaseInitializerTests
             Guid.NewGuid().ToString().ToUpperInvariant(), name, folded, DateTime.UtcNow);
     }
 
-    /// <summary>
-    /// An ephemeral key names a connection, so none can have outlived the process that issued it.
-    /// Swept here rather than left to whoever wrote them, which is also what stops a plugin's rows
-    /// outliving the plugin.
-    /// </summary>
+    /// <summary>An ephemeral key must not outlive the process that issued it.</summary>
     [Fact]
     public async Task SweepEphemeralForeignKeysAsync_DropsEphemeralKeysAndKeepsDurableOnes()
     {

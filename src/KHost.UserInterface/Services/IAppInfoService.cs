@@ -1,6 +1,6 @@
 namespace KHost.UserInterface.Services;
 
-/// <summary>One licensed text bundled under <c>licenses/</c> and referenced from THIRD-PARTY-NOTICES.md.</summary>
+/// <summary>One licensed text bundled under licenses/, referenced from THIRD-PARTY-NOTICES.md.</summary>
 public sealed record ReferencedLicense(string Name, string Text);
 
 /// <summary>App identity and legal text for the About page, sourced from the assembly and the
@@ -15,7 +15,7 @@ public interface IAppInfoService
     IReadOnlyList<ReferencedLicense> ReferencedLicenses { get; }
 
     /// <summary>The GitHub repository, from the csproj's RepositoryUrl (same value `git remote
-    /// get-url origin` resolves to) — empty if the build carries no RepositoryUrl metadata.</summary>
+    /// get-url origin` resolves to). Empty if the build carries no RepositoryUrl metadata.</summary>
     string RepositoryUrl { get; }
     string IssuesUrl { get; }
     string WikiUrl { get; }

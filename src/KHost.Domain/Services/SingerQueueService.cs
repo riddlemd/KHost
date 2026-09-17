@@ -52,23 +52,13 @@ public class SingerQueueService : ISingerQueueService, IDisposable
         _rotationStrategyFactory = rotationStrategyFactory;
         _broker = broker;
 
-        // A singer deleted in the users manager is still in this queue: the order is a list of
-        // ids, and nothing here was told. Resolving simply skipped them, so the panel showed one
-        // fewer singer than the rotation was counting — the two disagreed, quietly, and the
-        // ghost's turn still came round with nobody there.
+        // The queue holds ids only and nothing tells it a singer was deleted, so pruning has to be
+        // driven off this announcement rather than left to whoever deletes a user.
         _subscriptions.Add(broker.Subscribe<UsersChanged>(message => { _ = Task.Run(PruneDeletedSingersAsync); }));
     }
 
-    /// <summary>
-    /// Drops singers who no longer exist, and the songs they had waiting. Driven by the
-    /// announcement rather than by the users manager calling in, so a singer deleted down any path
-    /// leaves the same way — and so this service keeps owning its own queue.
-    /// </summary>
-    /// <remarks>
-    /// The queued songs are deleted rather than unqueued. Nobody sang them and nobody now can, so
-    /// there is no record to keep standing — which is what separates them from the performances a
-    /// deletion deliberately leaves alone.
-    /// </remarks>
+    /// <summary>Drops singers who no longer exist, and the songs they had waiting.</summary>
+    /// <remarks>Queued songs are deleted, not unqueued; nobody sang them yet.</remarks>
     private async Task PruneDeletedSingersAsync()
     {
         try
@@ -159,9 +149,8 @@ public class SingerQueueService : ISingerQueueService, IDisposable
     {
         if (!_userIds.Contains(userId)) return;
 
-        // ForeignKey is whatever the provider calls the result — a library id for a local one, a
-        // video id or a URL for a remote one. Only the first is a media row that already exists,
-        // and importing the others is the provider's job, not the queue's.
+        // ForeignKey is a library id only for a local result; a remote provider's video id/URL must be
+        // imported first, which is the provider's job, not the queue's.
         if (!Guid.TryParse(media.ForeignKey, out var mediaId))
         {
             _logger.LogWarning(
@@ -344,7 +333,7 @@ public class SingerQueueService : ISingerQueueService, IDisposable
         }
         catch (Exception ex)
         {
-            // Modes can come from plugins — a throwing strategy must not break the queue.
+            // Modes can come from plugins; a throwing strategy must not break the queue.
             _logger.LogWarning(ex, "Queue rotation failed; order left unchanged");
         }
     }
@@ -373,9 +362,8 @@ public class SingerQueueService : ISingerQueueService, IDisposable
         return snapshots;
     }
 
-    // A strategy may drop the FINISHED singer (their turn ends and they leave the queue —
-    // fifo's LeavesQueue drop position). Modes can come from plugins though, so anyone else
-    // missing is a strategy bug and is re-appended; duplicates and unknown ids are stripped.
+    // A strategy may drop only the finished singer (their turn ends); anyone else missing is a
+    // strategy bug from a plugin mode and is re-appended; duplicates and unknown ids are stripped.
     private void ApplyOrder(IReadOnlyList<Guid> newOrder, Guid? finishedSingerId)
     {
         var current = new HashSet<Guid>(_userIds);

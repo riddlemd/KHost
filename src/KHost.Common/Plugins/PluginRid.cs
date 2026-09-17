@@ -2,11 +2,8 @@ using System.Runtime.InteropServices;
 
 namespace KHost.Common.Plugins;
 
-/// <summary>
-/// The platform a release is built for. Deliberately coarser than a .NET RID: a plugin splits by
-/// what the OS gives it — WinRT, AppleScript, MPRIS — not by distro, and a catalog full of
-/// linux-musl-arm64 spellings is a catalog nobody keeps correct.
-/// </summary>
+/// <summary>The platform a release is built for; deliberately coarser than a .NET RID.</summary>
+/// <remarks>A plugin splits by what the OS gives it, not by distro.</remarks>
 public static class PluginRid
 {
     private static readonly string[] KnownPlatforms = ["win", "osx", "linux"];
@@ -28,10 +25,7 @@ public static class PluginRid
         _ => string.Empty,
     };
 
-    /// <summary>
-    /// Whether this host can run a release built for <paramref name="rid"/>. Blank means the
-    /// release is platform-neutral, which is the common case and the one a plugin should aim for.
-    /// </summary>
+    /// <summary>Whether this host runs a build for <paramref name="rid"/>; blank is neutral.</summary>
     public static bool MatchesThisHost(string? rid)
     {
         if (string.IsNullOrWhiteSpace(rid))

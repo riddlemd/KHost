@@ -5,11 +5,7 @@ using NSubstitute;
 
 namespace KHost.UnitTests.Screen2;
 
-/// <summary>
-/// The bed rides a second element with no timeline. What matters is that it stays off the song's
-/// channel in both directions: a background command must not report the song as having moved, and
-/// a bed track ending must not retire the singer's performance.
-/// </summary>
+/// <summary>The bed must stay off the song's channel both ways: report nothing, retire nothing.</summary>
 public class ScreenBackgroundChannelTests : IAsyncDisposable
 {
     private readonly IScreenClient _client = Substitute.For<IScreenClient>();

@@ -10,10 +10,8 @@ public enum ListKeyAction
     MoveNext
 }
 
-/// <summary>
-/// The arrow-key rules shared by the singer queue and a singer's song queue: plain moves the
-/// selection, Shift moves the selected row itself.
-/// </summary>
+/// <summary>Arrow-key rules shared by the singer queue and a singer's song queue.</summary>
+/// <remarks>Plain moves the selection; Shift moves the selected row itself.</remarks>
 public static class ListKeyboardShortcuts
 {
     /// <param name="currentIndex">Index of the selected row, or -1 when nothing is selected.</param>

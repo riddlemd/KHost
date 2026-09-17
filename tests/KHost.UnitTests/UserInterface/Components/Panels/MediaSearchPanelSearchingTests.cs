@@ -10,11 +10,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace KHost.UnitTests.UserInterface.Components.Panels;
 
-/// <summary>
-/// A yt-dlp search runs for tens of seconds, so the wait and the way out of it are the panel's
-/// behaviour, not decoration. Rendering and clicking is the only thing that catches a Cancel button
-/// wired to nothing.
-/// </summary>
+/// <summary>Catches a Cancel button wired to nothing during a search that runs for tens of seconds.</summary>
 public class MediaSearchPanelSearchingTests : BunitContext
 {
     private const string SearchingSelector = ".kh-media-search-panel__searching";
@@ -80,7 +76,7 @@ public class MediaSearchPanelSearchingTests : BunitContext
 
         panel.Find($"{SearchingSelector} button").Click();
 
-        // The provider's task is still pending on purpose — cancelling must not depend on it.
+        // The provider's task is still pending on purpose. Cancelling must not depend on it.
         Assert.False(_pending.Task.IsCompleted);
         Assert.Empty(panel.FindAll(SearchingSelector));
     }

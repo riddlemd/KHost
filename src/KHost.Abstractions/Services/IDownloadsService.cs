@@ -2,18 +2,13 @@ using KHost.Abstractions.Models;
 
 namespace KHost.Abstractions.Services;
 
-/// <summary>
-/// Tracks every plugin download the host knows about — active and recently settled — behind the
-/// Downloads management page. Also the host-side entry point a queue dequeue uses to cancel a
-/// download it owns, and the registration surface <see cref="IMediaAcquisitionService"/> uses to begin, report
-/// progress on, and settle one.
-/// </summary>
+/// <summary>Tracks every download, active and settled: the cancel and registration surface.</summary>
 public interface IDownloadsService
 {
-    /// <summary>Every Downloading entry, newest first, followed by the most recently settled ones (capped).</summary>
+    /// <summary>Every Downloading entry, newest first, then the most recently settled (capped).</summary>
     IReadOnlyList<DownloadInfo> Snapshot();
 
-    /// <summary>Cancels the registered download for this media id and marks it Cancelled. No-op if none is in flight.</summary>
+    /// <summary>Cancels the download for this media id, marking it Cancelled. No-op if idle.</summary>
     Task CancelAsync(Guid mediaId);
 
     /// <summary>Cancels every in-flight download at once, so none outlives the host on shutdown.</summary>
@@ -23,32 +18,18 @@ public interface IDownloadsService
     /// <summary>Registers a new Downloading entry and returns the token that fires on cancel.</summary>
     CancellationToken Register(Guid mediaId, string title, string artist, string source);
 
-    /// <summary>
-    /// Reuses the token already registered for a media id still Downloading, or registers a fresh
-    /// one from the given metadata if none is tracked (e.g. the row survived a restart, which
-    /// clears this in-memory registry but not the database).
-    /// </summary>
+    /// <summary>Reuses the token for an id still Downloading, else registers a fresh one.</summary>
     CancellationToken TokenForInFlight(Guid mediaId, string title, string artist, string source);
 
-    /// <summary>Moves an active entry to a terminal state and into the recent list. No-op for an id with no active entry.</summary>
-    /// <summary>
-    /// <paramref name="reason"/> is shown beside the state on the Downloads page — what a host
-    /// needs to decide whether to try again, not a stack trace.
-    /// </summary>
+    /// <summary>Moves an entry to a terminal state; <paramref name="reason"/> is shown beside it.</summary>
     void Settle(Guid mediaId, DownloadState state, string? reason = null);
 
-    /// <summary>
-    /// Says which half of the acquisition is now running, so the page can stop reading a render's
-    /// progress as a download's. Unknown or settled ids are a silent no-op.
-    /// </summary>
+    /// <summary>Says which half is running, so the page reads a render apart from a download.</summary>
     void ReportPhase(Guid mediaId, DownloadPhase phase);
 
-    /// <summary>
-    /// Progress as a byte count rather than a bare fraction, so the page can show how much of how
-    /// much. <paramref name="totalBytes"/> null means the size is unknown and only the count shows.
-    /// </summary>
+    /// <summary>Progress as bytes; <paramref name="totalBytes"/> null means unknown size.</summary>
     void ReportProgress(Guid mediaId, long bytesReceived, long? totalBytes);
 
-    /// <summary>Records progress for an active download. Fraction is clamped to [0,1]; unknown/settled ids are a silent no-op.</summary>
+    /// <summary>Progress as a fraction, clamped to [0,1]; unknown/settled ids no-op.</summary>
     void ReportProgress(Guid mediaId, double fraction);
 }

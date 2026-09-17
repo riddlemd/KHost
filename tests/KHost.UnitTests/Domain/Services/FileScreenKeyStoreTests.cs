@@ -56,9 +56,8 @@ public class FileScreenKeyStoreTests : IDisposable
     [Fact]
     public void ScreenIdWithPathTraversal_StaysInsideTheKeystore()
     {
-        // A screen names its own id; a crafted one must not write or read outside the keystore. The
-        // returned path is the direct proof — it is hashed to a safe filename inside the root, so it
-        // cannot escape, whatever separators the id carried.
+        // A crafted screen id must not write or read outside the keystore: the path is hashed to
+        // a safe filename inside the root, so it cannot escape whatever separators it carried.
         var path = Path.GetFullPath(_store.Provision("../../evil"));
         var rootPrefix = Path.GetFullPath(_root) + Path.DirectorySeparatorChar;
 

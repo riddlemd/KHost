@@ -4,7 +4,7 @@ using KHost.Common.Media;
 namespace KHost.UnitTests.Common.Media;
 
 // The endpoint refuses by format, so this is what stops a song's file being served down an image
-// route — and what decides whether break music keeps playing under an ad.
+// route, and what decides whether break music keeps playing under an ad.
 public class MediaFormatsTests
 {
     [Theory]

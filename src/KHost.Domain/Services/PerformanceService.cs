@@ -42,7 +42,7 @@ public class PerformanceService : BaseRepositoryService<Performance, IPerformanc
     // in-flight download for it lives right here rather than behind a separate guard.
     public override async Task<bool> DeleteAsync(Guid id)
     {
-        // Read before the row is gone — once it is deleted there is nothing left to look its
+        // Read before the row is gone: once it is deleted there is nothing left to look its
         // media id up from.
         var mediaId = (await Repository.ReadAsync(id))?.MediaId;
 
@@ -90,9 +90,8 @@ public class PerformanceService : BaseRepositoryService<Performance, IPerformanc
             return null;
         }
 
-        // Filled here rather than by each caller: there are five of them, two in plugins, and a
-        // line each is exactly what goes missing. A caller that had a name of its own to record —
-        // a nickname typed on a remote — has already set it, and this leaves that alone.
+        // Filled here, not by each of the five callers (two in plugins): a line each is what goes missing.
+        // A caller with its own name to record (a remote nickname) has already set it; this leaves it.
         if (string.IsNullOrWhiteSpace(performance.SungAs))
             performance.SungAs = (await _usersService.ReadAsync(performance.SingerId))?.Name;
 
@@ -233,7 +232,7 @@ public class PerformanceService : BaseRepositoryService<Performance, IPerformanc
         }
     }
 
-    /// <summary>Drop a song at an arbitrary position — what a drag ends in.</summary>
+    /// <summary>Drop a song at an arbitrary position, which is what a drag ends in.</summary>
     public async Task MoveToIndexAsync(Guid singerId, Guid performanceId, int newIndex)
     {
         var queue = (await Repository.ReadQueuedAsync())
@@ -244,7 +243,7 @@ public class PerformanceService : BaseRepositoryService<Performance, IPerformanc
 
         if (idx < 0) return;
 
-        // A drag can land past either end of the singer's own list — the row it was dropped on
+        // A drag can land past either end of the singer's own list. The row it was dropped on
         // belongs to the whole table, and a queue can shrink while a drag is in flight.
         var target = Math.Clamp(newIndex, 0, queue.Count - 1);
 

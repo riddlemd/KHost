@@ -48,7 +48,7 @@
         white-space: nowrap;
     }
 
-    // Between the caps, not inside one — a ::before on the second kbd sits within its border.
+    // Between the caps, not inside one: a ::before on the second kbd sits within its border.
     &__plus {
         color: var(--kh-text-muted);
         font-size: 0.75rem;

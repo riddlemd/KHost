@@ -130,13 +130,7 @@ public class PluginContextTests
             new PluginSecretStore(new InMemorySecretStore()), Substitute.For<IScreenQrCodeService>());
     }
 
-    // ---- secrets ---------------------------------------------------------
-
-    /// <summary>
-    /// The whole guarantee: the name a secret is filed under comes from the manifest the host
-    /// read, never from the caller. Two plugins using "session" neither collide nor can read each
-    /// other, and a plugin has no way to ask for someone else's.
-    /// </summary>
+    /// <summary>A secret's name comes from the manifest, so two plugins can both use "session".</summary>
     [Fact]
     public async Task Secrets_AreFiledUnderThePluginsOwnId()
     {

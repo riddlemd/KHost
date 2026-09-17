@@ -11,10 +11,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace KHost.UnitTests.UserInterface.Components.Dialogs;
 
-/// <summary>
-/// Re-queueing from history is the one path that brings a key back. A song found through search is
-/// a fresh start and carries none, so the recall has to live here rather than in the enqueue itself.
-/// </summary>
+/// <summary>Re-queueing brings a key back; a fresh search carries none, so recall lives here.</summary>
 public class SingerPerformanceHistoryDialogPitchTests : BunitContext
 {
     private const string EnqueueSelector = ".kh-split-btn__primary";

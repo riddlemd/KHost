@@ -4,12 +4,11 @@ namespace KHost.Common.Media;
 
 public static class StreamRate
 {
-    /// <summary>
-    /// The one definition of what a tempo percentage means. Every consumer that keeps a clock —
-    /// the host's, a screen's, a Cast receiver's — converts through it, and they must agree.
-    /// </summary>
+    /// <summary>The one definition of what a tempo percentage means.</summary>
+    /// <remarks>Every clock-keeping consumer converts through it, and they must agree.</remarks>
     public static double FromTempo(int tempo) => 1.0 + (tempo / 100.0);
 
-    /// <summary>Multiplier the session's tempo stands for. Stream seconds times this are song seconds.</summary>
+    /// <summary>Multiplier the session's tempo stands for.</summary>
+    /// <remarks>Stream seconds times this are song seconds.</remarks>
     public static double PlaybackRate(this MediaStreamSession session) => FromTempo(session.Tempo);
 }

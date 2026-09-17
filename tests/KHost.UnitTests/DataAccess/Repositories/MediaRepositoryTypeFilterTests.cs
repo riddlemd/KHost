@@ -7,12 +7,8 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace KHost.UnitTests.DataAccess.Repositories;
 
-// Every read a host queues from must answer with karaoke alone: an ad offered as a singable song
-// reaches the screen with a singer's name against it. The default is the narrow one, so a caller
-// that passes no options gets songs rather than everything.
-//
-// Migrated rather than EnsureCreated because half of these exercise the FTS path, and media_fts
-// and its triggers are raw SQL that only the migrations carry.
+// A queueable read must answer with karaoke alone, or an ad reaches the screen with a singer's name.
+// Migrated rather than EnsureCreated: media_fts and its triggers are raw SQL only the migrations carry.
 public class MediaRepositoryTypeFilterTests : IDisposable
 {
     private readonly string _dbPath;
@@ -115,7 +111,7 @@ public class MediaRepositoryTypeFilterTests : IDisposable
     }
 
     // A query under three characters cannot go to the trigram index, so this drops to the
-    // substring fallback — a separate branch that has to filter by type the same way.
+    // substring fallback, a separate branch that has to filter by type the same way.
     [Fact]
     public async Task SearchAsync_ShortQueryTakingTheFallback_ReturnsKaraokeOnly()
     {

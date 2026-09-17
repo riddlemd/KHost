@@ -53,7 +53,7 @@ public class ScreenIpcControllerHostLostTests : IAsyncDisposable
         Transition(ScreenClientState.Connected, ScreenClientState.Reconnecting);
         Transition(ScreenClientState.Reconnecting, ScreenClientState.Connected);
 
-        // Never lost, so there is nothing to say — the screen should not flash a notice.
+        // Never lost, so there is nothing to say. The screen should not flash a notice.
         Assert.Empty(_sentToPage);
     }
 

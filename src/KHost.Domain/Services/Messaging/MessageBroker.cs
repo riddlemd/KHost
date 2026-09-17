@@ -48,9 +48,8 @@ public class MessageBroker : IMessageBroker
     {
         ArgumentNullException.ThrowIfNull(message);
 
-        // The message's own type, not TMessage: a publisher holding one as object — a service
-        // exposing its change message through a base-class property — would otherwise post it
-        // under object and reach nobody.
+        // The message's own type, not TMessage: a publisher holding one as object (a change message exposed
+        // through a base-class property) would otherwise post it under object and reach nobody.
         if (!_handlers.TryGetValue(message.GetType(), out var handlers)) return;
 
         // One at a time, in subscription order: what one handler does decides what the next is

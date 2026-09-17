@@ -3,14 +3,8 @@ using KHost.Abstractions.Services.IPC;
 
 namespace KHost.IPC.SignalR;
 
-/// <summary>
-/// Commands and state are sent across SignalR as JSON strings serialized through their
-/// polymorphic base types (<see cref="ScreenCommandBase"/> / <see cref="ScreenStateBase"/>).
-/// This guarantees the <c>$type</c> discriminator is written: SignalR serializes invocation
-/// arguments by their concrete runtime type, and System.Text.Json only emits the discriminator
-/// when serializing through the polymorphic base — so passing the object directly would drop it
-/// and the receiver's base-typed deserialize would fail.
-/// </summary>
+/// <summary>Serializes through the polymorphic base types so <c>$type</c> is written.</summary>
+/// <remarks>Serializing the concrete object directly drops <c>$type</c> and breaks deserialize.</remarks>
 internal static class ScreenIpcSerializer
 {
     private static readonly JsonSerializerOptions Options = new(JsonSerializerDefaults.Web);

@@ -5,11 +5,8 @@ using KHost.Abstractions.Services;
 using KHost.Abstractions.Messaging;
 using KHost.Abstractions.Messaging.Messages;
 
-/// <summary>
-/// Holds the current message and nothing else. How long it stays is a matter for whatever shows it:
-/// keeping the countdown out of here leaves this deterministic, and leaves a singleton without a
-/// fire-and-forget timer running inside it.
-/// </summary>
+/// <summary>Holds the current message and nothing else; the countdown stays out of here.</summary>
+/// <remarks>Deterministic, with no timer running inside a singleton.</remarks>
 public class FlashService : IFlashService
 {
     private readonly IMessageBroker _broker;

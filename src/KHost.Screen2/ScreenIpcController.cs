@@ -16,10 +16,8 @@ internal sealed class ScreenIpcController : IAsyncDisposable
     // Serialized so a load settles before a following Play, rather than racing on the page.
     private readonly SemaphoreSlim _commandGate = new(1, 1);
 
-    /// <summary>
-    /// Long enough to ride out the first couple of automatic reconnect attempts, which recover in
-    /// seconds — a screen that blanked on every blip would be worse than one that waits.
-    /// </summary>
+    /// <summary>Long enough to ride out the first couple of automatic reconnect attempts.</summary>
+    /// <remarks>Those recover in seconds; blanking on every blip is worse than a short wait.</remarks>
     private static readonly TimeSpan HostLostGrace = TimeSpan.FromSeconds(5);
 
     private readonly Lock _hostLostLock = new();
@@ -95,10 +93,8 @@ internal sealed class ScreenIpcController : IAsyncDisposable
         }
     }
 
-    /// <summary>
-    /// The host is this screen's clock and its only stop button, so losing it has to pause the song
-    /// rather than leave it running where nobody can reach it.
-    /// </summary>
+    /// <summary>The host is this screen's clock and its only stop button.</summary>
+    /// <remarks>Losing it pauses the song rather than leaving it running where nobody can reach it.</remarks>
     private void SetHostLost(bool lost)
     {
         lock (_hostLostLock)
@@ -227,7 +223,7 @@ internal sealed class ScreenIpcController : IAsyncDisposable
         }
         catch (InvalidOperationException)
         {
-            // Not connected yet, or already torn down — state is resent on the next command.
+            // Not connected yet, or already torn down. State is resent on the next command.
         }
     }
 
@@ -248,7 +244,7 @@ internal sealed class ScreenIpcController : IAsyncDisposable
         }
         catch (InvalidOperationException)
         {
-            // Not connected yet, or already torn down — state is resent on the next command.
+            // Not connected yet, or already torn down. State is resent on the next command.
         }
     }
 

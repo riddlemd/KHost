@@ -14,8 +14,7 @@ public class PluginInstallerService : BaseService, IPluginInstallerService
 {
     public const string HttpClientName = "PluginDownload";
 
-    /// <summary>A plugin is a handful of assemblies. Bounds the download from a hostile or broken
-    /// publisher; the expanded size is bounded by <see cref="PluginPayloadReader.MaxExpandedBytes"/>.</summary>
+    /// <summary>A plugin is a handful of assemblies. Bounds the download from a hostile publisher.</summary>
     private const long MaxPayloadBytes = 64L * 1024 * 1024;
     private const int RecentCap = 20;
 

@@ -4,31 +4,21 @@ namespace KHost.Abstractions.Repositories;
 
 public interface IMediaRepository : IRepository<Media>
 {
-    /// <summary>
-    /// Listing and search that can reach past karaoke. The inherited overloads answer with songs
-    /// alone; break music and ads are only visible to a caller that asks for them by name.
-    /// </summary>
+    /// <summary>Listing and search that reach past karaoke; the plain overloads answer songs alone.</summary>
     Task<PaginatedResult<Media>> ReadAllAsync(int pageNumber, int pageSize, SortDescriptor? sort, MediaSearchOptions? options);
 
     Task<PaginatedResult<Media>> SearchAsync(string query, int pageNumber, int pageSize, SortDescriptor? sort, MediaSearchOptions? options);
 
-    /// <summary>
-    /// Every row of these types, unpaged and title-ordered. What a picker needs: paging a library
-    /// and filtering the page in memory drops everything past the first page, so a card sitting at
-    /// row 51 simply never appears.
-    /// </summary>
+    /// <summary>Every row of these types, unpaged; a paged picker would drop rows past page one.</summary>
     Task<IReadOnlyList<Media>> ReadAllByTypesAsync(params MediaType[] types);
 
-    /// <summary>
-    /// Dedup reads deliberately span every type: FilePath is unique across the table, so an ad
-    /// already imported has to be found before the same path is inserted again as a song.
-    /// </summary>
+    /// <summary>Dedup spans every type: FilePath is unique table-wide, ads included.</summary>
     Task<HashSet<string>> GetExistingFilePathsAsync(IEnumerable<string> filePaths);
 
-    /// <summary>Row whose FilePath matches, under the same case-folding rules as <see cref="GetExistingFilePathsAsync"/>.</summary>
+    /// <summary>Row whose FilePath matches, folded like <see cref="GetExistingFilePathsAsync"/>.</summary>
     Task<Media?> FindByFilePathAsync(string filePath);
 
-    /// <summary>Rows whose file size is one of <paramref name="sizes"/> — the prefilter for content dedup.</summary>
+    /// <summary>Rows whose size is one of <paramref name="sizes"/>: the dedup prefilter.</summary>
     Task<IReadOnlyList<Media>> GetByFileSizesAsync(IEnumerable<long> sizes);
 
     /// <summary>Rows imported before content dedup, which have no size to match on yet.</summary>

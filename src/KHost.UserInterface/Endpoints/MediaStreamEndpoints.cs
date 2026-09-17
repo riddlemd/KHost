@@ -2,10 +2,8 @@ using KHost.Abstractions.Services;
 
 namespace KHost.UserInterface.Endpoints;
 
-/// <summary>
-/// Plain HTTP, no auth: consumers include devices that cannot authenticate, and a session id is
-/// unguessable and lives only as long as the song.
-/// </summary>
+/// <summary>Plain HTTP, no auth: consumers include devices that cannot authenticate.</summary>
+/// <remarks>A session id is unguessable and lives only as long as the song.</remarks>
 public static class MediaStreamEndpoints
 {
     public static IEndpointConventionBuilder MapMediaStream(this IEndpointRouteBuilder endpoints)

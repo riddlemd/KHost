@@ -3,29 +3,17 @@ using KHost.Abstractions.Services;
 
 namespace KHost.Abstractions.Services;
 
-/// <summary>
-/// Suspended is not Paused: a host who paused break music meant it, and the automatic handoff
-/// must not undo that when the song ends.
-/// </summary>
+/// <summary>Suspended is not Paused; an automatic handoff must not undo a host's pause.</summary>
 public enum BreakMusicState { Stopped, Playing, Paused, Suspended }
 
-/// <summary>
-/// Owns when break music plays; the provider owns what. Everything a host does lands here, and
-/// the two automatic transitions — yielding to a song and coming back after it — are the reason
-/// this is a service rather than a button wired straight to a provider.
-/// </summary>
+/// <summary>Owns when break music plays; the provider owns what, hence a service, not a button.</summary>
 public interface IBreakMusicService
 {
 
     IReadOnlyList<IBreakMusicProvider> Providers { get; }
     IBreakMusicProvider? ActiveProvider { get; }
 
-    /// <summary>
-    /// The provider fed by this host's own break music playlists, if it is loaded. It is the only
-    /// mode a playlist means anything to; every other provider brings its own catalogue. Deliberately
-    /// not the same question as <c>RendersThroughHost</c>, which says who plays the audio — a
-    /// provider may well render through the host and still bring its own music.
-    /// </summary>
+    /// <summary>The provider fed by the host's own playlists, unlike RendersThroughHost.</summary>
     IBreakMusicProvider? LibraryProvider { get; }
 
     BreakMusicState State { get; }
@@ -42,10 +30,7 @@ public interface IBreakMusicService
     Task StopAsync(CancellationToken cancellationToken = default);
     Task SkipAsync(CancellationToken cancellationToken = default);
 
-    /// <summary>
-    /// Yields to something that has audio of its own. Does nothing unless it is playing, so a
-    /// paused or stopped bed is left where the host put it.
-    /// </summary>
+    /// <summary>Yields to something with audio of its own; does nothing unless it is playing.</summary>
     Task SuspendAsync(CancellationToken cancellationToken = default);
 
     /// <summary>Brings back only what <see cref="SuspendAsync"/> took away.</summary>

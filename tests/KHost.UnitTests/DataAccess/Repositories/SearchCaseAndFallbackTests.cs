@@ -8,11 +8,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace KHost.UnitTests.DataAccess.Repositories;
 
-/// <summary>
-/// Free-text search over a real SQLite file. The bundled engine folds ASCII only, so these cases
-/// only mean anything against it — an in-memory provider or the system sqlite3 CLI would pass even
-/// with the matching pushed back into SQL.
-/// </summary>
+/// <summary>The bundled engine folds ASCII only, so these need a real SQLite file.</summary>
 public class SearchCaseAndFallbackTests : IDisposable
 {
     private readonly string _dbPath;

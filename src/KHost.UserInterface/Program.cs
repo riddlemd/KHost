@@ -37,13 +37,12 @@ namespace KHost.UserInterface;
 
 internal static class Program
 {
-    /// <summary>Skips the native shell and runs as a plain web host — browser-based development.</summary>
+    /// <summary>Skips the native shell and runs as a plain web host, for browser-based development.</summary>
     private const string HeadlessFlag = "--headless";
     internal const string NativeShellKey = "NativeShell";
 
-    // The shell locks down by build configuration, not environment: a Release build is what an
-    // operator runs. Environment cannot carry this — ASPNETCORE_ENVIRONMENT must stay Development
-    // for an unpublished run to serve its static assets at all, so it is never a dev/operator tell.
+    // The shell locks down by build configuration, not environment: ASPNETCORE_ENVIRONMENT must
+    // stay Development for an unpublished run to serve its static assets at all.
 #if DEBUG
     internal const bool IsDebugBuild = true;
 #else
@@ -60,7 +59,7 @@ internal static class Program
     private const int AlreadyRunningExitCode = 1;
 
     // Top-level statements cannot carry [STAThread], which Photino needs on Windows, and the
-    // attribute only holds on a synchronous Main — an async one resumes off the STA thread.
+    // attribute only holds on a synchronous Main: an async one resumes off the STA thread.
     [STAThread]
     private static int Main(string[] args)
     {
@@ -70,7 +69,7 @@ internal static class Program
         using var instanceLock = AcquireInstanceLock();
         if (instanceLock is null)
         {
-            // A reset run is a terminal operation — a native dialog would block a script forever.
+            // A reset run is a terminal operation, since a native dialog would block a script forever.
             ReportAlreadyRunning(headless || resetIndex >= 0);
             return AlreadyRunningExitCode;
         }
@@ -84,7 +83,7 @@ internal static class Program
             Args = args.Where(a => a != HeadlessFlag).ToArray(),
 
             // Content root defaults to the working directory, which a desktop launcher sets to
-            // anywhere — leaving WebRootPath null and ThemeService dead on startup.
+            // anywhere, leaving WebRootPath null and ThemeService dead on startup.
             ContentRootPath = AppContext.BaseDirectory,
         });
 
@@ -225,9 +224,8 @@ internal static class Program
             throw;
         }
 
-        // The second half of plugin loading: discovery ran before the container existed, so this is
-        // the first moment an entry point can be handed services. Never fatal — PluginInitializer
-        // marks a plugin that throws and leaves the rest of the app alone.
+        // Discovery ran before the container existed, so this is the first moment an entry point can
+        // be handed services. Never fatal: PluginInitializer marks a plugin that throws.
         app.Services.GetRequiredService<IPluginInitializer>().InitializeAsync().GetAwaiter().GetResult();
 
         // Before the hub is mapped: a service nobody has resolved cannot mute the first screen.
@@ -237,13 +235,8 @@ internal static class Program
             app.Services.GetRequiredService<IScreenMarqueeService>().InitializeAsync().GetAwaiter().GetResult();
             app.Services.GetRequiredService<BreakMusicCardService>().InitializeAsync().GetAwaiter().GetResult();
 
-            // Building the list is the whole point of asking for it: every one of these wires
-            // itself to the broker or to a screen event in its constructor, and has therefore
-            // wired nothing until it exists. Enumerating is what makes them exist.
-            //
-            // A loop rather than a line each, because a line each is what kept going missing —
-            // three of them at different times, each found from the far end as a screen that was
-            // never told something.
+            // Each of these wires itself to the broker in its constructor, so enumerating is what
+            // makes it exist: a loop, because a line each is what kept going missing.
             foreach (var _ in app.Services.GetServices<KHost.Domain.Services.Screens.IStartsWithTheHost>())
             {
             }
@@ -277,9 +270,8 @@ internal static class Program
 
         app.MapDefaultEndpoints();
         app.MapIPCServer();
-        // Native form posts, not circuit calls: a cookie can only be issued on an HTTP
-        // response. Antiforgery is off here deliberately — the console answers loopback only,
-        // and forcing a login/logout is the entire extent of what a forged post could do.
+        // Native form posts, not circuit calls: a cookie can only be issued on an HTTP response.
+        // Antiforgery is off: the console answers loopback only, so a forged post logs someone in or out.
         app.MapPost("/auth/login", async (
             HttpContext http,
             [FromForm] string username,
@@ -319,12 +311,8 @@ internal static class Program
         app.MapThemeStylesheets();
         app.MapPluginIcons();
 
-        // One callback, in this order, on purpose. ApplicationStarted is a CancellationToken, and
-        // its callbacks run in REVERSE registration order — so a screen launched from a callback
-        // registered "after" these would in fact start first, carrying the configured default port
-        // instead of the live one. A screen only tries its first connection once (automatic
-        // reconnect covers a connection that was established, not one that never was), so getting
-        // that address wrong is not a slow start: it is a screen that never connects at all.
+        // One callback, in this order: ApplicationStarted callbacks run in reverse registration order,
+        // so resolving the address after registering the launch ran it first. A screen never retries.
         app.Lifetime.ApplicationStarted.Register(() =>
         {
             ApplyResolvedAddresses(app);
@@ -335,9 +323,8 @@ internal static class Program
         app.Lifetime.ApplicationStopping.Register(() =>
             app.Services.GetRequiredService<IMediaStreamService>().CloseAllAsync().GetAwaiter().GetResult());
 
-        // A plugin's cleanup may not get to finish before the process ends — the startup sweep
-        // covers whatever it leaves Downloading — but the cancel itself must still fire, or a
-        // yt-dlp process outlives the host it was downloading for.
+        // A plugin's cleanup may not finish before the process ends. The startup sweep covers
+        // whatever it leaves Downloading, but the cancel must fire, or yt-dlp outlives the host.
         app.Lifetime.ApplicationStopping.Register(() =>
             app.Services.GetRequiredService<IDownloadsService>().CancelAll());
 
@@ -346,9 +333,8 @@ internal static class Program
         app.Lifetime.ApplicationStopping.Register(() =>
             app.Services.GetRequiredService<IPluginInstallerService>().CancelAll());
 
-        // Screens we started are ours to close, and nothing else does it: on macOS closing the
-        // window tears the process down inside Photino, so container disposal never runs and the
-        // screen would be left on the display announcing a lost host.
+        // Screens we started are ours to close: on macOS closing the window tears the process down
+        // inside Photino, so container disposal never runs and a screen would be left announcing a lost host.
         app.Lifetime.ApplicationStopping.Register(() =>
         {
             foreach (var provider in app.Services.GetServices<IScreenProvider>())
@@ -364,9 +350,8 @@ internal static class Program
             }
         });
 
-        // Every graceful exit lands here — the Exit menu, the window's close button, Ctrl+C when
-        // headless — so the venue's clear-on-close setting is honoured however KHost was quit.
-        // Swallowed because a queue that will not clear must not also block the shutdown.
+        // Every graceful exit lands here: Exit menu, close button, or Ctrl+C when headless.
+        // Clear-on-close is honoured however KHost quit; swallowed so a stuck queue can't block shutdown.
         app.Lifetime.ApplicationStopping.Register(() =>
         {
             try
@@ -399,10 +384,8 @@ internal static class Program
         app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
         app.UseAuthentication();
 
-        // Login requirement off: every session is the console admin. The gates stay wired and
-        // all pass — single-operator mode rather than a second code path through the UI. Read
-        // per request, not at startup: the overlay reloads live, so the setup wizard's choice
-        // and the App Settings toggle apply on the next page load instead of the next launch.
+        // Login requirement off: every session is the console admin, and the gates stay wired and all pass
+        // rather than a second code path. Read per request, so the toggle applies on the next page load.
         app.Use((context, next) =>
         {
             if (!(app.Configuration.GetValue<bool?>("Auth:RequireLogin") ?? true))
@@ -462,10 +445,8 @@ internal static class Program
         return exitCode;
     }
 
-    /// <summary>
-    /// Tells the user why this launch is stopping. A shell launch has no console to read, so it
-    /// gets a native dialog instead.
-    /// </summary>
+    /// <summary>Tells the user why this launch is stopping.</summary>
+    /// <remarks>A shell launch has no console to read, so it gets a native dialog instead.</remarks>
     private static void ReportAlreadyRunning(bool headless)
     {
         const string Message = "Only one instance of KHost can run at a time.";
@@ -477,7 +458,7 @@ internal static class Program
         }
 
         // ShowMessage crashes on a window the native layer has not built yet, so the dialog has to
-        // be raised from inside the created handler — hence the throwaway window hosting it.
+        // be raised from inside the created handler, which is why a throwaway window hosts it.
         PhotinoWindow? window = null;
         window = new PhotinoWindow()
             .SetTitle("KHost")
@@ -496,11 +477,8 @@ internal static class Program
         window.WaitForClose();
     }
 
-    /// <summary>
-    /// Holds an exclusive handle on a lock file, or null when another instance already has it.
-    /// Scoped to the install directory because that is what a second instance would collide over —
-    /// the SQLite file under <c>cache/</c> and the configured port. Separate installs may coexist.
-    /// </summary>
+    /// <summary>Holds an exclusive handle on the lock file, or null when another instance has it.</summary>
+    /// <remarks>Scoped to the install directory, so separate installs may coexist.</remarks>
     private static FileStream? AcquireInstanceLock()
     {
         try
@@ -518,10 +496,8 @@ internal static class Program
         }
     }
 
-    /// <summary>
-    /// Serves the UI to a Photino window on this thread. Kestrel keeps listening throughout, so
-    /// screens and (later) network clients reach the same host the window is showing.
-    /// </summary>
+    /// <summary>Serves the UI to a Photino window on this thread.</summary>
+    /// <remarks>Kestrel keeps listening, so screens and network clients reach the same host.</remarks>
     private static void RunWithNativeShell(WebApplication app)
     {
         app.StartAsync().GetAwaiter().GetResult();
@@ -544,14 +520,11 @@ internal static class Program
             .SetTitle("KHost")
             .SetUseOsDefaultSize(false)
             .SetSize(1440, 900)
-            // The page cannot reach the webview's own developer tools: neither the "Inspect
-            // Element" item in a text field's native menu nor F12/Cmd-Opt-I, which are handled
-            // before the DOM sees them. This is the only switch that closes both, and it leaves
-            // the rest of the text-field menu — cut, copy, paste — alone.
+            // Blocks both "Inspect Element" in the native text-field menu and F12/Cmd-Opt-I. It is
+            // the only switch that closes both, while leaving cut/copy/paste on that menu alone.
             .SetDevToolsEnabled(IsDebugBuild)
-            // On macOS closing the window tears the process down inside Photino, so the code
-            // after WaitForClose never runs there. Shutdown work has to finish before the close
-            // is allowed to proceed.
+            // On macOS closing the window tears the process down inside Photino, so the code after
+            // WaitForClose never runs there. Shutdown must finish before the close is allowed.
             .RegisterWindowClosingHandler((_, _) =>
             {
                 if (Interlocked.Exchange(ref closing, 1) == 0)
@@ -560,10 +533,8 @@ internal static class Program
             })
             .Load(baseUri);
 
-        // On Stopping, not Stopped: with no Run/WaitForShutdown in this mode, a SIGTERM only
-        // signals the stopping token — nothing performs the stop, so Stopped never comes. The
-        // stop must FINISH before the window is touched: on macOS closing it kills the process,
-        // and these token callbacks run before the other registered shutdown work.
+        // On Stopping, not Stopped: with no Run/WaitForShutdown here, nothing performs the stop so
+        // Stopped never comes, and on macOS closing the window kills the process before it could.
         app.Lifetime.ApplicationStopping.Register(() =>
         {
             if (Interlocked.CompareExchange(ref closing, 1, 0) != 0) return;
@@ -584,12 +555,8 @@ internal static class Program
         Log.CloseAndFlush();
     }
 
-    /// <summary>The host's live base address, or null if Kestrel reported none.</summary>
-    /// <summary>
-    /// Points launched screens at this host's live listening address, so they connect regardless of
-    /// the (possibly dynamic, e.g. Aspire-assigned) port. An explicit config value always wins:
-    /// someone who named an address meant it.
-    /// </summary>
+    /// <summary>Points launched screens at this host's live listening address.</summary>
+    /// <remarks>Works regardless of a dynamic port; an explicit config value always wins.</remarks>
     private static void ApplyResolvedAddresses(WebApplication app)
     {
         var wantsIpcUri = string.IsNullOrWhiteSpace(app.Configuration["LocalScreen:ServerUri"]);
@@ -648,6 +615,7 @@ internal static class Program
         }
     }
 
+    /// <summary>The host's live base address, or null if Kestrel reported none.</summary>
     private static string? ResolveBaseAddress(WebApplication app)
     {
         var addresses = app.Services.GetRequiredService<IServer>()

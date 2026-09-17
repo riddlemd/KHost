@@ -1,9 +1,6 @@
 namespace KHost.Abstractions.Models.QueueRotation;
 
-/// <summary>
-/// Snapshot of a queued singer, built by the host per rotation pass. Strategies see only
-/// what rotation needs — not the host's full user model.
-/// </summary>
+/// <summary>Snapshot of a queued singer, built per pass; strategies see only what rotation needs.</summary>
 public sealed record RotationSinger
 {
     public required Guid Id { get; init; }

@@ -2,10 +2,8 @@ using KHost.UserInterface.Services;
 
 namespace KHost.UserInterface.Endpoints;
 
-/// <summary>
-/// Serves themes a host authored at runtime. The built-in ones are SCSS compiled into wwwroot and
-/// are served as static files; these have no file behind them, so they are rendered on request.
-/// </summary>
+/// <summary>Serves themes a host authored at runtime.</summary>
+/// <remarks>Built-ins compile to wwwroot as static files; these have none, so render on request.</remarks>
 public static class ThemeStylesheetEndpoints
 {
     public static IEndpointConventionBuilder MapThemeStylesheets(this IEndpointRouteBuilder endpoints)

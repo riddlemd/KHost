@@ -12,10 +12,10 @@ internal sealed class ScreenServerService : IScreenServer, IHubCallback
     {
         public const string SectionName = "ScreenServer";
 
-        /// <summary>Caps live hub connections regardless of whether they ever register a screen — bounds an unauthenticated LAN flood.</summary>
+        /// <summary>Caps live hub connections before a screen registers, to bound a LAN flood.</summary>
         public int MaxConcurrentConnections { get; set; } = 20;
 
-        /// <summary>Caps registered screens independently of the connection cap; a re-registration under an existing id is not new growth.</summary>
+        /// <summary>Caps registered screens apart from the connection cap; reusing an id isn't new.</summary>
         public int MaxRegisteredScreens { get; set; } = 16;
     }
 
@@ -97,7 +97,7 @@ internal sealed class ScreenServerService : IScreenServer, IHubCallback
             var payload = RegisterPayload.TryParse(envelope.Payload);
             if (payload is null) return false;
 
-            // A re-registration under an existing id overwrites in place, so it does not count against the cap.
+            // A re-registration under an existing id overwrites in place; it doesn't count against the cap.
             if (!_connections.ContainsKey(envelope.ScreenId) && _connections.Count >= _options.MaxRegisteredScreens)
                 return false;
 
@@ -197,8 +197,7 @@ internal sealed class ScreenServerService : IScreenServer, IHubCallback
     public async Task BroadcastCommandAsync(IScreenCommand command)
     {
         // Every command is signed with the addressed screen's own key, so there is no Clients.All
-        // shortcut any more — a single message cannot carry a MAC every screen would accept. Each
-        // gets its own, which is also where the per-screen stream URL was already handled.
+        // shortcut: a single message cannot carry a MAC every screen would accept.
         List<ScreenConnection> snapshot;
         await _lock.WaitAsync();
         try { snapshot = [.. _connections.Values]; }
@@ -224,16 +223,12 @@ internal sealed class ScreenServerService : IScreenServer, IHubCallback
         }
         finally { _lock.Release(); }
 
-        // Numbering and delivery are one step, not two. The screen judges order by the sequence and
-        // drops anything that does not advance, with nothing behind it to retry — so allocating a
-        // number in one critical section and sending outside it lets two commands overtake each
-        // other on the way out and the loser is discarded for good. Held per screen, so this
-        // serialises one screen's queue rather than every screen's.
+        // Numbering and delivery are one step: splitting them lets two commands overtake and lose the loser.
+        // Held per screen, not shared, so one slow screen doesn't block anybody else's queue.
         await session.SendGate.WaitAsync();
         try
         {
-            // Re-read under the gate: a command queued behind another may have outlived its session,
-            // and OutboundSeq is only ever touched here, which is what makes it safe outside _lock.
+            // Re-read under the gate: a queued command may have outlived its session.
             if (session.Key is not { } key) return;
 
             var seq = ++session.OutboundSeq;
@@ -272,11 +267,8 @@ internal sealed class ScreenServerService : IScreenServer, IHubCallback
         public long ExpectedInboundSeq { get; set; }
         public long OutboundSeq { get; set; }
 
-        /// <summary>
-        /// This screen's outbound queue. One at a time so a sequence number and the send it belongs
-        /// to cannot be split apart — see <c>SendToAsync</c>. Per session rather than shared, so a
-        /// screen that is slow to take a command holds up nobody else's.
-        /// </summary>
+        /// <summary>This screen's send gate: keeps a sequence number and its send from splitting.</summary>
+        /// <remarks>Per session, so a slow screen holds up only its own queue.</remarks>
         public SemaphoreSlim SendGate { get; } = new(1, 1);
     }
 

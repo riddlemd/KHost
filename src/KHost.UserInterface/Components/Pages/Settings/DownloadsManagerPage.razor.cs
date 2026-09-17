@@ -48,11 +48,8 @@ public partial class DownloadsManagerPage : IDisposable
         await DequeueQueuedPerformancesForAsync(activeMediaIds);
     }
 
-    // A media row can be enqueued while still Downloading (nothing gates EnqueueAsync on media
-    // status), so cancelling here must also clear any queue row waiting on it. DeleteAsync would
-    // try to cancel the download itself too, but DownloadsService.CancelAsync/CancelAll above
-    // already settled it, so that second attempt is a no-op — DownloadsService has no reference
-    // back to IPerformanceService, so neither path can re-trigger the other.
+    // A media row can be enqueued while still Downloading, so cancelling here must also clear any
+    // queue row waiting on it. DeleteAsync's own cancel then no-ops, already settled above.
     private async Task DequeueQueuedPerformancesForAsync(ICollection<Guid> mediaIds)
     {
         if (PerformanceService is null || mediaIds.Count == 0) return;
@@ -64,17 +61,14 @@ public partial class DownloadsManagerPage : IDisposable
 
     private static int Percent(double fraction) => (int)Math.Round(fraction * 100);
 
-    /// <summary>What the bar beside it is measuring — the two halves of one acquisition.</summary>
+    /// <summary>What the bar beside it is measuring: the two halves of one acquisition.</summary>
     private static string PhaseLabel(DownloadPhase phase) => phase switch
     {
         DownloadPhase.Processing => "Processing",
         _ => "Fetching",
     };
 
-    /// <summary>
-    /// Null when the provider counts no bytes, which leaves the phase word standing alone rather
-    /// than trailing a separator with nothing after it.
-    /// </summary>
+    /// <summary>Null when the provider counts no bytes, so the phase word stands alone.</summary>
     private static string? Sizes(DownloadInfo download) => download switch
     {
         { BytesReceived: null } => null,
@@ -82,11 +76,7 @@ public partial class DownloadsManagerPage : IDisposable
         { BytesReceived: { } received } => Megabytes(received),
     };
 
-    /// <summary>
-    /// Only while the bytes are still arriving. The counts outlive that phase on purpose — a
-    /// settled row reports them — but a render is not measured in the download's megabytes, and a
-    /// count standing still beside a moving bar reads as a stall.
-    /// </summary>
+    /// <summary>Only while bytes arrive, since a still count beside a moving bar reads as a stall.</summary>
     private static string? SizesWhileFetching(DownloadInfo download)
         => download.Phase == DownloadPhase.Fetching ? Sizes(download) : null;
 
@@ -100,10 +90,7 @@ public partial class DownloadsManagerPage : IDisposable
         return span < TimeSpan.Zero ? "0:00" : $"{(int)span.TotalMinutes}:{span.Seconds:00}";
     }
 
-    /// <summary>
-    /// The one line a host reads to decide what to do about a settled row. A failure says why; a
-    /// download that simply finished says what it cost, which is the only thing left to know.
-    /// </summary>
+    /// <summary>The one line about a settled row: a failure says why, success says what it cost.</summary>
     private static string Detail(DownloadInfo download)
     {
         if (!string.IsNullOrWhiteSpace(download.Reason))

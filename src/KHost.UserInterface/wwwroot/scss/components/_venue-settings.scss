@@ -36,20 +36,15 @@
         white-space: nowrap;
     }
 
-    // A label carrying a note is no longer one line of label text — the note is prose, and it
-    // inherits the nowrap above, so it runs out of the dialog rather than wrapping. Both halves are
-    // needed: min-width lets the flex item narrow at all, white-space lets the words break once it
-    // can. This is what &__labelled already does for the rows whose note sits beside an input.
+    // A label carrying a note inherits the nowrap above and would run off the dialog: min-width
+    // lets the flex item narrow at all, white-space lets the words then break.
     .kh-form-check-label:has(.kh-note) {
         min-width: 0;
         white-space: normal;
     }
 
     // A label with its note under it, as one block, so the control beside them centres against the
-    // pair. A note left as the row's next sibling is flush to the row box but not to the label —
-    // the control sets the row's height, so the note lands a control's worth below the words it
-    // explains. This is the shape .kh-app-settings__row keeps, and the reason its hints read as
-    // belonging to their field.
+    // pair. A note left as the row's sibling instead lands a control's height below the words it explains.
     &__labelled {
         display: flex;
         flex-direction: column;
@@ -62,23 +57,21 @@
         justify-content: space-between;
         gap: 1rem;
 
-        // Only where the row is itself a label: clicking one toggles its checkbox, so the whole
-        // row is the control. A row holding a select or a picker is not clickable beside it, and
-        // saying otherwise invites a click that does nothing.
+        // Only where the row itself is a label (clicking toggles its checkbox); a select or picker
+        // beside it isn't clickable too.
         &.kh-form-check {
             cursor: pointer;
         }
         margin-bottom: 1em;
 
-        // A note explains the row above it. The row's own bottom margin collapses against the
-        // note's top one and leaves the note sitting as far from the field it describes as from
-        // the next one down, which reads as belonging to neither.
+        // A note explains the row above it; without this its top margin collapses against the row's
+        // own bottom one, leaving it as far from the field it describes as from the next one down.
         &:has(+ .kh-note) {
             margin-bottom: 0;
         }
 
         // A note inside the row is part of a label's column, and the column's own stacking is all
-        // the space it needs — its margin is for the case where it follows the row instead.
+        // the space it needs. Its margin is for the case where it follows the row instead.
         .kh-note {
             margin: 0;
         }
@@ -89,9 +82,8 @@
             text-align: right;
         }
 
-        // A native colour input paints its swatch inside the control's own padding, so the
-        // text-input sizing above leaves a sliver of colour in a wide box. Sized to the swatch
-        // instead, and the padding taken back so the colour is what fills it.
+        // A native colour input paints its swatch inside the control's own padding, so the text-input
+        // sizing above leaves a sliver of colour in a wide box; sized to the swatch, padding taken back.
         .kh-venue-settings__color {
             flex: 0 0 3rem;
             width: 3rem;

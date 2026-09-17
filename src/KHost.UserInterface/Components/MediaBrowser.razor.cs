@@ -435,16 +435,7 @@ public partial class MediaBrowser : IAsyncDisposable
         }
     }
 
-    /// <summary>
-    /// What this file will be imported as, drawn. Asked of the same function the import itself
-    /// asks, so the row cannot promise one thing and the library hold another — and it answers to
-    /// the video choice above, which makes that control's effect visible before it is used rather
-    /// than after.
-    /// </summary>
-    /// <remarks>
-    /// Every file used to show a music sheet, from a folder of stills to a folder of ad clips.
-    /// That was honest while the importer took nothing else and a lie the moment it did.
-    /// </remarks>
+    /// <summary>Drawn from the function the import asks, so a row can't disagree with the library.</summary>
     private string IconFor(FileEntry entry) => TypeFor(entry) switch
     {
         // Somebody sings this one, which is what separates it from the record beside it.
@@ -454,11 +445,7 @@ public partial class MediaBrowser : IAsyncDisposable
         _ => "file-earmark-play",
     };
 
-    /// <summary>
-    /// How video is read for the batch. Only two answers, because a row that disagrees is settled
-    /// on the row — there is no third mode to be in, which is one fewer state for a host to have
-    /// left switched on from the last folder.
-    /// </summary>
+    /// <summary>Only two answers: a disagreeing row settles itself, no third mode left stuck on.</summary>
     private enum VideoImportKind { Karaoke, Ads }
 
     private VideoImportKind _videoKind = VideoImportKind.Karaoke;
@@ -466,10 +453,7 @@ public partial class MediaBrowser : IAsyncDisposable
     private static string DescribeVideoKind(VideoImportKind kind)
         => kind == VideoImportKind.Karaoke ? "Karaoke songs" : "Ads and other video";
 
-    /// <summary>
-    /// Switches how video is read, and drops the row-by-row answers with it: those were
-    /// disagreements with the old batch answer, and mean nothing against a new one.
-    /// </summary>
+    /// <summary>Drops the row-by-row answers: they disagreed with the old batch, not this one.</summary>
     private void ChooseVideoKind(VideoImportKind kind)
     {
         _videoKind = kind;
@@ -478,10 +462,7 @@ public partial class MediaBrowser : IAsyncDisposable
         ImportService!.TypeOverrides.Clear();
     }
 
-    /// <summary>
-    /// What the Type column calls each kind. "Music" rather than "Audio": a host is looking at a
-    /// folder of records, and the row beside it that says Karaoke is audio too.
-    /// </summary>
+    /// <summary>"Music" rather than "Audio", since the Karaoke row beside it is audio too.</summary>
     private static string DescribeType(MediaType type) => type switch
     {
         MediaType.Karaoke => "Karaoke",
@@ -490,10 +471,7 @@ public partial class MediaBrowser : IAsyncDisposable
         _ => "Ads",
     };
 
-    /// <summary>
-    /// Whether this row is one the host may answer for. Only a picture track is ever ambiguous:
-    /// a karaoke video and an ad clip are the same formats, and everything else states what it is.
-    /// </summary>
+    /// <summary>Only a picture track is ambiguous: a karaoke video and an ad clip share formats.</summary>
     private bool IsChoosable(FileEntry entry)
         => !entry.IsDirectory
            && MediaFormats.VideoExtensions.Contains(Path.GetExtension(entry.FullPath).ToLowerInvariant());
@@ -507,11 +485,7 @@ public partial class MediaBrowser : IAsyncDisposable
             ? chosen
             : MediaFormats.TypeForFile(entry.FullPath, VideoIsKaraoke);
 
-    /// <summary>
-    /// Flips one row between the two answers a video can have. Back to the batch answer rather than
-    /// to the other one, where that is what flipping lands on: a row that agrees with the batch
-    /// should stop being marked as chosen, or the marks stop meaning anything.
-    /// </summary>
+    /// <summary>Flips to the batch answer, not the other one; agreeing with it clears the mark.</summary>
     private void FlipTypeFor(FileEntry entry)
     {
         var flipped = TypeFor(entry) == MediaType.Karaoke ? MediaType.Video : MediaType.Karaoke;
@@ -523,19 +497,13 @@ public partial class MediaBrowser : IAsyncDisposable
             ImportService!.TypeOverrides[entry.FullPath] = flipped;
     }
 
-    /// <summary>
-    /// Only worth asking where the answer changes something. A folder of records and stills has no
-    /// video in it, and a control offering to call them ads would be noise.
-    /// </summary>
+    /// <summary>Only worth asking where it changes something: stills have no video to call ads.</summary>
     private bool SelectionMayHoldVideo
         => _selectedFolderPaths.Count > 0
            || _selectedPaths.Any(path => MediaFormats.VideoExtensions.Contains(
                Path.GetExtension(path).ToLowerInvariant()));
 
-    /// <summary>
-    /// Bound through the service rather than kept here: the import runs on its own thread off that
-    /// singleton, so a copy on this component would be read after the host had navigated away.
-    /// </summary>
+    /// <summary>Bound through the service, not kept here: a local copy would survive navigating.</summary>
     private bool VideoIsKaraoke
     {
         get => ImportService!.VideoIsKaraoke;

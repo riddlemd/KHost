@@ -2,14 +2,8 @@ using KHost.Secrets;
 
 namespace KHost.Domain.Services.Plugins.Secrets;
 
-/// <summary>
-/// Files a plugin's secrets under its own id, on whatever this machine can actually keep them in.
-/// </summary>
-/// <remarks>
-/// The scoping lives here rather than in <see cref="ISecretStore"/> because the store has no idea
-/// what a plugin is and should not gain one: it keeps a string under a (service, account) pair,
-/// and this is what decides that the service is a plugin.
-/// </remarks>
+/// <summary>Files a plugin secrets under its own id, wherever this machine can keep them.</summary>
+/// <remarks>Scoping lives here, not in the store, which knows only a (service, account) pair.</remarks>
 public sealed class PluginSecretStore : IPluginSecretStore
 {
     private readonly ISecretStore _store;
@@ -29,10 +23,7 @@ public sealed class PluginSecretStore : IPluginSecretStore
         return Task.CompletedTask;
     }
 
-    /// <summary>
-    /// What the secret is filed under. Carries the plugin's id rather than its name, which a
-    /// manifest may change, and reads legibly in whatever the operating system shows a person —
-    /// somebody looking at Keychain Access should be able to tell what put it there.
-    /// </summary>
+    /// <summary>What the secret is filed under: the plugin id, not its changeable name.</summary>
+    /// <remarks>Legible enough for Keychain Access to show who put it there.</remarks>
     private static string ServiceFor(string pluginId) => $"KHost plugin {pluginId}";
 }

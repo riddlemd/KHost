@@ -11,13 +11,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace KHost.UnitTests.UserInterface.Components.Pages.Settings;
 
-/// <summary>
-/// Every cell in a kh-table is white-space: nowrap, so a column that cannot ellipsise sets a floor
-/// under the whole table. Title and Artist are the library's only free-text columns and the only
-/// ones without a fixed width, which makes them the two that have to give when the page is narrow.
-/// Artist was missing the class, and the table could not shrink below the longest artist name —
-/// on a half-width window .kh-card clipped the last columns off with nothing to scroll.
-/// </summary>
+/// <summary>Artist once missed the fill class, clipping the last columns with nothing to scroll.</summary>
 public class MediaManagerPageColumnTests : BunitContext
 {
     private readonly IMediaService _media = Substitute.For<IMediaService>();
@@ -58,9 +52,7 @@ public class MediaManagerPageColumnTests : BunitContext
         var cut = Render<CascadingAuthenticationState>(ps => ps.AddChildContent<MediaManagerPage>());
         var fill = cut.FindAll("tbody tr td.kh-table__cell--fill");
 
-        // Two, which is also what _tables.scss keys its 50/50 split on:
-        // tr:has(> .kh-table__cell--fill ~ .kh-table__cell--fill). One fill cell leaves that rule
-        // dormant and the other column rigid.
+        // Two, matching _tables.scss's 50/50 split; one fill cell leaves it dormant, the other rigid.
         Assert.Equal(2, fill.Count);
         Assert.Equal(["Today", "The Smashing Pumpkins"], fill.Select(c => c.TextContent.Trim()));
     }
