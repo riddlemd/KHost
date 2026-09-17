@@ -131,12 +131,16 @@ code it offers the screens.
   nothing is there and keeping it as `Broken` when a file outlived the cancel. So a partial can
   never be left on disk with no row pointing at it — which is what the folder scan would later
   import as `Ready` — and a cleanup that quietly failed surfaces as a `Broken` row instead.
-- A plugin that needs a value it must not persist — a login it will trade for a session key and
-  hold only in memory — injects `IInteractionDispatcher` (same as the host) and sends a
-  `TextPromptRequest`. Unlike a plugin setting, nothing in that round trip ever reaches
-  `plugins.json`; the dialog is the only place the value exists outside the plugin's own
-  variables, for exactly as long as answering the request takes. `KHost.Plugins.Example`'s sign-in
-  action is the first user of it.
+- A plugin that needs to **ask the host for a value** — a login, a room code, anything it has no
+  setting for — injects `IInteractionDispatcher` (same as the host) and sends a
+  `TextPromptRequest`. The line it holds is **settings versus secrets**, not persisted versus not:
+  nothing from that round trip reaches `plugins.json`, and a plugin that keeps what it collected
+  puts it in the secret store with `IPluginContext.SetSecretAsync`. `KHost.Plugins.Example`'s
+  sign-in is the first user of it and does keep what it asked for — the email verbatim and the
+  password as a hash, serialised into one secret — because a venue that restarts mid-show has
+  nobody standing at the console to sign in again. The raw password is the one thing never kept:
+  it reaches the hashing call and nothing else, which is also what goes to Example. Mark a field
+  `Secret: true` to mask the input; that is about the screen in a busy room, not about storage.
 - A plugin puts **buttons on its Plugins-page row** by declaring them in the manifest
   (`PluginButtonDefinition`, key + label + optional style) and implementing `IPluginButtonHandler`.
   The host runs `InvokeButtonAsync(key)` on click and re-reads `DescribeButton(key)` after, so a
@@ -455,6 +459,35 @@ A component test renders the component (`BunitContext`, not the obsolete `TestCo
 - Two venue messages, and picking the wrong one is a bug you will not see in a test that only checks the happy path. `VenuesChanged` says the list moved (add/edit/delete) and is for the UI. `SelectedVenueChanged` says the console is now running a different venue, or the one it is running was edited — that is the one `ScreenCoordinationService` and `BreakMusicService` take, because the venue carries the room's audio baseline. Subscribing them to `VenuesChanged` means editing an unrelated venue's phone number re-pushes volume to every screen mid-song.
 - - `Venue.Settings` is a JSON column (`OwnsOne(...ToJson())`): adding/removing properties needs no migration at all, but EF reads keys missing from stored rows as `default` (ignoring property initializers) — a new setting that defaults true needs a data-only `json_set` backfill migration.
 - `KHostUser.ForeignKeys` is how a provider outside KHost names a singer — `(Source, Key)`, unique across the whole table, so one provider's id reaches one singer and a returning guest is not added a second time. Matched exactly, never folded: an id is nobody's name, and a provider may make its case meaningful. `IsEphemeral` marks a key that names a *connection* rather than a person (the provider's guest ids belong to a phone on the remote channel), and **every ephemeral key is deleted on startup** by `DatabaseInitializer`, beside the stalled-downloads sweep — none can have outlived the process that issued it, and doing it host-side is what stops a plugin's rows outliving the plugin. A provider clears its own with `IUsersService.DeleteEphemeralForeignKeysAsync(source)`; there is deliberately no way for one to clear another's. Prefer `AddForeignKeyAsync`/`RemoveForeignKeyAsync` over mutating the collection and saving — `UpdateAsync` reconciles against what it is handed, so a user read without their keys is saved back without them (the same trap `Groups` already has, which is why both are `Include`d on every read that feeds an update).
+- **A performance records the name it was sung under**, in `SungAs`, written by
+  `PerformanceService.CreateAndEnqueueAsync` on every enqueue rather than by each of its five
+  callers — two of which are plugins, and a line each is what goes missing. A caller that has a
+  name of its own to record sets it first and the service leaves it alone; that is how Example
+  carries the nickname a guest types per pick, its queue being song-first so the name belongs to
+  the song rather than to the account it reached. `Venue.Settings.AllowAliases` decides whether a
+  recorded name that differs from the singer's own is the one the room sees — off for a venue never
+  asked, so it needed no backfill. Resolving it belongs to whoever owns the performance, not to a
+  shared helper: `IPlaybackService.CurrentSingerName` answers for the song that is playing, beside
+  `CurrentMedia` and for the same reason, and `ScreenMarqueeService` answers for the turns that
+  have not started, which playback knows nothing about. Playback resolves it **at load** — the
+  performance cannot change, and a venue edited mid-song must not rename whoever is at the
+  microphone. The column also makes history self-describing —
+  a sung performance outlives its singer, and before this nothing could name one whose singer had
+  been deleted. Never feed a recorded name back into the add-a-singer lookup: that path creates a
+  user on no match, and a one-off name would mint a phantom singer.
+  - **Nothing host-facing may key off the column being *set*** — every enqueue records one, so
+    presence is true of nearly every row and a mark on it appears on the whole list saying nothing.
+    The question is always whether the recorded name **differs from the singer's own**, trimmed and
+    case-insensitively: typing your own name back in lower case has not renamed anybody, and a row
+    reading "singing as Ada" under Ada is noise. `SelectedSingerInfoPanel.SungUnderAnotherName` is
+    that question, and the row draws a muted `__sung-as` line under the title when it holds.
+  - A host changes one through `IDialogService.RequestSingingAsAsync` (the **Singing As** dialog,
+    off the song row's split-button menu). It edits the *turn*, never the account: the dialog
+    mutates `SungAs` and hands the performance back, and the caller persists it with
+    `IPerformanceService.UpdateAsync` — inherited from `IRepositoryService<Performance>`, so no
+    queue-specific method was needed — whose announcement redraws the row. A blank field stores
+    **null**, not `""`: every reader spells "their own name" as an empty recorded name, and null is
+    what a row that was never given one already carries.
 - **Performances carry no foreign keys, deliberately** — deleting a song, a singer or a venue must
   leave the record of who sang what standing. That protects *history*, and the queue is not
   history: a queued performance belongs to somebody who has not sung it, and when its singer or its

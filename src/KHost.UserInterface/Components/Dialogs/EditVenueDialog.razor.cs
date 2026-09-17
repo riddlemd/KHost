@@ -146,6 +146,7 @@ public partial class EditVenueDialog
                     PromptBeforeRemovingSinger = Venue.Settings.PromptBeforeRemovingSinger,
                     PromptBeforeRemovingPerformance = Venue.Settings.PromptBeforeRemovingPerformance,
                     ClearQueueOnClose = Venue.Settings.ClearQueueOnClose,
+                    AllowAliases = Venue.Settings.AllowAliases,
                     // Clone so Cancel discards rotation edits along with the rest of the model.
                     QueueRotation = Venue.Settings.QueueRotation?.Clone() ?? new(),
                     BreakMusicPoolId = Venue.Settings.BreakMusicPoolId,
@@ -278,6 +279,7 @@ public partial class EditVenueDialog
         venue.Settings.PromptBeforeRemovingSinger = _model.PromptBeforeRemovingSinger;
         venue.Settings.PromptBeforeRemovingPerformance = _model.PromptBeforeRemovingPerformance;
         venue.Settings.ClearQueueOnClose = _model.ClearQueueOnClose;
+        venue.Settings.AllowAliases = _model.AllowAliases;
         venue.Settings.QueueRotation = _model.QueueRotation;
         venue.Settings.BreakMusicPoolId = _model.BreakMusicPoolId;
         venue.Settings.AdPoolId = _model.AdPoolId;

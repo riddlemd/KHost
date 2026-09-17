@@ -31,5 +31,17 @@ public class Performance : RepositoryModel
     /// </summary>
     public int? BackingVolume { get; set; }
 
+    /// <summary>
+    /// The name this was sung under, recorded when it was queued rather than looked up when it is
+    /// shown. A performance keeps no foreign key — deleting a singer leaves every sung row
+    /// standing — so without this a history row outlives the only thing that could name it.
+    ///
+    /// Written on every enqueue, so it is normally just the singer's name at the time. It differs
+    /// when a caller had a name of its own to record: the provider's queue is song-first and a guest
+    /// types a nickname per pick, which is the same person under another name rather than another
+    /// person. Null only on rows queued before this existed whose singer is already gone.
+    /// </summary>
+    public string? SungAs { get; set; }
+
     public DateTime CreatedDate { get; set; }
 }
