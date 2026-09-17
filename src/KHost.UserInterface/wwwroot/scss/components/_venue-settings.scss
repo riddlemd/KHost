@@ -36,6 +36,15 @@
         white-space: nowrap;
     }
 
+    // A label carrying a note is no longer one line of label text — the note is prose, and it
+    // inherits the nowrap above, so it runs out of the dialog rather than wrapping. Both halves are
+    // needed: min-width lets the flex item narrow at all, white-space lets the words break once it
+    // can. This is what &__labelled already does for the rows whose note sits beside an input.
+    .kh-form-check-label:has(.kh-note) {
+        min-width: 0;
+        white-space: normal;
+    }
+
     // A label with its note under it, as one block, so the control beside them centres against the
     // pair. A note left as the row's next sibling is flush to the row box but not to the label —
     // the control sets the row's height, so the note lands a control's worth below the words it
