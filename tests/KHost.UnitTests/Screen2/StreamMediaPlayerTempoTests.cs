@@ -4,11 +4,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace KHost.UnitTests.Screen2;
 
-/// <summary>
-/// The page counts in stream seconds and knows nothing of tempo, so this class is the only place a
-/// retimed stream is turned back into song time. Getting it wrong is silent: the screen plays, and
-/// only the playhead and the sync correction are quietly wrong.
-/// </summary>
+/// <summary>The page counts stream seconds; only here does a stream turn back into song time.</summary>
 public class StreamMediaPlayerTempoTests
 {
     private readonly StreamMediaPlayer _player = new(NullLogger<StreamMediaPlayer>.Instance);

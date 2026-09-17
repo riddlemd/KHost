@@ -7,11 +7,7 @@ public class MediaProviderAction
     public string? Icon { get; set; }
     public List<MediaProviderAction> SubActions { get; set; } = [];
 
-    /// <summary>
-    /// Re-runs the search that produced the row once this action finishes. For an action that
-    /// changes what searching would return — signing in, say — and not for one that acts on the
-    /// row itself, where re-fetching would only cost the host the results they were reading.
-    /// </summary>
+    /// <summary>Re-runs the search after this action, for one that changes results, e.g. sign-in.</summary>
     public bool RefreshesResults { get; set; }
 
     public required Func<MediaSearchEntity, Task> PerformAsync { get; set; }

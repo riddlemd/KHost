@@ -61,12 +61,7 @@ public partial class BreakMusicBar : IDisposable
             WarnItDidNotStart();
     }
 
-    /// <summary>
-    /// A loaded song is the one cause the console can name for itself, and the one a host would
-    /// otherwise go hunting for in the venue's settings. The rest report only that it did not
-    /// start: no playlist chosen and no screen attached look identical from here, and blaming the
-    /// wrong one sends the host to the wrong page.
-    /// </summary>
+    /// <summary>A loaded song is the only cause this can name; the rest look identical here.</summary>
     private void WarnItDidNotStart()
         => Flash.Show(
             Playback.CurrentPerformance is not null
@@ -92,9 +87,8 @@ public partial class BreakMusicBar : IDisposable
         if (await Ads.PlayNowAsync())
             return;
 
-        // The service reports only that nothing played. A missing screen is the one cause the
-        // console can tell apart for itself, and it is the one a host would otherwise go looking
-        // for in the playlist — an ad has nowhere to appear before it has anything wrong with it.
+        // The service reports only that nothing played. A missing screen is the one cause
+        // distinguishable here; an ad has nowhere to appear before anything else is wrong.
         Flash.Show(
             await Playback.HasConnectedScreenAsync()
                 ? "No ad played — the playlist is empty or a song is loaded."

@@ -2,11 +2,7 @@ using System.Xml.Linq;
 
 namespace KHost.UnitTests.Conventions;
 
-/// <summary>
-/// KH0001 is what keeps behaviour out of KHost.Abstractions, and it is enforced by two lines in
-/// two files — a build-time analyzer reference and an .editorconfig severity. Either one going
-/// missing disables the rule with a green build, which is what these check.
-/// </summary>
+/// <summary>KH0001 needs both the analyzer reference and the .editorconfig severity to hold.</summary>
 public class NoStaticMethodsInAbstractionsTests
 {
     [Fact]
@@ -21,8 +17,8 @@ public class NoStaticMethodsInAbstractionsTests
 
         Assert.Equal("Analyzer", analyzer.Attribute("OutputItemType")?.Value);
 
-        // Referencing the output as well would put the analyzer's assembly — and its Roslyn
-        // dependencies — into what a plugin redistributes.
+        // Referencing the output as well would put the analyzer's assembly (and its Roslyn
+        // dependencies) into what a plugin redistributes.
         Assert.Equal("false", analyzer.Attribute("ReferenceOutputAssembly")?.Value);
     }
 

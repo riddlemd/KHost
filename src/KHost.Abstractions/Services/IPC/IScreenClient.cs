@@ -18,10 +18,7 @@ public interface IScreenClient
     Task DisconnectAsync();
     Task SendStateAsync(IScreenState state);
 
-    /// <summary>
-    /// Estimates the offset from this machine's clock to the host's, NTP style. A scheduled start
-    /// is meaningless across machines without it; on one machine it settles near zero.
-    /// </summary>
+    /// <summary>Estimates the offset to the host's clock, NTP style, for a scheduled start.</summary>
     Task<TimeSpan> EstimateClockOffsetAsync(CancellationToken cancellationToken = default);
 }
 

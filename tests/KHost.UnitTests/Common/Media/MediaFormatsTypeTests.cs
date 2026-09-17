@@ -3,11 +3,7 @@ using KHost.Common.Media;
 
 namespace KHost.UnitTests.Common.Media;
 
-/// <summary>
-/// What the importer calls a file. Everything it scanned used to be parsed as karaoke, which was
-/// harmless only while it scanned nothing but karaoke — a still typed that way gets a fallback
-/// artist, and an ad clip typed that way turns up in the console's song search.
-/// </summary>
+/// <summary>Mistyping a still or ad as karaoke gives it a fallback artist in song search.</summary>
 public class MediaFormatsTypeTests : IDisposable
 {
     private readonly string _directory =
@@ -49,11 +45,7 @@ public class MediaFormatsTypeTests : IDisposable
     public void ACdg_IsKaraoke()
         => Assert.Equal(MediaType.Karaoke, MediaFormats.TypeForFile(File("song.cdg")));
 
-    /// <summary>
-    /// The trap the extension cannot see: an .mp3 with a .cdg beside it is the audio half of a
-    /// karaoke pair, so it is an instrumental with no singer on it and does not belong in break
-    /// music. Asked of the path, not the extension.
-    /// </summary>
+    /// <summary>An .mp3 with a .cdg beside it is the audio half of a karaoke pair, not break music.</summary>
     [Fact]
     public void AnMp3WithGraphicsBesideIt_IsKaraokeRatherThanARecord()
     {
@@ -70,10 +62,7 @@ public class MediaFormatsTypeTests : IDisposable
     public void Video_IsKaraokeUnlessTheHostSaysOtherwise(string name)
         => Assert.Equal(MediaType.Karaoke, MediaFormats.TypeForFile(File(name)));
 
-    /// <summary>
-    /// The one thing no file can settle: a karaoke video and an ad clip are the same formats, so
-    /// the host tells the importer which folder it is looking at.
-    /// </summary>
+    /// <summary>A karaoke video and an ad clip share formats, so the host names which folder it is.</summary>
     [Fact]
     public void Video_TheHostSaidTheseAreAds_IsPlainVideo()
         => Assert.Equal(MediaType.Video,

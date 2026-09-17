@@ -53,8 +53,7 @@
                 box-shadow: 0 0 12px var(--kh-primary-glow);
             }
 
-            // The greyed-out grip used to be what said this row will not move. With the whole
-            // row dragging there is no grip, so the cursor carries it.
+            // The whole row drags, so there is no grip to grey out; the cursor carries the meaning.
             &--locked {
                 cursor: not-allowed;
             }
@@ -75,22 +74,13 @@
                 min-width: 1em;
                 flex-shrink: 0;
 
-                // The box hugs the glyph. Inherited, the 1.5 line-height made this 31.5px tall
-                // around a 21px circle, and the mark below — anchored to the box — hung five pixels
-                // clear of the avatar it belongs to. The row is sized by the text column beside
-                // this, so tightening it moves nothing else.
+                // The box hugs the glyph. An inherited line-height left it taller than the circle,
+                // hanging the mark below the avatar. Row height comes from the text column beside it.
                 line-height: 1;
             }
 
-            // A singer who joined from a phone. It sits on the avatar rather than beside the name
-            // because the icon slot is already reserved — the panel can be dragged to 180px, and
-            // anything that costs width is gone exactly when the queue is busiest.
-            //
-            // KaraFun's own corail, read from the colour named in its asset catalogue. It does not
-            // take a theme token on purpose: a brand colour is not this app's to restyle, and the
-            // dot means the same thing whichever theme the venue picked. The shape is not carrying
-            // the meaning here, so the title and aria-label are what a host has when the colour
-            // does not read — those, not the hue, are the accessible answer.
+            // The dot for a singer who joined by phone. The icon slot is already reserved even
+            // at 180px. KaraFun's own coral, hardcoded: a brand colour isn't this app's to restyle.
             &__remote {
                 position: absolute;
                 right: -0.1em;
@@ -104,7 +94,7 @@
             }
 
             // min-width:0 or it cannot go below its longest name, and every sibling is squeezed
-            // instead — they are the ones that must not shrink.
+            // instead; they are the ones that must not shrink.
             &__text {
                 min-width: 0;
                 flex: 1 1 auto;
@@ -121,7 +111,7 @@
             &__info {
                 font-size: 0.9rem;
                 color: var(--kh-text-muted);
-                // Stacked rather than inline — the two together wrap mid-phrase at this width.
+                // Stacked rather than inline: the two together wrap mid-phrase at this width.
                 display: flex;
                 flex-direction: column;
             }

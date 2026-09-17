@@ -46,7 +46,7 @@ public class StartupRedirectMiddleware(
         var path = context.Request.Path.Value ?? "/";
 
         // The stream and the hub answer machines, not browsers, so they are exempt for the same
-        // reason LanAccessPolicy lets them off-box — asking that list keeps the two from drifting.
+        // reason LanAccessPolicy lets them off-box. Asking that list keeps the two from drifting.
         if (IsStaticContent(path) || LanAccessPolicy.IsMachineFacing(context.Request.Path))
         {
             await next(context);

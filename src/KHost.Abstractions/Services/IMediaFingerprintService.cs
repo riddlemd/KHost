@@ -1,10 +1,6 @@
 namespace KHost.Abstractions.Services;
 
-/// <summary>
-/// Content fingerprints for media files, used to recognise a file already in the library after it
-/// has been moved, renamed, or copied to a second folder. Every member returns null rather than
-/// throwing when the file cannot be read — an unreadable file is not a duplicate, it is unknown.
-/// </summary>
+/// <summary>Fingerprints media to recognise a file already in the library after a move or rename.</summary>
 public interface IMediaFingerprintService
 {
     /// <summary>Size in bytes, without opening the file.</summary>

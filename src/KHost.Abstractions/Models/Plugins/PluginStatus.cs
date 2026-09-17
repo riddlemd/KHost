@@ -10,6 +10,6 @@ public enum PluginStatus
     Loaded,
     /// <summary>Built against an unsupported plugin API version; never loaded.</summary>
     Incompatible,
-    /// <summary>Bad manifest, missing assembly, or a load/scan failure — see Error.</summary>
+    /// <summary>Bad manifest, missing assembly, or a load/scan failure; see Error.</summary>
     Errored,
 }

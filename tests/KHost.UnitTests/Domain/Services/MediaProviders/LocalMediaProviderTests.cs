@@ -116,10 +116,7 @@ public class LocalMediaProviderTests
         Assert.Equal("LocalMediaProvider", result[0].Source);
     }
 
-    /// <summary>
-    /// The row's own provider, which is a different question from who answered the search — that
-    /// one is this provider on every local result, whatever produced the file.
-    /// </summary>
+    /// <summary>Who answered the search is always this provider, not the row's own provider.</summary>
     [Fact]
     public async Task SearchAsync_CarriesTheRowsOwnSource_SeparatelyFromTheSearchsSource()
     {
@@ -142,10 +139,7 @@ public class LocalMediaProviderTests
         Assert.Equal(string.Empty, result[0].Fields[LocalMediaProvider.OriginKey]);
     }
 
-    /// <summary>
-    /// The console appends the actions after the final column, so the source has to be last to sit
-    /// beside them — and declaring any column replaces the default set, so all four are named.
-    /// </summary>
+    /// <summary>The console appends actions after the final column, so source must be last.</summary>
     [Fact]
     public void Columns_PutTheSourceLast_SoItLandsBesideTheActions()
     {
@@ -158,10 +152,7 @@ public class LocalMediaProviderTests
         Assert.Equal("Source", columns[^1].Header);
     }
 
-    /// <summary>
-    /// Shed before anything a host chooses between. It is the rightmost droppable column, which is
-    /// the order the panel sheds in.
-    /// </summary>
+    /// <summary>The rightmost droppable column, shed before anything a host chooses between.</summary>
     [Fact]
     public void Columns_TheSourceIsDroppable_OnANarrowPanel()
         => Assert.False(_service.Columns[^1].Essential);
@@ -235,7 +226,7 @@ public class LocalMediaProviderTests
     }
 
     // Everything else stores UTC and converts on display, so a local stamp here would be read
-    // back as UTC and then shifted again by the history dialog — wrong twice, by the offset.
+    // back as UTC and then shifted again by the history dialog, wrong twice, by the offset.
     [Fact]
     public async Task EnqueueAsync_StampsTheEnqueueTimeInUtc()
     {

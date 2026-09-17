@@ -15,7 +15,7 @@ public class PlayerPageTests
     }
 
     // Chromium has no native HLS, so a page that ships without the library plays nothing on
-    // Windows — and the failure is a black screen, not a build error.
+    // Windows. The failure is a black screen, not a build error.
     [Fact]
     public void BuildPlayerPage_Always_InlinesHlsJs()
     {
@@ -41,7 +41,7 @@ public class PlayerPageTests
         Assert.True(player > library, "hls.js must be inlined before player.js reads Hls");
     }
 
-    // canPlayType answers 'maybe' for mpegurl on both web views, so it can never pick a path —
+    // canPlayType answers 'maybe' for mpegurl on both web views, so it can never pick a path,
     // and with the native fallback gone there is no second path for it to pick.
     [Fact]
     public void BuildPlayerPage_Always_BranchesOnHlsSupportRatherThanCanPlayType()
@@ -52,10 +52,8 @@ public class PlayerPageTests
         Assert.DoesNotContain("canPlayType", page, StringComparison.Ordinal);
     }
 
-    // Left to itself hls.js attaches through URL.createObjectURL, and the page is handed to the
-    // web view as a raw string, so that URL is blob:null/… — which WebKit refuses to load into a
-    // media element, silently, before hls.js has anything to report. The screen played nothing on
-    // macOS for exactly this reason.
+    // Left to itself hls.js attaches via URL.createObjectURL, but the page is a raw string in the
+    // web view, so that URL is blob:null/…, which WebKit refuses silently; macOS played nothing.
     [Fact]
     public void BuildPlayerPage_Always_AttachesTheMediaSourceItselfRatherThanLettingHlsMintAUrl()
     {
@@ -65,9 +63,8 @@ public class PlayerPageTests
         Assert.Contains("instance.attachMedia({ media: el, mediaSource })", page, StringComparison.Ordinal);
     }
 
-    // Chromium's srcObject takes only a MediaStream or a MediaSourceHandle and throws TypeError on
-    // a bare MediaSource, so the attach above cannot be the only way in. Unguarded it abandoned
-    // load() mid-call and the Windows screen went black with nothing reported to the host.
+    // Chromium's srcObject throws TypeError on a bare MediaSource, so the attach above cannot be
+    // the only way in; unguarded it abandoned load() mid-call and the Windows screen went black.
     [Fact]
     public void BuildPlayerPage_Always_FallsBackWhenSrcObjectRefusesTheMediaSource()
     {
@@ -143,9 +140,8 @@ public class PlayerPageTests
         Assert.Contains("original: 'none'", page);
     }
 
-    // A handover brought up behind the song is silent until it swaps, and a stop that leaves it
-    // running gets that swap part way through the fade: the replacement arrives at full volume
-    // with nothing ramping it, so the room hears no fade and then the song cut off in one step.
+    // A stop that leaves a pending handover running lets the swap land mid-fade: the replacement
+    // arrives at full volume unramped, so the room hears no fade and the song cuts off in one step.
     [Fact]
     public void BuildPlayerPage_Always_DropsAPendingHandoverBeforeFadingOut()
     {

@@ -2,12 +2,7 @@ using KHost.Secrets;
 
 namespace KHost.IntegrationTests.Secrets;
 
-/// <summary>
-/// Drives the real login keychain, which is why this is here and not in the unit suite: the ported
-/// interop is the one part of a secret store that cannot be proven with a substitute. A fake would
-/// only confirm the adapter forwards its arguments, and the arguments were never the risk —
-/// CoreFoundation marshalling and the SecItem result codes are.
-/// </summary>
+/// <summary>Drives the real keychain; a substitute proves only forwarding, not CF marshalling.</summary>
 public class MacOsSecretStoreTests : IDisposable
 {
     // Distinct per run, so a crashed run cannot collide with a later one, and cleanup below has
@@ -39,11 +34,7 @@ public class MacOsSecretStoreTests : IDisposable
         Assert.Equal("second", store.Get(_service, Account));
     }
 
-    /// <summary>
-    /// Removing is what a sign-out depends on, and "there was nothing there" has to be
-    /// distinguishable from "it went" — otherwise a caller cannot tell a failed delete from a
-    /// no-op.
-    /// </summary>
+    /// <summary>A caller must tell "nothing was there" from "it went"; sign-out depends on it.</summary>
     [RequiresKeychainFact]
     public void Remove_ReportsWhetherThereWasAnything()
     {

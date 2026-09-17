@@ -216,8 +216,6 @@ public class UsersServiceTests
         Assert.Equal(1, writesWhenNotified);
     }
 
-    // ---- foreign keys ----------------------------------------------------
-
     [Fact]
     public async Task CreateAsync_WritesTheForeignKeysItWasHanded()
     {
@@ -226,9 +224,8 @@ public class UsersServiceTests
             Name = "Ada",
             ForeignKeys = [new KHostUserForeignKey { Source = "KaraFun", Key = "remote-1", IsEphemeral = true }],
         };
-        // Read at call time, not asserted afterwards: the service hands the repository the same
-        // object it later puts the keys back on, so a substitute's captured argument shows the
-        // restored state and would pass whether or not anything was ever detached.
+        // Read at call time: the service hands the repository the same object it later restores
+        // keys onto, so a captured argument checked afterwards would pass either way.
         var keysWhenSaved = -1;
         _repository.CreateAsync(Arg.Any<KHostUser>()).Returns(call =>
         {
@@ -238,7 +235,7 @@ public class UsersServiceTests
 
         var saved = await _service.CreateAsync(user);
 
-        // Detached before the row is written — the repository would otherwise cascade the graph —
+        // Detached before the row is written (the repository would otherwise cascade the graph)
         // and put back afterwards, so the caller's entity still describes the singer.
         Assert.Equal(0, keysWhenSaved);
         await _repository.Received(1).AddForeignKeyAsync(user.Id, "KaraFun", "remote-1", true);
@@ -277,10 +274,7 @@ public class UsersServiceTests
         await _repository.DidNotReceive().RemoveForeignKeyAsync(id, "KaraFun", "keep");
     }
 
-    /// <summary>
-    /// Diffed on the pair, not the row id: a caller building a key by hand has no id to give it,
-    /// so comparing ids would delete and re-add every key on every save.
-    /// </summary>
+    /// <summary>Diffed on the pair, not the row id, because a hand-built key has none.</summary>
     [Fact]
     public async Task UpdateAsync_LeavesAnUnchangedKeyAloneEvenWithoutItsRowId()
     {
@@ -316,10 +310,7 @@ public class UsersServiceTests
         Assert.Same(ada, await _service.ReadByForeignKeyAsync("KaraFun", "remote-1"));
     }
 
-    /// <summary>
-    /// This runs on every reconnect. Announcing on a night where nothing moved would redraw every
-    /// singer list for nothing.
-    /// </summary>
+    /// <summary>Runs on every reconnect; must not announce a night where nothing moved.</summary>
     [Fact]
     public async Task DeleteEphemeralForeignKeysAsync_AnnouncesOnlyWhenSomethingWent()
     {

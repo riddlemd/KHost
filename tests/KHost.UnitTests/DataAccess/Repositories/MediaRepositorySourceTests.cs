@@ -7,11 +7,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace KHost.UnitTests.DataAccess.Repositories;
 
-/// <summary>
-/// Where a file came from, across a save and a read. Driven through real migrations against a real
-/// SQLite file, because the half of this that can break is the mapping and the column — a property
-/// EF was never told about round-trips perfectly in memory and comes back empty from the database.
-/// </summary>
+/// <summary>Runs against real SQLite: an untold-EF property round-trips in memory but not here.</summary>
 public class MediaRepositorySourceTests : IDisposable
 {
     private readonly string _dbPath;
@@ -45,7 +41,7 @@ public class MediaRepositorySourceTests : IDisposable
         Assert.Equal("KaraFun", read?.Source);
     }
 
-    /// <summary>A file the host found on its own disk claims no provider, and reads back claiming none.</summary>
+    /// <summary>A file found on the host's own disk claims no provider, and reads back that way.</summary>
     [Fact]
     public async Task Source_UnsetOnTheWayIn_ReadsBackEmptyRatherThanNull()
     {
@@ -56,10 +52,7 @@ public class MediaRepositorySourceTests : IDisposable
         Assert.Equal(string.Empty, read?.Source);
     }
 
-    /// <summary>
-    /// Two providers can deliver the same song, and the rows have to stay tellable apart. This is
-    /// the question the column exists to answer.
-    /// </summary>
+    /// <summary>Two providers can deliver the same song, and the rows have to stay tellable apart.</summary>
     [Fact]
     public async Task Source_DifferentProvidersForTheSameTitle_AreKeptApart()
     {
@@ -73,10 +66,7 @@ public class MediaRepositorySourceTests : IDisposable
         Assert.Equal(new Dictionary<string, int> { ["KaraFun"] = 1, ["YouTube"] = 1, [""] = 1 }, bySource);
     }
 
-    /// <summary>
-    /// Not folded into the search haystack: a library of YouTube downloads would otherwise answer
-    /// every search for "youtube" with all of them.
-    /// </summary>
+    /// <summary>Not folded into the haystack, or "youtube" would match all its downloads.</summary>
     [Fact]
     public async Task Source_IsNotPartOfWhatSearchFolds()
     {

@@ -133,7 +133,7 @@ internal class DefaultContext : DbContext
                 .HasForeignKey(e => e.ChildPoolId)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // A media row deleted from the library takes its pool lines with it — the alternative
+            // A media row deleted from the library takes its pool lines with it. The alternative
             // is an entry pointing at nothing, which the selector would have to skip forever.
             entity.HasOne<Media>()
                 .WithMany()

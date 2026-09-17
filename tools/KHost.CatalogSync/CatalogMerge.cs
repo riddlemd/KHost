@@ -23,10 +23,8 @@ public sealed record SyncFacts
 
 public static class CatalogMerge
 {
-    /// <summary>
-    /// Folds one release into the catalog in place. Re-running with the same release is a no-op, so
-    /// the tool can be pointed at a tag twice without producing a diff.
-    /// </summary>
+    /// <summary>Folds one release into the catalog in place.</summary>
+    /// <remarks>Re-running with the same release is a no-op, so pointing at a tag twice is safe.</remarks>
     public static void Apply(PluginCatalog catalog, SyncFacts facts)
     {
         var entry = catalog.Plugins.Find(p => p.Id == facts.Id);

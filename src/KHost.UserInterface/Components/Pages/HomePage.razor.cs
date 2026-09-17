@@ -51,7 +51,7 @@ public partial class HomePage : IAsyncDisposable
             await InvokeAsync(StateHasChanged);
         }
 
-        // The panel does not exist until the render that the add put SelectedUser onto — checked
+        // The panel does not exist until the render that the add put SelectedUser onto. Checked
         // every render, not just the first, since it may already have existed for an earlier singer.
         if (_focusMediaSearchPending && _mediaSearchPanel is not null)
         {

@@ -2,10 +2,8 @@ namespace KHost.Abstractions.Models;
 
 public enum MediaStatus { Unknown, Ready, Downloading, Processing, Broken }
 
-/// <summary>
-/// What the file is, not what it is for — an ad is composed in a playlist out of these, so there
-/// is no ad type. Karaoke is first so a caller that forgets to set it lands on the harmless one.
-/// </summary>
+/// <summary>What the file is, not what it is for; an ad is composed in a playlist out of these.</summary>
+/// <remarks>Karaoke is first so a caller that forgets to set it lands on the harmless one.</remarks>
 public enum MediaType
 {
     Karaoke,
@@ -14,11 +12,7 @@ public enum MediaType
     Image,
 }
 
-/// <summary>
-/// How a still fills the screen. Screens are not all the same shape as the picture, so the host
-/// picks per image rather than the app guessing: a wide banner and a portrait poster want
-/// opposite answers on the same television.
-/// </summary>
+/// <summary>How a still fills the screen; the host picks per image, not the app.</summary>
 public enum ImageScaling
 {
     /// <summary>Whole picture visible, bars where the shapes disagree.</summary>
@@ -50,40 +44,20 @@ public class Media : RepositoryModel
 
     public string Format { get; set; } = string.Empty;
 
-    /// <summary>
-    /// The provider that produced this file, as it named itself on import — "KaraFun", "YouTube".
-    /// Empty for anything the host found on its own disk, which is what a folder scan imports.
-    /// </summary>
-    /// <remarks>
-    /// The provider's claim about itself, not something the host checked: <c>IMediaAcquisitionService</c>
-    /// is an ordinary service and does not know who called it, unlike the QR registration where
-    /// the owner is stamped from the manifest. Nothing may be gated on this — a file that must not
-    /// play without an entitlement is protected by the container tag <c>IMediaPlaybackGate</c>
-    /// reads, which travels with the file rather than with a row anyone can write.
-    ///
-    /// Display-grade rather than a key, and deliberately not folded into
-    /// <see cref="SearchFolded"/>: "youtube" is not a word anyone is searching their library for,
-    /// and it would pull every video up as a match.
-    /// </remarks>
+    /// <summary>Provider that produced this file, self-named on import; empty for a scan find.</summary>
+    /// <remarks>Unchecked claim: never gate on it; kept out of <see cref="SearchFolded"/>.</remarks>
     public string Source { get; set; } = string.Empty;
 
-    /// <summary>
-    /// What the host has learned about this file. Deliberately not searchable: notes describe media
-    /// already found, so a word buried in one should not pull the song up as a match.
-    /// </summary>
+    /// <summary>What the host has learned about this file, deliberately not searchable.</summary>
     public string Notes { get; set; } = "";
 
-    /// <summary>
-    /// Title and artist as one folded haystack, holding exactly the text media_fts indexes so the
-    /// short-query fallback finds a song by the same words the index does. Written by the
-    /// persistence layer, not by hand.
-    /// </summary>
+    /// <summary>Title+artist folded into one haystack matching media_fts. Written by persistence.</summary>
     public string SearchFolded { get; set; } = string.Empty;
 
-    /// <summary>Size in bytes. Null on rows imported before content dedup, and measured on the next import run.</summary>
+    /// <summary>Size in bytes. Null before content dedup, measured on the next import.</summary>
     public long? FileSize { get; set; }
 
-    /// <summary>Hash of the size plus the first and last 64 KB — the cheap tier that separates same-size files.</summary>
+    /// <summary>Hash of size plus first/last 64 KB: the cheap tier separating same-size files.</summary>
     public string? SampledHash { get; set; }
 
     /// <summary>Full SHA-256. Filled in only when a sampled-hash match has to be confirmed.</summary>

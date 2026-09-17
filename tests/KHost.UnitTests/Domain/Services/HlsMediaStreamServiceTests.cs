@@ -136,7 +136,7 @@ public class HlsMediaStreamServiceTests : IDisposable
         var arguments = HlsMediaStreamService.BuildArguments("/songs/a.mp4", TimeSpan.Zero, 2, 0, 2);
 
         // asetrate reinterprets whatever rate reaches it, and the atempo below compensates only
-        // for the intended ratio — so a 48kHz source drifts off the video without this.
+        // for the intended ratio, so a 48kHz source drifts off the video without this.
         Assert.Contains("aresample=44100,asetrate=", arguments);
         Assert.True(
             arguments.IndexOf("aresample=44100,asetrate=", StringComparison.Ordinal)
@@ -158,7 +158,7 @@ public class HlsMediaStreamServiceTests : IDisposable
         var tempo = double.Parse(arguments[start..end], CultureInfo.InvariantCulture);
 
         // atempo rejects anything under 0.5, and chaining is the only way past it. Across the
-        // supported range pitch alone never gets there — combining it with a tempo change would.
+        // supported range pitch alone never gets there; combining it with a tempo change would.
         Assert.InRange(tempo, 0.5, 100.0);
     }
 
@@ -213,9 +213,8 @@ public class HlsMediaStreamServiceTests : IDisposable
     {
         var arguments = HlsMediaStreamService.BuildArguments("/songs/a.mp4", TimeSpan.Zero, pitch, tempo, 2);
 
-        // asetrate speeds the audio up by the pitch ratio as a side effect, so the atempo stages
-        // carry both the undo and the wanted tempo. Their product is the only thing that has to
-        // come out right, and getting it wrong drifts the audio off the picture rather than failing.
+        // asetrate speeds audio up by the pitch ratio as a side effect, so the atempo stages carry
+        // both the undo and the wanted tempo. Get their product wrong and it drifts, not fails.
         var speed = AsetrateRatio(arguments) * AtempoFactors(arguments).Aggregate(1.0, (a, f) => a * f);
 
         Assert.Equal(StreamRate.FromTempo(tempo), speed, 4);

@@ -2,14 +2,10 @@ using System.Text.Json.Serialization;
 
 namespace KHost.Abstractions.Models.Plugins;
 
-/// <summary>
-/// The published list of installable plugins. Optional-with-defaults rather than <c>required</c>
-/// throughout: parsed from a remote file, so a missing field degrades one entry rather than
-/// throwing away the whole catalog.
-/// </summary>
+/// <summary>Installable plugins; fields default, not required, so a bad entry degrades alone.</summary>
 public sealed class PluginCatalog
 {
-    /// <summary>Catalogs the host does not recognise are rejected whole — see <see cref="SupportedSchemaVersion"/>.</summary>
+    /// <summary>Unrecognised catalogs reject whole; see <see cref="SupportedSchemaVersion"/>.</summary>
     public const int SupportedSchemaVersion = 1;
 
     public int SchemaVersion { get; set; }
@@ -29,11 +25,11 @@ public sealed class PluginCatalogEntry
 
     public string? Description { get; set; }
 
-    /// <summary>Where the source lives, so a host can look before installing code that runs unsandboxed.</summary>
+    /// <summary>Where the source lives, so a host can look before installing unsandboxed code.</summary>
     public string? Repository { get; set; }
 
     /// <summary>What the plugin claims to provide, for the browse list. The loaded row reports what
-    /// it actually registered — these are the publisher's word, not the host's.</summary>
+    /// it actually registered; these are the publisher's word, not the host's.</summary>
     public List<string> Capabilities { get; set; } = [];
 
     public List<PluginCatalogRelease> Releases { get; set; } = [];
@@ -47,20 +43,12 @@ public sealed class PluginCatalogRelease
 
     public string Url { get; set; } = string.Empty;
 
-    /// <summary>
-    /// Hex SHA-256 of the zip. The catalog is the trust root — a release asset swapped after
-    /// publication cannot change the payload without an edit here — so a release without one is
-    /// never offered for install.
-    /// </summary>
+    /// <summary>Hex SHA-256 of the zip; the catalog is the trust root for a swapped release asset.</summary>
     public string Sha256 { get; set; } = string.Empty;
 
     public long? SizeBytes { get; set; }
 
-    /// <summary>
-    /// The platform this build is for — "win", "osx", "linux", optionally with an architecture
-    /// ("win-x64"). Blank means it runs anywhere, which is what a plugin should ship unless some
-    /// OS API forces a separate build.
-    /// </summary>
+    /// <summary>Platform this build targets, e.g. "win-x64"; blank means it runs anywhere.</summary>
     public string? Rid { get; set; }
 
     // Derived, so it must never be written: the catalog is a published document, and a persisted

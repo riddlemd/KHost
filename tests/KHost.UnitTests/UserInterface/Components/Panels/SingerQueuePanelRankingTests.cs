@@ -31,10 +31,7 @@ public class SingerQueuePanelRankingTests
         Assert.Equal(["Newer", "Older"], Rank(older, newer));
     }
 
-    /// <summary>
-    /// Groups have to stay whole, or the menu labels a run that is one singer long and then labels
-    /// the same venue again further down.
-    /// </summary>
+    /// <summary>Groups stay whole, or the menu labels one venue twice with a run between.</summary>
     [Fact]
     public void OtherVenuesStayTogether_OrderedByTheirMostRecentSinger()
     {

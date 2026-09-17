@@ -142,8 +142,7 @@
     }
 
     // Handed to <Icon>, so it renders on that component's element, not ours. The leading `&`
-    // is load-bearing: `::deep &__x` makes ::deep the first token, which Blazor can't rewrite,
-    // and the browser then drops the whole rule.
+    // is load-bearing: `::deep &__x` makes ::deep the first token, which Blazor can't rewrite.
     & ::deep &__sort-indicator {
         font-size: 0.85rem;
         margin-left: 4px;
@@ -230,7 +229,7 @@
         line-height: 1.5;
     }
 
-    // The rows a host may answer for. Given an edge so it reads as something to press — the other
+    // The rows a host may answer for. Given an edge so it reads as something to press; the other
     // rows state what they are and cannot be argued with.
     &__type--choosable {
         border-color: var(--kh-border);
@@ -244,7 +243,7 @@
     }
 
     // Answered by the host rather than worked out. Marked so a glance down the column separates
-    // what was decided from what was assumed — which is the whole reason the column is always on.
+    // what was decided from what was assumed. That is the whole reason the column is always on.
     &__type--chosen {
         border-color: var(--kh-primary);
         color: var(--kh-text);

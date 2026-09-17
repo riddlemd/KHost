@@ -11,10 +11,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace KHost.UnitTests.UserInterface.Components.Pages.Settings;
 
-/// <summary>
-/// The switches and the clone button are the page's whole point, so they are clicked rather than
-/// called: a handler wired to nothing passes every test that invokes it directly.
-/// </summary>
+/// <summary>Switches and clone are clicked, not called; a dead-wired handler would still pass.</summary>
 public class ThemeManagerPageTests : BunitContext
 {
     private const string ToggleSelector = "tbody .kh-form-check-input";

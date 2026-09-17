@@ -9,10 +9,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace KHost.UnitTests.UserInterface.Components.Dialogs;
 
-/// <summary>
-/// The marquee's controls are hidden until it is switched on, so the section has to be checked
-/// through the checkbox rather than by rendering and reading the inputs.
-/// </summary>
+/// <summary>The marquee's controls stay hidden until switched on, checked via the checkbox.</summary>
 public class EditVenueDialogMarqueeTests : BunitContext
 {
     private const string EnabledSelector = "#venue-marquee-enabled";
@@ -48,7 +45,7 @@ public class EditVenueDialogMarqueeTests : BunitContext
         Services.AddSingleton(plugins);
     }
 
-    /// <summary>Nothing but the switch until the venue wants one — the rest is noise otherwise.</summary>
+    /// <summary>Nothing but the switch until the venue wants one; the rest is noise otherwise.</summary>
     [Fact]
     public void MarqueeOff_ShowsOnlyTheSwitch()
     {
@@ -68,11 +65,7 @@ public class EditVenueDialogMarqueeTests : BunitContext
         Assert.Single(cut.FindAll(BackgroundSelector));
     }
 
-    /// <summary>
-    /// A venue that has never had a marquee stores zero singers, and offering that back is a band
-    /// that names nobody — the one thing the host just asked for. The suggestion stands until the
-    /// marquee has been on once.
-    /// </summary>
+    /// <summary>A never-enabled marquee stores zero singers, which would band-name nobody.</summary>
     [Fact]
     public void MarqueeNeverEnabled_SwitchingItOn_OffersSingersRatherThanNone()
     {
@@ -100,7 +93,7 @@ public class EditVenueDialogMarqueeTests : BunitContext
         Assert.Equal("7", cut.Find(SingerCountSelector).GetAttribute("value"));
     }
 
-    /// <summary>A native colour input has no empty state, so a venue with none set must be given one.</summary>
+    /// <summary>A native colour input has no empty state, so an unset venue needs a fallback.</summary>
     [Fact]
     public void MarqueeOn_NoColoursStored_FallsBackRatherThanShowingBlack()
     {
@@ -109,10 +102,7 @@ public class EditVenueDialogMarqueeTests : BunitContext
         Assert.False(string.IsNullOrEmpty(cut.Find(BackgroundSelector).GetAttribute("value")));
     }
 
-    /// <summary>
-    /// A number input cannot show "the screen decides", so a venue that has chosen no size is
-    /// offered the size the screen would pick — saving that back changes nothing on screen.
-    /// </summary>
+    /// <summary>A number input can't show "the screen decides", so no size gets the screen's own.</summary>
     [Fact]
     public void MarqueeOn_NoFontSizeStored_OffersTheScreensOwnSizeRatherThanZero()
     {
@@ -145,7 +135,7 @@ public class EditVenueDialogMarqueeTests : BunitContext
         Assert.Equal("140", cut.Find(SpeedSelector).GetAttribute("value"));
     }
 
-    /// <summary>An unset format leaves the field blank rather than pre-filling the default it falls back to.</summary>
+    /// <summary>An unset format leaves the field blank rather than pre-filling its own default.</summary>
     [Fact]
     public void MarqueeOn_NoEntryFormatStored_LeavesTheFieldBlank()
     {

@@ -17,9 +17,8 @@ public class PluginLoaderTests : IDisposable
 
     private string PluginsDir => Path.Combine(_root.FullName, "plugins");
 
-    // Windows keeps a loaded assembly mapped for the life of the process, so the entry dlls the
-    // LoadAndRegister tests copied in cannot be deleted here; POSIX unlinks them regardless. Take
-    // what the OS will give rather than failing every test in the class on the way out.
+    // Windows keeps a loaded assembly mapped for the process lifetime, so entry dlls the
+    // LoadAndRegister tests copied in cannot be deleted here; take what the OS will give.
     public void Dispose()
     {
         try { _root.Delete(recursive: true); }
@@ -138,10 +137,8 @@ public class PluginLoaderTests : IDisposable
     [Fact]
     public void LoadAndRegister_RealAssemblyWithoutExtensions_LoadsWithWarning()
     {
-        // A convenient real assembly that contains no extension implementations. Its version is
-        // read rather than assumed: it is a published package now, so it carries a real one and
-        // will carry a different one tomorrow — hardcoding it made this test fail the first time
-        // the contracts were versioned, for a mismatch the loader was right to report.
+        // Version read rather than hardcoded: it is a published package that carries a real, and
+        // changing, version. Hardcoding it broke on the first contracts bump the loader was right to flag.
         var assembly = typeof(PluginManifest).Assembly;
         var directory = WritePlugin("sdk-copy", "05d00000-0000-4000-8000-0000005dc09e",
             entryAssembly: "Entry.dll", createEntryAssembly: false,
@@ -161,7 +158,7 @@ public class PluginLoaderTests : IDisposable
     [Fact]
     public void LoadAndRegister_AssemblyWithExtensions_RecordsOneCapabilityPerInterface()
     {
-        // KHost.Domain is a real assembly holding every extension shape, and nine rotation modes —
+        // KHost.Domain is a real assembly holding every extension shape, and nine rotation modes,
         // enough to prove the label is per interface, not per implementation.
         var directory = WritePlugin("domain-copy", "0ca00000-0000-4000-8000-0000000cab11", entryAssembly: "Entry.dll", createEntryAssembly: false);
         File.Copy(typeof(LocalMediaProvider).Assembly.Location, Path.Combine(directory, "Entry.dll"));
@@ -190,9 +187,8 @@ public class PluginLoaderTests : IDisposable
         Assert.Contains(services, d => d.ServiceType == typeof(IBreakMusicProvider));
     }
 
-    // A type that is both a provider and a button handler must be ONE object, or signing in through
-    // the button would not sign in the searches. This copies the test assembly, whose only
-    // extension type is SharedInstanceExtensionDouble.
+    // A type that is both a provider and a button handler must be ONE object, or signing in
+    // through the button would not sign in the searches.
     [Fact]
     public void LoadAndRegister_TypeImplementingTwoExtensionInterfaces_ResolvesToOneSharedInstance()
     {
@@ -245,9 +241,8 @@ public class PluginLoaderTests : IDisposable
         var plugins = PluginLoader.Discover(PluginsDir, state);
         var services = new ServiceCollection();
 
-        // A plugin context is built with one, and the loader asks for it outright rather than
-        // shrugging — a host that forgot to register it would otherwise lose every plugin's
-        // secrets silently.
+        // The loader asks for this outright rather than shrugging. A host that forgot to
+        // register it would otherwise lose every plugin's secrets silently.
         services.AddSingleton<IPluginSecretStore>(new PluginSecretStore(new InMemorySecretStore()));
         services.AddSingleton(Substitute.For<KHost.Domain.Services.Screens.IScreenQrCodeService>());
 
@@ -325,10 +320,7 @@ public class PluginLoaderTests : IDisposable
         Assert.Empty(plugin.Warnings);
     }
 
-    /// <summary>
-    /// One pixel over on either axis. The row draws it small, so the cap is about what the host is
-    /// handed rather than what it shows.
-    /// </summary>
+    /// <summary>One pixel over on either axis; the cap is about what is handed to the host.</summary>
     [Theory]
     [InlineData(129, 128)]
     [InlineData(128, 129)]
@@ -356,10 +348,7 @@ public class PluginLoaderTests : IDisposable
         Assert.Contains(plugin.Warnings, w => w.Contains("not a PNG"));
     }
 
-    /// <summary>
-    /// Asking for an image and shipping none is the author's mistake to see; the row still draws,
-    /// on a glyph.
-    /// </summary>
+    /// <summary>Shipping no image is the author's mistake; the row still draws on a glyph.</summary>
     [Fact]
     public void Icon_AnImageAskedForButNotShipped_WarnsRatherThanFailingTheLoad()
     {
@@ -414,10 +403,7 @@ public class PluginLoaderTests : IDisposable
         return directory;
     }
 
-    /// <summary>
-    /// Just a signature and an IHDR — the loader reads the dimensions out of a fixed offset and
-    /// never decodes the image, so nothing past the header has to be real.
-    /// </summary>
+    /// <summary>Just a signature and an IHDR; the loader reads dimensions from a fixed offset.</summary>
     private static void WritePng(string directory, int width, int height)
     {
         var bytes = new List<byte> { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A };

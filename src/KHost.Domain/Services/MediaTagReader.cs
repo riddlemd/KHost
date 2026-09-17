@@ -23,7 +23,7 @@ public sealed class MediaTagReader(ILogger<MediaTagReader> logger) : IMediaTagRe
         }
         catch (Exception ex)
         {
-            // A file that will not probe is a playback problem, surfaced where the load fails — not
+            // A file that will not probe is a playback problem, surfaced where the load fails, not
             // a gate the reader should invent. Treated as untagged.
             logger.LogWarning(ex, "Could not read tags from '{FilePath}'", filePath);
             return null;

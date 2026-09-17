@@ -9,26 +9,15 @@ using QRCoder;
 
 namespace KHost.Domain.Services.Screens;
 
-/// <summary>
-/// Holds what every owner is offering and draws the one the venue picked. Host-side state rather
-/// than a command a caller fires and forgets: a screen that reconnects mid-show has to be told
-/// again, and nothing else knows what was up.
-///
-/// Registering and showing are separate on purpose. A plugin cannot know which venue is selected
-/// or what it chose, so it registers whenever its payload changes and this decides — which also
-/// means a venue can switch source mid-show and the new one is already there to draw.
-/// </summary>
+/// <summary>Holds what every owner is offering and draws the one the venue picked.</summary>
+/// <remarks>Registering and showing stay separate, so a switch mid-show draws instantly.</remarks>
 public sealed class ScreenQrCodeService : BaseService, IScreenQrCodeService, IDisposable, IStartsWithTheHost
 {
     private readonly IScreenServer _screenServer;
     private readonly IVenuesService _venuesService;
 
-    // Resolved on use, never in the constructor, and this is not a style choice — taking
-    // IPlaybackService here hangs the app before it logs a line. A plugin is registered once and
-    // pointed at every extension interface it implements, so a plugin that shows a QR code and
-    // gates playback closes a ring: the plugin needs this service, this service needs playback,
-    // playback needs every IMediaPlaybackGate, and one of those is the plugin being built. Nothing
-    // asks for a code until long after the graph is up, so the lookup is free by then.
+    // Resolved on use, never in the constructor: taking IPlaybackService there closes a DI ring when a
+    // plugin both shows a QR code and gates playback (this service -> playback -> the plugin's own gate).
     private readonly IServiceProvider _services;
     private IPlaybackService? _playbackService;
 
@@ -111,10 +100,8 @@ public sealed class ScreenQrCodeService : BaseService, IScreenQrCodeService, IDi
     {
         var settings = (await _venuesService.ReadSelectedVenueAsync())?.Settings;
 
-        // The venue names the one source it takes. Nothing named is nothing shown, and that is
-        // also the default: a code invites the room to scan it, so it goes up because someone
-        // chose it and not because a plugin happened to register one. A console with no venue
-        // selected has nobody to have chosen, which is the same answer.
+        // Nothing named is nothing shown, and that's the default: a code goes up because someone chose it,
+        // not because a plugin happened to register one.
         if (settings?.QrCodeSource is not { Length: > 0 } source)
             return new SetScreenQrCodesCommand();
 
@@ -136,7 +123,7 @@ public sealed class ScreenQrCodeService : BaseService, IScreenQrCodeService, IDi
             _lock.Release();
         }
 
-        // The chosen source has nothing to offer yet — a plugin that is not signed in, or one that
+        // The chosen source has nothing to offer yet: a plugin that is not signed in, or one that
         // withdrew. The venue's choice stands; there is simply nothing to draw against it.
         if (chosen is null)
             return new SetScreenQrCodesCommand();
@@ -158,9 +145,8 @@ public sealed class ScreenQrCodeService : BaseService, IScreenQrCodeService, IDi
                     Corner = settings.QrCodeCorner ?? ScreenCorner.BottomRight,
                     Size = settings.QrCodeSize ?? ScreenQrSize.Medium,
 
-                    // Resolved here rather than on the screen, which decides nothing: a venue that
-                    // has never been asked stores zero, and zero is the question "what would you
-                    // do?" rather than an answer of none.
+                    // Resolved here, not on the screen: a venue never asked stores zero, which means
+                    // "screen decides" rather than "none".
                     SafeZone = settings.QrCodeSafeZone is > 0 and var zone ? zone : DefaultSafeZone,
                     Offset = settings.QrCodeOffset is > 0 and var offset ? offset : DefaultOffset,
                 },
@@ -206,28 +192,16 @@ public sealed class ScreenQrCodeService : BaseService, IScreenQrCodeService, IDi
     private void Republish() => _ = Task.Run(() => BroadcastAsync());
 
     // Every venue edit and every song republishes the whole set, and the picture only changes when
-    // the payload does — encoding a few times a minute for an unchanged string is work for nothing.
+    // the payload does. Encoding a few times a minute for an unchanged string is work for nothing.
     private readonly Dictionary<string, (string Image, int Modules)> _encoded = [];
 
-    /// <summary>
-    /// The payload as a picture the screen can draw. SVG rather than pixels: a code sits in a
-    /// corner a few centimetres across, where the module edges are the whole of whether a phone
-    /// can read it. Correction level L on purpose — the code is on a clean lit panel, not a
-    /// printed flyer, and the lowest level spends the fewest modules on a payload of any length.
-    /// </summary>
-    /// <summary>
-    /// One module of white. The standard four is a quarter of the code's width again, which over
-    /// video reads as a slab; one is enough against dark picture on a lit panel.
-    /// </summary>
+    /// <summary>One module of white: the standard four-module border reads as a slab over video.</summary>
     private const int DefaultSafeZone = 1;
 
-    /// <summary>
-    /// Almost flush, as a percentage of the screen's shorter side. Not zero: a television
-    /// overscans and a projector is rarely framed exactly, and an edge cut off the picture is
-    /// worse than a hair of inset.
-    /// </summary>
+    /// <summary>Almost flush, as a fraction of the shorter side: overscan crops a flush edge.</summary>
     private const double DefaultOffset = 0.2;
 
+    /// <summary>Encodes the payload as an SVG at the lowest correction level, fewer modules.</summary>
     private (string Image, int Modules) Encode(string payload)
     {
         lock (_encoded)
@@ -239,13 +213,8 @@ public sealed class ScreenQrCodeService : BaseService, IScreenQrCodeService, IDi
         using var generator = new QRCodeGenerator();
         using var data = generator.CreateQrCode(payload, QRCodeGenerator.ECCLevel.L);
 
-        // One unit per module, so the SVG's own coordinates are the module grid and every size the
-        // screen asks for is an exact multiple of it.
-        //
-        // No quiet zone drawn in the picture. The standard four-module border is a quarter of the
-        // code's width again in white, which over video reads as a slab rather than as a code —
-        // and having it inside the image put it out of reach of anything the screen could do about
-        // it. The screen paints the margin instead, so a venue's corner can be as tight as it likes.
+        // One unit per module, so every size the screen asks for is an exact multiple of the grid.
+        // No quiet zone drawn in: the screen paints that margin, so a corner can be as tight as it likes.
         var svg = new SvgQRCode(data).GetGraphic(1, "#000000", "#ffffff", drawQuietZones: false);
 
         // ModuleMatrix counts the quiet zone whether or not it is drawn, so the eight rows and

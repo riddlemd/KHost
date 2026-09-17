@@ -42,10 +42,7 @@ public partial class EditPlaylistDialog
     /// <summary>Lengths too, so a row can show what it will run for before it is overridden.</summary>
     private readonly Dictionary<Guid, TimeSpan?> _durations = [];
 
-    /// <summary>
-    /// One row of the picker. Media and playlists are different things but the same choice, and a
-    /// combo box binds one type — so they meet here rather than in two controls.
-    /// </summary>
+    /// <summary>One row of the picker: different things, same choice, a combo box binds one type.</summary>
     /// <param name="Group">Its heading in the menu. The caller groups by sorting; the box never reorders.</param>
     internal sealed record AddChoice(string Label, string Group, Media? Media, MediaPool? Pool);
 
@@ -106,10 +103,7 @@ public partial class EditPlaylistDialog
         _poolChoices = [.. pools.Where(p => p.Id != _id).OrderBy(p => p.Name)];
     }
 
-    /// <summary>
-    /// Only the rows already in the playlist, read by id. The pickers search the library instead
-    /// of holding it, so there is no in-memory list to look a title up in.
-    /// </summary>
+    /// <summary>Rows already in the playlist: pickers search the library, no list held here.</summary>
     private async Task LoadEntryTitlesAsync()
     {
         _titles.Clear();
@@ -128,10 +122,7 @@ public partial class EditPlaylistDialog
         }
     }
 
-    /// <summary>
-    /// Artist as well as title: the search covers both, so a row matched on its artist looks like
-    /// a mistake when only the title is shown.
-    /// </summary>
+    /// <summary>Artist as well as title: search covers both, so an artist-only match reads fine.</summary>
     private static string Describe(Media media)
         => string.IsNullOrWhiteSpace(media.Artist) ? media.Title : $"{media.Title} — {media.Artist}";
 
@@ -150,10 +141,7 @@ public partial class EditPlaylistDialog
             : "(empty)";
     }
 
-    /// <summary>
-    /// What this playlist can use: an ad is a video, a sound, or a still; break music is a record.
-    /// Never the karaoke library — those are backing tracks with no singer on them.
-    /// </summary>
+    /// <summary>Never the karaoke library: those are backing tracks with no singer on them.</summary>
     private Task<IReadOnlyList<Media>> SearchMediaAsync(string term) => SearchAsync(term,
         Purpose == PoolPurpose.Ads
             ? [MediaType.Video, MediaType.Audio, MediaType.Image]
@@ -176,11 +164,7 @@ public partial class EditPlaylistDialog
             ? TimeSpan.FromSeconds(seconds)
             : null;
 
-    /// <summary>
-    /// The seconds the entry will actually run for while its own length is blank, shown as the
-    /// placeholder so a host sees the number they are inheriting rather than the rule behind it.
-    /// Mirrors what AdService resolves, so the two cannot say different things.
-    /// </summary>
+    /// <summary>Shown as the placeholder, not the rule: mirrors what AdService resolves.</summary>
     private string DescribeDefaultDuration(MediaPoolEntry entry)
     {
         // A video answers for itself.
@@ -221,10 +205,7 @@ public partial class EditPlaylistDialog
         _addJustOpened = true;
     }
 
-    /// <summary>
-    /// Media first, then playlists — the box draws a heading wherever the group changes and never
-    /// reorders, so the order they are returned in is the order they are grouped in.
-    /// </summary>
+    /// <summary>Media first, then playlists: the box heads on group change, never reorders.</summary>
     private async Task<IReadOnlyList<AddChoice>> SearchAddChoicesAsync(string term)
     {
         var media = await SearchMediaAsync(term);
@@ -240,10 +221,7 @@ public partial class EditPlaylistDialog
         return choices;
     }
 
-    /// <summary>
-    /// Adding is its own press. Choosing a row only fills the field, so a host who picks the wrong
-    /// one types again rather than deleting a line they did not mean to make.
-    /// </summary>
+    /// <summary>Choosing a row only fills the field; a wrong pick can be retyped, not deleted.</summary>
     private void AddChosenEntry()
     {
         if (_addChoice is not { } choice)

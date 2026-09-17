@@ -24,7 +24,7 @@ public sealed record PluginInstallInfo
 
     public PluginInstallState State { get; init; } = PluginInstallState.Downloading;
 
-    /// <summary>0..1, or null when the server sent no length — rendered as an indeterminate bar.</summary>
+    /// <summary>0..1, or null when the server sent no length, rendered as an indeterminate bar.</summary>
     public double? Progress { get; init; }
 
     /// <summary>Why it failed. Null in every other state.</summary>

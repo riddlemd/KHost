@@ -96,7 +96,7 @@ public class PluginsManagerPageTests : BunitContext
     [Fact]
     public void StateBadge_EnabledSinceStartup_ReadsRestartToLoad()
     {
-        // Discovered as Disabled at startup, enabled afterwards — the pending state the old page
+        // Discovered as Disabled at startup, enabled afterwards: the pending state the old page
         // reported as plain "Disabled".
         Arrange(Plugin(PluginStatus.Disabled), enabled: true);
 
@@ -376,7 +376,7 @@ public class PluginsManagerPageTests : BunitContext
         _pluginsService.DidNotReceive().SetEnabledAsync(PluginId.ToString(), true);
     }
 
-    /// <summary>Renders the page and switches to the browse list, which is where a catalog entry shows.</summary>
+    /// <summary>Renders the page and switches to the browse list, where a catalog entry shows.</summary>
     private IRenderedComponent<PluginsManagerPage> RenderAvailable(params PluginCatalogEntry[] entries)
     {
         _catalog.Current.Returns(new PluginCatalogSnapshot
@@ -430,7 +430,7 @@ public class PluginsManagerPageTests : BunitContext
     [Fact]
     public void AvailableRow_BuiltOnlyForOtherPlatforms_ReadsNotCompatibleAndSaysWhy()
     {
-        // Same badge as a plugin-API mismatch — neither will run here — but the tooltip has to
+        // Same badge as a plugin-API mismatch (neither will run here), but the tooltip has to
         // name the platform, or the host is left to guess which kind of incompatible it is.
         Arrange(Plugin(PluginStatus.Loaded), enabled: true);
 
@@ -564,13 +564,7 @@ public class PluginsManagerPageTests : BunitContext
         Assert.Single(cut.FindAll($"{RowSelector}--open"));
     }
 
-    /// <summary>The state a plugin dropped in by hand under a second name leaves behind: two rows,
-    /// one manifest id, and the second discovered copy errored as a duplicate.</summary>
-    /// <summary>
-    /// An author groups settings by meaning and the host has no better idea: a definition carries a
-    /// key, a type and a label, with no group to sort on. Spotify declares the Spicetify bridge
-    /// immediately before the port it uses, and any reordering here parts them.
-    /// </summary>
+    /// <summary>A definition carries no sort group; reordering parts a setting from its kin.</summary>
     [Fact]
     public void Settings_AreShownInTheOrderTheManifestDeclares()
     {
@@ -584,7 +578,7 @@ public class PluginsManagerPageTests : BunitContext
         var cut = Render<PluginsManagerPage>();
         cut.Find(DisclosureSelector).Click();
 
-        // Declared order exactly: not grouped by type, and not alphabetical either — both of which
+        // Declared order exactly: not grouped by type, and not alphabetical either. Both of those
         // would move "Port the extension connects on" away from the toggle that turns it on.
         Assert.Equal(
             ["Playlist", "Shuffle the playlist", "Listen for the extension", "Port the extension connects on", "Fade length"],
@@ -592,7 +586,7 @@ public class PluginsManagerPageTests : BunitContext
     }
 
     // The two shapes label themselves differently, which is why a row each is what makes the panel
-    // readable — packed into columns, a checkbox sat beside an input.
+    // readable. Packed into columns, a checkbox sat beside an input.
     private static List<string> FieldLabels(IRenderedComponent<PluginsManagerPage> cut)
         => [.. cut.FindAll(".kh-plugins-manager__field .kh-plugins-manager__label, .kh-plugins-manager__field .kh-form-check-label")
             .Select(l => l.TextContent.Trim())];
@@ -608,11 +602,7 @@ public class PluginsManagerPageTests : BunitContext
         Assert.NotEmpty(Render<PluginsManagerPage>().FindAll(".kh-plugins-manager__glyph .bi-search"));
     }
 
-    /// <summary>
-    /// What a plugin registered says what it does, not what it looks like. The host used to guess a
-    /// glyph from it, which read as an opinion about the plugin's identity and disagreed with the
-    /// catalog's copy of the same guess.
-    /// </summary>
+    /// <summary>The host once guessed a glyph from a capability, defying the catalog's own guess.</summary>
     [Fact]
     public void Glyph_ACapabilityWithoutAManifestIcon_IsStillTheGenericOne()
     {
@@ -624,10 +614,7 @@ public class PluginsManagerPageTests : BunitContext
         Assert.NotEmpty(Render<PluginsManagerPage>().FindAll(".kh-plugins-manager__glyph .bi-puzzle"));
     }
 
-    /// <summary>
-    /// The specifier is not a glyph name. A plugin that asked for an image and did not ship a usable
-    /// one lands where a manifest that said nothing lands, rather than on a class called "image".
-    /// </summary>
+    /// <summary>An image specifier is not a glyph name; a bad image falls back like empty.</summary>
     [Fact]
     public void Glyph_TheImageSpecifierWithoutAUsableImage_FallsBackRatherThanNamingAGlyph()
     {

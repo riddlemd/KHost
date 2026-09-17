@@ -5,17 +5,11 @@ using KHost.UserInterface.Models;
 
 namespace KHost.UserInterface.Services;
 
-/// <summary>
-/// Renders a stored theme to the same stylesheet shape the SCSS build produces, and reads a
-/// compiled theme back into the editable values so a built-in can be cloned.
-/// </summary>
+/// <summary>Renders a stored theme to the stylesheet shape the SCSS build produces.</summary>
+/// <remarks>Also parses a compiled stylesheet back into editable values, so a built-in can clone.</remarks>
 public static partial class ThemeCss
 {
-    /// <summary>
-    /// Characters that would end the declaration or the <c>:root</c> block. A value reaches here
-    /// from an admin form and leaves as bytes in a stylesheet every client loads, so anything that
-    /// could open a rule of its own is refused rather than escaped.
-    /// </summary>
+    /// <summary>Chars that would break out of the declaration; a value with one is refused.</summary>
     private static readonly char[] _forbidden = [';', '{', '}', '<', '>', '\\'];
 
     private const int MaxValueLength = 200;
@@ -26,11 +20,7 @@ public static partial class ThemeCss
            && value.IndexOfAny(_forbidden) < 0
            && !value.Contains("/*", StringComparison.Ordinal);
 
-    /// <summary>
-    /// Whether a value is usable for a particular field. A colour must be a hex literal as well as
-    /// safe: <c>--bs-primary-rgb</c> is computed from <c>--kh-primary</c>, so a named colour or an
-    /// <c>rgb()</c> would render correctly while the triplet quietly fell back to another colour.
-    /// </summary>
+    /// <summary>A colour must also be a hex literal: <c>--bs-primary-rgb</c> is computed from it.</summary>
     public static bool IsValidFor(ThemeVariable field, string? value)
         => IsValidValue(value)
            && (field.Kind != ThemeVariableKind.Color || TryParseHex(value, out _, out _, out _));
@@ -54,10 +44,8 @@ public static partial class ThemeCss
         return builder.ToString();
     }
 
-    /// <summary>
-    /// Pulls the editable values out of a compiled theme stylesheet. Derived properties in the file
-    /// are ignored: they are recomputed on build, so carrying them would let a clone drift.
-    /// </summary>
+    /// <summary>Pulls editable values out of a compiled stylesheet; derived properties are skipped.</summary>
+    /// <remarks>Derived values are recomputed on build, so carrying them lets a clone drift.</remarks>
     public static Dictionary<string, string> Parse(string css)
     {
         var values = new Dictionary<string, string>(StringComparer.Ordinal);
@@ -95,11 +83,8 @@ public static partial class ThemeCss
         return true;
     }
 
-    /// <summary>
-    /// Re-bases every translucent shade on the colour it is made from, in place. Each shade keeps
-    /// the alpha it already had — that is the theme's own tuning, and only the hue went stale when
-    /// the base colour changed. A shade that is not an <c>rgba()</c> falls back to its usual alpha.
-    /// </summary>
+    /// <summary>Re-bases every translucent shade on its source colour, keeping its own alpha.</summary>
+    /// <remarks>Only the hue went stale; a non-<c>rgba()</c> shade falls back to its usual alpha.</remarks>
     public static void DeriveShades(Dictionary<string, string> values)
     {
         foreach (var (key, source, defaultAlpha) in ThemeVariableCatalog.ShadeRecipes)

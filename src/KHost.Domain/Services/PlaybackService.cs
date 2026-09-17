@@ -23,31 +23,21 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         /// <summary>Must cover the slowest screen's command latency.</summary>
         public TimeSpan SyncStartLead { get; set; } = TimeSpan.FromMilliseconds(400);
 
-        /// <summary>
-        /// Collapses a burst of presses into one restart; each restart is a hole in the song.
-        /// </summary>
+        /// <summary>Collapses a burst of presses into one restart, each a hole in the song.</summary>
         public TimeSpan PitchSettleDelay { get; set; } = TimeSpan.FromMilliseconds(600);
 
-        /// <summary>
-        /// Where the backing voices sit on a song nobody has mixed by hand. The lead has no
-        /// setting: a singer is there to replace it, so it always starts out of the way.
-        /// </summary>
+        /// <summary>Where backing sits on an unmixed song; the lead has none, a singer replaces it.</summary>
         public int DefaultBackingVolume { get; set; } = AudioMix.DefaultBackingVolume;
 
-        /// <summary>
-        /// How long a replaced transcode is left standing before its directory is deleted. A
-        /// consumer that has not moved to the replacement yet is still fetching segments out of
-        /// it, and a receiver has no second player to cross to — it reads the 404 body as media.
-        /// </summary>
+        /// <summary>How long a replaced transcode stays before deletion.</summary>
+        /// <remarks>No second player exists mid-fetch, and a receiver reads a 404 body as media.</remarks>
         public TimeSpan StreamRetireGrace { get; set; } = TimeSpan.FromSeconds(8);
     }
 
     private const int ClockIntervalMs = 500;
 
-    // Swapping _timer is a two-step read-then-assign reached from the UI dispatcher (PlayAsync,
-    // SeekAsync) and from Task.Run continuations (a screen connecting) at once. Unguarded, both
-    // callers assign and the loser's Timer is unreachable — it ticks, and drives a second position
-    // clock and a second round of panel queries, until the process ends.
+    // _timer's swap is read-then-assign, reached from the UI dispatcher and Task.Run continuations at once;
+    // unguarded, the loser's Timer becomes unreachable but keeps ticking, driving a second clock forever.
     private readonly Lock _clockLock = new();
     private readonly IMessageBroker _broker;
     private Timer? _timer;
@@ -87,7 +77,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
     // An ad's length, which is the composition's rather than any one file's.
     private TimeSpan? _adDuration;
 
-    /// <summary>Whether the ad on screen takes the room's sound, which decides if the bed stays down.</summary>
+    /// <summary>Whether the ad on screen takes the rooms sound, so the bed stays down or not.</summary>
     private bool _adHasOwnAudio;
 
     private readonly ISingerQueueService _singerQueueService;
@@ -131,10 +121,8 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
     public int LeadVolume { get; private set; }
     public int BackingVolume { get; private set; } = AudioMix.DefaultBackingVolume;
 
-    /// <summary>
-    /// Song seconds per second of wall clock. Taken from the open stream rather than the wanted
-    /// tempo: between a change and the transcode reopening, the room is still on the old rate.
-    /// </summary>
+    /// <summary>Song seconds per wall-clock second, from the open stream not the wanted tempo.</summary>
+    /// <remarks>The room is still on the old rate until the stream reopens.</remarks>
     private double Rate => _stream is { } stream ? stream.PlaybackRate() : 1.0;
 
     public PlaybackService(
@@ -178,19 +166,13 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         _cast.PlaybackStatusChanged += OnCastStatusReceived;
         _castSubscription = _broker.Subscribe<CastChanged>(message => { _ = Task.Run(SyncCastSessionAsync); });
 
-        // The card is the venue's, so a venue edit is news about what should be on screen. Without
-        // this it changed only at the next playback transition — a host who picked a new one sat
-        // looking at the old one until a singer had been and gone.
+        // The card is the venue's, so a venue edit is news about what should be on screen. Without this it
+        // changed only at the next transition, a host looking at the old one until a singer came and went.
         _venueSubscription = _broker.Subscribe<SelectedVenueChanged>(
             message => { _ = Task.Run(RefreshIdleCardAsync); });
     }
 
-    /// <summary>
-    /// The name to put on screen for a performance: the one recorded when it was queued, unless
-    /// the venue would rather see the singer it knows. Read at load, which is the only moment it
-    /// can change — the performance does not, and a venue edited mid-song must not rename whoever
-    /// is at the microphone.
-    /// </summary>
+    /// <summary>The name to show, resolved once at load: a venue edit mid-song never renames it.</summary>
     private async Task<string?> NameForAsync(Performance performance)
     {
         var singer = _singerQueueService.Users.FirstOrDefault(user => user.Id == performance.SingerId)?.Name?.Trim();
@@ -207,11 +189,8 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         return venue?.Settings.AllowAliases == true ? recorded : singer;
     }
 
-    /// <summary>
-    /// Re-reads the venue's card, but only while nothing is playing. A still put up over a singer
-    /// is the one thing worse than a stale one, and the transitions below raise it anyway the
-    /// moment the song ends.
-    /// </summary>
+    /// <summary>Re-reads the venues card, but only while nothing is playing.</summary>
+    /// <remarks>A still over a singer is worse than a stale one.</remarks>
     private async Task RefreshIdleCardAsync()
     {
         if (CurrentPerformance is not null || IsPlayingAd)
@@ -222,7 +201,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
 
     public async Task<bool> HasConnectedScreenAsync()
     {
-        // A Cast receiver is not a screen, but it is somewhere the song comes out — refusing to
+        // A Cast receiver is not a screen, but it is somewhere the song comes out. Refusing to
         // play with only a television attached is refusing the setup casting exists for.
         if (_cast.ConnectedDeviceId is { Length: > 0 }) return true;
 
@@ -249,10 +228,8 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
             return;
         }
 
-        // A plugin can gate its own rendered content — KaraFun will not play a track from a paid
-        // account's .kit once that account is signed out. Refused like a non-Ready row, but with
-        // the gate's own reason flashed, since nothing on screen would otherwise say why the play
-        // did nothing.
+        // A plugin can gate its own rendered content (KaraFun blocks a signed-out account's .kit); it is
+        // refused like a non-Ready row, and the gate's reason is flashed since nothing else would say why.
         var gate = await _mediaGate.EvaluateAsync(media);
         if (!gate.Allowed)
         {
@@ -286,7 +263,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         Tempo = performance.Tempo;
         LeadVolume = AudioLevels.ClampVolume(performance.LeadVolume);
 
-        // Null means nobody has mixed this one, so the machine setting answers — and goes on
+        // Null means nobody has mixed this one, so the machine setting answers, and goes on
         // answering if that setting later changes.
         BackingVolume = AudioLevels.ClampVolume(performance.BackingVolume ?? Options.DefaultBackingVolume);
 
@@ -308,9 +285,8 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         }
         catch
         {
-            // Everything above already happened, and a load that dies here leaves the console with
-            // no way back: remove is disabled for the current performance, play for every row, and
-            // stop for a state that never reached Playing.
+            // A load that dies here must still leave the console recoverable: remove stays disabled for
+            // the current performance, play works for every row, and stop covers a state that never played.
             await AbandonLoadAsync();
             throw;
         }
@@ -318,11 +294,8 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         _broker.Announce(new PlaybackChanged());
     }
 
-    /// <summary>
-    /// Puts back what <see cref="LoadAsync"/> set up before the load failed. Deliberately not
-    /// <see cref="EndedAsync"/>: nothing was performed, so the singer keeps their turn and the
-    /// song stays queued for another try.
-    /// </summary>
+    /// <summary>Puts back what LoadAsync set up before it failed.</summary>
+    /// <remarks>Deliberately not EndedAsync, since nothing was performed.</remarks>
     private async Task AbandonLoadAsync()
     {
         await CloseStreamAsync();
@@ -349,10 +322,6 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         _broker.Announce(new PlaybackChanged());
     }
 
-    /// <summary>
-    /// Plays media on the main channel that is nobody's turn. It ends without dequeuing or
-    /// rotating: retiring a singer for an ad would cost them the song they are still waiting on.
-    /// </summary>
     /// <summary>The simple case: one file, its own length, whatever audio it carries.</summary>
     public Task<bool> PlayAdAsync(Media media) => PlayAdAsync(new AdPlayback
     {
@@ -360,6 +329,8 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         Duration = media.Duration ?? TimeSpan.Zero,
     });
 
+    /// <summary>Plays media on the main channel that is nobodys turn.</summary>
+    /// <remarks>Never dequeues or rotates: retiring a singer for an ad would cost their song.</remarks>
     public async Task<bool> PlayAdAsync(AdPlayback ad)
     {
         if (ad.IsEmpty)
@@ -369,7 +340,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         }
 
         // Nothing here is watching an ad the way a host watches a song, and the clock ends one by
-        // its duration — without one this would hold the main channel all night.
+        // its duration: without one this would hold the main channel all night.
         if (ad.Duration <= TimeSpan.Zero)
         {
             Logger.LogWarning("Ad refused: no duration");
@@ -449,7 +420,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         if (!playsOnMainChannel)
         {
             // A still or an audio-only spot drives no media element on the main channel, so there
-            // is nothing for the play path to start — the clock alone runs it out.
+            // is nothing for the play path to start: the clock alone runs it out.
             State = PlaybackState.Playing;
             StartClock();
 
@@ -462,8 +433,8 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         if (State == PlaybackState.Playing)
             return true;
 
-        // Refused — with no screen there is nothing to run the clock down and clear this, so the
-        // ad would hold the main channel and keep the bed suspended behind it.
+        // A refusal leaves no screen to run the clock down and clear this, so the ad would hold
+        // the main channel and keep the bed suspended behind it.
         await EndedAsync();
 
         _broker.Announce(new PlaybackChanged());
@@ -477,11 +448,11 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         if (CurrentMedia is null || State == PlaybackState.Playing) return;
 
         // Playing during a stop's fade supersedes it, but the screens have already been told to
-        // fade out and drop the media — so they need it handed back before being told to play.
+        // fade out and drop the media, so they need it handed back before being told to play.
         var supersedesStop = State == PlaybackState.Stopping;
 
         // Without a screen there is no audio or video, but the position timer would still run
-        // the performance to completion and rotate the singer away — burning their turn.
+        // the performance to completion and rotate the singer away, burning their turn.
         if (!await HasConnectedScreenAsync())
         {
             Logger.LogWarning("Play refused: no screens are connected");
@@ -521,16 +492,15 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
 
     public async Task SeekAsync(TimeSpan position)
     {
-        // Loaded is enough. A song sits in Stopped until Play, and scrubbing before starting it —
-        // to skip a long intro — is exactly when a host reaches for the bar.
+        // Loaded is enough. A song sits in Stopped until Play, and scrubbing before starting it
+        // (to skip a long intro) is exactly when a host reaches for the bar.
         if (CurrentMedia is not { } media)
             return;
 
         var target = Clamp(position, media.Duration);
 
-        // A stream opened part-way through a song holds nothing before its own zero — a pitch,
-        // tempo or mix change rebuilds it at the playhead — so a seek back past that point would
-        // clamp to wherever the transcode began and the song would carry on from there.
+        // A stream opened part-way through a song holds nothing before its own zero (a rate or mix change
+        // rebuilds it at the playhead). Seeking back past that point clamps there, not to the true target.
         if (_stream is { } open && target < open.StartOffset)
         {
             Logger.LogInformation("Seeking to {Position}, behind the stream; rebuilding it", target);
@@ -551,7 +521,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         await CastAsync(c => c.SeekAsync(target));
 
         // Screens play to a scheduled instant rather than following us, so moving the playhead has
-        // to re-anchor the whole group — not only the screen the host happens to be looking at.
+        // to re-anchor the whole group, not only the screen the host happens to be looking at.
         await PublishTimelineAsync(wasPlaying, target, scheduleAhead: wasPlaying);
 
         if (wasPlaying)
@@ -612,9 +582,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         await AfterRateChangeAsync();
     }
 
-    /// <summary>
-    /// Shared by key and speed, so changing both costs the song one break rather than two.
-    /// </summary>
+    /// <summary>Shared by key and speed, so changing both costs the song one break rather than two.</summary>
     private async Task AfterRateChangeAsync()
     {
         // Before the transcode is touched, so the readout answers the button rather than ffmpeg.
@@ -708,7 +676,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
             return;
 
         // Screens can only fade while frames are flowing, so a paused stop is instant on the
-        // screen — showing "Fading out…" here would just stall the UI over a blanked screen.
+        // screen: showing "Fading out…" here would just stall the UI over a blanked screen.
         var fade = State == PlaybackState.Playing ? Options.StopFadeDuration : TimeSpan.Zero;
 
         // Hold CurrentPerformance/CurrentMedia until the screens have finished fading, so the
@@ -775,12 +743,8 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
     private void OnScreenDisconnected(object? sender, ScreenConnectionEventArgs e) =>
         _ = Task.Run(HandleScreenLossAsync);
 
-    /// <summary>
-    /// A receiver holds no timeline and nothing catches it up — it plays whatever it was last
-    /// handed, so one selected mid-song sits idle until the next load. Keyed on the app session
-    /// rather than the device, which also covers a receiver that restarted: same device, new
-    /// session, and it has forgotten the song it was playing a moment ago.
-    /// </summary>
+    /// <summary>A receiver has no timeline of its own, so it sits idle until the next load.</summary>
+    /// <remarks>Keyed on session rather than device, to catch a restarted receiver too.</remarks>
     private async Task SyncCastSessionAsync()
     {
         if (_cast.SessionId is null)
@@ -800,9 +764,8 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
 
             var media = CurrentMedia;
 
-            // Hand over the transcode already running rather than opening a second one — and if
-            // there is none, nothing is playing to hand over: whatever starts next casts itself
-            // on load. An image sits on the screens and has no stream a receiver could take.
+            // Hand over the transcode already running rather than opening a second one; if there is none,
+            // whatever starts next casts itself on load: an image has no stream a receiver could take.
             if (_stream is not { PlaylistUrl.Length: > 0 } stream
                 || media is null
                 || MediaFormats.IsImage(media.Format)) return;
@@ -831,19 +794,16 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         {
             var media = CurrentMedia;
 
-            // A still sits on the screen rather than in a stream, so there is nothing to reload —
-            // and reloading would try to open a transcode for a picture. It just has to be put up
-            // again on the screen that has arrived. Keyed on the format rather than on it being an
-            // ad: what matters is that the thing on screen is a picture, whatever put it there.
+            // A still has no stream to reload: reloading would try to transcode a picture, so it is
+            // redrawn on the new screen. Keyed on format, not on being an ad: what matters is the picture.
             if (media is not null && MediaFormats.IsImage(media.Format))
             {
                 await SendToScreensAsync(new ShowImageCommand { Url = _mediaStreams.BuildImageUrl(media.Id), Scaling = media.ImageScaling });
                 return;
             }
 
-            // Nothing is playing, so the joiner gets the venue's card rather than the bare
-            // placeholder. An audio-only ad lands here too: it holds no picture of its own, so the
-            // card is exactly what should be on screen behind it.
+            // Nothing is playing, so the joiner gets the venue's card, not a bare placeholder. An
+            // audio-only ad lands here too, since it holds no picture of its own.
             if (media is null)
             {
                 await ShowIdleCardAsync();
@@ -863,8 +823,8 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
 
             Logger.LogInformation("Screen connected; reloading '{Title}' at {Position}", media.Title, position);
 
-            // Reuse the transcode that is already running rather than starting a second one —
-            // one host stream feeding every screen is the whole point of moving ffmpeg here.
+            // Reuse the transcode that is already running rather than starting a second one: one
+            // host stream feeding every screen is the whole point of moving ffmpeg here.
             await SendToScreensAsync(_stream is not null
                 ? DescribeStream(media)
                 : await BuildLoadCommandAsync(media, TimeSpan.Zero));
@@ -888,7 +848,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
             {
                 await SendToScreensAsync(new PlayCommand());
 
-                // Re-anchoring moves the whole group, not just the joiner — which is correct: the
+                // Re-anchoring moves the whole group, not just the joiner, which is correct: the
                 // reload froze the clock, so every screen has to be told where the song now is.
                 await PublishTimelineAsync(isPlaying: true, position, scheduleAhead: true);
             }
@@ -1023,16 +983,15 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
     /// <summary>Throws when the transcode will not start: there is no playback without it.</summary>
     private async Task<LoadMediaCommand> BuildLoadCommandAsync(Media media, TimeSpan startOffset)
     {
-        // Held, not closed. Tearing the old transcode down first leaves the room on whatever the
-        // screens have buffered while the new one spins up, and leaves them on nothing at all if
-        // it never does — a rebuild that fails now costs the change, not the song.
+        // Held, not closed: tearing down first would leave the room on buffered frames while the new one
+        // spins up (or on nothing, if it fails). A failed rebuild costs the change, not the song.
         var superseded = _stream;
 
         // Not swallowed: every screen plays the host's stream, so without one there is nothing to
         // send and pretending otherwise leaves the room staring at a screen that never starts.
         try
         {
-            // The ad path reaches here and reads zero — PlayAdAsync resets the state first.
+            // The ad path reaches here and reads zero: PlayAdAsync resets the state first.
             _stream = await _mediaStreams.OpenAsync(
                 media.FilePath, startOffset, Pitch, Tempo, CurrentMix);
         }
@@ -1060,13 +1019,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         return command;
     }
 
-    /// <summary>
-    /// ffmpeg fixes its filter graph at process start, so rebuilding is the only way a pitch
-    /// change reaches a playing song. Costs a short silence while the first segment is written.
-    /// </summary>
-    /// <summary>
-    /// Rebuilds at <paramref name="at"/>, or at the playhead when a rate change asked for it.
-    /// </summary>
+    /// <summary>Rebuilds since ffmpeg fixes its filter graph at start, which costs a short silence.</summary>
     private async Task ReopenStreamAsync(TimeSpan? at = null)
     {
         await _screenSyncLock.WaitAsync();
@@ -1104,10 +1057,8 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
                 return;
             }
 
-            // The room did not stop while the rebuild ran — the screens played on from their
-            // buffer — so resuming where the playhead stood would replay what was just heard.
-            // Only for a rate change: a host who asked to seek somewhere means that place, and
-            // carrying them past it would answer a different question.
+            // Screens played on from buffer during the rebuild, so resuming at the old playhead replays
+            // what was just heard, which matters only for a rate change; a seek already means exactly that.
             var resumeAt = at is null
                 ? Clamp(position + ((DateTime.UtcNow - startedAt) * Rate), media.Duration)
                 : position;
@@ -1154,10 +1105,8 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         Tempo = _stream?.Tempo ?? 0,
     };
 
-    /// <summary>
-    /// Ends an ad before its clock ran out, so none of what follows a finished one — the bed, the
-    /// venue card — happens here: the caller is putting something else on instead.
-    /// </summary>
+    /// <summary>Ends an ad before its clock ran out.</summary>
+    /// <remarks>None of what follows a finished one (the bed, the venue card) happens here.</remarks>
     private async Task CancelAdAsync()
     {
         Logger.LogInformation("Ad cut short");
@@ -1189,7 +1138,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         catch (Exception ex) { Logger.LogWarning(ex, "Failed to close ad audio stream {SessionId}", stream.Id); }
     }
 
-    /// <summary>The bed and an ad's own audio share one channel, and only the audible screen gets it.</summary>
+    /// <summary>The bed and an ad's own audio share one channel; only the audible screen gets it.</summary>
     private async Task SendToAudioScreenAsync(IScreenCommand command)
     {
         try
@@ -1246,7 +1195,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
     private async Task EndedAsync()
     {
         // Every path that finishes a performance runs through here, so it is the one place the
-        // transcode has to stop — an orphaned ffmpeg would keep burning CPU for a song nobody plays.
+        // transcode has to stop. An orphaned ffmpeg would keep burning CPU for a song nobody plays.
         await CloseStreamAsync();
 
         var currentPerformance = CurrentPerformance;
@@ -1294,10 +1243,8 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
 
         if (IsPlayingAd)
         {
-            // A silent ad — a still with no voiceover — is meant to run over the bed rather than
-            // over nothing. Starting one only suspends the bed when the ad has sound of its own,
-            // so it never put this one down; the song that just ended did, and nothing else will
-            // pick it back up until the ad is over.
+            // A silent ad (a still with no voiceover) runs over the bed, not over nothing. Starting one
+            // only suspends the bed when it has its own sound, so only the ended song put it down.
             if (!_adHasOwnAudio)
                 await _breakMusic.RestoreAsync();
 
@@ -1308,10 +1255,8 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         await ShowIdleCardAsync();
     }
 
-    /// <summary>
-    /// Puts the venue's card up now that nothing is playing. Hides whatever was there when the
-    /// venue has set none, so an ad's still never outlives the ad.
-    /// </summary>
+    /// <summary>Puts the venues card up now that nothing is playing, hides it if unset.</summary>
+    /// <remarks>An ads still never outlives the ad.</remarks>
     private async Task ShowIdleCardAsync()
     {
         try
@@ -1333,9 +1278,8 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
                 return;
             }
 
-            // The venue's answer where it has one: the same picture can be the card in two rooms
-            // whose screens are not the same shape, and a host setting it here should not have to
-            // go and edit the image in the library to change how it sits.
+            // The venue's own scaling answer wins when set: the same picture can be the card in two rooms
+            // of different shapes, and a host adjusting it here need not go edit the library image.
             await SendToScreensAsync(new ShowImageCommand
             {
                 Url = _mediaStreams.BuildImageUrl(media.Id),
@@ -1350,10 +1294,8 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         }
     }
 
-    /// <summary>
-    /// Separate from the screens on purpose: a receiver holds no role and must not inherit
-    /// whatever the screens gain next.
-    /// </summary>
+    /// <summary>Separate from the screens on purpose.</summary>
+    /// <remarks>A receiver holds no role and must not inherit whatever the screens gain next.</remarks>
     private async Task CastAsync(Func<ICastService, Task> action)
     {
         if (_cast.ConnectedDeviceId is not { Length: > 0 }) return;
@@ -1409,10 +1351,8 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         }
     }
 
-    /// <summary>
-    /// Anchors on a position a real screen reached. Asserting one instead holds the followers to
-    /// a clock they cannot reach — an HLS seek lands on a segment boundary, so they never arrive.
-    /// </summary>
+    /// <summary>Anchors on a position a real screen reached, not an asserted one.</summary>
+    /// <remarks>An HLS segment boundary cannot hold followers to an asserted clock.</remarks>
     private void OnScreenStateReceived(object? sender, ScreenStateReceivedEventArgs e)
     {
         if (State != PlaybackState.Playing) return;
@@ -1421,7 +1361,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         if (!state.IsPlaying || state.SampledAtUtc is not { } sampledAt) return;
 
         // The primary defines the song position, so the host's own clock follows it rather than
-        // free-running — the timer is only an interpolator between these reports now.
+        // free-running: the timer is only an interpolator between these reports now.
         var now = DateTime.UtcNow;
 
         // The position always follows the primary; only the republish is rate-limited.
@@ -1434,10 +1374,8 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         _ = PublishTimelineAsync(state.Position, sampledAt, isPlaying: true);
     }
 
-    /// <summary>
-    /// A receiver buffers seconds, so a free-running timer ends the song — and rotates the singer
-    /// away — while the room is still hearing it.
-    /// </summary>
+    /// <summary>A receiver buffers seconds, so a free-running timer would end a song too soon.</summary>
+    /// <remarks>The singer would rotate away while the room still hears it.</remarks>
     private void OnCastStatusReceived(object? sender, CastPlaybackStatus status)
     {
         if (State != PlaybackState.Playing || !status.IsPlaying) return;

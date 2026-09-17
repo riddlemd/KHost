@@ -1,8 +1,6 @@
 .kh-now-playing-panel {
-    // The band's full height, border included. One number, used here and by the band itself, so
-    // the room made for it cannot drift from what it takes. Two lines: the caption naming the band
-    // sits over the track rather than beside it, which is what keeps a long track title off the
-    // ellipsis on a narrow panel.
+    // The band's full height, border included: one number, used here and by the band itself, so
+    // the room made for it cannot drift from what it takes.
     --kh-break-music-band: 52px;
 
     height: 20vh;
@@ -12,9 +10,7 @@
     overflow: hidden;
 
     // The panel clips rather than reflows, so a band living inside the cap would cut the seek bar
-    // off the song — at a 720-tall window the body has about a pixel to spare. The band is added
-    // to the height instead, and only while there is a band: break music is not always configured,
-    // and a venue without it should not pay for the room.
+    // off the song; added to the height, only while a band exists, so a venue without one pays nothing.
     &:has(.kh-break-music-bar) {
         height: calc(20vh + var(--kh-break-music-band));
         max-height: calc(20vh + var(--kh-break-music-band));

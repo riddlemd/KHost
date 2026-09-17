@@ -1,9 +1,5 @@
-/* ═══════════════════════════════════════════════════════════════════════════
-   Dropdown
-   Trigger + anchored menu for DropdownMenu.razor. Global rather than co-located
-   because consumers supply the menu items, so the item classes are theirs to use.
-   ═══════════════════════════════════════════════════════════════════════════ */
-
+// Trigger + anchored menu for DropdownMenu.razor. Global rather than co-located because consumers
+// supply the menu items, so the item classes are theirs to use.
 .kh-dropdown {
     position: relative;
 

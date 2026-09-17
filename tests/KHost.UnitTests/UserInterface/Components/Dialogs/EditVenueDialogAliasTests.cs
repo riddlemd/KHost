@@ -9,10 +9,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace KHost.UnitTests.UserInterface.Components.Dialogs;
 
-/// <summary>
-/// Whether the room hears the name a guest signed a song up under, or the singer's own. The
-/// setting existed and was read by playback and the marquee before anything could switch it on.
-/// </summary>
+/// <summary>Controls whether the room hears the signed-up name or the singer's own name.</summary>
 public class EditVenueDialogAliasTests : BunitContext
 {
     private const string AliasSelector = "#venue-allow-aliases";
@@ -57,10 +54,7 @@ public class EditVenueDialogAliasTests : BunitContext
         Assert.True(cut.Find(AliasSelector).HasAttribute("checked"));
     }
 
-    /// <summary>
-    /// The half a load-only test cannot see. A setting read into the model but never written back
-    /// reads correctly every time the dialog opens and silently never takes effect.
-    /// </summary>
+    /// <summary>Read into the model but never saved back, this looked fine yet never took effect.</summary>
     [Fact]
     public void SwitchingItOn_ReachesTheVenueThatIsSaved()
     {
@@ -93,7 +87,7 @@ public class EditVenueDialogAliasTests : BunitContext
     {
         var cut = Render(new Venue.VenueSettings());
 
-        // Scoped to this switch's own row — the dialog is full of notes, and one belonging to
+        // Scoped to this switch's own row. The dialog is full of notes, and one belonging to
         // another control would pass this while saying nothing about the alias switch.
         var note = cut.Find($".kh-form-check:has({AliasSelector}) .kh-note");
 

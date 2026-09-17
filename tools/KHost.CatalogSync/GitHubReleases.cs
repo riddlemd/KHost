@@ -33,11 +33,8 @@ public sealed class GitHubAsset
         => Digest?.StartsWith("sha256:", StringComparison.OrdinalIgnoreCase) == true ? Digest[7..] : null;
 }
 
-/// <summary>
-/// Everything here is deliberately unauthenticated. The host downloads with no credentials, so a
-/// check that authenticates would pass against a private repo the host cannot read — which is
-/// exactly how a release can look published and still be unreachable.
-/// </summary>
+/// <summary>Everything here is deliberately unauthenticated.</summary>
+/// <remarks>An authenticated check passes against a private repo, hiding an unreachable release.</remarks>
 public sealed class GitHubClient(HttpClient http)
 {
     public async Task<GitHubRelease> ReadReleaseAsync(string repository, string? tag, CancellationToken cancellationToken)
@@ -59,7 +56,7 @@ public sealed class GitHubClient(HttpClient http)
             ?? throw new InvalidOperationException("GitHub returned an empty release.");
     }
 
-    /// <summary>Downloads to <paramref name="destination"/> and returns the SHA-256 this run computed.</summary>
+    /// <summary>Downloads to <paramref name="destination"/>; returns the SHA-256 this run computed.</summary>
     public async Task<string> DownloadAsync(string url, string destination, CancellationToken cancellationToken)
     {
         using var response = await http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, cancellationToken);

@@ -1,18 +1,10 @@
 namespace KHost.UserInterface.Services;
 
-/// <summary>
-/// Console control state that has to outlive the control holding it — a panel is torn down and
-/// rebuilt when the selected singer changes, and an operator's pick must not go with it. One
-/// holder for every such value rather than an interface per setting. Session-lived: a restart
-/// starts each control back on its default.
-/// </summary>
+/// <summary>Console control state that outlives the panel holding it.</summary>
+/// <remarks>A panel is rebuilt when the selected singer changes; session-lived, reset on restart.</remarks>
 public interface IControlState
 {
-    /// <summary>
-    /// Which source the Song Search panel searches by default — a provider's <c>SourceName</c>,
-    /// or null/empty for the local library. A KaraFun venue picks KaraFun once, not every time it
-    /// comes back to the search.
-    /// </summary>
+    /// <summary>Which source Song Search uses by default; null/empty means the local library.</summary>
     string? MediaSearchSource { get; set; }
 }
 

@@ -23,10 +23,7 @@ public partial class SingerQueuePanel : IAsyncDisposable
     [Inject] private IVenuesService? VenuesService { get; set; }
     [Inject] private IMessageBroker Broker { get; set; } = default!;
 
-    /// <summary>
-    /// Fired once the add-singer form's target is queued and selected — never for a click on an
-    /// already-queued singer, which is a click to view them, not a request to type a song next.
-    /// </summary>
+    /// <summary>Fired when the add-singer target is queued, not a click on an existing singer.</summary>
     [Parameter] public EventCallback OnSingerAdded { get; set; }
 
     private readonly SubscriptionSet _subscriptions = new();
@@ -36,7 +33,7 @@ public partial class SingerQueuePanel : IAsyncDisposable
     /// <summary>Where singers go when no performance of theirs carries a venue at all.</summary>
     private const string NoVenueGroup = "Not sung here before";
 
-    /// <summary>A venue that has since been deleted still names a group; it just cannot name itself.</summary>
+    /// <summary>A deleted venue still names a group; it just cannot name itself.</summary>
     private const string UnknownVenueGroup = "Another venue";
 
     private KHostUser? _pickedSinger;
@@ -131,11 +128,7 @@ public partial class SingerQueuePanel : IAsyncDisposable
         return RankByVenue(result.Items, _lastVenues, VenuesService?.SelectedVenueId);
     }
 
-    /// <summary>
-    /// Venue groups, this one first, then by how recently anyone sang at each — and singers with no
-    /// venue at all last. Inside a group, most recently sung first: the likeliest to be back.
-    /// The combo box labels runs without reordering them, so the grouping is this ordering.
-    /// </summary>
+    /// <summary>Orders by venue: current first, recent next, no-venue last; recency within each.</summary>
     public static IReadOnlyList<KHostUser> RankByVenue(
         IReadOnlyList<KHostUser> singers,
         IReadOnlyDictionary<Guid, RecentVenueVisit> lastVenues,
@@ -158,15 +151,7 @@ public partial class SingerQueuePanel : IAsyncDisposable
         ];
     }
 
-    /// <summary>
-    /// Whether this singer arrived from a phone rather than from the host typing their name.
-    /// Asked of the key being ephemeral rather than of the provider that issued it: an ephemeral
-    /// key names a connection instead of a person, which is exactly what a guest on a remote has,
-    /// and it keeps the console from knowing any one plugin by name.
-    ///
-    /// So the mark says "tonight", not "this is a KaraFun singer" — every ephemeral key is deleted
-    /// on startup, and a regular marked last night is a plain row today.
-    /// </summary>
+    /// <summary>Reads the ephemeral flag, not the provider: the mark says tonight, not a plugin.</summary>
     private static bool JoinedFromTheRoom(KHostUser singer)
         => singer.ForeignKeys.Any(key => key.IsEphemeral);
 
@@ -179,7 +164,7 @@ public partial class SingerQueuePanel : IAsyncDisposable
     {
         _pickedSinger = singer;
 
-        // Choosing a known singer is the whole action — there is nothing left for the button to do,
+        // Choosing a known singer is the whole action. There is nothing left for the button to do,
         // and the text is already theirs because the box sets it before it reports the choice.
         if (singer is not null)
             await AddUserAsync();
@@ -299,7 +284,7 @@ public partial class SingerQueuePanel : IAsyncDisposable
         StateHasChanged();
     });
 
-    // Rendering needs this synchronously, and the venue read is async — cache it and refresh
+    // Rendering needs this synchronously, and the venue read is async, so cache it and refresh
     // on venue state changes so saving the setting takes effect without a reload.
     private async Task RefreshVenueSettingsAsync()
     {
@@ -347,12 +332,7 @@ public partial class SingerQueuePanel : IAsyncDisposable
             .ToDictionary(m => m!.Id);
     }
 
-    /// <summary>
-    /// Async because tearing the sortable down is a JS call, and a ValueTask dropped on the floor
-    /// in a synchronous Dispose is a call nobody knows the outcome of. The circuit is often already
-    /// gone by the time a component is disposed — that is what JSDisconnectedException means here,
-    /// and it is the ordinary path rather than a fault.
-    /// </summary>
+    /// <summary>Async: tearing the sortable down is a JS call, and the circuit is usually gone.</summary>
     public async ValueTask DisposeAsync()
     {
         _subscriptions.Dispose();
@@ -361,10 +341,8 @@ public partial class SingerQueuePanel : IAsyncDisposable
         try
         {
             if (JS is not null)
-                // The key this panel registered under. The old single-instance global went when
-                // the two queues were keyed apart, and a call to a name JS no longer defines is
-                // not a quiet no-op — it throws out of DisposeAsync and takes the circuit with it,
-                // so navigating off the console left every control on the next page dead.
+                // The key this panel registered under, since the two queues were keyed apart.
+                // Destroying an undefined name throws out of DisposeAsync, killing the circuit.
                 await JS.InvokeVoidAsync("khSortable.destroy", "singers");
         }
         catch (JSDisconnectedException)

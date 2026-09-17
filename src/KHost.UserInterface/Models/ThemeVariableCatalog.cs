@@ -8,15 +8,8 @@ public enum ThemeVariableKind
 
 public sealed record ThemeVariable(string Key, string Label, string Group, ThemeVariableKind Kind, string Fallback);
 
-/// <summary>
-/// The editable surface of a theme: 61 of the 73 custom properties a stylesheet needs. The other
-/// 12 are Bootstrap aliases that only ever point back here.
-///
-/// The translucent shades are stored rather than derived, because the shipped themes tune their
-/// own alphas (a border runs from 24% to 35% across them) and famicom's primary shades are not its
-/// primary at all — deriving them would quietly repaint any theme cloned from one. The recipes
-/// survive as <see cref="ShadeRecipes"/>, which the editor offers as an action instead.
-/// </summary>
+/// <summary>The editable surface of a theme: 61 of the 73 custom properties a stylesheet needs.</summary>
+/// <remarks>Translucent shades are stored, not derived; see <see cref="ShadeRecipes"/>.</remarks>
 public static class ThemeVariableCatalog
 {
     public const string BrandGroup = "Brand";
@@ -106,10 +99,8 @@ public static class ThemeVariableCatalog
         new("--kh-badge-pending-bg", "Pending badge", BackdropsGroup, ThemeVariableKind.Text, "rgba(255, 255, 255, 0.04)")
     ];
 
-    /// <summary>
-    /// How each shade relates to the colour it is made from, as (shade, source, usual alpha). Used
-    /// only when a host asks for the shades to be re-derived after changing a base colour.
-    /// </summary>
+    /// <summary>How each shade relates to its source colour, as (shade, source, usual alpha).</summary>
+    /// <remarks>Used only when a host re-derives shades after changing a base colour.</remarks>
     public static readonly IReadOnlyList<(string Key, string Source, double Alpha)> ShadeRecipes =
     [
         ("--kh-primary-glow", "--kh-primary", 0.45),

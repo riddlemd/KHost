@@ -62,23 +62,13 @@ public partial class EditVenueDialog
         _editContext = new EditContext(_model);
     }
 
-    /// <summary>
-    /// The venue's mode when nothing loaded answers for it — a plugin that failed to load, was
-    /// switched off, or has been removed. It still has to appear in the list and stay selected: a
-    /// select whose value matches no option renders blank, which reads as "no mode set" for a venue
-    /// that has one, and hides that the next pick replaces a choice the host could not see.
-    /// </summary>
+    /// <summary>Kept selected for an unloaded provider: an unmatched select value renders blank.</summary>
     private string? UnavailableProviderSource
         => BreakMusic.Providers.Any(p => string.Equals(p.SourceName, _model.BreakMusicProvider, StringComparison.OrdinalIgnoreCase))
             ? null
             : _model.BreakMusicProvider;
 
-    /// <summary>
-    /// Every plugin that declared itself a QR source, whether or not it has a code to give right
-    /// now. Read from the manifests rather than from what has registered, so a venue can be set up
-    /// before the show — KaraFun has no code until a host signs in, and a list of what happens to
-    /// be live would be empty on the way in.
-    /// </summary>
+    /// <summary>Read from manifests, not registrations, so a venue can be set up before the show.</summary>
     private IEnumerable<(string Id, string Label)> QrCodeSources
         => Plugins.Plugins
             .Where(plugin => plugin.Manifest?.QrCode is not null)
@@ -89,33 +79,20 @@ public partial class EditVenueDialog
                     : plugin.Manifest.QrCode.Label!))
             .OrderBy(source => source.Label, StringComparer.CurrentCultureIgnoreCase);
 
-    /// <summary>
-    /// The venue's source when no installed plugin declares it — removed, or its folder renamed.
-    /// Kept in the list and selected for the same reason the break music mode is: a select whose
-    /// value matches no option renders blank, which reads as "none chosen" for a venue that chose
-    /// one, and hides that the next pick replaces something the host could not see.
-    /// </summary>
+    /// <summary>Kept selected when no plugin declares it, which the break music mode also does.</summary>
     private string? UnavailableQrCodeSource
         => string.IsNullOrWhiteSpace(_model.QrCodeSource)
            || QrCodeSources.Any(source => string.Equals(source.Id, _model.QrCodeSource, StringComparison.OrdinalIgnoreCase))
             ? null
             : _model.QrCodeSource;
 
-    /// <summary>
-    /// Whether the chosen mode is the one this host's own playlists feed — not whether the host
-    /// renders the audio, which is a separate question a provider may answer either way. An
-    /// unloaded mode counts as one, so the playlist a venue already chose is not hidden by a plugin
-    /// that failed to start.
-    /// </summary>
+    /// <summary>Whether the mode is fed by this host's own playlists, loaded or not.</summary>
     private bool UsesLocalPlaylists
         => UnavailableProviderSource is not null
            || (BreakMusic.LibraryProvider is { } library
                && string.Equals(_model.BreakMusicProvider, library.SourceName, StringComparison.OrdinalIgnoreCase));
 
-    /// <summary>
-    /// The mode this host's own playlists feed is the one a host thinks of as "my own music", so it
-    /// says so; every other provider names itself.
-    /// </summary>
+    /// <summary>The mode fed by this host's playlists reads "my own music"; others name themselves.</summary>
     private string DescribeProvider(IBreakMusicProvider provider)
         => ReferenceEquals(provider, BreakMusic.LibraryProvider)
             ? $"{provider.DisplayName} playlist"
@@ -152,18 +129,15 @@ public partial class EditVenueDialog
                     BreakMusicPoolId = Venue.Settings.BreakMusicPoolId,
                     AdPoolId = Venue.Settings.AdPoolId,
                     BrandingImageMediaId = Venue.Settings.BrandingImageMediaId,
-                    // Blank, not just null: a venue whose setting was cleared holds "", which no
-                    // option carries either, and would leave the select as empty as a missing
-                    // provider does.
+                    // Blank, not null: a cleared setting holds "", which no option carries either.
+                    // This is the same empty-select trap as a missing provider.
                     BreakMusicProvider = string.IsNullOrWhiteSpace(Venue.Settings.BreakMusicProvider)
                         ? BreakMusic.ActiveProvider?.SourceName
                         : Venue.Settings.BreakMusicProvider,
 
                     MarqueeEnabled = Venue.Settings.MarqueeEnabled,
-                    // A venue that has never had a marquee stores zero here, which is
-                    // indistinguishable from a deliberate message-only band — except that it
-                    // cannot have chosen one while the marquee was off. So the suggestion stands
-                    // until the venue has enabled it once, and its own zero is kept after that.
+                    // Zero is ambiguous (never set vs. a deliberate message-only band) except while
+                    // the marquee is off, so the suggestion stands until the venue enables it once.
                     MarqueeSingerCount = Venue.Settings.MarqueeEnabled
                         ? Venue.Settings.MarqueeSingerCount
                         : DefaultMarqueeSingerCount,
@@ -172,7 +146,7 @@ public partial class EditVenueDialog
                     MarqueePosition = Venue.Settings.MarqueePosition,
                     MarqueeBackgroundColor = Venue.Settings.MarqueeBackgroundColor ?? DefaultMarqueeBackground,
                     MarqueeTextColor = Venue.Settings.MarqueeTextColor ?? DefaultMarqueeText,
-                    // Zero is "the screen decides", which a number input cannot say — it shows the
+                    // Zero is "the screen decides", which a number input cannot say. It shows the
                     // size the screen would pick instead, and saving it back changes nothing.
                     MarqueeFontSizePixels = Venue.Settings.MarqueeFontSizePixels > 0
                         ? Venue.Settings.MarqueeFontSizePixels
@@ -182,7 +156,7 @@ public partial class EditVenueDialog
                         : DefaultMarqueeScrollSpeed,
                     MarqueePinLabel = Venue.Settings.MarqueePinLabel,
 
-                    // Null is "no preference", which a select cannot show — it offers what a code
+                    // Null is "no preference", which a select cannot show. It offers what a code
                     // would take anyway, and saving that back changes nothing.
                     QrCodeSource = Venue.Settings.QrCodeSource,
                     BrandingImageScaling = Venue.Settings.BrandingImageScaling,
@@ -201,10 +175,7 @@ public partial class EditVenueDialog
         _prevIsOpen = IsOpen;
     }
 
-    /// <summary>
-    /// Read when the dialog opens rather than held: a playlist added on the manager page while
-    /// this venue was last edited would otherwise be missing from the list.
-    /// </summary>
+    /// <summary>Read when the dialog opens, not held, since a new playlist would be missing.</summary>
     private async Task LoadChoicesAsync()
     {
 

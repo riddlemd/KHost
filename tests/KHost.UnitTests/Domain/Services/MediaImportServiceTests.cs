@@ -51,11 +51,7 @@ public class MediaImportServiceTests
         await _repository.DidNotReceive().GetExistingFilePathsAsync(Arg.Any<IEnumerable<string>>());
     }
 
-    /// <summary>
-    /// Everything scanned used to be parsed as karaoke, which was harmless only while the scanner
-    /// found nothing else. A still typed that way gets a fallback artist; an ad clip typed that
-    /// way turns up in the console's song search beside the songs.
-    /// </summary>
+    /// <summary>Mistyping a still or ad as karaoke gives it a fallback artist in song search.</summary>
     [Theory]
     [InlineData("/room/venue-card.jpg", MediaType.Image)]
     [InlineData("/room/free-fallin.mp3", MediaType.Audio)]
@@ -71,11 +67,7 @@ public class MediaImportServiceTests
         await _parser.Received(1).LoadAndParseAsync(path, expected);
     }
 
-    /// <summary>
-    /// A karaoke video and an ad clip are the same formats, so a folder holding both cannot be
-    /// settled by one answer for the batch. The host's answer for this file beats anything worked
-    /// out from its name.
-    /// </summary>
+    /// <summary>Video and ad share formats; a per-file answer beats the name-derived one.</summary>
     [Fact]
     public async Task StartAsync_TheHostAnsweredForThisFile_UsesThatRatherThanTheBatchAnswer()
     {
@@ -350,7 +342,7 @@ public class MediaImportServiceTests
         Assert.DoesNotContain(".khv", service.SupportedExtensions);
     }
 
-    /// <summary>A plugin may hand back any casing, with or without the dot or a glob — all one extension.</summary>
+    /// <summary>A plugin may hand back any casing, with or without a dot; all one extension.</summary>
     [Fact]
     public void SupportedExtensions_NormalizeAndDeduplicatePluginFormats()
     {

@@ -2,10 +2,7 @@ using KHost.Common.Chronography;
 
 namespace KHost.UnitTests.Common.Chronography;
 
-/// <summary>
-/// Every song duration in the library and the queue is printed through this, so the format is a
-/// visible contract rather than a detail.
-/// </summary>
+/// <summary>Every song duration in the library and queue prints through this format.</summary>
 public class TimeSpanExtensionsTests
 {
     [Theory]

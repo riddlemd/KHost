@@ -6,13 +6,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace KHost.UnitTests.Screen2;
 
-/// <summary>
-/// What reaches the page. The host resolves every one of these from the venue, so this class is a
-/// forwarder — but the page's CSS carries fallbacks numerically identical to the host's own
-/// defaults, which is how the safe zone and the offset were dropped here for as long as they
-/// existed and still looked right: a venue that had set neither rendered correctly, and a venue
-/// that set either was ignored. Nothing on screen could tell the difference.
-/// </summary>
+/// <summary>The page's CSS fallbacks match the host's defaults, so a dropped value looked right.</summary>
 public class StreamMediaPlayerQrCodeTests
 {
     private readonly StreamMediaPlayer _player = new(NullLogger<StreamMediaPlayer>.Instance);
@@ -60,10 +54,7 @@ public class StreamMediaPlayerQrCodeTests
         Assert.Equal(4.5, FirstCode().GetProperty("offset").GetDouble(), 3);
     }
 
-    /// <summary>
-    /// The page knows CSS words, not these enums' spelling — an unrecognised one falls back to a
-    /// default there, so a mismatch in case is a setting that silently stops working.
-    /// </summary>
+    /// <summary>The page knows CSS words, not these enums; a mismatch falls back silently.</summary>
     [Fact]
     public void SetQrCodes_LowercasesTheCornerAndSizeForTheirCssNames()
     {
@@ -75,10 +66,7 @@ public class StreamMediaPlayerQrCodeTests
         Assert.Equal("large", code.GetProperty("size").GetString());
     }
 
-    /// <summary>
-    /// The card goes the same way the codes do, and the corner has the same trap: the page matches
-    /// it against a CSS word and falls back on anything it does not recognise.
-    /// </summary>
+    /// <summary>The card's corner has the codes' same trap: a CSS-word match, silent fallback.</summary>
     [Fact]
     public void SetBreakMusicCard_CarriesTheTrackAndItsCorner()
     {

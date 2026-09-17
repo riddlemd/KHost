@@ -4,14 +4,7 @@ using Microsoft.AspNetCore.Components;
 
 namespace KHost.UnitTests.UserInterface.Components;
 
-/// <summary>
-/// A split button with nothing in its menu hides the half that opens it, and that is done in CSS:
-/// <c>.kh-split-btn:not(:has(.kh-split-btn__menu button))</c>. A stylesheet is not applied here, so
-/// these guard the markup that rule reads instead — the menu being in the document while closed,
-/// and holding a button only when the caller supplied one. Both are load-bearing and neither looks
-/// it: rendering the menu only while open, which is the obvious way to write it, brings the dead
-/// chevron back with every test still green.
-/// </summary>
+/// <summary>Rendering the menu only while open revives the dead chevron; assert markup, not CSS.</summary>
 public class SplitButtonTests : BunitContext
 {
     private const string MenuSelector = ".kh-split-btn__menu";
@@ -58,10 +51,7 @@ public class SplitButtonTests : BunitContext
         Assert.Empty(button.FindAll($"{MenuSelector} button"));
     }
 
-    /// <summary>
-    /// An empty list and an AuthorizeView that drew nothing are the same thing here — the caller
-    /// passing no fragment at all must look no different.
-    /// </summary>
+    /// <summary>An empty list and no fragment at all must look the same.</summary>
     [Fact]
     public void AMenuWithNoFragmentAtAll_HoldsNoButtons()
     {
@@ -83,10 +73,7 @@ public class SplitButtonTests : BunitContext
         Assert.True(button.Find(MenuSelector).HasAttribute("hidden"));
     }
 
-    /// <summary>
-    /// The overlay is what closes the menu by clicking away from it, so unlike the menu it belongs
-    /// on screen only while one is open — a permanent one would eat every click on the page.
-    /// </summary>
+    /// <summary>The overlay closes the menu on an outside click; a permanent one eats page clicks.</summary>
     [Fact]
     public void TheClickAwayOverlay_ExistsOnlyWhileOpen()
     {

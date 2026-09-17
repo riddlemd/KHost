@@ -8,10 +8,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace KHost.UnitTests.UserInterface.Components.Pages.Settings;
 
-/// <summary>
-/// The page edits a copy and only writes it on Save, so navigating away used to drop the changes
-/// without a word. Leaving is now a question with two answers, and closing the question is a third.
-/// </summary>
+/// <summary>The page edits a copy and writes only on Save; navigating away used to drop changes.</summary>
 public class AppSettingsPageGuardTests : BunitContext
 {
     private const string Elsewhere = "http://localhost/settings/media-manager";

@@ -33,10 +33,7 @@ public class ScreenQrCodeServiceTests
         Caption = caption ?? owner,
     };
 
-    /// <summary>
-    /// A venue that has chosen "karafun", since none is the default and none shows nothing. Pass
-    /// <paramref name="source"/> explicitly for the tests about choosing itself.
-    /// </summary>
+    /// <summary>A venue that has chosen "karafun", since none is the default.</summary>
     private void Arrange(Venue.VenueSettings? settings = null, string? source = "karafun")
     {
         settings ??= new();
@@ -45,15 +42,7 @@ public class ScreenQrCodeServiceTests
         _venues.ReadSelectedVenueAsync().Returns(new Venue { Name = "The Bar", Settings = settings });
     }
 
-    /// <summary>
-    /// Taking IPlaybackService here hung the app before it logged a line, and nothing in the
-    /// suite noticed: a plugin is registered once and pointed at every extension interface it
-    /// implements, so a plugin that shows a code and gates playback closes a ring — the plugin
-    /// needs this service, this service needs playback, playback needs every IMediaPlaybackGate,
-    /// and one of those is the plugin still being constructed. Asserted against the constructor
-    /// rather than by building that graph, because the failure is an infinite recursion: a test
-    /// that reproduced it would hang the suite instead of failing it.
-    /// </summary>
+    /// <summary>Taking IPlaybackService directly closes a constructor ring through a plugin.</summary>
     [Fact]
     public void TheService_DoesNotTakePlaybackInItsConstructor()
     {
@@ -101,11 +90,7 @@ public class ScreenQrCodeServiceTests
         Assert.Equal(ScreenQrSize.Large, placed.Size);
     }
 
-    /// <summary>
-    /// Zero is "no preference", not "none". A venue that has never been asked stores it, and the
-    /// stored default of a value type is zero whatever the property initializer says — so the
-    /// screen must never be handed one, or a code arrives with no quiet zone and nothing to scan.
-    /// </summary>
+    /// <summary>A never-asked venue stores zero, meaning "no preference" here, not "none".</summary>
     [Fact]
     public async Task RegisterAsync_VenueNeverAsked_TakesTheHostsOwnSafeZoneAndOffset()
     {
@@ -132,11 +117,7 @@ public class ScreenQrCodeServiceTests
         Assert.Equal(3.5, placed.Offset);
     }
 
-    /// <summary>
-    /// The picture carries no quiet zone of its own any more, so the module count must be what is
-    /// actually drawn. Counting the undrawn border would have the screen size every code as though
-    /// it were eight modules wider, and the per-module scannability floor would measure nothing.
-    /// </summary>
+    /// <summary>The picture carries no quiet zone, so module count is what is actually drawn.</summary>
     [Fact]
     public async Task RegisterAsync_ModuleCount_IsWhatTheImageDraws()
     {
@@ -154,12 +135,7 @@ public class ScreenQrCodeServiceTests
         Assert.Contains($"height=\"{placed.Modules}\"", svg);
     }
 
-    /// <summary>An owner that names one knows something the venue does not — a code beside its own overlay.</summary>
-    /// <summary>
-    /// Only the chosen source is drawn. The others keep registering against a venue that may pick
-    /// them later, and nothing tells them they were passed over — which is what makes switching
-    /// source mid-show immediate.
-    /// </summary>
+    /// <summary>Only the chosen source draws; the rest stay registered, so switching is instant.</summary>
     [Fact]
     public async Task BuildAsync_ASourceTheVenueDidNotChoose_IsHeldAndNotDrawn()
     {
@@ -186,10 +162,7 @@ public class ScreenQrCodeServiceTests
         Assert.Equal("online", Assert.Single((await service.BuildAsync()).Codes).Caption);
     }
 
-    /// <summary>
-    /// A chosen source that has nothing to give — a plugin not signed in yet, or one that
-    /// withdrew. The venue's choice stands; there is simply nothing to draw against it.
-    /// </summary>
+    /// <summary>A chosen source with nothing to give leaves the choice standing, nothing drawn.</summary>
     [Fact]
     public async Task BuildAsync_ChosenSourceRegisteredNothing_SendsNone()
     {
@@ -244,10 +217,7 @@ public class ScreenQrCodeServiceTests
         Assert.Empty((await service.BuildAsync()).Codes);
     }
 
-    /// <summary>
-    /// None is the default, and the answer whatever a plugin registers. A code invites a room to
-    /// scan it, so it goes up because a venue chose it and not because a plugin arrived.
-    /// </summary>
+    /// <summary>A code goes up because a venue chose it, not a plugin arriving; none is default.</summary>
     [Fact]
     public async Task BuildAsync_VenueChoseNoSource_SendsNone()
     {
@@ -308,11 +278,7 @@ public class ScreenQrCodeServiceTests
         Assert.Single((await service.BuildAsync()).Codes);
     }
 
-    /// <summary>
-    /// The caller hands over what the code should say and the host draws it. A provider that
-    /// renders its own (KaraFun returns an SVG) passes the string instead: two codes carrying the
-    /// same text scan to the same place whatever they look like.
-    /// </summary>
+    /// <summary>The host draws the code from the payload a provider hands over, not its own render.</summary>
     [Fact]
     public async Task RegisterAsync_DrawsThePayloadAsAVector()
     {
@@ -329,10 +295,7 @@ public class ScreenQrCodeServiceTests
         Assert.Contains("<svg", Decode(placed.ImageUrl), StringComparison.OrdinalIgnoreCase);
     }
 
-    /// <summary>
-    /// The screen sizes off the module count, so a code that arrives without one has nothing to
-    /// hold it above the size a long payload makes unreadable.
-    /// </summary>
+    /// <summary>The screen sizes off the module count, so a code has to carry one.</summary>
     [Fact]
     public async Task RegisterAsync_SaysHowManyModulesTheCodeIsAcross()
     {
@@ -347,7 +310,7 @@ public class ScreenQrCodeServiceTests
         Assert.True(placed.Modules >= 21, $"Expected a real module count, got {placed.Modules}");
     }
 
-    /// <summary>A longer payload needs more modules — the reason the count is sent at all.</summary>
+    /// <summary>A longer payload needs more modules, the reason the count is sent at all.</summary>
     [Fact]
     public async Task RegisterAsync_ALongerPayload_NeedsMoreModules()
     {
@@ -367,10 +330,7 @@ public class ScreenQrCodeServiceTests
         Assert.True(longCode.Modules > shortCode.Modules);
     }
 
-    /// <summary>
-    /// The same payload draws the same picture — the encoder caches, and a venue switching
-    /// between two sources pointing at one URL must not redraw it.
-    /// </summary>
+    /// <summary>The same payload draws the same picture; the encoder caches by URL.</summary>
     [Fact]
     public async Task RegisterAsync_TheSamePayloadTwice_DrawsTheSameCode()
     {
@@ -402,10 +362,7 @@ public class ScreenQrCodeServiceTests
             command => command.Codes.Count == 1));
     }
 
-    /// <summary>
-    /// A venue moving its codes has to reach the screens on its own: nobody calls ShowAsync again
-    /// for a setting that changed under them.
-    /// </summary>
+    /// <summary>A venue moving its codes reaches the screens on its own; nobody re-calls ShowAsync.</summary>
     [Fact]
     public async Task SelectedVenueChanged_RepublishesWhereTheCodesSit()
     {
@@ -425,7 +382,7 @@ public class ScreenQrCodeServiceTests
         await WaitForBroadcastAsync(command => command.Codes.Single().Corner == ScreenCorner.TopLeft);
     }
 
-    /// <summary>The whole point of holding this host-side: a screen that drops mid-show comes back correct.</summary>
+    /// <summary>Holding this host-side means a screen that drops mid-show comes back correct.</summary>
     [Fact]
     public async Task ScreenConnected_SendsTheCodesToThatScreen()
     {

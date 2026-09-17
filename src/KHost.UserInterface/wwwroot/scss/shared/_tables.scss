@@ -33,10 +33,8 @@
         background: var(--kh-table-stripe);
     }
 
-    // Painted on the row, not on each cell. An actions cell is display:flex, which takes it out of
-    // the table's cell layout so it never grows to the row's height — on a tall row that left a
-    // band under the buttons the hover never reached. Has to stay below the stripe rule: the two
-    // have equal specificity, so order is what decides.
+    // Painted on the row, not each cell. A flex actions cell never grows to the row's height, so a
+    // cell hover leaves a band under a taller row's buttons unpainted; below stripe, so order decides.
     tbody tr:hover {
         background: var(--kh-primary-subtle);
     }
@@ -59,25 +57,11 @@
         }
 
         &--actions {
-            // A table cell, and it has to stay one. display:flex takes it out of table layout, so
-            // it sizes to its own buttons instead of stretching to the row — and since a selected
-            // row is painted on its cells, the difference shows as an unpainted band wherever a row
-            // is taller than its actions. Invisible while every row was exactly button height; a
-            // second line under a title is the first thing that is not. There is no way to keep the
-            // flex: height:100%, align-self:stretch and the row-height trick were all measured
-            // against a real row and none of them stretch it.
+            // A table cell, and it has to stay one: display:flex takes it out of table layout, so
+            // a selected row's paint leaves an unpainted band wherever a row is taller than its actions.
             white-space: nowrap;
-            // Row actions sit beside 26px icon buttons, so drop the full-size control
-            // height here rather than letting a split button stretch the row.
             --kh-control-height: var(--kh-control-height-sm);
 
-            // What the flex gave: centring, and a gap.
-            //
-            // Not font-size: 0 to swallow the whitespace the markup leaves between buttons, which
-            // is the obvious way to make every gap identical — a split button takes its width from
-            // em padding and has no size of its own to fall back on, so it collapses to a sliver.
-            // The cost of leaving it is that two buttons written on separate lines sit a space
-            // further apart than two written on one, which is cosmetic and belongs in the markup.
             > * {
                 vertical-align: middle;
             }

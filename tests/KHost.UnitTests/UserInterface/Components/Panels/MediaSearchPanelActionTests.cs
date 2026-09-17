@@ -11,12 +11,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace KHost.UnitTests.UserInterface.Components.Panels;
 
-/// <summary>
-/// A plugin's download action can throw OperationCanceledException — dequeuing the Downloading row
-/// cancels the token the plugin was given — and that is a cancel, not a failure to surface.
-/// Invoked by reflection rather than through a click: Components' event dispatch swallows the
-/// exception itself, so a click-based test passes identically with the catch removed.
-/// </summary>
+/// <summary>Invoked by reflection: Blazor's dispatch swallows the exception a removed catch needs.</summary>
 public class MediaSearchPanelActionTests : BunitContext
 {
     private readonly IMediaSearchService _search = Substitute.For<IMediaSearchService>();
@@ -60,10 +55,7 @@ public class MediaSearchPanelActionTests : BunitContext
         await task;
     }
 
-    /// <summary>
-    /// The case this exists for is a provider signing in: the row the host clicked was the
-    /// provider saying it had nothing to search with, so leaving it up reads as a failed sign-in.
-    /// </summary>
+    /// <summary>Covers a sign-in row: leaving it up after success reads as a failed sign-in.</summary>
     [Fact]
     public async Task Action_ThatRefreshesResults_RunsTheSameSearchAgain()
     {

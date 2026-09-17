@@ -15,7 +15,7 @@
     // Compact variant for dense contexts; matches the fixed 26px icon buttons.
     --kh-control-height-sm: 26px;
     // Deliberately outside themes/: "inactive" must not read as the theme accent, and must
-    // not read as an alert either — alerts get --kh-danger.
+    // not read as an alert either. Alerts get --kh-danger.
     --kh-neutral: #6b7280;
 }
 
@@ -78,8 +78,7 @@ html {
 }
 
 // WebKit draws the native macOS pop-up for a menulist select and ignores the background and border
-// set above; Chromium honours them. The app runs in a Photino WKWebView, so without this the control
-// looks native and unthemed there while looking fine in a browser.
+// set above; the app runs in a Photino WKWebView, so this looks unthemed there, fine in a browser.
 .kh-form-select,
 // A select carrying the input class needs this too: without it the control silently reverts to the
 // native pop-up on macOS alone, ignoring the padding and border set above.
@@ -141,9 +140,8 @@ input[type='number'] {
         box-shadow: 0 0 0 3px var(--kh-primary-glow);
     }
 
-    // Carried over from the switch this replaced. Rows that cannot be toggled — the theme in use,
-    // a plugin that failed to load, every permission under an admin group — are the reason a
-    // disabled box has to look different from one that is merely unchecked.
+    // Rows that cannot be toggled (the theme in use, a plugin that failed to load, every permission
+    // under an admin group) need a disabled box that looks different from a merely unchecked one.
     &:disabled {
         opacity: 0.35;
         cursor: default;

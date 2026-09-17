@@ -6,10 +6,7 @@ using Microsoft.Extensions.Options;
 
 namespace KHost.IntegrationTests.Cast;
 
-/// <summary>
-/// Drives a real CASTV2 receiver. Skips unless the emulator from
-/// <c>~/Developer/riddlemd/Chromecast-Emulator</c> is listening on 127.0.0.1:8009.
-/// </summary>
+/// <summary>Drives a real CASTV2 receiver; skips unless the emulator listens on 127.0.0.1:8009.</summary>
 public class CastServiceTests : IAsyncLifetime
 {
     // The emulator can be started under any --name; pinning one turns that into failures.
@@ -84,7 +81,7 @@ public class CastServiceTests : IAsyncLifetime
         await _cast.DisconnectAsync();
         await _cast.ConnectAsync(DeviceName);
 
-        // The app was launched again, so the receiver knows nothing — which is the whole reason
+        // The app was launched again, so the receiver knows nothing, which is the whole reason
         // the id exists rather than a connected flag.
         Assert.NotNull(_cast.SessionId);
         Assert.NotEqual(first, _cast.SessionId);

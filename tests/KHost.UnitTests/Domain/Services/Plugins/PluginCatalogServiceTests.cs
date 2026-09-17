@@ -177,7 +177,7 @@ public class PluginCatalogServiceTests
     public async Task GetAsync_ResponseDeclaresMoreThanTheCap_IsRefusedWithoutReadingIt()
     {
         // A small body behind a huge Content-Length: only the declared-size check can refuse this,
-        // and refusing on the header is the point — the body is never pulled down.
+        // and refusing on the header is the point. The body is never pulled down.
         var service = BuildService(new StubHandler(CatalogJson) { DeclaredLength = 3 * 1024 * 1024 });
 
         Assert.Null(await service.GetAsync());

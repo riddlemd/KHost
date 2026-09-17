@@ -1,9 +1,6 @@
 namespace KHost.Abstractions.Models;
 
-/// <summary>
-/// What a pool remembers between picks. Held by the service rather than the row: it is worth
-/// nothing after a restart, and writing it would put a database write on every track change.
-/// </summary>
+/// <summary>What a pool remembers between picks, held by the service, lost on restart.</summary>
 public sealed class PoolSelectionState
 {
     /// <summary>Where <see cref="PoolSelectionMode.Sequential"/> is up to, per pool.</summary>

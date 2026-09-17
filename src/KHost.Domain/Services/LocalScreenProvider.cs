@@ -67,11 +67,8 @@ public sealed class LocalScreenProvider : IScreenProvider, IDisposable
         return Task.CompletedTask;
     }
 
-    /// <summary>
-    /// Kills the screen processes this provider started. Killing the process rather than asking the
-    /// screen to quit over IPC is deliberate: the request has to reach only our own children, and a
-    /// message on the hub would also reach screens running on other machines.
-    /// </summary>
+    /// <summary>Kills the processes this provider started, not by asking them to quit over IPC.</summary>
+    /// <remarks>A hub message would also reach screens running on other machines.</remarks>
     public void CloseSpawnedScreens()
     {
         // Take each screen out of the map as it is handled, so running this on the way down and

@@ -40,9 +40,8 @@ public class EditVenueModel
 
     public bool MarqueeEnabled { get; set; }
 
-    // Three is the starting point the dialog offers, not what a stored venue reads: a row saved
-    // before the marquee existed has no key here and comes back as zero, which is a valid
-    // message-only band rather than something to correct.
+    // Three is only the dialog's starting point. A venue saved before the marquee existed has no
+    // key here and reads back as zero, a valid message-only band, not something to correct.
     [Range(0, 20, ErrorMessage = "Show between 0 and 20 singers.")]
     public int MarqueeSingerCount { get; set; } = 3;
 
@@ -65,11 +64,6 @@ public class EditVenueModel
 
     public bool MarqueePinLabel { get; set; }
 
-    /// <summary>
-    /// Where a QR code sits, and how big. Not nullable here the way the venue stores them: the
-    /// dialog shows the corner and size a code would take anyway, and saving that back changes
-    /// nothing — the same trade the marquee's sizes make with zero.
-    /// </summary>
     /// <summary>The plugin whose code this venue shows, or null for none. Null is the default.</summary>
     public string? QrCodeSource { get; set; }
 
@@ -80,6 +74,8 @@ public class EditVenueModel
 
     public ScreenCorner? BreakMusicCardCorner { get; set; }
 
+    /// <summary>Corner and size are not nullable here, unlike how the venue stores them.</summary>
+    /// <remarks>The dialog shows what a code would take anyway, so saving back changes nothing.</remarks>
     public ScreenCorner QrCodeCorner { get; set; } = ScreenCorner.BottomRight;
 
     public ScreenQrSize QrCodeSize { get; set; } = ScreenQrSize.Medium;

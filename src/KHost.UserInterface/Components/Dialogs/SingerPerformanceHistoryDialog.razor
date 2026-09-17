@@ -23,7 +23,7 @@
                     <tbody>
                         @foreach (var perf in _paginatedPerformances.Items.OrderByDescending(p => p.CreatedDate))
                         {
-                            // Kept even when the song is gone from the library — the performance is
+                            // Kept even when the song is gone from the library. The performance is
                             // still real history, and hiding the row leaves no way to delete it.
                             var media = _media.FirstOrDefault(m => m.Id == perf.MediaId);
                             var isReady = media?.Status == MediaStatus.Ready;

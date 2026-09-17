@@ -10,10 +10,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace KHost.UnitTests.UserInterface.Components.Panels;
 
-/// <summary>
-/// A guest who scanned the code lands in the queue beside the singers the host typed in, and
-/// nothing on the row said which was which.
-/// </summary>
+/// <summary>A remote guest lands beside host-typed singers with no row marking which is which.</summary>
 public class SingerQueuePanelRemoteSingerTests : BunitContext
 {
     private const string RemoteMarkSelector = ".kh-singer-queue-panel__singer-queue__singer__remote";
@@ -63,7 +60,7 @@ public class SingerQueuePanelRemoteSingerTests : BunitContext
     {
         var mark = Assert.Single(Render<SingerQueuePanel>().FindAll(RemoteMarkSelector));
 
-        // Exactly one of the two rows — the mark is worth nothing if it is on both.
+        // Exactly one of the two rows: the mark is worth nothing if it is on both.
         Assert.Equal("Joined from the room", mark.GetAttribute("aria-label"));
     }
 

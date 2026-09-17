@@ -7,11 +7,8 @@ using Microsoft.Extensions.Logging;
 
 namespace KHost.Domain.Services.BreakMusic;
 
-/// <summary>
-/// Break music out of the host's own library, drawn from the venue's pool and sent to the screen
-/// the room hears. Only that screen: the bed carries no timeline, so there is no group for a
-/// second screen to be in step with, and two screens playing it would be two beds in one room.
-/// </summary>
+/// <summary>Break music from the hosts library, sent only to the screen the room hears.</summary>
+/// <remarks>It carries no timeline to sync a second screen to.</remarks>
 public class LibraryBreakMusicProvider : BaseService, IBreakMusicProvider, IDisposable
 {
     private readonly SemaphoreSlim _lock = new(1, 1);
@@ -112,10 +109,8 @@ public class LibraryBreakMusicProvider : BaseService, IBreakMusicProvider, IDisp
         }
     }
 
-    /// <summary>
-    /// Deliberately nothing. This provider's audio rides the screen, and ScreenCoordination sets
-    /// that channel from the venue alongside the song's — one venue level, set in one place.
-    /// </summary>
+    /// <summary>Deliberately nothing: this provider's audio rides the screen channel.</summary>
+    /// <remarks>ScreenCoordination sets that channel alongside the song's own.</remarks>
     public Task SetVolumeAsync(float volume, CancellationToken cancellationToken = default)
         => Task.CompletedTask;
 

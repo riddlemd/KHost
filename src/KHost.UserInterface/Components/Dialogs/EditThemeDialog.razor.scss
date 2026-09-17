@@ -13,7 +13,7 @@
         cursor: pointer;
     }
 
-    // The shared card body pads a direct <form> child and nothing else, and these hold a grid —
+    // The shared card body pads a direct <form> child and nothing else, and these hold a grid;
     // without this the fields sit flush against the card's border.
     &__group {
         display: grid;

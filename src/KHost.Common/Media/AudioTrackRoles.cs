@@ -4,10 +4,8 @@ namespace KHost.Common.Media;
 
 public static class AudioTrackRoles
 {
-    /// <summary>
-    /// Reads a role out of a track's name. Order matters: a track called "Backing Vocal" is
-    /// voices, while "Backing Track" is the music, and both contain the same word.
-    /// </summary>
+    /// <summary>Reads a role out of a track's name; order matters here.</summary>
+    /// <remarks>"Backing Vocal" is voices but "Backing Track" is music, and both contain "backing".</remarks>
     public static AudioTrackRole? FromTrackName(string? name)
     {
         if (string.IsNullOrWhiteSpace(name)) return null;

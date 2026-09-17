@@ -134,7 +134,7 @@
 }
 
 /* The wizard wants roomier form styling than the rest of the app. Everything below must
-   stay nested — this partial is imported last, so unnested rules here beat shared/. */
+   stay nested: this partial is imported last, so unnested rules here beat shared/. */
 .kh-setup-wizard {
     .kh-form-group {
         display: flex;

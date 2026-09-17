@@ -89,10 +89,7 @@ public class EditPlaylistDialogTests : BunitContext
         Assert.DoesNotContain("When these ads play", rendered.Markup);
     }
 
-    /// <summary>
-    /// The entry already carried a length and nothing rendered it, so a host had no way to say how
-    /// long a spot should run.
-    /// </summary>
+    /// <summary>A carried length with no column left a host no way to say how long a spot runs.</summary>
     [Fact]
     public void DurationColumn_IsShown_ForAnAdPlaylist()
     {
@@ -111,10 +108,7 @@ public class EditPlaylistDialogTests : BunitContext
         Assert.DoesNotContain("Duration (sec)", rendered.FindAll("thead th").Select(th => th.TextContent.Trim()));
     }
 
-    /// <summary>
-    /// The placeholder is what the row will run for if left blank. It said "video" before, which
-    /// named the rule but not the number a host was deciding whether to override.
-    /// </summary>
+    /// <summary>The placeholder must show the number, not just the rule a host is overriding.</summary>
     [Fact]
     public void DurationPlaceholder_AVideo_ShowsItsOwnLength()
     {
@@ -184,10 +178,7 @@ public class EditPlaylistDialogTests : BunitContext
         return media;
     }
 
-    /// <summary>
-    /// Choosing fills the field and nothing more. A host who picks the wrong row types again,
-    /// rather than deleting a line they never meant to make.
-    /// </summary>
+    /// <summary>Choosing only fills the field, so a wrong pick is retyped rather than deleted.</summary>
     [Fact]
     public async Task ChoosingARow_DoesNotAddIt()
     {
@@ -226,7 +217,7 @@ public class EditPlaylistDialogTests : BunitContext
         Assert.Contains(dialog.FindAll("button"), button => button.TextContent.Contains("Add entry"));
     }
 
-    /// <summary>The picker is revealed, not resident — nothing to find until Add entry is pressed.</summary>
+    /// <summary>The picker is revealed, not resident: nothing to find until Add entry is pressed.</summary>
     private static IRenderedComponent<ComboBox<EditPlaylistDialog.AddChoice>> OpenPicker(
         IRenderedComponent<EditPlaylistDialog> dialog)
     {
@@ -369,8 +360,8 @@ public class EditPlaylistDialogTests : BunitContext
             .GetMethod("SearchMediaAsync", BindingFlags.NonPublic | BindingFlags.Instance)!
             .Invoke(dialog.Instance, [term])!;
 
-    // An ad is a video, a sound or a still; break music is a record. Never the karaoke library —
-    // those are backing tracks with no singer on them.
+    // An ad is a video, a sound or a still; break music is a record. Never the karaoke library,
+    // because those are backing tracks with no singer on them.
     [Fact]
     public async Task TheMediaPicker_SearchesOnlyWhatThePurposeCanUse()
     {
@@ -393,7 +384,7 @@ public class EditPlaylistDialogTests : BunitContext
     }
 
     // Two characters cannot reach the trigram index, so they fall to a substring match that hits
-    // the artist as well — typing "ti" once returned every row, because every artist is "…artist".
+    // the artist as well. Typing "ti" once returned every row, because every artist is "…artist".
     [Fact]
     public void TheMediaPicker_DoesNotSearchBelowTheTrigramMinimum()
     {
@@ -426,10 +417,7 @@ public class EditPlaylistDialogTests : BunitContext
         Assert.Contains(rows, row => row.Label == "Happy Hour Spot");
     }
 
-    /// <summary>
-    /// One field over two lists, so the menu has to say which is which — and the box draws a
-    /// heading wherever the group changes, never reordering, so media has to come first.
-    /// </summary>
+    /// <summary>Headings draw wherever the group changes and never reorder, so media comes first.</summary>
     [Fact]
     public async Task ThePicker_OffersMediaAndPlaylistsUnderTheirOwnHeadings()
     {

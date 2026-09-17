@@ -10,11 +10,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace KHost.UnitTests.UserInterface.Components.Panels;
 
-/// <summary>
-/// Driven through real clicks. A handler that exists but is attached to nothing passes every test
-/// that calls it directly, which is how the queue's arrow keys once sat dead behind tooltips
-/// advertising them.
-/// </summary>
+/// <summary>Driven through real clicks: a dead-wired handler passes when called directly.</summary>
 public class BreakMusicBarTests : BunitContext
 {
     private readonly IBreakMusicService _breakMusic = Substitute.For<IBreakMusicService>();
@@ -52,11 +48,7 @@ public class BreakMusicBarTests : BunitContext
         Assert.Empty(Render().FindAll(".kh-break-music-bar"));
     }
 
-    /// <summary>
-    /// A provider driving another app reports no track, so the bar falls back to describing the
-    /// state. Playing had no case, which left it reading "Break music off" over audible music —
-    /// the Library provider hid it by always naming a track while it played.
-    /// </summary>
+    /// <summary>A provider reporting no track once read "Break music off" over audible music.</summary>
     [Fact]
     public void WhilePlayingAProviderThatNamesNoTrack_TheBarSaysItIsPlaying()
     {
@@ -112,10 +104,7 @@ public class BreakMusicBarTests : BunitContext
         Assert.Contains(expected, Render().Find(".kh-break-music-bar__title").TextContent);
     }
 
-    /// <summary>
-    /// The service only reports that nothing played, and the catch-all sent a host hunting through
-    /// the playlist for a problem that was really an unplugged screen.
-    /// </summary>
+    /// <summary>A generic "nothing played" once sent a host hunting for an unplugged screen.</summary>
     [Fact]
     public void PlayAd_WithNoScreenConnected_SaysSo()
     {

@@ -1,6 +1,4 @@
-// Panel focus shortcuts. The chord is matched here rather than in a Blazor handler so that the
-// keystrokes that are not shortcuts — every letter of a singer's name — never cross the circuit.
-//
+// Panel focus shortcuts, matched here so ordinary typing never crosses the Blazor circuit.
 // Accel is Ctrl or Cmd: the hints read "ctrl+1", but a host on a Mac reaches for Cmd.
 (function () {
     const targets = {
@@ -22,16 +20,14 @@
         event.preventDefault();
         target.focus();
 
-        // Typing replaces what is there — the shortcut is for starting a new search, and a host
+        // Typing replaces what is there. The shortcut is for starting a new search, and a host
         // who wanted to append can still click.
         if (typeof target.select === 'function') target.select();
     });
 })();
 
-// Arrow keys inside a keyboard-navigable list. Blazor's own handler still runs — preventDefault
-// only cancels the browser's default, it does not stop the event reaching the delegated listener
-// — but without it macOS treats the key as unhandled and beeps, and the list scrolls underneath
-// the selection it just moved.
+// Arrow keys inside a keyboard-navigable list. Blazor's own handler still runs; preventDefault only
+// cancels the browser's default, but without it macOS beeps and the list scrolls under the selection.
 (function () {
     const ARROWS = new Set(['ArrowUp', 'ArrowDown']);
 

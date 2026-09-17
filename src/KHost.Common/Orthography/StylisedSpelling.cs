@@ -2,19 +2,12 @@ using System.Text;
 
 namespace KHost.Common.Orthography;
 
-/// <summary>
-/// Resolves the stylised spellings artists use, where a symbol stands in for a letter, so "Ke$ha"
-/// is found by typing "kesha". Separate from transliteration because these characters are already
-/// ASCII — Unidecode has no reason to touch them, and which symbol reads as which letter is
-/// knowledge about names rather than about Unicode.
-/// </summary>
+/// <summary>Resolves stylised spellings where a symbol stands in for a letter, e.g. "Ke$ha".</summary>
+/// <remarks>Separate from transliteration: these characters are already ASCII.</remarks>
 public static class StylisedSpelling
 {
-    /// <summary>
-    /// Digits are deliberately absent. The rule that turns "Deadmau5" into "deadmaus" also ruins
-    /// "Blink-182" and "50 Cent", where the digits are digits — that class of stylisation needs a
-    /// per-artist alias list, not a character mapping.
-    /// </summary>
+    /// <summary>No digits: "Deadmau5" to "deadmaus" would also wreck "Blink-182" and "50 Cent".</summary>
+    /// <remarks>That needs a per-artist alias list, not a character map.</remarks>
     private static readonly Dictionary<char, char> _substitutions = new()
     {
         ['$'] = 's',

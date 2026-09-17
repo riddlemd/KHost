@@ -56,7 +56,7 @@ public partial class EditThemeDialog
     private string Value(ThemeVariable field)
         => _model.Values.TryGetValue(field.Key, out var value) ? value : field.Fallback;
 
-    /// <summary>A colour input only accepts a hex literal, so anything else shows the field's own default.</summary>
+    /// <summary>A colour input only accepts a hex literal, else it shows the field's default.</summary>
     private string Swatch(ThemeVariable field)
     {
         var value = Value(field);

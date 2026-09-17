@@ -12,10 +12,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace KHost.UnitTests.UserInterface.Components.Panels;
 
-/// <summary>
-/// Same reason as SingerQueuePanelKeyboardTests: only a rendered panel proves the handler is
-/// attached to an element, which is the half that was missing.
-/// </summary>
+/// <summary>Same reason as SingerQueuePanelKeyboardTests: only rendering proves attachment.</summary>
 public class SelectedSingerInfoPanelKeyboardTests : BunitContext
 {
     private const string BodySelector = ".kh-selected-singer-info-panel__body";

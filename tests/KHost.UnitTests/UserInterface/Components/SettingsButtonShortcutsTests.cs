@@ -11,10 +11,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace KHost.UnitTests.UserInterface.Components;
 
-/// <summary>
-/// The menu item opens a dialog instead of navigating, which is a shape the menu did not have
-/// before — every other entry is a route.
-/// </summary>
+/// <summary>The shortcuts item opens a dialog, unlike every other entry, which is a route.</summary>
 public class SettingsButtonShortcutsTests : BunitContext
 {
     private readonly IDialogService _dialogs = Substitute.For<IDialogService>();

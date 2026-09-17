@@ -3,11 +3,7 @@ using KHost.Common.Media;
 
 namespace KHost.UnitTests.Common.Media;
 
-/// <summary>
-/// Roles come from the track's name, never its position. The file this was built against orders
-/// them Instrumental, Backing Vocal, Lead Vocal — so reading position would put the singer's own
-/// part on the control marked backing, and a host would mute the wrong voice.
-/// </summary>
+/// <summary>Roles come from the track's name, not position. Position would mute the wrong track.</summary>
 public class AudioTrackRolesTests
 {
     [Theory]

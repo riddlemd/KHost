@@ -1,10 +1,7 @@
 namespace KHost.Secrets;
 
-/// <summary>
-/// Somewhere a small string can be kept that a file should not hold. Deliberately knows nothing
-/// about plugins, venues or anything else in KHost: what it stores is a secret belonging to a
-/// (service, account) pair, and who those name is the caller's business.
-/// </summary>
+/// <summary>Somewhere a small string can be kept that a file should not hold.</summary>
+/// <remarks>Knows nothing of plugins or venues: just a secret under a (service, account) pair.</remarks>
 public interface ISecretStore
 {
     /// <summary>The stored secret, or null when nothing is filed under that pair.</summary>
