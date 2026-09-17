@@ -39,6 +39,9 @@ public partial class SelectedSingerInfoPanel : IAsyncDisposable
     private int _tonightTotalInCents;
     private int _lifetimeTotalInCents;
     private bool _tippingEnabled = true;
+
+    /// <summary>Off for a venue never asked, so an alias stays out of sight until one is wanted.</summary>
+    private bool _allowAliases;
     private bool _canRemoveFromQueue;
     private bool _canReorderQueue;
     private bool _canViewHistory;
@@ -242,6 +245,21 @@ public partial class SelectedSingerInfoPanel : IAsyncDisposable
         });
     }
 
+    /// <summary>
+    /// The name is the turn's, not the singer's, so this saves the performance and leaves the
+    /// account alone. The row redraws off the <c>PerformancesChanged</c> the update announces.
+    /// </summary>
+    private async Task OpenSingingAsDialogAsync(Performance performance, KHostUser singer)
+    {
+        if (PerformanceService is null || DialogService is null) return;
+
+        await DialogService.RequestSingingAsAsync(performance, singer.Name, async updated =>
+        {
+            if (updated is not null)
+                await PerformanceService.UpdateAsync(updated);
+        });
+    }
+
     private async Task ToggleIsRegularAsync()
     {
         if (SingerQueueService?.SelectedUser is { } user && UserGroupsService is not null)
@@ -277,6 +295,7 @@ public partial class SelectedSingerInfoPanel : IAsyncDisposable
         var venue = await VenuesService.ReadSelectedVenueAsync();
 
         _tippingEnabled = venue?.Settings.TippingEnabled ?? true;
+        _allowAliases = venue?.Settings.AllowAliases ?? false;
     }
 
     private async Task RefreshPerformancesAsync()
@@ -332,6 +351,25 @@ public partial class SelectedSingerInfoPanel : IAsyncDisposable
 
     private static string FormatTempo(int tempo) =>
         tempo.ToString("+#;\u2212#;0", CultureInfo.InvariantCulture) + "%";
+
+    /// <summary>
+    /// Whether this turn was queued under a name other than the singer's own, which is the only
+    /// case worth a line on the row.
+    /// </summary>
+    /// <remarks>
+    /// Asked of the two names, never of whether <see cref="Performance.SungAs"/> is set:
+    /// <c>CreateAndEnqueueAsync</c> records one on every enqueue, filling in the singer's own name
+    /// when the caller has none, so presence is true of nearly every row and marks the whole list.
+    /// Case-insensitive because a guest typing their own name back in a different case has not
+    /// renamed themselves, and a row saying "singing as Ada" under Ada is noise.
+    /// </remarks>
+    private static bool SungUnderAnotherName(Performance performance, KHostUser singer)
+    {
+        var recorded = performance.SungAs?.Trim();
+
+        return !string.IsNullOrEmpty(recorded)
+            && !string.Equals(recorded, singer.Name?.Trim(), StringComparison.OrdinalIgnoreCase);
+    }
 
     /// <summary>
     /// Async because tearing the sortable down is a JS call, and a ValueTask dropped on the floor

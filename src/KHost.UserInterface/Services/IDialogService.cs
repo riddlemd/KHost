@@ -38,7 +38,15 @@ public interface IDialogService
     Task RequestEditAsync(Tip? item, Guid userId, Func<Tip?, Task> onSave, Action? onCancel = null, Action? onClose = null, bool showDate = true);
     Task RequestBulkEditAsync(IReadOnlyList<Media> items, Func<BulkEditMediaModel, Task> onSave, Action? onCancel = null, Action? onClose = null);
 
-    /// <summary>Collects values a caller will not persist — see <see cref="TextPromptRequest"/>.</summary>
+    /// <summary>
+    /// Changes the name one queued turn is announced under. <paramref name="singerName"/> is what a
+    /// blank field falls back to, so the dialog can say whose name that is rather than "leave blank".
+    /// </summary>
+    Task RequestSingingAsAsync(
+        Performance performance, string? singerName, Func<Performance?, Task> onSave,
+        Action? onCancel = null, Action? onClose = null);
+
+    /// <summary>Collects values a caller has no setting for — see <see cref="TextPromptRequest"/>.</summary>
     Task RequestTextPromptAsync(
         string title, string? message, IReadOnlyList<TextPromptField> fields,
         Func<IReadOnlyDictionary<string, string>, Task> onSubmit, Action? onCancel = null, Action? onClose = null);
