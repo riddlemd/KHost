@@ -249,13 +249,15 @@ code it offers the screens.
   caller, for the same reason a secret's key is. Placement is the venue's alone — a plugin passes a
   payload and a caption and has no say in corner or size, because it is the venue's screen.
 - A plugin adds file extensions the media importer's folder scan recognises with a manifest
-  `importFormats: [".khv"]` — declarative, like `settings` and `buttons`, so the importer reads it
-  from `IPluginRegistry` without resolving the plugin. `MediaImportService` unions the built-in
-  extensions with those of **loaded** plugins (an unloaded one has no owner), normalised to
-  leading-dot lowercase. It is an extension *filter* only — the plugin asserts the host can already
-  play the file as-is; teaching the host to *convert* an unplayable format would be a separate
-  import-handler contract. Deliberately not content-probing the folder: an ffprobe per file is
-  ~15–40ms, tens of minutes across a 50k-song library, where the extension check is free.
+  `importFormats: [".khv", ".kit"]` — declarative, like `settings` and `buttons`, so the importer
+  reads it from `IPluginRegistry` without resolving the plugin. `MediaImportService` unions the
+  built-in extensions with those of **loaded** plugins (an unloaded one has no owner), normalised to
+  leading-dot lowercase. It is an extension *filter* only: it says a row may be made for this file,
+  not that the host can play it. A format the host cannot read is declared here **and** claimed by
+  an `IMediaPreparer`, which is what turns it into something playable when a turn needs it — KaraFun
+  declares both its own container and the render, because the library row is the container.
+  Deliberately not content-probing the folder: an ffprobe per file is ~15–40ms, tens of minutes
+  across a 50k-song library, where the extension check is free.
 - **A plugin extension type is one singleton, shared across every extension interface it
   implements.** The loader registers the concrete type once and points each interface at it, so
   KaraFun's `KaraFunMediaProvider` is its `IMediaProvider` search, its `IPluginButtonHandler`
@@ -452,9 +454,9 @@ change the same way the marquee is.
 
 `PreparedMediaService` renders what is queued ahead of play time, into
 `<temp>/khost-streams/prepared`. Playback runs one ffmpeg per song and it transcodes flat out, so
-the cost lands on the song transition, which is the worst moment a room can see. Measured on a
-230.7s CDG: 4.89s to transcode on fast cores and 21.57s on slow ones, against 0.08s and 0.24s to
-copy a render that already exists.
+the cost lands on the song transition, which is the worst moment a room can see. Rendering ahead
+moves that work to a point with no deadline and can leave a stream copy behind, which is orders of
+magnitude cheaper on the hardware a venue actually runs.
 
 - **Readiness belongs to the turn, and is derived, never stored.** `PerformancePreparation` is
   computed from whether the render is on disk and whether one is in flight. A column would outlive
@@ -488,10 +490,9 @@ copy a render that already exists.
   `Dispose` cancels and waits before disposing anything a render holds, and a cancelled host-owned
   ffmpeg is killed. Waiting on a token stops the wait, not the process.
 - **There is a budget and a free-space floor** (`PreparedBudgetMegabytes`,
-  `PreparedFreeSpaceFloorMegabytes`, both on the media stream options, zero lifting each). Measured
-  here, a render runs 8 MB to 17 MB for a four minute song, so 8 GB holds several hundred and a
-  night queued ahead is about a gigabyte. The cap is not there because the number is large; it is
-  there because nothing else bounds it. Past either, the song transcodes at play
+  `PreparedFreeSpaceFloorMegabytes`, both on the media stream options, zero lifting each). Every
+  queued turn gets a render and nothing else bounds the directory, so the cap is a backstop rather
+  than something a normal night reaches. Past either, the song transcodes at play
   time the way it always did: the pre-render is an optimisation and must never be why a machine
   fills up in front of a room. The floor is separate because the budget knows nothing about what
   else is on the volume, and temp shares one with the database and the logs.
@@ -501,8 +502,8 @@ copy a render that already exists.
 - **The copy is refused by more than pitch and tempo.** `CanStreamCopy` also refuses a mixable mix,
   and a KaraFun `.khv` carries three stems, so it is always mixable and always transcodes. For kits
   the pre-render therefore buys *playability* rather than CPU: ffmpeg cannot open a `.kit` at all.
-  A render still has to carry keyframes on the segment clock or a copy cannot cut where it is asked
-  to, which measured as 32 segments averaging 7.59s against 122 averaging 1.99s.
+  A render still has to carry keyframes on the segment clock, or a copy cannot cut where it is
+  asked to and the segments come out several times longer than requested.
 
 ## Components
 
