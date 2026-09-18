@@ -111,6 +111,7 @@
                         var isBroken = rowMedia?.Status == MediaStatus.Broken;
                         var isAcquiring = rowMedia?.Status.IsAcquiring() == true;
                         var isReady = rowMedia?.Status == MediaStatus.Ready;
+                        var isWaitingOnARender = IsWaitingOnARender(rowMedia);
 
                         <tr class="kh-selected-singer-info-panel__row @rowClass @(isCurrent && PlaybackService?.State == PlaybackState.Playing ? "kh-selected-singer-info-panel__row--playing" : "")"
                             @key="performance.Id"
@@ -129,6 +130,17 @@
                             <td class="kh-selected-singer-info-panel__name kh-table__cell--fill" title="@(rowMedia?.Title ?? "")">
                                 <div class="kh-selected-singer-info-panel__name-inner">
                                     <span class="@nameClass">@(rowMedia?.Title ?? "Unknown")</span>
+
+                                    @* Only while it is actually rendering. A turn with no render is
+                                       not waiting on anything: it plays the moment it is asked, by
+                                       the transcode that has always been there. *@
+                                    @if (PreparationOf(rowMedia) == PerformancePreparation.Preparing)
+                                    {
+                                        <span class="kh-selected-singer-info-panel__preparing"
+                                              title="Getting this song ready, so it starts without a pause">
+                                            <Icon Name="arrow-repeat" />
+                                        </span>
+                                    }
 
                                     @if (performance.Pitch != 0)
                                     {
@@ -170,11 +182,12 @@
                                         Title="@(isBroken
                                             ? "This song is marked broken and can't be played"
                                             : isAcquiring ? "This song is still downloading"
+                                            : isWaitingOnARender ? "This song is still getting ready to play"
                                             : disablePlay ? "Cannot Load and Play while another Song is loaded" : "Load and Play Song")"
-                                        PrimaryDisabled="@(disablePlay || !isReady)"
+                                        PrimaryDisabled="@(disablePlay || !isReady || isWaitingOnARender)"
                                         @onclick="() => LoadAndPlayAsync(performance)">
                                      <Text>
-                                        @if (isAcquiring)
+                                        @if (isAcquiring || isWaitingOnARender)
                                         {
                                             <Loader Type="Loader.LoaderType.Spinner" />
                                         }

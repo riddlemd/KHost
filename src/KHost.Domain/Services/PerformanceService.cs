@@ -5,6 +5,7 @@ using KHost.Abstractions.Repositories;
 using KHost.Abstractions.Services;
 using KHost.Abstractions.Messaging;
 using KHost.Abstractions.Messaging.Messages;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using KHost.Common.Media;
 
@@ -12,6 +13,9 @@ namespace KHost.Domain.Services;
 
 public class PerformanceService : BaseRepositoryService<Performance, IPerformancesRepository>, IPerformanceService
 {
+    // Resolved on use, never in the constructor: a gate is a plugin, and a plugin takes this
+    // service, so asking for one up front closes a ring the container cannot build.
+    private readonly IServiceProvider _services;
     private readonly IMediaService _mediaService;
     private readonly IUsersService _usersService;
     private readonly IMessageBroker _broker;
@@ -27,10 +31,12 @@ public class PerformanceService : BaseRepositoryService<Performance, IPerformanc
         IVenuesService venuesService,
         IInteractionDispatcher interactions,
         IDownloadsService downloadsService,
+        IServiceProvider services,
         IMessageBroker broker)
         : base(logger, repository, broker, new PerformancesChanged())
     {
         _broker = broker;
+        _services = services;
         _mediaService = mediaService;
         _usersService = usersService;
         _venuesService = venuesService;
@@ -90,6 +96,15 @@ public class PerformanceService : BaseRepositoryService<Performance, IPerformanc
             return null;
         }
 
+        // Refused at the queue, not only at the microphone. A song whose provider will not let it
+        // play is one nobody can sing, and a host finds that out now rather than in front of a room
+        // with the singer already up.
+        if (await RefusedByItsProviderAsync(performance.MediaId) is { } refusal)
+        {
+            Logger.LogInformation("Enqueue of media {MediaId} refused: {Reason}", performance.MediaId, refusal);
+            return null;
+        }
+
         // Filled here, not by each of the five callers (two in plugins): a line each is what goes missing.
         // A caller with its own name to record (a remote nickname) has already set it; this leaves it.
         if (string.IsNullOrWhiteSpace(performance.SungAs))
@@ -114,6 +129,40 @@ public class PerformanceService : BaseRepositoryService<Performance, IPerformanc
         _broker.Announce(new PerformancesChanged());
 
         return performance;
+    }
+
+    /// <summary>The reason a provider will not let this song play, or null when it will.</summary>
+    /// <remarks>The same gate playback asks. A KaraFun kit signed out is the case: without this a
+    /// host queues it, waits for a render that is also refused, and learns nothing until the
+    /// singer is standing there.</remarks>
+    private async Task<string?> RefusedByItsProviderAsync(Guid mediaId)
+    {
+        try
+        {
+            if (_services.GetService<IMediaGateService>() is not { } gates)
+                return null;
+
+            if (await _mediaService.ReadAsync(mediaId) is not { } media)
+                return null;
+
+            var verdict = await gates.EvaluateAsync(MediaAction.Queue, media);
+            if (verdict.Allowed)
+                return null;
+
+            var reason = string.IsNullOrWhiteSpace(verdict.Reason)
+                ? "That song cannot be played right now."
+                : verdict.Reason;
+
+            _services.GetService<IFlashService>()?.Show(reason, FlashType.Warning);
+
+            return reason;
+        }
+        catch (Exception ex)
+        {
+            // A gate that throws must not stop a host queueing the rest of the night.
+            Logger.LogWarning(ex, "Could not ask a provider about media {MediaId}", mediaId);
+            return null;
+        }
     }
 
     private async Task<bool> ConfirmNotADuplicateAsync(Guid mediaId)

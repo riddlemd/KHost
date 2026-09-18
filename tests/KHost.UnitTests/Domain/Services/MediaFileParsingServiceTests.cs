@@ -9,19 +9,40 @@ namespace KHost.UnitTests.Domain.Services;
 
 public class MediaFileParsingServiceTests
 {
-    private static MediaFileParsingService CreateService(MediaFileParsingService.ServiceOptions? opts = null)
+    private static MediaFileParsingService CreateService(
+        MediaFileParsingService.ServiceOptions? opts = null, IMediaProbeService? probes = null)
     {
         var logger = Substitute.For<ILogger<MediaFileParsingService>>();
         var monitor = Substitute.For<IOptionsMonitor<MediaFileParsingService.ServiceOptions>>();
         monitor.CurrentValue.Returns(opts ?? new MediaFileParsingService.ServiceOptions());
         var analytics = Substitute.For<IAnalyticsService>();
-        return new MediaFileParsingService(logger, monitor, analytics);
+
+        // These are about parsing a name, and the files do not exist: an unstubbed probe answers
+        // null, which is the same "nothing to go on" the missing file always produced.
+        return new MediaFileParsingService(logger, monitor, analytics, probes ?? Substitute.For<IMediaProbeService>());
     }
 
     // Separator must match the host OS, or on Unix "C:\dir\x.mp4" is one filename and the
     // directory survives into the parsed artist/title. The file need not exist.
     private static string MediaPath(string fileName) =>
         Path.Combine(Path.GetTempPath(), "khost-parsing-tests", fileName);
+
+    /// <summary>A folder scan walks thousands of files, so one that cannot be read must cost only
+    /// its own metadata. The method is named Try and returns a nullable, so a throwing probe
+    /// escaping into the scan is the signature lying.</summary>
+    [Fact]
+    public async Task LoadAndParseAsync_AProbeThatThrows_FallsBackToTheFilename()
+    {
+        var probes = Substitute.For<IMediaProbeService>();
+        probes.ProbeAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns<MediaProbeResult?>(_ => throw new InvalidOperationException("the probe fell over"));
+
+        var media = await CreateService(probes: probes)
+            .LoadAndParseAsync(MediaPath("Bruno Mars - Finesse.mp4"));
+
+        Assert.Equal("Finesse", media.Title);
+        Assert.Equal("Bruno Mars", media.Artist);
+    }
 
     [Fact]
     public void ArtistFirst_DefaultFormat_SplitsCorrectly()
