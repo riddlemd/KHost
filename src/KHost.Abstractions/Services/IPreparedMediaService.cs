@@ -26,6 +26,15 @@ public interface IPreparedMediaService
     /// on one in flight: a host who plays before it is ready gets today's transcode instead.</summary>
     string? TryResolve(string filePath);
 
+    /// <summary>Whether this file cannot be started yet, because only a plugin can read it and no
+    /// render has landed. The question a play control and the load itself must both ask, so the two
+    /// cannot disagree about what is playable.</summary>
+    /// <remarks>Deliberately not the same as <see cref="PerformancePreparation.Preparing"/>, which
+    /// is wrong in both directions: an ordinary file mid-render is preparing and still starts at
+    /// once on the transcode, while a plugin's format that has not begun rendering is unprepared and
+    /// cannot start at all.</remarks>
+    bool IsWaitingOnARender(string filePath);
+
     /// <summary>Drops every render. Nothing here outlives the process that made it, since the venue
     /// settings and the source files it was built against can both change while the host is down.
     /// </summary>

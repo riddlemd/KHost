@@ -15,5 +15,7 @@ internal sealed class NothingPrepared : IPreparedMediaService
 
     public string? TryResolve(string filePath) => null;
 
+    public bool IsWaitingOnARender(string filePath) => false;
+
     public void Sweep() { }
 }
