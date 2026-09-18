@@ -83,6 +83,8 @@ public class HomePageFocusTests : BunitContext
         Services.AddSingleton(search);
         Services.AddSingleton<IMessageBroker>(_broker);
         Services.AddSingleton(Substitute.For<IPlaybackService>());
+        Services.AddSingleton(Substitute.For<INextSingerCardService>());
+        Services.AddSingleton(Substitute.For<IFlashService>());
         Services.AddSingleton(Substitute.For<IDialogService>());
         Services.AddSingleton(Substitute.For<IAdService>());
         Services.AddSingleton(Substitute.For<IFlashService>());
