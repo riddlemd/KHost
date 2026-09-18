@@ -1,4 +1,5 @@
 using System.Globalization;
+using KHost.Abstractions.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using KHost.Abstractions.Models;
@@ -21,7 +22,9 @@ public class HlsMediaStreamServiceTests : IDisposable
             {
                 BaseAddress = "http://host:5251",
                 WorkingDirectory = _workingDirectory,
-            }));
+            }),
+            // No prepared render: these are about what the transcode itself builds.
+            Substitute.For<IPreparedMediaService>());
 
     [Fact]
     public void BuildArguments_TargetsCodecsEveryConsumerDecodes()
