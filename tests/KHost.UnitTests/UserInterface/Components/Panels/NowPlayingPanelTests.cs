@@ -40,6 +40,10 @@ public class NowPlayingPanelTests : BunitContext
         Services.AddSingleton(venues);
 
         Services.AddSingleton(_playback);
+
+        Services.AddSingleton(Substitute.For<INextSingerCardService>());
+
+        Services.AddSingleton(Substitute.For<IFlashService>());
         Services.AddSingleton(appSettings);
         Services.AddSingleton<IMessageBroker>(_broker);
         Services.AddSingleton(Substitute.For<ISingerQueueService>());

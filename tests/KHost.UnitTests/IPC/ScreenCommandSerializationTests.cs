@@ -57,6 +57,12 @@ public class ScreenCommandSerializationTests
             Corner = ScreenCorner.BottomLeft,
             Offset = 1.5,
         },
+        [nameof(ShowNextSingerCommand)] = new ShowNextSingerCommand
+        {
+            Singer = "Ada",
+            Song = "Total Eclipse of the Heart",
+            Artist = "Bonnie Tyler",
+        },
         [nameof(SetScreenQrCodesCommand)] = new SetScreenQrCodesCommand
         {
             Codes =

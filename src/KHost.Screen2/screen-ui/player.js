@@ -14,6 +14,7 @@ const still = document.getElementById('still');
 
 const SCALING = { fit: 'contain', fill: 'cover', stretch: 'fill', original: 'none' };
 const placeholder = document.getElementById('placeholder');
+const nextSinger = document.getElementById('nextSinger');
 const blanked = document.getElementById('blanked');
 const hostLost = document.getElementById('hostlost');
 const marquee = document.getElementById('marquee');
@@ -414,6 +415,31 @@ const QR_SIZES = ['small', 'medium', 'large'];
 
 // What is playing between singers. Text only: a title and an artist off a provider, which is
 // exactly why it is built as nodes rather than markup.
+/// Names who is up, over the whole picture. Nothing here takes it down: the next thing drawn does.
+function showNextSinger(message) {
+    nextSinger.querySelector('.kh-next__singer').textContent = message.singer || '';
+
+    const song = nextSinger.querySelector('.kh-next__song');
+    // A singer on the list with nothing queued is named alone rather than under an empty line.
+    song.textContent = message.artist ? `${message.song} - ${message.artist}` : (message.song || '');
+    song.hidden = !message.song;
+
+    // The venue's card and any still are what this replaces, so both go while it is up.
+    still.hidden = true;
+    placeholder.hidden = true;
+    nextSinger.hidden = false;
+}
+
+/// Anything that redraws the picture clears the card. Deliberately not every command: a marquee or
+/// a code update is not somebody taking the screen back, and would cancel an announcement the host
+/// had only just made.
+function clearNextSinger() {
+    if (nextSinger.hidden) return;
+
+    nextSinger.hidden = true;
+    placeholder.hidden = !still.hidden;
+}
+
 function setBreakMusicCard(message) {
     if (!message.enabled || !message.title) {
         cornerItems.breakMusic = null;
@@ -652,6 +678,10 @@ function handleCommand(raw) {
     let message;
     try { message = JSON.parse(raw); } catch { return; }
 
+    // Taking the screen back: a song starting, or the picture being set. Deliberately not marquee,
+    // codes or a timeline tick, which would cancel an announcement the host had only just made.
+    if (['load', 'play', 'stop', 'show-image', 'hide-image'].includes(message.type)) clearNextSinger();
+
     switch (message.type) {
         case 'load':
             playbackGeneration++;
@@ -734,6 +764,9 @@ function handleCommand(raw) {
             break;
         case 'break-music-card':
             setBreakMusicCard(message);
+            break;
+        case 'next-singer':
+            showNextSinger(message);
             break;
         case 'bg-load':
             loadBackground(message.url, message.autoplay === true);
