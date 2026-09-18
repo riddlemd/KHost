@@ -1,6 +1,6 @@
 @page "/settings/about"
 
-<PageTitle>KHost &mdash; About</PageTitle>
+<PageTitle>KHost: About</PageTitle>
 
 <div class="kh-app__body">
     <div class="kh-settings-page">
@@ -64,7 +64,7 @@
                             @foreach (var license in _appInfo.ReferencedLicenses)
                             {
                                 <details class="kh-about__license-detail">
-                                    <summary>@license.Name — full text</summary>
+                                    <summary>@license.Name: full text</summary>
                                     <pre class="kh-about__scroll-text">@license.Text</pre>
                                 </details>
                             }

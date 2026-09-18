@@ -65,8 +65,8 @@ public partial class BreakMusicBar : IDisposable
     private void WarnItDidNotStart()
         => Flash.Show(
             Playback.CurrentPerformance is not null
-                ? "Break music did not start — a song is loaded. It comes back on its own after the song."
-                : "Break music did not start — check this venue has a playlist and a screen is connected.",
+                ? "Break music did not start: a song is loaded. It comes back on its own after the song."
+                : "Break music did not start: check this venue has a playlist and a screen is connected.",
             FlashType.Warning);
 
     private Task PauseAsync() => BreakMusic.PauseAsync();
@@ -79,7 +79,7 @@ public partial class BreakMusicBar : IDisposable
 
         // Skipping is refused over a singer too, and silently doing nothing reads as a dead button.
         if (Playback.CurrentPerformance is not null && ReferenceEquals(before, BreakMusic.CurrentTrack))
-            Flash.Show("Break music did not skip — a song is loaded.", FlashType.Warning);
+            Flash.Show("Break music did not skip: a song is loaded.", FlashType.Warning);
     }
 
     private async Task PlayAdAsync()
@@ -91,8 +91,8 @@ public partial class BreakMusicBar : IDisposable
         // distinguishable here; an ad has nowhere to appear before anything else is wrong.
         Flash.Show(
             await Playback.HasConnectedScreenAsync()
-                ? "No ad played — the playlist is empty or a song is loaded."
-                : "No ad played — no screen is connected.",
+                ? "No ad played: the playlist is empty or a song is loaded."
+                : "No ad played: no screen is connected.",
             FlashType.Warning);
     }
 }

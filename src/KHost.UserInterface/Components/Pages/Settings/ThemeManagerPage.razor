@@ -2,7 +2,7 @@
 @using KHost.UserInterface.Models
 @using KHost.UserInterface.Services
 
-<PageTitle>KHost &mdash; Manage Themes</PageTitle>
+<PageTitle>KHost: Manage Themes</PageTitle>
 
 <div class="kh-app__body">
     <div class="kh-settings-page">
@@ -46,7 +46,7 @@
                                 </td>
                                 <td>
                                     <button class="kh-theme-manager__edit-btn kh-button--icon-minimal"
-                                            title="@(theme.IsBuiltIn ? "Built-in themes cannot be edited — clone it to make changes" : "Edit this theme")"
+                                            title="@(theme.IsBuiltIn ? "Built-in themes cannot be edited: clone it to make changes" : "Edit this theme")"
                                             disabled="@theme.IsBuiltIn"
                                             @onclick="() => OpenEditDialogAsync(theme)" type="button">
                                         <Icon Name="pencil" />

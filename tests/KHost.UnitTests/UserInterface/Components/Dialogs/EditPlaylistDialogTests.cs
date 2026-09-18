@@ -404,7 +404,7 @@ public class EditPlaylistDialogTests : BunitContext
         // one the test handed to DisplayName itself.
         var rows = await combo.Instance.Search!("jazz");
 
-        Assert.Contains(rows, row => row.Label == "Elevator Jazz — Someone");
+        Assert.Contains(rows, row => row.Label == "Elevator Jazz - Someone");
     }
 
     [Fact]

@@ -8,7 +8,7 @@ public class ReverseStrategy : IQueueRotationMode
 {
     public string Id => "reverse";
     public string Name => "Reverse / LIFO";
-    public string Description => "Newest singer performs next — the queue runs in reverse join order.";
+    public string Description => "Newest singer performs next: the queue runs in reverse join order.";
 
     public Task<IReadOnlyList<Guid>> ApplyAsync(QueueRotationContext context)
     {

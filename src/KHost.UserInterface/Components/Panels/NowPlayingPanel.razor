@@ -18,7 +18,7 @@
             <div class="kh-now-playing__empty">
                 <Icon Name="mic" Class="kh-now-playing__empty-icon" />
                 <span class="kh-now-playing__empty-text">
-                    No song loaded &mdash; click <Icon Name="play-fill" /> in the queue
+                    No song loaded. Click <Icon Name="play-fill" /> in the queue
                 </span>
             </div>
         }
@@ -67,7 +67,7 @@
                     else
                     {
                         <button class="kh-now-playing__btn--play" @onclick="PlayAsync"
-                                title="@(isStopping ? "Resume — cancels the fade out" : "Play")">
+                                title="@(isStopping ? "Resume: cancels the fade out" : "Play")">
                             <Icon Name="play-fill" Class="kh-now-playing__icon-nudge" />
                         </button>
                     }

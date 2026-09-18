@@ -124,7 +124,7 @@ public partial class EditPlaylistDialog
 
     /// <summary>Artist as well as title: search covers both, so an artist-only match reads fine.</summary>
     private static string Describe(Media media)
-        => string.IsNullOrWhiteSpace(media.Artist) ? media.Title : $"{media.Title} — {media.Artist}";
+        => string.IsNullOrWhiteSpace(media.Artist) ? media.Title : $"{media.Title} - {media.Artist}";
 
     private string TitleFor(Guid id) => _titles.GetValueOrDefault(id, "(missing)");
 
