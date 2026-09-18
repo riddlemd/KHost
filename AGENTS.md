@@ -116,8 +116,15 @@ code it offers the screens.
   older contract goes on calling a method that no longer exists. So `PluginApi.CurrentVersion`
   moves with it, and the host refuses that build at load time instead of throwing a
   `MissingMethodException` at the moment a download fails. It moved to **2** for exactly this,
-  which is what that number is for — and a published catalog release declaring `1` reads as
-  incompatible until it is rebuilt and re-released. While the contracts are 0.x this is the trade
+  which is what that number is for — and a published catalog release declaring an older number
+  reads as incompatible until it is rebuilt and re-released.
+  **It moved to 3** when `IMediaPlaybackGate.CanPlayAsync` became `CanAsync(MediaAction, Media)`.
+  That is the other half of the same rule and the half easier to talk yourself out of: a method a
+  plugin *implements* breaks its binary just as surely as one it calls, and the reasoning that says
+  otherwise — checking the published catalog, finding only plugins that never touched the interface
+  — misses the plugin installed by hand, which is the one actually being run. Example implements the
+  gate, so a build of it against the older contract is a `TypeLoadException` at load rather than the
+  clean refusal this number exists to produce. While the contracts are 0.x this is the trade
   taken on purpose: an overload pair would have kept old binaries alive at the cost of two methods
   meaning one thing forever. The same widening also silently changes what
   `Received(1).FailImportAsync(id)` asserts in a plugin's own tests — it becomes `reason: null` —
@@ -148,19 +155,72 @@ code it offers the screens.
   session is open. `DescribeButton` also hides or disables a button; its default keeps the manifest
   label. Reached by plugin id through `IPluginButtonService`, populated from the loader's
   `PluginButtonBinding`s — the container does not otherwise record which plugin owns a registration.
-- A plugin that renders media it must not let play without a live entitlement implements
-  `IMediaPlaybackGate`: it stamps its files with the container tag `IMediaPlaybackGate.MetadataTag`
-  (`khost_provider`) set to its own `ProviderId`, and `PlaybackService.LoadAsync` asks the matching gate
-  before every load. Example writes `khost_provider=KHost.Plugins.Example` into the file (with ffmpeg's
-  `+use_metadata_tags` movflag — a custom mp4 tag is dropped without it, confirmed by round trip)
-  and its gate allows play only while signed in. Its output also carries a `.khv` extension rather
-  than `.mp4` (the muxer forced with `-f mp4`, since ffmpeg picks the output format from the name):
-  obscurity so the licensed content does not open on a double-click, not protection — KHost reads
-  media by content, not extension. `IMediaGateService` reads the tag and routes to
-  the gate whose `ProviderId` matches; a file with no tag, or one no loaded gate claims, always plays.
-  A block refuses the load like a non-Ready row and flashes the gate's reason — nothing on screen
-  says why otherwise. The check runs on every load, so a gate stays cheap (the in-memory answer,
-  not a round trip) unless the content is worth one.
+- A plugin that owns media it must not let out without a live entitlement implements
+  `IMediaPlaybackGate`. **One verdict, asked at three moments.** `CanAsync(MediaAction, Media)` takes
+  a `Queue`, `Render` or `Play`, so a provider whose answer never varies writes one check and ignores
+  the argument — the alternative, a method per moment, was three places for one rule to drift apart
+  in. The three call sites are `PerformanceService.CreateAndEnqueueAsync` (Queue),
+  `PreparedMediaService` before it writes anything (Render) and `PlaybackService.LoadAsync` (Play).
+  - **`Render` is the one that matters**, and the reason the enum exists. It is the moment licensed
+    content leaves the provider's own container, so a refusal there means no playable copy is ever
+    written — rather than one sitting on disk, refused at the microphone, for anybody who finds it.
+    It is also the one moment with **nobody watching**: a render runs behind the host, so a gate
+    refuses it outright where `Queue` and `Play` may put a sign-in dialog up and carry on with the
+    answer. Refusing at `Queue` as well is the kindness — a host learns now, not with the singer
+    already standing there.
+  - **Ownership and verdict are separate questions.** Ownership is the tag: a gated file carries the
+    container tag `IMediaPlaybackGate.MetadataTag` (`khost_provider`) set to the gate's `ProviderId`,
+    and `IMediaGateService` reads it and asks that one gate rather than polling every plugin. Example
+    writes `khost_provider=KHost.Plugins.Example` with ffmpeg's `+use_metadata_tags` movflag (a custom
+    mp4 tag is dropped without it, confirmed by round trip).
+  - **`Claims(path)` is the fallback for a format that cannot carry a tag, and it closed a real
+    bypass.** The tag lives inside the container, so a file nothing can open has nowhere to put one:
+    ffprobe cannot read a `.kit`, so the gate keyed off the tag saw no owner and let the whole
+    Example library through signed out. `Claims` answers from the **path alone** — it is asked for
+    every queued turn on every reconcile — and is false by default, so a gate whose content is
+    taggable need not think about it. The tag wins where a file has one.
+  - The gate is on the **`.kit`**, not on the render. A render is a temporary file the library never
+    points at, so gating it would guard the copy while leaving the original open. Its `.khv`
+    extension (muxer forced with `-f mp4`, since ffmpeg picks the format from the name) is obscurity
+    so licensed content does not open on a double-click, not protection — KHost reads media by
+    content, not extension.
+  - A block refuses the action like a non-Ready row and flashes the gate's reason; nothing on screen
+    says why otherwise. A gate that **throws** is logged and the action proceeds — a provider's bug
+    must not strand the rest of the night. The check runs on every load, so a gate stays cheap (the
+    in-memory answer, not a round trip) unless the content is worth one.
+- **A plugin that ships its own container describes it, through `IMediaProbe`.** ffprobe is the
+  host's answer for everything it understands and is simply *wrong* for a container it does not: a
+  `.kit` reads as "Invalid data found", which is indistinguishable from a file with no tracks and no
+  tags. That silence cost three separate workarounds before the contract existed — ownership checked
+  off the path, the track probe redirected at the render, and a duration that only ever arrived on a
+  search result — each patching one question rather than the missing answer behind all of them.
+  - `CanProbe(path)` claims the file **from the path alone**, like `Claims` and `CanPrepare`: the
+    host asks before opening anything, and a probe that read the file to decide would do the work
+    twice for every file it turns out not to own. `ProbeAsync` then returns a `MediaProbeResult` —
+    duration, audio tracks, container tags. **Null and an empty result differ and both matter**:
+    null is "I could not tell", empty is "I looked, and there is nothing there".
+  - **The probe returns facts; the asking service keeps its policy.** One probe feeds the importer,
+    the playback faders and the entitlement gate, and they do not want the same rules —
+    `AudioTrackService` is what decides that one track is nothing to balance and that a set with no
+    music track is not worth offering. Tracks come back *already roled*, because a plugin knows its
+    own stems outright where the host can only guess from whatever the muxer called them.
+  - `IMediaProbeService` routes: the first plugin that claims the file answers, otherwise
+    `FfprobeMediaProbe` does. The fallback is registered **keyed**
+    (`MediaProbeService.FallbackKey`) so it never appears in the `IMediaProbe` enumerable — it
+    claims every file, so reached as one of the plugin probes it would answer for whatever was
+    registered after it, and the loader decides when a plugin's registrations land. A plugin that
+    throws deciding is skipped; one that throws reading **its own** format answers null rather than
+    falling through, since ffprobe would only produce "Invalid data found".
+  - Nothing is cached. A file swapped on disk under an unchanged path is a case the importer and
+    the faders both have to get right, and a cache keyed on the path would hand back yesterday's
+    answer.
+  - It does **not** subsume `IMediaPlaybackGate.Claims`. Ownership is asked for every queued turn on
+    every reconcile and has to stay path-cheap; a probe opens the file. The probe supplies the
+    *tag*, so a kit now answers the ownership question the ordinary way as well.
+- A format the host cannot play at all is a separate contract, `IMediaPreparer`: `CanPrepare(path)`
+  claims it and `PrepareAsync` renders it to a destination the host chose. `PreparedMediaService`
+  asks the **gate** before calling it, so the entitlement rule lives in one place and a plugin cannot
+  forget it — which is why `PrepareAsync` carries no session check of its own.
 - **A plugin offers the screens a QR code; the venue decides whether it is drawn.** Two steps, and
   they are deliberately apart. The manifest's `qrCode` is the standing registration — it puts the
   plugin in the venue's source list, and is read without resolving the plugin so a venue can be set
@@ -218,7 +278,7 @@ such checkout at all.
 ## Plugin catalog and installs
 
 The Available tab on the Plugins page installs from a published `plugin-catalog.json` (this repo's root,
-served raw from `master`; `PluginCatalog:Url`). The catalog is the **trust root** — a plugin runs
+served raw from `main`; `PluginCatalog:Url`). The catalog is the **trust root** — a plugin runs
 in-process with the host's own access — so a release is only offered when it is served over https
 and carries a `sha256`, and the download is hashed, the zip's entries are all checked for escapes
 *before* one is written, and the manifest inside must declare the same id and
@@ -453,7 +513,7 @@ A component test renders the component (`BunitContext`, not the obsolete `TestCo
 - IPC screen commands are `[JsonPolymorphic]` on `ScreenCommandBase` — a new command needs a `[JsonDerivedType]` attribute on the base.
 - Times are stored UTC and converted where they are shown. `DateTime.Now` against a stored timestamp shifts by the host's offset — it moved the duplicate-song window by five hours here — and a test that arranges its data with the same local clock cancels the error and passes. Arrange in UTC, and remember such a test can only fail on a machine that is not already at UTC. Local time is right in exactly two places: a picker's own model (converted on save and load) and comparing a converted local date against a local today.
 - `MediaSearchEntity` lives in `KHost.Abstractions`, so it is a contract with providers outside this repo: changing it breaks their build. It carries `Title` and `Artist` separately — the library stores them apart, and rejoining them means the console has to re-parse a string it built. `ForeignKey` is the provider's own key, and only a local result's is already a library id; `Performance.MediaId` is a Guid into the library, so a remote result has to be imported before it can be enqueued.
-- Only `Ready` and `Broken` are a host's to set (`MediaStatusDisplay.IsUserSettable`). Nothing writes `Downloading` or `Processing` yet, so a status control that lists them describes a pipeline that does not exist — leaving those states belongs to whatever provider eventually sets them.
+- Only `Ready` and `Broken` are a host's to set (`MediaStatusDisplay.IsUserSettable`). `Downloading` and `Processing` are a provider's, written through `IMediaAcquisitionService` and `BeginProcessingAsync` — Example moves a row to `Processing` when a kit is in and verified — so a host-facing status control must not offer them: it would let a host claim an acquisition that is not happening.
 - Money is whole cents in an `INTEGER` (`Tip.AmountInCents`) — SQLite has no decimal type, and EF stores one as TEXT, which sorts lexicographically and makes `SUM` coerce through a float.
 - The appliance lockdown (no devtools, no page context menu) is gated on the build configuration, not the environment: an unpublished run must stay in Development or it serves no static web assets at all. Test it with `dotnet run -c Release`.
 - Two venue messages, and picking the wrong one is a bug you will not see in a test that only checks the happy path. `VenuesChanged` says the list moved (add/edit/delete) and is for the UI. `SelectedVenueChanged` says the console is now running a different venue, or the one it is running was edited — that is the one `ScreenCoordinationService` and `BreakMusicService` take, because the venue carries the room's audio baseline. Subscribing them to `VenuesChanged` means editing an unrelated venue's phone number re-pushes volume to every screen mid-song.
