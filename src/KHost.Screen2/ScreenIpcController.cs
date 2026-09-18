@@ -179,6 +179,9 @@ internal sealed class ScreenIpcController : IAsyncDisposable
             case SetBreakMusicCardCommand cmd:
                 _player.SetBreakMusicCard(cmd);
                 break;
+            case ShowNextSingerCommand cmd:
+                _player.ShowNextSinger(cmd);
+                break;
             default:
                 _logger.LogWarning("Unhandled command: {Type}", command.GetType().Name);
                 break;
