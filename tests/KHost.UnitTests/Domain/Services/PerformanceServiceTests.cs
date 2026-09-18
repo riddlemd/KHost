@@ -21,6 +21,7 @@ public class PerformanceServiceTests
     private readonly IVenuesService _venuesService = Substitute.For<IVenuesService>();
     private readonly IInteractionDispatcher _interactions = Substitute.For<IInteractionDispatcher>();
     private readonly IDownloadsService _downloadsService = Substitute.For<IDownloadsService>();
+    private readonly IServiceProvider _services = Substitute.For<IServiceProvider>();
     private readonly MessageBroker _broker = new(NullLogger<MessageBroker>.Instance);
     private readonly Venue _venue = new() { Name = "Test Venue" };
     private readonly PerformanceService _service;
@@ -142,7 +143,7 @@ public class PerformanceServiceTests
 
         _venuesService.ReadSelectedVenueAsync().Returns(_venue);
 
-        _service = new PerformanceService(_logger, _repository, _mediaService, _usersService, _venuesService, _interactions, _downloadsService, _broker);
+        _service = new PerformanceService(_logger, _repository, _mediaService, _usersService, _venuesService, _interactions, _downloadsService, _services, _broker);
     }
 
     [Fact]
@@ -205,6 +206,110 @@ public class PerformanceServiceTests
         await _service.CreateAndEnqueueAsync(new Performance { Id = Guid.NewGuid(), SingerId = Guid.NewGuid(), MediaId = Guid.NewGuid() });
 
         Assert.True(raised);
+    }
+
+    /// <summary>Refused at the queue rather than at the microphone. A song whose provider will not
+    /// let it play is one nobody can sing, and a host who learns that now can pick another.</summary>
+    [Fact]
+    public async Task CreateAndEnqueueAsync_MediaItsProviderRefuses_IsNotQueued()
+    {
+        var mediaId = ArrangeGatedMedia(new PlaybackGateResult(false, "Sign in to the provider."));
+        var singerId = Guid.NewGuid();
+
+        var performance = await _service.CreateAndEnqueueAsync(
+            new Performance { Id = Guid.NewGuid(), SingerId = singerId, MediaId = mediaId });
+
+        Assert.Null(performance);
+        Assert.Empty((await _service.ReadBySingerIdAsync(singerId, filter: PerformanceFilter.Queued)).Items);
+    }
+
+    /// <summary>A refusal with nothing on screen to explain it reads as the console ignoring the
+    /// click, so the provider's own words are what the host is shown.</summary>
+    [Fact]
+    public async Task CreateAndEnqueueAsync_MediaItsProviderRefuses_FlashesTheProvidersReason()
+    {
+        var flash = Substitute.For<IFlashService>();
+        _services.GetService(typeof(IFlashService)).Returns(flash);
+        var mediaId = ArrangeGatedMedia(new PlaybackGateResult(false, "Sign in to the provider."));
+
+        await _service.CreateAndEnqueueAsync(
+            new Performance { Id = Guid.NewGuid(), SingerId = Guid.NewGuid(), MediaId = mediaId });
+
+        flash.Received(1).Show("Sign in to the provider.", FlashType.Warning);
+    }
+
+    /// <summary>A gate may refuse without saying why, and a flash of nothing reads as the console
+    /// ignoring the click. The host gets a sentence either way.</summary>
+    [Fact]
+    public async Task CreateAndEnqueueAsync_AGateThatRefusesWithoutAReason_FlashesSomethingReadable()
+    {
+        var flash = Substitute.For<IFlashService>();
+        _services.GetService(typeof(IFlashService)).Returns(flash);
+        var mediaId = ArrangeGatedMedia(new PlaybackGateResult(false, null));
+
+        await _service.CreateAndEnqueueAsync(
+            new Performance { Id = Guid.NewGuid(), SingerId = Guid.NewGuid(), MediaId = mediaId });
+
+        flash.Received(1).Show(
+            Arg.Is<string>(message => !string.IsNullOrWhiteSpace(message)), FlashType.Warning);
+    }
+
+    /// <summary>The gate is asked about the queue, not the play: Example answers a queue by asking
+    /// the host to sign in, which is the whole point of refusing this early.</summary>
+    [Fact]
+    public async Task CreateAndEnqueueAsync_AsksTheGateAboutQueueing()
+    {
+        var gate = Substitute.For<IMediaGateService>();
+        gate.EvaluateAsync(Arg.Any<MediaAction>(), Arg.Any<Media>(), Arg.Any<CancellationToken>())
+            .Returns(PlaybackGateResult.Ok);
+        _services.GetService(typeof(IMediaGateService)).Returns(gate);
+        var mediaId = Guid.NewGuid();
+        _mediaService.ReadAsync(mediaId).Returns(new Media { Id = mediaId, FilePath = "/library/song.kit", Title = "Song" });
+
+        await _service.CreateAndEnqueueAsync(
+            new Performance { Id = Guid.NewGuid(), SingerId = Guid.NewGuid(), MediaId = mediaId });
+
+        await gate.Received().EvaluateAsync(MediaAction.Queue, Arg.Any<Media>(), Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>The control for the refusals above: an allowed song still reaches the queue, so
+    /// those tests are reading the gate rather than an enqueue that fails for its own reasons.
+    /// </summary>
+    [Fact]
+    public async Task CreateAndEnqueueAsync_MediaItsProviderAllows_IsQueued()
+    {
+        var mediaId = ArrangeGatedMedia(PlaybackGateResult.Ok);
+
+        Assert.NotNull(await _service.CreateAndEnqueueAsync(
+            new Performance { Id = Guid.NewGuid(), SingerId = Guid.NewGuid(), MediaId = mediaId }));
+    }
+
+    /// <summary>A gate that throws must not stop a host queueing the rest of the night.</summary>
+    [Fact]
+    public async Task CreateAndEnqueueAsync_AGateThatThrows_StillQueues()
+    {
+        var gate = Substitute.For<IMediaGateService>();
+        gate.EvaluateAsync(Arg.Any<MediaAction>(), Arg.Any<Media>(), Arg.Any<CancellationToken>())
+            .Returns<PlaybackGateResult>(_ => throw new InvalidOperationException("the plugin fell over"));
+        _services.GetService(typeof(IMediaGateService)).Returns(gate);
+        var mediaId = Guid.NewGuid();
+        _mediaService.ReadAsync(mediaId).Returns(new Media { Id = mediaId, FilePath = "/library/song.kit", Title = "Song" });
+
+        Assert.NotNull(await _service.CreateAndEnqueueAsync(
+            new Performance { Id = Guid.NewGuid(), SingerId = Guid.NewGuid(), MediaId = mediaId }));
+    }
+
+    /// <summary>A media row and a gate that answers <paramref name="verdict"/> for it.</summary>
+    private Guid ArrangeGatedMedia(PlaybackGateResult verdict)
+    {
+        var mediaId = Guid.NewGuid();
+        _mediaService.ReadAsync(mediaId).Returns(new Media { Id = mediaId, FilePath = "/library/song.kit", Title = "Song" });
+
+        var gate = Substitute.For<IMediaGateService>();
+        gate.EvaluateAsync(Arg.Any<MediaAction>(), Arg.Any<Media>(), Arg.Any<CancellationToken>()).Returns(verdict);
+        _services.GetService(typeof(IMediaGateService)).Returns(gate);
+
+        return mediaId;
     }
 
     [Fact]
@@ -291,7 +396,7 @@ public class PerformanceServiceTests
         repository.DeleteAsync(performance.Id).Returns(false);
         _mediaService.ReadAsync(performance.MediaId).Returns(new Media { Id = performance.MediaId, FilePath = "/downloads/song.mp4", Title = "Song", Status = MediaStatus.Downloading });
 
-        var service = new PerformanceService(_logger, repository, _mediaService, _usersService, _venuesService, _interactions, _downloadsService, _broker);
+        var service = new PerformanceService(_logger, repository, _mediaService, _usersService, _venuesService, _interactions, _downloadsService, _services, _broker);
 
         var deleted = await service.DeleteAsync(performance.Id);
 

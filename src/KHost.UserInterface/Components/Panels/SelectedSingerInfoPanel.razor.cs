@@ -25,6 +25,7 @@ public partial class SelectedSingerInfoPanel : IAsyncDisposable
     [Inject] private IPermissionService? Permissions { get; set; }
     [Inject] private ITipsService? TipsService { get; set; }
     [Inject] private IVenuesService? VenuesService { get; set; }
+    [Inject] private IPreparedMediaService? PreparedMedia { get; set; }
     [Inject] private IJSRuntime? JS { get; set; }
     [Inject] private IMessageBroker Broker { get; set; } = default!;
 
@@ -48,13 +49,12 @@ public partial class SelectedSingerInfoPanel : IAsyncDisposable
 
     protected override async Task OnInitializedAsync()
     {
-        {
-            _subscriptions.Add(Broker.Subscribe<SingerQueueChanged>(_ => OnStateChanged()));
-            _subscriptions.Add(Broker.Subscribe<PerformancesChanged>(_ => OnStateChanged()));
-            _subscriptions.Add(Broker.Subscribe<PlaybackChanged>(_ => OnStateChanged()));
-            _subscriptions.Add(Broker.Subscribe<MediaLibraryChanged>(_ => OnStateChanged()));
-            _subscriptions.Add(Broker.Subscribe<VenuesChanged>(_ => OnStateChanged()));
-        }
+        _subscriptions.Add(Broker.Subscribe<SingerQueueChanged>(_ => OnStateChanged()));
+        _subscriptions.Add(Broker.Subscribe<PreparedMediaChanged>(_ => InvokeAsync(StateHasChanged)));
+        _subscriptions.Add(Broker.Subscribe<PerformancesChanged>(_ => OnStateChanged()));
+        _subscriptions.Add(Broker.Subscribe<PlaybackChanged>(_ => OnStateChanged()));
+        _subscriptions.Add(Broker.Subscribe<MediaLibraryChanged>(_ => OnStateChanged()));
+        _subscriptions.Add(Broker.Subscribe<VenuesChanged>(_ => OnStateChanged()));
 
         if (Permissions is not null)
         {
@@ -346,6 +346,25 @@ public partial class SelectedSingerInfoPanel : IAsyncDisposable
 
     private static string FormatTempo(int tempo) =>
         tempo.ToString("+#;\u2212#;0", CultureInfo.InvariantCulture) + "%";
+
+    /// <summary>Whether this turn has something to play yet. Off the turn's own file, never the
+    /// library row's status: the row says what KHost has, not what one performance can start.
+    /// </summary>
+    private PerformancePreparation PreparationOf(Media? media)
+        => media?.FilePath is { Length: > 0 } path && PreparedMedia is { } prepared
+            ? prepared.StateFor(path)
+            : PerformancePreparation.Unprepared;
+
+    /// <summary>Whether this turn cannot start yet, which is what greys its play control.</summary>
+    /// <remarks>The same question <c>PlaybackService.LoadAsync</c> refuses on, asked of the service
+    /// that owns it rather than rebuilt here: a control offering a song the load then refuses is
+    /// the drift this avoids. Not <see cref="PerformancePreparation.Preparing"/>, which would grey
+    /// an ordinary file that starts at once and leave a plugin's format offered before its render
+    /// has even begun.</remarks>
+    private bool IsWaitingOnARender(Media? media)
+        => media?.FilePath is { Length: > 0 } path
+            && PreparedMedia is { } prepared
+            && prepared.IsWaitingOnARender(path);
 
     /// <summary>Whether this turn was queued under a name other than the singer's own.</summary>
     /// <remarks>Compares names, not SungAs presence: that field is filled by default on every row.</remarks>

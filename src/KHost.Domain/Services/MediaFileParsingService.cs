@@ -18,6 +18,7 @@ namespace KHost.Domain.Services
         private readonly ILogger<MediaFileParsingService> _logger;
         private readonly IOptionsMonitor<ServiceOptions> _options;
         private readonly IAnalyticsService _analytics;
+        private readonly IMediaProbeService _probes;
 
         private Regex[] _prefixStrippers = [];
         private Regex[] _titleNoiseStrippers = [];
@@ -26,11 +27,13 @@ namespace KHost.Domain.Services
         public MediaFileParsingService(
             ILogger<MediaFileParsingService> logger,
             IOptionsMonitor<ServiceOptions> options,
-            IAnalyticsService analytics)
+            IAnalyticsService analytics,
+            IMediaProbeService probes)
         {
             _logger = logger;
             _options = options;
             _analytics = analytics;
+            _probes = probes;
             Rebuild(options.CurrentValue);
             options.OnChange(Rebuild);
         }
@@ -137,16 +140,24 @@ namespace KHost.Domain.Services
             var sw = Stopwatch.StartNew();
             try
             {
-                var probe = await FFProbe.AnalyseAsync(probeFilePath);
-                var (title, artist) = ExtractProbeTags(probe.Format.Tags);
-                return new ProbeResult(
-                    probe.Format.Duration > TimeSpan.Zero ? probe.Format.Duration : null,
-                    title,
-                    artist);
+                // Through the probe service, so a plugin's own container is described by whoever
+                // wrote it. Scanned straight off disk, a .kit had no duration at all here: ffprobe
+                // cannot open one, and the length only ever arrived on a search result.
+                if (await _probes.ProbeAsync(probeFilePath) is not { } probe)
+                {
+                    _logger.LogDebug("Could not probe {FilePath}; falling back to filename-derived metadata", filePath);
+                    return null;
+                }
+
+                var (title, artist) = ExtractProbeTags(probe.Tags);
+
+                return new ProbeResult(probe.Duration, title, artist);
             }
             catch (Exception ex)
             {
-                _logger.LogDebug(ex, "FFProbe failed for {FilePath}; falling back to filename-derived metadata", filePath);
+                // A folder scan walks thousands of files, so one that cannot be read has to cost
+                // only its own metadata. The name is the fallback, which is where this started.
+                _logger.LogDebug(ex, "Could not probe {FilePath}; falling back to filename-derived metadata", filePath);
                 return null;
             }
             finally

@@ -33,8 +33,10 @@ public static class MediaFormats
     public static readonly IReadOnlyList<string> ImageExtensions =
         [.. _imageContentTypes.Keys.Select(key => "." + key.ToLowerInvariant()).Order()];
 
-    /// <summary>The graphics half of a karaoke pair; never imported as a row of its own.</summary>
-    /// <remarks>Only found through the audio file beside it.</remarks>
+    /// <summary>The graphics half of a karaoke pair, and the half that becomes the library row.</summary>
+    /// <remarks>Its presence is what proves the pair is karaoke: an .mp3 on its own could be
+    /// anything. The audio beside it is found from here at play time, never imported separately.
+    /// </remarks>
     public const string KaraokeGraphicsExtension = ".cdg";
 
     public static bool IsImage(string? format) => ContentTypeFor(format) is not null;
