@@ -11,7 +11,12 @@ public class MediaTagReaderTests : IDisposable
     private readonly string _workingDirectory =
         Path.Combine(Path.GetTempPath(), $"khost-tag-tests-{Guid.NewGuid():n}");
 
-    private readonly MediaTagReader _reader = new(NullLogger<MediaTagReader>.Instance);
+    // The real chain, not a substitute: what these prove is that a tag survives a round trip
+    // through ffmpeg, which means the probe underneath has to be the real one too.
+    private readonly MediaTagReader _reader = new(new MediaProbeService(
+        NullLogger<MediaProbeService>.Instance,
+        [],
+        new FfprobeMediaProbe(NullLogger<FfprobeMediaProbe>.Instance)));
 
     [RequiresFfmpegFact]
     public async Task ReadTag_ReadsAMarkerWrittenWithUseMetadataTags()
@@ -21,6 +26,19 @@ public class MediaTagReaderTests : IDisposable
         var value = await _reader.ReadTagAsync(path, IMediaPlaybackGate.MetadataTag);
 
         Assert.Equal("KHost.Plugins.Example", value);
+    }
+
+    /// <summary>Against a real container, where the casing is whatever the muxer chose rather than
+    /// whatever a test dictionary was built with. Tag names are case-preserving per muxer and
+    /// effectively case-insensitive across them, so a gate must not depend on one file's spelling.
+    /// </summary>
+    [RequiresFfmpegFact]
+    public async Task ReadTag_FindsTheMarkerWhateverCaseItIsAskedFor()
+    {
+        var path = await CreateMarkedMp4Async("KHost.Plugins.Example");
+
+        Assert.Equal("KHost.Plugins.Example", await _reader.ReadTagAsync(path, "KHOST_PROVIDER"));
+        Assert.Equal("KHost.Plugins.Example", await _reader.ReadTagAsync(path, "Khost_Provider"));
     }
 
     [RequiresFfmpegFact]

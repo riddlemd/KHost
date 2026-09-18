@@ -14,7 +14,10 @@ public class AudioTrackMixTests : IDisposable
     private readonly string _workingDirectory =
         Path.Combine(Path.GetTempPath(), $"khost-mix-tests-{Guid.NewGuid():n}");
 
-    private readonly AudioTrackService _tracks = new(NullLogger<AudioTrackService>.Instance);
+    private readonly AudioTrackService _tracks = new(new MediaProbeService(
+        NullLogger<MediaProbeService>.Instance,
+        [],
+        new FfprobeMediaProbe(NullLogger<FfprobeMediaProbe>.Instance)));
     private readonly HlsMediaStreamService _service;
 
     public AudioTrackMixTests()
