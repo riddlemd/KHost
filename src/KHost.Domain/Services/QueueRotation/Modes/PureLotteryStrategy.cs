@@ -7,7 +7,7 @@ public class PureLotteryStrategy : IQueueRotationMode
 {
     public string Id => "pure-lottery";
     public string Name => "Pure lottery";
-    public string Description => "A random singer is drawn each turn — every singer has equal odds.";
+    public string Description => "A random singer is drawn each turn: every singer has equal odds.";
 
     public Task<IReadOnlyList<Guid>> ApplyAsync(QueueRotationContext context)
     {

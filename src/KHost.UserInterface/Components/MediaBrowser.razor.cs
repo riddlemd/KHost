@@ -328,7 +328,7 @@ public partial class MediaBrowser : IAsyncDisposable
             return entry.SupportedFileCount is not null ? $"{entry.Name} ({entry.SupportedFileCount})" : entry.Name;
 
         if (_parsedMetadataCache.TryGetValue(entry.FullPath, out var cached))
-            return $"{cached.Title} — {cached.Artist ?? "Unknown"}";
+            return $"{cached.Title} - {cached.Artist ?? "Unknown"}";
 
         _ = Task.Run(async () =>
         {
