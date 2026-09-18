@@ -32,6 +32,19 @@ public sealed class PreparedMediaService : BaseService, IPreparedMediaService, I
     // a venue actually runs they would be competing with the song already playing.
     private readonly SemaphoreSlim _renderGate = new(1, 1);
 
+    /// <summary>How long a render outlives the queue wanting it. A song that has just ended is the
+    /// one most likely to be asked for again, and re-rendering a kit costs the room a wait.</summary>
+    /// <remarks>Checked when the queue changes, never on a timer: a show moves constantly, so an
+    /// expired render is dropped at the next enqueue or dequeue. Five minutes is therefore a
+    /// minimum, not a deadline, and the startup sweep is the backstop.</remarks>
+    /// <remarks>Settable so a test can watch the eviction it guards without waiting five minutes.
+    /// </remarks>
+    internal TimeSpan KeepAfterUnwanted { get; init; } = TimeSpan.FromMinutes(5);
+
+    // When each render stopped being wanted. Held here rather than read off the file, whose times
+    // say when it was made, not when the queue last had a use for it.
+    private readonly ConcurrentDictionary<string, DateTime> _unwantedSince = new(StringComparer.Ordinal);
+
     // Resolved on use, never in the constructor: PerformanceService reaches this service, so asking
     // for it up front closes a ring the container cannot build.
     private readonly IServiceProvider _services;
@@ -65,6 +78,10 @@ public sealed class PreparedMediaService : BaseService, IPreparedMediaService, I
         _subscriptions.Add(broker.Subscribe<PerformancesChanged>(_ => Reconcile()));
         _subscriptions.Add(broker.Subscribe<SingerQueueChanged>(_ => Reconcile()));
 
+        // A provider enqueues the turn and then fetches the file, so at enqueue there is often
+        // nothing on disk to render yet. This is what catches the moment it lands.
+        _subscriptions.Add(broker.Subscribe<MediaLibraryChanged>(_ => Reconcile()));
+
         // Once on the way up, rather than waiting for the queue's own announcement: that is
         // published as the queue loads, which is the same moment this is being constructed, so
         // whether it is heard is a race. The queue is read from the database here, not from the
@@ -94,6 +111,15 @@ public sealed class PreparedMediaService : BaseService, IPreparedMediaService, I
                 wanted.Add(PathFor(path));
         }
 
+        // The song at the microphone is no longer queued: playing it dequeued it. Its render is
+        // being read by ffmpeg right now, so dropping it cuts the stream off mid-song, which is
+        // what this looked like from the room.
+        if (_services.GetService<IPlaybackService>()?.CurrentMedia?.FilePath is { Length: > 0 } playing
+            && File.Exists(playing))
+        {
+            wanted.Add(PathFor(playing));
+        }
+
         // Dropped first, so a long night's renders are not all on the disk at once while the next
         // one is still encoding.
         DiscardAllBut(wanted);
@@ -107,25 +133,41 @@ public sealed class PreparedMediaService : BaseService, IPreparedMediaService, I
         }
     }
 
-    /// <summary>Everything the queue no longer wants. A render in flight is left alone: it holds
-    /// no finished file to delete, and its own completion is what puts one there.</summary>
+    /// <summary>Everything the queue stopped wanting more than the grace ago. A render in flight is
+    /// left alone: it holds no finished file to delete, and its own completion is what puts one
+    /// there.</summary>
     private void DiscardAllBut(IReadOnlySet<string> keep)
     {
         try
         {
+            var now = DateTime.UtcNow;
+
             foreach (var path in Directory.EnumerateFiles(_root, "*.mp4"))
             {
                 if (keep.Contains(path) || _inFlight.ContainsKey(path))
+                {
+                    // Wanted again: a song re-queued inside the grace keeps the render it had, so
+                    // asking for it a second time costs nothing.
+                    _unwantedSince.TryRemove(path, out _);
+                    continue;
+                }
+
+                var since = _unwantedSince.GetOrAdd(path, now);
+
+                // A song that has just ended is the one most likely to be played again.
+                if (now - since < KeepAfterUnwanted)
                     continue;
 
                 TryDelete(path);
-                Logger.LogInformation("Dropped a render nothing has queued");
+                _unwantedSince.TryRemove(path, out _);
+                Logger.LogInformation("Dropped a render nothing has wanted for {Minutes} minutes",
+                    (int)KeepAfterUnwanted.TotalMinutes);
                 _broker.Announce(new PreparedMediaChanged());
             }
         }
         catch (Exception ex)
         {
-            Logger.LogWarning(ex, "Could not drop unqueued renders");
+            Logger.LogWarning(ex, "Could not drop unwanted renders");
         }
     }
 
@@ -134,11 +176,13 @@ public sealed class PreparedMediaService : BaseService, IPreparedMediaService, I
         if (!File.Exists(filePath))
             return;
 
+        var preparer = PreparerFor(filePath);
+
         // A file whose tracks get mixed is never copied, so rendering one is work whose output is
         // thrown away. Worse, the render flattens the stems to one stereo pair, so if it ever were
-        // used the host's lead and backing sliders would move nothing. KaraFun's .khv is exactly
-        // this shape: instrumental, backing vocal, lead vocal.
-        if (await IsMixedAtPlaybackAsync(filePath, cancellationToken))
+        // used the host's lead and backing sliders would move nothing. Only for a file the host can
+        // already play: one a plugin owns has nothing to fall back to, so it is always rendered.
+        if (preparer is null && await IsMixedAtPlaybackAsync(filePath, cancellationToken))
             return;
 
         var destination = PathFor(filePath);
@@ -146,7 +190,7 @@ public sealed class PreparedMediaService : BaseService, IPreparedMediaService, I
         if (File.Exists(destination))
             return;
 
-        await _inFlight.GetOrAdd(destination, _ => RenderAsync(filePath, destination, cancellationToken));
+        await _inFlight.GetOrAdd(destination, _ => RenderAsync(filePath, destination, preparer, cancellationToken));
     }
 
     private async Task<bool> IsMixedAtPlaybackAsync(string filePath, CancellationToken cancellationToken)
@@ -201,6 +245,8 @@ public sealed class PreparedMediaService : BaseService, IPreparedMediaService, I
             : PerformancePreparation.Unprepared;
     }
 
+    public bool RequiresPreparation(string filePath) => PreparerFor(filePath) is not null;
+
     public string? TryResolve(string filePath)
     {
         if (!File.Exists(filePath))
@@ -243,7 +289,23 @@ public sealed class PreparedMediaService : BaseService, IPreparedMediaService, I
         return Path.Combine(_root, $"{hash}.mp4");
     }
 
-    private async Task RenderAsync(string filePath, string destination, CancellationToken cancellationToken)
+    /// <summary>The plugin that owns this format, or null when the host can read the file itself.
+    /// </summary>
+    private IMediaPreparer? PreparerFor(string filePath)
+    {
+        try
+        {
+            return _services.GetServices<IMediaPreparer>().FirstOrDefault(p => p.CanPrepare(filePath));
+        }
+        catch (Exception ex)
+        {
+            // A plugin that throws deciding whether a file is its own must not stop the queue.
+            Logger.LogWarning(ex, "A preparer failed on '{FilePath}'", filePath);
+            return null;
+        }
+    }
+
+    private async Task RenderAsync(string filePath, string destination, IMediaPreparer? preparer, CancellationToken cancellationToken)
     {
         // Written aside and moved, so a render that dies half way is never resolved as finished.
         var working = destination + ".part";
@@ -253,10 +315,24 @@ public sealed class PreparedMediaService : BaseService, IPreparedMediaService, I
 
         try
         {
-            var arguments = BuildArguments(filePath, working, Math.Max(1, _options.SegmentSeconds));
-
             Logger.LogInformation("Preparing '{FilePath}'", filePath);
             _broker.Announce(new PreparedMediaChanged());
+
+            if (preparer is not null)
+            {
+                if (!await preparer.PrepareAsync(filePath, working, cancellationToken) || !File.Exists(working))
+                {
+                    Logger.LogWarning("A plugin could not prepare '{FilePath}'", filePath);
+                    return;
+                }
+
+                File.Move(working, destination, overwrite: true);
+                Logger.LogInformation("Prepared '{FilePath}'", filePath);
+                _broker.Announce(new PreparedMediaChanged());
+                return;
+            }
+
+            var arguments = BuildArguments(filePath, working, Math.Max(1, _options.SegmentSeconds));
 
             using var process = Process.Start(new ProcessStartInfo(HlsMediaStreamService.ResolveFfmpeg(), arguments)
             {

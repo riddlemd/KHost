@@ -25,6 +25,7 @@ public class PlaybackServiceTests : IDisposable
     private readonly IMediaService _mediaService = Substitute.For<IMediaService>();
     private readonly IAudioTrackService _audioTracks = Substitute.For<IAudioTrackService>();
     private readonly IMediaGateService _mediaGate = Substitute.For<IMediaGateService>();
+    private readonly IPreparedMediaService _prepared = Substitute.For<IPreparedMediaService>();
     private readonly IFlashService _flash = Substitute.For<IFlashService>();
 
     // Real: a substitute would make the IsPrimary assertions below test nothing.
@@ -139,7 +140,7 @@ public class PlaybackServiceTests : IDisposable
             StreamRetireGrace = retireGrace ?? TimeSpan.Zero,
         }),
         _audioTracks,
-        _mediaGate,
+        _mediaGate, _prepared,
         _flash,
         _broker);
 
@@ -347,6 +348,54 @@ public class PlaybackServiceTests : IDisposable
         Assert.Null(_service.CurrentMedia);
         await _screenServer.DidNotReceive().BroadcastCommandAsync(Arg.Any<LoadMediaCommand>());
         _flash.Received(1).Show("Sign in to KaraFun to play this track.", FlashType.Warning);
+    }
+
+    /// <summary>A format only a plugin can read is not a media file until it has been rendered, so
+    /// playing one that is still being made surfaced as a failure to prepare the song for the
+    /// screens. Nothing is wrong: it is not ready for a moment longer, and the host is told so.
+    /// </summary>
+    [Fact]
+    public async Task LoadAsync_APluginsFormatWithNoRenderYet_IsRefusedRatherThanThrowing()
+    {
+        var (performance, media) = CreatePerformance();
+        _prepared.RequiresPreparation(media.FilePath).Returns(true);
+        _prepared.TryResolve(media.FilePath).Returns((string?)null);
+
+        await _service.LoadAsync(performance, media);
+
+        Assert.Null(_service.CurrentPerformance);
+        await _screenServer.DidNotReceive().BroadcastCommandAsync(Arg.Any<LoadMediaCommand>());
+        _flash.Received(1).Show(Arg.Is<string>(m => m.Contains("still getting ready")), FlashType.Warning);
+    }
+
+    /// <summary>Once the render lands the same turn plays, off the render rather than the source.
+    /// </summary>
+    [Fact]
+    public async Task LoadAsync_APluginsFormatOnceRendered_Loads()
+    {
+        var (performance, media) = CreatePerformance();
+        _prepared.RequiresPreparation(media.FilePath).Returns(true);
+        _prepared.TryResolve(media.FilePath).Returns("/tmp/prepared/abc.mp4");
+
+        await _service.LoadAsync(performance, media);
+
+        Assert.Same(performance, _service.CurrentPerformance);
+        _flash.DidNotReceive().Show(Arg.Any<string>(), Arg.Any<FlashType>());
+    }
+
+    /// <summary>An ordinary file is never refused for this: there is always a transcode to fall
+    /// back on, which is what happened before any of this existed.</summary>
+    [Fact]
+    public async Task LoadAsync_AnOrdinaryFileWithNoRender_LoadsAnyway()
+    {
+        var (performance, media) = CreatePerformance();
+        _prepared.RequiresPreparation(media.FilePath).Returns(false);
+        _prepared.TryResolve(media.FilePath).Returns((string?)null);
+
+        await _service.LoadAsync(performance, media);
+
+        Assert.Same(performance, _service.CurrentPerformance);
+        _flash.DidNotReceive().Show(Arg.Any<string>(), Arg.Any<FlashType>());
     }
 
     [Fact]

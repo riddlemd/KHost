@@ -67,6 +67,7 @@ public class ScreenDisconnectPausesPlaybackTests : IDisposable
             Monitor(new PlaybackService.ServiceOptions { StopFadeDuration = TimeSpan.Zero }),
             Substitute.For<IAudioTrackService>(),
             AllowingGate(),
+            Substitute.For<IPreparedMediaService>(),
             Substitute.For<IFlashService>(),
             _broker);
     }
