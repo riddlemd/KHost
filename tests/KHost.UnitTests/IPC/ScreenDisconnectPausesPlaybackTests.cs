@@ -67,6 +67,7 @@ public class ScreenDisconnectPausesPlaybackTests : IDisposable
             Monitor(new PlaybackService.ServiceOptions { StopFadeDuration = TimeSpan.Zero }),
             Substitute.For<IAudioTrackService>(),
             AllowingGate(),
+            Substitute.For<IPreparedMediaService>(),
             Substitute.For<IFlashService>(),
             _broker);
     }
@@ -74,7 +75,7 @@ public class ScreenDisconnectPausesPlaybackTests : IDisposable
     private static IMediaGateService AllowingGate()
     {
         var gate = Substitute.For<IMediaGateService>();
-        gate.EvaluateAsync(Arg.Any<Media>(), Arg.Any<CancellationToken>()).Returns(PlaybackGateResult.Ok);
+        gate.EvaluateAsync(Arg.Any<MediaAction>(), Arg.Any<Media>(), Arg.Any<CancellationToken>()).Returns(PlaybackGateResult.Ok);
         return gate;
     }
 

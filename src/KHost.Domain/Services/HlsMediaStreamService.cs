@@ -24,6 +24,21 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, ID
 
         /// <summary>Shorter segments start sooner; longer ones survive a worse network.</summary>
         public int SegmentSeconds { get; set; } = 2;
+
+        /// <summary>How much of the disk pre-rendering may hold, in megabytes. Zero lifts the cap.
+        /// </summary>
+        /// <remarks>Every queued turn gets a render and nothing else bounds the directory, so this
+        /// is a backstop rather than something a normal night reaches. Past it a song plays the way
+        /// it always did, by transcoding at play time: the pre-render is an optimisation and must
+        /// not be the reason a machine runs out of disk mid-show.</remarks>
+        public int PreparedBudgetMegabytes { get; set; } = 8192;
+
+        /// <summary>Free space to leave alone, in megabytes. Zero lifts the floor.</summary>
+        /// <remarks>Separate from the budget because the budget knows nothing about what else is on
+        /// the volume. The working directory is under temp, which is the same volume as the database
+        /// and the logs on a normal install: filling it takes the whole show down, not just the
+        /// renders.</remarks>
+        public int PreparedFreeSpaceFloorMegabytes { get; set; } = 2048;
     }
 
     internal const string PlaylistFileName = "stream.m3u8";
@@ -32,13 +47,18 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, ID
     private static readonly TimeSpan PlaylistTimeout = TimeSpan.FromSeconds(15);
 
     private readonly ServiceOptions _options;
+    private readonly IPreparedMediaService _prepared;
     private readonly Dictionary<string, Session> _sessions = [];
     private readonly SemaphoreSlim _lock = new(1, 1);
     private readonly string _root;
 
-    public HlsMediaStreamService(ILogger<HlsMediaStreamService> logger, IOptions<ServiceOptions> options)
+    public HlsMediaStreamService(
+        ILogger<HlsMediaStreamService> logger,
+        IOptions<ServiceOptions> options,
+        IPreparedMediaService prepared)
         : base(logger)
     {
+        _prepared = prepared;
         _options = options.Value;
         _root = string.IsNullOrWhiteSpace(_options.WorkingDirectory)
             ? Path.Combine(Path.GetTempPath(), "khost-streams")
@@ -62,12 +82,27 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, ID
         var directory = Path.Combine(_root, id);
         Directory.CreateDirectory(directory);
 
-        var companionAudio = ResolveCompanionAudio(filePath);
-        if (companionAudio is null && IsGraphicsOnly(filePath))
+        var prepared = _prepared.TryResolve(filePath);
+
+        // A format a plugin owns is not a media file at all until it has been rendered, so there is
+        // nothing to fall back to. Refused rather than handed to ffmpeg, which would fail with
+        // something nobody could act on.
+        if (prepared is null && _prepared.RequiresPreparation(filePath))
+            throw new InvalidOperationException($"'{filePath}' is still being made ready to play.");
+
+        // The render always wins as the input where there is one: it carries this file's audio, and
+        // for a plugin's format it is the only readable thing. Whether the job is then a copy or an
+        // encode is a separate question, since a shifted key or a re-levelled mix still filters.
+        var source = prepared ?? filePath;
+        var copyFrom = prepared is not null && CanStreamCopy(pitch, tempo, mix) ? prepared : null;
+
+        var companionAudio = prepared is null ? ResolveCompanionAudio(filePath) : null;
+        if (prepared is null && companionAudio is null && IsGraphicsOnly(filePath))
             Logger.LogWarning("No companion audio beside '{FilePath}'; the stream will be silent", filePath);
 
-        var arguments = BuildArguments(
-            filePath, startOffset, pitch, tempo, _options.SegmentSeconds, companionAudio, mix);
+        var arguments = copyFrom is null
+            ? BuildArguments(source, startOffset, pitch, tempo, _options.SegmentSeconds, companionAudio, mix)
+            : BuildCopyArguments(copyFrom, startOffset, _options.SegmentSeconds);
 
         Logger.LogInformation("Opening stream {SessionId} for '{FilePath}' at {Offset}", id, filePath, startOffset);
         Logger.LogDebug("ffmpeg {Arguments}", arguments);
@@ -269,6 +304,34 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, ID
         return arguments + $" {PlaylistFileName}";
     }
 
+    /// <summary>Whether a prepared render can be copied rather than transcoded again. Every filter
+    /// this builds is empty only here: pitch and tempo rewrite the audio, tempo rewrites the video
+    /// too, and a mix re-levels the tracks. Any of them and the copy would be a lie.</summary>
+    /// <summary>Segments an already-encoded render without touching the frames. The seek is on the
+    /// input, since there is no filter graph here for an output seek to sit behind.</summary>
+    internal static string BuildCopyArguments(string filePath, TimeSpan startOffset, int segmentSeconds)
+    {
+        var arguments = "-hide_banner -loglevel error";
+
+        if (startOffset > TimeSpan.Zero)
+            arguments += string.Format(CultureInfo.InvariantCulture, " -ss {0:F3}", startOffset.TotalSeconds);
+
+        var segment = Math.Max(1, segmentSeconds);
+
+        return arguments
+            + $" -i \"{filePath}\" -c copy"
+            + string.Format(
+                CultureInfo.InvariantCulture,
+                " -f hls -hls_time {0} -hls_playlist_type event -hls_flags independent_segments"
+                + " -hls_segment_filename seg_%05d.ts {1}",
+                segment, PlaylistFileName);
+    }
+
+    internal static bool CanStreamCopy(int pitch, int tempo, AudioMix? mix)
+        => pitch == 0
+        && StreamRate.FromTempo(tempo) == 1.0
+        && mix is not { IsMixable: true };
+
     internal static bool IsGraphicsOnly(string filePath)
         => Path.GetExtension(filePath).Equals(".cdg", StringComparison.OrdinalIgnoreCase);
 
@@ -376,6 +439,8 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, ID
             ? string.Empty
             : FormattableString.Invariant($"setpts=PTS/{rate:F6}");
     }
+
+    internal static string ResolveFfmpeg() => ResolveFfmpegPath();
 
     private static string ResolveFfmpegPath()
     {

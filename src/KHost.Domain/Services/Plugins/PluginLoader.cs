@@ -24,8 +24,12 @@ public static class PluginLoader
     ];
 
     /// <summary>Every plugin-facing interface the loader binds; a button handler has no capability.</summary>
-    private static readonly Type[] ExtensionInterfaces =
-        [.. CapabilityInterfaces.Select(c => c.Interface), typeof(IPluginButtonHandler), typeof(IMediaPlaybackGate)];
+    /// <remarks>Missing one here is silent: the plugin loads, the interface is simply never bound,
+    /// and the host falls back as though no plugin implemented it. <c>PluginExtensionInterfaceTests</c>
+    /// reads the domain for services taking <c>IEnumerable&lt;T&gt;</c> of an Abstractions interface
+    /// and fails on any that is not listed, so the list maintains itself.</remarks>
+    internal static readonly Type[] ExtensionInterfaces =
+        [.. CapabilityInterfaces.Select(c => c.Interface), typeof(IPluginButtonHandler), typeof(IMediaPlaybackGate), typeof(IMediaPreparer), typeof(IMediaProbe)];
 
     public static PluginsState ReadState(string cacheDirectory)
     {

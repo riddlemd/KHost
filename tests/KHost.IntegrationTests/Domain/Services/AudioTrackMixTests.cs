@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Globalization;
 using KHost.Abstractions.Models;
 using KHost.Domain.Services;
+using KHost.Abstractions.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
@@ -13,7 +14,10 @@ public class AudioTrackMixTests : IDisposable
     private readonly string _workingDirectory =
         Path.Combine(Path.GetTempPath(), $"khost-mix-tests-{Guid.NewGuid():n}");
 
-    private readonly AudioTrackService _tracks = new(NullLogger<AudioTrackService>.Instance);
+    private readonly AudioTrackService _tracks = new(new MediaProbeService(
+        NullLogger<MediaProbeService>.Instance,
+        [],
+        new FfprobeMediaProbe(NullLogger<FfprobeMediaProbe>.Instance)));
     private readonly HlsMediaStreamService _service;
 
     public AudioTrackMixTests()
@@ -23,7 +27,9 @@ public class AudioTrackMixTests : IDisposable
             {
                 BaseAddress = "http://host:5251",
                 WorkingDirectory = _workingDirectory,
-            }));
+            }),
+            // No prepared render: these are about what the transcode itself builds.
+            new NothingPrepared());
 
     [RequiresFfmpegFact]
     public async Task ReadTracks_NamesTheRoles_RegardlessOfStreamOrder()

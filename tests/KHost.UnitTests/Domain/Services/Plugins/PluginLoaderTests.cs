@@ -88,6 +88,21 @@ public class PluginLoaderTests : IDisposable
         Assert.Equal(PluginStatus.Incompatible, plugin.Status);
     }
 
+    /// <summary>The direction the number actually exists for, and the one a mismatch check written
+    /// as "newer than the host" would let through. A plugin built against an older contract still
+    /// implements the interfaces as they were, so loading it is a <c>TypeLoadException</c> the
+    /// moment the host asks for a member that has since been renamed, which is a broken start with
+    /// nothing on the Plugins page to say why, rather than one row reading Incompatible.</summary>
+    [Fact]
+    public void Discover_APluginBuiltAgainstAnOlderApi_ReportsIncompatible()
+    {
+        WritePlugin("stale", "05000000-0000-4000-8000-00000057a1e0", apiVersion: PluginApi.CurrentVersion - 1);
+
+        var plugin = Assert.Single(PluginLoader.Discover(PluginsDir, new PluginsState()));
+
+        Assert.Equal(PluginStatus.Incompatible, plugin.Status);
+    }
+
     [Fact]
     public void Discover_EntryAssemblyMissing_ReportsErrored()
     {
