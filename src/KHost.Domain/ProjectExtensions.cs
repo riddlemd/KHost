@@ -72,6 +72,10 @@ namespace KHost.Domain
             serviceCollection.AddSingleton<ICacheService, JsonFileCacheService>();
             serviceCollection.AddSingleton<ISingerQueueService, SingerQueueService>();
             serviceCollection.AddSingleton<IMediaStreamService, HlsMediaStreamService>();
+            // Keyed, so it never appears in the IMediaProbe enumerable the plugin probes arrive
+            // through: it claims every file and would answer ahead of whoever owns the format.
+            serviceCollection.AddKeyedSingleton<IMediaProbe, FfprobeMediaProbe>(MediaProbeService.FallbackKey);
+            serviceCollection.AddSingleton<IMediaProbeService, MediaProbeService>();
             serviceCollection.AddSingleton<IAudioTrackService, AudioTrackService>();
             serviceCollection.AddSingleton<IMediaTagReader, MediaTagReader>();
             serviceCollection.AddSingleton<IMediaGateService, MediaGateService>();
