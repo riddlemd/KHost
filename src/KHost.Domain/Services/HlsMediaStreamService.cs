@@ -27,11 +27,12 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, ID
 
         /// <summary>How much of the disk pre-rendering may hold, in megabytes. Zero lifts the cap.
         /// </summary>
-        /// <remarks>Renders run 45 MB to 90 MB for a four minute song and every queued turn gets
-        /// one, so a host who queues the night ahead reaches several gigabytes with nothing to stop
-        /// it. Past the cap a song simply plays the way it always did, by transcoding at play time:
-        /// the pre-render is an optimisation, and it must not be the reason a machine runs out of
-        /// disk mid-show. 8 GB is roughly a hundred songs held at once.</remarks>
+        /// <remarks>Measured here, a render runs 8 MB to 17 MB for a four minute song, so 8 GB
+        /// holds several hundred and a night queued ahead is about a gigabyte. The cap is not here
+        /// because that number is large; it is here because every queued turn gets a render and
+        /// nothing else bounds the directory. Past it a song plays the way it always did, by
+        /// transcoding at play time: the pre-render is an optimisation and must not be the reason a
+        /// machine runs out of disk mid-show.</remarks>
         public int PreparedBudgetMegabytes { get; set; } = 8192;
 
         /// <summary>Free space to leave alone, in megabytes. Zero lifts the floor.</summary>
