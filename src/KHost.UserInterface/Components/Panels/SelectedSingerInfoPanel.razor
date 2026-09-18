@@ -192,8 +192,9 @@
                                         @if (_allowAliases)
                                         {
                                             <button class="kh-button kh-button--primary"
+                                                    disabled="@AliasLocked(performance)"
                                                     @onclick="() => OpenSingingAsDialogAsync(performance, selected)"
-                                                    title="Change the name this song is announced under">
+                                                    title="@AliasTooltip(performance)">
                                                 <Icon Name="person" /> Change Singer Alias
                                             </button>
                                         }
