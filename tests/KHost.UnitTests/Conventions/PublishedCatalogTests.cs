@@ -58,6 +58,27 @@ public class PublishedCatalogTests
         Assert.True(offenders.Length == 0, Message("Entries need a name and at least one release", offenders));
     }
 
+    /// <summary>The catalog lists what the current host can install, and nothing else.</summary>
+    /// <remarks>`LatestCompatibleRelease` matches the api version exactly, so an entry the gate has
+    /// passed by is one no host will ever select again: the Available tab reads "Not compatible"
+    /// and there is nothing to install. This has shipped twice, on the move to api 2 and again on
+    /// the move to 3, because nothing tied the published file to the number the host enforces.
+    /// Moving `PluginApi.CurrentVersion` is therefore meant to fail here until every entry has been
+    /// rebuilt, re-released and the superseded one removed.</remarks>
+    [Fact]
+    public void CatalogReleases_AllDeclareTheApiVersionThisHostEnforces()
+    {
+        var offenders = Read().Plugins
+            .SelectMany(entry => entry.Releases.Select(release => (entry, release)))
+            .Where(pair => pair.release.ApiVersion != PluginApi.CurrentVersion)
+            .Select(pair => $"{Describe(pair.entry)} v{pair.release.Version} declares api {pair.release.ApiVersion}")
+            .ToArray();
+
+        Assert.True(
+            offenders.Length == 0,
+            Message($"Every published release must declare api {PluginApi.CurrentVersion}, which is what this host installs", offenders));
+    }
+
     [Fact]
     public void CatalogReleases_CanAllActuallyBeInstalled()
     {

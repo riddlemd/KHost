@@ -108,10 +108,14 @@ public class PluginInstallerServiceTests : IDisposable
         Assert.Empty(service.Staged().Installs);
     }
 
-    [Fact]
-    public async Task InstallAsync_ManifestTargetsAnotherApiVersion_Fails()
+    [Theory]
+    [InlineData(1)]
+    // The stale direction is the one a check written as "newer than the host" waves through, and a
+    // payload is the last place to catch it: past here the plugin is on disk and loads in-process.
+    [InlineData(-1)]
+    public async Task InstallAsync_ManifestTargetsAnotherApiVersion_Fails(int offset)
     {
-        var zip = BuildZip(apiVersion: PluginApi.CurrentVersion + 1);
+        var zip = BuildZip(apiVersion: PluginApi.CurrentVersion + offset);
         var service = BuildService(zip);
 
         var result = await service.InstallAsync(Entry(), Release(Sha256(zip)));
