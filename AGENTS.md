@@ -25,8 +25,8 @@ SCSS compiles inside `dotnet build` (AspNetCore.SassCompiler) — no separate sa
 ## Rules
 
 - Interfaces in `src/KHost.Abstractions` (`Services/`, `Repositories/`, `Models/`); implementations in `src/KHost.Domain` or `src/KHost.DataAccess`. The rule is about what a plugin builds against, so an interface a plugin must *not* reach sits with its implementation instead — `IScreenQrCodeService` takes an owner id, and a plugin able to pass any owner could register over another's QR code without either noticing. Register in the project's `ProjectExtensions` (`AddDomain()` / `AddDataAccess()`); UI-only services in `Program.cs`. All domain services are singletons — guard mutable state with `SemaphoreSlim`.
-- A helper both the host and a plugin would want goes in `KHost.Common`, not `Abstractions`: it is MIT on purpose, so a plugin author may use it without taking PolyForm code into what they redistribute. `Common` is for helpers *over* the contracts — string folding aids, formatting, list surgery, the shared drop-position mechanic. A contract, a model or anything `Abstractions` itself needs belongs in `Abstractions`, which references nothing. `Abstractions` declares, it does not compute — see **No static methods in Abstractions** below. Group by area under `Common` (`Media/`, `Plugins/`) rather than dropping types in its root, and mirror that in the tests. Name its methods for what the call site needs to read, not for what the class already says: a plugin author sees `StreamRate.FromTempo(t)` and `AudioLevels.ClampVolume(v)` without this repo's context, so `For` and `Clamp` are too thin — `PluginRid.MatchesThisHost` names what it matches against, and `int.CentsToCurrencyString()` names the unit the receiver is in. Verbosity here is worth more than symmetry with a BCL name; the one exception is a member that exists to fill a BCL gap (`IList<T>.FindIndex`), where the familiar name *is* the point.
-- No "gate" services: behaviour that guards a call lives on the service that owns the call (enqueue rules go in `PerformanceService.CreateAndEnqueueAsync`, not an `IEnqueueGuard` around it). `IMediaGateService` and `IMediaProbeService` are not exceptions to this and are not guards: they answer "which plugin owns this file" so that no caller has to know, and the rule each one routes to belongs to the plugin, not to the host. A host rule wrapped in a service of its own is still the thing this bans.
+- A helper both the host and a plugin would want goes in `KHost.Common`, not `Abstractions`: it is MIT on purpose, so a plugin author may use it without taking PolyForm code into what they redistribute. `Common` is for helpers *over* the contracts — string folding aids, formatting, list surgery, the shared drop-position mechanic. A contract, a model or anything `Abstractions` itself needs belongs in `Abstractions`, which references nothing. `Abstractions` declares, it does not compute — see **No static methods in Abstractions** below. Group by area under `Common` (`Media/`, `Plugins/`) rather than dropping types in its root, and mirror that in the tests. Name its methods for what the call site needs to read, not for what the class already says: a plugin author sees `StreamRate.FromTempo(t)` and `AudioLevels.ClampVolume(v)` without this repo's context, so `For` and `Clamp` are too thin — `PluginRid.MatchesThisHost` names what it matches against, and `int.CentsToCurrencyString()` names the unit the receiver is in. The one exception is a member that exists to fill a BCL gap (`IList<T>.FindIndex`), where the familiar name *is* the point.
+- No "gate" services: behaviour that guards a call lives on the service that owns the call (enqueue rules go in `PerformanceService.CreateAndEnqueueAsync`, not an `IEnqueueGuard` around it). `IMediaGateService`/`IMediaProbeService` are routers, not guards: they answer which plugin owns a file, and the rule itself lives in the plugin.
 - New repositories/services copy the shape of an existing one: repositories extend `BaseRepository<T>` and implement `SortColumns` / `ApplySearchFilters`; services extend `BaseService` (or `BaseRepositoryService<,>` for CRUD).
 - In repositories, `using var context = await ContextFactory.CreateDbContextAsync();` per operation — never store a context.
 - Services announce, they do not raise events. There is no `StateChanged` and no `IKHostService`: a service that has something to say takes `IMessageBroker` in its own constructor (never through `BaseService`, which carries only `ILogger`) and calls `Broker.Announce(new ThingChanged())`. Messages are empty records in `KHost.Abstractions.Messaging.Messages`, one per service, named for the fact — see **Messaging** below.
@@ -35,7 +35,7 @@ SCSS compiles inside `dotnet build` (AspNetCore.SassCompiler) — no separate sa
 - Method names that cross a string boundary (`[JSInvokable]` called from JS, SignalR hub methods invoked by name) break silently when renamed: pass the name as `nameof(...)` from C# and take it as a parameter in JS (see `SingerQueuePanel` / `sortable-interop.js`, `ScreenClient` / `ScreenHub`).
 - Library/users/groups persist in SQL; queue and venue state in the JSON cache (`ICacheService`, `./cache/`).
 - Dialogs go through `IInteractionDispatcher`, which resolves `IInteractionHandler<TReq, TRes>` from DI; handlers bridge dialogs into awaitable calls with `TaskCompletionSource` and are registered in `Program.cs`.
-- `KHost.Abstractions` and `KHost.Common` are MIT; everything else is PolyForm Shield (`LICENSE`, and each MIT project's own `LICENSE`). `LicenceBoundaryTests` enforces it: an MIT project may reference only MIT projects, and must declare `PackageLicenseExpression` and ship a `LICENSE`. Note the compiler catches only the circular case — a reference to a leaf like `KHost.LrcLib` builds fine and breaks the licence silently, which is what that test is for. There is no separate plugin SDK: a plugin references `Abstractions` and `Common` directly, which is why `Abstractions` may reference nothing at all — `Common` sits above it, never the other way round. `KHostException` lives in `Abstractions` with the interfaces it is thrown across — it is the only way a plugin can report a failure the host can act on, so it has to sit where a plugin can reach it.
+- `KHost.Abstractions` and `KHost.Common` are MIT; everything else is PolyForm Shield (`LICENSE`, and each MIT project's own `LICENSE`). `LicenceBoundaryTests` enforces it: an MIT project may reference only MIT projects, and must declare `PackageLicenseExpression` and ship a `LICENSE`. Note the compiler catches only the circular case — a reference to a leaf like `KHost.LrcLib` builds fine and breaks the licence silently, which is what that test is for. `KHostException` lives in `Abstractions` with the interfaces it is thrown across — it is the only way a plugin can report a failure the host can act on, so it has to sit where a plugin can reach it.
 - Do NOT commit unless explicitly asked.
 
 ## No static methods in Abstractions
@@ -56,15 +56,8 @@ fatal in that one project via the `.editorconfig` beside its `.csproj`.
   not methods and are untouched — `ScreenCapabilities.None`, `MediaSearchOptions.Default` and
   `PluginRid.Current` all stay. `#pragma warning disable KH0001` is the escape hatch, and wanting
   one is usually a sign the member belongs in `Common`.
-- Where the existing ones went: `MediaFormats` (reads the disk for a `.cdg` sidecar) and
-  `AdPlayback.HasOwnAudio` to `Common/Media/`, alongside `AudioLevels.ClampVolume`,
-  `AudioTrackRoles.FromTrackName` and `StreamRate.FromTempo`; `PluginRid` and `PluginVersion` to
-  `Common/Plugins/`; `AuthResult`'s factories to `Common/Authentication/AuthResults`;
-  `RepositoryModel.IsBuiltIn` to `Common/Repositories/RepositoryModels.IsBuiltIn`.
-- `PluginCatalog` is the shape of the split: `IPluginCatalogService` returns it, so the data stays
-  in `Abstractions` while `LatestCompatibleRelease`, `HasReleaseForThisHost` and
-  `HasReleaseForThisPlatform` became extensions in `Common/Plugins/PluginCatalogExtensions` — they
-  needed `PluginRid` and `PluginVersion`, which had already moved.
+- Precedents for the split live in `Common/Media/`, `Common/Plugins/`, `Common/Authentication/`
+  and `Common/Repositories/`.
 
 ## Messaging
 
@@ -105,30 +98,17 @@ code it offers the screens.
   `DownloadState` needs no member for it and the two still move together. Ask
   The download entry carries a `DownloadPhase` alongside its unchanged `Downloading` state, set by
   `MediaAcquisitionService` when it moves the row, so the Downloads page names which half a
-  percentage is measuring instead of reporting a render as a download. Changing phase clears the
-  progress with it — each half measures its own work, and a carried-over fraction would show the
-  render starting wherever the fetch stopped. A provider that counts bytes reports them with the
-  byte overload of `ReportDownloadProgressAsync` and the page shows how much of how much; one that
-  cannot still moves a count with an indeterminate bar. `FailImportAsync` takes an optional reason
+  percentage is measuring instead of reporting a render as a download. Changing phase clears the progress with it. A provider that counts bytes reports them with the byte overload of
+  `ReportDownloadProgressAsync`. `FailImportAsync` takes an optional reason
   the page shows beside the failure — a line a host can act on, never a stack trace.
-  Widening a method a plugin calls is a **runtime** break even when it is a source-compatible
-  optional parameter, because the default compiles into the call site: a binary built against the
-  older contract goes on calling a method that no longer exists. So `PluginApi.CurrentVersion`
-  moves with it, and the host refuses that build at load time instead of throwing a
-  `MissingMethodException` at the moment a download fails. It moved to **2** for exactly this,
-  which is what that number is for — and a published catalog release declaring an older number
-  reads as incompatible until it is rebuilt and re-released.
-  **It moved to 3** when `IMediaPlaybackGate.CanPlayAsync` became `CanAsync(MediaAction, Media)`.
-  That is the other half of the same rule and the half easier to talk yourself out of: a method a
-  plugin *implements* breaks its binary just as surely as one it calls, and the reasoning that says
-  otherwise — checking the published catalog, finding only plugins that never touched the interface
-  — misses the plugin installed by hand, which is the one actually being run. KaraFun implements the
-  gate, so a build of it against the older contract is a `TypeLoadException` at load rather than the
-  clean refusal this number exists to produce. While the contracts are 0.x this is the trade
-  taken on purpose: an overload pair would have kept old binaries alive at the cost of two methods
-  meaning one thing forever. The same widening also silently changes what
-  `Received(1).FailImportAsync(id)` asserts in a plugin's own tests — it becomes `reason: null` —
-  so assert the reason rather than the bare call.
+  Changing a method a plugin **calls or implements** is a runtime break, including adding an
+  optional parameter: the default compiles into the call site, and a changed signature on an
+  implemented method is a `TypeLoadException` at load. `PluginApi.CurrentVersion` moves with it so
+  the host refuses that build cleanly instead; it is at **3**, and a catalog release declaring an
+  older number reads as incompatible until rebuilt and re-released. Do not reason from the
+  published catalog about who implements what: the hand-installed plugin is the one being run.
+  Widening also silently changes what `Received(1).FailImportAsync(id)` asserts in a plugin's own
+  tests — it becomes `reason: null` — so assert the reason rather than the bare call.
   Ask `MediaStatuses.IsAcquiring()` (`Common/Media/`) rather than `== MediaStatus.Downloading` —
   spelling "in flight" as phase one strands a row that reached phase two, which is what the startup
   sweep, the cancellation token and the dequeue cancel each want. `MediaStatuses.Acquiring` is the
@@ -161,13 +141,12 @@ code it offers the screens.
   the argument — the alternative, a method per moment, was three places for one rule to drift apart
   in. The three call sites are `PerformanceService.CreateAndEnqueueAsync` (Queue),
   `PreparedMediaService` before it writes anything (Render) and `PlaybackService.LoadAsync` (Play).
-  - **`Render` is the one that matters**, and the reason the enum exists. It is the moment licensed
-    content leaves the provider's own container, so a refusal there means no playable copy is ever
-    written — rather than one sitting on disk, refused at the microphone, for anybody who finds it.
-    It is also the one moment with **nobody watching**: a render runs behind the host, so a gate
-    refuses it outright where `Queue` and `Play` may put a sign-in dialog up and carry on with the
-    answer. Refusing at `Queue` as well is the kindness — a host learns now, not with the singer
-    already standing there.
+  - **`Render` is the one that matters.** It is where licensed content leaves the provider's own
+    container, so a refusal there means no playable copy is ever written; and it runs with nobody
+    watching, so a gate refuses it outright where `Queue` and `Play` may raise a sign-in and carry
+    on with the answer. Refusing at `Queue` too is the kindness: a host learns before the singer is
+    at the microphone.
+
   - **Ownership and verdict are separate questions.** Ownership is the tag: a gated file carries the
     container tag `IMediaPlaybackGate.MetadataTag` (`khost_provider`) set to the gate's `ProviderId`,
     and `IMediaGateService` reads it and asks that one gate rather than polling every plugin. KaraFun
@@ -191,12 +170,8 @@ code it offers the screens.
 - **A plugin that ships its own container describes it, through `IMediaProbe`.** ffprobe is the
   host's answer for everything it understands and is simply *wrong* for a container it does not: a
   `.kit` reads as "Invalid data found", which is indistinguishable from a file with no tracks and no
-  tags. That silence cost three separate workarounds before the contract existed — ownership checked
-  off the path, the track probe redirected at the render, and a duration that only ever arrived on a
-  search result — each patching one question rather than the missing answer behind all of them.
-  - `CanProbe(path)` claims the file **from the path alone**, like `Claims` and `CanPrepare`: the
-    host asks before opening anything, and a probe that read the file to decide would do the work
-    twice for every file it turns out not to own. `ProbeAsync` then returns a `MediaProbeResult` —
+  tags.
+  - `CanProbe(path)` claims the file from the path alone; `ProbeAsync` then returns a `MediaProbeResult` —
     duration, audio tracks, container tags. **Null and an empty result differ and both matter**:
     null is "I could not tell", empty is "I looked, and there is nothing there".
   - **The probe returns facts; the asking service keeps its policy.** One probe feeds the importer,
@@ -214,9 +189,7 @@ code it offers the screens.
   - Nothing is cached. A file swapped on disk under an unchanged path is a case the importer and
     the faders both have to get right, and a cache keyed on the path would hand back yesterday's
     answer.
-  - It does **not** subsume `IMediaPlaybackGate.Claims`. Ownership is asked for every queued turn on
-    every reconcile and has to stay path-cheap; a probe opens the file. The probe supplies the
-    *tag*, so a kit now answers the ownership question the ordinary way as well.
+
 - **Three questions a provider answers about a file, and they are not the same question.**
   `IMediaPlaybackGate.Claims` asks who *owns* it, `IMediaProbe.CanProbe` who can *read* it, and
   `IMediaPreparer.CanPrepare` who must *convert* it. KaraFun answers all three with "is it a
@@ -242,12 +215,11 @@ code it offers the screens.
   plugin in the venue's source list, and is read without resolving the plugin so a venue can be set
   up before the show (KaraFun has no code until a host signs in). `IPluginContext.RegisterQrCodeAsync`
   is the live one: what that source points at right now. The venue names **one** source in
-  `Venue.Settings.QrCodeSource`, and **none is the default** — a code invites a room to scan it, so
-  it goes up because someone chose it, not because a plugin was installed. Every other owner's code
+  `Venue.Settings.QrCodeSource`, and **none is the default**. Every other owner's code
   is held and not drawn, which is what makes switching source mid-show immediate: the new one is
   already registered. The owner is stamped from the manifest the host loaded, never passed by the
   caller, for the same reason a secret's key is. Placement is the venue's alone — a plugin passes a
-  payload and a caption and has no say in corner or size, because it is the venue's screen.
+  payload and a caption and has no say in corner or size.
 - A plugin adds file extensions the media importer's folder scan recognises with a manifest
   `importFormats: [".khv", ".kit"]` — declarative, like `settings` and `buttons`, so the importer
   reads it from `IPluginRegistry` without resolving the plugin. `MediaImportService` unions the
@@ -264,14 +236,16 @@ code it offers the screens.
   session button, and its `IMediaPlaybackGate` all at once — one object, one `_sessionKey`, so
   signing in anywhere gates everywhere. Registering per interface instead (the old shape) built the
   type once for each, and signing in on the button would not have signed in the search.
+  - The interfaces the loader binds are a hand-written list in `PluginLoader`, and leaving one off
+    is **silent**: the plugin loads, the interface is never bound, and the host behaves as though
+    nothing implemented it. `IMediaProbe` shipped implemented, tested and unreachable that way.
+    `PluginExtensionInterfaceTests` reads the domain for services collecting `IEnumerable<T>` of an
+    Abstractions interface and fails on any that is not listed, so the list maintains itself.
 
 ## The published contracts
 
 `KHost.Abstractions` and `KHost.Common` are **NuGet packages**, and a plugin takes a
 `PackageReference` to them rather than a `ProjectReference` into a checkout of this repo beside it.
-That reference was a standing trap: the plugin repo failed to build whenever this one changed
-branch, for errors that named a missing member rather than the cause, and an outside author has no
-such checkout at all.
 
 - `<ContractsVersion>` in `Directory.Build.props` is the version of both, and it is **not**
   `PluginApi.CurrentVersion`. That one is the runtime gate the host checks a manifest against and
@@ -322,9 +296,7 @@ folder: `PluginLoader` hands that string straight to `LoadFromAssemblyPath`.
 - **The catalog lists what the current host can install, and nothing else.** When
   `PluginApi.CurrentVersion` moves, every entry declaring the old one is rebuilt, re-released and
   the superseded entry **removed** — `LatestCompatibleRelease` matches the api version *exactly*,
-  so an entry the gate has passed by is one no host will ever select again. It is a list for
-  people on the current build, not an archive: the GitHub releases are the record of what was
-  published, and the catalog is the answer to "what can I install now". Removing is the one catalog
+  so an entry the gate has passed by is one no host will ever select again. Removing is the one catalog
   edit made by hand, since nothing about it asserts a checksum.
 - **Add a release with the tool, never by hand**:
   `dotnet run --project tools/KHost.CatalogSync -- <owner/repo> [--rid win] [--capabilities "a,b"]`.
@@ -340,8 +312,7 @@ folder: `PluginLoader` hands that string straight to `LoadFromAssemblyPath`.
   reviewed. The catalog's hash is the one the sync run computed.
 - A release zip holds `manifest.json` at its root (or in one wrapping folder), the entry assembly,
   and its `.deps.json` — `AssemblyDependencyResolver` reads that to find plugin-private
-  dependencies. Ship no `.pdb`, and no copy of `KHost.Abstractions.dll` or `KHost.Common.dll`: `PluginLoadContext.Load`
-  returns null for anything already in the default context, so a plugin-local copy of either is never loaded.
+  dependencies. Ship no `.pdb`, and no copy of the contract assemblies (see **The published contracts**).
 - `Rid` is blank for a build that runs anywhere, which is what a plugin should aim for. Name a
   platform only where an OS API forces a separate build — the Spotify provider's WinRT path is the
   case it exists for. Selection takes version first and platform second.
@@ -392,8 +363,7 @@ one `SetMarqueeCommand`.
 change the same way the marquee is.
 
 - **It says what is *playing*, not what is cued.** A host's pause and the hand-off to a singer both
-  take it down, so the screen never names a track over somebody else's performance — which is the
-  only way a caption in the corner can be trusted at a glance. `Suspended` counts as not playing.
+  take it down, so the screen never names a track over somebody else's performance. `Suspended` counts as not playing.
 - Off for a venue that has never been asked, so the missing key reads as off and it needed no
   backfill.
 - A provider that reports no title gets no card; one that reports no artist just loses the second
@@ -405,22 +375,14 @@ change the same way the marquee is.
 - **A service that answers a screen connecting implements `IStartsWithTheHost`.** The container
   builds a singleton the first time somebody asks for it, so one that wires the broker or a screen
   event *in its constructor* has wired nothing until that moment — and a screen connecting before
-  then is answered by nobody, with no error anywhere to say so. That was found three times, each
-  time from the far end as a screen missing something: the marquee, the break music card, and the
-  codes, which on a host with no plugins installed was never built at all.
-  - The marker carries no members on purpose. It says "build me", not "do something": the work each
-    of these does on the way up is its own, and several already have an `InitializeAsync` for it.
-    What kept going missing was being constructed at all.
+  then is answered by nobody, with no error anywhere to say so.
   - Registered twice — once as itself, once under the marker pointing at the same singleton
     (`sp => (IStartsWithTheHost)sp.GetRequiredService<IWhatever>()`). Registering it afresh would
     build a second copy, and the copy nobody else holds would be the one listening.
-  - `Program.cs` enumerates the marker before `MapIPCServer()`. A loop rather than a line each,
-    because a line each is exactly what kept going missing.
-  - Being reachable through somebody else's constructor does **not** count and is not relied on:
-    `PlaybackService` was alive only because `ScreenMarqueeService` takes it, which is the marquee
-    needing playback for its own reasons. `StartupScreenServicesTests` reads the domain for
-    constructors wiring `ScreenConnected` and fails on any that does not wear the marker — so the
-    list maintains itself rather than being one more thing to remember.
+  - `Program.cs` enumerates the marker before `MapIPCServer()`. A loop, not a line each.
+  - Being reachable through somebody else's constructor does **not** count.
+    `StartupScreenServicesTests` reads the domain for constructors wiring `ScreenConnected` and
+    fails on any that does not wear the marker, so the list maintains itself.
 - `LocalScreen:LaunchOnStartup` (the App Settings page's "Open a screen when KHost starts") opens
   one screen named `AppSettings.StartupScreenName`. Read once on the way up, so changing it flips
   `RestartRequired` rather than pretending to take effect.
@@ -452,17 +414,12 @@ change the same way the marquee is.
 
 ## Pre-rendering a queued song
 
-`PreparedMediaService` renders what is queued ahead of play time, into
-`<temp>/khost-streams/prepared`. Playback runs one ffmpeg per song and it transcodes flat out, so
-the cost lands on the song transition, which is the worst moment a room can see. Rendering ahead
-moves that work to a point with no deadline and can leave a stream copy behind, which is orders of
-magnitude cheaper on the hardware a venue actually runs.
+`PreparedMediaService` renders queued songs ahead of play time into `<temp>/khost-streams/prepared`,
+moving the transcode off the song transition and leaving a stream copy behind where it can.
 
 - **Readiness belongs to the turn, and is derived, never stored.** `PerformancePreparation` is
   computed from whether the render is on disk and whether one is in flight. A column would outlive
-  the file it describes, so a row would claim a readiness a sweep had already taken away. Nothing
-  about a temp file belongs on a stored row, which is also why the media row's own status is left
-  alone.
+  the file it describes, so a row would claim a readiness a sweep had already taken away.
 - **`IsWaitingOnARender` is the question a control and a load must both ask**, and they must ask
   the *same* one or a play button offers a song the load then refuses. It is not
   `PerformancePreparation.Preparing`, which is wrong in both directions: an ordinary file mid-render
@@ -478,24 +435,22 @@ magnitude cheaper on the hardware a venue actually runs.
   burst collapses into one running pass plus at most one pending. The coalescing flag is cleared on
   the way *in*: cleared on the way out, a change arriving mid-pass is swallowed and never rendered.
 - **Cheap checks first.** The destination existing and the failure memo are read before the gate,
-  the track probe and anything else that opens a file. Behind them, an already-rendered song paid a
-  probe every time anybody touched the queue.
+  the track probe and anything else that opens a file.
 - **A render that fails is remembered.** Retried on every queue change it takes the single render
   slot for the rest of the night and nothing else is ever prepared.
 - **Both are re-checked inside the render.** Two passes can read them before either writes one, and
   the in-flight entry that would otherwise join them is removed the moment a render ends, so a pass
-  that looked early and arrived late renders the same file again. Found only by running the suite
-  on a saturated machine.
+  that looked early and arrived late renders the same file again.
 - **Nothing outlives the process.** A shutdown token is threaded through reconcile and render,
   `Dispose` cancels and waits before disposing anything a render holds, and a cancelled host-owned
   ffmpeg is killed. Waiting on a token stops the wait, not the process.
 - **There is a budget and a free-space floor** (`PreparedBudgetMegabytes`,
   `PreparedFreeSpaceFloorMegabytes`, both on the media stream options, zero lifting each). Every
   queued turn gets a render and nothing else bounds the directory, so the cap is a backstop rather
-  than something a normal night reaches. Past either, the song transcodes at play
-  time the way it always did: the pre-render is an optimisation and must never be why a machine
-  fills up in front of a room. The floor is separate because the budget knows nothing about what
-  else is on the volume, and temp shares one with the database and the logs.
+  than something a normal night reaches. Past either, the song transcodes at play time: the
+  pre-render is an optimisation and must never be why a machine fills up. The floor is separate
+  because the budget knows nothing about the rest of the volume, which temp shares with the
+  database and the logs.
 - **A render outlives the queue by `KeepAfterUnwanted`** (five minutes), because a song that has
   just ended is the one most likely to be asked for again. It is a minimum rather than a deadline:
   dropping is driven by the queue changing, so a quiet room drops nothing until the next start.
@@ -513,7 +468,7 @@ magnitude cheaper on the hardware a venue actually runs.
 - `Dialog` renders its footer only when one is supplied. A viewer — one whose actions commit as they are clicked — supplies none and closes from the header X; a footer button that only closes is furniture.
 - Keyboard shortcuts split two ways. A list's arrow keys are a Blazor `@onkeydown` on a focusable element *inside* the panel (`tabindex` + `data-kh-keylist`): keydown fires on the focused element and bubbles up, so a handler on the column around the panel never sees it. Global chords live in `shortcuts.js` and focus `[data-kh-shortcut]`, matched in JS so ordinary typing never crosses the circuit. Both lists share `ListKeyboardShortcuts.Resolve`. A new shortcut has to reach `KeyboardShortcuts.All` as well — the dialog off the menu is the only place a host can discover one.
 - Both queues reorder by dragging the row itself through `khSortable` (`sortable-interop.js`), keyed per list — it held one instance, so two sortable lists on screen had each init tear the other down. Three things it has to keep doing: revert the DOM to its pre-drag order before telling .NET (Blazor diffs against its own tree and SortableJS moved nodes behind it), filter the row's `button`s so a press on play or remove is not a drag, and keep `preventOnFilter: false` or Sortable swallows those buttons' clicks along with the drag. Row numbers come from a CSS counter, so a reorder renumbers without a re-render.
-- A boolean is a checkbox — `<input type="checkbox" class="kh-form-check-input">` inside a `label.kh-form-check`, with a `span.kh-form-check-label` for its wording. There is no slider: one lived on the Plugins page, a second was hoisted to a shared partial for the Themes page, and alongside them sat an unstyled `.kh-checkbox` and four bare inputs that rendered the browser's own blue box. One control, one class.
+- A boolean is a checkbox — `<input type="checkbox" class="kh-form-check-input">` inside a `label.kh-form-check`, with a `span.kh-form-check-label` for its wording. There is no slider and no `.kh-checkbox`. One control, one class.
 - `ComboBox<TItem>` is the type-to-search replacement for a native select. It binds the chosen item (not a key), takes every row from a `Search` delegate, and labels runs via `GroupName` without reordering them — the caller groups by sorting. Bind `Text` when the field must also accept a value the list does not contain.
 
 - The console says **song**; the media manager and the importer say **media**. A host puts on songs, and those two pages handle files, formats and paths. `Media` stays the name of the row in code either way.
@@ -530,22 +485,15 @@ magnitude cheaper on the hardware a venue actually runs.
 - A modifier that turns a filled control into an outline one has to clear the fill as well as the border and text: `.kh-button` sets a `--kh-primary` gradient, so overriding only the two left `--outline-danger` painting a solid primary background under red text. Nor is `--kh-primary` a safe stand-in for "active" — a theme may make it a neutral (famicom's is the console's grey plastic), so a state carried by hue alone stops reading. This is why every toggle is a checkbox: `.kh-form-check-input` fills with `--kh-primary` but says "on" with a check glyph, which survives a theme whose brand colour is grey. Use `--kh-danger-bright` rather than `--kh-danger-text-subtle` for danger text, which these dark themes define for exactly that.
 - A `.kh-note` explains **one control, and sits directly under it** — never after a run of rows
   carrying a fact about each. In a label-beside-control row it goes **inside the label's own
-  column** (`<span class="kh-venue-settings__labelled">` around the label and the note, or inside
-  the `.kh-form-check-label` for a checkbox), which is the shape `.kh-app-settings__row` keeps.
-  Left as the row's next sibling it is flush to the *row box* but not to the *label*: the control
-  sets the row's height, so the note lands a control's worth below the words it explains, and that
-  gap is what makes it read as a paragraph between rows rather than as part of the field. A note
-  that has no label column to join — one under a stacked `&__field`, or one about a whole section —
-  stays a sibling `<p>`, and then the row above gives up its bottom margin
-  (`&__row:has(+ .kh-note)`) so the two still meet. **`.kh-note` and `.kh-app-settings__apply` are
-  the same idea and share their type**: `display: block`, `0.75rem` at `1.5`, in
-  `--kh-text-muted`. Two sizes of muted hint is a difference that says nothing, so move them
-  together or not at all. The note's space *below* is a `rem` rather than an `em` — it stands in for
-  the row's own `margin-bottom`, and in the note's smaller `em` it would shrink, leaving a row with
-  a note under it closer to the next row than one without. There is deliberately no
-  quieter half of a note: the ladder is `--kh-text`, `--kh-text-secondary`, `--kh-text-muted`, and a
-  note already sits on the dimmest rung, so every colour left to pick is brighter — an "aside"
-  emphasised the detail it meant to play down. A note needing two voices is a note saying too much.
+  column** (`<span class="kh-venue-settings__labelled">`, or inside the `.kh-form-check-label` for
+  a checkbox): as the row's next sibling it lands a control's height below the words it explains,
+  which reads as a paragraph between rows rather than as part of the field. A note with no label
+  column to join — under a stacked `&__field`, or about a whole section — stays a sibling `<p>`,
+  and the row above gives up its bottom margin (`&__row:has(+ .kh-note)`). `.kh-note` and
+  `.kh-app-settings__apply` share their type: `display: block`, `0.75rem` at `1.5`, in
+  `--kh-text-muted`, with the space below in `rem` not `em` so it does not shrink with the smaller
+  text. There is deliberately no quieter variant: `--kh-text-muted` is the bottom rung of the
+  ladder, so every colour left to pick is brighter.
 - `.kh-card__body` pads a direct `<form>` child and nothing else — a card body without a form needs its own padding. A `<select>` needs `kh-form-select`, not `kh-form-control`, or WebKit draws the native macOS pop-up and discards the styling (correct in a browser, wrong only in the Photino window).
 
 ## Importing media
@@ -575,12 +523,9 @@ xUnit + NSubstitute, and bunit for components. A test that needs anything outsid
 **A service that starts work in its constructor will race a test that arranges a substitute after
 building it.** `PreparedMediaService` reconciles on the way up and nothing awaits it, so a
 substitute stubbed afterwards can have its first call consumed by that pass instead of by the test,
-and an exact call count then fails. This cost three separate intermittent failures, all of which
-passed alone and only failed on a loaded machine. Arrange everything before the service is built,
-or give the fixture a way to settle the constructor's work first.
-
-**Run the suite under load before trusting a green one.** Two real defects here were invisible on an
-idle machine and reproducible on a saturated one, and the same load is what named a flaky test.
+and an exact call count then fails. Arrange everything before the service is built, or give the
+fixture a way to settle the constructor's work first. **Run the suite under load before trusting a
+green one**: it is what found this, and two real defects an idle machine never showed.
 
 A component test renders the component (`BunitContext`, not the obsolete `TestContext`) and dispatches a real event — a handler that exists but is attached to nothing passes every test that calls it directly, which is how the queue's arrow keys sat dead behind tooltips advertising them. Set `JSInterop.Mode = JSRuntimeMode.Loose` (panels call into JS on first render) and give every `Task<List<T>>` substitute a return value: NSubstitute hands back a completed task wrapping `null`, and the component `.Count()`s it.
 
@@ -606,17 +551,14 @@ A component test renders the component (`BunitContext`, not the obsolete `TestCo
   `PerformanceService.CreateAndEnqueueAsync` on every enqueue rather than by each of its five
   callers — two of which are plugins, and a line each is what goes missing. A caller that has a
   name of its own to record sets it first and the service leaves it alone; that is how KaraFun
-  carries the nickname a guest types per pick, its queue being song-first so the name belongs to
-  the song rather than to the account it reached. `Venue.Settings.AllowAliases` decides whether a
+  carries the nickname a guest types per pick. `Venue.Settings.AllowAliases` decides whether a
   recorded name that differs from the singer's own is the one the room sees — off for a venue never
   asked, so it needed no backfill. Resolving it belongs to whoever owns the performance, not to a
   shared helper: `IPlaybackService.CurrentSingerName` answers for the song that is playing, beside
   `CurrentMedia` and for the same reason, and `ScreenMarqueeService` answers for the turns that
   have not started, which playback knows nothing about. Playback resolves it **at load** — the
   performance cannot change, and a venue edited mid-song must not rename whoever is at the
-  microphone. The column also makes history self-describing —
-  a sung performance outlives its singer, and before this nothing could name one whose singer had
-  been deleted. Never feed a recorded name back into the add-a-singer lookup: that path creates a
+  microphone. Never feed a recorded name back into the add-a-singer lookup: that path creates a
   user on no match, and a one-off name would mint a phantom singer.
   - **Nothing host-facing may key off the column being *set*** — every enqueue records one, so
     presence is true of nearly every row and a mark on it appears on the whole list saying nothing.
