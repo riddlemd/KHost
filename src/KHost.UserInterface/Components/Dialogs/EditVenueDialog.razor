@@ -42,7 +42,7 @@
                         <label for="marquee-message" class="kh-form-label">Message</label>
                         <InputText id="marquee-message" class="kh-form-control"
                                    @bind-Value="_model.MarqueeMessage"
-                                   placeholder="Happy hour until 8 — ask your host about specials" />
+                                   placeholder="Happy hour until 8. Ask your host about specials" />
                     </div>
 
                     <div class="kh-venue-settings__field">
@@ -105,7 +105,7 @@
                         <option value="">None</option>
                         @if (UnavailableQrCodeSource is { } missing)
                         {
-                            <option value="@missing">@missing &mdash; not installed</option>
+                            <option value="@missing">@missing: not installed</option>
                         }
                         @foreach (var (id, label) in QrCodeSources)
                         {
@@ -116,7 +116,7 @@
                 @if (UnavailableQrCodeSource is not null)
                 {
                     <p class="kh-note kh-note--warning">
-                        No installed plugin provides this code &mdash; check it under
+                        No installed plugin provides this code. Check it under
                         Settings &rsaquo; Plugins Manager. Picking another here replaces this
                         venue's choice for good.
                     </p>
@@ -183,7 +183,7 @@
                     <select id="venue-break-music-mode" class="kh-form-select" @bind="_model.BreakMusicProvider">
                         @if (UnavailableProviderSource is { } unavailable)
                         {
-                            <option value="@unavailable">@unavailable &mdash; not loaded</option>
+                            <option value="@unavailable">@unavailable: not loaded</option>
                         }
                         @foreach (var provider in BreakMusic.Providers)
                         {
@@ -195,7 +195,7 @@
                 @if (UnavailableProviderSource is not null)
                 {
                     <p class="kh-note kh-note--warning">
-                        Nothing loaded provides this mode &mdash; check its plugin under
+                        Nothing loaded provides this mode. Check its plugin under
                         Settings &rsaquo; Plugins Manager. Picking another mode here replaces this
                         venue's choice for good.
                     </p>
@@ -214,7 +214,7 @@
                               DisplayName="@(pool => pool.Name)"
                               MinimumSearchLength="0"
                               OpenWhenEmpty="true"
-                              Placeholder="None — silence between singers" />
+                              Placeholder="None: silence between singers" />
                 </div>
                 }
 
@@ -229,14 +229,14 @@
                               DisplayName="@(pool => pool.Name)"
                               MinimumSearchLength="0"
                               OpenWhenEmpty="true"
-                              Placeholder="None — this venue runs no ads" />
+                              Placeholder="None: this venue runs no ads" />
                 </div>
 
                 <label class="kh-venue-settings__row kh-form-check">
                     <span class="kh-form-check-label">
                         Name the break music on screen
                         <span class="kh-note">
-                            Only while it is actually playing &mdash; it comes down for a singer,
+                            Only while it is actually playing: it comes down for a singer,
                             and for a pause.
                         </span>
                     </span>
@@ -269,7 +269,7 @@
                               DisplayName="@(image => image.Title)"
                               MinimumSearchLength="0"
                               OpenWhenEmpty="true"
-                              Placeholder="None — leave the screen blank" />
+                              Placeholder="None: leave the screen blank" />
                 </div>
 
                 @if (_brandingImage is not null)
@@ -281,9 +281,9 @@
                             @* Blank is the image's own, which is what the library already says
                                about it. A venue only needs this where it disagrees. *@
                             <option value="">Use the image's own</option>
-                            <option value="@ImageScaling.Fit">Fit &mdash; show all of it</option>
-                            <option value="@ImageScaling.Fill">Fill &mdash; crop the overflow</option>
-                            <option value="@ImageScaling.Stretch">Stretch &mdash; distort to fit</option>
+                            <option value="@ImageScaling.Fit">Fit: show all of it</option>
+                            <option value="@ImageScaling.Fill">Fill: crop the overflow</option>
+                            <option value="@ImageScaling.Stretch">Stretch: distort to fit</option>
                             <option value="@ImageScaling.Original">Original size</option>
                         </InputSelect>
                     </div>

@@ -8,8 +8,8 @@
       <div class="kh-venue-settings">
         <div class="kh-venue-settings__section kh-venue-settings__section--head">
             <p class="kh-note">
-                For the files the song importer leaves alone &mdash; break music, ad spots, and the
-                card shown on screen between singers. Break music wants real records &mdash; a
+                For the files the song importer leaves alone: break music, ad spots, and the
+                card shown on screen between singers. Break music wants real records: a
                 karaoke backing track has no singer on it. The file stays where it is; only its
                 details are stored.
             </p>
@@ -23,9 +23,9 @@
             <div class="kh-venue-settings__row">
                 <label for="add-media-type" class="kh-form-label">Type</label>
                 <select id="add-media-type" class="kh-form-select" @bind="_type">
-                    <option value="@MediaType.Audio">Audio &mdash; break music, or an ad's voiceover</option>
-                    <option value="@MediaType.Video">Video &mdash; an ad spot</option>
-                    <option value="@MediaType.Image">Image &mdash; a card or a still ad</option>
+                    <option value="@MediaType.Audio">Audio: break music, or an ad's voiceover</option>
+                    <option value="@MediaType.Video">Video: an ad spot</option>
+                    <option value="@MediaType.Image">Image: a card or a still ad</option>
                     <option value="@MediaType.Karaoke">Karaoke</option>
                 </select>
             </div>
@@ -35,9 +35,9 @@
                 <div class="kh-venue-settings__row">
                     <label for="add-media-scaling" class="kh-form-label">How it fills the screen</label>
                     <select id="add-media-scaling" class="kh-form-select" @bind="_scaling">
-                        <option value="@ImageScaling.Fit">Fit — show all of it</option>
-                        <option value="@ImageScaling.Fill">Fill — crop the overflow</option>
-                        <option value="@ImageScaling.Stretch">Stretch — distort to fit</option>
+                        <option value="@ImageScaling.Fit">Fit: show all of it</option>
+                        <option value="@ImageScaling.Fill">Fill: crop the overflow</option>
+                        <option value="@ImageScaling.Stretch">Stretch: distort to fit</option>
                         <option value="@ImageScaling.Original">Original size</option>
                     </select>
                 </div>

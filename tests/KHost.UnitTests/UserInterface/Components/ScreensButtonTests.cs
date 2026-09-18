@@ -44,7 +44,7 @@ public class ScreensButtonTests
     {
         _button._screenCount = 2;
 
-        Assert.Equal("Screens — 2 connected", _button.Title);
+        Assert.Equal("Screens: 2 connected", _button.Title);
     }
 
     [Fact]
@@ -53,7 +53,7 @@ public class ScreensButtonTests
         _button._screenCount = 0;
         Connected("Office Room TV");
 
-        Assert.Equal("Screens — none connected, casting to Office Room TV", _button.Title);
+        Assert.Equal("Screens: none connected, casting to Office Room TV", _button.Title);
     }
 
     [Fact]
@@ -62,7 +62,7 @@ public class ScreensButtonTests
         _button._screenCount = 1;
         Connected("Office Room TV");
 
-        Assert.Equal("Screens — 1 connected, casting to Office Room TV", _button.Title);
+        Assert.Equal("Screens: 1 connected, casting to Office Room TV", _button.Title);
     }
 
     private void Connected(string name)

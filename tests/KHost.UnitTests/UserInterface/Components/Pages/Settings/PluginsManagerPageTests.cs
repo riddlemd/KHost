@@ -236,7 +236,7 @@ public class PluginsManagerPageTests : BunitContext
         var cut = Render<PluginsManagerPage>();
         cut.Find(DisclosureSelector).Click();
 
-        Assert.Contains("Set — ends cret", cut.Find(SecretStateSelector).TextContent);
+        Assert.Contains("Set: ends cret", cut.Find(SecretStateSelector).TextContent);
         Assert.DoesNotContain("sk-live-super-secret", cut.Markup);
     }
 
@@ -295,7 +295,7 @@ public class PluginsManagerPageTests : BunitContext
 
         var cut = Render<PluginsManagerPage>();
 
-        Assert.Contains("Test Plugin — restart KHost to apply.", cut.Find(".kh-plugins-manager__restart").TextContent);
+        Assert.Contains("Test Plugin: restart KHost to apply.", cut.Find(".kh-plugins-manager__restart").TextContent);
     }
 
     [Fact]

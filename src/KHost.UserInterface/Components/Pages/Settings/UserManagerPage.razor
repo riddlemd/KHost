@@ -5,7 +5,7 @@
 @using KHost.UserInterface.Services
 @using KHost.Common.Repositories
 
-<PageTitle>KHost &mdash; Manage Users</PageTitle>
+<PageTitle>KHost: Manage Users</PageTitle>
 
 <div class="kh-app__body">
     <div class="kh-settings-page">
@@ -65,7 +65,7 @@
                                         }
                                         @if (user.Groups.Count == 0)
                                         {
-                                            <span >—</span>
+                                            <span class="kh-text--muted">None</span>
                                         }
                                     </td>
                                     <td>@_tipTotals.GetValueOrDefault(user.Id).CentsToCurrencyString()</td>

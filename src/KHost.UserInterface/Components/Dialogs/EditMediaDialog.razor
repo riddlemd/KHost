@@ -48,7 +48,7 @@
                         <button type="button"
                                 class="@(_rootClassName)__status-btn kh-button @(_model.Status == MediaStatus.Ready ? "kh-button--danger" : "kh-button--secondary")"
                                 title="@(_model.Status == MediaStatus.Ready
-                                    ? "Flag this song as unplayable — it stays in the library but can't be queued"
+                                    ? "Flag this song as unplayable: it stays in the library but can't be queued"
                                     : "Clear the broken flag and allow this song to be queued again")"
                                 @onclick="ToggleBroken">
                             @(_model.Status == MediaStatus.Ready ? "Mark as broken" : "Mark as ready")
@@ -61,9 +61,9 @@
                 <div>
                     <label for="edit-media-scaling" class="kh-form-label">How it fills the screen</label>
                     <select id="edit-media-scaling" class="kh-form-select" @bind="_model.ImageScaling">
-                        <option value="@ImageScaling.Fit">Fit — show all of it</option>
-                        <option value="@ImageScaling.Fill">Fill — crop the overflow</option>
-                        <option value="@ImageScaling.Stretch">Stretch — distort to fit</option>
+                        <option value="@ImageScaling.Fit">Fit: show all of it</option>
+                        <option value="@ImageScaling.Fill">Fill: crop the overflow</option>
+                        <option value="@ImageScaling.Stretch">Stretch: distort to fit</option>
                         <option value="@ImageScaling.Original">Original size</option>
                     </select>
                 </div>

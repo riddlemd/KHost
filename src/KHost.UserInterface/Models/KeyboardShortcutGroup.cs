@@ -27,7 +27,7 @@ public static class KeyboardShortcuts
             new(["shift", "↑"], "Move the selected singer up the queue"),
             new(["shift", "↓"], "Move the selected singer down the queue"),
         ],
-        "Click a singer first — the arrows act on the list holding focus."),
+        "Click a singer first. The arrows act on the list holding focus."),
 
         new("Singer's songs",
         [

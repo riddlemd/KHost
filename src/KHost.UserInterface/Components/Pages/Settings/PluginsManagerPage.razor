@@ -3,7 +3,7 @@
 @using KHost.Abstractions.Models.Plugins
 @using KHost.Common.Plugins
 
-<PageTitle>KHost &mdash; Manage Plugins</PageTitle>
+<PageTitle>KHost: Manage Plugins</PageTitle>
 
 <div class="kh-app__body">
     <div class="kh-settings-page">
@@ -24,7 +24,7 @@
                     <span>
                         @if (waiting.Count > 0)
                         {
-                            @($"{string.Join(", ", waiting)} — restart KHost to apply.")
+                            @($"{string.Join(", ", waiting)}: restart KHost to apply.")
                         }
                         else
                         {
@@ -38,7 +38,7 @@
                 <div class="kh-plugins-manager__restart">
                     <Icon Name="box-arrow-in-down" />
                     <span>
-                        @($"{StagingSummary} — restart KHost to apply.")
+                        @($"{StagingSummary}: restart KHost to apply.")
                     </span>
                 </div>
             }
@@ -132,7 +132,7 @@
                                             @(string.IsNullOrWhiteSpace(entry.Description) ? "No description." : entry.Description)
                                             @if (!string.IsNullOrWhiteSpace(entry.Author))
                                             {
-                                                @($" — by {entry.Author}")
+                                                @($" (by {entry.Author})")
                                             }
                                         </span>
                                     </span>
@@ -344,7 +344,7 @@
                                                             <span class="kh-plugins-manager__secret">
                                                                 <span class="kh-plugins-manager__secret-state">
                                                                     <Icon Name="key-fill" />
-                                                                    @(field.SecretHint is null ? "Set" : $"Set — ends {field.SecretHint}")
+                                                                    @(field.SecretHint is null ? "Set" : $"Set: ends {field.SecretHint}")
                                                                 </span>
                                                                 <button type="button" class="kh-button kh-button--secondary"
                                                                         @onclick="() => ReplaceSecret(plugin.Id, field)">Replace</button>

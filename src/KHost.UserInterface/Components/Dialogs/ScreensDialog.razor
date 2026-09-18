@@ -79,7 +79,7 @@
                                     <button class="kh-screens-dialog__toggle @(IsVideoOn(screen) ? "" : "kh-screens-dialog__toggle--off")"
                                             disabled="@(!screen.Capabilities.SupportsVideo)"
                                             aria-pressed="@(IsVideoOn(screen) ? "true" : "false")"
-                                            title="@(IsVideoOn(screen) ? "Showing video — click to blank" : "Blanked — click to show video")"
+                                            title="@(IsVideoOn(screen) ? "Showing video: click to blank" : "Blanked: click to show video")"
                                             @onclick="() => ToggleVideoAsync(screen)">
                                         <i class="bi @(IsVideoOn(screen) ? "bi-display-fill" : "bi-display")"></i>
                                     </button>
@@ -107,7 +107,7 @@
                         </p>
                     }
                     <p class="kh-note">
-                        Only the audio screen is audible by default — two screens playing the same
+                        Only the audio screen is audible by default. Two screens playing the same
                         song into one room fight each other. Unmute another only if it is elsewhere.
                     </p>
                 }

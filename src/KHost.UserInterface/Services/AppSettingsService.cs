@@ -80,7 +80,7 @@ internal sealed class AppSettingsService : IAppSettingsService
         if (settings.RequireLogin && !before.RequireLogin && !await _usersService.HasAdminWithPasswordAsync())
         {
             return new AppSettingsSaveResult(false,
-                "No admin user has a password yet — requiring sign-in now would lock everyone out. "
+                "No admin user has a password yet. Requiring sign-in now would lock everyone out. "
                 + "Set a password on an admin in the Users Manager first.");
         }
 
