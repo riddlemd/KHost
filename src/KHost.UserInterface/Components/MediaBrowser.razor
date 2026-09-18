@@ -239,11 +239,7 @@
                                         }
                                     </td>
                                     <td class="kh-media-importer__col--size">
-                                        @if (entry.IsDirectory)
-                                        {
-                                            <span class="kh-text--muted">—</span>
-                                        }
-                                        else
+                                        @if (!entry.IsDirectory)
                                         {
                                             <span>@FormatFileSize(entry.Size)</span>
                                         }
@@ -252,10 +248,6 @@
                                         @if (entry.ModifiedDate != DateTime.MinValue)
                                         {
                                             <span>@entry.ModifiedDate.ToString("yyyy-MM-dd HH:mm")</span>
-                                        }
-                                        else
-                                        {
-                                            <span class="kh-text--muted">—</span>
                                         }
                                     </td>
                                     <td class="kh-media-importer__col--status">

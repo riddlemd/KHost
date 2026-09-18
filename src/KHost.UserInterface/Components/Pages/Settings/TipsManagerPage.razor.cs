@@ -63,7 +63,7 @@ public partial class TipsManagerPage : IDisposable
 
     // Old tips predate venue stamping, and a deleted venue leaves its id behind by design.
     private string GetVenueName(Guid? venueId)
-        => venueId is { } id && _venueNames.TryGetValue(id, out var name) ? name : "—";
+        => venueId is { } id && _venueNames.TryGetValue(id, out var name) ? name : "Unknown";
 
     private async Task SearchAsync()
     {

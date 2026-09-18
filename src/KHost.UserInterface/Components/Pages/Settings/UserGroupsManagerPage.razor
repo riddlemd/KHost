@@ -4,7 +4,7 @@
 @using KHost.UserInterface.Services
 @using KHost.Common.Repositories
 
-<PageTitle>KHost &mdash; Manage User Groups</PageTitle>
+<PageTitle>KHost: Manage User Groups</PageTitle>
 
 <div class="kh-app__body">
     <div class="kh-settings-page">
@@ -69,7 +69,7 @@
                                             }
                                             @if (group.Permissions.Count == 0)
                                             {
-                                                <span >—</span>
+                                                <span class="kh-text--muted">None</span>
                                             }
                                         }
                                     </td>

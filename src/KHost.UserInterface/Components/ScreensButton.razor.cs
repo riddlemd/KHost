@@ -34,10 +34,10 @@ public partial class ScreensButton : IDisposable
                 _ => $"{_screenCount} connected",
             };
 
-            if (!IsCasting) return $"Screens — {screens}";
+            if (!IsCasting) return $"Screens: {screens}";
 
             var receiver = Cast!.Devices.FirstOrDefault(d => d.IsConnected)?.Name ?? "a Cast receiver";
-            return $"Screens — {screens}, casting to {receiver}";
+            return $"Screens: {screens}, casting to {receiver}";
         }
     }
 

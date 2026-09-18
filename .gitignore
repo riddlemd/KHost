@@ -385,3 +385,6 @@ FodyWeavers.xsd
 # Worktrees live inside the repo they belong to, so a checkout holding one sees the whole
 # working copy as untracked files of its own.
 .claude/worktrees/
+
+# Working notes, not a shipped artefact: the roadmap lives with whoever is at the console.
+/TODO.md
