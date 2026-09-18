@@ -26,7 +26,7 @@ SCSS compiles inside `dotnet build` (AspNetCore.SassCompiler) — no separate sa
 
 - Interfaces in `src/KHost.Abstractions` (`Services/`, `Repositories/`, `Models/`); implementations in `src/KHost.Domain` or `src/KHost.DataAccess`. The rule is about what a plugin builds against, so an interface a plugin must *not* reach sits with its implementation instead — `IScreenQrCodeService` takes an owner id, and a plugin able to pass any owner could register over another's QR code without either noticing. Register in the project's `ProjectExtensions` (`AddDomain()` / `AddDataAccess()`); UI-only services in `Program.cs`. All domain services are singletons — guard mutable state with `SemaphoreSlim`.
 - A helper both the host and a plugin would want goes in `KHost.Common`, not `Abstractions`: it is MIT on purpose, so a plugin author may use it without taking PolyForm code into what they redistribute. `Common` is for helpers *over* the contracts — string folding aids, formatting, list surgery, the shared drop-position mechanic. A contract, a model or anything `Abstractions` itself needs belongs in `Abstractions`, which references nothing. `Abstractions` declares, it does not compute — see **No static methods in Abstractions** below. Group by area under `Common` (`Media/`, `Plugins/`) rather than dropping types in its root, and mirror that in the tests. Name its methods for what the call site needs to read, not for what the class already says: a plugin author sees `StreamRate.FromTempo(t)` and `AudioLevels.ClampVolume(v)` without this repo's context, so `For` and `Clamp` are too thin — `PluginRid.MatchesThisHost` names what it matches against, and `int.CentsToCurrencyString()` names the unit the receiver is in. Verbosity here is worth more than symmetry with a BCL name; the one exception is a member that exists to fill a BCL gap (`IList<T>.FindIndex`), where the familiar name *is* the point.
-- No "gate" services: behaviour that guards a call lives on the service that owns the call (enqueue rules go in `PerformanceService.CreateAndEnqueueAsync`, not an `IEnqueueGuard` around it).
+- No "gate" services: behaviour that guards a call lives on the service that owns the call (enqueue rules go in `PerformanceService.CreateAndEnqueueAsync`, not an `IEnqueueGuard` around it). `IMediaGateService` and `IMediaProbeService` are not exceptions to this and are not guards: they answer "which plugin owns this file" so that no caller has to know, and the rule each one routes to belongs to the plugin, not to the host. A host rule wrapped in a service of its own is still the thing this bans.
 - New repositories/services copy the shape of an existing one: repositories extend `BaseRepository<T>` and implement `SortColumns` / `ApplySearchFilters`; services extend `BaseService` (or `BaseRepositoryService<,>` for CRUD).
 - In repositories, `using var context = await ContextFactory.CreateDbContextAsync();` per operation — never store a context.
 - Services announce, they do not raise events. There is no `StateChanged` and no `IKHostService`: a service that has something to say takes `IMessageBroker` in its own constructor (never through `BaseService`, which carries only `ILogger`) and calls `Broker.Announce(new ThingChanged())`. Messages are empty records in `KHost.Abstractions.Messaging.Messages`, one per service, named for the fact — see **Messaging** below.
@@ -448,6 +448,62 @@ change the same way the marquee is.
 - A stored window with no width or height is treated as nothing stored — it would open invisible
   and could not be dragged back.
 
+## Pre-rendering a queued song
+
+`PreparedMediaService` renders what is queued ahead of play time, into
+`<temp>/khost-streams/prepared`. Playback runs one ffmpeg per song and it transcodes flat out, so
+the cost lands on the song transition, which is the worst moment a room can see. Measured on a
+230.7s CDG: 4.89s to transcode on fast cores and 21.57s on slow ones, against 0.08s and 0.24s to
+copy a render that already exists.
+
+- **Readiness belongs to the turn, and is derived, never stored.** `PerformancePreparation` is
+  computed from whether the render is on disk and whether one is in flight. A column would outlive
+  the file it describes, so a row would claim a readiness a sweep had already taken away. Nothing
+  about a temp file belongs on a stored row, which is also why the media row's own status is left
+  alone.
+- **`IsWaitingOnARender` is the question a control and a load must both ask**, and they must ask
+  the *same* one or a play button offers a song the load then refuses. It is not
+  `PerformancePreparation.Preparing`, which is wrong in both directions: an ordinary file mid-render
+  starts at once on the transcode, and a plugin's format that has not begun rendering cannot start
+  at all.
+- **A render is named for its source's path, size and write time.** Editing a file in place leaves
+  its old render unreachable rather than playing it in the new one's stead, and it means a failure
+  memo keyed on that name clears itself when the source changes. `PathFor` returns null rather than
+  throwing when the source has gone: it is reached from a queue row ahead of the load's own try,
+  where the row catches only `KHostException` and the circuit goes down with it.
+- **Reconcile is announcement-driven, so it must coalesce.** Three messages feed it and a bulk
+  enqueue raises all three per song. A pass already waiting will see whatever changed since, so a
+  burst collapses into one running pass plus at most one pending. The coalescing flag is cleared on
+  the way *in*: cleared on the way out, a change arriving mid-pass is swallowed and never rendered.
+- **Cheap checks first.** The destination existing and the failure memo are read before the gate,
+  the track probe and anything else that opens a file. Behind them, an already-rendered song paid a
+  probe every time anybody touched the queue.
+- **A render that fails is remembered.** Retried on every queue change it takes the single render
+  slot for the rest of the night and nothing else is ever prepared.
+- **Both are re-checked inside the render.** Two passes can read them before either writes one, and
+  the in-flight entry that would otherwise join them is removed the moment a render ends, so a pass
+  that looked early and arrived late renders the same file again. Found only by running the suite
+  on a saturated machine.
+- **Nothing outlives the process.** A shutdown token is threaded through reconcile and render,
+  `Dispose` cancels and waits before disposing anything a render holds, and a cancelled host-owned
+  ffmpeg is killed. Waiting on a token stops the wait, not the process.
+- **There is a budget and a free-space floor** (`PreparedBudgetMegabytes`,
+  `PreparedFreeSpaceFloorMegabytes`, both on the media stream options, zero lifting each). Measured
+  here, a render runs 8 MB to 17 MB for a four minute song, so 8 GB holds several hundred and a
+  night queued ahead is about a gigabyte. The cap is not there because the number is large; it is
+  there because nothing else bounds it. Past either, the song transcodes at play
+  time the way it always did: the pre-render is an optimisation and must never be why a machine
+  fills up in front of a room. The floor is separate because the budget knows nothing about what
+  else is on the volume, and temp shares one with the database and the logs.
+- **A render outlives the queue by `KeepAfterUnwanted`** (five minutes), because a song that has
+  just ended is the one most likely to be asked for again. It is a minimum rather than a deadline:
+  dropping is driven by the queue changing, so a quiet room drops nothing until the next start.
+- **The copy is refused by more than pitch and tempo.** `CanStreamCopy` also refuses a mixable mix,
+  and a KaraFun `.khv` carries three stems, so it is always mixable and always transcodes. For kits
+  the pre-render therefore buys *playability* rather than CPU: ffmpeg cannot open a `.kit` at all.
+  A render still has to carry keyframes on the segment clock or a copy cannot cut where it is asked
+  to, which measured as 32 segments averaging 7.59s against 122 averaging 1.99s.
+
 ## Components
 
 - Component logic lives in a code-behind partial (`Foo.razor.cs`, `public partial class Foo`), never an inline `@code` block. `@inject` becomes an `[Inject]` property; `@implements` becomes an interface on the partial. `@page`, `@using`, `@inherits`, `@layout`, `@attribute` stay in the `.razor`.
@@ -514,6 +570,16 @@ clips and the card it puts up between singers are ordinary library rows.
 xUnit + NSubstitute, and bunit for components. A test that needs anything outside the process — an external binary (ffmpeg), a live service (the Cast emulator) — belongs in `KHost.IntegrationTests`; `KHost.UnitTests` must stay skip-free so green means everything ran. In-process I/O (temp files, in-memory SQLite) stays in unit tests.
 
 `MethodUnderTest_Scenario_ExpectedBehavior`; substitutes in field initializers; mirror the source layout (`Domain/Services/Foo.cs` → `Domain/Services/FooTests.cs`). Test an announcement by subscribing a counter to the real broker the service was built with (`using var subscription = _broker.Subscribe<VenuesChanged>(_ => raised++)`), or substitute `IMessageBroker` and assert `Received(1).Announce(...)`. A bunit fixture must register a broker — components `[Inject]` one — or every render throws on the missing service.
+
+**A service that starts work in its constructor will race a test that arranges a substitute after
+building it.** `PreparedMediaService` reconciles on the way up and nothing awaits it, so a
+substitute stubbed afterwards can have its first call consumed by that pass instead of by the test,
+and an exact call count then fails. This cost three separate intermittent failures, all of which
+passed alone and only failed on a loaded machine. Arrange everything before the service is built,
+or give the fixture a way to settle the constructor's work first.
+
+**Run the suite under load before trusting a green one.** Two real defects here were invisible on an
+idle machine and reproducible on a saturated one, and the same load is what named a flaky test.
 
 A component test renders the component (`BunitContext`, not the obsolete `TestContext`) and dispatches a real event — a handler that exists but is attached to nothing passes every test that calls it directly, which is how the queue's arrow keys sat dead behind tooltips advertising them. Set `JSInterop.Mode = JSRuntimeMode.Loose` (panels call into JS on first render) and give every `Task<List<T>>` substitute a return value: NSubstitute hands back a completed task wrapping `null`, and the component `.Count()`s it.
 
