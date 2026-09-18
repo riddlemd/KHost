@@ -217,6 +217,22 @@ code it offers the screens.
   - It does **not** subsume `IMediaPlaybackGate.Claims`. Ownership is asked for every queued turn on
     every reconcile and has to stay path-cheap; a probe opens the file. The probe supplies the
     *tag*, so a kit now answers the ownership question the ordinary way as well.
+- **Three questions a provider answers about a file, and they are not the same question.**
+  `IMediaPlaybackGate.Claims` asks who *owns* it, `IMediaProbe.CanProbe` who can *read* it, and
+  `IMediaPreparer.CanPrepare` who must *convert* it. KaraFun answers all three with "is it a
+  `.kit`", which makes them look redundant; they are not. A format the host could play but only the
+  plugin could describe would claim the probe and not the preparer, and a plugin that gates content
+  the host reads perfectly well claims the gate and neither of the others. Answer each for what it
+  asks rather than assuming one implies the rest.
+  - All three are answered from the **path alone**, and that is a hard requirement rather than a
+    convention: each is asked for every queued turn on every reconcile, so any of them opening the
+    file turns a bulk enqueue into thousands of reads. This is why the probe cannot subsume
+    `Claims` even though a probe now supplies the ownership tag.
+  - `Claims` has a **default body**, which is behaviour living in `Abstractions`. The KH0001
+    analyzer only sees statics, so a default interface method is the one hole in "Abstractions
+    declares, it does not compute". Returning false is the no-opinion answer and is defensible
+    here; treat it as a deliberate exception rather than a precedent, and prefer a `Common` helper
+    for anything that computes.
 - A format the host cannot play at all is a separate contract, `IMediaPreparer`: `CanPrepare(path)`
   claims it and `PrepareAsync` renders it to a destination the host chose. `PreparedMediaService`
   asks the **gate** before calling it, so the entitlement rule lives in one place and a plugin cannot
