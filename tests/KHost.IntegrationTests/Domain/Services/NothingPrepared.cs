@@ -11,6 +11,8 @@ internal sealed class NothingPrepared : IPreparedMediaService
 
     public PerformancePreparation StateFor(string filePath) => PerformancePreparation.Unprepared;
 
+    public bool RequiresPreparation(string filePath) => false;
+
     public string? TryResolve(string filePath) => null;
 
     public void Sweep() { }

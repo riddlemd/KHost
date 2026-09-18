@@ -67,17 +67,26 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, ID
         var directory = Path.Combine(_root, id);
         Directory.CreateDirectory(directory);
 
-        // A render made at enqueue already carries this file's audio and the segmenter's keyframe
-        // cadence, so the whole job here becomes a copy. Only when nothing would have been
-        // filtered: a shifted key or a re-levelled mix has to be encoded now, off the source.
-        var copyFrom = CanStreamCopy(pitch, tempo, mix) ? _prepared.TryResolve(filePath) : null;
+        var prepared = _prepared.TryResolve(filePath);
 
-        var companionAudio = copyFrom is null ? ResolveCompanionAudio(filePath) : null;
-        if (copyFrom is null && companionAudio is null && IsGraphicsOnly(filePath))
+        // A format a plugin owns is not a media file at all until it has been rendered, so there is
+        // nothing to fall back to. Refused rather than handed to ffmpeg, which would fail with
+        // something nobody could act on.
+        if (prepared is null && _prepared.RequiresPreparation(filePath))
+            throw new InvalidOperationException($"'{filePath}' is still being made ready to play.");
+
+        // The render always wins as the input where there is one: it carries this file's audio, and
+        // for a plugin's format it is the only readable thing. Whether the job is then a copy or an
+        // encode is a separate question, since a shifted key or a re-levelled mix still filters.
+        var source = prepared ?? filePath;
+        var copyFrom = prepared is not null && CanStreamCopy(pitch, tempo, mix) ? prepared : null;
+
+        var companionAudio = prepared is null ? ResolveCompanionAudio(filePath) : null;
+        if (prepared is null && companionAudio is null && IsGraphicsOnly(filePath))
             Logger.LogWarning("No companion audio beside '{FilePath}'; the stream will be silent", filePath);
 
         var arguments = copyFrom is null
-            ? BuildArguments(filePath, startOffset, pitch, tempo, _options.SegmentSeconds, companionAudio, mix)
+            ? BuildArguments(source, startOffset, pitch, tempo, _options.SegmentSeconds, companionAudio, mix)
             : BuildCopyArguments(copyFrom, startOffset, _options.SegmentSeconds);
 
         Logger.LogInformation("Opening stream {SessionId} for '{FilePath}' at {Offset}", id, filePath, startOffset);

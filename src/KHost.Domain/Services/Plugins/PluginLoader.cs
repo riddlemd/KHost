@@ -25,7 +25,7 @@ public static class PluginLoader
 
     /// <summary>Every plugin-facing interface the loader binds; a button handler has no capability.</summary>
     private static readonly Type[] ExtensionInterfaces =
-        [.. CapabilityInterfaces.Select(c => c.Interface), typeof(IPluginButtonHandler), typeof(IMediaPlaybackGate)];
+        [.. CapabilityInterfaces.Select(c => c.Interface), typeof(IPluginButtonHandler), typeof(IMediaPlaybackGate), typeof(IMediaPreparer)];
 
     public static PluginsState ReadState(string cacheDirectory)
     {

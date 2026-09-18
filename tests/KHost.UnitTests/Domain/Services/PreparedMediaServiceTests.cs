@@ -1,5 +1,6 @@
 using KHost.Abstractions.Messaging;
 using KHost.Abstractions.Models;
+using KHost.Abstractions.Services;
 using KHost.Domain.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -80,6 +81,176 @@ public class PreparedMediaServiceTests
     [Fact]
     public void AnEmptyPath_IsUnprepared()
         => Assert.Equal(PerformancePreparation.Unprepared, Service().StateFor(""));
+
+    /// <summary>Playing a song dequeues it, so the reconcile that follows sees a render nothing
+    /// wants. ffmpeg is reading that file at the time: dropping it cuts the song off mid-verse.
+    /// </summary>
+    [Fact]
+    public async Task TheSongAtTheMicrophone_KeepsItsRenderEvenThoughItLeftTheQueue()
+    {
+        var folder = Directory.CreateTempSubdirectory("khost-keep-playing-");
+
+        try
+        {
+            var source = Path.Combine(folder.FullName, "song.mp4");
+            File.WriteAllText(source, "x");
+
+            var playback = Substitute.For<IPlaybackService>();
+            playback.CurrentMedia.Returns(new Media { FilePath = source, Title = "Song" });
+
+            var services = Substitute.For<IServiceProvider>();
+            services.GetService(typeof(IPlaybackService)).Returns(playback);
+
+            // Nothing queued at all: the turn was dequeued the moment it started.
+            var performances = Substitute.For<IPerformanceService>();
+            performances.ReadQueuedAsync().Returns(_ => []);
+            services.GetService(typeof(IPerformanceService)).Returns(performances);
+            services.GetService(typeof(IMediaService)).Returns(Substitute.For<IMediaService>());
+
+            var service = Service(folder, services);
+            var render = RenderFor(service, source, folder);
+
+            await service.ReconcileAsync();
+
+            Assert.True(File.Exists(render), "the render of the song being played was dropped");
+        }
+        finally { folder.Delete(recursive: true); }
+    }
+
+    /// <summary>A song that has just ended is the one most likely to be asked for again, and
+    /// re-rendering a kit costs the room a wait. So the first reconcile after it leaves the queue
+    /// keeps it: the grace is what makes a replay free.</summary>
+    [Fact]
+    public async Task ARenderThatJustStoppedBeingWanted_SurvivesTheFirstReconcile()
+    {
+        var folder = Directory.CreateTempSubdirectory("khost-grace-");
+
+        try
+        {
+            var source = Path.Combine(folder.FullName, "song.mp4");
+            File.WriteAllText(source, "x");
+
+            var service = Service(folder, NothingQueued());
+            var render = RenderFor(service, source, folder);
+
+            await service.ReconcileAsync();
+
+            Assert.True(File.Exists(render), "a render was dropped the moment its song left the queue");
+        }
+        finally { folder.Delete(recursive: true); }
+    }
+
+    /// <summary>Re-queued and then dropped again, its grace starts over rather than counting from
+    /// the first time it was let go. Otherwise a song queued, sung, and queued again is evicted on
+    /// the old clock, which is the case the grace exists for.</summary>
+    [Fact]
+    public async Task ARenderWantedAgain_StartsItsGraceOver()
+    {
+        var folder = Directory.CreateTempSubdirectory("khost-regrace-");
+
+        try
+        {
+            var source = Path.Combine(folder.FullName, "song.mp4");
+            File.WriteAllText(source, "x");
+
+            var media = Substitute.For<IMediaService>();
+            var mediaId = Guid.NewGuid();
+            media.ReadAsync(mediaId).Returns(_ => new Media { Id = mediaId, FilePath = source, Title = "Song" });
+
+            var performances = Substitute.For<IPerformanceService>();
+            var services = Substitute.For<IServiceProvider>();
+            services.GetService(typeof(IPerformanceService)).Returns(performances);
+            services.GetService(typeof(IMediaService)).Returns(media);
+            services.GetService(typeof(IPlaybackService)).Returns(Substitute.For<IPlaybackService>());
+
+            var service = Service(folder, services, grace: TimeSpan.FromMilliseconds(120));
+            var render = RenderFor(service, source, folder);
+
+            // Let go of once, so a clock starts.
+            performances.ReadQueuedAsync().Returns(_ => []);
+            await service.ReconcileAsync();
+
+            // Wanted again: that clock must be forgotten.
+            performances.ReadQueuedAsync().Returns(_ => [new Performance { MediaId = mediaId, SingerId = Guid.NewGuid() }]);
+            await service.ReconcileAsync();
+
+            await Task.Delay(200);
+
+            // Let go of again, just now: the fresh grace keeps it.
+            performances.ReadQueuedAsync().Returns(_ => []);
+            await service.ReconcileAsync();
+
+            Assert.True(File.Exists(render), "the grace counted from the first time it was let go");
+        }
+        finally { folder.Delete(recursive: true); }
+    }
+
+    private static IServiceProvider NothingQueued()
+    {
+        var services = Substitute.For<IServiceProvider>();
+        var performances = Substitute.For<IPerformanceService>();
+        performances.ReadQueuedAsync().Returns(_ => []);
+        services.GetService(typeof(IPerformanceService)).Returns(performances);
+        services.GetService(typeof(IMediaService)).Returns(Substitute.For<IMediaService>());
+        services.GetService(typeof(IPlaybackService)).Returns(Substitute.For<IPlaybackService>());
+        return services;
+    }
+
+    /// <summary>Past the grace, a render for a song that is neither queued nor playing is dropped:
+    /// a long night must not fill the disk with songs nobody is going to ask for again.</summary>
+    [Fact]
+    public async Task ARenderPastTheGrace_IsDropped()
+    {
+        var folder = Directory.CreateTempSubdirectory("khost-drop-");
+
+        try
+        {
+            var source = Path.Combine(folder.FullName, "song.mp4");
+            File.WriteAllText(source, "x");
+
+            var services = Substitute.For<IServiceProvider>();
+            var performances = Substitute.For<IPerformanceService>();
+            performances.ReadQueuedAsync().Returns(_ => []);
+            services.GetService(typeof(IPerformanceService)).Returns(performances);
+            services.GetService(typeof(IMediaService)).Returns(Substitute.For<IMediaService>());
+            services.GetService(typeof(IPlaybackService)).Returns(Substitute.For<IPlaybackService>());
+
+            // No grace, so the drop this is about happens on the first pass.
+            var service = Service(folder, services, grace: TimeSpan.Zero);
+            var render = RenderFor(service, source, folder);
+
+            await service.ReconcileAsync();
+
+            Assert.False(File.Exists(render), "a render past its grace outlived the reconcile");
+        }
+        finally { folder.Delete(recursive: true); }
+    }
+
+    /// <summary>Stands in for a finished render, named the way the service names one.</summary>
+    private static string RenderFor(PreparedMediaService service, string source, DirectoryInfo working)
+    {
+        var root = Path.Combine(working.FullName, "prepared");
+        Directory.CreateDirectory(root);
+
+        // The name is the service's own, read back through the state it reports.
+        var render = Directory.GetFiles(root, "*.mp4").FirstOrDefault();
+        if (render is null)
+        {
+            render = Path.Combine(root, NameFor(source));
+            File.WriteAllText(render, "rendered");
+        }
+
+        return render;
+    }
+
+    private static string NameFor(string source)
+    {
+        var info = new FileInfo(source);
+        var seed = string.Create(System.Globalization.CultureInfo.InvariantCulture,
+            $"{Path.GetFullPath(source)}|{info.Length}|{info.LastWriteTimeUtc.Ticks}");
+        return Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
+            System.Text.Encoding.UTF8.GetBytes(seed))) + ".mp4";
+    }
 
     /// <summary>The segmenter cuts on keyframes, so a render without the same cadence cannot be
     /// copied into segments where HLS needs them.</summary>
@@ -175,7 +346,8 @@ public class PreparedMediaServiceTests
         Assert.Contains("-ss 42.000", arguments, StringComparison.Ordinal);
     }
 
-    private static PreparedMediaService Service(DirectoryInfo? working = null)
+    private static PreparedMediaService Service(
+        DirectoryInfo? working = null, IServiceProvider? services = null, TimeSpan? grace = null)
         => new(
             NullLogger<PreparedMediaService>.Instance,
             Options.Create(new HlsMediaStreamService.ServiceOptions
@@ -183,6 +355,9 @@ public class PreparedMediaServiceTests
                 BaseAddress = "http://host:5251/",
                 WorkingDirectory = (working ?? Directory.CreateTempSubdirectory("khost-state-root-")).FullName,
             }),
-            Substitute.For<IServiceProvider>(),
-            Substitute.For<IMessageBroker>());
+            services ?? Substitute.For<IServiceProvider>(),
+            Substitute.For<IMessageBroker>())
+        {
+            KeepAfterUnwanted = grace ?? TimeSpan.FromMinutes(5),
+        };
 }

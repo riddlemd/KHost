@@ -93,6 +93,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
     private readonly IOptionsMonitor<ServiceOptions> _optionsMonitor;
     private readonly IAudioTrackService _audioTracks;
     private readonly IMediaGateService _mediaGate;
+    private readonly IPreparedMediaService _prepared;
     private readonly IFlashService _flash;
 
     // Read per use rather than captured: the App Settings page writes the overlay live, and a
@@ -140,6 +141,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         IOptionsMonitor<ServiceOptions> options,
         IAudioTrackService audioTracks,
         IMediaGateService mediaGate,
+        IPreparedMediaService prepared,
         IFlashService flash,
         IMessageBroker broker)
         : base(logger)
@@ -158,6 +160,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         _optionsMonitor = options;
         _audioTracks = audioTracks;
         _mediaGate = mediaGate;
+        _prepared = prepared;
         _flash = flash;
 
         _screenServer.ScreenConnected += OnScreenConnected;
@@ -225,6 +228,16 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         if (media.Status != MediaStatus.Ready)
         {
             Logger.LogWarning("Load refused: media {MediaId} is {Status}, not Ready", media.Id, media.Status);
+            return;
+        }
+
+        // A format only a plugin can read is not playable until it has been rendered. Refused here
+        // rather than at the stream, where it surfaced as a failure to prepare the song for the
+        // screens: nothing is wrong, it is simply not ready for a moment longer.
+        if (_prepared.RequiresPreparation(media.FilePath) && _prepared.TryResolve(media.FilePath) is null)
+        {
+            Logger.LogInformation("Load refused: media {MediaId} is still being made ready", media.Id);
+            _flash.Show($"\u201c{media.Title}\u201d is still getting ready. Try again in a moment.", FlashType.Warning);
             return;
         }
 

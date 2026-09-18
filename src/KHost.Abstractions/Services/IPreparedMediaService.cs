@@ -18,6 +18,10 @@ public interface IPreparedMediaService
     /// start.</summary>
     PerformancePreparation StateFor(string filePath);
 
+    /// <summary>Whether a plugin owns this format, so the file cannot be played as it is. Such a
+    /// turn is unplayable until its render lands, where an ordinary file merely transcodes.</summary>
+    bool RequiresPreparation(string filePath);
+
     /// <summary>The finished render for a file, or null when there is none to use yet. Never blocks
     /// on one in flight: a host who plays before it is ready gets today's transcode instead.</summary>
     string? TryResolve(string filePath);
