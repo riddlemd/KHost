@@ -1,4 +1,5 @@
 using KHost.Abstractions.Models;
+using KHost.Abstractions.Services;
 using KHost.UserInterface.Models;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Forms;
@@ -8,6 +9,8 @@ namespace KHost.UserInterface.Components.Dialogs;
 public partial class EditMediaDialog
 {
     private const string _rootClassName = "kh-media-edit-dialog";
+
+    [Inject] private IMediaSearchService? MediaSearchService { get; set; }
 
     [Parameter] public bool IsOpen { get; set; }
     [Parameter] public Media? Media { get; set; }
@@ -66,6 +69,26 @@ public partial class EditMediaDialog
         }
 
         await CloseAsync();
+    }
+
+    /// <summary>What produced this file, resolved for reading only. The column holds a SourceName
+    /// and is an unchecked claim, so nothing may be decided from it and it is never written here.
+    /// </summary>
+    private string SourceDisplay
+    {
+        get
+        {
+            // Empty is what the folder scan leaves, since nothing named itself.
+            if (Media?.Source is not { Length: > 0 } stored)
+                return "Local";
+
+            var provider = MediaSearchService?.Providers.FirstOrDefault(
+                candidate => string.Equals(candidate.SourceName, stored, StringComparison.OrdinalIgnoreCase));
+
+            // A plugin that is gone resolves to nobody. Its own name beats "Local", which would
+            // claim the file came from somewhere it did not.
+            return provider?.DisplayName ?? stored;
+        }
     }
 
     // Applied on Save like the rest of the form, so Cancel backs it out.
