@@ -211,11 +211,11 @@ public partial class ScreensDialog : IDisposable
         return status switch
         {
             SyncStatus.NotSupported => "Plays on its own schedule, so it cannot be held to the group timeline.",
-            SyncStatus.Reference => "In sync — this is the primary the others are held to.",
-            SyncStatus.InSync => $"In sync — {milliseconds} ms from the primary.",
+            SyncStatus.Reference => "In sync: this is the primary the others are held to.",
+            SyncStatus.InSync => $"In sync: {milliseconds} ms from the primary.",
             SyncStatus.Drifting => drift > TimeSpan.Zero
-                ? $"Drifting — {milliseconds} ms ahead of the primary."
-                : $"Drifting — {milliseconds} ms behind the primary.",
+                ? $"Drifting: {milliseconds} ms ahead of the primary."
+                : $"Drifting: {milliseconds} ms behind the primary.",
             _ => "Nothing playing, so there is no timeline to be on.",
         };
     }
@@ -230,7 +230,7 @@ public partial class ScreensDialog : IDisposable
 
     private string AudioTitle(IScreenConnection screen) => !screen.Capabilities.SupportsAudio
         ? "This screen renders no audio."
-        : IsAudible(screen) ? "Audible — click to mute" : "Muted — click to unmute";
+        : IsAudible(screen) ? "Audible: click to mute" : "Muted: click to unmute";
 
     private string PrimaryTitle(IScreenConnection screen) => !screen.Capabilities.SupportsSync
         ? "Plays on its own schedule, so it cannot be the primary."
