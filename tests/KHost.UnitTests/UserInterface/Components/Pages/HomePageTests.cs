@@ -40,6 +40,8 @@ public class HomePageTests : BunitContext
 
         Services.AddSingleton(_queue);
         Services.AddSingleton(_playback);
+        Services.AddSingleton(Substitute.For<INextSingerCardService>());
+        Services.AddSingleton(Substitute.For<IFlashService>());
         Services.AddSingleton(_breakMusic);
         Services.AddSingleton(media);
         Services.AddSingleton(appSettings);

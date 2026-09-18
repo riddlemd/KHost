@@ -157,6 +157,40 @@
 
         .kh-break-music__artist { display: block; opacity: 0.75; font-size: 0.82em; }
 
+        /* Who is up. Fills the picture rather than taking a corner: it replaces the venue's card
+           for a moment, so it is the thing being looked at, not an annotation on something else. */
+        #nextSinger {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 2vmin;
+            background: #000;
+            color: #fff;
+            font: 400 4vmin/1.2 system-ui, -apple-system, "Segoe UI", sans-serif;
+            text-align: center;
+            padding: 6vmin;
+        }
+
+        /* Sized off the shorter side like everything else here, so the words hold their
+           proportions from a laptop lid to a projector. */
+        #nextSinger .kh-next__label {
+            font-size: 3vmin;
+            letter-spacing: 0.4vmin;
+            text-transform: uppercase;
+            opacity: 0.65;
+        }
+
+        #nextSinger .kh-next__singer { font-size: 9vmin; font-weight: 700; }
+
+        #nextSinger .kh-next__song { font-size: 3.4vmin; opacity: 0.8; max-width: 80vw; }
+
+        /* The display above is an id rule and outranks the browser's own [hidden], so without this
+           the card is painted from page load and never comes down, over the song and all. */
+        #nextSinger[hidden] { display: none; }
+
         /* Sized off the shorter side, so a code is the same share of the picture on any screen,
            with a floor that keeps it scannable in a small window. */
         .kh-qr {
@@ -332,6 +366,11 @@
     <!-- Image ads and the venue card. Above the video so a still covers it, and hidden until asked for. -->
     <img id="still" hidden alt="" />
     <div id="placeholder">KHost</div>
+    <div id="nextSinger" hidden>
+        <span class="kh-next__label">Up next</span>
+        <span class="kh-next__singer"></span>
+        <span class="kh-next__song"></span>
+    </div>
     <div id="blanked" hidden>Video off</div>
     <div id="hostlost" hidden>Lost the host<small>Paused until KHost comes back</small></div>
     <!-- Next singers and the venue's own line. Hidden until a venue turns it on. -->
