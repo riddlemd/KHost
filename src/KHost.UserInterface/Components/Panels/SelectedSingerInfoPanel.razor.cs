@@ -357,6 +357,18 @@ public partial class SelectedSingerInfoPanel : IAsyncDisposable
             && !string.Equals(recorded, singer.Name?.Trim(), StringComparison.OrdinalIgnoreCase);
     }
 
+    /// <summary>Loaded, not merely playing: playback resolves the name once at load, so renaming a
+    /// paused song changes nothing on screen while still telling a host it did.</summary>
+    private bool AliasLocked(Performance performance)
+        => PlaybackService?.CurrentPerformance?.Id == performance.Id;
+
+    /// <summary>Disabled alone reads as broken, so the button has to say which of the two it is.
+    /// </summary>
+    private string AliasTooltip(Performance performance)
+        => AliasLocked(performance)
+            ? "This song is at the microphone. Its name was announced when it started."
+            : "Change the name this song is announced under";
+
     /// <summary>Async: tearing the sortable down is a JS call, and the circuit is usually gone.</summary>
     public async ValueTask DisposeAsync()
     {
