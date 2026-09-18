@@ -3,18 +3,20 @@
     // the room made for it cannot drift from what it takes.
     --kh-break-music-band: 52px;
 
-    height: 20vh;
-    max-height: 20vh;
-    min-height: 72px;
+    // Pixels, not vh: every line inside is nowrap, so the content's height is the same on any
+    // monitor and a viewport-relative cap only bought dead space on a tall one.
+    --kh-now-playing-height: 140px;
+
+    height: var(--kh-now-playing-height);
+    min-height: var(--kh-now-playing-height);
     flex-shrink: 0;
     overflow: hidden;
 
     // The panel clips rather than reflows, so a band living inside the cap would cut the seek bar
     // off the song; added to the height, only while a band exists, so a venue without one pays nothing.
     &:has(.kh-break-music-bar) {
-        height: calc(20vh + var(--kh-break-music-band));
-        max-height: calc(20vh + var(--kh-break-music-band));
-        min-height: calc(72px + var(--kh-break-music-band));
+        height: calc(var(--kh-now-playing-height) + var(--kh-break-music-band));
+        min-height: calc(var(--kh-now-playing-height) + var(--kh-break-music-band));
     }
 
     // It appears and disappears with the provider, mid-show, which without this reads as a glitch
@@ -89,8 +91,13 @@
         white-space: nowrap;
     }
 
+    // Truncates like the title and artist above it. The card clips, so a long name left to wrap
+    // takes the seek bar out of the box rather than growing it.
     &__singer-name {
         color: var(--kh-text-secondary);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
 
         i {
             font-size: 0.65rem;
@@ -179,16 +186,13 @@
         }
     }
 
-    // Anchored to the bottom rather than a fixed top offset: the section is absolutely
-    // positioned, so the body's padding does not apply to it.
+    // Flows under the text rather than being pinned to the bottom of the card: pinned, the space
+    // left between the two was whatever the height cap did not use, and it grew with the viewport.
     &__progress-section {
-        position: absolute;
-        bottom: 14px;
-        left: 14px;
-        right: 14px;
         display: flex;
         align-items: center;
         gap: 10px;
+        margin-top: auto;
     }
 
     &__progress-track {
