@@ -20,6 +20,17 @@
                 <span class="kh-now-playing__empty-text">
                     No song loaded. Click <Icon Name="play-fill" /> in the queue
                 </span>
+
+                @* Only between songs: the card replaces the picture, so announcing over somebody's
+                   performance would take their words off the screen. *@
+                <button class="kh-button kh-button--secondary kh-now-playing__announce"
+                        disabled="@(!_canAnnounce)"
+                        title="@(_canAnnounce
+                            ? "Put who is up on the screens"
+                            : "Nobody is queued to announce")"
+                        @onclick="AnnounceNextSingerAsync">
+                    <Icon Name="megaphone" /> Announce Next Singer
+                </button>
             </div>
         }
         else
