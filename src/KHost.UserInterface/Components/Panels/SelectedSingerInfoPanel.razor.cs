@@ -25,6 +25,7 @@ public partial class SelectedSingerInfoPanel : IAsyncDisposable
     [Inject] private IPermissionService? Permissions { get; set; }
     [Inject] private ITipsService? TipsService { get; set; }
     [Inject] private IVenuesService? VenuesService { get; set; }
+    [Inject] private IPreparedMediaService? PreparedMedia { get; set; }
     [Inject] private IJSRuntime? JS { get; set; }
     [Inject] private IMessageBroker Broker { get; set; } = default!;
 
@@ -50,7 +51,8 @@ public partial class SelectedSingerInfoPanel : IAsyncDisposable
     {
         {
             _subscriptions.Add(Broker.Subscribe<SingerQueueChanged>(_ => OnStateChanged()));
-            _subscriptions.Add(Broker.Subscribe<PerformancesChanged>(_ => OnStateChanged()));
+            _subscriptions.Add(Broker.Subscribe<PreparedMediaChanged>(_ => InvokeAsync(StateHasChanged)));
+        _subscriptions.Add(Broker.Subscribe<PerformancesChanged>(_ => OnStateChanged()));
             _subscriptions.Add(Broker.Subscribe<PlaybackChanged>(_ => OnStateChanged()));
             _subscriptions.Add(Broker.Subscribe<MediaLibraryChanged>(_ => OnStateChanged()));
             _subscriptions.Add(Broker.Subscribe<VenuesChanged>(_ => OnStateChanged()));
@@ -349,6 +351,14 @@ public partial class SelectedSingerInfoPanel : IAsyncDisposable
 
     /// <summary>Whether this turn was queued under a name other than the singer's own.</summary>
     /// <remarks>Compares names, not SungAs presence: that field is filled by default on every row.</remarks>
+    /// <summary>Whether this turn has something to play yet. Off the turn's own file, never the
+    /// library row's status: the row says what KHost has, not what one performance can start.
+    /// </summary>
+    private PerformancePreparation PreparationOf(Media? media)
+        => media?.FilePath is { Length: > 0 } path && PreparedMedia is { } prepared
+            ? prepared.StateFor(path)
+            : PerformancePreparation.Unprepared;
+
     private static bool SungUnderAnotherName(Performance performance, KHostUser singer)
     {
         var recorded = performance.SungAs?.Trim();
