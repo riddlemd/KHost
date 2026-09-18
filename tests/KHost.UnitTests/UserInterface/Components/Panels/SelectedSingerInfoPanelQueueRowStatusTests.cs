@@ -19,6 +19,7 @@ public class SelectedSingerInfoPanelQueueRowStatusTests : BunitContext
     private readonly ISingerQueueService _queue = Substitute.For<ISingerQueueService>();
     private readonly IPerformanceService _performances = Substitute.For<IPerformanceService>();
     private readonly IMediaService _mediaService = Substitute.For<IMediaService>();
+    private readonly IPreparedMediaService _prepared = Substitute.For<IPreparedMediaService>();
     private readonly MessageBroker _broker = new(NullLogger<MessageBroker>.Instance);
     private readonly KHostUser _singer = new() { Id = Guid.NewGuid(), Name = "Ann" };
     private readonly Performance _performance;
@@ -50,7 +51,7 @@ public class SelectedSingerInfoPanelQueueRowStatusTests : BunitContext
         Services.AddSingleton(_mediaService);
         Services.AddSingleton(Substitute.For<IPlaybackService>());
         Services.AddSingleton(Substitute.For<IMediaSearchService>());
-        Services.AddSingleton(Substitute.For<IPreparedMediaService>());
+        Services.AddSingleton(_prepared);
         Services.AddSingleton(Substitute.For<IUsersService>());
         Services.AddSingleton(Substitute.For<IUserGroupsService>());
         Services.AddSingleton(Substitute.For<IDialogService>());
@@ -109,5 +110,69 @@ public class SelectedSingerInfoPanelQueueRowStatusTests : BunitContext
 
         panel.WaitForAssertion(() => Assert.NotEmpty(panel.FindAll($"{PlayButtonSelector} .bi-play-fill")));
         Assert.Empty(panel.FindAll($"{PlayButtonSelector} .kh-loader__spinner"));
+    }
+
+    /// <summary>A Ready row whose file only a plugin can read has nothing to start until its render
+    /// lands. Offered anyway, the click is refused and the host is told to try again, which reads as
+    /// the console ignoring them.</summary>
+    [Fact]
+    public void MediaWaitingOnARender_ShowsSpinnerInsteadOfPlay_AndDisablesTheButton()
+    {
+        _media.Status = MediaStatus.Ready;
+        _prepared.IsWaitingOnARender(_media.FilePath!).Returns(true);
+
+        var panel = Render<SelectedSingerInfoPanel>();
+
+        var button = panel.Find(PlayButtonSelector);
+
+        Assert.NotEmpty(panel.FindAll($"{PlayButtonSelector} .kh-loader__spinner"));
+        Assert.Empty(panel.FindAll($"{PlayButtonSelector} .bi-play-fill"));
+        Assert.True(button.HasAttribute("disabled"));
+    }
+
+    /// <summary>A greyed control with no reason on it is indistinguishable from a broken one.</summary>
+    [Fact]
+    public void MediaWaitingOnARender_SaysWhyTheButtonIsDisabled()
+    {
+        _media.Status = MediaStatus.Ready;
+        _prepared.IsWaitingOnARender(_media.FilePath!).Returns(true);
+
+        var panel = Render<SelectedSingerInfoPanel>();
+
+        Assert.Contains("getting ready", panel.Find(PlayButtonSelector).GetAttribute("title") ?? "");
+    }
+
+    /// <summary>The control this has to keep: an ordinary file being pre-rendered is playable the
+    /// whole time, by the transcode that has always been there. Greying it would take away a song
+    /// the host could have started at once.</summary>
+    [Fact]
+    public void MediaBeingPreparedButPlayableAsItIs_KeepsThePlayButton()
+    {
+        _media.Status = MediaStatus.Ready;
+        _prepared.StateFor(_media.FilePath!).Returns(PerformancePreparation.Preparing);
+        _prepared.IsWaitingOnARender(_media.FilePath!).Returns(false);
+
+        var panel = Render<SelectedSingerInfoPanel>();
+
+        Assert.NotEmpty(panel.FindAll($"{PlayButtonSelector} .bi-play-fill"));
+        Assert.False(panel.Find(PlayButtonSelector).HasAttribute("disabled"));
+    }
+
+    /// <summary>The render landing has to reach the row on its own: nothing else redraws it, so the
+    /// button would stay greyed over a song that is ready until the host clicked elsewhere.</summary>
+    [Fact]
+    public async Task ARenderLanding_ReEnablesTheButton_WhenPreparedMediaChangedIsPublished()
+    {
+        _media.Status = MediaStatus.Ready;
+        _prepared.IsWaitingOnARender(_media.FilePath!).Returns(true);
+
+        var panel = Render<SelectedSingerInfoPanel>();
+        Assert.True(panel.Find(PlayButtonSelector).HasAttribute("disabled"));
+
+        _prepared.IsWaitingOnARender(_media.FilePath!).Returns(false);
+        await _broker.PublishAsync(new PreparedMediaChanged());
+
+        panel.WaitForAssertion(() => Assert.False(panel.Find(PlayButtonSelector).HasAttribute("disabled")));
+        Assert.NotEmpty(panel.FindAll($"{PlayButtonSelector} .bi-play-fill"));
     }
 }

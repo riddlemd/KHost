@@ -24,6 +24,22 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, ID
 
         /// <summary>Shorter segments start sooner; longer ones survive a worse network.</summary>
         public int SegmentSeconds { get; set; } = 2;
+
+        /// <summary>How much of the disk pre-rendering may hold, in megabytes. Zero lifts the cap.
+        /// </summary>
+        /// <remarks>Renders run 45 MB to 90 MB for a four minute song and every queued turn gets
+        /// one, so a host who queues the night ahead reaches several gigabytes with nothing to stop
+        /// it. Past the cap a song simply plays the way it always did, by transcoding at play time:
+        /// the pre-render is an optimisation, and it must not be the reason a machine runs out of
+        /// disk mid-show. 8 GB is roughly a hundred songs held at once.</remarks>
+        public int PreparedBudgetMegabytes { get; set; } = 8192;
+
+        /// <summary>Free space to leave alone, in megabytes. Zero lifts the floor.</summary>
+        /// <remarks>Separate from the budget because the budget knows nothing about what else is on
+        /// the volume. The working directory is under temp, which is the same volume as the database
+        /// and the logs on a normal install: filling it takes the whole show down, not just the
+        /// renders.</remarks>
+        public int PreparedFreeSpaceFloorMegabytes { get; set; } = 2048;
     }
 
     internal const string PlaylistFileName = "stream.m3u8";
