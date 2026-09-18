@@ -22,6 +22,7 @@ namespace KHost.Abstractions.Services.IPC;
 [JsonDerivedType(typeof(SetMarqueeCommand), "setMarquee")]
 [JsonDerivedType(typeof(SetScreenQrCodesCommand), "setQrCodes")]
 [JsonDerivedType(typeof(SetBreakMusicCardCommand), "setBreakMusicCard")]
+[JsonDerivedType(typeof(ShowNextSingerCommand), "showNextSinger")]
 public abstract class ScreenCommandBase : IScreenCommand { }
 
 /// <summary>Song position against the host's clock, not "now"; sync-capable screens only.</summary>
@@ -109,6 +110,21 @@ public sealed class ShowImageCommand : ScreenCommandBase
 }
 
 public sealed class HideImageCommand : ScreenCommandBase { }
+
+/// <summary>Names who is up, put on the screens by a host between songs.</summary>
+/// <remarks>Finished strings, not ids: the screen holds no queue to look a singer up in. It stands
+/// until the next thing is drawn, so nothing here takes it down and no timer is needed.</remarks>
+public sealed class ShowNextSingerCommand : ScreenCommandBase
+{
+    /// <summary>The name the room should hear, which is the alias where the venue allows one.</summary>
+    public required string Singer { get; init; }
+
+    /// <summary>Null for a singer on the list with nothing queued yet: the card names them alone
+    /// rather than promising a song that does not exist.</summary>
+    public string? Song { get; init; }
+
+    public string? Artist { get; init; }
+}
 
 /// <summary>Every QR code on screen, sent whole on change, like <see cref="SetMarqueeCommand"/>.</summary>
 public sealed class SetScreenQrCodesCommand : ScreenCommandBase

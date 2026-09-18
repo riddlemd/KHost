@@ -51,6 +51,14 @@
         gap: 10px;
     }
 
+    // Pushed to the far end of the empty row, so it reads as the one thing to do here rather than
+    // as part of the sentence explaining that nothing is loaded.
+    &__announce {
+        margin-left: auto;
+        flex-shrink: 0;
+        white-space: nowrap;
+    }
+
     &__empty-icon {
         font-size: 22px;
         color: var(--kh-text-muted);

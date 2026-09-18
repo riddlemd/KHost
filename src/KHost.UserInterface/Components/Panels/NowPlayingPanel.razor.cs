@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.JSInterop;
+using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using KHost.Abstractions.Messaging;
 using KHost.Abstractions.Messaging.Messages;
@@ -15,8 +16,14 @@ public partial class NowPlayingPanel : IDisposable
     [Inject] private IDialogService? DialogService { get; set; }
     [Inject] private IJSRuntime JS { get; set; } = default!;
     [Inject] private IMessageBroker Broker { get; set; } = default!;
+    [Inject] private INextSingerCardService? NextSingerCard { get; set; }
+    [Inject] private IFlashService? Flash { get; set; }
 
     private readonly SubscriptionSet _subscriptions = new();
+
+    /// <summary>Whether there is anybody to name. Read off the queue rather than asked of the
+    /// card service on every render, which would reach the database to paint a button.</summary>
+    private bool _canAnnounce => SingerQueueService?.Users.Count > 0;
 
     private ElementReference _trackRef;
     private IJSObjectReference? _seekBar;
@@ -41,6 +48,17 @@ public partial class NowPlayingPanel : IDisposable
         }
 
         await PlaybackService.PlayAsync();
+    }
+
+    /// <summary>Puts who is up on the screens. The card replaces the venue's picture and stands
+    /// until the next thing is drawn, so nothing here has to take it down again.</summary>
+    private async Task AnnounceNextSingerAsync()
+    {
+        if (NextSingerCard is null)
+            return;
+
+        if (!await NextSingerCard.AnnounceAsync())
+            Flash?.Show("Nobody is queued to announce.", FlashType.Warning);
     }
 
     private async Task SeekToClickAsync(MouseEventArgs e)

@@ -227,6 +227,22 @@ internal sealed class StreamMediaPlayer : IMediaPlayer
         });
     }
 
+    /// <summary>Puts who is up on the screen, in place of the venue's card.</summary>
+    /// <remarks>Nothing takes it down: the next thing drawn replaces it, which is how it survives
+    /// a host who announces and then waits.</remarks>
+    public void ShowNextSinger(ShowNextSingerCommand command)
+    {
+        _logger.LogInformation("Next singer card: {Singer}", command.Singer);
+
+        Send(new
+        {
+            type = "next-singer",
+            singer = command.Singer,
+            song = command.Song,
+            artist = command.Artist,
+        });
+    }
+
     /// <summary>Every code at once, the same whole-state push as the marquee.</summary>
     /// <remarks>An empty list is how they come down: no separate hide to keep in step.</remarks>
     public void SetQrCodes(SetScreenQrCodesCommand command)
