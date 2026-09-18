@@ -85,7 +85,7 @@ public class MediaImportService : BaseService, IMediaImportService
 
     public Task StartAsync(IEnumerable<string> filePaths)
     {
-        var paths = filePaths.ToList();
+        var paths = WithoutPairedAudio(filePaths).ToList();
         if (paths.Count == 0)
             return Task.CompletedTask;
 
@@ -115,6 +115,15 @@ public class MediaImportService : BaseService, IMediaImportService
 
         return Task.CompletedTask;
     }
+
+    /// <summary>Drops the audio half of a karaoke pair, keeping the .cdg as the row.</summary>
+    /// <remarks>A .cdg proves the pair is karaoke; an .mp3 alone proves nothing, which is why the
+    /// graphics file is the one that becomes the row. Imported on its own the .mp3 is a second row
+    /// for the same song that plays the backing track against a blank screen.</remarks>
+    internal static IEnumerable<string> WithoutPairedAudio(IEnumerable<string> filePaths)
+        => filePaths.Where(path =>
+            !MediaFormats.AudioExtensions.Contains(Path.GetExtension(path).ToLowerInvariant())
+            || !File.Exists(Path.ChangeExtension(path, MediaFormats.KaraokeGraphicsExtension)));
 
     public void Cancel()
     {
