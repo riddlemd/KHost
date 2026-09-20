@@ -320,6 +320,56 @@ public class HlsMediaStreamServiceTests : IDisposable
         Assert.Contains($"volume={expected}[l]", arguments);
     }
 
+    [Fact]
+    public void BuildArguments_CopiesThePicture_WhenOnlyTheAudioWasAskedToChange()
+    {
+        var arguments = HlsMediaStreamService.BuildArguments(
+            "/renders/a.khv", TimeSpan.Zero, 0, 0, 2, null, ThreeTrackMix(30, 100), copyVideo: true);
+
+        // A re-levelled mix is audio alone, so the frames come across as they were written.
+        Assert.Contains("-c:v copy", arguments);
+        Assert.DoesNotContain("-c:v libx264", arguments);
+
+        // And the mix is still built, which is the whole point of not copying wholesale.
+        Assert.Contains("amix=inputs=3:normalize=0", arguments);
+        Assert.Contains("-c:a aac", arguments);
+    }
+
+    /// <summary>The render already carries keyframes on this clock; asking a copy to force more is
+    /// asking the encoder that is not running.</summary>
+    [Fact]
+    public void BuildArguments_DoesNotForceKeyframes_WhenItCopiesThePicture()
+    {
+        var arguments = HlsMediaStreamService.BuildArguments(
+            "/renders/a.khv", TimeSpan.Zero, 0, 0, 2, null, ThreeTrackMix(30, 100), copyVideo: true);
+
+        Assert.DoesNotContain("force_key_frames", arguments);
+        Assert.DoesNotContain("sc_threshold", arguments);
+    }
+
+    /// <summary>A shifted key is the case that pays for itself even with one audio track: nothing
+    /// about the picture changed, and it was being re-encoded anyway.</summary>
+    [Fact]
+    public void BuildArguments_CopiesThePicture_ForAShiftedKeyWithNothingToMix()
+    {
+        var arguments = HlsMediaStreamService.BuildArguments(
+            "/renders/a.mp4", TimeSpan.Zero, pitch: 2, tempo: 0, 2, null, null, copyVideo: true);
+
+        Assert.Contains("-c:v copy", arguments);
+        Assert.Contains("asetrate", arguments);
+    }
+
+    /// <summary>Guards the default: every existing caller encodes, and a flipped default would
+    /// silently copy frames from sources that carry no keyframes where the muxer cuts.</summary>
+    [Fact]
+    public void BuildArguments_EncodesThePicture_WhenNotAskedToCopyIt()
+    {
+        var arguments = HlsMediaStreamService.BuildArguments("/songs/a.mp4", TimeSpan.Zero, 0, 0, 2);
+
+        Assert.Contains("-c:v libx264", arguments);
+        Assert.DoesNotContain("-c:v copy", arguments);
+    }
+
     /// <summary>Named and ordered as the real files are: music first, then backing, then lead.</summary>
     private static AudioMix ThreeTrackMix(int lead, int backing) => new(
     [

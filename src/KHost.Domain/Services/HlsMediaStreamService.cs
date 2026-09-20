@@ -91,17 +91,19 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, ID
             throw new InvalidOperationException($"'{filePath}' is still being made ready to play.");
 
         // The render always wins as the input where there is one: it carries this file's audio, and
-        // for a plugin's format it is the only readable thing. Whether the job is then a copy or an
-        // encode is a separate question, since a shifted key or a re-levelled mix still filters.
+        // for a plugin's format it is the only readable thing. What is then copied and what is
+        // rebuilt is a separate question, asked per stream just below.
         var source = prepared ?? filePath;
-        var copyFrom = prepared is not null && CanStreamCopy(pitch, tempo, mix) ? prepared : null;
+        var (copyWhole, copyVideo) = CopyPlan(prepared is not null, pitch, tempo, mix);
+        var copyFrom = copyWhole ? prepared : null;
 
         var companionAudio = prepared is null ? ResolveCompanionAudio(filePath) : null;
         if (prepared is null && companionAudio is null && IsGraphicsOnly(filePath))
             Logger.LogWarning("No companion audio beside '{FilePath}'; the stream will be silent", filePath);
 
         var arguments = copyFrom is null
-            ? BuildArguments(source, startOffset, pitch, tempo, _options.SegmentSeconds, companionAudio, mix)
+            ? BuildArguments(
+                source, startOffset, pitch, tempo, _options.SegmentSeconds, companionAudio, mix, copyVideo)
             : BuildCopyArguments(copyFrom, startOffset, _options.SegmentSeconds);
 
         Logger.LogInformation("Opening stream {SessionId} for '{FilePath}' at {Offset}", id, filePath, startOffset);
@@ -240,7 +242,8 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, ID
         int tempo,
         int segmentSeconds,
         string? companionAudioPath = null,
-        AudioMix? mix = null)
+        AudioMix? mix = null,
+        bool copyVideo = false)
     {
         var arguments = "-hide_banner -loglevel error";
 
@@ -265,13 +268,22 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, ID
 
         var segment = Math.Max(1, segmentSeconds);
 
-        // Keyframes on time, not a frame count: -g is in frames, so it matches the segment length
-        // at exactly one source frame rate, and the muxer can only cut where a keyframe already is.
-        arguments += " -c:v libx264 -preset veryfast -profile:v main -level 4.1 -pix_fmt yuv420p"
-                   + string.Format(
-                        CultureInfo.InvariantCulture,
-                        " -force_key_frames \"expr:gte(t,n_forced*{0})\" -sc_threshold 0",
-                        segment);
+        if (copyVideo)
+        {
+            // The render was written with keyframes on this same clock, so the muxer can already
+            // cut where it is asked to and re-encoding would only reproduce what is there.
+            arguments += " -c:v copy";
+        }
+        else
+        {
+            // Keyframes on time, not a frame count: -g is in frames, so it matches the segment length
+            // at exactly one source frame rate, and the muxer can only cut where a keyframe already is.
+            arguments += " -c:v libx264 -preset veryfast -profile:v main -level 4.1 -pix_fmt yuv420p"
+                       + string.Format(
+                            CultureInfo.InvariantCulture,
+                            " -force_key_frames \"expr:gte(t,n_forced*{0})\" -sc_threshold 0",
+                            segment);
+        }
 
         var audioFilter = BuildAudioFilter(pitch, tempo);
         var mixGraph = BuildMixGraph(mix, audioFilter);
@@ -304,9 +316,6 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, ID
         return arguments + $" {PlaylistFileName}";
     }
 
-    /// <summary>Whether a prepared render can be copied rather than transcoded again. Every filter
-    /// this builds is empty only here: pitch and tempo rewrite the audio, tempo rewrites the video
-    /// too, and a mix re-levels the tracks. Any of them and the copy would be a lie.</summary>
     /// <summary>Segments an already-encoded render without touching the frames. The seek is on the
     /// input, since there is no filter graph here for an output seek to sit behind.</summary>
     internal static string BuildCopyArguments(string filePath, TimeSpan startOffset, int segmentSeconds)
@@ -327,10 +336,40 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, ID
                 segment, PlaylistFileName);
     }
 
-    internal static bool CanStreamCopy(int pitch, int tempo, AudioMix? mix)
+    /// <summary>Whether the picture can be carried across untouched.</summary>
+    /// <remarks>Only tempo retimes the frames. Pitch and the mix are audio alone, so a song whose
+    /// key a host has shifted still keeps its picture rather than re-encoding it to no effect.
+    /// </remarks>
+    internal static bool CanCopyVideo(int tempo) => StreamRate.FromTempo(tempo) == 1.0;
+
+    /// <summary>Whether the audio can be carried across untouched.</summary>
+    /// <remarks>A copy carries each track at its recorded level, so a mix with anything to balance
+    /// has to be built even though nothing about the picture has changed.</remarks>
+    internal static bool CanCopyAudio(int pitch, int tempo, AudioMix? mix)
         => pitch == 0
         && StreamRate.FromTempo(tempo) == 1.0
         && mix is not { IsMixable: true };
+
+    /// <summary>Which of a job's streams come across untouched.</summary>
+    /// <remarks>Asked per stream, because a re-levelled mix or a shifted key rebuilds the audio
+    /// and leaves every frame alone. Nothing is ever copied from the original file: a render is
+    /// the one input written with keyframes on the segment clock, and the muxer cuts nowhere
+    /// else.</remarks>
+    internal static (bool Whole, bool Picture) CopyPlan(
+        bool hasPrepared, int pitch, int tempo, AudioMix? mix)
+    {
+        if (!hasPrepared) return (false, false);
+
+        var whole = CanStreamCopy(pitch, tempo, mix);
+        return (whole, !whole && CanCopyVideo(tempo));
+    }
+
+    /// <summary>Whether a prepared render can be copied whole rather than transcoded again.</summary>
+    /// <remarks>Both halves or neither: this is the all-copy job, which needs no filter graph at
+    /// all. Where only the picture survives, the stream is built with <c>copyVideo</c> instead.
+    /// </remarks>
+    internal static bool CanStreamCopy(int pitch, int tempo, AudioMix? mix)
+        => CanCopyVideo(tempo) && CanCopyAudio(pitch, tempo, mix);
 
     internal static bool IsGraphicsOnly(string filePath)
         => Path.GetExtension(filePath).Equals(".cdg", StringComparison.OrdinalIgnoreCase);

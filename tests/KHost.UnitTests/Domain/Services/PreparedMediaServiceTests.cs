@@ -57,6 +57,80 @@ public class PreparedMediaServiceTests
         Assert.True(HlsMediaStreamService.CanStreamCopy(pitch: 0, tempo: 0, mix: mix));
     }
 
+    /// <summary>Tempo retimes the frames, so it is the one thing that rules the picture out.
+    /// </summary>
+    [Theory]
+    [InlineData(10)]
+    [InlineData(-10)]
+    public void AChangedTempo_RulesOutCopyingThePicture(int tempo)
+        => Assert.False(HlsMediaStreamService.CanCopyVideo(tempo));
+
+    [Fact]
+    public void NothingRetimed_MayCopyThePicture()
+        => Assert.True(HlsMediaStreamService.CanCopyVideo(tempo: 0));
+
+    /// <summary>The split exists for these two. Both rebuild the audio and neither touches a
+    /// frame, so re-encoding the picture for either is work with no output to show for it.
+    /// </summary>
+    [Fact]
+    public void AShiftedKey_LeavesThePictureCopyable()
+    {
+        Assert.False(HlsMediaStreamService.CanCopyAudio(pitch: 2, tempo: 0, mix: null));
+        Assert.True(HlsMediaStreamService.CanCopyVideo(tempo: 0));
+    }
+
+    [Fact]
+    public void ARelevelledMix_LeavesThePictureCopyable()
+    {
+        var mix = new AudioMix(
+            [new AudioTrack(0, AudioTrackRole.Music, "music"), new AudioTrack(1, AudioTrackRole.Lead, "lead")],
+            LeadVolume: 20,
+            BackingVolume: 100);
+
+        Assert.False(HlsMediaStreamService.CanCopyAudio(pitch: 0, tempo: 0, mix: mix));
+        Assert.True(HlsMediaStreamService.CanCopyVideo(tempo: 0));
+    }
+
+    /// <summary>A no from either half is a no to the whole-file copy.</summary>
+    [Theory]
+    [InlineData(0, 0, true)]
+    [InlineData(2, 0, false)]
+    [InlineData(0, 10, false)]
+    public void TheWholeCopy_NeedsBothHalves(int pitch, int tempo, bool expected)
+        => Assert.Equal(expected, HlsMediaStreamService.CanStreamCopy(pitch, tempo, mix: null));
+
+    /// <summary>Nothing is copied from the original file, whatever the filters say. It carries no
+    /// promise about where its keyframes are, and the muxer can only cut on one.</summary>
+    [Fact]
+    public void WithNoRender_NothingIsCopied()
+        => Assert.Equal((false, false), HlsMediaStreamService.CopyPlan(hasPrepared: false, 0, 0, mix: null));
+
+    [Fact]
+    public void WithARenderAndNoFilters_TheWholeFileIsCopied()
+        => Assert.Equal((true, false), HlsMediaStreamService.CopyPlan(hasPrepared: true, 0, 0, mix: null));
+
+    /// <summary>The whole point of the split: the audio is rebuilt and the picture is not.</summary>
+    [Fact]
+    public void WithARenderAndAShiftedKey_OnlyThePictureIsCopied()
+        => Assert.Equal((false, true), HlsMediaStreamService.CopyPlan(hasPrepared: true, pitch: 2, tempo: 0, mix: null));
+
+    [Fact]
+    public void WithARenderAndARelevelledMix_OnlyThePictureIsCopied()
+    {
+        var mix = new AudioMix(
+            [new AudioTrack(0, AudioTrackRole.Music, "music"), new AudioTrack(1, AudioTrackRole.Lead, "lead")],
+            LeadVolume: 20,
+            BackingVolume: 100);
+
+        Assert.Equal((false, true), HlsMediaStreamService.CopyPlan(hasPrepared: true, 0, 0, mix));
+    }
+
+    /// <summary>Tempo retimes the frames, so it is the one filter that leaves nothing to carry.
+    /// </summary>
+    [Fact]
+    public void WithARenderAndAChangedTempo_NothingIsCopied()
+        => Assert.Equal((false, false), HlsMediaStreamService.CopyPlan(hasPrepared: true, 0, tempo: 10, mix: null));
+
     /// <summary>A file the host can transcode is playable whether or not a render exists, so an
     /// unprepared turn is not a turn that is waiting: it starts the moment it is asked.</summary>
     [Fact]
