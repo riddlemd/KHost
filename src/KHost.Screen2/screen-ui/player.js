@@ -755,6 +755,11 @@ function handleCommand(raw) {
         case 'hide-image':
             still.hidden = true;
             still.removeAttribute('src');
+            // The card is what an empty screen looks like, so it comes back as the still goes.
+            // Every other path that hides the still restores it; leaving it out here meant a venue
+            // clearing its picture got a black screen with nothing on it at all, since show-image
+            // had already hidden the card and nothing put it back.
+            placeholder.hidden = false;
             break;
         case 'marquee':
             setMarquee(message);
