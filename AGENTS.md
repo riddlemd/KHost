@@ -454,11 +454,23 @@ moving the transcode off the song transition and leaving a stream copy behind wh
 - **A render outlives the queue by `KeepAfterUnwanted`** (five minutes), because a song that has
   just ended is the one most likely to be asked for again. It is a minimum rather than a deadline:
   dropping is driven by the queue changing, so a quiet room drops nothing until the next start.
-- **The copy is refused by more than pitch and tempo.** `CanStreamCopy` also refuses a mixable mix,
-  and a Example `.khv` carries three stems, so it is always mixable and always transcodes. For kits
-  the pre-render therefore buys *playability* rather than CPU: ffmpeg cannot open a `.kit` at all.
-  A render still has to carry keyframes on the segment clock, or a copy cannot cut where it is
-  asked to and the segments come out several times longer than requested.
+- **The copy is asked per stream, not for the file.** `CanCopyVideo` answers for the picture and
+  only tempo rules it out, since it retimes the frames; `CanCopyAudio` answers for the sound, and
+  pitch, tempo or a mixable mix each rule it out. `CanStreamCopy` is the two agreeing. A Example
+  `.khv` carries three stems, so it is always mixable and its audio is always rebuilt, but its
+  picture is copied, and so is the picture of any song whose key a host has shifted. That is the
+  case the split exists for: re-encoding every frame for an audio-only effect is work with nothing
+  to show for it, and it costs generation loss on top, the render having been encoded once already.
+- **`CopyPlan` is the one place that knows what may be copied from.** Only a prepared render may
+  hand its frames across: it is written with keyframes on the segment clock, and the muxer can cut
+  nowhere else. An original file carries no such promise, so it is always encoded, whatever the
+  filters say. A render missing those keyframes does not fail, it segments several times longer
+  than asked, which is why the guard is on the input rather than on the result.
+- `BuildArguments` takes a `copyVideo` flag rather than there being a third builder. The mix graph,
+  the audio codec and the muxer settings are one copy of each, so the encode and the copy cannot
+  drift apart on any of them.
+- For kits the pre-render still buys *playability* before anything else: ffmpeg cannot open a
+  `.kit` at all.
 
 ## Components
 
