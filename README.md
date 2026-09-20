@@ -33,6 +33,36 @@ dotnet run --project src/KHost.UserInterface
 
 The host opens in its own window on `http://localhost:5251` and walks through first-run setup at `/setup`.
 
+## Hardware
+
+KHost is undemanding apart from one thing: it encodes video on the CPU. There is no hardware
+acceleration, so the processor decides whether it keeps up.
+
+| | Minimum | Recommended |
+|---|---|---|
+| CPU | 8th-gen Core i3 / Ryzen 3 2000 / N100 | Any modern quad-core, or Apple silicon |
+| RAM | 8 GB | 16 GB |
+| Storage | 128 GB SSD | 256 GB SSD, plus room for the library |
+| Audio | Stereo line out, or a class-compliant USB interface | The same |
+| Network | Same subnet as any screen or Chromecast | Wired |
+
+### Will a given machine keep up?
+
+Queued songs are rendered ahead of time so that starting one is a file copy rather than a
+transcode. That render is the only heavy work, and it has to finish faster than songs are played.
+To check a machine, run FFmpeg against a real karaoke file:
+
+```bash
+ffmpeg -benchmark -i song.mp4 -c:v libx264 -preset veryfast -profile:v main -c:a aac -f null -
+```
+
+The `speed=` figure at the end is how much faster than real time it encodes. Below `1x` the
+renders fall behind and songs transcode live as they start, which is what the pre-rendering exists
+to avoid. Around `2x` is comfortable for a normal evening.
+
+Renders run one at a time, so clock speed matters more than core count, and a discrete GPU is not
+used at all.
+
 ## Contributing
 
 Contributions are accepted under the terms in [CONTRIBUTING.md](CONTRIBUTING.md). Coding conventions live in [AGENTS.md](AGENTS.md) and the [wiki](https://github.com/riddlemd/KHost/wiki/Development).
