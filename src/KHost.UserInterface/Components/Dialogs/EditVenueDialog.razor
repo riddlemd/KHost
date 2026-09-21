@@ -353,6 +353,36 @@
             </div>
 
             <div class="kh-venue-settings__section">
+                <span class="kh-venue-settings__section-title">Guests on their phones</span>
+
+                <label class="kh-venue-settings__row kh-form-check">
+                    <span class="kh-form-check-label">
+                        Let guests join and request songs
+                        <span class="kh-note">
+                            Closes the room to phones when off, including a guest who kept the
+                            link from a previous night and needs no code to come back.
+                        </span>
+                    </span>
+                    <InputCheckbox id="venue-allow-guest-remote" class="kh-form-check-input"
+                                   @bind-Value="_model.AllowGuestRemote" />
+                </label>
+                @if (_model.AllowGuestRemote)
+                {
+                    <label class="kh-venue-settings__row kh-form-check">
+                        <span class="kh-form-check-label">
+                            Show them what is queued
+                            <span class="kh-note">
+                                Read only, and the whole room&rsquo;s queue rather than their own
+                                picks. A guest can never reorder it.
+                            </span>
+                        </span>
+                        <InputCheckbox id="venue-show-queue-to-guests" class="kh-form-check-input"
+                                       @bind-Value="_model.ShowQueueToGuests" />
+                    </label>
+                }
+            </div>
+
+            <div class="kh-venue-settings__section">
                 <span class="kh-venue-settings__section-title">Tipping</span>
 
                 <label class="kh-venue-settings__row kh-form-check">

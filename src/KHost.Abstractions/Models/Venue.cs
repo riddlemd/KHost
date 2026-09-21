@@ -58,6 +58,23 @@ public class Venue : RepositoryModel
         /// <summary>Whether a queued alias is shown. Off when unset, so it needs no backfill.</summary>
         public bool AllowAliases { get; set; }
 
+        // Both default on, so both were backfilled: EF reads a key missing from a stored row as
+        // default and ignores these initializers, which would switch the feature off for every
+        // venue that predates it with nothing on screen to say why.
+
+        /// <summary>Whether guests may join from their phones and request songs at all.</summary>
+        /// <remarks>Separate from <see cref="QrCodeSource"/>, which only decides whose code the
+        /// screen draws: a guest who kept the link from last night does not need the code again,
+        /// so taking the code down is not the same as closing the room.</remarks>
+        public bool AllowGuestRemote { get; set; } = true;
+
+        /// <summary>Whether a guest who has joined sees the queue, or only their own picks going
+        /// in.</summary>
+        /// <remarks>Read only wherever it is shown; a guest can never reorder from it. Means
+        /// nothing when <see cref="AllowGuestRemote"/> is off, there being no guest to show.
+        /// </remarks>
+        public bool ShowQueueToGuests { get; set; } = true;
+
         // Every marquee setting reads "off" when its key is missing, so it needs no backfill.
 
         /// <summary>Whether the screen carries a marquee at all.</summary>
