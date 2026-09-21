@@ -1319,6 +1319,12 @@ public class PreparedMediaServiceTests
             File.WriteAllText(source, "x");
 
             var service = Service(out var settings, folder, QueuedOnly(source));
+
+            // Settled before staging a render: the constructor's pass renders to the same
+            // destination, and DiscardAllBut skips anything still in flight — so a pass that had
+            // not finished made the drop below silently do nothing.
+            await service.StartupReconcile;
+
             var render = RenderFor(service, source, folder);
             Assert.True(File.Exists(render));
 

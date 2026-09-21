@@ -252,7 +252,15 @@
         display: flex;
         flex-wrap: wrap;
         gap: 0.6em;
+
+        // Dashed, where the foot below is solid: this separates doing from configuring, and the
+        // solid rule is what ends the panel.
         margin-top: 0.9em;
+        padding-top: 0.9em;
+        border-top: 1px dashed var(--kh-border);
+
+        // With the row's other controls, so the eye tracks one edge down the page.
+        justify-content: flex-end;
     }
 
     &__foot {
@@ -414,6 +422,11 @@
     // Answers to the window, not a container: the settings page has no splitter beside it.
     // Threshold is the console's own narrow point, where the indent costs more than it buys.
     @media (max-width: 720px) {
+        // Back to the left: narrow, the right edge is far from the settings the buttons belong to.
+        &__actions {
+            justify-content: flex-start;
+        }
+
         &__panel {
             padding-left: 12px;
         }

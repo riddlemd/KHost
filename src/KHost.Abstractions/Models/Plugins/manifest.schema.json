@@ -59,7 +59,8 @@
         "properties": {
           "key": { "type": "string" },
           "label": { "type": "string", "description": "Wording when the handler does not override it." },
-          "style": { "enum": ["primary", "secondary", "danger"], "description": "kh-button modifier; defaults to primary." }
+          "style": { "enum": ["primary", "secondary", "danger"], "description": "kh-button modifier; defaults to primary." },
+          "icon": { "type": "string", "description": "Bootstrap Icons name drawn before the label, without the bi- prefix (e.g. \"box-arrow-in-right\"). An unknown name draws nothing." }
         }
       }
     },
