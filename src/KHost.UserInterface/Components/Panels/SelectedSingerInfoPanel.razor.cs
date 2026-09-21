@@ -353,9 +353,21 @@ public partial class SelectedSingerInfoPanel : IAsyncDisposable
     /// and an acquisition in flight are things a host has to act on, and a render in progress
     /// must not hide either.</remarks>
     private (string Label, string BadgeClass) StatusOf(Media media)
-        => media.Status == MediaStatus.Ready && PreparationOf(media) == PerformancePreparation.Preparing
+        => media.Status == MediaStatus.Ready && IsBeingReadied(media)
             ? ("Preparing", MediaStatusDisplay.BadgeClass(MediaStatus.Processing))
             : (media.Status.ToString(), MediaStatusDisplay.BadgeClass(media.Status));
+
+    /// <summary>Whether this turn is being got ready, which is not one question but two.</summary>
+    /// <remarks><see cref="PerformancePreparation.Preparing"/> is true only while a render is
+    /// actually running, and there is a single render slot: a kit that has just finished
+    /// downloading sits unprepared and unplayable for as long as it waits its turn, which is most
+    /// of the wait a host actually sees. So this asks <c>IsWaitingOnARender</c> too, the same
+    /// question that greys the play control, and the column and the control cannot then disagree
+    /// about one row. The in-flight case is still asked separately, since an ordinary file being
+    /// pre-rendered is playable throughout and so is never waiting, yet work is plainly happening
+    /// to it.</remarks>
+    private bool IsBeingReadied(Media media)
+        => IsWaitingOnARender(media) || PreparationOf(media) == PerformancePreparation.Preparing;
 
     /// <summary>Whether this turn has something to play yet. Off the turn's own file, never the
     /// library row's status: the row says what KHost has, not what one performance can start.
