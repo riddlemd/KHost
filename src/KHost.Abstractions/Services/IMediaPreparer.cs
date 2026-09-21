@@ -12,6 +12,17 @@ public interface IMediaPreparer
     /// turn on every reconcile.</remarks>
     bool CanPrepare(string filePath);
 
+    /// <summary>How far apart this preparer puts keyframes in what it renders, in seconds.</summary>
+    /// <remarks>A muxer can only cut a copy where a keyframe already is, so the host carries a
+    /// render's picture across untouched only when its own segment length is a multiple of this.
+    /// Null says "I do not know", and the host re-encodes rather than guess: the failure is not a
+    /// broken stream but segments quietly stretched to the next keyframe.
+    /// <para>A default body, which is behaviour living in Abstractions and the same deliberate
+    /// exception <see cref="IMediaPlaybackGate.Claims"/> is. It buys the same thing: a preparer
+    /// written before this exists compiles and loads unchanged, so the contract did not break.
+    /// </para></remarks>
+    int? KeyframeSeconds => null;
+
     /// <summary>Renders it to <paramref name="destination"/>. False when it could not be made, which
     /// leaves the turn unplayable rather than playing something wrong.</summary>
     /// <remarks>Long: a render is minutes of CPU. The host calls this off the path a host is

@@ -94,7 +94,9 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, ID
         // for a plugin's format it is the only readable thing. What is then copied and what is
         // rebuilt is a separate question, asked per stream just below.
         var source = prepared ?? filePath;
-        var (copyWhole, copyVideo) = CopyPlan(prepared is not null, pitch, tempo, mix);
+        var (copyWhole, copyVideo) = CopyPlan(
+            prepared is not null, pitch, tempo, mix,
+            _options.SegmentSeconds, _prepared.KeyframeSecondsFor(filePath));
         var copyFrom = copyWhole ? prepared : null;
 
         var companionAudio = prepared is null ? ResolveCompanionAudio(filePath) : null;
@@ -356,13 +358,22 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, ID
     /// the one input written with keyframes on the segment clock, and the muxer cuts nowhere
     /// else.</remarks>
     internal static (bool Whole, bool Picture) CopyPlan(
-        bool hasPrepared, int pitch, int tempo, AudioMix? mix)
+        bool hasPrepared, int pitch, int tempo, AudioMix? mix, int segmentSeconds, int? keyframeSeconds)
     {
-        if (!hasPrepared) return (false, false);
+        if (!hasPrepared || !CutsCleanly(segmentSeconds, keyframeSeconds)) return (false, false);
 
         var whole = CanStreamCopy(pitch, tempo, mix);
         return (whole, !whole && CanCopyVideo(tempo));
     }
+
+    /// <summary>Whether a render's keyframes fall where this host wants to cut.</summary>
+    /// <remarks>The muxer cuts a copy only where a keyframe already is, so a segment length that
+    /// is not a multiple of the render's cadence does not fail, it silently runs each segment on
+    /// to the next keyframe. Measured on a 2s render: 4s and 6s cut exactly, 3s and 5s overshoot
+    /// to 4s and 6s. A render that will not say its cadence is encoded instead, which is the
+    /// answer that is never wrong.</remarks>
+    internal static bool CutsCleanly(int segmentSeconds, int? keyframeSeconds)
+        => keyframeSeconds is { } keyframe and > 0 && Math.Max(1, segmentSeconds) % keyframe == 0;
 
     /// <summary>Whether a prepared render can be copied whole rather than transcoded again.</summary>
     /// <remarks>Both halves or neither: this is the all-copy job, which needs no filter graph at

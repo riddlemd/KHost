@@ -17,5 +17,7 @@ internal sealed class NothingPrepared : IPreparedMediaService
 
     public bool IsWaitingOnARender(string filePath) => false;
 
+    public int? KeyframeSecondsFor(string filePath) => null;
+
     public void Sweep() { }
 }
