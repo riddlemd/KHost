@@ -523,6 +523,8 @@ namespace KHost.DataAccess.Migrations
 
                             b1.Property<bool>("AllowAliases");
 
+                            b1.Property<bool>("AllowGuestRemote");
+
                             b1.Property<Guid?>("BrandingImageMediaId");
 
                             b1.Property<int?>("BrandingImageScaling");
@@ -580,6 +582,8 @@ namespace KHost.DataAccess.Migrations
                             b1.Property<string>("QrCodeSource");
 
                             b1.Property<bool>("ShowEstimatedWaitTime");
+
+                            b1.Property<bool>("ShowQueueToGuests");
 
                             b1.Property<bool>("TippingEnabled");
 
