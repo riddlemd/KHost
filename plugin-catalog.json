@@ -2,6 +2,25 @@
   "schemaVersion": 1,
   "plugins": [
     {
+      "id": "c7a41e92-3d58-4b06-8f13-6ad9c25e7b40",
+      "name": "Chromecast",
+      "author": "KHost",
+      "description": "Sends the song to a Chromecast receiver on the local network.",
+      "repository": "https://github.com/riddlemd/KHost.Plugins.Chromecast",
+      "capabilities": [
+        "Display provider"
+      ],
+      "releases": [
+        {
+          "version": "1.0.0",
+          "apiVersion": 3,
+          "url": "https://github.com/riddlemd/KHost.Plugins.Chromecast/releases/download/v1.0.0/KHost.Plugins.Chromecast-1.0.0.zip",
+          "sha256": "b6ebdc4b9bdf0595a6bda2dad99e14b0a56b3556d6be366aa3a944f5b8f5c033",
+          "sizeBytes": 1190576
+        }
+      ]
+    },
+    {
       "id": "6b1d3a58-4f27-4c0e-9a11-2e5c7d8b4f36",
       "name": "Spotify Break Music",
       "author": "KHost",
