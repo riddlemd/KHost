@@ -35,6 +35,11 @@ public interface IPreparedMediaService
     /// cannot start at all.</remarks>
     bool IsWaitingOnARender(string filePath);
 
+    /// <summary>How far apart the keyframes are in this file's render, or null when nothing can
+    /// say. Asked before copying a render's picture, which only cuts where a keyframe already is.
+    /// </summary>
+    int? KeyframeSecondsFor(string filePath);
+
     /// <summary>Drops every render. Nothing here outlives the process that made it, since the venue
     /// settings and the source files it was built against can both change while the host is down.
     /// </summary>

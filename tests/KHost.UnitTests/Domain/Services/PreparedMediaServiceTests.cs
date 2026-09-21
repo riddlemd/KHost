@@ -103,16 +103,16 @@ public class PreparedMediaServiceTests
     /// promise about where its keyframes are, and the muxer can only cut on one.</summary>
     [Fact]
     public void WithNoRender_NothingIsCopied()
-        => Assert.Equal((false, false), HlsMediaStreamService.CopyPlan(hasPrepared: false, 0, 0, mix: null));
+        => Assert.Equal((false, false), HlsMediaStreamService.CopyPlan(hasPrepared: false, 0, 0, mix: null, 2, 2));
 
     [Fact]
     public void WithARenderAndNoFilters_TheWholeFileIsCopied()
-        => Assert.Equal((true, false), HlsMediaStreamService.CopyPlan(hasPrepared: true, 0, 0, mix: null));
+        => Assert.Equal((true, false), HlsMediaStreamService.CopyPlan(hasPrepared: true, 0, 0, mix: null, 2, 2));
 
     /// <summary>The whole point of the split: the audio is rebuilt and the picture is not.</summary>
     [Fact]
     public void WithARenderAndAShiftedKey_OnlyThePictureIsCopied()
-        => Assert.Equal((false, true), HlsMediaStreamService.CopyPlan(hasPrepared: true, pitch: 2, tempo: 0, mix: null));
+        => Assert.Equal((false, true), HlsMediaStreamService.CopyPlan(hasPrepared: true, pitch: 2, tempo: 0, mix: null, 2, 2));
 
     [Fact]
     public void WithARenderAndARelevelledMix_OnlyThePictureIsCopied()
@@ -122,14 +122,103 @@ public class PreparedMediaServiceTests
             LeadVolume: 20,
             BackingVolume: 100);
 
-        Assert.Equal((false, true), HlsMediaStreamService.CopyPlan(hasPrepared: true, 0, 0, mix));
+        Assert.Equal((false, true), HlsMediaStreamService.CopyPlan(hasPrepared: true, 0, 0, mix, 2, 2));
     }
 
     /// <summary>Tempo retimes the frames, so it is the one filter that leaves nothing to carry.
     /// </summary>
     [Fact]
     public void WithARenderAndAChangedTempo_NothingIsCopied()
-        => Assert.Equal((false, false), HlsMediaStreamService.CopyPlan(hasPrepared: true, 0, tempo: 10, mix: null));
+        => Assert.Equal((false, false), HlsMediaStreamService.CopyPlan(hasPrepared: true, 0, tempo: 10, mix: null, 2, 2));
+
+    /// <summary>Measured on a real 2s render: 4s and 6s cut exactly where asked, 3s and 5s run on
+    /// to the next keyframe and come out 4s and 6s. So the rule is divisibility, not equality, and
+    /// a host on a longer segment still gets the copy.</summary>
+    [Theory]
+    [InlineData(2, 2, true)]
+    [InlineData(4, 2, true)]
+    [InlineData(6, 2, true)]
+    [InlineData(3, 2, false)]
+    [InlineData(5, 2, false)]
+    public void ACopyNeedsTheSegmentToBeAMultipleOfTheCadence(int segment, int keyframe, bool expected)
+        => Assert.Equal(expected, HlsMediaStreamService.CutsCleanly(segment, keyframe));
+
+    /// <summary>A render that will not say is encoded. The failure it avoids is silent: segments
+    /// stretch to the next keyframe rather than anything reporting an error.</summary>
+    [Fact]
+    public void ARenderThatWillNotSayItsCadence_IsNotCopied()
+    {
+        Assert.False(HlsMediaStreamService.CutsCleanly(2, keyframeSeconds: null));
+        Assert.Equal(
+            (false, false),
+            HlsMediaStreamService.CopyPlan(hasPrepared: true, 0, 0, mix: null, 2, keyframeSeconds: null));
+    }
+
+    /// <summary>Zero would divide by zero; a negative is nonsense. Neither is a cadence.</summary>
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-2)]
+    public void AnImpossibleCadence_IsNotCopied(int keyframe)
+        => Assert.False(HlsMediaStreamService.CutsCleanly(2, keyframe));
+
+    /// <summary>The gate covers the whole-file copy as well, which carries the picture too. A kit
+    /// never reaches it, being always mixable, but a plugin render that is not would.</summary>
+    [Fact]
+    public void AMismatchedCadence_StopsTheWholeCopyToo()
+        => Assert.Equal(
+            (false, false),
+            HlsMediaStreamService.CopyPlan(hasPrepared: true, 0, 0, mix: null, segmentSeconds: 3, keyframeSeconds: 2));
+
+    /// <summary>The case this was built for: a host off the default segment length, against a
+    /// plugin render whose cadence is fixed at the default.</summary>
+    [Fact]
+    public void AHostOffTheDefaultSegment_EncodesAPluginRenderRatherThanStretchIt()
+    {
+        var mix = new AudioMix(
+            [new AudioTrack(0, AudioTrackRole.Music, "music"), new AudioTrack(1, AudioTrackRole.Lead, "lead")],
+            LeadVolume: 20,
+            BackingVolume: 100);
+
+        Assert.Equal(
+            (false, true),
+            HlsMediaStreamService.CopyPlan(hasPrepared: true, 0, 0, mix, segmentSeconds: 4, keyframeSeconds: 2));
+        Assert.Equal(
+            (false, false),
+            HlsMediaStreamService.CopyPlan(hasPrepared: true, 0, 0, mix, segmentSeconds: 3, keyframeSeconds: 2));
+    }
+
+    /// <summary>A render this service made carries keyframes on its own segment clock, so that is
+    /// the answer, whatever the host is configured to.</summary>
+    [Theory]
+    [InlineData(2)]
+    [InlineData(6)]
+    public void AHostRender_ReportsTheHostsOwnSegmentLength(int segment)
+        => Assert.Equal(segment, Service(services: NothingQueued(), segmentSeconds: segment)
+            .KeyframeSecondsFor("/songs/a.mp4"));
+
+    /// <summary>A plugin's render is the plugin's to describe: the host never wrote its frames and
+    /// cannot know where it put the keyframes.</summary>
+    [Fact]
+    public void APluginRender_ReportsWhatThePreparerSays()
+        => Assert.Equal(2, Service(services: WithPreparer(keyframeSeconds: 2), segmentSeconds: 6)
+            .KeyframeSecondsFor("/songs/a.kit"));
+
+    /// <summary>A preparer written before this existed says nothing, and null is what makes the
+    /// caller encode rather than copy at a cadence nobody checked.</summary>
+    [Fact]
+    public void APreparerThatSaysNothing_ReportsNull()
+        => Assert.Null(Service(services: WithPreparer(keyframeSeconds: null))
+            .KeyframeSecondsFor("/songs/a.kit"));
+
+    private static IServiceProvider WithPreparer(int? keyframeSeconds)
+    {
+        var services = NothingQueued();
+        var preparer = Substitute.For<IMediaPreparer>();
+        preparer.CanPrepare(Arg.Any<string>()).Returns(true);
+        preparer.KeyframeSeconds.Returns(keyframeSeconds);
+        services.GetService(typeof(IEnumerable<IMediaPreparer>)).Returns(new[] { preparer });
+        return services;
+    }
 
     /// <summary>A file the host can transcode is playable whether or not a render exists, so an
     /// unprepared turn is not a turn that is waiting: it starts the moment it is asked.</summary>
@@ -1070,7 +1159,7 @@ public class PreparedMediaServiceTests
 
     private static PreparedMediaService Service(
         DirectoryInfo? working = null, IServiceProvider? services = null, TimeSpan? grace = null,
-        IMessageBroker? broker = null, int budgetMegabytes = 0)
+        IMessageBroker? broker = null, int budgetMegabytes = 0, int segmentSeconds = 2)
         => new(
             NullLogger<PreparedMediaService>.Instance,
             Options.Create(new HlsMediaStreamService.ServiceOptions
@@ -1078,6 +1167,7 @@ public class PreparedMediaServiceTests
                 BaseAddress = "http://host:5251/",
                 WorkingDirectory = (working ?? Directory.CreateTempSubdirectory("khost-state-root-")).FullName,
                 PreparedBudgetMegabytes = budgetMegabytes,
+                SegmentSeconds = segmentSeconds,
 
                 // Off by default here: a build machine's free space is not this test's business.
                 PreparedFreeSpaceFloorMegabytes = 0,

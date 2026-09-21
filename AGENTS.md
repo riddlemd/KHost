@@ -461,11 +461,23 @@ moving the transcode off the song transition and leaving a stream copy behind wh
   picture is copied, and so is the picture of any song whose key a host has shifted. That is the
   case the split exists for: re-encoding every frame for an audio-only effect is work with nothing
   to show for it, and it costs generation loss on top, the render having been encoded once already.
-- **`CopyPlan` is the one place that knows what may be copied from.** Only a prepared render may
-  hand its frames across: it is written with keyframes on the segment clock, and the muxer can cut
-  nowhere else. An original file carries no such promise, so it is always encoded, whatever the
-  filters say. A render missing those keyframes does not fail, it segments several times longer
-  than asked, which is why the guard is on the input rather than on the result.
+- **`CopyPlan` is the one place that knows what may be copied from, and it asks two things.**
+  First, is it a prepared render: an original file makes no promise about where its keyframes are,
+  so it is always encoded whatever the filters say. Second, do that render's keyframes fall where
+  this host wants to cut, which is `CutsCleanly`.
+- **The cadence rule is divisibility, not equality.** A muxer cuts a copy only where a keyframe
+  already is, so a segment length that is a multiple of the render's cadence lands exactly and one
+  that is not runs each segment on to the next keyframe. Measured on a real 2s render: 2s, 4s and
+  6s cut exactly; 3s and 5s come out 4s and 6s. Nothing reports this, which is why it is a gate
+  rather than something to notice later.
+- **A render says its own cadence, through `IMediaPreparer.KeyframeSeconds`.** The host answers
+  `_options.SegmentSeconds` for renders it made itself, and relays the preparer's answer for a
+  plugin's, through `IPreparedMediaService.KeyframeSecondsFor`. Null means the preparer does not
+  say and the picture is encoded, which is the answer that is never wrong. It has a **default
+  body**, the same deliberate exception `IMediaPlaybackGate.Claims` is, and for the same reason: a
+  preparer written before it compiles and loads unchanged, so `PluginApi.CurrentVersion` did not
+  have to move. A plugin declaring a number its renderer does not actually use is the one way to
+  break this, so Example reads the renderer's own constant rather than restating it.
 - `BuildArguments` takes a `copyVideo` flag rather than there being a third builder. The mix graph,
   the audio codec and the muxer settings are one copy of each, so the encode and the copy cannot
   drift apart on any of them.

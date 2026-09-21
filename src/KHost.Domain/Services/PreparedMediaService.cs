@@ -465,6 +465,16 @@ public sealed class PreparedMediaService : BaseService, IPreparedMediaService, I
         }
     }
 
+    /// <inheritdoc />
+    /// <remarks>A render this service made carries keyframes on its own segment clock, so it
+    /// answers with that. A plugin's render is the plugin's to describe, and a plugin that does
+    /// not say leaves the picture to be encoded rather than copied at a cadence nobody checked.
+    /// </remarks>
+    public int? KeyframeSecondsFor(string filePath)
+        => PreparerFor(filePath) is { } preparer
+            ? preparer.KeyframeSeconds
+            : Math.Max(1, _options.SegmentSeconds);
+
     /// <summary>The plugin that owns this format, or null when the host can read the file itself.
     /// </summary>
     private IMediaPreparer? PreparerFor(string filePath)
