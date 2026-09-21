@@ -68,8 +68,8 @@
                         <span class="kh-app-settings__apply">applies immediately</span>
                         <span class="kh-note">
                             Spends CPU and disk ahead of time so a song starts without a pause.
-                            Turning it off releases what is already rendered, and a format only a
-                            plugin can read will not play at all without it.
+                            Turning it off releases what was rendered for it. Formats only a plugin
+                            can read are always got ready, since nothing else can play them.
                         </span>
                     </span>
                     <InputCheckbox class="kh-form-check-input" @bind-Value="_model.PreRenderQueuedSongs" />

@@ -26,10 +26,11 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, ID
         public int SegmentSeconds { get; set; } = 2;
 
         /// <summary>Whether queued songs are rendered ahead of play time at all.</summary>
-        /// <remarks>On by default: the render is what turns starting a song into a stream copy.
-        /// Turning it off trades that back for the CPU and the disk, and a plugin's own format
-        /// then cannot be played at all, having nothing the host can read. Read live, so a host
-        /// changing it does not have to restart.</remarks>
+        /// <remarks>On by default: the render is what turns starting a song into a stream copy,
+        /// and turning it off trades that back for the CPU and the disk. It governs the
+        /// optimisation only. A format just a plugin can read is rendered either way, that render
+        /// being the whole of its playability rather than a saving. Read live, so a host changing
+        /// it does not have to restart.</remarks>
         public bool PreRenderQueuedSongs { get; set; } = true;
 
         /// <summary>How much of the disk pre-rendering may hold, in megabytes. Zero lifts the cap.

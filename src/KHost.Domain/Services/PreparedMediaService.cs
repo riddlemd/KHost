@@ -102,8 +102,11 @@ public sealed class PreparedMediaService : BaseService, IPreparedMediaService, I
         // for the rest of the night. Sweeping while it is already off costs nothing.
         _optionsChanged = options.OnChange(current =>
         {
+            // Not a sweep: a sweep takes the renders a plugin's format cannot play without, and
+            // the next pass would only build them again. The ordinary reconcile already knows the
+            // difference, so it is run with no grace and drops exactly what the setting paid for.
             if (!current.PreRenderQueuedSongs)
-                Sweep();
+                _ = Task.Run(() => ReconcileAsync(TimeSpan.Zero, _shutdown.Token));
         });
 
         // On the way up, not lazily: a render is only valid against the venue settings and the
@@ -169,7 +172,10 @@ public sealed class PreparedMediaService : BaseService, IPreparedMediaService, I
         }
     }
 
-    public async Task ReconcileAsync(CancellationToken cancellationToken = default)
+    public Task ReconcileAsync(CancellationToken cancellationToken = default)
+        => ReconcileAsync(KeepAfterUnwanted, cancellationToken);
+
+    private async Task ReconcileAsync(TimeSpan grace, CancellationToken cancellationToken)
     {
         var performances = _services.GetService<IPerformanceService>();
         var media = _services.GetService<IMediaService>();
@@ -182,13 +188,15 @@ public sealed class PreparedMediaService : BaseService, IPreparedMediaService, I
         foreach (var performance in await performances.ReadQueuedAsync())
         {
             if (await media.ReadAsync(performance.MediaId) is { FilePath: { Length: > 0 } path } && File.Exists(path))
-                if (PathFor(path) is { } render)
+                if (NeedsARender(path) && PathFor(path) is { } render)
                     wanted.Add(render);
         }
 
         // The song at the microphone is no longer queued: playing it dequeued it. Its render is
         // being read by ffmpeg right now, so dropping it cuts the stream off mid-song, which is
         // what this looked like from the room.
+        // Kept whatever the setting says: ffmpeg is reading it right now, and releasing disk is
+        // never worth cutting off the song in the room.
         if (_services.GetService<IPlaybackService>()?.CurrentMedia?.FilePath is { Length: > 0 } playing
             && File.Exists(playing))
         {
@@ -198,7 +206,7 @@ public sealed class PreparedMediaService : BaseService, IPreparedMediaService, I
 
         // Dropped first, so a long night's renders are not all on the disk at once while the next
         // one is still encoding.
-        DiscardAllBut(wanted);
+        DiscardAllBut(wanted, grace);
 
         foreach (var performance in await performances.ReadQueuedAsync())
         {
@@ -212,7 +220,7 @@ public sealed class PreparedMediaService : BaseService, IPreparedMediaService, I
     /// <summary>Everything the queue stopped wanting more than the grace ago. A render in flight is
     /// left alone: it holds no finished file to delete, and its own completion is what puts one
     /// there.</summary>
-    private void DiscardAllBut(IReadOnlySet<string> keep)
+    private void DiscardAllBut(IReadOnlySet<string> keep, TimeSpan grace)
     {
         try
         {
@@ -238,7 +246,7 @@ public sealed class PreparedMediaService : BaseService, IPreparedMediaService, I
                 var since = _unwantedSince.GetOrAdd(path, now);
 
                 // A song that has just ended is the one most likely to be played again.
-                if (now - since < KeepAfterUnwanted)
+                if (now - since < grace)
                     continue;
 
                 // Only when it actually went. A file that would not delete is still there and still
@@ -248,8 +256,7 @@ public sealed class PreparedMediaService : BaseService, IPreparedMediaService, I
                     continue;
 
                 _unwantedSince.TryRemove(path, out _);
-                Logger.LogInformation("Dropped a render nothing has wanted for {Minutes} minutes",
-                    (int)KeepAfterUnwanted.TotalMinutes);
+                Logger.LogInformation("Dropped a render nothing wants");
                 _broker.Announce(new PreparedMediaChanged());
             }
         }
@@ -261,15 +268,15 @@ public sealed class PreparedMediaService : BaseService, IPreparedMediaService, I
 
     private async Task PrepareAsync(string filePath, TimeSpan? expected, CancellationToken cancellationToken)
     {
-        // Asked first and per song rather than once per pass, since a host may turn it off while a
-        // pass is already walking the queue.
-        if (!Options.PreRenderQueuedSongs)
-            return;
-
         if (!File.Exists(filePath))
             return;
 
         var preparer = PreparerFor(filePath);
+
+        // Asked per song rather than once per pass, since a host may turn it off while a pass is
+        // already walking the queue.
+        if (!NeedsARender(filePath, preparer))
+            return;
 
         if (PathFor(filePath) is not { } destination)
             return;
@@ -500,6 +507,16 @@ public sealed class PreparedMediaService : BaseService, IPreparedMediaService, I
         => PreparerFor(filePath) is { } preparer
             ? preparer.KeyframeSeconds
             : Math.Max(1, Options.SegmentSeconds);
+
+    /// <summary>Whether this file should have a render at all.</summary>
+    /// <remarks>Two different reasons produce one, and only one of them is optional. For a file
+    /// the host can already play the render is an optimisation, and <c>PreRenderQueuedSongs</c>
+    /// is a host declining to pay for it. For a format only a plugin can read it is the whole of
+    /// playability, so the setting does not reach it: turning it off would take the provider's library
+    /// off the menu rather than make it slower. The same distinction the mixable check already
+    /// draws a few lines above.</remarks>
+    private bool NeedsARender(string filePath, IMediaPreparer? preparer = null)
+        => (preparer ?? PreparerFor(filePath)) is not null || Options.PreRenderQueuedSongs;
 
     /// <summary>The plugin that owns this format, or null when the host can read the file itself.
     /// </summary>

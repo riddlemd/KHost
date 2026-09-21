@@ -444,10 +444,16 @@ moving the transcode off the song transition and leaving a stream copy behind wh
 - **Nothing outlives the process.** A shutdown token is threaded through reconcile and render,
   `Dispose` cancels and waits before disposing anything a render holds, and a cancelled host-owned
   ffmpeg is killed. Waiting on a token stops the wait, not the process.
-- **A host can turn the whole thing off**, with `MediaStream:PreRenderQueuedSongs` on the App
-  Settings page, and it is on by default. Switching it off drops the renders already made rather
-  than leaving them to expire: the disk it was costing would otherwise stay spent for the night.
-  A format only a plugin can read is then unplayable, which is the trade a host is making.
+- **A host can turn off the optimisation, and only the optimisation.**
+  `MediaStream:PreRenderQueuedSongs` on the App Settings page, on by default. `NeedsARender` is
+  the one predicate: a render is optional where the host could play the file anyway, and is the
+  whole of playability where only a plugin can read it, so the setting does not reach the second
+  kind. Turning it off must not take the provider's library off the menu. The same distinction the
+  mixable check draws.
+- **Switching it off reconciles with no grace rather than sweeping.** A sweep would take the
+  plugin renders too and the next pass would only build them again; the ordinary pass already
+  knows which are which, so it drops exactly what the setting was paying for. The song at the
+  microphone is kept whatever the setting says, its render being read by ffmpeg right now.
 - **These settings are read live, through `IOptionsMonitor`, never snapshotted in a constructor.**
   Both `PreparedMediaService` and `HlsMediaStreamService` used to cache `IOptions.Value`, so
   changing the segment length did nothing until the next launch while App Settings said it applied
