@@ -1,7 +1,7 @@
 namespace KHost.Abstractions.Services;
 
 /// <summary>Turns a file the host cannot play into one it can, when a turn needs it.</summary>
-/// <remarks>For a format only the plugin understands. the provider's <c>.kit</c> is stems and a timing
+/// <remarks>For a format only the plugin understands. One may be stems and a timing
 /// document, not a video, so nothing downstream can open it: the plugin renders it and the host
 /// plays what comes out. The host asks for this because a turn was queued, never at import, so the
 /// playable copy lives as long as the turn does rather than forever.</remarks>

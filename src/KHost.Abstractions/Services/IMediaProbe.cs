@@ -5,7 +5,7 @@ namespace KHost.Abstractions.Services;
 /// <summary>Answers what a file is, for a format whoever wrote it is the only one who can read.
 /// </summary>
 /// <remarks>ffprobe is the host's answer for everything it understands, and it is simply wrong for a
-/// container it does not: a Example <c>.kit</c> reads as "Invalid data found", which is
+/// container it does not: a provider's own reads as "Invalid data found", which is
 /// indistinguishable from a file with no tracks and no tags. That silence has cost three separate
 /// workarounds (an ownership check off the path, a track probe redirected at the render, and a
 /// duration taken from the search result rather than the file), each patching one question rather

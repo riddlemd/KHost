@@ -29,7 +29,7 @@ public sealed class PreparedMediaService : BaseService, IPreparedMediaService, I
 
     /// <summary>What a render is called. Not `.mp4`: these are renders of licensed content, and one
     /// that does not open on a double-click is a lower bar to clear than one that does. Obscurity,
-    /// not protection, the same as the extension the provider's own renders carry. Nothing reads it
+    /// not protection, the same as the extension a provider's own renders carry. Nothing reads it
     /// either way, since the muxer is named on both render paths and KHost reads media by content.
     /// </summary>
     private const string RenderExtension = ".khv";
@@ -512,7 +512,7 @@ public sealed class PreparedMediaService : BaseService, IPreparedMediaService, I
     /// <remarks>Two different reasons produce one, and only one of them is optional. For a file
     /// the host can already play the render is an optimisation, and <c>PreRenderQueuedSongs</c>
     /// is a host declining to pay for it. For a format only a plugin can read it is the whole of
-    /// playability, so the setting does not reach it: turning it off would take the provider's library
+    /// playability, so the setting does not reach it: turning it off would take such a library
     /// off the menu rather than make it slower. The same distinction the mixable check already
     /// draws a few lines above.</remarks>
     private bool NeedsARender(string filePath, IMediaPreparer? preparer = null)

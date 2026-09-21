@@ -41,7 +41,7 @@ public interface IMediaPlaybackGate
     /// <summary>Whether this gate owns the file by its name, for content that cannot carry the tag.
     /// </summary>
     /// <remarks>The tag lives inside the container, so a format nothing can open has nowhere to put
-    /// it: the provider's <c>.kit</c> is its own container, and the render that could carry a tag is a
+    /// it: a provider's own container is such a format, and the render that could carry a tag is a
     /// temporary file the library never points at. Answered from the path alone, and false by
     /// default, so a gate whose content is taggable need not think about it.</remarks>
     bool Claims(string filePath) => false;

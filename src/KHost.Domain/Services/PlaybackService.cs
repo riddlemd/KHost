@@ -241,7 +241,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
             return;
         }
 
-        // A plugin can gate its own rendered content (Example blocks a signed-out account's .kit); it is
+        // A plugin can gate its own rendered content, refusing it without a live account; it is
         // refused like a non-Ready row, and the gate's reason is flashed since nothing else would say why.
         var gate = await _mediaGate.EvaluateAsync(MediaAction.Play, media);
         if (!gate.Allowed)
@@ -284,7 +284,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         // would otherwise keep whatever its tracks were called at import.
         //
         // Off what will actually play, not off the library row. A format only a plugin can read is
-        // not probeable at all (ffprobe cannot open a .kit), so asking the row's own path finds no
+        // not probeable by ffprobe at all, so asking the row's own path finds no
         // streams and silently drops the lead and backing sliders for every song the plugin owns.
         // The render carries the stems; an ordinary file is never rendered while it has stems worth
         // keeping, so the two can never disagree about what is on the track list.

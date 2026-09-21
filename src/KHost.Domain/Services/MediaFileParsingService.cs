@@ -141,8 +141,8 @@ namespace KHost.Domain.Services
             try
             {
                 // Through the probe service, so a plugin's own container is described by whoever
-                // wrote it. Scanned straight off disk, a .kit had no duration at all here: ffprobe
-                // cannot open one, and the length only ever arrived on a search result.
+                // wrote it. Scanned straight off disk, a closed container had no duration at all
+                // here: ffprobe cannot open one, and the length only ever arrived on a search result.
                 if (await _probes.ProbeAsync(probeFilePath) is not { } probe)
                 {
                     _logger.LogDebug("Could not probe {FilePath}; falling back to filename-derived metadata", filePath);
