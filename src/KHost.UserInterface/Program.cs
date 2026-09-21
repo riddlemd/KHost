@@ -311,6 +311,7 @@ internal static class Program
 
         app.MapMediaStream();
         app.MapMediaImages();
+        app.MapBackgroundStills();
         app.MapThemeStylesheets();
         app.MapPluginIcons();
 

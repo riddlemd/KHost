@@ -123,6 +123,9 @@ namespace KHost.Domain
             serviceCollection.AddSingleton<IBreakMusicProvider, LibraryBreakMusicProvider>();
             serviceCollection.AddSingleton<IBreakMusicService, BreakMusicService>();
             serviceCollection.AddSingleton<IAdService, AdService>();
+            serviceCollection.AddOptions<BackgroundPackService.ServiceOptions>()
+                .BindConfiguration(BackgroundPackService.ServiceOptions.SectionName);
+            serviceCollection.AddSingleton<IBackgroundPackService, BackgroundPackService>();
             serviceCollection.AddSingleton<ILyricsService, LyricsService>();
             serviceCollection.AddSingleton<IPasswordHasher, Argon2PasswordHasher>();
             serviceCollection.AddSingleton<IAuthService, AuthService>();

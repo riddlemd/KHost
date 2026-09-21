@@ -161,6 +161,13 @@
                     </span>
                     <InputText class="kh-form-control kh-app-settings__path" @bind-Value="_model.MediaDirectory" placeholder="@_defaultMediaDirectory" />
                 </label>
+                <label class="kh-app-settings__row">
+                    <span>
+                        Song backgrounds folder
+                        <span class="kh-app-settings__apply">added to the backgrounds shipped with KHost; a venue picks which it wants</span>
+                    </span>
+                    <InputText class="kh-form-control kh-app-settings__path" @bind-Value="_model.SongBackgroundFolder" placeholder="none" />
+                </label>
 
                 <div class="kh-app-settings__actions">
                     <button class="kh-button kh-button--primary" @onclick="SaveAsync" disabled="@_saving">

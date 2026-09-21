@@ -105,6 +105,24 @@ public class Venue : RepositoryModel
         /// <summary>Pins "Up next" at the leading edge, unscrolled; a modifier, not a style.</summary>
         public bool MarqueePinLabel { get; set; }
 
+        /// <summary>Which of the folder's backgrounds a song may be given, by manifest file name.
+        /// </summary>
+        /// <remarks>Empty is the black background, which is what a venue that has never been asked
+        /// already has — so this needs no separate on/off and no backfill. One name pins every song
+        /// to it; several means a different one is picked per render.
+        /// <para>File names rather than resolved paths, so a pack that moves between machines keeps
+        /// the venue's choices.</para></remarks>
+        /// <remarks>Never null, however it arrives. A venue stored before this property existed
+        /// deserialises without it, and the initializer alone did not survive that round trip —
+        /// which reached every reader as a null list rather than an empty one.</remarks>
+        public List<string> SongBackgrounds
+        {
+            get => _songBackgrounds;
+            set => _songBackgrounds = value ?? [];
+        }
+
+        private List<string> _songBackgrounds = [];
+
         /// <summary>Which plugin's QR code shows; null (default) means none shown until chosen.</summary>
         public string? QrCodeSource { get; set; }
 

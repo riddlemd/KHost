@@ -1,3 +1,4 @@
+@using KHost.Abstractions.Models.Backgrounds
 @using System.ComponentModel.DataAnnotations
 @using KHost.UserInterface.Models
 @using KHost.UserInterface.Services
@@ -172,6 +173,53 @@
                     <input id="venue-qr-hide-during-song" type="checkbox" class="kh-form-check-input"
                            @bind="_model.QrCodeHideDuringSong" />
                 </label>
+                }
+            </div>
+
+            <div class="kh-venue-settings__section">
+                <span class="kh-venue-settings__section-title">Song backgrounds</span>
+
+                @if (_backgroundPack.Problem is BackgroundPackProblem.FolderMissing)
+                {
+                    <p class="kh-note kh-note--warning">
+                        The backgrounds folder set in App Settings isn&rsquo;t there, so only the
+                        ones shipped with KHost are on offer.
+                    </p>
+                }
+
+                @if (!_backgroundPack.HasAny)
+                {
+                    <p class="kh-note">
+                        No backgrounds to choose from. Point App Settings at a folder of clips, or
+                        copy one into the folder it already names.
+                    </p>
+                }
+
+                @if (_backgroundPack.HasAny)
+                {
+                    <div class="kh-background-tiles">
+                        @foreach (var entry in _backgroundPack.Entries)
+                        {
+                            <label class="kh-background-tile" for="@BackgroundInputId(entry)">
+                                <input id="@BackgroundInputId(entry)" type="checkbox"
+                                       class="kh-form-check-input kh-background-tile__check"
+                                       checked="@IsBackgroundEnabled(entry)"
+                                       @onchange="@(args => ToggleBackground(entry, args.Value is true))" />
+                                @if (entry.StillPath is null)
+                                {
+                                    <span class="kh-background-tile__art kh-background-tile__art--blank"></span>
+                                }
+                                else
+                                {
+                                    <img class="kh-background-tile__art" src="@BackgroundStillUrl(entry)"
+                                         alt="" loading="lazy" />
+                                }
+                                <span class="kh-background-tile__name">@entry.Name</span>
+                            </label>
+                        }
+                    </div>
+
+                    <p class="kh-note">@BackgroundSummary()</p>
                 }
             </div>
 
