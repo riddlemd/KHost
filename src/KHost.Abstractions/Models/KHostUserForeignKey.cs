@@ -6,7 +6,7 @@ public class KHostUserForeignKey : RepositoryModel
 {
     public Guid UserId { get; set; }
 
-    /// <summary>Who issued the key: a provider's <c>SourceName</c>, e.g. "Example".</summary>
+    /// <summary>Who issued the key: the provider's own <c>SourceName</c>.</summary>
     public required string Source { get; set; }
 
     /// <summary>The provider's own id, matched exactly, never folded, since it is nobody's name.</summary>

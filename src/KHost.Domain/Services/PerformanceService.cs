@@ -132,9 +132,9 @@ public class PerformanceService : BaseRepositoryService<Performance, IPerformanc
     }
 
     /// <summary>The reason a provider will not let this song play, or null when it will.</summary>
-    /// <remarks>The same gate playback asks. A Example kit signed out is the case: without this a
-    /// host queues it, waits for a render that is also refused, and learns nothing until the
-    /// singer is standing there.</remarks>
+    /// <remarks>The same gate playback asks. Licensed content with no live account is the case:
+    /// without this a host queues it, waits for a render that is also refused, and learns nothing
+    /// until the singer is standing there.</remarks>
     private async Task<string?> RefusedByItsProviderAsync(Guid mediaId)
     {
         try
