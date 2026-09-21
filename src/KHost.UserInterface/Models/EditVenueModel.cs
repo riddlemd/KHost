@@ -30,6 +30,10 @@ public class EditVenueModel
     /// <summary>Off for a venue never asked, which is why the setting needed no backfill.</summary>
     public bool AllowAliases { get; set; }
 
+    public bool AllowGuestRemote { get; set; } = true;
+
+    public bool ShowQueueToGuests { get; set; } = true;
+
     public QueueRotationConfig QueueRotation { get; set; } = new();
 
     /// <summary>Empty is "none chosen", which is what a select with a blank first option posts.</summary>
