@@ -8,6 +8,7 @@ using KHost.Domain.Services.PasswordHashers;
 using KHost.Abstractions.Interactions;
 using KHost.Abstractions.Interactions.Requests;
 using KHost.Abstractions.Models;
+using KHost.Abstractions.Models.Plugins;
 using KHost.Abstractions.Services;
 using KHost.Abstractions.Services.IPC;
 using KHost.DataAccess;
@@ -176,6 +177,8 @@ internal static class Program
         builder.Services.AddSingleton<IInteractionHandler<TextPromptRequest, IReadOnlyDictionary<string, string>?>, TextPromptDialogHandler>();
 
         var app = builder.Build();
+
+        LogDiscoveredPlugins(app.Services.GetRequiredService<IPluginRegistry>());
 
         try
         {
@@ -553,6 +556,38 @@ internal static class Program
         app.StopAsync().GetAwaiter().GetResult();
 
         Log.CloseAndFlush();
+    }
+
+    /// <summary>Replays what the plugin loader found, once there is somewhere to say it.</summary>
+    /// <remarks>The loader runs before the container is built, so it has no logger and records its
+    /// outcomes on the plugins themselves. Without this they reach nothing but the Plugins page,
+    /// and a plugin that never loaded looks to every log reader like one that was never installed.</remarks>
+    internal static void LogDiscoveredPlugins(IPluginRegistry registry)
+    {
+        var plugins = registry.Plugins;
+
+        if (plugins.Count == 0)
+        {
+            Log.Information("No plugins discovered");
+            return;
+        }
+
+        foreach (var plugin in plugins)
+        {
+            if (plugin.Status is PluginStatus.Errored or PluginStatus.Incompatible)
+            {
+                Log.Warning("Plugin {Name} ({Id}) in {Directory} is {Status}: {Error}",
+                    plugin.DisplayName, plugin.Id, plugin.Directory, plugin.Status, plugin.Error);
+            }
+            else
+            {
+                Log.Information("Plugin {Name} ({Id}) is {Status}",
+                    plugin.DisplayName, plugin.Id, plugin.Status);
+            }
+
+            foreach (var warning in plugin.Warnings)
+                Log.Warning("Plugin {Name}: {Warning}", plugin.DisplayName, warning);
+        }
     }
 
     /// <summary>Points launched screens at this host's live listening address.</summary>
