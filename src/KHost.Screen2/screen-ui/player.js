@@ -602,7 +602,8 @@ function setMarquee(message) {
     marquee.style.setProperty('--marquee-copies', String(copies));
 
     // One copy's width: the distance a lap actually travels, which is what the venue's speed is
-    // in pixels a second of.
+    // in pixels a second of. Speed, not a lap time: a fixed duration would make a long line race
+    // to keep a short one's pace.
     const distance = marqueeTrack.scrollWidth / copies;
     const duration = `${Math.max(4, distance / speed)}s`;
     const durationChanged = duration !== marquee.style.getPropertyValue('--marquee-duration');

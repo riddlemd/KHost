@@ -12,6 +12,8 @@ namespace KHost.DataAccess.Migrations
         {
             // Hand-written: EF scaffolds neither the FTS5 table nor its triggers, so re-author this
             // whenever the schema is regenerated or search throws "no such table: media_fts".
+            // Regenerating the chain also destroys the runtime library, users and queue, so collapse
+            // it deliberately, never as a step in adding a column; additive migrations apply in place.
             migrationBuilder.Sql("""
                 CREATE VIRTUAL TABLE IF NOT EXISTS "media_fts" USING fts5(
                     media_id UNINDEXED,

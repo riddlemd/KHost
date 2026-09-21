@@ -199,6 +199,8 @@ internal class DefaultContext : DbContext
         modelBuilder.Entity<KHostUser>()
             .HasMany(u => u.Groups)
             .WithMany(g => g.Users)
+            // No string name: that makes a shared-type entity, and context.Set<UserGroupMembership>()
+            // then throws at runtime while this still compiles.
             .UsingEntity<UserGroupMembership>(
                 l => l.HasOne<KHostUserGroup>().WithMany().HasForeignKey(m => m.GroupId),
                 r => r.HasOne<KHostUser>().WithMany().HasForeignKey(m => m.UserId),
