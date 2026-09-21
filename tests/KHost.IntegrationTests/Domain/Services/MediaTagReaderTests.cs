@@ -53,7 +53,7 @@ public class MediaTagReaderTests : IDisposable
     public async Task ReadTag_MissingFile_IsNull()
         => Assert.Null(await _reader.ReadTagAsync(Path.Combine(_workingDirectory, "nope.mp4"), IMediaPlaybackGate.MetadataTag));
 
-    // A .khv holding mp4 bytes, exactly what Example writes: obscuring extension, muxer forced
+    // A .khv holding mp4 bytes, exactly what a provider writes: obscuring extension, muxer forced
     // with -f mp4; proves the reader finds the tag by content, not by a .mp4 name.
     private async Task<string> CreateMarkedMp4Async(string providerId)
     {

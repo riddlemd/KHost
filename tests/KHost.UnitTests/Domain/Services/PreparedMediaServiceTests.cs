@@ -798,7 +798,7 @@ public class PreparedMediaServiceTests
     }
 
     /// <summary>A gate is asked what the host is about to do, and here that is always the render.
-    /// Passing the wrong moment asks a question whose answer is about something else: Example
+    /// Passing the wrong moment asks a question whose answer is about something else: a provider
     /// prompts for a sign-in on a queue and a play, and there is nobody watching a render.</summary>
     [Fact]
     public async Task PreparingASong_AsksTheGateAboutRendering()
