@@ -12,7 +12,7 @@ internal static class LanAccessPolicy
     internal static bool IsAllowed(IPAddress? remote, HostString host, PathString path)
         => IsLocal(remote, host) || IsMachineFacing(path);
 
-    /// <summary>A screen or Cast receiver, never a browser, hits these: a redirect isn't followed.</summary>
+    /// <summary>A screen or a player device, never a browser, hits these: a redirect isn't followed.</summary>
     /// <remarks>Host is unchecked here: a real device sends the host's LAN IP, not a rebind.</remarks>
     internal static bool IsMachineFacing(PathString path)
         => ReachableOffBox.Any(p => path.StartsWithSegments(p, StringComparison.OrdinalIgnoreCase));

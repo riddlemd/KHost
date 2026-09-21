@@ -21,7 +21,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\KHost.Cast\KHost.Cast.csproj" />
     <ProjectReference Include="..\..\src\KHost.Domain\KHost.Domain.csproj" />
     <ProjectReference Include="..\..\src\KHost.Secrets\KHost.Secrets.csproj" />
   </ItemGroup>

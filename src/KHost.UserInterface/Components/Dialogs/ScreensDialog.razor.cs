@@ -13,7 +13,6 @@ public partial class ScreensDialog : IDisposable
     [Inject] private IScreenServer? ScreenServer { get; set; }
     [Inject] private IPlaybackService? Playback { get; set; }
     [Inject] private IScreenCoordinationService? ScreenCoordination { get; set; }
-    [Inject] private ICastService? Cast { get; set; }
     [Inject] private IEnumerable<IScreenProvider>? ScreenProviders { get; set; }
     [Inject] private IMessageBroker Broker { get; set; } = default!;
 
@@ -27,10 +26,6 @@ public partial class ScreensDialog : IDisposable
     internal Dictionary<string, ScreenPlaybackState> _screenStates = [];
     private string _screenName = "";
 
-    private string? _busyCastDevice;
-    private string? _castError;
-    private bool _castPickerOpen;
-    private bool _castSearchBusy;
 
     private bool _isLaunching;
     private string? _pendingScreenId;
@@ -49,7 +44,6 @@ public partial class ScreensDialog : IDisposable
     protected override async Task OnInitializedAsync()
     {
         _subscriptions.Add(Broker.Subscribe<ScreensChanged>(_ => InvokeAsync(StateHasChanged)));
-        _subscriptions.Add(Broker.Subscribe<CastChanged>(_ => InvokeAsync(StateHasChanged)));
 
         _providers = ScreenProviders!.ToList();
 
@@ -59,99 +53,6 @@ public partial class ScreensDialog : IDisposable
         ScreenServer.ScreenConnected += OnScreenConnected;
         ScreenServer.ScreenDisconnected += OnScreenDisconnected;
         ScreenServer.StateReceived += OnStateReceived;
-    }
-
-    // A receiver is never a screen, so it never moves up into the connected screens.
-    private IReadOnlyList<CastDevice> CastDevices => Cast?.Devices ?? [];
-
-    internal bool IsSearchingForCast => Cast?.IsDiscovering == true;
-
-    /// <summary>Off at startup and for this run only, since browsing sweeps the whole network.</summary>
-    internal async Task ToggleCastSearchAsync()
-    {
-        if (_castSearchBusy) return;
-
-        _castSearchBusy = true;
-        _castError = null;
-
-        try
-        {
-            if (IsSearchingForCast)
-            {
-                _castPickerOpen = false;
-                await Cast!.StopDiscoveryAsync();
-            }
-            else
-            {
-                await Cast!.StartDiscoveryAsync();
-            }
-        }
-        catch (Exception)
-        {
-            _castError = "Could not search for Cast receivers.";
-        }
-        finally
-        {
-            _castSearchBusy = false;
-            StateHasChanged();
-        }
-    }
-
-    private CastDevice? ConnectedCastDevice => CastDevices.FirstOrDefault(d => d.IsConnected);
-
-    private string CastTriggerText => ConnectedCastDevice is { } connected
-        ? $"Casting to {connected.Name}"
-        : "Not casting";
-
-    private void ToggleCastPicker() => _castPickerOpen = !_castPickerOpen;
-
-    private void CloseCastPicker() => _castPickerOpen = false;
-
-    private async Task OnCastPickerKeyDownAsync(KeyboardEventArgs e)
-    {
-        if (e.Key != "Escape" || !_castPickerOpen) return;
-
-        _castPickerOpen = false;
-        await Task.CompletedTask;
-    }
-
-    /// <summary>Picking the receiver already casting is a no-op; Stop is what disconnects.</summary>
-    private async Task SelectCastAsync(CastDevice device)
-    {
-        _castPickerOpen = false;
-
-        if (device.IsConnected) return;
-        await ConnectCastAsync(device);
-    }
-
-    private async Task ConnectCastAsync(CastDevice device)
-    {
-        _castError = null;
-        _busyCastDevice = device.Id;
-
-        try
-        {
-            if (!await Cast!.ConnectAsync(device.Id))
-                _castError = $"Could not reach {device.Name}.";
-        }
-        finally
-        {
-            _busyCastDevice = null;
-            StateHasChanged();
-        }
-    }
-
-    private async Task DisconnectCastAsync(CastDevice device)
-    {
-        _castPickerOpen = false;
-        _busyCastDevice = device.Id;
-
-        try { await Cast!.DisconnectAsync(); }
-        finally
-        {
-            _busyCastDevice = null;
-            StateHasChanged();
-        }
     }
 
     /// <summary>Sync is relative: the primary is the reference, not a participant.</summary>
@@ -347,10 +248,6 @@ public partial class ScreensDialog : IDisposable
     public void Dispose()
     {
         _launchCts?.Dispose();
-
-        // Browsing sweeps the network continuously with nothing outside this dialog showing it, so
-        // closing is when to stop. StopDiscoveryAsync leaves an established cast connection alone.
-        if (Cast?.IsDiscovering == true) _ = Cast.StopDiscoveryAsync();
 
         _subscriptions.Dispose();
 

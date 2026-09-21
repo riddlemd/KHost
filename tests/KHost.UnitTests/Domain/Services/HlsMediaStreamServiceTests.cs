@@ -45,7 +45,7 @@ public class HlsMediaStreamServiceTests : IDisposable
     {
         var arguments = HlsMediaStreamService.BuildArguments("/songs/a.mp4", TimeSpan.Zero, 0, 0, 2);
 
-        // CMAF/fMP4 needs a newer Cast receiver than TS does.
+        // CMAF/fMP4 needs a newer player device than TS does.
         Assert.Contains("-f hls", arguments);
         Assert.Contains("seg_%05d.ts", arguments);
     }

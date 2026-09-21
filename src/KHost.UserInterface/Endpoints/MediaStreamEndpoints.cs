@@ -24,7 +24,7 @@ public static class MediaStreamEndpoints
                 _ => "application/octet-stream",
             };
 
-            // Cast receivers and cross-origin browser consumers both refuse the stream without this.
+            // Cross-origin browser consumers and off-box player devices both refuse the stream without this.
             context.Response.Headers.AccessControlAllowOrigin = "*";
 
             if (contentType.Contains("mpegurl", StringComparison.Ordinal))
@@ -44,7 +44,7 @@ public static class MediaStreamEndpoints
                 return Results.Text(playlist, contentType);
             }
 
-            // Cast receivers fetch segments with ranged GETs.
+            // Player devices off the box fetch segments with ranged GETs.
             return Results.File(path, contentType, enableRangeProcessing: true);
         })
         .AllowAnonymous();

@@ -59,9 +59,9 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
 
     // The receiver app session the current song was loaded into. Compared rather than the device
     // id: a receiver that restarts is the same device having forgotten everything.
-    private Guid? _castSessionId;
+    private Guid? _displaySessionId;
 
-    private IDisposable? _castSubscription;
+    private IDisposable? _displaySubscription;
     private IDisposable? _venueSubscription;
 
     private IAnalyticsActivity? _sessionActivity;
@@ -87,7 +87,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
     private readonly IScreenServer _screenServer;
     private readonly IMediaStreamService _mediaStreams;
     private readonly IScreenCoordinationService _screenCoordination;
-    private readonly ICastService _cast;
+    private readonly IDisplayProvider? _display;
     private readonly IBreakMusicService _breakMusic;
     private readonly IMediaService _mediaService;
     private readonly IOptionsMonitor<ServiceOptions> _optionsMonitor;
@@ -135,7 +135,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         IScreenServer screenServer,
         IMediaStreamService mediaStreams,
         IScreenCoordinationService screenCoordination,
-        ICastService cast,
+        IEnumerable<IDisplayProvider> displayProviders,
         IBreakMusicService breakMusic,
         IMediaService mediaService,
         IOptionsMonitor<ServiceOptions> options,
@@ -154,7 +154,8 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         _screenServer = screenServer;
         _mediaStreams = mediaStreams;
         _screenCoordination = screenCoordination;
-        _cast = cast;
+        // One at a time: two providers would each claim the song, and neither holds sync.
+        _display = displayProviders.FirstOrDefault();
         _breakMusic = breakMusic;
         _mediaService = mediaService;
         _optionsMonitor = options;
@@ -166,8 +167,8 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         _screenServer.ScreenConnected += OnScreenConnected;
         _screenServer.ScreenDisconnected += OnScreenDisconnected;
         _screenServer.StateReceived += OnScreenStateReceived;
-        _cast.PlaybackStatusChanged += OnCastStatusReceived;
-        _castSubscription = _broker.Subscribe<CastChanged>(message => { _ = Task.Run(SyncCastSessionAsync); });
+        if (_display is not null) _display.PlaybackStatusChanged += OnDisplayStatusReceived;
+        _displaySubscription = _broker.Subscribe<DisplaysChanged>(message => { _ = Task.Run(SyncDisplaySessionAsync); });
 
         // The card is the venue's, so a venue edit is news about what should be on screen. Without this it
         // changed only at the next transition, a host looking at the old one until a singer came and went.
@@ -204,9 +205,9 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
 
     public async Task<bool> HasConnectedScreenAsync()
     {
-        // A Cast receiver is not a screen, but it is somewhere the song comes out. Refusing to
-        // play with only a television attached is refusing the setup casting exists for.
-        if (_cast.ConnectedDeviceId is { Length: > 0 }) return true;
+        // A display provider's device is not a screen, but it is somewhere the song comes out.
+        // Refusing to play with only a television attached is refusing the setup it exists for.
+        if (_display?.ConnectedDeviceId is { Length: > 0 }) return true;
 
         try
         {
@@ -502,7 +503,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         }
 
         await SendToScreensAsync(new PlayCommand());
-        await CastAsync(c => c.PlayAsync());
+        await DriveDisplayAsync(c => c.PlayAsync());
 
         // After the play command, so a synced screen already has the stream open when it is told
         // which instant to start on.
@@ -539,7 +540,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         Logger.LogInformation("Seeking to {Position}", target);
 
         await SendToScreensAsync(new SeekCommand { Position = target });
-        await CastAsync(c => c.SeekAsync(target));
+        await DriveDisplayAsync(c => c.SeekAsync(target));
 
         // Screens play to a scheduled instant rather than following us, so moving the playhead has
         // to re-anchor the whole group, not only the screen the host happens to be looking at.
@@ -683,7 +684,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         Logger.LogInformation("Playback paused at {Position}", Position);
 
         await SendToScreensAsync(new PauseCommand());
-        await CastAsync(c => c.PauseAsync());
+        await DriveDisplayAsync(c => c.PauseAsync());
         await PublishTimelineAsync(isPlaying: false);
 
         _broker.Announce(new PlaybackChanged());
@@ -711,7 +712,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         _broker.Announce(new PlaybackChanged());
 
         await SendToScreensAsync(new StopCommand { FadeDuration = fade });
-        await CastAsync(c => c.StopAsync());
+        await DriveDisplayAsync(c => c.StopAsync());
 
         if (fade > TimeSpan.Zero)
             await Task.Delay(fade);
@@ -744,9 +745,9 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
             _screenServer.ScreenConnected -= OnScreenConnected;
             _screenServer.ScreenDisconnected -= OnScreenDisconnected;
             _screenServer.StateReceived -= OnScreenStateReceived;
-            _cast.PlaybackStatusChanged -= OnCastStatusReceived;
-            _castSubscription?.Dispose();
-            _castSubscription = null;
+            if (_display is not null) _display.PlaybackStatusChanged -= OnDisplayStatusReceived;
+            _displaySubscription?.Dispose();
+            _displaySubscription = null;
             _venueSubscription?.Dispose();
             _venueSubscription = null;
 
@@ -766,27 +767,27 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
 
     /// <summary>A receiver has no timeline of its own, so it sits idle until the next load.</summary>
     /// <remarks>Keyed on session rather than device, to catch a restarted receiver too.</remarks>
-    private async Task SyncCastSessionAsync()
+    private async Task SyncDisplaySessionAsync()
     {
-        if (_cast.SessionId is null)
+        if (_display?.SessionId is null)
         {
-            _castSessionId = null;
+            _displaySessionId = null;
             return;
         }
 
         await _screenSyncLock.WaitAsync();
         try
         {
-            // Read inside the lock: CastChanged is announced for discovery as well, so several
+            // Read inside the lock: DisplaysChanged is announced for discovery as well, so several
             // land close together and only one of them may claim the session.
-            if (_cast.SessionId is not { } session || session == _castSessionId) return;
+            if (_display?.SessionId is not { } session || session == _displaySessionId) return;
 
-            _castSessionId = session;
+            _displaySessionId = session;
 
             var media = CurrentMedia;
 
             // Hand over the transcode already running rather than opening a second one; if there is none,
-            // whatever starts next casts itself on load: an image has no stream a receiver could take.
+            // whatever starts next loads itself: an image has no stream a device could take.
             if (_stream is not { PlaylistUrl.Length: > 0 } stream
                 || media is null
                 || MediaFormats.IsImage(media.Format)) return;
@@ -794,15 +795,15 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
             var position = Position;
 
             Logger.LogInformation(
-                "Cast session is new; loading '{Title}' at {Position}", media.Title, position);
+                "Display session is new; loading '{Title}' at {Position}", media.Title, position);
 
-            await CastAsync(c => c.LoadAsync(stream.PlaylistUrl, stream.StartOffset, stream.Tempo));
+            await DriveDisplayAsync(c => c.LoadAsync(stream.PlaylistUrl, stream.StartOffset, stream.Tempo));
 
             if (position > stream.StartOffset)
-                await CastAsync(c => c.SeekAsync(position));
+                await DriveDisplayAsync(c => c.SeekAsync(position));
 
             if (State == PlaybackState.Playing)
-                await CastAsync(c => c.PlayAsync());
+                await DriveDisplayAsync(c => c.PlayAsync());
         }
         finally { _screenSyncLock.Release(); }
     }
@@ -853,7 +854,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
             if (position > TimeSpan.Zero)
             {
                 await SendToScreensAsync(new SeekCommand { Position = position });
-                await CastAsync(c => c.SeekAsync(position));
+                await DriveDisplayAsync(c => c.SeekAsync(position));
             }
 
             if (!resume)
@@ -1035,7 +1036,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         var command = DescribeStream(media);
 
         if (command.StreamUrl is { Length: > 0 } url)
-            await CastAsync(c => c.LoadAsync(url, command.StreamStartOffset, command.Tempo));
+            await DriveDisplayAsync(c => c.LoadAsync(url, command.StreamStartOffset, command.Tempo));
 
         return command;
     }
@@ -1092,11 +1093,11 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
 
                 // A receiver was loaded at the stream's own start like everything else, so without
                 // this it alone resumes behind the room by however long the rebuild took.
-                await CastAsync(c => c.SeekAsync(resumeAt));
+                await DriveDisplayAsync(c => c.SeekAsync(resumeAt));
             }
 
             await SendToScreensAsync(new PlayCommand());
-            await CastAsync(c => c.PlayAsync());
+            await DriveDisplayAsync(c => c.PlayAsync());
 
             // The reload froze the clock, so the whole group has to be re-anchored.
             await PublishTimelineAsync(isPlaying: true, resumeAt, scheduleAhead: true);
@@ -1317,12 +1318,12 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
 
     /// <summary>Separate from the screens on purpose.</summary>
     /// <remarks>A receiver holds no role and must not inherit whatever the screens gain next.</remarks>
-    private async Task CastAsync(Func<ICastService, Task> action)
+    private async Task DriveDisplayAsync(Func<IDisplayProvider, Task> action)
     {
-        if (_cast.ConnectedDeviceId is not { Length: > 0 }) return;
+        if (_display is null || _display.ConnectedDeviceId is not { Length: > 0 }) return;
 
-        try { await action(_cast); }
-        catch (Exception ex) { Logger.LogWarning(ex, "Failed to drive the Cast receiver"); }
+        try { await action(_display); }
+        catch (Exception ex) { Logger.LogWarning(ex, "Failed to drive the {Provider} device", _display.Name); }
     }
 
     private async Task SendToScreensAsync(IScreenCommand command)
@@ -1397,7 +1398,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
 
     /// <summary>A receiver buffers seconds, so a free-running timer would end a song too soon.</summary>
     /// <remarks>The singer would rotate away while the room still hears it.</remarks>
-    private void OnCastStatusReceived(object? sender, CastPlaybackStatus status)
+    private void OnDisplayStatusReceived(object? sender, DisplayPlaybackStatus status)
     {
         if (State != PlaybackState.Playing || !status.IsPlaying) return;
 

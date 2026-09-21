@@ -101,6 +101,14 @@ public class DialogService : IDialogService
         return Task.CompletedTask;
     }
 
+    public Task ShowPluginTableAsync(ShowPluginTableRequest table, Action? onClose = null)
+    {
+        _logger.LogDebug("Dialog requested: {DialogType} title={Title}", nameof(PluginTableDialog), table.Title);
+        ShowRequested?.Invoke(this, new PluginTableDialog.DialogRequest(table, onClose));
+
+        return Task.CompletedTask;
+    }
+
     public Task ShowErrorAsync(
         KHostException error,
         string title = "Something went wrong",

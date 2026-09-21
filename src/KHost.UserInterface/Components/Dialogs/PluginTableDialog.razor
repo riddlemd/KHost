@@ -1,0 +1,99 @@
+@namespace KHost.UserInterface.Components.Dialogs
+
+@{
+    // Razor cannot wrap a named fragment in an @if, and Dialog draws its footer only when one is
+    // supplied - so a table with no actions of its own must pass null rather than an empty footer.
+    RenderFragment? footer = TableActions.Count == 0 ? null :
+        @<text>
+            @foreach (var action in TableActions)
+            {
+                <button class="kh-button @StyleClass(action) @(action.IsActive ? "kh-plugin-table__action--on" : "")"
+                        aria-pressed="@(action.IsActive ? "true" : "false")"
+                        disabled="@_busy"
+                        title="@(action.Description ?? action.DisplayName)"
+                        @onclick="() => RunAsync(action)">
+                    @if (action.Icon is { Length: > 0 } icon)
+                    {
+                        <Icon Name="@icon" />
+                    }
+                    <span>@action.DisplayName</span>
+                </button>
+            }
+        </text>;
+}
+
+<Dialog IsOpen="IsOpen" Class="kh-plugin-table-dialog" OnClose="OnClose" Footer="@footer">
+    <Header>
+        <Icon Name="table" />
+        <span>@Request.Title</span>
+    </Header>
+    <Body>
+        <div class="kh-plugin-table">
+        @if (Request.Note is { Length: > 0 } note)
+        {
+            <p class="kh-note">@note</p>
+        }
+
+        @if (Rows.Count == 0)
+        {
+            <p class="kh-plugin-table__empty">@_content.EmptyMessage</p>
+        }
+        else
+        {
+            <div class="kh-plugin-table__scroll">
+                <table class="kh-table kh-plugin-table__table">
+                    <thead>
+                        <tr>
+                            @foreach (var column in Request.Columns)
+                            {
+                                <th class="@ColumnClass(column)">@column.Header</th>
+                            }
+                            @if (ShowsActionsColumn)
+                            {
+                                <th class="kh-plugin-table__col--actions">Actions</th>
+                            }
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var row in Rows)
+                        {
+                            <tr class="@(row.IsCurrent ? "kh-plugin-table__row--current" : "")">
+                                @foreach (var column in Request.Columns)
+                                {
+                                    var value = Value(row, column);
+                                    <td class="@ColumnClass(column)" title="@value">@value</td>
+                                }
+                                @if (ShowsActionsColumn)
+                                {
+                                    <td class="kh-table__cell--actions">
+                                        @foreach (var action in row.Actions)
+                                        {
+                                            <button class="kh-button @StyleClass(action)"
+                                                    disabled="@_busy"
+                                                    title="@(action.Description ?? action.DisplayName)"
+                                                    @onclick="() => RunAsync(action)">
+                                                @if (action.Icon is { Length: > 0 } icon)
+                                                {
+                                                    <Icon Name="@icon" />
+                                                }
+                                                <span>@action.DisplayName</span>
+                                            </button>
+                                        }
+                                    </td>
+                                }
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+
+        @if (_error is { Length: > 0 })
+        {
+            <p class="kh-plugin-table__warning">
+                <Icon Name="exclamation-triangle-fill" /> @_error
+            </p>
+        }
+        </div>
+    </Body>
+</Dialog>

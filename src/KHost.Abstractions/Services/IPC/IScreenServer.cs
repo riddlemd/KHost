@@ -26,8 +26,9 @@ public sealed class ScreenCapabilities
     /// <summary>Conservative default for an unknown screen.</summary>
     public static readonly ScreenCapabilities None = new();
 
-    /// <summary>What a Cast receiver reports: both tracks, but never syncable.</summary>
-    public static readonly ScreenCapabilities CastDevice = new()
+    /// <summary>Both tracks, but never syncable: what a screen reports when it plays on its own
+    /// schedule rather than to the group's timeline.</summary>
+    public static readonly ScreenCapabilities LooseConsumer = new()
     {
         SupportsAudio = true,
         SupportsVideo = true,

@@ -21,6 +21,7 @@ public static class PluginLoader
         (typeof(IMediaProvider), "Media provider"),
         (typeof(IQueueRotationMode), "Queue rotation"),
         (typeof(IBreakMusicProvider), "Break music"),
+        (typeof(IDisplayProvider), "Display provider"),
     ];
 
     /// <summary>Every plugin-facing interface the loader binds; a button handler has no capability.</summary>
