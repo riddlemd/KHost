@@ -129,6 +129,9 @@ internal static class Program
 
         // hls.js first: player.js reads Hls at load time to pick its playback path.
         html = Inline(html, "hls.light.min.js");
+        // Order here is immaterial: each call swaps a tag for its script where the tag already
+        // sits, so the page's own tag order is what decides what is defined first.
+        html = Inline(html, "kit-engine.js");
         html = Inline(html, "player.js");
 
         return html;

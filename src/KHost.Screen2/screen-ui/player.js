@@ -7,8 +7,15 @@ const videos = [document.getElementById('video'), document.getElementById('video
 let video = videos[0];
 let incoming = null;
 
-/// Commands shape the player that is about to be heard, which during a handover is the new one.
-function target() { return incoming ?? video; }
+// The native path, for a container this screen can open itself. Null until a song asks for it;
+// while it holds the song the video elements are idle and every transport command routes here.
+const kitCanvas = document.getElementById('kit');
+let kit = null;
+
+/// Whatever is holding the song: the engine when it is, otherwise the element about to be heard.
+/// Both answer currentTime/duration/paused/readyState/volume, which is what lets the transport,
+/// the correction loop and the state report stay written once.
+function target() { return kit?.isActive ? kit : (incoming ?? video); }
 const background = document.getElementById('background');
 const still = document.getElementById('still');
 
@@ -252,6 +259,14 @@ async function fadeOutAndStop(fadeMs) {
     // nothing ramping it. Dropped first, so there is one thing to fade and it is the thing being heard.
     cancelHandover();
 
+    // The engine holds the song as a whole rather than an element with an opacity to ramp, so it
+    // fades its own master gain and the element ramp below has nothing to do.
+    if (kit?.isActive) {
+        await kit.fadeOutAndStop(fadeMs);
+        if (generation === playbackGeneration) placeholder.hidden = false;
+        return;
+    }
+
     // Held locally rather than read each tick: a handover that swaps mid-fade would otherwise move
     // the ramp onto the element that just took the room over.
     const element = video;
@@ -361,25 +376,30 @@ function expectedStreamTime() {
 }
 
 function correct() {
+    // Whichever is holding the song. A room may have one screen drawing it and another streaming
+    // the render of it, and both have to answer the same timeline to within the threshold below.
+    const player = target();
+    const native = player === kit;
+
     // The primary defines the timeline rather than chasing one, so it is never corrected.
     // There is nothing for it to be corrected towards.
     if (isPrimary) {
-        video.playbackRate = 1;
+        if (!native) video.playbackRate = 1;
         return;
     }
 
     const expected = expectedStreamTime();
-    if (expected === null || video.readyState < 2 || video.seeking) return;
+    if (expected === null || player.readyState < 2 || player.seeking) return;
 
     if (!timeline.playing) {
-        video.playbackRate = 1;
+        if (!native) video.playbackRate = 1;
         return;
     }
 
     // Every screen plays at true speed. The only correction is where the playhead sits.
-    video.playbackRate = 1;
+    if (!native) video.playbackRate = 1;
 
-    const error = video.currentTime - expected;
+    const error = player.currentTime - expected;
 
     if (Math.abs(error) < REALIGN_THRESHOLD) {
         driftConfirmations = 0;
@@ -389,7 +409,7 @@ function correct() {
     if (++driftConfirmations < REALIGN_CONFIRMATIONS) return;
 
     driftConfirmations = 0;
-    try { video.currentTime = expected; } catch { /* outside the buffered range yet */ }
+    try { player.currentTime = expected; } catch { /* outside the buffered range yet */ }
 }
 
 // setInterval, not rAF: rAF stops while the window is occluded, freezing the correction exactly
@@ -690,7 +710,33 @@ function handleCommand(raw) {
             // The old timeline would seek the new stream to a position that means nothing in it.
             timeline = null;
             driftConfirmations = 0;
+            // A stream takes the screen back from the engine; the two never hold a song at once.
+            kit?.teardown();
             load(message.url, message.autoplay === true);
+            break;
+        case 'load-kit': {
+            // The native path: stems and timing rather than a stream. Nothing is transcoded and
+            // nothing is waited for, so there is no manifest to arrive and no handover to run.
+            playbackGeneration++;
+            placeholder.hidden = false;
+            timeline = null;
+            driftConfirmations = 0;
+            // Before teardown, which does not: a handover already in flight would otherwise swap
+            // its element in behind the engine and play a stream over the song being drawn.
+            cancelHandover();
+            teardown();
+
+            kit ??= createKitEngine(kitCanvas, reportError);
+            kit.volume = currentVolume;
+            kit.setMix(message.leadVolume, message.backingVolume);
+            kit.load(message.kit)
+                .then(() => { if (message.autoplay === true) return kit.play(); })
+                .catch((e) => reportError(`kit load: ${e && e.message ? e.message : e}`));
+            break;
+        }
+        case 'kit-mix':
+            // A balance change is three gain values here, not a stream rebuilt behind a debounce.
+            kit?.setMix(message.leadVolume, message.backingVolume);
             break;
         case 'clock':
             clockOffsetMs = message.offsetMs || 0;
@@ -738,10 +784,14 @@ function handleCommand(raw) {
             // Hidden, not paused: a paused element would drift the moment it's turned back on.
             // visibility, not display: display:none drops it from the render tree, stalling WebKit's decoder.
             videos.forEach((v) => { v.style.visibility = message.enabled === false ? 'hidden' : ''; });
+            // The canvas hides the same way, and for the same reason: the engine keeps drawing so
+            // its clock and the group's stay together while the picture is off.
+            kitCanvas.style.visibility = message.enabled === false ? 'hidden' : '';
             blanked.hidden = message.enabled !== false;
             break;
         case 'volume':
             currentVolume = Math.max(0, Math.min(1, message.value));
+            if (kit) kit.volume = currentVolume;
             if (!incoming) video.volume = currentVolume;
             break;
         case 'show-image':
@@ -828,18 +878,21 @@ video.addEventListener('error', () => {
 // The host polls nothing; position reaches it only through these reports.
 setInterval(() => {
     const expected = expectedStreamTime();
+    // The engine when it holds the song: reporting the idle video element's zero would have the
+    // host correct the whole group towards a screen that is not playing anything.
+    const player = target();
 
     send({
         type: 'state',
-        position: Number.isFinite(video.currentTime) ? video.currentTime : 0,
-        duration: Number.isFinite(video.duration) ? video.duration : 0,
-        playing: !video.paused && !video.ended && video.readyState > 2,
+        position: Number.isFinite(player.currentTime) ? player.currentTime : 0,
+        duration: Number.isFinite(player.duration) ? player.duration : 0,
+        playing: !player.paused && !player.ended && player.readyState > 2,
         // Sample time, not send time: guessed latency would bias the timeline forever.
         sampledAtEpochMs: Date.now(),
         // Without this a screen drifting off the group is invisible to the host.
         expected: expected === null ? -1 : expected,
-        rate: video.playbackRate,
-        readyState: video.readyState,
+        rate: player.playbackRate,
+        readyState: player.readyState,
     });
 }, 250);
 
