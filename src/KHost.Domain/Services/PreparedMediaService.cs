@@ -106,7 +106,7 @@ public sealed class PreparedMediaService : BaseService, IPreparedMediaService, I
             // the next pass would only build them again. The ordinary reconcile already knows the
             // difference, so it is run with no grace and drops exactly what the setting paid for.
             if (!current.PreRenderQueuedSongs)
-                _ = Task.Run(() => ReconcileAsync(TimeSpan.Zero, _shutdown.Token));
+                SettingsReconcile = Task.Run(() => ReconcileAsync(TimeSpan.Zero, _shutdown.Token));
         });
 
         // On the way up, not lazily: a render is only valid against the venue settings and the
@@ -717,6 +717,11 @@ public sealed class PreparedMediaService : BaseService, IPreparedMediaService, I
     /// substitutes a test is arranging is how three separate tests here came to fail intermittently
     /// and only on a loaded machine.</remarks>
     internal Task StartupReconcile { get; }
+
+    /// <summary>The pass a settings change started, held for the same reason
+    /// <see cref="StartupReconcile"/> is: it runs on a background task nobody else holds, so a
+    /// test asserting on what it dropped is otherwise racing the thread pool.</summary>
+    internal Task SettingsReconcile { get; private set; } = Task.CompletedTask;
 
     /// <summary>Whether a grace clock is being held against this render. Internal so a test can
     /// watch one being forgotten, which is otherwise invisible: the leak costs nothing observable

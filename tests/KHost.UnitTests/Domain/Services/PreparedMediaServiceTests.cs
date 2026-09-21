@@ -1324,8 +1324,9 @@ public class PreparedMediaServiceTests
 
             settings.Set(Off(settings.CurrentValue));
 
-            // The drop runs off the settings callback, which does not block the caller.
-            await WaitUntilAsync(() => !File.Exists(render));
+            // The pass itself, not a deadline: the drop runs on a background task, and a full
+            // suite can leave it unscheduled for longer than any wall clock a test should pick.
+            await service.SettingsReconcile;
 
             Assert.False(File.Exists(render), "a render outlived the setting that paid for it");
         }
@@ -1372,16 +1373,6 @@ public class PreparedMediaServiceTests
 
     /// <summary>A copy with pre-rendering off. ServiceOptions is a settings class rather than a
     /// record, so the fields are carried across by hand.</summary>
-    /// <summary>The settings callback drops on a background task, so a test that asserts the
-    /// instant it returns races it.</summary>
-    private static async Task WaitUntilAsync(Func<bool> condition)
-    {
-        var deadline = DateTime.UtcNow.AddSeconds(5);
-
-        while (DateTime.UtcNow < deadline && !condition())
-            await Task.Delay(10);
-    }
-
     private static HlsMediaStreamService.ServiceOptions Off(
         HlsMediaStreamService.ServiceOptions from, int? segmentSeconds = null)
         => new()
