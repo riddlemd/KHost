@@ -567,7 +567,48 @@ public partial class PluginsManagerPage : IDisposable
         Incompatible,
     }
 
-    private sealed class SettingField
+    /// <summary>One heading and the settings under it. A null name is the run before any heading,
+    /// which is what a manifest naming no sections produces for all of them.</summary>
+    internal sealed record SettingSection(string? Name, IReadOnlyList<SettingField> Fields);
+
+    /// <summary>Groups by first appearance, so the order settings are declared in decides the
+    /// order the headings come out, and a manifest that names none renders as one unheaded run
+    /// exactly as it did before sections existed.</summary>
+    internal static IReadOnlyList<SettingSection> SectionsOf(IReadOnlyList<SettingField> fields)
+    {
+        var sections = new List<SettingSection>();
+        var byName = new Dictionary<string, List<SettingField>>(StringComparer.OrdinalIgnoreCase);
+        List<SettingField>? unheaded = null;
+
+        foreach (var field in fields)
+        {
+            // Blank is the same as absent: a manifest with "section": "" means the author has not
+            // grouped it, and an empty heading would draw a rule with nothing above it.
+            var name = string.IsNullOrWhiteSpace(field.Definition.Section) ? null : field.Definition.Section.Trim();
+
+            if (name is null)
+            {
+                // Still the first run wherever it appears: a setting left ungrouped after a
+                // heading belongs with the ungrouped ones, not orphaned under somebody else's.
+                unheaded ??= [];
+                unheaded.Add(field);
+
+                continue;
+            }
+
+            if (!byName.TryGetValue(name, out var group))
+            {
+                byName[name] = group = [];
+                sections.Add(new SettingSection(name, group));
+            }
+
+            group.Add(field);
+        }
+
+        return unheaded is null ? sections : [new SettingSection(null, unheaded), .. sections];
+    }
+
+    internal sealed class SettingField
     {
         public required PluginSettingDefinition Definition { get; init; }
 

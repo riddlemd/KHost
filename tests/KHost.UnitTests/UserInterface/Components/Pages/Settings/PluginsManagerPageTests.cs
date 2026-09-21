@@ -21,6 +21,7 @@ public class PluginsManagerPageTests : BunitContext
     private const string EnableToggleSelector = ".kh-plugins-manager__aside .kh-form-check-input";
     private const string StateBadgeSelector = ".kh-plugins-manager__aside .kh-badge";
     private const string SettingInputSelector = ".kh-plugins-manager__field .kh-form-control";
+    private const string SectionSelector = ".kh-plugins-manager__section";
     private const string SaveButtonSelector = "button[type=submit]";
     private const string SecretStateSelector = ".kh-plugins-manager__secret-state";
     private const string ChipSelector = ".kh-plugins-manager__chip";
@@ -751,8 +752,102 @@ public class PluginsManagerPageTests : BunitContext
         },
     };
 
-    private static PluginSettingDefinition Setting(string key, PluginSettingType type, string label, bool secret = false)
-        => new() { Key = key, Type = type, Label = label, Secret = secret };
+    private static PluginSettingDefinition Setting(
+        string key, PluginSettingType type, string label, bool secret = false, string? section = null)
+        => new() { Key = key, Type = type, Label = label, Secret = secret, Section = section };
 
     private static JsonElement Json<T>(T value) => JsonSerializer.SerializeToElement(value);
+
+    // ── grouping settings under headings ───────────────────────────────────────────────
+
+    /// <summary>Every manifest written before sections existed names none, and must render as one
+    /// unheaded run exactly as it always did.</summary>
+    [Fact]
+    public void SettingsNamingNoSection_AreOneUnheadedRun()
+    {
+        var sections = PluginsManagerPage.SectionsOf([Field("a"), Field("b")]);
+
+        var only = Assert.Single(sections);
+        Assert.Null(only.Name);
+        Assert.Equal(["a", "b"], only.Fields.Select(f => f.Definition.Key));
+    }
+
+    /// <summary>Declaration order decides heading order, so an author arranges the page by
+    /// arranging the manifest rather than learning a second set of rules.</summary>
+    [Fact]
+    public void SectionsComeOutInTheOrderTheyAreFirstNamed()
+    {
+        var sections = PluginsManagerPage.SectionsOf(
+            [Field("a", "Playback"), Field("b", "Bridge"), Field("c", "Playback")]);
+
+        Assert.Equal(["Playback", "Bridge"], sections.Select(s => s.Name));
+
+        // Gathered under their heading rather than repeating it, which is what makes interleaving
+        // in the manifest harmless.
+        Assert.Equal(["a", "c"], sections[0].Fields.Select(f => f.Definition.Key));
+    }
+
+    /// <summary>An ungrouped setting declared after a heading belongs with the ungrouped ones, not
+    /// orphaned under a heading its author never named.</summary>
+    [Fact]
+    public void AnUngroupedSettingAfterAHeading_StaysWithTheUnheadedRun()
+    {
+        var sections = PluginsManagerPage.SectionsOf([Field("a", "Bridge"), Field("b")]);
+
+        Assert.Equal([null, "Bridge"], sections.Select(s => s.Name));
+        Assert.Equal(["b"], sections[0].Fields.Select(f => f.Definition.Key));
+    }
+
+    /// <summary>Blank is the same as absent: an empty heading would draw a rule with nothing
+    /// above it, and a manifest carrying "" has not grouped anything.</summary>
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void ABlankSectionName_IsNoSectionAtAll(string blank)
+        => Assert.Null(Assert.Single(PluginsManagerPage.SectionsOf([Field("a", blank)])).Name);
+
+    /// <summary>Matched the way every other name in this app is: a manifest spelling one heading
+    /// two ways meant it once.</summary>
+    [Fact]
+    public void ASectionNamedInTwoCases_IsOneHeading()
+    {
+        var sections = PluginsManagerPage.SectionsOf([Field("a", "Bridge"), Field("b", "bridge")]);
+
+        Assert.Single(sections);
+        Assert.Equal(2, sections[0].Fields.Count);
+    }
+
+    /// <summary>The grouping is worth nothing if the page does not draw it.</summary>
+    [Fact]
+    public void ThePageDrawsAHeadingPerSection()
+    {
+        Arrange(
+            Plugin(PluginStatus.Loaded,
+                Setting("a", PluginSettingType.Int, "A", section: "Playback"),
+                Setting("b", PluginSettingType.Int, "B", section: "Bridge")),
+            enabled: true);
+
+        var cut = Render<PluginsManagerPage>();
+        cut.Find(DisclosureSelector).Click();
+
+        Assert.Equal(["Playback", "Bridge"], cut.FindAll(SectionSelector).Select(e => e.TextContent.Trim()));
+    }
+
+    /// <summary>A plugin that groups nothing draws no headings at all, so nothing about the page
+    /// changes for one that never adopts this.</summary>
+    [Fact]
+    public void APluginThatNamesNoSections_DrawsNoHeadings()
+    {
+        Arrange(Plugin(PluginStatus.Loaded, Setting("a", PluginSettingType.Int, "A")), enabled: true);
+
+        var cut = Render<PluginsManagerPage>();
+        cut.Find(DisclosureSelector).Click();
+
+        Assert.Empty(cut.FindAll(SectionSelector));
+        Assert.Single(cut.FindAll(SettingInputSelector));
+    }
+
+    private static PluginsManagerPage.SettingField Field(string key, string? section = null)
+        => new() { Definition = Setting(key, PluginSettingType.Int, key, section: section) };
+
 }

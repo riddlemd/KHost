@@ -324,7 +324,13 @@
                                     @if (fields is not null)
                                     {
                                         <div class="kh-plugins-manager__settings">
-                                            @foreach (var field in fields)
+                                            @foreach (var section in SectionsOf(fields))
+                                            {
+                                            @if (section.Name is { } heading)
+                                            {
+                                                <div class="kh-plugins-manager__section">@heading</div>
+                                            }
+                                            @foreach (var field in section.Fields)
                                             {
                                                 <div class="kh-plugins-manager__field">
                                                     @if (field.Definition.Type == PluginSettingType.Bool)
@@ -376,6 +382,7 @@
                                                                @bind:after="() => MarkEdited(plugin.Id)" />
                                                     }
                                                 </div>
+                                            }
                                             }
                                         </div>
                                     }
