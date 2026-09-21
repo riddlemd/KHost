@@ -3,6 +3,7 @@
 
 <button class="kh-screens-btn kh-button--icon-minimal"
         title="@Title"
-        @onclick="OpenAsync">
+        disabled="@_isBusy"
+        @onclick="ToggleAsync">
     <i class="bi bi-display @(IsActive ? "kh-screens-btn__icon--active" : "")"></i>
 </button>
