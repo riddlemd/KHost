@@ -40,6 +40,10 @@
           "key": { "type": "string" },
           "type": { "enum": ["string", "int", "bool"] },
           "label": { "type": "string" },
+          "section": {
+            "type": "string",
+            "description": "Heading this setting sits under on the Plugins page. Settings naming no section sit above the first heading. Sections appear in the order they are first named."
+          },
           "secret": { "type": "boolean", "default": false },
           "default": { "description": "Value used when the host has none stored." }
         }
