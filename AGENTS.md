@@ -102,6 +102,22 @@ cannot name another's: its secrets, and the QR code it offers the screens.
   `plugins.json`; a plugin that keeps what it collected uses `IPluginContext.SetSecretAsync`. Never
   keep a raw password — hash it before storing. `Secret: true` masks the input on screen; it says
   nothing about storage.
+- **A plugin that needs to show a *list* sends a `ShowPluginTableRequest`.** A plugin ships no
+  markup — its assembly is never handed to the renderer, the same reason a manifest names an icon
+  instead of supplying one — so it describes a table and the host draws it.
+  - It names the `Title` and the `PluginTableColumn`s, which do not change, and everything that
+    does comes back from **one** `LoadAsync`: the rows, the buttons above the table, and the line
+    shown when there are none. Reading those through separate delegates is how a stopped search
+    ends up with a "Searching" button over an empty table.
+  - `PluginTableAction.PerformAsync` is a **delegate, not a key the host dispatches back** — the
+    same shape as `MediaProviderAction`. The plugin closes over whatever the action needs, so the
+    host keeps no map from strings to behaviour and never learns what a row means.
+  - The dialog re-reads after every action, and whenever **`PluginTableChanged`** is announced. A
+    plugin whose list fills in on its own — a network sweep — must announce it, or an open table
+    sits stale; the dialog is generic and hears nothing transport-specific.
+  - Reached from a Plugins-page button, so the plugin implements `IPluginButtonHandler` too and
+    both live on the one extension object. `DescribeButton` is what lets the row report state
+    without the host opening anything.
 - **Buttons on the Plugins-page row** are declared in the manifest (`PluginButtonDefinition`) and
   implemented by `IPluginButtonHandler`. The host runs `InvokeButtonAsync(key)` then re-reads
   `DescribeButton(key)`, so one button can toggle its own label, hide, or disable itself. Reached by
@@ -157,6 +173,31 @@ cannot name another's: its secrets, and the QR code it offers the screens.
   renders to a destination the host chose, `KeyframeSeconds` says how far apart its keyframes are.
   `PreparedMediaService` asks the **gate** before calling it, so `PrepareAsync` carries no session
   check of its own.
+- **`IDisplayProvider` is somewhere the song comes out that is not a screen.** Chromecast lives in
+  its own plugin for exactly this reason: mDNS browsing and a protobuf transport are a dependency
+  the host should not carry to play a local file.
+  - **A screen registers itself and the host drives it; a display provider is the other way round.**
+    The host holds no handle on the device, so it asks the plugin for everything — `Devices`,
+    `ConnectedDeviceId`, `SessionId` — and drives it through `PlaybackService.DriveDisplayAsync`,
+    never `BroadcastCommandAsync`. It holds no role in the sync set and never becomes an
+    `IScreenConnection`; accepting an `IScreenCommand` is the doorway every screen feature would
+    leak through, and a test in the plugin repo fails on it.
+  - **`PlaybackService` takes `IEnumerable<IDisplayProvider>` and keeps the first**, so none
+    installed is the ordinary case rather than a missing registration. Two would each claim the
+    song, and neither can hold sync.
+  - **The console never names a transport.** `Name` is the provider's own, and the plugin's device
+    table titles itself from it. Nothing in the host says "Cast".
+  - **The device list is the plugin's, not the console's.** It is a `ShowPluginTableRequest` off a
+    Plugins-page button; the Screens dialog is screens only. `ScreensButton` still names the device
+    in its tooltip, which is status a host reads at a glance rather than something to manage.
+  - **`[Inject]` resolves by type and ignores a nullable annotation**, so a component wanting one
+    injects `IEnumerable<IDisplayProvider>` and takes `FirstOrDefault()`. Injecting the bare
+    interface throws for every render when no plugin supplies one, which takes down the whole
+    console and not just the control that wanted it.
+  - Two host behaviours are still shaped by what a receiver can take, and neither can move into a
+    plugin: the HLS segments are MPEG-TS because CMAF needs a newer device, and
+    `LanAccessPolicy.IsMachineFacing` keeps the stream paths reachable off-box. Wanting CMAF means
+    asking the provider first.
 - **A plugin offers the screens a QR code; the venue decides whether it is drawn.** The manifest's
   `qrCode` is the standing registration, read without resolving the plugin so a venue can be set up
   before the show. `IPluginContext.RegisterQrCodeAsync` is the live one. The venue names **one**

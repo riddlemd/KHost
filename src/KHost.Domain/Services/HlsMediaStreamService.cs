@@ -254,7 +254,8 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, ID
     }
 
     /// <summary>EVENT playlist type so a consumer can start on the first segment.</summary>
-    /// <remarks>H.264 Main@4.1 + AAC-LC decodes on every browser, WKWebView and Chromecast.</remarks>
+    /// <remarks>H.264 Main@4.1 + AAC-LC decodes in every browser and in WKWebView, which is what
+    /// Screen2 renders through; a display provider's device is a third consumer it also suits.</remarks>
     internal static string BuildArguments(
         string filePath,
         TimeSpan startOffset,
@@ -326,7 +327,8 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, ID
 
         arguments += " -c:a aac -ar 44100 -ac 2 -b:a 128k";
 
-        // MPEG-TS segments rather than fMP4: CMAF needs a newer Cast receiver, TS plays everywhere.
+        // MPEG-TS segments rather than fMP4: TS plays everywhere, and CMAF needs a newer device
+        // than some display providers reach. Wanting CMAF means asking the provider first.
         arguments += string.Format(
             CultureInfo.InvariantCulture,
             " -f hls -hls_time {0} -hls_playlist_type event -hls_flags independent_segments"

@@ -7,13 +7,13 @@ namespace KHost.UnitTests.UserInterface.Components;
 
 public class ScreensButtonTests
 {
-    private readonly ICastService _cast = Substitute.For<ICastService>();
+    private readonly IDisplayProvider _display = Substitute.For<IDisplayProvider>();
     private readonly ScreensButton _button = new();
 
     public ScreensButtonTests()
         => typeof(ScreensButton)
-            .GetProperty("Cast", BindingFlags.NonPublic | BindingFlags.Instance)!
-            .SetValue(_button, _cast);
+            .GetProperty("DisplayProviders", BindingFlags.NonPublic | BindingFlags.Instance)!
+            .SetValue(_button, new[] { _display });
 
     [Fact]
     public void IsActive_IsFalse_WithNothingConnected()
@@ -31,16 +31,16 @@ public class ScreensButtonTests
     }
 
     [Fact]
-    public void IsActive_IsTrue_WhenOnlyCasting()
+    public void IsActive_IsTrue_WhenOnlyADeviceIsShowing()
     {
-        // A receiver is not a screen, but the room is still watching something.
+        // A provider's device is not a screen, but the room is still watching something.
         Connected("Office Room TV");
 
         Assert.True(_button.IsActive);
     }
 
     [Fact]
-    public void Title_CountsTheScreens_WhenNotCasting()
+    public void Title_CountsTheScreens_WhenNoDeviceIsShowing()
     {
         _button._screenCount = 2;
 
@@ -48,26 +48,40 @@ public class ScreensButtonTests
     }
 
     [Fact]
-    public void Title_NamesTheReceiver_SinceTheCountLeftTheButton()
+    public void Title_NamesTheDevice_SinceTheCountLeftTheButton()
     {
         _button._screenCount = 0;
         Connected("Office Room TV");
 
-        Assert.Equal("Screens: none connected, casting to Office Room TV", _button.Title);
+        Assert.Equal("Screens: none connected, showing on Office Room TV", _button.Title);
     }
 
     [Fact]
-    public void Title_ReportsBoth_WhenScreensAndACastAreLive()
+    public void Title_ReportsBoth_WhenScreensAndADeviceAreLive()
     {
         _button._screenCount = 1;
         Connected("Office Room TV");
 
-        Assert.Equal("Screens: 1 connected, casting to Office Room TV", _button.Title);
+        Assert.Equal("Screens: 1 connected, showing on Office Room TV", _button.Title);
+    }
+
+    [Fact]
+    public void Title_CountsScreensOnly_WhenNoPluginSuppliesAProvider()
+    {
+        // [Inject] resolves by type and ignores the nullable annotation, so the component takes the
+        // enumerable: with no plugin installed it is empty, and asking a null provider must not throw.
+        typeof(ScreensButton)
+            .GetProperty("DisplayProviders", BindingFlags.NonPublic | BindingFlags.Instance)!
+            .SetValue(_button, Array.Empty<IDisplayProvider>());
+        _button._screenCount = 2;
+
+        Assert.False(_button.IsSendingToDevice);
+        Assert.Equal("Screens: 2 connected", _button.Title);
     }
 
     private void Connected(string name)
     {
-        _cast.ConnectedDeviceId.Returns("device-1");
-        _cast.Devices.Returns([new CastDevice { Id = "device-1", Name = name, IsConnected = true }]);
+        _display.ConnectedDeviceId.Returns("device-1");
+        _display.Devices.Returns([new DisplayDevice { Id = "device-1", Name = name, IsConnected = true }]);
     }
 }

@@ -13,7 +13,6 @@ using KHost.Abstractions.Services;
 using KHost.Abstractions.Services.IPC;
 using KHost.DataAccess;
 using KHost.Domain;
-using KHost.Cast;
 using KHost.IPC.SignalR;
 using KHost.ServiceDefaults;
 using KHost.Telemetry;
@@ -126,7 +125,6 @@ internal static class Program
         builder.Services.AddPlugins();
         builder.Services.AddDataAccess();
         builder.Services.AddSignalRIPCServer();
-        builder.Services.AddCast();
 
         var ffmpegPath = builder.Configuration["FFmpegPath"];
         if (!string.IsNullOrWhiteSpace(ffmpegPath))
@@ -173,6 +171,7 @@ internal static class Program
         builder.Services.AddSingleton<IInteractionDispatcher, DialogInteractionDispatcher>();
         builder.Services.AddSingleton<IInteractionHandler<EditMediaRequest, Media?>, EditMediaDialogHandler>();
         builder.Services.AddSingleton<IInteractionHandler<ShowLyricsRequest>, ShowLyricsDialogHandler>();
+        builder.Services.AddSingleton<IInteractionHandler<ShowPluginTableRequest>, ShowPluginTableDialogHandler>();
         builder.Services.AddSingleton<IInteractionHandler<ConfirmDuplicateSongRequest, bool>, ConfirmDuplicateSongHandler>();
         builder.Services.AddSingleton<IInteractionHandler<TextPromptRequest, IReadOnlyDictionary<string, string>?>, TextPromptDialogHandler>();
 

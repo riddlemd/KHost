@@ -2,14 +2,14 @@ using KHost.Abstractions.Services.IPC;
 
 namespace KHost.Abstractions.Services;
 
-/// <summary>Which screen the room hears, and which sync to it; a Cast device can't hold sync.</summary>
+/// <summary>Which screen the room hears, and which sync to it; a loose consumer can't hold sync.</summary>
 public interface IScreenCoordinationService
 {
 
     /// <summary>Must run at startup, or nobody mutes the first screen to arrive.</summary>
     Task InitializeAsync(CancellationToken cancellationToken = default);
 
-    /// <summary>The screen the room hears. Does not require sync; a Cast device can hold it.</summary>
+    /// <summary>The screen the room hears. Does not require sync; a loose consumer can hold it.</summary>
     string? AudioScreenId { get; }
 
     /// <summary>Whose position the others sync to: the audio screen, whenever it can sync.</summary>

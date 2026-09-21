@@ -23,7 +23,7 @@ public class ScreensDialogSyncTests
     [Fact]
     public void GetSyncStatus_ForAScreenThatCannotSync_ReportsNotSupported()
     {
-        var cast = Screen("Living Room", ScreenCapabilities.CastDevice);
+        var cast = Screen("Living Room", ScreenCapabilities.LooseConsumer);
 
         Assert.Equal(ScreensDialog.SyncStatus.NotSupported, _dialog.GetSyncStatus(cast));
     }
@@ -145,7 +145,7 @@ public class ScreensDialogSyncTests
     public void SyncIcon_ForAScreenThatCannotSync_IsADifferentGlyph()
     {
         // Not a worse value of the same fact. This screen has no timeline to be on, ever.
-        Assert.Equal("bi-slash-circle", _dialog.SyncIcon(Screen("Living Room", ScreenCapabilities.CastDevice)));
+        Assert.Equal("bi-slash-circle", _dialog.SyncIcon(Screen("Living Room", ScreenCapabilities.LooseConsumer)));
     }
 
     private void Report(string screenId, TimeSpan position, DateTime? sampledAtUtc, bool isPlaying = true)

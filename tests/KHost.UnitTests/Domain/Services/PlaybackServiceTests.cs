@@ -20,7 +20,7 @@ public class PlaybackServiceTests : IDisposable
     private readonly IVenuesService _venuesService = Substitute.For<IVenuesService>();
     private readonly IScreenServer _screenServer = Substitute.For<IScreenServer>();
     private readonly IMediaStreamService _mediaStreams = Substitute.For<IMediaStreamService>();
-    private readonly ICastService _cast = Substitute.For<ICastService>();
+    private readonly IDisplayProvider _display = Substitute.For<IDisplayProvider>();
     private readonly IBreakMusicService _breakMusic = Substitute.For<IBreakMusicService>();
     private readonly IMediaService _mediaService = Substitute.For<IMediaService>();
     private readonly IAudioTrackService _audioTracks = Substitute.For<IAudioTrackService>();
@@ -36,7 +36,7 @@ public class PlaybackServiceTests : IDisposable
     public PlaybackServiceTests()
     {
         // NSubstitute returns string.Empty for unstubbed strings, so "no receiver" must be said.
-        _cast.ConnectedDeviceId.Returns((string?)null);
+        _display.ConnectedDeviceId.Returns((string?)null);
 
         // Nothing is gated by default; a Task wrapping null here would NRE the load's gate check.
         _mediaGate.EvaluateAsync(Arg.Any<MediaAction>(), Arg.Any<Media>(), Arg.Any<CancellationToken>()).Returns(PlaybackGateResult.Ok);
@@ -126,7 +126,7 @@ public class PlaybackServiceTests : IDisposable
         _screenServer,
         _mediaStreams,
         _screenCoordination,
-        _cast,
+        [_display],
         _breakMusic,
         _mediaService,
         Monitor(new PlaybackService.ServiceOptions
@@ -917,21 +917,21 @@ public class PlaybackServiceTests : IDisposable
     public async Task Play_IsAllowed_WithOnlyACastReceiverConnected()
     {
         ConnectScreens(0);
-        _cast.ConnectedDeviceId.Returns("Living Room TV");
+        _display.ConnectedDeviceId.Returns("Living Room TV");
 
         var (performance, media) = CreatePerformance();
         await _service.LoadAsync(performance, media);
         await _service.PlayAsync();
 
-        // Casting to the television with nothing else attached is the setup casting is for.
+        // A television and nothing else attached is the setup a display provider is for.
         Assert.Equal(PlaybackState.Playing, _service.State);
     }
 
     [Fact]
-    public async Task Play_IsStillRefused_WithNoScreenAndNoReceiver()
+    public async Task Play_IsStillRefused_WithNoScreenAndNoDevice()
     {
         ConnectScreens(0);
-        _cast.ConnectedDeviceId.Returns((string?)null);
+        _display.ConnectedDeviceId.Returns((string?)null);
 
         var (performance, media) = CreatePerformance();
         await _service.LoadAsync(performance, media);
@@ -945,15 +945,15 @@ public class PlaybackServiceTests : IDisposable
     public async Task Position_FollowsTheReceiver_WhenThereIsNoPrimaryScreen()
     {
         ConnectScreens(0);
-        _cast.ConnectedDeviceId.Returns("Living Room TV");
+        _display.ConnectedDeviceId.Returns("Living Room TV");
 
         var (performance, media) = CreatePerformance();
         await _service.LoadAsync(performance, media);
         await _service.PlayAsync();
 
         // The receiver is seconds behind the host's own clock; the host has to take its word.
-        _cast.PlaybackStatusChanged += Raise.Event<EventHandler<CastPlaybackStatus>>(_cast,
-            new CastPlaybackStatus
+        _display.PlaybackStatusChanged += Raise.Event<EventHandler<DisplayPlaybackStatus>>(_display,
+            new DisplayPlaybackStatus
             {
                 Position = TimeSpan.FromSeconds(12),
                 IsPlaying = true,
@@ -967,14 +967,14 @@ public class PlaybackServiceTests : IDisposable
     public async Task Position_IgnoresTheReceiver_WhenAPrimaryScreenIsPresent()
     {
         ConnectScreens(1);
-        _cast.ConnectedDeviceId.Returns("Living Room TV");
+        _display.ConnectedDeviceId.Returns("Living Room TV");
 
         var (performance, media) = CreatePerformance();
         await _service.LoadAsync(performance, media);
         await _service.PlayAsync();
 
-        _cast.PlaybackStatusChanged += Raise.Event<EventHandler<CastPlaybackStatus>>(_cast,
-            new CastPlaybackStatus
+        _display.PlaybackStatusChanged += Raise.Event<EventHandler<DisplayPlaybackStatus>>(_display,
+            new DisplayPlaybackStatus
             {
                 Position = TimeSpan.FromMinutes(3),
                 IsPlaying = true,
@@ -989,38 +989,38 @@ public class PlaybackServiceTests : IDisposable
     [Fact]
     public async Task Playback_IsMirroredToAConnectedCastReceiver()
     {
-        _cast.ConnectedDeviceId.Returns("Living Room TV");
+        _display.ConnectedDeviceId.Returns("Living Room TV");
 
         var (performance, media) = CreatePerformance();
         await _service.LoadAsync(performance, media);
         await _service.PlayAsync();
 
         // A receiver is not a screen, so nothing broadcasts to it; playback has to drive it.
-        await _cast.Received(1).LoadAsync(
+        await _display.Received(1).LoadAsync(
             "http://host/media/stream-1/stream.m3u8", TimeSpan.Zero, 0, Arg.Any<CancellationToken>());
-        await _cast.Received(1).PlayAsync(Arg.Any<CancellationToken>());
+        await _display.Received(1).PlayAsync(Arg.Any<CancellationToken>());
     }
 
     [Fact]
     public async Task Playback_TouchesNothing_WhenNoCastReceiverIsConnected()
     {
-        _cast.ConnectedDeviceId.Returns((string?)null);
+        _display.ConnectedDeviceId.Returns((string?)null);
 
         var (performance, media) = CreatePerformance();
         await _service.LoadAsync(performance, media);
         await _service.PlayAsync();
         await _service.PauseAsync();
 
-        await _cast.DidNotReceive().LoadAsync(
+        await _display.DidNotReceive().LoadAsync(
             Arg.Any<string>(), Arg.Any<TimeSpan>(), Arg.Any<int>(), Arg.Any<CancellationToken>());
-        await _cast.DidNotReceive().PlayAsync(Arg.Any<CancellationToken>());
+        await _display.DidNotReceive().PlayAsync(Arg.Any<CancellationToken>());
     }
 
     [Fact]
     public async Task Playback_SurvivesAReceiverThatRefuses()
     {
-        _cast.ConnectedDeviceId.Returns("Living Room TV");
-        _cast.PlayAsync(Arg.Any<CancellationToken>())
+        _display.ConnectedDeviceId.Returns("Living Room TV");
+        _display.PlayAsync(Arg.Any<CancellationToken>())
             .Returns<Task>(_ => throw new InvalidOperationException("receiver went away"));
 
         var (performance, media) = CreatePerformance();
@@ -1037,14 +1037,14 @@ public class PlaybackServiceTests : IDisposable
         var (performance, media) = CreatePerformance();
         await _service.LoadAsync(performance, media);
         await _service.PlayAsync();
-        _cast.ClearReceivedCalls();
+        _display.ClearReceivedCalls();
 
         // Selected after the song started: a receiver holds no timeline and hears nothing about
         // a load it was not connected for.
         ConnectCast();
 
         Assert.True(await WaitForCastLoadAsync());
-        await _cast.Received(1).PlayAsync(Arg.Any<CancellationToken>());
+        await _display.Received(1).PlayAsync(Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -1054,14 +1054,14 @@ public class PlaybackServiceTests : IDisposable
         await _service.LoadAsync(performance, media);
         await _service.PlayAsync();
         await _service.PauseAsync();
-        _cast.ClearReceivedCalls();
+        _display.ClearReceivedCalls();
 
         ConnectCast();
 
         // Loaded so the picture is there, but starting it would have the television playing on
         // its own while the room is parked.
         Assert.True(await WaitForCastLoadAsync());
-        await _cast.DidNotReceive().PlayAsync(Arg.Any<CancellationToken>());
+        await _display.DidNotReceive().PlayAsync(Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -1071,14 +1071,14 @@ public class PlaybackServiceTests : IDisposable
         await _service.LoadAsync(performance, media);
         await _service.PlayAsync();
         await _service.SeekAsync(TimeSpan.FromSeconds(45));
-        _cast.ClearReceivedCalls();
+        _display.ClearReceivedCalls();
 
         ConnectCast();
 
         // Loading alone starts the stream from its own zero, which is a receiver forty-five
         // seconds behind the room.
         Assert.True(await WaitForCastLoadAsync());
-        await _cast.Received().SeekAsync(TimeSpan.FromSeconds(45), Arg.Any<CancellationToken>());
+        await _display.Received().SeekAsync(TimeSpan.FromSeconds(45), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -1090,12 +1090,12 @@ public class PlaybackServiceTests : IDisposable
 
         ConnectCast();
         Assert.True(await WaitForCastLoadAsync());
-        _cast.ClearReceivedCalls();
+        _display.ClearReceivedCalls();
 
         // Same device, new session: what a receiver that restarted looks like. It has forgotten
         // the song, so being told nothing would leave a black television and a playing room.
-        _cast.SessionId.Returns(Guid.NewGuid());
-        await _broker.PublishAsync(new CastChanged());
+        _display.SessionId.Returns(Guid.NewGuid());
+        await _broker.PublishAsync(new DisplaysChanged());
 
         Assert.True(await WaitForCastLoadAsync());
     }
@@ -1109,14 +1109,14 @@ public class PlaybackServiceTests : IDisposable
 
         ConnectCast();
         Assert.True(await WaitForCastLoadAsync());
-        _cast.ClearReceivedCalls();
+        _display.ClearReceivedCalls();
 
-        // CastChanged is announced for discovery too; reloading on every one of them would
+        // DisplaysChanged is announced for discovery too; reloading on every one of them would
         // restart the song on the television whenever a device appeared on the network.
-        await _broker.PublishAsync(new CastChanged());
+        await _broker.PublishAsync(new DisplaysChanged());
         await Task.Delay(100);
 
-        await _cast.DidNotReceive().LoadAsync(
+        await _display.DidNotReceive().LoadAsync(
             Arg.Any<string>(), Arg.Any<TimeSpan>(), Arg.Any<int>(), Arg.Any<CancellationToken>());
     }
 
@@ -1128,25 +1128,25 @@ public class PlaybackServiceTests : IDisposable
 
         // Nothing is open to hand over, and opening one to fill the silence would start an
         // ffmpeg for a song no one asked for.
-        await _cast.DidNotReceive().LoadAsync(
+        await _display.DidNotReceive().LoadAsync(
             Arg.Any<string>(), Arg.Any<TimeSpan>(), Arg.Any<int>(), Arg.Any<CancellationToken>());
     }
 
     /// <summary>Selecting a device, as the Screens dialog does: a connection and an announcement.</summary>
     private void ConnectCast()
     {
-        _cast.ConnectedDeviceId.Returns("Living Room TV");
-        _cast.SessionId.Returns(Guid.NewGuid());
+        _display.ConnectedDeviceId.Returns("Living Room TV");
+        _display.SessionId.Returns(Guid.NewGuid());
 
-        _broker.Announce(new CastChanged());
+        _broker.Announce(new DisplaysChanged());
     }
 
     private async Task<bool> WaitForCastLoadAsync()
     {
         for (var i = 0; i < 100; i++)
         {
-            if (_cast.ReceivedCalls().Any(c =>
-                    c.GetMethodInfo().Name == nameof(ICastService.LoadAsync)))
+            if (_display.ReceivedCalls().Any(c =>
+                    c.GetMethodInfo().Name == nameof(IDisplayProvider.LoadAsync)))
                 return true;
 
             await Task.Delay(10);
@@ -3026,7 +3026,7 @@ public class PlaybackServiceTests : IDisposable
     [Fact]
     public async Task Load_TellsTheScreensAndTheReceiverTheTempo()
     {
-        _cast.ConnectedDeviceId.Returns("Living Room TV");
+        _display.ConnectedDeviceId.Returns("Living Room TV");
 
         var (performance, media) = CreatePerformance();
         performance.Tempo = -30;
@@ -3035,7 +3035,7 @@ public class PlaybackServiceTests : IDisposable
 
         // Both keep their own clock in stream seconds, so neither recovers song time without it.
         Assert.Equal(-30, LastBroadcast<LoadMediaCommand>()?.Tempo);
-        await _cast.Received(1).LoadAsync(
+        await _display.Received(1).LoadAsync(
             Arg.Any<string>(), Arg.Any<TimeSpan>(), -30, Arg.Any<CancellationToken>());
     }
 
@@ -3336,7 +3336,7 @@ public class PlaybackServiceTests : IDisposable
     [Fact]
     public async Task Reopen_ResumesPastWhereTheRebuildStarted_NotBackAtIt()
     {
-        _cast.ConnectedDeviceId.Returns("Living Room TV");
+        _display.ConnectedDeviceId.Returns("Living Room TV");
 
         // A slow rebuild, so the compensation is larger than the clock's own resolution.
         _mediaStreams
@@ -3378,7 +3378,7 @@ public class PlaybackServiceTests : IDisposable
 
         // A receiver takes no timeline and cannot be corrected onto one, so it has to be told
         // outright or it is the only thing in the room still replaying the rebuild.
-        await _cast.Received().SeekAsync(
+        await _display.Received().SeekAsync(
             Arg.Is<TimeSpan>(t => t > TimeSpan.FromSeconds(60.2)), Arg.Any<CancellationToken>());
     }
 

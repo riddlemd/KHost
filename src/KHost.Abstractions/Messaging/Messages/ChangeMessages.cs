@@ -52,4 +52,9 @@ public sealed record PluginInstallsChanged;
 
 public sealed record FlashChanged;
 
-public sealed record CastChanged;
+public sealed record DisplaysChanged;
+
+/// <summary>A plugin's table moved and an open dialog should re-read it.</summary>
+/// <remarks>Deliberately not per-plugin: the dialog shows one table at a time, and a re-read is
+/// cheap enough that telling them apart would buy nothing.</remarks>
+public sealed record PluginTableChanged;

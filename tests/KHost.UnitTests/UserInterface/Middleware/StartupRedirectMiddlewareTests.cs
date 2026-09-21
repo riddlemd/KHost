@@ -87,7 +87,7 @@ public class StartupRedirectMiddlewareTests
 
         await middleware.InvokeAsync(context);
 
-        // A Cast receiver cannot follow a 302 to /setup; it renders the HTML as a broken stream.
+        // A player device cannot follow a 302 to /setup; it renders the HTML as a broken stream.
         Assert.True(nextCalled());
         Assert.NotEqual(StatusCodes.Status302Found, context.Response.StatusCode);
         await provider.DidNotReceive().ShouldRedirectAsync(Arg.Any<HttpContext>());

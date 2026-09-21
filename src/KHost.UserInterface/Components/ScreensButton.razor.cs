@@ -11,17 +11,19 @@ public partial class ScreensButton : IDisposable
 {
     [Inject] private IDialogService? DialogService { get; set; }
     [Inject] private IScreenServer? ScreenServer { get; set; }
-    [Inject] private ICastService? Cast { get; set; }
+    [Inject] private IEnumerable<IDisplayProvider> DisplayProviders { get; set; } = [];
+
+    private IDisplayProvider? Display => DisplayProviders.FirstOrDefault();
     [Inject] private IMessageBroker Broker { get; set; } = default!;
 
     private readonly SubscriptionSet _subscriptions = new();
 
     internal int _screenCount;
 
-    /// <summary>A Cast receiver is not a screen, but the room is still watching something.</summary>
-    internal bool IsCasting => Cast?.ConnectedDeviceId is { Length: > 0 };
+    /// <summary>A provider's device is not a screen, but the room is still watching something.</summary>
+    internal bool IsSendingToDevice => Display?.ConnectedDeviceId is { Length: > 0 };
 
-    internal bool IsActive => _screenCount > 0 || IsCasting;
+    internal bool IsActive => _screenCount > 0 || IsSendingToDevice;
 
     internal string Title
     {
@@ -34,10 +36,11 @@ public partial class ScreensButton : IDisposable
                 _ => $"{_screenCount} connected",
             };
 
-            if (!IsCasting) return $"Screens: {screens}";
+            if (!IsSendingToDevice) return $"Screens: {screens}";
 
-            var receiver = Cast!.Devices.FirstOrDefault(d => d.IsConnected)?.Name ?? "a Cast receiver";
-            return $"Screens: {screens}, casting to {receiver}";
+            // The provider names itself, so no transport's wording is built in here.
+            var device = Display!.Devices.FirstOrDefault(d => d.IsConnected)?.Name ?? Display.Name;
+            return $"Screens: {screens}, showing on {device}";
         }
     }
 
@@ -46,7 +49,7 @@ public partial class ScreensButton : IDisposable
         ScreenServer!.ScreenConnected += OnScreensChanged;
         ScreenServer.ScreenDisconnected += OnScreensChanged;
 
-        _subscriptions.Add(Broker.Subscribe<CastChanged>(OnCastChanged));
+        _subscriptions.Add(Broker.Subscribe<DisplaysChanged>(OnDisplaysChanged));
 
         await RefreshCountAsync();
     }
@@ -55,8 +58,8 @@ public partial class ScreensButton : IDisposable
     private void OnScreensChanged(object? sender, ScreenConnectionEventArgs e) =>
         _ = InvokeAsync(RefreshCountAsync);
 
-    // Connecting a receiver changes no screen, so the colour needs its own trigger.
-    private void OnCastChanged(CastChanged message) => _ = InvokeAsync(StateHasChanged);
+    // Connecting a device changes no screen, so the colour needs its own trigger.
+    private void OnDisplaysChanged(DisplaysChanged message) => _ = InvokeAsync(StateHasChanged);
 
     private async Task RefreshCountAsync()
     {
