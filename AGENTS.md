@@ -76,198 +76,119 @@ Three things deliberately stay plain C# events, and should stay that way: Screen
 
 A plugin's entry point is constructed with `ActivatorUtilities.CreateInstance` against the host
 container, so it takes whatever it needs from `KHost.Abstractions` in its own constructor — the same
-service interfaces the host itself uses. There is deliberately no facade: an `IPluginLibrary`
-stood between plugins and the services for a while and only obscured which service actually owned
-each rule. `IPluginContext` carries the plugin's own manifest and stored settings — and the calls where the
-*host* has to supply the identity, so that a plugin cannot name another's: its secrets, and the QR
-code it offers the screens.
+service interfaces the host uses. There is deliberately no facade. `IPluginContext` carries the
+plugin's own manifest and settings, and the calls where the *host* supplies the identity so a plugin
+cannot name another's: its secrets, and the QR code it offers the screens.
 
-- Downloading media for the queue goes through `IMediaAcquisitionService` — an ordinary service, not
-  a plugin keyhole. It owns three rules nothing else may re-implement: an import is idempotent by
-  `FilePath`, the media row's status and the `IDownloadsService` entry move together, and
-  `DiscardImportAsync` deletes only a row still in `Downloading`. Enqueuing is *not* on it: a caller
-  composes `ISingerQueueService.SelectedUserId` with `IPerformanceService.CreateAndEnqueueAsync`,
-  because `SingerQueueService` already depends on `IPerformanceService` and folding the pair into
-  either one closes a constructor cycle.
-- **An acquisition has two phases, and `Processing` is the second half of `Downloading`, not a
-  different kind of state.** A provider that has to turn the bytes into something playable — one
-  that renders its container's stems and timing into a playable file through ffmpeg, a real
-  transcode — calls
-  `BeginProcessingAsync(mediaId)` when the download is in and verified. That is the only transition
-  a plugin may make besides the three settles, it moves only a `Downloading` row, and it leaves the
-  `IDownloadsService` entry alone: the entry says in-flight-or-settled, the row says which phase, so
-  `DownloadState` needs no member for it and the two still move together. Ask
-  The download entry carries a `DownloadPhase` alongside its unchanged `Downloading` state, set by
-  `MediaAcquisitionService` when it moves the row, so the Downloads page names which half a
-  percentage is measuring instead of reporting a render as a download. Changing phase clears the progress with it. A provider that counts bytes reports them with the byte overload of
-  `ReportDownloadProgressAsync`. `FailImportAsync` takes an optional reason
-  the page shows beside the failure — a line a host can act on, never a stack trace.
-  Changing a method a plugin **calls or implements** is a runtime break, including adding an
-  optional parameter: the default compiles into the call site, and a changed signature on an
-  implemented method is a `TypeLoadException` at load. `PluginApi.CurrentVersion` moves with it so
-  the host refuses that build cleanly instead; it is at **3**, and a catalog release declaring an
-  older number reads as incompatible until rebuilt and re-released. Do not reason from the
-  published catalog about who implements what: the hand-installed plugin is the one being run.
-  Widening also silently changes what `Received(1).FailImportAsync(id)` asserts in a plugin's own
-  tests — it becomes `reason: null` — so assert the reason rather than the bare call.
-  Ask `MediaStatuses.IsAcquiring()` (`Common/Media/`) rather than `== MediaStatus.Downloading` —
-  spelling "in flight" as phase one strands a row that reached phase two, which is what the startup
-  sweep, the cancellation token and the dequeue cancel each want. `MediaStatuses.Acquiring` is the
-  same question as data, for the sweep's EF query, which cannot call an extension method.
-  `DiscardImportAsync` takes a row in either phase and asks the question the status was standing
-  in for: it reads `FilePath` itself rather than trusting the caller, deleting the row only when
-  nothing is there and keeping it as `Broken` when a file outlived the cancel. So a partial can
-  never be left on disk with no row pointing at it — which is what the folder scan would later
-  import as `Ready` — and a cleanup that quietly failed surfaces as a `Broken` row instead.
-- A plugin that needs to **ask the host for a value** — a login, a room code, anything it has no
-  setting for — injects `IInteractionDispatcher` (same as the host) and sends a
-  `TextPromptRequest`. The line it holds is **settings versus secrets**, not persisted versus not:
-  nothing from that round trip reaches `plugins.json`, and a plugin that keeps what it collected
-  puts it in the secret store with `IPluginContext.SetSecretAsync`. A provider's sign-in is the
-  first user of it and does keep what it asked for — the email verbatim and the
-  password as a hash, serialised into one secret — because a venue that restarts mid-show has
-  nobody standing at the console to sign in again. The raw password is the one thing never kept:
-  it reaches the hashing call and nothing else, which is also all the provider is given. Mark a field
-  `Secret: true` to mask the input; that is about the screen in a busy room, not about storage.
-- A plugin puts **buttons on its Plugins-page row** by declaring them in the manifest
-  (`PluginButtonDefinition`, key + label + optional style) and implementing `IPluginButtonHandler`.
-  The host runs `InvokeButtonAsync(key)` on click and re-reads `DescribeButton(key)` after, so a
-  single button can toggle its own label — a sign-in button reads "Sign in" or "Sign out" from whether a
-  session is open. `DescribeButton` also hides or disables a button; its default keeps the manifest
-  label. Reached by plugin id through `IPluginButtonService`, populated from the loader's
-  `PluginButtonBinding`s — the container does not otherwise record which plugin owns a registration.
-- **Gating content is the plugin's job, not the host's.** KHost does not care who may play what;
-  `IMediaPlaybackGate` exists so one subscription provider can honour its own terms, and for
-  nothing else.
-  So the host's side of it stays as thin as it can be: it routes a question to whichever plugin
-  owns a file and does whatever that plugin answers. Do not add host-side enforcement, and do not
-  spend effort making the mechanism airtight against a host who owns the machine. A provider that
-  wants its content gated is the one with a reason to care.
-- A plugin that owns media it must not let out without a live entitlement implements
-  `IMediaPlaybackGate`. **One verdict, asked at three moments.** `CanAsync(MediaAction, Media)` takes
-  a `Queue`, `Render` or `Play`, so a provider whose answer never varies writes one check and ignores
-  the argument — the alternative, a method per moment, was three places for one rule to drift apart
-  in. The three call sites are `PerformanceService.CreateAndEnqueueAsync` (Queue),
-  `PreparedMediaService` before it writes anything (Render) and `PlaybackService.LoadAsync` (Play).
-  - **`Render` is the one that matters.** It is where licensed content leaves the provider's own
-    container, so a refusal there means no playable copy is ever written; and it runs with nobody
-    watching, so a gate refuses it outright where `Queue` and `Play` may raise a sign-in and carry
-    on with the answer. Refusing at `Queue` too is the kindness: a host learns before the singer is
-    at the microphone.
-
-  - **Ownership and verdict are separate questions, and ownership is asked by name first.**
-    `IMediaGateService` asks every gate's `Claims(path)` before it reads any tag, because the path
-    is free and the tag is not: reading one opens the file, and for a provider's own container
-    that means the plugin parsing the whole thing to hand back a marker it hardcodes. Only when no
-    gate recognises the name does it fall back to the container tag
-    `IMediaPlaybackGate.MetadataTag` (`khost_provider`), which names one gate to ask rather than
-    polling every plugin. A provider writes that tag on its render with ffmpeg's
-    `+use_metadata_tags` movflag (a custom mp4 tag is dropped without it, confirmed by round
-    trip), but nothing need depend on it: **a provider whose container has an extension nothing
-    else produces should gate on the extension alone**, which is free where the tag is not.
-  - The tag read is skipped for a file that is not on disk. The gate is asked at enqueue, and a
-    provider's own download is still arriving then, so probing would report a failure nobody can
-    act on and cost the owning plugin a full read of nothing.
-  - **`Claims(path)` is the fallback for a format that cannot carry a tag, and it closed a real
-    bypass.** The tag lives inside the container, so a file nothing can open has nowhere to put one:
-    ffprobe cannot read such a container, so a gate keyed off the tag saw no owner and let a
-    whole provider's library through unentitled. `Claims` answers from the **path alone** — asked for
-    every queued turn on every reconcile — and is false by default, so a gate whose content is
-    taggable need not think about it. The tag wins where a file has one.
-  - The gate is on the **source container**, not on the render. A render is a temporary file the
-    library never points at, so gating it would guard the copy while leaving the original open. Its
-    extension (muxer forced with `-f mp4`, since ffmpeg picks the format from the name) is obscurity
-    so licensed content does not open on a double-click, not protection — KHost reads media by
-    content, not extension.
-  - A block refuses the action like a non-Ready row and flashes the gate's reason; nothing on screen
-    says why otherwise. A gate that **throws** is logged and the action proceeds — a provider's bug
-    must not strand the rest of the night. The check runs on every load, so a gate stays cheap (the
-    in-memory answer, not a round trip) unless the content is worth one.
-- **A plugin that ships its own container describes it, through `IMediaProbe`.** ffprobe is the
-  host's answer for everything it understands and is simply *wrong* for a container it does not:
-  a closed one reads as "Invalid data found", which is indistinguishable from a file with no tracks
-  and no tags.
-  - `CanProbe(path)` claims the file from the path alone; `ProbeAsync` then returns a `MediaProbeResult` —
-    duration, audio tracks, container tags. **Null and an empty result differ and both matter**:
-    null is "I could not tell", empty is "I looked, and there is nothing there".
-  - **The probe returns facts; the asking service keeps its policy.** One probe feeds the importer,
-    the playback faders and the entitlement gate, and they do not want the same rules —
-    `AudioTrackService` is what decides that one track is nothing to balance and that a set with no
-    music track is not worth offering. Tracks come back *already roled*, because a plugin knows its
-    own stems outright where the host can only guess from whatever the muxer called them.
-  - `IMediaProbeService` routes: the first plugin that claims the file answers, otherwise
-    `FfprobeMediaProbe` does. The fallback is registered **keyed**
-    (`MediaProbeService.FallbackKey`) so it never appears in the `IMediaProbe` enumerable — it
-    claims every file, so reached as one of the plugin probes it would answer for whatever was
-    registered after it, and the loader decides when a plugin's registrations land. A plugin that
-    throws deciding is skipped; one that throws reading **its own** format answers null rather than
-    falling through, since ffprobe would only produce "Invalid data found".
-  - Nothing is cached. A file swapped on disk under an unchanged path is a case the importer and
-    the faders both have to get right, and a cache keyed on the path would hand back yesterday's
-    answer.
-
+- Downloading media for the queue goes through `IMediaAcquisitionService`. It owns three rules
+  nothing else may re-implement: an import is idempotent by `FilePath`, the media row's status and
+  the `IDownloadsService` entry move together, and `DiscardImportAsync` deletes only a row still in
+  `Downloading`. Enqueuing is not on it: compose `ISingerQueueService.SelectedUserId` with
+  `IPerformanceService.CreateAndEnqueueAsync`; folding the pair into either closes a constructor
+  cycle.
+- **`Processing` is the second half of `Downloading`, not a different state.** A provider that has
+  to turn the bytes into something playable calls `BeginProcessingAsync(mediaId)` once the download
+  is in and verified. It is the only transition a plugin may make besides the three settles, moves
+  only a `Downloading` row, and leaves the `IDownloadsService` entry alone; the entry carries a
+  `DownloadPhase` so the Downloads page names which half a percentage measures, and changing phase
+  clears the progress. Ask `MediaStatuses.IsAcquiring()` (`Common/Media/`) rather than
+  `== MediaStatus.Downloading`, or a row in phase two is stranded; `MediaStatuses.Acquiring` is the
+  same question as data for EF. `FailImportAsync` takes an optional reason the page shows — a line
+  a host can act on, never a stack trace. `DiscardImportAsync` reads `FilePath` itself: it deletes
+  the row only when nothing is on disk and keeps it as `Broken` when a file outlived the cancel, so
+  a partial is never left with no row pointing at it.
+- A plugin that needs to **ask the host for a value** injects `IInteractionDispatcher` and sends a
+  `TextPromptRequest`. The line is **settings versus secrets**: nothing from that round trip reaches
+  `plugins.json`; a plugin that keeps what it collected uses `IPluginContext.SetSecretAsync`. Never
+  keep a raw password — hash it before storing. `Secret: true` masks the input on screen; it says
+  nothing about storage.
+- **Buttons on the Plugins-page row** are declared in the manifest (`PluginButtonDefinition`) and
+  implemented by `IPluginButtonHandler`. The host runs `InvokeButtonAsync(key)` then re-reads
+  `DescribeButton(key)`, so one button can toggle its own label, hide, or disable itself. Reached by
+  plugin id through `IPluginButtonService`.
+- **Gating content is the plugin's job, not the host's.** `IMediaPlaybackGate` exists so a
+  subscription provider can honour its own terms, and for nothing else. The host routes a question
+  to whichever plugin owns a file and does what it answers. Do not add host-side enforcement, and
+  do not try to make it airtight against a host who owns the machine.
+  - **One verdict, asked at three moments.** `CanAsync(MediaAction, Media)` takes `Queue`,
+    `Render` or `Play`; a provider whose answer never varies ignores the argument. Call sites:
+    `PerformanceService.CreateAndEnqueueAsync`, `PreparedMediaService` before it writes, and
+    `PlaybackService.LoadAsync`. **`Render` is the one that matters** — it is where licensed content
+    leaves the provider's container, and it runs with nobody watching, so refuse it outright;
+    `Queue` and `Play` may raise a sign-in first. Refusing at `Queue` too means a host learns before
+    the singer is at the microphone.
+  - **Ownership is asked by name first.** `IMediaGateService` asks every gate's `Claims(path)` before
+    reading any tag, because the path is free and the tag opens the file. Only when nothing claims
+    the name does it read the container tag `IMediaPlaybackGate.MetadataTag` (`khost_provider`),
+    which names one gate to ask. The tag read is skipped for a file not yet on disk — the gate is
+    asked at enqueue, while a provider's own download may still be arriving. A provider whose
+    container has an extension nothing else produces should gate on the extension alone. `Claims`
+    is false by default and must answer from the **path alone**: it runs for every queued turn on
+    every reconcile. Writing the tag onto a render needs ffmpeg's `+use_metadata_tags` movflag.
+  - The gate is on the **source container**, not the render, which is a temporary file the library
+    never points at. A render's odd extension is obscurity so licensed content does not open on a
+    double-click, not protection — KHost reads media by content.
+  - A block refuses the action like a non-Ready row and flashes the gate's reason. A gate that
+    **throws** is logged and the action proceeds. The check runs on every load, so keep it an
+    in-memory answer unless the content is worth a round trip.
+- **A plugin that ships its own container describes it, through `IMediaProbe`.** ffprobe reports a
+  container it cannot open as "Invalid data found", indistinguishable from a file with nothing in it.
+  - `CanProbe(path)` claims from the path alone; `ProbeAsync` returns a `MediaProbeResult` —
+    duration, audio tracks, container tags. **Null and empty differ**: null is "I could not tell",
+    empty is "I looked and there is nothing".
+  - **The probe returns facts; the asking service keeps its policy.** `AudioTrackService` decides
+    that one track is nothing to balance and a set with no music track is not worth offering. Tracks
+    come back already roled — a plugin knows its own stems.
+  - `IMediaProbeService` routes to the first plugin that claims the file, else `FfprobeMediaProbe`.
+    The fallback is registered **keyed** (`MediaProbeService.FallbackKey`) so it never appears in the
+    `IMediaProbe` enumerable — it claims every file. A plugin that throws deciding is skipped; one
+    that throws reading its own format answers null rather than falling through.
+  - Nothing is cached: a file swapped under an unchanged path must be re-read.
 - **Three questions a provider answers about a file, and they are not the same question.**
-  `IMediaPlaybackGate.Claims` asks who *owns* it, `IMediaProbe.CanProbe` who can *read* it, and
-  `IMediaPreparer.CanPrepare` who must *convert* it. A provider owning one closed container
-  answers all three with the same extension check, which makes them look redundant; they are not. A format the host could play but only the
-  plugin could describe would claim the probe and not the preparer, and a plugin that gates content
-  the host reads perfectly well claims the gate and neither of the others. Answer each for what it
-  asks rather than assuming one implies the rest.
-  - All three are answered from the **path alone**, and that is a hard requirement rather than a
-    convention: each is asked for every queued turn on every reconcile, so any of them opening the
-    file turns a bulk enqueue into thousands of reads. This is why the probe cannot subsume
-    `Claims` even though a probe now supplies the ownership tag.
-  - `Claims` has a **default body**, which is behaviour living in `Abstractions`. The KH0001
-    analyzer only sees statics, so a default interface method is the one hole in "Abstractions
-    declares, it does not compute". Returning false is the no-opinion answer and is defensible
-    here; treat it as a deliberate exception rather than a precedent, and prefer a `Common` helper
-    for anything that computes.
-- A format the host cannot play at all is a separate contract, `IMediaPreparer`: `CanPrepare(path)`
-  claims it and `PrepareAsync` renders it to a destination the host chose. `PreparedMediaService`
-  asks the **gate** before calling it, so the entitlement rule lives in one place and a plugin cannot
-  forget it — which is why `PrepareAsync` carries no session check of its own.
-- **A plugin offers the screens a QR code; the venue decides whether it is drawn.** Two steps, and
-  they are deliberately apart. The manifest's `qrCode` is the standing registration — it puts the
-  plugin in the venue's source list, and is read without resolving the plugin so a venue can be set
-  up before the show (a provider may have no code until a host signs in). `IPluginContext.RegisterQrCodeAsync`
-  is the live one: what that source points at right now. The venue names **one** source in
-  `Venue.Settings.QrCodeSource`, and **none is the default**. Every other owner's code
-  is held and not drawn, which is what makes switching source mid-show immediate: the new one is
-  already registered. The owner is stamped from the manifest the host loaded, never passed by the
-  caller, for the same reason a secret's key is. Placement is the venue's alone — a plugin passes a
-  payload and a caption and has no say in corner or size.
-- A plugin adds file extensions the media importer's folder scan recognises with a manifest
-  `importFormats: [".ext", ".ext-render"]` — declarative, like `settings` and `buttons`, so the importer
-  reads it from `IPluginRegistry` without resolving the plugin. `MediaImportService` unions the
-  built-in extensions with those of **loaded** plugins (an unloaded one has no owner), normalised to
-  leading-dot lowercase. It is an extension *filter* only: it says a row may be made for this file,
-  not that the host can play it. A format the host cannot read is declared here **and** claimed by
-  an `IMediaPreparer`, which is what turns it into something playable when a turn needs it. Such a
-  provider declares both its own container and the render, because the library row is the container.
-  Deliberately not content-probing the folder: an ffprobe per file is ~15–40ms, tens of minutes
-  across a 50k-song library, where the extension check is free.
-- **A plugin extension type is one singleton, shared across every extension interface it
-  implements.** The loader registers the concrete type once and points each interface at it, so
-  one provider type is its `IMediaProvider` search, its `IPluginButtonHandler` session button,
-  and its `IMediaPlaybackGate` all at once — one object, one session key, so signing in anywhere
-  gates everywhere. Registering per interface instead (the old shape) built the
-  type once for each, and signing in on the button would not have signed in the search.
-  - The interfaces the loader binds are a hand-written list in `PluginLoader`, and leaving one off
-    is **silent**: the plugin loads, the interface is never bound, and the host behaves as though
-    nothing implemented it. `IMediaProbe` shipped implemented, tested and unreachable that way.
-    `PluginExtensionInterfaceTests` reads the domain for services collecting `IEnumerable<T>` of an
-    Abstractions interface and fails on any that is not listed, so the list maintains itself.
+  `IMediaPlaybackGate.Claims` asks who *owns* it, `IMediaProbe.CanProbe` who can *read* it,
+  `IMediaPreparer.CanPrepare` who must *convert* it. A provider with one closed container answers
+  all three with the same extension check; a format the host could play but only the plugin could
+  describe claims the probe and not the preparer. Answer each for what it asks. All three must
+  answer from the **path alone** — each runs for every queued turn on every reconcile, and opening
+  the file turns a bulk enqueue into thousands of reads. `Claims` and `IMediaPreparer.KeyframeSeconds`
+  have **default bodies**, which is behaviour in `Abstractions` the KH0001 analyzer cannot see; both
+  exist so an older plugin loads unchanged. Treat them as deliberate exceptions, not precedent.
+- `IMediaPreparer` renders a format the host cannot play: `CanPrepare(path)` claims it, `PrepareAsync`
+  renders to a destination the host chose, `KeyframeSeconds` says how far apart its keyframes are.
+  `PreparedMediaService` asks the **gate** before calling it, so `PrepareAsync` carries no session
+  check of its own.
+- **A plugin offers the screens a QR code; the venue decides whether it is drawn.** The manifest's
+  `qrCode` is the standing registration, read without resolving the plugin so a venue can be set up
+  before the show. `IPluginContext.RegisterQrCodeAsync` is the live one. The venue names **one**
+  source in `Venue.Settings.QrCodeSource`, **none by default**; every other owner's code is held,
+  not drawn, so switching mid-show is immediate. The owner is stamped from the loaded manifest,
+  never passed by the caller. Placement is the venue's alone.
+- A plugin adds importer extensions with a manifest `importFormats: [".ext"]`, read from
+  `IPluginRegistry` without resolving the plugin and unioned with the built-ins for **loaded**
+  plugins only, normalised to leading-dot lowercase. It is a *filter*: it says a row may be made,
+  not that the host can play the file. A format the host cannot read is declared here **and**
+  claimed by an `IMediaPreparer`. The folder is never content-probed; the extension check is free.
+- **A plugin extension type is one singleton across every extension interface it implements.** One
+  object, one session key, so signing in on the button signs in the search and the gate. The bound
+  interfaces are a hand-written list in `PluginLoader`, and leaving one off is **silent**;
+  `PluginExtensionInterfaceTests` fails on any Abstractions interface the domain collects that is
+  not listed, so the list maintains itself.
 
 ## The published contracts
 
 `KHost.Abstractions` and `KHost.Common` are **NuGet packages**, and a plugin takes a
 `PackageReference` to them rather than a `ProjectReference` into a checkout of this repo beside it.
 
-- `<ContractsVersion>` in `Directory.Build.props` is the version of both, and it is **not**
-  `PluginApi.CurrentVersion`. That one is the runtime gate the host checks a manifest against and
-  moves only on a break; this one moves whenever the shape an author compiles against changes at
-  all, additions included. An author needs to know their source will still compile, which a number
-  that only counts breaks cannot tell them. 0.x while the contracts still move.
+- `<ContractsVersion>` in `Directory.Build.props` is the version of both. It moves whenever the
+  shape an author compiles against changes at all, additions included; 0.x while the contracts
+  still move.
+- `PluginApi.CurrentVersion` (at **3**) is the runtime gate the host checks a manifest against, and
+  it moves only on a break. Changing a method a plugin **calls or implements** is a break, including
+  adding an optional parameter: the default compiles into the call site, and a changed implemented
+  signature is a `TypeLoadException` at load. A new interface member with a **default body** is not.
+  Do not reason from the published catalog about who implements what: the hand-installed plugin is
+  the one being run. Widening a method also silently changes what `Received(1).Foo(id)` asserts in
+  a plugin's tests, so assert the argument rather than the bare call.
 - **A plugin excludes their runtime assets**
   (`<PackageReference Include="KHost.Abstractions" ExcludeAssets="runtime" />`): the host already
   has both in its default context and `PluginLoadContext.Load` returns null for anything that is,
@@ -342,37 +263,6 @@ folder: `PluginLoader` hands that string straight to `LoadFromAssemblyPath`.
   an unknown `schemaVersion` rejects the whole document rather than guessing at the fields that
   carry the checksum.
 
-## The screen marquee
-
-The band of text across the screen. `ScreenMarqueeService` composes it and pushes it whole on
-every change — there is no patch command, so a screen that reconnects mid-show is correct after
-one `SetMarqueeCommand`.
-
-- It is **one line, always**. `white-space: nowrap` is restated on the track and its spans rather
-  than left to inherit, and the venue's message is collapsed to a single line host-side, because
-  the band is fixed to an edge: a second line grows over the picture instead of pushing the page.
-- Entries are built from the venue's `MarqueeEntryFormat` — `{song} - {singer}` when a venue has
-  never set one, since a blank format would compose empty lines rather than reading as "unset".
-  Tags (`{song}`, `{artist}`, `{singer}`, `{position}`, matched case-insensitively) are replaced
-  per singer from the queue order and their first queued performance. A singer with nothing queued
-  is named alone rather than run through the format — the host has them on the list, and the band
-  must not disagree with the queue on screen.
-- Every marquee venue setting reads as "off" when its key is missing (`false`, `0`, `null`), so
-  the feature needed **no backfill migration** — see the `Venue.Settings` note above. Zero means
-  "the screen decides" for size and speed; the dialog offers the screen's own values instead,
-  which a number input can show and zero cannot.
-- The screen holds no library and no queue, so the command carries finished strings and CSS
-  colours, never ids — the same reason `ShowImageCommand` carries a URL.
-- Colours come from the venue as `--marquee-bg` / `--marquee-fg`, and the band's own colour sits
-  on a `::before` layer rather than its background: the layer can then be held under full opacity
-  without taking the text down with it.
-- Speed is pixels a second, not a lap time. A duration would make a long line race to keep a
-  short one's pace.
-- `MarqueePinLabel` holds "Up next" at the leading edge instead of scrolling it past, and the
-  renderer then leaves it out of the track — pinned and scrolling are the same label, so drawing
-  both puts it on screen twice. It is a **modifier**, not a style: it changes where the label sits,
-  not how the band is painted, so it composes with whatever else the venue chose.
-
 ## What is playing between singers
 
 `BreakMusicCardService` names the break music in a corner of the screen, pushed whole on every
@@ -386,137 +276,59 @@ change the same way the marquee is.
   line. On macOS a Spotify advert arrives as a track with no artist and an em dash for a title, and
   is drawn as one — recognising ads would mean reading the track id, which nothing does yet.
 
-## Screens on startup, and where their windows sit
-
-- **A service that answers a screen connecting implements `IStartsWithTheHost`.** The container
-  builds a singleton the first time somebody asks for it, so one that wires the broker or a screen
-  event *in its constructor* has wired nothing until that moment — and a screen connecting before
-  then is answered by nobody, with no error anywhere to say so.
-  - Registered twice — once as itself, once under the marker pointing at the same singleton
-    (`sp => (IStartsWithTheHost)sp.GetRequiredService<IWhatever>()`). Registering it afresh would
-    build a second copy, and the copy nobody else holds would be the one listening.
-  - `Program.cs` enumerates the marker before `MapIPCServer()`. A loop, not a line each.
-  - Being reachable through somebody else's constructor does **not** count.
-    `StartupScreenServicesTests` reads the domain for constructors wiring `ScreenConnected` and
-    fails on any that does not wear the marker, so the list maintains itself.
-- `LocalScreen:LaunchOnStartup` (the App Settings page's "Open a screen when KHost starts") opens
-  one screen named `AppSettings.StartupScreenName`. Read once on the way up, so changing it flips
-  `RestartRequired` rather than pretending to take effect.
-- **Resolving the listening address and launching that screen are one `ApplicationStarted`
-  callback, in that order, and must stay one.** `ApplicationStarted` is a `CancellationToken`, and
-  its callbacks run in **reverse registration order** — registering the launch "after" the
-  resolution ran it *first*, so the screen carried `LocalScreenProvider.ServiceOptions`' default
-  `http://localhost:5000/ipc/screen` while the host was on another port. That is not a slow start
-  a screen recovers from: `ScreenClient` tries its first connection once, and
-  `WithAutomaticReconnect` covers a connection that was established, not one that never was — so a
-  wrong address at launch is a screen that sits there forever saying it lost the host.
-- The venue's **placeholder image** is what a screen shows when nothing is playing, and it is put
-  up on screen connect as well as on every playback transition and venue edit. Its scaling is an
-  *override*: `Venue.Settings.BrandingImageScaling` is null by default and the media row's own
-  `ImageScaling` answers, because scaling belongs to a picture — but the same picture can be the
-  card in two rooms whose screens are not the same shape. Only the idle card reads the override; an
-  ad's own still and a screen rejoining mid-still are not the venue's to reshape.
-- A screen remembers its own window in `cache/screens/<screen id>.window.json`, **on the machine
-  the window is on**. Not host-side: a screen on another machine keeps its own place, and one
-  started by hand remembers as much as one the host launched.
-- Written as the window moves, never on the way out. `LocalScreenProvider.CloseSpawnedScreens`
-  kills the process, so an exit handler would never run on the ordinary path — Photino's
-  location/size/maximized/restored handlers schedule a debounced write instead.
-- Full screen is stored as a flag, not the monitor's bounds: the screen may come back on a
-  different monitor, where yesterday's pixels would leave it part-way off the picture. It is
-  applied when the page reports ready, since resizing needs a window that exists.
-- A stored window with no width or height is treated as nothing stored — it would open invisible
-  and could not be dragged back.
-
 ## Pre-rendering a queued song
 
 `PreparedMediaService` renders queued songs ahead of play time into `<temp>/khost-streams/prepared`,
 moving the transcode off the song transition and leaving a stream copy behind where it can.
 
-- **Readiness belongs to the turn, and is derived, never stored.** `PerformancePreparation` is
-  computed from whether the render is on disk and whether one is in flight. A column would outlive
-  the file it describes, so a row would claim a readiness a sweep had already taken away.
-- **`IsWaitingOnARender` is the question a control and a load must both ask**, and they must ask
-  the *same* one or a play button offers a song the load then refuses. It is not
-  `PerformancePreparation.Preparing`, which is wrong in both directions: an ordinary file mid-render
-  starts at once on the transcode, and a plugin's format that has not begun rendering cannot start
-  at all.
-- **A render is named for its source's path, size and write time.** Editing a file in place leaves
-  its old render unreachable rather than playing it in the new one's stead, and it means a failure
-  memo keyed on that name clears itself when the source changes. `PathFor` returns null rather than
-  throwing when the source has gone: it is reached from a queue row ahead of the load's own try,
-  where the row catches only `KHostException` and the circuit goes down with it.
-- **Reconcile is announcement-driven, so it must coalesce.** Three messages feed it and a bulk
-  enqueue raises all three per song. A pass already waiting will see whatever changed since, so a
-  burst collapses into one running pass plus at most one pending. The coalescing flag is cleared on
-  the way *in*: cleared on the way out, a change arriving mid-pass is swallowed and never rendered.
-- **Cheap checks first.** The destination existing and the failure memo are read before the gate,
-  the track probe and anything else that opens a file.
-- **A render that fails is remembered.** Retried on every queue change it takes the single render
-  slot for the rest of the night and nothing else is ever prepared.
-- **Both are re-checked inside the render.** Two passes can read them before either writes one, and
-  the in-flight entry that would otherwise join them is removed the moment a render ends, so a pass
-  that looked early and arrived late renders the same file again.
-- **Nothing outlives the process.** A shutdown token is threaded through reconcile and render,
-  `Dispose` cancels and waits before disposing anything a render holds, and a cancelled host-owned
-  ffmpeg is killed. Waiting on a token stops the wait, not the process.
-- **A host can turn off the optimisation, and only the optimisation.**
-  `MediaStream:PreRenderQueuedSongs` on the App Settings page, on by default. `NeedsARender` is
-  the one predicate: a render is optional where the host could play the file anyway, and is the
-  whole of playability where only a plugin can read it, so the setting does not reach the second
-  kind. Turning it off must not take a provider's library off the menu. The same distinction the
-  mixable check draws.
-- **Switching it off reconciles with no grace rather than sweeping.** A sweep would take the
-  plugin renders too and the next pass would only build them again; the ordinary pass already
-  knows which are which, so it drops exactly what the setting was paying for. The song at the
-  microphone is kept whatever the setting says, its render being read by ffmpeg right now.
-- **These settings are read live, through `IOptionsMonitor`, never snapshotted in a constructor.**
-  Both `PreparedMediaService` and `HlsMediaStreamService` used to cache `IOptions.Value`, so
-  changing the segment length did nothing until the next launch while App Settings said it applied
-  immediately. Only the working directory is still resolved once, because moving it would strand
-  the renders and sessions already under it.
-- **`Sweep` clears the failure memo along with the renders.** The memo is keyed by destination, so
-  keeping it across a sweep refuses to retry a song whose render was deleted rather than failed,
-  which is what turning pre-rendering off and on again would otherwise leave behind.
-- **There is a budget and a free-space floor** (`PreparedBudgetMegabytes`,
-  `PreparedFreeSpaceFloorMegabytes`, both on the media stream options, zero lifting each). Every
-  queued turn gets a render and nothing else bounds the directory, so the cap is a backstop rather
-  than something a normal night reaches. Past either, the song transcodes at play time: the
-  pre-render is an optimisation and must never be why a machine fills up. The floor is separate
-  because the budget knows nothing about the rest of the volume, which temp shares with the
-  database and the logs.
-- **A render outlives the queue by `KeepAfterUnwanted`** (five minutes), because a song that has
-  just ended is the one most likely to be asked for again. It is a minimum rather than a deadline:
-  dropping is driven by the queue changing, so a quiet room drops nothing until the next start.
-- **The copy is asked per stream, not for the file.** `CanCopyVideo` answers for the picture and
-  only tempo rules it out, since it retimes the frames; `CanCopyAudio` answers for the sound, and
-  pitch, tempo or a mixable mix each rule it out. `CanStreamCopy` is the two agreeing. A provider's
-  render may carry three stems, so it is always mixable and its audio is always rebuilt, but its
-  picture is copied, and so is the picture of any song whose key a host has shifted. That is the
-  case the split exists for: re-encoding every frame for an audio-only effect is work with nothing
-  to show for it, and it costs generation loss on top, the render having been encoded once already.
-- **`CopyPlan` is the one place that knows what may be copied from, and it asks two things.**
-  First, is it a prepared render: an original file makes no promise about where its keyframes are,
-  so it is always encoded whatever the filters say. Second, do that render's keyframes fall where
-  this host wants to cut, which is `CutsCleanly`.
-- **The cadence rule is divisibility, not equality.** A muxer cuts a copy only where a keyframe
-  already is, so a segment length that is a multiple of the render's cadence lands exactly and one
-  that is not runs each segment on to the next keyframe. Measured on a real 2s render: 2s, 4s and
-  6s cut exactly; 3s and 5s come out 4s and 6s. Nothing reports this, which is why it is a gate
-  rather than something to notice later.
-- **A render says its own cadence, through `IMediaPreparer.KeyframeSeconds`.** The host answers
-  `_options.SegmentSeconds` for renders it made itself, and relays the preparer's answer for a
-  plugin's, through `IPreparedMediaService.KeyframeSecondsFor`. Null means the preparer does not
-  say and the picture is encoded, which is the answer that is never wrong. It has a **default
-  body**, the same deliberate exception `IMediaPlaybackGate.Claims` is, and for the same reason: a
-  preparer written before it compiles and loads unchanged, so `PluginApi.CurrentVersion` did not
-  have to move. A plugin declaring a number its renderer does not actually use is the one way to
-  break this, so a preparer should read its renderer's own constant rather than restate it.
-- `BuildArguments` takes a `copyVideo` flag rather than there being a third builder. The mix graph,
-  the audio codec and the muxer settings are one copy of each, so the encode and the copy cannot
-  drift apart on any of them.
-- For a provider's own container the pre-render still buys *playability* before anything else:
-  ffmpeg cannot open one at all.
+- **Readiness belongs to the turn and is derived, never stored.** `PerformancePreparation` is
+  computed from whether the render is on disk and whether one is in flight; a column would outlive
+  the file it describes.
+- **`IsWaitingOnARender` is the question a control and a load must both ask**, or a play button
+  offers a song the load then refuses. It is not `PerformancePreparation.Preparing`: an ordinary file
+  mid-render starts at once on the transcode, and a plugin's format waiting for the single render
+  slot cannot start at all yet is not `Preparing`.
+- **A render is named for its source's path, size and write time**, so editing a file in place
+  orphans its old render and the failure memo keyed on that name clears itself. `PathFor` returns
+  null rather than throwing when the source has gone.
+- **Reconcile is announcement-driven, so it coalesces**: one running pass plus at most one pending.
+  The flag is cleared on the way *in*, or a change arriving mid-pass is swallowed.
+- **Cheap checks first**: the destination existing and the failure memo are read before the gate
+  and anything that opens a file. Both are re-checked inside the render, since two passes can read
+  them before either writes.
+- **A render that fails is remembered**, or it takes the single slot on every queue change and
+  nothing else is ever prepared. `Sweep` clears the memo with the renders — a memo keyed to a
+  deleted render would refuse to retry a song that never actually failed.
+- **Nothing outlives the process**: a shutdown token is threaded through reconcile and render, and a
+  cancelled host-owned ffmpeg is killed. Waiting on a token stops the wait, not the process.
+- **`NeedsARender` is the one predicate for whether a file should have a render.** For a file the
+  host can play anyway the render is an optimisation, and `MediaStream:PreRenderQueuedSongs` (App
+  Settings, on by default) is a host declining it. For a format only a plugin can read it is the
+  whole of playability, so the setting does not reach it. Switching off reconciles with **no grace**
+  rather than sweeping, so plugin renders survive and the song at the microphone is kept.
+- **Media stream settings are read live through `IOptionsMonitor`**, never snapshotted in a
+  constructor; only the working directory is resolved once. App Settings says they apply
+  immediately, and that has to be true.
+- **Budget and free-space floor** (`PreparedBudgetMegabytes`, `PreparedFreeSpaceFloorMegabytes`,
+  zero lifts each). Past either, the song transcodes at play time: the pre-render must never be why
+  a machine fills up.
+- **A render outlives the queue by `KeepAfterUnwanted`** (five minutes) — a song that just ended is
+  the one most likely to be asked for again. It is a minimum: dropping is driven by the queue
+  changing.
+- **The copy is asked per stream.** `CanCopyVideo`: only tempo rules the picture out. `CanCopyAudio`:
+  pitch, tempo or a mixable mix rule the sound out. `CanStreamCopy` is both agreeing. A multi-stem
+  render always rebuilds its audio but copies its picture, and so does a song whose key was shifted;
+  re-encoding a picture for an audio-only change is wasted work and a generation of quality.
+  `BuildArguments` takes a `copyVideo` flag rather than a third builder, so the mix graph and muxer
+  settings cannot drift between the paths.
+- **`CopyPlan` decides what may be copied from, and asks two things**: is it a prepared render (an
+  original file makes no promise about its keyframes), and does its cadence divide the host's
+  segment length (`CutsCleanly`). A muxer cuts a copy only on a keyframe, so a segment length that
+  is not a multiple of the render's cadence silently runs each segment on to the next keyframe.
+- **A render says its own cadence** through `IMediaPreparer.KeyframeSeconds`; the host answers its
+  own segment length for renders it made, and relays the preparer's through
+  `IPreparedMediaService.KeyframeSecondsFor`. Null means "I do not say" and the picture is encoded.
+  A preparer should read its renderer's own constant rather than restate a number.
 
 ## Components
 
@@ -561,8 +373,7 @@ clips and the card it puts up between singers are ordinary library rows.
 
 - **`MediaFormats` owns the extension lists and the question.** `TypeForFile(path, videoIsKaraoke)`
   decides what a file is, and the scanner, the row icon and the import itself all ask it — so none
-  of them can disagree with the other two. Everything scanned used to be parsed as karaoke, which
-  was harmless only while it scanned nothing else.
+  of them can disagree with the other two.
 - Asked of the **path**, not the extension: an `.mp3` with a `.cdg` beside it is the audio half of a
   karaoke pair, an instrumental with no singer on it, and does not belong in break music.
 - **A picture track is the one thing no file can settle** — a karaoke video and an ad clip are the
@@ -583,62 +394,11 @@ building it.** `PreparedMediaService` reconciles on the way up and nothing await
 substitute stubbed afterwards can have its first call consumed by that pass instead of by the test,
 and an exact call count then fails. Arrange everything before the service is built, or give the
 fixture a way to settle the constructor's work first. **Run the suite under load before trusting a
-green one**: it is what found this, and two real defects an idle machine never showed.
+green one.**
+
+Times are stored UTC. **Arrange test data in UTC**: a test that uses the same local clock as the
+code cancels the offset and passes, and can only fail on a machine not already at UTC. Local time
+belongs in exactly two places — a picker's own model, and comparing a converted local date against
+a local today.
 
 A component test renders the component (`BunitContext`, not the obsolete `TestContext`) and dispatches a real event — a handler that exists but is attached to nothing passes every test that calls it directly, which is how the queue's arrow keys sat dead behind tooltips advertising them. Set `JSInterop.Mode = JSRuntimeMode.Loose` (panels call into JS on first render) and give every `Task<List<T>>` substitute a return value: NSubstitute hands back a completed task wrapping `null`, and the component `.Count()`s it.
-
-## Gotchas
-
-- Services dir is `Services/` — don't recreate the old `Servies` typo.
-- Runtime DB lives at `src/KHost.UserInterface/bin/Debug/net10.0/cache/` — deleting `bin/` destroys the local library, users and queue.
-- Machine settings are an overlay at `cache/settings.json`, edited by the App Settings page through `IAppSettingsService` and reloaded on change; deployment defaults stay in `appsettings.json`. Per-list page sizes live there under `Pagination:` and are clamped on read as well as on save, because a hand-edited `0` reaches `PaginatedResult` as a page that holds no rows and reports no pages.
-- Seed test data through the repositories, not the `sqlite3` CLI: the system binary has no fts5, so any Media insert dies on the `media_fts` triggers, and the folded columns are written by `EntityFolding` on save rather than by hand. A throwaway console app referencing `KHost.DataAccess` with `AddDataAccess()` gets both — point it at the runtime DB by symlinking `cache` into its output directory, since `DatabaseLocation` reads `AppContext.BaseDirectory`.
-- `DefaultContext` is `NoTracking` — saves/updates won't touch related models unless explicitly programmed to.
-- `BlazorDisableThrowNavigationException` is set; navigation failures won't throw.
-- EF join entities: `UsingEntity<T>(l => ..., r => ..., j => ...)` with no string name — a string name makes a shared-type entity and breaks `context.Set<T>()`.
-- IPC screen commands are `[JsonPolymorphic]` on `ScreenCommandBase` — a new command needs a `[JsonDerivedType]` attribute on the base.
-- Times are stored UTC and converted where they are shown. `DateTime.Now` against a stored timestamp shifts by the host's offset — it moved the duplicate-song window by five hours here — and a test that arranges its data with the same local clock cancels the error and passes. Arrange in UTC, and remember such a test can only fail on a machine that is not already at UTC. Local time is right in exactly two places: a picker's own model (converted on save and load) and comparing a converted local date against a local today.
-- `MediaSearchEntity` lives in `KHost.Abstractions`, so it is a contract with providers outside this repo: changing it breaks their build. It carries `Title` and `Artist` separately — the library stores them apart, and rejoining them means the console has to re-parse a string it built. `ForeignKey` is the provider's own key, and only a local result's is already a library id; `Performance.MediaId` is a Guid into the library, so a remote result has to be imported before it can be enqueued.
-- Only `Ready` and `Broken` are a host's to set (`MediaStatusDisplay.IsUserSettable`). `Downloading` and `Processing` are a provider's, written through `IMediaAcquisitionService` and `BeginProcessingAsync` — a provider moves a row to `Processing` when the download is in and verified — so a host-facing status control must not offer them: it would let a host claim an acquisition that is not happening.
-- Money is whole cents in an `INTEGER` (`Tip.AmountInCents`) — SQLite has no decimal type, and EF stores one as TEXT, which sorts lexicographically and makes `SUM` coerce through a float.
-- The appliance lockdown (no devtools, no page context menu) is gated on the build configuration, not the environment: an unpublished run must stay in Development or it serves no static web assets at all. Test it with `dotnet run -c Release`.
-- Two venue messages, and picking the wrong one is a bug you will not see in a test that only checks the happy path. `VenuesChanged` says the list moved (add/edit/delete) and is for the UI. `SelectedVenueChanged` says the console is now running a different venue, or the one it is running was edited — that is the one `ScreenCoordinationService` and `BreakMusicService` take, because the venue carries the room's audio baseline. Subscribing them to `VenuesChanged` means editing an unrelated venue's phone number re-pushes volume to every screen mid-song.
-- - `Venue.Settings` is a JSON column (`OwnsOne(...ToJson())`): adding/removing properties needs no migration at all, but EF reads keys missing from stored rows as `default` (ignoring property initializers) — a new setting that defaults true needs a data-only `json_set` backfill migration.
-- `KHostUser.ForeignKeys` is how a provider outside KHost names a singer — `(Source, Key)`, unique across the whole table, so one provider's id reaches one singer and a returning guest is not added a second time. Matched exactly, never folded: an id is nobody's name, and a provider may make its case meaningful. `IsEphemeral` marks a key that names a *connection* rather than a person (a remote guest id belongs to a phone on that channel, not to a person), and **every ephemeral key is deleted on startup** by `DatabaseInitializer`, beside the stalled-downloads sweep — none can have outlived the process that issued it, and doing it host-side is what stops a plugin's rows outliving the plugin. A provider clears its own with `IUsersService.DeleteEphemeralForeignKeysAsync(source)`; there is deliberately no way for one to clear another's. Prefer `AddForeignKeyAsync`/`RemoveForeignKeyAsync` over mutating the collection and saving — `UpdateAsync` reconciles against what it is handed, so a user read without their keys is saved back without them (the same trap `Groups` already has, which is why both are `Include`d on every read that feeds an update).
-- **A performance records the name it was sung under**, in `SungAs`, written by
-  `PerformanceService.CreateAndEnqueueAsync` on every enqueue rather than by each of its five
-  callers — two of which are plugins, and a line each is what goes missing. A caller that has a
-  name of its own to record sets it first and the service leaves it alone; that is how a remote
-  carries the nickname a guest types per pick. `Venue.Settings.AllowAliases` decides whether a
-  recorded name that differs from the singer's own is the one the room sees — off for a venue never
-  asked, so it needed no backfill. Resolving it belongs to whoever owns the performance, not to a
-  shared helper: `IPlaybackService.CurrentSingerName` answers for the song that is playing, beside
-  `CurrentMedia` and for the same reason, and `ScreenMarqueeService` answers for the turns that
-  have not started, which playback knows nothing about. Playback resolves it **at load** — the
-  performance cannot change, and a venue edited mid-song must not rename whoever is at the
-  microphone. Never feed a recorded name back into the add-a-singer lookup: that path creates a
-  user on no match, and a one-off name would mint a phantom singer.
-  - **Nothing host-facing may key off the column being *set*** — every enqueue records one, so
-    presence is true of nearly every row and a mark on it appears on the whole list saying nothing.
-    The question is always whether the recorded name **differs from the singer's own**, trimmed and
-    case-insensitively: typing your own name back in lower case has not renamed anybody, and a row
-    reading "singing as Ada" under Ada is noise. `SelectedSingerInfoPanel.SungUnderAnotherName` is
-    that question, and the row draws a muted `__sung-as` line under the title when it holds.
-  - A host changes one through `IDialogService.RequestSingingAsAsync` (the **Singing As** dialog,
-    off the song row's split-button menu). It edits the *turn*, never the account: the dialog
-    mutates `SungAs` and hands the performance back, and the caller persists it with
-    `IPerformanceService.UpdateAsync` — inherited from `IRepositoryService<Performance>`, so no
-    queue-specific method was needed — whose announcement redraws the row. A blank field stores
-    **null**, not `""`: every reader spells "their own name" as an empty recorded name, and null is
-    what a row that was never given one already carries.
-- **Performances carry no foreign keys, deliberately** — deleting a song, a singer or a venue must
-  leave the record of who sang what standing. That protects *history*, and the queue is not
-  history: a queued performance belongs to somebody who has not sung it, and when its singer or its
-  song is deleted nobody can. So deleting a user or a media row **deletes the queued performances**
-  that point at it, and leaves every sung one alone. `SingerQueueService` takes `UsersChanged` for
-  it rather than the users manager calling in — a singer deleted down any path leaves the same way
-  — and prunes only ids that no longer resolve, because that announcement also fires on a rename.
-  `MediaService` resolves `IPerformanceService` on use rather than in its constructor, since
-  `PerformanceService` takes `IMediaService` and asking up front closes a ring.
-- Schema changes (any `DbSet<T>` model): add a migration — `dotnet ef migrations add <Name> --project src/KHost.DataAccess`. Additive ones such as an index apply in place, keeping both the runtime DB and the hand-written `AddMediaFts`.
-- Regenerating the chain instead (delete `src/KHost.DataAccess/Migrations/` and the runtime DB, then `migrations add InitialSchema`) means recreating `AddMediaFts` by hand afterwards — the FTS5 table and its triggers are raw SQL EF won't regenerate, and search throws `no such table: media_fts` without it; copy the `Up`/`Down` SQL from a prior `AddMediaFts.cs`. It also destroys the local library, users and queue, so collapse the chain deliberately, not as a step in adding a column.

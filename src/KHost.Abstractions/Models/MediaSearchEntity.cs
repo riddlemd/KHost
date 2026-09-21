@@ -1,5 +1,10 @@
 namespace KHost.Abstractions.Models;
 
+/// <summary>A contract with providers outside this repo: changing it breaks their build.</summary>
+/// <remarks>Title and Artist stay apart because the library stores them apart, and rejoining them
+/// means re-parsing a string the console built. ForeignKey is the provider's own key; only a
+/// local result's is already a library id, so a remote result is imported before it can be
+/// enqueued (Performance.MediaId is a Guid into the library).</remarks>
 public record MediaSearchEntity
 {
     public required string SourceDisplayName { get; set; }

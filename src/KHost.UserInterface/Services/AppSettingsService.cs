@@ -68,6 +68,8 @@ internal sealed class AppSettingsService : IAppSettingsService
     private static double AdDurationClamp(double seconds) =>
         Math.Clamp(seconds, AppSettings.MinAdDurationSeconds, AppSettings.MaxAdDurationSeconds);
 
+    // Read as well as save: a hand-edited zero reaches PaginatedResult as a page that holds no rows
+    // and reports no pages.
     private static int PaginationClamp(int pageSize) =>
         Math.Clamp(pageSize, AppSettings.MinPageSize, AppSettings.MaxPageSize);
 
