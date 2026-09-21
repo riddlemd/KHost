@@ -347,6 +347,16 @@ public partial class SelectedSingerInfoPanel : IAsyncDisposable
     private static string FormatTempo(int tempo) =>
         tempo.ToString("+#;\u2212#;0", CultureInfo.InvariantCulture) + "%";
 
+    /// <summary>What the Status column says for a queued turn.</summary>
+    /// <remarks>A row stays <c>Ready</c> for the whole of its pre-render, so the library status
+    /// alone reads as though nothing is happening. Only <c>Ready</c> is replaced: <c>Broken</c>
+    /// and an acquisition in flight are things a host has to act on, and a render in progress
+    /// must not hide either.</remarks>
+    private (string Label, string BadgeClass) StatusOf(Media media)
+        => media.Status == MediaStatus.Ready && PreparationOf(media) == PerformancePreparation.Preparing
+            ? ("Preparing", MediaStatusDisplay.BadgeClass(MediaStatus.Processing))
+            : (media.Status.ToString(), MediaStatusDisplay.BadgeClass(media.Status));
+
     /// <summary>Whether this turn has something to play yet. Off the turn's own file, never the
     /// library row's status: the row says what KHost has, not what one performance can start.
     /// </summary>

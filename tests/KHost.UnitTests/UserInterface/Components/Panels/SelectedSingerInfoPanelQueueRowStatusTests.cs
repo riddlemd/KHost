@@ -15,6 +15,7 @@ namespace KHost.UnitTests.UserInterface.Components.Panels;
 public class SelectedSingerInfoPanelQueueRowStatusTests : BunitContext
 {
     private const string PlayButtonSelector = ".kh-selected-singer-info-panel__row .kh-split-btn__primary";
+    private const string StatusSelector = ".kh-selected-singer-info-panel__status .kh-badge";
 
     private readonly ISingerQueueService _queue = Substitute.For<ISingerQueueService>();
     private readonly IPerformanceService _performances = Substitute.For<IPerformanceService>();
@@ -174,5 +175,60 @@ public class SelectedSingerInfoPanelQueueRowStatusTests : BunitContext
 
         panel.WaitForAssertion(() => Assert.False(panel.Find(PlayButtonSelector).HasAttribute("disabled")));
         Assert.NotEmpty(panel.FindAll($"{PlayButtonSelector} .bi-play-fill"));
+    }
+
+    /// <summary>The row is Ready for the whole of its pre-render, so the library status alone
+    /// reads as though nothing is happening. The column says what is actually going on instead.
+    /// </summary>
+    [Fact]
+    public void ARowBeingPrepared_ReadsPreparing()
+    {
+        _media.Status = MediaStatus.Ready;
+        _prepared.StateFor(_media.FilePath!).Returns(PerformancePreparation.Preparing);
+
+        var panel = Render<SelectedSingerInfoPanel>();
+
+        Assert.Equal("Preparing", panel.Find(StatusSelector).TextContent.Trim());
+    }
+
+    [Fact]
+    public void ARowWithNothingRendering_ReadsItsOwnStatus()
+    {
+        _media.Status = MediaStatus.Ready;
+        _prepared.StateFor(_media.FilePath!).Returns(PerformancePreparation.Prepared);
+
+        var panel = Render<SelectedSingerInfoPanel>();
+
+        Assert.Equal("Ready", panel.Find(StatusSelector).TextContent.Trim());
+    }
+
+    /// <summary>Broken is something a host has to act on, so a render in flight must not paint
+    /// over it. The same holds for an acquisition still running.</summary>
+    [Theory]
+    [InlineData(MediaStatus.Broken, "Broken")]
+    [InlineData(MediaStatus.Downloading, "Downloading")]
+    [InlineData(MediaStatus.Processing, "Processing")]
+    public void ARowWithSomethingMoreImportantToSay_KeepsSayingIt(MediaStatus status, string expected)
+    {
+        _media.Status = status;
+        _prepared.StateFor(_media.FilePath!).Returns(PerformancePreparation.Preparing);
+
+        var panel = Render<SelectedSingerInfoPanel>();
+
+        Assert.Equal(expected, panel.Find(StatusSelector).TextContent.Trim());
+    }
+
+    /// <summary>The spinning glyph beside the title is gone: the status column is the one place
+    /// that says a render is happening, so two places cannot disagree about it.</summary>
+    [Fact]
+    public void ARowBeingPrepared_CarriesNoSpinningGlyph()
+    {
+        _media.Status = MediaStatus.Ready;
+        _prepared.StateFor(_media.FilePath!).Returns(PerformancePreparation.Preparing);
+
+        var panel = Render<SelectedSingerInfoPanel>();
+
+        Assert.Empty(panel.FindAll(".kh-selected-singer-info-panel__preparing"));
+        Assert.Empty(panel.FindAll(".kh-selected-singer-info-panel__row .bi-arrow-repeat"));
     }
 }

@@ -84,20 +84,6 @@
         text-overflow: ellipsis;
     }
 
-    // Muted and turning, not a badge: it says work is happening, not that anything is wrong. A turn
-    // with no render is not shown at all, since it plays the moment it is asked.
-    &__preparing {
-        flex: 0 0 auto;
-        margin-left: 6px;
-        font-size: 0.7rem;
-        color: var(--kh-text-muted);
-        display: inline-flex;
-
-        @media (prefers-reduced-motion: no-preference) {
-            animation: kh-preparing-spin 1.4s linear infinite;
-        }
-    }
-
     &__pitch,
     &__tempo {
         flex: 0 0 auto;
@@ -312,8 +298,4 @@
         font-size: 1.15em;
         --kh-quick-menu-size: 26px;
     }
-}
-
-@keyframes kh-preparing-spin {
-    to { transform: rotate(360deg); }
 }
