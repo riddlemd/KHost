@@ -183,17 +183,37 @@ public class MediaGateServiceTests
         await gate.DidNotReceive().CanAsync(Arg.Any<MediaAction>(), Arg.Any<Media>(), Arg.Any<CancellationToken>());
     }
 
-    /// <summary>The tag is the owner when there is one: a gate claiming by name must not answer
-    /// over the gate the file actually names.</summary>
+    /// <summary>A gate that recognises the path owns the file, and the tag is not consulted. The
+    /// two disagreeing is pathological; what this is really pinning is that the free question is
+    /// asked first, since the tag costs the owning plugin a read of its own container.</summary>
     [Fact]
-    public async Task Evaluate_TagAndAClaimDisagree_TheTagWins()
+    public async Task Evaluate_AClaimIsAnswered_WithoutReadingTheTag()
     {
         _tags.ReadTagAsync(Arg.Any<string>(), IMediaPlaybackGate.MetadataTag, Arg.Any<CancellationToken>()).Returns("KHost.Plugins.Tagged");
         var tagged = Gate("KHost.Plugins.Tagged", PlaybackGateResult.Ok);
         var claiming = Gate("KHost.Plugins.Claiming", new PlaybackGateResult(false, "no"), claims: true);
 
-        Assert.True((await Service(tagged, claiming).EvaluateAsync(MediaAction.Play, Media())).Allowed);
-        await claiming.DidNotReceive().CanAsync(Arg.Any<MediaAction>(), Arg.Any<Media>(), Arg.Any<CancellationToken>());
+        var verdict = await Service(tagged, claiming).EvaluateAsync(MediaAction.Play, Media());
+
+        Assert.False(verdict.Allowed);
+        await tagged.DidNotReceive().CanAsync(Arg.Any<MediaAction>(), Arg.Any<Media>(), Arg.Any<CancellationToken>());
+        await _tags.DidNotReceive().ReadTagAsync(
+            Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>Nothing claims the name, so the file is asked what it belongs to. This is the
+    /// case the tag exists for: a gated render sitting under a name its owner does not claim.
+    /// </summary>
+    [Fact]
+    public async Task Evaluate_NothingClaimsTheName_FallsBackToTheTag()
+    {
+        _tags.ReadTagAsync(Arg.Any<string>(), IMediaPlaybackGate.MetadataTag, Arg.Any<CancellationToken>()).Returns("KHost.Plugins.Tagged");
+        var tagged = Gate("KHost.Plugins.Tagged", new PlaybackGateResult(false, "no"));
+
+        var verdict = await Service(tagged).EvaluateAsync(MediaAction.Play, Media());
+
+        Assert.False(verdict.Allowed);
+        await tagged.Received().CanAsync(MediaAction.Play, Arg.Any<Media>(), Arg.Any<CancellationToken>());
     }
 
     /// <summary>Claiming is answered from the path alone, so it must not cost a file read.</summary>

@@ -4,11 +4,18 @@ using KHost.Domain.Services;
 
 namespace KHost.UnitTests.Domain.Services;
 
-public class MediaTagReaderTests
+public class MediaTagReaderTests : IDisposable
 {
-    private const string Path = "/music/song.mp4";
+    // A real file, because reading a tag means opening one and the reader refuses a path with
+    // nothing behind it. Its contents never matter: the probe is substituted.
+    private readonly string Path = System.IO.Path.Combine(
+        System.IO.Path.GetTempPath(), $"khost-tag-{Guid.NewGuid():N}.mp4");
 
     private readonly IMediaProbeService _probes = Substitute.For<IMediaProbeService>();
+
+    public MediaTagReaderTests() => File.WriteAllText(Path, "x");
+
+    public void Dispose() => File.Delete(Path);
 
     private MediaTagReader Reader() => new(_probes);
 
@@ -42,6 +49,18 @@ public class MediaTagReaderTests
         Tagged(("title", "Neon Moon"));
 
         Assert.Null(await Reader().ReadTagAsync(Path, "khost_provider"));
+    }
+
+    /// <summary>A file that is not there is untagged without being opened. The gate asks at
+    /// enqueue, and a provider's own download is still arriving then, so probing would report a
+    /// failure nobody can act on and cost the plugin a full read of nothing.</summary>
+    [Fact]
+    public async Task ReadTag_AFileThatIsNotThere_IsNullAndIsNeverProbed()
+    {
+        var missing = System.IO.Path.Combine(System.IO.Path.GetTempPath(), $"khost-gone-{Guid.NewGuid():N}.kit");
+
+        Assert.Null(await Reader().ReadTagAsync(missing, "khost_provider"));
+        await _probes.DidNotReceive().ProbeAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
     }
 
     /// <summary>A file that will not probe is treated as untagged: a gate that cannot read the file

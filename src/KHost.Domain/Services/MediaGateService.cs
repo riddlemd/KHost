@@ -41,19 +41,22 @@ public sealed class MediaGateService(
 
     private async Task<PlaybackGateResult> AskAsync(MediaAction action, Media media, CancellationToken cancellationToken)
     {
-        var key = await tags.ReadTagAsync(media.FilePath, IMediaPlaybackGate.MetadataTag, cancellationToken);
-
-        if (!string.IsNullOrEmpty(key) && _gates.TryGetValue(key, out var tagged))
-            return await tagged.CanAsync(action, media, cancellationToken);
-
-        // No tag is not the same as no owner. A format nothing can open has nowhere to carry one,
-        // so a gate is given the chance to recognise the file by name: without this, moving a
-        // provider's library row onto its own container silently ungates everything it holds.
+        // Asked by name first, because that answer is free and the tag is not: reading a tag
+        // opens the file, and for a provider's own container that means the plugin parsing the
+        // whole thing to hand back a marker it hardcodes. A gate that recognises the path already
+        // knows the file is its own, so there is nothing a tag could add.
         foreach (var gate in _gates.Values)
         {
             if (gate.Claims(media.FilePath))
                 return await gate.CanAsync(action, media, cancellationToken);
         }
+
+        // Nothing recognised the name, so ask what the file says it belongs to. This is what
+        // catches a gated render sitting under a name its owner does not claim.
+        var key = await tags.ReadTagAsync(media.FilePath, IMediaPlaybackGate.MetadataTag, cancellationToken);
+
+        if (!string.IsNullOrEmpty(key) && _gates.TryGetValue(key, out var tagged))
+            return await tagged.CanAsync(action, media, cancellationToken);
 
         return PlaybackGateResult.Ok;
     }

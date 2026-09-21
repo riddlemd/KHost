@@ -135,6 +135,12 @@ code it offers the screens.
   session is open. `DescribeButton` also hides or disables a button; its default keeps the manifest
   label. Reached by plugin id through `IPluginButtonService`, populated from the loader's
   `PluginButtonBinding`s — the container does not otherwise record which plugin owns a registration.
+- **Gating content is the plugin's job, not the host's.** KHost does not care who may play what;
+  `IMediaPlaybackGate` exists so Example can honour its own subscription, and for nothing else.
+  So the host's side of it stays as thin as it can be: it routes a question to whichever plugin
+  owns a file and does whatever that plugin answers. Do not add host-side enforcement, and do not
+  spend effort making the mechanism airtight against a host who owns the machine. A provider that
+  wants its content gated is the one with a reason to care.
 - A plugin that owns media it must not let out without a live entitlement implements
   `IMediaPlaybackGate`. **One verdict, asked at three moments.** `CanAsync(MediaAction, Media)` takes
   a `Queue`, `Render` or `Play`, so a provider whose answer never varies writes one check and ignores
@@ -147,11 +153,18 @@ code it offers the screens.
     on with the answer. Refusing at `Queue` too is the kindness: a host learns before the singer is
     at the microphone.
 
-  - **Ownership and verdict are separate questions.** Ownership is the tag: a gated file carries the
-    container tag `IMediaPlaybackGate.MetadataTag` (`khost_provider`) set to the gate's `ProviderId`,
-    and `IMediaGateService` reads it and asks that one gate rather than polling every plugin. Example
-    writes `khost_provider=KHost.Plugins.Example` with ffmpeg's `+use_metadata_tags` movflag (a custom
-    mp4 tag is dropped without it, confirmed by round trip).
+  - **Ownership and verdict are separate questions, and ownership is asked by name first.**
+    `IMediaGateService` asks every gate's `Claims(path)` before it reads any tag, because the path
+    is free and the tag is not: reading one opens the file, and for a provider's own container
+    that means the plugin parsing the whole thing to hand back a marker it hardcodes. Only when no
+    gate recognises the name does it fall back to the container tag
+    `IMediaPlaybackGate.MetadataTag` (`khost_provider`), which names one gate to ask rather than
+    polling every plugin. Example writes that tag on its render with ffmpeg's `+use_metadata_tags`
+    movflag (a custom mp4 tag is dropped without it, confirmed by round trip), but nothing depends
+    on it: **the plugin gates on the `.kit` extension, because nothing else produces one.**
+  - The tag read is skipped for a file that is not on disk. The gate is asked at enqueue, and a
+    provider's own download is still arriving then, so probing would report a failure nobody can
+    act on and cost the owning plugin a full read of nothing.
   - **`Claims(path)` is the fallback for a format that cannot carry a tag, and it closed a real
     bypass.** The tag lives inside the container, so a file nothing can open has nowhere to put one:
     ffprobe cannot read a `.kit`, so the gate keyed off the tag saw no owner and let the whole
