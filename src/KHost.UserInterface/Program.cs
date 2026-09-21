@@ -572,20 +572,36 @@ internal static class Program
             return;
         }
 
+        var resolved = app.Services.GetRequiredService<ResolvedHostAddress>();
+
         if (wantsIpcUri)
         {
-            var options = app.Services.GetRequiredService<IOptions<LocalScreenProvider.ServiceOptions>>().Value;
-            options.ServerUri = $"{baseUri}/ipc/screen";
-            Log.Information("Local screen IPC URI resolved to {ServerUri}", options.ServerUri);
+            var serverUri = $"{baseUri}/ipc/screen";
+            resolved.ScreenIpcUri = serverUri;
+            ApplyResolved<LocalScreenProvider.ServiceOptions>(app, options => options.ServerUri = serverUri);
+            Log.Information("Local screen IPC URI resolved to {ServerUri}", serverUri);
         }
 
         // A screen fetches HLS from this address, so it has to be the live one.
         if (wantsStreamAddress)
         {
-            var options = app.Services.GetRequiredService<IOptions<HlsMediaStreamService.ServiceOptions>>().Value;
-            options.BaseAddress = baseUri;
-            Log.Information("Media stream base address resolved to {BaseAddress}", options.BaseAddress);
+            resolved.MediaStreamBaseAddress = baseUri;
+            ApplyResolved<HlsMediaStreamService.ServiceOptions>(app, options => options.BaseAddress = baseUri);
+            Log.Information("Media stream base address resolved to {BaseAddress}", baseUri);
         }
+    }
+
+    /// <summary>Lands a resolved address on both option caches, which are separate.</summary>
+    /// <remarks>IOptions and IOptionsMonitor bind their own instance each, so writing only the
+    /// first leaves a monitor reader on the compile-time default — that is how screens were handed
+    /// a stream URL on port 5000. Clearing the monitor cache makes the next read rebind and pick
+    /// the address up through post-configure; the direct write covers an IOptions instance already
+    /// handed to a constructor, which no rebind can reach.</remarks>
+    private static void ApplyResolved<TOptions>(WebApplication app, Action<TOptions> set)
+        where TOptions : class
+    {
+        set(app.Services.GetRequiredService<IOptions<TOptions>>().Value);
+        app.Services.GetRequiredService<IOptionsMonitorCache<TOptions>>().Clear();
     }
 
     private static void LaunchStartupScreen(WebApplication app)
