@@ -723,8 +723,8 @@ public class PluginsManagerPageTests : BunitContext
         Assert.Empty(cut.FindAll(ActionButtonSelector));
     }
 
-    private static PluginButtonDefinition Button(string key, string label)
-        => new() { Key = key, Label = label };
+    private static PluginButtonDefinition Button(string key, string label, string? icon = null)
+        => new() { Key = key, Label = label, Icon = icon };
 
     private void Arrange(DiscoveredPlugin plugin, bool enabled, Dictionary<string, JsonElement>? stored = null)
     {
@@ -849,5 +849,57 @@ public class PluginsManagerPageTests : BunitContext
 
     private static PluginsManagerPage.SettingField Field(string key, string? section = null)
         => new() { Definition = Setting(key, PluginSettingType.Int, key, section: section) };
+
+
+    // ── icons on a plugin's buttons ────────────────────────────────────────────────────
+
+    /// <summary>Drawn before the label, with the bi- prefix the host adds rather than one the
+    /// manifest repeats.</summary>
+    [Fact]
+    public void AButtonNamingAnIcon_DrawsItBeforeTheLabel()
+    {
+        Arrange(Plugin(PluginStatus.Loaded), enabled: true);
+        _buttons.ButtonsFor(PluginId.ToString())
+            .Returns([(Button("session", "Sign in", "box-arrow-in-right"), PluginButtonState.Default)]);
+
+        var cut = Render<PluginsManagerPage>();
+        cut.Find(DisclosureSelector).Click();
+
+        var button = cut.Find(".kh-plugins-manager__actions button");
+        Assert.NotNull(button.QuerySelector("i.bi.bi-box-arrow-in-right"));
+        Assert.Contains("Sign in", button.TextContent);
+    }
+
+    /// <summary>Every button written before icons existed names none, and must draw as it did:
+    /// an empty glyph would leave a gap before the label on every one of them.</summary>
+    [Fact]
+    public void AButtonNamingNoIcon_DrawsNoGlyphAtAll()
+    {
+        Arrange(Plugin(PluginStatus.Loaded), enabled: true);
+        _buttons.ButtonsFor(PluginId.ToString())
+            .Returns([(Button("session", "Sign in"), PluginButtonState.Default)]);
+
+        var cut = Render<PluginsManagerPage>();
+        cut.Find(DisclosureSelector).Click();
+
+        Assert.Empty(cut.FindAll(".kh-plugins-manager__actions button i"));
+    }
+
+    /// <summary>The handler may rename a button per press; the icon is the manifest's and stays
+    /// put, or a button would lose its glyph the moment it said something else.</summary>
+    [Fact]
+    public void AnOverriddenLabel_KeepsTheManifestsIcon()
+    {
+        Arrange(Plugin(PluginStatus.Loaded), enabled: true);
+        _buttons.ButtonsFor(PluginId.ToString())
+            .Returns([(Button("session", "Sign in", "box-arrow-in-right"), new PluginButtonState { Label = "Sign out" })]);
+
+        var cut = Render<PluginsManagerPage>();
+        cut.Find(DisclosureSelector).Click();
+
+        var button = cut.Find(".kh-plugins-manager__actions button");
+        Assert.NotNull(button.QuerySelector("i.bi-box-arrow-in-right"));
+        Assert.Contains("Sign out", button.TextContent);
+    }
 
 }

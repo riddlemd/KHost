@@ -398,6 +398,7 @@
                                                 <button type="button" class="kh-button @ButtonStyleClass(definition.Style)"
                                                         disabled="@(!buttonState.Enabled || _runningButtons.Contains($"{plugin.Id}:{definition.Key}"))"
                                                         @onclick="() => RunButtonAsync(plugin.Id, definition.Key)">
+                                                    <Icon Name="@definition.Icon" />
                                                     @(buttonState.Label ?? definition.Label)
                                                 </button>
                                             }
