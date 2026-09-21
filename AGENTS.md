@@ -444,6 +444,18 @@ moving the transcode off the song transition and leaving a stream copy behind wh
 - **Nothing outlives the process.** A shutdown token is threaded through reconcile and render,
   `Dispose` cancels and waits before disposing anything a render holds, and a cancelled host-owned
   ffmpeg is killed. Waiting on a token stops the wait, not the process.
+- **A host can turn the whole thing off**, with `MediaStream:PreRenderQueuedSongs` on the App
+  Settings page, and it is on by default. Switching it off drops the renders already made rather
+  than leaving them to expire: the disk it was costing would otherwise stay spent for the night.
+  A format only a plugin can read is then unplayable, which is the trade a host is making.
+- **These settings are read live, through `IOptionsMonitor`, never snapshotted in a constructor.**
+  Both `PreparedMediaService` and `HlsMediaStreamService` used to cache `IOptions.Value`, so
+  changing the segment length did nothing until the next launch while App Settings said it applied
+  immediately. Only the working directory is still resolved once, because moving it would strand
+  the renders and sessions already under it.
+- **`Sweep` clears the failure memo along with the renders.** The memo is keyed by destination, so
+  keeping it across a sweep refuses to retry a song whose render was deleted rather than failed,
+  which is what turning pre-rendering off and on again would otherwise leave behind.
 - **There is a budget and a free-space floor** (`PreparedBudgetMegabytes`,
   `PreparedFreeSpaceFloorMegabytes`, both on the media stream options, zero lifting each). Every
   queued turn gets a render and nothing else bounds the directory, so the cap is a backstop rather

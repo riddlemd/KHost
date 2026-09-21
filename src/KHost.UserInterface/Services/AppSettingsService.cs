@@ -38,6 +38,7 @@ internal sealed class AppSettingsService : IAppSettingsService
         StopFadeSeconds = (_configuration.GetValue<TimeSpan?>("Playback:StopFadeDuration") ?? TimeSpan.FromSeconds(5)).TotalSeconds,
         SyncStartLeadMilliseconds = (_configuration.GetValue<TimeSpan?>("Playback:SyncStartLead") ?? TimeSpan.FromMilliseconds(400)).TotalMilliseconds,
         SegmentSeconds = _configuration.GetValue<int?>("MediaStream:SegmentSeconds") ?? 2,
+        PreRenderQueuedSongs = _configuration.GetValue<bool?>("MediaStream:PreRenderQueuedSongs") ?? true,
         AdDefaultDurationSeconds = AdDurationClamp(
             (_configuration.GetValue<TimeSpan?>("Ads:DefaultDuration")
                 ?? TimeSpan.FromSeconds(AppSettings.DefaultAdDurationSeconds)).TotalSeconds),
@@ -93,7 +94,11 @@ internal sealed class AppSettingsService : IAppSettingsService
                 ["SyncStartLead"] = TimeSpan.FromMilliseconds(settings.SyncStartLeadMilliseconds).ToString(),
                 ["DefaultBackingVolume"] = AudioLevels.ClampVolume(settings.BackingVocalVolume),
             },
-            ["MediaStream"] = new Dictionary<string, object?> { ["SegmentSeconds"] = settings.SegmentSeconds },
+            ["MediaStream"] = new Dictionary<string, object?>
+            {
+                ["SegmentSeconds"] = settings.SegmentSeconds,
+                ["PreRenderQueuedSongs"] = settings.PreRenderQueuedSongs,
+            },
             ["Ads"] = new Dictionary<string, object?>
             {
                 ["DefaultDuration"] = TimeSpan.FromSeconds(AdDurationClamp(settings.AdDefaultDurationSeconds)).ToString(),

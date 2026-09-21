@@ -23,7 +23,7 @@ public class AudioTrackMixTests : IDisposable
     public AudioTrackMixTests()
         => _service = new HlsMediaStreamService(
             NullLogger<HlsMediaStreamService>.Instance,
-            Options.Create(new HlsMediaStreamService.ServiceOptions
+            new TestOptionsMonitor<HlsMediaStreamService.ServiceOptions>(new HlsMediaStreamService.ServiceOptions
             {
                 BaseAddress = "http://host:5251",
                 WorkingDirectory = _workingDirectory,

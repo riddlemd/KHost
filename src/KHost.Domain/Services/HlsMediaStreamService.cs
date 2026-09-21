@@ -25,6 +25,13 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, ID
         /// <summary>Shorter segments start sooner; longer ones survive a worse network.</summary>
         public int SegmentSeconds { get; set; } = 2;
 
+        /// <summary>Whether queued songs are rendered ahead of play time at all.</summary>
+        /// <remarks>On by default: the render is what turns starting a song into a stream copy.
+        /// Turning it off trades that back for the CPU and the disk, and a plugin's own format
+        /// then cannot be played at all, having nothing the host can read. Read live, so a host
+        /// changing it does not have to restart.</remarks>
+        public bool PreRenderQueuedSongs { get; set; } = true;
+
         /// <summary>How much of the disk pre-rendering may hold, in megabytes. Zero lifts the cap.
         /// </summary>
         /// <remarks>Every queued turn gets a render and nothing else bounds the directory, so this
@@ -46,7 +53,7 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, ID
     /// <summary>Generous: a first segment normally lands in well under a second.</summary>
     private static readonly TimeSpan PlaylistTimeout = TimeSpan.FromSeconds(15);
 
-    private readonly ServiceOptions _options;
+    private readonly IOptionsMonitor<ServiceOptions> _options;
     private readonly IPreparedMediaService _prepared;
     private readonly Dictionary<string, Session> _sessions = [];
     private readonly SemaphoreSlim _lock = new(1, 1);
@@ -54,18 +61,28 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, ID
 
     public HlsMediaStreamService(
         ILogger<HlsMediaStreamService> logger,
-        IOptions<ServiceOptions> options,
+        IOptionsMonitor<ServiceOptions> options,
         IPreparedMediaService prepared)
         : base(logger)
     {
         _prepared = prepared;
-        _options = options.Value;
-        _root = string.IsNullOrWhiteSpace(_options.WorkingDirectory)
+        _options = options;
+
+        // The root is resolved once and the rest is read live. Moving the directory under running
+        // sessions would strand the segments they are already serving, where a changed segment
+        // length only decides how the next stream is cut.
+        var working = string.IsNullOrWhiteSpace(Options.WorkingDirectory)
             ? Path.Combine(Path.GetTempPath(), "khost-streams")
-            : _options.WorkingDirectory;
+            : Options.WorkingDirectory;
+
+        _root = working;
 
         Directory.CreateDirectory(_root);
     }
+
+    /// <summary>Read per use, never snapshotted: a host changing the segment length in App
+    /// Settings expects the next song to honour it, not the next launch.</summary>
+    private ServiceOptions Options => _options.CurrentValue;
 
     public async Task<MediaStreamSession> OpenAsync(
         string filePath,
@@ -96,7 +113,7 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, ID
         var source = prepared ?? filePath;
         var (copyWhole, copyVideo) = CopyPlan(
             prepared is not null, pitch, tempo, mix,
-            _options.SegmentSeconds, _prepared.KeyframeSecondsFor(filePath));
+            Options.SegmentSeconds, _prepared.KeyframeSecondsFor(filePath));
         var copyFrom = copyWhole ? prepared : null;
 
         var companionAudio = prepared is null ? ResolveCompanionAudio(filePath) : null;
@@ -105,8 +122,8 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, ID
 
         var arguments = copyFrom is null
             ? BuildArguments(
-                source, startOffset, pitch, tempo, _options.SegmentSeconds, companionAudio, mix, copyVideo)
-            : BuildCopyArguments(copyFrom, startOffset, _options.SegmentSeconds);
+                source, startOffset, pitch, tempo, Options.SegmentSeconds, companionAudio, mix, copyVideo)
+            : BuildCopyArguments(copyFrom, startOffset, Options.SegmentSeconds);
 
         Logger.LogInformation("Opening stream {SessionId} for '{FilePath}' at {Offset}", id, filePath, startOffset);
         Logger.LogDebug("ffmpeg {Arguments}", arguments);
@@ -146,7 +163,7 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, ID
         {
             Id = id,
             SourcePath = filePath,
-            PlaylistUrl = $"{_options.BaseAddress.TrimEnd('/')}/media/{id}/{PlaylistFileName}",
+            PlaylistUrl = $"{Options.BaseAddress.TrimEnd('/')}/media/{id}/{PlaylistFileName}",
             StartOffset = startOffset,
             Pitch = pitch,
             Tempo = tempo,
@@ -210,7 +227,7 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, ID
     }
 
     public string BuildImageUrl(Guid mediaId)
-        => $"{_options.BaseAddress.TrimEnd('/')}/media/image/{mediaId}";
+        => $"{Options.BaseAddress.TrimEnd('/')}/media/image/{mediaId}";
 
     public string? ResolveArtifact(string sessionId, string fileName)
     {

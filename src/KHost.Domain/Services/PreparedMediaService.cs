@@ -23,7 +23,8 @@ public sealed class PreparedMediaService : BaseService, IPreparedMediaService, I
 {
     // The stream service's own options, not a second copy: the segment length has to be the
     // same number here and there, or the copy's keyframes land where the segmenter is not cutting.
-    private readonly HlsMediaStreamService.ServiceOptions _options;
+    private readonly IOptionsMonitor<HlsMediaStreamService.ServiceOptions> _options;
+    private readonly IDisposable? _optionsChanged;
     private readonly string _root;
 
     /// <summary>What a render is called. Not `.mp4`: these are renders of licensed content, and one
@@ -80,20 +81,30 @@ public sealed class PreparedMediaService : BaseService, IPreparedMediaService, I
 
     public PreparedMediaService(
         ILogger<PreparedMediaService> logger,
-        IOptions<HlsMediaStreamService.ServiceOptions> options,
+        IOptionsMonitor<HlsMediaStreamService.ServiceOptions> options,
         IServiceProvider services,
         IMessageBroker broker)
         : base(logger)
     {
-        _options = options.Value;
+        _options = options;
         _services = services;
         _broker = broker;
 
-        var working = string.IsNullOrWhiteSpace(_options.WorkingDirectory)
+        // The directory is resolved once; every knob below it is read live. Moving the root under
+        // renders already on disk would orphan them rather than reuse them.
+        var working = string.IsNullOrWhiteSpace(Options.WorkingDirectory)
             ? Path.Combine(Path.GetTempPath(), "khost-streams")
-            : _options.WorkingDirectory;
+            : Options.WorkingDirectory;
 
         _root = Path.Combine(working, "prepared");
+
+        // Turning it off has to take the renders with it, or the disk it was costing stays spent
+        // for the rest of the night. Sweeping while it is already off costs nothing.
+        _optionsChanged = options.OnChange(current =>
+        {
+            if (!current.PreRenderQueuedSongs)
+                Sweep();
+        });
 
         // On the way up, not lazily: a render is only valid against the venue settings and the
         // source file it was made from, and both can change while the host is down.
@@ -116,8 +127,13 @@ public sealed class PreparedMediaService : BaseService, IPreparedMediaService, I
         StartupReconcile = Task.Run(ReconcileCoalescedAsync);
     }
 
+    /// <summary>Read per use, never snapshotted: these are App Settings a host changes mid-show
+    /// and expects to take effect without a restart.</summary>
+    private HlsMediaStreamService.ServiceOptions Options => _options.CurrentValue;
+
     public void Dispose()
     {
+        _optionsChanged?.Dispose();
         _subscriptions.Dispose();
 
         // Cancel before disposing anything a render holds: releasing a disposed semaphore throws
@@ -245,6 +261,11 @@ public sealed class PreparedMediaService : BaseService, IPreparedMediaService, I
 
     private async Task PrepareAsync(string filePath, TimeSpan? expected, CancellationToken cancellationToken)
     {
+        // Asked first and per song rather than once per pass, since a host may turn it off while a
+        // pass is already walking the queue.
+        if (!Options.PreRenderQueuedSongs)
+            return;
+
         if (!File.Exists(filePath))
             return;
 
@@ -424,6 +445,11 @@ public sealed class PreparedMediaService : BaseService, IPreparedMediaService, I
 
     public void Sweep()
     {
+        // The memo goes with the renders it describes. Kept, it would outlive the files it was
+        // keyed to and refuse to retry a song whose render was swept rather than failed, which is
+        // what turning pre-rendering off and on again would otherwise leave behind.
+        _failed.Clear();
+
         try
         {
             if (Directory.Exists(_root))
@@ -473,7 +499,7 @@ public sealed class PreparedMediaService : BaseService, IPreparedMediaService, I
     public int? KeyframeSecondsFor(string filePath)
         => PreparerFor(filePath) is { } preparer
             ? preparer.KeyframeSeconds
-            : Math.Max(1, _options.SegmentSeconds);
+            : Math.Max(1, Options.SegmentSeconds);
 
     /// <summary>The plugin that owns this format, or null when the host can read the file itself.
     /// </summary>
@@ -533,7 +559,7 @@ public sealed class PreparedMediaService : BaseService, IPreparedMediaService, I
                 return;
             }
 
-            var arguments = BuildArguments(filePath, working, Math.Max(1, _options.SegmentSeconds));
+            var arguments = BuildArguments(filePath, working, Math.Max(1, Options.SegmentSeconds));
 
             using var process = Process.Start(new ProcessStartInfo(HlsMediaStreamService.ResolveFfmpeg(), arguments)
             {
@@ -690,18 +716,18 @@ public sealed class PreparedMediaService : BaseService, IPreparedMediaService, I
     {
         try
         {
-            var budget = (long)Math.Max(0, _options.PreparedBudgetMegabytes) * 1024 * 1024;
-            var floor = (long)Math.Max(0, _options.PreparedFreeSpaceFloorMegabytes) * 1024 * 1024;
+            var budget = (long)Math.Max(0, Options.PreparedBudgetMegabytes) * 1024 * 1024;
+            var floor = (long)Math.Max(0, Options.PreparedFreeSpaceFloorMegabytes) * 1024 * 1024;
 
             if (budget > 0 && HeldBytes() >= budget)
             {
-                LogNoRoom("the {Megabytes} MB budget is used up", _options.PreparedBudgetMegabytes);
+                LogNoRoom("the {Megabytes} MB budget is used up", Options.PreparedBudgetMegabytes);
                 return false;
             }
 
             if (floor > 0 && new DriveInfo(Path.GetPathRoot(_root) ?? _root).AvailableFreeSpace <= floor)
             {
-                LogNoRoom("the volume has less than {Megabytes} MB free", _options.PreparedFreeSpaceFloorMegabytes);
+                LogNoRoom("the volume has less than {Megabytes} MB free", Options.PreparedFreeSpaceFloorMegabytes);
                 return false;
             }
 

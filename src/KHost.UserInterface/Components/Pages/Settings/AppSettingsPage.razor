@@ -62,6 +62,19 @@
                     </span>
                     <InputNumber class="kh-form-control kh-app-settings__number" @bind-Value="_model.SegmentSeconds" min="1" step="1" />
                 </label>
+                <label class="kh-app-settings__row kh-form-check">
+                    <span class="kh-form-check-label">
+                        Get queued songs ready before they are played
+                        <span class="kh-app-settings__apply">applies immediately</span>
+                        <span class="kh-note">
+                            Spends CPU and disk ahead of time so a song starts without a pause.
+                            Turning it off releases what is already rendered, and a format only a
+                            plugin can read will not play at all without it.
+                        </span>
+                    </span>
+                    <InputCheckbox class="kh-form-check-input" @bind-Value="_model.PreRenderQueuedSongs" />
+                </label>
+
                 <label class="kh-app-settings__row">
                     <span>
                         Song controls
