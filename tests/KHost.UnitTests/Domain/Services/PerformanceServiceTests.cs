@@ -254,7 +254,7 @@ public class PerformanceServiceTests
             Arg.Is<string>(message => !string.IsNullOrWhiteSpace(message)), FlashType.Warning);
     }
 
-    /// <summary>The gate is asked about the queue, not the play: Example answers a queue by asking
+    /// <summary>The gate is asked about the queue, not the play: a provider answers a queue by asking
     /// the host to sign in, which is the whole point of refusing this early.</summary>
     [Fact]
     public async Task CreateAndEnqueueAsync_AsksTheGateAboutQueueing()

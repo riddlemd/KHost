@@ -71,7 +71,8 @@ public class EditVenueDialogQrCodeTests : BunitContext
         Assert.Empty(cut.FindAll(SizeSelector));
     }
 
-    /// <summary>Read from the manifest, not what registered: Example has no code until sign-in.</summary>
+    /// <summary>Read from the manifest, not what registered: a provider may have no code until
+    /// it is signed in.</summary>
     [Fact]
     public void ADeclaredSource_IsOfferedBeforeItHasAnyCodeToGive()
     {
