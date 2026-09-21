@@ -191,6 +191,38 @@ public class SelectedSingerInfoPanelQueueRowStatusTests : BunitContext
         Assert.Equal("Preparing", panel.Find(StatusSelector).TextContent.Trim());
     }
 
+    /// <summary>The case a host actually sees, and the one the first cut of this missed. A kit
+    /// that has just downloaded is Ready and unplayable, and stays Unprepared rather than
+    /// Preparing until it gets the single render slot. Reading the in-flight state alone left the
+    /// column saying Ready for most of the wait, while the play control was already greyed.
+    /// </summary>
+    [Fact]
+    public void AKitWaitingItsTurnToRender_AlreadyReadsPreparing()
+    {
+        _media.Status = MediaStatus.Ready;
+        _prepared.StateFor(_media.FilePath!).Returns(PerformancePreparation.Unprepared);
+        _prepared.IsWaitingOnARender(_media.FilePath!).Returns(true);
+
+        var panel = Render<SelectedSingerInfoPanel>();
+
+        Assert.Equal("Preparing", panel.Find(StatusSelector).TextContent.Trim());
+    }
+
+    /// <summary>The column and the play control must answer for one row together: a song the
+    /// control refuses cannot be sitting under a status that says it is Ready.</summary>
+    [Fact]
+    public void AGreyedPlayControl_IsNeverUnderAReadyStatus()
+    {
+        _media.Status = MediaStatus.Ready;
+        _prepared.StateFor(_media.FilePath!).Returns(PerformancePreparation.Unprepared);
+        _prepared.IsWaitingOnARender(_media.FilePath!).Returns(true);
+
+        var panel = Render<SelectedSingerInfoPanel>();
+
+        Assert.True(panel.Find(PlayButtonSelector).HasAttribute("disabled"));
+        Assert.NotEqual("Ready", panel.Find(StatusSelector).TextContent.Trim());
+    }
+
     [Fact]
     public void ARowWithNothingRendering_ReadsItsOwnStatus()
     {
