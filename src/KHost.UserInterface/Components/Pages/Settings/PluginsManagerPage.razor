@@ -390,26 +390,32 @@
                                     @{
                                         var buttons = PluginButtons?.ButtonsFor(plugin.Id) ?? [];
                                     }
-                                    @if (buttons.Count > 0)
-                                    {
-                                        <div class="kh-plugins-manager__actions">
-                                            @foreach (var (definition, buttonState) in buttons)
-                                            {
-                                                <button type="button" class="kh-button @ButtonStyleClass(definition.Style)"
-                                                        disabled="@(!buttonState.Enabled || _runningButtons.Contains($"{plugin.Id}:{definition.Key}"))"
-                                                        @onclick="() => RunButtonAsync(plugin.Id, definition.Key)">
-                                                    <Icon Name="@definition.Icon" />
-                                                    @(buttonState.Label ?? definition.Label)
-                                                </button>
-                                            }
-                                        </div>
-                                    }
-
                                     <div class="kh-plugins-manager__foot">
                                         <button type="button" class="kh-plugins-manager__path" title="Open this plugin's folder"
                                                 @onclick="() => OpenFolder(plugin.Directory)">
                                             <Icon Name="folder2-open" /> @Path.GetFileName(plugin.Directory)
                                         </button>
+
+                                        @* The plugin's own buttons and the host's are two different
+                                           authorities over this row; the rule between them says which
+                                           is which, so it is drawn only when there is a side to divide. *@
+                                        @if (buttons.Count > 0)
+                                        {
+                                            <div class="kh-plugins-manager__actions">
+                                                @foreach (var (definition, buttonState) in buttons)
+                                                {
+                                                    <button type="button" class="kh-button @ButtonStyleClass(definition.Style)"
+                                                            disabled="@(!buttonState.Enabled || _runningButtons.Contains($"{plugin.Id}:{definition.Key}"))"
+                                                            @onclick="() => RunButtonAsync(plugin.Id, definition.Key)">
+                                                        <Icon Name="@definition.Icon" />
+                                                        @(buttonState.Label ?? definition.Label)
+                                                    </button>
+                                                }
+                                            </div>
+                                            <span class="kh-plugins-manager__divider" aria-hidden="true"></span>
+                                        }
+
+                                        <div class="kh-plugins-manager__foot-right">
                                         @if (manifest is not null)
                                         {
                                             @if (IsPendingRemoval(plugin))
@@ -436,6 +442,7 @@
                                         {
                                             <span class="kh-plugins-manager__saved"><Icon Name="check-lg" /> Saved</span>
                                         }
+                                        </div>
                                     </div>
                                 </form>
                             }

@@ -670,7 +670,7 @@ public class PluginsManagerPageTests : BunitContext
                 Arg.Any<string>(), Arg.Any<Action?>(), Arg.Any<Action?>())
             .Returns(async call => { await call.Arg<Func<Task>>()(); return true; });
 
-    private const string ActionButtonSelector = ".kh-plugins-manager__actions button";
+    private const string ActionButtonSelector = ".kh-plugins-manager__actions .kh-button";
 
     [Fact]
     public void Row_DrawsThePluginsButtons_WithTheHandlersLabel()
@@ -865,7 +865,7 @@ public class PluginsManagerPageTests : BunitContext
         var cut = Render<PluginsManagerPage>();
         cut.Find(DisclosureSelector).Click();
 
-        var button = cut.Find(".kh-plugins-manager__actions button");
+        var button = cut.Find(ActionButtonSelector);
         Assert.NotNull(button.QuerySelector("i.bi.bi-box-arrow-in-right"));
         Assert.Contains("Sign in", button.TextContent);
     }
@@ -882,7 +882,7 @@ public class PluginsManagerPageTests : BunitContext
         var cut = Render<PluginsManagerPage>();
         cut.Find(DisclosureSelector).Click();
 
-        Assert.Empty(cut.FindAll(".kh-plugins-manager__actions button i"));
+        Assert.Empty(cut.FindAll(ActionButtonSelector + " i"));
     }
 
     /// <summary>The handler may rename a button per press; the icon is the manifest's and stays
@@ -897,9 +897,51 @@ public class PluginsManagerPageTests : BunitContext
         var cut = Render<PluginsManagerPage>();
         cut.Find(DisclosureSelector).Click();
 
-        var button = cut.Find(".kh-plugins-manager__actions button");
+        var button = cut.Find(ActionButtonSelector);
         Assert.NotNull(button.QuerySelector("i.bi-box-arrow-in-right"));
         Assert.Contains("Sign out", button.TextContent);
+    }
+
+
+    /// <summary>One row at the foot: the folder it was loaded from holding the left edge, then
+    /// every action held right, with the plugin's own buttons divided from the host's. The order
+    /// is the point — the divider only reads as a boundary while it stands between the two.</summary>
+    [Fact]
+    public void APluginsButtons_SitRightOfTheFolder_DividedFromTheHostsControls()
+    {
+        Arrange(Plugin(PluginStatus.Loaded, Setting("a", PluginSettingType.Int, "A")), enabled: true);
+        _buttons.ButtonsFor(PluginId.ToString())
+            .Returns([(Button("session", "Sign in", "box-arrow-in-right"), PluginButtonState.Default)]);
+
+        var cut = Render<PluginsManagerPage>();
+        cut.Find(DisclosureSelector).Click();
+
+        var foot = cut.Find(".kh-plugins-manager__foot");
+
+        Assert.Equal(
+        [
+            "kh-plugins-manager__path",
+            "kh-plugins-manager__actions",
+            "kh-plugins-manager__divider",
+            "kh-plugins-manager__foot-right",
+        ], foot.Children.Select(child => child.ClassName?.Trim()));
+
+        Assert.NotNull(foot.QuerySelector(".kh-plugins-manager__actions .kh-button"));
+        Assert.NotNull(foot.QuerySelector(".kh-plugins-manager__foot-right .kh-button--outline-danger"));
+    }
+
+    /// <summary>A divider with nothing on its left is a rule floating beside the folder, so a
+    /// plugin declaring no buttons draws neither.</summary>
+    [Fact]
+    public void ARowWithNoButtons_DrawsNoDivider()
+    {
+        Arrange(Plugin(PluginStatus.Loaded, Setting("a", PluginSettingType.Int, "A")), enabled: true);
+
+        var cut = Render<PluginsManagerPage>();
+        cut.Find(DisclosureSelector).Click();
+
+        Assert.Empty(cut.FindAll(".kh-plugins-manager__divider"));
+        Assert.NotNull(cut.Find(".kh-plugins-manager__foot .kh-plugins-manager__path"));
     }
 
 }

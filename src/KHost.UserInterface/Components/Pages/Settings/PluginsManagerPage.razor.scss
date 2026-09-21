@@ -246,36 +246,47 @@
         color: var(--kh-success);
     }
 
-    // The plugin's own actions (a login/logout button, say), set apart from the row's settings
-    // above and its install controls below.
+    // The plugin's own actions (a login/logout button, say), run with the host's controls at the
+    // right and separated from them by the divider.
     &__actions {
         display: flex;
         flex-wrap: wrap;
+        align-items: center;
         gap: 0.6em;
+    }
 
-        // Dashed, where the foot below is solid: this separates doing from configuring, and the
-        // solid rule is what ends the panel.
-        margin-top: 0.9em;
-        padding-top: 0.9em;
-        border-top: 1px dashed var(--kh-border);
+    &__divider {
+        width: 1px;
+        height: 1.6em;
+        flex: none;
+        background: var(--kh-border);
+    }
 
-        // With the row's other controls, so the eye tracks one edge down the page.
-        justify-content: flex-end;
+    // What happens to the settings above and to the install itself. It must not take an auto
+    // margin of its own — the path already holds one, and two would split the free space and
+    // strand the plugin's buttons mid-row.
+    &__foot-right {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.6em;
     }
 
     &__foot {
         display: flex;
         align-items: center;
+        flex-wrap: wrap;
         gap: 0.6em;
         padding-top: 0.75em;
         border-top: 1px solid var(--kh-border);
     }
 
+    // Holds the left edge alone and pushes every action to the right.
     &__path {
-        margin-right: auto;
         display: inline-flex;
         align-items: center;
         gap: 0.4em;
+        margin-right: auto;
         padding: 0;
         background: none;
         border: 0;
@@ -422,11 +433,6 @@
     // Answers to the window, not a container: the settings page has no splitter beside it.
     // Threshold is the console's own narrow point, where the indent costs more than it buys.
     @media (max-width: 720px) {
-        // Back to the left: narrow, the right edge is far from the settings the buttons belong to.
-        &__actions {
-            justify-content: flex-start;
-        }
-
         &__panel {
             padding-left: 12px;
         }
