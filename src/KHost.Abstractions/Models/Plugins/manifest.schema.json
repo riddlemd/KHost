@@ -67,6 +67,17 @@
       "type": "array",
       "description": "Extra file extensions (e.g. \".khv\") this plugin's playable output uses, so the media importer's folder scan recognises them.",
       "items": { "type": "string" }
+    },
+    "qrCode": {
+      "type": "object",
+      "description": "Declares this plugin can offer the screens a QR code, which puts it in the venue's source list. Read without resolving the plugin, so a venue can choose it before the plugin has a code to give.",
+      "additionalProperties": false,
+      "properties": {
+        "label": {
+          "type": "string",
+          "description": "What the venue's source list calls it; omitted falls back to the plugin's name."
+        }
+      }
     }
   }
 }
