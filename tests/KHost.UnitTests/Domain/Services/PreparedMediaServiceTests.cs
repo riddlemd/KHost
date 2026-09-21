@@ -1171,6 +1171,7 @@ public class PreparedMediaServiceTests
             await File.WriteAllTextAsync(source, "x");
 
             var service = Service(out _, folder, QueuedOnly(source, WritesTheRender()));
+            await service.StartupReconcile;
             await service.ReconcileAsync();
 
             Assert.NotEmpty(Directory.GetFiles(Path.Combine(folder.FullName, "prepared")));
@@ -1178,24 +1179,106 @@ public class PreparedMediaServiceTests
         finally { folder.Delete(recursive: true); }
     }
 
-    /// <summary>Off, the same queue renders nothing. A host trading the pre-render back for the
-    /// CPU and the disk gets exactly that.</summary>
+    /// <summary>Off, a format only a plugin can read is still rendered. The setting declines an
+    /// optimisation; taking this away would take the provider's whole library off the menu, since the
+    /// host cannot open a .kit at all.</summary>
     [Fact]
-    public async Task WithPreRenderingOff_TheSameQueuePreparesNothing()
+    public async Task WithPreRenderingOff_APluginsOwnFormatIsStillPrepared()
     {
-        var folder = Directory.CreateTempSubdirectory("khost-off-");
+        var folder = Directory.CreateTempSubdirectory("khost-off-kit-");
 
         try
         {
             var source = Path.Combine(folder.FullName, "song.kit");
             await File.WriteAllTextAsync(source, "x");
 
-            var service = Service(out var settings, folder, QueuedOnly(source, WritesTheRender()));
-            settings.Set(Off(settings.CurrentValue));
+            // Off from the start, so nothing can have rendered it before the setting applied.
+            var service = Service(out _, folder, QueuedOnly(source, WritesTheRender()), preRender: false);
+            await service.StartupReconcile;
+
+            await service.ReconcileAsync();
+
+            Assert.NotEmpty(Directory.GetFiles(Path.Combine(folder.FullName, "prepared")));
+        }
+        finally { folder.Delete(recursive: true); }
+    }
+
+    /// <summary>Off from the start, a song the host can play for itself is never rendered, where
+    /// the plugin's format above still is. The pair is what proves the setting reaches one and
+    /// not the other.</summary>
+    [Fact]
+    public async Task WithPreRenderingOffFromTheStart_AHostPlayableSongIsNotPrepared()
+    {
+        var folder = Directory.CreateTempSubdirectory("khost-off-host-");
+
+        try
+        {
+            var source = Path.Combine(folder.FullName, "song.mp4");
+            await File.WriteAllTextAsync(source, "x");
+
+            // The stand-in claims everything here, so the only thing keeping a render away is the
+            // setting: without it this file would render exactly like the kit does.
+            var anything = Substitute.For<IMediaPreparer>();
+            anything.CanPrepare(Arg.Any<string>()).Returns(false);
+
+            var service = Service(out _, folder, QueuedOnly(source, anything), preRender: false);
+            await service.StartupReconcile;
 
             await service.ReconcileAsync();
 
             Assert.Empty(Directory.GetFiles(Path.Combine(folder.FullName, "prepared")));
+        }
+        finally { folder.Delete(recursive: true); }
+    }
+
+    /// <summary>Off, the encode is never started at all. File presence cannot show this, since a
+    /// host render needs ffmpeg and a unit test has not got one: what it would prove is that the
+    /// render failed, not that it was declined. The announcement that opens a render is the
+    /// observable, and not spending that CPU is the whole point of the setting.</summary>
+    [Fact]
+    public async Task WithPreRenderingOff_NoRenderIsEvenStartedForAHostPlayableSong()
+    {
+        var folder = Directory.CreateTempSubdirectory("khost-off-quiet-");
+
+        try
+        {
+            var source = Path.Combine(folder.FullName, "song.mp4");
+            await File.WriteAllTextAsync(source, "x");
+
+            var broker = Substitute.For<IMessageBroker>();
+            var service = Service(
+                out _, folder, QueuedOnly(source), broker: broker, preRender: false);
+
+            await service.StartupReconcile;
+            await service.ReconcileAsync();
+
+            broker.DidNotReceive().Announce(Arg.Any<PreparedMediaChanged>());
+        }
+        finally { folder.Delete(recursive: true); }
+    }
+
+    /// <summary>Switching off must not take a plugin's render with it either. Sweeping the lot
+    /// would delete one the very next pass has to build again.</summary>
+    [Fact]
+    public async Task SwitchingOff_KeepsAPluginsRenderWhileDroppingTheRest()
+    {
+        var folder = Directory.CreateTempSubdirectory("khost-off-keep-kit-");
+
+        try
+        {
+            var kit = Path.Combine(folder.FullName, "song.kit");
+            await File.WriteAllTextAsync(kit, "x");
+
+            var service = Service(out var settings, folder, QueuedOnly(kit, WritesTheRender()));
+            await service.StartupReconcile;
+            await service.ReconcileAsync();
+
+            var render = Assert.Single(Directory.GetFiles(Path.Combine(folder.FullName, "prepared")));
+
+            settings.Set(Off(settings.CurrentValue));
+            await service.ReconcileAsync();
+
+            Assert.True(File.Exists(render), "switching off deleted a render nothing else can play");
         }
         finally { folder.Delete(recursive: true); }
     }
@@ -1226,7 +1309,7 @@ public class PreparedMediaServiceTests
     /// <summary>Switching it off releases what it had already spent. Left behind, the disk it was
     /// costing stays spent for the rest of the night.</summary>
     [Fact]
-    public void SwitchingPreRenderingOff_DropsTheRendersItAlreadyMade()
+    public async Task SwitchingPreRenderingOff_DropsTheRendersItAlreadyMade()
     {
         var folder = Directory.CreateTempSubdirectory("khost-off-drop-");
 
@@ -1240,6 +1323,9 @@ public class PreparedMediaServiceTests
             Assert.True(File.Exists(render));
 
             settings.Set(Off(settings.CurrentValue));
+
+            // The drop runs off the settings callback, which does not block the caller.
+            await WaitUntilAsync(() => !File.Exists(render));
 
             Assert.False(File.Exists(render), "a render outlived the setting that paid for it");
         }
@@ -1286,6 +1372,16 @@ public class PreparedMediaServiceTests
 
     /// <summary>A copy with pre-rendering off. ServiceOptions is a settings class rather than a
     /// record, so the fields are carried across by hand.</summary>
+    /// <summary>The settings callback drops on a background task, so a test that asserts the
+    /// instant it returns races it.</summary>
+    private static async Task WaitUntilAsync(Func<bool> condition)
+    {
+        var deadline = DateTime.UtcNow.AddSeconds(5);
+
+        while (DateTime.UtcNow < deadline && !condition())
+            await Task.Delay(10);
+    }
+
     private static HlsMediaStreamService.ServiceOptions Off(
         HlsMediaStreamService.ServiceOptions from, int? segmentSeconds = null)
         => new()
@@ -1324,26 +1420,28 @@ public class PreparedMediaServiceTests
             var source = Path.Combine(folder.FullName, "song.kit");
             await File.WriteAllTextAsync(source, "x");
 
-            var attempts = 0;
+            // A flag, not a count of attempts: the service reconciles in its constructor too, so
+            // anything counting passes races that one and fails at random in a full run.
+            var canRender = false;
             var preparer = Substitute.For<IMediaPreparer>();
             preparer.CanPrepare(Arg.Any<string>()).Returns(true);
             preparer.PrepareAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
                 .Returns(call =>
                 {
-                    // Fails once, then works: the retry is the whole point, so it has to be able
-                    // to succeed or this would pass on the failure repeating.
-                    if (++attempts == 1) return Task.FromResult(false);
+                    if (!canRender) return Task.FromResult(false);
 
                     File.WriteAllText((string)call[1], "rendered");
                     return Task.FromResult(true);
                 });
 
             var service = Service(out _, folder, QueuedOnly(source, preparer));
+            await service.StartupReconcile;
 
             await service.ReconcileAsync();
             Assert.Empty(Directory.GetFiles(Path.Combine(folder.FullName, "prepared")));
 
-            // Without the memo being cleared this second pass is refused outright.
+            // It could render now, and is still refused: that is the memo doing its job.
+            canRender = true;
             await service.ReconcileAsync();
             Assert.Empty(Directory.GetFiles(Path.Combine(folder.FullName, "prepared")));
 
@@ -1351,7 +1449,6 @@ public class PreparedMediaServiceTests
             await service.ReconcileAsync();
 
             Assert.NotEmpty(Directory.GetFiles(Path.Combine(folder.FullName, "prepared")));
-            Assert.Equal(2, attempts);
         }
         finally { folder.Delete(recursive: true); }
     }
@@ -1402,8 +1499,11 @@ public class PreparedMediaServiceTests
     private static PreparedMediaService Service(
         out TestOptionsMonitor<HlsMediaStreamService.ServiceOptions> settings,
         DirectoryInfo? working = null, IServiceProvider? services = null, TimeSpan? grace = null,
-        IMessageBroker? broker = null, int budgetMegabytes = 0, int segmentSeconds = 2)
+        IMessageBroker? broker = null, int budgetMegabytes = 0, int segmentSeconds = 2,
+        bool preRender = true)
     {
+        // Settable before construction, because the service reconciles on the way up: switching
+        // it off afterwards lets that first pass render the very thing the test says it will not.
         settings = new TestOptionsMonitor<HlsMediaStreamService.ServiceOptions>(
             new HlsMediaStreamService.ServiceOptions
             {
@@ -1412,6 +1512,7 @@ public class PreparedMediaServiceTests
                 PreparedBudgetMegabytes = budgetMegabytes,
                 SegmentSeconds = segmentSeconds,
                 PreparedFreeSpaceFloorMegabytes = 0,
+                PreRenderQueuedSongs = preRender,
             });
 
         return new PreparedMediaService(
