@@ -131,17 +131,6 @@
                                 <div class="kh-selected-singer-info-panel__name-inner">
                                     <span class="@nameClass">@(rowMedia?.Title ?? "Unknown")</span>
 
-                                    @* Only while it is actually rendering. A turn with no render is
-                                       not waiting on anything: it plays the moment it is asked, by
-                                       the transcode that has always been there. *@
-                                    @if (PreparationOf(rowMedia) == PerformancePreparation.Preparing)
-                                    {
-                                        <span class="kh-selected-singer-info-panel__preparing"
-                                              title="Getting this song ready, so it starts without a pause">
-                                            <Icon Name="arrow-repeat" />
-                                        </span>
-                                    }
-
                                     @if (performance.Pitch != 0)
                                     {
                                         <span class="kh-selected-singer-info-panel__pitch"
@@ -174,7 +163,8 @@
                             <td class="kh-selected-singer-info-panel__status">
                                 @if (rowMedia is not null)
                                 {
-                                    <span class="kh-badge @MediaStatusDisplay.BadgeClass(rowMedia.Status)">@rowMedia.Status</span>
+                                    var status = StatusOf(rowMedia);
+                                    <span class="kh-badge @status.BadgeClass">@status.Label</span>
                                 }
                             </td>
                             <td class="kh-table__cell--actions">
