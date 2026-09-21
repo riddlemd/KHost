@@ -1,4 +1,5 @@
 using KHost.Abstractions.Models;
+using KHost.Abstractions.Models.Backgrounds;
 using KHost.Abstractions.Services;
 using KHost.UserInterface.Models;
 using Microsoft.AspNetCore.Components;
@@ -39,6 +40,7 @@ public partial class EditVenueDialog
     [Inject] private IMediaPoolService MediaPools { get; set; } = default!;
     [Inject] private IBreakMusicService BreakMusic { get; set; } = default!;
     [Inject] private IPluginRegistry Plugins { get; set; } = default!;
+    [Inject] private IBackgroundPackService BackgroundPacks { get; set; } = default!;
 
     private IReadOnlyList<Media> _images = [];
     private IReadOnlyList<MediaPool> _breakMusicPools = [];
@@ -114,6 +116,7 @@ public partial class EditVenueDialog
                     DefaultVolume = Venue.Settings.DefaultVolume,
                     OnScreenDisconnect = Venue.Settings.OnScreenDisconnect,
                     ShowEstimatedWaitTime = Venue.Settings.ShowEstimatedWaitTime,
+                    SongBackgrounds = [.. Venue.Settings.SongBackgrounds ?? []],
                     TippingEnabled = Venue.Settings.TippingEnabled,
                     WarnOnDuplicateSong = Venue.Settings.WarnOnDuplicateSong,
                     // Venues saved before this setting existed read back 0, which is not an option.
@@ -190,6 +193,8 @@ public partial class EditVenueDialog
         _breakMusicPools = await MediaPools.ReadAllWithEntriesAsync(PoolPurpose.BreakMusic, venueId: null);
         _adPools = await MediaPools.ReadAllWithEntriesAsync(PoolPurpose.Ads, venueId: null);
 
+        await ReloadBackgroundPackAsync();
+
         _brandingImage = _images.FirstOrDefault(image => image.Id == _model.BrandingImageMediaId);
         _brandingImageText = _brandingImage?.Title ?? "";
 
@@ -237,6 +242,51 @@ public partial class EditVenueDialog
             await SaveAsync();
     }
 
+    private BackgroundPack _backgroundPack = new();
+
+    /// <summary>Read when the dialog opens: the folders are machine settings, not this venue's.
+    /// </summary>
+    private async Task ReloadBackgroundPackAsync()
+        => _backgroundPack = await BackgroundPacks.ReadAsync();
+
+    /// <summary>A stable DOM id for a background's checkbox.</summary>
+    /// <remarks>Derived from the file name, which may hold spaces and dots — both legal in an id
+    /// attribute but not in the selector a test or a stylesheet would reach it with.</remarks>
+    private static string BackgroundInputId(BackgroundPackEntry entry)
+        => "venue-background-" + string.Concat(entry.File.Select(c => char.IsLetterOrDigit(c) ? c : '-'));
+
+    private bool IsBackgroundEnabled(BackgroundPackEntry entry)
+        => _model.SongBackgrounds.Contains(entry.File, StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Ticking a background adds it to the pool a song is picked from.</summary>
+    /// <remarks>Names of clips no longer in the folder are left alone rather than tidied away: a
+    /// folder that is temporarily unreachable would otherwise silently empty a venue's choices, and
+    /// a name nothing matches costs nothing at render time.</remarks>
+    private void ToggleBackground(BackgroundPackEntry entry, bool enabled)
+    {
+        _model.SongBackgrounds.RemoveAll(name => string.Equals(name, entry.File, StringComparison.OrdinalIgnoreCase));
+
+        if (enabled) _model.SongBackgrounds.Add(entry.File);
+    }
+
+    /// <summary>The still is asked for by name, never by path — the browser cannot reach the
+    /// folder, and does not need to know where it is.</summary>
+    private static string BackgroundStillUrl(BackgroundPackEntry entry)
+        => $"/venue/background-still?file={Uri.EscapeDataString(entry.File)}";
+
+    /// <summary>What the venue is about to get, said back to them.</summary>
+    private string BackgroundSummary()
+    {
+        var enabled = _backgroundPack.Entries.Count(IsBackgroundEnabled);
+
+        return enabled switch
+        {
+            0 => "Songs render on plain black.",
+            1 => $"Every song uses {_backgroundPack.Entries.First(IsBackgroundEnabled).Name}.",
+            _ => $"A different one of these {enabled} for each song, picked as it renders.",
+        };
+    }
+
     private async Task SaveAsync()
     {
         var venue = Venue ?? new Venue { Id = _model.Id, Name = _model.Name };
@@ -246,6 +296,7 @@ public partial class EditVenueDialog
         venue.Settings.DefaultVolume = _model.DefaultVolume;
         venue.Settings.OnScreenDisconnect = _model.OnScreenDisconnect;
         venue.Settings.ShowEstimatedWaitTime = _model.ShowEstimatedWaitTime;
+        venue.Settings.SongBackgrounds = [.. _model.SongBackgrounds];
         venue.Settings.TippingEnabled = _model.TippingEnabled;
         venue.Settings.WarnOnDuplicateSong = _model.WarnOnDuplicateSong;
         venue.Settings.DuplicateSongWindowHours = _model.DuplicateSongWindowHours;

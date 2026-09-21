@@ -113,6 +113,12 @@
   </Target>
 
 
+  <!-- The song backgrounds shipped with KHost. Copied beside the binary, which is where
+       BackgroundPackService looks for them; a host's own folder is added to these, not instead. -->
+  <ItemGroup>
+    <Content Include="backgrounds\**" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
   <ItemGroup>
     <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
       <_Parameter1>KHost.UnitTests</_Parameter1>

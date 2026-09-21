@@ -9,3 +9,72 @@
         width: auto;
     }
 }
+
+/* The backgrounds a venue may give a song. Its own block rather than an element of
+   kh-venue-settings, which is shared: only this dialog renders these. */
+.kh-background-tiles {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
+}
+
+.kh-background-tile {
+    position: relative;
+    display: block;
+    cursor: pointer;
+    min-width: 0;
+
+    /* Over the still rather than beside it, so the tile is the target and the picture is the
+       whole of the tile. */
+    &__check {
+        position: absolute;
+        top: 0.375rem;
+        left: 0.375rem;
+        z-index: 1;
+        margin: 0;
+    }
+
+    &__art {
+        display: block;
+        width: 100%;
+        max-width: 100%;
+        aspect-ratio: 16 / 9;
+        object-fit: cover;
+        border-radius: var(--kh-radius);
+        border: 1px solid var(--kh-border);
+        background: var(--kh-bg-input);
+
+        /* A clip with no picture beside it is still pickable, by name. */
+        &--blank {
+            background-image: repeating-linear-gradient(
+                -45deg,
+                var(--kh-bg-input) 0 6px,
+                var(--kh-bg-card) 6px 12px
+            );
+        }
+    }
+
+    /* Unticked reads as available-but-off rather than absent, so a venue can see the whole pack. */
+    &__check:not(:checked) ~ &__art {
+        opacity: 0.4;
+    }
+
+    &__check:checked ~ &__art {
+        border-color: var(--kh-primary-bright);
+    }
+
+    &__name {
+        display: block;
+        padding-top: 0.25rem;
+        font-size: 0.75rem;
+        color: var(--kh-text-muted);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    &__check:checked ~ &__name {
+        color: var(--kh-text);
+    }
+}
