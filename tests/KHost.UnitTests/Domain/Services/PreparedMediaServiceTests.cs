@@ -1157,24 +1157,270 @@ public class PreparedMediaServiceTests
         Assert.Contains("-ss 42.000", arguments, StringComparison.Ordinal);
     }
 
+    /// <summary>On, a queued song is rendered. Held against the off case below, since "nothing
+    /// was rendered" is true of a setup that renders nothing anyway, and would pass with the
+    /// setting ignored entirely.</summary>
+    [Fact]
+    public async Task WithPreRenderingOn_AQueuedSongIsPrepared()
+    {
+        var folder = Directory.CreateTempSubdirectory("khost-on-");
+
+        try
+        {
+            var source = Path.Combine(folder.FullName, "song.kit");
+            await File.WriteAllTextAsync(source, "x");
+
+            var service = Service(out _, folder, QueuedOnly(source, WritesTheRender()));
+            await service.ReconcileAsync();
+
+            Assert.NotEmpty(Directory.GetFiles(Path.Combine(folder.FullName, "prepared")));
+        }
+        finally { folder.Delete(recursive: true); }
+    }
+
+    /// <summary>Off, the same queue renders nothing. A host trading the pre-render back for the
+    /// CPU and the disk gets exactly that.</summary>
+    [Fact]
+    public async Task WithPreRenderingOff_TheSameQueuePreparesNothing()
+    {
+        var folder = Directory.CreateTempSubdirectory("khost-off-");
+
+        try
+        {
+            var source = Path.Combine(folder.FullName, "song.kit");
+            await File.WriteAllTextAsync(source, "x");
+
+            var service = Service(out var settings, folder, QueuedOnly(source, WritesTheRender()));
+            settings.Set(Off(settings.CurrentValue));
+
+            await service.ReconcileAsync();
+
+            Assert.Empty(Directory.GetFiles(Path.Combine(folder.FullName, "prepared")));
+        }
+        finally { folder.Delete(recursive: true); }
+    }
+
+    /// <summary>Only switching it off drops the renders. Saving any other setting while it is on
+    /// must leave them alone, or every visit to App Settings costs the night its pre-renders.
+    /// </summary>
+    [Fact]
+    public void AnUnrelatedSettingSavedWhileOn_KeepsTheRenders()
+    {
+        var folder = Directory.CreateTempSubdirectory("khost-on-keep-");
+
+        try
+        {
+            var source = Path.Combine(folder.FullName, "song.mp4");
+            File.WriteAllText(source, "x");
+
+            var service = Service(out var settings, folder, QueuedOnly(source));
+            var render = RenderFor(service, source, folder);
+
+            settings.Set(WithSegment(settings.CurrentValue, 6));
+
+            Assert.True(File.Exists(render), "an unrelated setting dropped the renders");
+        }
+        finally { folder.Delete(recursive: true); }
+    }
+
+    /// <summary>Switching it off releases what it had already spent. Left behind, the disk it was
+    /// costing stays spent for the rest of the night.</summary>
+    [Fact]
+    public void SwitchingPreRenderingOff_DropsTheRendersItAlreadyMade()
+    {
+        var folder = Directory.CreateTempSubdirectory("khost-off-drop-");
+
+        try
+        {
+            var source = Path.Combine(folder.FullName, "song.mp4");
+            File.WriteAllText(source, "x");
+
+            var service = Service(out var settings, folder, QueuedOnly(source));
+            var render = RenderFor(service, source, folder);
+            Assert.True(File.Exists(render));
+
+            settings.Set(Off(settings.CurrentValue));
+
+            Assert.False(File.Exists(render), "a render outlived the setting that paid for it");
+        }
+        finally { folder.Delete(recursive: true); }
+    }
+
+    /// <summary>Saving any other setting while it is off must not be read as switching it off
+    /// again, and must not throw on a directory that is already empty.</summary>
+    [Fact]
+    public void AnUnrelatedSettingSavedWhileOff_IsHarmless()
+    {
+        var folder = Directory.CreateTempSubdirectory("khost-off-noop-");
+
+        try
+        {
+            var service = Service(out var settings, folder);
+            settings.Set(Off(settings.CurrentValue));
+            settings.Set(Off(settings.CurrentValue, segmentSeconds: 6));
+
+            Assert.Equal(6, service.KeyframeSecondsFor("/songs/a.mp4"));
+        }
+        finally { folder.Delete(recursive: true); }
+    }
+
+    /// <summary>The bug this fixed: the service snapshotted its settings in the constructor, so a
+    /// changed segment length did nothing until the next launch while the page said it applied
+    /// immediately.</summary>
+    [Fact]
+    public void AChangedSegmentLength_TakesEffectWithoutARestart()
+    {
+        var folder = Directory.CreateTempSubdirectory("khost-live-");
+
+        try
+        {
+            var service = Service(out var settings, folder, segmentSeconds: 2);
+            Assert.Equal(2, service.KeyframeSecondsFor("/songs/a.mp4"));
+
+            settings.Set(WithSegment(settings.CurrentValue, 6));
+
+            Assert.Equal(6, service.KeyframeSecondsFor("/songs/a.mp4"));
+        }
+        finally { folder.Delete(recursive: true); }
+    }
+
+    /// <summary>A copy with pre-rendering off. ServiceOptions is a settings class rather than a
+    /// record, so the fields are carried across by hand.</summary>
+    private static HlsMediaStreamService.ServiceOptions Off(
+        HlsMediaStreamService.ServiceOptions from, int? segmentSeconds = null)
+        => new()
+        {
+            BaseAddress = from.BaseAddress,
+            WorkingDirectory = from.WorkingDirectory,
+            PreparedBudgetMegabytes = from.PreparedBudgetMegabytes,
+            PreparedFreeSpaceFloorMegabytes = from.PreparedFreeSpaceFloorMegabytes,
+            SegmentSeconds = segmentSeconds ?? from.SegmentSeconds,
+            PreRenderQueuedSongs = false,
+        };
+
+    private static HlsMediaStreamService.ServiceOptions WithSegment(
+        HlsMediaStreamService.ServiceOptions from, int segmentSeconds)
+        => new()
+        {
+            BaseAddress = from.BaseAddress,
+            WorkingDirectory = from.WorkingDirectory,
+            PreparedBudgetMegabytes = from.PreparedBudgetMegabytes,
+            PreparedFreeSpaceFloorMegabytes = from.PreparedFreeSpaceFloorMegabytes,
+            SegmentSeconds = segmentSeconds,
+            PreRenderQueuedSongs = from.PreRenderQueuedSongs,
+        };
+
+    /// <summary>A sweep is a fresh start, so the memo of what failed goes with the renders it was
+    /// keyed to. Kept, it would refuse to retry a song whose render was swept rather than failed,
+    /// which is what turning pre-rendering off and on again would otherwise leave behind.
+    /// </summary>
+    [Fact]
+    public async Task AfterASweep_ASongThatFailedIsTriedAgain()
+    {
+        var folder = Directory.CreateTempSubdirectory("khost-memo-");
+
+        try
+        {
+            var source = Path.Combine(folder.FullName, "song.kit");
+            await File.WriteAllTextAsync(source, "x");
+
+            var attempts = 0;
+            var preparer = Substitute.For<IMediaPreparer>();
+            preparer.CanPrepare(Arg.Any<string>()).Returns(true);
+            preparer.PrepareAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+                .Returns(call =>
+                {
+                    // Fails once, then works: the retry is the whole point, so it has to be able
+                    // to succeed or this would pass on the failure repeating.
+                    if (++attempts == 1) return Task.FromResult(false);
+
+                    File.WriteAllText((string)call[1], "rendered");
+                    return Task.FromResult(true);
+                });
+
+            var service = Service(out _, folder, QueuedOnly(source, preparer));
+
+            await service.ReconcileAsync();
+            Assert.Empty(Directory.GetFiles(Path.Combine(folder.FullName, "prepared")));
+
+            // Without the memo being cleared this second pass is refused outright.
+            await service.ReconcileAsync();
+            Assert.Empty(Directory.GetFiles(Path.Combine(folder.FullName, "prepared")));
+
+            service.Sweep();
+            await service.ReconcileAsync();
+
+            Assert.NotEmpty(Directory.GetFiles(Path.Combine(folder.FullName, "prepared")));
+            Assert.Equal(2, attempts);
+        }
+        finally { folder.Delete(recursive: true); }
+    }
+
+    /// <summary>Stands in for a plugin's renderer: writes the destination the host asked for, so
+    /// a render lands deterministically and the decision to render is what is under test.</summary>
+    private static IMediaPreparer WritesTheRender()
+    {
+        var preparer = Substitute.For<IMediaPreparer>();
+        preparer.CanPrepare(Arg.Any<string>()).Returns(call => ((string)call[0]).EndsWith(".kit", StringComparison.Ordinal));
+        preparer.PrepareAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(call =>
+            {
+                File.WriteAllText((string)call[1], "rendered");
+                return Task.FromResult(true);
+            });
+
+        return preparer;
+    }
+
+    private static IServiceProvider QueuedOnly(string filePath, IMediaPreparer? preparer = null)
+    {
+        var media = new Media { Id = Guid.NewGuid(), Title = "Song", FilePath = filePath };
+        var services = Substitute.For<IServiceProvider>();
+
+        var performances = Substitute.For<IPerformanceService>();
+        performances.ReadQueuedAsync().Returns(_ =>
+            new List<Performance> { new() { Id = Guid.NewGuid(), MediaId = media.Id, QueuePosition = 1 } });
+        services.GetService(typeof(IPerformanceService)).Returns(performances);
+
+        var library = Substitute.For<IMediaService>();
+        library.ReadAsync(media.Id).Returns(media);
+        services.GetService(typeof(IMediaService)).Returns(library);
+        services.GetService(typeof(IPlaybackService)).Returns(Substitute.For<IPlaybackService>());
+        services.GetService(typeof(IEnumerable<IMediaPreparer>))
+            .Returns(preparer is null ? Array.Empty<IMediaPreparer>() : [preparer]);
+
+        return services;
+    }
+
     private static PreparedMediaService Service(
         DirectoryInfo? working = null, IServiceProvider? services = null, TimeSpan? grace = null,
         IMessageBroker? broker = null, int budgetMegabytes = 0, int segmentSeconds = 2)
-        => new(
-            NullLogger<PreparedMediaService>.Instance,
-            Options.Create(new HlsMediaStreamService.ServiceOptions
+        => Service(out _, working, services, grace, broker, budgetMegabytes, segmentSeconds);
+
+    /// <summary>Hands the monitor back, so a test can change a setting the way saving App Settings
+    /// does and watch the service answer to it.</summary>
+    private static PreparedMediaService Service(
+        out TestOptionsMonitor<HlsMediaStreamService.ServiceOptions> settings,
+        DirectoryInfo? working = null, IServiceProvider? services = null, TimeSpan? grace = null,
+        IMessageBroker? broker = null, int budgetMegabytes = 0, int segmentSeconds = 2)
+    {
+        settings = new TestOptionsMonitor<HlsMediaStreamService.ServiceOptions>(
+            new HlsMediaStreamService.ServiceOptions
             {
                 BaseAddress = "http://host:5251/",
                 WorkingDirectory = (working ?? Directory.CreateTempSubdirectory("khost-state-root-")).FullName,
                 PreparedBudgetMegabytes = budgetMegabytes,
                 SegmentSeconds = segmentSeconds,
-
-                // Off by default here: a build machine's free space is not this test's business.
                 PreparedFreeSpaceFloorMegabytes = 0,
-            }),
+            });
+
+        return new PreparedMediaService(
+            NullLogger<PreparedMediaService>.Instance,
+            settings,
             services ?? Substitute.For<IServiceProvider>(),
             broker ?? Substitute.For<IMessageBroker>())
         {
             KeepAfterUnwanted = grace ?? TimeSpan.FromMinutes(5),
         };
+    }
 }
