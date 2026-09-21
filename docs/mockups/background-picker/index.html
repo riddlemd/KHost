@@ -1,0 +1,737 @@
+<title>Venue Background Picker</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  /* KHost grape theme, verbatim from wwwroot/scss/themes/grape.scss */
+  :root {
+    --kh-primary: #5D2B90;
+    --kh-primary-bright: #A86AD4;
+    --kh-primary-subtle: rgba(93, 43, 144, 0.14);
+    --kh-accent-bright: #FF6B1A;
+    --kh-bg: #0B0814;
+    --kh-bg-card: #131025;
+    --kh-bg-elevated: #1C1836;
+    --kh-bg-input: #0E0C1C;
+    --kh-border: rgba(93, 43, 144, 0.28);
+    --kh-border-bright: rgba(93, 43, 144, 0.55);
+    --kh-text: #DDD4F0;
+    --kh-text-secondary: #8878A8;
+    --kh-text-muted: #6b5a82;
+    --kh-warning: #F59E0B;
+    --kh-danger: #EF4444;
+    --kh-success: #22C55E;
+    --kh-radius: 8px;
+    --kh-radius-lg: 12px;
+    --kh-font: 'Segoe UI', system-ui, sans-serif;
+
+    /* Page chrome — a separate register, so commentary never reads as product. */
+    --page-font: 'IBM Plex Sans', system-ui, sans-serif;
+    --page-mono: 'IBM Plex Mono', ui-monospace, monospace;
+    --page-ink: #C9BEDF;
+    --page-ink-dim: #7C6C96;
+    --page-rule: rgba(93, 43, 144, 0.22);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    background: var(--kh-bg);
+    color: var(--page-ink);
+    font-family: var(--page-font);
+    margin: 0;
+    padding-inline: 20px;
+    padding-block: 40px 72px;
+    line-height: 1.55;
+  }
+
+  .wrap { max-width: 1140px; margin-inline: auto; }
+
+  /* ---------- page header ---------- */
+  .masthead { border-bottom: 1px solid var(--page-rule); padding-bottom: 24px; margin-bottom: 8px; }
+  .masthead h1 {
+    font-size: clamp(1.6rem, 1.2rem + 1.6vw, 2.3rem);
+    font-weight: 600; margin: 0 0 8px; color: #EDE6F8; text-wrap: balance; letter-spacing: -0.015em;
+  }
+  .masthead p { margin: 0; max-width: 64ch; color: var(--page-ink-dim); font-size: 0.95rem; }
+  .eyebrow {
+    font-family: var(--page-mono); font-size: 0.7rem; letter-spacing: 0.16em;
+    text-transform: uppercase; color: var(--kh-primary-bright); margin: 0 0 10px;
+  }
+
+  .brief {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1px; background: var(--page-rule); border: 1px solid var(--page-rule);
+    border-radius: var(--kh-radius); overflow: hidden; margin: 28px 0 44px;
+  }
+  .brief div { background: var(--kh-bg-card); padding: 14px 16px; }
+  .brief dt {
+    font-family: var(--page-mono); font-size: 0.68rem; letter-spacing: 0.12em;
+    text-transform: uppercase; color: var(--page-ink-dim); margin-bottom: 4px;
+  }
+  .brief dd { margin: 0; font-size: 0.9rem; color: var(--page-ink); }
+
+  /* ---------- option rows ---------- */
+  .option { display: grid; grid-template-columns: minmax(0, 420px) minmax(0, 1fr); gap: 28px; padding: 32px 0; border-top: 1px solid var(--page-rule); align-items: start; }
+  .option:first-of-type { border-top: none; }
+  @media (max-width: 760px) { .option { grid-template-columns: 1fr; gap: 18px; } }
+
+  .option__note h2 {
+    font-size: 1.02rem; font-weight: 600; color: #EDE6F8; margin: 0 0 6px;
+    display: flex; align-items: baseline; gap: 10px;
+  }
+  .num {
+    font-family: var(--page-mono); font-size: 0.78rem; color: var(--kh-primary-bright);
+    font-weight: 500; font-variant-numeric: tabular-nums;
+  }
+  .option__note p { margin: 0 0 10px; font-size: 0.88rem; color: var(--page-ink-dim); max-width: 58ch; }
+  .verdict { font-size: 0.82rem; display: flex; gap: 8px; align-items: baseline; margin-top: 12px; }
+  .verdict b { font-family: var(--page-mono); font-size: 0.68rem; letter-spacing: 0.1em; text-transform: uppercase; flex: none; }
+  .verdict--good b { color: var(--kh-success); }
+  .verdict--cost b { color: var(--kh-warning); }
+  .verdict span { color: var(--page-ink-dim); }
+
+  .pick {
+    display: inline-block; font-family: var(--page-mono); font-size: 0.64rem;
+    letter-spacing: 0.12em; text-transform: uppercase; color: var(--kh-bg);
+    background: var(--kh-primary-bright); padding: 3px 8px; border-radius: 4px; margin-left: 4px;
+  }
+
+  /* ---------- the dialog mockup itself: KHost classes ---------- */
+  .mock {
+    background: var(--kh-bg-card); border: 1px solid var(--kh-border);
+    border-radius: var(--kh-radius-lg); padding: 4px 18px 18px; font-family: var(--kh-font);
+    color: var(--kh-text); font-size: 0.9rem;
+  }
+  .kh-venue-settings__section-title {
+    display: block; font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase;
+    color: var(--kh-text-secondary); padding: 16px 0 10px; border-bottom: 1px solid var(--kh-border); margin-bottom: 12px;
+  }
+  .kh-venue-settings__row {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 14px; margin-bottom: 12px; min-height: 34px;
+  }
+  .kh-venue-settings__labelled { display: flex; flex-direction: column; min-width: 0; }
+  .kh-form-label { color: var(--kh-text); font-size: 0.88rem; flex: none; }
+  .kh-form-select, .kh-form-control {
+    background: var(--kh-bg-input); color: var(--kh-text);
+    border: 1px solid var(--kh-border-bright); border-radius: var(--kh-radius);
+    padding: 7px 10px; font-family: inherit; font-size: 0.86rem; min-width: 0; flex: 1 1 190px; max-width: 230px;
+  }
+  .kh-form-control--path { font-family: var(--page-mono); font-size: 0.76rem; }
+  .kh-form-check { cursor: pointer; }
+  .kh-form-check-label { color: var(--kh-text); font-size: 0.88rem; }
+  .kh-form-check-input {
+    appearance: none; width: 18px; height: 18px; flex: none; border-radius: 4px;
+    border: 1px solid var(--kh-border-bright); background: var(--kh-bg-input); position: relative; cursor: pointer;
+  }
+  .kh-form-check-input:checked { background: var(--kh-primary); border-color: var(--kh-primary-bright); }
+  .kh-form-check-input:checked::after {
+    content: ""; position: absolute; left: 5px; top: 1px; width: 5px; height: 10px;
+    border: solid var(--kh-text); border-width: 0 2px 2px 0; transform: rotate(42deg);
+  }
+  .kh-form-check-input:focus-visible, .kh-form-select:focus-visible,
+  .kh-form-control:focus-visible, .seg button:focus-visible, .tile:focus-visible,
+  .disclose summary:focus-visible {
+    outline: 2px solid var(--kh-primary-bright); outline-offset: 2px;
+  }
+  .kh-note {
+    display: block; font-size: 0.75rem; line-height: 1.5; color: var(--kh-text-muted);
+    margin: 0 0 12px;
+  }
+  .kh-note--warning { color: var(--kh-warning); }
+  .kh-note--danger { color: var(--kh-danger); }
+
+  /* segmented control */
+  .seg { display: flex; border: 1px solid var(--kh-border-bright); border-radius: var(--kh-radius); overflow: hidden; }
+  .seg button {
+    flex: 1; background: var(--kh-bg-input); color: var(--kh-text-secondary); border: 0;
+    border-right: 1px solid var(--kh-border); padding: 7px 10px; font: inherit; font-size: 0.82rem; cursor: pointer;
+  }
+  .seg button:last-child { border-right: 0; }
+  .seg button[aria-pressed="true"] { background: var(--kh-primary); color: var(--kh-text); }
+
+  /* thumbnail tiles */
+  .tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; margin-bottom: 12px; }
+  .tile {
+    border: 1px solid var(--kh-border); border-radius: var(--kh-radius); padding: 0; background: none;
+    cursor: pointer; overflow: hidden; text-align: left; font: inherit; color: var(--kh-text-secondary);
+  }
+  .tile[aria-pressed="true"] { border-color: var(--kh-primary-bright); color: var(--kh-text); }
+  .tile i { display: block; aspect-ratio: 16 / 9; background-size: cover; background-position: center; }
+  .tile img { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; max-width: 100%; }
+  .tile span { display: block; font-size: 0.7rem; padding: 5px 6px; }
+  .sw-none   { background: #08070c; }
+  .sw-random { background: conic-gradient(from 210deg, #6b3d08, #5a2a86, #123a52, #6b3d08); }
+
+  /* preview beside a select */
+  .preview { display: flex; gap: 12px; align-items: flex-start; margin-bottom: 12px; }
+  .preview img {
+    width: 132px; flex: none; border-radius: 6px; border: 1px solid var(--kh-border);
+    aspect-ratio: 16 / 9; object-fit: cover; max-width: 100%;
+  }
+  .preview__meta { min-width: 0; font-size: 0.78rem; }
+  .preview__meta b { display: block; color: var(--kh-text); font-weight: 500; font-size: 0.84rem; }
+  .preview__meta em {
+    font-style: normal; color: var(--kh-text-muted);
+    font-family: var(--page-mono); font-size: 0.72rem;
+  }
+  .credits img {
+    width: 46px; flex: none; border-radius: 3px; aspect-ratio: 16 / 9; object-fit: cover; max-width: 100%;
+  }
+  .credits li { align-items: center; }
+  .credits__name { display: flex; align-items: center; gap: 9px; min-width: 0; }
+
+  /* credits disclosure */
+  .disclose { border: 1px solid var(--kh-border); border-radius: var(--kh-radius); margin-bottom: 12px; }
+  .disclose summary {
+    cursor: pointer; padding: 8px 12px; font-size: 0.82rem; color: var(--kh-text-secondary); list-style: none;
+  }
+  .disclose summary::-webkit-details-marker { display: none; }
+  .disclose summary::before { content: "▸ "; color: var(--kh-primary-bright); }
+  .disclose[open] summary::before { content: "▾ "; }
+  .credits { margin: 0; padding: 0 12px 10px; list-style: none; }
+  .credits li {
+    display: flex; justify-content: space-between; gap: 12px; padding: 5px 0;
+    border-top: 1px solid var(--kh-border); font-size: 0.78rem;
+  }
+  .credits b { font-weight: 500; color: var(--kh-text); }
+  .credits em { font-style: normal; color: var(--kh-text-muted); font-family: var(--page-mono); font-size: 0.72rem; text-align: right; }
+
+  .count { font-size: 0.78rem; color: var(--kh-text-muted); }
+  .linkish { color: var(--kh-primary-bright); text-decoration: underline; cursor: pointer; font-size: 0.78rem; background: none; border: 0; font: inherit; padding: 0; }
+
+  .stack { display: flex; flex-direction: column; gap: 8px; }
+  .indent { padding-left: 14px; border-left: 2px solid var(--kh-border); }
+
+  /* ---------- chosen control ---------- */
+  .chosen { margin: 0 0 12px; }
+  .chosen__lead { border-left: 3px solid var(--kh-primary-bright); padding-left: 16px; margin-bottom: 28px; }
+  .chosen__lead h2 { font-size: 1.25rem; color: #EDE6F8; margin: 0 0 6px; font-weight: 600; }
+  .chosen__lead p { margin: 0; font-size: 0.9rem; color: var(--page-ink-dim); max-width: 66ch; }
+  .states { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
+  .state h3 {
+    font-family: var(--page-mono); font-size: 0.66rem; letter-spacing: 0.12em;
+    text-transform: uppercase; color: var(--page-ink-dim); margin: 0 0 8px; font-weight: 500;
+  }
+
+  /* pick tiles: still + checkbox */
+  .picks { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 8px; margin-bottom: 10px; }
+  .pick-tile { position: relative; display: block; cursor: pointer; }
+  .pick-tile input {
+    position: absolute; top: 6px; left: 6px; z-index: 2; margin: 0;
+    appearance: none; width: 18px; height: 18px; border-radius: 4px;
+    border: 1px solid rgba(255,255,255,0.65); background: rgba(8,7,12,0.72); cursor: pointer;
+  }
+  .pick-tile input:checked { background: var(--kh-primary); border-color: var(--kh-primary-bright); }
+  .pick-tile input:checked::after {
+    content: ""; position: absolute; left: 5px; top: 1px; width: 5px; height: 10px;
+    border: solid #fff; border-width: 0 2px 2px 0; transform: rotate(42deg);
+  }
+  .pick-tile input:focus-visible { outline: 2px solid var(--kh-primary-bright); outline-offset: 2px; }
+  .pick-tile__art {
+    display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; max-width: 100%;
+    border-radius: var(--kh-radius); border: 1px solid var(--kh-border); background: #08070c;
+  }
+  .pick-tile input:not(:checked) ~ .pick-tile__art { opacity: 0.38; }
+  .pick-tile input:checked ~ .pick-tile__art { border-color: var(--kh-primary-bright); }
+  .pick-tile__name { display: block; font-size: 0.72rem; padding-top: 4px; color: var(--kh-text-secondary); }
+  .pick-tile input:checked ~ .pick-tile__name { color: var(--kh-text); }
+
+  /* authoring section */
+  .authoring { border-top: 1px solid var(--page-rule); margin-top: 8px; padding-top: 32px; }
+  .authoring h2 { font-size: 1.05rem; color: #EDE6F8; margin: 0 0 8px; font-weight: 600; }
+  .authoring > p { margin: 0 0 20px; font-size: 0.89rem; color: var(--page-ink-dim); max-width: 68ch; }
+  .spec { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; }
+  .spec h3 {
+    font-family: var(--page-mono); font-size: 0.68rem; letter-spacing: 0.12em;
+    text-transform: uppercase; color: var(--page-ink-dim); margin: 0 0 8px; font-weight: 500;
+  }
+  pre {
+    margin: 0; background: var(--kh-bg-card); border: 1px solid var(--kh-border);
+    border-radius: var(--kh-radius); padding: 14px 16px; overflow-x: auto;
+    font-family: var(--page-mono); font-size: 0.76rem; line-height: 1.7; color: var(--page-ink);
+  }
+  pre b { color: var(--kh-primary-bright); font-weight: 500; }
+  pre i { color: var(--page-ink-dim); font-style: normal; }
+  .rules { margin: 20px 0 0; padding: 0; list-style: none; display: grid; gap: 10px; }
+  .rules li { font-size: 0.85rem; color: var(--page-ink-dim); padding-left: 16px; position: relative; max-width: 72ch; }
+  .rules li::before { content: "—"; position: absolute; left: 0; color: var(--kh-primary-bright); }
+  .rules b { color: var(--page-ink); font-weight: 500; }
+
+  footer.close { border-top: 1px solid var(--page-rule); margin-top: 40px; padding-top: 24px; }
+  footer.close h2 { font-size: 1.05rem; color: #EDE6F8; margin: 0 0 10px; font-weight: 600; }
+  footer.close p { margin: 0 0 10px; font-size: 0.89rem; color: var(--page-ink-dim); max-width: 68ch; }
+  code {
+    font-family: var(--page-mono); font-size: 0.82em; background: var(--kh-bg-elevated);
+    padding: 1px 5px; border-radius: 4px; color: var(--page-ink);
+  }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+
+<div class="wrap">
+  <header class="masthead">
+    <p class="eyebrow">Venue settings · Edit Venue dialog</p>
+    <h1>Song background: ten ways to present it</h1>
+    <p>
+      One venue-level control, rendered ten ways in KHost's own dialog styles. Every mockup uses the
+      real classes — <code>kh-venue-settings__row</code>, <code>kh-form-select</code>,
+      <code>kh-form-check</code>, <code>kh-note</code> — so what you pick is what gets built.
+    </p>
+  </header>
+
+  <dl class="brief">
+    <div>
+      <dt>Lives on</dt>
+      <dd>Venue.Settings, beside QrCodeSource</dd>
+    </div>
+    <div>
+      <dt>Pool</dt>
+      <dd>Flat folder — clips, stills beside them</dd>
+    </div>
+    <div>
+      <dt>Random</dt>
+      <dd>Per render — each song picks its own</dd>
+    </div>
+    <div>
+      <dt>Default</dt>
+      <dd>Nothing ticked — a venue never asked stays black</dd>
+    </div>
+  </dl>
+
+  <section class="chosen">
+    <div class="chosen__lead">
+      <h2>The control, chosen</h2>
+      <p>
+        Stills to pick by, a checkbox on each. Ticked backgrounds are the pool a song renders against.
+        There is no separate on/off — <b>nothing ticked is the black background</b>, which is what a
+        venue that has never been asked already has.
+      </p>
+    </div>
+
+    <div class="states">
+      <div class="state">
+        <h3>Some ticked — the normal case</h3>
+        <div class="mock">
+          <span class="kh-venue-settings__section-title">Song background</span>
+          <div class="picks">
+        <label class="pick-tile" for="ps0"><input type="checkbox" id="ps0" checked><img class="pick-tile__art" src="stills/amber.jpg" alt=""><span class="pick-tile__name">Amber Bokeh</span></label>
+        <label class="pick-tile" for="ps1"><input type="checkbox" id="ps1" checked><img class="pick-tile__art" src="stills/violet.jpg" alt=""><span class="pick-tile__name">Violet Bokeh</span></label>
+        <label class="pick-tile" for="ps2"><input type="checkbox" id="ps2"><img class="pick-tile__art" src="stills/aurora.jpg" alt=""><span class="pick-tile__name">Aurora Drift</span></label>
+        <label class="pick-tile" for="ps3"><input type="checkbox" id="ps3" checked><span class="pick-tile__art"></span><span class="pick-tile__name">Slow Tide</span></label>
+          </div>
+          <p class="kh-note">A different one of these 3 for each song, picked as it renders.</p>
+        </div>
+      </div>
+
+      <div class="state">
+        <h3>One ticked — a themed night</h3>
+        <div class="mock">
+          <span class="kh-venue-settings__section-title">Song background</span>
+          <div class="picks">
+        <label class="pick-tile" for="po0"><input type="checkbox" id="po0" checked><img class="pick-tile__art" src="stills/amber.jpg" alt=""><span class="pick-tile__name">Amber Bokeh</span></label>
+        <label class="pick-tile" for="po1"><input type="checkbox" id="po1"><img class="pick-tile__art" src="stills/violet.jpg" alt=""><span class="pick-tile__name">Violet Bokeh</span></label>
+        <label class="pick-tile" for="po2"><input type="checkbox" id="po2"><img class="pick-tile__art" src="stills/aurora.jpg" alt=""><span class="pick-tile__name">Aurora Drift</span></label>
+        <label class="pick-tile" for="po3"><input type="checkbox" id="po3"><span class="pick-tile__art"></span><span class="pick-tile__name">Slow Tide</span></label>
+          </div>
+          <p class="kh-note">Every song uses Amber Bokeh.</p>
+        </div>
+      </div>
+
+      <div class="state">
+        <h3>None ticked — black</h3>
+        <div class="mock">
+          <span class="kh-venue-settings__section-title">Song background</span>
+          <div class="picks">
+        <label class="pick-tile" for="pn0"><input type="checkbox" id="pn0"><img class="pick-tile__art" src="stills/amber.jpg" alt=""><span class="pick-tile__name">Amber Bokeh</span></label>
+        <label class="pick-tile" for="pn1"><input type="checkbox" id="pn1"><img class="pick-tile__art" src="stills/violet.jpg" alt=""><span class="pick-tile__name">Violet Bokeh</span></label>
+        <label class="pick-tile" for="pn2"><input type="checkbox" id="pn2"><img class="pick-tile__art" src="stills/aurora.jpg" alt=""><span class="pick-tile__name">Aurora Drift</span></label>
+        <label class="pick-tile" for="pn3"><input type="checkbox" id="pn3"><span class="pick-tile__art"></span><span class="pick-tile__name">Slow Tide</span></label>
+          </div>
+          <p class="kh-note">Songs render on plain black, the way they always did.</p>
+        </div>
+      </div>
+
+      <div class="state">
+        <h3>Folder missing</h3>
+        <div class="mock">
+          <span class="kh-venue-settings__section-title">Song background</span>
+          <p class="kh-note kh-note--danger" style="margin-top:4px">
+            That folder isn't there, so there is nothing to choose from. Songs will render on plain
+            black until it is.
+          </p>
+          <div class="kh-venue-settings__row">
+            <label class="kh-form-label" for="pf">Folder</label>
+            <input class="kh-form-control kh-form-control--path" id="pf" value="~/karaoke/backgrounds" readonly>
+          </div>
+          <p class="kh-note">A missing background never fails a render.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="chosen__rest">
+    <div class="chosen__lead" style="border-left-color: var(--page-rule); margin-top: 44px;">
+      <h2>The nine it beat</h2>
+      <p>Kept for the reasoning, not for reconsideration.</p>
+    </div>
+  </section>
+
+  <!-- 1 -->
+  <section class="option">
+    <div class="mock">
+      <span class="kh-venue-settings__section-title">Song background</span>
+      <div class="kh-venue-settings__row">
+        <label class="kh-form-label" for="o1">Background</label>
+        <select class="kh-form-select" id="o1">
+          <option>None (black)</option>
+          <option selected>Random</option>
+        </select>
+      </div>
+      <p class="kh-note">A different background is picked for each song as it renders.</p>
+    </div>
+    <div class="option__note">
+      <h2><span class="num">01</span> Straight copy of the QR control <span class="pick">Recommended</span></h2>
+      <p>
+        Two options, one select, one note. Identical in shape to <code>QrCodeSource</code>, which is the
+        setting this most resembles: the venue names a source, none by default.
+      </p>
+      <div class="verdict verdict--good"><b>Buys</b><span>Nothing new to learn, nothing new to style, smallest possible diff.</span></div>
+      <div class="verdict verdict--cost"><b>Costs</b><span>Credits have no home — they'd have to live elsewhere entirely.</span></div>
+    </div>
+  </section>
+
+  <!-- 2 -->
+  <section class="option">
+    <div class="mock">
+      <span class="kh-venue-settings__section-title">Song background</span>
+      <label class="kh-venue-settings__row kh-form-check" for="o2">
+        <span class="kh-form-check-label">Show a background behind the lyrics</span>
+        <input type="checkbox" class="kh-form-check-input" id="o2" checked>
+      </label>
+      <p class="kh-note">Off draws plain black. On picks a different one for each song.</p>
+    </div>
+    <div class="option__note">
+      <h2><span class="num">02</span> Checkbox only</h2>
+      <p>
+        A boolean drawn as a boolean, which is what the house style asks for. Reads fastest of
+        anything here.
+      </p>
+      <div class="verdict verdict--good"><b>Buys</b><span>One glance to read the state; matches the marquee toggle directly above it.</span></div>
+      <div class="verdict verdict--cost"><b>Costs</b><span>No room to grow. Adding "pick a specific one" later means replacing the control.</span></div>
+    </div>
+  </section>
+
+  <!-- 3 -->
+  <section class="option">
+    <div class="mock">
+      <span class="kh-venue-settings__section-title">Song background</span>
+      <div class="kh-venue-settings__row">
+        <label class="kh-form-label" for="o3">Background</label>
+        <select class="kh-form-select" id="o3">
+          <option>None (black)</option>
+          <option selected>Random</option>
+        </select>
+      </div>
+      <div class="kh-venue-settings__row">
+        <span class="kh-venue-settings__labelled">
+          <label class="kh-form-label" for="o3f">Folder</label>
+        </span>
+        <input class="kh-form-control kh-form-control--path" id="o3f" value="~/karaoke/backgrounds" readonly>
+      </div>
+      <p class="kh-note">Every video in the folder is a candidate. Add one by dropping it in — no restart.</p>
+    </div>
+    <div class="option__note">
+      <h2><span class="num">03</span> Select plus folder path</h2>
+      <p>
+        Makes the pool's location visible and editable in the same place as the choice. The folder row
+        only appears once something other than None is picked.
+      </p>
+      <div class="verdict verdict--good"><b>Buys</b><span>A venue can see why nothing is showing when the folder is wrong.</span></div>
+      <div class="verdict verdict--cost"><b>Costs</b><span>A path field in a venue dialog invites typos; needs validation and a "folder not found" state.</span></div>
+    </div>
+  </section>
+
+  <!-- 4 -->
+  <section class="option">
+    <div class="mock">
+      <span class="kh-venue-settings__section-title">Song background</span>
+      <div class="kh-venue-settings__row">
+        <label class="kh-form-label">Background</label>
+        <div class="seg" role="group" aria-label="Song background mode">
+          <button type="button" aria-pressed="false">None</button>
+          <button type="button" aria-pressed="true">Random</button>
+          <button type="button" aria-pressed="false">Pick one</button>
+        </div>
+      </div>
+      <p class="kh-note">Random draws from the four in this venue's folder.</p>
+    </div>
+    <div class="option__note">
+      <h2><span class="num">04</span> Segmented control</h2>
+      <p>
+        All three modes visible at once, no dropdown to open. "Pick one" would reveal a second row
+        listing the backgrounds by name.
+      </p>
+      <div class="verdict verdict--good"><b>Buys</b><span>The full set of choices is legible without interacting.</span></div>
+      <div class="verdict verdict--cost"><b>Costs</b><span>A control type the dialog doesn't have yet — new markup, new styles, new focus handling.</span></div>
+    </div>
+  </section>
+
+  <!-- 5 -->
+  <section class="option">
+    <div class="mock">
+      <span class="kh-venue-settings__section-title">Song background</span>
+      <div class="kh-venue-settings__row">
+        <label class="kh-form-label" for="o5">Background</label>
+        <select class="kh-form-select" id="o5">
+          <option>None (black)</option>
+          <option selected>Random — any of 4</option>
+          <option disabled>──────────</option>
+          <option>Amber Bokeh</option>
+          <option>Violet Bokeh</option>
+          <option>Aurora Drift</option>
+          <option>Slow Tide</option>
+        </select>
+      </div>
+      <div class="preview">
+        <img src="stills/amber.jpg" alt="Amber Bokeh">
+        <span class="preview__meta">
+          <b>Amber Bokeh</b>
+          <em>still paired</em>
+        </span>
+      </div>
+      <p class="kh-note">Names come from the file names; the still is the picture beside the clip.</p>
+    </div>
+    <div class="option__note">
+      <h2><span class="num">05</span> Select, with the choice previewed</h2>
+      <p>
+        Random sits at the top as just another entry, named backgrounds under a rule, and a still of
+        whatever is selected sits beneath. Shown here mid-selection rather than on Random.
+      </p>
+      <div class="verdict verdict--good"><b>Buys</b><span>Pinning one background for a themed night costs no extra UI.</span></div>
+      <div class="verdict verdict--cost"><b>Costs</b><span>A venue with thirty clips gets a thirty-item dropdown, and still no credits.</span></div>
+    </div>
+  </section>
+
+  <!-- 6 -->
+  <section class="option">
+    <div class="mock">
+      <span class="kh-venue-settings__section-title">Song background</span>
+      <div class="tiles">
+        <button type="button" class="tile" aria-pressed="false"><i class="sw-none"></i><span>None</span></button>
+        <button type="button" class="tile" aria-pressed="true"><i class="sw-random"></i><span>Random</span></button>
+        <button type="button" class="tile" aria-pressed="false"><img src="stills/amber.jpg" alt="Amber Bokeh"><span>Amber</span></button>
+        <button type="button" class="tile" aria-pressed="false"><img src="stills/violet.jpg" alt="Violet Bokeh"><span>Violet</span></button>
+        <button type="button" class="tile" aria-pressed="false"><img src="stills/aurora.jpg" alt="Aurora Drift"><span>Aurora</span></button>
+      </div>
+      <p class="kh-note">Random cycles through every background in the folder.</p>
+    </div>
+    <div class="option__note">
+      <h2><span class="num">06</span> Thumbnail tiles <span class="pick">Recommended</span></h2>
+      <p>
+        Real frames, not swatches — these three are pulled from the clips as they stand today. The
+        still is simply the picture sitting beside the clip, so the host reads a file rather than
+        decoding video.
+      </p>
+      <div class="verdict verdict--good"><b>Buys</b><span>Picking by look rather than by name, which is how anyone actually chooses a background.</span></div>
+      <div class="verdict verdict--cost"><b>Costs</b><span>A still per clip has to exist. The folder author makes it once; the host never extracts one.</span></div>
+    </div>
+  </section>
+
+  <!-- 7 -->
+  <section class="option">
+    <div class="mock">
+      <span class="kh-venue-settings__section-title">Song background</span>
+      <div class="kh-venue-settings__row">
+        <label class="kh-form-label" for="o7">Background</label>
+        <select class="kh-form-select" id="o7">
+          <option>None (black)</option>
+          <option selected>Random</option>
+        </select>
+      </div>
+      <details class="disclose" open>
+        <summary>All 4 backgrounds in this folder</summary>
+        <ul class="credits">
+          <li><span class="credits__name"><img src="stills/amber.jpg" alt=""><b>Amber Bokeh</b></span><em>still paired</em></li>
+          <li><span class="credits__name"><img src="stills/violet.jpg" alt=""><b>Violet Bokeh</b></span><em>still paired</em></li>
+          <li><span class="credits__name"><img src="stills/aurora.jpg" alt=""><b>Aurora Drift</b></span><em>still paired</em></li>
+          <li><span class="credits__name"><i class="sw-none" style="width:46px;aspect-ratio:16/9;border-radius:3px;flex:none"></i><b>Slow Tide</b></span><em>no still</em></li>
+        </ul>
+      </details>
+      <p class="kh-note">A background with no picture beside it is listed by name alone.</p>
+    </div>
+    <div class="option__note">
+      <h2><span class="num">07</span> Select with a contents drawer</h2>
+      <p>
+        Keeps option 01's control and lists what the folder actually holds, collapsed so it costs no
+        height until asked for.
+      </p>
+      <div class="verdict verdict--good"><b>Buys</b><span>Shows which clips have no still, which is otherwise invisible until the grid looks wrong.</span></div>
+      <div class="verdict verdict--cost"><b>Costs</b><span>Duplicates what the tile grid already shows, once the grid exists.</span></div>
+    </div>
+  </section>
+
+  <!-- 8 -->
+  <section class="option">
+    <div class="mock">
+      <span class="kh-venue-settings__section-title">Song background</span>
+      <label class="kh-venue-settings__row kh-form-check" for="o8">
+        <span class="kh-venue-settings__labelled">
+          <span class="kh-form-check-label">Show a background behind the lyrics</span>
+          <span class="count">4 available · <button type="button" class="linkish">view credits</button></span>
+        </span>
+        <input type="checkbox" class="kh-form-check-input" id="o8" checked>
+      </label>
+    </div>
+    <div class="option__note">
+      <h2><span class="num">08</span> Checkbox with an inline count</h2>
+      <p>
+        The count is the quiet tell that the folder is wired up correctly — "0 available" says more
+        than an error would, in less space.
+      </p>
+      <div class="verdict verdict--good"><b>Buys</b><span>Diagnoses a bad folder without a separate error state.</span></div>
+      <div class="verdict verdict--cost"><b>Costs</b><span>Credits move to a popup, which is another dialog on top of a dialog.</span></div>
+    </div>
+  </section>
+
+  <!-- 9 -->
+  <section class="option">
+    <div class="mock">
+      <span class="kh-venue-settings__section-title">Song background</span>
+      <div class="kh-venue-settings__row">
+        <label class="kh-form-label" for="o9">Background</label>
+        <select class="kh-form-select" id="o9">
+          <option>None (black)</option>
+          <option selected>Random from selected</option>
+        </select>
+      </div>
+      <div class="stack indent">
+        <label class="kh-venue-settings__row kh-form-check" for="o9a" style="margin:0">
+          <span class="kh-form-check-label">Amber Bokeh</span>
+          <input type="checkbox" class="kh-form-check-input" id="o9a" checked>
+        </label>
+        <label class="kh-venue-settings__row kh-form-check" for="o9b" style="margin:0">
+          <span class="kh-form-check-label">Violet Bokeh</span>
+          <input type="checkbox" class="kh-form-check-input" id="o9b" checked>
+        </label>
+        <label class="kh-venue-settings__row kh-form-check" for="o9c" style="margin:0">
+          <span class="kh-form-check-label">Aurora Drift</span>
+          <input type="checkbox" class="kh-form-check-input" id="o9c">
+        </label>
+      </div>
+      <p class="kh-note">Unticked backgrounds stay in the folder but are never picked.</p>
+    </div>
+    <div class="option__note">
+      <h2><span class="num">09</span> Curate the random pool</h2>
+      <p>
+        A venue keeps every clip on disk but chooses which ones suit the room. The bright one gets
+        unticked rather than deleted.
+      </p>
+      <div class="verdict verdict--good"><b>Buys</b><span>Real control without file management — the answer to "I like three of these five".</span></div>
+      <div class="verdict verdict--cost"><b>Costs</b><span>The venue now stores a list, which has to survive a clip being renamed or removed.</span></div>
+    </div>
+  </section>
+
+  <!-- 10 -->
+  <section class="option">
+    <div class="mock">
+      <span class="kh-venue-settings__section-title">Song background — when things are wrong</span>
+      <div class="kh-venue-settings__row">
+        <label class="kh-form-label" for="o10">Background</label>
+        <select class="kh-form-select" id="o10">
+          <option>None (black)</option>
+          <option selected>Random</option>
+        </select>
+      </div>
+      <p class="kh-note kh-note--danger">
+        That folder isn't there. Songs will render on plain black until it is.
+      </p>
+      <p class="kh-note kh-note--warning">
+        2 of 4 clips have no picture beside them, so they are listed by name with no still.
+      </p>
+      <p class="kh-note">Nothing here stops a song rendering — a missing background is never a failed render.</p>
+    </div>
+    <div class="option__note">
+      <h2><span class="num">10</span> The states that actually happen</h2>
+      <p>
+        Not a competing design — the failure copy any of the above needs. A venue points at a folder
+        on a machine that gets rebuilt, or empties it out between shows.
+      </p>
+      <div class="verdict verdict--good"><b>Buys</b><span>Each message says what went wrong and what to do, and neither blocks the show.</span></div>
+      <div class="verdict verdict--cost"><b>Costs</b><span>Three more strings and the checks behind them, whichever option above wins.</span></div>
+    </div>
+  </section>
+
+  <section class="authoring">
+    <h2>The folder, so a venue can build their own</h2>
+    <p>
+      A pack is a folder of clips. Drop one in and it is a background; the file name is its name.
+      Put a picture of the same name beside it and that becomes the still the venue picks by.
+      There is nothing to author and nothing that can fall out of step with the files.
+    </p>
+
+    <div class="spec">
+      <div>
+        <h3>Folder</h3>
+<pre>~/karaoke/backgrounds/
+  amber.mp4     <i>← a background, named "amber"</i>
+  amber.jpg     <i>← its still</i>
+  violet.mp4
+  violet.jpg
+  aurora.mp4    <i>← no still: picked by name</i>
+  archive/      <i>← ignored, packs are flat</i></pre>
+      </div>
+      <div>
+        <h3>What counts</h3>
+<pre><b>Clips</b>
+  .mp4  .mkv  .avi  .flv
+  .mov  .webm .m4v
+
+<b>Stills</b>
+  any picture format the
+  host already reads
+
+<b>Order</b>
+  by name, so the grid
+  never reshuffles</pre>
+      </div>
+    </div>
+
+    <ul class="rules">
+      <li><b>The file name is the name.</b> Rename the file to rename the background; nothing else knows about it.</li>
+      <li><b>A still is optional</b> — same name, picture extension, beside the clip. Without one the venue picks by name alone.</li>
+      <li><b>The loop has to wrap seamlessly.</b> Crossfade the tail back over the head; a clip that simply ends cuts hard every time it repeats.</li>
+      <li><b>Keyframes every 2 seconds</b>, matching the host's segment length, or the render cannot be cut for streaming without re-encoding.</li>
+      <li><b>Keep the lyric band dark.</b> The renderer draws a scrim there, but a clip that is bright across the bottom will still fight the words.</li>
+      <li><b>Two clips may share a name</b> — <code>amber.mp4</code> and <code>amber.mov</code> are two backgrounds, which is why the venue stores the extension too.</li>
+    </ul>
+  </section>
+
+  <footer class="close">
+    <h2>Where it landed</h2>
+    <p>
+      <b>06 with a checkbox on each tile</b>, which is 06 and 09 folded together. Merging them
+      removed the mode control entirely: ticking nothing <em>is</em> the black background, so there
+      is no separate on/off to explain and no default to backfill.
+    </p>
+    <p>
+      The manifest went too. Names come from file names and a still is whatever picture sits beside
+      the clip, so a pack is a folder you copy files into — nothing to author, nothing that can fall
+      out of step. The cost of that is real and worth stating: <b>a folder carries no credit</b>, so
+      a pack containing third-party footage has nowhere to attribute it.
+    </p>
+    <p>
+      <b>09's curation</b> came along for free in the merge. <b>03's folder row</b> is still needed —
+      the venue has to name the folder somewhere.
+    </p>
+  </footer>
+</div>
+
+<script>
+  // The segmented control and tiles are live so the selected state can be judged, not just seen.
+  for (const group of document.querySelectorAll('.seg, .tiles')) {
+    group.addEventListener('click', (e) => {
+      const btn = e.target.closest('button');
+      if (!btn || !group.contains(btn)) return;
+      for (const b of group.querySelectorAll('button')) b.setAttribute('aria-pressed', String(b === btn));
+    });
+  }
+</script>
