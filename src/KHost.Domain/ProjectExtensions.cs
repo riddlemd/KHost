@@ -30,14 +30,26 @@ namespace KHost.Domain
             serviceCollection.AddOptions<MediaFileParsingService.ServiceOptions>()
                 .BindConfiguration(MediaFileParsingService.ServiceOptions.SectionName);
 
+            serviceCollection.AddSingleton<ResolvedHostAddress>();
+
             serviceCollection.AddOptions<LocalScreenProvider.ServiceOptions>()
-                .BindConfiguration(LocalScreenProvider.ServiceOptions.SectionName);
+                .BindConfiguration(LocalScreenProvider.ServiceOptions.SectionName)
+                .PostConfigure<ResolvedHostAddress>((options, resolved) =>
+                {
+                    if (resolved.ScreenIpcUri is { Length: > 0 } uri)
+                        options.ServerUri = uri;
+                });
 
             serviceCollection.AddOptions<PlaybackService.ServiceOptions>()
                 .BindConfiguration(PlaybackService.ServiceOptions.SectionName);
 
             serviceCollection.AddOptions<HlsMediaStreamService.ServiceOptions>()
-                .BindConfiguration(HlsMediaStreamService.ServiceOptions.SectionName);
+                .BindConfiguration(HlsMediaStreamService.ServiceOptions.SectionName)
+                .PostConfigure<ResolvedHostAddress>((options, resolved) =>
+                {
+                    if (resolved.MediaStreamBaseAddress is { Length: > 0 } address)
+                        options.BaseAddress = address;
+                });
 
             serviceCollection.AddOptions<MediaAcquisitionService.ServiceOptions>()
                 .BindConfiguration(MediaAcquisitionService.ServiceOptions.SectionName);
