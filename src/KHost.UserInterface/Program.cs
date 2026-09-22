@@ -164,7 +164,8 @@ internal static class Program
         builder.Services.AddSingleton<IThemeService, ThemeService>();
         builder.Services.AddSingleton<IAppInfoService, AppInfoService>();
         builder.Services.AddSingleton<IExternalLinkService, ExternalLinkService>();
-        builder.Services.AddSingleton<IDialogService, DialogService>();
+        builder.Services.AddSingleton<IScreenLauncher, ScreenLauncher>();
+builder.Services.AddSingleton<IDialogService, DialogService>();
         builder.Services.AddSingleton<IStartupRedirectProvider, SetupRedirectProvider>();
         builder.Services.AddSingleton<IStartupRedirectProvider, CliStartupRedirectProvider>();
 

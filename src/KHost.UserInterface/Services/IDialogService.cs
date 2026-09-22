@@ -25,7 +25,6 @@ public interface IDialogService
 
     Task ShowSingerPerformanceHistoryAsync(Guid userId, Action? onClose = null);
     Task ShowLyricsAsync(string query, Action? onClose = null);
-    Task ShowScreensAsync(Action? onClose = null);
 
     /// <summary>Draws a table a plugin described; a plugin cannot ship markup of its own.</summary>
     Task ShowPluginTableAsync(ShowPluginTableRequest table, Action? onClose = null);
