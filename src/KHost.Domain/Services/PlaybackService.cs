@@ -94,6 +94,10 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
     private readonly IAudioTrackService _audioTracks;
     private readonly IMediaGateService _mediaGate;
     private readonly ITimedLyricsService _timedLyrics;
+
+    /// <summary>The words sent for the song now loaded, kept so a screen joining mid-song gets
+    /// them too. Null for a song that has none, which is most of them.</summary>
+    private TimedLyrics? _currentLyrics;
     private readonly IFlashService _flash;
 
     // Read per use rather than captured: the App Settings page writes the overlay live, and a
@@ -838,6 +842,11 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
                 ? DescribeStream(media)
                 : await BuildLoadCommandAsync(media, TimeSpan.Zero));
 
+            // With the load and before the seek, the same order LoadAsync uses. Without this a
+            // screen joining mid-song gets the audio and draws nothing, because the words were
+            // sent once, when the song started, to whoever was connected then.
+            await SendToScreensAsync(new SetTimedLyricsCommand { Lyrics = _currentLyrics });
+
             if (position > TimeSpan.Zero)
             {
                 await SendToScreensAsync(new SeekCommand { Position = position });
@@ -971,6 +980,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
 
         CurrentlyPerformingUserId = null;
         _resumeWhenScreenReturns = false;
+        _currentLyrics = null;
 
         // Cancelled rather than left to fire: it would otherwise reopen a transcode for the song
         // that has just been torn down.
@@ -1000,6 +1010,8 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
 
         try { lyrics = await _timedLyrics.GetTimedLyricsAsync(media.FilePath); }
         catch (Exception ex) { Logger.LogWarning(ex, "Could not read the lyric timing for '{Title}'", media.Title); }
+
+        _currentLyrics = lyrics;
 
         try { await SendToScreensAsync(new SetTimedLyricsCommand { Lyrics = lyrics }); }
         catch (Exception ex) { Logger.LogWarning(ex, "Could not send the lyric timing for '{Title}'", media.Title); }
