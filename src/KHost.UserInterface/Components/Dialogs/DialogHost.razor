@@ -91,11 +91,6 @@
                 OnClose="@(() => { r.OnClose?.Invoke(); Close(r); })" />
             break;
 
-        case ScreensDialog.DialogRequest r:
-            <ScreensDialog @key="r.Id" IsOpen="true"
-                OnClose="@(() => { r.OnClose?.Invoke(); Close(r); })" />
-            break;
-
         case PluginTableDialog.DialogRequest r:
             <PluginTableDialog @key="r.Id" IsOpen="true" Request="@r.Table"
                 OnClose="@(() => { r.OnClose?.Invoke(); Close(r); })" />

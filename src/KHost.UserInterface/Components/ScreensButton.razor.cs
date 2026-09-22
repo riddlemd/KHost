@@ -11,7 +11,7 @@ public partial class ScreensButton : IDisposable
 {
     [Inject] private IScreenServer? ScreenServer { get; set; }
     [Inject] private IEnumerable<IDisplayProvider> DisplayProviders { get; set; } = [];
-    [Inject] private IEnumerable<IScreenProvider>? ScreenProviders { get; set; }
+    [Inject] private IScreenLauncher? Launcher { get; set; }
     [Inject] private IMessageBroker Broker { get; set; } = default!;
 
     private IDisplayProvider? Display => DisplayProviders.FirstOrDefault();
@@ -99,33 +99,25 @@ public partial class ScreensButton : IDisposable
         await LaunchAsync();
     }
 
-    /// <summary>Only screens this host started; one somebody ran themselves is left alone.</summary>
-    private void CloseScreens()
-    {
-        foreach (var provider in ScreenProviders ?? [])
-        {
-            try
-            {
-                provider.CloseSpawnedScreens();
-            }
-            catch (Exception)
-            {
-                // One provider failing must not leave the others' screens up.
-            }
-        }
-    }
+    private void CloseScreens() => Launcher?.CloseSpawnedScreens();
 
     private async Task LaunchAsync()
     {
-        var provider = ScreenProviders?.FirstOrDefault(p => p.IsAvailable);
-        if (provider is null) return;
+        if (Launcher is null) return;
 
         _isBusy = true;
         StateHasChanged();
 
         try
         {
-            await provider.LaunchAsync(await NextScreenNameAsync());
+            if (!await Launcher.LaunchAsync())
+            {
+                // Nothing here can start one, so stop saying "Opening…" for a screen that is not
+                // coming.
+                _isBusy = false;
+                StateHasChanged();
+                return;
+            }
         }
         catch (Exception)
         {
@@ -152,19 +144,6 @@ public partial class ScreensButton : IDisposable
 
     private const int LaunchTimeoutSeconds = 15;
 
-    /// <summary>The first "Screen n" nothing is already using.</summary>
-    private async Task<string> NextScreenNameAsync()
-    {
-        var taken = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        await foreach (var screen in ScreenServer!.GetConnectedScreensAsync())
-            taken.Add(screen.ScreenId);
-
-        for (var i = 1; ; i++)
-        {
-            var name = $"Screen {i}";
-            if (!taken.Contains(name)) return name;
-        }
-    }
 
     public void Dispose()
     {

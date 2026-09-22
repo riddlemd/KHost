@@ -12,12 +12,14 @@ namespace KHost.UserInterface.Services;
 public class DialogService : IDialogService
 {
     private readonly ILogger<DialogService> _logger;
+    private readonly IScreenLauncher _screenLauncher;
 
     public event EventHandler<BaseDialogRequest>? ShowRequested;
 
-    public DialogService(ILogger<DialogService> logger)
+    public DialogService(ILogger<DialogService> logger, IScreenLauncher screenLauncher)
     {
         _logger = logger;
+        _screenLauncher = screenLauncher;
     }
 
     public Task<bool> ShowConfirmationAsync(
@@ -93,14 +95,6 @@ public class DialogService : IDialogService
         return Task.CompletedTask;
     }
 
-    public Task ShowScreensAsync(Action? onClose = null)
-    {
-        _logger.LogDebug("Dialog requested: {DialogType}", nameof(ScreensDialog));
-        ShowRequested?.Invoke(this, new ScreensDialog.DialogRequest(onClose));
-
-        return Task.CompletedTask;
-    }
-
     public Task ShowPluginTableAsync(ShowPluginTableRequest table, Action? onClose = null)
     {
         _logger.LogDebug("Dialog requested: {DialogType} title={Title}", nameof(PluginTableDialog), table.Title);
@@ -162,10 +156,12 @@ public class DialogService : IDialogService
         return Task.CompletedTask;
     }
 
+    /// <remarks>Opens one rather than offering the screens dialog: the header button is how a
+    /// screen is opened and closed now, so confirming here does the same thing it does.</remarks>
     public Task ShowNoScreensAsync()
         => ShowConfirmationAsync(
             "Playback needs a screen for audio and video output.",
-            onConfirm: () => ShowScreensAsync(),
+            onConfirm: () => _screenLauncher.LaunchAsync(),
             title: "No screens connected",
             confirmText: "Launch Screen");
 
