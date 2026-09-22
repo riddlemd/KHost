@@ -44,6 +44,37 @@
         font-size: 0.75em;
     }
 
+    // A display row carries two lines: what it is, and which transport reaches it. The name alone
+    // is not enough to tell two rooms both called "TV" apart.
+    .kh-settings-menu__stacked {
+        display: flex;
+        flex-direction: column;
+        // Without this the meta line pushes the row wider than the flyout instead of wrapping.
+        min-width: 0;
+    }
+
+    .kh-settings-menu__stacked-name {
+        display: flex;
+        align-items: baseline;
+        gap: 0.5em;
+    }
+
+    .kh-settings-menu__stacked-meta {
+        color: var(--kh-text-muted);
+        font-size: 0.75em;
+    }
+
+    // Says the words will not be on that screen, which is the one thing a host cannot see coming.
+    .kh-settings-menu__badge {
+        padding: 0 0.5em;
+        border: 1px solid var(--kh-border);
+        border-radius: 999px;
+        color: var(--kh-warning);
+        font-size: 0.6rem;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        white-space: nowrap;
+    }
 }
 
 /* Fixed so the parent menu's own scrolling cannot clip it; placed by dropdown-menu.js. */

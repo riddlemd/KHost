@@ -17,6 +17,13 @@
             <Icon Name="chevron-left" Class="kh-settings-menu__chevron" />
         </button>
 
+        <button class="kh-dropdown__item" type="button" @ref="_displayRowRef" @onclick="() => ToggleSection(DisplaySection)">
+            <span class="kh-dropdown__check"><Icon Name="display" /></span>
+            Display
+            <span class="kh-settings-menu__value">@DisplayValue</span>
+            <Icon Name="chevron-left" Class="kh-settings-menu__chevron" />
+        </button>
+
         <button class="kh-dropdown__item" type="button" @ref="_themeRowRef" @onclick="() => ToggleSection(ThemeSection)">
             <span class="kh-dropdown__check"><Icon Name="palette-fill" /></span>
             Theme
@@ -76,6 +83,50 @@
                         <span class="kh-dropdown__check"><Icon Name="sliders" /></span>
                         Edit venue…
                     </button>
+                }
+                else if (IsOpen(DisplaySection))
+                {
+                    @foreach (var (provider, device) in AvailableDisplays())
+                    {
+                        var live = IsLive(provider, device);
+
+                        <button class="kh-dropdown__item @(live ? "kh-dropdown__item--selected" : "")"
+                                type="button" @onclick="() => SelectDisplayAsync(provider, device)">
+                            <span class="kh-dropdown__check">
+                                @if (live) { <Icon Name="check2" /> }
+                            </span>
+                            <span class="kh-settings-menu__stacked">
+                                <span class="kh-settings-menu__stacked-name">
+                                    @device.Name
+                                    @if (!device.SupportsLyrics)
+                                    {
+                                        <span class="kh-settings-menu__badge">no words</span>
+                                    }
+                                </span>
+                                <span class="kh-settings-menu__stacked-meta">@DescribeDisplay(provider, device)</span>
+                            </span>
+                        </button>
+                    }
+
+                    @if (LiveDisplay is not null)
+                    {
+                        <button class="kh-dropdown__item" type="button" @onclick="TurnOffDisplayAsync">
+                            <span class="kh-dropdown__check"><Icon Name="x-lg" /></span>
+                            Turn off
+                        </button>
+                    }
+
+                    @if (CanSearch)
+                    {
+                        <div class="kh-dropdown__divider"></div>
+
+                        <button class="kh-dropdown__item" type="button" @onclick="ToggleSearchAsync">
+                            <span class="kh-dropdown__check">
+                                <Icon Name="@(IsSearching ? "broadcast" : "search")" />
+                            </span>
+                            @(IsSearching ? "Stop searching" : "Search for devices")
+                        </button>
+                    }
                 }
                 else
                 {
