@@ -1075,8 +1075,6 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
                 "Reopening '{Title}' at {Position} pitched {Semitones:+#;-#;0} tempo {Tempo:+#;-#;0}%",
                 media.Title, position, Pitch, Tempo);
 
-            var startedAt = DateTime.UtcNow;
-
             // Opened at the playhead, not opened at zero and seeked: the stream's own zero moves
             // with it, which is what StreamStartOffset carries to the screens.
             await ToDisplaysAsync(await BuildLoadCommandAsync(media, position));
@@ -1088,23 +1086,22 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
                 return;
             }
 
-            // Screens played on from buffer during the rebuild, so resuming at the old playhead replays
-            // what was just heard, which matters only for a rate change; a seek already means exactly that.
-            var resumeAt = at is null
-                ? Clamp(position + ((DateTime.UtcNow - startedAt) * Rate), media.Duration)
-                : position;
-
-            Position = resumeAt;
-
-            if (resumeAt > position)
-            {
-                await ToDisplaysAsync(new SeekCommand { Position = resumeAt });
-            }
+            // The stream's zero is the playhead, and playback resumes there. The host used to skip
+            // forward by however long the rebuild took, on the grounds that the room heard on from
+            // the old stream meanwhile — but the skip lands on data ffmpeg has not written yet, so
+            // the element takes over with barely a frame buffered, sounds for an instant and then
+            // starves. Half a second of silence mid-song costs far more than a sliver heard twice.
+            //
+            // Covering that window is the transport's own business, not the host's: a screen keeps
+            // its old element playing and hands over only once the new one has sound, which is the
+            // very mechanism a seek from here defeats. A transport with nothing of the kind can
+            // make up the difference inside its own LoadAsync, where it knows what it is driving.
+            Position = position;
 
             await ToDisplaysAsync(new PlayCommand());
 
             // The reload froze the clock, so the whole group has to be re-anchored.
-            await PublishTimelineAsync(isPlaying: true, resumeAt, scheduleAhead: true);
+            await PublishTimelineAsync(isPlaying: true, position, scheduleAhead: true);
         }
         catch (Exception ex)
         {
