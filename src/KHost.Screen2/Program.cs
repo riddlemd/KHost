@@ -127,6 +127,7 @@ internal static class Program
     /// <summary>Photino's own full screen, which takes the window's frame with it.</summary>
     /// <returns>False when this build refuses it after the window exists, so the caller falls back
     /// to filling the monitor and keeping the title bar — worse, but not broken.</returns>
+    /// <remarks>Never reached on macOS; see <see cref="SetFullScreen"/> for why.</remarks>
     private static bool TryNativeFullScreen(
         PhotinoWindow window, bool fullScreen, Microsoft.Extensions.Logging.ILogger logger)
     {
@@ -270,8 +271,37 @@ internal static class Program
         }
     }
 
-    /// <summary>Photino's SetFullScreen is a no-op on macOS, so the window is grown to cover it.</summary>
-    /// <remarks>macOS clamps the top edge below the menu bar.</remarks>
+    /// <summary>The monitor the window is actually on, rather than the first one listed.</summary>
+    /// <remarks>A venue drives the console on one display and the screen on a television; taking
+    /// the first monitor would drag the screen off the television and onto the console mid-show.
+    /// Matched on the window's centre, so a window straddling an edge lands where most of it is.
+    /// </remarks>
+    private static Photino.NET.Monitor MonitorUnder(PhotinoWindow window)
+    {
+        var centreX = window.Left + (window.Width / 2);
+        var centreY = window.Top + (window.Height / 2);
+
+        foreach (var monitor in window.Monitors)
+        {
+            var area = monitor.MonitorArea;
+
+            if (centreX >= area.X && centreX < area.X + area.Width
+                && centreY >= area.Y && centreY < area.Y + area.Height)
+                return monitor;
+        }
+
+        return window.MainMonitor;
+    }
+
+    /// <summary>Photino's own full screen where it behaves, and growing the window to cover the
+    /// monitor where it does not.</summary>
+    /// <remarks>macOS gets the grown window. Photino's SetFullScreen there enters a native
+    /// full-screen Space, and two things follow that a venue cannot live with: every other display
+    /// is blanked, so the host cannot see the console it drives the show from, and
+    /// <c>SetFullScreen(false)</c> is a silent no-op — it neither throws nor leaves, so the flag
+    /// says windowed while the window is still full screen and the next double-click does nothing.
+    /// The grown window keeps its title bar, which is the lesser problem. macOS also clamps the top
+    /// edge below the menu bar.</remarks>
     private static void SetFullScreen(PhotinoWindow window, bool fullScreen, Microsoft.Extensions.Logging.ILogger logger)
     {
         try
@@ -285,8 +315,8 @@ internal static class Program
             // Photino's own, which drops the frame as well as filling the monitor. Several of its
             // setters refuse to run once the window exists — Chromeless is one, which is why the
             // resize below was written — so this asks rather than assumes, and the resize stands
-            // behind it unchanged.
-            if (TryNativeFullScreen(window, fullScreen, logger))
+            // behind it unchanged. Asked only off macOS, where it cannot be left again.
+            if (!OperatingSystem.IsMacOS() && TryNativeFullScreen(window, fullScreen, logger))
             {
                 _isFullScreen = fullScreen;
                 Remember(window);
@@ -295,8 +325,7 @@ internal static class Program
 
             if (fullScreen)
             {
-                var monitors = window.Monitors;
-                var area = (monitors.Count > 0 ? monitors[0] : window.MainMonitor).MonitorArea;
+                var area = MonitorUnder(window).MonitorArea;
 
                 // Not SetTopMost: a floating window on macOS never becomes key, so Escape stops
                 // reaching the page.
