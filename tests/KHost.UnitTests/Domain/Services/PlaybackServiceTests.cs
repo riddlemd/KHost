@@ -3383,12 +3383,18 @@ public class PlaybackServiceTests : IDisposable
         Assert.Equal(PlaybackState.Playing, _service.State);
     }
 
+    /// <summary>A rebuild resumes at the playhead it opened the stream at, and skips nothing.</summary>
+    /// <remarks>The host used to skip forward by however long the rebuild took, since the room heard
+    /// on from the old stream meanwhile. That lands on data ffmpeg has not written yet: the element
+    /// takes over with barely a frame buffered, sounds for an instant and then starves — half a
+    /// second of silence mid-song, for a sliver that would have passed unnoticed heard twice.
+    /// Covering the window belongs to the transport, which knows what it is driving.</remarks>
     [Fact]
-    public async Task Reopen_ResumesPastWhereTheRebuildStarted_NotBackAtIt()
+    public async Task Reopen_ResumesAtThePlayhead_AndSkipsNothing()
     {
         _display.ConnectedDeviceId.Returns("Living Room TV");
 
-        // A slow rebuild, so the compensation is larger than the clock's own resolution.
+        // A slow rebuild, so any compensation would be larger than the clock's own resolution.
         _mediaStreams
             .OpenAsync(Arg.Any<string>(), Arg.Any<TimeSpan>(), Arg.Any<int>(), Arg.Any<int>(),
                        Arg.Any<AudioMix?>(), Arg.Any<CancellationToken>())
@@ -3410,26 +3416,23 @@ public class PlaybackServiceTests : IDisposable
         await _service.LoadAsync(performance, media);
         await _service.PlayAsync();
         await _service.SeekAsync(TimeSpan.FromSeconds(60));
+        _display.ClearReceivedCalls();
 
         await _service.SetPitchAsync(2);
         Assert.True(await WaitForStreamsOpenedAsync(2));
         await Task.Delay(100);
 
-        // The screens played on from their buffer for the whole rebuild, so coming back at 60
-        // would replay what the room just heard.
-        Assert.True(_service.Position > TimeSpan.FromSeconds(60.2),
-            $"resumed at {_service.Position}, which repeats the rebuild");
+        // Opened at the playhead, and the clock says the same: the stream's zero is where the song is.
         Assert.Equal(TimeSpan.FromSeconds(60), LastOpenedAt());
+        Assert.Equal(TimeSpan.FromSeconds(60), _service.Position);
 
-        // The group is anchored on the timeline, not on the host's own clock: left at the old
-        // position it would drag every synced screen back over what it had already played.
-        Assert.True(LastTimeline()?.Position > TimeSpan.FromSeconds(60.2),
-            $"timeline anchored at {LastTimeline()?.Position}");
+        // The group is anchored there too, or a screen is told to chase a point its stream has not
+        // reached and stalls doing it.
+        Assert.Equal(TimeSpan.FromSeconds(60), LastTimeline()?.Position);
 
-        // A receiver takes no timeline and cannot be corrected onto one, so it has to be told
-        // outright or it is the only thing in the room still replaying the rebuild.
-        await _display.Received().SeekAsync(
-            Arg.Is<TimeSpan>(t => t > TimeSpan.FromSeconds(60.2)), Arg.Any<CancellationToken>());
+        // Nothing is skipped forward on anyone's behalf. A transport that cannot cover the rebuild
+        // makes the difference up inside its own load, where it knows what it is driving.
+        await _display.DidNotReceive().SeekAsync(Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]

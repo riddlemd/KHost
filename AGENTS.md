@@ -238,6 +238,15 @@ cannot name another's: its secrets, and the QR code it offers the screens.
     `SetTimelineCommand.IsPrimary` is always true and nothing is ever corrected towards anything.
     The venue's volume, which `ScreenCoordinationService` used to apply, is now applied by
     `ScreenDisplayProvider` on connect and on a venue edit.
+  - **Covering a rebuild is the transport's business, not the host's.** Changing key, tempo or the
+    mix reopens the stream at the playhead, and the host resumes there and skips nothing. It used
+    to skip forward by however long the rebuild took, since the room heard on from the old stream
+    meanwhile — but the skip lands on data ffmpeg has not written yet, so the element takes over
+    with barely a frame buffered, sounds for an instant and then starves. Half a second of silence
+    mid-song costs far more than a sliver heard twice. A screen covers the window itself, keeping
+    its old element playing and handing over only once the new one has sound, which is exactly the
+    mechanism a seek from the host defeats; a transport with nothing of the kind makes the
+    difference up inside its own `LoadAsync`, where it knows what it is driving.
   - **The cap is the server's, and its default is the behaviour.** `ScreenServer:MaxRegisteredScreens`
     is **1**, matching the provider's `MaxConnectedDevices`; a second screen is refused rather than
     quietly joining. Every refusal in `TryRegisterScreen` is logged, because a turned-away screen
