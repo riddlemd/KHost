@@ -207,12 +207,15 @@
             border-radius: 0.15vmin;
             background: #fff;
             box-shadow: 0 0.4vmin 1.6vmin rgba(0, 0, 0, 0.45);
-            --kh-qr-size: 18vmin;
+            --kh-qr-size: 9.5vmin;
         }
 
-        .kh-qr[data-size="small"] { --kh-qr-size: 12vmin; }
-        .kh-qr[data-size="medium"] { --kh-qr-size: 18vmin; }
-        .kh-qr[data-size="large"] { --kh-qr-size: 25vmin; }
+        /* The largest is about as big as a code should ever get: it only has to be scannable from
+           a table, and every vmin it takes is one the words are drawn around. The steps below are
+           for a room close enough that even that is more than it needs. */
+        .kh-qr[data-size="small"] { --kh-qr-size: 7.5vmin; }
+        .kh-qr[data-size="medium"] { --kh-qr-size: 9.5vmin; }
+        .kh-qr[data-size="large"] { --kh-qr-size: 12vmin; }
 
         /* Three pixels a module is about where a phone camera stops reading one, so a long payload
            holds the code above the venue's requested size rather than shrinking past scannable. */
