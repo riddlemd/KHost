@@ -114,7 +114,6 @@ public partial class EditVenueDialog
                     Notes = Venue.Notes,
                     Enabled = Venue.Enabled,
                     DefaultVolume = Venue.Settings.DefaultVolume,
-                    OnScreenDisconnect = Venue.Settings.OnScreenDisconnect,
                     ShowEstimatedWaitTime = Venue.Settings.ShowEstimatedWaitTime,
                     SongBackgrounds = [.. Venue.Settings.SongBackgrounds ?? []],
                     TippingEnabled = Venue.Settings.TippingEnabled,
@@ -294,7 +293,6 @@ public partial class EditVenueDialog
         venue.Notes = _model.Notes;
         venue.Enabled = _model.Enabled;
         venue.Settings.DefaultVolume = _model.DefaultVolume;
-        venue.Settings.OnScreenDisconnect = _model.OnScreenDisconnect;
         venue.Settings.ShowEstimatedWaitTime = _model.ShowEstimatedWaitTime;
         venue.Settings.SongBackgrounds = [.. _model.SongBackgrounds];
         venue.Settings.TippingEnabled = _model.TippingEnabled;

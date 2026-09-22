@@ -54,7 +54,6 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
     private volatile bool _aScreenIsUp;
 
     private DateTime _lastReanchorUtc;
-    private bool _resumeWhenScreenReturns;
 
     // Connect and disconnect both arrive as fire-and-forget continuations, so without this they
     // can interleave and a reconnect's resume races the disconnect's pause.
@@ -843,11 +842,10 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
                 return;
             }
 
-            // A screen reconnecting under the same id overwrites its own tracked connection, so
-            // the stale disconnect is discarded and nothing is pending. Resume on either signal.
-            bool resume = State == PlaybackState.Playing
-                || (_resumeWhenScreenReturns && State == PlaybackState.Paused);
-            _resumeWhenScreenReturns = false;
+            // Only a song still running carries on. A screen arriving to a paused song leaves it
+            // paused: the pause is either the host's or the one a lost display just caused, and
+            // neither should restart the room on its own.
+            bool resume = State == PlaybackState.Playing;
 
             // Reloading costs an ffmpeg spin-up; a running clock resumes the screen behind the UI.
             StopClock();
@@ -919,29 +917,17 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
             if (await HasConnectedScreenAsync())
                 return;
 
-            var behavior = await GetScreenDisconnectBehaviorAsync();
+            Logger.LogWarning("The display carrying the song went away mid-performance; parking it at the start");
 
-            Logger.LogWarning("Last screen disconnected mid-performance; applying {Behavior}", behavior);
+            // Always back to zero, never picked up where it stopped. A receiver's idea of where it
+            // was is its own — it buffers seconds ahead, reports a position it has not reached, and
+            // comes back having forgotten the session — so resuming put the room somewhere nobody
+            // asked for. Starting the turn again is the one outcome a host can predict, and it is
+            // theirs to trigger: the song waits on the play button rather than lurching back to life.
+            await PauseAsync();
+            Position = TimeSpan.Zero;
 
-            switch (behavior)
-            {
-                case ScreenDisconnectBehavior.CancelPerformance:
-                    ResetState();
-                    await EndedAsync();
-                    _broker.Announce(new PlaybackChanged());
-                    break;
-
-                case ScreenDisconnectBehavior.RestartFromStart:
-                    await PauseAsync();
-                    Position = TimeSpan.Zero;
-                    _broker.Announce(new PlaybackChanged());
-                    break;
-
-                default:
-                    _resumeWhenScreenReturns = true;
-                    await PauseAsync();
-                    break;
-            }
+            _broker.Announce(new PlaybackChanged());
         }
         catch (Exception ex)
         {
@@ -984,12 +970,6 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         }
     }
 
-    private async Task<ScreenDisconnectBehavior> GetScreenDisconnectBehaviorAsync()
-    {
-        var venue = await _venuesService.ReadSelectedVenueAsync();
-        return venue?.Settings.OnScreenDisconnect ?? ScreenDisconnectBehavior.ResumeOnReconnect;
-    }
-
     private void ResetState()
     {
         StopClock();
@@ -998,7 +978,6 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         _sessionActivity = null;
 
         CurrentlyPerformingUserId = null;
-        _resumeWhenScreenReturns = false;
         _currentLyrics = null;
 
         // Cancelled rather than left to fire: it would otherwise reopen a transcode for the song

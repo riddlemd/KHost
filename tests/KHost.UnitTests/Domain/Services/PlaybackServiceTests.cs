@@ -1318,24 +1318,12 @@ public class PlaybackServiceTests : IDisposable
         Assert.False(await WaitForBroadcastAsync<LoadMediaCommand>());
     }
 
+    // One outcome, whatever the venue says, because a receiver's idea of where it was is its own:
+    // it buffers seconds ahead, reports a position it has not reached, and comes back having
+    // forgotten the session. Starting the turn again is the one thing a host can predict.
     [Fact]
-    public async Task ScreenDisconnect_ResumeOnReconnect_ResumesWhenAScreenReturns()
+    public async Task ScreenDisconnect_PausesAndRewindsToTheStart()
     {
-        SetDisconnectBehavior(ScreenDisconnectBehavior.ResumeOnReconnect);
-        await PlayThenLoseAllScreensAsync();
-
-        Assert.True(await WaitForStateAsync(PlaybackState.Paused));
-
-        ConnectScreens(1);
-        RaiseScreenConnected();
-
-        Assert.True(await WaitForStateAsync(PlaybackState.Playing));
-    }
-
-    [Fact]
-    public async Task ScreenDisconnect_RestartFromStart_PausesAndRewinds()
-    {
-        SetDisconnectBehavior(ScreenDisconnectBehavior.RestartFromStart);
         var performance = await PlayThenLoseAllScreensAsync(tick: true);
 
         Assert.True(await WaitForStateAsync(PlaybackState.Paused));
@@ -1343,10 +1331,11 @@ public class PlaybackServiceTests : IDisposable
         Assert.Same(performance, _service.CurrentPerformance);
     }
 
+    /// <summary>The song waits on the play button rather than lurching back to life under a singer
+    /// who has stopped expecting it.</summary>
     [Fact]
-    public async Task ScreenDisconnect_RestartFromStart_DoesNotAutoResume()
+    public async Task ScreenDisconnect_DoesNotAutoResume_WhenAScreenReturns()
     {
-        SetDisconnectBehavior(ScreenDisconnectBehavior.RestartFromStart);
         await PlayThenLoseAllScreensAsync();
         Assert.True(await WaitForStateAsync(PlaybackState.Paused));
 
@@ -1357,45 +1346,27 @@ public class PlaybackServiceTests : IDisposable
         Assert.Equal(PlaybackState.Paused, _service.State);
     }
 
+    /// <summary>Losing the picture is not losing the turn: the singer keeps their place.</summary>
     [Fact]
-    public async Task ScreenDisconnect_CancelPerformance_ClearsTheCurrentSong()
+    public async Task ScreenDisconnect_KeepsTheSongLoaded()
     {
-        SetDisconnectBehavior(ScreenDisconnectBehavior.CancelPerformance);
-        await PlayThenLoseAllScreensAsync();
-
-        Assert.True(await WaitForStateAsync(PlaybackState.Stopped));
-
-        for (var i = 0; i < 50 && _service.CurrentPerformance is not null; i++)
-            await Task.Delay(10);
-
-        Assert.Null(_service.CurrentPerformance);
-        Assert.Null(_service.CurrentMedia);
-    }
-
-    [Fact]
-    public async Task ScreenDisconnect_DefaultsToResume_WhenNoVenueIsSelected()
-    {
-        _venuesService.ReadSelectedVenueAsync().Returns((Venue?)null);
         await PlayThenLoseAllScreensAsync();
 
         Assert.True(await WaitForStateAsync(PlaybackState.Paused));
-
-        ConnectScreens(1);
-        RaiseScreenConnected();
-
-        Assert.True(await WaitForStateAsync(PlaybackState.Playing));
+        Assert.NotNull(_service.CurrentPerformance);
+        Assert.NotNull(_service.CurrentMedia);
     }
 
-    private void SetDisconnectBehavior(ScreenDisconnectBehavior behavior) =>
-        _venuesService.ReadSelectedVenueAsync().Returns(new Venue
-        {
-            Id = Guid.NewGuid(),
-            Name = "Test Venue",
-            Settings = new Venue.VenueSettings
-            {
-                OnScreenDisconnect = behavior,
-            },
-        });
+    /// <summary>Nothing is read from the venue any more, so a console with none behaves the same.</summary>
+    [Fact]
+    public async Task ScreenDisconnect_BehavesTheSame_WithNoVenueSelected()
+    {
+        _venuesService.ReadSelectedVenueAsync().Returns((Venue?)null);
+        await PlayThenLoseAllScreensAsync(tick: true);
+
+        Assert.True(await WaitForStateAsync(PlaybackState.Paused));
+        Assert.Equal(TimeSpan.Zero, _service.Position);
+    }
 
     private async Task<Performance> PlayThenLoseAllScreensAsync(bool tick = false)
     {

@@ -18,7 +18,6 @@ public class EditVenueModel
     public bool Enabled { get; set; } = true;
 
     public int DefaultVolume { get; set; } = 100;
-    public ScreenDisconnectBehavior OnScreenDisconnect { get; set; } = ScreenDisconnectBehavior.ResumeOnReconnect;
     public bool ShowEstimatedWaitTime { get; set; } = true;
     public bool TippingEnabled { get; set; } = true;
     public bool WarnOnDuplicateSong { get; set; }
