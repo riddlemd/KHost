@@ -94,8 +94,10 @@ internal static class Program
                     _ = PublishStateAsync();
                     _ = ResyncClockAsync();
 
-                    // Applied here rather than at construction: full screen resizes the window,
-                    // which needs one that exists, and the page being ready is the first moment that is true.
+                    // Before full screen, and here rather than at construction because both need a
+                    // window that exists — the page being ready is the first moment that is true.
+                    EnsureReachable(window!, logger);
+
                     if (stored?.FullScreen == true)
                         SetFullScreen(window!, true, logger);
 
@@ -120,6 +122,53 @@ internal static class Program
         _ipc.DisposeAsync().AsTask().GetAwaiter().GetResult();
         Log.CloseAndFlush();
         _closing.Dispose();
+    }
+
+    /// <summary>Puts the window back on a monitor when the one it was left on is not there.</summary>
+    /// <remarks>The stored placement can be perfectly sensible and still land nowhere: a venue runs
+    /// the screen on a projector, unplugs it, and the next launch restores onto coordinates that no
+    /// longer exist. The window then has no title bar on screen to drag and no way back, so this
+    /// costs the remembered position rather than the window.</remarks>
+    private static void EnsureReachable(PhotinoWindow window, Microsoft.Extensions.Logging.ILogger logger)
+    {
+        try
+        {
+            var monitors = window.Monitors.ToList();
+
+            // Nothing to measure against: leave the window where it is rather than moving it on a
+            // guess.
+            if (monitors.Count == 0) return;
+
+            var left = window.Left;
+            var top = window.Top;
+            var right = left + window.Width;
+            var bottom = top + window.Height;
+
+            // Any overlap at all is enough — a window half off the side is still draggable.
+            foreach (var monitor in monitors)
+            {
+                var area = monitor.WorkArea;
+                if (left < area.X + area.Width && right > area.X
+                    && top < area.Y + area.Height && bottom > area.Y)
+                    return;
+            }
+
+            var main = window.MainMonitor.WorkArea;
+            var x = main.X + Math.Max(0, (main.Width - window.Width) / 2);
+            var y = main.Y + Math.Max(0, (main.Height - window.Height) / 2);
+
+            logger.LogWarning(
+                "The stored placement {Left},{Top} is on no monitor; centring on the main one at {X},{Y}",
+                left, top, x, y);
+
+            window.SetLeft(x);
+            window.SetTop(y);
+        }
+        catch (Exception ex)
+        {
+            // Never worth failing a screen over: a window in an odd place still shows the song.
+            logger.LogWarning(ex, "Could not check the window is on a monitor");
+        }
     }
 
     /// <summary>Builds the player page with its script inlined, from the embedded resources.</summary>

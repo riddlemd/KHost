@@ -43,6 +43,48 @@ public class WindowPlacementStoreTests : IDisposable
         Assert.Equal(1280, placement.Width);
     }
 
+    /// <summary>Windows reports a minimized window at -32000,-32000 with a title-bar-sized rect,
+    /// and the move handler fires as it minimizes. Storing that restores the window there on every
+    /// later launch, where no click can reach it.</summary>
+    [Theory]
+    [InlineData(-32000, -32000, 160, 39)]   // exactly what Windows reports for a minimized window
+    [InlineData(-32000, -32000, 1280, 720)] // minimized origin, ordinary size
+    [InlineData(80, 80, 160, 39)]           // on screen, but too small to grab
+    public void Schedule_AnUnreachablePlacement_IsNotStored(int left, int top, int width, int height)
+    {
+        using (var store = Store("Screen 1"))
+        {
+            store.Schedule(new WindowPlacement(120, 80, 1600, 900, false));
+            store.Schedule(new WindowPlacement(left, top, width, height, false));
+        }
+
+        // The last good placement survives rather than being overwritten by the bad one.
+        Assert.Equal(new WindowPlacement(120, 80, 1600, 900, false), Store("Screen 1").Read());
+    }
+
+    /// <summary>Recovers a file written before the guard existed.</summary>
+    [Fact]
+    public void Read_AnUnreachablePlacementAlreadyOnDisk_IsTreatedAsNothingStored()
+    {
+        var path = Path.Combine(_root, "cache", "screens", "Screen 1.window.json");
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        File.WriteAllText(path, JsonSerializer.Serialize(new WindowPlacement(-32000, -32000, 160, 39, false)));
+
+        // Null opens the window at the default, which is reachable; returning it would restore the
+        // window somewhere the host can never click.
+        Assert.Null(Store("Screen 1").Read());
+    }
+
+    [Fact]
+    public void Schedule_ANegativeOriginOnASecondMonitor_IsStillStored()
+    {
+        using (var store = Store("Screen 1"))
+            store.Schedule(new WindowPlacement(-1920, -200, 1920, 1080, false));
+
+        // A monitor left of or above the primary is an ordinary setup, not a minimized window.
+        Assert.Equal(-1920, Store("Screen 1").Read()!.Left);
+    }
+
     /// <summary>Two screens on one machine each keep their own window.</summary>
     [Fact]
     public void Schedule_DifferentScreens_DoNotShareAPlacement()
