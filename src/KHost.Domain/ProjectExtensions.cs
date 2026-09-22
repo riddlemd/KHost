@@ -88,6 +88,7 @@ namespace KHost.Domain
             // through: it claims every file and would answer ahead of whoever owns the format.
             serviceCollection.AddKeyedSingleton<IMediaProbe, FfprobeMediaProbe>(MediaProbeService.FallbackKey);
             serviceCollection.AddSingleton<IMediaProbeService, MediaProbeService>();
+            serviceCollection.AddSingleton<IPlayableMediaSourceService, PlayableMediaSourceService>();
             serviceCollection.AddSingleton<ITimedLyricsService, TimedLyricsService>();
             serviceCollection.AddSingleton<IAudioTrackService, AudioTrackService>();
             serviceCollection.AddSingleton<IMediaTagReader, MediaTagReader>();
