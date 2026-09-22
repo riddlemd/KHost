@@ -92,8 +92,6 @@ namespace KHost.Domain
             serviceCollection.AddSingleton<IMediaTagReader, MediaTagReader>();
             serviceCollection.AddSingleton<IMediaGateService, MediaGateService>();
             serviceCollection.AddSingleton<IScreenCoordinationService, ScreenCoordinationService>();
-            serviceCollection.AddSingleton<PreparedMediaService>();
-            serviceCollection.AddSingleton<IPreparedMediaService>(sp => sp.GetRequiredService<PreparedMediaService>());
             serviceCollection.AddSingleton<IScreenMarqueeService, ScreenMarqueeService>();
             serviceCollection.AddSingleton<INextSingerCardService, Services.Screens.NextSingerCardService>();
             serviceCollection.AddSingleton<Services.Screens.IScreenQrCodeService, Services.Screens.ScreenQrCodeService>();
@@ -106,8 +104,6 @@ namespace KHost.Domain
                 sp => (Services.Screens.IStartsWithTheHost)sp.GetRequiredService<IScreenCoordinationService>());
             serviceCollection.AddSingleton<Services.Screens.IStartsWithTheHost>(
                 sp => (Services.Screens.IStartsWithTheHost)sp.GetRequiredService<IScreenMarqueeService>());
-            serviceCollection.AddSingleton<Services.Screens.IStartsWithTheHost>(
-                sp => sp.GetRequiredService<PreparedMediaService>());
             serviceCollection.AddSingleton<Services.Screens.IStartsWithTheHost>(
                 sp => (Services.Screens.IStartsWithTheHost)sp.GetRequiredService<Services.Screens.IScreenQrCodeService>());
             serviceCollection.AddSingleton<Services.Screens.IStartsWithTheHost>(

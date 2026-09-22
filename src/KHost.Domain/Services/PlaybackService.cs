@@ -93,7 +93,6 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
     private readonly IOptionsMonitor<ServiceOptions> _optionsMonitor;
     private readonly IAudioTrackService _audioTracks;
     private readonly IMediaGateService _mediaGate;
-    private readonly IPreparedMediaService _prepared;
     private readonly IFlashService _flash;
 
     // Read per use rather than captured: the App Settings page writes the overlay live, and a
@@ -141,7 +140,6 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         IOptionsMonitor<ServiceOptions> options,
         IAudioTrackService audioTracks,
         IMediaGateService mediaGate,
-        IPreparedMediaService prepared,
         IFlashService flash,
         IMessageBroker broker)
         : base(logger)
@@ -161,7 +159,6 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         _optionsMonitor = options;
         _audioTracks = audioTracks;
         _mediaGate = mediaGate;
-        _prepared = prepared;
         _flash = flash;
 
         _screenServer.ScreenConnected += OnScreenConnected;
@@ -232,16 +229,6 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
             return;
         }
 
-        // A format only a plugin can read is not playable until it has been rendered. Refused here
-        // rather than at the stream, where it surfaced as a failure to prepare the song for the
-        // screens: nothing is wrong, it is simply not ready for a moment longer.
-        if (_prepared.IsWaitingOnARender(media.FilePath))
-        {
-            Logger.LogInformation("Load refused: media {MediaId} is still being made ready", media.Id);
-            _flash.Show($"\u201c{media.Title}\u201d is still getting ready. Try again in a moment.", FlashType.Warning);
-            return;
-        }
-
         // A plugin can gate its own rendered content, refusing it without a live account; it is
         // refused like a non-Ready row, and the gate's reason is flashed since nothing else would say why.
         var gate = await _mediaGate.EvaluateAsync(MediaAction.Play, media);
@@ -284,14 +271,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         // Probed rather than stored: the answer costs one ffprobe, and a file replaced on disk
         // would otherwise keep whatever its tracks were called at import.
         //
-        // Off what will actually play, not off the library row. A format only a plugin can read is
-        // not probeable by ffprobe at all, so asking the row's own path finds no
-        // streams and silently drops the lead and backing sliders for every song the plugin owns.
-        // The render carries the stems; an ordinary file is never rendered while it has stems worth
-        // keeping, so the two can never disagree about what is on the track list.
-        var probeFrom = _prepared.TryResolve(media.FilePath) is { Length: > 0 } render ? render : media.FilePath;
-
-        AudioTracks = await _audioTracks.ReadTracksAsync(probeFrom);
+        AudioTracks = await _audioTracks.ReadTracksAsync(media.FilePath);
 
         _sessionActivity = _analytics.StartActivity(AnalyticActivities.Session);
         _sessionActivity.SetTag("media_id", media.Id);

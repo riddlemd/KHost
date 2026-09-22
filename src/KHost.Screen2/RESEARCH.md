@@ -8,6 +8,14 @@ that back as HLS, could a screen decode the stems and draw the lyrics itself?
 The numbers below came from a throwaway `KHost.Screen3` probe, which has served its purpose and
 been deleted. Its measurements are kept here because the engine's design rests on them.
 
+**Since this was written, the host-side render path has been removed.** `IMediaPreparer`,
+`PreparedMediaService`, `PerformancePreparation` and the whole stream-copy contract
+(`CopyPlan`, `CutsCleanly`, `CanCopyVideo`, `CanCopyAudio`, `KeyframeSecondsFor`) are gone:
+benchmarked against plain streaming, pre-rendering bought ~0.1–0.2s of start latency and no
+reliable CPU saving, and it existed mainly for `.kit`. So a `.kit` is **unplayable today** — the
+native path below is not an optimisation any more, it is the only way back. Where the sections
+below say a native path would "skip" that machinery, read it as already skipped for everyone.
+
 **This is a second render path, not a replacement.** ffmpeg stays: CDG + mp3 and mp4 (YouTube) have
 no native path and are not going to get one. So the question is narrower and safer than it first
 looks — whether Screen2 gains a path it takes for files it can open itself, falling back to the
@@ -81,15 +89,11 @@ None of this is removed — CDG + mp3 and mp4 still need every bit of it. It is 
 file the screen can open itself:
 
 - `HlsMediaStreamService` — no ffmpeg spawn, no segmenting, no playlist, no session.
-- `PreparedMediaService` — its whole purpose is to make starting a song a stream copy, and there
-  is no stream to copy. The render stays available as a fallback (see Cast, below).
-- The keyframe contract with it: `CopyPlan`, `CutsCleanly`, `CanCopyVideo`, `CanCopyAudio`,
-  `KeyframeSecondsFor`, the segment-length setting. All of it exists so a muxer can cut an
-  already-encoded file without re-touching frames.
 - The ffmpeg filter graphs for pitch, tempo and mix.
 
-The saving is per-song, not architectural: an 84-second render and 23.7 MB on disk, gone, for
-each kit a venue plays. The machinery itself stays exactly where it is.
+~~`PreparedMediaService` and the keyframe contract~~ — since removed outright, for everyone. The
+per-song saving this section claimed (an 84-second render and 23.7 MB on disk per kit) has already
+been taken; what a native path buys on top of it is playability, not speed.
 
 ## What it would have to reproduce
 
@@ -125,8 +129,9 @@ and:
 
 > The gate is on the **source container**, not on the render.
 
-Today the flow is: `PreparedMediaService` asks `MediaAction.Render` immediately before writing any
-bytes, and `PlaybackService.LoadAsync` separately asks `MediaAction.Play` before opening a stream.
+Today the flow is: `PlaybackService.LoadAsync` asks `MediaAction.Play` before opening a stream, and
+nothing asks `MediaAction.Render` at all — the one caller was `PreparedMediaService`. The enum
+member survives for exactly this design.
 The screen then receives only a URL — no file path, no stems, no decoder.
 
 A native path moves that boundary. Handing stems to a screen process **is** content leaving the

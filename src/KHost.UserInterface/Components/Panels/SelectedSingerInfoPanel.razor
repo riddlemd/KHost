@@ -111,7 +111,6 @@
                         var isBroken = rowMedia?.Status == MediaStatus.Broken;
                         var isAcquiring = rowMedia?.Status.IsAcquiring() == true;
                         var isReady = rowMedia?.Status == MediaStatus.Ready;
-                        var isWaitingOnARender = IsWaitingOnARender(rowMedia);
 
                         <tr class="kh-selected-singer-info-panel__row @rowClass @(isCurrent && PlaybackService?.State == PlaybackState.Playing ? "kh-selected-singer-info-panel__row--playing" : "")"
                             @key="performance.Id"
@@ -163,8 +162,7 @@
                             <td class="kh-selected-singer-info-panel__status">
                                 @if (rowMedia is not null)
                                 {
-                                    var status = StatusOf(rowMedia);
-                                    <span class="kh-badge @status.BadgeClass">@status.Label</span>
+                                    <span class="kh-badge @MediaStatusDisplay.BadgeClass(rowMedia.Status)">@rowMedia.Status</span>
                                 }
                             </td>
                             <td class="kh-table__cell--actions">
@@ -172,12 +170,11 @@
                                         Title="@(isBroken
                                             ? "This song is marked broken and can't be played"
                                             : isAcquiring ? "This song is still downloading"
-                                            : isWaitingOnARender ? "This song is still getting ready to play"
                                             : disablePlay ? "Cannot Load and Play while another Song is loaded" : "Load and Play Song")"
-                                        PrimaryDisabled="@(disablePlay || !isReady || isWaitingOnARender)"
+                                        PrimaryDisabled="@(disablePlay || !isReady)"
                                         @onclick="() => LoadAndPlayAsync(performance)">
                                      <Text>
-                                        @if (isAcquiring || isWaitingOnARender)
+                                        @if (isAcquiring)
                                         {
                                             <Loader Type="Loader.LoaderType.Spinner" />
                                         }

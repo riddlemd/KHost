@@ -126,13 +126,13 @@ cannot name another's: its secrets, and the QR code it offers the screens.
   subscription provider can honour its own terms, and for nothing else. The host routes a question
   to whichever plugin owns a file and does what it answers. Do not add host-side enforcement, and
   do not try to make it airtight against a host who owns the machine.
-  - **One verdict, asked at three moments.** `CanAsync(MediaAction, Media)` takes `Queue`,
+  - **One verdict, asked at every moment.** `CanAsync(MediaAction, Media)` takes `Queue`,
     `Render` or `Play`; a provider whose answer never varies ignores the argument. Call sites:
-    `PerformanceService.CreateAndEnqueueAsync`, `PreparedMediaService` before it writes, and
-    `PlaybackService.LoadAsync`. **`Render` is the one that matters** — it is where licensed content
-    leaves the provider's container, and it runs with nobody watching, so refuse it outright;
-    `Queue` and `Play` may raise a sign-in first. Refusing at `Queue` too means a host learns before
-    the singer is at the microphone.
+    `PerformanceService.CreateAndEnqueueAsync` (Queue) and `PlaybackService.LoadAsync` (Play).
+    `Render` is **raised by nothing right now** — it was the pre-render, which is gone — and stays
+    in the enum because a plugin compiles against it and the native render path will want it back.
+    `Queue` and `Play` may raise a sign-in first; refusing at `Queue` means a host learns before the
+    singer is at the microphone.
   - **Ownership is asked by name first.** `IMediaGateService` asks every gate's `Claims(path)` before
     reading any tag, because the path is free and the tag opens the file. Only when nothing claims
     the name does it read the container tag `IMediaPlaybackGate.MetadataTag` (`khost_provider`),
@@ -160,19 +160,21 @@ cannot name another's: its secrets, and the QR code it offers the screens.
     `IMediaProbe` enumerable — it claims every file. A plugin that throws deciding is skipped; one
     that throws reading its own format answers null rather than falling through.
   - Nothing is cached: a file swapped under an unchanged path must be re-read.
-- **Three questions a provider answers about a file, and they are not the same question.**
-  `IMediaPlaybackGate.Claims` asks who *owns* it, `IMediaProbe.CanProbe` who can *read* it,
-  `IMediaPreparer.CanPrepare` who must *convert* it. A provider with one closed container answers
-  all three with the same extension check; a format the host could play but only the plugin could
-  describe claims the probe and not the preparer. Answer each for what it asks. All three must
-  answer from the **path alone** — each runs for every queued turn on every reconcile, and opening
-  the file turns a bulk enqueue into thousands of reads. `Claims` and `IMediaPreparer.KeyframeSeconds`
-  have **default bodies**, which is behaviour in `Abstractions` the KH0001 analyzer cannot see; both
-  exist so an older plugin loads unchanged. Treat them as deliberate exceptions, not precedent.
-- `IMediaPreparer` renders a format the host cannot play: `CanPrepare(path)` claims it, `PrepareAsync`
-  renders to a destination the host chose, `KeyframeSeconds` says how far apart its keyframes are.
-  `PreparedMediaService` asks the **gate** before calling it, so `PrepareAsync` carries no session
-  check of its own.
+- **Two questions a provider answers about a file, and they are not the same question.**
+  `IMediaPlaybackGate.Claims` asks who *owns* it, `IMediaProbe.CanProbe` who can *read* it. A
+  provider with one closed container answers both with the same extension check, which makes them
+  look redundant; a plugin that gates content the host reads perfectly well claims the gate and not
+  the probe. Answer each for what it asks. Both must answer from the **path alone** — each runs for
+  every queued turn on every reconcile, and opening the file turns a bulk enqueue into thousands of
+  reads. `Claims` has a **default body**, which is behaviour in `Abstractions` the KH0001 analyzer
+  cannot see; it exists so a plugin with no opinion loads unchanged. A deliberate exception, not a
+  precedent.
+- **There is no host-side render path.** `IMediaPreparer` and `PreparedMediaService` are gone, along
+  with `PerformancePreparation`, the copy plan and the keyframe-cadence rules built on them:
+  measured against streaming, the pre-render bought ~0.1–0.2s of start latency and no reliable CPU
+  saving. A format the host cannot play is therefore **unplayable** until the native render path
+  lands — see `src/KHost.Screen2/RESEARCH.md`. Everything now streams through
+  `HlsMediaStreamService`, which always encodes.
 - **`IDisplayProvider` is somewhere the song comes out that is not a screen.** Chromecast lives in
   its own plugin for exactly this reason: mDNS browsing and a protobuf transport are a dependency
   the host should not carry to play a local file.
@@ -207,8 +209,9 @@ cannot name another's: its secrets, and the QR code it offers the screens.
 - A plugin adds importer extensions with a manifest `importFormats: [".ext"]`, read from
   `IPluginRegistry` without resolving the plugin and unioned with the built-ins for **loaded**
   plugins only, normalised to leading-dot lowercase. It is a *filter*: it says a row may be made,
-  not that the host can play the file. A format the host cannot read is declared here **and**
-  claimed by an `IMediaPreparer`. The folder is never content-probed; the extension check is free.
+  not that the host can play the file. A format the host cannot read still has nowhere to be turned
+  into one — see the note on the render path above. The folder is never content-probed; the
+  extension check is free.
 - **A plugin extension type is one singleton across every extension interface it implements.** One
   object, one session key, so signing in on the button signs in the search and the gate. The bound
   interfaces are a hand-written list in `PluginLoader`, and leaving one off is **silent**;
@@ -223,7 +226,7 @@ cannot name another's: its secrets, and the QR code it offers the screens.
 - `<ContractsVersion>` in `Directory.Build.props` is the version of both. It moves whenever the
   shape an author compiles against changes at all, additions included; 0.x while the contracts
   still move.
-- `PluginApi.CurrentVersion` (at **3**) is the runtime gate the host checks a manifest against, and
+- `PluginApi.CurrentVersion` (at **4**) is the runtime gate the host checks a manifest against, and
   it moves only on a break. Changing a method a plugin **calls or implements** is a break, including
   adding an optional parameter: the default compiles into the call site, and a changed implemented
   signature is a `TypeLoadException` at load. A new interface member with a **default body** is not.
@@ -317,59 +320,23 @@ change the same way the marquee is.
   line. On macOS a Spotify advert arrives as a track with no artist and an em dash for a title, and
   is drawn as one — recognising ads would mean reading the track id, which nothing does yet.
 
-## Pre-rendering a queued song
+## Streaming a song
 
-`PreparedMediaService` renders queued songs ahead of play time into `<temp>/khost-streams/prepared`,
-moving the transcode off the song transition and leaving a stream copy behind where it can.
+`HlsMediaStreamService` transcodes at play time, one ffmpeg per song, into
+`<temp>/khost-streams`. There is no pre-render and no stream-copy path: the copy only ever paid off
+against a render the host had already made, and making those renders cost more than it saved.
 
-- **Readiness belongs to the turn and is derived, never stored.** `PerformancePreparation` is
-  computed from whether the render is on disk and whether one is in flight; a column would outlive
-  the file it describes.
-- **`IsWaitingOnARender` is the question a control and a load must both ask**, or a play button
-  offers a song the load then refuses. It is not `PerformancePreparation.Preparing`: an ordinary file
-  mid-render starts at once on the transcode, and a plugin's format waiting for the single render
-  slot cannot start at all yet is not `Preparing`.
-- **A render is named for its source's path, size and write time**, so editing a file in place
-  orphans its old render and the failure memo keyed on that name clears itself. `PathFor` returns
-  null rather than throwing when the source has gone.
-- **Reconcile is announcement-driven, so it coalesces**: one running pass plus at most one pending.
-  The flag is cleared on the way *in*, or a change arriving mid-pass is swallowed.
-- **Cheap checks first**: the destination existing and the failure memo are read before the gate
-  and anything that opens a file. Both are re-checked inside the render, since two passes can read
-  them before either writes.
-- **A render that fails is remembered**, or it takes the single slot on every queue change and
-  nothing else is ever prepared. `Sweep` clears the memo with the renders — a memo keyed to a
-  deleted render would refuse to retry a song that never actually failed.
-- **Nothing outlives the process**: a shutdown token is threaded through reconcile and render, and a
-  cancelled host-owned ffmpeg is killed. Waiting on a token stops the wait, not the process.
-- **`NeedsARender` is the one predicate for whether a file should have a render.** For a file the
-  host can play anyway the render is an optimisation, and `MediaStream:PreRenderQueuedSongs` (App
-  Settings, on by default) is a host declining it. For a format only a plugin can read it is the
-  whole of playability, so the setting does not reach it. Switching off reconciles with **no grace**
-  rather than sweeping, so plugin renders survive and the song at the microphone is kept.
-- **Media stream settings are read live through `IOptionsMonitor`**, never snapshotted in a
-  constructor; only the working directory is resolved once. App Settings says they apply
-  immediately, and that has to be true.
-- **Budget and free-space floor** (`PreparedBudgetMegabytes`, `PreparedFreeSpaceFloorMegabytes`,
-  zero lifts each). Past either, the song transcodes at play time: the pre-render must never be why
-  a machine fills up.
-- **A render outlives the queue by `KeepAfterUnwanted`** (five minutes) — a song that just ended is
-  the one most likely to be asked for again. It is a minimum: dropping is driven by the queue
-  changing.
-- **The copy is asked per stream.** `CanCopyVideo`: only tempo rules the picture out. `CanCopyAudio`:
-  pitch, tempo or a mixable mix rule the sound out. `CanStreamCopy` is both agreeing. A multi-stem
-  render always rebuilds its audio but copies its picture, and so does a song whose key was shifted;
-  re-encoding a picture for an audio-only change is wasted work and a generation of quality.
-  `BuildArguments` takes a `copyVideo` flag rather than a third builder, so the mix graph and muxer
-  settings cannot drift between the paths.
-- **`CopyPlan` decides what may be copied from, and asks two things**: is it a prepared render (an
-  original file makes no promise about its keyframes), and does its cadence divide the host's
-  segment length (`CutsCleanly`). A muxer cuts a copy only on a keyframe, so a segment length that
-  is not a multiple of the render's cadence silently runs each segment on to the next keyframe.
-- **A render says its own cadence** through `IMediaPreparer.KeyframeSeconds`; the host answers its
-  own segment length for renders it made, and relays the preparer's through
-  `IPreparedMediaService.KeyframeSecondsFor`. Null means "I do not say" and the picture is encoded.
-  A preparer should read its renderer's own constant rather than restate a number.
+- **Graphics-only sources get `-r 30`.** A CDG has no frame rate of its own, so ffmpeg picks one off
+  the first packets and the segment durations then drift from the wall clock.
+- **Keyframes are forced on time, not on a frame count.** `-g` is in frames and matches the segment
+  length at exactly one source frame rate, and the muxer can only cut where a keyframe already is,
+  so `-force_key_frames expr:gte(t,n_forced*<segment>)` with `-sc_threshold 0` is what keeps the
+  segments on the clock.
+- **Its settings are read live through `IOptionsMonitor`**, never snapshotted in a constructor; only
+  the working directory is resolved once, since moving it would strand the sessions already under
+  it. App Settings says they apply immediately, and that has to be true.
+- `BuildArguments` is static and is where every codec, filter and muxer decision lives, so the unit
+  tests can assert the command line without running ffmpeg.
 
 ## Components
 
@@ -431,11 +398,11 @@ xUnit + NSubstitute, and bunit for components. A test that needs anything outsid
 `MethodUnderTest_Scenario_ExpectedBehavior`; substitutes in field initializers; mirror the source layout (`Domain/Services/Foo.cs` → `Domain/Services/FooTests.cs`). Test an announcement by subscribing a counter to the real broker the service was built with (`using var subscription = _broker.Subscribe<VenuesChanged>(_ => raised++)`), or substitute `IMessageBroker` and assert `Received(1).Announce(...)`. A bunit fixture must register a broker — components `[Inject]` one — or every render throws on the missing service.
 
 **A service that starts work in its constructor will race a test that arranges a substitute after
-building it.** `PreparedMediaService` reconciles on the way up and nothing awaits it, so a
-substitute stubbed afterwards can have its first call consumed by that pass instead of by the test,
-and an exact call count then fails. Arrange everything before the service is built, or give the
-fixture a way to settle the constructor's work first. **Run the suite under load before trusting a
-green one.**
+building it.** Where nothing awaits that work, a substitute stubbed afterwards can have its first
+call consumed by the constructor's pass instead of by the test, and an exact call count then fails.
+Arrange everything before the service is built, or give the fixture a way to settle the
+constructor's work first. **Run the suite under load before trusting a green one** — it is what
+found this, and two real defects an idle machine never showed.
 
 Times are stored UTC. **Arrange test data in UTC**: a test that uses the same local clock as the
 code cancels the offset and passes, and can only fail on a machine not already at UTC. Local time

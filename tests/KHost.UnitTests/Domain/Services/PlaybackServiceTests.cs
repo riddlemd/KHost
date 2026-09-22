@@ -25,7 +25,6 @@ public class PlaybackServiceTests : IDisposable
     private readonly IMediaService _mediaService = Substitute.For<IMediaService>();
     private readonly IAudioTrackService _audioTracks = Substitute.For<IAudioTrackService>();
     private readonly IMediaGateService _mediaGate = Substitute.For<IMediaGateService>();
-    private readonly IPreparedMediaService _prepared = Substitute.For<IPreparedMediaService>();
     private readonly IFlashService _flash = Substitute.For<IFlashService>();
 
     // Real: a substitute would make the IsPrimary assertions below test nothing.
@@ -140,7 +139,7 @@ public class PlaybackServiceTests : IDisposable
             StreamRetireGrace = retireGrace ?? TimeSpan.Zero,
         }),
         _audioTracks,
-        _mediaGate, _prepared,
+        _mediaGate,
         _flash,
         _broker);
 
@@ -361,53 +360,6 @@ public class PlaybackServiceTests : IDisposable
         await _service.LoadAsync(performance, media);
 
         await _mediaGate.Received().EvaluateAsync(MediaAction.Play, media, Arg.Any<CancellationToken>());
-    }
-
-    /// <summary>A format only a plugin can read is not a media file until it has been rendered, so
-    /// playing one that is still being made surfaced as a failure to prepare the song for the
-    /// screens. Nothing is wrong: it is not ready for a moment longer, and the host is told so.
-    /// </summary>
-    [Fact]
-    public async Task LoadAsync_APluginsFormatWithNoRenderYet_IsRefusedRatherThanThrowing()
-    {
-        var (performance, media) = CreatePerformance();
-        _prepared.IsWaitingOnARender(media.FilePath).Returns(true);
-
-        await _service.LoadAsync(performance, media);
-
-        Assert.Null(_service.CurrentPerformance);
-        await _screenServer.DidNotReceive().BroadcastCommandAsync(Arg.Any<LoadMediaCommand>());
-        _flash.Received(1).Show(Arg.Is<string>(m => m.Contains("still getting ready")), FlashType.Warning);
-    }
-
-    /// <summary>Once the render lands the same turn plays, off the render rather than the source.
-    /// </summary>
-    [Fact]
-    public async Task LoadAsync_APluginsFormatOnceRendered_Loads()
-    {
-        var (performance, media) = CreatePerformance();
-        _prepared.IsWaitingOnARender(media.FilePath).Returns(false);
-        _prepared.TryResolve(media.FilePath).Returns("/tmp/prepared/abc.mp4");
-
-        await _service.LoadAsync(performance, media);
-
-        Assert.Same(performance, _service.CurrentPerformance);
-        _flash.DidNotReceive().Show(Arg.Any<string>(), Arg.Any<FlashType>());
-    }
-
-    /// <summary>An ordinary file is never refused for this: there is always a transcode to fall
-    /// back on, which is what happened before any of this existed.</summary>
-    [Fact]
-    public async Task LoadAsync_AnOrdinaryFileWithNoRender_LoadsAnyway()
-    {
-        var (performance, media) = CreatePerformance();
-        _prepared.RequiresPreparation(media.FilePath).Returns(false);
-        _prepared.TryResolve(media.FilePath).Returns((string?)null);
-
-        await _service.LoadAsync(performance, media);
-
-        Assert.Same(performance, _service.CurrentPerformance);
-        _flash.DidNotReceive().Show(Arg.Any<string>(), Arg.Any<FlashType>());
     }
 
     [Fact]
@@ -3201,37 +3153,12 @@ public class PlaybackServiceTests : IDisposable
             Arg.Any<CancellationToken>());
     }
 
-    /// <summary>The bug this exists for: a .kit is its own container and ffprobe cannot open it, so
-    /// probing the library row's path finds no streams and the lead and backing faders quietly
-    /// vanish for every song a plugin owns. The render is what plays, and the render has the stems.
+    /// <summary>Tracks are read from the file the library row points at, which is the file that plays.
     /// </summary>
     [Fact]
-    public async Task LoadAsync_APluginsFormat_ReadsItsTracksFromTheRenderRatherThanTheRow()
+    public async Task LoadAsync_ReadsItsTracksFromTheRow()
     {
         var (performance, media) = CreatePerformance();
-        const string render = "/tmp/prepared/abc.khv";
-        _prepared.TryResolve(media.FilePath).Returns(render);
-        _audioTracks.ReadTracksAsync(render, Arg.Any<CancellationToken>()).Returns<IReadOnlyList<AudioTrack>>(
-        [
-            new AudioTrack(0, AudioTrackRole.Music, "Instrumental"),
-            new AudioTrack(1, AudioTrackRole.Backing, "Backing Vocal"),
-            new AudioTrack(2, AudioTrackRole.Lead, "Lead Vocal"),
-        ]);
-
-        await _service.LoadAsync(performance, media);
-
-        Assert.Equal(3, _service.AudioTracks.Count);
-        await _audioTracks.Received(1).ReadTracksAsync(render, Arg.Any<CancellationToken>());
-        await _audioTracks.DidNotReceive().ReadTracksAsync(media.FilePath, Arg.Any<CancellationToken>());
-    }
-
-    /// <summary>With no render there is nothing else to read: an ordinary file keeps its own tracks,
-    /// and is never rendered while it has stems worth keeping.</summary>
-    [Fact]
-    public async Task LoadAsync_AFileWithNoRender_ReadsItsTracksFromTheRow()
-    {
-        var (performance, media) = CreatePerformance();
-        _prepared.TryResolve(media.FilePath).Returns((string?)null);
         GiveThreeTracks(media);
 
         await _service.LoadAsync(performance, media);
@@ -3448,6 +3375,7 @@ public class PlaybackServiceTests : IDisposable
         var media = new Media { Id = mediaId, FilePath = "/music/media.mp4", Title = "Media", Status = MediaStatus.Ready };
         return (performance, media);
     }
+
     /// <summary>The venue decides whether a queued name that differs from the singer's is shown.</summary>
     [Theory]
     [InlineData(true, "DJ P")]

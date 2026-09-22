@@ -22,9 +22,7 @@ public class HlsMediaStreamServiceTranscodeTests : IDisposable
             {
                 BaseAddress = "http://host:5251/",
                 WorkingDirectory = _workingDirectory,
-            }),
-            // No prepared render: these are about what the transcode itself builds.
-            new NothingPrepared());
+            }));
 
     [RequiresFfmpegFact]
     public async Task OpenAsync_ProducesAPlaylistAndSegmentsTheHostCanServe()

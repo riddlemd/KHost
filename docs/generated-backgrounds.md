@@ -3,6 +3,10 @@
 Research note, branch `research/generated-backgrounds`. Findings and measurements only — nothing
 here is implemented.
 
+**Superseded in part.** The host-side render path this note builds on — `IMediaPreparer`,
+`PreparedMediaService` and the stream-copy contract — has since been removed. Read the
+measurements as a record of what was true then, not as a description of the code.
+
 **The case.** A plugin that supplies audio-only media has no picture. CDG is out of scope: it draws
 its own graphics, so a background behind it would be covered up anyway.
 

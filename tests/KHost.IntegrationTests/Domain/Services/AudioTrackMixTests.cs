@@ -27,9 +27,7 @@ public class AudioTrackMixTests : IDisposable
             {
                 BaseAddress = "http://host:5251",
                 WorkingDirectory = _workingDirectory,
-            }),
-            // No prepared render: these are about what the transcode itself builds.
-            new NothingPrepared());
+            }));
 
     [RequiresFfmpegFact]
     public async Task ReadTracks_NamesTheRoles_RegardlessOfStreamOrder()

@@ -25,7 +25,6 @@ public partial class SelectedSingerInfoPanel : IAsyncDisposable
     [Inject] private IPermissionService? Permissions { get; set; }
     [Inject] private ITipsService? TipsService { get; set; }
     [Inject] private IVenuesService? VenuesService { get; set; }
-    [Inject] private IPreparedMediaService? PreparedMedia { get; set; }
     [Inject] private IJSRuntime? JS { get; set; }
     [Inject] private IMessageBroker Broker { get; set; } = default!;
 
@@ -50,7 +49,6 @@ public partial class SelectedSingerInfoPanel : IAsyncDisposable
     protected override async Task OnInitializedAsync()
     {
         _subscriptions.Add(Broker.Subscribe<SingerQueueChanged>(_ => OnStateChanged()));
-        _subscriptions.Add(Broker.Subscribe<PreparedMediaChanged>(_ => InvokeAsync(StateHasChanged)));
         _subscriptions.Add(Broker.Subscribe<PerformancesChanged>(_ => OnStateChanged()));
         _subscriptions.Add(Broker.Subscribe<PlaybackChanged>(_ => OnStateChanged()));
         _subscriptions.Add(Broker.Subscribe<MediaLibraryChanged>(_ => OnStateChanged()));
@@ -346,47 +344,6 @@ public partial class SelectedSingerInfoPanel : IAsyncDisposable
 
     private static string FormatTempo(int tempo) =>
         tempo.ToString("+#;\u2212#;0", CultureInfo.InvariantCulture) + "%";
-
-    /// <summary>What the Status column says for a queued turn.</summary>
-    /// <remarks>A row stays <c>Ready</c> for the whole of its pre-render, so the library status
-    /// alone reads as though nothing is happening. Only <c>Ready</c> is replaced: <c>Broken</c>
-    /// and an acquisition in flight are things a host has to act on, and a render in progress
-    /// must not hide either.</remarks>
-    private (string Label, string BadgeClass) StatusOf(Media media)
-        => media.Status == MediaStatus.Ready && IsBeingReadied(media)
-            ? ("Preparing", MediaStatusDisplay.BadgeClass(MediaStatus.Processing))
-            : (media.Status.ToString(), MediaStatusDisplay.BadgeClass(media.Status));
-
-    /// <summary>Whether this turn is being got ready, which is not one question but two.</summary>
-    /// <remarks><see cref="PerformancePreparation.Preparing"/> is true only while a render is
-    /// actually running, and there is a single render slot: a kit that has just finished
-    /// downloading sits unprepared and unplayable for as long as it waits its turn, which is most
-    /// of the wait a host actually sees. So this asks <c>IsWaitingOnARender</c> too, the same
-    /// question that greys the play control, and the column and the control cannot then disagree
-    /// about one row. The in-flight case is still asked separately, since an ordinary file being
-    /// pre-rendered is playable throughout and so is never waiting, yet work is plainly happening
-    /// to it.</remarks>
-    private bool IsBeingReadied(Media media)
-        => IsWaitingOnARender(media) || PreparationOf(media) == PerformancePreparation.Preparing;
-
-    /// <summary>Whether this turn has something to play yet. Off the turn's own file, never the
-    /// library row's status: the row says what KHost has, not what one performance can start.
-    /// </summary>
-    private PerformancePreparation PreparationOf(Media? media)
-        => media?.FilePath is { Length: > 0 } path && PreparedMedia is { } prepared
-            ? prepared.StateFor(path)
-            : PerformancePreparation.Unprepared;
-
-    /// <summary>Whether this turn cannot start yet, which is what greys its play control.</summary>
-    /// <remarks>The same question <c>PlaybackService.LoadAsync</c> refuses on, asked of the service
-    /// that owns it rather than rebuilt here: a control offering a song the load then refuses is
-    /// the drift this avoids. Not <see cref="PerformancePreparation.Preparing"/>, which would grey
-    /// an ordinary file that starts at once and leave a plugin's format offered before its render
-    /// has even begun.</remarks>
-    private bool IsWaitingOnARender(Media? media)
-        => media?.FilePath is { Length: > 0 } path
-            && PreparedMedia is { } prepared
-            && prepared.IsWaitingOnARender(path);
 
     /// <summary>Whether this turn was queued under a name other than the singer's own.</summary>
     /// <remarks>Compares names, not SungAs presence: that field is filled by default on every row.</remarks>

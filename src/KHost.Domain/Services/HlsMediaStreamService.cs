@@ -25,28 +25,6 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, ID
         /// <summary>Shorter segments start sooner; longer ones survive a worse network.</summary>
         public int SegmentSeconds { get; set; } = 2;
 
-        /// <summary>Whether queued songs are rendered ahead of play time at all.</summary>
-        /// <remarks>On by default: the render is what turns starting a song into a stream copy,
-        /// and turning it off trades that back for the CPU and the disk. It governs the
-        /// optimisation only. A format just a plugin can read is rendered either way, that render
-        /// being the whole of its playability rather than a saving. Read live, so a host changing
-        /// it does not have to restart.</remarks>
-        public bool PreRenderQueuedSongs { get; set; } = true;
-
-        /// <summary>How much of the disk pre-rendering may hold, in megabytes. Zero lifts the cap.
-        /// </summary>
-        /// <remarks>Every queued turn gets a render and nothing else bounds the directory, so this
-        /// is a backstop rather than something a normal night reaches. Past it a song plays the way
-        /// it always did, by transcoding at play time: the pre-render is an optimisation and must
-        /// not be the reason a machine runs out of disk mid-show.</remarks>
-        public int PreparedBudgetMegabytes { get; set; } = 8192;
-
-        /// <summary>Free space to leave alone, in megabytes. Zero lifts the floor.</summary>
-        /// <remarks>Separate from the budget because the budget knows nothing about what else is on
-        /// the volume. The working directory is under temp, which is the same volume as the database
-        /// and the logs on a normal install: filling it takes the whole show down, not just the
-        /// renders.</remarks>
-        public int PreparedFreeSpaceFloorMegabytes { get; set; } = 2048;
     }
 
     internal const string PlaylistFileName = "stream.m3u8";
@@ -55,18 +33,15 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, ID
     private static readonly TimeSpan PlaylistTimeout = TimeSpan.FromSeconds(15);
 
     private readonly IOptionsMonitor<ServiceOptions> _options;
-    private readonly IPreparedMediaService _prepared;
     private readonly Dictionary<string, Session> _sessions = [];
     private readonly SemaphoreSlim _lock = new(1, 1);
     private readonly string _root;
 
     public HlsMediaStreamService(
         ILogger<HlsMediaStreamService> logger,
-        IOptionsMonitor<ServiceOptions> options,
-        IPreparedMediaService prepared)
+        IOptionsMonitor<ServiceOptions> options)
         : base(logger)
     {
-        _prepared = prepared;
         _options = options;
 
         // The root is resolved once and the rest is read live. Moving the directory under running
@@ -100,31 +75,12 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, ID
         var directory = Path.Combine(_root, id);
         Directory.CreateDirectory(directory);
 
-        var prepared = _prepared.TryResolve(filePath);
-
-        // A format a plugin owns is not a media file at all until it has been rendered, so there is
-        // nothing to fall back to. Refused rather than handed to ffmpeg, which would fail with
-        // something nobody could act on.
-        if (prepared is null && _prepared.RequiresPreparation(filePath))
-            throw new InvalidOperationException($"'{filePath}' is still being made ready to play.");
-
-        // The render always wins as the input where there is one: it carries this file's audio, and
-        // for a plugin's format it is the only readable thing. What is then copied and what is
-        // rebuilt is a separate question, asked per stream just below.
-        var source = prepared ?? filePath;
-        var (copyWhole, copyVideo) = CopyPlan(
-            prepared is not null, pitch, tempo, mix,
-            Options.SegmentSeconds, _prepared.KeyframeSecondsFor(filePath));
-        var copyFrom = copyWhole ? prepared : null;
-
-        var companionAudio = prepared is null ? ResolveCompanionAudio(filePath) : null;
-        if (prepared is null && companionAudio is null && IsGraphicsOnly(filePath))
+        var companionAudio = ResolveCompanionAudio(filePath);
+        if (companionAudio is null && IsGraphicsOnly(filePath))
             Logger.LogWarning("No companion audio beside '{FilePath}'; the stream will be silent", filePath);
 
-        var arguments = copyFrom is null
-            ? BuildArguments(
-                source, startOffset, pitch, tempo, Options.SegmentSeconds, companionAudio, mix, copyVideo)
-            : BuildCopyArguments(copyFrom, startOffset, Options.SegmentSeconds);
+        var arguments = BuildArguments(
+            filePath, startOffset, pitch, tempo, Options.SegmentSeconds, companionAudio, mix);
 
         Logger.LogInformation("Opening stream {SessionId} for '{FilePath}' at {Offset}", id, filePath, startOffset);
         Logger.LogDebug("ffmpeg {Arguments}", arguments);
@@ -263,8 +219,7 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, ID
         int tempo,
         int segmentSeconds,
         string? companionAudioPath = null,
-        AudioMix? mix = null,
-        bool copyVideo = false)
+        AudioMix? mix = null)
     {
         var arguments = "-hide_banner -loglevel error";
 
@@ -289,22 +244,19 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, ID
 
         var segment = Math.Max(1, segmentSeconds);
 
-        if (copyVideo)
-        {
-            // The render was written with keyframes on this same clock, so the muxer can already
-            // cut where it is asked to and re-encoding would only reproduce what is there.
-            arguments += " -c:v copy";
-        }
-        else
-        {
-            // Keyframes on time, not a frame count: -g is in frames, so it matches the segment length
-            // at exactly one source frame rate, and the muxer can only cut where a keyframe already is.
-            arguments += " -c:v libx264 -preset veryfast -profile:v main -level 4.1 -pix_fmt yuv420p"
-                       + string.Format(
-                            CultureInfo.InvariantCulture,
-                            " -force_key_frames \"expr:gte(t,n_forced*{0})\" -sc_threshold 0",
-                            segment);
-        }
+        // A .cdg only emits a frame when the graphics change, so x264 is handed a wildly variable
+        // rate and encodes far more than the picture needs. Measured on two songs: 110 and 154
+        // CPU-seconds without this against 33 and 44 with it, for the same segments either way.
+        if (IsGraphicsOnly(filePath))
+            arguments += " -r 30";
+
+        // Keyframes on time, not a frame count: -g is in frames, so it matches the segment length
+        // at exactly one source frame rate, and the muxer can only cut where a keyframe already is.
+        arguments += " -c:v libx264 -preset veryfast -profile:v main -level 4.1 -pix_fmt yuv420p"
+                   + string.Format(
+                        CultureInfo.InvariantCulture,
+                        " -force_key_frames \"expr:gte(t,n_forced*{0})\" -sc_threshold 0",
+                        segment);
 
         var audioFilter = BuildAudioFilter(pitch, tempo);
         var mixGraph = BuildMixGraph(mix, audioFilter);
@@ -337,70 +289,6 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, ID
 
         return arguments + $" {PlaylistFileName}";
     }
-
-    /// <summary>Segments an already-encoded render without touching the frames. The seek is on the
-    /// input, since there is no filter graph here for an output seek to sit behind.</summary>
-    internal static string BuildCopyArguments(string filePath, TimeSpan startOffset, int segmentSeconds)
-    {
-        var arguments = "-hide_banner -loglevel error";
-
-        if (startOffset > TimeSpan.Zero)
-            arguments += string.Format(CultureInfo.InvariantCulture, " -ss {0:F3}", startOffset.TotalSeconds);
-
-        var segment = Math.Max(1, segmentSeconds);
-
-        return arguments
-            + $" -i \"{filePath}\" -c copy"
-            + string.Format(
-                CultureInfo.InvariantCulture,
-                " -f hls -hls_time {0} -hls_playlist_type event -hls_flags independent_segments"
-                + " -hls_segment_filename seg_%05d.ts {1}",
-                segment, PlaylistFileName);
-    }
-
-    /// <summary>Whether the picture can be carried across untouched.</summary>
-    /// <remarks>Only tempo retimes the frames. Pitch and the mix are audio alone, so a song whose
-    /// key a host has shifted still keeps its picture rather than re-encoding it to no effect.
-    /// </remarks>
-    internal static bool CanCopyVideo(int tempo) => StreamRate.FromTempo(tempo) == 1.0;
-
-    /// <summary>Whether the audio can be carried across untouched.</summary>
-    /// <remarks>A copy carries each track at its recorded level, so a mix with anything to balance
-    /// has to be built even though nothing about the picture has changed.</remarks>
-    internal static bool CanCopyAudio(int pitch, int tempo, AudioMix? mix)
-        => pitch == 0
-        && StreamRate.FromTempo(tempo) == 1.0
-        && mix is not { IsMixable: true };
-
-    /// <summary>Which of a job's streams come across untouched.</summary>
-    /// <remarks>Asked per stream, because a re-levelled mix or a shifted key rebuilds the audio
-    /// and leaves every frame alone. Nothing is ever copied from the original file: a render is
-    /// the one input written with keyframes on the segment clock, and the muxer cuts nowhere
-    /// else.</remarks>
-    internal static (bool Whole, bool Picture) CopyPlan(
-        bool hasPrepared, int pitch, int tempo, AudioMix? mix, int segmentSeconds, int? keyframeSeconds)
-    {
-        if (!hasPrepared || !CutsCleanly(segmentSeconds, keyframeSeconds)) return (false, false);
-
-        var whole = CanStreamCopy(pitch, tempo, mix);
-        return (whole, !whole && CanCopyVideo(tempo));
-    }
-
-    /// <summary>Whether a render's keyframes fall where this host wants to cut.</summary>
-    /// <remarks>The muxer cuts a copy only where a keyframe already is, so a segment length that
-    /// is not a multiple of the render's cadence does not fail, it silently runs each segment on
-    /// to the next keyframe. Measured on a 2s render: 4s and 6s cut exactly, 3s and 5s overshoot
-    /// to 4s and 6s. A render that will not say its cadence is encoded instead, which is the
-    /// answer that is never wrong.</remarks>
-    internal static bool CutsCleanly(int segmentSeconds, int? keyframeSeconds)
-        => keyframeSeconds is { } keyframe and > 0 && Math.Max(1, segmentSeconds) % keyframe == 0;
-
-    /// <summary>Whether a prepared render can be copied whole rather than transcoded again.</summary>
-    /// <remarks>Both halves or neither: this is the all-copy job, which needs no filter graph at
-    /// all. Where only the picture survives, the stream is built with <c>copyVideo</c> instead.
-    /// </remarks>
-    internal static bool CanStreamCopy(int pitch, int tempo, AudioMix? mix)
-        => CanCopyVideo(tempo) && CanCopyAudio(pitch, tempo, mix);
 
     internal static bool IsGraphicsOnly(string filePath)
         => Path.GetExtension(filePath).Equals(".cdg", StringComparison.OrdinalIgnoreCase);

@@ -64,7 +64,6 @@ public class SelectedSingerInfoPanelAliasLockTests : BunitContext
         Services.AddSingleton(permissions);
         Services.AddSingleton(venues);
         Services.AddSingleton(Substitute.For<IMediaSearchService>());
-        Services.AddSingleton(Substitute.For<IPreparedMediaService>());
         Services.AddSingleton(Substitute.For<IUsersService>());
         Services.AddSingleton(Substitute.For<IUserGroupsService>());
         Services.AddSingleton(Substitute.For<IDialogService>());
