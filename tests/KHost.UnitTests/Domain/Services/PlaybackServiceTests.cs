@@ -26,6 +26,7 @@ public class PlaybackServiceTests : IDisposable
     private readonly IAudioTrackService _audioTracks = Substitute.For<IAudioTrackService>();
     private readonly IMediaGateService _mediaGate = Substitute.For<IMediaGateService>();
     private readonly IFlashService _flash = Substitute.For<IFlashService>();
+    private readonly ITimedLyricsService _timedLyrics = Substitute.For<ITimedLyricsService>();
 
     // Real: a substitute would make the IsPrimary assertions below test nothing.
     private readonly ScreenCoordinationService _screenCoordination;
@@ -140,6 +141,7 @@ public class PlaybackServiceTests : IDisposable
         }),
         _audioTracks,
         _mediaGate,
+        _timedLyrics,
         _flash,
         _broker);
 
@@ -557,6 +559,46 @@ public class PlaybackServiceTests : IDisposable
         await _service.PlayAsync();
 
         await _screenServer.Received(1).BroadcastCommandAsync(Arg.Any<PlayCommand>());
+    }
+
+    [Fact]
+    public async Task LoadAsync_ASongWithWords_SendsThemToTheScreens()
+    {
+        var (performance, media) = CreatePerformance();
+        var lyrics = new TimedLyrics { DurationSeconds = 90, Bounds = new LyricBox(0, 0, 640, 360) };
+        _timedLyrics.GetTimedLyricsAsync(media.FilePath, Arg.Any<CancellationToken>()).Returns(lyrics);
+
+        await _service.LoadAsync(performance, media);
+
+        await _screenServer.Received(1).BroadcastCommandAsync(
+            Arg.Is<SetTimedLyricsCommand>(command => ReferenceEquals(command.Lyrics, lyrics)));
+    }
+
+    [Fact]
+    public async Task LoadAsync_ASongWithNoWords_StillSendsSoTheLastSongsAreCleared()
+    {
+        var (performance, media) = CreatePerformance();
+        _timedLyrics.GetTimedLyricsAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns((TimedLyrics?)null);
+
+        await _service.LoadAsync(performance, media);
+
+        // Skipping the send leaves the previous song's words lit over this one.
+        await _screenServer.Received(1).BroadcastCommandAsync(
+            Arg.Is<SetTimedLyricsCommand>(command => command.Lyrics == null));
+    }
+
+    [Fact]
+    public async Task LoadAsync_TheLyricsCannotBeRead_LoadsTheSongAnyway()
+    {
+        var (performance, media) = CreatePerformance();
+        _timedLyrics.GetTimedLyricsAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns<Task<TimedLyrics?>>(_ => throw new InvalidDataException("bad timing"));
+
+        await _service.LoadAsync(performance, media);
+
+        // A plugin that cannot read its own file costs the words, never the song.
+        Assert.Equal(media.Id, _service.CurrentMedia?.Id);
+        await _screenServer.Received(1).BroadcastCommandAsync(Arg.Any<LoadMediaCommand>());
     }
 
     [Fact]

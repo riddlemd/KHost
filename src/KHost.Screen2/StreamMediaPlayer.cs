@@ -21,6 +21,11 @@ internal sealed class StreamMediaPlayer : IMediaPlayer
     private bool _isPaused;
     private float _volume = 1.0f;
 
+    /// <summary>How a payload is spelled for the page, which reads camelCase throughout.</summary>
+    /// <remarks>Every hand-written payload here already spells its keys that way; a model sent
+    /// whole would otherwise arrive in PascalCase and read as undefined on every field.</remarks>
+    private static readonly JsonSerializerOptions _browserJson = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+
     /// <summary>Song position the current stream's zero maps to; added to reported positions.</summary>
     private TimeSpan _streamStartOffset;
 
@@ -83,7 +88,16 @@ internal sealed class StreamMediaPlayer : IMediaPlayer
         }
 
         _logger.LogInformation("Loading stream {Url} at offset {Offset}", url, streamStartOffset);
-        Send(new { type = "load", url, autoplay = false });
+        // The stream's zero against the song, and how fast it runs against it: the words the
+        // overlay draws are written in song time, and a stream opened at a seek starts at zero.
+        Send(new
+        {
+            type = "load",
+            url,
+            autoplay = false,
+            songOffsetSeconds = streamStartOffset.TotalSeconds,
+            rate = StreamRate.FromTempo(tempo),
+        });
     }
 
     /// <summary>Applied in the page: correction runs far more often than the IPC ticks.</summary>
@@ -186,6 +200,15 @@ internal sealed class StreamMediaPlayer : IMediaPlayer
 
     /// <summary>The whole band in one message.</summary>
     /// <remarks>Recomputed every queue/venue change, sent complete: no partial state to keep.</remarks>
+    public void SetTimedLyrics(SetTimedLyricsCommand command)
+    {
+        _logger.LogInformation("Lyric timing {State}",
+            command.Lyrics is null ? "cleared" : $"set, {command.Lyrics.Pages.Count} page(s)");
+
+        // Sent whole, as the host's own model: the page draws it and nothing here reshapes it.
+        Send(new { type = "timed-lyrics", lyrics = command.Lyrics });
+    }
+
     public void SetMarquee(SetMarqueeCommand command)
     {
         _logger.LogInformation("Marquee {State} with {Count} singer(s)",
@@ -374,7 +397,7 @@ internal sealed class StreamMediaPlayer : IMediaPlayer
 
     private void Send(object payload)
     {
-        var json = JsonSerializer.Serialize(payload);
+        var json = JsonSerializer.Serialize(payload, _browserJson);
         _logger.LogDebug("-> browser {Json}", json);
         SendToBrowser?.Invoke(json);
     }

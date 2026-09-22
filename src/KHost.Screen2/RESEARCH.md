@@ -1,6 +1,6 @@
 # Playing a `.kit` natively
 
-Why `kit-engine.js` exists, and what is still unanswered about it.
+Why the screen draws a song's words itself, and what is still unanswered about it.
 
 The question: instead of rendering a `.kit` to mp4 with SkiaSharp and ffmpeg and then streaming
 that back as HLS, could a screen decode the stems and draw the lyrics itself?
@@ -70,7 +70,7 @@ from the kit above. WebView2 on this machine:
 | Canvas2D karaoke frame, 1280x720 | 0.095 ms (~10,500 fps) |
 | Canvas2D karaoke frame, 1920x1080 | 0.082 ms (~12,100 fps) |
 | WebGL2 / OffscreenCanvas / WASM | yes |
-| **AudioWorklet** | **no** |
+| **AudioWorklet** | **yes** — but only once the page has an origin (below) |
 
 Two of these matter more than the rest.
 
@@ -78,8 +78,55 @@ Two of these matter more than the rest.
 "probably" for codecs that then fail on real data, and WebView2 is not Chrome. It decoded an
 actual stem. The stems can be handed to the screen as-is.
 
-**There is no AudioWorklet.** That removes the obvious way to build a phase vocoder, which is
-what independent pitch and tempo shifting needs. See the open questions.
+**AudioWorklet was missing for a reason that had nothing to do with WebView2.** The screen loads
+its page with `LoadRawString`, which lands on `about:blank` — origin `null`, and *not a secure
+context*. `AudioWorklet` is one of the constructors that is simply not defined there, so the first
+pass measured the loader rather than the engine. Re-measured in the same webview, same machine, by
+changing only how the page arrives:
+
+| page loaded as | `isSecureContext` | `AudioWorklet` | `addModule` (blob: / data:) |
+|---|---|---|---|
+| `LoadRawString` — `about:blank` | no | `undefined` | — |
+| `http://localhost` | yes | `function` | works |
+| `file://` | yes | `function` | works, both |
+
+So a phase vocoder is back on the table, and question 1 below is open again rather than closed by
+the platform. The screen ships no files for a worklet module to be served from, but it does not
+need to: `addModule` accepts a `blob:` or `data:` URL built from a string the page already carries.
+
+**And the worklet is not the only route.** Inlining more script was never the constraint — the page
+already arrives with hls.js, the lyrics overlay and `player.js` inlined into it, and a worklet is a
+capability the engine withholds, not a library that could be shipped alongside them. What the
+opaque origin actually costs is only the secure-context-gated list. Measured on `about:blank`, with
+`file://` alongside for contrast:
+
+| | `about:blank` | `file://` |
+|---|---|---|
+| `AudioWorklet` | undefined | function |
+| `ScriptProcessorNode` | **fires** — 3 callbacks, 12288 frames in 1s | fires |
+| `WebAssembly` compile | works | works |
+| `OfflineAudioContext` render | works | works |
+| WebCodecs (`AudioDecoder`) | undefined | function |
+| `crypto.subtle` | absent | present |
+| `localStorage` | `SecurityError` | works |
+
+So a vocoder could be built today, unchanged loader and all, either on the deprecated main-thread
+`ScriptProcessorNode` or by shifting the stem offline into an `AudioBuffer` before it plays —
+the stems are decoded whole into memory anyway. The worklet buys the audio render thread, which is
+what keeps a vocoder from glitching under a Blazor repaint; it is a quality argument, not a
+feasibility one.
+
+**The clock does not drift; it starts late.** Measured against `performance.now()` with a source
+running, in both loaders: the first two seconds after the context is created yield only ~1.31s of
+`currentTime` — a one-time deficit of ~685 ms — and every settled second after that tracks wall
+clock to within 0.1% (five consecutive intervals, ratios 0.996–1.009, 0.999 and 1.000 over the five
+together). The deficit is the output device opening, and `outputLatency` reports 0, so nothing in
+the API accounts for it. A native path must therefore take its time reference **after** the context
+has settled rather than at creation; having done that, the clock is sound. This is not an origin
+effect — both loaders measure the same.
+
+`SharedArrayBuffer` stays `undefined` and `crossOriginIsolated` false in every case — a worklet here
+is single-threaded, which rules out a threaded WASM build but not the worklet itself.
 
 The drawing numbers are an *upper bound*, not a promise — see "what is hard" below.
 
@@ -194,37 +241,103 @@ and B is close to a strict subset of A — the drawing half of A with the audio 
 is the destination, B is a sensible first step that ships value without committing to a phase
 vocoder.
 
+## B is the direction
+
+Decided after the origin work above. Every cost the webview measurements uncovered belongs to A's
+audio half, and B pays none of them: canvas and `fillText` are not secure-context gated, so the
+page keeps arriving through `LoadRawString`; pitch, tempo and the mix stay in ffmpeg's filter
+graph, so there is no phase vocoder to write; and the screen syncs its draw loop to the audio
+element's `currentTime` rather than owning an `AudioContext`, so the device-open offset never
+enters the picture. What was already built — the old engine's drawing half — is the half B keeps.
+
+**A `.kit` is the plugin's, and stays the plugin's.** The host must not learn the container, so B
+needs a format-agnostic contract in `KHost.Abstractions`: a plugin is asked for a *timeline* and a
+set of *stems*, and answers for the file it owns. `KitContainer` and the timing parser already
+exist in the KaraFun plugin's own repo; nothing of them moves here.
+
+The shape:
+
+- The plugin extracts its stems to files and parses its timing, and hands back both. The host
+  learns nothing about Ogg, XML or `.kit`.
+- The host mixes those stems through ffmpeg into an **audio-only** HLS stream — the same
+  `LeadVolume` / `BackingVolume`, pitch and tempo that reach `amix` today, with no video encode
+  and no rasterizer.
+- The timeline goes to the screen as a command; the screen draws the words on a canvas over its
+  background and follows the audio element's clock.
+
+What that leaves untouched: CDG + mp3 and mp4 still stream exactly as they do now, the gate stays
+where it is because the host still opens the media, and both paths still answer the same
+`SetTimelineCommand` and agree on position inside the 150 ms realign threshold.
+
 ## What is built
 
-`kit-engine.js` — the screen side of option A, and nothing else. It decodes stems through Web
-Audio, draws the lyrics on a canvas, and wears the shape of the video element it stands in for
-(`currentTime`, `duration`, `paused`, `readyState`, `volume`, `play`/`pause`) so `player.js` can
-route the transport, the correction loop and the state report to whichever is holding the song.
+Option B, end to end.
 
-Deliberately **not** built: the host side. `ScreenCommands`, `ScreenCapabilities`,
-`PlaybackService` and the Abstractions contract are untouched, so nothing in the app selects this
-path yet. It answers a `load-kit` browser message and is otherwise inert.
+`lyrics-overlay.js` replaces `kit-engine.js`. It is the drawing half of the old engine and nothing
+else: it takes the host's `TimedLyrics`, draws the chase on a canvas over whatever is playing, and
+reads its clock from the element holding the song rather than owning one. The audio half — the
+`AudioContext`, the stem decode, the gain mix and the video-element shape — is gone, along with
+the `load-kit` and `kit-mix` browser messages. Option A's screen side is recoverable from git
+history if the native path is ever revisited.
+
+Host side, which was deliberately absent before:
+
+- `TimedLyrics` and `ITimedLyricsProvider` in `KHost.Abstractions` — a plugin is asked for the
+  words and answers for the file it owns, and nothing in the host parses a container.
+- `TimedLyricsService`, the router, shaped after `MediaProbeService`: first provider to claim the
+  path answers, one that throws deciding is skipped, one that fails on its own file ends the
+  search. No fallback, because nothing generic can read timing out of an mp4.
+- `SetTimedLyricsCommand`, sent from `LoadAsync` after the load command and before play. Sent even
+  when there are none, or a screen keeps the last song's words over this one. A failure to read or
+  send never fails the load.
+- `BuildArguments` maps the picture optionally (`-map 0:v:0?`). A stems-only container has no video
+  stream, and a required mapping onto one is fatal — ffmpeg exits before writing a segment, which
+  reads as the song simply never starting.
+- The page is told where its stream sits in the song (`songOffsetSeconds`, `rate`), because the
+  words are written in song time and a stream opened at a seek starts at zero.
 
 What it does not do yet:
 
-- No pitch or tempo. See question 1 below.
 - No artwork or background behind the words; the canvas is transparent over whatever is there.
 - Text is laid out per syllable with `fillText`, not HarfBuzz glyph runs — see "what is hard".
+- `ScreenCapabilities` is untouched: every screen is sent the words and draws them if it can. A
+  `SupportsLyrics` flag is only worth adding when a screen exists that cannot.
 
 ## Open questions
 
-1. Can independent pitch and tempo be done without an AudioWorklet? With the render path staying,
-   there is a third answer available besides "solve it" and "lose it": a kit whose pitch or tempo
-   has been shifted falls back to the stream, and only the unshifted case plays natively. Whether
-   that is acceptable depends on how often a host actually shifts — worth measuring before
-   designing around it.
-2. Does the clock hold? The probe measured `AudioContext.currentTime` drifting to about -700 ms and
-   then flattening — but it measured with **nothing playing**, which is not the real case. In Chrome,
-   with silent sources actually running, the offset was a flat -40 ms matching the reported
-   `outputLatency`. Re-measure with stems playing before trusting either number.
+1. Independent pitch and tempo. An AudioWorklet is available once the page has an origin, so the
+   phase vocoder is a question of effort rather than of platform. The fallback answer is still
+   there if it is not worth building: a kit whose pitch or tempo has been shifted plays from the
+   stream, and only the unshifted case plays natively. Worth measuring how often a host actually
+   shifts before spending a vocoder on it.
+2. Does the clock hold? Mostly answered: the -700 ms was never drift but the ~685 ms the output
+   device takes to open, and the rate after that is within 0.1% of wall clock (see "what the webview
+   can do"). What is still untested is the same measurement with **real stems** decoding and mixing
+   rather than one oscillator through a silent gain — the rate held under a trivial graph, which is
+   not proof it holds under the real one.
 3. What are the unidentified chunks (ids 5, 12-20) and the extra images?
 4. What does WKWebView answer? Every number here is WebView2. Nothing on macOS has been tested at
    all — Vorbis decode, the canvas rate and the clock all need measuring there before this path is
    offered to a screen that is not on Windows.
 5. Does the gate move to the hand-off, or does a native path only ever serve a screen in the same
    trust boundary as the host?
+6. **How should the page get its origin?** Three ways were tried in this webview.
+   - **`file://`** — measured end to end with the real player page: secure context, `AudioWorklet`
+     present, hls.js and the overlay both inlined and live, the `ready` handshake and the state
+     reports unchanged. It is a drop-in, and the cost is that the screen writes its page to disk
+     where today it holds it in memory.
+   - **`http://localhost` from the host's own server** — a real origin and same-origin with the
+     media, at the cost of a screen that cannot draw anything until the host is serving.
+   - **A custom scheme (`khost://`) through `RegisterCustomSchemeHandler`** — does not work, and
+     cannot in Photino.NET 4.0.16 / Photino.Native 4.0.22. That handler is wired to WebView2's
+     `WebResourceRequested`, which only sees sub-resource requests from a page already loaded;
+     `Load()` reaches the native layer as a bare `ICoreWebView2::Navigate`, and Chromium rejects an
+     unregistered scheme before any request is raised. The registration it would need
+     (`ICoreWebView2EnvironmentOptions4::SetCustomSchemeRegistrations`, which is also where
+     `TreatAsSecure` lives) is never called — the native layer creates the environment from the
+     bare options class. Measured symptom: blank window, handler never invoked.
+
+   One thing to check before moving: a secure context is also what turns a plain-`http` subresource
+   into blocked mixed content. `http://localhost` is trustworthy and exempt, so a screen on the
+   host machine is fine; a screen reaching the host at a LAN address over plain http has not been
+   measured, and today's `about:blank` page is not subject to the rule at all.

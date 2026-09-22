@@ -93,6 +93,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
     private readonly IOptionsMonitor<ServiceOptions> _optionsMonitor;
     private readonly IAudioTrackService _audioTracks;
     private readonly IMediaGateService _mediaGate;
+    private readonly ITimedLyricsService _timedLyrics;
     private readonly IFlashService _flash;
 
     // Read per use rather than captured: the App Settings page writes the overlay live, and a
@@ -140,6 +141,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         IOptionsMonitor<ServiceOptions> options,
         IAudioTrackService audioTracks,
         IMediaGateService mediaGate,
+        ITimedLyricsService timedLyrics,
         IFlashService flash,
         IMessageBroker broker)
         : base(logger)
@@ -159,6 +161,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         _optionsMonitor = options;
         _audioTracks = audioTracks;
         _mediaGate = mediaGate;
+        _timedLyrics = timedLyrics;
         _flash = flash;
 
         _screenServer.ScreenConnected += OnScreenConnected;
@@ -284,6 +287,10 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         try
         {
             await SendToScreensAsync(await BuildLoadCommandAsync(media, TimeSpan.Zero));
+
+            // After the load and before play: a screen holds the words until the next load, and one
+            // that arrived mid-song would light every syllable already sung at once.
+            await SendTimedLyricsAsync(media);
         }
         catch
         {
@@ -983,6 +990,21 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
     }
 
     /// <summary>Throws when the transcode will not start: there is no playback without it.</summary>
+    /// <summary>Gives the screens the words for this song, or clears the last song's.</summary>
+    /// <remarks>Never throws: a song whose lyrics could not be read still plays, the same as one
+    /// that never had any. Sent even when there are none, or a screen keeps drawing the words of
+    /// the song before this one over it.</remarks>
+    private async Task SendTimedLyricsAsync(Media media)
+    {
+        TimedLyrics? lyrics = null;
+
+        try { lyrics = await _timedLyrics.GetTimedLyricsAsync(media.FilePath); }
+        catch (Exception ex) { Logger.LogWarning(ex, "Could not read the lyric timing for '{Title}'", media.Title); }
+
+        try { await SendToScreensAsync(new SetTimedLyricsCommand { Lyrics = lyrics }); }
+        catch (Exception ex) { Logger.LogWarning(ex, "Could not send the lyric timing for '{Title}'", media.Title); }
+    }
+
     private async Task<LoadMediaCommand> BuildLoadCommandAsync(Media media, TimeSpan startOffset)
     {
         // Held, not closed: tearing down first would leave the room on buffered frames while the new one

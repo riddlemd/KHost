@@ -7,15 +7,25 @@ const videos = [document.getElementById('video'), document.getElementById('video
 let video = videos[0];
 let incoming = null;
 
-// The native path, for a container this screen can open itself. Null until a song asks for it;
-// while it holds the song the video elements are idle and every transport command routes here.
-const kitCanvas = document.getElementById('kit');
-let kit = null;
+/// Whichever element is about to be heard. A handover brings the new stream up to speed behind
+/// the one still playing, and this is what the transport, the correction loop and the state
+/// report all address.
+function target() { return incoming ?? video; }
 
-/// Whatever is holding the song: the engine when it is, otherwise the element about to be heard.
-/// Both answer currentTime/duration/paused/readyState/volume, which is what lets the transport,
-/// the correction loop and the state report stay written once.
-function target() { return kit?.isActive ? kit : (incoming ?? video); }
+// Where the stream's zero sits in the song, and how fast it runs against it: a stream opened at a
+// seek starts at 0 while the song is minutes in, and the words are written against the song.
+let songOffsetSeconds = 0;
+let songRate = 1;
+
+// The words drawn over the song, when the host sent any. They follow the element's clock rather
+// than one of their own, so there is a single clock in the room and they cannot drift from it.
+const lyricsCanvas = document.getElementById('lyrics');
+const overlay = createLyricsOverlay(lyricsCanvas, () => {
+    const player = target();
+    if (!player || !player.src || player.readyState < 1) return null;
+
+    return songOffsetSeconds + player.currentTime * songRate;
+});
 const background = document.getElementById('background');
 const still = document.getElementById('still');
 
@@ -259,14 +269,6 @@ async function fadeOutAndStop(fadeMs) {
     // nothing ramping it. Dropped first, so there is one thing to fade and it is the thing being heard.
     cancelHandover();
 
-    // The engine holds the song as a whole rather than an element with an opacity to ramp, so it
-    // fades its own master gain and the element ramp below has nothing to do.
-    if (kit?.isActive) {
-        await kit.fadeOutAndStop(fadeMs);
-        if (generation === playbackGeneration) placeholder.hidden = false;
-        return;
-    }
-
     // Held locally rather than read each tick: a handover that swaps mid-fade would otherwise move
     // the ramp onto the element that just took the room over.
     const element = video;
@@ -379,12 +381,11 @@ function correct() {
     // Whichever is holding the song. A room may have one screen drawing it and another streaming
     // the render of it, and both have to answer the same timeline to within the threshold below.
     const player = target();
-    const native = player === kit;
 
     // The primary defines the timeline rather than chasing one, so it is never corrected.
     // There is nothing for it to be corrected towards.
     if (isPrimary) {
-        if (!native) video.playbackRate = 1;
+        video.playbackRate = 1;
         return;
     }
 
@@ -710,33 +711,16 @@ function handleCommand(raw) {
             // The old timeline would seek the new stream to a position that means nothing in it.
             timeline = null;
             driftConfirmations = 0;
-            // A stream takes the screen back from the engine; the two never hold a song at once.
-            kit?.teardown();
+            // Where this stream sits in the song. A rebuild after a seek sends new values, and the
+            // words are drawn against the song, so they have to move with it.
+            songOffsetSeconds = message.songOffsetSeconds || 0;
+            songRate = message.rate || 1;
             load(message.url, message.autoplay === true);
             break;
-        case 'load-kit': {
-            // The native path: stems and timing rather than a stream. Nothing is transcoded and
-            // nothing is waited for, so there is no manifest to arrive and no handover to run.
-            playbackGeneration++;
-            placeholder.hidden = false;
-            timeline = null;
-            driftConfirmations = 0;
-            // Before teardown, which does not: a handover already in flight would otherwise swap
-            // its element in behind the engine and play a stream over the song being drawn.
-            cancelHandover();
-            teardown();
-
-            kit ??= createKitEngine(kitCanvas, reportError);
-            kit.volume = currentVolume;
-            kit.setMix(message.leadVolume, message.backingVolume);
-            kit.load(message.kit)
-                .then(() => { if (message.autoplay === true) return kit.play(); })
-                .catch((e) => reportError(`kit load: ${e && e.message ? e.message : e}`));
-            break;
-        }
-        case 'kit-mix':
-            // A balance change is three gain values here, not a stream rebuilt behind a debounce.
-            kit?.setMix(message.leadVolume, message.backingVolume);
+        case 'timed-lyrics':
+            // The whole timing document, sent once with the load rather than on the transport.
+            // Null clears it, which is what a song with no words looks like.
+            overlay.setLyrics(message.lyrics || null);
             break;
         case 'clock':
             clockOffsetMs = message.offsetMs || 0;
@@ -786,12 +770,11 @@ function handleCommand(raw) {
             videos.forEach((v) => { v.style.visibility = message.enabled === false ? 'hidden' : ''; });
             // The canvas hides the same way, and for the same reason: the engine keeps drawing so
             // its clock and the group's stay together while the picture is off.
-            kitCanvas.style.visibility = message.enabled === false ? 'hidden' : '';
+            lyricsCanvas.style.visibility = message.enabled === false ? 'hidden' : '';
             blanked.hidden = message.enabled !== false;
             break;
         case 'volume':
             currentVolume = Math.max(0, Math.min(1, message.value));
-            if (kit) kit.volume = currentVolume;
             if (!incoming) video.volume = currentVolume;
             break;
         case 'show-image':
