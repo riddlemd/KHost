@@ -344,14 +344,6 @@
                     <label for="default-volume" class="kh-form-label">Default Volume</label>
                     <InputNumber id="default-volume" class="kh-form-control" @bind-Value="_model.DefaultVolume" min="0" max="100" />
                 </div>
-                <div class="kh-venue-settings__row">
-                    <label for="on-screen-disconnect" class="kh-form-label">When a screen disconnects</label>
-                    <InputSelect id="on-screen-disconnect" class="kh-form-select" @bind-Value="_model.OnScreenDisconnect">
-                        <option value="@ScreenDisconnectBehavior.ResumeOnReconnect">Resume when a screen returns</option>
-                        <option value="@ScreenDisconnectBehavior.RestartFromStart">Pause and restart the song</option>
-                        <option value="@ScreenDisconnectBehavior.CancelPerformance">Cancel the song</option>
-                    </InputSelect>
-                </div>
             </div>
 
             <div class="kh-venue-settings__section">

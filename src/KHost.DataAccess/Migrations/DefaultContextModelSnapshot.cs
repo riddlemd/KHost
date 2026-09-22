@@ -563,8 +563,6 @@ namespace KHost.DataAccess.Migrations
 
                             b1.Property<string>("MarqueeTextColor");
 
-                            b1.Property<int>("OnScreenDisconnect");
-
                             b1.Property<bool>("PromptBeforeRemovingPerformance");
 
                             b1.Property<bool>("PromptBeforeRemovingSinger");
@@ -584,6 +582,9 @@ namespace KHost.DataAccess.Migrations
                             b1.Property<bool>("ShowEstimatedWaitTime");
 
                             b1.Property<bool>("ShowQueueToGuests");
+
+                            b1.PrimitiveCollection<string>("SongBackgrounds")
+                                .IsRequired();
 
                             b1.Property<bool>("TippingEnabled");
 
