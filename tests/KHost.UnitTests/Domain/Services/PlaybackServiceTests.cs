@@ -769,6 +769,43 @@ public class PlaybackServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task ScreenReconnect_ASongWithWords_SendsThemToTheJoiningScreen()
+    {
+        var (performance, media) = CreatePerformance();
+        var lyrics = new TimedLyrics { DurationSeconds = 90, Bounds = new LyricBox(0, 0, 640, 360) };
+        _timedLyrics.GetTimedLyricsAsync(media.FilePath, Arg.Any<CancellationToken>()).Returns(lyrics);
+
+        await _service.LoadAsync(performance, media);
+        await _service.PlayAsync();
+        _screenServer.ClearReceivedCalls();
+
+        RaiseScreenConnected();
+
+        // The words are sent once, when the song starts, to whoever is connected then. Without
+        // this a screen that joins mid-song plays the audio and draws nothing.
+        Assert.True(await WaitForBroadcastAsync<SetTimedLyricsCommand>());
+    }
+
+    [Fact]
+    public async Task ScreenReconnect_AfterTheSongEnded_SendsNoStaleWords()
+    {
+        var (performance, media) = CreatePerformance();
+        var lyrics = new TimedLyrics { DurationSeconds = 90, Bounds = new LyricBox(0, 0, 640, 360) };
+        _timedLyrics.GetTimedLyricsAsync(media.FilePath, Arg.Any<CancellationToken>()).Returns(lyrics);
+
+        await _service.LoadAsync(performance, media);
+        await _service.PlayAsync();
+        await _service.StopAsync();
+        _screenServer.ClearReceivedCalls();
+
+        RaiseScreenConnected();
+
+        // Nothing is loaded, so the joiner gets the venue's card. Holding the last song's words
+        // would light them over it.
+        Assert.False(await WaitForBroadcastAsync<SetTimedLyricsCommand>());
+    }
+
+    [Fact]
     public async Task ScreenReconnect_SeeksToTheCurrentPosition()
     {
         var (performance, media) = CreatePerformance();
