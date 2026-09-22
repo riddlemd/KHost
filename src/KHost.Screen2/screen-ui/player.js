@@ -22,7 +22,11 @@ let songRate = 1;
 const lyricsCanvas = document.getElementById('lyrics');
 const overlay = createLyricsOverlay(lyricsCanvas, () => {
     const player = target();
-    if (!player || !player.src || player.readyState < 1) return null;
+
+    // srcObject as well as src: WebKit refuses hls.js's blob: URL on this opaque-origin page, so
+    // the stream is attached as a MediaSource and `src` stays empty. Asking only for `src` reads a
+    // playing song as nothing holding it, and the words never draw on macOS at all.
+    if (!player || (!player.src && !player.srcObject) || player.readyState < 1) return null;
 
     return songOffsetSeconds + player.currentTime * songRate;
 });
