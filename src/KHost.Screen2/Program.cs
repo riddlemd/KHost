@@ -124,6 +124,27 @@ internal static class Program
         _closing.Dispose();
     }
 
+    /// <summary>Photino's own full screen, which takes the window's frame with it.</summary>
+    /// <returns>False when this build refuses it after the window exists, so the caller falls back
+    /// to filling the monitor and keeping the title bar — worse, but not broken.</returns>
+    private static bool TryNativeFullScreen(
+        PhotinoWindow window, bool fullScreen, Microsoft.Extensions.Logging.ILogger logger)
+    {
+        try
+        {
+            window.SetFullScreen(fullScreen);
+            logger.LogInformation("Native full screen {FullScreen}", fullScreen);
+
+            return true;
+        }
+        catch (Exception ex)
+        {
+            logger.LogInformation(ex, "Native full screen is unavailable; filling the monitor instead");
+
+            return false;
+        }
+    }
+
     /// <summary>Puts the window back on a monitor when the one it was left on is not there.</summary>
     /// <remarks>The stored placement can be perfectly sensible and still land nowhere: a venue runs
     /// the screen on a projector, unplugs it, and the next launch restores onto coordinates that no
@@ -259,7 +280,21 @@ internal static class Program
             {
                 (_restoreLeft, _restoreTop) = (window.Left, window.Top);
                 (_restoreWidth, _restoreHeight) = (window.Width, window.Height);
+            }
 
+            // Photino's own, which drops the frame as well as filling the monitor. Several of its
+            // setters refuse to run once the window exists — Chromeless is one, which is why the
+            // resize below was written — so this asks rather than assumes, and the resize stands
+            // behind it unchanged.
+            if (TryNativeFullScreen(window, fullScreen, logger))
+            {
+                _isFullScreen = fullScreen;
+                Remember(window);
+                return;
+            }
+
+            if (fullScreen)
+            {
                 var monitors = window.Monitors;
                 var area = (monitors.Count > 0 ? monitors[0] : window.MainMonitor).MonitorArea;
 
