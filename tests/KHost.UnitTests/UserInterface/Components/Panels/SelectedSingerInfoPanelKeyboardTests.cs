@@ -47,7 +47,6 @@ public class SelectedSingerInfoPanelKeyboardTests : BunitContext
         Services.AddSingleton(venues);
         Services.AddSingleton(Substitute.For<IPlaybackService>());
         Services.AddSingleton(Substitute.For<IMediaSearchService>());
-        Services.AddSingleton(Substitute.For<IPreparedMediaService>());
         Services.AddSingleton(Substitute.For<IUsersService>());
         Services.AddSingleton(Substitute.For<IUserGroupsService>());
         Services.AddSingleton(Substitute.For<IMediaService>());

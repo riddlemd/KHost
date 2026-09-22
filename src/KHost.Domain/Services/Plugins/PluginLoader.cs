@@ -30,7 +30,7 @@ public static class PluginLoader
     /// reads the domain for services taking <c>IEnumerable&lt;T&gt;</c> of an Abstractions interface
     /// and fails on any that is not listed, so the list maintains itself.</remarks>
     internal static readonly Type[] ExtensionInterfaces =
-        [.. CapabilityInterfaces.Select(c => c.Interface), typeof(IPluginButtonHandler), typeof(IMediaPlaybackGate), typeof(IMediaPreparer), typeof(IMediaProbe)];
+        [.. CapabilityInterfaces.Select(c => c.Interface), typeof(IPluginButtonHandler), typeof(IMediaPlaybackGate), typeof(IMediaProbe)];
 
     public static PluginsState ReadState(string cacheDirectory)
     {
