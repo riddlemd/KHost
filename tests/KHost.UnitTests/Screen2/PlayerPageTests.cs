@@ -27,30 +27,30 @@ public class PlayerPageTests
         Assert.DoesNotContain("<script src=\"hls.light.min.js\"></script>", page);
     }
 
-    // The native path is a second renderer in the same page, so it ships the same way the rest
-    // does. Missing, a kit load would find no engine and the screen would simply stay dark.
+    // The overlay draws the words over the song, so it ships the same way the rest does. Missing,
+    // a song with lyrics would play with nothing drawn and no error to say why.
     [Fact]
-    public void BuildPlayerPage_Always_InlinesTheKitEngine()
+    public void BuildPlayerPage_Always_InlinesTheLyricsOverlay()
     {
         var page = Program.BuildPlayerPage();
 
-        Assert.Contains("function createKitEngine", page, StringComparison.Ordinal);
-        Assert.DoesNotContain("<script src=\"kit-engine.js\"></script>", page, StringComparison.Ordinal);
+        Assert.Contains("function createLyricsOverlay", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("<script src=\"lyrics-overlay.js\"></script>", page, StringComparison.Ordinal);
     }
 
-    // player.js calls createKitEngine when a native load arrives, so the engine has to be defined
-    // by then — the same ordering rule hls.js is held to below.
+    // player.js builds the overlay as it loads, not on a command, so it has to be defined by then
+    // — the same ordering rule hls.js is held to below.
     [Fact]
-    public void BuildPlayerPage_Always_PutsTheKitEngineBeforeThePlayer()
+    public void BuildPlayerPage_Always_PutsTheLyricsOverlayBeforeThePlayer()
     {
         var page = Program.BuildPlayerPage();
 
-        var engine = page.IndexOf("function createKitEngine", StringComparison.Ordinal);
-        var player = page.IndexOf("createKitEngine(kitCanvas", StringComparison.Ordinal);
+        var overlay = page.IndexOf("function createLyricsOverlay", StringComparison.Ordinal);
+        var player = page.IndexOf("createLyricsOverlay(lyricsCanvas", StringComparison.Ordinal);
 
-        Assert.True(engine >= 0, "the engine is missing from the page");
-        Assert.True(player >= 0, "the player never reaches for the engine");
-        Assert.True(engine < player, "the player would call an engine that is not defined yet");
+        Assert.True(overlay >= 0, "the overlay is missing from the page");
+        Assert.True(player >= 0, "the player never reaches for the overlay");
+        Assert.True(overlay < player, "the player would call an overlay that is not defined yet");
     }
 
     // hls.js has to be defined before player.js reads it to choose a playback path.

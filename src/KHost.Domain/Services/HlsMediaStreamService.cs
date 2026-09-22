@@ -264,8 +264,11 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, ID
         if (mixGraph.Length > 0)
         {
             // Explicit maps: the graph names the audio output, and without saying so ffmpeg would
-            // also carry one of the raw tracks through beside it.
-            arguments += $" -filter_complex \"{mixGraph}\" -map 0:v:0 -map \"[a]\"";
+            // also carry one of the raw tracks through beside it. The picture is optional ("?")
+            // because a multi-track container can be audio alone — a mix is the one case where a
+            // missing video stream would otherwise be a fatal unmatched mapping rather than a
+            // silently dropped one.
+            arguments += $" -filter_complex \"{mixGraph}\" -map 0:v:0? -map \"[a]\"";
         }
         else if (audioFilter.Length > 0)
         {

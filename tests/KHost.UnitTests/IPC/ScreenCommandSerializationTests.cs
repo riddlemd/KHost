@@ -57,6 +57,37 @@ public class ScreenCommandSerializationTests
             Corner = ScreenCorner.BottomLeft,
             Offset = 1.5,
         },
+        [nameof(SetTimedLyricsCommand)] = new SetTimedLyricsCommand
+        {
+            Lyrics = new TimedLyrics
+            {
+                DurationSeconds = 362.1,
+                Bounds = new LyricBox(0, 0, 640, 360),
+                Pages =
+                [
+                    new LyricPage
+                    {
+                        ShowFromSeconds = 1.5,
+                        ShowUntilSeconds = 6.25,
+                        Active = new LyricColor(255, 240, 0),
+                        Inactive = new LyricColor(255, 255, 255),
+                        Lines =
+                        [
+                            new LyricLine
+                            {
+                                Position = new LyricBox(40, 120, 560, 48),
+                                Syllables =
+                                [
+                                    new LyricSyllable(1.5, 1.9, "Turn"),
+                                    new LyricSyllable(1.9, 2.4, " a"),
+                                    new LyricSyllable(2.4, 3.0, "round"),
+                                ],
+                            },
+                        ],
+                    },
+                ],
+            },
+        },
         [nameof(ShowNextSingerCommand)] = new ShowNextSingerCommand
         {
             Singer = "Ada",

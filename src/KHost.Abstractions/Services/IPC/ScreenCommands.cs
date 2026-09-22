@@ -23,6 +23,7 @@ namespace KHost.Abstractions.Services.IPC;
 [JsonDerivedType(typeof(SetScreenQrCodesCommand), "setQrCodes")]
 [JsonDerivedType(typeof(SetBreakMusicCardCommand), "setBreakMusicCard")]
 [JsonDerivedType(typeof(ShowNextSingerCommand), "showNextSinger")]
+[JsonDerivedType(typeof(SetTimedLyricsCommand), "setTimedLyrics")]
 public abstract class ScreenCommandBase : IScreenCommand { }
 
 /// <summary>Song position against the host's clock, not "now"; sync-capable screens only.</summary>
@@ -199,6 +200,18 @@ public sealed class SetMarqueeCommand : ScreenCommandBase
 
     /// <summary>Holds the "Up next" label at the leading edge instead of scrolling it past.</summary>
     public bool PinLabel { get; init; }
+}
+
+/// <summary>The words to draw over this song, or null to draw none.</summary>
+/// <remarks>Sent with the load rather than with the transport: it is the whole timing document, so
+/// it must not ride a message sent twice a second. The screen holds it until the next load.
+///
+/// Drawing it is the screen's job entirely — the host sends the same words to every screen and
+/// never learns which of them drew anything.</remarks>
+public sealed class SetTimedLyricsCommand : ScreenCommandBase
+{
+    /// <summary>The timing, or null when this song has none and the screen should clear what it holds.</summary>
+    public required TimedLyrics? Lyrics { get; init; }
 }
 
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "$type")]
