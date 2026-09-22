@@ -13,7 +13,15 @@ public class PluginExtensionInterfaceTests
     /// <summary>Collected from the host's own registrations, not from plugins. Binding it would let
     /// an installed plugin supply an <b>authentication</b> provider, which is a decision about what
     /// a plugin is trusted with rather than a list this test may quietly grow.</summary>
-    private static readonly Type[] HostOnly = [typeof(KHost.Abstractions.Services.IAuthProvider)];
+    private static readonly Type[] HostOnly =
+    [
+        typeof(KHost.Abstractions.Services.IAuthProvider),
+
+        // A screen launcher starts a process on this machine. Binding it would let an installed
+        // plugin launch one, which is a decision about what a plugin is trusted with rather than a
+        // list this test may quietly grow. The screens' own display provider collects these.
+        typeof(KHost.Abstractions.Services.IPC.IScreenProvider),
+    ];
 
     /// <summary>A domain service taking <c>IEnumerable&lt;T&gt;</c> of an Abstractions interface is
     /// collecting plugin implementations of it, so the loader has to be binding it.</summary>

@@ -183,7 +183,7 @@ public class PluginLoaderTests : IDisposable
         PluginLoader.LoadAndRegister(new ServiceCollection(), plugins, state);
 
         Assert.Equal(PluginStatus.Loaded, plugins[0].Status);
-        Assert.Equal(["Media provider", "Queue rotation", "Break music"], plugins[0].Capabilities);
+        Assert.Equal(["Media provider", "Queue rotation", "Break music", "Display provider"], plugins[0].Capabilities);
     }
 
     // A plugin's break music provider has to land in the container under the interface the service

@@ -231,10 +231,9 @@ builder.Services.AddSingleton<IDialogService, DialogService>();
         // be handed services. Never fatal: PluginInitializer marks a plugin that throws.
         app.Services.GetRequiredService<IPluginInitializer>().InitializeAsync().GetAwaiter().GetResult();
 
-        // Before the hub is mapped: a service nobody has resolved cannot mute the first screen.
+        // Before the hub is mapped: a service nobody has resolved cannot hear the first screen arrive.
         try
         {
-            app.Services.GetRequiredService<IScreenCoordinationService>().InitializeAsync().GetAwaiter().GetResult();
             app.Services.GetRequiredService<IScreenMarqueeService>().InitializeAsync().GetAwaiter().GetResult();
             app.Services.GetRequiredService<BreakMusicCardService>().InitializeAsync().GetAwaiter().GetResult();
 

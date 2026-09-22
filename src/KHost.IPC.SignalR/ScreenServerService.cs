@@ -16,7 +16,10 @@ internal sealed class ScreenServerService : IScreenServer, IHubCallback
         public int MaxConcurrentConnections { get; set; } = 20;
 
         /// <summary>Caps registered screens apart from the connection cap; reusing an id isn't new.</summary>
-        public int MaxRegisteredScreens { get; set; } = 16;
+        /// <remarks>One, to match <c>IDisplayProvider.MaxConnectedDevices</c> on the screens: the
+        /// host drives one display at a time, and a hand-launched second screen would otherwise
+        /// simply join and be sent a timeline it was never chosen for.</remarks>
+        public int MaxRegisteredScreens { get; set; } = 1;
     }
 
     private readonly IHubContext<ScreenHub> _hubContext;
@@ -88,18 +91,56 @@ internal sealed class ScreenServerService : IScreenServer, IHubCallback
         _lock.Wait();
         try
         {
-            if (!_sessions.TryGetValue(connectionId, out var session)) return false;
+            // Every refusal below says why. A screen the host turned away shows "Lost the host"
+            // and waits, which from the room looks exactly like a screen that crashed.
+            if (!_sessions.TryGetValue(connectionId, out var session))
+            {
+                _logger?.LogWarning(
+                    "Refused registration for '{ScreenId}': no session was begun for {ConnectionId}",
+                    envelope.ScreenId, connectionId);
 
-            if (!ScreenMessageAuth.Verify(key, session.Nonce, envelope.Seq, envelope.Payload, envelope.Mac)
-                || envelope.Seq <= session.ExpectedInboundSeq)
                 return false;
+            }
+
+            if (!ScreenMessageAuth.Verify(key, session.Nonce, envelope.Seq, envelope.Payload, envelope.Mac))
+            {
+                _logger?.LogWarning(
+                    "Refused registration for '{ScreenId}': the signature did not verify",
+                    envelope.ScreenId);
+
+                return false;
+            }
+
+            if (envelope.Seq <= session.ExpectedInboundSeq)
+            {
+                _logger?.LogWarning(
+                    "Refused registration for '{ScreenId}': sequence {Seq} is not past {Expected}",
+                    envelope.ScreenId, envelope.Seq, session.ExpectedInboundSeq);
+
+                return false;
+            }
 
             var payload = RegisterPayload.TryParse(envelope.Payload);
-            if (payload is null) return false;
+            if (payload is null)
+            {
+                _logger?.LogWarning(
+                    "Refused registration for '{ScreenId}': its payload could not be read",
+                    envelope.ScreenId);
+
+                return false;
+            }
 
             // A re-registration under an existing id overwrites in place; it doesn't count against the cap.
             if (!_connections.ContainsKey(envelope.ScreenId) && _connections.Count >= _options.MaxRegisteredScreens)
+            {
+                // Logged, not silent: a refused screen shows "Lost the host" and waits, which looks
+                // identical to a crash from the operator's side of the room.
+                _logger?.LogWarning(
+                    "Refused registration for '{ScreenId}': {Count} of {Max} screens are already registered",
+                    envelope.ScreenId, _connections.Count, _options.MaxRegisteredScreens);
+
                 return false;
+            }
 
             session.Key = key;
             session.ScreenId = envelope.ScreenId;

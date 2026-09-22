@@ -150,7 +150,7 @@ public class BreakMusicServiceTests : IDisposable
             Substitute.For<IMediaService>(),
             Substitute.For<IMediaStreamService>(),
             Substitute.For<IScreenServer>(),
-            Substitute.For<IScreenCoordinationService>(),
+            [Substitute.For<IDisplayProvider>()],
             _venues, _broker);
 
         using var service = new BreakMusicService(
@@ -202,7 +202,7 @@ public class BreakMusicServiceTests : IDisposable
     }
 
     // One venue level covers every channel, so a provider the host cannot reach is told it and
-    // one that renders through the host is not, because ScreenCoordination already sets that channel.
+    // one that renders through the host is not, because the display already sets that channel.
     [Fact]
     public async Task StartAsync_AnExternalProvider_IsGivenTheVenueVolume()
     {

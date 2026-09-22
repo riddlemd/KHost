@@ -93,8 +93,18 @@ namespace KHost.Domain
             serviceCollection.AddSingleton<IAudioTrackService, AudioTrackService>();
             serviceCollection.AddSingleton<IMediaTagReader, MediaTagReader>();
             serviceCollection.AddSingleton<IMediaGateService, MediaGateService>();
-            serviceCollection.AddSingleton<IScreenCoordinationService, ScreenCoordinationService>();
             serviceCollection.AddSingleton<IScreenMarqueeService, ScreenMarqueeService>();
+
+            // Core, not a plugin: the host's own transport to the screens, registered here so it
+            // reaches PlaybackService in the same collection a plugin's display does. PluginLoader
+            // must never bind it, and it must not appear on the Plugins page.
+            serviceCollection.AddSingleton<Services.Screens.ScreenDisplayProvider>();
+            serviceCollection.AddSingleton<IDisplayProvider>(
+                provider => provider.GetRequiredService<Services.Screens.ScreenDisplayProvider>());
+
+            // It wires ScreenConnected in its constructor, so it must exist before a screen does.
+            serviceCollection.AddSingleton<Services.Screens.IStartsWithTheHost>(
+                provider => provider.GetRequiredService<Services.Screens.ScreenDisplayProvider>());
             serviceCollection.AddSingleton<INextSingerCardService, Services.Screens.NextSingerCardService>();
             serviceCollection.AddSingleton<Services.Screens.IScreenQrCodeService, Services.Screens.ScreenQrCodeService>();
             serviceCollection.AddSingleton<Services.Screens.BreakMusicCardService>();
@@ -102,8 +112,6 @@ namespace KHost.Domain
 
             // The same singletons again, under the marker the host builds on the way up: pointed at what is
             // already registered. A fresh registration would build twice, and the extra copy would listen.
-            serviceCollection.AddSingleton<Services.Screens.IStartsWithTheHost>(
-                sp => (Services.Screens.IStartsWithTheHost)sp.GetRequiredService<IScreenCoordinationService>());
             serviceCollection.AddSingleton<Services.Screens.IStartsWithTheHost>(
                 sp => (Services.Screens.IStartsWithTheHost)sp.GetRequiredService<IScreenMarqueeService>());
             serviceCollection.AddSingleton<Services.Screens.IStartsWithTheHost>(

@@ -50,6 +50,9 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
 
     // Bounded independently of report rate: a chatty screen must not become a command storm.
     private static readonly TimeSpan ReanchorInterval = TimeSpan.FromSeconds(1);
+    /// <summary>Whether a screen is up, for the receiver callback, which cannot await to ask.</summary>
+    private volatile bool _aScreenIsUp;
+
     private DateTime _lastReanchorUtc;
     private bool _resumeWhenScreenReturns;
 
@@ -86,8 +89,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
     private readonly IAnalyticsService _analytics;
     private readonly IScreenServer _screenServer;
     private readonly IMediaStreamService _mediaStreams;
-    private readonly IScreenCoordinationService _screenCoordination;
-    private readonly IDisplayProvider? _display;
+    private readonly IReadOnlyList<IDisplayProvider> _displays;
     private readonly IBreakMusicService _breakMusic;
     private readonly IMediaService _mediaService;
     private readonly IOptionsMonitor<ServiceOptions> _optionsMonitor;
@@ -138,7 +140,6 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         IAnalyticsService analytics,
         IScreenServer screenServer,
         IMediaStreamService mediaStreams,
-        IScreenCoordinationService screenCoordination,
         IEnumerable<IDisplayProvider> displayProviders,
         IBreakMusicService breakMusic,
         IMediaService mediaService,
@@ -157,9 +158,9 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         _analytics = analytics;
         _screenServer = screenServer;
         _mediaStreams = mediaStreams;
-        _screenCoordination = screenCoordination;
-        // One at a time: two providers would each claim the song, and neither holds sync.
-        _display = displayProviders.FirstOrDefault();
+        // Every display the host can reach, screens included — the screens are a provider too.
+        // One is connected at a time, which the providers enforce; this is simply all of them.
+        _displays = [.. displayProviders];
         _breakMusic = breakMusic;
         _mediaService = mediaService;
         _optionsMonitor = options;
@@ -171,7 +172,8 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         _screenServer.ScreenConnected += OnScreenConnected;
         _screenServer.ScreenDisconnected += OnScreenDisconnected;
         _screenServer.StateReceived += OnScreenStateReceived;
-        if (_display is not null) _display.PlaybackStatusChanged += OnDisplayStatusReceived;
+        foreach (var display in _displays)
+            display.PlaybackStatusChanged += OnDisplayStatusReceived;
         _displaySubscription = _broker.Subscribe<DisplaysChanged>(message => { _ = Task.Run(SyncDisplaySessionAsync); });
 
         // The card is the venue's, so a venue edit is news about what should be on screen. Without this it
@@ -207,23 +209,22 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         await ShowIdleCardAsync();
     }
 
-    public async Task<bool> HasConnectedScreenAsync()
+    /// <summary>Whether the song has anywhere to come out — a screen, a television, anything.</summary>
+    /// <remarks>One question now the screens are a display like the rest. Refusing to play with only
+    /// a television attached would refuse the setup casting exists for.</remarks>
+    public Task<bool> HasConnectedScreenAsync()
     {
-        // A display provider's device is not a screen, but it is somewhere the song comes out.
-        // Refusing to play with only a television attached is refusing the setup it exists for.
-        if (_display?.ConnectedDeviceId is { Length: > 0 }) return true;
-
         try
         {
-            await foreach (var _ in _screenServer.GetConnectedScreensAsync())
-                return true;
+            return Task.FromResult(
+                _displays.Any(display => display.ConnectedDeviceId is { Length: > 0 }));
         }
         catch (Exception ex)
         {
-            Logger.LogWarning(ex, "Failed to enumerate connected screens");
+            Logger.LogWarning(ex, "Failed to read the connected displays");
         }
 
-        return false;
+        return Task.FromResult(false);
     }
 
     public async Task LoadAsync(Performance performance, Media media)
@@ -255,7 +256,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
             await CancelAdAsync();
 
         // The venue card is only for when nothing is playing.
-        await SendToScreensAsync(new HideImageCommand());
+        await ToDisplaysAsync(new HideImageCommand());
 
         // On load rather than on play: the host lines the next singer up while the room is still
         // listening to the bed, and a song that starts over the top of it is two songs at once.
@@ -290,7 +291,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
 
         try
         {
-            await SendToScreensAsync(await BuildLoadCommandAsync(media, TimeSpan.Zero));
+            await ToDisplaysAsync(await BuildLoadCommandAsync(media, TimeSpan.Zero));
 
             // After the load and before play: a screen holds the words until the next load, and one
             // that arrived mid-song would light every syllable already sung at once.
@@ -407,12 +408,12 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
 
         if (playsOnMainChannel)
         {
-            await SendToScreensAsync(new HideImageCommand());
-            await SendToScreensAsync(await BuildLoadCommandAsync(ad.Visual!, TimeSpan.Zero));
+            await ToDisplaysAsync(new HideImageCommand());
+            await ToDisplaysAsync(await BuildLoadCommandAsync(ad.Visual!, TimeSpan.Zero));
         }
         else if (ad.Visual is { } still)
         {
-            await SendToScreensAsync(new ShowImageCommand { Url = _mediaStreams.BuildImageUrl(still.Id), Scaling = still.ImageScaling });
+            await ToDisplaysAsync(new ShowImageCommand { Url = _mediaStreams.BuildImageUrl(still.Id), Scaling = still.ImageScaling });
         }
 
         // Opened at the offset rather than trimmed: a clip out of a longer file costs no re-encode,
@@ -421,7 +422,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         {
             _adAudioStream = await _mediaStreams.OpenAsync(audio.FilePath, ad.AudioStart);
 
-            await SendToAudioScreenAsync(new LoadBackgroundCommand
+            await ToDisplaysAsync(new LoadBackgroundCommand
             {
                 StreamUrl = _adAudioStream.PlaylistUrl,
                 AutoPlay = true,
@@ -487,14 +488,13 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         {
             Logger.LogInformation("Play superseded a stop; reloading the screens at {Position}", Position);
 
-            await SendToScreensAsync(DescribeStream(resumed));
+            await ToDisplaysAsync(DescribeStream(resumed));
 
             if (Position > TimeSpan.Zero)
-                await SendToScreensAsync(new SeekCommand { Position = Position });
+                await ToDisplaysAsync(new SeekCommand { Position = Position });
         }
 
-        await SendToScreensAsync(new PlayCommand());
-        await DriveDisplayAsync(c => c.PlayAsync());
+        await ToDisplaysAsync(new PlayCommand());
 
         // After the play command, so a synced screen already has the stream open when it is told
         // which instant to start on.
@@ -530,8 +530,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
 
         Logger.LogInformation("Seeking to {Position}", target);
 
-        await SendToScreensAsync(new SeekCommand { Position = target });
-        await DriveDisplayAsync(c => c.SeekAsync(target));
+        await ToDisplaysAsync(new SeekCommand { Position = target });
 
         // Screens play to a scheduled instant rather than following us, so moving the playhead has
         // to re-anchor the whole group, not only the screen the host happens to be looking at.
@@ -674,8 +673,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
 
         Logger.LogInformation("Playback paused at {Position}", Position);
 
-        await SendToScreensAsync(new PauseCommand());
-        await DriveDisplayAsync(c => c.PauseAsync());
+        await ToDisplaysAsync(new PauseCommand());
         await PublishTimelineAsync(isPlaying: false);
 
         _broker.Announce(new PlaybackChanged());
@@ -692,6 +690,11 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         // screen: showing "Fading out…" here would just stall the UI over a blanked screen.
         var fade = State == PlaybackState.Playing ? Options.StopFadeDuration : TimeSpan.Zero;
 
+        // Same reasoning, asked of the device rather than the state: a receiver stops dead, and
+        // the wait below would then be that many seconds of silence before the queue moves on.
+        if (fade > TimeSpan.Zero && !AnythingCanFade())
+            fade = TimeSpan.Zero;
+
         // Hold CurrentPerformance/CurrentMedia until the screens have finished fading, so the
         // UI can show the song winding down instead of blanking while it is still audible.
         StopClock();
@@ -702,8 +705,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
 
         _broker.Announce(new PlaybackChanged());
 
-        await SendToScreensAsync(new StopCommand { FadeDuration = fade });
-        await DriveDisplayAsync(c => c.StopAsync());
+        await ToDisplaysAsync(new StopCommand { FadeDuration = fade });
 
         if (fade > TimeSpan.Zero)
             await Task.Delay(fade);
@@ -736,7 +738,8 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
             _screenServer.ScreenConnected -= OnScreenConnected;
             _screenServer.ScreenDisconnected -= OnScreenDisconnected;
             _screenServer.StateReceived -= OnScreenStateReceived;
-            if (_display is not null) _display.PlaybackStatusChanged -= OnDisplayStatusReceived;
+            foreach (var display in _displays)
+            display.PlaybackStatusChanged -= OnDisplayStatusReceived;
             _displaySubscription?.Dispose();
             _displaySubscription = null;
             _venueSubscription?.Dispose();
@@ -750,17 +753,29 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
 
     // Raised while ScreenServerService holds the same non-reentrant lock GetConnectedScreensAsync
     // waits on, so this work must leave the hub thread or it deadlocks.
-    private void OnScreenConnected(object? sender, ScreenConnectionEventArgs e) =>
+    private void OnScreenConnected(object? sender, ScreenConnectionEventArgs e)
+    {
+        _aScreenIsUp = true;
         _ = Task.Run(SyncNewScreenAsync);
+    }
 
     private void OnScreenDisconnected(object? sender, ScreenConnectionEventArgs e) =>
-        _ = Task.Run(HandleScreenLossAsync);
+        _ = Task.Run(async () =>
+        {
+            // Re-read rather than assume none is left: the flag gates the playhead's clock, and a
+            // screen reconnecting under the same id raises a stale disconnect after the new connect.
+            _aScreenIsUp = (await ConnectedScreensAsync()).Count > 0;
+
+            await HandleScreenLossAsync();
+        });
 
     /// <summary>A receiver has no timeline of its own, so it sits idle until the next load.</summary>
     /// <remarks>Keyed on session rather than device, to catch a restarted receiver too.</remarks>
     private async Task SyncDisplaySessionAsync()
     {
-        if (_display?.SessionId is null)
+        var joined = _displays.FirstOrDefault(display => display.SessionId is not null);
+
+        if (joined?.SessionId is null)
         {
             _displaySessionId = null;
             return;
@@ -771,7 +786,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         {
             // Read inside the lock: DisplaysChanged is announced for discovery as well, so several
             // land close together and only one of them may claim the session.
-            if (_display?.SessionId is not { } session || session == _displaySessionId) return;
+            if (joined.SessionId is not { } session || session == _displaySessionId) return;
 
             _displaySessionId = session;
 
@@ -788,13 +803,18 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
             Logger.LogInformation(
                 "Display session is new; loading '{Title}' at {Position}", media.Title, position);
 
-            await DriveDisplayAsync(c => c.LoadAsync(stream.PlaylistUrl, stream.StartOffset, stream.Tempo));
+            await ToDisplaysAsync(new LoadMediaCommand
+            {
+                StreamUrl = stream.PlaylistUrl,
+                StreamStartOffset = stream.StartOffset,
+                Tempo = stream.Tempo,
+            });
 
             if (position > stream.StartOffset)
-                await DriveDisplayAsync(c => c.SeekAsync(position));
+                await ToDisplaysAsync(new SeekCommand { Position = position });
 
             if (State == PlaybackState.Playing)
-                await DriveDisplayAsync(c => c.PlayAsync());
+                await ToDisplaysAsync(new PlayCommand());
         }
         finally { _screenSyncLock.Release(); }
     }
@@ -811,7 +831,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
             // redrawn on the new screen. Keyed on format, not on being an ad: what matters is the picture.
             if (media is not null && MediaFormats.IsImage(media.Format))
             {
-                await SendToScreensAsync(new ShowImageCommand { Url = _mediaStreams.BuildImageUrl(media.Id), Scaling = media.ImageScaling });
+                await ToDisplaysAsync(new ShowImageCommand { Url = _mediaStreams.BuildImageUrl(media.Id), Scaling = media.ImageScaling });
                 return;
             }
 
@@ -838,19 +858,18 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
 
             // Reuse the transcode that is already running rather than starting a second one: one
             // host stream feeding every screen is the whole point of moving ffmpeg here.
-            await SendToScreensAsync(_stream is not null
+            await ToDisplaysAsync(_stream is not null
                 ? DescribeStream(media)
                 : await BuildLoadCommandAsync(media, TimeSpan.Zero));
 
             // With the load and before the seek, the same order LoadAsync uses. Without this a
             // screen joining mid-song gets the audio and draws nothing, because the words were
             // sent once, when the song started, to whoever was connected then.
-            await SendToScreensAsync(new SetTimedLyricsCommand { Lyrics = _currentLyrics });
+            await ToDisplaysAsync(new SetTimedLyricsCommand { Lyrics = _currentLyrics });
 
             if (position > TimeSpan.Zero)
             {
-                await SendToScreensAsync(new SeekCommand { Position = position });
-                await DriveDisplayAsync(c => c.SeekAsync(position));
+                await ToDisplaysAsync(new SeekCommand { Position = position });
             }
 
             if (!resume)
@@ -864,7 +883,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
             // there and keep it for the paused case, which still needs the state transition.
             if (State == PlaybackState.Playing)
             {
-                await SendToScreensAsync(new PlayCommand());
+                await ToDisplaysAsync(new PlayCommand());
 
                 // Re-anchoring moves the whole group, not just the joiner, which is correct: the
                 // reload froze the clock, so every screen has to be told where the song now is.
@@ -1013,7 +1032,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
 
         _currentLyrics = lyrics;
 
-        try { await SendToScreensAsync(new SetTimedLyricsCommand { Lyrics = lyrics }); }
+        try { await ToDisplaysAsync(new SetTimedLyricsCommand { Lyrics = lyrics }); }
         catch (Exception ex) { Logger.LogWarning(ex, "Could not send the lyric timing for '{Title}'", media.Title); }
     }
 
@@ -1049,9 +1068,6 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
 
         var command = DescribeStream(media);
 
-        if (command.StreamUrl is { Length: > 0 } url)
-            await DriveDisplayAsync(c => c.LoadAsync(url, command.StreamStartOffset, command.Tempo));
-
         return command;
     }
 
@@ -1084,7 +1100,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
 
             // Opened at the playhead, not opened at zero and seeked: the stream's own zero moves
             // with it, which is what StreamStartOffset carries to the screens.
-            await SendToScreensAsync(await BuildLoadCommandAsync(media, position));
+            await ToDisplaysAsync(await BuildLoadCommandAsync(media, position));
 
             if (!resume)
             {
@@ -1103,15 +1119,10 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
 
             if (resumeAt > position)
             {
-                await SendToScreensAsync(new SeekCommand { Position = resumeAt });
-
-                // A receiver was loaded at the stream's own start like everything else, so without
-                // this it alone resumes behind the room by however long the rebuild took.
-                await DriveDisplayAsync(c => c.SeekAsync(resumeAt));
+                await ToDisplaysAsync(new SeekCommand { Position = resumeAt });
             }
 
-            await SendToScreensAsync(new PlayCommand());
-            await DriveDisplayAsync(c => c.PlayAsync());
+            await ToDisplaysAsync(new PlayCommand());
 
             // The reload froze the clock, so the whole group has to be re-anchored.
             await PublishTimelineAsync(isPlaying: true, resumeAt, scheduleAhead: true);
@@ -1159,7 +1170,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
     {
         if (_adAudioStream is null) return;
 
-        await SendToAudioScreenAsync(new StopBackgroundCommand());
+        await ToDisplaysAsync(new StopBackgroundCommand());
         await CloseAdAudioStreamAsync();
     }
 
@@ -1172,23 +1183,6 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
 
         try { await _mediaStreams.CloseAsync(stream.Id); }
         catch (Exception ex) { Logger.LogWarning(ex, "Failed to close ad audio stream {SessionId}", stream.Id); }
-    }
-
-    /// <summary>The bed and an ad's own audio share one channel; only the audible screen gets it.</summary>
-    private async Task SendToAudioScreenAsync(IScreenCommand command)
-    {
-        try
-        {
-            var screenId = await _screenCoordination.EnsureRolesAsync();
-
-            if (screenId is null) return;
-
-            await _screenServer.SendCommandAsync(screenId, command);
-        }
-        catch (Exception ex)
-        {
-            Logger.LogWarning(ex, "Failed to send {Command} to the audio screen", command.GetType().Name);
-        }
     }
 
     private async Task CloseStreamAsync()
@@ -1302,7 +1296,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
 
             if (brandingId is null)
             {
-                await SendToScreensAsync(new HideImageCommand());
+                await ToDisplaysAsync(new HideImageCommand());
                 return;
             }
 
@@ -1310,13 +1304,13 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
 
             if (media is null || !MediaFormats.IsImage(media.Format))
             {
-                await SendToScreensAsync(new HideImageCommand());
+                await ToDisplaysAsync(new HideImageCommand());
                 return;
             }
 
             // The venue's own scaling answer wins when set: the same picture can be the card in two rooms
             // of different shapes, and a host adjusting it here need not go edit the library image.
-            await SendToScreensAsync(new ShowImageCommand
+            await ToDisplaysAsync(new ShowImageCommand
             {
                 Url = _mediaStreams.BuildImageUrl(media.Id),
                 Scaling = venue!.Settings.BrandingImageScaling ?? media.ImageScaling,
@@ -1330,27 +1324,99 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         }
     }
 
-    /// <summary>Separate from the screens on purpose.</summary>
-    /// <remarks>A receiver holds no role and must not inherit whatever the screens gain next.</remarks>
-    private async Task DriveDisplayAsync(Func<IDisplayProvider, Task> action)
+    /// <summary>Sends one command to whatever the song is coming out of.</summary>
+    /// <remarks>One path for every display, screens included: the screens reach the host through a
+    /// provider like anything else. A command nothing can show is not sent — the device says what
+    /// it can draw, so a television is never handed a marquee it would drop on the floor.
+    ///
+    /// <para>A provider that throws is logged and passed over. A display that has gone must not
+    /// stop the song reaching the one that is still there.</para></remarks>
+    private async Task ToDisplaysAsync(IScreenCommand command)
     {
-        if (_display is null || _display.ConnectedDeviceId is not { Length: > 0 }) return;
+        foreach (var display in _displays)
+        {
+            // The connection is the authoritative fact, not the device list: a provider may know
+            // it is connected before it has anything to list, and skipping it then would drop the
+            // song on the floor.
+            if (display.ConnectedDeviceId is not { Length: > 0 } deviceId) continue;
 
-        try { await action(_display); }
-        catch (Exception ex) { Logger.LogWarning(ex, "Failed to drive the {Provider} device", _display.Name); }
+            var device = display.Devices.FirstOrDefault(d => d.Id == deviceId)
+                ?? display.Devices.FirstOrDefault(d => d.IsConnected);
+
+            // An unlisted device is under-reporting rather than refusing, so it is sent everything
+            // and drops what it cannot draw through the interface's own defaults.
+            if (device is not null && !CanShow(device, command)) continue;
+
+            try { await DispatchAsync(display, command); }
+            catch (Exception ex)
+            {
+                Logger.LogWarning(
+                    ex, "Failed to send {Command} to {Provider}", command.GetType().Name, display.Name);
+            }
+        }
     }
 
-    private async Task SendToScreensAsync(IScreenCommand command)
+    /// <summary>Whether anything carrying the song can ride it down rather than cut it.</summary>
+    /// <remarks>A device that has not listed itself yet is taken to fade, the same permissive
+    /// stance <see cref="ToDisplaysAsync"/> takes: over-waiting is a pause nobody hears, while
+    /// under-waiting cuts a song off mid-word.</remarks>
+    private bool AnythingCanFade()
     {
-        try
+        foreach (var display in _displays)
         {
-            await _screenServer.BroadcastCommandAsync(command);
+            if (display.ConnectedDeviceId is not { Length: > 0 } deviceId) continue;
+
+            var device = display.Devices.FirstOrDefault(d => d.Id == deviceId)
+                ?? display.Devices.FirstOrDefault(d => d.IsConnected);
+
+            if (device is null || device.SupportsFade) return true;
         }
-        catch (Exception ex)
-        {
-            Logger.LogWarning(ex, "Failed to send {Command} to screens", command.GetType().Name);
-        }
+
+        return false;
     }
+
+    /// <summary>Whether this device can show this command at all.</summary>
+    /// <remarks>Transport is never gated — every display plays the song. Only the drawn things ask,
+    /// and each asks its own flag, because the host answers them differently: words it can composite
+    /// into the picture, a marquee it simply leaves off.</remarks>
+    private static bool CanShow(DisplayDevice device, IScreenCommand command) => command switch
+    {
+        SetTimedLyricsCommand => device.SupportsLyrics,
+        SetMarqueeCommand => device.SupportsMarquee,
+        SetScreenQrCodesCommand => device.SupportsQrCodes,
+        ShowNextSingerCommand or SetBreakMusicCardCommand or ShowImageCommand or HideImageCommand
+            => device.SupportsImage,
+        _ => true,
+    };
+
+    /// <summary>The one place a command becomes a call, so a provider sees named members.</summary>
+    private static Task DispatchAsync(IDisplayProvider display, IScreenCommand command) => command switch
+    {
+        LoadMediaCommand c => display.LoadAsync(c.StreamUrl, c.StreamStartOffset, c.Tempo),
+        PlayCommand => display.PlayAsync(),
+        PauseCommand => display.PauseAsync(),
+        StopCommand c => display.StopAsync(c.FadeDuration),
+        SeekCommand c => display.SeekAsync(c.Position),
+        SetVolumeCommand c => display.SetVolumeAsync(c.Volume),
+        SetVideoCommand c => display.SetVideoAsync(c.Enabled),
+
+        SetTimedLyricsCommand c => display.SetTimedLyricsAsync(c),
+        SetMarqueeCommand c => display.SetMarqueeAsync(c),
+        SetScreenQrCodesCommand c => display.SetQrCodesAsync(c),
+        ShowNextSingerCommand c => display.ShowNextSingerAsync(c),
+        SetBreakMusicCardCommand c => display.SetBreakMusicCardAsync(c),
+        ShowImageCommand c => display.ShowImageAsync(c),
+        HideImageCommand => display.HideImageAsync(),
+
+        LoadBackgroundCommand c => display.LoadBackgroundAsync(c),
+        PlayBackgroundCommand => display.PlayBackgroundAsync(),
+        PauseBackgroundCommand => display.PauseBackgroundAsync(),
+        StopBackgroundCommand c => display.StopBackgroundAsync(c.FadeDuration),
+        SetBackgroundVolumeCommand c => display.SetBackgroundVolumeAsync(c.Volume),
+
+        // A timeline is a screen's own business and no provider carries one; nothing else is known.
+        _ => Task.CompletedTask,
+    };
 
     /// <summary>A start is anchored ahead so every synced screen begins on the same instant.</summary>
     private async Task PublishTimelineAsync(bool isPlaying, TimeSpan? position = null, bool scheduleAhead = false)
@@ -1364,21 +1430,21 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
     {
         try
         {
-            var screens = await SyncCapableScreensAsync();
+            var screens = await ConnectedScreensAsync();
             if (screens.Count == 0) return;
 
-            await _screenCoordination.EnsureRolesAsync();
-            var primaryScreenId = _screenCoordination.PrimaryScreenId;
-
-            // Addressed per screen rather than broadcast: a loose consumer cannot honour a
-            // schedule, and sending it one would only invite it to try.
+            // Addressed per screen rather than broadcast, so the day a second one is allowed the
+            // loop is already the shape that has to send each a different IsPrimary.
             foreach (var screen in screens)
                 await _screenServer.SendCommandAsync(screen.ScreenId, new SetTimelineCommand
                 {
                     Position = position,
                     AnchorUtc = anchorUtc,
                     IsPlaying = isPlaying,
-                    IsPrimary = screen.ScreenId == primaryScreenId,
+
+                    // One screen at a time, so the one that is up defines the song's clock and is
+                    // never corrected towards anything. There is nothing else for it to chase.
+                    IsPrimary = true,
                 });
         }
         catch (Exception ex)
@@ -1392,11 +1458,10 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
     private void OnScreenStateReceived(object? sender, ScreenStateReceivedEventArgs e)
     {
         if (State != PlaybackState.Playing) return;
-        if (e.ScreenId != _screenCoordination.PrimaryScreenId) return;
         if (e.State is not ScreenPlaybackState state) return;
         if (!state.IsPlaying || state.SampledAtUtc is not { } sampledAt) return;
 
-        // The primary defines the song position, so the host's own clock follows it rather than
+        // The screen defines the song position, so the host's own clock follows it rather than
         // free-running: the timer is only an interpolator between these reports now.
         var now = DateTime.UtcNow;
 
@@ -1416,27 +1481,30 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
     {
         if (State != PlaybackState.Playing || !status.IsPlaying) return;
 
-        // A real primary is the better clock: its reports are timestamped against a measured
-        // offset, where a receiver's are only timestamped on arrival.
-        if (_screenCoordination.PrimaryScreenId is not null) return;
+        // A screen is the better clock: its reports are timestamped against a measured offset,
+        // where a receiver's are only timestamped on arrival.
+        if (_aScreenIsUp) return;
 
         Position = status.Position + ((DateTime.UtcNow - status.SampledAtUtc) * Rate);
         _lastTick = DateTime.UtcNow;
     }
 
-    private async Task<List<IScreenConnection>> SyncCapableScreensAsync()
+    private async Task<List<IScreenConnection>> ConnectedScreensAsync()
     {
         var screens = new List<IScreenConnection>();
 
         try
         {
             await foreach (var screen in _screenServer.GetConnectedScreensAsync())
-                if (screen.Capabilities.SupportsSync)
-                    screens.Add(screen);
+                screens.Add(screen);
+
+            // Self-correcting, because the events alone would miss a screen that was already up
+            // when this service was built. Runs on every re-anchor, so it is right within a second.
+            _aScreenIsUp = screens.Count > 0;
         }
         catch (Exception ex)
         {
-            Logger.LogWarning(ex, "Failed to enumerate synced screens");
+            Logger.LogWarning(ex, "Failed to enumerate the connected screens");
         }
 
         return screens;
