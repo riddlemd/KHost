@@ -22,7 +22,10 @@ public class HlsMediaStreamServiceTests : IDisposable
             {
                 BaseAddress = "http://host:5251",
                 WorkingDirectory = _workingDirectory,
-            }));
+            }),
+            // The real router with nothing registered: every path resolves to itself, which is
+            // what the host does for all but a provider's own container.
+            new PlayableMediaSourceService(NullLogger<PlayableMediaSourceService>.Instance, []));
 
     [Fact]
     public void BuildArguments_TargetsCodecsEveryConsumerDecodes()

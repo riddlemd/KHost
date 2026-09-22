@@ -35,14 +35,17 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, ID
     private readonly IOptionsMonitor<ServiceOptions> _options;
     private readonly Dictionary<string, Session> _sessions = [];
     private readonly SemaphoreSlim _lock = new(1, 1);
+    private readonly IPlayableMediaSourceService _playableSources;
     private readonly string _root;
 
     public HlsMediaStreamService(
         ILogger<HlsMediaStreamService> logger,
-        IOptionsMonitor<ServiceOptions> options)
+        IOptionsMonitor<ServiceOptions> options,
+        IPlayableMediaSourceService playableSources)
         : base(logger)
     {
         _options = options;
+        _playableSources = playableSources;
 
         // The root is resolved once and the rest is read live. Moving the directory under running
         // sessions would strand the segments they are already serving, where a changed segment
@@ -75,14 +78,20 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, ID
         var directory = Path.Combine(_root, id);
         Directory.CreateDirectory(directory);
 
-        var companionAudio = ResolveCompanionAudio(filePath);
-        if (companionAudio is null && IsGraphicsOnly(filePath))
-            Logger.LogWarning("No companion audio beside '{FilePath}'; the stream will be silent", filePath);
+        // Into the session's own directory, so a converted copy is swept with the segments when
+        // the session closes and nothing has to remember it exists.
+        var source = await _playableSources.ResolvePlayableAsync(filePath, directory, cancellationToken);
+
+        // Everything below reads the resolved path: a companion .mp3 sits beside the original, but
+        // what ffmpeg opens, and what decides the graphics-only frame rate, is what it will read.
+        var companionAudio = ResolveCompanionAudio(source);
+        if (companionAudio is null && IsGraphicsOnly(source))
+            Logger.LogWarning("No companion audio beside '{FilePath}'; the stream will be silent", source);
 
         var arguments = BuildArguments(
-            filePath, startOffset, pitch, tempo, Options.SegmentSeconds, companionAudio, mix);
+            source, startOffset, pitch, tempo, Options.SegmentSeconds, companionAudio, mix);
 
-        Logger.LogInformation("Opening stream {SessionId} for '{FilePath}' at {Offset}", id, filePath, startOffset);
+        Logger.LogInformation("Opening stream {SessionId} for '{FilePath}' at {Offset}", id, source, startOffset);
         Logger.LogDebug("ffmpeg {Arguments}", arguments);
 
         var process = Process.Start(new ProcessStartInfo(ResolveFfmpegPath(), arguments)
