@@ -25,7 +25,7 @@ SCSS compiles inside `dotnet build` (AspNetCore.SassCompiler) — no separate sa
 ## Rules
 
 - Interfaces in `src/KHost.Abstractions` (`Services/`, `Repositories/`, `Models/`); implementations in `src/KHost.Domain` or `src/KHost.DataAccess`. The rule is about what a plugin builds against, so an interface a plugin must *not* reach sits with its implementation instead — `IScreenQrCodeService` takes an owner id, and a plugin able to pass any owner could register over another's QR code without either noticing. Register in the project's `ProjectExtensions` (`AddDomain()` / `AddDataAccess()`); UI-only services in `Program.cs`. All domain services are singletons — guard mutable state with `SemaphoreSlim`.
-- A helper both the host and a plugin would want goes in `KHost.Common`, not `Abstractions`: it is MIT on purpose, so a plugin author may use it without taking PolyForm code into what they redistribute. `Common` is for helpers *over* the contracts — string folding aids, formatting, list surgery, the shared drop-position mechanic. A contract, a model or anything `Abstractions` itself needs belongs in `Abstractions`, which references nothing. `Abstractions` declares, it does not compute — see **No static methods in Abstractions** below. Group by area under `Common` (`Media/`, `Plugins/`) rather than dropping types in its root, and mirror that in the tests. Name its methods for what the call site needs to read, not for what the class already says: a plugin author sees `StreamRate.FromTempo(t)` and `AudioLevels.ClampVolume(v)` without this repo's context, so `For` and `Clamp` are too thin — `PluginRid.MatchesThisHost` names what it matches against, and `int.CentsToCurrencyString()` names the unit the receiver is in. The one exception is a member that exists to fill a BCL gap (`IList<T>.FindIndex`), where the familiar name *is* the point.
+- A helper both the host and a plugin would want goes in `KHost.Common`, not `Abstractions`: it is MIT on purpose, so a plugin author may use it without taking PolyForm code into what they redistribute. `Common` is for helpers *over* the contracts — string folding aids, formatting, list surgery, the shared drop-position mechanic. A contract, a model or anything `Abstractions` itself needs belongs in `Abstractions`, which references nothing. `Abstractions` declares, it does not compute — see **No static methods in Abstractions** below. Group by area under `Common` (`Media/`, `Plugins/`, `Discovery/`) rather than dropping types in its root, and mirror that in the tests. Name its methods for what the call site needs to read, not for what the class already says: a plugin author sees `StreamRate.FromTempo(t)` and `AudioLevels.ClampVolume(v)` without this repo's context, so `For` and `Clamp` are too thin — `PluginRid.MatchesThisHost` names what it matches against, and `int.CentsToCurrencyString()` names the unit the receiver is in. The one exception is a member that exists to fill a BCL gap (`IList<T>.FindIndex`), where the familiar name *is* the point.
 - No "gate" services: behaviour that guards a call lives on the service that owns the call (enqueue rules go in `PerformanceService.CreateAndEnqueueAsync`, not an `IEnqueueGuard` around it). `IMediaGateService`/`IMediaProbeService` are routers, not guards: they answer which plugin owns a file, and the rule itself lives in the plugin.
 - New repositories/services copy the shape of an existing one: repositories extend `BaseRepository<T>` and implement `SortColumns` / `ApplySearchFilters`; services extend `BaseService` (or `BaseRepositoryService<,>` for CRUD).
 - In repositories, `using var context = await ContextFactory.CreateDbContextAsync();` per operation — never store a context.
@@ -58,6 +58,29 @@ fatal in that one project via the `.editorconfig` beside its `.csproj`.
   one is usually a sign the member belongs in `Common`.
 - Precedents for the split live in `Common/Media/`, `Common/Plugins/`, `Common/Authentication/`
   and `Common/Repositories/`.
+
+## Finding things on the network
+
+**A .NET process on macOS cannot send multicast.** A send to `224.0.0.251` fails with
+`EHOSTUNREACH` ("No route to host") while a unicast to the very same host succeeds a millisecond
+later. That asymmetry is how macOS reports a local-network denial, and a command-line binary is
+denied *silently* rather than prompted — `dotnet` never even appears in Privacy & Security → Local
+Network. Every managed mDNS stack is therefore blind on macOS, and none of them say so: Zeroconf
+returns an empty list in half a second from a five-second scan, which reads as "nothing out there"
+rather than "I could not ask".
+
+`Common/Discovery/BonjourBrowser` is the way round it — macOS's own daemon, reached over XPC rather
+than the wire, so the denial does not apply. It sits in `Common` because **any** plugin reaching a
+network device meets this, and sharing it costs nothing: it is BCL plus a `DllImport` of
+`libSystem`, so `Common` keeps its no-package-dependencies property.
+
+- `BonjourBrowser.IsSupported` is **macOS only**. Everywhere else a managed stack works and should
+  be used; the Cast plugin keeps Zeroconf for Windows and Linux and branches on this.
+- Zeroconf does ship a Bonjour browser, but only in its `ios` and `maccatalyst` targets. Inheriting
+  it means multi-targeting to an Apple TFM, which forces a platform-specific plugin build and a
+  second catalog release — `Rid` is meant to stay blank.
+- A sweep that finds nothing must **say so**. "Blocked", "empty room" and "working fine" otherwise
+  look identical in a log, which is the whole reason this cost a day to find once.
 
 ## Messaging
 
@@ -175,31 +198,52 @@ cannot name another's: its secrets, and the QR code it offers the screens.
   saving. A format the host cannot play is therefore **unplayable** until the native render path
   lands — see `src/KHost.Screen2/RESEARCH.md`. Everything now streams through
   `HlsMediaStreamService`, which always encodes.
-- **`IDisplayProvider` is somewhere the song comes out that is not a screen.** Chromecast lives in
-  its own plugin for exactly this reason: mDNS browsing and a protobuf transport are a dependency
-  the host should not carry to play a local file.
-  - **A screen registers itself and the host drives it; a display provider is the other way round.**
-    The host holds no handle on the device, so it asks the plugin for everything — `Devices`,
-    `ConnectedDeviceId`, `SessionId` — and drives it through `PlaybackService.DriveDisplayAsync`,
-    never `BroadcastCommandAsync`. It holds no role in the sync set and never becomes an
-    `IScreenConnection`; accepting an `IScreenCommand` is the doorway every screen feature would
-    leak through, and a test in the plugin repo fails on it.
-  - **`PlaybackService` takes `IEnumerable<IDisplayProvider>` and keeps the first**, so none
-    installed is the ordinary case rather than a missing registration. Two would each claim the
-    song, and neither can hold sync.
-  - **The console never names a transport.** `Name` is the provider's own, and the plugin's device
-    table titles itself from it. Nothing in the host says "Cast".
-  - **The device list is the plugin's, not the console's.** It is a `ShowPluginTableRequest` off a
-    Plugins-page button; the Screens dialog is screens only. `ScreensButton` still names the device
-    in its tooltip, which is status a host reads at a glance rather than something to manage.
-  - **`[Inject]` resolves by type and ignores a nullable annotation**, so a component wanting one
-    injects `IEnumerable<IDisplayProvider>` and takes `FirstOrDefault()`. Injecting the bare
-    interface throws for every render when no plugin supplies one, which takes down the whole
-    console and not just the control that wanted it.
-  - Two host behaviours are still shaped by what a receiver can take, and neither can move into a
-    plugin: the HLS segments are MPEG-TS because CMAF needs a newer device, and
-    `LanAccessPolicy.IsMachineFacing` keeps the stream paths reachable off-box. Wanting CMAF means
-    asking the provider first.
+- **`IDisplayProvider` is a transport to somewhere the song comes out, and everything the host can
+  put on it.** It finds such places, connects to one, hands it a stream, drives transport on it, and
+  draws on it. It does not decide what the show is — it is told. The full shape and its reasoning
+  live in `docs/display-provider.md`; this is the short form.
+  - **The screens provider is core logic, not a plugin.** Screen2 reaches the host through a
+    provider the host itself registers, travelling the same path a plugin's display travels.
+    `PluginLoader` must not bind it and it must never appear on the Plugins page. Chromecast is the
+    plugin-supplied one.
+  - **One display at a time, across the whole system** — the local screen *or* a receiver, never
+    both. `MaxConnectedDevices` states each transport's own limit, is 1 everywhere for now, and is
+    **enforced**: a provider at its limit refuses the next connection rather than accepting it and
+    behaving oddly. It is also the tripwire — `ConnectedDeviceId`, `SessionId` and every
+    argument-free member are honest only while it is 1.
+  - **Every drawable member has a default body**, so a provider implements what it can do and
+    ignores the rest. A Cast plugin writes the six transport members, not ten stubs. The same
+    deliberate exception `IMediaPlaybackGate.Claims` and `IPluginButtonHandler.DescribeButton` are.
+  - **What a device can show belongs on the device**, not the transport: `DisplayDevice` carries
+    `SupportsLyrics`, `SupportsMarquee`, `SupportsQrCodes` and `SupportsImage` beside audio and
+    video. One flag each rather than one for all, because the host answers each differently — lyrics
+    are fixed for the whole song and can be **burned into the stream** for a device that cannot draw
+    them, while a marquee that rescrolls on every venue edit would mean restarting the encode, so it
+    is simply left off.
+  - **`SupportsFade` is the one capability the host acts on for itself.** `StopAsync` *waits out*
+    the fade it asks for, so a device that cuts dead — a receiver, which has no mixer of the host's
+    to ride down — would otherwise buy the room that many seconds of silence before the queue moved
+    on. Nothing connected that can fade means the stop is instant, the same reasoning as a paused
+    stop being instant. A device that has not listed itself yet is taken to fade: over-waiting is a
+    pause nobody hears, under-waiting cuts a song off mid-word.
+  - **A screen is local only** — launched by the host on its own machine. So `discovery` is two acts
+    under one name: a real network sweep for Cast, and "open one" for screens. **`SearchesForDevices`
+    is which one a transport does**, and it is how the console decides what to offer: a header that
+    says "search for devices" must not launch a screen, and one with nothing but the screens behind
+    it must not offer the search at all. True by default, a plugin's transport being nearly always
+    a sweep.
+  - **Roles and sync are gone.** There is no audio screen, no primary, no `SupportsSync` and no
+    per-screen audio or video override: with one display there is nothing to choose between and
+    nothing to steer onto anything else. The screen that is up defines the song's clock, so
+    `SetTimelineCommand.IsPrimary` is always true and nothing is ever corrected towards anything.
+    The venue's volume, which `ScreenCoordinationService` used to apply, is now applied by
+    `ScreenDisplayProvider` on connect and on a venue edit.
+  - **The cap is the server's, and its default is the behaviour.** `ScreenServer:MaxRegisteredScreens`
+    is **1**, matching the provider's `MaxConnectedDevices`; a second screen is refused rather than
+    quietly joining. Every refusal in `TryRegisterScreen` is logged, because a turned-away screen
+    shows "Lost the host" and waits, which from the room is indistinguishable from a crash.
+  - The off-box HTTP surface — `LanAccessPolicy.IsMachineFacing`, the permissive CORS header, ranged
+    GETs — stays host surface for future plugin displays rather than moving behind the Cast provider.
 - **A plugin offers the screens a QR code; the venue decides whether it is drawn.** The manifest's
   `qrCode` is the standing registration, read without resolving the plugin so a venue can be set up
   before the show. `IPluginContext.RegisterQrCodeAsync` is the live one. The venue names **one**
