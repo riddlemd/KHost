@@ -1,3 +1,4 @@
+using KHost.Abstractions.Messaging;
 using KHost.Abstractions.Exceptions;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
@@ -6,6 +7,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using KHost.Domain.Services;
+using KHost.Domain.Services.Screens;
 using KHost.Domain.Services.Messaging;
 using KHost.Abstractions.Messaging.Messages;
 
@@ -28,8 +30,6 @@ public class PlaybackServiceTests : IDisposable
     private readonly IFlashService _flash = Substitute.For<IFlashService>();
     private readonly ITimedLyricsService _timedLyrics = Substitute.For<ITimedLyricsService>();
 
-    // Real: a substitute would make the IsPrimary assertions below test nothing.
-    private readonly ScreenCoordinationService _screenCoordination;
     private readonly PlaybackService _service;
     private int _streamsOpened;
 
@@ -40,8 +40,6 @@ public class PlaybackServiceTests : IDisposable
 
         // Nothing is gated by default; a Task wrapping null here would NRE the load's gate check.
         _mediaGate.EvaluateAsync(Arg.Any<MediaAction>(), Arg.Any<Media>(), Arg.Any<CancellationToken>()).Returns(PlaybackGateResult.Ok);
-
-        _screenCoordination = new ScreenCoordinationService(NullLogger<ScreenCoordinationService>.Instance, _screenServer, Substitute.For<IVenuesService>(), _broker);
 
         _venuesService.ReadSelectedVenueAsync()
             .Returns(new Venue { Id = Guid.NewGuid(), Name = "Test Venue", Settings = new Venue.VenueSettings() });
@@ -65,7 +63,30 @@ public class PlaybackServiceTests : IDisposable
         _service = MakeService(TimeSpan.Zero);
     }
 
-    private void ConnectScreens(int count, bool supportsSync = true)
+    /// <summary>The screens as the display they now are, over the same substituted server, so
+    /// ConnectScreens still decides whether the song has anywhere to come out.</summary>
+    /// <remarks>The provider tracks connections from the server's <em>events</em> rather than
+    /// reading them back — a read back deadlocks a Blazor render — so a screen the fixture
+    /// connected before this existed has to be replayed into it. This runs while PlaybackService's
+    /// own constructor arguments are still being evaluated, so nothing else is subscribed yet.</remarks>
+    private ScreenDisplayProvider ScreensAsADisplay()
+    {
+        var provider = new ScreenDisplayProvider(
+            NullLogger<ScreenDisplayProvider>.Instance,
+            _screenServer,
+            [],
+            Substitute.For<IMessageBroker>());
+
+        foreach (var screen in _connectedScreens)
+            _screenServer.ScreenConnected += Raise.EventWith(
+                _screenServer, new ScreenConnectionEventArgs { Connection = screen });
+
+        return provider;
+    }
+
+    private IScreenConnection[] _connectedScreens = [];
+
+    private void ConnectScreens(int count)
     {
         var screens = Enumerable.Range(1, count).Select(i =>
         {
@@ -73,36 +94,29 @@ public class PlaybackServiceTests : IDisposable
             screen.ScreenId.Returns($"Screen {i}");
             screen.ConnectionId.Returns($"conn-{i}");
             screen.IsConnected.Returns(true);
-            // Audio and video as well as sync: a Photino screen declares all three, and the
-            // background channel only goes to a screen that can carry the room's audio.
+            // A Photino screen declares both: it carries the room and draws the picture.
             screen.Capabilities.Returns(new ScreenCapabilities
             {
-                SupportsSync = supportsSync,
                 SupportsAudio = true,
                 SupportsVideo = true,
             });
             return screen;
         }).ToArray();
 
+        var previous = _connectedScreens;
+        _connectedScreens = screens;
         _screenServer.GetConnectedScreensAsync().Returns(_ => ToAsyncEnumerable(screens));
-    }
 
-    /// <summary>Mixed group: sync-capable screens plus loose consumers such as a Cast device.</summary>
-    private void ConnectMixedScreens()
-    {
-        var synced = Substitute.For<IScreenConnection>();
-        synced.ScreenId.Returns("Screen 1");
-        synced.ConnectionId.Returns("conn-1");
-        synced.IsConnected.Returns(true);
-        synced.Capabilities.Returns(new ScreenCapabilities { SupportsSync = true });
+        // Raise what the real server would, so a provider tracking its events ends up agreeing
+        // with what this stub reports. Only the delta: re-announcing a screen that never left
+        // would have the host sync it again and throw off what the test counted.
+        foreach (var gone in previous.Where(p => !screens.Any(s => s.ConnectionId == p.ConnectionId)))
+            _screenServer.ScreenDisconnected += Raise.EventWith(
+                _screenServer, new ScreenConnectionEventArgs { Connection = gone });
 
-        var loose = Substitute.For<IScreenConnection>();
-        loose.ScreenId.Returns("Chromecast");
-        loose.ConnectionId.Returns("conn-cast");
-        loose.IsConnected.Returns(true);
-        loose.Capabilities.Returns(ScreenCapabilities.None);
-
-        _screenServer.GetConnectedScreensAsync().Returns(_ => ToAsyncEnumerable([synced, loose]));
+        foreach (var arrived in screens.Where(s => !previous.Any(p => p.ConnectionId == s.ConnectionId)))
+            _screenServer.ScreenConnected += Raise.EventWith(
+                _screenServer, new ScreenConnectionEventArgs { Connection = arrived });
     }
 
     private static async IAsyncEnumerable<IScreenConnection> ToAsyncEnumerable(IScreenConnection[] screens)
@@ -125,8 +139,7 @@ public class PlaybackServiceTests : IDisposable
         Substitute.For<IAnalyticsService>(),
         _screenServer,
         _mediaStreams,
-        _screenCoordination,
-        [_display],
+        [ScreensAsADisplay(), _display],
         _breakMusic,
         _mediaService,
         Monitor(new PlaybackService.ServiceOptions
@@ -686,10 +699,14 @@ public class PlaybackServiceTests : IDisposable
         Assert.Equal(PlaybackState.Playing, _service.State);
     }
 
+    /// <summary>Nothing enumerates the hub to answer this any more — the screens report their own
+    /// connection from a field, precisely so a Blazor render cannot block on the hub's lock. What
+    /// is left to survive is a provider that throws when asked.</summary>
     [Fact]
-    public async Task HasConnectedScreenAsync_IsFalse_WhenEnumerationThrows()
+    public async Task HasConnectedScreenAsync_IsFalse_WhenAProviderThrows()
     {
-        _screenServer.GetConnectedScreensAsync().Returns(_ => throw new InvalidOperationException("hub down"));
+        ConnectScreens(0);
+        _display.ConnectedDeviceId.Returns(_ => throw new InvalidOperationException("transport down"));
 
         Assert.False(await _service.HasConnectedScreenAsync());
     }
@@ -709,14 +726,16 @@ public class PlaybackServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task ScreenDisconnect_KeepsPlaying_WhenAnotherScreenRemains()
+    // Two screens can no longer both register, so the question this used to ask is now asked
+    // across providers: the room still has the song if a television is carrying it.
+    public async Task ScreenDisconnect_KeepsPlaying_WhenADisplayStillCarriesTheSong()
     {
-        ConnectScreens(2);
         var (performance, media) = CreatePerformance();
         await _service.LoadAsync(performance, media);
         await _service.PlayAsync();
 
-        ConnectScreens(1);
+        _display.ConnectedDeviceId.Returns("Living Room TV");
+        ConnectScreens(0);
         RaiseScreenDisconnected();
 
         Assert.False(await WaitForStateAsync(PlaybackState.Paused));
@@ -817,21 +836,6 @@ public class PlaybackServiceTests : IDisposable
         RaiseScreenConnected();
 
         Assert.True(await WaitForBroadcastAsync<SeekCommand>());
-    }
-
-    [Fact]
-    public async Task Play_PublishesATimeline_ToSyncCapableScreensOnly()
-    {
-        ConnectMixedScreens();
-
-        var (performance, media) = CreatePerformance();
-        await _service.LoadAsync(performance, media);
-        await _service.PlayAsync();
-
-        await _screenServer.Received().SendCommandAsync("Screen 1", Arg.Any<SetTimelineCommand>());
-
-        // A Cast device cannot be held to a schedule, so sending it one would only invite it to try.
-        await _screenServer.DidNotReceive().SendCommandAsync("Chromecast", Arg.Any<SetTimelineCommand>());
     }
 
     [Fact]
@@ -995,7 +999,7 @@ public class PlaybackServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task Position_IgnoresTheReceiver_WhenAPrimaryScreenIsPresent()
+    public async Task Position_IgnoresTheReceiver_WhenAScreenIsPresent()
     {
         ConnectScreens(1);
         _display.ConnectedDeviceId.Returns("Living Room TV");
@@ -1414,10 +1418,11 @@ public class PlaybackServiceTests : IDisposable
             .Select(c => c.GetArguments().FirstOrDefault() as TCommand)
             .LastOrDefault(c => c is not null);
 
+    /// <summary>The one screen defines the clock now, so its own id is what reports against it.</summary>
     private void RaisePrimaryState(TimeSpan position, TimeSpan? sampledAgo = null)
         => _screenServer.StateReceived += Raise.EventWith(_screenServer, new ScreenStateReceivedEventArgs
         {
-            ScreenId = _screenCoordination.PrimaryScreenId!,
+            ScreenId = "Screen 1",
             State = new ScreenPlaybackState
             {
                 StreamUrl = "http://192.168.1.10:5251/media/abc123/stream.m3u8",
@@ -1495,6 +1500,74 @@ public class PlaybackServiceTests : IDisposable
         await service.LoadAsync(performance, media);
         await service.PlayAsync();
 
+        await service.StopAsync();
+
+        await _screenServer.Received(1).BroadcastCommandAsync(
+            Arg.Is<StopCommand>(c => c.FadeDuration == TimeSpan.FromMilliseconds(80)));
+    }
+
+    // The host waits out the fade it asks for, so a receiver that cuts dead would otherwise buy
+    // the room five seconds of silence before the queue moved on.
+    [Fact]
+    public async Task StopAsync_StopsInstantly_WhenNothingConnectedCanFade()
+    {
+        ConnectScreens(0);
+        _display.ConnectedDeviceId.Returns("Living Room TV");
+        _display.Devices.Returns([new DisplayDevice
+        {
+            Id = "Living Room TV",
+            Name = "Living Room TV",
+            IsConnected = true,
+            SupportsAudio = true,
+            SupportsVideo = true,
+            SupportsFade = false,
+        }]);
+
+        var service = MakeService(TimeSpan.FromSeconds(30));
+        var (performance, media) = CreatePerformance();
+
+        await service.LoadAsync(performance, media);
+        await service.PlayAsync();
+
+        // A thirty-second fade: if it were waited out, this call could not return in time.
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+        await service.StopAsync();
+        stopwatch.Stop();
+
+        await _display.Received(1).StopAsync(TimeSpan.Zero, Arg.Any<CancellationToken>());
+        Assert.True(
+            stopwatch.Elapsed < TimeSpan.FromSeconds(5),
+            $"the stop waited {stopwatch.Elapsed} on a device that cannot fade");
+    }
+
+    /// <summary>A provider can report a connection before it has listed the device behind it.
+    /// Over-waiting is a pause nobody hears; under-waiting cuts a song off mid-word.</summary>
+    [Fact]
+    public async Task StopAsync_KeepsTheFade_WhenTheConnectedDeviceIsNotListedYet()
+    {
+        ConnectScreens(0);
+        _display.ConnectedDeviceId.Returns("tv-1");
+        _display.Devices.Returns([]);
+
+        var service = MakeService(TimeSpan.FromMilliseconds(80));
+        var (performance, media) = CreatePerformance();
+
+        await service.LoadAsync(performance, media);
+        await service.PlayAsync();
+        await service.StopAsync();
+
+        await _display.Received(1).StopAsync(TimeSpan.FromMilliseconds(80), Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>A screen owns its mixer, so the fade it was asked for is still honoured.</summary>
+    [Fact]
+    public async Task StopAsync_KeepsTheFade_WhenAScreenIsCarryingTheSong()
+    {
+        var service = MakeService(TimeSpan.FromMilliseconds(80));
+        var (performance, media) = CreatePerformance();
+
+        await service.LoadAsync(performance, media);
+        await service.PlayAsync();
         await service.StopAsync();
 
         await _screenServer.Received(1).BroadcastCommandAsync(
@@ -2499,7 +2572,7 @@ public class PlaybackServiceTests : IDisposable
         Assert.True(await _service.PlayAdAsync(ad));
 
         await _screenServer.Received().BroadcastCommandAsync(Arg.Any<ShowImageCommand>());
-        await _screenServer.Received().SendCommandAsync(Arg.Any<string>(), Arg.Any<LoadBackgroundCommand>());
+        await _screenServer.Received().BroadcastCommandAsync(Arg.Any<LoadBackgroundCommand>());
         await _breakMusic.Received(1).SuspendAsync(Arg.Any<CancellationToken>());
     }
 
@@ -2512,7 +2585,7 @@ public class PlaybackServiceTests : IDisposable
 
         await _screenServer.DidNotReceive().BroadcastCommandAsync(Arg.Any<ShowImageCommand>());
         await _screenServer.DidNotReceive().BroadcastCommandAsync(Arg.Any<LoadMediaCommand>());
-        await _screenServer.Received().SendCommandAsync(Arg.Any<string>(), Arg.Any<LoadBackgroundCommand>());
+        await _screenServer.Received().BroadcastCommandAsync(Arg.Any<LoadBackgroundCommand>());
     }
 
     // The whole point of a segment: a clip out of a longer file costs no re-encode, because the
@@ -2562,7 +2635,7 @@ public class PlaybackServiceTests : IDisposable
 
         // Stopped before break music reclaims the channel, or the bed would come up over a
         // voiceover that is still playing on it.
-        await _screenServer.Received().SendCommandAsync(Arg.Any<string>(), Arg.Any<StopBackgroundCommand>());
+        await _screenServer.Received().BroadcastCommandAsync(Arg.Any<StopBackgroundCommand>());
         await _mediaStreams.Received().CloseAsync(Arg.Any<string>());
     }
 
@@ -2594,7 +2667,7 @@ public class PlaybackServiceTests : IDisposable
         var (performance, media) = CreatePerformance();
         await _service.LoadAsync(performance, media);
 
-        await _screenServer.Received().SendCommandAsync(Arg.Any<string>(), Arg.Any<StopBackgroundCommand>());
+        await _screenServer.Received().BroadcastCommandAsync(Arg.Any<StopBackgroundCommand>());
         await _mediaStreams.Received().CloseAsync(Arg.Any<string>());
     }
 

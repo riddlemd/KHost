@@ -227,8 +227,8 @@ internal sealed class ScreenClient : IScreenClient, IAsyncDisposable
         if (_connection is null) return;
 
         _logger.LogInformation(
-            "RegisterScreen sent for {ScreenId} (sync={SupportsSync} audio={SupportsAudio} video={SupportsVideo})",
-            ScreenId, _capabilities.SupportsSync, _capabilities.SupportsAudio, _capabilities.SupportsVideo);
+            "RegisterScreen sent for {ScreenId} (audio={SupportsAudio} video={SupportsVideo})",
+            ScreenId, _capabilities.SupportsAudio, _capabilities.SupportsVideo);
 
         await _connection.InvokeAsync(
             nameof(ScreenHub.RegisterScreenAsync), Sign(RegisterPayload.From(_capabilities).ToJson()).ToJson());

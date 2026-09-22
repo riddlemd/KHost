@@ -36,24 +36,35 @@ public class ScreenServerServiceTests
         return key;
     }
 
-    private string Nonce(string connectionId)
+    private string Nonce(string connectionId, ScreenServerService? on = null)
     {
-        if (!_nonces.TryGetValue(connectionId, out var nonce))
-            _nonces[connectionId] = nonce = Callback.BeginSession(connectionId);
+        // Keyed per connection, not per service: a session belongs to the server that begun it, so
+        // a nonce cached from the default fixture would not verify against another one.
+        var key = on is null ? connectionId : $"{on.GetHashCode()}:{connectionId}";
+
+        if (!_nonces.TryGetValue(key, out var nonce))
+            _nonces[key] = nonce = ((IHubCallback)(on ?? _service)).BeginSession(connectionId);
 
         return nonce;
     }
 
     private bool Register(
         string connectionId, string screenId, string? hostAddress = null,
-        ScreenCapabilities? capabilities = null, long seq = 1, byte[]? signWith = null, string? nonceOverride = null)
+        ScreenCapabilities? capabilities = null, long seq = 1, byte[]? signWith = null, string? nonceOverride = null,
+        ScreenServerService? on = null)
     {
-        var nonce = nonceOverride ?? Nonce(connectionId);
+        IHubCallback callback = on ?? _service;
+        var nonce = nonceOverride ?? Nonce(connectionId, on);
         var payload = RegisterPayload.From(capabilities ?? ScreenCapabilities.None).ToJson();
         var mac = ScreenMessageAuth.Sign(signWith ?? KeyFor(screenId), nonce, seq, payload);
 
-        return Callback.TryRegisterScreen(connectionId, hostAddress, new SignedEnvelope(screenId, seq, payload, mac).ToJson());
+        return callback.TryRegisterScreen(connectionId, hostAddress, new SignedEnvelope(screenId, seq, payload, mac).ToJson());
     }
+
+    /// <summary>The server addresses any number of screens; only the default cap says one may
+    /// register. These raise it rather than assert the fan-out through a door shut to one.</summary>
+    private ScreenServerService MultiScreenService()
+        => ServiceWithOptions(new ScreenServerService.ServiceOptions { MaxRegisteredScreens = 8 });
 
     private bool SendState(string connectionId, string screenId, IScreenState state, long seq, byte[]? signWith = null)
     {
@@ -109,10 +120,9 @@ public class ScreenServerServiceTests
     [Fact]
     public async Task Register_CarriesTheDeclaredCapabilities()
     {
-        Register("conn-a", "Screen 1", capabilities: new ScreenCapabilities { SupportsSync = true, SupportsAudio = true });
+        Register("conn-a", "Screen 1", capabilities: new ScreenCapabilities { SupportsAudio = true });
 
         var only = Assert.Single(await ConnectedScreensAsync());
-        Assert.True(only.Capabilities.SupportsSync);
         Assert.True(only.Capabilities.SupportsAudio);
         Assert.False(only.Capabilities.SupportsVideo);
     }
@@ -230,12 +240,13 @@ public class ScreenServerServiceTests
     [Fact]
     public async Task OnScreenDisconnected_RemovesTheMatchingConnection()
     {
-        Register("conn-a", "Screen 1");
-        Register("conn-b", "Screen 2");
+        var service = MultiScreenService();
+        Register("conn-a", "Screen 1", on: service);
+        Register("conn-b", "Screen 2", on: service);
 
-        Callback.OnScreenDisconnected("conn-a");
+        ((IHubCallback)service).OnScreenDisconnected("conn-a");
 
-        var only = Assert.Single(await ConnectedScreensAsync());
+        var only = Assert.Single(await ConnectedScreensAsync(service));
         Assert.Equal("Screen 2", only.ScreenId);
     }
 
@@ -336,19 +347,20 @@ public class ScreenServerServiceTests
     [Fact]
     public async Task BroadcastCommandAsync_GivesEachScreenAStreamUrlItCanReach()
     {
+        var service = MultiScreenService();
         var here = Substitute.For<ISingleClientProxy>();
         var across = Substitute.For<ISingleClientProxy>();
         _clients.Client("conn-here").Returns(here);
         _clients.Client("conn-across").Returns(across);
 
-        Register("conn-here", "Here", hostAddress: "127.0.0.1");
-        Register("conn-across", "Across", hostAddress: "192.168.0.99");
+        Register("conn-here", "Here", hostAddress: "127.0.0.1", on: service);
+        Register("conn-across", "Across", hostAddress: "192.168.0.99", on: service);
 
         string? herePayload = null, acrossPayload = null;
         await here.SendCoreAsync(Arg.Any<string>(), Arg.Do<object?[]>(a => herePayload = a[0] as string), Arg.Any<CancellationToken>());
         await across.SendCoreAsync(Arg.Any<string>(), Arg.Do<object?[]>(a => acrossPayload = a[0] as string), Arg.Any<CancellationToken>());
 
-        await _service.BroadcastCommandAsync(new LoadMediaCommand
+        await service.BroadcastCommandAsync(new LoadMediaCommand
         {
             StreamUrl = "http://localhost:5251/media/abc/stream.m3u8",
         });
@@ -402,6 +414,20 @@ public class ScreenServerServiceTests
         Assert.Equal(2, screens.Count);
         Assert.DoesNotContain(screens, s => s.ScreenId == "Screen 3");
         Assert.Equal(2, raised);
+    }
+
+    // The cap's default is the behaviour, not the option: a venue never sets this, so a default of
+    // sixteen meant a hand-launched second screen simply joined a host driving one display.
+    [Fact]
+    public async Task Register_ASecondScreen_IsRefusedByDefault()
+    {
+        var service = new ScreenServerService(_hubContext, _keys);
+
+        Assert.True(RegisterOn(service, "conn-a", "Screen 1"));
+        Assert.False(RegisterOn(service, "conn-b", "Screen 2"));
+
+        var only = Assert.Single(await ConnectedScreensAsync(service));
+        Assert.Equal("Screen 1", only.ScreenId);
     }
 
     [Fact]

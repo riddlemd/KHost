@@ -1,0 +1,387 @@
+<meta charset="utf-8">
+<title>Display Combo Button</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  /* KHost grape theme, verbatim from wwwroot/scss/themes/grape.scss */
+  :root {
+    --kh-primary: #5D2B90;
+    --kh-primary-bright: #A86AD4;
+    --kh-primary-subtle: rgba(93, 43, 144, 0.14);
+    --kh-accent-bright: #FF6B1A;
+    --kh-bg: #0B0814;
+    --kh-bg-card: #131025;
+    --kh-bg-elevated: #1C1836;
+    --kh-bg-input: #0E0C1C;
+    --kh-border: rgba(93, 43, 144, 0.28);
+    --kh-border-bright: rgba(93, 43, 144, 0.55);
+    --kh-text: #DDD4F0;
+    --kh-text-secondary: #8878A8;
+    --kh-text-muted: #6b5a82;
+    --kh-warning: #F59E0B;
+    --kh-danger: #EF4444;
+    --kh-success: #37B36B;
+    --kh-radius: 7px;
+    --page-ink: #0B0814;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--kh-bg); color: var(--kh-text);
+    font: 400 15px/1.55 "IBM Plex Sans", system-ui, -apple-system, sans-serif;
+  }
+  code { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 0.86em; }
+
+  .wrap { max-width: 1040px; width: 100%; margin-inline: auto; padding: 48px 20px 96px; }
+
+  .masthead { border-bottom: 1px solid var(--kh-border); padding-bottom: 22px; margin-bottom: 26px; }
+  .eyebrow {
+    margin: 0 0 6px; color: var(--kh-text-secondary);
+    font-size: 0.72rem; letter-spacing: 0.14em; text-transform: uppercase;
+  }
+  h1 { margin: 0 0 10px; font-size: 1.9rem; font-weight: 600; text-wrap: balance; }
+  .masthead p:last-child { margin: 0; color: var(--kh-text-secondary); max-width: 68ch; }
+
+  .brief {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+    gap: 14px; margin: 0 0 38px; padding: 16px;
+    background: var(--kh-bg-card); border: 1px solid var(--kh-border); border-radius: 10px;
+  }
+  .brief div { margin: 0; }
+  .brief dt {
+    color: var(--kh-text-secondary); font-size: 0.68rem;
+    letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 3px;
+  }
+  .brief dd { margin: 0; font-size: 0.9rem; }
+
+  h2 { font-size: 1.05rem; font-weight: 600; margin: 0 0 4px; }
+  .num {
+    display: inline-block; min-width: 1.9em; color: var(--kh-primary-bright);
+    font-family: "IBM Plex Mono", monospace; font-size: 0.85em;
+  }
+  .tag {
+    display: inline-block; margin-left: 8px; padding: 1px 8px; border-radius: 999px;
+    font-size: 0.64rem; letter-spacing: 0.08em; text-transform: uppercase; vertical-align: 2px;
+  }
+  .tag--pick { background: var(--kh-success); color: var(--page-ink); }
+  .tag--no { background: var(--kh-bg-elevated); color: var(--kh-text-muted); border: 1px solid var(--kh-border); }
+
+  .option {
+    display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 360px);
+    gap: 26px; align-items: start;
+    padding: 26px 0; border-top: 1px solid var(--kh-border);
+  }
+  .option__note p { margin: 8px 0 0; color: var(--kh-text-secondary); font-size: 0.9rem; }
+  .option__note .verdict { color: var(--kh-text); }
+
+  /* A strip of console header, so the button is seen where it lives */
+  .header-strip {
+    display: flex; align-items: center; justify-content: flex-end; gap: 12px;
+    padding: 10px 14px; background: var(--kh-bg-card);
+    border: 1px solid var(--kh-border); border-radius: 10px;
+  }
+  .header-strip__brand {
+    margin-right: auto; color: var(--kh-text-muted);
+    font-size: 0.75rem; letter-spacing: 0.12em; text-transform: uppercase;
+  }
+  .stage { padding-bottom: 150px; }        /* room for an open menu */
+  .stage--short { padding-bottom: 0; }
+
+  /* ---- kh-split-btn, from Components/SplitButton.razor.scss ---- */
+  .kh-button {
+    appearance: none; font: inherit; font-size: 0.83rem; cursor: pointer;
+    border: 1px solid var(--kh-border-bright); border-radius: var(--kh-radius);
+    background: linear-gradient(var(--kh-primary-bright), var(--kh-primary));
+    color: #fff; padding: 6px 13px;
+  }
+  .kh-button--secondary {
+    background: var(--kh-bg-elevated); color: var(--kh-text); border-color: var(--kh-border);
+  }
+
+  .kh-split-btn { position: relative; display: inline-flex; padding: 0; }
+  .kh-split-btn__primary {
+    border-radius: var(--kh-radius) 0 0 var(--kh-radius); border-right: none;
+    display: inline-flex; align-items: center; gap: 7px;
+  }
+  .kh-split-btn__toggle {
+    border-radius: 0 var(--kh-radius) var(--kh-radius) 0;
+    padding: 0 0.6em; border-left: 1px solid var(--kh-primary-bright);
+    display: inline-flex; align-items: center;
+  }
+  .kh-split-btn__menu {
+    position: absolute; top: calc(100% + 5px); right: 0; z-index: 101;
+    display: flex; flex-direction: column; margin: 0; min-width: max-content;
+    background: var(--kh-bg-card); border: 1px solid var(--kh-border-bright);
+    border-radius: var(--kh-radius); box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  }
+  .kh-split-btn__menu[hidden] { display: none; }
+  .kh-split-btn__menu button {
+    display: block; width: 100%; height: auto; padding: 0.7em 1em; text-align: left;
+    background: none; border: none; border-radius: 0; color: var(--kh-text);
+    white-space: nowrap; cursor: pointer; font: inherit; font-size: 0.85rem;
+  }
+  .kh-split-btn__menu button:hover:not(:disabled) { background: var(--kh-primary-subtle); }
+  .kh-split-btn__menu button:disabled { opacity: 0.4; cursor: default; }
+
+  /* Component rule, verbatim in spirit: nothing to open, so no way to open it. */
+  .kh-split-btn--alone .kh-split-btn__toggle { display: none; }
+  .kh-split-btn--alone .kh-split-btn__primary {
+    border-radius: var(--kh-radius); border-right: 1px solid var(--kh-border-bright);
+  }
+
+  .menu-row { display: flex; align-items: baseline; gap: 8px; }
+  .menu-row__meta { color: var(--kh-text-muted); font-size: 0.74rem; }
+  .menu-sep { height: 1px; background: var(--kh-border); margin: 4px 0; }
+  .menu-head {
+    padding: 7px 1em 3px; color: var(--kh-text-muted);
+    font-size: 0.64rem; letter-spacing: 0.1em; text-transform: uppercase;
+  }
+
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--kh-text-muted); flex: none; }
+  .dot--on { background: var(--kh-success); }
+  .chev { font-size: 0.7em; opacity: 0.85; }
+
+  .kh-badge {
+    display: inline-block; padding: 1px 7px; border-radius: 999px;
+    font-size: 0.6rem; letter-spacing: 0.06em; text-transform: uppercase;
+    border: 1px solid var(--kh-border); color: var(--kh-text-muted);
+  }
+  .kh-badge--warn { color: var(--kh-warning); border-color: rgba(245, 158, 11, 0.4); }
+
+  .kh-note { display: block; margin: 10px 0 0; color: var(--kh-text-muted); font-size: 0.75rem; }
+
+  .kh-confirm {
+    border: 1px solid rgba(245, 158, 11, 0.4); background: rgba(245, 158, 11, 0.08);
+    border-radius: 8px; padding: 11px 12px; max-width: 420px; margin-left: auto;
+  }
+  .kh-confirm p { margin: 0 0 9px; font-size: 0.85rem; }
+  .kh-confirm .row { display: flex; gap: 8px; }
+
+  .states { display: grid; gap: 18px; }
+  .states h3 {
+    margin: 0 0 7px; font-size: 0.7rem; letter-spacing: 0.1em;
+    text-transform: uppercase; color: var(--kh-text-secondary); font-weight: 500;
+  }
+
+  @media (max-width: 800px) { .option { grid-template-columns: 1fr; } }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+
+<div class="wrap">
+  <header class="masthead">
+    <p class="eyebrow">Console header · display combo button</p>
+    <h1>The button that says where the song goes, and changes it</h1>
+    <p>
+      The header button you liked, made into a combo. It keeps saying what is live; the chevron
+      lists everything else. Built on the console's real <code>SplitButton</code> —
+      <code>kh-split-btn__primary</code>, <code>__toggle</code>, <code>__menu</code> — so the
+      component already exists and this is a caller, not a new control.
+    </p>
+  </header>
+
+  <dl class="brief">
+    <div>
+      <dt>Primary press</dt>
+      <dd>Turns the display off, or opens the last one used</dd>
+    </div>
+    <div>
+      <dt>Chevron</dt>
+      <dd>Lists every other display and switches to it</dd>
+    </div>
+    <div>
+      <dt>Nothing else found</dt>
+      <dd>Toggle hides itself — the component already does this</dd>
+    </div>
+    <div>
+      <dt>Live at once</dt>
+      <dd>Exactly one, across every provider</dd>
+    </div>
+  </dl>
+
+  <!-- 01 -->
+  <section class="option">
+    <div class="stage">
+      <span class="kh-note" style="margin: 0 0 10px">
+        Menu shown open. The live display is not repeated inside it — it is already the button.
+      </span>
+      <div class="header-strip">
+        <span class="header-strip__brand">KHost</span>
+        <div class="kh-split-btn">
+          <button class="kh-split-btn__primary kh-button">
+            <span class="dot dot--on"></span> This computer
+          </button>
+          <button class="kh-split-btn__toggle kh-button"><span class="chev">▾</span></button>
+          <div class="kh-split-btn__menu">
+            <div class="menu-head">Switch to</div>
+            <button>
+              <span class="menu-row">
+                <span>Living Room TV</span>
+                <span class="kh-badge kh-badge--warn">words burned in</span>
+              </span>
+              <span class="menu-row__meta">Chromecast · 192.168.1.14</span>
+            </button>
+            <button>
+              <span class="menu-row">
+                <span>Patio</span>
+                <span class="kh-badge kh-badge--warn">words burned in</span>
+              </span>
+              <span class="menu-row__meta">Chromecast · 192.168.1.22</span>
+            </button>
+            <div class="menu-sep"></div>
+            <button>Search for receivers</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="option__note">
+      <h2><span class="num">01</span> Live on the button, the rest under the chevron <span class="tag tag--pick">Recommended</span></h2>
+      <p>
+        The button answers "where is this going?" at a glance, which is what it already does. The
+        chevron answers "somewhere else", which is the part missing today.
+      </p>
+      <p class="verdict">
+        The live display is deliberately absent from the menu. A split button's primary <em>is</em>
+        the current choice, so listing it again would invite a press that does nothing. Search sits
+        below a rule because it is a different kind of act — it changes the list rather than
+        choosing from it.
+      </p>
+    </div>
+  </section>
+
+  <!-- 02 -->
+  <section class="option">
+    <div class="stage stage--short">
+      <div class="header-strip">
+        <span class="header-strip__brand">KHost</span>
+        <div class="kh-split-btn kh-split-btn--alone">
+          <button class="kh-split-btn__primary kh-button kh-button--secondary">
+            <span class="dot"></span> No display
+          </button>
+        </div>
+      </div>
+      <span class="kh-note">
+        Nothing live and nothing else found — the toggle is gone and the primary has its corners back.
+      </span>
+    </div>
+    <div class="option__note">
+      <h2><span class="num">02</span> One display, no chevron</h2>
+      <p>
+        <code>SplitButton</code> already hides its toggle when the menu renders no items, and gives
+        the primary back the corner and border it gave up. A venue with only the local screen sees
+        exactly the button that is there today.
+      </p>
+      <p class="verdict">
+        Worth saying plainly: this costs nothing to build. The behaviour is in the component, asked
+        of the rendered markup rather than passed as a parameter, so an empty menu is enough.
+      </p>
+    </div>
+  </section>
+
+  <!-- 03 -->
+  <section class="option">
+    <div class="states">
+      <div>
+        <h3>Nothing live, receivers found</h3>
+        <div class="header-strip">
+          <span class="header-strip__brand">KHost</span>
+          <div class="kh-split-btn">
+            <button class="kh-split-btn__primary kh-button kh-button--secondary">
+              <span class="dot"></span> Open a display
+            </button>
+            <button class="kh-split-btn__toggle kh-button kh-button--secondary"><span class="chev">▾</span></button>
+          </div>
+        </div>
+      </div>
+      <div>
+        <h3>Live on a television</h3>
+        <div class="header-strip">
+          <span class="header-strip__brand">KHost</span>
+          <div class="kh-split-btn">
+            <button class="kh-split-btn__primary kh-button">
+              <span class="dot dot--on"></span> Living Room TV
+            </button>
+            <button class="kh-split-btn__toggle kh-button"><span class="chev">▾</span></button>
+          </div>
+        </div>
+        <span class="kh-note">
+          No badge here. Once it is live the host has already chosen; the warning belongs where the
+          choice is made, not as a standing complaint.
+        </span>
+      </div>
+    </div>
+    <div class="option__note">
+      <h2><span class="num">03</span> The two other states</h2>
+      <p>
+        <b>Nothing live</b> keeps the primary as the verb — pressing it opens the display a host used
+        last, which is the one-press path for the ordinary night. The chevron is still there because
+        receivers were found, so there is a real choice to make.
+      </p>
+      <p class="verdict">
+        The dot carries the state in both: grey for off, green for live. It is the same signal the
+        header button uses now, so nothing has to be relearned.
+      </p>
+    </div>
+  </section>
+
+  <!-- 04 -->
+  <section class="option">
+    <div class="stage stage--short">
+      <div class="kh-confirm">
+        <p>
+          <b>Move the song to Living Room TV?</b><br>
+          The screen on this computer closes, and the song restarts on the television.
+        </p>
+        <div class="row">
+          <button class="kh-button">Move it</button>
+          <button class="kh-button kh-button--secondary">Stay here</button>
+        </div>
+      </div>
+    </div>
+    <div class="option__note">
+      <h2><span class="num">04</span> Choosing one mid-song asks first</h2>
+      <p>
+        Only while a song is playing. The new display gets its own stream and starts from where the
+        song is, which the room hears as a gap — so it is worth a press to confirm.
+      </p>
+      <p class="verdict">
+        Between songs it should switch without asking. A prompt that appears every time teaches a
+        host to dismiss it without reading, which is worse than not having one.
+      </p>
+    </div>
+  </section>
+
+  <!-- 05 -->
+  <section class="option">
+    <div class="stage" style="padding-bottom: 110px">
+      <span class="kh-note" style="margin: 0 0 10px">
+        Menu shown open; the connecting row is disabled, not removed.
+      </span>
+      <div class="header-strip">
+        <span class="header-strip__brand">KHost</span>
+        <div class="kh-split-btn">
+          <button class="kh-split-btn__primary kh-button">
+            <span class="dot dot--on"></span> This computer
+          </button>
+          <button class="kh-split-btn__toggle kh-button"><span class="chev">▾</span></button>
+          <div class="kh-split-btn__menu">
+            <div class="menu-head">Switch to</div>
+            <button disabled>
+              <span class="menu-row"><span>Living Room TV</span></span>
+              <span class="menu-row__meta">Connecting…</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="option__note">
+      <h2><span class="num">05</span> A receiver mid-connect</h2>
+      <p>
+        A Cast connect takes seconds and can fail — an address mDNS advertised may not be reachable.
+        The row stays in place, disabled, saying what it is doing.
+      </p>
+      <p class="verdict">
+        Removing it and putting it back would read as the list flickering, and a host who pressed it
+        would not know whether the press landed.
+      </p>
+    </div>
+  </section>
+</div>

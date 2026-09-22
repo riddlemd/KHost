@@ -42,7 +42,7 @@ internal sealed class ScreenIpcController : IAsyncDisposable
         await _client.ConnectAsync(
             serverUri,
             screenId,
-            new ScreenCapabilities { SupportsSync = true, SupportsAudio = true, SupportsVideo = true },
+            new ScreenCapabilities { SupportsAudio = true, SupportsVideo = true },
             authKey,
             cancellationToken);
 
