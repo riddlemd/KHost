@@ -74,7 +74,13 @@ internal sealed class StreamMediaPlayer : IMediaPlayer
     }
 
     /// <summary>Points the page at a host stream rather than a file load: nothing local is opened.</summary>
-    public void LoadStream(string url, TimeSpan streamStartOffset, int tempo = 0)
+    /// <remarks>Stems, when there are any, are what the page actually plays — the host has not mixed
+    /// them and <paramref name="url"/> is only what a page that cannot mix would fall back to.</remarks>
+    public void LoadStream(
+        string url,
+        TimeSpan streamStartOffset,
+        int tempo = 0,
+        IReadOnlyList<StemSource>? stems = null)
     {
         lock (_lock)
         {
@@ -87,7 +93,10 @@ internal sealed class StreamMediaPlayer : IMediaPlayer
             _isPaused = false;
         }
 
-        _logger.LogInformation("Loading stream {Url} at offset {Offset}", url, streamStartOffset);
+        _logger.LogInformation(
+            "Loading stream {Url} at offset {Offset} with {Stems} stem(s)",
+            url, streamStartOffset, stems?.Count ?? 0);
+
         // The stream's zero against the song, and how fast it runs against it: the words the
         // overlay draws are written in song time, and a stream opened at a seek starts at zero.
         Send(new
@@ -97,7 +106,21 @@ internal sealed class StreamMediaPlayer : IMediaPlayer
             autoplay = false,
             songOffsetSeconds = streamStartOffset.TotalSeconds,
             rate = StreamRate.FromTempo(tempo),
+            stems = (stems ?? []).Select(s => new
+            {
+                index = s.Index,
+                role = s.Role.ToString(),
+                url = s.Url,
+                volume = s.Volume,
+            }).ToArray(),
         });
+    }
+
+    /// <summary>Moves one voice where the page is mixing; nothing is re-encoded.</summary>
+    public void SetStemVolume(AudioTrackRole role, int volume)
+    {
+        _logger.LogInformation("Stem {Role} to {Volume}", role, volume);
+        Send(new { type = "stem-volume", role = role.ToString(), volume });
     }
 
     /// <summary>Applied in the page: correction runs far more often than the IPC ticks.</summary>

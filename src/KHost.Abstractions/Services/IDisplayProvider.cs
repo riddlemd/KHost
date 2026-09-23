@@ -64,6 +64,13 @@ public interface IDisplayProvider
     /// <summary><paramref name="tempo"/> converts the device's seconds back to song seconds.</summary>
     Task LoadAsync(string streamUrl, TimeSpan startOffset, int tempo = 0, CancellationToken cancellationToken = default);
 
+    /// <summary>The whole load, including stems for a device that mixes them itself.</summary>
+    /// <remarks>Defaults to the stream, so a provider that has not heard of stems keeps working and
+    /// simply plays what the host already mixed. Override it only alongside
+    /// <see cref="DisplayDevice.SupportsStemMix"/>; the two are one claim made in two places.</remarks>
+    Task LoadAsync(LoadMediaCommand media, CancellationToken cancellationToken = default)
+        => LoadAsync(media.StreamUrl, media.StreamStartOffset, media.Tempo, cancellationToken);
+
     Task PlayAsync(CancellationToken cancellationToken = default);
     Task PauseAsync(CancellationToken cancellationToken = default);
     /// <summary>A fade of null or zero stops at once; the room hears the difference.</summary>
@@ -71,6 +78,12 @@ public interface IDisplayProvider
     Task SeekAsync(TimeSpan position, CancellationToken cancellationToken = default);
 
     Task SetVolumeAsync(float volume, CancellationToken cancellationToken = default)
+        => Task.CompletedTask;
+
+    /// <summary>Moves one voice against the music, on a display that mixes the stems itself.</summary>
+    /// <remarks>Only ever sent to a device whose <see cref="DisplayDevice.SupportsStemMix"/> is set;
+    /// anything else was handed a stream the host already mixed, where the levels are baked in.</remarks>
+    Task SetStemVolumeAsync(SetStemVolumeCommand stem, CancellationToken cancellationToken = default)
         => Task.CompletedTask;
 
     // --- drawable ---
@@ -158,6 +171,14 @@ public sealed class DisplayDevice
     /// cannot fade must say so or every stop buys that many seconds of silence before the queue
     /// moves on. A receiver driven over its own transport has no mixer to ride down.</remarks>
     public bool SupportsFade { get; init; }
+
+    /// <summary>Takes the stems unmixed and rides the levels itself.</summary>
+    /// <remarks>Worth its own flag because it changes what the *host* does rather than what it
+    /// sends: a mix change on a device without this recompiles an ffmpeg filter graph and reopens
+    /// the stream at the playhead, which the room hears. A device with it is sent a gain instead,
+    /// and nothing is re-encoded. It also means the host never encodes the song at all for such a
+    /// device, so the stems must be something it can decode on its own.</remarks>
+    public bool SupportsStemMix { get; init; }
 
     /// <summary>Draws a song's words itself, from the timing the host hands over.</summary>
     public bool SupportsLyrics { get; init; }

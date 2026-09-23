@@ -10,6 +10,7 @@ namespace KHost.Abstractions.Services.IPC;
 [JsonDerivedType(typeof(StopCommand), "stop")]
 [JsonDerivedType(typeof(SeekCommand), "seek")]
 [JsonDerivedType(typeof(SetVolumeCommand), "setVolume")]
+[JsonDerivedType(typeof(SetStemVolumeCommand), "setStemVolume")]
 [JsonDerivedType(typeof(SetTimelineCommand), "setTimeline")]
 [JsonDerivedType(typeof(SetVideoCommand), "setVideo")]
 [JsonDerivedType(typeof(LoadBackgroundCommand), "loadBackground")]
@@ -52,6 +53,25 @@ public sealed class LoadMediaCommand : ScreenCommandBase
 
     /// <summary>Tempo percent the stream was transcoded at; scales every position crossing it.</summary>
     public int Tempo { get; init; }
+
+    /// <summary>Stems for a display that mixes them itself; empty when the host already mixed.</summary>
+    /// <remarks><see cref="StreamUrl"/> is still set beside these, so a display that turns out not
+    /// to mix has something to play rather than silence.</remarks>
+    public IReadOnlyList<StemSource> Stems { get; init; } = [];
+}
+
+/// <summary>Moves one voice against the music on a display doing its own mixing.</summary>
+/// <remarks>By role rather than by index, because that is how a host asks for it — the lead and the
+/// backing are what the console offers. A display with no such stem ignores it.
+///
+/// <para>This is the whole reason a display mixes: the host's own mix is compiled into an ffmpeg
+/// filter graph, so moving it reopens the stream mid-song. This moves a gain instead.</para></remarks>
+public sealed class SetStemVolumeCommand : ScreenCommandBase
+{
+    public required AudioTrackRole Role { get; init; }
+
+    /// <summary>Against the music, which is the reference and has no level of its own.</summary>
+    public required int Volume { get; init; }
 }
 
 public sealed class PlayCommand : ScreenCommandBase { }

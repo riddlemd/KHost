@@ -22,6 +22,11 @@ public class ScreenCommandSerializationTests
         [nameof(StopCommand)] = new StopCommand { FadeDuration = TimeSpan.FromSeconds(2) },
         [nameof(SeekCommand)] = new SeekCommand { Position = TimeSpan.FromSeconds(42) },
         [nameof(SetVolumeCommand)] = new SetVolumeCommand { Volume = 0.75f },
+        [nameof(SetStemVolumeCommand)] = new SetStemVolumeCommand
+        {
+            Role = AudioTrackRole.Lead,
+            Volume = 40,
+        },
         [nameof(SetVideoCommand)] = new SetVideoCommand { Enabled = false },
         [nameof(SetTimelineCommand)] = new SetTimelineCommand
         {
@@ -170,6 +175,12 @@ public class ScreenCommandSerializationTests
         Assert.Equal(0.75f, RoundTrip(new SetVolumeCommand { Volume = 0.75f }).Volume);
         Assert.Equal(TimeSpan.FromSeconds(2), RoundTrip(new StopCommand { FadeDuration = TimeSpan.FromSeconds(2) }).FadeDuration);
         Assert.Null(RoundTrip(new StopCommand()).FadeDuration);
+
+        // The role names the voice across the wire, so it has to survive as itself rather than as
+        // whatever number the enum happens to sit at.
+        var stem = RoundTrip(new SetStemVolumeCommand { Role = AudioTrackRole.Backing, Volume = 65 });
+        Assert.Equal(AudioTrackRole.Backing, stem.Role);
+        Assert.Equal(65, stem.Volume);
     }
 
     [Fact]

@@ -107,6 +107,10 @@ public sealed class ScreenDisplayProvider : IDisplayProvider, IStartsWithTheHost
 
                     // It owns its own mixer, so a stop rides down instead of cutting.
                     SupportsFade = true,
+
+                    // Both engines behind a screen decode Vorbis, so it can take the stems whole
+                    // and ride their levels rather than making the host re-encode to move one.
+                    SupportsStemMix = true,
                     SupportsLyrics = true,
                     SupportsMarquee = true,
                     SupportsQrCodes = true,
@@ -190,6 +194,10 @@ public sealed class ScreenDisplayProvider : IDisplayProvider, IStartsWithTheHost
             Tempo = tempo,
         });
 
+    /// <summary>Sent whole, so the stems ride along with it; the page mixes when there are any.</summary>
+    public Task LoadAsync(LoadMediaCommand media, CancellationToken cancellationToken = default)
+        => SendAsync(media);
+
     public Task PlayAsync(CancellationToken cancellationToken = default) => SendAsync(new PlayCommand());
     public Task PauseAsync(CancellationToken cancellationToken = default) => SendAsync(new PauseCommand());
     public Task StopAsync(TimeSpan? fade = null, CancellationToken cancellationToken = default)
@@ -200,6 +208,9 @@ public sealed class ScreenDisplayProvider : IDisplayProvider, IStartsWithTheHost
 
     public Task SetVolumeAsync(float volume, CancellationToken cancellationToken = default)
         => SendAsync(new SetVolumeCommand { Volume = volume });
+
+    public Task SetStemVolumeAsync(SetStemVolumeCommand stem, CancellationToken cancellationToken = default)
+        => SendAsync(stem);
 
     // --- drawable ---
 

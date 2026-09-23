@@ -43,4 +43,38 @@ public sealed class PlayableMediaSourceService(
 
         return filePath;
     }
+
+    public IReadOnlyList<string> StemsOf(string filePath, string resolvedPath)
+    {
+        foreach (var source in _sources)
+        {
+            bool claimed;
+
+            try { claimed = source.CanResolve(filePath); }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "A playable source failed deciding whether it owns '{FilePath}'", filePath);
+                continue;
+            }
+
+            if (!claimed) continue;
+
+            // Unlike resolving, a failure here is swallowed: stems are an optimisation over a mix
+            // the host can still perform, so a source having a bad day costs the gain-node path
+            // and not the song.
+            try
+            {
+                var stems = source.StemsOf(resolvedPath);
+                if (stems.Count > 0) return stems;
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "A playable source failed naming the stems of '{Resolved}'", resolvedPath);
+            }
+
+            return [];
+        }
+
+        return [];
+    }
 }

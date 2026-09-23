@@ -7,10 +7,17 @@ const videos = [document.getElementById('video'), document.getElementById('video
 let video = videos[0];
 let incoming = null;
 
+// Set while the song is playing as separate stems mixed here rather than as one stream the host
+// mixed. It stands in for the media element everywhere the transport addresses one.
+let stemMixer = null;
+
 /// Whichever element is about to be heard. A handover brings the new stream up to speed behind
 /// the one still playing, and this is what the transport, the correction loop and the state
 /// report all address.
-function target() { return incoming ?? video; }
+///
+/// A stem mix answers here too, shaped enough like an element that none of those callers has to
+/// know which kind of song is playing.
+function target() { return stemMixer ?? incoming ?? video; }
 
 // Where the stream's zero sits in the song, and how fast it runs against it: a stream opened at a
 // seek starts at 0 while the song is minutes in, and the words are written against the song.
@@ -253,9 +260,17 @@ function destroyHls(instance) {
     try { instance.destroy(); } catch { /* ignore */ }
 }
 
+function detachStems() {
+    if (!stemMixer) return;
+
+    try { stemMixer.destroy(); } catch (e) { reportError(`stems: ${e}`); }
+    stemMixer = null;
+}
+
 function teardown() {
     // Before the element is cleared: destroy() detaches the media it is driving.
     detachHls();
+    detachStems();
     try { video.pause(); } catch { /* ignore */ }
     // srcObject as well as src: removeAttribute leaves an attached MediaSource in place, and the
     // next load would then be appending to the source the last song already ended.
@@ -719,8 +734,30 @@ function handleCommand(raw) {
             // words are drawn against the song, so they have to move with it.
             songOffsetSeconds = message.songOffsetSeconds || 0;
             songRate = message.rate || 1;
+
+            // Stems arrive unmixed and are mixed here, so moving a voice later costs a gain rather
+            // than a new encode. The stream URL is still sent beside them, and is what a page that
+            // could not mix would have played instead.
+            if (message.stems && message.stems.length > 0) {
+                teardown();
+                stemMixer = createStemMixer(message.stems, songOffsetSeconds, reportError);
+                if (message.autoplay === true) {
+                    stemMixer.play().catch((e) => reportError(`stem play: ${e}`));
+                }
+                break;
+            }
+
+            detachStems();
             load(message.url, message.autoplay === true);
             break;
+        case 'stem-volume': {
+            // Silently doing nothing would look exactly like a mix that has stopped responding.
+            if (!stemMixer) { reportError('stem-volume with no stems playing'); break; }
+
+            const moved = stemMixer.setStemVolume(message.role, message.volume || 0);
+            if (moved === 0) reportError(`stem-volume for ${message.role}, which this song has none of`);
+            break;
+        }
         case 'timed-lyrics':
             // The whole timing document, sent once with the load rather than on the transport.
             // Null clears it, which is what a song with no words looks like.
@@ -779,6 +816,9 @@ function handleCommand(raw) {
             break;
         case 'volume':
             currentVolume = Math.max(0, Math.min(1, message.value));
+            // The venue's level rides the whole mix, not one stem: it is the room's volume, and
+            // the stems' own levels are what the host set them to against each other.
+            if (stemMixer) stemMixer.volume = currentVolume;
             if (!incoming) video.volume = currentVolume;
             break;
         case 'show-image':
