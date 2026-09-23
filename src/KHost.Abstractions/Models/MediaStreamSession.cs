@@ -18,4 +18,10 @@ public sealed class MediaStreamSession
 
     /// <summary>Percent either side of recorded speed; scale by this to recover song time.</summary>
     public required int Tempo { get; init; }
+
+    /// <summary>URLs of the unmixed stems, in audio-track order; empty unless the source had any.</summary>
+    /// <remarks>Offered beside <see cref="PlaylistUrl"/> rather than instead of it: the stream is
+    /// always produced, so a consumer that cannot mix is unaffected and one that can may ignore
+    /// the stream. Entry <c>i</c> belongs to <c>AudioTrack.Index == i</c>.</remarks>
+    public IReadOnlyList<string> StemUrls { get; init; } = [];
 }

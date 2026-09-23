@@ -82,6 +82,16 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, ID
         // the session closes and nothing has to remember it exists.
         var source = await _playableSources.ResolvePlayableAsync(filePath, directory, cancellationToken);
 
+        // Named now, while the resolver's own working directory is still the answer. Only files it
+        // actually wrote there are offered: the URL is built from the bare name, and the endpoint
+        // serving them refuses anything that is not a direct child of the session directory.
+        var stems = _playableSources
+            .StemsOf(filePath, source)
+            .Where(stem => File.Exists(stem)
+                && Path.GetDirectoryName(stem) == directory)
+            .Select(stem => $"{Options.BaseAddress.TrimEnd('/')}/media/{id}/{Path.GetFileName(stem)}")
+            .ToArray();
+
         // Everything below reads the resolved path: a companion .mp3 sits beside the original, but
         // what ffmpeg opens, and what decides the graphics-only frame rate, is what it will read.
         var companionAudio = ResolveCompanionAudio(source);
@@ -133,6 +143,7 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, ID
             StartOffset = startOffset,
             Pitch = pitch,
             Tempo = tempo,
+            StemUrls = stems,
         };
     }
 

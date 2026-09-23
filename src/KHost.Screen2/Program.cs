@@ -106,9 +106,10 @@ internal static class Program
 
                 if (!player.HandleBrowserMessage(message)) HandleWindowMessage(window!, message, logger);
             })
-            // Handed to the web view as a string: this screen serves nothing and has no files
-            // on disk, the media comes from the host.
-            .LoadRawString(BuildPlayerPage());
+            // Loaded from a file rather than handed over as a string: a string page has an opaque
+            // origin, which is not a secure context, which costs the page every secure-context
+            // gated API. The file is the same page, written once per run.
+            .Load(new Uri(WritePlayerPage()));
 
         logger.LogInformation("Screen2 starting: server={ServerUri} screen={ScreenId}", serverUri, screenId);
 
@@ -117,6 +118,12 @@ internal static class Program
         // Stops the connect retry loop, which otherwise keeps a closing screen alive waiting on
         // its next delay.
         _closing.Cancel();
+
+        if (_pagePath is { } pageDirectory)
+        {
+            try { Directory.Delete(pageDirectory, recursive: true); }
+            catch (Exception ex) { logger.LogDebug(ex, "Could not remove the page at '{Path}'", pageDirectory); }
+        }
 
         _placement.Dispose();
         _ipc.DisposeAsync().AsTask().GetAwaiter().GetResult();
@@ -193,6 +200,46 @@ internal static class Program
         }
     }
 
+    /// <summary>Where the page was written, so it can be cleaned up when the screen closes.</summary>
+    private static string? _pagePath;
+
+    /// <summary>Writes the built page beside the screen's own temp state and answers its path.</summary>
+    internal static string WritePlayerPage()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "khost-screen");
+        var directory = Path.Combine(root, Environment.ProcessId.ToString());
+
+        SweepAbandonedPages(root);
+        Directory.CreateDirectory(directory);
+
+        var path = Path.Combine(directory, "player.html");
+        File.WriteAllText(path, BuildPlayerPage());
+
+        _pagePath = directory;
+        return path;
+    }
+
+    /// <summary>Removes pages left by screens that are no longer running.</summary>
+    private static void SweepAbandonedPages(string root)
+    {
+        try
+        {
+            if (!Directory.Exists(root)) return;
+
+            foreach (var directory in Directory.EnumerateDirectories(root))
+            {
+                if (!int.TryParse(Path.GetFileName(directory), out var pid)) continue;
+                if (pid == Environment.ProcessId) continue;
+
+                try { _ = System.Diagnostics.Process.GetProcessById(pid); continue; }
+                catch (ArgumentException) { }
+
+                try { Directory.Delete(directory, recursive: true); } catch { }
+            }
+        }
+        catch { }
+    }
+
     /// <summary>Builds the player page with its script inlined, from the embedded resources.</summary>
     internal static string BuildPlayerPage()
     {
@@ -203,6 +250,7 @@ internal static class Program
         // Order here is immaterial: each call swaps a tag for its script where the tag already
         // sits, so the page's own tag order is what decides what is defined first.
         html = Inline(html, "lyrics-overlay.js");
+        html = Inline(html, "stem-mixer.js");
         html = Inline(html, "player.js");
 
         return html;

@@ -21,6 +21,11 @@ public static class MediaStreamEndpoints
                 ".m3u8" => "application/vnd.apple.mpegurl",
                 ".ts" => "video/mp2t",
                 ".m4s" or ".mp4" => "video/mp4",
+
+                // Named, not sniffed: served as octet-stream a browser estimates an Ogg's duration
+                // from its nominal bitrate instead of reading the last page's granule, which on a
+                // VBR stem reads back as minutes longer than the file is.
+                ".ogg" or ".oga" => "audio/ogg",
                 _ => "application/octet-stream",
             };
 

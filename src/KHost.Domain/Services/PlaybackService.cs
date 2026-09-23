@@ -566,7 +566,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         LeadVolume = target;
         Logger.LogInformation("Lead vocal set to {Volume}%", target);
 
-        await AfterRateChangeAsync();
+        await AfterMixChangeAsync(AudioTrackRole.Lead, target);
     }
 
     public async Task SetBackingVolumeAsync(int volume)
@@ -578,7 +578,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         BackingVolume = target;
         Logger.LogInformation("Backing vocals set to {Volume}%", target);
 
-        await AfterRateChangeAsync();
+        await AfterMixChangeAsync(AudioTrackRole.Backing, target);
     }
 
     public async Task SetTempoAsync(int tempo)
@@ -594,6 +594,22 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
     }
 
     /// <summary>Shared by key and speed, so changing both costs the song one break rather than two.</summary>
+    /// <summary>A moved voice, which a mixing display takes as a gain rather than a new encode.</summary>
+    /// <remarks>Falls through to the rebuild whenever the displays cannot do it themselves, so this
+    /// is a shortcut past <see cref="AfterRateChangeAsync"/> and never a second way of doing it.</remarks>
+    private async Task AfterMixChangeAsync(AudioTrackRole role, int volume)
+    {
+        if (await TryMoveStemAsync(role, volume))
+        {
+            // The rebuild path announces and persists on its way through; this one still must.
+            _broker.Announce(new PlaybackChanged());
+            await PersistRateAsync();
+            return;
+        }
+
+        await AfterRateChangeAsync();
+    }
+
     private async Task AfterRateChangeAsync()
     {
         // Before the transcode is touched, so the readout answers the button rather than ffmpeg.
@@ -1126,7 +1142,76 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
             ?? throw new InvalidOperationException($"No host stream is open for '{media.Title}'."),
         StreamStartOffset = _stream?.StartOffset ?? TimeSpan.Zero,
         Tempo = _stream?.Tempo ?? 0,
+        Stems = DescribeStems(),
     };
+
+    /// <summary>The stems and the level each rides at, for a display that mixes them itself.</summary>
+    /// <remarks>Empty unless the source named stems <em>and</em> they line up with the tracks that
+    /// were probed: the two come from different readings of the same file, and a display handed a
+    /// half-matched set would play a song with a voice missing rather than fail.</remarks>
+    private IReadOnlyList<StemSource> DescribeStems()
+    {
+        if (_stream is not { StemUrls.Count: > 0 } stream) return [];
+        if (AudioTracks.Count != stream.StemUrls.Count) return [];
+
+        // Key and speed are ffmpeg's filter graph, and a display handed raw stems has no such
+        // thing: it would play the written key at recorded speed while the song's clock — and so
+        // the words — ran at the rate that was asked for. Those songs keep the host's mix.
+        if (stream.Pitch != 0 || stream.Tempo != 0) return [];
+
+        var stems = new List<StemSource>(stream.StemUrls.Count);
+
+        foreach (var track in AudioTracks)
+        {
+            if (track.Index < 0 || track.Index >= stream.StemUrls.Count) return [];
+
+            stems.Add(new StemSource(track.Index, track.Role, stream.StemUrls[track.Index], LevelFor(track.Role)));
+        }
+
+        return stems;
+    }
+
+    /// <summary>The same levels <c>BuildMixGraph</c> compiles into ffmpeg, so neither path drifts.</summary>
+    private int LevelFor(AudioTrackRole role) => role switch
+    {
+        AudioTrackRole.Lead => LeadVolume,
+        AudioTrackRole.Backing => BackingVolume,
+
+        // The music is the reference the voices are set against, and carries no level of its own.
+        _ => AudioMix.MaxVolume,
+    };
+
+    /// <summary>Moves a voice on the displays instead of rebuilding the stream, where that works.</summary>
+    /// <returns>False when anything connected would still be hearing the host's own mix, which only
+    /// a new encode can change.</returns>
+    /// <remarks>All or nothing on purpose: with one display this is one device, and sending a gain
+    /// to the mixer while another device keeps stale baked-in levels is the kind of split the
+    /// single-display rule exists to prevent.</remarks>
+    private async Task<bool> TryMoveStemAsync(AudioTrackRole role, int volume)
+    {
+        if (DescribeStems().Count == 0) return false;
+
+        var reached = 0;
+
+        foreach (var display in _displays)
+        {
+            if (display.ConnectedDeviceId is not { Length: > 0 } deviceId) continue;
+
+            var device = display.Devices.FirstOrDefault(d => d.Id == deviceId)
+                ?? display.Devices.FirstOrDefault(d => d.IsConnected);
+
+            // Unknown is not assumed capable here, unlike the fade: guessing wrong costs a mix
+            // change that silently never lands, where guessing wrong on a fade costs a pause.
+            if (device is null || !device.SupportsStemMix) return false;
+
+            reached++;
+        }
+
+        if (reached == 0) return false;
+
+        await ToDisplaysAsync(new SetStemVolumeCommand { Role = role, Volume = volume });
+        return true;
+    }
 
     /// <summary>Ends an ad before its clock ran out.</summary>
     /// <remarks>None of what follows a finished one (the bed, the venue card) happens here.</remarks>
@@ -1358,6 +1443,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
     private static bool CanShow(DisplayDevice device, IScreenCommand command) => command switch
     {
         SetTimedLyricsCommand => device.SupportsLyrics,
+        SetStemVolumeCommand => device.SupportsStemMix,
         SetMarqueeCommand => device.SupportsMarquee,
         SetScreenQrCodesCommand => device.SupportsQrCodes,
         ShowNextSingerCommand or SetBreakMusicCardCommand or ShowImageCommand or HideImageCommand
@@ -1368,12 +1454,13 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
     /// <summary>The one place a command becomes a call, so a provider sees named members.</summary>
     private static Task DispatchAsync(IDisplayProvider display, IScreenCommand command) => command switch
     {
-        LoadMediaCommand c => display.LoadAsync(c.StreamUrl, c.StreamStartOffset, c.Tempo),
+        LoadMediaCommand c => display.LoadAsync(c),
         PlayCommand => display.PlayAsync(),
         PauseCommand => display.PauseAsync(),
         StopCommand c => display.StopAsync(c.FadeDuration),
         SeekCommand c => display.SeekAsync(c.Position),
         SetVolumeCommand c => display.SetVolumeAsync(c.Volume),
+        SetStemVolumeCommand c => display.SetStemVolumeAsync(c),
         SetVideoCommand c => display.SetVideoAsync(c.Enabled),
 
         SetTimedLyricsCommand c => display.SetTimedLyricsAsync(c),
