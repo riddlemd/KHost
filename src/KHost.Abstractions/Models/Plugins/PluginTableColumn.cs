@@ -18,8 +18,10 @@ public sealed record PluginTableColumn
     /// <summary>Looks the cell up in <see cref="PluginTableRow.Fields"/>.</summary>
     public required string Key { get; init; }
 
+    /// <summary>Column heading, shown above the cells.</summary>
     public required string Header { get; init; }
 
+    /// <summary>How wide this column is drawn.</summary>
     public PluginTableColumnKind Kind { get; init; } = PluginTableColumnKind.Text;
 
     /// <summary>False drops this column when narrow; the first column is never dropped.</summary>

@@ -6,6 +6,7 @@ namespace KHost.Abstractions.Models.Plugins;
 /// needs, so the host carries no map from strings to behaviour.</remarks>
 public sealed record PluginTableAction
 {
+    /// <summary>The button's label.</summary>
     public required string DisplayName { get; init; }
 
     /// <summary>Bootstrap Icons name without the <c>bi-</c> prefix; unknown draws nothing.</summary>
@@ -20,5 +21,6 @@ public sealed record PluginTableAction
     /// <summary>Drawn pressed, for an action that is currently on — a running search.</summary>
     public bool IsActive { get; init; }
 
+    /// <summary>Runs when the button is pressed. The dialog re-reads the table once it completes.</summary>
     public required Func<CancellationToken, Task> PerformAsync { get; init; }
 }

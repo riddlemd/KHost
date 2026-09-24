@@ -1,9 +1,11 @@
 namespace KHost.Abstractions.Models;
 
 /// <summary>How something outside KHost names this singer, so a returning guest isn't added twice.</summary>
-/// <remarks><see cref="Source"/>+<see cref="Key"/> is unique table-wide, for a trusted lookup.</remarks>
+/// <remarks><see cref="Source"/> plus <see cref="Key"/> together identify at most one user, so a
+/// caller can look one up and trust the match.</remarks>
 public class KHostUserForeignKey : RepositoryModel
 {
+    /// <summary>The <see cref="KHostUser"/> this key names.</summary>
     public Guid UserId { get; set; }
 
     /// <summary>Who issued the key: the provider's own <c>SourceName</c>.</summary>

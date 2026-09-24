@@ -1,5 +1,6 @@
 namespace KHost.Abstractions.Models.Plugins;
 
+/// <summary>Where a discovered plugin stands, for the Plugins page.</summary>
 public enum PluginStatus
 {
     /// <summary>Discovered but not in the enabled list; nothing was loaded.</summary>

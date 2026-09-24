@@ -12,10 +12,15 @@ namespace KHost.Abstractions.Interactions.Requests;
 /// </remarks>
 public sealed record ShowPluginTableRequest : IInteractionRequest
 {
+    /// <summary>The dialog's heading. Fixed for the life of the dialog.</summary>
     public required string Title { get; init; }
 
+    /// <summary>The table's columns, in display order. Fixed for the life of the dialog.</summary>
     public required IReadOnlyList<PluginTableColumn> Columns { get; init; }
 
+    /// <summary>Supplies the rows, the buttons above the table, and the empty-state line, together.</summary>
+    /// <remarks>Called again after every action and whenever a table-changed announcement arrives,
+    /// so it must reflect the plugin's current state each time, not just the state at open.</remarks>
     public required Func<CancellationToken, Task<PluginTableContent>> LoadAsync { get; init; }
 
     /// <summary>One line under the title, for a standing fact about the whole table.</summary>

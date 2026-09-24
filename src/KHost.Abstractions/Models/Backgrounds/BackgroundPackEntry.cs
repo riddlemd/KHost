@@ -14,6 +14,7 @@ public sealed class BackgroundPackEntry
     /// <summary>The file name without its extension, which is the whole of the naming.</summary>
     public required string Name { get; init; }
 
+    /// <summary>Full path to the clip on disk.</summary>
     public required string FilePath { get; init; }
 
     /// <summary>The still a venue picks by: the same name with a picture extension, or null when

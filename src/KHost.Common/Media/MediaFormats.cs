@@ -39,6 +39,7 @@ public static class MediaFormats
     /// </remarks>
     public const string KaraokeGraphicsExtension = ".cdg";
 
+    /// <summary>Whether <paramref name="format"/> (an extension, with or without its leading dot) is a still.</summary>
     public static bool IsImage(string? format) => ContentTypeFor(format) is not null;
 
     /// <summary>Whether this is the graphics half of a pair, which carries no sound of its own.</summary>

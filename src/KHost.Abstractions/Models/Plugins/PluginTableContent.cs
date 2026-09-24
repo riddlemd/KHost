@@ -6,6 +6,7 @@ namespace KHost.Abstractions.Models.Plugins;
 /// separately is how two of them end up disagreeing.</remarks>
 public sealed record PluginTableContent
 {
+    /// <summary>The rows to draw. Empty shows <see cref="EmptyMessage"/> instead.</summary>
     public IReadOnlyList<PluginTableRow> Rows { get; init; } = [];
 
     /// <summary>Buttons for the table rather than a row — searching, refreshing, signing in.</summary>

@@ -4,6 +4,10 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <!-- Ships in the package so a plugin author sees these in IntelliSense; missing one is an
+         error here so Common can't silently regress. -->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <WarningsAsErrors>$(WarningsAsErrors);CS1591</WarningsAsErrors>
     <!-- Helpers a plugin may want as much as the host does: no project references, so taking one
          drags in nothing of KHost's own. -->
     <Description>Helpers shared by KHost and the plugins it loads.</Description>

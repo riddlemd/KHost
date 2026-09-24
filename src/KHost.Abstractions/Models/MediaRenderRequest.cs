@@ -3,12 +3,16 @@ namespace KHost.Abstractions.Models;
 /// <summary>Everything a renderer needs to decide what to hand back for one play.</summary>
 public sealed class MediaRenderRequest
 {
+    /// <summary>Full path to the source file on disk.</summary>
     public required string FilePath { get; init; }
 
     /// <summary>Song position to begin at. A whole-file rendition ignores it and is seeked instead.</summary>
     public TimeSpan StartOffset { get; init; }
 
+    /// <summary>Semitones from the written key; zero for the original.</summary>
     public int Pitch { get; init; }
+
+    /// <summary>Percent either side of recorded speed; zero for the original.</summary>
     public int Tempo { get; init; }
 
     /// <summary>The levels asked for, when the song has separate voices to balance.</summary>

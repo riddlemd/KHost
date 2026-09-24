@@ -3,6 +3,9 @@ namespace KHost.Abstractions.Models.Plugins;
 /// <summary>A Plugins-page row button; runs via <see cref="Services.IPluginButtonHandler"/>.</summary>
 public class PluginButtonDefinition
 {
+    /// <summary>Identifies this button to <see cref="Services.IPluginButtonHandler.InvokeButtonAsync"/>
+    /// and <see cref="Services.IPluginButtonHandler.DescribeButton"/>; chosen by the plugin and
+    /// unique within its own manifest.</summary>
     public required string Key { get; set; }
 
     /// <summary>Wording when unoverridden; see <see cref="Services.PluginButtonState.Label"/>.</summary>

@@ -13,5 +13,8 @@ public enum AudioTrackRole
     Backing,
 }
 
-/// <summary>One audio stream; <see cref="Index"/> is its stream position, ffmpeg's <c>0:a:N</c>.</summary>
+/// <summary>One audio stream in a file with more than one to choose between or mix.</summary>
+/// <param name="Index">The stream's position among the file's audio tracks, in file order, zero-based.</param>
+/// <param name="Role">What the stream carries.</param>
+/// <param name="Name">A short label for the stream, for a host choosing between tracks by hand.</param>
 public sealed record AudioTrack(int Index, AudioTrackRole Role, string Name);

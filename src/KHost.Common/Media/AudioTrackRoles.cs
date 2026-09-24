@@ -2,6 +2,7 @@ using KHost.Abstractions.Models;
 
 namespace KHost.Common.Media;
 
+/// <summary>Guesses an <see cref="AudioTrackRole"/> from a probed track's name, for a provider that ships no roles of its own.</summary>
 public static class AudioTrackRoles
 {
     /// <summary>Reads a role out of a track's name; order matters here.</summary>

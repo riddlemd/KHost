@@ -16,6 +16,7 @@ public static class PluginRid
          : OperatingSystem.IsLinux() ? "linux"
          : string.Empty;
 
+    /// <summary>"x64", "arm64", "x86", "arm", or empty where the host cannot say.</summary>
     public static string CurrentArchitecture => RuntimeInformation.ProcessArchitecture switch
     {
         Architecture.X64 => "x64",

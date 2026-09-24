@@ -63,10 +63,20 @@ public sealed record LyricLine
 /// <summary>One piece of a word, lit between two moments.</summary>
 /// <remarks><see cref="Text"/> carries its own spacing. Joining syllables with a space inserts one
 /// inside every word that was split.</remarks>
+/// <param name="StartSeconds">Song position this syllable is lit from.</param>
+/// <param name="EndSeconds">Song position this syllable is lit until.</param>
+/// <param name="Text">The syllable's own text, including any spacing it carries.</param>
 public sealed record LyricSyllable(double StartSeconds, double EndSeconds, string Text);
 
 /// <summary>A rectangle in the timing's own coordinate space, not in pixels.</summary>
+/// <param name="X">Left edge, in the timing's own units.</param>
+/// <param name="Y">Top edge, in the timing's own units.</param>
+/// <param name="Width">Width, in the timing's own units.</param>
+/// <param name="Height">Height, in the timing's own units.</param>
 public sealed record LyricBox(double X, double Y, double Width, double Height);
 
 /// <summary>A colour the timing asked for.</summary>
+/// <param name="R">Red, 0-255.</param>
+/// <param name="G">Green, 0-255.</param>
+/// <param name="B">Blue, 0-255.</param>
 public sealed record LyricColor(byte R, byte G, byte B);

@@ -31,7 +31,7 @@ public sealed class MediaRendition
 
     /// <summary>The host-side encode behind this, or null when nothing was started for it.</summary>
     /// <remarks>Null is the point of the whole abstraction: a rendition the display plays directly
-    /// costs no ffmpeg, and there is then nothing to retire when the song ends. Whoever holds the
+    /// starts no host encode, and there is then nothing to retire when the song ends. Whoever holds the
     /// rendition closes this; renderers do not clean up behind themselves.</remarks>
     public MediaStreamSession? Session { get; init; }
 }
