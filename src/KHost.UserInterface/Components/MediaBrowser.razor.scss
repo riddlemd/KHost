@@ -138,6 +138,7 @@
     }
 
     &__col--sortable {
+        cursor: pointer;
         user-select: none;
     }
 

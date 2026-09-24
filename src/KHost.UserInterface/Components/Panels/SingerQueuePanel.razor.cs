@@ -12,15 +12,15 @@ namespace KHost.UserInterface.Components.Panels;
 
 public partial class SingerQueuePanel : IAsyncDisposable
 {
-    [Inject] private ISingerQueueService? SingerQueueService { get; set; }
-    [Inject] private IPerformanceService? PerformanceService { get; set; }
-    [Inject] private IMediaService? MediaService { get; set; }
-    [Inject] private IPlaybackService? PlaybackService { get; set; }
-    [Inject] private IUsersService? UsersService { get; set; }
-    [Inject] private IDialogService? DialogService { get; set; }
-    [Inject] private IPermissionService? Permissions { get; set; }
-    [Inject] private IJSRuntime? JS { get; set; }
-    [Inject] private IVenuesService? VenuesService { get; set; }
+    [Inject] private ISingerQueueService SingerQueueService { get; set; } = default!;
+    [Inject] private IPerformanceService PerformanceService { get; set; } = default!;
+    [Inject] private IMediaService MediaService { get; set; } = default!;
+    [Inject] private IPlaybackService PlaybackService { get; set; } = default!;
+    [Inject] private IUsersService UsersService { get; set; } = default!;
+    [Inject] private IDialogService DialogService { get; set; } = default!;
+    [Inject] private IPermissionService Permissions { get; set; } = default!;
+    [Inject] private IJSRuntime JS { get; set; } = default!;
+    [Inject] private IVenuesService VenuesService { get; set; } = default!;
     [Inject] private IMessageBroker Broker { get; set; } = default!;
 
     /// <summary>Fired when the add-singer target is queued, not a click on an existing singer.</summary>
@@ -53,25 +53,17 @@ public partial class SingerQueuePanel : IAsyncDisposable
 
     protected override async Task OnInitializedAsync()
     {
-        {
-            _subscriptions.Add(Broker.Subscribe<SingerQueueChanged>(_ => OnStateChanged()));
-            _subscriptions.Add(Broker.Subscribe<PerformancesChanged>(_ => OnStateChanged()));
-            _subscriptions.Add(Broker.Subscribe<PlaybackChanged>(_ => OnStateChanged()));
-            _subscriptions.Add(Broker.Subscribe<VenuesChanged>(_ => OnStateChanged()));
-        }
+        _subscriptions.Add(Broker.Subscribe<SingerQueueChanged>(_ => OnStateChanged()));
+        _subscriptions.Add(Broker.Subscribe<PerformancesChanged>(_ => OnStateChanged()));
+        _subscriptions.Add(Broker.Subscribe<PlaybackChanged>(_ => OnStateChanged()));
+        _subscriptions.Add(Broker.Subscribe<VenuesChanged>(_ => OnStateChanged()));
 
-        if (VenuesService is not null)
-        {
-            var venues = await VenuesService.ReadAllAsync(pageSize: 0);
-            _venueNames = venues.Items.ToDictionary(v => v.Id, v => v.Name);
-        }
+        var venues = await VenuesService.ReadAllAsync(pageSize: 0);
+        _venueNames = venues.Items.ToDictionary(v => v.Id, v => v.Name);
 
-        if (Permissions is not null)
-        {
-            _canAddToQueue = await Permissions.HasAsync(KHostPermission.AddToQueue);
-            _canRemoveFromQueue = await Permissions.HasAsync(KHostPermission.RemoveFromQueue);
-            _canReorderQueue = await Permissions.HasAsync(KHostPermission.ReorderQueue);
-        }
+        _canAddToQueue = await Permissions.HasAsync(KHostPermission.AddToQueue);
+        _canRemoveFromQueue = await Permissions.HasAsync(KHostPermission.RemoveFromQueue);
+        _canReorderQueue = await Permissions.HasAsync(KHostPermission.ReorderQueue);
     }
 
     protected override async Task OnParametersSetAsync()
@@ -84,7 +76,7 @@ public partial class SingerQueuePanel : IAsyncDisposable
     {
         // A truly-async first await in OnInitializedAsync leaves _canReorderQueue still false on
         // firstRender, so attaching has to follow the permission in rather than fire once on it.
-        if (_canReorderQueue != _sortableAttached && JS is not null)
+        if (_canReorderQueue != _sortableAttached)
         {
             if (_canReorderQueue)
             {
@@ -113,7 +105,7 @@ public partial class SingerQueuePanel : IAsyncDisposable
 
         // Only on an actual selection change: scrolling on every render yanks the list while
         // the host is scrolling it by hand.
-        if (SingerQueueService?.SelectedUserId is { } selectedId && selectedId != _lastScrolledSingerId)
+        if (SingerQueueService.SelectedUserId is { } selectedId && selectedId != _lastScrolledSingerId)
         {
             _lastScrolledSingerId = selectedId;
             await ScrollToSelectedSingerAsync();
@@ -123,24 +115,22 @@ public partial class SingerQueuePanel : IAsyncDisposable
     [JSInvokable]
     public async Task OnSortEndAsync(string userIdStr, int newIndex)
     {
-        if (Guid.TryParse(userIdStr, out var userId) && SingerQueueService is not null)
+        if (Guid.TryParse(userIdStr, out var userId))
             await SingerQueueService.MoveUserToIndexAsync(userId, newIndex);
     }
 
     private async Task<IReadOnlyList<KHostUser>> SearchSingersAsync(string query)
     {
-        if (UsersService is null) return [];
-
         var result = await UsersService.SearchAsync(
             query, 1, SingerSuggestionLimit, new UserSearchOptions { SingersOnly = true });
 
-        if (PerformanceService is null || result.Items.Count == 0)
+        if (result.Items.Count == 0)
             return result.Items;
 
         _lastVenues = new Dictionary<Guid, RecentVenueVisit>(
             await PerformanceService.ReadLastVenueBySingersAsync(result.Items.Select(u => u.Id)));
 
-        return RankByVenue(result.Items, _lastVenues, VenuesService?.SelectedVenueId);
+        return RankByVenue(result.Items, _lastVenues, VenuesService.SelectedVenueId);
     }
 
     /// <summary>Orders by venue: current first, recent next, no-venue last; recency within each.</summary>
@@ -188,7 +178,6 @@ public partial class SingerQueuePanel : IAsyncDisposable
     private async Task AddUserAsync()
     {
         if (string.IsNullOrWhiteSpace(_newSingerName)) return;
-        if (SingerQueueService is null || UsersService is null) return;
 
         var name = _newSingerName.Trim();
 
@@ -210,8 +199,6 @@ public partial class SingerQueuePanel : IAsyncDisposable
 
     private async Task OnKeyDownAsync(KeyboardEventArgs e)
     {
-        if (SingerQueueService is null) return;
-
         var users = SingerQueueService.Users;
         var currentIdx = users.ToList().FindIndex(u => u.Id == SingerQueueService.SelectedUserId);
         var action = ListKeyboardShortcuts.Resolve(e.Key, e.ShiftKey, currentIdx, users.Count);
@@ -239,7 +226,7 @@ public partial class SingerQueuePanel : IAsyncDisposable
 
     private TimeSpan CalculateEwt(int userIndex)
     {
-        if (userIndex == 0 || SingerQueueService is null) return TimeSpan.Zero;
+        if (userIndex == 0) return TimeSpan.Zero;
 
         var total = TimeSpan.Zero;
 
@@ -260,8 +247,6 @@ public partial class SingerQueuePanel : IAsyncDisposable
 
     private async Task ScrollToSelectedSingerAsync()
     {
-        if (JS is null) return;
-
         try
         {
             await JS.InvokeVoidAsync("scrollIntoViewSmooth", ".kh-singer-queue-panel--selected", -10);
@@ -271,13 +256,9 @@ public partial class SingerQueuePanel : IAsyncDisposable
 
     private async Task ConfirmRemoveUserAsync(KHostUser user)
     {
-        if (SingerQueueService is null) return;
-
-        var venue = VenuesService is not null ? await VenuesService.ReadSelectedVenueAsync() : null;
+        var venue = await VenuesService.ReadSelectedVenueAsync();
         if (venue?.Settings.PromptBeforeRemovingSinger == true)
         {
-            if (DialogService is null) return;
-
             await DialogService.ShowConfirmationAsync(
                 $"Are you sure you want to remove <span class=\"kh-emphasis\">{user.Name}</span> from the queue?",
                 async () => await SingerQueueService.RemoveUserAsync(user.Id),
@@ -303,8 +284,6 @@ public partial class SingerQueuePanel : IAsyncDisposable
     // on venue state changes so saving the setting takes effect without a reload.
     private async Task RefreshVenueSettingsAsync()
     {
-        if (VenuesService is null) return;
-
         var venue = await VenuesService.ReadSelectedVenueAsync();
 
         _showEwt = venue?.Settings.ShowEstimatedWaitTime ?? true;
@@ -314,10 +293,10 @@ public partial class SingerQueuePanel : IAsyncDisposable
     {
         var classes = new List<string> { "kh-singer-queue-panel__singer-queue__singer" };
 
-        if (SingerQueueService?.SelectedUserId == userId)
+        if (SingerQueueService.SelectedUserId == userId)
             classes.Add("kh-singer-queue-panel__singer-queue__singer--selected");
 
-        if (isFirst && SingerQueueService?.IsTopSlotLocked == true)
+        if (isFirst && SingerQueueService.IsTopSlotLocked)
             classes.Add("kh-singer-queue-panel__singer-queue__singer--locked");
 
         return string.Join(" ", classes);
@@ -325,8 +304,6 @@ public partial class SingerQueuePanel : IAsyncDisposable
 
     private async Task RefreshPerformanceCountsAsync()
     {
-        if (SingerQueueService?.Users is null || PerformanceService is null || MediaService is null) return;
-
         _allQueuedPerformances = await PerformanceService.ReadQueuedAsync();
 
         _performanceCounts.Clear();
@@ -355,10 +332,9 @@ public partial class SingerQueuePanel : IAsyncDisposable
 
         try
         {
-            if (JS is not null)
-                // The key this panel registered under, since the two queues were keyed apart.
-                // Destroying an undefined name throws out of DisposeAsync, killing the circuit.
-                await JS.InvokeVoidAsync("khSortable.destroy", "singers");
+            // The key this panel registered under, since the two queues were keyed apart.
+            // Destroying an undefined name throws out of DisposeAsync, killing the circuit.
+            await JS.InvokeVoidAsync("khSortable.destroy", "singers");
         }
         catch (JSDisconnectedException)
         {
