@@ -1,7 +1,7 @@
-using KHost.Screen2;
+using KHost.LocalScreen;
 using Microsoft.Extensions.Logging.Abstractions;
 
-namespace KHost.UnitTests.Screen2;
+namespace KHost.UnitTests.LocalScreen;
 
 public class ProgramTests
 {

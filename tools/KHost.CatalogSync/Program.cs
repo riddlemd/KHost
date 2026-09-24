@@ -7,7 +7,7 @@ using KHost.Common.Plugins;
 namespace KHost.CatalogSync;
 
 // Named rather than top-level: top-level statements emit a Program in the global namespace, and
-// KHost.Screen2 already has one that the test project resolves against.
+// KHost.LocalScreen already has one that the test project resolves against.
 internal static class Program
 {
     // Main is the one method that cannot carry the Async suffix the codebase enforces, so the

@@ -1,8 +1,8 @@
 using System.Text.Json;
-using KHost.Screen2;
+using KHost.LocalScreen;
 using Microsoft.Extensions.Logging.Abstractions;
 
-namespace KHost.UnitTests.Screen2;
+namespace KHost.UnitTests.LocalScreen;
 
 /// <summary>The host kills the process to close a screen, so writes schedule as the window moves.</summary>
 public class WindowPlacementStoreTests : IDisposable

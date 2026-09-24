@@ -1,8 +1,8 @@
 using System.Reflection;
 using System.Text.RegularExpressions;
-using KHost.Screen2;
+using KHost.LocalScreen;
 
-namespace KHost.UnitTests.Screen2;
+namespace KHost.UnitTests.LocalScreen;
 
 /// <summary>The embedded markup never runs here, so a reversed stacking order fails silently.</summary>
 public class ScreenPageLayoutTests

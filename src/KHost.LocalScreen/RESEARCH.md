@@ -18,7 +18,7 @@ below say a native path would "skip" that machinery, read it as already skipped 
 
 **This is a second render path, not a replacement.** ffmpeg stays: CDG + mp3 and mp4 (YouTube) have
 no native path and are not going to get one. So the question is narrower and safer than it first
-looks — whether Screen2 gains a path it takes for files it can open itself, falling back to the
+looks — whether LocalScreen gains a path it takes for files it can open itself, falling back to the
 existing stream for everything else. Nothing below proposes deleting the ffmpeg pipeline, and
 several of the hard parts stop being hard once it is understood to still be there.
 
@@ -218,7 +218,7 @@ pause/seek/stop, so the host cannot tell from the transport which one the displa
 
 ## Options
 
-**A — Native path in Screen2.** For `.kit` only, the screen receives stems + timing and does
+**A — Native path in LocalScreen.** For `.kit` only, the screen receives stems + timing and does
 everything: decode, mix, draw. Falls back to the existing stream for Cast, for screens that cannot
 render natively, and for every other format. Biggest win, and it owns pitch/tempo and text fidelity.
 

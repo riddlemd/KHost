@@ -5,8 +5,8 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
-    <AssemblyName>KHost.Screen2</AssemblyName>
-    <RootNamespace>KHost.Screen2</RootNamespace>
+    <AssemblyName>KHost.LocalScreen</AssemblyName>
+    <RootNamespace>KHost.LocalScreen</RootNamespace>
   </PropertyGroup>
 
   <!-- Windows-only: WinExe so no console window appears behind the screen output. -->

@@ -1,9 +1,9 @@
 using KHost.Abstractions.Services.IPC;
-using KHost.Screen2;
+using KHost.LocalScreen;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 
-namespace KHost.UnitTests.Screen2;
+namespace KHost.UnitTests.LocalScreen;
 
 /// <summary>Losing the host is the one failure the room sees, so it gets its own tests.</summary>
 public class ScreenIpcControllerHostLostTests : IAsyncDisposable

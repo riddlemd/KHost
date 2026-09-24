@@ -1,8 +1,8 @@
 using System.Text.Json;
-using KHost.Screen2;
+using KHost.LocalScreen;
 using Microsoft.Extensions.Logging.Abstractions;
 
-namespace KHost.UnitTests.Screen2;
+namespace KHost.UnitTests.LocalScreen;
 
 /// <summary>The page counts stream seconds; only here does a stream turn back into song time.</summary>
 public class StreamMediaPlayerTempoTests

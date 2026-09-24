@@ -5,7 +5,7 @@ using Photino.NET;
 using Serilog;
 using Serilog.Events;
 
-namespace KHost.Screen2;
+namespace KHost.LocalScreen;
 
 internal static class Program
 {
@@ -29,7 +29,7 @@ internal static class Program
             .SetMinimumLevel(logLevel)
             .AddSerilog(CreateSerilog(screenId, logLevel), dispose: true));
 
-        var logger = loggerFactory.CreateLogger("Screen2");
+        var logger = loggerFactory.CreateLogger("LocalScreen");
 
         var player = new StreamMediaPlayer(loggerFactory.CreateLogger<StreamMediaPlayer>());
 
@@ -122,7 +122,7 @@ internal static class Program
             // gated API. The file is the same page, written once per run.
             .Load(new Uri(WritePlayerPage()));
 
-        logger.LogInformation("Screen2 starting: server={ServerUri} screen={ScreenId}", serverUri, screenId);
+        logger.LogInformation("LocalScreen starting: server={ServerUri} screen={ScreenId}", serverUri, screenId);
 
         window.WaitForClose();
 

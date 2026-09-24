@@ -278,7 +278,7 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, ID
 
     /// <summary>EVENT playlist type so a consumer can start on the first segment.</summary>
     /// <remarks>H.264 Main@4.1 + AAC-LC decodes in every browser and in WKWebView, which is what
-    /// Screen2 renders through; a display provider's device is a third consumer it also suits.</remarks>
+    /// LocalScreen renders through; a display provider's device is a third consumer it also suits.</remarks>
     internal static string BuildArguments(
         string filePath,
         TimeSpan startOffset,
