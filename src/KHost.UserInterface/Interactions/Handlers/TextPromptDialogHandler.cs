@@ -18,7 +18,7 @@ public class TextPromptDialogHandler : IInteractionHandler<TextPromptRequest, IR
     {
         var tcs = new TaskCompletionSource<IReadOnlyDictionary<string, string>?>(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        using var registration = cancellationToken.Register(() => tcs.TrySetCanceled(cancellationToken));
+        InteractionCompletion.LinkCancellation(tcs, cancellationToken);
 
         _ = _dialogService.RequestTextPromptAsync(
             request.Title,
