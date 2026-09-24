@@ -270,6 +270,9 @@ executable, and that is the identity a signed KHost should be trusting.
 **Copy / remove a directory tree**
 - macOS/Linux/Git Bash: `cp -R src dst` / `rm -rf dst`
 - Windows: `Copy-Item src dst -Recurse` / `Remove-Item dst -Recurse -Force`
+- **Restoring over an existing `cache/`: remove it first** (`rm -rf cache && cp -R backup cache`).
+  Both copies put `src` *inside* a `dst` that already exists, so a plain restore leaves the live
+  cache untouched and a stale `cache/cache/` beside it — which reads as a successful restore.
 
 **Scratch space for backups** — prefer the session's scratchpad directory over `/tmp`. `/tmp` does
 exist in Git Bash on Windows, but it is not where the operator will look, and `$TEMP` there is a
