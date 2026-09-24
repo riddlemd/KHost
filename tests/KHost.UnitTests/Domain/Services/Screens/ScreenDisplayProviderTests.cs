@@ -27,6 +27,7 @@ public class ScreenDisplayProviderTests
     private readonly IPlaybackProgram _playback = Substitute.For<IPlaybackProgram>();
     private readonly IMediaService _library = Substitute.For<IMediaService>();
     private readonly IMediaStreamService _streams = Substitute.For<IMediaStreamService>();
+    private readonly ITimedLyricsService _timedLyrics = Substitute.For<ITimedLyricsService>();
 
     public ScreenDisplayProviderTests()
     {
@@ -52,6 +53,7 @@ public class ScreenDisplayProviderTests
                 .AddSingleton(_playback)
                 .AddSingleton(_library)
                 .AddSingleton(_streams)
+                .AddSingleton(_timedLyrics)
                 .BuildServiceProvider());
 
     private static IScreenConnection Connection(string screenId, string connectionId)
@@ -592,6 +594,126 @@ public class ScreenDisplayProviderTests
 
         Assert.Empty(Sent<HideImageCommand>());
         Assert.Single(Sent<LoadMediaCommand>());
+    }
+
+    // --- the words ---
+
+    private static readonly LoadMediaCommand ALoad = new() { StreamUrl = "http://host/s.m3u8" };
+
+    private TimedLyrics WordsFor(PlaybackProgram.Playing song)
+    {
+        var words = new TimedLyrics { DurationSeconds = 90, Bounds = new LyricBox(0, 0, 640, 360) };
+        _timedLyrics.GetTimedLyricsAsync(song.Media.FilePath, Arg.Any<CancellationToken>()).Returns(words);
+        return words;
+    }
+
+    /// <summary>After the load and before play: given mid-song, every syllable already sung lights at once.</summary>
+    [Fact]
+    public async Task LoadAsync_ASong_SendsItsWordsRightAfterTheLoad()
+    {
+        var song = Song();
+        var words = WordsFor(song);
+        _playback.CurrentProgram.Returns(song);
+        using var provider = DrawingProvider();
+
+        await provider.LoadAsync(ALoad);
+
+        var sent = _screenServer.ReceivedCalls().Select(call => call.GetArguments()[0]).ToList();
+        var load = sent.FindIndex(c => c is LoadMediaCommand);
+        var lyrics = sent.FindIndex(c => c is SetTimedLyricsCommand command && ReferenceEquals(command.Lyrics, words));
+        Assert.True(load >= 0 && lyrics > load, "The words did not follow the load.");
+    }
+
+    /// <summary>Skipping the send leaves the last song's words lit over this one.</summary>
+    [Fact]
+    public async Task LoadAsync_ASongWithNoWords_StillClearsTheLastSongs()
+    {
+        _playback.CurrentProgram.Returns(Song());
+        _timedLyrics.GetTimedLyricsAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns((TimedLyrics?)null);
+        using var provider = DrawingProvider();
+
+        await provider.LoadAsync(ALoad);
+
+        Assert.Null(Assert.Single(Sent<SetTimedLyricsCommand>()).Lyrics);
+    }
+
+    /// <summary>A plugin that cannot read its own file costs the words, never the song.</summary>
+    [Fact]
+    public async Task LoadAsync_TheTimingCannotBeRead_LoadsAndClearsTheWords()
+    {
+        _playback.CurrentProgram.Returns(Song());
+        _timedLyrics.GetTimedLyricsAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns<Task<TimedLyrics?>>(_ => throw new InvalidDataException("bad timing"));
+        using var provider = DrawingProvider();
+
+        await provider.LoadAsync(ALoad);
+
+        Assert.Single(Sent<LoadMediaCommand>());
+        Assert.Null(Assert.Single(Sent<SetTimedLyricsCommand>()).Lyrics);
+    }
+
+    /// <summary>An ad is nobody's song and has no words, as it never had.</summary>
+    [Fact]
+    public async Task LoadAsync_AVideoAd_SendsNoWords()
+    {
+        _playback.CurrentProgram.Returns(new PlaybackProgram.Playing(new Media { Title = "Ad", FilePath = "/ad.mp4" }, null));
+        using var provider = DrawingProvider();
+
+        await provider.LoadAsync(ALoad);
+
+        Assert.Empty(Sent<SetTimedLyricsCommand>());
+        await _timedLyrics.DidNotReceive().GetTimedLyricsAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>A rebuild at a new key reloads the same song onto a screen still holding its words.</summary>
+    [Fact]
+    public async Task LoadAsync_TheSameSongOnTheSameScreen_SendsTheWordsOnce()
+    {
+        var song = Song();
+        WordsFor(song);
+        _playback.CurrentProgram.Returns(song);
+        using var provider = DrawingProvider();
+        RaiseConnected(Connection("Screen 1", "conn-a"));
+
+        await provider.LoadAsync(ALoad);
+        await provider.LoadAsync(ALoad);
+
+        Assert.Single(Sent<SetTimedLyricsCommand>());
+    }
+
+    /// <summary>A screen that came back holds nothing, even under the same connection id.</summary>
+    [Fact]
+    public async Task LoadAsync_TheSameSongOntoAScreenThatRejoined_ResendsWithoutRereading()
+    {
+        var song = Song();
+        var words = WordsFor(song);
+        _playback.CurrentProgram.Returns(song);
+        using var provider = DrawingProvider();
+        RaiseConnected(Connection("Screen 1", "conn-a"));
+        await provider.LoadAsync(ALoad);
+
+        RaiseConnected(Connection("Screen 1", "conn-a"));
+        await provider.LoadAsync(ALoad);
+
+        Assert.Equal(2, Sent<SetTimedLyricsCommand>().Count(command => ReferenceEquals(command.Lyrics, words)));
+        await _timedLyrics.Received(1).GetTimedLyricsAsync(song.Media.FilePath, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task LoadAsync_ANewSong_SendsItsOwnWords()
+    {
+        var first = Song();
+        var second = Song() with { Media = new Media { Title = "Rosanna", FilePath = "/rosanna.mp4" } };
+        WordsFor(first);
+        var secondWords = WordsFor(second);
+        using var provider = DrawingProvider();
+
+        _playback.CurrentProgram.Returns(first);
+        await provider.LoadAsync(ALoad);
+        _playback.CurrentProgram.Returns(second);
+        await provider.LoadAsync(ALoad);
+
+        Assert.Same(secondWords, Sent<SetTimedLyricsCommand>().Last().Lyrics);
     }
 
     /// <summary>A venue whose card is an image in the library.</summary>

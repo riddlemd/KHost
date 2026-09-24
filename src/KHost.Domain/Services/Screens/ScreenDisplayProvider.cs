@@ -16,7 +16,7 @@ namespace KHost.Domain.Services.Screens;
 /// drive.
 ///
 /// <para>It owns everything the screen shows, not only the song: the marquee, the QR codes, the
-/// break music card, the venue's card or an ad's still, and the venue's level. The host announces what moved and this pulls the whole
+/// break music card, the venue's card or an ad's still, the song's timed words, and the venue's level. The host announces what moved and this pulls the whole
 /// current state of whatever that message drives, so a screen that connects is sent everything
 /// afresh rather than a replay of what it missed.</para>
 ///
@@ -51,6 +51,16 @@ public sealed class ScreenDisplayProvider : IDisplayProvider, IStartsWithTheHost
 
     /// <summary>The program the screen's picture was last drawn for; null until anything was.</summary>
     private PlaybackProgram? _pictured;
+
+    // Serialises lyric sends: a load can come from a song starting and a screen rejoining at once.
+    private readonly SemaphoreSlim _lyricsLock = new(1, 1);
+
+    /// <summary>The song the words were read for, by identity: a rebuild reloads the same program.</summary>
+    private PlaybackProgram.Playing? _lyricsFor;
+    private TimedLyrics? _lyrics;
+
+    /// <summary>The session the words last went to; a screen on a newer one holds none of them.</summary>
+    private Guid? _lyricsSentOn;
     private readonly TimeSpan _registrationTimeout;
 
     private bool _launching;
@@ -66,8 +76,9 @@ public sealed class ScreenDisplayProvider : IDisplayProvider, IStartsWithTheHost
     /// <c>ScreenDisconnected</c> while holding the very lock a read back would wait on. Blocking
     /// on it from the renderer's dispatcher deadlocks the circuit outright — the console goes
     /// blank and never recovers, with nothing thrown to say why. The events carry the connection,
-    /// so nothing has to be asked for.</remarks>
-    private volatile IScreenConnection? _connected;
+    /// so nothing has to be asked for. Each registration gets its own session id, so a screen that
+    /// comes back is known to hold nothing even under the same connection.</remarks>
+    private volatile ScreenSession? _connected;
 
     public ScreenDisplayProvider(
         ILogger<ScreenDisplayProvider> logger,
@@ -261,6 +272,11 @@ public sealed class ScreenDisplayProvider : IDisplayProvider, IStartsWithTheHost
         // Ahead of the load, so the venue's card is down before the song's first frame.
         await DrawPictureAsync(PictureCause.ProgramMoved);
         await SendAsync(media);
+
+        // After the load and before play, which every caller sends after this returns: a screen
+        // holds the words until the next load, and one given them mid-song would light every
+        // syllable already sung at once.
+        await SendTimedLyricsAsync();
     }
 
     public Task PlayAsync(CancellationToken cancellationToken = default) => SendAsync(new PlayCommand());
@@ -330,7 +346,54 @@ public sealed class ScreenDisplayProvider : IDisplayProvider, IStartsWithTheHost
     }
 
     /// <summary>A field read, deliberately: see <see cref="_connected"/>.</summary>
-    private IScreenConnection? ConnectedScreen() => _connected;
+    private IScreenConnection? ConnectedScreen() => _connected?.Connection;
+
+    /// <summary>Gives the screen the words for the song now loading, or clears the last song's.</summary>
+    /// <remarks>Read once per song and resent only to a screen that has not had them: a rebuild at a
+    /// new key reloads the same program onto a screen still holding them. An ad has no words and
+    /// sends none. Never throws: a song whose timing cannot be read plays like one that has none,
+    /// and a song with none still sends, or the screen keeps lighting the last song's.</remarks>
+    private async Task SendTimedLyricsAsync()
+    {
+        if (_services?.GetService<IPlaybackProgram>()?.CurrentProgram is not PlaybackProgram.Playing { Performance: not null } song)
+            return;
+
+        await _lyricsLock.WaitAsync();
+        try
+        {
+            var session = _connected?.Id;
+
+            if (!ReferenceEquals(song, _lyricsFor))
+            {
+                _lyricsFor = song;
+                _lyrics = await ReadTimedLyricsAsync(song.Media);
+            }
+            else if (session == _lyricsSentOn)
+            {
+                return;
+            }
+
+            _lyricsSentOn = session;
+
+            await SendAsync(new SetTimedLyricsCommand { Lyrics = _lyrics });
+        }
+        finally
+        {
+            _lyricsLock.Release();
+        }
+    }
+
+    private async Task<TimedLyrics?> ReadTimedLyricsAsync(Media media)
+    {
+        if (_services?.GetService<ITimedLyricsService>() is not { } lyrics) return null;
+
+        try { return await lyrics.GetTimedLyricsAsync(media.FilePath); }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Could not read the lyric timing for '{Title}'", media.Title);
+            return null;
+        }
+    }
 
     /// <summary>The venue's level, or full volume before any venue exists.</summary>
     /// <remarks>The song and the second channel share one venue level: the bed and an ad's own
@@ -486,7 +549,7 @@ public sealed class ScreenDisplayProvider : IDisplayProvider, IStartsWithTheHost
     // detached: awaiting on it would be async void.
     private void OnScreenConnected(object? sender, ScreenConnectionEventArgs e)
     {
-        _connected = e.Connection;
+        _connected = new ScreenSession(e.Connection, Guid.NewGuid());
 
         // Answers a ConnectAsync waiting on this launch; a screen that registers without anyone
         // waiting (a relaunch, or one recovering on its own) leaves this null and the call no-ops.
@@ -504,7 +567,7 @@ public sealed class ScreenDisplayProvider : IDisplayProvider, IStartsWithTheHost
     /// the id would take the live one down with the stale one.</summary>
     private void OnScreenDisconnected(object? sender, ScreenConnectionEventArgs e)
     {
-        if (_connected?.ConnectionId == e.Connection.ConnectionId)
+        if (_connected?.Connection.ConnectionId == e.Connection.ConnectionId)
             _connected = null;
 
         Announce();
@@ -518,6 +581,9 @@ public sealed class ScreenDisplayProvider : IDisplayProvider, IStartsWithTheHost
         _screenServer.ScreenDisconnected -= OnScreenDisconnected;
         _subscriptions.Dispose();
     }
+
+    /// <summary>One registration of the screen; a screen that comes back is a new one.</summary>
+    private sealed record ScreenSession(IScreenConnection Connection, Guid Id);
 
     [Flags]
     private enum Overlay

@@ -144,6 +144,7 @@ public class PlaybackServiceTests : IDisposable
         services.GetService(typeof(IPlaybackProgram)).Returns(_ => built);
         services.GetService(typeof(IMediaService)).Returns(_mediaService);
         services.GetService(typeof(IMediaStreamService)).Returns(_mediaStreams);
+        services.GetService(typeof(ITimedLyricsService)).Returns(_timedLyrics);
 
         return built = new(
         _logger,
@@ -173,7 +174,6 @@ public class PlaybackServiceTests : IDisposable
         }),
         _audioTracks,
         _mediaGate,
-        _timedLyrics,
         _flash,
         _broker);
     }
