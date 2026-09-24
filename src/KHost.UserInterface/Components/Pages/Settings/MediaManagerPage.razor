@@ -48,23 +48,23 @@
                                 <th class="kh-media-manager__col--check">
                                     <Icon Name="@SelectAllIconName" class="kh-media-manager__select-icon" @onclick="OnSelectAllClicked" />
                                 </th>
-                                <th class="kh-table__col--sortable" @onclick='() => OnSortColumnClicked("title")'>
+                                <th class="kh-table__col--sortable" @onclick='() => OnSortColumnClickedAsync("title")'>
                                     Title @if (_sortColumn == "title") { <Icon Name="@(_sortDescending ? "sort-down" : "sort-up")" class="kh-table__sort-indicator" /> }
                                 </th>
-                                <th class="kh-table__col--sortable" @onclick='() => OnSortColumnClicked("artist")'>
+                                <th class="kh-table__col--sortable" @onclick='() => OnSortColumnClickedAsync("artist")'>
                                     Artist @if (_sortColumn == "artist") { <Icon Name="@(_sortDescending ? "sort-down" : "sort-up")" class="kh-table__sort-indicator" /> }
                                 </th>
                                 <th class="kh-media-manager__col--type">Type</th>
-                                <th class="kh-media-manager__col--format kh-table__col--sortable" @onclick='() => OnSortColumnClicked("format")'>
+                                <th class="kh-media-manager__col--format kh-table__col--sortable" @onclick='() => OnSortColumnClickedAsync("format")'>
                                     Format @if (_sortColumn == "format") { <Icon Name="@(_sortDescending ? "sort-down" : "sort-up")" class="kh-table__sort-indicator" /> }
                                 </th>
-                                <th class="kh-media-manager__col--duration kh-table__col--sortable" @onclick='() => OnSortColumnClicked("duration")'>
+                                <th class="kh-media-manager__col--duration kh-table__col--sortable" @onclick='() => OnSortColumnClickedAsync("duration")'>
                                     Duration @if (_sortColumn == "duration") { <Icon Name="@(_sortDescending ? "sort-down" : "sort-up")" class="kh-table__sort-indicator" /> }
                                 </th>
-                                <th class="kh-media-manager__col--status kh-table__col--sortable" @onclick='() => OnSortColumnClicked("status")'>
+                                <th class="kh-media-manager__col--status kh-table__col--sortable" @onclick='() => OnSortColumnClickedAsync("status")'>
                                     Status @if (_sortColumn == "status") { <Icon Name="@(_sortDescending ? "sort-down" : "sort-up")" class="kh-table__sort-indicator" /> }
                                 </th>
-                                <th class="kh-media-manager__col--date kh-table__col--sortable" @onclick='() => OnSortColumnClicked("dateAdded")'>
+                                <th class="kh-media-manager__col--date kh-table__col--sortable" @onclick='() => OnSortColumnClickedAsync("dateAdded")'>
                                     Date Added @if (_sortColumn == "dateAdded") { <Icon Name="@(_sortDescending ? "sort-down" : "sort-up")" class="kh-table__sort-indicator" /> }
                                 </th>
                                 <th class="kh-media-manager__col--actions"></th>

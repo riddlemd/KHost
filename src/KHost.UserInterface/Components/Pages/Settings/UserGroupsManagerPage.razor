@@ -42,7 +42,7 @@
                     <table class="kh-table">
                         <thead>
                             <tr>
-                                <th class="kh-table__col--sortable" @onclick='() => OnSortColumnClicked("name")'>
+                                <th class="kh-table__col--sortable" @onclick='() => OnSortColumnClickedAsync("name")'>
                                     Name @if (_sortColumn == "name") { <Icon Name="@(_sortDescending ? "sort-down" : "sort-up")" class="kh-table__sort-indicator" /> }
                                 </th>
                                 <th>Description</th>

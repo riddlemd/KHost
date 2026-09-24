@@ -118,9 +118,9 @@ public partial class EditTipDialog : IAsyncDisposable
         tip.PaymentMethod = _model.PaymentMethod;
         tip.Notes = _model.Notes;
 
+        // DialogHost closes after awaiting this itself; closing again here would also fire
+        // OnClose's onCancel, marking a successful save as a cancel.
         await OnSave.InvokeAsync(tip);
-
-        await CloseAsync();
     }
 
     private async Task<IReadOnlyList<KHostUser>> SearchSingersAsync(string query)

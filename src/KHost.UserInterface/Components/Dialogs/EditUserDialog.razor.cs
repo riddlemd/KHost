@@ -168,9 +168,9 @@ public partial class EditUserDialog
         if (!string.IsNullOrWhiteSpace(_newPassword) && PasswordHasher is not null)
             user.PasswordHash = await PasswordHasher.HashAsync(_newPassword);
 
+        // DialogHost closes after awaiting this itself; closing again here would also fire
+        // OnClose's onCancel, marking a successful save as a cancel.
         await OnSave.InvokeAsync(user);
-
-        await CloseAsync();
     }
 
     public record DialogRequest : EditDialogRequest<KHostUser>

@@ -40,8 +40,8 @@ public partial class AdsManagerPage : IDisposable
         GC.SuppressFinalize(this);
     }
 
-    private async void OnChanged(MediaPoolsChanged message)
-        => await InvokeAsync(async () =>
+    private void OnChanged(MediaPoolsChanged message)
+        => _ = InvokeAsync(async () =>
         {
             await RefreshAsync();
             StateHasChanged();

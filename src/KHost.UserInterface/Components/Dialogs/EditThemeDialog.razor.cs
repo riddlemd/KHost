@@ -105,8 +105,9 @@ public partial class EditThemeDialog
             Variables = new Dictionary<string, string>(_model.Values, StringComparer.Ordinal)
         };
 
+        // DialogHost closes after awaiting this itself; closing again here would also fire
+        // OnClose's onCancel, marking a successful save as a cancel.
         await OnSave.InvokeAsync(theme);
-        await CloseAsync();
     }
 
     public record DialogRequest : EditDialogRequest<ThemeDefinition>

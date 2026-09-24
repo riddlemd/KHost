@@ -111,11 +111,12 @@ public partial class DownloadsManagerPage : IDisposable
         _ => "kh-badge--secondary",
     };
 
-    private async void OnStateChanged(DownloadsChanged message)
-    {
-        Refresh();
-        await InvokeAsync(StateHasChanged);
-    }
+    private void OnStateChanged(DownloadsChanged message)
+        => _ = InvokeAsync(() =>
+        {
+            Refresh();
+            StateHasChanged();
+        });
 
     public void Dispose() => _subscriptions.Dispose();
 }

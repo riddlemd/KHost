@@ -63,8 +63,9 @@ public partial class SingingAsDialog
         // singer's own", and null is the same answer a row that was never given one carries.
         Performance.SungAs = string.IsNullOrEmpty(typed) ? null : typed;
 
+        // DialogHost closes after awaiting this itself; closing again here would also fire
+        // OnClose's onCancel, marking a successful save as a cancel.
         await OnSave.InvokeAsync(Performance);
-        await CloseAsync();
     }
 
     private async Task CloseAsync()

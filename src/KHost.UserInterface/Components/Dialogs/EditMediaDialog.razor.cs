@@ -57,18 +57,21 @@ public partial class EditMediaDialog
 
     private async Task SaveAsync()
     {
-        if (Media is not null)
+        if (Media is null)
         {
-            Media.Title = _model.Title;
-            Media.Artist = _model.Artist;
-            Media.Notes = _model.Notes;
-            Media.Status = _model.Status;
-            Media.ImageScaling = _model.ImageScaling;
-
-            await OnSave.InvokeAsync(Media);
+            await CloseAsync();
+            return;
         }
 
-        await CloseAsync();
+        Media.Title = _model.Title;
+        Media.Artist = _model.Artist;
+        Media.Notes = _model.Notes;
+        Media.Status = _model.Status;
+        Media.ImageScaling = _model.ImageScaling;
+
+        // DialogHost closes after awaiting this itself; closing again here would also fire
+        // OnClose's onCancel, marking a successful save as a cancel.
+        await OnSave.InvokeAsync(Media);
     }
 
     /// <summary>What produced this file, resolved for reading only. The column holds a SourceName

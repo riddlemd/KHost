@@ -428,8 +428,11 @@ public partial class MediaBrowser : IAsyncDisposable
         }
         else
         {
+            // Matches ToggleSelection and the deselect branch above, or a CDG pair's .mp3 half
+            // is left unselected by select-all.
             foreach (var entry in FilteredEntries.Where(e => !e.IsDirectory && !e.AlreadyImported))
-                _selectedPaths.Add(entry.FullPath);
+                foreach (var path in (entry.PairedPaths ?? [entry.FullPath]))
+                    _selectedPaths.Add(path);
             foreach (var entry in FilteredEntries.Where(e => e.IsDirectory && e.Name != ".."))
                 _selectedFolderPaths.Add(entry.FullPath);
         }

@@ -116,8 +116,9 @@ public partial class EditUserGroupDialog
         group.ExcludeFromSingerQueue = _model.ExcludeFromSingerQueue;
         group.Permissions = _model.IsAdmin ? [] : [.. _model.Permissions];
 
+        // DialogHost closes after awaiting this itself; closing again here would also fire
+        // OnClose's onCancel, marking a successful save as a cancel.
         await OnSave.InvokeAsync(group);
-        await CloseAsync();
     }
 
     public record DialogRequest : EditDialogRequest<KHostUserGroup>
