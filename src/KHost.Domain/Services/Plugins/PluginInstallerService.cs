@@ -128,15 +128,22 @@ public class PluginInstallerService : BaseService, IPluginInstallerService
     public void Cancel(Guid pluginId)
     {
         // Only signalled here; the install task itself settles the row, so a cancel and a download
-        // that finished a moment earlier cannot both write a terminal state.
+        // that finished a moment earlier cannot both write a terminal state. Settle may dispose the
+        // same Cts between the lookup and the call below, which Cancel() then reports by throwing.
         if (_active.TryGetValue(pluginId, out var active))
-            active.Cts.Cancel();
+            TryCancel(active);
     }
 
     public void CancelAll()
     {
         foreach (var active in _active.Values)
-            active.Cts.Cancel();
+            TryCancel(active);
+    }
+
+    private static void TryCancel(ActiveInstall active)
+    {
+        try { active.Cts.Cancel(); }
+        catch (ObjectDisposedException) { /* settled between the lookup and here; nothing to cancel */ }
     }
 
     public void MarkForRemoval(string pluginFolderName)
@@ -227,10 +234,10 @@ public class PluginInstallerService : BaseService, IPluginInstallerService
 
     private PluginInstallInfo Settle(Guid pluginId, PluginInstallState state, string? error)
     {
-        if (!_active.TryRemove(pluginId, out var active))
-            return SettleUnstarted(FallbackInfo(pluginId), error);
-
-        active.Cts.Dispose();
+        // Only InstallAsync writes _active, always after its own TryAdd succeeds, and only it
+        // calls Settle — so the entry it added is always still here to remove.
+        _active.TryRemove(pluginId, out var active);
+        active!.Cts.Dispose();
 
         var settled = active.Info with { State = state, Error = error };
 
@@ -249,14 +256,6 @@ public class PluginInstallerService : BaseService, IPluginInstallerService
 
         return settled;
     }
-
-    private PluginInstallInfo FallbackInfo(Guid pluginId) => new()
-    {
-        PluginId = pluginId,
-        Name = pluginId.ToString(),
-        Version = string.Empty,
-        StartedUtc = _timeProvider.GetUtcNow().UtcDateTime,
-    };
 
     private void AddToRecent(PluginInstallInfo info)
     {
