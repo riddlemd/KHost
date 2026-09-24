@@ -772,6 +772,255 @@ public class SingerQueueServiceTests : IDisposable
         Assert.Equal(2, _service.Users.Count);
     }
 
+    // Every public mutator that changes state saves and announces SingerQueueChanged exactly
+    // once per call, however many internal steps it takes; one that changes nothing announces
+    // nothing. AddUserAsync never touches selection (a plugin's remote sign-up must not steal the
+    // host's current selection mid-show); AddAndSelectUserAsync is the console add form's one-call
+    // add+select. SelectUserAsync no-ops a reselect of who's already selected.
+    [Fact]
+    public async Task AddUserAsync_AnnouncesExactlyOnce()
+    {
+        var announceCount = 0;
+        using var subscription = _broker.Subscribe<SingerQueueChanged>(_ => announceCount++);
+
+        await EnqueueAsync("Alice");
+
+        Assert.Equal(1, announceCount);
+    }
+
+    /// <summary>Regression: a plugin (KaraFun) signs a remote guest up mid-show via plain
+    /// AddUserAsync; it must not steal whoever the host already has selected at the console.</summary>
+    [Fact]
+    public async Task AddUserAsync_DoesNotChangeSelectedUser()
+    {
+        var alice = await EnqueueAsync("Alice");
+        await _service.SelectUserAsync(alice.Id);
+
+        var user = new KHostUser { Name = "Zoe" };
+        _userDb[user.Id] = user;
+
+        var announceCount = 0;
+        using var subscription = _broker.Subscribe<SingerQueueChanged>(_ => announceCount++);
+
+        await _service.AddUserAsync(user.Id);
+
+        Assert.Equal(1, announceCount);
+        Assert.Equal(alice.Id, _service.SelectedUserId);
+    }
+
+    /// <summary>The console's own add form: one call adds, rotates and selects the joiner, so the
+    /// host who just typed the name has that singer open next — without a follow-up SelectUserAsync
+    /// doubling the announce.</summary>
+    [Fact]
+    public async Task AddAndSelectUserAsync_SelectsTheJoiner_AndAnnouncesExactlyOnce()
+    {
+        var user = new KHostUser { Name = "Alice" };
+        _userDb[user.Id] = user;
+
+        var announceCount = 0;
+        using var subscription = _broker.Subscribe<SingerQueueChanged>(_ => announceCount++);
+
+        await _service.AddAndSelectUserAsync(user.Id);
+
+        Assert.Equal(1, announceCount);
+        Assert.Equal(user.Id, _service.SelectedUserId);
+    }
+
+    [Fact]
+    public async Task RemoveUserAsync_AnnouncesExactlyOnce()
+    {
+        var alice = await EnqueueAsync("Alice");
+
+        var announceCount = 0;
+        using var subscription = _broker.Subscribe<SingerQueueChanged>(_ => announceCount++);
+
+        await _service.RemoveUserAsync(alice.Id);
+
+        Assert.Equal(1, announceCount);
+    }
+
+    [Fact]
+    public async Task RotateQueueAsync_AnnouncesExactlyOnce_WhenSingersPresent()
+    {
+        var alice = await EnqueueAsync("Alice");
+        await EnqueueAsync("Bob");
+
+        var announceCount = 0;
+        using var subscription = _broker.Subscribe<SingerQueueChanged>(_ => announceCount++);
+
+        await _service.RotateQueueAsync(alice.Id);
+
+        Assert.Equal(1, announceCount);
+    }
+
+    [Fact]
+    public async Task RotateQueueAsync_AnnouncesNothing_WhenQueueWasAlreadyEmpty()
+    {
+        var announceCount = 0;
+        using var subscription = _broker.Subscribe<SingerQueueChanged>(_ => announceCount++);
+
+        await _service.RotateQueueAsync(Guid.NewGuid());
+
+        Assert.Equal(0, announceCount);
+    }
+
+    [Fact]
+    public async Task SelectUserAsync_AnnouncesExactlyOnce_WhenSelectionChanges()
+    {
+        var alice = await EnqueueAsync("Alice");
+        await EnqueueAsync("Bob");
+
+        var announceCount = 0;
+        using var subscription = _broker.Subscribe<SingerQueueChanged>(_ => announceCount++);
+
+        await _service.SelectUserAsync(alice.Id);
+
+        Assert.Equal(1, announceCount);
+    }
+
+    [Fact]
+    public async Task SelectUserAsync_AnnouncesNothing_WhenReselectingTheSameUser()
+    {
+        var alice = await EnqueueAsync("Alice");
+        await _service.SelectUserAsync(alice.Id);
+
+        var announceCount = 0;
+        using var subscription = _broker.Subscribe<SingerQueueChanged>(_ => announceCount++);
+
+        await _service.SelectUserAsync(alice.Id);
+
+        Assert.Equal(0, announceCount);
+    }
+
+    [Fact]
+    public async Task MoveUserUpAsync_AnnouncesExactlyOnce()
+    {
+        await EnqueueAsync("A");
+        var b = await EnqueueAsync("B");
+
+        var announceCount = 0;
+        using var subscription = _broker.Subscribe<SingerQueueChanged>(_ => announceCount++);
+
+        await _service.MoveUserUpAsync(b.Id);
+
+        Assert.Equal(1, announceCount);
+    }
+
+    [Fact]
+    public async Task MoveUserDownAsync_AnnouncesExactlyOnce()
+    {
+        var a = await EnqueueAsync("A");
+        await EnqueueAsync("B");
+
+        var announceCount = 0;
+        using var subscription = _broker.Subscribe<SingerQueueChanged>(_ => announceCount++);
+
+        await _service.MoveUserDownAsync(a.Id);
+
+        Assert.Equal(1, announceCount);
+    }
+
+    [Fact]
+    public async Task MoveUserToStartAsync_AnnouncesExactlyOnce()
+    {
+        await EnqueueAsync("A");
+        var b = await EnqueueAsync("B");
+
+        var announceCount = 0;
+        using var subscription = _broker.Subscribe<SingerQueueChanged>(_ => announceCount++);
+
+        await _service.MoveUserToStartAsync(b.Id);
+
+        Assert.Equal(1, announceCount);
+    }
+
+    [Fact]
+    public async Task MoveUserToEndAsync_AnnouncesExactlyOnce()
+    {
+        var a = await EnqueueAsync("A");
+        await EnqueueAsync("B");
+
+        var announceCount = 0;
+        using var subscription = _broker.Subscribe<SingerQueueChanged>(_ => announceCount++);
+
+        await _service.MoveUserToEndAsync(a.Id);
+
+        Assert.Equal(1, announceCount);
+    }
+
+    [Fact]
+    public async Task MoveUserToIndexAsync_AnnouncesExactlyOnce()
+    {
+        var a = await EnqueueAsync("A");
+        await EnqueueAsync("B");
+
+        var announceCount = 0;
+        using var subscription = _broker.Subscribe<SingerQueueChanged>(_ => announceCount++);
+
+        await _service.MoveUserToIndexAsync(a.Id, 1);
+
+        Assert.Equal(1, announceCount);
+    }
+
+    [Fact]
+    public async Task SelectFirstUserInQueueAsync_AnnouncesExactlyOnce()
+    {
+        await EnqueueAsync("A");
+
+        var announceCount = 0;
+        using var subscription = _broker.Subscribe<SingerQueueChanged>(_ => announceCount++);
+
+        await _service.SelectFirstUserInQueueAsync();
+
+        Assert.Equal(1, announceCount);
+    }
+
+    [Fact]
+    public async Task RefreshAsync_AnnouncesExactlyOnce()
+    {
+        await EnqueueAsync("A");
+
+        var announceCount = 0;
+        using var subscription = _broker.Subscribe<SingerQueueChanged>(_ => announceCount++);
+
+        await _service.RefreshAsync();
+
+        Assert.Equal(1, announceCount);
+    }
+
+    [Fact]
+    public async Task PruneDeletedSingersAsync_AnnouncesExactlyOnce_WhenASingerWasDeleted()
+    {
+        var bob = await EnqueueAsync("Bob");
+
+        var announceCount = 0;
+        using var subscription = _broker.Subscribe<SingerQueueChanged>(_ => announceCount++);
+
+        _userDb.Remove(bob.Id);
+        _broker.Announce(new UsersChanged());
+
+        await WaitForQueueAsync(() => _service.Users.Count == 0);
+        // Prune runs on its own Task.Run off the broker; its fire-and-forget PublishAsync can
+        // still be in flight when the state above already reads as settled.
+        await Task.Delay(50);
+
+        Assert.Equal(1, announceCount);
+    }
+
+    [Fact]
+    public async Task PruneDeletedSingersAsync_AnnouncesNothing_WhenNobodyWasDeleted()
+    {
+        await EnqueueAsync("Alice");
+
+        var announceCount = 0;
+        using var subscription = _broker.Subscribe<SingerQueueChanged>(_ => announceCount++);
+
+        _broker.Announce(new UsersChanged());
+        await Task.Delay(80);
+
+        Assert.Equal(0, announceCount);
+    }
+
     private static async Task WaitForQueueAsync(Func<bool> settled)
     {
         var deadline = DateTime.UtcNow.AddSeconds(5);

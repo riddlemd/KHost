@@ -35,8 +35,14 @@ public interface ISingerQueueService
     /// <summary>Selects a singer, or no one with null.</summary>
     Task SelectUserAsync(Guid? userId);
 
-    /// <summary>Adds a singer, placed by the venue's rotation rules.</summary>
+    /// <summary>Adds a singer, placed by the venue's rotation rules. Selection is untouched — a
+    /// remote sign-up must not steal the console's current selection mid-show.</summary>
     Task AddUserAsync(Guid userId);
+
+    /// <summary>Adds a singer, placed by the venue's rotation rules, and selects them — one change,
+    /// saved and announced once. For the console's own add form, where the host who just typed the
+    /// name expects that singer open next.</summary>
+    Task AddAndSelectUserAsync(Guid userId);
 
     /// <summary>Takes a singer out of the queue. Their queued songs stay queued.</summary>
     Task RemoveUserAsync(Guid userId);

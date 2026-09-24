@@ -115,6 +115,11 @@ public class SingerQueueService : ISingerQueueService, IDisposable
 
     public async Task SelectUserAsync(Guid? userId)
     {
+        // A reselect of who's already selected changes nothing; skipping it is what lets a caller's
+        // redundant SelectUserAsync right after AddUserAsync land as a no-op instead of a second announce.
+        if (userId == SelectedUserId)
+            return;
+
         await _lock.WaitAsync();
         try
         {
@@ -133,15 +138,27 @@ public class SingerQueueService : ISingerQueueService, IDisposable
         await _lock.WaitAsync();
         try
         {
-            _userIds.Add(userId);
-
-            _logger.LogInformation("User {UserId} added to queue", userId);
-
-            var config = await ReadRotationConfigAsync();
-
-            await ApplyRotationAsync(config, finishedSingerId: null, joiningSingerId: userId);
-
+            await AddUserLockedAsync(userId);
             await NotifyLockedAsync();
+        }
+        finally
+        {
+            _lock.Release();
+        }
+
+        PublishChanged();
+    }
+
+    // A plugin (KaraFun's remote sign-up) calls plain AddUserAsync mid-show; selecting the joiner
+    // there would steal the host's current selection out from under them. This is for the console's
+    // own add form, where the host just typed the name and expects that singer open next.
+    public async Task AddAndSelectUserAsync(Guid userId)
+    {
+        await _lock.WaitAsync();
+        try
+        {
+            await AddUserLockedAsync(userId);
+            await SelectUserLockedAsync(userId);
         }
         finally
         {
@@ -551,6 +568,19 @@ public class SingerQueueService : ISingerQueueService, IDisposable
         _analytics.RecordQueueMutation();
         await ResolveAsync();
         await SaveAsync();
+    }
+
+    // Assumes _lock is held, shared by AddUserAsync and AddAndSelectUserAsync so the two differ only
+    // in whether a select follows.
+    private async Task AddUserLockedAsync(Guid userId)
+    {
+        _userIds.Add(userId);
+
+        _logger.LogInformation("User {UserId} added to queue", userId);
+
+        var config = await ReadRotationConfigAsync();
+
+        await ApplyRotationAsync(config, finishedSingerId: null, joiningSingerId: userId);
     }
 
     // Assumes _lock is held, for RotateQueueAsync to call it without re-entering the semaphore.
