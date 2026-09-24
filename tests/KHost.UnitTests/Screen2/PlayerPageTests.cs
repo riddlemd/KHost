@@ -118,7 +118,7 @@ public class PlayerPageTests
         // Two players, stacked: a rebuilt stream is brought up behind the one still sounding and
         // swapped for it, so the room never hears the join.
         Assert.Contains("id=\"video-b\"", page);
-        Assert.Contains("function handOver(next)", page, StringComparison.Ordinal);
+        Assert.Contains("function handOver(arriving)", page, StringComparison.Ordinal);
 
         Assert.Contains("id=\"video\"", page);
         Assert.Contains("id=\"background\"", page);
@@ -181,6 +181,30 @@ public class PlayerPageTests
             StringComparison.Ordinal);
 
         Assert.Contains("cancelHandover();", fade[..600], StringComparison.Ordinal);
+    }
+
+    // Two loads inside one crossfade: the older handover's timer outlives it, and would swap in the
+    // newer stream before it has sound; and the older crossfade's retire lands on the element the
+    // newer handover has just attached to, so the rebuild never arrives.
+    [Fact]
+    public void BuildPlayerPage_Always_LetsNoSupersededHandoverSwapOrRetire()
+    {
+        var page = Program.BuildPlayerPage();
+
+        var handOver = page[page.IndexOf("function handOver(arriving)", StringComparison.Ordinal)..];
+        handOver = handOver[..handOver.IndexOf("\n}", StringComparison.Ordinal)];
+
+        // The pair is the token: only the one still in `incoming` may swap.
+        Assert.Contains("if (incoming !== arriving) return;", handOver, StringComparison.Ordinal);
+
+        // A crossfade retires its element only while nothing has taken it back.
+        Assert.Contains("const stillCrossfading = () => outgoing === leaving;", handOver, StringComparison.Ordinal);
+        Assert.Contains("if (outgoing === leaving) dropOutgoing();", handOver, StringComparison.Ordinal);
+
+        // And a handover takes the free element from the crossfade before attaching to it.
+        var load = page[page.IndexOf("function load(url, autoplay)", StringComparison.Ordinal)..];
+        load = load[..load.IndexOf("attach(arriving, url, true);", StringComparison.Ordinal)];
+        Assert.Contains("dropOutgoing();", load[load.IndexOf("Something is playing", StringComparison.Ordinal)..], StringComparison.Ordinal);
     }
 
     // Checked only after the ramp, a fade the host has already superseded goes on pulling the

@@ -82,11 +82,13 @@ internal sealed class StreamMediaPlayer : IMediaPlayer
         int tempo = 0,
         IReadOnlyList<StemSource>? stems = null)
     {
+        var rate = StreamRate.FromTempo(tempo);
+
         lock (_lock)
         {
             _info = new IMediaPlayer.MediaInfo { FilePath = url };
             _streamStartOffset = streamStartOffset;
-            _rate = StreamRate.FromTempo(tempo);
+            _rate = rate;
             _position = streamStartOffset;
             _duration = TimeSpan.Zero;
             _isPlaying = false;
@@ -105,7 +107,7 @@ internal sealed class StreamMediaPlayer : IMediaPlayer
             url,
             autoplay = false,
             songOffsetSeconds = streamStartOffset.TotalSeconds,
-            rate = StreamRate.FromTempo(tempo),
+            rate,
             stems = (stems ?? []).Select(s => new
             {
                 index = s.Index,
@@ -344,57 +346,65 @@ internal sealed class StreamMediaPlayer : IMediaPlayer
         try
         {
             using var document = JsonDocument.Parse(message);
-            var root = document.RootElement;
-            if (!root.TryGetProperty("type", out var typeProperty)) return false;
-
-            switch (typeProperty.GetString())
-            {
-                case "state":
-                    _logger.LogDebug("<- browser {Json}", message);
-                    lock (_lock)
-                    {
-                        var reported = TimeSpan.FromSeconds(root.GetProperty("position").GetDouble());
-                        _position = _streamStartOffset + (reported * _rate);
-                        _isPlaying = root.GetProperty("playing").GetBoolean();
-                        _isPaused = !_isPlaying && reported > TimeSpan.Zero;
-
-                        // The page stamps in its own clock; the offset makes it host-comparable.
-                        _sampledAtUtc = root.TryGetProperty("sampledAtEpochMs", out var stamp)
-                            ? DateTime.UnixEpoch.AddMilliseconds(stamp.GetDouble()) + _clockOffset
-                            : null;
-
-                        // Unknown until the playlist gains an ENDLIST, so zero means "not yet".
-                        if (root.TryGetProperty("duration", out var d) && d.GetDouble() > 0)
-                            _duration = _streamStartOffset + (TimeSpan.FromSeconds(d.GetDouble()) * _rate);
-                    }
-                    return true;
-
-                case "ended":
-                    lock (_lock) { _isPlaying = false; _isPaused = false; }
-                    PlaybackEnded?.Invoke(this, EventArgs.Empty);
-                    return true;
-
-                // Kept off the song's state on purpose: routing this through "ended" would run the
-                // singer's performance to completion because a bed track finished.
-                case "bg-ended":
-                    lock (_lock) _backgroundPlaying = false;
-                    BackgroundEnded?.Invoke(this, EventArgs.Empty);
-                    return true;
-
-                case "error":
-                    var text = root.TryGetProperty("message", out var m) ? m.GetString() ?? "unknown" : "unknown";
-                    _logger.LogError("Player error: {Message}", text);
-                    return true;
-
-                default:
-                    return false;
-            }
+            return HandleBrowserMessage(document.RootElement, message);
         }
         catch (JsonException)
         {
             return false;
         }
     }
+
+    /// <summary>The same, for a caller that has already parsed the message to route it.</summary>
+    public bool HandleBrowserMessage(JsonElement root, string message)
+    {
+        if (!root.TryGetProperty("type", out var typeProperty)) return false;
+
+        switch (typeProperty.GetString())
+        {
+            case "state":
+                _logger.LogDebug("<- browser {Json}", message);
+                lock (_lock)
+                {
+                    var reported = TimeSpan.FromSeconds(root.GetProperty("position").GetDouble());
+                    _position = ToSongTime(reported);
+                    _isPlaying = root.GetProperty("playing").GetBoolean();
+                    _isPaused = !_isPlaying && reported > TimeSpan.Zero;
+
+                    // The page stamps in its own clock; the offset makes it host-comparable.
+                    _sampledAtUtc = root.TryGetProperty("sampledAtEpochMs", out var stamp)
+                        ? DateTime.UnixEpoch.AddMilliseconds(stamp.GetDouble()) + _clockOffset
+                        : null;
+
+                    // Unknown until the playlist gains an ENDLIST, so zero means "not yet".
+                    if (root.TryGetProperty("duration", out var d) && d.GetDouble() > 0)
+                        _duration = ToSongTime(TimeSpan.FromSeconds(d.GetDouble()));
+                }
+                return true;
+
+            case "ended":
+                lock (_lock) { _isPlaying = false; _isPaused = false; }
+                PlaybackEnded?.Invoke(this, EventArgs.Empty);
+                return true;
+
+            // Kept off the song's state on purpose: routing this through "ended" would run the
+            // singer's performance to completion because a bed track finished.
+            case "bg-ended":
+                lock (_lock) _backgroundPlaying = false;
+                BackgroundEnded?.Invoke(this, EventArgs.Empty);
+                return true;
+
+            case "error":
+                var text = root.TryGetProperty("message", out var m) ? m.GetString() ?? "unknown" : "unknown";
+                _logger.LogError("Player error: {Message}", text);
+                return true;
+
+            default:
+                return false;
+        }
+    }
+
+    /// <summary>Where a moment in the current stream falls in the song. Call under <see cref="_lock"/>.</summary>
+    private TimeSpan ToSongTime(TimeSpan streamTime) => _streamStartOffset + (streamTime * _rate);
 
     private void Send(object payload)
     {

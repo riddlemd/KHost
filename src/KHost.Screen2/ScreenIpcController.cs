@@ -36,7 +36,7 @@ internal sealed class ScreenIpcController : IAsyncDisposable
         _player.BackgroundEnded += OnBackgroundEnded;
     }
 
-    /// <summary>Holds a scheduled start, and can be the screen the room hears.</summary>
+    /// <summary>Plays sound and picture, and stamps its reports in the host clock from the start.</summary>
     public async Task ConnectAsync(string serverUri, string screenId, byte[] authKey, CancellationToken cancellationToken = default)
     {
         await _client.ConnectAsync(
@@ -49,7 +49,7 @@ internal sealed class ScreenIpcController : IAsyncDisposable
         await ResyncClockAsync(cancellationToken);
     }
 
-    /// <summary>Clocks drift over a long night, and a stale offset biases the whole group.</summary>
+    /// <summary>Clocks drift over a long night, and a stale offset skews every report stamp.</summary>
     public async Task ResyncClockAsync(CancellationToken cancellationToken = default)
     {
         try

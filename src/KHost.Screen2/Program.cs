@@ -91,8 +91,10 @@ internal static class Program
                     player.SendToBrowser = json => window!.SendWebMessage(json);
 
                     _ = ConnectAsync(logger, serverUri, screenId, authKey);
-                    _ = PublishStateAsync();
-                    _ = ResyncClockAsync();
+                    // Position keeps the host's playhead live between commands, which only report
+                    // on completion; the resync keeps those reports' stamps honest as clocks drift.
+                    _ = RepeatAsync(TimeSpan.FromSeconds(1), () => _ipc!.SendCurrentStateAsync(), logger, _closing.Token);
+                    _ = RepeatAsync(TimeSpan.FromMinutes(5), () => _ipc!.ResyncClockAsync(), logger, _closing.Token);
 
                     // Before full screen, and here rather than at construction because both need a
                     // window that exists — the page being ready is the first moment that is true.
@@ -104,7 +106,16 @@ internal static class Program
                     return;
                 }
 
-                if (!player.HandleBrowserMessage(message)) HandleWindowMessage(window!, message, logger);
+                // Parsed once here: the player and the window each route on the same type.
+                JsonDocument document;
+                try { document = JsonDocument.Parse(message); }
+                catch (JsonException) { return; }
+
+                using (document)
+                {
+                    var root = document.RootElement;
+                    if (!player.HandleBrowserMessage(root, message)) HandleWindowMessage(window!, root, logger);
+                }
             })
             // Loaded from a file rather than handed over as a string: a string page has an opaque
             // origin, which is not a secure context, which costs the page every secure-context
@@ -295,18 +306,9 @@ internal static class Program
     }
 
     /// <summary>Handles the page messages that drive the window rather than the player.</summary>
-    private static void HandleWindowMessage(PhotinoWindow window, string message, Microsoft.Extensions.Logging.ILogger logger)
+    private static void HandleWindowMessage(PhotinoWindow window, JsonElement root, Microsoft.Extensions.Logging.ILogger logger)
     {
-        string? type;
-        try
-        {
-            using var document = JsonDocument.Parse(message);
-            type = document.RootElement.TryGetProperty("type", out var p) ? p.GetString() : null;
-        }
-        catch (JsonException)
-        {
-            return;
-        }
+        var type = root.TryGetProperty("type", out var p) ? p.GetString() : null;
 
         switch (type)
         {
@@ -455,25 +457,30 @@ internal static class Program
         return Convert.FromBase64String(File.ReadAllText(keyFilePath).Trim());
     }
 
-    /// <summary>Keeps the host's position display live; commands alone only report on completion.</summary>
-    private static async Task PublishStateAsync()
+    /// <summary>Runs <paramref name="action"/> every <paramref name="interval"/> until cancelled.</summary>
+    /// <remarks>A throw is logged and the next tick runs anyway: one failed send must not end
+    /// position reports for the rest of the night.</remarks>
+    internal static async Task RepeatAsync(
+        TimeSpan interval, Func<Task> action, Microsoft.Extensions.Logging.ILogger logger, CancellationToken cancellationToken)
     {
-        while (true)
-        {
-            await Task.Delay(TimeSpan.FromSeconds(1));
-            if (_ipc is null) return;
-            await _ipc.SendCurrentStateAsync();
-        }
-    }
+        using var timer = new PeriodicTimer(interval);
 
-    /// <summary>Machine clocks drift, and a stale offset skews the report stamps the host reads.</summary>
-    private static async Task ResyncClockAsync()
-    {
-        while (true)
+        try
         {
-            await Task.Delay(TimeSpan.FromMinutes(5));
-            if (_ipc is null) return;
-            await _ipc.ResyncClockAsync();
+            while (await timer.WaitForNextTickAsync(cancellationToken))
+            {
+                try
+                {
+                    await action();
+                }
+                catch (Exception ex)
+                {
+                    logger.LogWarning(ex, "A repeating screen task failed; it runs again next tick");
+                }
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
         }
     }
 
