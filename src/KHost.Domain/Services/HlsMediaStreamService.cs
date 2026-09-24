@@ -63,6 +63,23 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, ID
     /// Settings expects the next song to honour it, not the next launch.</summary>
     private ServiceOptions Options => _options.CurrentValue;
 
+    /// <summary>A fresh session's id and scratch directory, shared by both open paths.</summary>
+    private (string Id, string Directory) NewSession()
+    {
+        var id = Guid.NewGuid().ToString("n");
+        var directory = Path.Combine(_root, id);
+        Directory.CreateDirectory(directory);
+
+        return (id, directory);
+    }
+
+    private async Task RegisterAsync(Session session, CancellationToken cancellationToken)
+    {
+        await _lock.WaitAsync(cancellationToken);
+        try { _sessions[session.Id] = session; }
+        finally { _lock.Release(); }
+    }
+
     public async Task<MediaStreamSession> OpenWithoutEncodeAsync(
         string filePath,
         CancellationToken cancellationToken = default)
@@ -70,15 +87,10 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, ID
         if (!File.Exists(filePath))
             throw new FileNotFoundException($"Media file not found: {filePath}", filePath);
 
-        var id = Guid.NewGuid().ToString("n");
-        var directory = Path.Combine(_root, id);
-        Directory.CreateDirectory(directory);
-
+        var (id, directory) = NewSession();
         var session = new Session(id, directory, process: null);
 
-        await _lock.WaitAsync(cancellationToken);
-        try { _sessions[id] = session; }
-        finally { _lock.Release(); }
+        await RegisterAsync(session, cancellationToken);
 
         Logger.LogInformation("Opened {SessionId} for '{FilePath}' with no transcode", id, filePath);
 
@@ -108,9 +120,7 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, ID
         if (!File.Exists(filePath))
             throw new FileNotFoundException($"Media file not found: {filePath}", filePath);
 
-        var id = Guid.NewGuid().ToString("n");
-        var directory = Path.Combine(_root, id);
-        Directory.CreateDirectory(directory);
+        var (id, directory) = NewSession();
 
         // Into the session's own directory, so a converted copy is swept with the segments when
         // the session closes and nothing has to remember it exists.
@@ -138,6 +148,11 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, ID
 
         var session = new Session(id, directory, process);
 
+        // Registered with a token that never cancels: a caller giving up between Start and here
+        // must still find the process in _sessions, or nothing ever tears it down and it runs
+        // until the app exits rather than until the next CloseAsync/CloseAllAsync.
+        await RegisterAsync(session, CancellationToken.None);
+
         // ffmpeg blocks once the stderr pipe fills, so it has to be drained even when discarded.
         _ = Task.Run(async () =>
         {
@@ -146,17 +161,23 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, ID
                 Logger.LogWarning("ffmpeg for {SessionId}: {Error}", id, text.Trim());
         }, CancellationToken.None);
 
-        await _lock.WaitAsync(cancellationToken);
-        try { _sessions[id] = session; }
-        finally { _lock.Release(); }
-
-        // A URL handed out early 404s, which a media element reports as "source not supported"
-        // and never retries.
-        if (!await WaitForPlaylistAsync(directory, cancellationToken))
+        try
         {
+            // A URL handed out early 404s, which a media element reports as "source not supported"
+            // and never retries.
+            if (!await WaitForPlaylistAsync(directory, cancellationToken))
+            {
+                await CloseAsync(id);
+                throw new InvalidOperationException(
+                    $"ffmpeg produced no playlist for '{filePath}'. See the warning logged for session {id}.");
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // The session is already registered above, so a caller who gives up mid-wait still
+            // gets the process killed and the directory swept instead of it outliving this call.
             await CloseAsync(id);
-            throw new InvalidOperationException(
-                $"ffmpeg produced no playlist for '{filePath}'. See {Path.Combine(directory, "ffmpeg.log")}.");
+            throw;
         }
 
         return new MediaStreamSession
@@ -274,10 +295,11 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, ID
         //
         // Asked of the graphics, not of the companion audio: a .cdg with no .mp3 beside it is still
         // a stateful decode, and keying this off the pairing seeked it on the input and drew
-        // garbage for the one case that already had no sound.
-        var seekOnOutput = IsGraphicsOnly(filePath);
+        // garbage for the one case that already had no sound. Reused below for the frame-rate
+        // decision, which asks the same question of the same file.
+        var isGraphicsOnly = IsGraphicsOnly(filePath);
 
-        if (startOffset > TimeSpan.Zero && !seekOnOutput)
+        if (startOffset > TimeSpan.Zero && !isGraphicsOnly)
             arguments += string.Format(CultureInfo.InvariantCulture, " -ss {0:F3}", startOffset.TotalSeconds);
 
         arguments += $" -i \"{filePath}\"";
@@ -289,7 +311,7 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, ID
             arguments += $" -i \"{companionAudioPath}\" -map 0:v:0 -map 1:a:0";
         }
 
-        if (startOffset > TimeSpan.Zero && seekOnOutput)
+        if (startOffset > TimeSpan.Zero && isGraphicsOnly)
             arguments += string.Format(CultureInfo.InvariantCulture, " -ss {0:F3}", startOffset.TotalSeconds);
 
         var segment = Math.Max(1, segmentSeconds);
@@ -297,7 +319,7 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, ID
         // A .cdg only emits a frame when the graphics change, so x264 is handed a wildly variable
         // rate and encodes far more than the picture needs. Measured on two songs: 110 and 154
         // CPU-seconds without this against 33 and 44 with it, for the same segments either way.
-        if (IsGraphicsOnly(filePath))
+        if (isGraphicsOnly)
             arguments += " -r 30";
 
         // Keyframes on time, not a frame count: -g is in frames, so it matches the segment length
@@ -446,8 +468,6 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, ID
             ? string.Empty
             : FormattableString.Invariant($"setpts=PTS/{rate:F6}");
     }
-
-    internal static string ResolveFfmpeg() => ResolveFfmpegPath();
 
     private static string ResolveFfmpegPath()
     {

@@ -8,6 +8,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using System.IO.Compression;
 using System.Net;
+using System.Reflection;
 using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text;
@@ -258,6 +259,44 @@ public class PluginInstallerServiceTests : IDisposable
 
         Assert.Equal(PluginInstallState.Cancelled, (await install).State);
         Assert.Empty(service.Staged().Installs);
+    }
+
+    [Fact]
+    public async Task Cancel_CtsAlreadyDisposedBySettle_DoesNotThrow()
+    {
+        // Stands in for the race: Settle can dispose the same Cts between Cancel's lookup and its
+        // own Cancel() call, which otherwise throws ObjectDisposedException.
+        var zip = BuildZip();
+        var gate = new SemaphoreSlim(0, 1);
+        var service = BuildService(zip, gate: gate);
+
+        var install = service.InstallAsync(Entry(), Release(Sha256(zip)));
+
+        GetActiveCts(service, PluginId).Dispose();
+
+        var ex = Record.Exception(() => service.Cancel(PluginId));
+        Assert.Null(ex);
+
+        gate.Release();
+        await Record.ExceptionAsync(() => install);
+    }
+
+    /// <summary>Reaches the running install's own CancellationTokenSource, standing in for the
+    /// disposal Settle would otherwise perform mid-race.</summary>
+    private static CancellationTokenSource GetActiveCts(PluginInstallerService service, Guid pluginId)
+    {
+        var activeField = typeof(PluginInstallerService)
+            .GetField("_active", BindingFlags.NonPublic | BindingFlags.Instance)!;
+        var dictionary = activeField.GetValue(service)!;
+        var tryGetValue = dictionary.GetType().GetMethod("TryGetValue")!;
+        var args = new object?[] { pluginId, null };
+
+        Assert.True((bool)tryGetValue.Invoke(dictionary, args)!);
+
+        var active = args[1]!;
+        var ctsProperty = active.GetType().GetProperty("Cts")!;
+
+        return (CancellationTokenSource)ctsProperty.GetValue(active)!;
     }
 
     [Fact]
