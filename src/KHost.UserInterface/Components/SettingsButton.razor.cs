@@ -18,17 +18,20 @@ public partial class SettingsButton : IDisposable
     private const string ManageGroup = "Manage";
     private const string ApplicationGroup = "Application";
 
-    [Inject] private NavigationManager? NavigationManager { get; set; }
-    [Inject] private IPermissionService? Permissions { get; set; }
-    [Inject] private IAppSettingsService? AppSettings { get; set; }
-    [Inject] private IVenuesService? VenuesService { get; set; }
-    [Inject] private IThemeService? ThemeService { get; set; }
+    // [Inject] throws at property-injection time when the type is not registered, whatever the
+    // nullable annotation says, so a plain `is not null` guard below it can never be false: it was
+    // dead code, not an optional-service check.
+    [Inject] private NavigationManager NavigationManager { get; set; } = default!;
+    [Inject] private IPermissionService Permissions { get; set; } = default!;
+    [Inject] private IAppSettingsService AppSettings { get; set; } = default!;
+    [Inject] private IVenuesService VenuesService { get; set; } = default!;
+    [Inject] private IThemeService ThemeService { get; set; } = default!;
 
-    // [Inject] resolves by type and ignores the nullable annotation, so this takes the enumerable:
-    // with no display plugin installed it is simply empty.
+    // The one real exception: IEnumerable resolves to an empty sequence rather than throwing, so
+    // "no display plugin installed" is a legitimate empty collection, not a missing service.
     [Inject] private IEnumerable<IDisplayProvider> DisplayProviders { get; set; } = [];
-    [Inject] private IBreakMusicService? BreakMusic { get; set; }
-    [Inject] private IDialogService? DialogService { get; set; }
+    [Inject] private IBreakMusicService BreakMusic { get; set; } = default!;
+    [Inject] private IDialogService DialogService { get; set; } = default!;
     [Inject] private IJSRuntime JS { get; set; } = default!;
     [Inject] private IMessageBroker Broker { get; set; } = default!;
 
@@ -85,20 +88,23 @@ public partial class SettingsButton : IDisposable
     private Venue? _selectedVenue;
 
     private List<IGrouping<string, SettingsPage>> _groups = [];
+    private IReadOnlyList<IDisplayProvider> _displays = [];
 
     protected override async Task OnInitializedAsync()
     {
+        // Fixed for the component's lifetime: the set of registered providers does not change at
+        // runtime, only their connections do, so copying it once here spares every render the
+        // allocation a fresh `[.. DisplayProviders]` on each access would cost.
+        _displays = [.. DisplayProviders];
+
         // Locking a console that signs everyone in automatically would be a button to nowhere.
-        _canLock = AppSettings?.Current.RequireLogin != false;
+        _canLock = AppSettings.Current.RequireLogin != false;
 
-        if (VenuesService is not null)
-        {
-            _subscriptions.Add(Broker.Subscribe<VenuesChanged>(_ => QueueRebuild()));
+        _subscriptions.Add(Broker.Subscribe<VenuesChanged>(_ => QueueRebuild()));
 
-            // Not VenuesChanged: that one fires for any venue's edit, and which pages apply is a
-            // question about the venue the console is running.
-            _subscriptions.Add(Broker.Subscribe<SelectedVenueChanged>(_ => QueueRebuild()));
-        }
+        // Not VenuesChanged: that one fires for any venue's edit, and which pages apply is a
+        // question about the venue the console is running.
+        _subscriptions.Add(Broker.Subscribe<SelectedVenueChanged>(_ => QueueRebuild()));
 
         _subscriptions.Add(Broker.Subscribe<ThemeChanged>(_ => QueueRedraw()));
 
@@ -132,8 +138,6 @@ public partial class SettingsButton : IDisposable
 
     private async Task RefreshVenuesAsync()
     {
-        if (VenuesService is null) return;
-
         var result = await VenuesService.ReadAllAsync(pageSize: 1000);
         _selectedVenue = await VenuesService.ReadSelectedVenueAsync();
 
@@ -147,7 +151,7 @@ public partial class SettingsButton : IDisposable
 
     /// <summary>Checked against the running provider, not RendersThroughHost, which it may bypass.</summary>
     private bool VenuePlaysLocalBreakMusic
-        => BreakMusic?.LibraryProvider is { } library
+        => BreakMusic.LibraryProvider is { } library
            && BreakMusic.ActiveProvider is { } active
            && string.Equals(active.SourceName, library.SourceName, StringComparison.OrdinalIgnoreCase);
 
@@ -185,23 +189,21 @@ public partial class SettingsButton : IDisposable
 
     private async Task SelectVenueAsync(Guid venueId)
     {
-        if (VenuesService is not null)
-            await VenuesService.SelectVenueAsync(venueId);
+        await VenuesService.SelectVenueAsync(venueId);
 
         CloseMenu();
     }
 
     private async Task SelectThemeAsync(string theme)
     {
-        if (ThemeService is not null)
-            await ThemeService.SetThemeAsync(theme);
+        await ThemeService.SetThemeAsync(theme);
 
         CloseMenu();
     }
 
     // --- display ---
 
-    internal IReadOnlyList<IDisplayProvider> Displays => [.. DisplayProviders];
+    internal IReadOnlyList<IDisplayProvider> Displays => _displays;
 
     /// <summary>The one display carrying the song, if any.</summary>
     internal IDisplayProvider? LiveDisplay
@@ -209,15 +211,13 @@ public partial class SettingsButton : IDisposable
 
     /// <summary>What the row reads on the right: the device, not the transport. A host reads the
     /// room, not the wiring.</summary>
-    internal string DisplayValue
-    {
-        get
-        {
-            if (LiveDisplay is not { } live) return "None";
+    internal string DisplayValue => DisplayValueFor(LiveDisplay);
 
-            return DeviceOf(live)?.Name ?? live.Name;
-        }
-    }
+    /// <summary>Takes the live display rather than reading <see cref="LiveDisplay"/> itself, so the
+    /// markup can compute it once per render and hand it to both this and the flyout's own check
+    /// instead of walking <see cref="Displays"/> twice.</summary>
+    private static string DisplayValueFor(IDisplayProvider? live)
+        => live is null ? "None" : DeviceOf(live)?.Name ?? live.Name;
 
     private static DisplayDevice? DeviceOf(IDisplayProvider display)
         => display.Devices.FirstOrDefault(device => device.Id == display.ConnectedDeviceId)
@@ -270,14 +270,8 @@ public partial class SettingsButton : IDisposable
             return;
         }
 
-        // Off first, and every provider, or a press that fails below leaves the song on two.
-        foreach (var other in Displays)
-        {
-            if (other == provider) continue;
-            if (other.ConnectedDeviceId is not { Length: > 0 }) continue;
-
-            await SafelyAsync(() => other.DisconnectAsync());
-        }
+        // Off first, and every other provider, or a press that fails below leaves the song on two.
+        await DisconnectOthersAsync(except: provider);
 
         await SafelyAsync(() => provider.ConnectAsync(device.Id));
 
@@ -286,14 +280,22 @@ public partial class SettingsButton : IDisposable
 
     internal async Task TurnOffDisplayAsync()
     {
+        await DisconnectOthersAsync();
+
+        CloseMenu();
+    }
+
+    /// <summary>Every connected provider besides <paramref name="except"/> lets go of the song —
+    /// one display at a time across the whole system, whether switching to another or turning off.</summary>
+    private async Task DisconnectOthersAsync(IDisplayProvider? except = null)
+    {
         foreach (var display in Displays)
         {
+            if (display == except) continue;
             if (display.ConnectedDeviceId is not { Length: > 0 }) continue;
 
             await SafelyAsync(() => display.DisconnectAsync());
         }
-
-        CloseMenu();
     }
 
     /// <summary>One control for both halves, because the answer is one piece of state: a sweep is
@@ -328,7 +330,7 @@ public partial class SettingsButton : IDisposable
 
     private async Task EditVenueAsync()
     {
-        if (VenuesService is null || DialogService is null || _selectedVenue is null) return;
+        if (_selectedVenue is null) return;
 
         CloseMenu();
 
@@ -341,7 +343,7 @@ public partial class SettingsButton : IDisposable
 
     // A custom theme carries a name of its own; only a built-in is named by its filename.
     private string ThemeName(string? theme)
-        => string.IsNullOrEmpty(theme) ? "" : ThemeService?.DisplayNameFor(theme) ?? theme;
+        => string.IsNullOrEmpty(theme) ? "" : ThemeService.DisplayNameFor(theme);
 
     // The menu keeps itself open so a section can expand in place, so anything that finishes a
     // choice has to close it by hand.
@@ -353,8 +355,6 @@ public partial class SettingsButton : IDisposable
 
     private async Task<List<SettingsPage>> VisiblePagesAsync()
     {
-        if (Permissions is null) return _allPages;
-
         var visible = new List<SettingsPage>();
         var isAdmin = await Permissions.IsAdminAsync();
 
@@ -380,21 +380,21 @@ public partial class SettingsButton : IDisposable
         if (page.Opens is { } open)
             await open(this);
         else
-            NavigationManager?.NavigateTo(page.Route);
+            NavigationManager.NavigateTo(page.Route);
     }
 
-    private Task ShowShortcutsAsync() => DialogService?.ShowShortcutsAsync() ?? Task.CompletedTask;
+    private Task ShowShortcutsAsync() => DialogService.ShowShortcutsAsync();
 
     private void NavigateTo(string route)
     {
         CloseMenu();
-        NavigationManager?.NavigateTo(route);
+        NavigationManager.NavigateTo(route);
     }
 
     // Read as the menu opens rather than tracked: the items are a fragment, so this runs each time
     // the menu is rendered and there is no navigation to subscribe to.
     private string CurrentClass(string route)
-        => !string.IsNullOrEmpty(route) && IsSameRoute(new Uri(NavigationManager?.Uri ?? HomeRoute).AbsolutePath, route)
+        => !string.IsNullOrEmpty(route) && IsSameRoute(new Uri(NavigationManager.Uri).AbsolutePath, route)
             ? "kh-dropdown__item--current"
             : "";
 

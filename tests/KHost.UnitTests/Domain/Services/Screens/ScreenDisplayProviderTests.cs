@@ -162,9 +162,49 @@ public class ScreenDisplayProviderTests
         var provider = new ScreenDisplayProvider(
             NullLogger<ScreenDisplayProvider>.Instance, _screenServer, [launcher], _broker);
 
-        await provider.ConnectAsync(ScreenDisplayProvider.LocalScreenId);
+        var connectTask = provider.ConnectAsync(ScreenDisplayProvider.LocalScreenId);
 
         await launcher.Received(1).LaunchAsync(ScreenDisplayProvider.LocalScreenId, Arg.Any<CancellationToken>());
+
+        RaiseConnected(Connection(ScreenDisplayProvider.LocalScreenId, "conn-a"));
+
+        Assert.True(await connectTask.WaitAsync(TimeSpan.FromSeconds(5)));
+    }
+
+    /// <summary>The bug this closes: LaunchAsync returns as soon as the process starts, seconds
+    /// before the screen registers back. Answering false the instant the launch call returns would
+    /// report a connect that was about to succeed as a refusal.</summary>
+    [Fact]
+    public async Task ConnectAsync_WaitsForTheScreenToRegister_RatherThanReturningAsSoonAsItLaunches()
+    {
+        var launcher = AvailableLauncher();
+        var provider = new ScreenDisplayProvider(
+            NullLogger<ScreenDisplayProvider>.Instance, _screenServer, [launcher], _broker);
+
+        var connectTask = provider.ConnectAsync(ScreenDisplayProvider.LocalScreenId);
+
+        // The process has started, but nothing has registered yet: the launch alone must not answer.
+        await Task.Delay(TimeSpan.FromMilliseconds(50));
+        Assert.False(connectTask.IsCompleted);
+
+        RaiseConnected(Connection(ScreenDisplayProvider.LocalScreenId, "conn-a"));
+
+        Assert.True(await connectTask.WaitAsync(TimeSpan.FromSeconds(5)));
+    }
+
+    /// <summary>A launch that never registers — the exe missing, the screen crashing on start —
+    /// must still resolve ConnectAsync rather than hanging it forever.</summary>
+    [Fact]
+    public async Task ConnectAsync_GivesUpIfTheScreenNeverRegisters()
+    {
+        var launcher = AvailableLauncher();
+        var provider = new ScreenDisplayProvider(
+            NullLogger<ScreenDisplayProvider>.Instance, _screenServer, [launcher], _broker,
+            registrationTimeout: TimeSpan.FromMilliseconds(50));
+
+        var connected = await provider.ConnectAsync(ScreenDisplayProvider.LocalScreenId);
+
+        Assert.False(connected);
     }
 
     private static IScreenProvider AvailableLauncher()
