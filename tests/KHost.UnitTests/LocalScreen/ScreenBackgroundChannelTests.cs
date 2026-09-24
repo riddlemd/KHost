@@ -1,9 +1,9 @@
 using KHost.Abstractions.Services.IPC;
-using KHost.Screen2;
+using KHost.LocalScreen;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 
-namespace KHost.UnitTests.Screen2;
+namespace KHost.UnitTests.LocalScreen;
 
 /// <summary>The bed must stay off the song's channel both ways: report nothing, retire nothing.</summary>
 public class ScreenBackgroundChannelTests : IAsyncDisposable

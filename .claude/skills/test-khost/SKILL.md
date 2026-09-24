@@ -129,7 +129,7 @@ line count before assuming a slow UI is a rendering problem.
   and re-derive the X every time; reusing the coordinate from before a screen connected misses.
 - **Confirm a dialog closed before the next click.** A missed close leaves the next click landing on
   whatever is underneath — that is how a stray click launched a second screen mid-run.
-- **Screen2 windows open on top of the console.** Park them clear before continuing, or every
+- **LocalScreen windows open on top of the console.** Park them clear before continuing, or every
   full-screen capture after that is a black rectangle. Capturing the *window* rather than the screen
   avoids this entirely (`run-khost`).
 - **Capture scale is not click scale.** Screen coordinates are logical points; a capture may come

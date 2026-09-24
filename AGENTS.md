@@ -2,7 +2,7 @@
 
 **KHost** — karaoke host app. .NET 10 + Blazor Server UI, Photino screen app. Solution: `KHost.slnx` (no `.sln`).
 
-Projects (`src/`): `Abstractions` (every interface, the shared models, and what a plugin is built against — MIT, no project refs, the bottom layer) ← `Common` (helpers over those contracts, MIT) ← `Domain` (services) / `DataAccess` (EF Core 10 + SQLite) ← `UserInterface` (Blazor Server) and `Screen2` (Photino video output), plus `IPC.SignalR` (UI↔Screen), `Secrets` (per-OS secret store behind `ISecretStore`; `Interop/` is ported from Git Credential Manager and kept textually close to upstream), `LrcLib`, `Telemetry`, `ServiceDefaults`/`AppHost` (Aspire), `tools/` (`KHost.CatalogSync`, the CLI that writes `plugin-catalog.json` entries), `build/` (`KHost.Analyzers`, a netstandard2.0 Roslyn analyzer referenced only at build time), and `tests/` (`KHost.UnitTests` — hermetic, no skips; `KHost.IntegrationTests` — needs ffmpeg/ffprobe, and the OS secret-store tests skip on any other platform).
+Projects (`src/`): `Abstractions` (every interface, the shared models, and what a plugin is built against — MIT, no project refs, the bottom layer) ← `Common` (helpers over those contracts, MIT) ← `Domain` (services) / `DataAccess` (EF Core 10 + SQLite) ← `UserInterface` (Blazor Server) and `LocalScreen` (Photino video output), plus `IPC.SignalR` (UI↔Screen), `Secrets` (per-OS secret store behind `ISecretStore`; `Interop/` is ported from Git Credential Manager and kept textually close to upstream), `LrcLib`, `Telemetry`, `ServiceDefaults`/`AppHost` (Aspire), `tools/` (`KHost.CatalogSync`, the CLI that writes `plugin-catalog.json` entries), `build/` (`KHost.Analyzers`, a netstandard2.0 Roslyn analyzer referenced only at build time), and `tests/` (`KHost.UnitTests` — hermetic, no skips; `KHost.IntegrationTests` — needs ffmpeg/ffprobe, and the OS secret-store tests skip on any other platform).
 
 ## Commands
 
@@ -19,7 +19,7 @@ dotnet run --project tools/KHost.CatalogSync -- <owner/repo> # add a plugin's Gi
 ./build/check-secrets-drift.sh                               # diff src/KHost.Secrets/Interop against the pinned upstream commit; needs network
 ```
 
-**Prefer `--headless` for testing.** The console is then an ordinary page at `http://localhost:5251`, so it drives with browser tooling and reads with the DOM instead of screenshot coordinate math — the Photino window reaches neither, and a Screen2 window launched over it turns every later capture into a black rectangle. Only the window itself needs the windowed run: native chrome, `SetSize`, and the appliance lockdown. Port 5251 is held by an exclusive `.instance.lock`, so stop one before starting the other.
+**Prefer `--headless` for testing.** The console is then an ordinary page at `http://localhost:5251`, so it drives with browser tooling and reads with the DOM instead of screenshot coordinate math — the Photino window reaches neither, and a LocalScreen window launched over it turns every later capture into a black rectangle. Only the window itself needs the windowed run: native chrome, `SetSize`, and the appliance lockdown. Port 5251 is held by an exclusive `.instance.lock`, so stop one before starting the other.
 
 SCSS compiles inside `dotnet build` (AspNetCore.SassCompiler) — no separate sass step. The build needs `node_modules` (`npm install`) for `copy:vendors`.
 
@@ -94,7 +94,7 @@ network device meets this, and sharing it costs nothing: it is BCL plus a `DllIm
 - Never take a lock around a publish. `ScreenServerService` raises `ScreenConnected`/`ScreenDisconnected` only after releasing its own lock, for the same reason. The handlers are still `_ = Task.Run(...)` because the event is a plain `EventHandler` on the hub's thread: awaiting there directly would be `async void`.
 - Components `[Inject] IMessageBroker Broker`, subscribe in `OnInitialized`, dispose the set in `Dispose`.
 
-Four things deliberately stay plain C# events, and should stay that way: Screen2's `IMediaPlayer` and `IScreenClient` (a separate process — the broker is in-process and SignalR is the transport), `IDialogService.ShowRequested` (a request with a payload and one legitimate subscriber, not a notification), `IPlaybackService.PositionChanged` (twice a second for a whole night; it says only that `Position` moved, so take it to redraw a playhead and nothing else), and `IPlaybackService.PerformanceEnded` (a gap with a payload the subscriber fills: a request, not a notification).
+Four things deliberately stay plain C# events, and should stay that way: LocalScreen's `IMediaPlayer` and `IScreenClient` (a separate process — the broker is in-process and SignalR is the transport), `IDialogService.ShowRequested` (a request with a payload and one legitimate subscriber, not a notification), `IPlaybackService.PositionChanged` (twice a second for a whole night; it says only that `Position` moved, so take it to redraw a playhead and nothing else), and `IPlaybackService.PerformanceEnded` (a gap with a payload the subscriber fills: a request, not a notification).
 
 ## What a plugin can reach
 
@@ -197,7 +197,7 @@ cannot name another's: its secrets, and the QR code it offers the screens.
   with `PerformancePreparation`, the copy plan and the keyframe-cadence rules built on them:
   measured against streaming, the pre-render bought ~0.1–0.2s of start latency and no reliable CPU
   saving. A format the host cannot play is therefore **unplayable** until the native render path
-  lands — see `src/KHost.Screen2/RESEARCH.md`.
+  lands — see `src/KHost.LocalScreen/RESEARCH.md`.
 - **`IMediaRenderer` is not that, and will be mistaken for it.** It turns one file into something a
   display can play, and it is asked **once, when a song starts**. It produces nothing the stream
   session does not sweep, caches nothing, reports no progress, and holds no state that outlives the
@@ -233,7 +233,7 @@ cannot name another's: its secrets, and the QR code it offers the screens.
   put on it.** It finds such places, connects to one, hands it a stream, drives transport on it, and
   draws on it. It does not decide what the show is — it is told. The full shape and its reasoning
   live in `docs/display-provider.md`; this is the short form.
-  - **The screens provider is core logic, not a plugin.** Screen2 reaches the host through a
+  - **The screens provider is core logic, not a plugin.** LocalScreen reaches the host through a
     provider the host itself registers, travelling the same path a plugin's display travels.
     `PluginLoader` must not bind it and it must never appear on the Plugins page. Chromecast is the
     plugin-supplied one.

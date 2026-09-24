@@ -135,7 +135,7 @@ public sealed class DisplayDevice
 ```
 
 They sit on the device, not the provider: a provider may reach devices of differing ability, and the
-host is asking about the thing in the room. Screen2 answers true to all of them; a Cast receiver
+host is asking about the thing in the room. LocalScreen answers true to all of them; a Cast receiver
 answers false to the four drawable ones.
 
 ### One flag per overlay, not one flag for all

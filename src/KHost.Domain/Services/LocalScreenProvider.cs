@@ -114,7 +114,7 @@ public sealed class LocalScreenProvider : IScreenProvider, IDisposable
     // Path.Combine leaves a rooted second argument alone, so an absolute configured path still wins.
     internal static string ResolveExePath(string? configuredExePath, string baseDirectory, bool isWindows)
         => Path.Combine(baseDirectory, string.IsNullOrWhiteSpace(configuredExePath)
-            ? isWindows ? "KHost.Screen2.exe" : "KHost.Screen2"
+            ? isWindows ? "KHost.LocalScreen.exe" : "KHost.LocalScreen"
             : configuredExePath);
 
     // Must stay one element per argument: screen ids are generated as "Screen 1", and a single

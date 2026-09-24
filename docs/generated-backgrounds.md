@@ -29,8 +29,8 @@ its own graphics, so a background behind it would be covered up anyway.
    Default Media Receiver, `CC1AD845` (in the Chromecast plugin's own repo), loaded with a plain
    content URL. There is no receiver app of ours, so there is no page on which to draw an
    overlay.
-5. **Screen2 has no drawing surface.** No `<canvas>`, no WebGL, no `AudioContext` anywhere in
-   `src/KHost.Screen2/screen-ui/`. Every overlay is DOM — marquee, QR codes, break-music card,
+5. **LocalScreen has no drawing surface.** No `<canvas>`, no WebGL, no `AudioContext` anywhere in
+   `src/KHost.LocalScreen/screen-ui/`. Every overlay is DOM — marquee, QR codes, break-music card,
    next-singer card, still image — pushed as `IScreenCommand` JSON
    (`src/KHost.Abstractions/Services/IPC/ScreenCommands.cs`). `requestAnimationFrame` appears only
    in two volume-fade loops. There is no WebAudio tap on the HLS stream, so the browser has no
@@ -42,7 +42,7 @@ its own graphics, so a background behind it would be covered up anyway.
 
 ## Where the picture has to be made
 
-| | In the ffmpeg render | In the Screen2 browser layer |
+| | In the ffmpeg render | In the LocalScreen browser layer |
 |---|---|---|
 | Reaches Chromecast | yes | **no** — stock receiver, no page |
 | Cost | an encode, unless copied | free |

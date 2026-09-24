@@ -1,7 +1,7 @@
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 
-namespace KHost.Screen2;
+namespace KHost.LocalScreen;
 
 /// <summary>Where a screen's window was last left, so it comes back there.</summary>
 internal sealed record WindowPlacement(int Left, int Top, int Width, int Height, bool FullScreen);

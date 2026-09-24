@@ -5,7 +5,7 @@ using KHost.Abstractions.MediaPlayer;
 using Microsoft.Extensions.Logging;
 using KHost.Common.Media;
 
-namespace KHost.Screen2;
+namespace KHost.LocalScreen;
 
 /// <summary>IMediaPlayer over an HTML &lt;video&gt; on the host's HLS stream.</summary>
 /// <remarks>Nothing is decoded here; every property is a cache of what the page last reported.</remarks>

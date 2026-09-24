@@ -1,6 +1,6 @@
-using KHost.Screen2;
+using KHost.LocalScreen;
 
-namespace KHost.UnitTests.Screen2;
+namespace KHost.UnitTests.LocalScreen;
 
 public class PlayerPageTests
 {

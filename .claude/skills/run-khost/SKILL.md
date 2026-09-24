@@ -177,22 +177,22 @@ merely dying. Both exit in ~2s and release 5251; lingering past ~5s is a bug, no
 
 **A launched screen outlives the host by design** (it shows "Lost the host" and keeps retrying,
 backing off to every 15s, then clears the banner and re-registers when a host is back). Kill any
-`KHost.Screen2` during cleanup: a host that died without revoking its key leaves one the next
+`KHost.LocalScreen` during cleanup: a host that died without revoking its key leaves one the next
 host you start will accept.
 
 Then restore the cache backup with the host stopped, and prove the restore from the relaunch log.
 
-## Screen2 by hand
+## LocalScreen by hand
 
 Prefer the Screens dialog's **Launch** button — it provisions the key and passes the arguments.
-Launching by hand needs a key first: `--key-file` is required, and Screen2 dies on startup with
+Launching by hand needs a key first: `--key-file` is required, and LocalScreen dies on startup with
 "No --key-file was given" without one.
 
 The key is 32 random bytes, base64, at `cache/screens/<sha256-hex-of-screen-id>.key` — the id is
 hashed, so the filename never matches the screen's name.
 
 ```bash
-dotnet run --project src/KHost.Screen2 -- \
+dotnet run --project src/KHost.LocalScreen -- \
   --server-uri http://localhost:5251/ipc/screen \
   --screen-id hand-test \
   --key-file "<cache>/screens/<hash>.key" \
@@ -224,7 +224,7 @@ slash (`//PID`).
 
 **Find the host process.** In Debug the UI project sets `UseAppHost=false`, so it runs as `dotnet
 exec …/KHost.UserInterface.dll` rather than as its own executable — match on the **dll path**,
-which is true either way. (Screen2 keeps its apphost and is still a `KHost.Screen2` process.)
+which is true either way. (LocalScreen keeps its apphost and is still a `KHost.LocalScreen` process.)
 - macOS/Linux: `pgrep -fl "KHost.UserInterface.dll"`
 - Windows: `Get-Process | Where-Object { $_.CommandLine -like '*KHost.UserInterface.dll*' }`
 
@@ -244,8 +244,8 @@ executable, and that is the identity a signed KHost should be trusting.
   (posts `WM_CLOSE`; `Stop-Process` and `taskkill /F` are hard kills and skip it)
 
 **Kill a stray screen**
-- macOS/Linux: `pkill -f KHost.Screen2`
-- Windows: `Stop-Process -Name KHost.Screen2 -ErrorAction SilentlyContinue`
+- macOS/Linux: `pkill -f KHost.LocalScreen`
+- Windows: `Stop-Process -Name KHost.LocalScreen -ErrorAction SilentlyContinue`
 
 **Count leftover ffmpeg** — must print 0 cleanly, not error.
 - macOS/Linux: `pgrep -c ffmpeg || echo 0`

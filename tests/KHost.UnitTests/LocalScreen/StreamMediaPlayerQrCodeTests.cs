@@ -1,10 +1,10 @@
 using System.Text.Json;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services.IPC;
-using KHost.Screen2;
+using KHost.LocalScreen;
 using Microsoft.Extensions.Logging.Abstractions;
 
-namespace KHost.UnitTests.Screen2;
+namespace KHost.UnitTests.LocalScreen;
 
 /// <summary>The page's CSS fallbacks match the host's defaults, so a dropped value looked right.</summary>
 public class StreamMediaPlayerQrCodeTests

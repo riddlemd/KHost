@@ -12,7 +12,7 @@
       therefore prompts on every rebuild (dotnet/sdk#22544). Running through the shared `dotnet`
       host instead gives one stable identity across builds.
 
-      Not Screen2: LocalScreenProvider launches it by executable path, and it has no keychain of
+      Not LocalScreen: LocalScreenProvider launches it by executable path, and it has no keychain of
       its own to be prompted for. Not Release either, where a published KHost is a real signed
       executable and is the identity the keychain should be trusting.
     -->
@@ -53,7 +53,7 @@
     <ProjectReference Include="..\KHost.Domain\KHost.Domain.csproj" />
     <ProjectReference Include="..\KHost.Telemetry\KHost.Telemetry.csproj" />
     <ProjectReference Include="..\KHost.IPC.SignalR\KHost.IPC.SignalR.csproj" />
-    <ProjectReference Include="..\KHost.Screen2\KHost.Screen2.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\KHost.LocalScreen\KHost.LocalScreen.csproj" ReferenceOutputAssembly="false" />
   </ItemGroup>
 
   <ItemGroup>
@@ -84,7 +84,7 @@
     <Copy SourceFiles="@(WwwrootFiles)" DestinationFiles="@(WwwrootFiles->'$(OutputPath)wwwroot\%(RecursiveDir)%(Filename)%(Extension)')" />
   </Target>
 
-  <!-- CopyScreen2ToOutput only runs after Build, so publish emitted an apphost with no managed dll
+  <!-- CopyLocalScreenToOutput only runs after Build, so publish emitted an apphost with no managed dll
        and none of the natives — IsAvailable saw the apphost and offered a screen that died on
        launch. A file copy cannot fix it: a self-contained publish pulls natives from runtime packs
        that never appear in the screen's build output, so the screen publishes itself here. -->
@@ -94,21 +94,21 @@
            anchors it to this project otherwise. -->
       <_HostPublishDir>$([System.IO.Path]::GetFullPath('$(PublishDir)', '$(MSBuildProjectDirectory)'))</_HostPublishDir>
     </PropertyGroup>
-    <MSBuild Projects="$(MSBuildProjectDirectory)\..\KHost.Screen2\KHost.Screen2.csproj" Targets="Publish" Properties="Configuration=$(Configuration);&#xA;                         TargetFramework=$(TargetFramework);&#xA;                         RuntimeIdentifier=$(RuntimeIdentifier);&#xA;                         SelfContained=$(SelfContained);&#xA;                         PublishDir=$(_HostPublishDir)" />
+    <MSBuild Projects="$(MSBuildProjectDirectory)\..\KHost.LocalScreen\KHost.LocalScreen.csproj" Targets="Publish" Properties="Configuration=$(Configuration);&#xA;                         TargetFramework=$(TargetFramework);&#xA;                         RuntimeIdentifier=$(RuntimeIdentifier);&#xA;                         SelfContained=$(SelfContained);&#xA;                         PublishDir=$(_HostPublishDir)" />
   </Target>
 
   <!-- The screen is a separate executable, so the host has to carry a copy of it. -->
-  <Target Name="CopyScreen2ToOutput" AfterTargets="Build">
-    <MSBuild Projects="$(MSBuildProjectDirectory)\..\KHost.Screen2\KHost.Screen2.csproj" Targets="GetTargetPath" Properties="Configuration=$(Configuration);Platform=$(Platform);BaseOutputPath=$(BaseOutputPath)">
-      <Output TaskParameter="TargetOutputs" ItemName="_Screen2Exe" />
+  <Target Name="CopyLocalScreenToOutput" AfterTargets="Build">
+    <MSBuild Projects="$(MSBuildProjectDirectory)\..\KHost.LocalScreen\KHost.LocalScreen.csproj" Targets="GetTargetPath" Properties="Configuration=$(Configuration);Platform=$(Platform);BaseOutputPath=$(BaseOutputPath)">
+      <Output TaskParameter="TargetOutputs" ItemName="_LocalScreenExe" />
     </MSBuild>
     <PropertyGroup>
-      <Screen2OutputDir>@(_Screen2Exe->'%(RootDir)%(Directory)')</Screen2OutputDir>
+      <LocalScreenOutputDir>@(_LocalScreenExe->'%(RootDir)%(Directory)')</LocalScreenOutputDir>
     </PropertyGroup>
     <ItemGroup>
-      <Screen2Files Include="$(Screen2OutputDir)**\*" />
+      <LocalScreenFiles Include="$(LocalScreenOutputDir)**\*" />
     </ItemGroup>
-    <Copy SourceFiles="@(Screen2Files)" DestinationFiles="@(Screen2Files->'$(OutputPath)%(RecursiveDir)%(Filename)%(Extension)')" />
+    <Copy SourceFiles="@(LocalScreenFiles)" DestinationFiles="@(LocalScreenFiles->'$(OutputPath)%(RecursiveDir)%(Filename)%(Extension)')" />
   </Target>
 
 

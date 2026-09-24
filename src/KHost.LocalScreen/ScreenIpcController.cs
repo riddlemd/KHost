@@ -2,7 +2,7 @@ using KHost.Abstractions.Models;
 using KHost.Abstractions.Services.IPC;
 using Microsoft.Extensions.Logging;
 
-namespace KHost.Screen2;
+namespace KHost.LocalScreen;
 
 internal sealed class ScreenIpcController : IAsyncDisposable
 {
