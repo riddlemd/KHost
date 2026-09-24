@@ -188,8 +188,7 @@ public partial class SingerQueuePanel : IAsyncDisposable
                    .FirstOrDefault(u => u.Name.Equals(name, StringComparison.OrdinalIgnoreCase))
             ?? await UsersService.CreateAsync(new KHostUser { Name = name });
 
-        await SingerQueueService.AddUserAsync(user.Id);
-        await SingerQueueService.SelectUserAsync(user.Id);
+        await SingerQueueService.AddAndSelectUserAsync(user.Id);
 
         _pickedSinger = null;
         _newSingerName = string.Empty;

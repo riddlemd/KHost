@@ -45,6 +45,15 @@ public class HomePageFocusTests : BunitContext
             return Task.CompletedTask;
         });
 
+        // The add form's one call now adds and selects together; a bare AddUserAsync (a plugin's
+        // remote sign-up) must not move this fixture's selection.
+        _queue.AddAndSelectUserAsync(Arg.Any<Guid>()).Returns(callInfo =>
+        {
+            var id = callInfo.ArgAt<Guid>(0);
+            _selectedUser = _queuedUsers.FirstOrDefault(u => u.Id == id);
+            return Task.CompletedTask;
+        });
+
         // The combo box's own debounced search overload also needs a non-null result, unread here.
         _users.SearchAsync(Arg.Any<string>()).Returns(new PaginatedResult<KHostUser>());
         _users.SearchAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<int>(), Arg.Any<UserSearchOptions>())
