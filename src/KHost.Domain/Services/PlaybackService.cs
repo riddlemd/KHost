@@ -75,7 +75,6 @@ public class PlaybackService : BaseService, IPlaybackService, IPlaybackProgram, 
     private readonly IPerformanceService _performanceService;
     private readonly IVenuesService _venuesService;
     private readonly IAnalyticsService _analytics;
-    private readonly IScreenServer _screenServer;
     private readonly IMediaStreamService _mediaStreams;
     private readonly IMediaRendererService _renderers;
     private readonly IReadOnlyList<IDisplayProvider> _displays;
@@ -124,7 +123,6 @@ public class PlaybackService : BaseService, IPlaybackService, IPlaybackProgram, 
         IPerformanceService performanceService,
         IVenuesService venuesService,
         IAnalyticsService analytics,
-        IScreenServer screenServer,
         IMediaStreamService mediaStreams,
         IMediaRendererService renderers,
         IEnumerable<IDisplayProvider> displayProviders,
@@ -141,7 +139,6 @@ public class PlaybackService : BaseService, IPlaybackService, IPlaybackProgram, 
         _performanceService = performanceService;
         _venuesService = venuesService;
         _analytics = analytics;
-        _screenServer = screenServer;
         _mediaStreams = mediaStreams;
         _renderers = renderers;
         // Every display the host can reach, screens included — the screens are a provider too.
@@ -153,11 +150,10 @@ public class PlaybackService : BaseService, IPlaybackService, IPlaybackProgram, 
         _mediaGate = mediaGate;
         _flash = flash;
 
-        _screenServer.ScreenConnected += OnScreenConnected;
-        _screenServer.ScreenDisconnected += OnScreenDisconnected;
-        _screenServer.StateReceived += OnScreenStateReceived;
         foreach (var display in _displays)
             display.PlaybackStatusChanged += OnDisplayStatusReceived;
+
+        // A display joining, rejoining or going away, screens included: each says so here.
         _displaySubscription = _broker.Subscribe<DisplaysChanged>(message => { _ = Task.Run(SyncDisplaySessionAsync); });
     }
 
@@ -703,11 +699,8 @@ public class PlaybackService : BaseService, IPlaybackService, IPlaybackProgram, 
     {
         if (disposing)
         {
-            _screenServer.ScreenConnected -= OnScreenConnected;
-            _screenServer.ScreenDisconnected -= OnScreenDisconnected;
-            _screenServer.StateReceived -= OnScreenStateReceived;
             foreach (var display in _displays)
-            display.PlaybackStatusChanged -= OnDisplayStatusReceived;
+                display.PlaybackStatusChanged -= OnDisplayStatusReceived;
             _displaySubscription?.Dispose();
             _displaySubscription = null;
 
@@ -717,16 +710,10 @@ public class PlaybackService : BaseService, IPlaybackService, IPlaybackProgram, 
         }
     }
 
-    // Raised while ScreenServerService holds the same non-reentrant lock GetConnectedScreensAsync
-    // waits on, so this work must leave the hub thread or it deadlocks.
-    private void OnScreenConnected(object? sender, ScreenConnectionEventArgs e) =>
-        _ = Task.Run(SyncNewScreenAsync);
-
-    private void OnScreenDisconnected(object? sender, ScreenConnectionEventArgs e) =>
-        _ = Task.Run(HandleScreenLossAsync);
-
-    /// <summary>A receiver has no timeline of its own, so it sits idle until the next load.</summary>
-    /// <remarks>Keyed on session rather than device, to catch a restarted receiver too.</remarks>
+    /// <summary>Hands the running song to a display on a session it has not had it on.</summary>
+    /// <remarks>Keyed on session rather than device: a restarted receiver and a screen that dropped
+    /// and came back are the same device having forgotten everything. A display with no session
+    /// at all is the other half of the same news, and may mean the song has lost its way out.</remarks>
     private async Task SyncDisplaySessionAsync()
     {
         var joined = _displays.FirstOrDefault(display => display.SessionId is not null);
@@ -734,6 +721,7 @@ public class PlaybackService : BaseService, IPlaybackService, IPlaybackProgram, 
         if (joined?.SessionId is null)
         {
             _displaySessionId = null;
+            await HandleDisplayLossAsync();
             return;
         }
 
@@ -748,53 +736,26 @@ public class PlaybackService : BaseService, IPlaybackService, IPlaybackProgram, 
 
             var media = CurrentMedia;
 
-            // Hand over the transcode already running rather than opening a second one; if there is none,
-            // whatever starts next loads itself: an image has no stream a device could take.
-            if (_rendition is not { Url.Length: > 0 }
-                || media is null
-                || MediaFormats.IsImage(media.Format)) return;
+            // Mid-render (a load, or a song ending): whatever is rendering sends its own load, which
+            // reaches this display too. Replaying here as well opens a second transcode nothing
+            // closes. A still or nothing at all is a picture, which the display draws for itself.
+            if (_rendition is not { } rendition || media is null || MediaFormats.IsImage(media.Format)) return;
+
+            // Stems alone reach only a display that mixes; anything else needs the encoded stream.
+            var mixes = joined.Devices.FirstOrDefault(d => d.Id == joined.ConnectedDeviceId)?.SupportsStemMix == true;
+            if (rendition.Url is not { Length: > 0 } && !(mixes && rendition.Stems.Count > 0)) return;
+
+            // Reloading costs a spin-up; a running clock resumes the display behind the UI.
+            StopClock();
 
             Logger.LogInformation(
                 "Display session is new; loading '{Title}' at {Position}", media.Title, Position);
 
-            await ReplayOntoDisplayAsync(media, seekPast: _rendition.StartOffset);
+            await ReplayOntoDisplayAsync(media, seekPast: rendition.StartOffset);
         }
         catch (Exception ex)
         {
-            // Never rethrown: this runs detached, where nothing observes it.
-            Logger.LogError(ex, "Failed to load the song onto a new display session");
-        }
-        finally { _screenSyncLock.Release(); }
-    }
-
-    /// <summary>A screen joining mid-session has nothing loaded, so PlayCommand alone is rejected.</summary>
-    private async Task SyncNewScreenAsync()
-    {
-        await _screenSyncLock.WaitAsync();
-        try
-        {
-            var media = CurrentMedia;
-
-            // A still or nothing at all is a picture, which the screen draws for itself on
-            // connecting. Reloading a still would try to transcode it.
-            if (media is null || MediaFormats.IsImage(media.Format))
-                return;
-
-            // Mid-render (a load, or a song ending): whatever is rendering sends its own load, which
-            // reaches this screen too. Rendering here as well opens a second transcode nothing closes.
-            if (_rendition is null)
-                return;
-
-            // Reloading costs an ffmpeg spin-up; a running clock resumes the screen behind the UI.
-            StopClock();
-
-            Logger.LogInformation("Screen connected; reloading '{Title}' at {Position}", media.Title, Position);
-
-            await ReplayOntoDisplayAsync(media, seekPast: TimeSpan.Zero);
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Failed to sync a newly connected screen");
+            Logger.LogError(ex, "Failed to sync a newly connected display");
         }
         finally
         {
@@ -806,7 +767,7 @@ public class PlaybackService : BaseService, IPlaybackService, IPlaybackProgram, 
         }
     }
 
-    private async Task HandleScreenLossAsync()
+    private async Task HandleDisplayLossAsync()
     {
         await _screenSyncLock.WaitAsync();
         try
@@ -831,7 +792,7 @@ public class PlaybackService : BaseService, IPlaybackService, IPlaybackProgram, 
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Failed to handle screen disconnect");
+            Logger.LogError(ex, "Failed to handle a display going away");
         }
         finally
         {
@@ -1243,35 +1204,22 @@ public class PlaybackService : BaseService, IPlaybackService, IPlaybackProgram, 
         _ => Task.CompletedTask,
     };
 
-    /// <summary>Follows the position the screen reached, not one the host asserts.</summary>
-    /// <remarks>An HLS stream starts on a segment boundary, so an asserted clock is off from the first frame.</remarks>
-    private void OnScreenStateReceived(object? sender, ScreenStateReceivedEventArgs e)
-    {
-        if (State != PlaybackState.Playing) return;
-        if (e.State is not ScreenPlaybackState state) return;
-        if (!state.IsPlaying || state.SampledAtUtc is not { } sampledAt) return;
-
-        // The screen defines the song position, so the host's own clock follows it rather than
-        // free-running: the timer is only an interpolator between these reports.
-        var now = DateTime.UtcNow;
-
-        Position = state.Position + ((now - sampledAt) * Rate);
-        _lastTick = now;
-    }
-
-    /// <summary>A receiver buffers seconds, so a free-running timer would end a song too soon.</summary>
-    /// <remarks>The singer would rotate away while the room still hears it.</remarks>
+    /// <summary>Follows the position the display reached, not one the host asserts.</summary>
+    /// <remarks>An HLS stream starts on a segment boundary, so an asserted clock is off from the
+    /// first frame, and a receiver buffers seconds, so a free-running one ends a song too soon and
+    /// rotates the singer away while the room still hears it. The timer only interpolates between
+    /// these reports.</remarks>
     private void OnDisplayStatusReceived(object? sender, DisplayPlaybackStatus status)
     {
         if (State != PlaybackState.Playing || !status.IsPlaying) return;
 
-        // A screen is the better clock: its reports are timestamped against a measured offset,
-        // where a receiver's are only timestamped on arrival.
-        // Read off the provider's event-tracked connection, which never waits on the hub's lock.
-        if (_displays.OfType<ScreenDisplayProvider>().Any(screens => screens.ConnectedDeviceId is not null)) return;
+        // The display carrying the song defines its clock; a report from any other is stale.
+        if (ConnectedDisplay.Find(_displays)?.Provider is not { } carrying || !ReferenceEquals(sender, carrying)) return;
 
-        Position = status.Position + ((DateTime.UtcNow - status.SampledAtUtc) * Rate);
-        _lastTick = DateTime.UtcNow;
+        var now = DateTime.UtcNow;
+
+        Position = status.Position + ((now - status.SampledAtUtc) * Rate);
+        _lastTick = now;
     }
 
     private async void OnTick(object? state)

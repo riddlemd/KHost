@@ -149,7 +149,6 @@ public class BreakMusicServiceTests : IDisposable
             Substitute.For<IMediaPoolService>(),
             Substitute.For<IMediaService>(),
             Substitute.For<IMediaStreamService>(),
-            Substitute.For<IScreenServer>(),
             [Substitute.For<IDisplayProvider>()],
             _venues, _broker);
 

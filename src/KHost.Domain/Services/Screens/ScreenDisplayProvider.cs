@@ -99,6 +99,7 @@ public sealed class ScreenDisplayProvider : IDisplayProvider, IStartsWithTheHost
 
         _screenServer.ScreenConnected += OnScreenConnected;
         _screenServer.ScreenDisconnected += OnScreenDisconnected;
+        _screenServer.StateReceived += OnStateReceived;
 
         // The venue owns the level, and everything about how the marquee, the codes and the card
         // look, including whether each is there at all.
@@ -126,11 +127,14 @@ public sealed class ScreenDisplayProvider : IDisplayProvider, IStartsWithTheHost
     /// choosing between, next to receivers that really are places in the room.</summary>
     public string Name => "Local Display";
 
-    /// <summary>Never raised: a screen reports its own position over IPC, not through here.</summary>
-    public event EventHandler<DisplayPlaybackStatus>? PlaybackStatusChanged
-    {
-        add { } remove { }
-    }
+    /// <summary>The screen's own report of where the song is, timestamped against its measured offset.</summary>
+    /// <remarks>Raised on the hub thread, as the server raises it; a handler must not wait on anything.</remarks>
+    public event EventHandler<DisplayPlaybackStatus>? PlaybackStatusChanged;
+
+    /// <summary>The second channel's track played out on its own, so whoever filled it owes another.</summary>
+    /// <remarks>Domain-only: the second channel has no timeline in the contract, and only the
+    /// library's break music, which rides it through this provider, needs to hear this.</remarks>
+    public event EventHandler? BackgroundTrackEnded;
 
     // --- finding devices ---
 
@@ -213,8 +217,9 @@ public sealed class ScreenDisplayProvider : IDisplayProvider, IStartsWithTheHost
 
     public string? ConnectedDeviceId => ConnectedScreen()?.ScreenId;
 
-    /// <summary>A screen keeps no session of its own; the host's connection is the session.</summary>
-    public Guid? SessionId => null;
+    /// <summary>One per registration, so a screen that drops and comes back is a new session that
+    /// holds nothing, and the host hands it the song again.</summary>
+    public Guid? SessionId => _connected?.Id;
 
     /// <summary>Opens the screen if it is not already up. Refused while a different one is.</summary>
     /// <remarks>Launching only starts the process; the screen still has to register back over IPC,
@@ -562,6 +567,28 @@ public sealed class ScreenDisplayProvider : IDisplayProvider, IStartsWithTheHost
         Redraw(Overlay.All | Overlay.Connected);
     }
 
+    /// <summary>Hands the screen's reports on as a display's: the song's clock, or the bed ending.</summary>
+    private void OnStateReceived(object? sender, ScreenStateReceivedEventArgs e)
+    {
+        switch (e.State)
+        {
+            // Unsampled means the screen has no measured offset yet, and an unanchored report would
+            // move the playhead by however long it spent in flight.
+            case ScreenPlaybackState { SampledAtUtc: { } sampledAt } state:
+                PlaybackStatusChanged?.Invoke(this, new DisplayPlaybackStatus
+                {
+                    Position = state.Position,
+                    IsPlaying = state.IsPlaying,
+                    SampledAtUtc = sampledAt,
+                });
+                break;
+
+            case ScreenBackgroundState { HasEnded: true }:
+                BackgroundTrackEnded?.Invoke(this, EventArgs.Empty);
+                break;
+        }
+    }
+
     /// <summary>Matched on the connection, not the screen id: a screen coming back under the same
     /// id is already tracked by the time its old connection's disconnect arrives, and clearing on
     /// the id would take the live one down with the stale one.</summary>
@@ -579,6 +606,7 @@ public sealed class ScreenDisplayProvider : IDisplayProvider, IStartsWithTheHost
     {
         _screenServer.ScreenConnected -= OnScreenConnected;
         _screenServer.ScreenDisconnected -= OnScreenDisconnected;
+        _screenServer.StateReceived -= OnStateReceived;
         _subscriptions.Dispose();
     }
 
