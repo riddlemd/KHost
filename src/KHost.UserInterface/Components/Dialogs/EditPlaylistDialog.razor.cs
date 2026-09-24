@@ -33,14 +33,9 @@ public partial class EditPlaylistDialog
     private List<MediaPoolEntry> _entries = [];
     private IReadOnlyList<MediaPool> _poolChoices = [];
 
-    /// <summary>Titles for the entries already in the list, so a row can name what it plays.</summary>
-    private readonly Dictionary<Guid, string> _titles = [];
-
-    /// <summary>Formats alongside them: only a video answers for its own length.</summary>
-    private readonly Dictionary<Guid, string> _formats = [];
-
-    /// <summary>Lengths too, so a row can show what it will run for before it is overridden.</summary>
-    private readonly Dictionary<Guid, TimeSpan?> _durations = [];
+    /// <summary>The media behind the entries already in the list, so a row can name what it plays,
+    /// answer for its own format, and show what it will run for before it is overridden.</summary>
+    private readonly Dictionary<Guid, Media> _media = [];
 
     /// <summary>One row of the picker: different things, same choice, a combo box binds one type.</summary>
     /// <param name="Group">Its heading in the menu. The caller groups by sorting; the box never reorders.</param>
@@ -68,10 +63,7 @@ public partial class EditPlaylistDialog
             // Copied rather than bound: Cancel has to leave the stored playlist untouched.
             _entries = [.. (Pool?.Entries ?? []).OrderBy(e => e.Position).Select(Copy)];
 
-
-            _addOpen = false;
-            _addChoice = null;
-            _addText = "";
+            ResetAdd();
 
             await LoadChoicesAsync();
         }
@@ -106,19 +98,13 @@ public partial class EditPlaylistDialog
     /// <summary>Rows already in the playlist: pickers search the library, no list held here.</summary>
     private async Task LoadEntryTitlesAsync()
     {
-        _titles.Clear();
-        _formats.Clear();
-        _durations.Clear();
+        _media.Clear();
 
         foreach (var id in _entries.SelectMany(e => new[] { e.MediaId, e.AudioMediaId })
                      .OfType<Guid>().Distinct())
         {
             if (await Media.ReadAsync(id) is { } media)
-            {
-                _titles[id] = media.Title;
-                _formats[id] = media.Format;
-                _durations[id] = media.Duration;
-            }
+                _media[id] = media;
         }
     }
 
@@ -126,7 +112,7 @@ public partial class EditPlaylistDialog
     private static string Describe(Media media)
         => string.IsNullOrWhiteSpace(media.Artist) ? media.Title : $"{media.Title} - {media.Artist}";
 
-    private string TitleFor(Guid id) => _titles.GetValueOrDefault(id, "(missing)");
+    private string TitleFor(Guid id) => _media.TryGetValue(id, out var media) ? media.Title : "(missing)";
 
     private string DescribeEntry(MediaPoolEntry entry)
     {
@@ -142,13 +128,12 @@ public partial class EditPlaylistDialog
     }
 
     /// <summary>Never the karaoke library: those are backing tracks with no singer on them.</summary>
-    private Task<IReadOnlyList<Media>> SearchMediaAsync(string term) => SearchAsync(term,
-        Purpose == PoolPurpose.Ads
-            ? [MediaType.Video, MediaType.Audio, MediaType.Image]
-            : [MediaType.Audio]);
-
-    private async Task<IReadOnlyList<Media>> SearchAsync(string term, MediaType[] types)
+    private async Task<IReadOnlyList<Media>> SearchMediaAsync(string term)
     {
+        MediaType[] types = Purpose == PoolPurpose.Ads
+            ? [MediaType.Video, MediaType.Audio, MediaType.Image]
+            : [MediaType.Audio];
+
         // Capped: the box is for finding one row, and a thousand of them help nobody.
         var page = await Media.SearchAsync(term, 1, 50, sort: null, new MediaSearchOptions { Types = types });
 
@@ -169,16 +154,17 @@ public partial class EditPlaylistDialog
     {
         // A video answers for itself.
         if (entry.MediaId is { } visualId
-            && _formats.TryGetValue(visualId, out var format)
-            && !MediaFormats.IsImage(format)
-            && _durations.GetValueOrDefault(visualId) is { } visualLength)
+            && _media.TryGetValue(visualId, out var visual)
+            && !MediaFormats.IsImage(visual.Format)
+            && visual.Duration is { } visualLength)
         {
             return Seconds(visualLength);
         }
 
         // A still with a voiceover runs to the end of the voiceover, so the two finish together.
         if (entry.AudioMediaId is { } audioId
-            && _durations.GetValueOrDefault(audioId) is { } audioLength)
+            && _media.TryGetValue(audioId, out var audio)
+            && audio.Duration is { } audioLength)
         {
             return Seconds(audioLength - (entry.AudioStart ?? TimeSpan.Zero));
         }
@@ -229,19 +215,23 @@ public partial class EditPlaylistDialog
 
         if (choice.Media is { } media)
         {
-            _titles[media.Id] = media.Title;
-            _formats[media.Id] = media.Format;
-            _durations[media.Id] = media.Duration;
+            _media[media.Id] = media;
 
-            _entries.Add(new MediaPoolEntry { Id = Guid.NewGuid(), MediaId = media.Id, Position = _entries.Count });
+            _entries.Add(new MediaPoolEntry { Id = Guid.NewGuid(), MediaId = media.Id });
         }
         else if (choice.Pool is { } pool)
         {
-            _entries.Add(new MediaPoolEntry { Id = Guid.NewGuid(), ChildPoolId = pool.Id, Position = _entries.Count });
+            _entries.Add(new MediaPoolEntry { Id = Guid.NewGuid(), ChildPoolId = pool.Id });
         }
 
         // Collapsed again: the row it made is the confirmation, and the dialog goes back to being
         // mostly the list it is for.
+        ResetAdd();
+    }
+
+    /// <summary>Position is overwritten by index just before save, so a new entry needs none here.</summary>
+    private void ResetAdd()
+    {
         _addOpen = false;
         _addChoice = null;
         _addText = "";

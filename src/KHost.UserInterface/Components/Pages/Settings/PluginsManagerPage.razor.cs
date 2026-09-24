@@ -116,7 +116,7 @@ public partial class PluginsManagerPage : IDisposable
     private static bool CanEnable(DiscoveredPlugin plugin, bool enabled)
         => plugin.Status is not (PluginStatus.Errored or PluginStatus.Incompatible) || enabled;
 
-    private async Task ToggleAsync(string pluginId, bool enabled)
+    private async Task SetEnabledAsync(string pluginId, bool enabled)
     {
         await PluginsService.SetEnabledAsync(pluginId, enabled);
 
@@ -399,9 +399,7 @@ public partial class PluginsManagerPage : IDisposable
         {
             var id = entry.Id.ToString();
 
-            await PluginsService.SetEnabledAsync(id, true);
-
-            _enabledIds.Add(id);
+            await SetEnabledAsync(id, true);
 
             await InvokeAsync(StateHasChanged);
         }
@@ -425,19 +423,13 @@ public partial class PluginsManagerPage : IDisposable
             // Only a first install enabled anything. Undoing an update leaves the installed copy
             // running, so disabling there would switch off a plugin the host never touched.
             if (GetInstalledVersion(pluginId) is null)
-            {
-                await PluginsService.SetEnabledAsync(id, false);
-
-                _enabledIds.Remove(id);
-            }
+                await SetEnabledAsync(id, false);
         }
         else if (IsPendingRemoval(pluginId, staged) && WasLoadedAtStartup(pluginId))
         {
             // Loaded is the only honest signal that it was enabled when this process started; a
             // plugin already switched off before the removal was marked stays off.
-            await PluginsService.SetEnabledAsync(id, true);
-
-            _enabledIds.Add(id);
+            await SetEnabledAsync(id, true);
         }
     }
 
@@ -470,11 +462,7 @@ public partial class PluginsManagerPage : IDisposable
 
         if (!restoreEnabled) return;
 
-        var id = manifest.Id.ToString();
-
-        await PluginsService.SetEnabledAsync(id, true);
-
-        _enabledIds.Add(id);
+        await SetEnabledAsync(manifest.Id.ToString(), true);
     }
 
     private async Task ConfirmUninstallAsync(DiscoveredPlugin plugin)
@@ -492,9 +480,7 @@ public partial class PluginsManagerPage : IDisposable
                 // copy of the same plugin stays installed would disable the copy that is running.
                 if (Plugins.Count(p => p.Manifest?.Id == manifest.Id) > 1) return;
 
-                await PluginsService.SetEnabledAsync(manifest.Id.ToString(), false);
-
-                _enabledIds.Remove(manifest.Id.ToString());
+                await SetEnabledAsync(manifest.Id.ToString(), false);
             },
             title: $"Remove {plugin.DisplayName}",
             confirmText: "Remove");

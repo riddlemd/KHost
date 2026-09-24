@@ -297,7 +297,7 @@
                                                aria-label="@($"Enable {plugin.DisplayName}")"
                                                checked="@enabled"
                                                disabled="@(!CanEnable(plugin, enabled))"
-                                               @onchange="e => ToggleAsync(plugin.Id, (bool)(e.Value ?? false))" />
+                                               @onchange="e => SetEnabledAsync(plugin.Id, (bool)(e.Value ?? false))" />
                                     </label>
                                 </div>
                             </div>

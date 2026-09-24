@@ -1,12 +1,11 @@
 @using KHost.Abstractions.Models
 @using KHost.Abstractions.Repositories
 @using KHost.Abstractions.Services
-@using System.Collections.Concurrent
 
 <div class="kh-card">
             <div class="kh-card__header">
                 <span class="kh-card__title"><Icon Name="folder2-open" /> Media Importer</span>
-                @if (ImportService!.State != ImportState.Idle)
+                @if (ImportService.State != ImportState.Idle)
                 {
                     <span class="kh-media-importer__progress">
                         @if (ImportService.State == ImportState.Cancelling)
@@ -117,7 +116,7 @@
                         <Icon Name="@(_breadcrumbEditMode ? "check-lg" : "pencil")" />
                     </button>
                     <button class="kh-button--icon-minimal"
-                            disabled="@(ImportService!.State != ImportState.Idle)"
+                            disabled="@(ImportService.State != ImportState.Idle)"
                             @onclick="RefreshAsync"
                             type="button"
                             title="Refresh">
@@ -151,7 +150,7 @@
                                           class="@(!HasNewFiles && !HasSelectableFolders ? "kh-media-importer__check kh-media-importer__check--disabled" : "kh-media-importer__check")"
                                           @onclick="OnSelectAllClicked" />
                                 </th>
-                                <th class="kh-media-importer__col--sortable" @onclick="() => OnSortColumnClicked(SortColumn.Name)" style="cursor: pointer;">
+                                <th class="kh-media-importer__col--sortable" @onclick="() => OnSortColumnClicked(SortColumn.Name)">
                                     Name
                                     @if (_sortColumn == SortColumn.Name)
                                     {
@@ -159,21 +158,21 @@
                                     }
                                 </th>
                                 <th class="kh-media-importer__col--type">Type</th>
-                                <th class="kh-media-importer__col--size kh-media-importer__col--sortable" @onclick="() => OnSortColumnClicked(SortColumn.Size)" style="cursor: pointer;">
+                                <th class="kh-media-importer__col--size kh-media-importer__col--sortable" @onclick="() => OnSortColumnClicked(SortColumn.Size)">
                                     Size
                                     @if (_sortColumn == SortColumn.Size)
                                     {
                                         <Icon Name="@(_sortAsc ? "sort-up" : "sort-down")" class="kh-media-importer__sort-indicator" />
                                     }
                                 </th>
-                                <th class="kh-media-importer__col--modified kh-media-importer__col--sortable" @onclick="() => OnSortColumnClicked(SortColumn.Modified)" style="cursor: pointer;">
+                                <th class="kh-media-importer__col--modified kh-media-importer__col--sortable" @onclick="() => OnSortColumnClicked(SortColumn.Modified)">
                                     Modified
                                     @if (_sortColumn == SortColumn.Modified)
                                     {
                                         <Icon Name="@(_sortAsc ? "sort-up" : "sort-down")" class="kh-media-importer__sort-indicator" />
                                     }
                                 </th>
-                                <th class="kh-media-importer__col--status kh-media-importer__col--sortable" @onclick="() => OnSortColumnClicked(SortColumn.Status)" style="cursor: pointer;">
+                                <th class="kh-media-importer__col--status kh-media-importer__col--sortable" @onclick="() => OnSortColumnClicked(SortColumn.Status)">
                                     Status
                                     @if (_sortColumn == SortColumn.Status)
                                     {
@@ -187,7 +186,6 @@
                             {
                                 <tr class="@(entry.IsDirectory ? "kh-media-importer__row--dir" : "") @(entry.IsDirectory && _selectedFolderPaths.Contains(entry.FullPath) ? "kh-media-importer__row--dir--selected" : "")"
                                     @onclick="() => OnEntryClickAsync(entry)"
-                                    @onmouseover="() => GetParsedMetadataTooltip(entry)"
                                     title="@GetParsedMetadataTooltip(entry)">
                                     <td class="kh-media-importer__col--check" @onclick:stopPropagation>
                                         @if (entry.IsDirectory && entry.Name != "..")
@@ -203,7 +201,7 @@
                                                   @onclick="() => ToggleSelection(entry)" />
                                         }
                                     </td>
-                                    <td class="kh-table__cell--fill" title="@GetParsedMetadataTooltip(entry)">
+                                    <td class="kh-table__cell--fill">
                                         @if (entry.IsDirectory)
                                         {
                                             <Icon Name="folder-fill" />

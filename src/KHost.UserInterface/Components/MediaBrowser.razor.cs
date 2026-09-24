@@ -10,13 +10,13 @@ using KHost.Abstractions.Models;
 
 namespace KHost.UserInterface.Components;
 
-public partial class MediaBrowser : IAsyncDisposable
+public partial class MediaBrowser : IDisposable
 {
     private enum SortColumn { Name, Type, Status, Size, Modified }
 
-    [Inject] private IMediaImportService? ImportService { get; set; }
-    [Inject] private IMediaRepository? MediaRepository { get; set; }
-    [Inject] private IMediaFileParsingService? ParsingService { get; set; }
+    [Inject] private IMediaImportService ImportService { get; set; } = default!;
+    [Inject] private IMediaRepository MediaRepository { get; set; } = default!;
+    [Inject] private IMediaFileParsingService ParsingService { get; set; } = default!;
     [Inject] private IMessageBroker Broker { get; set; } = default!;
 
     private readonly SubscriptionSet _subscriptions = new();
@@ -68,10 +68,21 @@ public partial class MediaBrowser : IAsyncDisposable
 
     private bool HasSelectableFolders => FilteredEntries.Any(e => e.IsDirectory && e.Name != "..");
 
+    // Filtering and sorting are pure functions of these five fields, and the list is read up to
+    // eight times per render (HasNewFiles, HasSelectableFolders, the select-all icon, the row loop,
+    // the empty check): cached against them rather than rebuilt on every access.
+    private (List<FileEntry> Entries, string Query, bool HideImported, SortColumn Column, bool Ascending)? _filteredEntriesKey;
+    private List<FileEntry> _filteredEntriesCache = [];
+
     private List<FileEntry> FilteredEntries
     {
         get
         {
+            var key = (_entries, _filterQuery, _hideImported, _sortColumn, _sortAsc);
+
+            if (_filteredEntriesKey is { } cached && cached.Equals(key))
+                return _filteredEntriesCache;
+
             var filtered = _entries.AsEnumerable();
 
             if (!string.IsNullOrWhiteSpace(_filterQuery))
@@ -90,25 +101,11 @@ public partial class MediaBrowser : IAsyncDisposable
             var folders = filtered.Where(e => e.IsDirectory && e.Name != "..").ToList();
             var files = filtered.Where(e => !e.IsDirectory).ToList();
 
-            folders = _sortColumn switch
-            {
-                SortColumn.Name => _sortAsc ? folders.OrderBy(e => e.Name).ToList() : folders.OrderByDescending(e => e.Name).ToList(),
-                SortColumn.Type => folders,
-                SortColumn.Status => folders,
-                SortColumn.Size => folders,
-                SortColumn.Modified => _sortAsc ? folders.OrderBy(e => e.ModifiedDate).ToList() : folders.OrderByDescending(e => e.ModifiedDate).ToList(),
-                _ => folders
-            };
-
-            files = _sortColumn switch
-            {
-                SortColumn.Name => _sortAsc ? files.OrderBy(e => e.Name).ToList() : files.OrderByDescending(e => e.Name).ToList(),
-                SortColumn.Type => _sortAsc ? files.OrderBy(e => e.Extension).ToList() : files.OrderByDescending(e => e.Extension).ToList(),
-                SortColumn.Status => _sortAsc ? files.OrderBy(e => e.AlreadyImported).ToList() : files.OrderByDescending(e => e.AlreadyImported).ToList(),
-                SortColumn.Size => _sortAsc ? files.OrderBy(e => e.Size).ToList() : files.OrderByDescending(e => e.Size).ToList(),
-                SortColumn.Modified => _sortAsc ? files.OrderBy(e => e.ModifiedDate).ToList() : files.OrderByDescending(e => e.ModifiedDate).ToList(),
-                _ => files
-            };
+            // Folders only ever answer for Name and Modified; the other columns key on fields that
+            // are the same for every folder (blank extension, never imported, zero size), so a
+            // stable sort by them leaves the folder order exactly as it found it.
+            folders = _sortAsc ? folders.OrderBy(SortKey).ToList() : folders.OrderByDescending(SortKey).ToList();
+            files = _sortAsc ? files.OrderBy(SortKey).ToList() : files.OrderByDescending(SortKey).ToList();
 
             var result = new List<FileEntry>();
             if (parentEntry is not null)
@@ -116,9 +113,20 @@ public partial class MediaBrowser : IAsyncDisposable
             result.AddRange(folders);
             result.AddRange(files);
 
+            _filteredEntriesKey = key;
+            _filteredEntriesCache = result;
             return result;
         }
     }
+
+    private object SortKey(FileEntry entry) => _sortColumn switch
+    {
+        SortColumn.Type => entry.Extension,
+        SortColumn.Status => entry.AlreadyImported,
+        SortColumn.Size => entry.Size,
+        SortColumn.Modified => entry.ModifiedDate,
+        _ => entry.Name,
+    };
 
     private bool AllNewSelected
     {
@@ -153,19 +161,18 @@ public partial class MediaBrowser : IAsyncDisposable
         if (Directory.Exists(musicPath))
             await NavigateToAsync(musicPath);
         else
-            await LoadDrivesAsync();
+            LoadDrives();
     }
 
-    private Task LoadDrivesAsync()
+    private void LoadDrives()
     {
         _currentPath = null;
         _pathInput = string.Empty;
         _filterQuery = string.Empty;
         _entries = DriveInfo.GetDrives()
             .Where(d => d.IsReady)
-            .Select(d => new FileEntry(d.RootDirectory.FullName, d.Name.TrimEnd('\\'), true, string.Empty, false, 0, DateTime.MinValue, null, null, null, null))
+            .Select(d => new FileEntry(d.RootDirectory.FullName, d.Name.TrimEnd('\\'), true, string.Empty, false, 0, DateTime.MinValue, null, null))
             .ToList();
-        return Task.CompletedTask;
     }
 
     private async Task NavigateToAsync(string path)
@@ -179,7 +186,7 @@ public partial class MediaBrowser : IAsyncDisposable
 
         try
         {
-            var supportedExts = ImportService!.SupportedExtensions.ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var supportedExts = ImportService.SupportedExtensions.ToHashSet(StringComparer.OrdinalIgnoreCase);
 
             dirs = Directory.GetDirectories(path)
                 .Select(d =>
@@ -201,8 +208,6 @@ public partial class MediaBrowser : IAsyncDisposable
                         0,
                         Directory.GetLastWriteTime(d),
                         fileCount > 0 ? fileCount : null,
-                        null,
-                        null,
                         null);
                 })
                 .OrderBy(e => e.Name)
@@ -218,7 +223,7 @@ public partial class MediaBrowser : IAsyncDisposable
             return;
         }
 
-        var existingInDb = await MediaRepository!.GetExistingFilePathsAsync(filePaths);
+        var existingInDb = await MediaRepository.GetExistingFilePathsAsync(filePaths);
 
         var files = filePaths
             .Select(f =>
@@ -233,15 +238,13 @@ public partial class MediaBrowser : IAsyncDisposable
                     fileInfo.Length,
                     fileInfo.LastWriteTime,
                     null,
-                    null,
-                    null,
                     null);
             })
             .OrderBy(e => e.Name)
             .ToList();
 
         var parent = Directory.GetParent(path);
-        var parentEntry = new FileEntry(parent?.FullName ?? string.Empty, "..", true, string.Empty, false, 0, DateTime.MinValue, null, null, null, null);
+        var parentEntry = new FileEntry(parent?.FullName ?? string.Empty, "..", true, string.Empty, false, 0, DateTime.MinValue, null, null);
 
         files = GroupKaraokePairs(files);
 
@@ -255,7 +258,7 @@ public partial class MediaBrowser : IAsyncDisposable
 
         var parent = Directory.GetParent(_currentPath);
         if (parent is null)
-            await LoadDrivesAsync();
+            LoadDrives();
         else
             await NavigateToAsync(parent.FullName);
     }
@@ -304,7 +307,7 @@ public partial class MediaBrowser : IAsyncDisposable
     private async Task RefreshAsync()
     {
         if (_currentPath is null)
-            await LoadDrivesAsync();
+            LoadDrives();
         else
             await NavigateToAsync(_currentPath);
     }
@@ -332,7 +335,7 @@ public partial class MediaBrowser : IAsyncDisposable
 
         _ = Task.Run(async () =>
         {
-            if (ParsingService is not null && !_parsedMetadataCache.ContainsKey(entry.FullPath))
+            if (!_parsedMetadataCache.ContainsKey(entry.FullPath))
             {
                 try
                 {
@@ -381,7 +384,7 @@ public partial class MediaBrowser : IAsyncDisposable
         if (entry.IsDirectory)
         {
             if (string.IsNullOrEmpty(entry.FullPath))
-                await LoadDrivesAsync();
+                LoadDrives();
             else
                 await NavigateToAsync(entry.FullPath);
         }
@@ -462,7 +465,7 @@ public partial class MediaBrowser : IAsyncDisposable
         _videoKind = kind;
         VideoIsKaraoke = kind == VideoImportKind.Karaoke;
 
-        ImportService!.TypeOverrides.Clear();
+        ImportService.TypeOverrides.Clear();
     }
 
     /// <summary>"Music" rather than "Audio", since the Karaoke row beside it is audio too.</summary>
@@ -480,11 +483,11 @@ public partial class MediaBrowser : IAsyncDisposable
            && MediaFormats.VideoExtensions.Contains(Path.GetExtension(entry.FullPath).ToLowerInvariant());
 
     /// <summary>Whether the host has spoken for this row, as opposed to it taking the batch answer.</summary>
-    private bool IsOverridden(FileEntry entry) => ImportService!.TypeOverrides.ContainsKey(entry.FullPath);
+    private bool IsOverridden(FileEntry entry) => ImportService.TypeOverrides.ContainsKey(entry.FullPath);
 
     /// <summary>What this file is being imported as, with the host's own answer taking precedence.</summary>
     private MediaType TypeFor(FileEntry entry)
-        => ImportService!.TypeOverrides.TryGetValue(entry.FullPath, out var chosen)
+        => ImportService.TypeOverrides.TryGetValue(entry.FullPath, out var chosen)
             ? chosen
             : MediaFormats.TypeForFile(entry.FullPath, VideoIsKaraoke);
 
@@ -495,9 +498,9 @@ public partial class MediaBrowser : IAsyncDisposable
         var batch = MediaFormats.TypeForFile(entry.FullPath, VideoIsKaraoke);
 
         if (flipped == batch)
-            ImportService!.TypeOverrides.Remove(entry.FullPath);
+            ImportService.TypeOverrides.Remove(entry.FullPath);
         else
-            ImportService!.TypeOverrides[entry.FullPath] = flipped;
+            ImportService.TypeOverrides[entry.FullPath] = flipped;
     }
 
     /// <summary>Only worth asking where it changes something: stills have no video to call ads.</summary>
@@ -509,8 +512,8 @@ public partial class MediaBrowser : IAsyncDisposable
     /// <summary>Bound through the service, not kept here: a local copy would survive navigating.</summary>
     private bool VideoIsKaraoke
     {
-        get => ImportService!.VideoIsKaraoke;
-        set => ImportService!.VideoIsKaraoke = value;
+        get => ImportService.VideoIsKaraoke;
+        set => ImportService.VideoIsKaraoke = value;
     }
 
     private async Task StartImportAsync()
@@ -526,7 +529,7 @@ public partial class MediaBrowser : IAsyncDisposable
 
         if (folderPaths.Count > 0)
         {
-            var supportedExts = ImportService!.SupportedExtensions.ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var supportedExts = ImportService.SupportedExtensions.ToHashSet(StringComparer.OrdinalIgnoreCase);
             var folderFiles = await Task.Run(() =>
             {
                 var results = new List<string>();
@@ -547,34 +550,27 @@ public partial class MediaBrowser : IAsyncDisposable
                 filePaths.Add(f);
         }
 
-        await ImportService!.StartAsync(filePaths);
+        await ImportService.StartAsync(filePaths);
     }
 
     private void OnImportStateChanged(MediaImportChanged message) =>
         _ = InvokeAsync(async () =>
         {
-            var state = ImportService!.State;
+            var state = ImportService.State;
+            var justFinished = _prevImportState != ImportState.Idle && state == ImportState.Idle;
 
-            if (_prevImportState != ImportState.Idle && state == ImportState.Idle && _currentPath is not null)
+            _prevImportState = state;
+
+            if (justFinished && _currentPath is not null)
             {
-                _prevImportState = state;
                 await NavigateToAsync(_currentPath);
                 await OnImportCompleted.InvokeAsync();
-            }
-            else
-            {
-                _prevImportState = state;
             }
 
             StateHasChanged();
         });
 
-    async ValueTask IAsyncDisposable.DisposeAsync()
-    {
-        _subscriptions.Dispose();
-
-        await Task.CompletedTask;
-    }
+    public void Dispose() => _subscriptions.Dispose();
 
     internal sealed record FileEntry(
         string FullPath,
@@ -585,7 +581,5 @@ public partial class MediaBrowser : IAsyncDisposable
         long Size,
         DateTime ModifiedDate,
         int? SupportedFileCount,
-        List<string>? PairedPaths,
-        string? ParsedTitle,
-        string? ParsedArtist);
+        List<string>? PairedPaths);
 }

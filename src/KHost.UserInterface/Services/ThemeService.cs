@@ -124,7 +124,7 @@ public class ThemeService : IThemeService
         CurrentTheme = themeName;
         await _cacheService.SaveAsync(CacheKey, themeName);
         _logger.LogInformation("Theme changed: {From} -> {To}", previous, themeName);
-        _ = _broker.PublishAsync(new ThemeChanged());
+        _broker.Announce(new ThemeChanged());
     }
 
     public ThemeDefinition? Read(string id)
@@ -182,23 +182,21 @@ public class ThemeService : IThemeService
         // stranding SetEnabledAsync refuses, reached through the other door.
         var enabled = theme.IsEnabled || IdMatches(CurrentTheme, theme.Id);
 
-        await _lock.WaitAsync();
-
-        try
+        var stored = new ThemeDefinition
         {
-            var stored = new ThemeDefinition
-            {
-                Id = theme.Id,
-                Name = theme.Name.Trim(),
-                IsBuiltIn = false,
-                Variables = theme.Variables
-                    .Where(v => ThemeVariableCatalog.Find(v.Key) is { } field && ThemeCss.IsValidFor(field, v.Value))
-                    .ToDictionary(v => v.Key, v => v.Value.Trim(), StringComparer.Ordinal)
-            };
+            Id = theme.Id,
+            Name = theme.Name.Trim(),
+            IsBuiltIn = false,
+            Variables = theme.Variables
+                .Where(v => ThemeVariableCatalog.Find(v.Key) is { } field && ThemeCss.IsValidFor(field, v.Value))
+                .ToDictionary(v => v.Key, v => v.Value.Trim(), StringComparer.Ordinal)
+        };
 
+        await CommitAsync(store =>
+        {
             // Rebuilt rather than mutated: AllThemes walks these lists without taking the lock, so
             // one must never grow under a reader midway through a render.
-            var custom = new List<ThemeDefinition>(_store.Custom);
+            var custom = new List<ThemeDefinition>(store.Custom);
             var index = custom.FindIndex(t => IdMatches(t.Id, stored.Id));
 
             if (index >= 0)
@@ -206,19 +204,13 @@ public class ThemeService : IThemeService
             else
                 custom.Add(stored);
 
-            var disabled = _store.Disabled.Where(d => !IdMatches(d, stored.Id)).ToList();
+            var disabled = store.Disabled.Where(d => !IdMatches(d, stored.Id)).ToList();
 
             if (!enabled)
                 disabled.Add(stored.Id);
 
-            var next = new ThemeStore { Custom = custom, Disabled = disabled };
-            await _cacheService.SaveAsync(StoreCacheKey, next);
-            _store = next;
-        }
-        finally
-        {
-            _lock.Release();
-        }
+            return new ThemeStore { Custom = custom, Disabled = disabled };
+        });
 
         _logger.LogInformation("Theme saved: {ThemeId}", theme.Id);
         Announce(theme.Id);
@@ -234,74 +226,61 @@ public class ThemeService : IThemeService
             return;
         }
 
-        await _lock.WaitAsync();
-
-        try
+        await CommitAsync(store => new ThemeStore
         {
-            var next = new ThemeStore
-            {
-                Custom = [.. _store.Custom.Where(t => !IdMatches(t.Id, id))],
-                Disabled = [.. _store.Disabled.Where(d => !IdMatches(d, id))]
-            };
-
-            await _cacheService.SaveAsync(StoreCacheKey, next);
-            _store = next;
-        }
-        finally
-        {
-            _lock.Release();
-        }
+            Custom = [.. store.Custom.Where(t => !IdMatches(t.Id, id))],
+            Disabled = [.. store.Disabled.Where(d => !IdMatches(d, id))]
+        });
 
         _logger.LogInformation("Theme deleted: {ThemeId}", id);
 
         if (IdMatches(CurrentTheme, id))
             await FallBackAsync();
 
-        _ = _broker.PublishAsync(new ThemesChanged());
+        _broker.Announce(new ThemesChanged());
     }
 
     public async Task SetEnabledAsync(string id, bool enabled)
     {
-        var theme = Read(id);
-
-        if (theme is null || theme.IsEnabled == enabled)
-            return;
-
-        // Both guards exist so the pickers can never be emptied out from underneath a running show:
-        // the theme on screen has to stay reachable, and something has to remain to switch to.
-        if (!enabled && IdMatches(CurrentTheme, id))
+        // Guards live inside the lock, not read ahead of it: two concurrent disables racing on the
+        // same theme would otherwise both pass on the pre-commit state and the second one — already
+        // past the check — would redundantly disable and re-announce a theme the first one settled.
+        var committed = await CommitAsync(store =>
         {
-            _logger.LogWarning("SetEnabledAsync refused — {ThemeId} is the theme in use", id);
-            return;
-        }
+            var theme = Read(id);
 
-        if (!enabled && AvailableThemes.Count <= 1)
-        {
-            _logger.LogWarning("SetEnabledAsync refused — {ThemeId} is the last enabled theme", id);
-            return;
-        }
+            if (theme is null || theme.IsEnabled == enabled)
+                return null;
 
-        await _lock.WaitAsync();
+            // Both guards exist so the pickers can never be emptied out from underneath a running
+            // show: the theme on screen has to stay reachable, and something has to remain to
+            // switch to.
+            if (!enabled && IdMatches(CurrentTheme, id))
+            {
+                _logger.LogWarning("SetEnabledAsync refused — {ThemeId} is the theme in use", id);
+                return null;
+            }
 
-        try
-        {
-            var disabled = _store.Disabled.Where(d => !IdMatches(d, id)).ToList();
+            if (!enabled && AvailableThemes.Count <= 1)
+            {
+                _logger.LogWarning("SetEnabledAsync refused — {ThemeId} is the last enabled theme", id);
+                return null;
+            }
+
+            var disabled = store.Disabled.Where(d => !IdMatches(d, id)).ToList();
 
             if (!enabled)
                 disabled.Add(theme.Id);
 
             // Custom is handed on by reference: nothing mutates a stored list once it is published.
-            var next = new ThemeStore { Custom = _store.Custom, Disabled = disabled };
-            await _cacheService.SaveAsync(StoreCacheKey, next);
-            _store = next;
-        }
-        finally
-        {
-            _lock.Release();
-        }
+            return new ThemeStore { Custom = store.Custom, Disabled = disabled };
+        });
+
+        if (!committed)
+            return;
 
         _logger.LogInformation("Theme {ThemeId} {State}", id, enabled ? "enabled" : "disabled");
-        _ = _broker.PublishAsync(new ThemesChanged());
+        _broker.Announce(new ThemesChanged());
     }
 
     public async Task<ThemeDefinition?> CloneAsync(string sourceId)
@@ -354,10 +333,35 @@ public class ThemeService : IThemeService
 
     private void Announce(string themeId)
     {
-        _ = _broker.PublishAsync(new ThemesChanged());
+        _broker.Announce(new ThemesChanged());
 
         if (IdMatches(CurrentTheme, themeId))
-            _ = _broker.PublishAsync(new ThemeChanged());
+            _broker.Announce(new ThemeChanged());
+    }
+
+    /// <summary>Rebuilds the theme store under the lock and publishes it, or no-ops if <paramref
+    /// name="build"/> returns null.</summary>
+    /// <remarks>The callback runs while the lock is held, so a guard inside it — unlike one read
+    /// ahead of <see cref="_lock"/> — sees the result of whatever the previous holder committed.</remarks>
+    private async Task<bool> CommitAsync(Func<ThemeStore, ThemeStore?> build)
+    {
+        await _lock.WaitAsync();
+
+        try
+        {
+            var next = build(_store);
+
+            if (next is null)
+                return false;
+
+            await _cacheService.SaveAsync(StoreCacheKey, next);
+            _store = next;
+            return true;
+        }
+        finally
+        {
+            _lock.Release();
+        }
     }
 
     private async Task FallBackAsync()
@@ -371,7 +375,7 @@ public class ThemeService : IThemeService
         CurrentTheme = next;
         await _cacheService.SaveAsync(CacheKey, next);
         _logger.LogInformation("Theme fell back to {ThemeId}", next);
-        _ = _broker.PublishAsync(new ThemeChanged());
+        _broker.Announce(new ThemeChanged());
     }
 
     private string BuildCopyName(string baseName)
