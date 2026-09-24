@@ -98,7 +98,6 @@ const CROSSFADE_MS = 120;
 // A decode glitch can usually be recovered in place, but a source that never decodes would
 // otherwise recover forever, so give up and let the host hear about it.
 const MAX_MEDIA_RECOVERIES = 2;
-let mediaRecoveries = 0;
 
 /// Drops a handover that has not swapped yet, leaving whatever is playing alone.
 function cancelHandover() {
@@ -125,22 +124,38 @@ function detachHls() {
     }
 }
 
-function onHlsError(_, data) {
-    if (!data.fatal) return;
+/// One per instance. An instance starts as the incoming half of a handover and becomes the playing
+/// one on the swap, so which it is has to be asked when the error arrives, not when it is wired.
+function hlsErrorHandler(instance) {
+    let mediaRecoveries = 0;
 
-    if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
-        hls.startLoad();
-        return;
-    }
+    return (_, data) => {
+        if (!data.fatal) return;
 
-    if (data.type === Hls.ErrorTypes.MEDIA_ERROR && mediaRecoveries < MAX_MEDIA_RECOVERIES) {
-        mediaRecoveries++;
-        hls.recoverMediaError();
-        return;
-    }
+        // A replacement that fails is dropped, and the stream the room is hearing stays up.
+        if (instance === incomingHls) {
+            reportError(`hls (handover): ${data.details}`);
+            cancelHandover();
+            return;
+        }
 
-    reportError(`hls: ${data.details}`);
-    detachHls();
+        // Retired or replaced: nothing it drives is being heard any more.
+        if (instance !== hls) return;
+
+        if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+            instance.startLoad();
+            return;
+        }
+
+        if (data.type === Hls.ErrorTypes.MEDIA_ERROR && mediaRecoveries < MAX_MEDIA_RECOVERIES) {
+            mediaRecoveries++;
+            instance.recoverMediaError();
+            return;
+        }
+
+        reportError(`hls: ${data.details}`);
+        detachHls();
+    };
 }
 
 function load(url, autoplay) {
@@ -184,8 +199,6 @@ function load(url, autoplay) {
 
 /// Wires one element to a stream. The engine dance below is why this is shared rather than copied.
 function attach(el, url, autoplay, keep) {
-    mediaRecoveries = 0;
-
     if (!window.Hls || !Hls.isSupported()) {
         reportError('this webview cannot run hls.js: no Media Source Extensions');
         return;
@@ -194,7 +207,7 @@ function attach(el, url, autoplay, keep) {
     const instance = new Hls({ preferManagedMediaSource: false });
     keep(instance);
 
-    instance.on(Hls.Events.ERROR, onHlsError);
+    instance.on(Hls.Events.ERROR, hlsErrorHandler(instance));
     // Autoplay waits for the manifest: the media element has nothing to play until then.
     instance.on(Hls.Events.MANIFEST_PARSED, () => {
         if (autoplay) el.play().catch((e) => reportError(`play: ${e}`));
@@ -232,19 +245,44 @@ function handOver(next) {
     outgoing.style.transition = `opacity ${CROSSFADE_MS}ms linear`;
     outgoing.style.opacity = '0';
 
-    const startedAt = Date.now();
-    const fade = setInterval(() => {
-        const progress = Math.min(1, (Date.now() - startedAt) / CROSSFADE_MS);
-
-        try { next.volume = currentVolume * progress; } catch { /* detached mid-fade */ }
-        try { outgoing.volume = currentVolume * (1 - progress); } catch { /* same */ }
-
-        if (progress < 1) return;
-
-        clearInterval(fade);
+    Promise.all([
+        rampVolume(next, 0, currentVolume, CROSSFADE_MS, () => true),
+        rampVolume(outgoing, currentVolume, 0, CROSSFADE_MS, () => true),
+    ]).then(() => {
         destroyHls(outgoingHls);
         retire(outgoing);
-    }, 16);
+    });
+}
+
+/// Moves an element's volume from one level to another, resolving false and leaving the level
+/// where it got to as soon as stillCurrent() says the ramp has been superseded.
+///
+/// A timer, not rAF: rAF stops while the window is occluded, and a stop fade that never finishes
+/// never stops the song.
+function rampVolume(el, from, to, ms, stillCurrent) {
+    return new Promise((resolve) => {
+        const startedAt = performance.now();
+        let timer = null;
+
+        const step = () => {
+            if (!stillCurrent()) {
+                clearInterval(timer);
+                resolve(false);
+                return true;
+            }
+
+            const progress = ms > 0 ? Math.min(1, (performance.now() - startedAt) / ms) : 1;
+            try { el.volume = from + (to - from) * progress; } catch { /* detached mid-ramp */ }
+
+            if (progress < 1) return false;
+
+            clearInterval(timer);
+            resolve(true);
+            return true;
+        };
+
+        if (!step()) timer = setInterval(step, 16);
+    });
 }
 
 /// Stops an element and lets go of its source, without touching whatever is playing.
@@ -291,25 +329,14 @@ async function fadeOutAndStop(fadeMs) {
     // Held locally rather than read each tick: a handover that swaps mid-fade would otherwise move
     // the ramp onto the element that just took the room over.
     const element = video;
-    const startVolume = element.volume;
-    const startedAt = performance.now();
 
     element.style.transition = `opacity ${fadeMs}ms linear`;
     element.style.opacity = '0';
 
     // The generation is checked inside the ramp, not only after it: a fade the host has already
     // superseded would otherwise go on pulling the volume down over the song that replaced it.
-    const completed = await new Promise((resolve) => {
-        const tick = () => {
-            if (generation !== playbackGeneration) return resolve(false);
-
-            const progress = Math.min(1, (performance.now() - startedAt) / fadeMs);
-            element.volume = startVolume * (1 - progress);
-
-            if (progress < 1) requestAnimationFrame(tick); else resolve(true);
-        };
-        tick();
-    });
+    const completed = await rampVolume(
+        element, element.volume, 0, fadeMs, () => generation === playbackGeneration);
 
     // Superseded: the host started playing again during the fade, and the song that replaced this
     // one is using the element now. A ramp abandoned part way would leave it playing unheard.
@@ -350,20 +377,13 @@ async function fadeOutBackground(fadeMs) {
         return;
     }
 
-    const startVolume = background.volume;
-    const startedAt = performance.now();
-
-    await new Promise((resolve) => {
-        const tick = () => {
-            const progress = Math.min(1, (performance.now() - startedAt) / fadeMs);
-            background.volume = startVolume * (1 - progress);
-            if (progress < 1) requestAnimationFrame(tick); else resolve();
-        };
-        tick();
-    });
+    // Checked inside the ramp: a bed loaded or resumed during the fade would otherwise be pulled
+    // down to nothing and left there.
+    const completed = await rampVolume(
+        background, background.volume, 0, fadeMs, () => generation === backgroundGeneration);
 
     // Superseded: a new bed started during the fade, so leave it alone.
-    if (generation !== backgroundGeneration) return;
+    if (!completed) return;
 
     teardownBackground();
     background.volume = backgroundVolume;
@@ -412,12 +432,12 @@ function correct() {
     if (expected === null || player.readyState < 2 || player.seeking) return;
 
     if (!timeline.playing) {
-        if (!native) video.playbackRate = 1;
+        video.playbackRate = 1;
         return;
     }
 
     // Every screen plays at true speed. The only correction is where the playhead sits.
-    if (!native) video.playbackRate = 1;
+    video.playbackRate = 1;
 
     const error = player.currentTime - expected;
 
@@ -886,6 +906,12 @@ videos.forEach((v) => {
     // Only from the player the room is hearing: the outgoing one runs out during a handover, and
     // that would retire the singer on the strength of a stream nobody is listening to any more.
     v.addEventListener('ended', () => { if (v === video) send({ type: 'ended' }); });
+    v.addEventListener('error', () => {
+        if (v !== video) return;
+
+        const error = v.error;
+        if (error) reportError(`media error ${error.code}`);
+    });
 });
 
 // Its own message, never 'ended': the host runs the singer's performance off that one, and a bed
@@ -896,10 +922,6 @@ still.addEventListener('error', () => reportError('still image failed to load'))
 background.addEventListener('error', () => {
     const error = background.error;
     if (error) reportError(`background media error ${error.code}`);
-});
-video.addEventListener('error', () => {
-    const error = video.error;
-    if (error) reportError(`media error ${error.code}`);
 });
 
 // The host polls nothing; position reaches it only through these reports.

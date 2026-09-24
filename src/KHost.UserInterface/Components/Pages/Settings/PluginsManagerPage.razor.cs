@@ -15,14 +15,14 @@ namespace KHost.UserInterface.Components.Pages.Settings;
 
 public partial class PluginsManagerPage : IDisposable
 {
-    [Inject] private IPluginsService? PluginsService { get; set; }
-    [Inject] private IPluginButtonService? PluginButtons { get; set; }
-    [Inject] private IPluginCatalogService? Catalog { get; set; }
-    [Inject] private IPluginInstallerService? Installer { get; set; }
-    [Inject] private IDialogService? Dialogs { get; set; }
-    [Inject] private IExternalLinkService? ExternalLinks { get; set; }
+    [Inject] private IPluginsService PluginsService { get; set; } = default!;
+    [Inject] private IPluginButtonService PluginButtons { get; set; } = default!;
+    [Inject] private IPluginCatalogService Catalog { get; set; } = default!;
+    [Inject] private IPluginInstallerService Installer { get; set; } = default!;
+    [Inject] private IDialogService Dialogs { get; set; } = default!;
+    [Inject] private IExternalLinkService ExternalLinks { get; set; } = default!;
     [Inject] private IMessageBroker Broker { get; set; } = default!;
-    [Inject] private ILogger<PluginsManagerPage>? Logger { get; set; }
+    [Inject] private ILogger<PluginsManagerPage> Logger { get; set; } = default!;
 
     private readonly SubscriptionSet _subscriptions = new();
 
@@ -41,7 +41,7 @@ public partial class PluginsManagerPage : IDisposable
     private PluginStagingState _staging = PluginStagingState.Empty;
     private bool _catalogBusy;
 
-    private IReadOnlyList<DiscoveredPlugin> Plugins => PluginsService?.Plugins ?? [];
+    private IReadOnlyList<DiscoveredPlugin> Plugins => PluginsService.Plugins;
 
     private IEnumerable<string> WaitingOnRestart => Plugins
         .Where(p => GetRowState(p) is RowState.RestartToLoad or RowState.RestartToUnload)
@@ -49,13 +49,11 @@ public partial class PluginsManagerPage : IDisposable
 
     protected override async Task OnInitializedAsync()
     {
-        if (PluginsService is null) return;
-
         _subscriptions.Add(Broker.Subscribe<PluginsChanged>(OnStateChanged));
         _subscriptions.Add(Broker.Subscribe<PluginCatalogChanged>(OnStateChanged));
         _subscriptions.Add(Broker.Subscribe<PluginInstallsChanged>(OnInstallsChanged));
 
-        _staging = Installer?.Staged() ?? PluginStagingState.Empty;
+        _staging = Installer.Staged();
 
         _enabledIds = (await PluginsService.ReadEnabledIdsAsync()).ToHashSet(StringComparer.OrdinalIgnoreCase);
 
@@ -120,8 +118,6 @@ public partial class PluginsManagerPage : IDisposable
 
     private async Task ToggleAsync(string pluginId, bool enabled)
     {
-        if (PluginsService is null) return;
-
         await PluginsService.SetEnabledAsync(pluginId, enabled);
 
         if (enabled) _enabledIds.Add(pluginId);
@@ -166,7 +162,7 @@ public partial class PluginsManagerPage : IDisposable
 
     private async Task SaveSettingsAsync(string pluginId)
     {
-        if (PluginsService is null || !_settingFields.TryGetValue(pluginId, out var fields)) return;
+        if (!_settingFields.TryGetValue(pluginId, out var fields)) return;
 
         var values = new Dictionary<string, JsonElement>();
 
@@ -187,7 +183,7 @@ public partial class PluginsManagerPage : IDisposable
     private void OpenFolder(string directory)
     {
         if (Directory.Exists(directory))
-            ExternalLinks?.Open(directory);
+            ExternalLinks.Open(directory);
     }
 
     private static string GetInputType(PluginSettingDefinition definition)
@@ -205,9 +201,6 @@ public partial class PluginsManagerPage : IDisposable
     /// login reports "Sign out"; blocked from re-entering while already running.</summary>
     private async Task RunButtonAsync(string pluginId, string key)
     {
-        if (PluginButtons is null)
-            return;
-
         var token = $"{pluginId}:{key}";
         if (!_runningButtons.Add(token))
             return;
@@ -219,7 +212,7 @@ public partial class PluginsManagerPage : IDisposable
         catch (Exception ex)
         {
             // A plugin's button throwing is the plugin's problem to report; the page stays up.
-            Logger?.LogWarning(ex, "Plugin button {Key} on {PluginId} threw", key, pluginId);
+            Logger.LogWarning(ex, "Plugin button {Key} on {PluginId} threw", key, pluginId);
         }
         finally
         {
@@ -279,7 +272,7 @@ public partial class PluginsManagerPage : IDisposable
     // moves. That is the only signal that a payload landed or a pending action was dropped.
     private void OnInstallsChanged(PluginInstallsChanged message) => InvokeAsync(() =>
     {
-        _staging = Installer?.Staged() ?? PluginStagingState.Empty;
+        _staging = Installer.Staged();
 
         StateHasChanged();
     });
@@ -287,7 +280,7 @@ public partial class PluginsManagerPage : IDisposable
     public void Dispose() => _subscriptions.Dispose();
 
 
-    private IReadOnlyList<PluginCatalogEntry> CatalogEntries => Catalog?.Current?.Catalog.Plugins ?? [];
+    private IReadOnlyList<PluginCatalogEntry> CatalogEntries => Catalog.Current?.Catalog.Plugins ?? [];
 
     private string StagingSummary
     {
@@ -311,7 +304,7 @@ public partial class PluginsManagerPage : IDisposable
 
         // Fetched on open rather than at startup: a console runs on whatever wifi the room has,
         // and nothing on the installed list needs the network.
-        if (tab == Tab.Available && Catalog is not null && Catalog.Current is null)
+        if (tab == Tab.Available && Catalog.Current is null)
             await LoadCatalogAsync(force: false);
     }
 
@@ -319,7 +312,7 @@ public partial class PluginsManagerPage : IDisposable
 
     private async Task LoadCatalogAsync(bool force)
     {
-        if (Catalog is null || _catalogBusy) return;
+        if (_catalogBusy) return;
 
         _catalogBusy = true;
 
@@ -338,11 +331,11 @@ public partial class PluginsManagerPage : IDisposable
         => Plugins.FirstOrDefault(p => p.Manifest?.Id == pluginId)?.Manifest?.Version;
 
     private PluginInstallInfo? GetActiveInstall(Guid pluginId)
-        => Installer?.Snapshot().FirstOrDefault(i =>
+        => Installer.Snapshot().FirstOrDefault(i =>
             i.PluginId == pluginId && i.State is PluginInstallState.Downloading or PluginInstallState.Verifying);
 
     private PluginInstallInfo? GetLastInstall(Guid pluginId)
-        => Installer?.Snapshot().FirstOrDefault(i => i.PluginId == pluginId);
+        => Installer.Snapshot().FirstOrDefault(i => i.PluginId == pluginId);
 
     private AvailableState GetAvailableState(PluginCatalogEntry entry)
     {
@@ -373,7 +366,7 @@ public partial class PluginsManagerPage : IDisposable
 
     private async Task ConfirmInstallAsync(PluginCatalogEntry entry)
     {
-        if (Dialogs is null || entry.LatestCompatibleRelease() is not { } release) return;
+        if (entry.LatestCompatibleRelease() is not { } release) return;
 
         var name = WebUtility.HtmlEncode(entry.Name);
         var author = WebUtility.HtmlEncode(entry.Author ?? "an unnamed publisher");
@@ -398,13 +391,11 @@ public partial class PluginsManagerPage : IDisposable
 
     private async Task InstallAsync(PluginCatalogEntry entry, PluginCatalogRelease release)
     {
-        if (Installer is null) return;
-
         var result = await Installer.InstallAsync(entry, release);
 
         // Enabling is the Plugins service's to record, not the installer's. The host asked for
         // this plugin by installing it, so it should be on when the payload lands.
-        if (result.State == PluginInstallState.Staged && PluginsService is not null)
+        if (result.State == PluginInstallState.Staged)
         {
             var id = entry.Id.ToString();
 
@@ -416,20 +407,16 @@ public partial class PluginsManagerPage : IDisposable
         }
     }
 
-    private void CancelInstall(Guid pluginId) => Installer?.Cancel(pluginId);
+    private void CancelInstall(Guid pluginId) => Installer.Cancel(pluginId);
 
     /// <summary>Installing enables a plugin and marking one for removal disables it, so undoing
     /// either has to put that flag back.</summary>
     private async Task ClearStagedAsync(Guid pluginId)
     {
-        if (Installer is null) return;
-
         // Read before clearing: the announce that follows re-reads staging from disk.
         var staged = _staging;
 
         Installer.ClearStaged(pluginId);
-
-        if (PluginsService is null) return;
 
         var id = pluginId.ToString();
 
@@ -475,13 +462,13 @@ public partial class PluginsManagerPage : IDisposable
     /// <summary>Undoes a removal: re-enabling is keyed by id, valid only if a copy loaded.</summary>
     private async Task ClearRemovalAsync(DiscoveredPlugin plugin)
     {
-        if (Installer is null || plugin.Manifest is not { } manifest) return;
+        if (plugin.Manifest is not { } manifest) return;
 
         var restoreEnabled = WasLoadedAtStartup(manifest.Id);
 
         Installer.ClearRemoval(FolderNameOf(plugin));
 
-        if (PluginsService is null || !restoreEnabled) return;
+        if (!restoreEnabled) return;
 
         var id = manifest.Id.ToString();
 
@@ -492,7 +479,7 @@ public partial class PluginsManagerPage : IDisposable
 
     private async Task ConfirmUninstallAsync(DiscoveredPlugin plugin)
     {
-        if (Dialogs is null || Installer is null || plugin.Manifest is not { } manifest) return;
+        if (plugin.Manifest is not { } manifest) return;
 
         await Dialogs.ShowConfirmationAsync(
             $"<p>Remove {WebUtility.HtmlEncode(plugin.DisplayName)} and its folder on the next start?</p>"
@@ -503,7 +490,7 @@ public partial class PluginsManagerPage : IDisposable
 
                 // The enabled flag is the id's, not the folder's: switching it off while another
                 // copy of the same plugin stays installed would disable the copy that is running.
-                if (PluginsService is null || Plugins.Count(p => p.Manifest?.Id == manifest.Id) > 1) return;
+                if (Plugins.Count(p => p.Manifest?.Id == manifest.Id) > 1) return;
 
                 await PluginsService.SetEnabledAsync(manifest.Id.ToString(), false);
 
@@ -518,7 +505,7 @@ public partial class PluginsManagerPage : IDisposable
         if (!string.IsNullOrWhiteSpace(url) && Uri.TryCreate(url, UriKind.Absolute, out var uri)
             && uri.Scheme is "https" or "http")
         {
-            ExternalLinks?.Open(uri.ToString());
+            ExternalLinks.Open(uri.ToString());
         }
     }
 

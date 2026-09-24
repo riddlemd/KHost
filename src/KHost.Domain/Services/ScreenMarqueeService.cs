@@ -9,7 +9,7 @@ using KHost.Domain.Services.Screens;
 namespace KHost.Domain.Services;
 
 /// <summary>Keeps the screens marquee saying what the room should see.</summary>
-/// <remarks>Separate from ScreenCoordinationService (heard) and playback (owns the picture).</remarks>
+/// <remarks>Separate from ScreenDisplayProvider (applies venue volume) and playback (owns the picture).</remarks>
 public sealed class ScreenMarqueeService : BaseService, IScreenMarqueeService, IDisposable, IStartsWithTheHost
 {
     private readonly IScreenServer _screenServer;

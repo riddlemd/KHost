@@ -13,7 +13,6 @@ public partial class ConfirmationDialog
     [Parameter] public string TitleIcon { get; set; } = "exclamation-triangle-fill";
     [Parameter] public string Message { get; set; } = "Are you sure?";
     [Parameter] public string ConfirmText { get; set; } = "Confirm";
-    [Parameter] public string ConfirmTextClass { get; set; } = "";
     [Parameter] public string Class { get; set; } = "";
     [Parameter] public bool CloseOnScrimClick { get; set; }
 

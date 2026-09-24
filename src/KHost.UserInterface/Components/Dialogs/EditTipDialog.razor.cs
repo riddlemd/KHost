@@ -28,7 +28,6 @@ public partial class EditTipDialog : IAsyncDisposable
 
     [Parameter] public EventCallback<Tip> OnSave { get; set; }
     [Parameter] public EventCallback OnClose { get; set; }
-    [Parameter] public EventCallback OnOpen { get; set; }
 
     private ElementReference _amountRef;
     private IJSObjectReference? _currencyModule;
