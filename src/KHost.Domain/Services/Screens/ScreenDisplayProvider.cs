@@ -2,6 +2,7 @@ using KHost.Abstractions.Messaging;
 using KHost.Abstractions.Messaging.Messages;
 using KHost.Abstractions.Services;
 using KHost.Abstractions.Services.IPC;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace KHost.Domain.Services.Screens;
@@ -11,6 +12,11 @@ namespace KHost.Domain.Services.Screens;
 /// <c>PluginLoader</c> must not bind it and it must never appear on the Plugins page — it simply
 /// travels the path a plugin's display travels, so <c>PlaybackService</c> has one kind of thing to
 /// drive.
+///
+/// <para>It owns everything the screen shows, not only the song: the marquee, the QR codes, the
+/// break music card and the venue's level. The host announces what moved and this pulls the whole
+/// current state of whatever that message drives, so a screen that connects is sent everything
+/// afresh rather than a replay of what it missed.</para>
 ///
 /// <para>Discovery here is not a sweep. There is nothing to find on a machine: starting discovery
 /// launches a screen and it registers back, which is why <see cref="IsDiscovering"/> reports the
@@ -31,8 +37,12 @@ public sealed class ScreenDisplayProvider : IDisplayProvider, IStartsWithTheHost
     private readonly IReadOnlyList<IScreenProvider> _launchers;
     private readonly IVenuesService? _venuesService;
     private readonly IMessageBroker _broker;
-    private readonly IDisposable? _venueChanged;
+    private readonly SubscriptionSet _subscriptions = new();
     private readonly ILogger<ScreenDisplayProvider> _logger;
+
+    // Resolved on use, never in the constructor: the marquee reaches IPlaybackService, which takes
+    // every IDisplayProvider, this one included.
+    private readonly IServiceProvider? _services;
     private readonly TimeSpan _registrationTimeout;
 
     private bool _launching;
@@ -57,7 +67,8 @@ public sealed class ScreenDisplayProvider : IDisplayProvider, IStartsWithTheHost
         IEnumerable<IScreenProvider> launchers,
         IMessageBroker broker,
         IVenuesService? venuesService = null,
-        TimeSpan? registrationTimeout = null)
+        TimeSpan? registrationTimeout = null,
+        IServiceProvider? services = null)
     {
         _logger = logger;
         _screenServer = screenServer;
@@ -65,14 +76,30 @@ public sealed class ScreenDisplayProvider : IDisplayProvider, IStartsWithTheHost
         _broker = broker;
         _venuesService = venuesService;
         _registrationTimeout = registrationTimeout ?? DefaultRegistrationTimeout;
+        _services = services;
 
         _screenServer.ScreenConnected += OnScreenConnected;
         _screenServer.ScreenDisconnected += OnScreenDisconnected;
 
-        // Selecting or editing a venue changes what "audible" means; without this the new level
-        // would wait for the next screen to connect before the room heard it.
-        _venueChanged = broker.Subscribe<SelectedVenueChanged>(
-            message => { _ = Task.Run(ApplyVolumeAsync); });
+        // The venue owns the level, and everything about how the marquee, the codes and the card
+        // look, including whether each is there at all.
+        _subscriptions.Add(broker.Subscribe<SelectedVenueChanged>(
+            _ => Redraw(Overlay.Volume | Overlay.Marquee | Overlay.QrCodes | Overlay.BreakMusicCard)));
+
+        // The queue's order is the marquee's content.
+        _subscriptions.Add(broker.Subscribe<SingerQueueChanged>(_ => Redraw(Overlay.Marquee)));
+        _subscriptions.Add(broker.Subscribe<PerformancesChanged>(_ => Redraw(Overlay.Marquee)));
+
+        // Who is at the mic decides who the band leaves out, and whether a venue hides its codes.
+        _subscriptions.Add(broker.Subscribe<PlaybackChanged>(_ => Redraw(Overlay.Marquee | Overlay.QrCodes)));
+
+        // A provider moving to the next track says so apart from a start, pause or hand-off.
+        _subscriptions.Add(broker.Subscribe<BreakMusicChanged>(_ => Redraw(Overlay.BreakMusicCard)));
+        _subscriptions.Add(broker.Subscribe<BreakMusicTrackChanged>(_ => Redraw(Overlay.BreakMusicCard)));
+
+        // Awaited rather than detached: the owner registering a code is waiting on this publish.
+        _subscriptions.Add(broker.Subscribe<ScreenQrCodesChanged>((_, _) => RedrawAsync(Overlay.QrCodes)));
+        _subscriptions.Add(broker.Subscribe<NextSingerCardRequested>((request, _) => SendAsync(request.Card)));
     }
 
     /// <summary>What it is, not where it is. "This computer" read as a location a host might be
@@ -319,8 +346,42 @@ public sealed class ScreenDisplayProvider : IDisplayProvider, IStartsWithTheHost
         await SendAsync(new SetBackgroundVolumeCommand { Volume = volume });
     }
 
-    // The hub thread is holding its own lock here, so neither the announce nor the volume may
-    // run on it: a screen registers while the server still holds the lock a send would wait on.
+    /// <summary>Pulls the current state of each overlay asked for and sends it whole.</summary>
+    /// <remarks>Never throws: one overlay that cannot be built must not keep the rest off the screen.</remarks>
+    private async Task RedrawAsync(Overlay overlays)
+    {
+        if (overlays.HasFlag(Overlay.Volume))
+        {
+            try { await ApplyVolumeAsync(); }
+            catch (Exception ex) { _logger.LogWarning(ex, "Could not apply the venue's volume to the screen"); }
+        }
+
+        if (overlays.HasFlag(Overlay.Marquee))
+            await DrawAsync<IScreenMarqueeService>("marquee", async marquee => await marquee.BuildAsync());
+
+        // Sent even when there is nothing up: it is the whole state, so it also clears a code left
+        // on a screen that dropped and came back.
+        if (overlays.HasFlag(Overlay.QrCodes))
+            await DrawAsync<IScreenQrCodeService>("QR codes", async codes => await codes.BuildAsync());
+
+        if (overlays.HasFlag(Overlay.BreakMusicCard))
+            await DrawAsync<IBreakMusicCardService>("break music card", async card => await card.BuildAsync());
+    }
+
+    private async Task DrawAsync<TSource>(string what, Func<TSource, Task<IScreenCommand>> build)
+        where TSource : class
+    {
+        if (_services?.GetService<TSource>() is not { } source) return;
+
+        try { await SendAsync(await build(source)); }
+        catch (Exception ex) { _logger.LogWarning(ex, "Could not build the {Overlay} for the screen", what); }
+    }
+
+    /// <summary>Detached, because broker handlers run one at a time and a redraw reads the database.</summary>
+    private void Redraw(Overlay overlays) => _ = Task.Run(() => RedrawAsync(overlays));
+
+    // Raised on the hub thread with a plain EventHandler, so everything here that awaits is
+    // detached: awaiting on it would be async void.
     private void OnScreenConnected(object? sender, ScreenConnectionEventArgs e)
     {
         _connected = e.Connection;
@@ -330,7 +391,10 @@ public sealed class ScreenDisplayProvider : IDisplayProvider, IStartsWithTheHost
         _registering?.TrySetResult(true);
 
         Announce();
-        _ = Task.Run(ApplyVolumeAsync);
+
+        // The whole current state, pulled fresh: a screen joining mid-show has been sent none of
+        // it, and one that dropped and came back may still be drawing what has since changed.
+        Redraw(Overlay.All);
     }
 
     /// <summary>Matched on the connection, not the screen id: a screen coming back under the same
@@ -350,6 +414,16 @@ public sealed class ScreenDisplayProvider : IDisplayProvider, IStartsWithTheHost
     {
         _screenServer.ScreenConnected -= OnScreenConnected;
         _screenServer.ScreenDisconnected -= OnScreenDisconnected;
-        _venueChanged?.Dispose();
+        _subscriptions.Dispose();
+    }
+
+    [Flags]
+    private enum Overlay
+    {
+        Volume = 1,
+        Marquee = 2,
+        QrCodes = 4,
+        BreakMusicCard = 8,
+        All = Volume | Marquee | QrCodes | BreakMusicCard,
     }
 }

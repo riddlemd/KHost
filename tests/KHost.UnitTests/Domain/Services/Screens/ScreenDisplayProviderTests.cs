@@ -1,7 +1,11 @@
 using KHost.Abstractions.Messaging;
+using KHost.Abstractions.Messaging.Messages;
+using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using KHost.Abstractions.Services.IPC;
+using KHost.Domain.Services.Messaging;
 using KHost.Domain.Services.Screens;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 
@@ -13,9 +17,33 @@ public class ScreenDisplayProviderTests
     private readonly IMessageBroker _broker = Substitute.For<IMessageBroker>();
     private readonly ScreenDisplayProvider _provider;
 
+    // What the screen is drawn from, for the tests that follow a change message to the screen.
+    private readonly MessageBroker _realBroker = new(NullLogger<MessageBroker>.Instance);
+    private readonly IScreenMarqueeService _marquee = Substitute.For<IScreenMarqueeService>();
+    private readonly IScreenQrCodeService _qrCodes = Substitute.For<IScreenQrCodeService>();
+    private readonly IBreakMusicCardService _card = Substitute.For<IBreakMusicCardService>();
+    private readonly IVenuesService _venues = Substitute.For<IVenuesService>();
+
     public ScreenDisplayProviderTests()
-        => _provider = new ScreenDisplayProvider(
+    {
+        _marquee.BuildAsync(Arg.Any<CancellationToken>()).Returns(new SetMarqueeCommand { Enabled = true, Message = "Tonight" });
+        _qrCodes.BuildAsync(Arg.Any<CancellationToken>()).Returns(new SetScreenQrCodesCommand());
+        _card.BuildAsync(Arg.Any<CancellationToken>()).Returns(new SetBreakMusicCardCommand { Enabled = false });
+        _venues.ReadSelectedVenueAsync().Returns(new Venue { Name = "The Bar", Settings = new Venue.VenueSettings { DefaultVolume = 50 } });
+
+        _provider = new ScreenDisplayProvider(
             NullLogger<ScreenDisplayProvider>.Instance, _screenServer, [], _broker);
+    }
+
+    /// <summary>Wired to a real broker and to what each overlay is built from, as the host wires it.</summary>
+    private ScreenDisplayProvider DrawingProvider(IServiceProvider? services = null)
+        => new(
+            NullLogger<ScreenDisplayProvider>.Instance, _screenServer, [], _realBroker, _venues,
+            services: services ?? new ServiceCollection()
+                .AddSingleton(_marquee)
+                .AddSingleton(_qrCodes)
+                .AddSingleton(_card)
+                .BuildServiceProvider());
 
     private static IScreenConnection Connection(string screenId, string connectionId)
     {
@@ -205,6 +233,188 @@ public class ScreenDisplayProviderTests
         var connected = await provider.ConnectAsync(ScreenDisplayProvider.LocalScreenId);
 
         Assert.False(connected);
+    }
+
+    // --- what the screen shows ---
+
+    /// <summary>A screen joining mid-show has been sent nothing, so it is sent everything.</summary>
+    [Fact]
+    public async Task ScreenConnected_SendsTheWholeCurrentState()
+    {
+        using var provider = DrawingProvider();
+
+        RaiseConnected(Connection("Screen 1", "conn-a"));
+
+        Assert.True(await WaitForSentAsync<SetMarqueeCommand>());
+        Assert.True(await WaitForSentAsync<SetScreenQrCodesCommand>());
+        Assert.True(await WaitForSentAsync<SetBreakMusicCardCommand>());
+        Assert.True(await WaitForSentAsync<SetVolumeCommand>(volume => volume.Volume < 1.0f));
+        Assert.True(await WaitForSentAsync<SetBackgroundVolumeCommand>());
+    }
+
+    /// <summary>A message says only that something moved; the screen is sent what is true now.</summary>
+    [Fact]
+    public async Task ScreenConnected_SendsTheStateAsItIsNow_NotWhatWasLastSent()
+    {
+        using var provider = DrawingProvider();
+        _realBroker.Announce(new SingerQueueChanged());
+        Assert.True(await WaitForSentAsync<SetMarqueeCommand>(marquee => marquee.Message == "Tonight"));
+
+        _marquee.BuildAsync(Arg.Any<CancellationToken>()).Returns(new SetMarqueeCommand { Enabled = true, Message = "Last call" });
+        _screenServer.ClearReceivedCalls();
+
+        RaiseConnected(Connection("Screen 1", "conn-a"));
+
+        Assert.True(await WaitForSentAsync<SetMarqueeCommand>(marquee => marquee.Message == "Last call"));
+        Assert.DoesNotContain(Sent<SetMarqueeCommand>(), marquee => marquee.Message == "Tonight");
+    }
+
+    public static TheoryData<object, bool, bool, bool> WhatEachChangeRedraws() => new()
+    {
+        // message,                                   marquee, codes, card
+        { new SelectedVenueChanged(),                  true,    true,  true  },
+        { new SingerQueueChanged(),                    true,    false, false },
+        { new PerformancesChanged(),                   true,    false, false },
+        { new PlaybackChanged(),                       true,    true,  false },
+        { new BreakMusicChanged(),                     false,   false, true  },
+        { new BreakMusicTrackChanged("Library"),       false,   false, true  },
+    };
+
+    /// <summary>Each overlay is resent on exactly what it was always resent on, and nothing else.</summary>
+    [Theory]
+    [MemberData(nameof(WhatEachChangeRedraws))]
+    public async Task AChangeMessage_ResendsTheOverlaysItDrives(object message, bool marquee, bool codes, bool card)
+    {
+        using var provider = DrawingProvider();
+
+        _realBroker.Announce(message);
+
+        if (marquee) Assert.True(await WaitForSentAsync<SetMarqueeCommand>());
+        if (codes) Assert.True(await WaitForSentAsync<SetScreenQrCodesCommand>());
+        if (card) Assert.True(await WaitForSentAsync<SetBreakMusicCardCommand>());
+
+        // One redraw sends its overlays in turn, so the ones it owed are in by now; a short grace
+        // covers a stray one that was never owed.
+        await Task.Delay(50);
+
+        Assert.Equal(marquee, Sent<SetMarqueeCommand>().Any());
+        Assert.Equal(codes, Sent<SetScreenQrCodesCommand>().Any());
+        Assert.Equal(card, Sent<SetBreakMusicCardCommand>().Any());
+    }
+
+    /// <summary>Selecting or editing a venue changes what "audible" means, now rather than on the next connect.</summary>
+    [Fact]
+    public async Task SelectedVenueChanged_WithAScreenUp_AppliesTheVenuesLevel()
+    {
+        using var provider = DrawingProvider();
+        RaiseConnected(Connection("Screen 1", "conn-a"));
+        Assert.True(await WaitForSentAsync<SetBackgroundVolumeCommand>());
+        _screenServer.ClearReceivedCalls();
+
+        _venues.ReadSelectedVenueAsync().Returns(new Venue { Name = "The Bar", Settings = new Venue.VenueSettings { DefaultVolume = 100 } });
+        _realBroker.Announce(new SelectedVenueChanged());
+
+        Assert.True(await WaitForSentAsync<SetVolumeCommand>(volume => volume.Volume == 1.0f));
+    }
+
+    /// <summary>An owner registering a code awaits the publish, so the code is on screen when it returns.</summary>
+    [Fact]
+    public async Task ScreenQrCodesChanged_IsDrawnBeforeThePublishReturns()
+    {
+        using var provider = DrawingProvider();
+
+        await _realBroker.PublishAsync(new ScreenQrCodesChanged());
+
+        Assert.Single(Sent<SetScreenQrCodesCommand>());
+    }
+
+    [Fact]
+    public async Task NextSingerCardRequested_DrawsThatCard()
+    {
+        using var provider = DrawingProvider();
+        var card = new ShowNextSingerCommand { Singer = "Ada", Song = "Today" };
+
+        await _realBroker.PublishAsync(new NextSingerCardRequested(card));
+
+        Assert.Same(card, Assert.Single(Sent<ShowNextSingerCommand>()));
+    }
+
+    /// <summary>One overlay that cannot be built must not keep the rest off a screen that just joined.</summary>
+    [Fact]
+    public async Task ScreenConnected_AnOverlayThatThrows_DoesNotKeepTheOthersOff()
+    {
+        _marquee.BuildAsync(Arg.Any<CancellationToken>()).Returns<SetMarqueeCommand>(_ => throw new InvalidOperationException("no venue"));
+        using var provider = DrawingProvider();
+
+        RaiseConnected(Connection("Screen 1", "conn-a"));
+
+        Assert.True(await WaitForSentAsync<SetScreenQrCodesCommand>());
+        Assert.True(await WaitForSentAsync<SetBreakMusicCardCommand>());
+    }
+
+    /// <summary>Disposing must release the broker, or a rebuilt provider leaves the old one drawing.</summary>
+    [Fact]
+    public async Task Dispose_StopsRedrawing()
+    {
+        var provider = DrawingProvider();
+        provider.Dispose();
+
+        _realBroker.Announce(new SingerQueueChanged());
+        await Task.Delay(50);
+
+        Assert.Empty(Sent<SetMarqueeCommand>());
+    }
+
+    /// <summary>Through the real code service: a venue moving its codes reaches the screen on its own.</summary>
+    [Fact]
+    public async Task SelectedVenueChanged_RedrawsWhereTheCodesSit()
+    {
+        var venue = new Venue.VenueSettings { QrCodeSource = "example" };
+        _venues.ReadSelectedVenueAsync().Returns(_ => new Venue { Name = "The Bar", Settings = venue });
+
+        var services = new ServiceCollection()
+            .AddSingleton(_venues)
+            .AddSingleton(Substitute.For<IPlaybackService>())
+            .AddSingleton<IMessageBroker>(_realBroker)
+            .AddSingleton<IScreenQrCodeService>(sp => new ScreenQrCodeService(
+                NullLogger<ScreenQrCodeService>.Instance, _venues, sp, _realBroker))
+            .BuildServiceProvider();
+
+        using var provider = DrawingProvider(services);
+        await services.GetRequiredService<IScreenQrCodeService>().RegisterAsync(new ScreenQrCode
+        {
+            OwnerId = "example",
+            Payload = "https://example.test/",
+            Caption = "example",
+        });
+        _screenServer.ClearReceivedCalls();
+
+        venue.QrCodeCorner = ScreenCorner.TopLeft;
+        _realBroker.Announce(new SelectedVenueChanged());
+
+        Assert.True(await WaitForSentAsync<SetScreenQrCodesCommand>(
+            codes => codes.Codes.Count == 1 && codes.Codes[0].Corner == ScreenCorner.TopLeft));
+    }
+
+    private List<TCommand> Sent<TCommand>() where TCommand : IScreenCommand
+        => [.. _screenServer.ReceivedCalls()
+            .Where(call => call.GetMethodInfo().Name == nameof(IScreenServer.BroadcastCommandAsync))
+            .Select(call => call.GetArguments()[0])
+            .OfType<TCommand>()];
+
+    // Redraws leave the broker's thread, so an assertion straight after an announce races them.
+    private async Task<bool> WaitForSentAsync<TCommand>(Func<TCommand, bool>? matches = null)
+        where TCommand : IScreenCommand
+    {
+        for (var attempt = 0; attempt < 500; attempt++)
+        {
+            if (Sent<TCommand>().Any(command => matches?.Invoke(command) ?? true))
+                return true;
+
+            await Task.Delay(10);
+        }
+
+        return false;
     }
 
     private static IScreenProvider AvailableLauncher()
