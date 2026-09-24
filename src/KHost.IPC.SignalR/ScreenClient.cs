@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using KHost.Abstractions.Services.IPC;
 using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.Extensions.Logging;
@@ -25,10 +26,6 @@ internal sealed class ScreenClient : IScreenClient, IAsyncDisposable
     public event EventHandler<ScreenClientStateChangedEventArgs>? StateChanged;
 
     public string? ScreenId { get; private set; }
-
-    public ScreenClient() : this(null)
-    {
-    }
 
     public ScreenClient(ILoggerFactory? loggerFactory)
     {
@@ -62,8 +59,9 @@ internal sealed class ScreenClient : IScreenClient, IAsyncDisposable
         CancellationToken cancellationToken = default)
     {
         // The key is what proves this screen is one the host provisioned; without it the hub refuses
-        // the connection, so there is nothing to attempt.
-        _key = authKey ?? throw new InvalidOperationException("A screen auth key is required to connect.");
+        // the connection, so there is nothing to attempt. Checked here, before the lock, so a bad
+        // call fails without disturbing a connection already under way.
+        if (authKey is null) throw new InvalidOperationException("A screen auth key is required to connect.");
 
         await _stateLock.WaitAsync(cancellationToken);
         try
@@ -72,6 +70,10 @@ internal sealed class ScreenClient : IScreenClient, IAsyncDisposable
             {
                 throw new InvalidOperationException("Already connected");
             }
+
+            // Assigned only once the "already connected" guard above has passed: a failed second
+            // connect must not overwrite the key backing the live one.
+            _key = authKey;
 
             ScreenId = screenId;
             _capabilities = capabilities ?? ScreenCapabilities.None;
@@ -103,7 +105,7 @@ internal sealed class ScreenClient : IScreenClient, IAsyncDisposable
                 _inboundSeq = 0;
 
                 if (_everRegistered)
-                    _ = SendRegisterAsync();
+                    _ = ReregisterAfterReconnectAsync();
                 else
                     _sessionReady.TrySetResult();
             });
@@ -195,10 +197,12 @@ internal sealed class ScreenClient : IScreenClient, IAsyncDisposable
         for (var i = 0; i < 5; i++)
         {
             var sentAt = DateTime.UtcNow;
+            // Stopwatch, not a second UtcNow: the round trip is an elapsed duration, and the
+            // monotonic clock doesn't get skewed by whatever NTP does to the wall clock mid-probe.
+            var sentTimestamp = Stopwatch.GetTimestamp();
             var hostTicks = await _connection.InvokeAsync<long>(nameof(ScreenHub.EchoClock), cancellationToken);
-            var receivedAt = DateTime.UtcNow;
+            var roundTrip = Stopwatch.GetElapsedTime(sentTimestamp);
 
-            var roundTrip = receivedAt - sentAt;
             if (roundTrip >= bestRoundTrip) continue;
 
             bestRoundTrip = roundTrip;
@@ -220,6 +224,22 @@ internal sealed class ScreenClient : IScreenClient, IAsyncDisposable
 
         await _connection.InvokeAsync(
             nameof(ScreenHub.ReceiveStateAsync), Sign(ScreenIpcSerializer.SerializeState(state)).ToJson());
+    }
+
+    // Fires from the Session handler with nothing awaiting it, so a failure here would otherwise be
+    // an unobserved exception while State kept reporting Connected and unregistered — which the room
+    // sees as "Lost the host" with no clue why. Caught and reflected into State instead.
+    private async Task ReregisterAfterReconnectAsync()
+    {
+        try
+        {
+            await SendRegisterAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Re-register after reconnect failed for {ScreenId}", ScreenId);
+            State = ScreenClientState.Error;
+        }
     }
 
     private async Task SendRegisterAsync()

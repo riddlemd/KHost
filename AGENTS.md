@@ -91,7 +91,7 @@ network device meets this, and sharing it costs nothing: it is BCL plus a `DllIm
 - Handlers run **one at a time, in subscription order** — what one does decides what the next may do. A handler that throws is logged and skipped: a broken subscriber must not stop the queue reaching the next singer.
 - Routing is on the message's **runtime type**, and exact — a handler for a base type is not called for a derived one.
 - Subscriptions return `IDisposable`. Hold them in a `SubscriptionSet` and dispose it; a missed unsubscribe keeps a Blazor component — and its whole circuit — alive on the broker.
-- Never take a lock around a publish. `ScreenConnected` arrives on the SignalR hub thread already holding one, which is why those handlers are `_ = Task.Run(...)`.
+- Never take a lock around a publish. `ScreenServerService` raises `ScreenConnected`/`ScreenDisconnected` only after releasing its own lock, for the same reason. The handlers are still `_ = Task.Run(...)` because the event is a plain `EventHandler` on the hub's thread: awaiting there directly would be `async void`.
 - Components `[Inject] IMessageBroker Broker`, subscribe in `OnInitialized`, dispose the set in `Dispose`.
 
 Four things deliberately stay plain C# events, and should stay that way: Screen2's `IMediaPlayer` and `IScreenClient` (a separate process — the broker is in-process and SignalR is the transport), `IDialogService.ShowRequested` (a request with a payload and one legitimate subscriber, not a notification), `IPlaybackService.PositionChanged` (twice a second for a whole night; it says only that `Position` moved, so take it to redraw a playhead and nothing else), and `IPlaybackService.PerformanceEnded` (a gap with a payload the subscriber fills: a request, not a notification).
