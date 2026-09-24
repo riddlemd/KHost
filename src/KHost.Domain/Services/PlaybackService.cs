@@ -7,7 +7,7 @@ using KHost.Abstractions.Messaging;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using KHost.Common.Media;
-using KHost.Domain.Services.Screens;
+using KHost.Domain.Services.Displays;
 
 namespace KHost.Domain.Services;
 

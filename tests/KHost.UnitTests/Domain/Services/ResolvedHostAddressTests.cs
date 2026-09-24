@@ -1,5 +1,6 @@
 using KHost.Domain;
 using KHost.Domain.Services;
+using KHost.Domain.Services.Displays.LocalScreen;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;

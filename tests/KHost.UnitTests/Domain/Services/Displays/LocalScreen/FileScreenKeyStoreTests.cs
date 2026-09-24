@@ -1,7 +1,7 @@
-using KHost.Domain.Services;
+using KHost.Domain.Services.Displays.LocalScreen;
 using Microsoft.Extensions.Logging.Abstractions;
 
-namespace KHost.UnitTests.Domain.Services;
+namespace KHost.UnitTests.Domain.Services.Displays.LocalScreen;
 
 public class FileScreenKeyStoreTests : IDisposable
 {

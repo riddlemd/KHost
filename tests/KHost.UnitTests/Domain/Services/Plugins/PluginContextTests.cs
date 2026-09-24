@@ -6,7 +6,7 @@ using KHost.Domain.Services.Plugins;
 using KHost.Domain.Services.Plugins.Secrets;
 using KHost.Secrets;
 using KHost.UnitTests.Secrets;
-using KHost.Domain.Services.Screens;
+using KHost.Domain.Services.QrCodes;
 
 namespace KHost.UnitTests.Domain.Services.Plugins;
 
@@ -127,7 +127,7 @@ public class PluginContextTests
         };
 
         return new PluginContext(manifest, stored, new DiscoveredPlugin { Directory = "/plugins/test", Manifest = manifest },
-            new PluginSecretStore(new InMemorySecretStore()), Substitute.For<IScreenQrCodeService>());
+            new PluginSecretStore(new InMemorySecretStore()), Substitute.For<IQrCodeService>());
     }
 
     /// <summary>A secret's name comes from the manifest, so two plugins can both use "session".</summary>
@@ -173,7 +173,35 @@ public class PluginContextTests
         Assert.Null(await context.GetSecretAsync("session"));
     }
 
-    private static PluginContext ContextFor(Guid id, IPluginSecretStore store, IScreenQrCodeService? qrCodes = null)
+    /// <summary>The owner is the manifest's id: a plugin able to name one could register over another's code.</summary>
+    [Fact]
+    public async Task RegisterQrCodeAsync_StampsTheManifestsIdAsTheOwner()
+    {
+        var id = Guid.NewGuid();
+        var qrCodes = Substitute.For<IQrCodeService>();
+        var context = ContextFor(id, new PluginSecretStore(new InMemorySecretStore()), qrCodes);
+
+        await context.RegisterQrCodeAsync("https://example.test/join", "Scan to join");
+
+        await qrCodes.Received(1).RegisterAsync(Arg.Is<QrCodeRegistration>(code =>
+            code.OwnerId == id.ToString()
+            && code.Payload == "https://example.test/join"
+            && code.Caption == "Scan to join"));
+    }
+
+    [Fact]
+    public async Task UnregisterQrCodeAsync_WithdrawsUnderTheManifestsId()
+    {
+        var id = Guid.NewGuid();
+        var qrCodes = Substitute.For<IQrCodeService>();
+        var context = ContextFor(id, new PluginSecretStore(new InMemorySecretStore()), qrCodes);
+
+        await context.UnregisterQrCodeAsync();
+
+        await qrCodes.Received(1).UnregisterAsync(id.ToString());
+    }
+
+    private static PluginContext ContextFor(Guid id, IPluginSecretStore store, IQrCodeService? qrCodes = null)
     {
         var manifest = new PluginManifest
         {
@@ -186,7 +214,7 @@ public class PluginContextTests
 
         return new PluginContext(manifest, null,
             new DiscoveredPlugin { Directory = "/plugins/test", Manifest = manifest }, store,
-            qrCodes ?? Substitute.For<IScreenQrCodeService>());
+            qrCodes ?? Substitute.For<IQrCodeService>());
     }
 
     private class TestSettings

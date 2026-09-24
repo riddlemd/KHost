@@ -4,7 +4,7 @@ using KHost.Abstractions.Services.IPC;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-namespace KHost.Domain.Services;
+namespace KHost.Domain.Services.Displays.LocalScreen;
 
 public sealed class LocalScreenProvider : IScreenProvider, IDisposable
 {

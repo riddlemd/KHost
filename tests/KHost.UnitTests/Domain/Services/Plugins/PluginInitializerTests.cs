@@ -6,7 +6,7 @@ using KHost.UnitTests.Secrets;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using Microsoft.Extensions.Logging.Abstractions;
-using KHost.Domain.Services.Screens;
+using KHost.Domain.Services.QrCodes;
 
 namespace KHost.UnitTests.Domain.Services.Plugins;
 
@@ -68,7 +68,7 @@ public class PluginInitializerTests
 
         var discovered = new DiscoveredPlugin { Directory = "/plugins/test", Manifest = manifest };
 
-        return new LoadedPlugin(discovered, entryPoint, new PluginContext(manifest, null, discovered, new PluginSecretStore(new InMemorySecretStore()), Substitute.For<IScreenQrCodeService>()));
+        return new LoadedPlugin(discovered, entryPoint, new PluginContext(manifest, null, discovered, new PluginSecretStore(new InMemorySecretStore()), Substitute.For<IQrCodeService>()));
     }
 
     private sealed class SpyPlugin : IPlugin

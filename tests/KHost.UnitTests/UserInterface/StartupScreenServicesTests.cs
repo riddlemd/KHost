@@ -1,6 +1,7 @@
 using System.Text.RegularExpressions;
 using System.Reflection;
-using KHost.Domain.Services.Screens;
+using KHost.Domain.Services;
+using KHost.Domain.Services.QrCodes;
 
 namespace KHost.UnitTests.UserInterface;
 
@@ -51,7 +52,7 @@ public class StartupScreenServicesTests
     [MemberData(nameof(ServicesThatAnswerAScreen))]
     public void AServiceThatAnswersAScreen_StartsWithTheHost(string service)
     {
-        var type = typeof(ScreenQrCodeService).Assembly
+        var type = typeof(QrCodeService).Assembly
             .GetTypes()
             .SingleOrDefault(candidate => candidate.Name == service);
 
@@ -95,7 +96,7 @@ public class StartupScreenServicesTests
         var startup = File.ReadAllText(
             Path.Combine(RepositoryRoot(), "src", "KHost.UserInterface", "Program.cs"));
 
-        var built = startup.IndexOf($"GetServices<KHost.Domain.Services.Screens.{nameof(IStartsWithTheHost)}>",
+        var built = startup.IndexOf($"GetServices<KHost.Domain.Services.{nameof(IStartsWithTheHost)}>",
             StringComparison.Ordinal);
         var hub = startup.IndexOf("MapIPCServer", StringComparison.Ordinal);
 

@@ -6,6 +6,9 @@ using KHost.Domain.Services.Messaging;
 using KHost.Domain.Services.AuthProviders;
 using KHost.Domain.Services.Ads;
 using KHost.Domain.Services.BreakMusic;
+using KHost.Domain.Services.Displays;
+using KHost.Domain.Services.Displays.LocalScreen;
+using KHost.Domain.Services.QrCodes;
 using KHost.Domain.Services.MediaPools;
 using KHost.Domain.Services.MediaProviders;
 using KHost.Abstractions.Services.QueueRotation;
@@ -103,27 +106,26 @@ namespace KHost.Domain
             serviceCollection.AddSingleton<IMediaGateService, MediaGateService>();
             serviceCollection.AddSingleton<IScreenMarqueeService, ScreenMarqueeService>();
 
-            // Core, not a plugin: the host's own transport to the screens, registered here so it
+            // Core, not a plugin: the host's own transport to the local screen app, registered here so it
             // reaches PlaybackService in the same collection a plugin's display does. PluginLoader
             // must never bind it, and it must not appear on the Plugins page.
-            serviceCollection.AddSingleton<Services.Screens.ScreenDisplayProvider>();
+            serviceCollection.AddSingleton<LocalScreenDisplayProvider>();
             serviceCollection.AddSingleton<IDisplayProvider>(
-                provider => provider.GetRequiredService<Services.Screens.ScreenDisplayProvider>());
+                provider => provider.GetRequiredService<LocalScreenDisplayProvider>());
 
             // It wires ScreenConnected in its constructor, so it must exist before a screen does.
-            serviceCollection.AddSingleton<Services.Screens.IStartsWithTheHost>(
-                provider => provider.GetRequiredService<Services.Screens.ScreenDisplayProvider>());
-            serviceCollection.AddSingleton<INextSingerCardService, Services.Screens.NextSingerCardService>();
-            serviceCollection.AddSingleton<Services.Screens.IScreenQrCodeService, Services.Screens.ScreenQrCodeService>();
-            serviceCollection.AddSingleton<Services.Screens.IBreakMusicCardService, Services.Screens.BreakMusicCardService>();
+            serviceCollection.AddSingleton<IStartsWithTheHost>(
+                provider => provider.GetRequiredService<LocalScreenDisplayProvider>());
+            serviceCollection.AddSingleton<INextSingerCardService, NextSingerCardService>();
+            serviceCollection.AddSingleton<IQrCodeService, QrCodeService>();
             serviceCollection.AddSingleton<IPlaybackService, PlaybackService>();
             serviceCollection.AddSingleton<IPlaybackProgram>(
                 sp => (IPlaybackProgram)sp.GetRequiredService<IPlaybackService>());
 
             // The same singletons again, under the marker the host builds on the way up: pointed at what is
             // already registered. A fresh registration would build twice, and the extra copy would listen.
-            serviceCollection.AddSingleton<Services.Screens.IStartsWithTheHost>(
-                sp => (Services.Screens.IStartsWithTheHost)sp.GetRequiredService<IPlaybackService>());
+            serviceCollection.AddSingleton<IStartsWithTheHost>(
+                sp => (IStartsWithTheHost)sp.GetRequiredService<IPlaybackService>());
             serviceCollection.AddSingleton<IMediaSearchService, MediaSearchService>();
             serviceCollection.AddSingleton<IVenuesService, VenuesService>();
             serviceCollection.AddSingleton<IUsersService, UsersService>();

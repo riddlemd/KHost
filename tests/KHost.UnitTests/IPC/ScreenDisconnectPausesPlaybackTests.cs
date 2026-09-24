@@ -7,7 +7,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using KHost.Domain.Services;
 using KHost.Domain.Services.Messaging;
-using KHost.Domain.Services.Screens;
+using KHost.Domain.Services.Displays.LocalScreen;
 
 namespace KHost.UnitTests.IPC;
 
@@ -73,7 +73,7 @@ public class ScreenDisconnectPausesPlaybackTests : IDisposable
             // The screens reach playback as a display now, over this same real server, so a
             // registration here is still what gives the song somewhere to come out. The receiver
             // beside them stands in for a television, which is the only second display there can be.
-            [new ScreenDisplayProvider(NullLogger<ScreenDisplayProvider>.Instance, _screenServer, [], _broker), _receiver],
+            [new LocalScreenDisplayProvider(NullLogger<LocalScreenDisplayProvider>.Instance, _screenServer, [], _broker), _receiver],
             Substitute.For<IBreakMusicService>(),
             Monitor(new PlaybackService.ServiceOptions { StopFadeDuration = TimeSpan.Zero }),
             Substitute.For<IAudioTrackService>(),

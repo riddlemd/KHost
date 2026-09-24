@@ -31,7 +31,7 @@ using Photino.NET;
 using Serilog;
 using Serilog.Events;
 using KHost.UserInterface.Services.RedirectProviders;
-using KHost.Domain.Services.Screens;
+using KHost.Domain.Services.Displays.LocalScreen;
 
 namespace KHost.UserInterface;
 
@@ -238,7 +238,7 @@ internal static class Program
         {
             // Each of these wires itself to the broker in its constructor, so enumerating is what
             // makes it exist: a loop, because a line each is what kept going missing.
-            foreach (var _ in app.Services.GetServices<KHost.Domain.Services.Screens.IStartsWithTheHost>())
+            foreach (var _ in app.Services.GetServices<KHost.Domain.Services.IStartsWithTheHost>())
             {
             }
         }

@@ -6,7 +6,7 @@ using Microsoft.Extensions.Logging;
 namespace KHost.Domain.Services;
 
 /// <summary>Composes what the marquee should say; the display decides when to draw it.</summary>
-/// <remarks>Holds no subscriptions: ScreenDisplayProvider hears what moves the marquee and asks
+/// <remarks>Holds no subscriptions: LocalScreenDisplayProvider hears what moves the marquee and asks
 /// for it again, so the host keeps no idea of how or when a display shows it.</remarks>
 public sealed class ScreenMarqueeService : BaseService, IScreenMarqueeService
 {

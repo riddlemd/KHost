@@ -1,7 +1,7 @@
 # What an `IDisplayProvider` is
 
 **Implemented.** `IDisplayProvider` is in `KHost.Abstractions/Services/`, the screens reach it
-through `KHost.Domain/Services/Screens/ScreenDisplayProvider.cs`, and `PlaybackService` drives
+through `KHost.Domain/Services/Displays/LocalScreen/LocalScreenDisplayProvider.cs`, and `PlaybackService` drives
 whichever one is connected through one dispatcher. The interface itself is the authority on the current
 surface; this note keeps the reasoning behind its shape.
 
@@ -25,7 +25,7 @@ one answer to "where does the song come out, and what can it show?"
 
 ## The two implementations
 
-| | `ScreenDisplayProvider` (core) | `ChromecastDisplayProvider` (plugin) |
+| | `LocalScreenDisplayProvider` (core) | `ChromecastDisplayProvider` (plugin) |
 |---|---|---|
 | Transport | SignalR IPC over loopback | CASTV2 across the LAN |
 | Reach | same machine only | off-box |
@@ -160,13 +160,14 @@ and that is a decision the flags let the host make separately rather than all at
 
 ## What implementing it settled
 
-- **`IScreenServer` survives, wrapped.** `ScreenDisplayProvider` holds it rather than replacing it:
+- **`IScreenServer` survives, wrapped.** `LocalScreenDisplayProvider` holds it rather than replacing it:
   the registration handshake, the MAC and the per-screen stream-URL rewrite are all still its job,
-  and the provider is a face over them. There is one way to reach a screen — `ScreenDisplayProvider`
+  and the provider is a face over them. There is one way to reach a screen — `LocalScreenDisplayProvider`
   itself, and nothing else holds `IScreenServer` any more. `PlaybackService` drives transport
   through it like any other display; the marquee, QR codes, break music card and next-singer card
   are pulled and sent by the provider on its own, in response to what the broker says moved, never
-  pushed by `PlaybackService` or by the overlay services that build them. The server registers one
+  pushed by `PlaybackService`. The QR code arrives as data (`IQrCodeService`'s `QrCodeOffer`) and the
+  break music card is composed from `IBreakMusicService`; encoding and placement are the provider's. The server registers one
   screen (a constant, not an option) and sends only by `BroadcastCommandAsync`.
 - **Switching displays** disconnects whatever was live before connecting the new one, in
   `SettingsButton.SelectDisplayAsync`, and every provider is asked — two displays carrying one song
@@ -182,7 +183,7 @@ and that is a decision the flags let the host make separately rather than all at
   be reachable: a console runs all night on whatever wifi the room has.
 - **There are no roles and no sync.** No coordination service, no sync capability, no timeline
   command and no start lead. The one thing that was never about roles is the venue's volume,
-  applied on every connect and venue edit by `ScreenDisplayProvider`, which is where the screens'
+  applied on every connect and venue edit by `LocalScreenDisplayProvider`, which is where the screens'
   own housekeeping belongs.
 - **`LibraryBreakMusicProvider` routes to the displays**, not to an audio screen. A display that
   cannot take a second channel inherits the no-op defaults and still counts as somewhere the track

@@ -2,10 +2,10 @@ using KHost.Abstractions.Models;
 using KHost.Abstractions.Messaging;
 using KHost.Abstractions.Services;
 using KHost.Abstractions.Services.IPC;
-using KHost.Domain.Services.Screens;
+using KHost.Domain.Services.Displays;
 using Microsoft.Extensions.Logging.Abstractions;
 
-namespace KHost.UnitTests.Domain.Services.Screens;
+namespace KHost.UnitTests.Domain.Services.Displays;
 
 /// <summary>Who the card names, and when there is nobody to name. Host triggered, so nothing here
 /// is about republishing: the card stands until the next thing is drawn.</summary>

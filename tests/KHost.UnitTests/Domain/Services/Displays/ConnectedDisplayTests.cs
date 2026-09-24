@@ -1,8 +1,8 @@
 using KHost.Abstractions.Services;
-using KHost.Domain.Services.Screens;
+using KHost.Domain.Services.Displays;
 using NSubstitute;
 
-namespace KHost.UnitTests.Domain.Services.Screens;
+namespace KHost.UnitTests.Domain.Services.Displays;
 
 public class ConnectedDisplayTests
 {

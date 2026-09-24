@@ -202,7 +202,7 @@ means" are the same question asked twice, and splitting them is why the encode d
 service that only knows how to encode. `StemsOf`, added days ago, is the seam showing.
 
 `HlsMediaStreamService` survives, wrapped — the same way `IScreenServer` survived behind
-`ScreenDisplayProvider`. Its ffmpeg argument building is not the problem; being the only answer is.
+`LocalScreenDisplayProvider`. Its ffmpeg argument building is not the problem; being the only answer is.
 
 ## Risks
 

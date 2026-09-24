@@ -4,7 +4,8 @@ using KHost.Abstractions.Services.IPC;
 using KHost.Abstractions.Messaging;
 using KHost.Abstractions.Messaging.Messages;
 using Microsoft.Extensions.Logging;
-using KHost.Domain.Services.Screens;
+using KHost.Domain.Services.Displays;
+using KHost.Domain.Services.Displays.LocalScreen;
 
 namespace KHost.Domain.Services.BreakMusic;
 
@@ -21,7 +22,7 @@ public class LibraryBreakMusicProvider : BaseService, IBreakMusicProvider, IDisp
 
     // The one display that says when the bed ran out; the second channel has no timeline in the
     // contract, so this is the screens provider's own hook rather than anything a plugin raises.
-    private readonly IReadOnlyList<ScreenDisplayProvider> _screens;
+    private readonly IReadOnlyList<LocalScreenDisplayProvider> _screens;
     private readonly IVenuesService _venues;
 
     private MediaStreamSession? _stream;
@@ -45,7 +46,7 @@ public class LibraryBreakMusicProvider : BaseService, IBreakMusicProvider, IDisp
         _media = media;
         _streams = streams;
         _displays = [.. displays];
-        _screens = [.. _displays.OfType<ScreenDisplayProvider>()];
+        _screens = [.. _displays.OfType<LocalScreenDisplayProvider>()];
         _venues = venues;
 
         foreach (var screens in _screens)
@@ -114,7 +115,7 @@ public class LibraryBreakMusicProvider : BaseService, IBreakMusicProvider, IDisp
     }
 
     /// <summary>Deliberately nothing: this provider's audio rides the screen channel.</summary>
-    /// <remarks>ScreenDisplayProvider sets that channel alongside the song's own.</remarks>
+    /// <remarks>LocalScreenDisplayProvider sets that channel alongside the song's own.</remarks>
     public Task SetVolumeAsync(float volume, CancellationToken cancellationToken = default)
         => Task.CompletedTask;
 

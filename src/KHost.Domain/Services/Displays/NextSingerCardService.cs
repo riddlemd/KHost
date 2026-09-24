@@ -4,7 +4,7 @@ using KHost.Abstractions.Services;
 using KHost.Abstractions.Services.IPC;
 using Microsoft.Extensions.Logging;
 
-namespace KHost.Domain.Services.Screens;
+namespace KHost.Domain.Services.Displays;
 
 /// <summary>Names who is up, on the screens, when a host presses the button.</summary>
 /// <remarks>Host triggered and one shot, unlike the marquee and the break music card, which follow
