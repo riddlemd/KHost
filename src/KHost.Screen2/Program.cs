@@ -410,7 +410,8 @@ internal static class Program
     private static readonly TimeSpan ConnectRetryInterval = TimeSpan.FromSeconds(15);
 
     /// <summary>Keeps trying until the host answers or the window closes.</summary>
-    /// <remarks>SignalR's auto-reconnect resumes an established connection; this one never was one.</remarks>
+    /// <remarks>Only the first connection: once one is up, the client wins back a closed link
+    /// itself, so returning here leaves one reconnect path rather than two.</remarks>
     private static async Task ConnectAsync(Microsoft.Extensions.Logging.ILogger logger, string serverUri, string screenId, byte[] authKey)
     {
         for (var attempt = 0; !_closing.IsCancellationRequested; attempt++)
@@ -506,6 +507,9 @@ internal static class Program
                 path: Path.Combine(logDirectory, $"{safeId}-.log"),
                 rollingInterval: RollingInterval.Day,
                 retainedFileCountLimit: null,
+                // A relaunched screen shares its id, so its file, with one still closing; unshared,
+                // the later process cannot open it and writes nothing.
+                shared: true,
                 outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] {Message:lj}{NewLine}{Exception}")
             .CreateLogger();
     }

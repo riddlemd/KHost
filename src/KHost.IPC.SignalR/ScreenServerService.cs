@@ -170,15 +170,48 @@ internal sealed class ScreenServerService : IScreenServer, IHubCallback
 
         lock (_lock)
         {
-            if (!_sessions.TryGetValue(connectionId, out var session) || session.Key is null) return false;
-            if (envelope.ScreenId != session.ScreenId) return false;
+            // Every refusal says why: the hub drops the link on any of them, and the screen then
+            // shows "Lost the host".
+            if (!_sessions.TryGetValue(connectionId, out var session) || session.Key is null)
+            {
+                _logger?.LogWarning(
+                    "Refused state from '{ScreenId}': {ConnectionId} has not registered", envelope.ScreenId, connectionId);
 
-            if (!ScreenMessageAuth.Verify(session.Key, session.Nonce, envelope.Seq, envelope.Payload, envelope.Mac)
-                || envelope.Seq <= session.ExpectedInboundSeq)
                 return false;
+            }
+
+            if (envelope.ScreenId != session.ScreenId)
+            {
+                _logger?.LogWarning(
+                    "Refused state from '{ScreenId}': {ConnectionId} registered as '{Registered}'",
+                    envelope.ScreenId, connectionId, session.ScreenId);
+
+                return false;
+            }
+
+            if (!ScreenMessageAuth.Verify(session.Key, session.Nonce, envelope.Seq, envelope.Payload, envelope.Mac))
+            {
+                _logger?.LogWarning("Refused state from '{ScreenId}': the signature did not verify", envelope.ScreenId);
+
+                return false;
+            }
+
+            if (envelope.Seq <= session.ExpectedInboundSeq)
+            {
+                _logger?.LogWarning(
+                    "Refused state from '{ScreenId}': sequence {Seq} is not past {Expected}",
+                    envelope.ScreenId, envelope.Seq, session.ExpectedInboundSeq);
+
+                return false;
+            }
 
             state = ScreenIpcSerializer.DeserializeState(envelope.Payload);
-            if (state is null) return false;
+            if (state is null)
+            {
+                _logger?.LogWarning("Refused state from '{ScreenId}': its payload could not be read", envelope.ScreenId);
+
+                return false;
+            }
 
             session.ExpectedInboundSeq = envelope.Seq;
         }

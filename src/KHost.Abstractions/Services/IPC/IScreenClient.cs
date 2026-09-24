@@ -16,6 +16,8 @@ public interface IScreenClient
         CancellationToken cancellationToken = default);
 
     Task DisconnectAsync();
+
+    /// <summary>Skipped, not thrown, while the screen is not registered on a live session.</summary>
     Task SendStateAsync(IScreenState state);
 
     /// <summary>Estimates the offset to the host's clock, NTP style, for a scheduled start.</summary>
