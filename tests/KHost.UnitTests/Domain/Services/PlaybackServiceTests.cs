@@ -885,6 +885,49 @@ public class PlaybackServiceTests : IDisposable
         await _screenServer.DidNotReceive().BroadcastCommandAsync(Arg.Any<PlayCommand>());
     }
 
+    /// <summary>A screen joining while the song's first transcode is still starting must not start
+    /// another: the load in flight reaches it anyway, and a second one is never closed.</summary>
+    [Fact]
+    public async Task ScreenConnect_WhileTheSongIsStillRendering_OpensNoSecondStreamAndSendsNoEmptyLoad()
+    {
+        var (performance, media) = CreatePerformance();
+        var opens = 0;
+        var rendering = new TaskCompletionSource();
+        _mediaStreams
+            .OpenAsync(Arg.Any<string>(), Arg.Any<TimeSpan>(), Arg.Any<int>(), Arg.Any<int>(), Arg.Any<AudioMix?>(), Arg.Any<CancellationToken>())
+            .Returns(async call =>
+            {
+                var n = Interlocked.Increment(ref opens);
+                await rendering.Task;
+                return new MediaStreamSession
+                {
+                    Id = $"stream-{n}",
+                    SourcePath = call.ArgAt<string>(0),
+                    PlaylistUrl = $"http://host/media/stream-{n}/stream.m3u8",
+                    StartOffset = call.ArgAt<TimeSpan>(1),
+                    Pitch = call.ArgAt<int>(2),
+                    Tempo = call.ArgAt<int>(3),
+                };
+            });
+
+        var loading = _service.LoadAsync(performance, media);
+        await WaitForAsync(() => Volatile.Read(ref opens) == 1);
+        _screenServer.ClearReceivedCalls();
+
+        RaiseScreenConnected();
+
+        // Waited out: the assertion is that the sync does nothing, which has no state to wait for.
+        await WaitForAsync(() => Volatile.Read(ref opens) > 1 || _screenServer.ReceivedCalls().Any(c =>
+            c.GetMethodInfo().Name == nameof(IScreenServer.BroadcastCommandAsync) &&
+            c.GetArguments().FirstOrDefault() is LoadMediaCommand));
+
+        Assert.Equal(1, Volatile.Read(ref opens));
+        await _screenServer.DidNotReceive().BroadcastCommandAsync(Arg.Any<LoadMediaCommand>());
+
+        rendering.SetResult();
+        await loading;
+    }
+
     [Fact]
     public async Task ScreenStateReports_MoveTheHostsPosition()
     {
@@ -1862,6 +1905,26 @@ public class PlaybackServiceTests : IDisposable
 
         Assert.Equal(PlaybackState.Stopped, _service.State);
         await _performanceService.Received().DequeueAsync(performance.SingerId, performance.Id);
+    }
+
+    /// <summary>Timer.Dispose does not wait out a callback already running, so a tick can arrive
+    /// after the pause stopped the clock. Calling it directly is that late callback.</summary>
+    [Fact]
+    public async Task TickAsync_ArrivingAfterAPause_DoesNotRunTheSongToItsEnd()
+    {
+        var (performance, media) = CreatePerformance();
+        media.Duration = TimeSpan.FromMilliseconds(1);
+
+        await _service.LoadAsync(performance, media);
+        await _service.PlayAsync();
+        await _service.PauseAsync();
+        await Task.Delay(10);
+
+        await _service.TickAsync();
+
+        Assert.Equal(PlaybackState.Paused, _service.State);
+        Assert.Same(performance, _service.CurrentPerformance);
+        await _performanceService.DidNotReceive().DequeueAsync(Arg.Any<Guid>(), Arg.Any<Guid>());
     }
 
     [Fact]
@@ -2952,6 +3015,41 @@ public class PlaybackServiceTests : IDisposable
         Assert.True(await WaitForStreamsOpenedAsync(2));
         await _mediaStreams.Received(1).OpenAsync(
             media.FilePath, TimeSpan.FromSeconds(30), 2, 0, Arg.Any<AudioMix?>(), Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>A pause landing while the new transcode starts must win: resuming afterwards plays
+    /// the room a song the console shows as paused.</summary>
+    [Fact]
+    public async Task SetPitch_HostPausesWhileTheStreamRebuilds_DoesNotResume()
+    {
+        var (performance, media) = CreatePerformance();
+        await _service.LoadAsync(performance, media);
+        await _service.PlayAsync();
+
+        var gate = new TaskCompletionSource();
+        _screenServer.BroadcastCommandAsync(Arg.Any<IScreenCommand>()).Returns(async call =>
+        {
+            if (call.Arg<IScreenCommand>() is LoadMediaCommand)
+                await gate.Task;
+        });
+        _screenServer.ClearReceivedCalls();
+
+        await _service.SetPitchAsync(2);
+
+        // Parked on the new stream's load, before the decision to resume.
+        Assert.True(await WaitForBroadcastAsync<LoadMediaCommand>());
+
+        await _service.PauseAsync();
+
+        // The rebuild announces on its way out, which is the end of everything it sends.
+        var finished = 0;
+        using var subscription = _broker.Subscribe<PlaybackChanged>(_ => Interlocked.Increment(ref finished));
+        gate.SetResult();
+        await WaitForAsync(() => Volatile.Read(ref finished) > 0);
+
+        Assert.True(Volatile.Read(ref finished) > 0);
+        Assert.Equal(PlaybackState.Paused, _service.State);
+        await _screenServer.DidNotReceive().BroadcastCommandAsync(Arg.Any<PlayCommand>());
     }
 
     [Fact]
