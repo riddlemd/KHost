@@ -32,7 +32,7 @@ public class DialogService : IDialogService
     {
         var request = new ConfirmationDialog.DialogRequest(title, message, confirmText, onConfirm, onCancel, onClose);
         _logger.LogDebug("Dialog requested: {DialogType} title={Title}", nameof(ConfirmationDialog), title);
-        ShowRequested?.Invoke(this, request);
+        Show(request, onClose ?? onCancel);
 
         return Task.FromResult(false);
     }
@@ -40,7 +40,7 @@ public class DialogService : IDialogService
     public Task ShowSingerPerformanceHistoryAsync(Guid userId, Action? onClose = null)
     {
         _logger.LogDebug("Dialog requested: {DialogType} userId={UserId}", nameof(SingerPerformanceHistoryDialog), userId);
-        ShowRequested?.Invoke(this, new SingerPerformanceHistoryDialog.DialogRequest(userId, onClose));
+        Show(new SingerPerformanceHistoryDialog.DialogRequest(userId, onClose), onClose);
 
         return Task.CompletedTask;
     }
@@ -67,7 +67,7 @@ public class DialogService : IDialogService
     {
         var request = new EditTipDialog.DialogRequest(item, userId, onSave, onCancel, onClose, showDate);
         _logger.LogDebug("Dialog requested: {DialogType} userId={UserId}", nameof(EditTipDialog), userId);
-        ShowRequested?.Invoke(this, request);
+        Show(request, onClose ?? onCancel);
         return Task.CompletedTask;
     }
 
@@ -75,14 +75,14 @@ public class DialogService : IDialogService
     {
         var request = new BulkEditMediaDialog.DialogRequest(items, onSave, onCancel, onClose);
         _logger.LogDebug("Dialog requested: {DialogType} count={Count}", nameof(BulkEditMediaDialog), items.Count);
-        ShowRequested?.Invoke(this, request);
+        Show(request, onClose ?? onCancel);
         return Task.CompletedTask;
     }
 
     public Task ShowLyricsAsync(string query, Action? onClose = null)
     {
         _logger.LogDebug("Dialog requested: {DialogType} query={Query}", nameof(ShowLyricsDialog), query);
-        ShowRequested?.Invoke(this, new ShowLyricsDialog.DialogRequest(query, onClose));
+        Show(new ShowLyricsDialog.DialogRequest(query, onClose), onClose);
 
         return Task.CompletedTask;
     }
@@ -90,7 +90,7 @@ public class DialogService : IDialogService
     public Task ShowShortcutsAsync(Action? onClose = null)
     {
         _logger.LogDebug("Dialog requested: {DialogType}", nameof(ShortcutsDialog));
-        ShowRequested?.Invoke(this, new ShortcutsDialog.DialogRequest(onClose));
+        Show(new ShortcutsDialog.DialogRequest(onClose), onClose);
 
         return Task.CompletedTask;
     }
@@ -98,7 +98,7 @@ public class DialogService : IDialogService
     public Task ShowPluginTableAsync(ShowPluginTableRequest table, Action? onClose = null)
     {
         _logger.LogDebug("Dialog requested: {DialogType} title={Title}", nameof(PluginTableDialog), table.Title);
-        ShowRequested?.Invoke(this, new PluginTableDialog.DialogRequest(table, onClose));
+        Show(new PluginTableDialog.DialogRequest(table, onClose), onClose);
 
         return Task.CompletedTask;
     }
@@ -113,7 +113,7 @@ public class DialogService : IDialogService
         var request = new ErrorDialog.DialogRequest(error, title, error.ToString(), onRetry, onClose);
 
         _logger.LogError(error, "Error shown to the host: {Reference}", error.ReferenceCode);
-        ShowRequested?.Invoke(this, request);
+        Show(request, onClose);
 
         return Task.CompletedTask;
     }
@@ -128,7 +128,7 @@ public class DialogService : IDialogService
             message ?? "You have changes that have not been saved yet.", onSave, onDiscard, onStay);
 
         _logger.LogDebug("Dialog requested: {DialogType}", nameof(UnsavedChangesDialog));
-        ShowRequested?.Invoke(this, request);
+        Show(request, onStay);
 
         return Task.CompletedTask;
     }
@@ -139,7 +139,7 @@ public class DialogService : IDialogService
     {
         var request = new TextPromptDialog.DialogRequest(title, message, fields, onSubmit, onCancel, onClose);
         _logger.LogDebug("Dialog requested: {DialogType} title={Title}", nameof(TextPromptDialog), title);
-        ShowRequested?.Invoke(this, request);
+        Show(request, onClose ?? onCancel);
 
         return Task.CompletedTask;
     }
@@ -151,7 +151,7 @@ public class DialogService : IDialogService
         var request = new SingingAsDialog.DialogRequest(performance, singerName, onSave, onCancel, onClose);
         _logger.LogDebug("Dialog requested: {DialogType} performance={PerformanceId}",
             nameof(SingingAsDialog), performance.Id);
-        ShowRequested?.Invoke(this, request);
+        Show(request, onClose ?? onCancel);
 
         return Task.CompletedTask;
     }
@@ -199,8 +199,24 @@ public class DialogService : IDialogService
         }
 
         _logger.LogDebug("Dialog requested: {DialogType}", typeof(TRequest).Name);
-        ShowRequested?.Invoke(this, output);
+        Show(output, onClose ?? onCancel);
 
         return Task.CompletedTask;
+    }
+
+    /// <summary>Fires the request at whatever console is listening. With no subscriber the event
+    /// is a silent no-op, and a caller awaiting the dialog's answer through
+    /// <see cref="Abstractions.Interactions.IInteractionDispatcher"/> would hang forever, so this
+    /// completes the request the same way a dismissed one does instead.</summary>
+    private void Show(BaseDialogRequest request, Action? onUnshown)
+    {
+        if (ShowRequested is null)
+        {
+            _logger.LogWarning("No console is open to show {DialogType}; completing without an answer", request.GetType().Name);
+            onUnshown?.Invoke();
+            return;
+        }
+
+        ShowRequested.Invoke(this, request);
     }
 }

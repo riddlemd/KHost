@@ -17,7 +17,7 @@ public class ConfirmDuplicateSongHandler : IInteractionHandler<ConfirmDuplicateS
     {
         var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        using var registration = cancellationToken.Register(() => tcs.TrySetCanceled(cancellationToken));
+        InteractionCompletion.LinkCancellation(tcs, cancellationToken);
 
         _ = _dialogService.ShowConfirmationAsync(
             BuildMessage(request),

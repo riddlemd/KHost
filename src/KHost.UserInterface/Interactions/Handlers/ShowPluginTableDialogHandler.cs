@@ -19,7 +19,7 @@ public class ShowPluginTableDialogHandler : IInteractionHandler<ShowPluginTableR
     {
         var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        using var registration = cancellationToken.Register(() => tcs.TrySetCanceled(cancellationToken));
+        InteractionCompletion.LinkCancellation(tcs, cancellationToken);
 
         _ = _dialogService.ShowPluginTableAsync(request, onClose: () => tcs.TrySetResult());
 

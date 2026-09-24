@@ -17,7 +17,7 @@ public class ShowLyricsDialogHandler : IInteractionHandler<ShowLyricsRequest>
     {
         var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        using var registration = cancellationToken.Register(() => tcs.TrySetCanceled(cancellationToken));
+        InteractionCompletion.LinkCancellation(tcs, cancellationToken);
 
         _ = _dialogService.ShowLyricsAsync(request.Query, onClose: () => tcs.TrySetResult());
 

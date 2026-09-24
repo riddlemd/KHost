@@ -18,7 +18,7 @@ public class EditMediaDialogHandler : IInteractionHandler<EditMediaRequest, Medi
     {
         var tcs = new TaskCompletionSource<Media?>(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        using var registration = cancellationToken.Register(() => tcs.TrySetCanceled(cancellationToken));
+        InteractionCompletion.LinkCancellation(tcs, cancellationToken);
 
         _ = _dialogService.RequestEditAsync(
             request.Media,

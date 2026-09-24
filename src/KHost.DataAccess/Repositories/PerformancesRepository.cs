@@ -23,7 +23,7 @@ internal class PerformancesRepository : BaseRepository<Performance>, IPerformanc
 
     public async Task<int> ReadNextQueuePositionForSingerAsync(Guid singerId)
     {
-        var context = await GetContextAsync();
+        using var context = await ContextFactory.CreateDbContextAsync();
         var positions = await context.Set<Performance>()
             .Where(p => p.SingerId == singerId && p.QueuePosition.HasValue)
             .Select(p => p.QueuePosition!.Value)
@@ -32,10 +32,13 @@ internal class PerformancesRepository : BaseRepository<Performance>, IPerformanc
     }
 
     public async Task<Performance?> ReadSingersNextPerformanceAsync(Guid singerId)
-        => (await GetContextAsync()).Set<Performance>()
+    {
+        using var context = await ContextFactory.CreateDbContextAsync();
+        return await context.Set<Performance>()
             .Where(p => p.SingerId == singerId && p.QueuePosition.HasValue)
             .OrderBy(p => p.QueuePosition)
-            .FirstOrDefault();
+            .FirstOrDefaultAsync();
+    }
 
     public async Task<List<Performance>> ReadQueuedAsync()
     {
