@@ -6,7 +6,7 @@ using NSubstitute;
 
 namespace KHost.UnitTests.Domain.Services;
 
-public class GraphicsKaraokeRendererTests
+public class CompactDiscPlusGraphicsRendererTests
 {
     private readonly IMediaStreamService _streams = Substitute.For<IMediaStreamService>();
 
@@ -16,7 +16,7 @@ public class GraphicsKaraokeRendererTests
     [InlineData("/songs/a.mp3", false)]
     [InlineData("/songs/a.mp4", false)]
     public void CanRender_ClaimsTheGraphicsHalfAndNothingElse(string path, bool expected)
-        => Assert.Equal(expected, new GraphicsKaraokeRenderer(_streams).CanRender(path));
+        => Assert.Equal(expected, new CompactDiscPlusGraphicsRenderer(_streams).CanRender(path));
 
     [Fact]
     public async Task RenderAsync_RefusesACdgWithNoAudioBesideIt()
@@ -31,7 +31,7 @@ public class GraphicsKaraokeRendererTests
             // Half a song. It used to encode and reach the room as silence, which is the one
             // symptom that never points at its own cause.
             var thrown = await Assert.ThrowsAsync<KHostException>(
-                () => new GraphicsKaraokeRenderer(_streams).RenderAsync(Request(cdg)));
+                () => new CompactDiscPlusGraphicsRenderer(_streams).RenderAsync(Request(cdg)));
 
             Assert.Equal("KH-CDG-NO-AUDIO", thrown.ReferenceCode);
 
@@ -63,7 +63,7 @@ public class GraphicsKaraokeRendererTests
                     Tempo = 0,
                 });
 
-            var rendition = await new GraphicsKaraokeRenderer(_streams).RenderAsync(Request(cdg));
+            var rendition = await new CompactDiscPlusGraphicsRenderer(_streams).RenderAsync(Request(cdg));
 
             // Subcode graphics still have to be decoded into a picture, so the encode is inherited
             // rather than replaced — until the day a screen draws them itself.

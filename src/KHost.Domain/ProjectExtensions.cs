@@ -91,7 +91,7 @@ namespace KHost.Domain
             // having the parsing service redirect the probe on its behalf.
             serviceCollection.AddSingleton<IMediaProbe, CdgMediaProbe>();
             serviceCollection.AddSingleton<IMediaProbeService, MediaProbeService>();
-            serviceCollection.AddSingleton<IMediaRenderer, GraphicsKaraokeRenderer>();
+            serviceCollection.AddSingleton<IMediaRenderer, CompactDiscPlusGraphicsRenderer>();
             // Keyed for the same reason as the probe fallback: it claims every file, so it must not
             // race the renderers that claim one.
             serviceCollection.AddKeyedSingleton<IMediaRenderer, StreamingMediaRenderer>(MediaRendererService.FallbackKey);
