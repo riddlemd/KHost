@@ -120,7 +120,7 @@ public class HlsMediaStreamServiceTests : IDisposable
     [Fact]
     public void BuildArguments_SeeksOnTheOutput_ForGraphicsWithNoAudioBesideThem()
     {
-        // The stateful decode is what forces the slow seek, not the pairing. GraphicsKaraokeRenderer
+        // The stateful decode is what forces the slow seek, not the pairing. CompactDiscPlusGraphicsRenderer
         // refuses this pairing before the encoder ever sees it, so this is defence in depth — but
         // the predicate has to be about the decode, or it is right only by coincidence.
         var arguments = HlsMediaStreamService.BuildArguments(

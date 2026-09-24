@@ -10,7 +10,7 @@ namespace KHost.Domain.Services;
 /// <para>A face over <see cref="IMediaStreamService"/> rather than a replacement for it. The
 /// ffmpeg argument building was never the problem — being the only answer was.</para></remarks>
 /// <remarks>Open rather than sealed so a format with rules of its own can inherit the encode while
-/// owning its own claim — see <c>GraphicsKaraokeRenderer</c>. A subclass that later grows a way to
+/// owning its own claim — see <c>CompactDiscPlusGraphicsRenderer</c>. A subclass that later grows a way to
 /// play its format without ffmpeg replaces the body and nothing above it changes.</remarks>
 public class StreamingMediaRenderer(IMediaStreamService streams) : IMediaRenderer
 {

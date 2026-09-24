@@ -16,7 +16,7 @@ namespace KHost.Domain.Services;
 /// format have somewhere to live — and so the day a CDG is drawn natively on the screen, the way a
 /// kit's stems are now mixed there, this body is what changes and nothing above it notices.</para>
 /// </remarks>
-public sealed class GraphicsKaraokeRenderer(IMediaStreamService streams) : StreamingMediaRenderer(streams)
+public sealed class CompactDiscPlusGraphicsRenderer(IMediaStreamService streams) : StreamingMediaRenderer(streams)
 {
     public override bool CanRender(string filePath)
         => Path.GetExtension(filePath).Equals(MediaFormats.KaraokeGraphicsExtension, StringComparison.OrdinalIgnoreCase);

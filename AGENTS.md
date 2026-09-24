@@ -221,7 +221,7 @@ cannot name another's: its secrets, and the QR code it offers the screens.
   - **The target is part of the question.** `RenderTarget.MixesStems` says whether the one
     connected display mixes for itself; a device hearing the host's own mix needs the encode, so
     offering it stems would be waste.
-  - **A renderer may inherit the encode rather than replace it.** `GraphicsKaraokeRenderer` claims
+  - **A renderer may inherit the encode rather than replace it.** `CompactDiscPlusGraphicsRenderer` claims
     `.cdg` and derives from `StreamingMediaRenderer`, because subcode graphics still need ffmpeg to
     become a picture. It exists so the rules that belong to the format have a home: the first is
     that **a `.cdg` with no `.mp3` beside it is invalid, not silent**, and it now fails with
@@ -484,7 +484,7 @@ clips and the card it puts up between singers are ordinary library rows.
 - **A `.cdg` with no audio beside it is an invalid state, not a quiet song.** The graphics carry
   the words and nothing else. Such a file used to import as a normal row and reach the room as a
   silent stream with a warning in a log nobody reads, so it is now refused twice: the importer
-  skips it and counts it failed, and `GraphicsKaraokeRenderer` fails the play with
+  skips it and counts it failed, and `CompactDiscPlusGraphicsRenderer` fails the play with
   `KH-CDG-NO-AUDIO`. Rows already in a library predate the first check and are caught by the
   second.
   - **`MediaFormats.FindKaraokeAudio` is the one rule**, and every asker goes through it. There

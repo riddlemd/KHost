@@ -252,7 +252,7 @@ Each step is separately shippable, and the first two are worth doing whether or 
 2. **Move the kit onto it.** The plugin implements the renderer, `StemsOf` and the `DescribeStems`
    gating in `PlaybackService` both disappear into it, and a kit on a mixing screen stops running
    ffmpeg at all — which is the original goal.
-3. **Give CDG its own renderer.** `GraphicsKaraokeRenderer` claims `.cdg` and **inherits the
+3. **Give CDG its own renderer.** `CompactDiscPlusGraphicsRenderer` claims `.cdg` and **inherits the
    encode** from `StreamingMediaRenderer` rather than reimplementing it: subcode graphics still have
    to be decoded into a picture and ffmpeg is what does that. It exists anyway, because the rules
    that belong to the format need somewhere to live — and because the day a screen draws a CDG
