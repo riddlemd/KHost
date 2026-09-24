@@ -293,12 +293,25 @@ internal sealed class ScreenServerService : IScreenServer, IHubCallback
         // told to fetch from.
         _logger?.LogInformation("Screen {ScreenId} will fetch the stream from {Url}", connection.ScreenId, url);
 
-        return new LoadMediaCommand
-        {
-            StreamUrl = url,
-            StreamStartOffset = load.StreamStartOffset,
-        };
+        return WithStreamUrl(load, url);
     }
+
+    /// <summary>The same load, pointed at an address the screen can actually reach.</summary>
+    /// <remarks>Every property is carried, not only the one being changed. Rebuilt by hand because
+    /// the command is a class and cannot be <c>with</c>-ed, which is how <c>Tempo</c> came to be
+    /// silently dropped here for any screen reached on a non-loopback address: the stream was
+    /// retimed and the words, which scale by it, drifted away from it.
+    ///
+    /// <para>Internal so <c>LoadMediaCommandRewriteTests</c> can hold it to that by reflection —
+    /// the next property added to the command fails that test rather than going missing.</para>
+    /// </remarks>
+    internal static LoadMediaCommand WithStreamUrl(LoadMediaCommand load, string? streamUrl) => new()
+    {
+        StreamUrl = streamUrl,
+        StreamStartOffset = load.StreamStartOffset,
+        Tempo = load.Tempo,
+        Stems = load.Stems,
+    };
 
     private sealed class SessionAuth
     {
