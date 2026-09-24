@@ -278,6 +278,39 @@ public class BreakMusicServiceTests : IDisposable
         service.Dispose();
     }
 
+    // Without a lock guarding every transition (not just StartAsync), a StopAsync racing a
+    // still-in-flight StartAsync could run to completion first and then be overwritten when the
+    // provider's StartAsync finally returns and sets State back to Playing — losing the stop.
+    [Fact]
+    public async Task StartAsync_RacingWithStopAsync_DoesNotLoseTheStop()
+    {
+        var entered = new TaskCompletionSource();
+        var gate = new TaskCompletionSource();
+
+        _provider.StartAsync(Arg.Any<CancellationToken>()).Returns(async _ =>
+        {
+            entered.TrySetResult();
+            await gate.Task;
+            return true;
+        });
+
+        await _service.InitializeAsync();
+
+        var startTask = _service.StartAsync();
+        await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        var stopTask = _service.StopAsync();
+
+        // StopAsync must be blocked behind the lock StartAsync is holding, not racing ahead of it.
+        await Task.Delay(TimeSpan.FromMilliseconds(50));
+        Assert.False(stopTask.IsCompleted);
+
+        gate.SetResult();
+        await Task.WhenAll(startTask, stopTask).WaitAsync(TimeSpan.FromSeconds(5));
+
+        Assert.Equal(BreakMusicState.Stopped, _service.State);
+    }
+
     [Fact]
     public void LibraryProvider_IsTheOneNamedForTheBuiltIn()
         => Assert.Same(_provider, _service.LibraryProvider);

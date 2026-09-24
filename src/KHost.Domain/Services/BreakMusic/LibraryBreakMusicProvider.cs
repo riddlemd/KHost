@@ -111,7 +111,7 @@ public class LibraryBreakMusicProvider : BaseService, IBreakMusicProvider, IDisp
     }
 
     /// <summary>Deliberately nothing: this provider's audio rides the screen channel.</summary>
-    /// <remarks>ScreenCoordination sets that channel alongside the song's own.</remarks>
+    /// <remarks>ScreenDisplayProvider sets that channel alongside the song's own.</remarks>
     public Task SetVolumeAsync(float volume, CancellationToken cancellationToken = default)
         => Task.CompletedTask;
 

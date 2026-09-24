@@ -23,14 +23,24 @@ public sealed class ScreenDisplayProvider : IDisplayProvider, IStartsWithTheHost
     /// <summary>Full volume before any venue exists, so a screen is never silently mute.</summary>
     private const float FullVolume = 1.0f;
 
+    /// <summary>A screen takes seconds to register once launched; this is how long ConnectAsync
+    /// waits for it before reporting a launch that never came back rather than a refusal.</summary>
+    private static readonly TimeSpan DefaultRegistrationTimeout = TimeSpan.FromSeconds(10);
+
     private readonly IScreenServer _screenServer;
     private readonly IReadOnlyList<IScreenProvider> _launchers;
     private readonly IVenuesService? _venuesService;
     private readonly IMessageBroker _broker;
     private readonly IDisposable? _venueChanged;
     private readonly ILogger<ScreenDisplayProvider> _logger;
+    private readonly TimeSpan _registrationTimeout;
 
     private bool _launching;
+
+    /// <summary>Answered by <see cref="OnScreenConnected"/> once the launch this ConnectAsync
+    /// started actually registers. Not reset to null afterwards: a stale completed source left
+    /// here is harmless, and clearing it would race a ConnectAsync that just replaced it.</summary>
+    private volatile TaskCompletionSource<bool>? _registering;
 
     /// <summary>The screen that is up, tracked from the events rather than read back.</summary>
     /// <remarks>This is load-bearing, not an optimisation. <c>ConnectedDeviceId</c> and
@@ -46,13 +56,15 @@ public sealed class ScreenDisplayProvider : IDisplayProvider, IStartsWithTheHost
         IScreenServer screenServer,
         IEnumerable<IScreenProvider> launchers,
         IMessageBroker broker,
-        IVenuesService? venuesService = null)
+        IVenuesService? venuesService = null,
+        TimeSpan? registrationTimeout = null)
     {
         _logger = logger;
         _screenServer = screenServer;
         _launchers = [.. launchers];
         _broker = broker;
         _venuesService = venuesService;
+        _registrationTimeout = registrationTimeout ?? DefaultRegistrationTimeout;
 
         _screenServer.ScreenConnected += OnScreenConnected;
         _screenServer.ScreenDisconnected += OnScreenDisconnected;
@@ -158,14 +170,30 @@ public sealed class ScreenDisplayProvider : IDisplayProvider, IStartsWithTheHost
     public Guid? SessionId => null;
 
     /// <summary>Opens the screen if it is not already up. Refused while a different one is.</summary>
+    /// <remarks>Launching only starts the process; the screen still has to register back over IPC,
+    /// which takes seconds. Answering as soon as the launch call returns reported a launch that
+    /// was about to succeed as a refusal, so this waits for the registration itself instead.</remarks>
     public async Task<bool> ConnectAsync(string deviceId, CancellationToken cancellationToken = default)
     {
         if (ConnectedScreen() is { } already)
             return already.ScreenId == deviceId;
 
+        // Set before the launch starts: OnScreenConnected can run on the hub thread before this
+        // method gets back from awaiting the launch, and a waiter created after that moment would
+        // sit unanswered.
+        var waiter = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        _registering = waiter;
+
         await StartDiscoveryAsync(cancellationToken);
 
-        return ConnectedScreen() is not null;
+        if (ConnectedScreen() is not null)
+            return true;
+
+        using var timeout = new CancellationTokenSource(_registrationTimeout);
+        using var timeoutRegistration = timeout.Token.Register(() => waiter.TrySetResult(false));
+        using var cancelRegistration = cancellationToken.Register(() => waiter.TrySetResult(false));
+
+        return await waiter.Task;
     }
 
     public Task DisconnectAsync(CancellationToken cancellationToken = default)
@@ -279,7 +307,7 @@ public sealed class ScreenDisplayProvider : IDisplayProvider, IStartsWithTheHost
             {
                 var venue = await _venuesService.ReadSelectedVenueAsync();
                 if (venue is not null)
-                    volume = Math.Clamp(venue.Settings.DefaultVolume, 0, 100) / 100f;
+                    volume = VenueVolume.ToGain(venue.Settings.DefaultVolume);
             }
             catch (Exception ex)
             {
@@ -296,6 +324,10 @@ public sealed class ScreenDisplayProvider : IDisplayProvider, IStartsWithTheHost
     private void OnScreenConnected(object? sender, ScreenConnectionEventArgs e)
     {
         _connected = e.Connection;
+
+        // Answers a ConnectAsync waiting on this launch; a screen that registers without anyone
+        // waiting (a relaunch, or one recovering on its own) leaves this null and the call no-ops.
+        _registering?.TrySetResult(true);
 
         Announce();
         _ = Task.Run(ApplyVolumeAsync);

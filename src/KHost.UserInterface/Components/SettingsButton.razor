@@ -2,6 +2,10 @@
               OpenChanged="OnMenuOpenChanged">
     <Trigger><Icon Name="list" /></Trigger>
     <Items>
+        @* Computed once and reused below rather than read again inside the flyout: LiveDisplay
+           walks Displays, and this render may otherwise do that walk twice for one row. *@
+        @{ var liveDisplay = LiveDisplay; }
+
         <button class="kh-dropdown__item @CurrentClass(HomeRoute)" type="button" @onclick="() => NavigateTo(HomeRoute)">
             <span class="kh-dropdown__check"><Icon Name="sliders2" /></span>
             Controls
@@ -20,14 +24,14 @@
         <button class="kh-dropdown__item" type="button" @ref="_displayRowRef" @onclick="() => ToggleSection(DisplaySection)">
             <span class="kh-dropdown__check"><Icon Name="display" /></span>
             Display
-            <span class="kh-settings-menu__value">@DisplayValue</span>
+            <span class="kh-settings-menu__value">@DisplayValueFor(liveDisplay)</span>
             <Icon Name="chevron-left" Class="kh-settings-menu__chevron" />
         </button>
 
         <button class="kh-dropdown__item" type="button" @ref="_themeRowRef" @onclick="() => ToggleSection(ThemeSection)">
             <span class="kh-dropdown__check"><Icon Name="palette-fill" /></span>
             Theme
-            <span class="kh-settings-menu__value">@ThemeName(ThemeService?.CurrentTheme)</span>
+            <span class="kh-settings-menu__value">@ThemeName(ThemeService.CurrentTheme)</span>
             <Icon Name="chevron-left" Class="kh-settings-menu__chevron" />
         </button>
 
@@ -108,7 +112,7 @@
                         </button>
                     }
 
-                    @if (LiveDisplay is not null)
+                    @if (liveDisplay is not null)
                     {
                         <button class="kh-dropdown__item" type="button" @onclick="TurnOffDisplayAsync">
                             <span class="kh-dropdown__check"><Icon Name="x-lg" /></span>
@@ -130,9 +134,9 @@
                 }
                 else
                 {
-                    @foreach (var theme in ThemeService?.AvailableThemes ?? [])
+                    @foreach (var theme in ThemeService.AvailableThemes)
                     {
-                        var isCurrent = ThemeService?.CurrentTheme == theme;
+                        var isCurrent = ThemeService.CurrentTheme == theme;
 
                         <button class="kh-dropdown__item @(isCurrent ? "kh-dropdown__item--selected" : "")"
                                 type="button" @onclick="() => SelectThemeAsync(theme)">
