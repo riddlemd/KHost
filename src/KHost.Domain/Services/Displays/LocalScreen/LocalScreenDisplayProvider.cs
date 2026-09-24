@@ -6,10 +6,12 @@ using KHost.Common.Media;
 using KHost.Abstractions.Services.IPC;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using KHost.Domain.Services.QrCodes;
+using QRCoder;
 
-namespace KHost.Domain.Services.Screens;
+namespace KHost.Domain.Services.Displays.LocalScreen;
 
-/// <summary>The screens, reached the same way every other display is.</summary>
+/// <summary>The local screen app, reached the same way every other display is.</summary>
 /// <remarks>Core, not a plugin: this is the host's own transport, registered by the host.
 /// <c>PluginLoader</c> must not bind it and it must never appear on the Plugins page — it simply
 /// travels the path a plugin's display travels, so <c>PlaybackService</c> has one kind of thing to
@@ -23,13 +25,23 @@ namespace KHost.Domain.Services.Screens;
 /// <para>Discovery here is not a sweep. There is nothing to find on a machine: starting discovery
 /// launches a screen and it registers back, which is why <see cref="IsDiscovering"/> reports the
 /// launch rather than a search.</para></remarks>
-public sealed class ScreenDisplayProvider : IDisplayProvider, IStartsWithTheHost, IDisposable
+public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTheHost, IDisposable
 {
     /// <summary>The id a launched screen is given. One at a time, so one name is enough.</summary>
     internal const string LocalScreenId = "Screen 1";
 
     /// <summary>Full volume before any venue exists, so a screen is never silently mute.</summary>
     private const float FullVolume = 1.0f;
+
+    /// <summary>One module of white: the standard four-module border reads as a slab over video.</summary>
+    private const int DefaultSafeZone = 1;
+
+    /// <summary>Almost flush, as a fraction of the shorter side: overscan crops a flush edge. Shared by
+    /// everything in a corner, since the inset belongs to the corner and not to what sits in it.</summary>
+    private const double DefaultOffset = 0.2;
+
+    /// <summary>Bottom-left, away from the code's default corner, so the two stack when unset.</summary>
+    private const ScreenCorner DefaultBreakMusicCardCorner = ScreenCorner.BottomLeft;
 
     /// <summary>A screen takes seconds to register once launched; this is how long ConnectAsync
     /// waits for it before reporting a launch that never came back rather than a refusal.</summary>
@@ -40,10 +52,10 @@ public sealed class ScreenDisplayProvider : IDisplayProvider, IStartsWithTheHost
     private readonly IVenuesService? _venuesService;
     private readonly IMessageBroker _broker;
     private readonly SubscriptionSet _subscriptions = new();
-    private readonly ILogger<ScreenDisplayProvider> _logger;
+    private readonly ILogger<LocalScreenDisplayProvider> _logger;
 
-    // Resolved on use, never in the constructor: the marquee reaches IPlaybackService, which takes
-    // every IDisplayProvider, this one included.
+    // Resolved on use, never in the constructor: the marquee and break music both reach services
+    // that take every IDisplayProvider, this one included.
     private readonly IServiceProvider? _services;
 
     // Serialises picture draws, which arrive from the load path and from several detached redraws.
@@ -63,6 +75,10 @@ public sealed class ScreenDisplayProvider : IDisplayProvider, IStartsWithTheHost
     private Guid? _lyricsSentOn;
     private readonly TimeSpan _registrationTimeout;
 
+    // Every venue edit and every song redraws the codes, and the picture only changes when the
+    // payload does. Encoding a few times a minute for an unchanged string is work for nothing.
+    private readonly Dictionary<string, (string Image, int Modules)> _encoded = [];
+
     private bool _launching;
 
     /// <summary>Answered by <see cref="OnScreenConnected"/> once the launch this ConnectAsync
@@ -80,8 +96,8 @@ public sealed class ScreenDisplayProvider : IDisplayProvider, IStartsWithTheHost
     /// comes back is known to hold nothing even under the same connection.</remarks>
     private volatile ScreenSession? _connected;
 
-    public ScreenDisplayProvider(
-        ILogger<ScreenDisplayProvider> logger,
+    public LocalScreenDisplayProvider(
+        ILogger<LocalScreenDisplayProvider> logger,
         IScreenServer screenServer,
         IEnumerable<IScreenProvider> launchers,
         IMessageBroker broker,
@@ -119,7 +135,7 @@ public sealed class ScreenDisplayProvider : IDisplayProvider, IStartsWithTheHost
         _subscriptions.Add(broker.Subscribe<BreakMusicTrackChanged>(_ => Redraw(Overlay.BreakMusicCard)));
 
         // Awaited rather than detached: the owner registering a code is waiting on this publish.
-        _subscriptions.Add(broker.Subscribe<ScreenQrCodesChanged>((_, _) => RedrawAsync(Overlay.QrCodes)));
+        _subscriptions.Add(broker.Subscribe<QrCodeOfferChanged>((_, _) => RedrawAsync(Overlay.QrCodes)));
         _subscriptions.Add(broker.Subscribe<NextSingerCardRequested>((request, _) => SendAsync(request.Card)));
     }
 
@@ -451,10 +467,102 @@ public sealed class ScreenDisplayProvider : IDisplayProvider, IStartsWithTheHost
         // Sent even when there is nothing up: it is the whole state, so it also clears a code left
         // on a screen that dropped and came back.
         if (overlays.HasFlag(Overlay.QrCodes))
-            await DrawAsync<IScreenQrCodeService>("QR codes", async codes => await codes.BuildAsync());
+            await DrawAsync<IQrCodeService>("QR codes", async codes => BuildQrCodes(await codes.ReadOfferAsync()));
 
         if (overlays.HasFlag(Overlay.BreakMusicCard))
-            await DrawAsync<IBreakMusicCardService>("break music card", async card => await card.BuildAsync());
+            await DrawAsync<IBreakMusicService>("break music card", BuildBreakMusicCardAsync);
+    }
+
+    /// <summary>The offer as the screen draws it, or an empty set that clears whatever is up.</summary>
+    private SetScreenQrCodesCommand BuildQrCodes(QrCodeOffer? offer)
+    {
+        if (offer is null)
+            return new SetScreenQrCodesCommand();
+
+        var (image, modules) = Encode(offer.Payload);
+
+        return new SetScreenQrCodesCommand
+        {
+            Codes =
+            [
+                new ScreenQrCodePlacement
+                {
+                    ImageUrl = image,
+                    Modules = modules,
+                    Caption = offer.Caption,
+                    Corner = offer.Corner ?? ScreenCorner.BottomRight,
+                    Size = offer.Size ?? ScreenQrSize.Medium,
+
+                    // Resolved here, not on the screen, which decides nothing.
+                    SafeZone = offer.SafeZone ?? DefaultSafeZone,
+                    Offset = offer.Offset ?? DefaultOffset,
+                },
+            ],
+        };
+    }
+
+    /// <summary>Encodes the payload as an SVG at the lowest correction level, fewer modules.</summary>
+    private (string Image, int Modules) Encode(string payload)
+    {
+        lock (_encoded)
+        {
+            if (_encoded.TryGetValue(payload, out var cached))
+                return cached;
+        }
+
+        using var generator = new QRCodeGenerator();
+        using var data = generator.CreateQrCode(payload, QRCodeGenerator.ECCLevel.L);
+
+        // One unit per module, so every size the screen asks for is an exact multiple of the grid.
+        // No quiet zone drawn in: the screen paints that margin, so a corner can be as tight as it likes.
+        var svg = new SvgQRCode(data).GetGraphic(1, "#000000", "#ffffff", drawQuietZones: false);
+
+        // ModuleMatrix counts the quiet zone whether or not it is drawn, so the eight rows and
+        // columns of it come off: what the screen sizes against has to be what is in the picture.
+        var encoded = (
+            $"data:image/svg+xml;base64,{Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(svg))}",
+            data.ModuleMatrix.Count - 8);
+
+        lock (_encoded)
+        {
+            _encoded[payload] = encoded;
+        }
+
+        return encoded;
+    }
+
+    /// <summary>Names the break music in a corner; says what is playing, not what is cued.</summary>
+    private async Task<IScreenCommand> BuildBreakMusicCardAsync(IBreakMusicService breakMusic)
+    {
+        var settings = _venuesService is null ? null : (await _venuesService.ReadSelectedVenueAsync())?.Settings;
+
+        // A venue that wants none gets none, and a console with no venue selected has nobody to
+        // have asked, which is the same answer.
+        if (settings is null || !settings.BreakMusicCardEnabled)
+            return new SetBreakMusicCardCommand { Enabled = false };
+
+        // Playing only: Paused and Suspended both mean the room is hearing something else, and a
+        // card naming a track nobody can hear is worse than no card.
+        if (breakMusic.State != BreakMusicState.Playing || breakMusic.CurrentTrack is not { } track)
+            return new SetBreakMusicCardCommand { Enabled = false };
+
+        // A provider that reports no title has nothing worth a corner of the picture.
+        if (string.IsNullOrWhiteSpace(track.Title))
+            return new SetBreakMusicCardCommand { Enabled = false };
+
+        return new SetBreakMusicCardCommand
+        {
+            Enabled = true,
+            Title = track.Title,
+
+            // Null rather than blank where the provider could not say, so the screen draws one
+            // line instead of a gap it has to reason about.
+            Artist = string.IsNullOrWhiteSpace(track.Artist) ? null : track.Artist,
+            Corner = settings.BreakMusicCardCorner ?? DefaultBreakMusicCardCorner,
+
+            // The codes' setting, because the inset belongs to the corner.
+            Offset = settings.QrCodeOffset > 0 ? settings.QrCodeOffset : DefaultOffset,
+        };
     }
 
     /// <summary>Puts up the venue's card, an ad's still, or takes either down for a song.</summary>

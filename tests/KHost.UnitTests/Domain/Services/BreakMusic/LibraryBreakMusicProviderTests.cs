@@ -4,7 +4,7 @@ using KHost.Abstractions.Services;
 using KHost.Abstractions.Services.IPC;
 using KHost.Abstractions.Messaging;
 using KHost.Domain.Services.BreakMusic;
-using KHost.Domain.Services.Screens;
+using KHost.Domain.Services.Displays.LocalScreen;
 using KHost.Abstractions.Messaging.Messages;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -22,7 +22,7 @@ public class LibraryBreakMusicProviderTests : IDisposable
     private readonly IDisplayProvider _display = Substitute.For<IDisplayProvider>();
     private readonly IVenuesService _venues = Substitute.For<IVenuesService>();
     private readonly List<IScreenCommand> _sent = [];
-    private readonly ScreenDisplayProvider _screens;
+    private readonly LocalScreenDisplayProvider _screens;
     private readonly LibraryBreakMusicProvider _provider;
 
     private readonly Guid _poolId = Guid.NewGuid();
@@ -57,8 +57,8 @@ public class LibraryBreakMusicProviderTests : IDisposable
 
         // Registered beside the display and never connected: it is only here to say when the bed
         // ran out, which the screens report and nothing else does.
-        _screens = new ScreenDisplayProvider(
-            NullLogger<ScreenDisplayProvider>.Instance, _screenServer, [], Substitute.For<IMessageBroker>());
+        _screens = new LocalScreenDisplayProvider(
+            NullLogger<LocalScreenDisplayProvider>.Instance, _screenServer, [], Substitute.For<IMessageBroker>());
 
         _provider = new LibraryBreakMusicProvider(
             NullLogger<LibraryBreakMusicProvider>.Instance,

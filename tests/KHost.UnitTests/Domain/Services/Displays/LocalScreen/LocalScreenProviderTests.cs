@@ -1,9 +1,9 @@
 using System.Diagnostics;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
-using KHost.Domain.Services;
+using KHost.Domain.Services.Displays.LocalScreen;
 
-namespace KHost.UnitTests.Domain.Services;
+namespace KHost.UnitTests.Domain.Services.Displays.LocalScreen;
 
 public class LocalScreenProviderTests
 {

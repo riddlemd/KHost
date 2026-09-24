@@ -3,7 +3,7 @@ using System.Text;
 using KHost.Abstractions.Services.IPC;
 using Microsoft.Extensions.Logging;
 
-namespace KHost.Domain.Services;
+namespace KHost.Domain.Services.Displays.LocalScreen;
 
 /// <summary>Per-screen keys as files, named by a hash of the screen id, never the id itself.</summary>
 /// <remarks>A crafted id with path separators could otherwise escape the directory.</remarks>

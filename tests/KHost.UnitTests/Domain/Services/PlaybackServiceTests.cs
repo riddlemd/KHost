@@ -7,7 +7,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using KHost.Domain.Services;
-using KHost.Domain.Services.Screens;
+using KHost.Domain.Services.Displays.LocalScreen;
 using KHost.Domain.Services.Messaging;
 using KHost.Abstractions.Messaging.Messages;
 
@@ -72,10 +72,10 @@ public class PlaybackServiceTests : IDisposable
     /// own constructor arguments are still being evaluated, so nothing else is subscribed yet.</remarks>
     /// <remarks>It draws the picture from the program of the service it is built for, found
     /// through <paramref name="services"/> once that service exists, as the container does.</remarks>
-    private ScreenDisplayProvider ScreensAsADisplay(IServiceProvider services)
+    private LocalScreenDisplayProvider ScreensAsADisplay(IServiceProvider services)
     {
-        var provider = new ScreenDisplayProvider(
-            NullLogger<ScreenDisplayProvider>.Instance,
+        var provider = new LocalScreenDisplayProvider(
+            NullLogger<LocalScreenDisplayProvider>.Instance,
             _screenServer,
             [],
             _broker,

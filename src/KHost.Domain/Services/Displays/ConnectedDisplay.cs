@@ -1,6 +1,6 @@
 using KHost.Abstractions.Services;
 
-namespace KHost.Domain.Services.Screens;
+namespace KHost.Domain.Services.Displays;
 
 /// <summary>The one display the song comes out of, with its device once the provider lists one.</summary>
 /// <remarks><see cref="Device"/> is null for a provider that knows it is connected before it has

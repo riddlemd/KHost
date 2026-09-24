@@ -3,7 +3,7 @@ using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using KHost.Domain.Services.Plugins.Secrets;
 using System.Text.Json;
-using KHost.Domain.Services.Screens;
+using KHost.Domain.Services.QrCodes;
 
 namespace KHost.Domain.Services.Plugins;
 
@@ -13,7 +13,7 @@ public class PluginContext : IPluginContext
     private readonly Dictionary<string, JsonElement> _defaults;
     private readonly DiscoveredPlugin _plugin;
     private readonly IPluginSecretStore _secrets;
-    private readonly IScreenQrCodeService _screenQrCodes;
+    private readonly IQrCodeService _qrCodes;
     private readonly string _pluginId;
 
     public PluginContext(
@@ -21,11 +21,11 @@ public class PluginContext : IPluginContext
         Dictionary<string, JsonElement>? storedValues,
         DiscoveredPlugin plugin,
         IPluginSecretStore secrets,
-        IScreenQrCodeService screenQrCodes)
+        IQrCodeService qrCodes)
     {
         _plugin = plugin;
         _secrets = secrets;
-        _screenQrCodes = screenQrCodes;
+        _qrCodes = qrCodes;
 
         // Taken from the manifest the host read, never from the plugin. It is what keeps one
         // plugin's secrets out of another's reach, so a caller must have no say in it.
@@ -83,7 +83,7 @@ public class PluginContext : IPluginContext
     public Task RegisterQrCodeAsync(string payload, string? caption = null, CancellationToken cancellationToken = default)
         // Same _pluginId the secrets are filed under, and for the same reason: the owner is the
         // host's to say. Whether this reaches a screen is the venue's call, made later.
-        => _screenQrCodes.RegisterAsync(new ScreenQrCode
+        => _qrCodes.RegisterAsync(new QrCodeRegistration
         {
             OwnerId = _pluginId,
             Payload = payload,
@@ -91,7 +91,7 @@ public class PluginContext : IPluginContext
         });
 
     public Task UnregisterQrCodeAsync(CancellationToken cancellationToken = default)
-        => _screenQrCodes.UnregisterAsync(_pluginId);
+        => _qrCodes.UnregisterAsync(_pluginId);
 
     /// <summary>Reported from a plugin's own background work, so the list is not appended to bare.</summary>
     public void ReportWarning(string message)

@@ -32,7 +32,7 @@ public class BreakMusicService : BaseService, IBreakMusicService, IDisposable
 
         _subscriptions.Add(broker.Subscribe<BreakMusicTrackChanged>(OnProviderTrackChanged));
 
-        // Only for a provider the host cannot reach: ScreenDisplayProvider already re-applies the
+        // Only for a provider the host cannot reach: LocalScreenDisplayProvider already re-applies the
         // venue level to the screen when a venue is edited.
         _subscriptions.Add(broker.Subscribe<SelectedVenueChanged>(OnVenueChanged));
     }
@@ -215,7 +215,7 @@ public class BreakMusicService : BaseService, IBreakMusicService, IDisposable
     }
 
     /// <summary>Pushes the venue's level at a provider the host cannot reach directly.</summary>
-    /// <remarks>One rendering through the host is set by ScreenDisplayProvider instead.</remarks>
+    /// <remarks>One rendering through the host is set by LocalScreenDisplayProvider instead.</remarks>
     private async Task ApplyVenueVolumeAsync(IBreakMusicProvider provider, CancellationToken cancellationToken)
     {
         if (provider.RendersThroughHost)

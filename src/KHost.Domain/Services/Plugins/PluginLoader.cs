@@ -221,7 +221,7 @@ public static class PluginLoader
 
         PluginContext CreateContext(IServiceProvider serviceProvider) => new(manifest, storedValues, plugin,
             serviceProvider.GetRequiredService<Secrets.IPluginSecretStore>(),
-            serviceProvider.GetRequiredService<Screens.IScreenQrCodeService>());
+            serviceProvider.GetRequiredService<QrCodes.IQrCodeService>());
 
         var concreteTypes = types.Where(t => t.IsClass && !t.IsAbstract).ToList();
 

@@ -25,7 +25,7 @@ SCSS compiles inside `dotnet build` (AspNetCore.SassCompiler) — no separate sa
 
 ## Rules
 
-- Interfaces in `src/KHost.Abstractions` (`Services/`, `Repositories/`, `Models/`); implementations in `src/KHost.Domain` or `src/KHost.DataAccess`. The rule is about what a plugin builds against, so an interface a plugin must *not* reach sits with its implementation instead — `IScreenQrCodeService` takes an owner id, and a plugin able to pass any owner could register over another's QR code without either noticing. Register in the project's `ProjectExtensions` (`AddDomain()` / `AddDataAccess()`); UI-only services in `Program.cs`. All domain services are singletons — guard mutable state with `SemaphoreSlim`.
+- Interfaces in `src/KHost.Abstractions` (`Services/`, `Repositories/`, `Models/`); implementations in `src/KHost.Domain` or `src/KHost.DataAccess`. The rule is about what a plugin builds against, so an interface a plugin must *not* reach sits with its implementation instead — `IQrCodeService` takes an owner id, and a plugin able to pass any owner could register over another's QR code without either noticing. Register in the project's `ProjectExtensions` (`AddDomain()` / `AddDataAccess()`); UI-only services in `Program.cs`. All domain services are singletons — guard mutable state with `SemaphoreSlim`.
 - A helper both the host and a plugin would want goes in `KHost.Common`, not `Abstractions`: it is MIT on purpose, so a plugin author may use it without taking PolyForm code into what they redistribute. `Common` is for helpers *over* the contracts — string folding aids, formatting, list surgery, the shared drop-position mechanic. A contract, a model or anything `Abstractions` itself needs belongs in `Abstractions`, which references nothing. `Abstractions` declares, it does not compute — see **No static methods in Abstractions** below. Group by area under `Common` (`Media/`, `Plugins/`, `Discovery/`) rather than dropping types in its root, and mirror that in the tests. Name its methods for what the call site needs to read, not for what the class already says: a plugin author sees `StreamRate.FromTempo(t)` and `AudioLevels.ClampVolume(v)` without this repo's context, so `For` and `Clamp` are too thin — `PluginRid.MatchesThisHost` names what it matches against, and `int.CentsToCurrencyString()` names the unit the receiver is in. The one exception is a member that exists to fill a BCL gap (`IList<T>.FindIndex`), where the familiar name *is* the point.
 - No "gate" services: behaviour that guards a call lives on the service that owns the call (enqueue rules go in `PerformanceService.CreateAndEnqueueAsync`, not an `IEnqueueGuard` around it). `IMediaGateService`/`IMediaProbeService` are routers, not guards: they answer which plugin owns a file, and the rule itself lives in the plugin.
 - New repositories/services copy the shape of an existing one: repositories extend `BaseRepository<T>` and implement `SortColumns` / `ApplySearchFilters`; services extend `BaseService` (or `BaseRepositoryService<,>` for CRUD).
@@ -242,7 +242,7 @@ cannot name another's: its secrets, and the QR code it offers the screens.
     `SessionId` and every argument-free member address the one device a transport drives, and a
     plugin display handles its own communication with it. The rule is enforced in two places: a
     provider refuses a connection to a different device rather than replacing the one it has
-    (`ScreenDisplayProvider.ConnectAsync`), and picking a display disconnects every other provider
+    (`LocalScreenDisplayProvider.ConnectAsync`), and picking a display disconnects every other provider
     first (`SettingsButton.SelectDisplayAsync`, and the "Launch Screen" confirm in
     `DialogService`, which goes the same way). `PlaybackService` and the break music provider ask
     `ConnectedDisplay.Find` for the one connected provider — several are registered at once, so
@@ -256,14 +256,17 @@ cannot name another's: its secrets, and the QR code it offers the screens.
     are fixed for the whole song and can be **burned into the stream** for a device that cannot draw
     them, while a marquee that rescrolls on every venue edit would mean restarting the encode, so it
     is simply left off.
-  - **The provider owns presentation; the host only supplies data.** `ScreenDisplayProvider` hears
-    what moved — the queue, the venue, playback, break music, a QR registration — and pulls the
-    whole current state of whatever that message drives (marquee, QR codes, the break music card,
-    the next-singer card, the idle card and an ad's still, the song's timed words) and draws it
-    itself. `PlaybackService`, `LibraryBreakMusicProvider` and the four overlay services no longer
-    hold `IScreenServer` or send anything: the overlay services only build what a display should be
-    showing when asked, and `PlaybackService` announces `PlaybackChanged` and reads `CurrentProgram`
-    like anything else would.
+  - **The provider owns presentation; the host only supplies data and services.** A display
+    provider talks to some service or hardware the host may or may not control, and the local
+    screen app is simply the device behind one of them. `LocalScreenDisplayProvider` hears what
+    moved — the queue, the venue, playback, break music, a QR offer — pulls the whole current state
+    of whatever that message drives (marquee, QR code, break music card, next-singer card, the idle
+    card and an ad's still, the song's timed words) and decides how it looks. `IQrCodeService`
+    answers with a `QrCodeOffer` — payload, caption and the venue's placement, null where the venue
+    never chose — and the provider encodes the SVG and fills the unset placement; the break music
+    card is composed by the provider from `IBreakMusicService` and the venue's settings. Nothing
+    but the provider holds `IScreenServer`: `PlaybackService` announces `PlaybackChanged` and
+    reads `CurrentProgram` like anything else would.
   - **`SupportsFade` is the one capability the host acts on for itself.** `StopAsync` *waits out*
     the fade it asks for, so a device that cuts dead — a receiver, which has no mixer of the host's
     to ride down — would otherwise buy the room that many seconds of silence before the queue moved
@@ -281,9 +284,9 @@ cannot name another's: its secrets, and the QR code it offers the screens.
     steer onto anything else. The display that is up defines the song's clock: every provider
     raises `PlaybackStatusChanged` with its own timestamped position, and the host trusts only the
     report from whichever one is connected — a screen's own state reports reach `PlaybackService`
-    the same way a receiver's do, through `ScreenDisplayProvider` translating them, not a side
+    the same way a receiver's do, through `LocalScreenDisplayProvider` translating them, not a side
     channel. Nothing is ever corrected towards anything. The venue's volume is applied by
-    `ScreenDisplayProvider` on connect and on a venue edit.
+    `LocalScreenDisplayProvider` on connect and on a venue edit.
   - **Covering a rebuild is the transport's business, not the host's.** Changing key, tempo or the
     mix reopens the stream at the playhead, and the host resumes there and skips nothing. It used
     to skip forward by however long the rebuild took, since the room heard on from the old stream
@@ -410,9 +413,10 @@ folder: `PluginLoader` hands that string straight to `LoadFromAssemblyPath`.
 
 ## What is playing between singers
 
-`BreakMusicCardService` names the break music in a corner of the screen, built whole on every
-change the same way the marquee is — and, like the marquee, only when the display asks for it, not
-pushed by the service itself.
+The break music card names the break music in a corner of the screen. There is no service for it:
+it is presentation, so the display provider applies these rules itself, reading
+`IBreakMusicService.State` and `CurrentTrack` and the venue's settings, and sends the card whole
+on every change the same way the marquee is (`LocalScreenDisplayProvider` for the local screen).
 
 - **It says what is *playing*, not what is cued.** A host's pause and the hand-off to a singer both
   take it down, so the screen never names a track over somebody else's performance. `Suspended` counts as not playing.

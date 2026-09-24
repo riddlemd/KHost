@@ -5,51 +5,53 @@ using KHost.Abstractions.Services;
 using KHost.Abstractions.Services.IPC;
 using KHost.Domain.Services;
 using KHost.Domain.Services.Messaging;
-using KHost.Domain.Services.Screens;
+using KHost.Domain.Services.Displays;
+using KHost.Domain.Services.Displays.LocalScreen;
+using KHost.Domain.Services.QrCodes;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 
-namespace KHost.UnitTests.Domain.Services.Screens;
+namespace KHost.UnitTests.Domain.Services.Displays.LocalScreen;
 
-public class ScreenDisplayProviderTests
+public class LocalScreenDisplayProviderTests
 {
     private readonly IScreenServer _screenServer = Substitute.For<IScreenServer>();
     private readonly IMessageBroker _broker = Substitute.For<IMessageBroker>();
-    private readonly ScreenDisplayProvider _provider;
+    private readonly LocalScreenDisplayProvider _provider;
 
     // What the screen is drawn from, for the tests that follow a change message to the screen.
     private readonly MessageBroker _realBroker = new(NullLogger<MessageBroker>.Instance);
     private readonly IScreenMarqueeService _marquee = Substitute.For<IScreenMarqueeService>();
-    private readonly IScreenQrCodeService _qrCodes = Substitute.For<IScreenQrCodeService>();
-    private readonly IBreakMusicCardService _card = Substitute.For<IBreakMusicCardService>();
+    private readonly IQrCodeService _qrCodes = Substitute.For<IQrCodeService>();
+    private readonly IBreakMusicService _breakMusic = Substitute.For<IBreakMusicService>();
     private readonly IVenuesService _venues = Substitute.For<IVenuesService>();
     private readonly IPlaybackProgram _playback = Substitute.For<IPlaybackProgram>();
     private readonly IMediaService _library = Substitute.For<IMediaService>();
     private readonly IMediaStreamService _streams = Substitute.For<IMediaStreamService>();
     private readonly ITimedLyricsService _timedLyrics = Substitute.For<ITimedLyricsService>();
 
-    public ScreenDisplayProviderTests()
+    public LocalScreenDisplayProviderTests()
     {
         _marquee.BuildAsync(Arg.Any<CancellationToken>()).Returns(new SetMarqueeCommand { Enabled = true, Message = "Tonight" });
-        _qrCodes.BuildAsync(Arg.Any<CancellationToken>()).Returns(new SetScreenQrCodesCommand());
-        _card.BuildAsync(Arg.Any<CancellationToken>()).Returns(new SetBreakMusicCardCommand { Enabled = false });
+        _qrCodes.ReadOfferAsync(Arg.Any<CancellationToken>()).Returns((QrCodeOffer?)null);
+        _breakMusic.State.Returns(BreakMusicState.Stopped);
         _venues.ReadSelectedVenueAsync().Returns(new Venue { Name = "The Bar", Settings = new Venue.VenueSettings { DefaultVolume = 50 } });
         _playback.CurrentProgram.Returns(new PlaybackProgram.Idle());
         _streams.BuildImageUrl(Arg.Any<Guid>()).Returns(call => $"http://host/media/image/{call.Arg<Guid>()}");
 
-        _provider = new ScreenDisplayProvider(
-            NullLogger<ScreenDisplayProvider>.Instance, _screenServer, [], _broker);
+        _provider = new LocalScreenDisplayProvider(
+            NullLogger<LocalScreenDisplayProvider>.Instance, _screenServer, [], _broker);
     }
 
     /// <summary>Wired to a real broker and to what each overlay is built from, as the host wires it.</summary>
-    private ScreenDisplayProvider DrawingProvider(IServiceProvider? services = null)
+    private LocalScreenDisplayProvider DrawingProvider(IServiceProvider? services = null)
         => new(
-            NullLogger<ScreenDisplayProvider>.Instance, _screenServer, [], _realBroker, _venues,
+            NullLogger<LocalScreenDisplayProvider>.Instance, _screenServer, [], _realBroker, _venues,
             services: services ?? new ServiceCollection()
                 .AddSingleton(_marquee)
                 .AddSingleton(_qrCodes)
-                .AddSingleton(_card)
+                .AddSingleton(_breakMusic)
                 .AddSingleton(_playback)
                 .AddSingleton(_library)
                 .AddSingleton(_streams)
@@ -158,8 +160,8 @@ public class ScreenDisplayProviderTests
     public async Task ConnectAsync_WhileADifferentScreenIsUp_IsRefusedWithoutLaunching()
     {
         var launcher = AvailableLauncher();
-        var provider = new ScreenDisplayProvider(
-            NullLogger<ScreenDisplayProvider>.Instance, _screenServer, [launcher], _broker);
+        var provider = new LocalScreenDisplayProvider(
+            NullLogger<LocalScreenDisplayProvider>.Instance, _screenServer, [launcher], _broker);
         RaiseConnected(Connection("Screen 1", "conn-a"));
 
         Assert.False(await provider.ConnectAsync("Screen 2"));
@@ -172,8 +174,8 @@ public class ScreenDisplayProviderTests
     public async Task ConnectAsync_ToTheScreenAlreadyUp_SucceedsWithoutLaunching()
     {
         var launcher = AvailableLauncher();
-        var provider = new ScreenDisplayProvider(
-            NullLogger<ScreenDisplayProvider>.Instance, _screenServer, [launcher], _broker);
+        var provider = new LocalScreenDisplayProvider(
+            NullLogger<LocalScreenDisplayProvider>.Instance, _screenServer, [launcher], _broker);
         RaiseConnected(Connection("Screen 1", "conn-a"));
 
         Assert.True(await provider.ConnectAsync("Screen 1"));
@@ -185,8 +187,8 @@ public class ScreenDisplayProviderTests
     public async Task StartDiscoveryAsync_WhileAScreenIsUp_DoesNotLaunchASecond()
     {
         var launcher = AvailableLauncher();
-        var provider = new ScreenDisplayProvider(
-            NullLogger<ScreenDisplayProvider>.Instance, _screenServer, [launcher], _broker);
+        var provider = new LocalScreenDisplayProvider(
+            NullLogger<LocalScreenDisplayProvider>.Instance, _screenServer, [launcher], _broker);
         RaiseConnected(Connection("Screen 1", "conn-a"));
 
         await provider.StartDiscoveryAsync();
@@ -198,14 +200,14 @@ public class ScreenDisplayProviderTests
     public async Task ConnectAsync_WithNoScreenUp_LaunchesTheLocalOne()
     {
         var launcher = AvailableLauncher();
-        var provider = new ScreenDisplayProvider(
-            NullLogger<ScreenDisplayProvider>.Instance, _screenServer, [launcher], _broker);
+        var provider = new LocalScreenDisplayProvider(
+            NullLogger<LocalScreenDisplayProvider>.Instance, _screenServer, [launcher], _broker);
 
-        var connectTask = provider.ConnectAsync(ScreenDisplayProvider.LocalScreenId);
+        var connectTask = provider.ConnectAsync(LocalScreenDisplayProvider.LocalScreenId);
 
-        await launcher.Received(1).LaunchAsync(ScreenDisplayProvider.LocalScreenId, Arg.Any<CancellationToken>());
+        await launcher.Received(1).LaunchAsync(LocalScreenDisplayProvider.LocalScreenId, Arg.Any<CancellationToken>());
 
-        RaiseConnected(Connection(ScreenDisplayProvider.LocalScreenId, "conn-a"));
+        RaiseConnected(Connection(LocalScreenDisplayProvider.LocalScreenId, "conn-a"));
 
         Assert.True(await connectTask.WaitAsync(TimeSpan.FromSeconds(5)));
     }
@@ -217,16 +219,16 @@ public class ScreenDisplayProviderTests
     public async Task ConnectAsync_WaitsForTheScreenToRegister_RatherThanReturningAsSoonAsItLaunches()
     {
         var launcher = AvailableLauncher();
-        var provider = new ScreenDisplayProvider(
-            NullLogger<ScreenDisplayProvider>.Instance, _screenServer, [launcher], _broker);
+        var provider = new LocalScreenDisplayProvider(
+            NullLogger<LocalScreenDisplayProvider>.Instance, _screenServer, [launcher], _broker);
 
-        var connectTask = provider.ConnectAsync(ScreenDisplayProvider.LocalScreenId);
+        var connectTask = provider.ConnectAsync(LocalScreenDisplayProvider.LocalScreenId);
 
         // The process has started, but nothing has registered yet: the launch alone must not answer.
         await Task.Delay(TimeSpan.FromMilliseconds(50));
         Assert.False(connectTask.IsCompleted);
 
-        RaiseConnected(Connection(ScreenDisplayProvider.LocalScreenId, "conn-a"));
+        RaiseConnected(Connection(LocalScreenDisplayProvider.LocalScreenId, "conn-a"));
 
         Assert.True(await connectTask.WaitAsync(TimeSpan.FromSeconds(5)));
     }
@@ -237,11 +239,11 @@ public class ScreenDisplayProviderTests
     public async Task ConnectAsync_GivesUpIfTheScreenNeverRegisters()
     {
         var launcher = AvailableLauncher();
-        var provider = new ScreenDisplayProvider(
-            NullLogger<ScreenDisplayProvider>.Instance, _screenServer, [launcher], _broker,
+        var provider = new LocalScreenDisplayProvider(
+            NullLogger<LocalScreenDisplayProvider>.Instance, _screenServer, [launcher], _broker,
             registrationTimeout: TimeSpan.FromMilliseconds(50));
 
-        var connected = await provider.ConnectAsync(ScreenDisplayProvider.LocalScreenId);
+        var connected = await provider.ConnectAsync(LocalScreenDisplayProvider.LocalScreenId);
 
         Assert.False(connected);
     }
@@ -460,11 +462,11 @@ public class ScreenDisplayProviderTests
 
     /// <summary>An owner registering a code awaits the publish, so the code is on screen when it returns.</summary>
     [Fact]
-    public async Task ScreenQrCodesChanged_IsDrawnBeforeThePublishReturns()
+    public async Task QrCodeOfferChanged_IsDrawnBeforeThePublishReturns()
     {
         using var provider = DrawingProvider();
 
-        await _realBroker.PublishAsync(new ScreenQrCodesChanged());
+        await _realBroker.PublishAsync(new QrCodeOfferChanged());
 
         Assert.Single(Sent<SetScreenQrCodesCommand>());
     }
@@ -517,12 +519,12 @@ public class ScreenDisplayProviderTests
             .AddSingleton(_venues)
             .AddSingleton(Substitute.For<IPlaybackService>())
             .AddSingleton<IMessageBroker>(_realBroker)
-            .AddSingleton<IScreenQrCodeService>(sp => new ScreenQrCodeService(
-                NullLogger<ScreenQrCodeService>.Instance, _venues, sp, _realBroker))
+            .AddSingleton<IQrCodeService>(sp => new QrCodeService(
+                NullLogger<QrCodeService>.Instance, _venues, sp, _realBroker))
             .BuildServiceProvider();
 
         using var provider = DrawingProvider(services);
-        await services.GetRequiredService<IScreenQrCodeService>().RegisterAsync(new ScreenQrCode
+        await services.GetRequiredService<IQrCodeService>().RegisterAsync(new QrCodeRegistration
         {
             OwnerId = "example",
             Payload = "https://example.test/",
@@ -535,6 +537,277 @@ public class ScreenDisplayProviderTests
 
         Assert.True(await WaitForSentAsync<SetScreenQrCodesCommand>(
             codes => codes.Codes.Count == 1 && codes.Codes[0].Corner == ScreenCorner.TopLeft));
+    }
+
+    // --- the QR code ---
+
+    private static QrCodeOffer Offer(string payload = "https://example.test/join", string? caption = "Scan me") => new()
+    {
+        Payload = payload,
+        Caption = caption,
+    };
+
+    /// <summary>The single code the screen was last sent, or null when it was sent none.</summary>
+    private async Task<ScreenQrCodePlacement?> DrawnCodeAsync(LocalScreenDisplayProvider provider, QrCodeOffer? offer)
+    {
+        _qrCodes.ReadOfferAsync(Arg.Any<CancellationToken>()).Returns(offer);
+
+        await _realBroker.PublishAsync(new QrCodeOfferChanged());
+
+        return Sent<SetScreenQrCodesCommand>().Last().Codes.SingleOrDefault();
+    }
+
+    /// <summary>Sent even with nothing offered: it is the whole state, and clears a code left up.</summary>
+    [Fact]
+    public async Task NoOffer_SendsAnEmptySet()
+    {
+        using var provider = DrawingProvider();
+
+        Assert.Null(await DrawnCodeAsync(provider, null));
+        Assert.Single(Sent<SetScreenQrCodesCommand>());
+    }
+
+    [Fact]
+    public async Task AnOffer_CarriesItsCaption()
+    {
+        using var provider = DrawingProvider();
+
+        Assert.Equal("Scan me", (await DrawnCodeAsync(provider, Offer()))?.Caption);
+    }
+
+    /// <summary>A venue that has never been asked still has to put a code somewhere sensible.</summary>
+    [Fact]
+    public async Task AnOfferWithNoPlacement_LandsBottomRightAtMediumWithTheHostsOwnInset()
+    {
+        using var provider = DrawingProvider();
+
+        var placed = Assert.IsType<ScreenQrCodePlacement>(await DrawnCodeAsync(provider, Offer()));
+
+        Assert.Equal(ScreenCorner.BottomRight, placed.Corner);
+        Assert.Equal(ScreenQrSize.Medium, placed.Size);
+        Assert.Equal(1, placed.SafeZone);
+        Assert.Equal(0.2, placed.Offset);
+    }
+
+    /// <summary>It is the venue's screen, so its choice stands over the fallback.</summary>
+    [Fact]
+    public async Task AnOfferWithAPlacement_IsDrawnWhereTheVenueSaid()
+    {
+        using var provider = DrawingProvider();
+
+        var placed = Assert.IsType<ScreenQrCodePlacement>(await DrawnCodeAsync(provider, Offer() with
+        {
+            Corner = ScreenCorner.TopLeft,
+            Size = ScreenQrSize.Large,
+            SafeZone = 4,
+            Offset = 3.5,
+        }));
+
+        Assert.Equal(ScreenCorner.TopLeft, placed.Corner);
+        Assert.Equal(ScreenQrSize.Large, placed.Size);
+        Assert.Equal(4, placed.SafeZone);
+        Assert.Equal(3.5, placed.Offset);
+    }
+
+    /// <summary>SVG, not pixels: in a corner a few centimetres across, module edges decide whether a phone reads it.</summary>
+    [Fact]
+    public async Task AnOffer_IsDrawnAsAVector()
+    {
+        using var provider = DrawingProvider();
+
+        var placed = Assert.IsType<ScreenQrCodePlacement>(await DrawnCodeAsync(provider, Offer()));
+
+        Assert.StartsWith("data:image/svg+xml;base64,", placed.ImageUrl);
+        Assert.Contains("<svg", Decode(placed.ImageUrl), StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>The picture carries no quiet zone, so module count is what is actually drawn.</summary>
+    [Fact]
+    public async Task TheModuleCount_IsWhatTheImageDraws()
+    {
+        using var provider = DrawingProvider();
+
+        var placed = Assert.IsType<ScreenQrCodePlacement>(await DrawnCodeAsync(provider, Offer()));
+        var svg = Decode(placed.ImageUrl);
+
+        // One unit per module, so the SVG's declared size is the module count.
+        Assert.Contains($"width=\"{placed.Modules}\"", svg);
+        Assert.Contains($"height=\"{placed.Modules}\"", svg);
+
+        // 21 modules is the smallest a QR can be, before its four-module quiet zone.
+        Assert.True(placed.Modules >= 21, $"Expected a real module count, got {placed.Modules}");
+    }
+
+    /// <summary>A longer payload needs more modules, the reason the count is sent at all.</summary>
+    [Fact]
+    public async Task ALongerPayload_NeedsMoreModules()
+    {
+        using var provider = DrawingProvider();
+
+        var shortCode = Assert.IsType<ScreenQrCodePlacement>(await DrawnCodeAsync(provider, Offer("https://k.test/a")));
+        var longCode = Assert.IsType<ScreenQrCodePlacement>(await DrawnCodeAsync(provider,
+            Offer("https://app.example.com/remote/join?channel=" + new string('x', 180))));
+
+        Assert.True(longCode.Modules > shortCode.Modules);
+    }
+
+    [Fact]
+    public async Task TheSamePayloadTwice_DrawsTheSameCode()
+    {
+        using var provider = DrawingProvider();
+
+        var first = Assert.IsType<ScreenQrCodePlacement>(await DrawnCodeAsync(provider, Offer("https://k.test/same")));
+        var second = Assert.IsType<ScreenQrCodePlacement>(await DrawnCodeAsync(provider, Offer("https://k.test/same")));
+
+        Assert.Equal(first.ImageUrl, second.ImageUrl);
+    }
+
+    private static string Decode(string dataUri)
+        => System.Text.Encoding.UTF8.GetString(
+            Convert.FromBase64String(dataUri["data:image/svg+xml;base64,".Length..]));
+
+    // --- the break music card ---
+
+    private void ArrangeBreakMusic(
+        bool enabled = true,
+        BreakMusicState state = BreakMusicState.Playing,
+        string? title = "Free Fallin'",
+        string artist = "Tom Petty",
+        ScreenCorner? corner = null,
+        double offset = 0)
+    {
+        _venues.ReadSelectedVenueAsync().Returns(new Venue
+        {
+            Name = "The Bar",
+            Settings = new Venue.VenueSettings
+            {
+                BreakMusicCardEnabled = enabled,
+                BreakMusicCardCorner = corner,
+                QrCodeOffset = offset,
+            },
+        });
+
+        _breakMusic.State.Returns(state);
+        _breakMusic.CurrentTrack.Returns(title is null ? null : new BreakMusicTrack { Title = title, Artist = artist });
+    }
+
+    private async Task<SetBreakMusicCardCommand> DrawnCardAsync()
+    {
+        using var provider = DrawingProvider();
+
+        _realBroker.Announce(new BreakMusicChanged());
+
+        Assert.True(await WaitForSentAsync<SetBreakMusicCardCommand>());
+        return Assert.Single(Sent<SetBreakMusicCardCommand>());
+    }
+
+    [Fact]
+    public async Task BreakMusicCard_Playing_NamesTheTrackAndTheArtist()
+    {
+        ArrangeBreakMusic();
+
+        var card = await DrawnCardAsync();
+
+        Assert.True(card.Enabled);
+        Assert.Equal("Free Fallin'", card.Title);
+        Assert.Equal("Tom Petty", card.Artist);
+    }
+
+    /// <summary>Every state where the room hears something else takes the card down: a paused
+    /// host meant it, and Suspended is break music standing aside for a singer.</summary>
+    [Theory]
+    [InlineData(BreakMusicState.Paused)]
+    [InlineData(BreakMusicState.Suspended)]
+    [InlineData(BreakMusicState.Stopped)]
+    public async Task BreakMusicCard_NotPlaying_SaysNothing(BreakMusicState state)
+    {
+        ArrangeBreakMusic(state: state);
+
+        Assert.False((await DrawnCardAsync()).Enabled);
+    }
+
+    /// <summary>The venue's choice beats whatever is playing.</summary>
+    [Fact]
+    public async Task BreakMusicCard_VenueTurnedItOff_SaysNothingWhilePlaying()
+    {
+        ArrangeBreakMusic(enabled: false);
+
+        Assert.False((await DrawnCardAsync()).Enabled);
+    }
+
+    /// <summary>Off for a venue never asked, so the missing setting needed no backfill.</summary>
+    [Fact]
+    public async Task BreakMusicCard_VenueNeverAsked_SaysNothingWhilePlaying()
+    {
+        ArrangeBreakMusic();
+        _venues.ReadSelectedVenueAsync().Returns(new Venue { Name = "The Bar", Settings = new Venue.VenueSettings() });
+
+        Assert.False((await DrawnCardAsync()).Enabled);
+    }
+
+    /// <summary>No venue is nobody to have asked, so it is the same answer rather than a default.</summary>
+    [Fact]
+    public async Task BreakMusicCard_NoVenueSelected_SaysNothing()
+    {
+        ArrangeBreakMusic();
+        _venues.ReadSelectedVenueAsync().Returns((Venue?)null);
+
+        Assert.False((await DrawnCardAsync()).Enabled);
+    }
+
+    /// <summary>A provider driving another app need not report an artist.</summary>
+    [Fact]
+    public async Task BreakMusicCard_NoArtistReported_NamesTheTrackAlone()
+    {
+        ArrangeBreakMusic(artist: "");
+
+        var card = await DrawnCardAsync();
+
+        Assert.True(card.Enabled);
+        Assert.Null(card.Artist);
+    }
+
+    /// <summary>A provider with nothing to say has nothing worth a corner of the picture.</summary>
+    [Fact]
+    public async Task BreakMusicCard_NoTitleReported_SaysNothing()
+    {
+        ArrangeBreakMusic(title: "");
+
+        Assert.False((await DrawnCardAsync()).Enabled);
+    }
+
+    /// <summary>Away from the codes' own default, so the two do not share a corner uninvited.</summary>
+    [Fact]
+    public async Task BreakMusicCard_VenueNeverChoseACorner_TakesBottomLeft()
+    {
+        ArrangeBreakMusic();
+
+        Assert.Equal(ScreenCorner.BottomLeft, (await DrawnCardAsync()).Corner);
+    }
+
+    [Fact]
+    public async Task BreakMusicCard_VenueChoseACorner_UsesIt()
+    {
+        ArrangeBreakMusic(corner: ScreenCorner.TopRight);
+
+        Assert.Equal(ScreenCorner.TopRight, (await DrawnCardAsync()).Corner);
+    }
+
+    /// <summary>The inset belongs to the corner, not what sits in it: a card and a code must agree.</summary>
+    [Fact]
+    public async Task BreakMusicCard_VenueSetAnInset_SharesItWithTheCodes()
+    {
+        ArrangeBreakMusic(offset: 6.5);
+
+        Assert.Equal(6.5, (await DrawnCardAsync()).Offset, 3);
+    }
+
+    [Fact]
+    public async Task BreakMusicCard_VenueNeverSetAnInset_TakesTheHostsOwn()
+    {
+        ArrangeBreakMusic(offset: 0);
+
+        Assert.Equal(0.2, (await DrawnCardAsync()).Offset, 3);
     }
 
     // --- the picture ---
