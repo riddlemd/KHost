@@ -39,8 +39,8 @@ public partial class BreakMusicManagerPage : IDisposable
         GC.SuppressFinalize(this);
     }
 
-    private async void OnChanged()
-        => await InvokeAsync(async () =>
+    private void OnChanged()
+        => _ = InvokeAsync(async () =>
         {
             await RefreshAsync();
             StateHasChanged();

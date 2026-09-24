@@ -12,12 +12,14 @@ namespace KHost.UserInterface.Services;
 public class DialogService : IDialogService
 {
     private readonly ILogger<DialogService> _logger;
+    private readonly IReadOnlyList<IDisplayProvider> _displays;
 
     public event EventHandler<BaseDialogRequest>? ShowRequested;
 
-    public DialogService(ILogger<DialogService> logger)
+    public DialogService(ILogger<DialogService> logger, IEnumerable<IDisplayProvider> displays)
     {
         _logger = logger;
+        _displays = [.. displays];
     }
 
     public Task<bool> ShowConfirmationAsync(
@@ -93,14 +95,6 @@ public class DialogService : IDialogService
         return Task.CompletedTask;
     }
 
-    public Task ShowScreensAsync(Action? onClose = null)
-    {
-        _logger.LogDebug("Dialog requested: {DialogType}", nameof(ScreensDialog));
-        ShowRequested?.Invoke(this, new ScreensDialog.DialogRequest(onClose));
-
-        return Task.CompletedTask;
-    }
-
     public Task ShowPluginTableAsync(ShowPluginTableRequest table, Action? onClose = null)
     {
         _logger.LogDebug("Dialog requested: {DialogType} title={Title}", nameof(PluginTableDialog), table.Title);
@@ -162,12 +156,37 @@ public class DialogService : IDialogService
         return Task.CompletedTask;
     }
 
+    /// <remarks>Confirming does what picking Local Display off the Display menu does, so there is
+    /// one way a screen opens and the provider's refusal of a second one covers both.</remarks>
     public Task ShowNoScreensAsync()
         => ShowConfirmationAsync(
             "Playback needs a screen for audio and video output.",
-            onConfirm: () => ShowScreensAsync(),
+            onConfirm: OpenLocalScreenAsync,
             title: "No screens connected",
             confirmText: "Launch Screen");
+
+    /// <summary>Connects the transport the host opens itself rather than finds, which is the screens.</summary>
+    private async Task OpenLocalScreenAsync()
+    {
+        var screens = _displays.FirstOrDefault(display => !display.SearchesForDevices);
+        if (screens?.Devices.FirstOrDefault() is not { } device)
+        {
+            _logger.LogWarning("No local display is registered, so no screen can be opened");
+            return;
+        }
+
+        // One display at a time: whatever else holds the song lets go before the screen opens.
+        foreach (var other in _displays)
+        {
+            if (other == screens || other.ConnectedDeviceId is not { Length: > 0 }) continue;
+
+            try { await other.DisconnectAsync(); }
+            catch (Exception ex) { _logger.LogWarning(ex, "Could not disconnect {Provider}", other.Name); }
+        }
+
+        try { await screens.ConnectAsync(device.Id); }
+        catch (Exception ex) { _logger.LogWarning(ex, "Could not open a screen"); }
+    }
 
     private Task RequestEditAsync<TRequest, TInput>(TInput? item, Func<TInput?, Task> onSave, Action? onCancel = null, Action? onClose = null)
         where TInput : class

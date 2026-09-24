@@ -1,14 +1,43 @@
 // Plays the host's HLS stream through hls.js (demuxes MPEG-TS in JS, feeds MSE). There is no
 // native-HLS path, since a web view that can't run hls.js can't serve as a screen anyway.
 
-// Two players. `video` is the one the room is hearing; `incoming` is one being brought up to
-// speed behind it, so a rebuilt stream can take over without the room hearing the join.
+// Two players, each an element paired with the hls.js instance driving it. `current` is the one
+// the room is hearing; `incoming` is one being brought up to speed behind it, so a rebuilt stream
+// can take over without the room hearing the join; `outgoing` is one a crossfade is dissolving out.
 const videos = [document.getElementById('video'), document.getElementById('video-b')];
-let video = videos[0];
+let current = { el: videos[0], hls: null };
 let incoming = null;
+let outgoing = null;
 
-/// Commands shape the player that is about to be heard, which during a handover is the new one.
-function target() { return incoming ?? video; }
+// Set while the song is playing as separate stems mixed here rather than as one stream the host
+// mixed. It stands in for the media element everywhere the transport addresses one.
+let stemMixer = null;
+
+/// Whichever element is about to be heard. A handover brings the new stream up to speed behind
+/// the one still playing, and this is what the transport and the state report both address.
+///
+/// A stem mix answers here too, shaped enough like an element that none of those callers has to
+/// know which kind of song is playing.
+function target() { return stemMixer ?? incoming?.el ?? current.el; }
+
+// Where the stream's zero sits in the song, and how fast it runs against it: a stream opened at a
+// seek starts at 0 while the song is minutes in, and the words are written against the song.
+let songOffsetSeconds = 0;
+let songRate = 1;
+
+// The words drawn over the song, when the host sent any. They follow the element's clock rather
+// than one of their own, so there is a single clock in the room and they cannot drift from it.
+const lyricsCanvas = document.getElementById('lyrics');
+const overlay = createLyricsOverlay(lyricsCanvas, () => {
+    const player = target();
+
+    // srcObject as well as src: WebKit refuses hls.js's blob: URL on this opaque-origin page, so
+    // the stream is attached as a MediaSource and `src` stays empty. Asking only for `src` reads a
+    // playing song as nothing holding it, and the words never draw on macOS at all.
+    if (!player || (!player.src && !player.srcObject) || player.readyState < 1) return null;
+
+    return songOffsetSeconds + player.currentTime * songRate;
+});
 const background = document.getElementById('background');
 const still = document.getElementById('still');
 
@@ -60,9 +89,6 @@ function reportError(message) {
 
 let currentVolume = 1;
 
-let hls = null;
-let incomingHls = null;
-
 /// A handover that never becomes ready must not strand the change; take it anyway.
 const HANDOVER_TIMEOUT_MS = 4000;
 const CROSSFADE_MS = 120;
@@ -70,103 +96,124 @@ const CROSSFADE_MS = 120;
 // A decode glitch can usually be recovered in place, but a source that never decodes would
 // otherwise recover forever, so give up and let the host hear about it.
 const MAX_MEDIA_RECOVERIES = 2;
-let mediaRecoveries = 0;
 
 /// Drops a handover that has not swapped yet, leaving whatever is playing alone.
 function cancelHandover() {
-    destroyHls(incomingHls);
-    incomingHls = null;
-
     if (!incoming) return;
 
-    retire(incoming);
+    destroyHls(incoming.hls);
+    retire(incoming.el);
     incoming = null;
 }
 
-function detachHls() {
-    destroyHls(hls);
-    hls = null;
+/// Lets go of the player a crossfade is dissolving out, early when something needs its element.
+function dropOutgoing() {
+    if (!outgoing) return;
 
-    // A handover still in flight has to go with it, or its element keeps decoding into nothing.
-    destroyHls(incomingHls);
-    incomingHls = null;
-
-    if (incoming) {
-        retire(incoming);
-        incoming = null;
-    }
+    destroyHls(outgoing.hls);
+    retire(outgoing.el);
+    outgoing = null;
 }
 
-function onHlsError(_, data) {
-    if (!data.fatal) return;
+function detachHls() {
+    destroyHls(current.hls);
+    current.hls = null;
 
-    if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
-        hls.startLoad();
-        return;
-    }
+    // A handover still in flight has to go with it, or its element keeps decoding into nothing.
+    cancelHandover();
+    dropOutgoing();
+}
 
-    if (data.type === Hls.ErrorTypes.MEDIA_ERROR && mediaRecoveries < MAX_MEDIA_RECOVERIES) {
-        mediaRecoveries++;
-        hls.recoverMediaError();
-        return;
-    }
+/// One per instance. An instance starts as the incoming half of a handover and becomes the playing
+/// one on the swap, so which it is has to be asked when the error arrives, not when it is wired.
+function hlsErrorHandler(instance) {
+    let mediaRecoveries = 0;
 
-    reportError(`hls: ${data.details}`);
-    detachHls();
+    return (_, data) => {
+        if (!data.fatal) return;
+
+        // A replacement that fails is dropped, and the stream the room is hearing stays up.
+        if (incoming && instance === incoming.hls) {
+            reportError(`hls (handover): ${data.details}`);
+            cancelHandover();
+            return;
+        }
+
+        // Retired or replaced: nothing it drives is being heard any more.
+        if (instance !== current.hls) return;
+
+        if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+            instance.startLoad();
+            return;
+        }
+
+        if (data.type === Hls.ErrorTypes.MEDIA_ERROR && mediaRecoveries < MAX_MEDIA_RECOVERIES) {
+            mediaRecoveries++;
+            instance.recoverMediaError();
+            return;
+        }
+
+        reportError(`hls: ${data.details}`);
+        detachHls();
+    };
 }
 
 function load(url, autoplay) {
     // Nothing to hand over from: a stopped or unstarted player takes the stream directly, which
     // is the path every fresh song uses and the one that has always worked.
-    if (!hls || video.paused || video.readyState < 3) {
-        video.style.transition = `opacity ${CROSSFADE_MS}ms linear`;
-        video.style.opacity = '1';
-        video.volume = currentVolume;
+    if (!current.hls || current.el.paused || current.el.readyState < 3) {
+        reveal(current.el);
 
         detachHls();
-        attach(video, url, autoplay, (h) => { hls = h; });
+        attach(current, url, autoplay);
         return;
     }
 
     // Something is playing. Bring the replacement up behind it silently, and only swap once it
     // has sound to give. Tearing the old one down first is the gap this exists to remove.
-    const next = videos.find((v) => v !== video);
+    //
+    // A pending handover is superseded rather than raced, and the only free element may be one a
+    // crossfade is still dissolving out, which would otherwise retire it under this stream.
+    cancelHandover();
+    dropOutgoing();
+    // Dropping the crossfade also stops the ramp that was bringing the current player up.
+    current.el.volume = currentVolume;
 
-    retire(next);
-    incoming = next;
+    const arriving = { el: videos.find((v) => v !== current.el), hls: null };
 
-    next.volume = 0;
-    next.style.transition = 'none';
-    next.style.opacity = '0';
+    retire(arriving.el);
+    incoming = arriving;
 
-    let swapped = false;
+    arriving.el.volume = 0;
+    arriving.el.style.transition = 'none';
+    arriving.el.style.opacity = '0';
+
+    // No-ops once superseded: handOver swaps only the pair still in `incoming`, and a later load
+    // makes a new pair even on the same element.
     const swap = () => {
-        if (swapped) return;
-        swapped = true;
         clearTimeout(timer);
-        handOver(next);
+        handOver(arriving);
     };
 
     const timer = setTimeout(swap, HANDOVER_TIMEOUT_MS);
 
-    next.addEventListener('playing', swap, { once: true });
+    arriving.el.addEventListener('playing', swap, { once: true });
 
-    attach(next, url, true, (h) => { incomingHls = h; });
+    attach(arriving, url, true);
 }
 
-/// Wires one element to a stream. The engine dance below is why this is shared rather than copied.
-function attach(el, url, autoplay, keep) {
-    mediaRecoveries = 0;
-
+/// Wires one player to a stream. The engine dance below is why this is shared rather than copied.
+function attach(player, url, autoplay) {
     if (!window.Hls || !Hls.isSupported()) {
         reportError('this webview cannot run hls.js: no Media Source Extensions');
         return;
     }
 
+    const el = player.el;
     const instance = new Hls({ preferManagedMediaSource: false });
-    keep(instance);
+    player.hls = instance;
 
-    instance.on(Hls.Events.ERROR, onHlsError);
+    instance.on(Hls.Events.ERROR, hlsErrorHandler(instance));
     // Autoplay waits for the manifest: the media element has nothing to play until then.
     instance.on(Hls.Events.MANIFEST_PARSED, () => {
         if (autoplay) el.play().catch((e) => reportError(`play: ${e}`));
@@ -188,40 +235,67 @@ function attach(el, url, autoplay, keep) {
 }
 
 /// Dissolves picture and sound from the outgoing player to the incoming one.
-function handOver(next) {
-    if (incoming !== next) return;
+function handOver(arriving) {
+    if (incoming !== arriving) return;
 
-    const outgoing = video;
-    const outgoingHls = hls;
-
+    const leaving = current;
     incoming = null;
-    video = next;
-    hls = incomingHls;
-    incomingHls = null;
+    current = arriving;
+    outgoing = leaving;
 
-    next.style.transition = `opacity ${CROSSFADE_MS}ms linear`;
-    next.style.opacity = '1';
-    outgoing.style.transition = `opacity ${CROSSFADE_MS}ms linear`;
-    outgoing.style.opacity = '0';
+    arriving.el.style.transition = `opacity ${CROSSFADE_MS}ms linear`;
+    arriving.el.style.opacity = '1';
+    leaving.el.style.transition = `opacity ${CROSSFADE_MS}ms linear`;
+    leaving.el.style.opacity = '0';
 
-    const startedAt = Date.now();
-    const fade = setInterval(() => {
-        const progress = Math.min(1, (Date.now() - startedAt) / CROSSFADE_MS);
+    // Once dropped, the leaving element may already be carrying the next stream, so neither ramp
+    // nor the retire may touch it again.
+    const stillCrossfading = () => outgoing === leaving;
 
-        try { next.volume = currentVolume * progress; } catch { /* detached mid-fade */ }
-        try { outgoing.volume = currentVolume * (1 - progress); } catch { /* same */ }
+    Promise.all([
+        rampVolume(arriving.el, 0, currentVolume, CROSSFADE_MS, stillCrossfading),
+        rampVolume(leaving.el, currentVolume, 0, CROSSFADE_MS, stillCrossfading),
+    ]).then(() => {
+        if (outgoing === leaving) dropOutgoing();
+    });
+}
 
-        if (progress < 1) return;
+/// Moves an element's volume from one level to another, resolving false and leaving the level
+/// where it got to as soon as stillCurrent() says the ramp has been superseded.
+///
+/// A timer, not rAF: rAF stops while the window is occluded, and a stop fade that never finishes
+/// never stops the song.
+function rampVolume(el, from, to, ms, stillCurrent) {
+    return new Promise((resolve) => {
+        const startedAt = performance.now();
+        let timer = null;
 
-        clearInterval(fade);
-        destroyHls(outgoingHls);
-        retire(outgoing);
-    }, 16);
+        const step = () => {
+            if (!stillCurrent()) {
+                clearInterval(timer);
+                resolve(false);
+                return true;
+            }
+
+            const progress = ms > 0 ? Math.min(1, (performance.now() - startedAt) / ms) : 1;
+            try { el.volume = from + (to - from) * progress; } catch { /* detached mid-ramp */ }
+
+            if (progress < 1) return false;
+
+            clearInterval(timer);
+            resolve(true);
+            return true;
+        };
+
+        if (!step()) timer = setInterval(step, 16);
+    });
 }
 
 /// Stops an element and lets go of its source, without touching whatever is playing.
 function retire(el) {
     try { el.pause(); } catch { /* ignore */ }
+    // srcObject as well as src: removeAttribute leaves an attached MediaSource in place, and the
+    // next load would then be appending to the source the last song already ended.
     try { el.srcObject = null; } catch { /* ignore */ }
     try { el.removeAttribute('src'); el.load(); } catch { /* ignore */ }
 }
@@ -232,14 +306,25 @@ function destroyHls(instance) {
     try { instance.destroy(); } catch { /* ignore */ }
 }
 
+function detachStems() {
+    if (!stemMixer) return;
+
+    try { stemMixer.destroy(); } catch (e) { reportError(`stems: ${e}`); }
+    stemMixer = null;
+}
+
 function teardown() {
     // Before the element is cleared: destroy() detaches the media it is driving.
     detachHls();
-    try { video.pause(); } catch { /* ignore */ }
-    // srcObject as well as src: removeAttribute leaves an attached MediaSource in place, and the
-    // next load would then be appending to the source the last song already ended.
-    try { video.srcObject = null; } catch { /* ignore */ }
-    try { video.removeAttribute('src'); video.load(); } catch { /* ignore */ }
+    detachStems();
+    retire(current.el);
+}
+
+/// Brings a player back to full view at the room's level, which a fade leaves part way.
+function reveal(el) {
+    el.style.transition = `opacity ${CROSSFADE_MS}ms linear`;
+    el.style.opacity = '1';
+    el.volume = currentVolume;
 }
 
 // Bumped on every (re)start, so a running fade knows not to tear down what just started.
@@ -251,29 +336,20 @@ async function fadeOutAndStop(fadeMs) {
     // A handover that hasn't swapped yet is silent now and would arrive at full volume mid-fade with
     // nothing ramping it. Dropped first, so there is one thing to fade and it is the thing being heard.
     cancelHandover();
+    // A crossfade still bringing the current player up would pull against the fade.
+    dropOutgoing();
 
     // Held locally rather than read each tick: a handover that swaps mid-fade would otherwise move
     // the ramp onto the element that just took the room over.
-    const element = video;
-    const startVolume = element.volume;
-    const startedAt = performance.now();
+    const element = current.el;
 
     element.style.transition = `opacity ${fadeMs}ms linear`;
     element.style.opacity = '0';
 
     // The generation is checked inside the ramp, not only after it: a fade the host has already
     // superseded would otherwise go on pulling the volume down over the song that replaced it.
-    const completed = await new Promise((resolve) => {
-        const tick = () => {
-            if (generation !== playbackGeneration) return resolve(false);
-
-            const progress = Math.min(1, (performance.now() - startedAt) / fadeMs);
-            element.volume = startVolume * (1 - progress);
-
-            if (progress < 1) requestAnimationFrame(tick); else resolve(true);
-        };
-        tick();
-    });
+    const completed = await rampVolume(
+        element, element.volume, 0, fadeMs, () => generation === playbackGeneration);
 
     // Superseded: the host started playing again during the fade, and the song that replaced this
     // one is using the element now. A ramp abandoned part way would leave it playing unheard.
@@ -283,14 +359,12 @@ async function fadeOutAndStop(fadeMs) {
     }
 
     teardown();
-    video.style.transition = 'opacity 120ms linear';
-    video.volume = currentVolume;
+    reveal(current.el);
     placeholder.hidden = false;
     send({ type: 'state', position: 0, duration: 0, playing: false });
 }
 
-// The second channel. No timeline and no correction: only the screen the room hears receives any
-// of it, so there is no group for it to stay in step with.
+// The second channel, for break music and an ad's bed. It has no song position of its own.
 let backgroundVolume = 1;
 let backgroundGeneration = 0;
 
@@ -314,87 +388,17 @@ async function fadeOutBackground(fadeMs) {
         return;
     }
 
-    const startVolume = background.volume;
-    const startedAt = performance.now();
-
-    await new Promise((resolve) => {
-        const tick = () => {
-            const progress = Math.min(1, (performance.now() - startedAt) / fadeMs);
-            background.volume = startVolume * (1 - progress);
-            if (progress < 1) requestAnimationFrame(tick); else resolve();
-        };
-        tick();
-    });
+    // Checked inside the ramp: a bed loaded or resumed during the fade would otherwise be pulled
+    // down to nothing and left there.
+    const completed = await rampVolume(
+        background, background.volume, 0, fadeMs, () => generation === backgroundGeneration);
 
     // Superseded: a new bed started during the fade, so leave it alone.
-    if (generation !== backgroundGeneration) return;
+    if (!completed) return;
 
     teardownBackground();
     background.volume = backgroundVolume;
 }
-
-// Screens attach at different moments, so each steers onto the host's timeline rather than its own
-// start time, never via playbackRate: that pitches audio, and WKWebView walks currentTime backwards.
-const REALIGN_THRESHOLD = 0.15;
-
-// A seek costs a rebuffer, so the drift has to be genuine rather than one noisy sample.
-const REALIGN_CONFIRMATIONS = 3;
-
-let clockOffsetMs = 0;
-let timeline = null;
-let isPrimary = false;
-
-let driftConfirmations = 0;
-
-function hostNowMs() {
-    return Date.now() + clockOffsetMs;
-}
-
-/// Where the stream should be right now, or null when the group is not playing.
-function expectedStreamTime() {
-    if (!timeline) return null;
-    if (!timeline.playing) return timeline.position;
-
-    const elapsed = (hostNowMs() - timeline.anchorEpochMs) / 1000;
-    // Before the anchor the group has not started yet; hold at the start position.
-    return timeline.position + Math.max(0, elapsed);
-}
-
-function correct() {
-    // The primary defines the timeline rather than chasing one, so it is never corrected.
-    // There is nothing for it to be corrected towards.
-    if (isPrimary) {
-        video.playbackRate = 1;
-        return;
-    }
-
-    const expected = expectedStreamTime();
-    if (expected === null || video.readyState < 2 || video.seeking) return;
-
-    if (!timeline.playing) {
-        video.playbackRate = 1;
-        return;
-    }
-
-    // Every screen plays at true speed. The only correction is where the playhead sits.
-    video.playbackRate = 1;
-
-    const error = video.currentTime - expected;
-
-    if (Math.abs(error) < REALIGN_THRESHOLD) {
-        driftConfirmations = 0;
-        return;
-    }
-
-    if (++driftConfirmations < REALIGN_CONFIRMATIONS) return;
-
-    driftConfirmations = 0;
-    try { video.currentTime = expected; } catch { /* outside the buffered range yet */ }
-}
-
-// setInterval, not rAF: rAF stops while the window is occluded, freezing the correction exactly
-// when a screen is most likely to have drifted.
-setInterval(correct, 200);
 
 // Pixels per second the band travels when a venue has not chosen. A rate, not a lap time, so a
 // long line does not race to keep the same pace as a short one.
@@ -486,39 +490,37 @@ function setQrCodes(message) {
 
     setCornerOffset(code.offset);
 
-    {
-        const figure = document.createElement('figure');
-        figure.className = 'kh-qr';
-        figure.dataset.size = QR_SIZES.includes(code.size) ? code.size : 'medium';
+    const figure = document.createElement('figure');
+    figure.className = 'kh-qr';
+    figure.dataset.size = QR_SIZES.includes(code.size) ? code.size : 'medium';
 
-        // A denser code drawn in the same corner has smaller modules; below about three pixels each
-        // no phone reads it, so the module count sets a floor the venue's size cannot go under.
-        if (Number.isFinite(code.modules) && code.modules > 0)
-            figure.style.setProperty('--kh-qr-modules', String(code.modules));
+    // A denser code drawn in the same corner has smaller modules; below about three pixels each
+    // no phone reads it, so the module count sets a floor the venue's size cannot go under.
+    if (Number.isFinite(code.modules) && code.modules > 0)
+        figure.style.setProperty('--kh-qr-modules', String(code.modules));
 
-        // Already resolved host-side from the venue, so nothing here decides a default: a screen
-        // guessing one is how two screens in a room end up disagreeing.
-        if (Number.isFinite(code.safeZone) && code.safeZone > 0)
-            figure.style.setProperty('--kh-qr-safezone', String(code.safeZone));
+    // Already resolved host-side from the venue, so nothing here decides a default: a screen
+    // guessing one is how two screens in a room end up disagreeing.
+    if (Number.isFinite(code.safeZone) && code.safeZone > 0)
+        figure.style.setProperty('--kh-qr-safezone', String(code.safeZone));
 
-        const image = document.createElement('img');
-        // Decorative in the accessibility sense: nobody is reading a karaoke screen with a
-        // reader, and a code carries its meaning by being one.
-        image.alt = '';
-        image.src = code.imageUrl;
-        figure.appendChild(image);
+    const image = document.createElement('img');
+    // Decorative in the accessibility sense: nobody is reading a karaoke screen with a
+    // reader, and a code carries its meaning by being one.
+    image.alt = '';
+    image.src = code.imageUrl;
+    figure.appendChild(image);
 
-        if (code.caption) {
-            const caption = document.createElement('figcaption');
-            caption.textContent = code.caption;
-            figure.appendChild(caption);
-        }
-
-        cornerItems.qr = {
-            corner: QR_CORNERS.includes(code.corner) ? code.corner : 'bottomright',
-            node: figure,
-        };
+    if (code.caption) {
+        const caption = document.createElement('figcaption');
+        caption.textContent = code.caption;
+        figure.appendChild(caption);
     }
+
+    cornerItems.qr = {
+        corner: QR_CORNERS.includes(code.corner) ? code.corner : 'bottomright',
+        node: figure,
+    };
 
     renderCorners();
 }
@@ -679,44 +681,53 @@ function handleCommand(raw) {
     let message;
     try { message = JSON.parse(raw); } catch { return; }
 
-    // Taking the screen back: a song starting, or the picture being set. Deliberately not marquee,
-    // codes or a timeline tick, which would cancel an announcement the host had only just made.
+    // Taking the screen back: a song starting, or the picture being set. Deliberately not marquee
+    // or codes, which would cancel an announcement the host had only just made.
     if (['load', 'play', 'stop', 'show-image', 'hide-image'].includes(message.type)) clearNextSinger();
 
     switch (message.type) {
         case 'load':
             playbackGeneration++;
             placeholder.hidden = false;
-            // The old timeline would seek the new stream to a position that means nothing in it.
-            timeline = null;
-            driftConfirmations = 0;
+            // Where this stream sits in the song. A rebuild after a seek sends new values, and the
+            // words are drawn against the song, so they have to move with it.
+            songOffsetSeconds = message.songOffsetSeconds || 0;
+            songRate = message.rate || 1;
+
+            // Stems arrive unmixed and are mixed here, so moving a voice later costs a gain rather
+            // than a new encode. The stream URL is still sent beside them, and is what a page that
+            // could not mix would have played instead.
+            if (message.stems && message.stems.length > 0) {
+                teardown();
+                stemMixer = createStemMixer(message.stems, songOffsetSeconds, reportError);
+                if (message.autoplay === true) {
+                    stemMixer.play().catch((e) => reportError(`stem play: ${e}`));
+                }
+                break;
+            }
+
+            detachStems();
             load(message.url, message.autoplay === true);
             break;
-        case 'clock':
-            clockOffsetMs = message.offsetMs || 0;
-            break;
-        case 'timeline': {
-            const next = {
-                position: message.position || 0,
-                anchorEpochMs: message.anchorEpochMs || 0,
-                playing: message.playing === true,
-            };
+        case 'stem-volume': {
+            // Silently doing nothing would look exactly like a mix that has stopped responding.
+            if (!stemMixer) { reportError('stem-volume with no stems playing'); break; }
 
-            isPrimary = message.primary === true;
-
-            timeline = next;
+            const moved = stemMixer.setStemVolume(message.role, message.volume || 0);
+            if (moved === 0) reportError(`stem-volume for ${message.role}, which this song has none of`);
             break;
         }
+        case 'timed-lyrics':
+            // The whole timing document, sent once with the load rather than on the transport.
+            // Null clears it, which is what a song with no words looks like.
+            overlay.setLyrics(message.lyrics || null);
+            break;
         case 'play':
             playbackGeneration++;
             placeholder.hidden = true;
             // A fade leaves these mid-ramp. Left alone during a handover: the incoming player is
             // deliberately silent and invisible until it has sound to give.
-            if (!incoming) {
-                video.style.transition = `opacity ${CROSSFADE_MS}ms linear`;
-                video.style.opacity = '1';
-                video.volume = currentVolume;
-            }
+            if (!incoming) reveal(current.el);
 
             target().play().catch((e) => reportError(`play: ${e}`));
             break;
@@ -724,7 +735,6 @@ function handleCommand(raw) {
             target().pause();
             break;
         case 'stop':
-            timeline = null;
             fadeOutAndStop(Math.max(1, message.fadeMs || 0));
             break;
         case 'seek':
@@ -738,11 +748,17 @@ function handleCommand(raw) {
             // Hidden, not paused: a paused element would drift the moment it's turned back on.
             // visibility, not display: display:none drops it from the render tree, stalling WebKit's decoder.
             videos.forEach((v) => { v.style.visibility = message.enabled === false ? 'hidden' : ''; });
+            // The canvas hides the same way, and for the same reason: the engine keeps drawing so
+            // the words are still on the song when the picture comes back.
+            lyricsCanvas.style.visibility = message.enabled === false ? 'hidden' : '';
             blanked.hidden = message.enabled !== false;
             break;
         case 'volume':
             currentVolume = Math.max(0, Math.min(1, message.value));
-            if (!incoming) video.volume = currentVolume;
+            // The venue's level rides the whole mix, not one stem: it is the room's volume, and
+            // the stems' own levels are what the host set them to against each other.
+            if (stemMixer) stemMixer.volume = currentVolume;
+            if (!incoming) current.el.volume = currentVolume;
             break;
         case 'show-image':
             // The placeholder is the 'nothing here' card, so it goes while a still is up.
@@ -808,7 +824,13 @@ videos.forEach((v) => {
     v.addEventListener('loadeddata', () => { placeholder.hidden = true; });
     // Only from the player the room is hearing: the outgoing one runs out during a handover, and
     // that would retire the singer on the strength of a stream nobody is listening to any more.
-    v.addEventListener('ended', () => { if (v === video) send({ type: 'ended' }); });
+    v.addEventListener('ended', () => { if (v === current.el) send({ type: 'ended' }); });
+    v.addEventListener('error', () => {
+        if (v !== current.el) return;
+
+        const error = v.error;
+        if (error) reportError(`media error ${error.code}`);
+    });
 });
 
 // Its own message, never 'ended': the host runs the singer's performance off that one, and a bed
@@ -820,26 +842,22 @@ background.addEventListener('error', () => {
     const error = background.error;
     if (error) reportError(`background media error ${error.code}`);
 });
-video.addEventListener('error', () => {
-    const error = video.error;
-    if (error) reportError(`media error ${error.code}`);
-});
 
 // The host polls nothing; position reaches it only through these reports.
 setInterval(() => {
-    const expected = expectedStreamTime();
+    // The engine when it holds the song: reporting the idle video element's zero would move the
+    // host's playhead back to the start of a song that is still playing.
+    const player = target();
 
     send({
         type: 'state',
-        position: Number.isFinite(video.currentTime) ? video.currentTime : 0,
-        duration: Number.isFinite(video.duration) ? video.duration : 0,
-        playing: !video.paused && !video.ended && video.readyState > 2,
-        // Sample time, not send time: guessed latency would bias the timeline forever.
+        position: Number.isFinite(player.currentTime) ? player.currentTime : 0,
+        duration: Number.isFinite(player.duration) ? player.duration : 0,
+        playing: !player.paused && !player.ended && player.readyState > 2,
+        // Sample time, not send time: guessed latency would bias the host's playhead forever.
         sampledAtEpochMs: Date.now(),
-        // Without this a screen drifting off the group is invisible to the host.
-        expected: expected === null ? -1 : expected,
-        rate: video.playbackRate,
-        readyState: video.readyState,
+        rate: player.playbackRate,
+        readyState: player.readyState,
     });
 }, 250);
 

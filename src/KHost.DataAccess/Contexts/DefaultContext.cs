@@ -3,6 +3,7 @@ using KHost.Abstractions.Models;
 using KHost.DataAccess.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
+using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace KHost.DataAccess.Contexts;
 
@@ -43,8 +44,6 @@ internal class DefaultContext : DbContext
 
         modelBuilder.Entity<Media>(entity =>
         {
-            entity.HasKey(e => e.Id);
-
             entity.Property(e => e.FilePath)
                 .IsRequired()
                 .HasMaxLength(500);
@@ -98,8 +97,6 @@ internal class DefaultContext : DbContext
 
         modelBuilder.Entity<MediaPool>(entity =>
         {
-            entity.HasKey(e => e.Id);
-
             entity.Property(e => e.Name)
                 .IsRequired()
                 .HasMaxLength(255);
@@ -119,8 +116,6 @@ internal class DefaultContext : DbContext
 
         modelBuilder.Entity<MediaPoolEntry>(entity =>
         {
-            entity.HasKey(e => e.Id);
-
             entity.Ignore(e => e.IsPool);
 
             entity.HasIndex(e => e.MediaPoolId);
@@ -143,18 +138,7 @@ internal class DefaultContext : DbContext
 
         modelBuilder.Entity<Venue>(entity =>
         {
-            entity.HasKey(e => e.Id);
-
-            entity.Property(e => e.Name)
-                .IsRequired()
-                .HasMaxLength(255);
-
-            entity.Property(e => e.NameFolded)
-                .IsRequired()
-                .HasMaxLength(255);
-
-            entity.Property(e => e.Notes)
-                .HasMaxLength(1000);
+            ConfigureNameFoldedAndNotes(entity, nameMaxLength: 255);
 
             entity.Property(e => e.Address)
                 .HasMaxLength(500);
@@ -174,18 +158,7 @@ internal class DefaultContext : DbContext
 
         modelBuilder.Entity<KHostUser>(entity =>
         {
-            entity.HasKey(e => e.Id);
-
-            entity.Property(e => e.Name)
-                .IsRequired()
-                .HasMaxLength(255);
-
-            entity.Property(e => e.NameFolded)
-                .IsRequired()
-                .HasMaxLength(255);
-
-            entity.Property(e => e.Notes)
-                .HasMaxLength(1000);
+            ConfigureNameFoldedAndNotes(entity, nameMaxLength: 255);
 
             entity.Property(e => e.PasswordHash)
                 .HasMaxLength(512);
@@ -224,8 +197,6 @@ internal class DefaultContext : DbContext
 
         modelBuilder.Entity<KHostUserForeignKey>(entity =>
         {
-            entity.HasKey(e => e.Id);
-
             entity.Property(e => e.Source)
                 .IsRequired()
                 .HasMaxLength(100);
@@ -244,8 +215,6 @@ internal class DefaultContext : DbContext
 
         modelBuilder.Entity<KHostUserGroup>(entity =>
         {
-            entity.HasKey(e => e.Id);
-
             entity.Property(e => e.Name)
                 .IsRequired()
                 .HasMaxLength(100);
@@ -295,17 +264,6 @@ internal class DefaultContext : DbContext
 
         modelBuilder.Entity<Performance>(entity =>
         {
-            entity.HasKey(e => e.Id);
-
-            entity.Property(e => e.SingerId)
-                .IsRequired();
-
-            entity.Property(e => e.MediaId)
-                .IsRequired();
-
-            entity.Property(e => e.CreatedDate)
-                .IsRequired();
-
             entity.Property(e => e.SungAs)
                 .HasMaxLength(255);
 
@@ -319,11 +277,6 @@ internal class DefaultContext : DbContext
 
         modelBuilder.Entity<Tip>(entity =>
         {
-            entity.HasKey(e => e.Id);
-
-            entity.Property(e => e.UserId)
-                .IsRequired();
-
             entity.Property(e => e.NotesFolded)
                 .IsRequired()
                 .HasMaxLength(1000);
@@ -335,5 +288,14 @@ internal class DefaultContext : DbContext
             entity.HasIndex(e => e.VenueId);
             entity.HasIndex(e => e.CreatedDate);
         });
+    }
+
+    /// <summary>Venue and KHostUser configure this identical trio; named by property rather than
+    /// generic, since EF only needs the name to reach a shadow-free property either way.</summary>
+    private static void ConfigureNameFoldedAndNotes(EntityTypeBuilder entity, int nameMaxLength)
+    {
+        entity.Property("Name").IsRequired().HasMaxLength(nameMaxLength);
+        entity.Property("NameFolded").IsRequired().HasMaxLength(nameMaxLength);
+        entity.Property("Notes").HasMaxLength(1000);
     }
 }

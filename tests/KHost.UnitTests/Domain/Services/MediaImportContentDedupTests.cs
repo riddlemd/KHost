@@ -100,6 +100,11 @@ public class MediaImportContentDedupTests : IDisposable
         var second = Song();
         second[first.Length / 2] ^= 0xFF;
 
+        // Each needs its audio beside it: a .cdg alone is half a song and the importer refuses it,
+        // which would make this pass for a reason that has nothing to do with sizes.
+        WriteFile("a.mp3", first);
+        WriteFile("b.mp3", second);
+
         await ImportAsync(WriteFile("a.cdg", first));
         await ImportAsync(WriteFile("b.cdg", second));
 
@@ -152,6 +157,49 @@ public class MediaImportContentDedupTests : IDisposable
     {
         await using var context = await _factory.CreateDbContextAsync();
         return await context.Media.ToListAsync();
+    }
+
+    // --- a pair that is missing its other half ---
+
+    /// <summary>Half a song is not a row. A .cdg carries the words and no sound, so imported alone
+    /// it reached the room as silence with a warning in a log nobody reads.</summary>
+    [Fact]
+    public async Task Import_RefusesGraphicsWithNoAudioBesideThem()
+    {
+        await RawImportAsync(WriteFile("lonely.cdg", Song()));
+
+        Assert.Empty(await AllMediaAsync());
+
+        // Counted, not silently dropped: a host who selected two hundred files and got one hundred
+        // and eighty rows has to be able to find out why.
+        Assert.Equal(1, _service.FailedCount);
+    }
+
+    [Fact]
+    public async Task Import_TakesGraphicsWithTheirAudio()
+    {
+        var bytes = Song();
+        WriteFile("paired.mp3", bytes);
+
+        await RawImportAsync(WriteFile("paired.cdg", bytes));
+
+        // One row for the pair, and it is the graphics half that becomes it.
+        var media = Assert.Single(await AllMediaAsync());
+        Assert.EndsWith("paired.cdg", media.FilePath, StringComparison.Ordinal);
+        Assert.Equal(0, _service.FailedCount);
+    }
+
+    /// <summary>Like <see cref="ImportAsync"/> but without demanding a clean run, so a test can
+    /// assert on what failed rather than on the import having had nothing to refuse.</summary>
+    private async Task RawImportAsync(params string[] paths)
+    {
+        await _service.StartAsync(paths);
+
+        var deadline = DateTime.UtcNow.AddSeconds(10);
+        while (_service.State != ImportState.Idle && DateTime.UtcNow < deadline)
+            await Task.Delay(25);
+
+        Assert.Equal(ImportState.Idle, _service.State);
     }
 
     private async Task ImportAsync(params string[] paths)

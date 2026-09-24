@@ -149,8 +149,7 @@ public class BreakMusicServiceTests : IDisposable
             Substitute.For<IMediaPoolService>(),
             Substitute.For<IMediaService>(),
             Substitute.For<IMediaStreamService>(),
-            Substitute.For<IScreenServer>(),
-            Substitute.For<IScreenCoordinationService>(),
+            [Substitute.For<IDisplayProvider>()],
             _venues, _broker);
 
         using var service = new BreakMusicService(
@@ -202,7 +201,7 @@ public class BreakMusicServiceTests : IDisposable
     }
 
     // One venue level covers every channel, so a provider the host cannot reach is told it and
-    // one that renders through the host is not, because ScreenCoordination already sets that channel.
+    // one that renders through the host is not, because the display already sets that channel.
     [Fact]
     public async Task StartAsync_AnExternalProvider_IsGivenTheVenueVolume()
     {
@@ -276,6 +275,39 @@ public class BreakMusicServiceTests : IDisposable
         Assert.Same(other, service.ActiveProvider);
 
         service.Dispose();
+    }
+
+    // Without a lock guarding every transition (not just StartAsync), a StopAsync racing a
+    // still-in-flight StartAsync could run to completion first and then be overwritten when the
+    // provider's StartAsync finally returns and sets State back to Playing — losing the stop.
+    [Fact]
+    public async Task StartAsync_RacingWithStopAsync_DoesNotLoseTheStop()
+    {
+        var entered = new TaskCompletionSource();
+        var gate = new TaskCompletionSource();
+
+        _provider.StartAsync(Arg.Any<CancellationToken>()).Returns(async _ =>
+        {
+            entered.TrySetResult();
+            await gate.Task;
+            return true;
+        });
+
+        await _service.InitializeAsync();
+
+        var startTask = _service.StartAsync();
+        await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        var stopTask = _service.StopAsync();
+
+        // StopAsync must be blocked behind the lock StartAsync is holding, not racing ahead of it.
+        await Task.Delay(TimeSpan.FromMilliseconds(50));
+        Assert.False(stopTask.IsCompleted);
+
+        gate.SetResult();
+        await Task.WhenAll(startTask, stopTask).WaitAsync(TimeSpan.FromSeconds(5));
+
+        Assert.Equal(BreakMusicState.Stopped, _service.State);
     }
 
     [Fact]

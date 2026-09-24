@@ -29,10 +29,8 @@ public partial class ThemeSelector : IDisposable
     private string DisplayName(string? theme)
         => string.IsNullOrEmpty(theme) ? "" : ThemeService?.DisplayNameFor(theme) ?? theme;
 
-    private async void OnStateChanged(object? sender, EventArgs e)
-    {
-        await InvokeAsync(StateHasChanged);
-    }
+    private void OnStateChanged(object? sender, EventArgs e)
+        => _ = InvokeAsync(StateHasChanged);
 
     public void Dispose() => _subscriptions.Dispose();
 }

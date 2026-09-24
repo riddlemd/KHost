@@ -53,7 +53,7 @@ public partial class UserManagerPage : IDisposable
         }
     }
 
-    private void OnSortColumnClicked(string column)
+    private async Task OnSortColumnClickedAsync(string column)
     {
         if (_sortColumn == column)
             _sortDescending = !_sortDescending;
@@ -63,7 +63,7 @@ public partial class UserManagerPage : IDisposable
             _sortDescending = false;
         }
         _currentPage = 1;
-        _ = SearchAsync();
+        await SearchAsync();
     }
 
     private async Task OnSearchChangedAsync()
@@ -122,14 +122,6 @@ public partial class UserManagerPage : IDisposable
         );
     }
 
-    private async Task ClearSearchAsync()
-    {
-        _searchQuery = "";
-        _currentPage = 1;
-
-        await SearchAsync();
-    }
-
     private async Task PreviousPageAsync()
     {
         if (_currentPage > 1)
@@ -150,21 +142,22 @@ public partial class UserManagerPage : IDisposable
         }
     }
 
-    private async void OnStateChanged()
-    {
-        await SearchAsync();
-
-        var totalPages = _paginatedResult?.TotalPages ?? 0;
-
-        if (_paginatedResult?.Items.Count == 0 && _currentPage > 1)
+    private void OnStateChanged()
+        => _ = InvokeAsync(async () =>
         {
-            _currentPage = Math.Max(1, totalPages);
-
             await SearchAsync();
-        }
 
-        await InvokeAsync(StateHasChanged);
-    }
+            var totalPages = _paginatedResult?.TotalPages ?? 0;
+
+            if (_paginatedResult?.Items.Count == 0 && _currentPage > 1)
+            {
+                _currentPage = Math.Max(1, totalPages);
+
+                await SearchAsync();
+            }
+
+            StateHasChanged();
+        });
 
     public void Dispose() => _subscriptions.Dispose();
 }

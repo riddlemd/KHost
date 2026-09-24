@@ -105,13 +105,7 @@ public class MediaImportService : BaseService, IMediaImportService
 
         _broker.Announce(new MediaImportChanged());
         var cts = _cts!;
-        var thread = new Thread(() => RunImportAsync(paths, cts.Token).GetAwaiter().GetResult())
-        {
-            IsBackground = true,
-            Priority = ThreadPriority.BelowNormal,
-            Name = "MediaImport"
-        };
-        thread.Start();
+        _ = Task.Run(() => RunImportAsync(paths, cts));
 
         return Task.CompletedTask;
     }
@@ -123,7 +117,7 @@ public class MediaImportService : BaseService, IMediaImportService
     internal static IEnumerable<string> WithoutPairedAudio(IEnumerable<string> filePaths)
         => filePaths.Where(path =>
             !MediaFormats.AudioExtensions.Contains(Path.GetExtension(path).ToLowerInvariant())
-            || !File.Exists(Path.ChangeExtension(path, MediaFormats.KaraokeGraphicsExtension)));
+            || MediaFormats.FindKaraokeGraphics(path) is null);
 
     public void Cancel()
     {
@@ -155,6 +149,20 @@ public class MediaImportService : BaseService, IMediaImportService
                 ? chosen
                 : MediaFormats.TypeForFile(candidate.Path, VideoIsKaraoke);
 
+            // Half a song is not a row. A .cdg carries the words and no sound, so without the audio
+            // beside it there is nothing to play — and imported anyway it reached the room as
+            // silence, which is the one symptom that never points at its own cause.
+            if (MediaFormats.IsGraphicsOnlyKaraoke(candidate.Path)
+                && MediaFormats.FindKaraokeAudio(candidate.Path) is null)
+            {
+                FailedCount++;
+                _analytics.RecordImportFilesProcessed(1, "failed");
+                Logger.LogWarning(
+                    "Skipping {FilePath}: no audio file beside it, so the pair is incomplete",
+                    candidate.Path);
+                return;
+            }
+
             var media = await _parser.LoadAndParseAsync(candidate.Path, type);
 
             media.FileSize = candidate.Size;
@@ -178,8 +186,9 @@ public class MediaImportService : BaseService, IMediaImportService
         }
     }
 
-    private async Task RunImportAsync(List<string> paths, CancellationToken ct)
+    private async Task RunImportAsync(List<string> paths, CancellationTokenSource cts)
     {
+        var ct = cts.Token;
         var sw = System.Diagnostics.Stopwatch.StartNew();
         using var activity = _analytics.StartActivity(AnalyticActivities.ImportBatch);
 
@@ -196,10 +205,17 @@ public class MediaImportService : BaseService, IMediaImportService
         finally
         {
             _analytics.RecordImportDuration(sw.Elapsed.TotalMilliseconds);
-            State = ImportState.Idle;
             CurrentFilePath = null;
-            _cts?.Dispose();
-            _cts = null;
+
+            // Disposing the field (rather than this captured instance) risks tearing down a fresh
+            // CTS a concurrent StartAsync already installed; nulling it unconditionally would then
+            // strand that run with no token source at all. Idle is set last so a StartAsync racing
+            // this teardown still sees Running and backs off instead of reusing a torn-down field.
+            cts.Dispose();
+            if (ReferenceEquals(_cts, cts))
+                _cts = null;
+            State = ImportState.Idle;
+
             _broker.Announce(new MediaImportChanged());
         }
     }
@@ -290,7 +306,9 @@ public class MediaImportService : BaseService, IMediaImportService
         {
             ct.ThrowIfCancellationRequested();
 
-            if (known.Sampled is null && !await FillSampledAsync(known, updatedRows, ct))
+            if (known.Sampled is null && !await FillAsync(
+                known, updatedRows, _fingerprints.ComputeSampledHashAsync,
+                (fp, hash) => fp.Sampled = hash, (row, hash) => row.SampledHash = hash, ct))
                 continue;
 
             if (known.Sampled != incoming.Sampled)
@@ -300,7 +318,9 @@ public class MediaImportService : BaseService, IMediaImportService
             if (incoming.Full is null)
                 return false;
 
-            if (known.Full is null && !await FillFullAsync(known, updatedRows, ct))
+            if (known.Full is null && !await FillAsync(
+                known, updatedRows, _fingerprints.ComputeFullHashAsync,
+                (fp, hash) => fp.Full = hash, (row, hash) => row.ContentHash = hash, ct))
                 continue;
 
             if (known.Full != incoming.Full)
@@ -315,30 +335,25 @@ public class MediaImportService : BaseService, IMediaImportService
         return false;
     }
 
-    private async Task<bool> FillSampledAsync(Fingerprint known, HashSet<Media> updatedRows, CancellationToken ct)
+    /// <summary>Computes whichever tier of hash is missing and stamps it on both the in-memory
+    /// fingerprint and the library row it came from, one caller for the sampled and full tiers.</summary>
+    private static async Task<bool> FillAsync(
+        Fingerprint known,
+        HashSet<Media> updatedRows,
+        Func<string, CancellationToken, Task<string?>> hasher,
+        Action<Fingerprint, string> setOnFingerprint,
+        Action<Media, string> setOnRow,
+        CancellationToken ct)
     {
-        known.Sampled = await _fingerprints.ComputeSampledHashAsync(known.FilePath, ct);
-        if (known.Sampled is null)
+        var hash = await hasher(known.FilePath, ct);
+        if (hash is null)
             return false;
+
+        setOnFingerprint(known, hash);
 
         if (known.Row is not null)
         {
-            known.Row.SampledHash = known.Sampled;
-            updatedRows.Add(known.Row);
-        }
-
-        return true;
-    }
-
-    private async Task<bool> FillFullAsync(Fingerprint known, HashSet<Media> updatedRows, CancellationToken ct)
-    {
-        known.Full = await _fingerprints.ComputeFullHashAsync(known.FilePath, ct);
-        if (known.Full is null)
-            return false;
-
-        if (known.Row is not null)
-        {
-            known.Row.ContentHash = known.Full;
+            setOnRow(known.Row, hash);
             updatedRows.Add(known.Row);
         }
 

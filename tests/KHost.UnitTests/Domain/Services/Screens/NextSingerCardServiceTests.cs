@@ -1,4 +1,5 @@
 using KHost.Abstractions.Models;
+using KHost.Abstractions.Messaging;
 using KHost.Abstractions.Services;
 using KHost.Abstractions.Services.IPC;
 using KHost.Domain.Services.Screens;
@@ -10,7 +11,7 @@ namespace KHost.UnitTests.Domain.Services.Screens;
 /// is about republishing: the card stands until the next thing is drawn.</summary>
 public class NextSingerCardServiceTests
 {
-    private readonly IScreenServer _screens = Substitute.For<IScreenServer>();
+    private readonly IMessageBroker _broker = Substitute.For<IMessageBroker>();
     private readonly IVenuesService _venues = Substitute.For<IVenuesService>();
     private readonly ISingerQueueService _queue = Substitute.For<ISingerQueueService>();
     private readonly IPerformanceService _performances = Substitute.For<IPerformanceService>();
@@ -104,15 +105,25 @@ public class NextSingerCardServiceTests
     }
 
     [Fact]
-    public async Task Announcing_SendsTheCardToEveryScreen()
+    public async Task Announcing_HandsTheCardToTheDisplay()
     {
         Queue(_ada);
         Queued(_ada, "Today", "The Smashing Pumpkins");
 
         Assert.True(await Service().AnnounceAsync());
 
-        await _screens.Received(1).BroadcastCommandAsync(
-            Arg.Is<ShowNextSingerCommand>(card => card.Singer == "Ada" && card.Song == "Today"));
+        await _broker.Received(1).PublishAsync(
+            Arg.Is<NextSingerCardRequested>(request => request.Card.Singer == "Ada" && request.Card.Song == "Today"),
+            Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>Nobody to name is nothing to draw: the display must not be asked for an empty card.</summary>
+    [Fact]
+    public async Task Announcing_AnEmptyQueue_AsksTheDisplayForNothing()
+    {
+        Assert.False(await Service().AnnounceAsync());
+
+        await _broker.DidNotReceive().PublishAsync(Arg.Any<NextSingerCardRequested>(), Arg.Any<CancellationToken>());
     }
 
     private void Queue(params KHostUser[] singers) => _queue.Users.Returns(singers);
@@ -135,5 +146,5 @@ public class NextSingerCardServiceTests
 
     private NextSingerCardService Service() => new(
         NullLogger<NextSingerCardService>.Instance,
-        _screens, _venues, _queue, _performances, _media, _playback);
+        _broker, _venues, _queue, _performances, _media, _playback);
 }

@@ -41,11 +41,11 @@
                     <table class="kh-table">
                         <thead>
                             <tr>
-                                <th class="kh-table__col--sortable" @onclick='() => OnSortColumnClicked("name")'>
+                                <th class="kh-table__col--sortable" @onclick='() => OnSortColumnClickedAsync("name")'>
                                     Name @if (_sortColumn == "name") { <Icon Name="@(_sortDescending ? "sort-down" : "sort-up")" class="kh-table__sort-indicator" /> }
                                 </th>
                                 <th>Notes</th>
-                                <th class="kh-table__col--sortable kh-table__cell--centered" @onclick='() => OnSortColumnClicked("enabled")'>
+                                <th class="kh-table__col--sortable kh-table__cell--centered" @onclick='() => OnSortColumnClickedAsync("enabled")'>
                                     Enabled @if (_sortColumn == "enabled") { <Icon Name="@(_sortDescending ? "sort-down" : "sort-up")" class="kh-table__sort-indicator" /> }
                                 </th>
                                 <th>Actions</th>

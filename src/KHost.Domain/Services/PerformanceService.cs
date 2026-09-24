@@ -18,7 +18,6 @@ public class PerformanceService : BaseRepositoryService<Performance, IPerformanc
     private readonly IServiceProvider _services;
     private readonly IMediaService _mediaService;
     private readonly IUsersService _usersService;
-    private readonly IMessageBroker _broker;
     private readonly IVenuesService _venuesService;
     private readonly IInteractionDispatcher _interactions;
     private readonly IDownloadsService _downloadsService;
@@ -35,7 +34,6 @@ public class PerformanceService : BaseRepositoryService<Performance, IPerformanc
         IMessageBroker broker)
         : base(logger, repository, broker, new PerformancesChanged())
     {
-        _broker = broker;
         _services = services;
         _mediaService = mediaService;
         _usersService = usersService;
@@ -126,7 +124,7 @@ public class PerformanceService : BaseRepositoryService<Performance, IPerformanc
 
         Logger.LogInformation("Enqueued media {MediaId} for singer {SingerId} at position {Position}", performance.MediaId, performance.SingerId, nextPosition);
 
-        _broker.Announce(new PerformancesChanged());
+        AnnounceChange();
 
         return performance;
     }
@@ -223,7 +221,7 @@ public class PerformanceService : BaseRepositoryService<Performance, IPerformanc
             Logger.LogWarning("Performance {PerformanceId} not found for singer {SingerId}", performanceId, singerId);
         }
 
-        _broker.Announce(new PerformancesChanged());
+        AnnounceChange();
     }
 
     public async Task DeleteAllQueuedAsync()
@@ -232,61 +230,31 @@ public class PerformanceService : BaseRepositoryService<Performance, IPerformanc
 
         Logger.LogInformation("All queued performances deleted");
 
-        _broker.Announce(new PerformancesChanged());
+        AnnounceChange();
     }
 
     public async Task MoveUpInQueueAsync(Guid singerId, Guid performanceId)
     {
-        var queue = (await Repository.ReadQueuedAsync())
-            .Where(p => p.SingerId == singerId)
-            .ToList();
-
+        var queue = await ReadSingerQueueAsync(singerId);
         var idx = queue.FindIndex(p => p.Id == performanceId);
 
         if (idx > 0)
-        {
-            var perf = queue[idx];
-            var prevPerf = queue[idx - 1];
-            (perf.QueuePosition, prevPerf.QueuePosition) = (prevPerf.QueuePosition, perf.QueuePosition);
-
-            await Repository.UpdateAsync(perf);
-            await Repository.UpdateAsync(prevPerf);
-
-            Logger.LogDebug("Moved performance {PerformanceId} up from position {OldPosition} to {NewPosition}", performanceId, prevPerf.QueuePosition, perf.QueuePosition);
-
-            _broker.Announce(new PerformancesChanged());
-        }
+            await MoveToIndexAsync(singerId, performanceId, idx - 1);
     }
 
     public async Task MoveDownInQueueAsync(Guid singerId, Guid performanceId)
     {
-        var queue = (await Repository.ReadQueuedAsync())
-            .Where(p => p.SingerId == singerId)
-            .ToList();
-
+        var queue = await ReadSingerQueueAsync(singerId);
         var idx = queue.FindIndex(p => p.Id == performanceId);
 
-        if (idx >= 0 && idx < queue.Count - 1)
-        {
-            var perf = queue[idx];
-            var nextPerf = queue[idx + 1];
-            (perf.QueuePosition, nextPerf.QueuePosition) = (nextPerf.QueuePosition, perf.QueuePosition);
-
-            await Repository.UpdateAsync(perf);
-            await Repository.UpdateAsync(nextPerf);
-
-            Logger.LogDebug("Moved performance {PerformanceId} down from position {OldPosition} to {NewPosition}", performanceId, nextPerf.QueuePosition, perf.QueuePosition);
-
-            _broker.Announce(new PerformancesChanged());
-        }
+        if (idx >= 0)
+            await MoveToIndexAsync(singerId, performanceId, idx + 1);
     }
 
     /// <summary>Drop a song at an arbitrary position, which is what a drag ends in.</summary>
     public async Task MoveToIndexAsync(Guid singerId, Guid performanceId, int newIndex)
     {
-        var queue = (await Repository.ReadQueuedAsync())
-            .Where(p => p.SingerId == singerId)
-            .ToList();
+        var queue = await ReadSingerQueueAsync(singerId);
 
         var idx = queue.FindIndex(p => p.Id == performanceId);
 
@@ -314,28 +282,21 @@ public class PerformanceService : BaseRepositoryService<Performance, IPerformanc
 
         Logger.LogDebug("Moved performance {PerformanceId} from index {OldIndex} to {NewIndex}", performanceId, idx, target);
 
-        _broker.Announce(new PerformancesChanged());
+        AnnounceChange();
     }
 
     public async Task MoveToEndOfQueueAsync(Guid singerId, Guid performanceId)
     {
-        var queue = (await Repository.ReadQueuedAsync())
-            .Where(p => p.SingerId == singerId)
-            .ToList();
-
+        var queue = await ReadSingerQueueAsync(singerId);
         var idx = queue.FindIndex(p => p.Id == performanceId);
 
-        if (idx >= 0 && idx < queue.Count - 1)
-        {
-            var perf = queue[idx];
-            var maxPosition = queue.Max(p => p.QueuePosition) ?? 0;
-            perf.QueuePosition = maxPosition + 1;
-
-            await Repository.UpdateAsync(perf);
-
-            Logger.LogDebug("Moved performance {PerformanceId} to end of queue at position {Position}", performanceId, perf.QueuePosition);
-
-            _broker.Announce(new PerformancesChanged());
-        }
+        if (idx >= 0)
+            await MoveToIndexAsync(singerId, performanceId, queue.Count - 1);
     }
+
+    /// <summary>The performances a singer has waiting, in queue order.</summary>
+    private async Task<List<Performance>> ReadSingerQueueAsync(Guid singerId)
+        => (await Repository.ReadQueuedAsync())
+            .Where(p => p.SingerId == singerId)
+            .ToList();
 }

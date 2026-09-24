@@ -7,6 +7,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using KHost.Domain.Services;
 using KHost.Domain.Services.Messaging;
+using KHost.Domain.Services.Screens;
 
 namespace KHost.UnitTests.IPC;
 
@@ -19,8 +20,14 @@ public class ScreenDisconnectPausesPlaybackTests : IDisposable
     private readonly MessageBroker _broker = new(NullLogger<MessageBroker>.Instance);
     private readonly PlaybackService _playbackService;
 
+    // Nothing connected by default: NSubstitute answers string.Empty for an unstubbed string, so
+    // "no receiver" has to be said or every test starts with a television attached.
+    private readonly IDisplayProvider _receiver = Substitute.For<IDisplayProvider>();
+
     public ScreenDisconnectPausesPlaybackTests()
     {
+        _receiver.ConnectedDeviceId.Returns((string?)null);
+
         var hubContext = Substitute.For<IHubContext<ScreenHub>>();
         var clients = Substitute.For<IHubClients>();
         clients.Client(Arg.Any<string>()).Returns(Substitute.For<ISingleClientProxy>());
@@ -58,16 +65,19 @@ public class ScreenDisconnectPausesPlaybackTests : IDisposable
             Substitute.For<IPerformanceService>(),
             venues,
             Substitute.For<IAnalyticsService>(),
-            _screenServer,
             mediaStreams,
-            new ScreenCoordinationService(NullLogger<ScreenCoordinationService>.Instance, _screenServer, Substitute.For<IVenuesService>(), _broker),
-            [Substitute.For<IDisplayProvider>()],
+            new MediaRendererService(
+                NullLogger<MediaRendererService>.Instance,
+                [],
+                new StreamingMediaRenderer(mediaStreams)),
+            // The screens reach playback as a display now, over this same real server, so a
+            // registration here is still what gives the song somewhere to come out. The receiver
+            // beside them stands in for a television, which is the only second display there can be.
+            [new ScreenDisplayProvider(NullLogger<ScreenDisplayProvider>.Instance, _screenServer, [], _broker), _receiver],
             Substitute.For<IBreakMusicService>(),
-            Substitute.For<IMediaService>(),
             Monitor(new PlaybackService.ServiceOptions { StopFadeDuration = TimeSpan.Zero }),
             Substitute.For<IAudioTrackService>(),
             AllowingGate(),
-            Substitute.For<IPreparedMediaService>(),
             Substitute.For<IFlashService>(),
             _broker);
     }
@@ -172,13 +182,15 @@ public class ScreenDisconnectPausesPlaybackTests : IDisposable
         Assert.True(await WaitForStateAsync(PlaybackState.Paused));
     }
 
+    // Two screens can no longer both register, so the question this used to ask is now asked
+    // across providers: the room still has the song if a television is carrying it.
     [Fact]
-    public async Task OneOfTwoScreensDisconnecting_KeepsPlaying()
+    public async Task AScreenDisconnecting_WhileADisplayIsStillConnected_KeepsPlaying()
     {
         Register("conn-1", "Screen 1");
-        Register("conn-2", "Screen 2");
         await StartPlayingAsync();
 
+        _receiver.ConnectedDeviceId.Returns("Living Room TV");
         Callback.OnScreenDisconnected("conn-1");
 
         Assert.False(await WaitForStateAsync(PlaybackState.Paused));

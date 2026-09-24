@@ -16,12 +16,7 @@ public sealed record AppSettings
     /// chooses which of them it wants.</remarks>
     public string? SongBackgroundFolder { get; set; }
     public double StopFadeSeconds { get; set; } = 5;
-    public double SyncStartLeadMilliseconds { get; set; } = 400;
     public int SegmentSeconds { get; set; } = 2;
-
-    /// <summary>Whether queued songs are rendered ahead of play time. On unless a host says not.
-    /// </summary>
-    public bool PreRenderQueuedSongs { get; set; } = true;
 
     /// <summary>How long an ad runs when its playlist entry and the media itself say nothing.</summary>
     /// <remarks>A still with no voiceover; a video ad runs its own length regardless.</remarks>

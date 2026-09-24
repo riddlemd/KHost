@@ -2,7 +2,7 @@
 
 **KHost** — karaoke host app. .NET 10 + Blazor Server UI, Photino screen app. Solution: `KHost.slnx` (no `.sln`).
 
-Projects (`src/`): `Abstractions` (every interface, the shared models, and what a plugin is built against — MIT, no project refs, the bottom layer) ← `Common` (helpers over those contracts, MIT) ← `Domain` (services) / `DataAccess` (EF Core 10 + SQLite) ← `UserInterface` (Blazor Server) and `Screen2` (Photino video output), plus `IPC.SignalR` (UI↔Screen), `Cast` (Chromecast), `LrcLib`, `Telemetry`, `ServiceDefaults`/`AppHost` (Aspire), `tools/` (`KHost.CatalogSync`, the CLI that writes `plugin-catalog.json` entries), `build/` (`KHost.Analyzers`, a netstandard2.0 Roslyn analyzer referenced only at build time), and `tests/` (`KHost.UnitTests` — hermetic, no skips; `KHost.IntegrationTests` — needs ffmpeg/ffprobe, Cast tests skip without the Chromecast emulator on 127.0.0.1:8009).
+Projects (`src/`): `Abstractions` (every interface, the shared models, and what a plugin is built against — MIT, no project refs, the bottom layer) ← `Common` (helpers over those contracts, MIT) ← `Domain` (services) / `DataAccess` (EF Core 10 + SQLite) ← `UserInterface` (Blazor Server) and `Screen2` (Photino video output), plus `IPC.SignalR` (UI↔Screen), `Secrets` (per-OS secret store behind `ISecretStore`; `Interop/` is ported from Git Credential Manager and kept textually close to upstream), `LrcLib`, `Telemetry`, `ServiceDefaults`/`AppHost` (Aspire), `tools/` (`KHost.CatalogSync`, the CLI that writes `plugin-catalog.json` entries), `build/` (`KHost.Analyzers`, a netstandard2.0 Roslyn analyzer referenced only at build time), and `tests/` (`KHost.UnitTests` — hermetic, no skips; `KHost.IntegrationTests` — needs ffmpeg/ffprobe, and the OS secret-store tests skip on any other platform).
 
 ## Commands
 
@@ -16,6 +16,7 @@ dotnet test tests/KHost.IntegrationTests                    # drives real ffmpeg
 dotnet run --project tools/KHost.CatalogSync -- <owner/repo> # add a plugin's GitHub release to plugin-catalog.json
 
 ./build/pack-contracts.sh                                   # pack Abstractions + Common to the local NuGet feed
+./build/check-secrets-drift.sh                               # diff src/KHost.Secrets/Interop against the pinned upstream commit; needs network
 ```
 
 **Prefer `--headless` for testing.** The console is then an ordinary page at `http://localhost:5251`, so it drives with browser tooling and reads with the DOM instead of screenshot coordinate math — the Photino window reaches neither, and a Screen2 window launched over it turns every later capture into a black rectangle. Only the window itself needs the windowed run: native chrome, `SetSize`, and the appliance lockdown. Port 5251 is held by an exclusive `.instance.lock`, so stop one before starting the other.
@@ -25,7 +26,7 @@ SCSS compiles inside `dotnet build` (AspNetCore.SassCompiler) — no separate sa
 ## Rules
 
 - Interfaces in `src/KHost.Abstractions` (`Services/`, `Repositories/`, `Models/`); implementations in `src/KHost.Domain` or `src/KHost.DataAccess`. The rule is about what a plugin builds against, so an interface a plugin must *not* reach sits with its implementation instead — `IScreenQrCodeService` takes an owner id, and a plugin able to pass any owner could register over another's QR code without either noticing. Register in the project's `ProjectExtensions` (`AddDomain()` / `AddDataAccess()`); UI-only services in `Program.cs`. All domain services are singletons — guard mutable state with `SemaphoreSlim`.
-- A helper both the host and a plugin would want goes in `KHost.Common`, not `Abstractions`: it is MIT on purpose, so a plugin author may use it without taking PolyForm code into what they redistribute. `Common` is for helpers *over* the contracts — string folding aids, formatting, list surgery, the shared drop-position mechanic. A contract, a model or anything `Abstractions` itself needs belongs in `Abstractions`, which references nothing. `Abstractions` declares, it does not compute — see **No static methods in Abstractions** below. Group by area under `Common` (`Media/`, `Plugins/`) rather than dropping types in its root, and mirror that in the tests. Name its methods for what the call site needs to read, not for what the class already says: a plugin author sees `StreamRate.FromTempo(t)` and `AudioLevels.ClampVolume(v)` without this repo's context, so `For` and `Clamp` are too thin — `PluginRid.MatchesThisHost` names what it matches against, and `int.CentsToCurrencyString()` names the unit the receiver is in. The one exception is a member that exists to fill a BCL gap (`IList<T>.FindIndex`), where the familiar name *is* the point.
+- A helper both the host and a plugin would want goes in `KHost.Common`, not `Abstractions`: it is MIT on purpose, so a plugin author may use it without taking PolyForm code into what they redistribute. `Common` is for helpers *over* the contracts — string folding aids, formatting, list surgery, the shared drop-position mechanic. A contract, a model or anything `Abstractions` itself needs belongs in `Abstractions`, which references nothing. `Abstractions` declares, it does not compute — see **No static methods in Abstractions** below. Group by area under `Common` (`Media/`, `Plugins/`, `Discovery/`) rather than dropping types in its root, and mirror that in the tests. Name its methods for what the call site needs to read, not for what the class already says: a plugin author sees `StreamRate.FromTempo(t)` and `AudioLevels.ClampVolume(v)` without this repo's context, so `For` and `Clamp` are too thin — `PluginRid.MatchesThisHost` names what it matches against, and `int.CentsToCurrencyString()` names the unit the receiver is in. The one exception is a member that exists to fill a BCL gap (`IList<T>.FindIndex`), where the familiar name *is* the point.
 - No "gate" services: behaviour that guards a call lives on the service that owns the call (enqueue rules go in `PerformanceService.CreateAndEnqueueAsync`, not an `IEnqueueGuard` around it). `IMediaGateService`/`IMediaProbeService` are routers, not guards: they answer which plugin owns a file, and the rule itself lives in the plugin.
 - New repositories/services copy the shape of an existing one: repositories extend `BaseRepository<T>` and implement `SortColumns` / `ApplySearchFilters`; services extend `BaseService` (or `BaseRepositoryService<,>` for CRUD).
 - In repositories, `using var context = await ContextFactory.CreateDbContextAsync();` per operation — never store a context.
@@ -59,18 +60,41 @@ fatal in that one project via the `.editorconfig` beside its `.csproj`.
 - Precedents for the split live in `Common/Media/`, `Common/Plugins/`, `Common/Authentication/`
   and `Common/Repositories/`.
 
+## Finding things on the network
+
+**A .NET process on macOS cannot send multicast.** A send to `224.0.0.251` fails with
+`EHOSTUNREACH` ("No route to host") while a unicast to the very same host succeeds a millisecond
+later. That asymmetry is how macOS reports a local-network denial, and a command-line binary is
+denied *silently* rather than prompted — `dotnet` never even appears in Privacy & Security → Local
+Network. Every managed mDNS stack is therefore blind on macOS, and none of them say so: Zeroconf
+returns an empty list in half a second from a five-second scan, which reads as "nothing out there"
+rather than "I could not ask".
+
+`Common/Discovery/BonjourBrowser` is the way round it — macOS's own daemon, reached over XPC rather
+than the wire, so the denial does not apply. It sits in `Common` because **any** plugin reaching a
+network device meets this, and sharing it costs nothing: it is BCL plus a `DllImport` of
+`libSystem`, so `Common` keeps its no-package-dependencies property.
+
+- `BonjourBrowser.IsSupported` is **macOS only**. Everywhere else a managed stack works and should
+  be used; the Cast plugin keeps Zeroconf for Windows and Linux and branches on this.
+- Zeroconf does ship a Bonjour browser, but only in its `ios` and `maccatalyst` targets. Inheriting
+  it means multi-targeting to an Apple TFM, which forces a platform-specific plugin build and a
+  second catalog release — `Rid` is meant to stay blank.
+- A sweep that finds nothing must **say so**. "Blocked", "empty room" and "working fine" otherwise
+  look identical in a log, which is the whole reason this cost a day to find once.
+
 ## Messaging
 
 `IMessageBroker` (`KHost.Abstractions/Messaging/`) is how services and components hear about each other. A plugin can subscribe to what the show is doing, `Abstractions` being what it builds against.
 
-- **`Announce(message)`** is fire-and-forget, for "this moved, redraw". **`await PublishAsync(message)`** waits for every handler and is for the case the publisher's next decision depends on: `PlaybackService` awaits the end-of-performance gap so an ad can claim it before break music comes back.
+- **`Announce(message)`** is fire-and-forget, for "this moved, redraw". **`await PublishAsync(message)`** waits for every handler and is for the case the publisher's next decision depends on the outcome.
 - Handlers run **one at a time, in subscription order** — what one does decides what the next may do. A handler that throws is logged and skipped: a broken subscriber must not stop the queue reaching the next singer.
 - Routing is on the message's **runtime type**, and exact — a handler for a base type is not called for a derived one.
 - Subscriptions return `IDisposable`. Hold them in a `SubscriptionSet` and dispose it; a missed unsubscribe keeps a Blazor component — and its whole circuit — alive on the broker.
-- Never take a lock around a publish. `ScreenConnected` arrives on the SignalR hub thread already holding one, which is why those handlers are `_ = Task.Run(...)`.
+- Never take a lock around a publish. `ScreenServerService` raises `ScreenConnected`/`ScreenDisconnected` only after releasing its own lock, for the same reason. The handlers are still `_ = Task.Run(...)` because the event is a plain `EventHandler` on the hub's thread: awaiting there directly would be `async void`.
 - Components `[Inject] IMessageBroker Broker`, subscribe in `OnInitialized`, dispose the set in `Dispose`.
 
-Three things deliberately stay plain C# events, and should stay that way: Screen2's `IMediaPlayer` and `IScreenClient` (a separate process — the broker is in-process and SignalR is the transport), `IDialogService.ShowRequested` (a request with a payload and one legitimate subscriber, not a notification), and `IPlaybackService.PositionChanged` (twice a second for a whole night; it says only that `Position` moved, so take it to redraw a playhead and nothing else).
+Four things deliberately stay plain C# events, and should stay that way: Screen2's `IMediaPlayer` and `IScreenClient` (a separate process — the broker is in-process and SignalR is the transport), `IDialogService.ShowRequested` (a request with a payload and one legitimate subscriber, not a notification), `IPlaybackService.PositionChanged` (twice a second for a whole night; it says only that `Position` moved, so take it to redraw a playhead and nothing else), and `IPlaybackService.PerformanceEnded` (a gap with a payload the subscriber fills: a request, not a notification).
 
 ## What a plugin can reach
 
@@ -126,13 +150,13 @@ cannot name another's: its secrets, and the QR code it offers the screens.
   subscription provider can honour its own terms, and for nothing else. The host routes a question
   to whichever plugin owns a file and does what it answers. Do not add host-side enforcement, and
   do not try to make it airtight against a host who owns the machine.
-  - **One verdict, asked at three moments.** `CanAsync(MediaAction, Media)` takes `Queue`,
+  - **One verdict, asked at every moment.** `CanAsync(MediaAction, Media)` takes `Queue`,
     `Render` or `Play`; a provider whose answer never varies ignores the argument. Call sites:
-    `PerformanceService.CreateAndEnqueueAsync`, `PreparedMediaService` before it writes, and
-    `PlaybackService.LoadAsync`. **`Render` is the one that matters** — it is where licensed content
-    leaves the provider's container, and it runs with nobody watching, so refuse it outright;
-    `Queue` and `Play` may raise a sign-in first. Refusing at `Queue` too means a host learns before
-    the singer is at the microphone.
+    `PerformanceService.CreateAndEnqueueAsync` (Queue) and `PlaybackService.LoadAsync` (Play).
+    `Render` is **raised by nothing right now** — it was the pre-render, which is gone — and stays
+    in the enum because a plugin compiles against it and the native render path will want it back.
+    `Queue` and `Play` may raise a sign-in first; refusing at `Queue` means a host learns before the
+    singer is at the microphone.
   - **Ownership is asked by name first.** `IMediaGateService` asks every gate's `Claims(path)` before
     reading any tag, because the path is free and the tag opens the file. Only when nothing claims
     the name does it read the container tag `IMediaPlaybackGate.MetadataTag` (`khost_provider`),
@@ -160,44 +184,123 @@ cannot name another's: its secrets, and the QR code it offers the screens.
     `IMediaProbe` enumerable — it claims every file. A plugin that throws deciding is skipped; one
     that throws reading its own format answers null rather than falling through.
   - Nothing is cached: a file swapped under an unchanged path must be re-read.
-- **Three questions a provider answers about a file, and they are not the same question.**
-  `IMediaPlaybackGate.Claims` asks who *owns* it, `IMediaProbe.CanProbe` who can *read* it,
-  `IMediaPreparer.CanPrepare` who must *convert* it. A provider with one closed container answers
-  all three with the same extension check; a format the host could play but only the plugin could
-  describe claims the probe and not the preparer. Answer each for what it asks. All three must
-  answer from the **path alone** — each runs for every queued turn on every reconcile, and opening
-  the file turns a bulk enqueue into thousands of reads. `Claims` and `IMediaPreparer.KeyframeSeconds`
-  have **default bodies**, which is behaviour in `Abstractions` the KH0001 analyzer cannot see; both
-  exist so an older plugin loads unchanged. Treat them as deliberate exceptions, not precedent.
-- `IMediaPreparer` renders a format the host cannot play: `CanPrepare(path)` claims it, `PrepareAsync`
-  renders to a destination the host chose, `KeyframeSeconds` says how far apart its keyframes are.
-  `PreparedMediaService` asks the **gate** before calling it, so `PrepareAsync` carries no session
-  check of its own.
-- **`IDisplayProvider` is somewhere the song comes out that is not a screen.** Chromecast lives in
-  its own plugin for exactly this reason: mDNS browsing and a protobuf transport are a dependency
-  the host should not carry to play a local file.
-  - **A screen registers itself and the host drives it; a display provider is the other way round.**
-    The host holds no handle on the device, so it asks the plugin for everything — `Devices`,
-    `ConnectedDeviceId`, `SessionId` — and drives it through `PlaybackService.DriveDisplayAsync`,
-    never `BroadcastCommandAsync`. It holds no role in the sync set and never becomes an
-    `IScreenConnection`; accepting an `IScreenCommand` is the doorway every screen feature would
-    leak through, and a test in the plugin repo fails on it.
-  - **`PlaybackService` takes `IEnumerable<IDisplayProvider>` and keeps the first**, so none
-    installed is the ordinary case rather than a missing registration. Two would each claim the
-    song, and neither can hold sync.
-  - **The console never names a transport.** `Name` is the provider's own, and the plugin's device
-    table titles itself from it. Nothing in the host says "Cast".
-  - **The device list is the plugin's, not the console's.** It is a `ShowPluginTableRequest` off a
-    Plugins-page button; the Screens dialog is screens only. `ScreensButton` still names the device
-    in its tooltip, which is status a host reads at a glance rather than something to manage.
-  - **`[Inject]` resolves by type and ignores a nullable annotation**, so a component wanting one
-    injects `IEnumerable<IDisplayProvider>` and takes `FirstOrDefault()`. Injecting the bare
-    interface throws for every render when no plugin supplies one, which takes down the whole
-    console and not just the control that wanted it.
-  - Two host behaviours are still shaped by what a receiver can take, and neither can move into a
-    plugin: the HLS segments are MPEG-TS because CMAF needs a newer device, and
-    `LanAccessPolicy.IsMachineFacing` keeps the stream paths reachable off-box. Wanting CMAF means
-    asking the provider first.
+- **Two questions a provider answers about a file, and they are not the same question.**
+  `IMediaPlaybackGate.Claims` asks who *owns* it, `IMediaProbe.CanProbe` who can *read* it. A
+  provider with one closed container answers both with the same extension check, which makes them
+  look redundant; a plugin that gates content the host reads perfectly well claims the gate and not
+  the probe. Answer each for what it asks. Both must answer from the **path alone** — each runs for
+  every queued turn on every reconcile, and opening the file turns a bulk enqueue into thousands of
+  reads. `Claims` has a **default body**, which is behaviour in `Abstractions` the KH0001 analyzer
+  cannot see; it exists so a plugin with no opinion loads unchanged. A deliberate exception, not a
+  precedent.
+- **There is no host-side *pre*-render.** `IMediaPreparer` and `PreparedMediaService` are gone, along
+  with `PerformancePreparation`, the copy plan and the keyframe-cadence rules built on them:
+  measured against streaming, the pre-render bought ~0.1–0.2s of start latency and no reliable CPU
+  saving. A format the host cannot play is therefore **unplayable** until the native render path
+  lands — see `src/KHost.Screen2/RESEARCH.md`.
+- **`IMediaRenderer` is not that, and will be mistaken for it.** It turns one file into something a
+  display can play, and it is asked **once, when a song starts**. It produces nothing the stream
+  session does not sweep, caches nothing, reports no progress, and holds no state that outlives the
+  song — which is every property that made the pre-render worth deleting. The full shape and its
+  reasoning live in `docs/media-renderer.md`; this is the short form.
+  - **It answers with what to play, not always with a stream.** A `MediaRendition` carries a URL to
+    play end to end, or the separate `Stems` a display mixes for itself, or both. `StreamUrl` on
+    `LoadMediaCommand` is nullable for exactly this: a kit on a screen that mixes runs **no ffmpeg
+    at all**, where it used to encode a whole song for a consumer that never fetched it.
+  - **Claim by file, not by extension or by `MediaType`.** `CanRender(path)` and a keyed fallback,
+    the same shape `IMediaProbe` uses — `MediaFormats.TypeForFile` has never heard of `.kit`, and a
+    plain `.mp4` is `Karaoke` or `Video` depending on a flag the *caller* passes. Unlike
+    `IMediaPlaybackGate.Claims` and `IMediaProbe.CanProbe`, which answer from the path alone because
+    they run for every queued turn on every reconcile, this is asked once per song and **may open
+    the file** — which is what would let a renderer decide on a container's codecs rather than its
+    name.
+  - **Returning null means "nothing better for this target"**, and falls through to
+    `StreamingMediaRenderer`, which claims everything and encodes as the host always has. That is
+    how a kit reaches a receiver: the plugin sees a target that cannot mix, declines, and the
+    fallback resolves the `.kfa` through `IPlayableMediaSource` exactly as before.
+  - **The target is part of the question.** `RenderTarget.MixesStems` says whether the one
+    connected display mixes for itself; a device hearing the host's own mix needs the encode, so
+    offering it stems would be waste.
+  - **A renderer may inherit the encode rather than replace it.** `GraphicsKaraokeRenderer` claims
+    `.cdg` and derives from `StreamingMediaRenderer`, because subcode graphics still need ffmpeg to
+    become a picture. It exists so the rules that belong to the format have a home: the first is
+    that **a `.cdg` with no `.mp3` beside it is invalid, not silent**, and it now fails with
+    `KH-CDG-NO-AUDIO` instead of encoding a silent song. The split is that a renderer owns whether
+    the media is *valid*, and `BuildArguments` owns how it is *encoded*.
+  - Everything still streams through `HlsMediaStreamService` unless a renderer says otherwise, and
+    its ffmpeg argument building was never the problem — being the only answer was.
+- **`IDisplayProvider` is a transport to somewhere the song comes out, and everything the host can
+  put on it.** It finds such places, connects to one, hands it a stream, drives transport on it, and
+  draws on it. It does not decide what the show is — it is told. The full shape and its reasoning
+  live in `docs/display-provider.md`; this is the short form.
+  - **The screens provider is core logic, not a plugin.** Screen2 reaches the host through a
+    provider the host itself registers, travelling the same path a plugin's display travels.
+    `PluginLoader` must not bind it and it must never appear on the Plugins page. Chromecast is the
+    plugin-supplied one.
+  - **One display, full stop** — the local screen *or* a receiver, never both, and never two of
+    either. There is no multi-screen or multi-device seam anywhere in the host: `ConnectedDeviceId`,
+    `SessionId` and every argument-free member address the one device a transport drives, and a
+    plugin display handles its own communication with it. The rule is enforced in two places: a
+    provider refuses a connection to a different device rather than replacing the one it has
+    (`ScreenDisplayProvider.ConnectAsync`), and picking a display disconnects every other provider
+    first (`SettingsButton.SelectDisplayAsync`, and the "Launch Screen" confirm in
+    `DialogService`, which goes the same way). `PlaybackService` and the break music provider ask
+    `ConnectedDisplay.Find` for the one connected provider — several are registered at once, so
+    finding it stays.
+  - **Every drawable member has a default body**, so a provider implements what it can do and
+    ignores the rest. A Cast plugin writes the six transport members, not ten stubs. The same
+    deliberate exception `IMediaPlaybackGate.Claims` and `IPluginButtonHandler.DescribeButton` are.
+  - **What a device can show belongs on the device**, not the transport: `DisplayDevice` carries
+    `SupportsLyrics`, `SupportsMarquee`, `SupportsQrCodes` and `SupportsImage` beside audio and
+    video. One flag each rather than one for all, because the host answers each differently — lyrics
+    are fixed for the whole song and can be **burned into the stream** for a device that cannot draw
+    them, while a marquee that rescrolls on every venue edit would mean restarting the encode, so it
+    is simply left off.
+  - **The provider owns presentation; the host only supplies data.** `ScreenDisplayProvider` hears
+    what moved — the queue, the venue, playback, break music, a QR registration — and pulls the
+    whole current state of whatever that message drives (marquee, QR codes, the break music card,
+    the next-singer card, the idle card and an ad's still, the song's timed words) and draws it
+    itself. `PlaybackService`, `LibraryBreakMusicProvider` and the four overlay services no longer
+    hold `IScreenServer` or send anything: the overlay services only build what a display should be
+    showing when asked, and `PlaybackService` announces `PlaybackChanged` and reads `CurrentProgram`
+    like anything else would.
+  - **`SupportsFade` is the one capability the host acts on for itself.** `StopAsync` *waits out*
+    the fade it asks for, so a device that cuts dead — a receiver, which has no mixer of the host's
+    to ride down — would otherwise buy the room that many seconds of silence before the queue moved
+    on. A display that cannot fade means the stop is instant, the same reasoning as a paused
+    stop being instant. A device that has not listed itself yet is taken to fade: over-waiting is a
+    pause nobody hears, under-waiting cuts a song off mid-word.
+  - **A screen is local only** — launched by the host on its own machine. So `discovery` is two acts
+    under one name: a real network sweep for Cast, and "open one" for screens. **`SearchesForDevices`
+    is which one a transport does**, and it is how the console decides what to offer: a header that
+    says "search for devices" must not launch a screen, and one with nothing but the screens behind
+    it must not offer the search at all. True by default, a plugin's transport being nearly always
+    a sweep.
+  - **There are no roles and no sync.** No audio screen, no primary, no timeline and no per-screen
+    audio or video override: with one display there is nothing to choose between and nothing to
+    steer onto anything else. The display that is up defines the song's clock: every provider
+    raises `PlaybackStatusChanged` with its own timestamped position, and the host trusts only the
+    report from whichever one is connected — a screen's own state reports reach `PlaybackService`
+    the same way a receiver's do, through `ScreenDisplayProvider` translating them, not a side
+    channel. Nothing is ever corrected towards anything. The venue's volume is applied by
+    `ScreenDisplayProvider` on connect and on a venue edit.
+  - **Covering a rebuild is the transport's business, not the host's.** Changing key, tempo or the
+    mix reopens the stream at the playhead, and the host resumes there and skips nothing. It used
+    to skip forward by however long the rebuild took, since the room heard on from the old stream
+    meanwhile — but the skip lands on data ffmpeg has not written yet, so the element takes over
+    with barely a frame buffered, sounds for an instant and then starves. Half a second of silence
+    mid-song costs far more than a sliver heard twice. A screen covers the window itself, keeping
+    its old element playing and handing over only once the new one has sound, which is exactly the
+    mechanism a seek from the host defeats; a transport with nothing of the kind makes the
+    difference up inside its own `LoadAsync`, where it knows what it is driving.
+  - **The server registers one screen, and that is a constant, not an option.** A second screen is
+    refused rather than quietly joining; a re-registration under the same id replaces the first.
+    Every refusal in `TryRegisterScreen` is logged, because a turned-away screen shows "Lost the
+    host" and waits, which from the room is indistinguishable from a crash. `IScreenServer` has one
+    way to send, `BroadcastCommandAsync`, which reaches the screen that is up with a command
+    signed under its own key.
+  - The off-box HTTP surface — `LanAccessPolicy.IsMachineFacing`, the permissive CORS header, ranged
+    GETs — stays host surface for future plugin displays rather than moving behind the Cast provider.
 - **A plugin offers the screens a QR code; the venue decides whether it is drawn.** The manifest's
   `qrCode` is the standing registration, read without resolving the plugin so a venue can be set up
   before the show. `IPluginContext.RegisterQrCodeAsync` is the live one. The venue names **one**
@@ -207,8 +310,9 @@ cannot name another's: its secrets, and the QR code it offers the screens.
 - A plugin adds importer extensions with a manifest `importFormats: [".ext"]`, read from
   `IPluginRegistry` without resolving the plugin and unioned with the built-ins for **loaded**
   plugins only, normalised to leading-dot lowercase. It is a *filter*: it says a row may be made,
-  not that the host can play the file. A format the host cannot read is declared here **and**
-  claimed by an `IMediaPreparer`. The folder is never content-probed; the extension check is free.
+  not that the host can play the file. A format the host cannot read still has nowhere to be turned
+  into one — see the note on the render path above. The folder is never content-probed; the
+  extension check is free.
 - **A plugin extension type is one singleton across every extension interface it implements.** One
   object, one session key, so signing in on the button signs in the search and the gate. The bound
   interfaces are a hand-written list in `PluginLoader`, and leaving one off is **silent**;
@@ -223,7 +327,7 @@ cannot name another's: its secrets, and the QR code it offers the screens.
 - `<ContractsVersion>` in `Directory.Build.props` is the version of both. It moves whenever the
   shape an author compiles against changes at all, additions included; 0.x while the contracts
   still move.
-- `PluginApi.CurrentVersion` (at **3**) is the runtime gate the host checks a manifest against, and
+- `PluginApi.CurrentVersion` (at **4**) is the runtime gate the host checks a manifest against, and
   it moves only on a break. Changing a method a plugin **calls or implements** is a break, including
   adding an optional parameter: the default compiles into the call site, and a changed implemented
   signature is a `TypeLoadException` at load. A new interface member with a **default body** is not.
@@ -306,8 +410,9 @@ folder: `PluginLoader` hands that string straight to `LoadFromAssemblyPath`.
 
 ## What is playing between singers
 
-`BreakMusicCardService` names the break music in a corner of the screen, pushed whole on every
-change the same way the marquee is.
+`BreakMusicCardService` names the break music in a corner of the screen, built whole on every
+change the same way the marquee is — and, like the marquee, only when the display asks for it, not
+pushed by the service itself.
 
 - **It says what is *playing*, not what is cued.** A host's pause and the hand-off to a singer both
   take it down, so the screen never names a track over somebody else's performance. `Suspended` counts as not playing.
@@ -317,59 +422,23 @@ change the same way the marquee is.
   line. On macOS a Spotify advert arrives as a track with no artist and an em dash for a title, and
   is drawn as one — recognising ads would mean reading the track id, which nothing does yet.
 
-## Pre-rendering a queued song
+## Streaming a song
 
-`PreparedMediaService` renders queued songs ahead of play time into `<temp>/khost-streams/prepared`,
-moving the transcode off the song transition and leaving a stream copy behind where it can.
+`HlsMediaStreamService` transcodes at play time, one ffmpeg per song, into
+`<temp>/khost-streams`. There is no pre-render and no stream-copy path: the copy only ever paid off
+against a render the host had already made, and making those renders cost more than it saved.
 
-- **Readiness belongs to the turn and is derived, never stored.** `PerformancePreparation` is
-  computed from whether the render is on disk and whether one is in flight; a column would outlive
-  the file it describes.
-- **`IsWaitingOnARender` is the question a control and a load must both ask**, or a play button
-  offers a song the load then refuses. It is not `PerformancePreparation.Preparing`: an ordinary file
-  mid-render starts at once on the transcode, and a plugin's format waiting for the single render
-  slot cannot start at all yet is not `Preparing`.
-- **A render is named for its source's path, size and write time**, so editing a file in place
-  orphans its old render and the failure memo keyed on that name clears itself. `PathFor` returns
-  null rather than throwing when the source has gone.
-- **Reconcile is announcement-driven, so it coalesces**: one running pass plus at most one pending.
-  The flag is cleared on the way *in*, or a change arriving mid-pass is swallowed.
-- **Cheap checks first**: the destination existing and the failure memo are read before the gate
-  and anything that opens a file. Both are re-checked inside the render, since two passes can read
-  them before either writes.
-- **A render that fails is remembered**, or it takes the single slot on every queue change and
-  nothing else is ever prepared. `Sweep` clears the memo with the renders — a memo keyed to a
-  deleted render would refuse to retry a song that never actually failed.
-- **Nothing outlives the process**: a shutdown token is threaded through reconcile and render, and a
-  cancelled host-owned ffmpeg is killed. Waiting on a token stops the wait, not the process.
-- **`NeedsARender` is the one predicate for whether a file should have a render.** For a file the
-  host can play anyway the render is an optimisation, and `MediaStream:PreRenderQueuedSongs` (App
-  Settings, on by default) is a host declining it. For a format only a plugin can read it is the
-  whole of playability, so the setting does not reach it. Switching off reconciles with **no grace**
-  rather than sweeping, so plugin renders survive and the song at the microphone is kept.
-- **Media stream settings are read live through `IOptionsMonitor`**, never snapshotted in a
-  constructor; only the working directory is resolved once. App Settings says they apply
-  immediately, and that has to be true.
-- **Budget and free-space floor** (`PreparedBudgetMegabytes`, `PreparedFreeSpaceFloorMegabytes`,
-  zero lifts each). Past either, the song transcodes at play time: the pre-render must never be why
-  a machine fills up.
-- **A render outlives the queue by `KeepAfterUnwanted`** (five minutes) — a song that just ended is
-  the one most likely to be asked for again. It is a minimum: dropping is driven by the queue
-  changing.
-- **The copy is asked per stream.** `CanCopyVideo`: only tempo rules the picture out. `CanCopyAudio`:
-  pitch, tempo or a mixable mix rule the sound out. `CanStreamCopy` is both agreeing. A multi-stem
-  render always rebuilds its audio but copies its picture, and so does a song whose key was shifted;
-  re-encoding a picture for an audio-only change is wasted work and a generation of quality.
-  `BuildArguments` takes a `copyVideo` flag rather than a third builder, so the mix graph and muxer
-  settings cannot drift between the paths.
-- **`CopyPlan` decides what may be copied from, and asks two things**: is it a prepared render (an
-  original file makes no promise about its keyframes), and does its cadence divide the host's
-  segment length (`CutsCleanly`). A muxer cuts a copy only on a keyframe, so a segment length that
-  is not a multiple of the render's cadence silently runs each segment on to the next keyframe.
-- **A render says its own cadence** through `IMediaPreparer.KeyframeSeconds`; the host answers its
-  own segment length for renders it made, and relays the preparer's through
-  `IPreparedMediaService.KeyframeSecondsFor`. Null means "I do not say" and the picture is encoded.
-  A preparer should read its renderer's own constant rather than restate a number.
+- **Graphics-only sources get `-r 30`.** A CDG has no frame rate of its own, so ffmpeg picks one off
+  the first packets and the segment durations then drift from the wall clock.
+- **Keyframes are forced on time, not on a frame count.** `-g` is in frames and matches the segment
+  length at exactly one source frame rate, and the muxer can only cut where a keyframe already is,
+  so `-force_key_frames expr:gte(t,n_forced*<segment>)` with `-sc_threshold 0` is what keeps the
+  segments on the clock.
+- **Its settings are read live through `IOptionsMonitor`**, never snapshotted in a constructor; only
+  the working directory is resolved once, since moving it would strand the sessions already under
+  it. App Settings says they apply immediately, and that has to be true.
+- `BuildArguments` is static and is where every codec, filter and muxer decision lives, so the unit
+  tests can assert the command line without running ffmpeg.
 
 ## Components
 
@@ -412,6 +481,24 @@ moving the transcode off the song transition and leaving a stream copy behind wh
 The scanner takes everything the host can play, not only karaoke: a venue's break music, its ad
 clips and the card it puts up between singers are ordinary library rows.
 
+- **A `.cdg` with no audio beside it is an invalid state, not a quiet song.** The graphics carry
+  the words and nothing else. Such a file used to import as a normal row and reach the room as a
+  silent stream with a warning in a log nobody reads, so it is now refused twice: the importer
+  skips it and counts it failed, and `GraphicsKaraokeRenderer` fails the play with
+  `KH-CDG-NO-AUDIO`. Rows already in a library predate the first check and are caught by the
+  second.
+  - **`MediaFormats.FindKaraokeAudio` is the one rule**, and every asker goes through it. There
+    used to be four copies and two answers: `IsKaraokeTrack` counted *any* audio file beside a
+    `.cdg` as the pair's other half, while the probe, the companion resolver and the player looked
+    only for `.mp3` — so a `.cdg` next to a `.wav` was excluded from import as "part of a pair" and
+    then played silent. It now matches any audio extension, and **without regard to case**: a
+    case-sensitive filesystem has `SONG.CDG` and `song.mp3` as a pair that no exact-case lookup on
+    a built name ever finds.
+  - **`CdgMediaProbe` describes the pair**, reading the audio half for duration and tags, because a
+    `.cdg` has neither. That was a special case inlined in `MediaFileParsingService`, which knows
+    about no other format and should not have known about this one. It answers **empty, not null**
+    when the audio is missing — "I looked and there is nothing", which is what lets the importer
+    tell that apart from "I could not tell".
 - **`MediaFormats` owns the extension lists and the question.** `TypeForFile(path, videoIsKaraoke)`
   decides what a file is, and the scanner, the row icon and the import itself all ask it — so none
   of them can disagree with the other two.
@@ -426,16 +513,16 @@ clips and the card it puts up between singers are ordinary library rows.
 
 ## Tests
 
-xUnit + NSubstitute, and bunit for components. A test that needs anything outside the process — an external binary (ffmpeg), a live service (the Cast emulator) — belongs in `KHost.IntegrationTests`; `KHost.UnitTests` must stay skip-free so green means everything ran. In-process I/O (temp files, in-memory SQLite) stays in unit tests.
+xUnit + NSubstitute, and bunit for components. A test that needs anything outside the process — an external binary (ffmpeg), a live service (a network device) — belongs in `KHost.IntegrationTests`; `KHost.UnitTests` must stay skip-free so green means everything ran. In-process I/O (temp files, in-memory SQLite) stays in unit tests.
 
 `MethodUnderTest_Scenario_ExpectedBehavior`; substitutes in field initializers; mirror the source layout (`Domain/Services/Foo.cs` → `Domain/Services/FooTests.cs`). Test an announcement by subscribing a counter to the real broker the service was built with (`using var subscription = _broker.Subscribe<VenuesChanged>(_ => raised++)`), or substitute `IMessageBroker` and assert `Received(1).Announce(...)`. A bunit fixture must register a broker — components `[Inject]` one — or every render throws on the missing service.
 
 **A service that starts work in its constructor will race a test that arranges a substitute after
-building it.** `PreparedMediaService` reconciles on the way up and nothing awaits it, so a
-substitute stubbed afterwards can have its first call consumed by that pass instead of by the test,
-and an exact call count then fails. Arrange everything before the service is built, or give the
-fixture a way to settle the constructor's work first. **Run the suite under load before trusting a
-green one.**
+building it.** Where nothing awaits that work, a substitute stubbed afterwards can have its first
+call consumed by the constructor's pass instead of by the test, and an exact call count then fails.
+Arrange everything before the service is built, or give the fixture a way to settle the
+constructor's work first. **Run the suite under load before trusting a green one** — it is what
+found this, and two real defects an idle machine never showed.
 
 Times are stored UTC. **Arrange test data in UTC**: a test that uses the same local clock as the
 code cancels the offset and passes, and can only fail on a machine not already at UTC. Local time

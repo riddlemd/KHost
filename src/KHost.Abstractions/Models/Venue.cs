@@ -29,7 +29,6 @@ public class Venue : RepositoryModel
     public class VenueSettings
     {
         public int DefaultVolume { get; set; } = 100;
-        public ScreenDisconnectBehavior OnScreenDisconnect { get; set; } = ScreenDisconnectBehavior.ResumeOnReconnect;
         public bool ShowEstimatedWaitTime { get; set; } = true;
         public bool TippingEnabled { get; set; } = true;
         // Off by default: it adds a prompt, so venues opt in rather than inherit one.

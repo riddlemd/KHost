@@ -18,10 +18,8 @@ public partial class ThemeLink : IDisposable
         _subscriptions.Add(Broker.Subscribe<ThemeChanged>(_ => OnThemeStateChanged(null, EventArgs.Empty)));
     }
 
-    private async void OnThemeStateChanged(object? sender, EventArgs e)
-    {
-        await InvokeAsync(StateHasChanged);
-    }
+    private void OnThemeStateChanged(object? sender, EventArgs e)
+        => _ = InvokeAsync(StateHasChanged);
 
     public void Dispose() => _subscriptions.Dispose();
 }

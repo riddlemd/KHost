@@ -1,58 +1,40 @@
-using KHost.Abstractions.Messaging;
-using KHost.Abstractions.Messaging.Messages;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using KHost.Abstractions.Services.IPC;
 using Microsoft.Extensions.Logging;
-using KHost.Domain.Services.Screens;
 
 namespace KHost.Domain.Services;
 
-/// <summary>Keeps the screens marquee saying what the room should see.</summary>
-/// <remarks>Separate from ScreenCoordinationService (heard) and playback (owns the picture).</remarks>
-public sealed class ScreenMarqueeService : BaseService, IScreenMarqueeService, IDisposable, IStartsWithTheHost
+/// <summary>Composes what the marquee should say; the display decides when to draw it.</summary>
+/// <remarks>Holds no subscriptions: ScreenDisplayProvider hears what moves the marquee and asks
+/// for it again, so the host keeps no idea of how or when a display shows it.</remarks>
+public sealed class ScreenMarqueeService : BaseService, IScreenMarqueeService
 {
-    private readonly IScreenServer _screenServer;
     private readonly IVenuesService _venuesService;
     private readonly ISingerQueueService _singerQueue;
     private readonly IPerformanceService _performances;
     private readonly IMediaService _media;
     private readonly IPlaybackService _playback;
-    private readonly SubscriptionSet _subscriptions = new();
 
     public ScreenMarqueeService(
         ILogger<ScreenMarqueeService> logger,
-        IScreenServer screenServer,
         IVenuesService venuesService,
         ISingerQueueService singerQueue,
         IPerformanceService performances,
         IMediaService media,
-        IPlaybackService playback,
-        IMessageBroker broker)
+        IPlaybackService playback)
         : base(logger)
     {
-        _screenServer = screenServer;
         _venuesService = venuesService;
         _singerQueue = singerQueue;
         _performances = performances;
         _media = media;
         _playback = playback;
-
-        // The queue's order is the marquee's content, and the venue owns everything about how it
-        // looks, including whether there is one at all.
-        _subscriptions.Add(broker.Subscribe<SingerQueueChanged>(_ => Republish()));
-        _subscriptions.Add(broker.Subscribe<PerformancesChanged>(_ => Republish()));
-        _subscriptions.Add(broker.Subscribe<SelectedVenueChanged>(_ => Republish()));
-
-        // Who is at the mic decides who the band leaves out, so it has to redraw when that moves.
-        _subscriptions.Add(broker.Subscribe<PlaybackChanged>(_ => Republish()));
-
-        // A screen that joins mid-show has never been sent one.
-        _screenServer.ScreenConnected += OnScreenConnected;
     }
 
-    public Task InitializeAsync(CancellationToken cancellationToken = default)
-        => BroadcastAsync(cancellationToken);
+    /// <summary>Nothing to push: no screen can be up before the hub is mapped, and the display
+    /// draws the marquee whole on every connect.</summary>
+    public Task InitializeAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
 
     public async Task<SetMarqueeCommand> BuildAsync(CancellationToken cancellationToken = default)
     {
@@ -134,41 +116,6 @@ public sealed class ScreenMarqueeService : BaseService, IScreenMarqueeService, I
             .Replace("{artist}", media.Artist.Trim(), StringComparison.OrdinalIgnoreCase)
             .Replace("{singer}", singer, StringComparison.OrdinalIgnoreCase)
             .Replace("{position}", position.ToString(), StringComparison.OrdinalIgnoreCase);
-
-    public void Dispose()
-    {
-        _screenServer.ScreenConnected -= OnScreenConnected;
-        _subscriptions.Dispose();
-    }
-
-    private async Task BroadcastAsync(CancellationToken cancellationToken = default)
-    {
-        try
-        {
-            await _screenServer.BroadcastCommandAsync(await BuildAsync(cancellationToken));
-        }
-        catch (Exception ex)
-        {
-            // A marquee that fails to reach the screens must not take the show down with it.
-            Logger.LogWarning(ex, "Failed to send the marquee to screens");
-        }
-    }
-
-    // ScreenConnected arrives on the hub thread already holding a lock, so nothing here may be
-    // awaited on it.
-    private void OnScreenConnected(object? sender, ScreenConnectionEventArgs e) => _ = Task.Run(async () =>
-    {
-        try
-        {
-            await _screenServer.SendCommandAsync(e.Connection.ScreenId, await BuildAsync());
-        }
-        catch (Exception ex)
-        {
-            Logger.LogWarning(ex, "Failed to send the marquee to screen {ScreenId}", e.Connection.ScreenId);
-        }
-    });
-
-    private void Republish() => _ = Task.Run(() => BroadcastAsync());
 
     /// <summary>A cleared colour is no colour, not an empty CSS value the screen would take.</summary>
     private static string? Blank(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();

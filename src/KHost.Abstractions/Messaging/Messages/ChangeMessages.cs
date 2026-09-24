@@ -14,13 +14,6 @@ public sealed record SingerQueueChanged;
 
 public sealed record PerformancesChanged;
 
-/// <summary>A queued turn gained or lost its render.</summary>
-/// <remarks>Its own message rather than PerformancesChanged: the queue itself has not moved, and
-/// announcing that it had would re-enter the reconcile that raised this.</remarks>
-public sealed record PreparedMediaChanged;
-
-public sealed record ScreensChanged;
-
 public sealed record MediaLibraryChanged;
 
 public sealed record MediaImportChanged;

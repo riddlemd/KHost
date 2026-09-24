@@ -32,8 +32,8 @@ public class BreakMusicService : BaseService, IBreakMusicService, IDisposable
 
         _subscriptions.Add(broker.Subscribe<BreakMusicTrackChanged>(OnProviderTrackChanged));
 
-        // Only for a provider the host cannot reach: ScreenCoordination already re-applies the
-        // venue level to every screen when a venue is edited.
+        // Only for a provider the host cannot reach: ScreenDisplayProvider already re-applies the
+        // venue level to the screen when a venue is edited.
         _subscriptions.Add(broker.Subscribe<SelectedVenueChanged>(OnVenueChanged));
     }
 
@@ -60,7 +60,7 @@ public class BreakMusicService : BaseService, IBreakMusicService, IDisposable
 
         Logger.LogInformation("Break music provider: {Provider}", _activeProvider?.SourceName ?? "none");
 
-        await AdoptProviderPlaybackAsync(cancellationToken);
+        await RunLockedAsync(() => AdoptProviderPlaybackAsync(cancellationToken), cancellationToken);
 
         _broker.Announce(new BreakMusicChanged());
     }
@@ -128,8 +128,7 @@ public class BreakMusicService : BaseService, IBreakMusicService, IDisposable
         if (RoomIsTaken(nameof(StartAsync)))
             return false;
 
-        await _lock.WaitAsync(cancellationToken);
-        try
+        var started = await RunLockedAsync(async () =>
         {
             if (!await provider.StartAsync(cancellationToken))
                 return false;
@@ -137,11 +136,11 @@ public class BreakMusicService : BaseService, IBreakMusicService, IDisposable
             await ApplyVenueVolumeAsync(provider, cancellationToken);
 
             State = BreakMusicState.Playing;
-        }
-        finally
-        {
-            _lock.Release();
-        }
+            return true;
+        }, cancellationToken);
+
+        if (!started)
+            return false;
 
         _broker.Announce(new BreakMusicChanged());
         return true;
@@ -152,9 +151,11 @@ public class BreakMusicService : BaseService, IBreakMusicService, IDisposable
         if (_activeProvider is not { } provider || State != BreakMusicState.Playing)
             return;
 
-        await provider.PauseAsync(cancellationToken);
-
-        State = BreakMusicState.Paused;
+        await RunLockedAsync(async () =>
+        {
+            await provider.PauseAsync(cancellationToken);
+            State = BreakMusicState.Paused;
+        }, cancellationToken);
 
         _broker.Announce(new BreakMusicChanged());
     }
@@ -167,9 +168,11 @@ public class BreakMusicService : BaseService, IBreakMusicService, IDisposable
         if (RoomIsTaken(nameof(ResumeAsync)))
             return;
 
-        await provider.ResumeAsync(cancellationToken);
-
-        State = BreakMusicState.Playing;
+        await RunLockedAsync(async () =>
+        {
+            await provider.ResumeAsync(cancellationToken);
+            State = BreakMusicState.Playing;
+        }, cancellationToken);
 
         _broker.Announce(new BreakMusicChanged());
     }
@@ -179,9 +182,11 @@ public class BreakMusicService : BaseService, IBreakMusicService, IDisposable
         if (_activeProvider is not { } provider)
             return;
 
-        await provider.StopAsync(cancellationToken: cancellationToken);
-
-        State = BreakMusicState.Stopped;
+        await RunLockedAsync(async () =>
+        {
+            await provider.StopAsync(cancellationToken: cancellationToken);
+            State = BreakMusicState.Stopped;
+        }, cancellationToken);
 
         _broker.Announce(new BreakMusicChanged());
     }
@@ -195,18 +200,22 @@ public class BreakMusicService : BaseService, IBreakMusicService, IDisposable
         if (RoomIsTaken(nameof(SkipAsync)))
             return;
 
-        await provider.SkipAsync(cancellationToken);
+        await RunLockedAsync(async () =>
+        {
+            await provider.SkipAsync(cancellationToken);
 
-        // Skipping is a request to hear the next track, and every provider starts it. Left on Paused,
-        // the bar would offer play while the room hears music; Suspended returns on its own, not promoted.
-        if (State == BreakMusicState.Paused)
-            State = BreakMusicState.Playing;
+            // Skipping is a request to hear the next track, and every provider starts it. Left on
+            // Paused, the bar would offer play while the room hears music; Suspended returns on its
+            // own, not promoted.
+            if (State == BreakMusicState.Paused)
+                State = BreakMusicState.Playing;
+        }, cancellationToken);
 
         _broker.Announce(new BreakMusicChanged());
     }
 
     /// <summary>Pushes the venue's level at a provider the host cannot reach directly.</summary>
-    /// <remarks>One rendering through the host is set by ScreenCoordination instead.</remarks>
+    /// <remarks>One rendering through the host is set by ScreenDisplayProvider instead.</remarks>
     private async Task ApplyVenueVolumeAsync(IBreakMusicProvider provider, CancellationToken cancellationToken)
     {
         if (provider.RendersThroughHost)
@@ -215,7 +224,7 @@ public class BreakMusicService : BaseService, IBreakMusicService, IDisposable
         try
         {
             var venue = await _venues.ReadSelectedVenueAsync();
-            var volume = Math.Clamp((venue?.Settings.DefaultVolume ?? 100) / 100f, 0f, 1f);
+            var volume = VenueVolume.ToGain(venue?.Settings.DefaultVolume ?? 100);
 
             await provider.SetVolumeAsync(volume, cancellationToken);
         }
@@ -224,6 +233,25 @@ public class BreakMusicService : BaseService, IBreakMusicService, IDisposable
             Logger.LogWarning(ex, "Could not apply the venue volume to {Provider}", provider.SourceName);
         }
     }
+
+    /// <summary>Every state transition serializes through here, so two calls in flight cannot each
+    /// read a state the other is about to overwrite. The caller announces once outside it — never
+    /// under this lock, the same rule a broker publish follows.</summary>
+    private async Task<T> RunLockedAsync<T>(Func<Task<T>> action, CancellationToken cancellationToken)
+    {
+        await _lock.WaitAsync(cancellationToken);
+        try
+        {
+            return await action();
+        }
+        finally
+        {
+            _lock.Release();
+        }
+    }
+
+    private Task RunLockedAsync(Func<Task> action, CancellationToken cancellationToken)
+        => RunLockedAsync(async () => { await action(); return true; }, cancellationToken);
 
     /// <summary>Every way the bed can reach the room goes through this: start, resume, skip.</summary>
     private bool RoomIsTaken(string action)
@@ -245,18 +273,26 @@ public class BreakMusicService : BaseService, IBreakMusicService, IDisposable
         if (_activeProvider is not { } provider)
             return;
 
-        // Asked before deciding: a provider driving another app can start, stop or pause without this
-        // service hearing about it. Only what it cannot tell falls back to the state kept here.
-        await AdoptProviderPlaybackAsync(cancellationToken);
+        var suspended = await RunLockedAsync(async () =>
+        {
+            // Asked before deciding: a provider driving another app can start, stop or pause
+            // without this service hearing about it. Only what it cannot tell falls back to the
+            // state kept here.
+            await AdoptProviderPlaybackAsync(cancellationToken);
 
-        // Only playback is interrupted. Paused and Stopped are where a host put it, and coming
-        // back on the song's behalf would override them.
-        if (State != BreakMusicState.Playing)
+            // Only playback is interrupted. Paused and Stopped are where a host put it, and coming
+            // back on the song's behalf would override them.
+            if (State != BreakMusicState.Playing)
+                return false;
+
+            await provider.StopAsync(SuspendFade, cancellationToken);
+
+            State = BreakMusicState.Suspended;
+            return true;
+        }, cancellationToken);
+
+        if (!suspended)
             return;
-
-        await provider.StopAsync(SuspendFade, cancellationToken);
-
-        State = BreakMusicState.Suspended;
 
         Logger.LogInformation("Break music suspended for something with its own audio");
 
@@ -275,12 +311,18 @@ public class BreakMusicService : BaseService, IBreakMusicService, IDisposable
             return;
 
         // Started rather than resumed: the suspend stopped the provider outright, because a bed
-        // held open across a whole song is a transcode running for nobody.
-        if (!await StartAsync(cancellationToken))
+        // held open across a whole song is a transcode running for nobody. Awaited to completion
+        // (and its own lock released) before this locks again, or the two would deadlock each other.
+        if (await StartAsync(cancellationToken))
+            return;
+
+        await RunLockedAsync(() =>
         {
             State = BreakMusicState.Stopped;
-            _broker.Announce(new BreakMusicChanged());
-        }
+            return Task.CompletedTask;
+        }, cancellationToken);
+
+        _broker.Announce(new BreakMusicChanged());
     }
 
     public void Dispose()
@@ -307,8 +349,7 @@ public class BreakMusicService : BaseService, IBreakMusicService, IDisposable
 
         // Named rather than "whichever registered first": plugins register after the domain
         // today, but that ordering is not something a venue's default should rest on.
-        return _providers.FirstOrDefault(p => p is LibraryBreakMusicProvider)
-            ?? _providers.FirstOrDefault();
+        return LibraryProvider ?? _providers.FirstOrDefault();
     }
 
     // The mode is part of the venue's audio baseline like its volume: this message means the console is
@@ -341,7 +382,7 @@ public class BreakMusicService : BaseService, IBreakMusicService, IDisposable
             // The transport may have moved as well as the track: a host pausing in the other app
             // looks like this. Suspended is left alone, since the song that suspended it is still playing.
             if (State != BreakMusicState.Suspended)
-                await AdoptProviderPlaybackAsync(CancellationToken.None);
+                await RunLockedAsync(() => AdoptProviderPlaybackAsync(CancellationToken.None), CancellationToken.None);
 
             _broker.Announce(new BreakMusicChanged());
         });

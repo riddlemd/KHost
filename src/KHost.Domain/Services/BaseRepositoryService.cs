@@ -87,4 +87,8 @@ public abstract class BaseRepositoryService<TClass, TRepository> : BaseService, 
     {
         return await Repository.HasAnyAsync();
     }
+
+    // For a subclass method that changes something CRUD doesn't cover (a reorder, a dequeue):
+    // the broker and the message it announces already live here.
+    protected void AnnounceChange() => _broker.Announce(_changeMessage);
 }

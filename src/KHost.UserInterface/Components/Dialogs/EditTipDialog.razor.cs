@@ -28,7 +28,6 @@ public partial class EditTipDialog : IAsyncDisposable
 
     [Parameter] public EventCallback<Tip> OnSave { get; set; }
     [Parameter] public EventCallback OnClose { get; set; }
-    [Parameter] public EventCallback OnOpen { get; set; }
 
     private ElementReference _amountRef;
     private IJSObjectReference? _currencyModule;
@@ -119,9 +118,9 @@ public partial class EditTipDialog : IAsyncDisposable
         tip.PaymentMethod = _model.PaymentMethod;
         tip.Notes = _model.Notes;
 
+        // DialogHost closes after awaiting this itself; closing again here would also fire
+        // OnClose's onCancel, marking a successful save as a cancel.
         await OnSave.InvokeAsync(tip);
-
-        await CloseAsync();
     }
 
     private async Task<IReadOnlyList<KHostUser>> SearchSingersAsync(string query)

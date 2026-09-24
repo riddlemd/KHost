@@ -6,7 +6,7 @@
     <div class="kh-card__header">
         <Icon Name="people-fill" />
         <span class="kh-card__title">Singer Queue</span>
-        @if (SingerQueueService?.Users.Count > 0)
+        @if (SingerQueueService.Users.Count > 0)
         {
             <span class="kh-badge kh-badge--secondary kh-singer-queue-panel__singer-count" title="Number of singers in queue">@SingerQueueService.Users.Count</span>
         }
@@ -37,7 +37,7 @@
     }
     <div class="kh-singer-queue-panel__singer-queue kh-card__body"
          tabindex="0" data-kh-keylist @onkeydown="OnKeyDownAsync">
-        @if (!SingerQueueService?.Users.Any() == true)
+        @if (!SingerQueueService.Users.Any())
         {
             <div class="kh-panel--empty kh-panel--empty-lg">
                 <Icon Name="person-plus" />
@@ -45,12 +45,12 @@
             </div>
         }
 
-        @foreach (var (user, userIdx) in SingerQueueService?.Users.Select((u, i) => (u, i)) ?? [])
+        @foreach (var (user, userIdx) in SingerQueueService.Users.Select((u, i) => (u, i)))
         {
-            var isCurrentlyPerforming = PlaybackService?.CurrentlyPerformingUserId == user.Id;
+            var isCurrentlyPerforming = PlaybackService.CurrentlyPerformingUserId == user.Id;
             var isFirst = userIdx == 0;
-            var disableMoveUp = isFirst || isCurrentlyPerforming || (userIdx == 1 && SingerQueueService?.IsTopSlotLocked == true);
-            var disableMoveDown = userIdx == SingerQueueService?.Users.Count - 1 || isCurrentlyPerforming;
+            var disableMoveUp = isFirst || isCurrentlyPerforming || (userIdx == 1 && SingerQueueService.IsTopSlotLocked);
+            var disableMoveDown = userIdx == SingerQueueService.Users.Count - 1 || isCurrentlyPerforming;
             var disableRemove = isCurrentlyPerforming;
             var mediaCount = _performanceCounts.GetValueOrDefault(user.Id, 0);
             var ewt = CalculateEwt(userIdx);
@@ -58,9 +58,9 @@
             <div class="@GetSingerRowClasses(user.Id, isFirst)"
                  @key="user.Id"
                  data-singer-id="@user.Id"
-                 @onclick="() => SingerQueueService?.SelectUserAsync(user.Id) ?? Task.CompletedTask">
+                 @onclick="() => SingerQueueService.SelectUserAsync(user.Id)">
                 <div class="kh-singer-queue-panel__singer-queue__singer__icon">
-                    @if (isFirst && PlaybackService?.CurrentPerformance?.SingerId == user.Id && PlaybackService.State == PlaybackState.Playing)
+                    @if (isFirst && PlaybackService.CurrentPerformance?.SingerId == user.Id && PlaybackService.State == PlaybackState.Playing)
                     {
                         <div class="kh-now-playing__bars kh-now-playing__bars--sm">
                             <div class="kh-now-playing__bar"></div>
@@ -97,13 +97,13 @@
                     {
                     <button class="kh-singer-queue-panel__singer-queue__singer__move-up-btn kh-button--icon-minimal" title="Move up (Shift+Up)"
                             disabled="@disableMoveUp"
-                            @onclick="async () => await (SingerQueueService?.MoveUserUpAsync(user.Id) ?? Task.CompletedTask)"
+                            @onclick="async () => await SingerQueueService.MoveUserUpAsync(user.Id)"
                             @onclick:stopPropagation>
                         <Icon Name="chevron-up" />
                     </button>
                     <button class="kh-singer-queue-panel__singer-queue__singer__move-down-btn kh-button--icon-minimal" title="Move down (Shift+Down)"
                             disabled="@disableMoveDown"
-                            @onclick="async () => await (SingerQueueService?.MoveUserDownAsync(user.Id) ?? Task.CompletedTask)"
+                            @onclick="async () => await SingerQueueService.MoveUserDownAsync(user.Id)"
                             @onclick:stopPropagation>
                         <Icon Name="chevron-down" />
                     </button>

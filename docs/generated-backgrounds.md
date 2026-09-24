@@ -3,6 +3,10 @@
 Research note, branch `research/generated-backgrounds`. Findings and measurements only — nothing
 here is implemented.
 
+**Superseded in part.** The host-side render path this note builds on — `IMediaPreparer`,
+`PreparedMediaService` and the stream-copy contract — has since been removed. Read the
+measurements as a record of what was true then, not as a description of the code.
+
 **The case.** A plugin that supplies audio-only media has no picture. CDG is out of scope: it draws
 its own graphics, so a background behind it would be covered up anyway.
 
@@ -10,10 +14,10 @@ its own graphics, so a background behind it would be covered up anyway.
 
 1. **Audio-only produces no video track at all.** `HlsMediaStreamService.BuildArguments`
    (`src/KHost.Domain/Services/HlsMediaStreamService.cs:258`) emits the `-c:v libx264` block
-   unconditionally, but with no video stream on the input it produces nothing; `PreparedMediaService.BuildArguments`
-   (`src/KHost.Domain/Services/PreparedMediaService.cs:809`) does the same. No `lavfi`, `color=`,
-   `-loop 1` or `image2` input exists anywhere in either builder. **There is no picture to preserve
-   here** — adding a background is pure addition, not a downgrade of an existing copy path.
+   unconditionally, but with no video stream on the input it produces nothing; the pre-render's
+   `PreparedMediaService.BuildArguments` did the same before that path was removed. No `lavfi`,
+   `color=`, `-loop 1` or `image2` input exists in the surviving builder. **There is no picture to
+   preserve here** — adding a background is pure addition, not a downgrade of an existing copy path.
 2. **One video-filter injection point, and it is `-vf`.** `BuildVideoFilter`
    (`HlsMediaStreamService.cs:502`) only ever emits `setpts=PTS/rate` for tempo. The comment beside
    it records that `-vf` was chosen *because* it composes with the CDG `-map`. A background needs a
@@ -22,8 +26,8 @@ its own graphics, so a background behind it would be covered up anyway.
    requires the render's keyframe interval to divide `Options.SegmentSeconds` (default 2, `:26`).
    This turns out to be the hinge — see below.
 4. **A Chromecast only ever sees the muxed stream.** `CastService.ReceiverAppId` is Google's stock
-   Default Media Receiver, `CC1AD845` (`src/KHost.Cast/CastService.cs:24`), loaded with a plain
-   content URL (`:246`). There is no receiver app of ours, so there is no page on which to draw an
+   Default Media Receiver, `CC1AD845` (in the Chromecast plugin's own repo), loaded with a plain
+   content URL. There is no receiver app of ours, so there is no page on which to draw an
    overlay.
 5. **Screen2 has no drawing surface.** No `<canvas>`, no WebGL, no `AudioContext` anywhere in
    `src/KHost.Screen2/screen-ui/`. Every overlay is DOM — marquee, QR codes, break-music card,
@@ -267,7 +271,7 @@ The rest of the pipeline is already the right shape for it, and needs nothing ne
 - So the picture copies while the audio rebuilds, which is precisely
   `Picture = !Whole && CanCopyVideo(tempo)` in `CopyPlan` (`HlsMediaStreamService.cs:378-385`).
 - The plugin declares its own cadence through `KeyframeSeconds`, relayed by
-  `PreparedMediaService.KeyframeSecondsFor` (`PreparedMediaService.cs:506-509`) into `CutsCleanly`.
+  the pre-render into `CutsCleanly` before that path was removed.
 
 **The consequence for the loop economics.** The plugin is encoding its picture either way, so the
 150× stream-copy win does **not** apply to KaraFun — that win lives at the host's copy path, which is

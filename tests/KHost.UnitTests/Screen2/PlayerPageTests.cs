@@ -27,6 +27,32 @@ public class PlayerPageTests
         Assert.DoesNotContain("<script src=\"hls.light.min.js\"></script>", page);
     }
 
+    // The overlay draws the words over the song, so it ships the same way the rest does. Missing,
+    // a song with lyrics would play with nothing drawn and no error to say why.
+    [Fact]
+    public void BuildPlayerPage_Always_InlinesTheLyricsOverlay()
+    {
+        var page = Program.BuildPlayerPage();
+
+        Assert.Contains("function createLyricsOverlay", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("<script src=\"lyrics-overlay.js\"></script>", page, StringComparison.Ordinal);
+    }
+
+    // player.js builds the overlay as it loads, not on a command, so it has to be defined by then
+    // — the same ordering rule hls.js is held to below.
+    [Fact]
+    public void BuildPlayerPage_Always_PutsTheLyricsOverlayBeforeThePlayer()
+    {
+        var page = Program.BuildPlayerPage();
+
+        var overlay = page.IndexOf("function createLyricsOverlay", StringComparison.Ordinal);
+        var player = page.IndexOf("createLyricsOverlay(lyricsCanvas", StringComparison.Ordinal);
+
+        Assert.True(overlay >= 0, "the overlay is missing from the page");
+        Assert.True(player >= 0, "the player never reaches for the overlay");
+        Assert.True(overlay < player, "the player would call an overlay that is not defined yet");
+    }
+
     // hls.js has to be defined before player.js reads it to choose a playback path.
     [Fact]
     public void BuildPlayerPage_Always_PutsHlsJsBeforeThePlayer()
@@ -92,7 +118,7 @@ public class PlayerPageTests
         // Two players, stacked: a rebuilt stream is brought up behind the one still sounding and
         // swapped for it, so the room never hears the join.
         Assert.Contains("id=\"video-b\"", page);
-        Assert.Contains("function handOver(next)", page, StringComparison.Ordinal);
+        Assert.Contains("function handOver(arriving)", page, StringComparison.Ordinal);
 
         Assert.Contains("id=\"video\"", page);
         Assert.Contains("id=\"background\"", page);
@@ -102,8 +128,8 @@ public class PlayerPageTests
         Assert.Contains("id=\"hostlost\"", page);
     }
 
-    // The bed is a second element rather than a second source on the video: it carries no
-    // timeline, and sharing the element would put it under the same correction as the song.
+    // The bed is a second element rather than a second source on the video: it plays across the
+    // gap between songs, and sharing the element would have a song load cut it off.
     [Fact]
     public void BuildPlayerPage_Always_HandlesTheBackgroundChannelCommands()
     {
@@ -157,6 +183,30 @@ public class PlayerPageTests
         Assert.Contains("cancelHandover();", fade[..600], StringComparison.Ordinal);
     }
 
+    // Two loads inside one crossfade: the older handover's timer outlives it, and would swap in the
+    // newer stream before it has sound; and the older crossfade's retire lands on the element the
+    // newer handover has just attached to, so the rebuild never arrives.
+    [Fact]
+    public void BuildPlayerPage_Always_LetsNoSupersededHandoverSwapOrRetire()
+    {
+        var page = Program.BuildPlayerPage();
+
+        var handOver = page[page.IndexOf("function handOver(arriving)", StringComparison.Ordinal)..];
+        handOver = handOver[..handOver.IndexOf("\n}", StringComparison.Ordinal)];
+
+        // The pair is the token: only the one still in `incoming` may swap.
+        Assert.Contains("if (incoming !== arriving) return;", handOver, StringComparison.Ordinal);
+
+        // A crossfade retires its element only while nothing has taken it back.
+        Assert.Contains("const stillCrossfading = () => outgoing === leaving;", handOver, StringComparison.Ordinal);
+        Assert.Contains("if (outgoing === leaving) dropOutgoing();", handOver, StringComparison.Ordinal);
+
+        // And a handover takes the free element from the crossfade before attaching to it.
+        var load = page[page.IndexOf("function load(url, autoplay)", StringComparison.Ordinal)..];
+        load = load[..load.IndexOf("attach(arriving, url, true);", StringComparison.Ordinal)];
+        Assert.Contains("dropOutgoing();", load[load.IndexOf("Something is playing", StringComparison.Ordinal)..], StringComparison.Ordinal);
+    }
+
     // Checked only after the ramp, a fade the host has already superseded goes on pulling the
     // volume down over the song that replaced it, which arrives and then quietly disappears.
     [Fact]
@@ -168,7 +218,10 @@ public class PlayerPageTests
         ramp = ramp[..ramp.IndexOf("teardown();", StringComparison.Ordinal)];
 
         // Inside the tick, not merely after the await it is driving.
-        Assert.Contains("if (generation !== playbackGeneration) return resolve(false);", ramp, StringComparison.Ordinal);
+        Assert.Contains("() => generation === playbackGeneration", ramp, StringComparison.Ordinal);
+        var step = page[page.IndexOf("function rampVolume", StringComparison.Ordinal)..];
+        step = step[..step.IndexOf("el.volume =", StringComparison.Ordinal)];
+        Assert.Contains("if (!stillCurrent())", step, StringComparison.Ordinal);
 
         // And the level goes back, or the element the next song is already using stays silent.
         Assert.Contains("element.volume = currentVolume;", ramp, StringComparison.Ordinal);

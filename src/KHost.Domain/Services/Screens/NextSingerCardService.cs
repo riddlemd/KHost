@@ -1,3 +1,4 @@
+using KHost.Abstractions.Messaging;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using KHost.Abstractions.Services.IPC;
@@ -8,10 +9,10 @@ namespace KHost.Domain.Services.Screens;
 /// <summary>Names who is up, on the screens, when a host presses the button.</summary>
 /// <remarks>Host triggered and one shot, unlike the marquee and the break music card, which follow
 /// state. Nothing subscribes and nothing republishes: the card stands until the next thing drawn.
-/// </remarks>
+/// It is handed to the display as a request, since drawing it is the display's business.</remarks>
 public sealed class NextSingerCardService(
     ILogger<NextSingerCardService> logger,
-    IScreenServer screenServer,
+    IMessageBroker broker,
     IVenuesService venuesService,
     ISingerQueueService singerQueue,
     IPerformanceService performances,
@@ -50,17 +51,10 @@ public sealed class NextSingerCardService(
         if (await BuildAsync(cancellationToken) is not { } card)
             return false;
 
-        try
-        {
-            await screenServer.BroadcastCommandAsync(card);
-            return true;
-        }
-        catch (Exception ex)
-        {
-            // A card that does not reach the screens is not a reason to take the show down.
-            Logger.LogWarning(ex, "Could not announce the next singer");
-            return false;
-        }
+        // Awaited, so the button settles once the display has been handed the card; a display
+        // that fails to draw it logs and is skipped by the broker, never taking the show down.
+        await broker.PublishAsync(new NextSingerCardRequested(card), cancellationToken);
+        return true;
     }
 
     /// <summary>The name recorded at queue time, unless the venue prefers the singer it knows. Off

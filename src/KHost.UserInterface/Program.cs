@@ -100,12 +100,7 @@ internal static class Program
 
         var logDirectory = Path.Combine(AppContext.BaseDirectory, "logs");
         Directory.CreateDirectory(logDirectory);
-
-        foreach (var staleLog in new DirectoryInfo(logDirectory).GetFiles("*.log")
-            .Where(f => f.LastWriteTimeUtc < DateTime.UtcNow.AddDays(-7)))
-        {
-            staleLog.Delete();
-        }
+        KHostLogFiles.SweepStaleLogs(logDirectory);
 
         builder.Host.UseSerilog((_, _, cfg) => cfg
             .MinimumLevel.Information()
@@ -113,10 +108,17 @@ internal static class Program
             .MinimumLevel.Override("Microsoft.AspNetCore", LogEventLevel.Warning)
             .WriteTo.Console()
             .WriteTo.File(
-                path: Path.Combine(logDirectory, ".log"),
-                rollingInterval: RollingInterval.Day,
+                path: Path.Combine(logDirectory, KHostLogFiles.HostFileName()),
+                // Infinite: the filename already carries the launch timestamp, so a date-rolled
+                // segment on top of it would just repeat today's date in the name.
+                rollingInterval: RollingInterval.Infinite,
+                rollOnFileSizeLimit: true,
+                fileSizeLimitBytes: 10_000_000,
                 retainedFileCountLimit: null,
                 outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] {Message:lj}{NewLine}{Exception}"));
+
+        // A sweep at launch never fires again for a host left running for weeks.
+        builder.Services.AddHostedService(_ => new LogRetentionHostedService(logDirectory));
 
         builder.AddServiceDefaults();
 
@@ -159,8 +161,7 @@ internal static class Program
         // Scoped, not singleton: a control's pick belongs to the circuit that made it, and a
         // reconnecting browser is a new session rather than one resuming yesterday's choices.
         builder.Services.AddScoped<IControlState, ControlState>();
-        builder.Services.AddSingleton<IAppSettingsService>(sp => new AppSettingsService(
-            sp.GetRequiredService<IConfiguration>(), sp.GetRequiredService<IUsersService>()));
+        builder.Services.AddSingleton<IAppSettingsService, AppSettingsService>();
         builder.Services.AddSingleton<IThemeService, ThemeService>();
         builder.Services.AddSingleton<IAppInfoService, AppInfoService>();
         builder.Services.AddSingleton<IExternalLinkService, ExternalLinkService>();
@@ -179,64 +180,62 @@ internal static class Program
 
         LogDiscoveredPlugins(app.Services.GetRequiredService<IPluginRegistry>());
 
-        try
+        // A step the room cannot run without: logged, flushed and rethrown so the process exits
+        // rather than serving a console over a half-initialized host.
+        void InitializeOrExit(string what, Func<Task> initialize)
         {
+            try
+            {
+                initialize().GetAwaiter().GetResult();
+            }
+            catch (Exception ex)
+            {
+                Log.Fatal(ex, "{What} failed", what);
+                Log.CloseAndFlush();
+                throw;
+            }
+        }
+
+        // A step the room can run without: logged and swallowed so a missing setup degrades
+        // rather than blocking startup.
+        void InitializeOrWarn(string what, Func<Task> initialize)
+        {
+            try
+            {
+                initialize().GetAwaiter().GetResult();
+            }
+            catch (Exception ex)
+            {
+                Log.Warning(ex, "{What} failed", what);
+            }
+        }
+
+        InitializeOrExit("Database initialization", () =>
+        {
+            // The scope must outlive the call, not just its Task: returning the Task itself would
+            // dispose the scope the moment it's created, ahead of the awaited work running.
             using var scope = app.Services.CreateScope();
-            var initializer = scope.ServiceProvider.GetRequiredService<IDatabaseInitializer>();
-            initializer.InitializeAsync().GetAwaiter().GetResult();
-        }
-        catch (Exception ex)
-        {
-            Log.Fatal(ex, "Database initialization failed");
-            Log.CloseAndFlush();
-            throw;
-        }
+            scope.ServiceProvider.GetRequiredService<IDatabaseInitializer>().InitializeAsync().GetAwaiter().GetResult();
+            return Task.CompletedTask;
+        });
 
         // Before the queue: anything venue-scoped is inert until a venue is selected.
-        try
-        {
-            app.Services.GetRequiredService<IVenuesService>().InitializeAsync().GetAwaiter().GetResult();
-        }
-        catch (Exception ex)
-        {
-            Log.Fatal(ex, "Venue initialization failed");
-            Log.CloseAndFlush();
-            throw;
-        }
+        InitializeOrExit("Venue initialization",
+            () => app.Services.GetRequiredService<IVenuesService>().InitializeAsync());
 
-        try
-        {
-            app.Services.GetRequiredService<ISingerQueueService>().InitializeAsync().GetAwaiter().GetResult();
-        }
-        catch (Exception ex)
-        {
-            Log.Fatal(ex, "Singer queue initialization failed");
-            Log.CloseAndFlush();
-            throw;
-        }
+        InitializeOrExit("Singer queue initialization",
+            () => app.Services.GetRequiredService<ISingerQueueService>().InitializeAsync());
 
-        try
-        {
-            app.Services.GetRequiredService<IThemeService>().InitializeAsync().GetAwaiter().GetResult();
-        }
-        catch (Exception ex)
-        {
-            Log.Fatal(ex, "Theme service initialization failed");
-            Log.CloseAndFlush();
-            throw;
-        }
+        InitializeOrExit("Theme service initialization",
+            () => app.Services.GetRequiredService<IThemeService>().InitializeAsync());
 
         // Discovery ran before the container existed, so this is the first moment an entry point can
         // be handed services. Never fatal: PluginInitializer marks a plugin that throws.
         app.Services.GetRequiredService<IPluginInitializer>().InitializeAsync().GetAwaiter().GetResult();
 
-        // Before the hub is mapped: a service nobody has resolved cannot mute the first screen.
+        // Before the hub is mapped: a service nobody has resolved cannot hear the first screen arrive.
         try
         {
-            app.Services.GetRequiredService<IScreenCoordinationService>().InitializeAsync().GetAwaiter().GetResult();
-            app.Services.GetRequiredService<IScreenMarqueeService>().InitializeAsync().GetAwaiter().GetResult();
-            app.Services.GetRequiredService<BreakMusicCardService>().InitializeAsync().GetAwaiter().GetResult();
-
             // Each of these wires itself to the broker in its constructor, so enumerating is what
             // makes it exist: a loop, because a line each is what kept going missing.
             foreach (var _ in app.Services.GetServices<KHost.Domain.Services.Screens.IStartsWithTheHost>())
@@ -251,24 +250,12 @@ internal static class Program
         }
 
         // After the plugins, so a provider one of them registered can be the venue's chosen one.
-        try
-        {
-            app.Services.GetRequiredService<IBreakMusicService>().InitializeAsync().GetAwaiter().GetResult();
-        }
-        catch (Exception ex)
-        {
-            // Not fatal: a venue with no break music set up is a venue that runs without it.
-            Log.Warning(ex, "Break music initialization failed");
-        }
+        // Not fatal: a venue with no break music set up is a venue that runs without it.
+        InitializeOrWarn("Break music initialization",
+            () => app.Services.GetRequiredService<IBreakMusicService>().InitializeAsync());
 
-        try
-        {
-            app.Services.GetRequiredService<IAdService>().InitializeAsync().GetAwaiter().GetResult();
-        }
-        catch (Exception ex)
-        {
-            Log.Warning(ex, "Ad scheduling initialization failed");
-        }
+        InitializeOrWarn("Ad scheduling initialization",
+            () => app.Services.GetRequiredService<IAdService>().InitializeAsync());
 
         app.MapDefaultEndpoints();
         app.MapIPCServer();
@@ -322,20 +309,6 @@ internal static class Program
             LaunchStartupScreen(app);
         });
 
-        // Segments outlive the process, so sweep them on the way down.
-        app.Lifetime.ApplicationStopping.Register(() =>
-            app.Services.GetRequiredService<IMediaStreamService>().CloseAllAsync().GetAwaiter().GetResult());
-
-        // A plugin's cleanup may not finish before the process ends. The startup sweep covers
-        // whatever it leaves Downloading, but the cancel must fire, or yt-dlp outlives the host.
-        app.Lifetime.ApplicationStopping.Register(() =>
-            app.Services.GetRequiredService<IDownloadsService>().CancelAll());
-
-        // A half-written plugin payload is scratch under plugins-staging/.work, which the next
-        // install overwrites; cancelling only stops the transfer outliving the host.
-        app.Lifetime.ApplicationStopping.Register(() =>
-            app.Services.GetRequiredService<IPluginInstallerService>().CancelAll());
-
         // Screens we started are ours to close: on macOS closing the window tears the process down
         // inside Photino, so container disposal never runs and a screen would be left announcing a lost host.
         app.Lifetime.ApplicationStopping.Register(() =>
@@ -353,10 +326,15 @@ internal static class Program
             }
         });
 
-        // Every graceful exit lands here: Exit menu, close button, or Ctrl+C when headless.
-        // Clear-on-close is honoured however KHost quit; swallowed so a stuck queue can't block shutdown.
+        // One registration, its steps run in this explicit order: ApplicationStopping fires
+        // registrations LIFO, and these four used to be registered MediaStream, Downloads,
+        // PluginInstaller, Queue — so today's effective order is the reverse, Queue first and
+        // MediaStream last. Each step is independent and guarded, so one failing does not skip
+        // the rest.
         app.Lifetime.ApplicationStopping.Register(() =>
         {
+            // Every graceful exit lands here: Exit menu, close button, or Ctrl+C when headless.
+            // Clear-on-close is honoured however KHost quit; swallowed so a stuck queue can't block shutdown.
             try
             {
                 app.Services.GetRequiredService<ISingerQueueService>().ClearAsync().GetAwaiter().GetResult();
@@ -364,6 +342,38 @@ internal static class Program
             catch (Exception ex)
             {
                 Log.Warning(ex, "Could not clear the singer queue while shutting down");
+            }
+
+            // A half-written plugin payload is scratch under plugins-staging/.work, which the next
+            // install overwrites; cancelling only stops the transfer outliving the host.
+            try
+            {
+                app.Services.GetRequiredService<IPluginInstallerService>().CancelAll();
+            }
+            catch (Exception ex)
+            {
+                Log.Warning(ex, "Could not cancel in-progress plugin installs while shutting down");
+            }
+
+            // A plugin's cleanup may not finish before the process ends. The startup sweep covers
+            // whatever it leaves Downloading, but the cancel must fire, or yt-dlp outlives the host.
+            try
+            {
+                app.Services.GetRequiredService<IDownloadsService>().CancelAll();
+            }
+            catch (Exception ex)
+            {
+                Log.Warning(ex, "Could not cancel in-progress downloads while shutting down");
+            }
+
+            // Segments outlive the process, so sweep them on the way down.
+            try
+            {
+                app.Services.GetRequiredService<IMediaStreamService>().CloseAllAsync().GetAwaiter().GetResult();
+            }
+            catch (Exception ex)
+            {
+                Log.Warning(ex, "Could not close active media streams while shutting down");
             }
         });
 
@@ -439,9 +449,13 @@ internal static class Program
         if (exitCode == 0)
         {
             // The reset must not be silent: whoever reads the logs sees recovery was used.
+            var logDirectory = Path.Combine(AppContext.BaseDirectory, "logs");
+            Directory.CreateDirectory(logDirectory);
+            KHostLogFiles.SweepStaleLogs(logDirectory);
+
             var line = $"{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff zzz} [WRN] Password reset via {ResetPasswordFlag} for '{name}'";
             File.AppendAllText(
-                Path.Combine(AppContext.BaseDirectory, "logs", $"{DateTime.Now:yyyyMMdd}.log"),
+                Path.Combine(logDirectory, KHostLogFiles.HostFileName()),
                 line + Environment.NewLine);
         }
 

@@ -34,7 +34,6 @@ public partial class EditVenueDialog
 
     [Parameter] public EventCallback<Venue> OnSave { get; set; }
     [Parameter] public EventCallback OnClose { get; set; }
-    [Parameter] public EventCallback OnOpen { get; set; }
 
     [Inject] private IMediaService Media { get; set; } = default!;
     [Inject] private IMediaPoolService MediaPools { get; set; } = default!;
@@ -114,7 +113,6 @@ public partial class EditVenueDialog
                     Notes = Venue.Notes,
                     Enabled = Venue.Enabled,
                     DefaultVolume = Venue.Settings.DefaultVolume,
-                    OnScreenDisconnect = Venue.Settings.OnScreenDisconnect,
                     ShowEstimatedWaitTime = Venue.Settings.ShowEstimatedWaitTime,
                     SongBackgrounds = [.. Venue.Settings.SongBackgrounds ?? []],
                     TippingEnabled = Venue.Settings.TippingEnabled,
@@ -294,7 +292,6 @@ public partial class EditVenueDialog
         venue.Notes = _model.Notes;
         venue.Enabled = _model.Enabled;
         venue.Settings.DefaultVolume = _model.DefaultVolume;
-        venue.Settings.OnScreenDisconnect = _model.OnScreenDisconnect;
         venue.Settings.ShowEstimatedWaitTime = _model.ShowEstimatedWaitTime;
         venue.Settings.SongBackgrounds = [.. _model.SongBackgrounds];
         venue.Settings.TippingEnabled = _model.TippingEnabled;
@@ -331,9 +328,9 @@ public partial class EditVenueDialog
         venue.Settings.QrCodeSafeZone = _model.QrCodeSafeZone;
         venue.Settings.QrCodeOffset = _model.QrCodeOffset;
 
+        // DialogHost closes after awaiting this itself; closing again here would also fire
+        // OnClose's onCancel, marking a successful save as a cancel.
         await OnSave.InvokeAsync(venue);
-
-        await CloseAsync();
     }
 
     public async Task CloseAsync()
@@ -344,9 +341,6 @@ public partial class EditVenueDialog
     }
 
     private void CloseRotationDialog() => _rotationDialogOpen = false;
-
-    private string GetClassString()
-        => $"kh-singer-edit-dialog {Class?.Trim()}".Trim();
 
     public record DialogRequest : EditDialogRequest<Venue>
     {

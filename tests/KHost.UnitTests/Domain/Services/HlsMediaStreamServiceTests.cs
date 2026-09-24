@@ -23,8 +23,9 @@ public class HlsMediaStreamServiceTests : IDisposable
                 BaseAddress = "http://host:5251",
                 WorkingDirectory = _workingDirectory,
             }),
-            // No prepared render: these are about what the transcode itself builds.
-            Substitute.For<IPreparedMediaService>());
+            // The real router with nothing registered: every path resolves to itself, which is
+            // what the host does for all but a provider's own container.
+            new PlayableMediaSourceService(NullLogger<PlayableMediaSourceService>.Instance, []));
 
     [Fact]
     public void BuildArguments_TargetsCodecsEveryConsumerDecodes()
@@ -81,6 +82,29 @@ public class HlsMediaStreamServiceTests : IDisposable
         Assert.Contains("-map 0:v:0 -map 1:a:0", arguments);
     }
 
+    /// <summary>A .cdg emits a frame only when the graphics change, so x264 is handed a wildly
+    /// variable rate and encodes far more than the picture needs.</summary>
+    /// <remarks>Measured on two songs: 110 and 154 CPU-seconds without this against 33 and 44 with
+    /// it, for the same segments either way. The renderer has always done this; streaming did not,
+    /// which made playing a CDG without a render cost three times what it had to.</remarks>
+    [Fact]
+    public void BuildArguments_GivesGraphicsAConstantFrameRate()
+    {
+        var arguments = HlsMediaStreamService.BuildArguments(
+            "/songs/a.cdg", TimeSpan.Zero, 0, 0, 2, "/songs/a.mp3");
+
+        Assert.Contains("-r 30", arguments, StringComparison.Ordinal);
+    }
+
+    /// <summary>An ordinary video already has a frame rate; forcing one would resample it.</summary>
+    [Fact]
+    public void BuildArguments_LeavesAnOrdinaryVideosFrameRateAlone()
+    {
+        var arguments = HlsMediaStreamService.BuildArguments("/songs/a.mp4", TimeSpan.Zero, 0, 0, 2);
+
+        Assert.DoesNotContain("-r 30", arguments, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void BuildArguments_SeeksOnTheOutput_ForAPairedSource()
     {
@@ -91,6 +115,20 @@ public class HlsMediaStreamServiceTests : IDisposable
         var seek = arguments.IndexOf("-ss 42.000", StringComparison.Ordinal);
         var lastInput = arguments.LastIndexOf("-i \"", StringComparison.Ordinal);
         Assert.True(seek > lastInput, $"seek must follow both inputs: {arguments}");
+    }
+
+    [Fact]
+    public void BuildArguments_SeeksOnTheOutput_ForGraphicsWithNoAudioBesideThem()
+    {
+        // The stateful decode is what forces the slow seek, not the pairing. GraphicsKaraokeRenderer
+        // refuses this pairing before the encoder ever sees it, so this is defence in depth — but
+        // the predicate has to be about the decode, or it is right only by coincidence.
+        var arguments = HlsMediaStreamService.BuildArguments(
+            "/songs/a.cdg", TimeSpan.FromSeconds(42), 0, 0, 2);
+
+        var seek = arguments.IndexOf("-ss 42.000", StringComparison.Ordinal);
+        var lastInput = arguments.LastIndexOf("-i \"", StringComparison.Ordinal);
+        Assert.True(seek > lastInput, $"seek must follow the input: {arguments}");
     }
 
     [Fact]
@@ -264,8 +302,20 @@ public class HlsMediaStreamServiceTests : IDisposable
             "/songs/a.mp4", TimeSpan.Zero, 0, 0, 2, null, ThreeTrackMix(0, 100));
 
         // Without saying which streams to take, ffmpeg carries a raw track through beside the mix.
-        Assert.Contains("-map 0:v:0 -map \"[a]\"", arguments);
+        Assert.Contains("-map 0:v:0? -map \"[a]\"", arguments);
         Assert.DoesNotContain("-af", arguments);
+    }
+
+    [Fact]
+    public void BuildArguments_MapsThePictureOptionally_SoAnAudioOnlyMixStillOpens()
+    {
+        var arguments = HlsMediaStreamService.BuildArguments(
+            "/songs/a.kfa", TimeSpan.Zero, 0, 0, 2, null, ThreeTrackMix(50, 50));
+
+        // A stems-only container has no video stream, and a required mapping onto one is fatal:
+        // ffmpeg exits before a segment is written, which reads as the song simply never starting.
+        Assert.Contains("-map 0:v:0?", arguments);
+        Assert.DoesNotContain("-map 0:v:0 ", arguments);
     }
 
     [Fact]
@@ -318,56 +368,6 @@ public class HlsMediaStreamServiceTests : IDisposable
             "/songs/a.mp4", TimeSpan.Zero, 0, 0, 2, null, ThreeTrackMix(lead, 100));
 
         Assert.Contains($"volume={expected}[l]", arguments);
-    }
-
-    [Fact]
-    public void BuildArguments_CopiesThePicture_WhenOnlyTheAudioWasAskedToChange()
-    {
-        var arguments = HlsMediaStreamService.BuildArguments(
-            "/renders/a.khv", TimeSpan.Zero, 0, 0, 2, null, ThreeTrackMix(30, 100), copyVideo: true);
-
-        // A re-levelled mix is audio alone, so the frames come across as they were written.
-        Assert.Contains("-c:v copy", arguments);
-        Assert.DoesNotContain("-c:v libx264", arguments);
-
-        // And the mix is still built, which is the whole point of not copying wholesale.
-        Assert.Contains("amix=inputs=3:normalize=0", arguments);
-        Assert.Contains("-c:a aac", arguments);
-    }
-
-    /// <summary>The render already carries keyframes on this clock; asking a copy to force more is
-    /// asking the encoder that is not running.</summary>
-    [Fact]
-    public void BuildArguments_DoesNotForceKeyframes_WhenItCopiesThePicture()
-    {
-        var arguments = HlsMediaStreamService.BuildArguments(
-            "/renders/a.khv", TimeSpan.Zero, 0, 0, 2, null, ThreeTrackMix(30, 100), copyVideo: true);
-
-        Assert.DoesNotContain("force_key_frames", arguments);
-        Assert.DoesNotContain("sc_threshold", arguments);
-    }
-
-    /// <summary>A shifted key is the case that pays for itself even with one audio track: nothing
-    /// about the picture changed, and it was being re-encoded anyway.</summary>
-    [Fact]
-    public void BuildArguments_CopiesThePicture_ForAShiftedKeyWithNothingToMix()
-    {
-        var arguments = HlsMediaStreamService.BuildArguments(
-            "/renders/a.mp4", TimeSpan.Zero, pitch: 2, tempo: 0, 2, null, null, copyVideo: true);
-
-        Assert.Contains("-c:v copy", arguments);
-        Assert.Contains("asetrate", arguments);
-    }
-
-    /// <summary>Guards the default: every existing caller encodes, and a flipped default would
-    /// silently copy frames from sources that carry no keyframes where the muxer cuts.</summary>
-    [Fact]
-    public void BuildArguments_EncodesThePicture_WhenNotAskedToCopyIt()
-    {
-        var arguments = HlsMediaStreamService.BuildArguments("/songs/a.mp4", TimeSpan.Zero, 0, 0, 2);
-
-        Assert.Contains("-c:v libx264", arguments);
-        Assert.DoesNotContain("-c:v copy", arguments);
     }
 
     /// <summary>Named and ordered as the real files are: music first, then backing, then lead.</summary>

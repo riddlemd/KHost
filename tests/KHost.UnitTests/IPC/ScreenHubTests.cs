@@ -16,7 +16,7 @@ public class ScreenHubTests
         _context.ConnectionId.Returns("conn-a");
         _clients.Caller.Returns(_caller);
         _callback.BeginSession("conn-a").Returns("nonce-xyz");
-        _hub = new ScreenHub(_callback) { Context = _context, Clients = _clients };
+        _hub = new ScreenHub(_callback, Microsoft.Extensions.Logging.Abstractions.NullLogger<ScreenHub>.Instance) { Context = _context, Clients = _clients };
     }
 
     [Fact]

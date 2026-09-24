@@ -22,14 +22,12 @@ public class ScreenCommandSerializationTests
         [nameof(StopCommand)] = new StopCommand { FadeDuration = TimeSpan.FromSeconds(2) },
         [nameof(SeekCommand)] = new SeekCommand { Position = TimeSpan.FromSeconds(42) },
         [nameof(SetVolumeCommand)] = new SetVolumeCommand { Volume = 0.75f },
-        [nameof(SetVideoCommand)] = new SetVideoCommand { Enabled = false },
-        [nameof(SetTimelineCommand)] = new SetTimelineCommand
+        [nameof(SetStemVolumeCommand)] = new SetStemVolumeCommand
         {
-            Position = TimeSpan.FromSeconds(42),
-            AnchorUtc = new DateTime(2026, 8, 17, 20, 30, 0, DateTimeKind.Utc),
-            IsPlaying = true,
-            IsPrimary = true,
+            Role = AudioTrackRole.Lead,
+            Volume = 40,
         },
+        [nameof(SetVideoCommand)] = new SetVideoCommand { Enabled = false },
         [nameof(LoadBackgroundCommand)] = new LoadBackgroundCommand { StreamUrl = "/music/bed.m3u8", AutoPlay = true },
         [nameof(PlayBackgroundCommand)] = new PlayBackgroundCommand(),
         [nameof(PauseBackgroundCommand)] = new PauseBackgroundCommand(),
@@ -56,6 +54,37 @@ public class ScreenCommandSerializationTests
             Artist = "Tom Petty",
             Corner = ScreenCorner.BottomLeft,
             Offset = 1.5,
+        },
+        [nameof(SetTimedLyricsCommand)] = new SetTimedLyricsCommand
+        {
+            Lyrics = new TimedLyrics
+            {
+                DurationSeconds = 362.1,
+                Bounds = new LyricBox(0, 0, 640, 360),
+                Pages =
+                [
+                    new LyricPage
+                    {
+                        ShowFromSeconds = 1.5,
+                        ShowUntilSeconds = 6.25,
+                        Active = new LyricColor(255, 240, 0),
+                        Inactive = new LyricColor(255, 255, 255),
+                        Lines =
+                        [
+                            new LyricLine
+                            {
+                                Position = new LyricBox(40, 120, 560, 48),
+                                Syllables =
+                                [
+                                    new LyricSyllable(1.5, 1.9, "Turn"),
+                                    new LyricSyllable(1.9, 2.4, " a"),
+                                    new LyricSyllable(2.4, 3.0, "round"),
+                                ],
+                            },
+                        ],
+                    },
+                ],
+            },
         },
         [nameof(ShowNextSingerCommand)] = new ShowNextSingerCommand
         {
@@ -139,6 +168,12 @@ public class ScreenCommandSerializationTests
         Assert.Equal(0.75f, RoundTrip(new SetVolumeCommand { Volume = 0.75f }).Volume);
         Assert.Equal(TimeSpan.FromSeconds(2), RoundTrip(new StopCommand { FadeDuration = TimeSpan.FromSeconds(2) }).FadeDuration);
         Assert.Null(RoundTrip(new StopCommand()).FadeDuration);
+
+        // The role names the voice across the wire, so it has to survive as itself rather than as
+        // whatever number the enum happens to sit at.
+        var stem = RoundTrip(new SetStemVolumeCommand { Role = AudioTrackRole.Backing, Volume = 65 });
+        Assert.Equal(AudioTrackRole.Backing, stem.Role);
+        Assert.Equal(65, stem.Volume);
     }
 
     [Fact]

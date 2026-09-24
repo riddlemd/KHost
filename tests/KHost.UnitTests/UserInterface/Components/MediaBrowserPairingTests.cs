@@ -64,7 +64,5 @@ public class MediaBrowserPairingTests
             Size: 1024,
             ModifiedDate: new DateTime(2026, 1, 1),
             SupportedFileCount: null,
-            PairedPaths: null,
-            ParsedTitle: null,
-            ParsedArtist: null);
+            PairedPaths: null);
 }
