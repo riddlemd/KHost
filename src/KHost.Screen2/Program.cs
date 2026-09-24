@@ -491,25 +491,19 @@ internal static class Program
     {
         var logDirectory = Path.Combine(AppContext.BaseDirectory, "logs");
         Directory.CreateDirectory(logDirectory);
-
-        foreach (var staleLog in new DirectoryInfo(logDirectory).GetFiles("*.log")
-            .Where(f => f.LastWriteTimeUtc < DateTime.UtcNow.AddDays(-7)))
-        {
-            try { staleLog.Delete(); } catch (IOException) { /* another screen still holds it */ }
-        }
-
-        var safeId = string.Join("_", screenId.Split(Path.GetInvalidFileNameChars()));
+        Telemetry.KHostLogFiles.SweepStaleLogs(logDirectory);
 
         return new LoggerConfiguration()
             .MinimumLevel.Is(ToSerilog(minimum))
             .WriteTo.Console()
             .WriteTo.File(
-                path: Path.Combine(logDirectory, $"{safeId}-.log"),
-                rollingInterval: RollingInterval.Day,
+                // Own file per launch (pid breaks a same-second tie), so a relaunch never shares —
+                // and never fights over — the file a still-closing previous run was writing.
+                path: Path.Combine(logDirectory, Telemetry.KHostLogFiles.ScreenFileName(screenId, Environment.ProcessId)),
+                rollingInterval: RollingInterval.Infinite,
+                rollOnFileSizeLimit: true,
+                fileSizeLimitBytes: 10_000_000,
                 retainedFileCountLimit: null,
-                // A relaunched screen shares its id, so its file, with one still closing; unshared,
-                // the later process cannot open it and writes nothing.
-                shared: true,
                 outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] {Message:lj}{NewLine}{Exception}")
             .CreateLogger();
     }
