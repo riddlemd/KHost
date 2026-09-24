@@ -87,7 +87,15 @@ namespace KHost.Domain
             // Keyed, so it never appears in the IMediaProbe enumerable the plugin probes arrive
             // through: it claims every file and would answer ahead of whoever owns the format.
             serviceCollection.AddKeyedSingleton<IMediaProbe, FfprobeMediaProbe>(MediaProbeService.FallbackKey);
+            // A CD+G's facts live in the audio beside it, so it describes itself rather than
+            // having the parsing service redirect the probe on its behalf.
+            serviceCollection.AddSingleton<IMediaProbe, CdgMediaProbe>();
             serviceCollection.AddSingleton<IMediaProbeService, MediaProbeService>();
+            serviceCollection.AddSingleton<IMediaRenderer, GraphicsKaraokeRenderer>();
+            // Keyed for the same reason as the probe fallback: it claims every file, so it must not
+            // race the renderers that claim one.
+            serviceCollection.AddKeyedSingleton<IMediaRenderer, StreamingMediaRenderer>(MediaRendererService.FallbackKey);
+            serviceCollection.AddSingleton<IMediaRendererService, MediaRendererService>();
             serviceCollection.AddSingleton<IPlayableMediaSourceService, PlayableMediaSourceService>();
             serviceCollection.AddSingleton<ITimedLyricsService, TimedLyricsService>();
             serviceCollection.AddSingleton<IAudioTrackService, AudioTrackService>();

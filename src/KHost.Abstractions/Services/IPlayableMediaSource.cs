@@ -32,19 +32,4 @@ public interface IPlayableMediaSource
         string workingDirectory,
         CancellationToken cancellationToken = default);
 
-    /// <summary>The separate stems behind what was resolved, in audio-track order.</summary>
-    /// <param name="resolvedPath">What <see cref="ResolvePlayableAsync"/> just returned.</param>
-    /// <remarks>Empty — the default — means the host mixes as it always has, so a resolver with no
-    /// opinion is unaffected. Naming them lets a display that can mix take the stems unmixed and
-    /// ride the levels itself, which is the difference between moving a voice and re-encoding the
-    /// song to move it.
-    ///
-    /// <para>Order is the contract: entry <c>i</c> is the stem for
-    /// <c>AudioTrack.Index == i</c>, because the host has no other way to tell which voice a file
-    /// holds. Return nothing rather than a partial list if they cannot all be named.</para>
-    ///
-    /// <para>They must sit in the working directory alongside the resolved file — that is what the
-    /// host serves them from, and what is cleaned up with the session. A default body, so an
-    /// existing plugin keeps loading: see the note on <c>IMediaPlaybackGate.Claims</c>.</para></remarks>
-    IReadOnlyList<string> StemsOf(string resolvedPath) => [];
 }

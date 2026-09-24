@@ -118,6 +118,20 @@ public class HlsMediaStreamServiceTests : IDisposable
     }
 
     [Fact]
+    public void BuildArguments_SeeksOnTheOutput_ForGraphicsWithNoAudioBesideThem()
+    {
+        // The stateful decode is what forces the slow seek, not the pairing. GraphicsKaraokeRenderer
+        // refuses this pairing before the encoder ever sees it, so this is defence in depth — but
+        // the predicate has to be about the decode, or it is right only by coincidence.
+        var arguments = HlsMediaStreamService.BuildArguments(
+            "/songs/a.cdg", TimeSpan.FromSeconds(42), 0, 0, 2);
+
+        var seek = arguments.IndexOf("-ss 42.000", StringComparison.Ordinal);
+        var lastInput = arguments.LastIndexOf("-i \"", StringComparison.Ordinal);
+        Assert.True(seek > lastInput, $"seek must follow the input: {arguments}");
+    }
+
+    [Fact]
     public void BuildArguments_KeepsTheFastInputSeek_ForAnOrdinaryFile()
     {
         var arguments = HlsMediaStreamService.BuildArguments("/songs/a.mp4", TimeSpan.FromSeconds(42), 0, 0, 2);
