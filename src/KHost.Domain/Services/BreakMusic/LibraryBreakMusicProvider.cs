@@ -17,8 +17,11 @@ public class LibraryBreakMusicProvider : BaseService, IBreakMusicProvider, IDisp
     private readonly IMediaPoolService _pools;
     private readonly IMediaService _media;
     private readonly IMediaStreamService _streams;
-    private readonly IScreenServer _screenServer;
     private readonly IReadOnlyList<IDisplayProvider> _displays;
+
+    // The one display that says when the bed ran out; the second channel has no timeline in the
+    // contract, so this is the screens provider's own hook rather than anything a plugin raises.
+    private readonly IReadOnlyList<ScreenDisplayProvider> _screens;
     private readonly IVenuesService _venues;
 
     private MediaStreamSession? _stream;
@@ -32,7 +35,6 @@ public class LibraryBreakMusicProvider : BaseService, IBreakMusicProvider, IDisp
         IMediaPoolService pools,
         IMediaService media,
         IMediaStreamService streams,
-        IScreenServer screenServer,
         IEnumerable<IDisplayProvider> displays,
         IVenuesService venues,
         IMessageBroker broker)
@@ -42,11 +44,12 @@ public class LibraryBreakMusicProvider : BaseService, IBreakMusicProvider, IDisp
         _pools = pools;
         _media = media;
         _streams = streams;
-        _screenServer = screenServer;
         _displays = [.. displays];
+        _screens = [.. _displays.OfType<ScreenDisplayProvider>()];
         _venues = venues;
 
-        _screenServer.StateReceived += OnScreenStateReceived;
+        foreach (var screens in _screens)
+            screens.BackgroundTrackEnded += OnBackgroundTrackEnded;
     }
 
 
@@ -117,16 +120,17 @@ public class LibraryBreakMusicProvider : BaseService, IBreakMusicProvider, IDisp
 
     public void Dispose()
     {
-        _screenServer.StateReceived -= OnScreenStateReceived;
+        foreach (var screens in _screens)
+            screens.BackgroundTrackEnded -= OnBackgroundTrackEnded;
+
         _lock.Dispose();
 
         GC.SuppressFinalize(this);
     }
 
     /// <summary>The bed track played out, so the pool owes another one.</summary>
-    private void OnScreenStateReceived(object? sender, ScreenStateReceivedEventArgs e)
+    private void OnBackgroundTrackEnded(object? sender, EventArgs e)
     {
-        if (e.State is not ScreenBackgroundState { HasEnded: true }) return;
         if (CurrentTrack is null) return;
 
         _ = AdvanceAfterEndAsync();

@@ -152,7 +152,6 @@ public class PlaybackServiceTests : IDisposable
         _performanceService,
         _venuesService,
         Substitute.For<IAnalyticsService>(),
-        _screenServer,
         _mediaStreams,
         // The real router over the real fallback, so these tests still arrange the stream service
         // they always did and the renderer layer is exercised rather than stubbed past.
@@ -861,7 +860,7 @@ public class PlaybackServiceTests : IDisposable
     /// <summary>A host pause landing between the sync's awaited display calls must win: replaying
     /// PlayCommand afterwards would restart the song over the host's own pause.</summary>
     [Fact]
-    public async Task SyncNewScreenAsync_HostPausesWhileTheSyncIsInFlight_DoesNotReplay()
+    public async Task ScreenRejoining_HostPausesWhileTheSyncIsInFlight_DoesNotReplay()
     {
         var (performance, media) = CreatePerformance();
         await _service.LoadAsync(performance, media);
@@ -1032,10 +1031,9 @@ public class PlaybackServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task Position_IgnoresTheReceiver_WhenAScreenIsPresent()
+    public async Task Position_IgnoresADisplayThatIsNotCarryingTheSong()
     {
         ConnectScreens(1);
-        _display.ConnectedDeviceId.Returns("Living Room TV");
 
         var (performance, media) = CreatePerformance();
         await _service.LoadAsync(performance, media);
@@ -1049,8 +1047,8 @@ public class PlaybackServiceTests : IDisposable
                 SampledAtUtc = DateTime.UtcNow,
             });
 
-        // A screen's reports are timestamped against a measured clock offset; a receiver's are
-        // only timestamped on arrival, so the better clock wins.
+        // One display carries the song, and it alone defines the clock: a receiver reporting after
+        // the host switched to the screen is describing a song it no longer plays.
         Assert.True(_service.Position < TimeSpan.FromSeconds(5), $"position jumped to {_service.Position}");
     }
 
@@ -1507,6 +1505,43 @@ public class PlaybackServiceTests : IDisposable
             .ReadTracksAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns<IReadOnlyList<AudioTrack>>(
                 [.. roles.Select((role, i) => new AudioTrack(i, role, role.ToString()))]);
+
+    /// <summary>A kit on a mixing screen has no encoded stream at all; a screen that rejoins still
+    /// gets the stems, or it sits silent through the rest of the song.</summary>
+    [Fact]
+    public async Task ScreenReconnect_AStemsOnlySong_ReplaysTheStems()
+    {
+        RendererOffersStems(AudioTrackRole.Music, AudioTrackRole.Lead);
+        var (performance, media) = CreatePerformance();
+        await _service.LoadAsync(performance, media);
+        await _service.PlayAsync();
+        _screenServer.ClearReceivedCalls();
+
+        RaiseScreenConnected();
+
+        Assert.True(await WaitForBroadcastAsync<LoadMediaCommand>(load => load.StreamUrl is null && load.Stems.Count == 2));
+    }
+
+    /// <summary>A receiver cannot mix what it was never encoded, so it is not handed bare stems.</summary>
+    [Fact]
+    public async Task DisplayJoining_AStemsOnlySongOnADeviceThatCannotMix_IsNotReplayedOntoIt()
+    {
+        RendererOffersStems(AudioTrackRole.Music, AudioTrackRole.Lead);
+        var (performance, media) = CreatePerformance();
+        await _service.LoadAsync(performance, media);
+        await _service.PlayAsync();
+
+        ConnectScreens(0);
+        _display.ConnectedDeviceId.Returns("Living Room TV");
+        _display.Devices.Returns([new DisplayDevice { Id = "Living Room TV", Name = "TV", IsConnected = true }]);
+        _display.SessionId.Returns(Guid.NewGuid());
+        _display.ClearReceivedCalls();
+
+        await _broker.PublishAsync(new DisplaysChanged());
+        await Task.Delay(100);
+
+        await _display.DidNotReceive().LoadAsync(Arg.Any<LoadMediaCommand>(), Arg.Any<CancellationToken>());
+    }
 
     [Fact]
     public async Task Load_HandsOverWhateverTheRendererAnswered()

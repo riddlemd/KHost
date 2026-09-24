@@ -246,6 +246,136 @@ public class ScreenDisplayProviderTests
         Assert.False(connected);
     }
 
+    // --- the session and the clock ---
+
+    [Fact]
+    public void SessionId_IsNull_BeforeAnyScreenArrives()
+        => Assert.Null(_provider.SessionId);
+
+    /// <summary>A screen that re-registers holds nothing, even under the same connection, so the
+    /// host must see a new session and hand it the song again.</summary>
+    [Fact]
+    public void SessionId_IsNew_EachTimeAScreenRegisters()
+    {
+        RaiseConnected(Connection("Screen 1", "conn-a"));
+        var first = _provider.SessionId;
+
+        RaiseConnected(Connection("Screen 1", "conn-a"));
+
+        Assert.NotNull(first);
+        Assert.NotNull(_provider.SessionId);
+        Assert.NotEqual(first, _provider.SessionId);
+    }
+
+    [Fact]
+    public void SessionId_IsNull_AfterTheScreenGoes()
+    {
+        var screen = Connection("Screen 1", "conn-a");
+        RaiseConnected(screen);
+        RaiseDisconnected(screen);
+
+        Assert.Null(_provider.SessionId);
+    }
+
+    [Fact]
+    public void SessionId_SurvivesAStaleDisconnect()
+    {
+        RaiseConnected(Connection("Screen 1", "conn-old"));
+        RaiseConnected(Connection("Screen 1", "conn-new"));
+        var live = _provider.SessionId;
+
+        RaiseDisconnected(Connection("Screen 1", "conn-old"));
+
+        Assert.Equal(live, _provider.SessionId);
+    }
+
+    private void RaiseState(IScreenState state)
+        => _screenServer.StateReceived += Raise.EventWith(
+            _screenServer, new ScreenStateReceivedEventArgs { ScreenId = "Screen 1", State = state });
+
+    /// <summary>The screen defines the song's clock, reported the way every display reports it.</summary>
+    [Fact]
+    public void AScreensSampledReport_IsRaisedAsThisDisplaysStatus()
+    {
+        var sampledAt = DateTime.UtcNow.AddMilliseconds(-300);
+        object? from = null;
+        DisplayPlaybackStatus? status = null;
+        _provider.PlaybackStatusChanged += (sender, reported) => (from, status) = (sender, reported);
+
+        RaiseState(new ScreenPlaybackState
+        {
+            StreamUrl = "http://host/s.m3u8",
+            IsPlaying = true,
+            Position = TimeSpan.FromSeconds(42),
+            Duration = TimeSpan.FromMinutes(4),
+            SampledAtUtc = sampledAt,
+        });
+
+        Assert.Same(_provider, from);
+        Assert.NotNull(status);
+        Assert.Equal(TimeSpan.FromSeconds(42), status.Position);
+        Assert.True(status.IsPlaying);
+        Assert.Equal(sampledAt, status.SampledAtUtc);
+    }
+
+    /// <summary>With no measured offset the report has no anchor, and would move the playhead by
+    /// however long it spent in flight.</summary>
+    [Fact]
+    public void AnUnsampledReport_IsNotPassedOn()
+    {
+        var raised = 0;
+        _provider.PlaybackStatusChanged += (_, _) => raised++;
+
+        RaiseState(new ScreenPlaybackState
+        {
+            StreamUrl = "http://host/s.m3u8",
+            IsPlaying = true,
+            Position = TimeSpan.FromSeconds(42),
+            Duration = TimeSpan.FromMinutes(4),
+            SampledAtUtc = null,
+        });
+
+        Assert.Equal(0, raised);
+    }
+
+    /// <summary>The bed ending is the second channel's news; the song's clock must not see it.</summary>
+    [Fact]
+    public void TheBedEnding_RaisesBackgroundTrackEnded_AndNotTheSongsClock()
+    {
+        var ended = 0;
+        var clocked = 0;
+        _provider.BackgroundTrackEnded += (_, _) => ended++;
+        _provider.PlaybackStatusChanged += (_, _) => clocked++;
+
+        RaiseState(new ScreenBackgroundState { StreamUrl = "http://host/bed.m3u8", IsPlaying = false, HasEnded = true });
+
+        Assert.Equal(1, ended);
+        Assert.Equal(0, clocked);
+    }
+
+    [Fact]
+    public void TheBedStillPlaying_RaisesNothing()
+    {
+        var ended = 0;
+        _provider.BackgroundTrackEnded += (_, _) => ended++;
+
+        RaiseState(new ScreenBackgroundState { StreamUrl = "http://host/bed.m3u8", IsPlaying = true, HasEnded = false });
+
+        Assert.Equal(0, ended);
+    }
+
+    [Fact]
+    public void Dispose_StopsPassingReportsOn()
+    {
+        var ended = 0;
+        _provider.BackgroundTrackEnded += (_, _) => ended++;
+        _provider.Dispose();
+
+        RaiseState(new ScreenBackgroundState { StreamUrl = "http://host/bed.m3u8", IsPlaying = false, HasEnded = true });
+
+        Assert.Equal(0, ended);
+    }
+
     // --- what the screen shows ---
 
     /// <summary>A screen joining mid-show has been sent nothing, so it is sent everything.</summary>

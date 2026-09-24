@@ -65,7 +65,6 @@ public class ScreenDisconnectPausesPlaybackTests : IDisposable
             Substitute.For<IPerformanceService>(),
             venues,
             Substitute.For<IAnalyticsService>(),
-            _screenServer,
             mediaStreams,
             new MediaRendererService(
                 NullLogger<MediaRendererService>.Instance,

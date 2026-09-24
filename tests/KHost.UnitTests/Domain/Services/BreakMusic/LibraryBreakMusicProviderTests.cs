@@ -2,7 +2,9 @@ using KHost.Domain.Services.Messaging;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using KHost.Abstractions.Services.IPC;
+using KHost.Abstractions.Messaging;
 using KHost.Domain.Services.BreakMusic;
+using KHost.Domain.Services.Screens;
 using KHost.Abstractions.Messaging.Messages;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -20,6 +22,7 @@ public class LibraryBreakMusicProviderTests : IDisposable
     private readonly IDisplayProvider _display = Substitute.For<IDisplayProvider>();
     private readonly IVenuesService _venues = Substitute.For<IVenuesService>();
     private readonly List<IScreenCommand> _sent = [];
+    private readonly ScreenDisplayProvider _screens;
     private readonly LibraryBreakMusicProvider _provider;
 
     private readonly Guid _poolId = Guid.NewGuid();
@@ -52,9 +55,59 @@ public class LibraryBreakMusicProviderTests : IDisposable
                 Tempo = 0,
             }));
 
+        // Registered beside the display and never connected: it is only here to say when the bed
+        // ran out, which the screens report and nothing else does.
+        _screens = new ScreenDisplayProvider(
+            NullLogger<ScreenDisplayProvider>.Instance, _screenServer, [], Substitute.For<IMessageBroker>());
+
         _provider = new LibraryBreakMusicProvider(
             NullLogger<LibraryBreakMusicProvider>.Instance,
-            _pools, _media, _streams, _screenServer, [_display], _venues, _broker);
+            _pools, _media, _streams, [_display, _screens], _venues, _broker);
+    }
+
+    private void RaiseBackgroundEnded()
+        => _screenServer.StateReceived += Raise.EventWith(_screenServer, new ScreenStateReceivedEventArgs
+        {
+            ScreenId = AudioScreenId,
+            State = new ScreenBackgroundState { StreamUrl = "http://host/media/bed-stream/stream.m3u8", IsPlaying = false, HasEnded = true },
+        });
+
+    private async Task<bool> WaitForLoadsAsync(int count)
+    {
+        for (var i = 0; i < 100; i++)
+        {
+            if (_sent.OfType<LoadBackgroundCommand>().Count() >= count) return true;
+            await Task.Delay(10);
+        }
+
+        return false;
+    }
+
+    /// <summary>The pool owes another track once the screen says the last one played out.</summary>
+    [Fact]
+    public async Task TheScreenSaysTheBedEnded_PlaysTheNextTrack()
+    {
+        VenueWithPool(_poolId);
+        PoolYields();
+        await _provider.StartAsync();
+
+        RaiseBackgroundEnded();
+
+        Assert.True(await WaitForLoadsAsync(2));
+    }
+
+    /// <summary>A stopped bed ending is not a reason to start another.</summary>
+    [Fact]
+    public async Task TheScreenSaysTheBedEnded_AfterAStop_PlaysNothing()
+    {
+        VenueWithPool(_poolId);
+        PoolYields();
+        await _provider.StartAsync();
+        await _provider.StopAsync();
+
+        RaiseBackgroundEnded();
+
+        Assert.False(await WaitForLoadsAsync(2));
     }
 
     public void Dispose()
