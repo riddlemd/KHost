@@ -336,6 +336,22 @@ public class SingerQueueServiceTests : IDisposable
         Assert.Equal(b.Id, _service.Users[1].Id);
     }
 
+    /// <summary>Regression: MoveUserDownAsync had no idx==0 guard, so the locked top singer
+    /// could be pushed out of the slot MoveUserUpAsync refuses to let anyone else take.</summary>
+    [Fact]
+    public async Task MoveUserDownAsync_BlockedForLockedUser_AtTop()
+    {
+        var a = await EnqueueAsync("A");
+        var b = await EnqueueAsync("B");
+
+        _service.LockTopSlot();
+
+        await _service.MoveUserDownAsync(a.Id);
+
+        Assert.Equal(a.Id, _service.Users[0].Id);
+        Assert.Equal(b.Id, _service.Users[1].Id);
+    }
+
     [Fact]
     public async Task MoveUserToStartAsync_Blocked_WhenTopSlotLockedForOther()
     {
@@ -570,6 +586,29 @@ public class SingerQueueServiceTests : IDisposable
         Assert.Equal([bob.Id], _service.Users.Select(u => u.Id));
     }
 
+    /// <summary>Regression: ApplyOrder emptying the queue used to make SelectFirstUserInQueueAsync
+    /// return before NotifyAsync ran, so the singer leaving was never saved or announced.</summary>
+    [Fact]
+    public async Task RotateQueueAsync_LastSingerFinishes_AnnouncesAndPersistsEmptyQueue()
+    {
+        var alice = await EnqueueAsync("Alice");
+        StubStrategy(ctx => ctx.Queue.Select(u => u.Id).Where(id => id != ctx.FinishedSingerId).ToList());
+        var raised = false;
+        using var subscription = _broker.Subscribe<SingerQueueChanged>(_ => raised = true);
+
+        await _service.RotateQueueAsync(alice.Id);
+
+        Assert.True(raised);
+        Assert.Empty(_service.Users);
+        Assert.Null(_service.SelectedUserId);
+
+        // The stale cache would still name Alice; a fresh service reading it back must agree
+        // the queue is empty rather than repopulating from what was never saved.
+        var fresh = CreateFreshService();
+        await fresh.InitializeAsync();
+        Assert.Empty(fresh.Users);
+    }
+
     [Fact]
     public async Task RotateQueueAsync_StrategyDropsOtherSingerAndInventsIds_QueueSanitized()
     {
@@ -669,6 +708,57 @@ public class SingerQueueServiceTests : IDisposable
         await WaitForQueueAsync(() => _service.SelectedUserId is null);
 
         Assert.Null(_service.SelectedUserId);
+    }
+
+    /// <summary>Regression: PruneDeletedSingersAsync runs on its own Task.Run off the broker and
+    /// used to mutate _userIds with no lock while a foreground call (RefreshAsync -&gt; NotifyAsync
+    /// -&gt; ResolveAsync) enumerated it, which throws "Collection was modified". Timing-based
+    /// interleaving didn't reproduce this reliably (a completed-task substitute never actually
+    /// yields), so this pins the race deterministically: the foreground's enumerator is left open
+    /// mid-loop on a gate, and prune is given a window to mutate the same list before it resumes.
+    /// Under the fix, prune's own lock acquisition simply queues behind the paused caller's, so
+    /// the mutation cannot happen until the enumeration is already done.</summary>
+    [Fact]
+    public async Task AddUserAsync_ConcurrentWithSingerPruning_DoesNotThrowCollectionModified()
+    {
+        var carol = await EnqueueAsync("Carol");
+        var zoeId = Guid.NewGuid();
+        await _service.AddUserAsync(zoeId); // an orphan id: nobody in _userDb answers for it, so prune finds it missing
+
+        var pausedOnce = 0;
+        var pauseGate = new TaskCompletionSource();
+        var resumeGate = new TaskCompletionSource();
+
+        // Only the very first ReadAsync call (Carol's, from the foreground foreach below) pauses;
+        // prune's own gathering loop must not stall on the same gate or neither side ever proceeds.
+        _usersService.ReadAsync(Arg.Any<Guid>()).Returns(async callInfo =>
+        {
+            if (Interlocked.Exchange(ref pausedOnce, 1) == 0)
+            {
+                pauseGate.TrySetResult();
+                await resumeGate.Task;
+            }
+
+            _userDb.TryGetValue((Guid)callInfo[0], out var user);
+            return user;
+        });
+
+        // ResolveAsync's foreach over [carol, zoe] opens an enumerator and pauses on the first
+        // (Carol) lookup, still holding it open.
+        var refreshTask = _service.RefreshAsync();
+
+        await pauseGate.Task;
+
+        // Prune's gathering loop no longer pauses (the switch already flipped) and removes Zoe
+        // from the very list the foreach above is still enumerating.
+        _broker.Announce(new UsersChanged());
+        await Task.Delay(50);
+
+        resumeGate.SetResult();
+
+        await refreshTask;
+
+        await WaitForQueueAsync(() => _service.Users.Count == 1 && _service.Users[0].Id == carol.Id);
     }
 
     /// <summary>Fires on every user edit, not just deletes, so a rename must not empty the room.</summary>
