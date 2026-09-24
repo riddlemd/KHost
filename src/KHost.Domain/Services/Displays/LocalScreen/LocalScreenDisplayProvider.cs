@@ -4,6 +4,7 @@ using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using KHost.Common.Media;
 using KHost.Abstractions.Services.IPC;
+using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using KHost.Domain.Services.QrCodes;
@@ -47,6 +48,11 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
     /// waits for it before reporting a launch that never came back rather than a refusal.</summary>
     private static readonly TimeSpan DefaultRegistrationTimeout = TimeSpan.FromSeconds(10);
 
+    /// <summary>One host action announces from several services in turn — a stop is the playback,
+    /// the dequeue and the rotation — and a redraw read between two of them draws a queue that
+    /// never existed. Long enough to span that run, short enough that nobody sees it.</summary>
+    private static readonly TimeSpan DefaultRedrawSettle = TimeSpan.FromMilliseconds(50);
+
     private readonly IScreenServer _screenServer;
     private readonly IReadOnlyList<IScreenProvider> _launchers;
     private readonly IVenuesService? _venuesService;
@@ -79,6 +85,16 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
     // payload does. Encoding a few times a minute for an unchanged string is work for nothing.
     private readonly Dictionary<string, (string Image, int Modules)> _encoded = [];
 
+    // What each overlay last put on this session's screen, as sent. Keyed to the session because
+    // a screen that registers again holds nothing and must be sent all of it, unchanged or not.
+    private readonly Dictionary<Type, string> _overlaysSent = [];
+    private Guid? _overlaysSentOn;
+
+    private readonly TimeSpan _redrawSettle;
+    private readonly Lock _redrawGate = new();
+    private Overlay _redrawOwed;
+    private bool _redrawRunning;
+
     private bool _launching;
 
     /// <summary>Answered by <see cref="OnScreenConnected"/> once the launch this ConnectAsync
@@ -103,7 +119,8 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
         IMessageBroker broker,
         IVenuesService? venuesService = null,
         TimeSpan? registrationTimeout = null,
-        IServiceProvider? services = null)
+        IServiceProvider? services = null,
+        TimeSpan? redrawSettle = null)
     {
         _logger = logger;
         _screenServer = screenServer;
@@ -112,6 +129,7 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
         _venuesService = venuesService;
         _registrationTimeout = registrationTimeout ?? DefaultRegistrationTimeout;
         _services = services;
+        _redrawSettle = redrawSettle ?? DefaultRedrawSettle;
 
         _screenServer.ScreenConnected += OnScreenConnected;
         _screenServer.ScreenDisconnected += OnScreenDisconnected;
@@ -319,17 +337,19 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
     public Task SetTimedLyricsAsync(SetTimedLyricsCommand lyrics, CancellationToken cancellationToken = default)
         => SendAsync(lyrics);
 
+    // Always sent when asked for by name, and recorded, or a redraw of what was up before would be
+    // skipped as already on the screen.
     public Task SetMarqueeAsync(SetMarqueeCommand marquee, CancellationToken cancellationToken = default)
-        => SendAsync(marquee);
+        => SendOverlayAsync(marquee, always: true);
 
     public Task SetQrCodesAsync(SetScreenQrCodesCommand codes, CancellationToken cancellationToken = default)
-        => SendAsync(codes);
+        => SendOverlayAsync(codes, always: true);
 
     public Task ShowNextSingerAsync(ShowNextSingerCommand card, CancellationToken cancellationToken = default)
         => SendAsync(card);
 
     public Task SetBreakMusicCardAsync(SetBreakMusicCardCommand card, CancellationToken cancellationToken = default)
-        => SendAsync(card);
+        => SendOverlayAsync(card, always: true);
 
     public Task ShowImageAsync(ShowImageCommand image, CancellationToken cancellationToken = default)
         => SendAsync(image);
@@ -360,10 +380,52 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
     // --- plumbing ---
 
     /// <summary>A failed send never costs the song: a screen that has gone is not an error here.</summary>
-    private async Task SendAsync(IScreenCommand command)
+    private async Task<bool> SendAsync(IScreenCommand command)
     {
-        try { await _screenServer.BroadcastCommandAsync(command); }
-        catch (Exception ex) { _logger.LogWarning(ex, "Could not send {Command} to the screen", command.GetType().Name); }
+        try
+        {
+            await _screenServer.BroadcastCommandAsync(command);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Could not send {Command} to the screen", command.GetType().Name);
+            return false;
+        }
+    }
+
+    /// <summary>Sends an overlay unless this session's screen already shows exactly that.</summary>
+    /// <remarks>Compared as sent, not by reference or record equality: a rebuilt command is a new
+    /// object, and the codes carry a list, which a record compares by reference.</remarks>
+    private async Task SendOverlayAsync(IScreenCommand command, bool always = false)
+    {
+        var type = command.GetType();
+        var drawn = JsonSerializer.Serialize(command, type);
+        var session = _connected?.Id;
+
+        lock (_overlaysSent)
+        {
+            if (_overlaysSentOn != session)
+            {
+                _overlaysSent.Clear();
+                _overlaysSentOn = session;
+            }
+
+            // With no screen up there is nothing it could already be showing.
+            if (!always && session is not null && _overlaysSent.TryGetValue(type, out var last) && last == drawn)
+                return;
+
+            _overlaysSent[type] = drawn;
+        }
+
+        if (await SendAsync(command)) return;
+
+        // Forgotten, so the next redraw tries again rather than trusting a send that never landed.
+        lock (_overlaysSent)
+        {
+            if (_overlaysSentOn == session && _overlaysSent.TryGetValue(type, out var recorded) && recorded == drawn)
+                _overlaysSent.Remove(type);
+        }
     }
 
     /// <summary>A field read, deliberately: see <see cref="_connected"/>.</summary>
@@ -651,12 +713,56 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
     {
         if (_services?.GetService<TSource>() is not { } source) return;
 
-        try { await SendAsync(await build(source)); }
+        try { await SendOverlayAsync(await build(source)); }
         catch (Exception ex) { _logger.LogWarning(ex, "Could not build the {Overlay} for the screen", what); }
     }
 
     /// <summary>Detached, because broker handlers run one at a time and a redraw reads the database.</summary>
-    private void Redraw(Overlay overlays) => _ = Task.Run(() => RedrawAsync(overlays));
+    /// <remarks>Owed overlays pile up for <see cref="_redrawSettle"/> and are drawn once, one
+    /// redraw at a time, so a burst of announcements from one host action lands as one draw of
+    /// where it ended rather than one per step, some of them mid-way.</remarks>
+    private void Redraw(Overlay overlays)
+    {
+        lock (_redrawGate)
+        {
+            _redrawOwed |= overlays;
+
+            if (_redrawRunning) return;
+            _redrawRunning = true;
+        }
+
+        _ = Task.Run(DrainRedrawsAsync);
+    }
+
+    private async Task DrainRedrawsAsync()
+    {
+        while (true)
+        {
+            // Waited out before every draw, including one owed while the last was drawing: the
+            // window has to start at a burst's first announcement or it splits the burst.
+            await Task.Delay(_redrawSettle);
+
+            Overlay overlays;
+
+            lock (_redrawGate)
+            {
+                overlays = _redrawOwed;
+                _redrawOwed = 0;
+            }
+
+            try { await RedrawAsync(overlays); }
+            catch (Exception ex) { _logger.LogWarning(ex, "Could not redraw the screen"); }
+
+            lock (_redrawGate)
+            {
+                if (_redrawOwed == 0)
+                {
+                    _redrawRunning = false;
+                    return;
+                }
+            }
+        }
+    }
 
     // Raised on the hub thread with a plain EventHandler, so everything here that awaits is
     // detached: awaiting on it would be async void.
