@@ -11,7 +11,7 @@ using KHost.Domain.Services.Screens;
 
 namespace KHost.Domain.Services;
 
-public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
+public class PlaybackService : BaseService, IPlaybackService, IPlaybackProgram, IStartsWithTheHost
 {
     public sealed class ServiceOptions
     {
@@ -54,7 +54,6 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
     private Guid? _displaySessionId;
 
     private IDisposable? _displaySubscription;
-    private IDisposable? _venueSubscription;
 
     private IAnalyticsActivity? _sessionActivity;
 
@@ -66,6 +65,8 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
 
     // The ad on the main channel. Its Duration, not any one file's, is what the clock runs out.
     private AdPlayback? _ad;
+
+    private PlaybackProgram _program = new PlaybackProgram.Idle();
 
     // An ad's own audio track, which borrows the background channel from break music.
     private MediaStreamSession? _adAudioStream;
@@ -79,7 +80,6 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
     private readonly IMediaRendererService _renderers;
     private readonly IReadOnlyList<IDisplayProvider> _displays;
     private readonly IBreakMusicService _breakMusic;
-    private readonly IMediaService _mediaService;
     private readonly IOptionsMonitor<ServiceOptions> _optionsMonitor;
     private readonly IAudioTrackService _audioTracks;
     private readonly IMediaGateService _mediaGate;
@@ -103,6 +103,9 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
 
     /// <summary>Whether the main channel is carrying an ad rather than a singer's song.</summary>
     public bool IsPlayingAd => _ad is not null;
+
+    /// <summary>Moves with <see cref="PlaybackChanged"/>; a display pictures it for itself.</summary>
+    public PlaybackProgram CurrentProgram => _program;
     public PlaybackState State { get; private set; } = PlaybackState.Stopped;
     public TimeSpan Position { get; private set; }
     public Guid? CurrentlyPerformingUserId { get; private set; }
@@ -131,7 +134,6 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         IMediaRendererService renderers,
         IEnumerable<IDisplayProvider> displayProviders,
         IBreakMusicService breakMusic,
-        IMediaService mediaService,
         IOptionsMonitor<ServiceOptions> options,
         IAudioTrackService audioTracks,
         IMediaGateService mediaGate,
@@ -152,7 +154,6 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         // One is connected at a time, which the providers enforce; this is simply all of them.
         _displays = [.. displayProviders];
         _breakMusic = breakMusic;
-        _mediaService = mediaService;
         _optionsMonitor = options;
         _audioTracks = audioTracks;
         _mediaGate = mediaGate;
@@ -165,11 +166,6 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         foreach (var display in _displays)
             display.PlaybackStatusChanged += OnDisplayStatusReceived;
         _displaySubscription = _broker.Subscribe<DisplaysChanged>(message => { _ = Task.Run(SyncDisplaySessionAsync); });
-
-        // The card is the venue's, so a venue edit is news about what should be on screen. Without this it
-        // changed only at the next transition, a host looking at the old one until a singer came and went.
-        _venueSubscription = _broker.Subscribe<SelectedVenueChanged>(
-            message => { _ = Task.Run(RefreshIdleCardAsync); });
     }
 
     /// <summary>The name to show, resolved once at load: a venue edit mid-song never renames it.</summary>
@@ -187,16 +183,6 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         var venue = await _venuesService.ReadSelectedVenueAsync();
 
         return venue?.Settings.AllowAliases == true ? recorded : singer;
-    }
-
-    /// <summary>Re-reads the venues card, but only while nothing is playing.</summary>
-    /// <remarks>A still over a singer is worse than a stale one.</remarks>
-    private async Task RefreshIdleCardAsync()
-    {
-        if (CurrentPerformance is not null || IsPlayingAd)
-            return;
-
-        await ShowIdleCardAsync();
     }
 
     /// <summary>Whether the song has anywhere to come out — a screen, a television, anything.</summary>
@@ -244,8 +230,8 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         if (IsPlayingAd)
             await CancelAdAsync();
 
-        // The venue card is only for when nothing is playing.
-        await ToDisplaysAsync(new HideImageCommand());
+        // Before the load goes out, so a display takes the card down ahead of the song.
+        _program = new PlaybackProgram.Playing(media, performance);
 
         // On load rather than on play: the host lines the next singer up while the room is still
         // listening to the bed, and a song that starts over the top of it is two songs at once.
@@ -306,6 +292,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         CurrentPerformance = null;
         CurrentMedia = null;
         CurrentSingerName = null;
+        _program = new PlaybackProgram.Idle();
 
         _singerQueueService.UnlockTopSlot();
 
@@ -393,15 +380,15 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
 
         var playsOnMainChannel = ad.Visual is { } v && !MediaFormats.IsImage(v.Format);
 
+        _program = ad.Visual switch
+        {
+            null => new PlaybackProgram.Idle(),
+            { } video when playsOnMainChannel => new PlaybackProgram.Playing(video, null),
+            { } still => new PlaybackProgram.AdStill(_mediaStreams.BuildImageUrl(still.Id), still.ImageScaling),
+        };
+
         if (playsOnMainChannel)
-        {
-            await ToDisplaysAsync(new HideImageCommand());
             await ToDisplaysAsync(await BuildLoadCommandAsync(ad.Visual!, TimeSpan.Zero));
-        }
-        else if (ad.Visual is { } still)
-        {
-            await ToDisplaysAsync(new ShowImageCommand { Url = _mediaStreams.BuildImageUrl(still.Id), Scaling = still.ImageScaling });
-        }
 
         // Opened at the offset rather than trimmed: a clip out of a longer file costs no re-encode,
         // and the host clock stops it at the ad's duration.
@@ -733,8 +720,6 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
             display.PlaybackStatusChanged -= OnDisplayStatusReceived;
             _displaySubscription?.Dispose();
             _displaySubscription = null;
-            _venueSubscription?.Dispose();
-            _venueSubscription = null;
 
             // _screenSyncLock is deliberately not disposed: a detached sync may still be holding
             // it at shutdown, and its Release would then throw.
@@ -800,21 +785,10 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         {
             var media = CurrentMedia;
 
-            // A still has no stream to reload: reloading would try to transcode a picture, so it is
-            // redrawn on the new screen. Keyed on format, not on being an ad: what matters is the picture.
-            if (media is not null && MediaFormats.IsImage(media.Format))
-            {
-                await ToDisplaysAsync(new ShowImageCommand { Url = _mediaStreams.BuildImageUrl(media.Id), Scaling = media.ImageScaling });
+            // A still or nothing at all is a picture, which the screen draws for itself on
+            // connecting. Reloading a still would try to transcode it.
+            if (media is null || MediaFormats.IsImage(media.Format))
                 return;
-            }
-
-            // Nothing is playing, so the joiner gets the venue's card, not a bare placeholder. An
-            // audio-only ad lands here too, since it holds no picture of its own.
-            if (media is null)
-            {
-                await ShowIdleCardAsync();
-                return;
-            }
 
             // Mid-render (a load, or a song ending): whatever is rendering sends its own load, which
             // reaches this screen too. Rendering here as well opens a second transcode nothing closes.
@@ -1193,6 +1167,9 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         CurrentSingerName = null;
         _ad = null;
 
+        // A gap ad started below replaces this with its own.
+        _program = new PlaybackProgram.Idle();
+
         if (wasAd)
         {
             Logger.LogInformation("Ad finished");
@@ -1204,7 +1181,6 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
             // No dequeue and no rotation: an ad is nobody's turn, and there is no slot to unlock
             // because none was ever locked for it.
             await _breakMusic.RestoreAsync();
-            await ShowIdleCardAsync();
             return;
         }
 
@@ -1237,46 +1213,6 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         }
 
         await _breakMusic.RestoreAsync();
-        await ShowIdleCardAsync();
-    }
-
-    /// <summary>Puts the venues card up now that nothing is playing, hides it if unset.</summary>
-    /// <remarks>An ads still never outlives the ad.</remarks>
-    private async Task ShowIdleCardAsync()
-    {
-        try
-        {
-            var venue = await _venuesService.ReadSelectedVenueAsync();
-            var brandingId = venue?.Settings.BrandingImageMediaId;
-
-            if (brandingId is null)
-            {
-                await ToDisplaysAsync(new HideImageCommand());
-                return;
-            }
-
-            var media = await _mediaService.ReadAsync(brandingId.Value);
-
-            if (media is null || !MediaFormats.IsImage(media.Format))
-            {
-                await ToDisplaysAsync(new HideImageCommand());
-                return;
-            }
-
-            // The venue's own scaling answer wins when set: the same picture can be the card in two rooms
-            // of different shapes, and a host adjusting it here need not go edit the library image.
-            await ToDisplaysAsync(new ShowImageCommand
-            {
-                Url = _mediaStreams.BuildImageUrl(media.Id),
-                Scaling = venue!.Settings.BrandingImageScaling ?? media.ImageScaling,
-            });
-        }
-        catch (Exception ex)
-        {
-            // Never fatal: the card is decoration, and failing to draw it must not stop the queue
-            // moving on to the next singer.
-            Logger.LogWarning(ex, "Could not show the venue card");
-        }
     }
 
     /// <summary>Sends one command to whatever the song is coming out of.</summary>

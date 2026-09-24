@@ -70,13 +70,17 @@ public class PlaybackServiceTests : IDisposable
     /// reading them back — a read back deadlocks a Blazor render — so a screen the fixture
     /// connected before this existed has to be replayed into it. This runs while PlaybackService's
     /// own constructor arguments are still being evaluated, so nothing else is subscribed yet.</remarks>
-    private ScreenDisplayProvider ScreensAsADisplay()
+    /// <remarks>It draws the picture from the program of the service it is built for, found
+    /// through <paramref name="services"/> once that service exists, as the container does.</remarks>
+    private ScreenDisplayProvider ScreensAsADisplay(IServiceProvider services)
     {
         var provider = new ScreenDisplayProvider(
             NullLogger<ScreenDisplayProvider>.Instance,
             _screenServer,
             [],
-            Substitute.For<IMessageBroker>());
+            _broker,
+            _venuesService,
+            services: services);
 
         foreach (var screen in _connectedScreens)
             _screenServer.ScreenConnected += Raise.EventWith(
@@ -132,7 +136,16 @@ public class PlaybackServiceTests : IDisposable
         TimeSpan stopFadeDuration,
         TimeSpan? pitchSettleDelay = null,
         int defaultBackingVolume = AudioMix.DefaultBackingVolume,
-        TimeSpan? retireGrace = null) => new(
+        TimeSpan? retireGrace = null)
+    {
+        PlaybackService? built = null;
+
+        var services = Substitute.For<IServiceProvider>();
+        services.GetService(typeof(IPlaybackProgram)).Returns(_ => built);
+        services.GetService(typeof(IMediaService)).Returns(_mediaService);
+        services.GetService(typeof(IMediaStreamService)).Returns(_mediaStreams);
+
+        return built = new(
         _logger,
         _queueService,
         _performanceService,
@@ -146,9 +159,8 @@ public class PlaybackServiceTests : IDisposable
             NullLogger<MediaRendererService>.Instance,
             [_renderer],
             new StreamingMediaRenderer(_mediaStreams)),
-        [ScreensAsADisplay(), _display],
+        [ScreensAsADisplay(services), _display],
         _breakMusic,
-        _mediaService,
         Monitor(new PlaybackService.ServiceOptions
         {
             StopFadeDuration = stopFadeDuration,
@@ -164,6 +176,7 @@ public class PlaybackServiceTests : IDisposable
         _timedLyrics,
         _flash,
         _broker);
+    }
 
     /// <summary>The service reads options per use, so a test's values have to answer every read.</summary>
     private static IOptionsMonitor<T> Monitor<T>(T value) where T : class
@@ -1618,13 +1631,17 @@ public class PlaybackServiceTests : IDisposable
         for (var i = 0; i < 100 && !condition(); i++) await Task.Delay(10);
     }
 
-    private async Task<bool> WaitForBroadcastAsync<TCommand>() where TCommand : IScreenCommand
+    // The picture is drawn by the screens provider on hearing PlaybackChanged, which leaves the
+    // broker's thread, so it lands a moment after the call that moved the program returns.
+    private async Task<bool> WaitForBroadcastAsync<TCommand>(Func<TCommand, bool>? matches = null)
+        where TCommand : IScreenCommand
     {
         for (var i = 0; i < 50; i++)
         {
             if (_screenServer.ReceivedCalls().Any(c =>
                     c.GetMethodInfo().Name == nameof(IScreenServer.BroadcastCommandAsync) &&
-                    c.GetArguments().FirstOrDefault() is TCommand))
+                    c.GetArguments().FirstOrDefault() is TCommand command &&
+                    (matches?.Invoke(command) ?? true)))
                 return true;
 
             await Task.Delay(10);
@@ -2472,7 +2489,7 @@ public class PlaybackServiceTests : IDisposable
 
         Assert.True(await _service.PlayAdAsync(CreateStillAd()));
 
-        await _screenServer.Received().BroadcastCommandAsync(Arg.Any<ShowImageCommand>());
+        Assert.True(await WaitForBroadcastAsync<ShowImageCommand>());
         await _mediaStreams.DidNotReceive().OpenAsync(Arg.Any<string>(), Arg.Any<TimeSpan>(), Arg.Any<int>(), Arg.Any<int>(), Arg.Any<AudioMix?>(), Arg.Any<CancellationToken>());
         await _screenServer.DidNotReceive().BroadcastCommandAsync(Arg.Any<LoadMediaCommand>());
     }
@@ -2613,8 +2630,7 @@ public class PlaybackServiceTests : IDisposable
         await Task.Delay(20);
         await _service.TickAsync();
 
-        await _screenServer.Received().BroadcastCommandAsync(
-            Arg.Is<ShowImageCommand>(c => c.Url.Contains(brandingId.ToString())));
+        Assert.True(await WaitForBroadcastAsync<ShowImageCommand>(c => c.Url.Contains(brandingId.ToString())));
     }
 
     [Fact]
@@ -2635,7 +2651,7 @@ public class PlaybackServiceTests : IDisposable
         await Task.Delay(20);
         await _service.TickAsync();
 
-        await _screenServer.Received().BroadcastCommandAsync(Arg.Any<HideImageCommand>());
+        Assert.True(await WaitForBroadcastAsync<HideImageCommand>());
     }
 
     // A branding row pointing at a song would otherwise be handed to the screen as an image URL
@@ -2655,8 +2671,81 @@ public class PlaybackServiceTests : IDisposable
         await Task.Delay(20);
         await _service.TickAsync();
 
-        await _screenServer.Received().BroadcastCommandAsync(Arg.Any<HideImageCommand>());
+        Assert.True(await WaitForBroadcastAsync<HideImageCommand>());
         await _screenServer.DidNotReceive().BroadcastCommandAsync(Arg.Any<ShowImageCommand>());
+    }
+
+    [Fact]
+    public void CurrentProgram_BeforeAnythingIsLoaded_IsIdle()
+        => Assert.IsType<PlaybackProgram.Idle>(_service.CurrentProgram);
+
+    [Fact]
+    public async Task CurrentProgram_ASongLoaded_IsThatSongAndItsTurn()
+    {
+        var (performance, media) = CreatePerformance();
+
+        await _service.LoadAsync(performance, media);
+
+        var playing = Assert.IsType<PlaybackProgram.Playing>(_service.CurrentProgram);
+        Assert.Same(media, playing.Media);
+        Assert.Same(performance, playing.Performance);
+    }
+
+    /// <summary>Nothing is performed, so the display must not be left believing a song is on.</summary>
+    [Fact]
+    public async Task CurrentProgram_ALoadThatFails_IsIdleAgain()
+    {
+        var (performance, media) = CreatePerformance();
+        FailTheStreamOpen();
+
+        await Assert.ThrowsAsync<KHostException>(() => _service.LoadAsync(performance, media));
+
+        Assert.IsType<PlaybackProgram.Idle>(_service.CurrentProgram);
+    }
+
+    [Fact]
+    public async Task CurrentProgram_ASongEnds_IsIdle()
+    {
+        await EndAPerformanceAsync();
+
+        Assert.IsType<PlaybackProgram.Idle>(_service.CurrentProgram);
+    }
+
+    [Fact]
+    public async Task CurrentProgram_AVideoAd_IsPlayingWithNobodysTurn()
+    {
+        var ad = CreateAd();
+
+        await _service.PlayAdAsync(ad);
+
+        var playing = Assert.IsType<PlaybackProgram.Playing>(_service.CurrentProgram);
+        Assert.Same(ad, playing.Media);
+        Assert.Null(playing.Performance);
+    }
+
+    /// <summary>The screen holds no library, so the program carries the picture's address and scaling.</summary>
+    [Fact]
+    public async Task CurrentProgram_AStillAd_CarriesItsImageAndScaling()
+    {
+        _mediaStreams.BuildImageUrl(Arg.Any<Guid>()).Returns(call => $"http://host/media/image/{call.Arg<Guid>()}");
+        var still = CreateStillAd();
+        still.ImageScaling = ImageScaling.Fill;
+
+        await _service.PlayAdAsync(still);
+
+        var shown = Assert.IsType<PlaybackProgram.AdStill>(_service.CurrentProgram);
+        Assert.Equal($"http://host/media/image/{still.Id}", shown.ImageUrl);
+        Assert.Equal(ImageScaling.Fill, shown.Scaling);
+    }
+
+    /// <summary>An audio-only spot has no picture of its own, so the venue's card stays up.</summary>
+    [Fact]
+    public async Task CurrentProgram_AnAudioOnlyAd_IsIdle()
+    {
+        await _service.PlayAdAsync(new AdPlayback { Audio = CreateAudio(), Duration = TimeSpan.FromSeconds(12) });
+
+        Assert.True(_service.IsPlayingAd);
+        Assert.IsType<PlaybackProgram.Idle>(_service.CurrentProgram);
     }
 
     [Fact]
@@ -2778,7 +2867,7 @@ public class PlaybackServiceTests : IDisposable
 
         Assert.True(await _service.PlayAdAsync(ad));
 
-        await _screenServer.Received().BroadcastCommandAsync(Arg.Any<ShowImageCommand>());
+        Assert.True(await WaitForBroadcastAsync<ShowImageCommand>());
         await _screenServer.Received().BroadcastCommandAsync(Arg.Any<LoadBackgroundCommand>());
         await _breakMusic.Received(1).SuspendAsync(Arg.Any<CancellationToken>());
     }
@@ -2789,6 +2878,9 @@ public class PlaybackServiceTests : IDisposable
         var ad = new AdPlayback { Audio = CreateAudio(), Duration = TimeSpan.FromSeconds(12) };
 
         Assert.True(await _service.PlayAdAsync(ad));
+
+        // Long enough for the screens provider to have heard the announce and drawn nothing.
+        await Task.Delay(60);
 
         await _screenServer.DidNotReceive().BroadcastCommandAsync(Arg.Any<ShowImageCommand>());
         await _screenServer.DidNotReceive().BroadcastCommandAsync(Arg.Any<LoadMediaCommand>());
@@ -2998,8 +3090,7 @@ public class PlaybackServiceTests : IDisposable
 
         await _service.PlayAdAsync(still);
 
-        await _screenServer.Received().BroadcastCommandAsync(
-            Arg.Is<ShowImageCommand>(c => c.Scaling == ImageScaling.Fill));
+        Assert.True(await WaitForBroadcastAsync<ShowImageCommand>(c => c.Scaling == ImageScaling.Fill));
     }
 
     [Fact]
@@ -3025,8 +3116,7 @@ public class PlaybackServiceTests : IDisposable
         await Task.Delay(20);
         await _service.TickAsync();
 
-        await _screenServer.Received().BroadcastCommandAsync(
-            Arg.Is<ShowImageCommand>(c => c.Scaling == ImageScaling.Stretch));
+        Assert.True(await WaitForBroadcastAsync<ShowImageCommand>(c => c.Scaling == ImageScaling.Stretch));
     }
 
     [Theory]

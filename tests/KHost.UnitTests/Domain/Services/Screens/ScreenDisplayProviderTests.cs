@@ -3,6 +3,7 @@ using KHost.Abstractions.Messaging.Messages;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using KHost.Abstractions.Services.IPC;
+using KHost.Domain.Services;
 using KHost.Domain.Services.Messaging;
 using KHost.Domain.Services.Screens;
 using Microsoft.Extensions.DependencyInjection;
@@ -23,6 +24,9 @@ public class ScreenDisplayProviderTests
     private readonly IScreenQrCodeService _qrCodes = Substitute.For<IScreenQrCodeService>();
     private readonly IBreakMusicCardService _card = Substitute.For<IBreakMusicCardService>();
     private readonly IVenuesService _venues = Substitute.For<IVenuesService>();
+    private readonly IPlaybackProgram _playback = Substitute.For<IPlaybackProgram>();
+    private readonly IMediaService _library = Substitute.For<IMediaService>();
+    private readonly IMediaStreamService _streams = Substitute.For<IMediaStreamService>();
 
     public ScreenDisplayProviderTests()
     {
@@ -30,6 +34,8 @@ public class ScreenDisplayProviderTests
         _qrCodes.BuildAsync(Arg.Any<CancellationToken>()).Returns(new SetScreenQrCodesCommand());
         _card.BuildAsync(Arg.Any<CancellationToken>()).Returns(new SetBreakMusicCardCommand { Enabled = false });
         _venues.ReadSelectedVenueAsync().Returns(new Venue { Name = "The Bar", Settings = new Venue.VenueSettings { DefaultVolume = 50 } });
+        _playback.CurrentProgram.Returns(new PlaybackProgram.Idle());
+        _streams.BuildImageUrl(Arg.Any<Guid>()).Returns(call => $"http://host/media/image/{call.Arg<Guid>()}");
 
         _provider = new ScreenDisplayProvider(
             NullLogger<ScreenDisplayProvider>.Instance, _screenServer, [], _broker);
@@ -43,6 +49,9 @@ public class ScreenDisplayProviderTests
                 .AddSingleton(_marquee)
                 .AddSingleton(_qrCodes)
                 .AddSingleton(_card)
+                .AddSingleton(_playback)
+                .AddSingleton(_library)
+                .AddSingleton(_streams)
                 .BuildServiceProvider());
 
     private static IScreenConnection Connection(string screenId, string connectionId)
@@ -394,6 +403,210 @@ public class ScreenDisplayProviderTests
 
         Assert.True(await WaitForSentAsync<SetScreenQrCodesCommand>(
             codes => codes.Codes.Count == 1 && codes.Codes[0].Corner == ScreenCorner.TopLeft));
+    }
+
+    // --- the picture ---
+
+    private static readonly PlaybackProgram.AdStill Still = new("http://host/media/image/ad", ImageScaling.Fill);
+
+    private static PlaybackProgram.Playing Song() => new(new Media { Title = "Africa", FilePath = "/africa.mp4" }, new Performance());
+
+    [Fact]
+    public async Task PlaybackChanged_ToAStill_ShowsItWithItsScaling()
+    {
+        using var provider = DrawingProvider();
+        _playback.CurrentProgram.Returns(Still);
+
+        _realBroker.Announce(new PlaybackChanged());
+
+        Assert.True(await WaitForSentAsync<ShowImageCommand>(
+            image => image.Url == Still.ImageUrl && image.Scaling == ImageScaling.Fill));
+    }
+
+    /// <summary>PlaybackChanged is also a seek or a pause; the picture moves only with the program.</summary>
+    [Fact]
+    public async Task PlaybackChanged_ProgramUnmoved_RedrawsNothing()
+    {
+        using var provider = DrawingProvider();
+        _playback.CurrentProgram.Returns(Still);
+        _realBroker.Announce(new PlaybackChanged());
+        Assert.True(await WaitForSentAsync<ShowImageCommand>());
+        _screenServer.ClearReceivedCalls();
+
+        _realBroker.Announce(new PlaybackChanged());
+        Assert.True(await WaitForSentAsync<SetMarqueeCommand>());
+        await Task.Delay(50);
+
+        Assert.Empty(Sent<ShowImageCommand>());
+    }
+
+    [Fact]
+    public async Task PlaybackChanged_ToASong_TakesThePictureDown()
+    {
+        using var provider = DrawingProvider();
+        _playback.CurrentProgram.Returns(Song());
+
+        _realBroker.Announce(new PlaybackChanged());
+
+        Assert.True(await WaitForSentAsync<HideImageCommand>());
+    }
+
+    /// <summary>The same picture cards two rooms of different shapes; the venue's scaling wins.</summary>
+    [Fact]
+    public async Task PlaybackChanged_ToIdle_PutsUpTheVenuesCard()
+    {
+        var card = Branding(venueScaling: ImageScaling.Stretch);
+        using var provider = DrawingProvider();
+        _playback.CurrentProgram.Returns(Song());
+        _realBroker.Announce(new PlaybackChanged());
+        Assert.True(await WaitForSentAsync<HideImageCommand>());
+
+        _playback.CurrentProgram.Returns(new PlaybackProgram.Idle());
+        _realBroker.Announce(new PlaybackChanged());
+
+        Assert.True(await WaitForSentAsync<ShowImageCommand>(
+            image => image.Url.Contains(card.ToString()) && image.Scaling == ImageScaling.Stretch));
+    }
+
+    [Fact]
+    public async Task PlaybackChanged_ToIdle_WithNoCard_ClearsThePicture()
+    {
+        using var provider = DrawingProvider();
+        _playback.CurrentProgram.Returns(Still);
+        _realBroker.Announce(new PlaybackChanged());
+        Assert.True(await WaitForSentAsync<ShowImageCommand>());
+
+        _playback.CurrentProgram.Returns(new PlaybackProgram.Idle());
+        _realBroker.Announce(new PlaybackChanged());
+
+        Assert.True(await WaitForSentAsync<HideImageCommand>());
+    }
+
+    /// <summary>A branding row pointing at a song would reach the screen as a URL serving nothing.</summary>
+    [Fact]
+    public async Task TheVenuesCard_NotAnImage_ClearsThePictureInstead()
+    {
+        Branding(format: "MP4");
+        using var provider = DrawingProvider();
+
+        _realBroker.Announce(new PlaybackChanged());
+
+        Assert.True(await WaitForSentAsync<HideImageCommand>());
+        Assert.Empty(Sent<ShowImageCommand>());
+    }
+
+    /// <summary>An edit to the venue's card shows now, not at the next transition.</summary>
+    [Fact]
+    public async Task SelectedVenueChanged_WhileIdle_RedrawsTheCard()
+    {
+        using var provider = DrawingProvider();
+        _realBroker.Announce(new PlaybackChanged());
+        Assert.True(await WaitForSentAsync<HideImageCommand>());
+
+        var card = Branding();
+        _realBroker.Announce(new SelectedVenueChanged());
+
+        Assert.True(await WaitForSentAsync<ShowImageCommand>(image => image.Url.Contains(card.ToString())));
+    }
+
+    /// <summary>A card over a singer is worse than a stale one.</summary>
+    [Fact]
+    public async Task SelectedVenueChanged_WhileASongIsOn_LeavesThePictureAlone()
+    {
+        Branding();
+        _playback.CurrentProgram.Returns(Song());
+        using var provider = DrawingProvider();
+
+        _realBroker.Announce(new SelectedVenueChanged());
+        Assert.True(await WaitForSentAsync<SetBreakMusicCardCommand>());
+        await Task.Delay(50);
+
+        Assert.Empty(Sent<ShowImageCommand>());
+        Assert.Empty(Sent<HideImageCommand>());
+    }
+
+    /// <summary>A joiner is drawn what is up now, however recently the provider last sent it.</summary>
+    [Fact]
+    public async Task ScreenConnected_RedrawsTheStillAlreadySent()
+    {
+        using var provider = DrawingProvider();
+        _playback.CurrentProgram.Returns(Still);
+        _realBroker.Announce(new PlaybackChanged());
+        Assert.True(await WaitForSentAsync<ShowImageCommand>());
+        _screenServer.ClearReceivedCalls();
+
+        RaiseConnected(Connection("Screen 1", "conn-a"));
+
+        Assert.True(await WaitForSentAsync<ShowImageCommand>(image => image.Url == Still.ImageUrl));
+    }
+
+    [Fact]
+    public async Task ScreenConnected_WhileIdle_PutsUpTheVenuesCard()
+    {
+        var card = Branding();
+        using var provider = DrawingProvider();
+
+        RaiseConnected(Connection("Screen 1", "conn-a"));
+
+        Assert.True(await WaitForSentAsync<ShowImageCommand>(image => image.Url.Contains(card.ToString())));
+    }
+
+    /// <summary>A joiner mid-song shows nothing until the song reloads onto it.</summary>
+    [Fact]
+    public async Task ScreenConnected_DuringASong_SendsNoPicture()
+    {
+        _playback.CurrentProgram.Returns(Song());
+        using var provider = DrawingProvider();
+
+        RaiseConnected(Connection("Screen 1", "conn-a"));
+        Assert.True(await WaitForSentAsync<SetBreakMusicCardCommand>());
+
+        Assert.Empty(Sent<HideImageCommand>());
+        Assert.Empty(Sent<ShowImageCommand>());
+    }
+
+    /// <summary>The card comes down ahead of the song's first frame, not after it.</summary>
+    [Fact]
+    public async Task LoadAsync_ANewProgram_TakesThePictureDownBeforeTheLoad()
+    {
+        using var provider = DrawingProvider();
+        _playback.CurrentProgram.Returns(Song());
+
+        await provider.LoadAsync(new LoadMediaCommand { StreamUrl = "http://host/s.m3u8" });
+
+        var sent = _screenServer.ReceivedCalls().Select(call => call.GetArguments()[0]).ToList();
+        Assert.True(sent.FindIndex(c => c is HideImageCommand) is >= 0 and var hide
+            && hide < sent.FindIndex(c => c is LoadMediaCommand));
+    }
+
+    /// <summary>A rebuild at a new key reloads the same program; the picture is already right.</summary>
+    [Fact]
+    public async Task LoadAsync_TheSameProgramAgain_LeavesThePictureAlone()
+    {
+        using var provider = DrawingProvider();
+        _playback.CurrentProgram.Returns(Song());
+        await provider.LoadAsync(new LoadMediaCommand { StreamUrl = "http://host/s.m3u8" });
+        _screenServer.ClearReceivedCalls();
+
+        await provider.LoadAsync(new LoadMediaCommand { StreamUrl = "http://host/s2.m3u8" });
+
+        Assert.Empty(Sent<HideImageCommand>());
+        Assert.Single(Sent<LoadMediaCommand>());
+    }
+
+    /// <summary>A venue whose card is an image in the library.</summary>
+    private Guid Branding(ImageScaling? venueScaling = null, string format = "PNG")
+    {
+        var id = Guid.NewGuid();
+
+        _venues.ReadSelectedVenueAsync().Returns(new Venue
+        {
+            Name = "The Bar",
+            Settings = new Venue.VenueSettings { BrandingImageMediaId = id, BrandingImageScaling = venueScaling },
+        });
+        _library.ReadAsync(id).Returns(new Media { Id = id, Title = "Card", FilePath = "/card.png", Format = format, ImageScaling = ImageScaling.Original });
+
+        return id;
     }
 
     private List<TCommand> Sent<TCommand>() where TCommand : IScreenCommand
