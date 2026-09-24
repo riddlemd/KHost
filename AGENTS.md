@@ -218,9 +218,9 @@ cannot name another's: its secrets, and the QR code it offers the screens.
     `StreamingMediaRenderer`, which claims everything and encodes as the host always has. That is
     how a kit reaches a receiver: the plugin sees a target that cannot mix, declines, and the
     fallback resolves the `.kfa` through `IPlayableMediaSource` exactly as before.
-  - **The target is part of the question.** `RenderTarget.MixesStems` is all-or-nothing across the
-    connected displays: one device still hearing the host's own mix means the stems have to be
-    encoded anyway, so offering them at all would be waste.
+  - **The target is part of the question.** `RenderTarget.MixesStems` says whether the one
+    connected display mixes for itself; a device hearing the host's own mix needs the encode, so
+    offering it stems would be waste.
   - **A renderer may inherit the encode rather than replace it.** `GraphicsKaraokeRenderer` claims
     `.cdg` and derives from `StreamingMediaRenderer`, because subcode graphics still need ffmpeg to
     become a picture. It exists so the rules that belong to the format have a home: the first is
@@ -237,11 +237,16 @@ cannot name another's: its secrets, and the QR code it offers the screens.
     provider the host itself registers, travelling the same path a plugin's display travels.
     `PluginLoader` must not bind it and it must never appear on the Plugins page. Chromecast is the
     plugin-supplied one.
-  - **One display at a time, across the whole system** — the local screen *or* a receiver, never
-    both. `MaxConnectedDevices` states each transport's own limit, is 1 everywhere for now, and is
-    **enforced**: a provider at its limit refuses the next connection rather than accepting it and
-    behaving oddly. It is also the tripwire — `ConnectedDeviceId`, `SessionId` and every
-    argument-free member are honest only while it is 1.
+  - **One display, full stop** — the local screen *or* a receiver, never both, and never two of
+    either. There is no multi-screen or multi-device seam anywhere in the host: `ConnectedDeviceId`,
+    `SessionId` and every argument-free member address the one device a transport drives, and a
+    plugin display handles its own communication with it. The rule is enforced in two places: a
+    provider refuses a connection to a different device rather than replacing the one it has
+    (`ScreenDisplayProvider.ConnectAsync`), and picking a display disconnects every other provider
+    first (`SettingsButton.SelectDisplayAsync`, and the "Launch Screen" confirm in
+    `DialogService`, which goes the same way). `PlaybackService` and the break music provider ask
+    `ConnectedDisplay.Find` for the one connected provider — several are registered at once, so
+    finding it stays.
   - **Every drawable member has a default body**, so a provider implements what it can do and
     ignores the rest. A Cast plugin writes the six transport members, not ten stubs. The same
     deliberate exception `IMediaPlaybackGate.Claims` and `IPluginButtonHandler.DescribeButton` are.
@@ -254,7 +259,7 @@ cannot name another's: its secrets, and the QR code it offers the screens.
   - **`SupportsFade` is the one capability the host acts on for itself.** `StopAsync` *waits out*
     the fade it asks for, so a device that cuts dead — a receiver, which has no mixer of the host's
     to ride down — would otherwise buy the room that many seconds of silence before the queue moved
-    on. Nothing connected that can fade means the stop is instant, the same reasoning as a paused
+    on. A display that cannot fade means the stop is instant, the same reasoning as a paused
     stop being instant. A device that has not listed itself yet is taken to fade: over-waiting is a
     pause nobody hears, under-waiting cuts a song off mid-word.
   - **A screen is local only** — launched by the host on its own machine. So `discovery` is two acts
@@ -263,11 +268,11 @@ cannot name another's: its secrets, and the QR code it offers the screens.
     says "search for devices" must not launch a screen, and one with nothing but the screens behind
     it must not offer the search at all. True by default, a plugin's transport being nearly always
     a sweep.
-  - **Roles and sync are gone.** There is no audio screen, no primary, no `SupportsSync` and no
-    per-screen audio or video override: with one display there is nothing to choose between and
-    nothing to steer onto anything else. The screen that is up defines the song's clock, so
-    `SetTimelineCommand.IsPrimary` is always true and nothing is ever corrected towards anything.
-    The venue's volume, which `ScreenCoordinationService` used to apply, is now applied by
+  - **There are no roles and no sync.** No audio screen, no primary, no timeline and no per-screen
+    audio or video override: with one display there is nothing to choose between and nothing to
+    steer onto anything else. The display that is up defines the song's clock — a screen's
+    timestamped state reports move the host's playhead, and a receiver's status does when no screen
+    is up — and nothing is ever corrected towards anything. The venue's volume is applied by
     `ScreenDisplayProvider` on connect and on a venue edit.
   - **Covering a rebuild is the transport's business, not the host's.** Changing key, tempo or the
     mix reopens the stream at the playhead, and the host resumes there and skips nothing. It used
@@ -278,10 +283,12 @@ cannot name another's: its secrets, and the QR code it offers the screens.
     its old element playing and handing over only once the new one has sound, which is exactly the
     mechanism a seek from the host defeats; a transport with nothing of the kind makes the
     difference up inside its own `LoadAsync`, where it knows what it is driving.
-  - **The cap is the server's, and its default is the behaviour.** `ScreenServer:MaxRegisteredScreens`
-    is **1**, matching the provider's `MaxConnectedDevices`; a second screen is refused rather than
-    quietly joining. Every refusal in `TryRegisterScreen` is logged, because a turned-away screen
-    shows "Lost the host" and waits, which from the room is indistinguishable from a crash.
+  - **The server registers one screen, and that is a constant, not an option.** A second screen is
+    refused rather than quietly joining; a re-registration under the same id replaces the first.
+    Every refusal in `TryRegisterScreen` is logged, because a turned-away screen shows "Lost the
+    host" and waits, which from the room is indistinguishable from a crash. `IScreenServer` has one
+    way to send, `BroadcastCommandAsync`, which reaches the screen that is up with a command
+    signed under its own key.
   - The off-box HTTP surface — `LanAccessPolicy.IsMachineFacing`, the permissive CORS header, ranged
     GETs — stays host surface for future plugin displays rather than moving behind the Cast provider.
 - **A plugin offers the screens a QR code; the venue decides whether it is drawn.** The manifest's

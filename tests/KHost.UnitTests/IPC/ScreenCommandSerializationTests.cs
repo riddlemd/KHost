@@ -28,13 +28,6 @@ public class ScreenCommandSerializationTests
             Volume = 40,
         },
         [nameof(SetVideoCommand)] = new SetVideoCommand { Enabled = false },
-        [nameof(SetTimelineCommand)] = new SetTimelineCommand
-        {
-            Position = TimeSpan.FromSeconds(42),
-            AnchorUtc = new DateTime(2026, 8, 17, 20, 30, 0, DateTimeKind.Utc),
-            IsPlaying = true,
-            IsPrimary = true,
-        },
         [nameof(LoadBackgroundCommand)] = new LoadBackgroundCommand { StreamUrl = "/music/bed.m3u8", AutoPlay = true },
         [nameof(PlayBackgroundCommand)] = new PlayBackgroundCommand(),
         [nameof(PauseBackgroundCommand)] = new PauseBackgroundCommand(),

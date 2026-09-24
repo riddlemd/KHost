@@ -128,8 +128,8 @@ public class PlayerPageTests
         Assert.Contains("id=\"hostlost\"", page);
     }
 
-    // The bed is a second element rather than a second source on the video: it carries no
-    // timeline, and sharing the element would put it under the same correction as the song.
+    // The bed is a second element rather than a second source on the video: it plays across the
+    // gap between songs, and sharing the element would have a song load cut it off.
     [Fact]
     public void BuildPlayerPage_Always_HandlesTheBackgroundChannelCommands()
     {

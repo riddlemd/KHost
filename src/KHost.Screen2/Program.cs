@@ -466,7 +466,7 @@ internal static class Program
         }
     }
 
-    /// <summary>Machine clocks drift, and a stale offset biases this screen off the group.</summary>
+    /// <summary>Machine clocks drift, and a stale offset skews the report stamps the host reads.</summary>
     private static async Task ResyncClockAsync()
     {
         while (true)

@@ -11,7 +11,7 @@ namespace KHost.UnitTests.UserInterface.Components.Dialogs;
 /// which invokes onCancel on top of the save that already succeeded.</summary>
 public class DialogHostSaveTests : BunitContext
 {
-    private readonly DialogService _dialogService = new(NullLogger<DialogService>.Instance, Substitute.For<IScreenLauncher>());
+    private readonly DialogService _dialogService = new(NullLogger<DialogService>.Instance, []);
 
     public DialogHostSaveTests()
     {

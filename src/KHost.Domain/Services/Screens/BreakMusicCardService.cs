@@ -119,7 +119,7 @@ public sealed class BreakMusicCardService : BaseService, IDisposable, IStartsWit
         {
             // Sent even when there is nothing to say: it is the whole state, so it also clears a
             // card left on a screen that dropped and came back.
-            await _screenServer.SendCommandAsync(e.Connection.ScreenId, await BuildAsync());
+            await _screenServer.BroadcastCommandAsync(await BuildAsync());
         }
         catch (Exception ex)
         {

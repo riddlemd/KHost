@@ -155,13 +155,12 @@ retime the picture, all fixed at stream open. Natively, tempo alone is easy (sca
 is a phase vocoder — and there is no AudioWorklet here to run one in. This is the hardest part
 and the most likely reason to stop.
 
-**Transport and sync.** This fits better than it does today. The host already anchors screens on a
-clock: `SetTimelineCommand` carries a position and an `AnchorUtc`, and the screen computes expected
-time from `Date.now() + clockOffsetMs`, where the offset comes from a 5-round-trip NTP-style
-handshake re-run every 5 minutes. Today the screen's *actual* position comes from
-`video.currentTime`, which is what forced seek-only correction (WKWebView walks `currentTime`
-backwards). A live engine would read its own audio clock instead, which is the thing the sync
-model wanted all along.
+**Transport.** This fits. There is one display and nothing to sync it to: the screen that is up
+defines the song's clock, and the host follows its timestamped state reports (the stamps are
+turned into host time by a clock offset from a 5-round-trip NTP-style handshake, re-run every 5
+minutes). Today the screen's position comes from `video.currentTime`. A live native engine on the
+one display would read its own audio clock instead and report that, with nothing to correct it
+towards.
 
 ## Where this gets decided: the gate
 
@@ -210,14 +209,12 @@ wait, so the two paths differ in more than fidelity.
 **The command contract.** `ScreenCommandBase` is a closed `[JsonDerivedType]` set and
 `LoadMediaCommand` carries a single URL. Carrying stems plus timing data means new command types,
 which is a contract change. `ScreenCapabilities` has no notion of "can render natively", and it
-needs one: with two paths coexisting, the host has to know which screens can take which, and an
-older screen in the room must still get the stream. That negotiation is the real cost of a second
+needs one: with two paths coexisting, the host has to know whether the display that is up can
+take the native one, and a display that cannot must still get the stream. That negotiation is the real cost of a second
 path, and it does not go away.
 
-**Two paths, one transport.** Both paths have to answer the same `SetTimelineCommand`, report the
-same state, and honour the same pause/seek/stop — including a room where one screen is native and
-another is streaming the render of the same song. They must agree on position to well under the
-150 ms realign threshold.
+**Two paths, one transport.** Both paths have to report the same state and honour the same
+pause/seek/stop, so the host cannot tell from the transport which one the display is running.
 
 ## Options
 
@@ -266,8 +263,8 @@ The shape:
   background and follows the audio element's clock.
 
 What that leaves untouched: CDG + mp3 and mp4 still stream exactly as they do now, the gate stays
-where it is because the host still opens the media, and both paths still answer the same
-`SetTimelineCommand` and agree on position inside the 150 ms realign threshold.
+where it is because the host still opens the media, and both paths still report position the same
+way.
 
 ## What is built
 
@@ -300,7 +297,7 @@ What it does not do yet:
 
 - No artwork or background behind the words; the canvas is transparent over whatever is there.
 - Text is laid out per syllable with `fillText`, not HarfBuzz glyph runs — see "what is hard".
-- `ScreenCapabilities` is untouched: every screen is sent the words and draws them if it can. A
+- `ScreenCapabilities` is untouched: the screen is sent the words and draws them if it can. A
   `SupportsLyrics` flag is only worth adding when a screen exists that cannot.
 
 ## Open questions

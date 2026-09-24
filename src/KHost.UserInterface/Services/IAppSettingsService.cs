@@ -16,7 +16,6 @@ public sealed record AppSettings
     /// chooses which of them it wants.</remarks>
     public string? SongBackgroundFolder { get; set; }
     public double StopFadeSeconds { get; set; } = 5;
-    public double SyncStartLeadMilliseconds { get; set; } = 400;
     public int SegmentSeconds { get; set; } = 2;
 
     /// <summary>How long an ad runs when its playlist entry and the media itself say nothing.</summary>

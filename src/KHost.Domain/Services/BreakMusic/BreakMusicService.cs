@@ -32,8 +32,8 @@ public class BreakMusicService : BaseService, IBreakMusicService, IDisposable
 
         _subscriptions.Add(broker.Subscribe<BreakMusicTrackChanged>(OnProviderTrackChanged));
 
-        // Only for a provider the host cannot reach: ScreenCoordination already re-applies the
-        // venue level to every screen when a venue is edited.
+        // Only for a provider the host cannot reach: ScreenDisplayProvider already re-applies the
+        // venue level to the screen when a venue is edited.
         _subscriptions.Add(broker.Subscribe<SelectedVenueChanged>(OnVenueChanged));
     }
 

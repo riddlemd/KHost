@@ -67,9 +67,6 @@ public sealed class ScreenDisplayProvider : IDisplayProvider, IStartsWithTheHost
     /// choosing between, next to receivers that really are places in the room.</summary>
     public string Name => "Local Display";
 
-    /// <summary>One screen a night. The button that opens one closes the one that is up.</summary>
-    public int MaxConnectedDevices => 1;
-
     /// <summary>Never raised: a screen reports its own position over IPC, not through here.</summary>
     public event EventHandler<DisplayPlaybackStatus>? PlaybackStatusChanged
     {
@@ -160,7 +157,7 @@ public sealed class ScreenDisplayProvider : IDisplayProvider, IStartsWithTheHost
     /// <summary>A screen keeps no session of its own; the host's connection is the session.</summary>
     public Guid? SessionId => null;
 
-    /// <summary>Opens the screen if it is not already up. Refused past the limit.</summary>
+    /// <summary>Opens the screen if it is not already up. Refused while a different one is.</summary>
     public async Task<bool> ConnectAsync(string deviceId, CancellationToken cancellationToken = default)
     {
         if (ConnectedScreen() is { } already)

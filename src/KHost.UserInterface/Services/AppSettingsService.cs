@@ -37,7 +37,6 @@ internal sealed class AppSettingsService : IAppSettingsService
         MediaDirectory = NormalizeMediaDirectory(_configuration["Plugins:MediaDirectory"]),
         SongBackgroundFolder = Blank(_configuration["Backgrounds:Folder"]),
         StopFadeSeconds = (_configuration.GetValue<TimeSpan?>("Playback:StopFadeDuration") ?? TimeSpan.FromSeconds(5)).TotalSeconds,
-        SyncStartLeadMilliseconds = (_configuration.GetValue<TimeSpan?>("Playback:SyncStartLead") ?? TimeSpan.FromMilliseconds(400)).TotalMilliseconds,
         SegmentSeconds = _configuration.GetValue<int?>("MediaStream:SegmentSeconds") ?? 2,
         AdDefaultDurationSeconds = AdDurationClamp(
             (_configuration.GetValue<TimeSpan?>("Ads:DefaultDuration")
@@ -97,7 +96,6 @@ internal sealed class AppSettingsService : IAppSettingsService
             ["Playback"] = new Dictionary<string, object?>
             {
                 ["StopFadeDuration"] = TimeSpan.FromSeconds(settings.StopFadeSeconds).ToString(),
-                ["SyncStartLead"] = TimeSpan.FromMilliseconds(settings.SyncStartLeadMilliseconds).ToString(),
                 ["DefaultBackingVolume"] = AudioLevels.ClampVolume(settings.BackingVocalVolume),
             },
             ["MediaStream"] = new Dictionary<string, object?>

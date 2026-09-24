@@ -146,9 +146,6 @@ internal sealed class ScreenIpcController : IAsyncDisposable
             case SetVolumeCommand cmd:
                 _player.Volume = cmd.Volume;
                 break;
-            case SetTimelineCommand cmd:
-                _player.SetTimeline(cmd.Position, cmd.AnchorUtc, cmd.IsPlaying, cmd.IsPrimary);
-                break;
             case SetVideoCommand cmd:
                 _player.SetVideoEnabled(cmd.Enabled);
                 break;
@@ -192,11 +189,6 @@ internal sealed class ScreenIpcController : IAsyncDisposable
                 _logger.LogWarning("Unhandled command: {Type}", command.GetType().Name);
                 break;
         }
-
-        // A timeline says where to be, not what changed. Answering one makes the host re-anchor,
-        // which sends another timeline, forever.
-        if (command is SetTimelineCommand)
-            return;
 
         // The bed reports on its own channel. Answering with playback state would tell the host
         // the song had moved because a background command arrived.

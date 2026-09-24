@@ -332,27 +332,19 @@ public class ScreenMarqueeServiceTests
 
     /// <summary>A screen joining mid-show has never been sent one, and the room would see nothing.</summary>
     [Fact]
-    public async Task ScreenConnected_SendsTheMarqueeToThatScreenAlone()
+    public async Task ScreenConnected_SendsTheMarqueeToTheScreen()
     {
         Arrange(new Venue.VenueSettings { MarqueeEnabled = true });
 
         var connection = Substitute.For<IScreenConnection>();
-        connection.ScreenId.Returns("screen-2");
+        connection.ScreenId.Returns("screen-1");
 
         using var service = Service();
+        Assert.DoesNotContain(_screens.ReceivedCalls(), c => c.GetArguments().FirstOrDefault() is SetMarqueeCommand);
 
         _screens.ScreenConnected += Raise.EventWith(new ScreenConnectionEventArgs { Connection = connection });
 
-        for (var attempt = 0; attempt < 100; attempt++)
-        {
-            if (_screens.ReceivedCalls().Any(c => c.GetMethodInfo().Name == nameof(IScreenServer.SendCommandAsync)))
-                break;
-
-            await Task.Delay(10);
-        }
-
-        await _screens.Received(1).SendCommandAsync("screen-2", Arg.Any<SetMarqueeCommand>());
-        await _screens.DidNotReceive().BroadcastCommandAsync(Arg.Any<SetMarqueeCommand>());
+        await WaitForBroadcastAsync();
     }
 
     /// <summary>Disposing must release the broker, or a rebuilt service leaves the old publishing.</summary>

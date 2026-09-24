@@ -24,7 +24,7 @@ public sealed class MediaRenderRequest
 /// renderer is expected to look up.</remarks>
 public sealed class RenderTarget
 {
-    /// <summary>Whether it takes the stems unmixed and rides the levels itself.</summary>
+    /// <summary>Whether the one connected display takes the stems unmixed and rides the levels itself.</summary>
     public bool MixesStems { get; init; }
 
     /// <summary>Nothing connected, so nothing is worth producing beyond what a later target needs.</summary>

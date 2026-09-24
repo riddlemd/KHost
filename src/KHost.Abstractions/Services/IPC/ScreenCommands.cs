@@ -11,7 +11,6 @@ namespace KHost.Abstractions.Services.IPC;
 [JsonDerivedType(typeof(SeekCommand), "seek")]
 [JsonDerivedType(typeof(SetVolumeCommand), "setVolume")]
 [JsonDerivedType(typeof(SetStemVolumeCommand), "setStemVolume")]
-[JsonDerivedType(typeof(SetTimelineCommand), "setTimeline")]
 [JsonDerivedType(typeof(SetVideoCommand), "setVideo")]
 [JsonDerivedType(typeof(LoadBackgroundCommand), "loadBackground")]
 [JsonDerivedType(typeof(PlayBackgroundCommand), "playBackground")]
@@ -27,25 +26,9 @@ namespace KHost.Abstractions.Services.IPC;
 [JsonDerivedType(typeof(SetTimedLyricsCommand), "setTimedLyrics")]
 public abstract class ScreenCommandBase : IScreenCommand { }
 
-/// <summary>Song position against the host's clock, not "now"; sync-capable screens only.</summary>
-public sealed class SetTimelineCommand : ScreenCommandBase
-{
-    /// <summary>Song position that <see cref="AnchorUtc"/> corresponds to.</summary>
-    public required TimeSpan Position { get; init; }
-
-    /// <summary>May be slightly ahead, giving every screen one instant to start on.</summary>
-    public required DateTime AnchorUtc { get; init; }
-
-    /// <summary>When false the timeline is frozen at <see cref="Position"/> and does not advance.</summary>
-    public required bool IsPlaying { get; init; }
-
-    /// <summary>Defines the timeline rather than chasing it, so it is never corrected.</summary>
-    public bool IsPrimary { get; init; }
-}
-
 public sealed class LoadMediaCommand : ScreenCommandBase
 {
-    /// <summary>The host transcodes once; every screen plays the stream, with no decoder.</summary>
+    /// <summary>The host transcodes; the display plays the stream, with no decoder of its own.</summary>
     /// <remarks>Null when nothing was encoded because the display plays the parts itself. Never
     /// null at the same time as <see cref="Stems"/> is empty — that would be a song with nowhere
     /// to come from.</remarks>
@@ -95,13 +78,13 @@ public sealed class SetVolumeCommand : ScreenCommandBase
     public required float Volume { get; init; }
 }
 
-/// <summary>Blanks the picture without stopping playback; still on the group timeline.</summary>
+/// <summary>Blanks the picture without stopping playback, so the song carries on underneath.</summary>
 public sealed class SetVideoCommand : ScreenCommandBase
 {
     public required bool Enabled { get; init; }
 }
 
-/// <summary>Second audio channel for break music and an ad's bed; no timeline, never corrected.</summary>
+/// <summary>Second audio channel for break music and an ad's bed; it has no song position.</summary>
 public sealed class LoadBackgroundCommand : ScreenCommandBase
 {
     public required string StreamUrl { get; init; }
@@ -229,8 +212,8 @@ public sealed class SetMarqueeCommand : ScreenCommandBase
 /// <remarks>Sent with the load rather than with the transport: it is the whole timing document, so
 /// it must not ride a message sent twice a second. The screen holds it until the next load.
 ///
-/// Drawing it is the screen's job entirely — the host sends the same words to every screen and
-/// never learns which of them drew anything.</remarks>
+/// Drawing it is the screen's job entirely — the host sends the words and never learns whether
+/// anything was drawn.</remarks>
 public sealed class SetTimedLyricsCommand : ScreenCommandBase
 {
     /// <summary>The timing, or null when this song has none and the screen should clear what it holds.</summary>

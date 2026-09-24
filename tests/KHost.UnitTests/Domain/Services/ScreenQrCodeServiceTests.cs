@@ -390,12 +390,16 @@ public class ScreenQrCodeServiceTests
         using var service = Service();
         await service.RegisterAsync(Code("example"));
 
+        // The registration broadcast is awaited above, so anything after this is the catch-up.
+        _screens.ClearReceivedCalls();
+
         _screens.ScreenConnected += Raise.EventWith(new ScreenConnectionEventArgs { Connection = Connection("screen-1") });
 
         for (var attempt = 0; attempt < 100; attempt++)
         {
             if (_screens.ReceivedCalls().Any(call =>
-                    call.GetMethodInfo().Name == nameof(IScreenServer.SendCommandAsync)))
+                    call.GetMethodInfo().Name == nameof(IScreenServer.BroadcastCommandAsync)
+                    && call.GetArguments().FirstOrDefault() is SetScreenQrCodesCommand))
                 return;
 
             await Task.Delay(10);

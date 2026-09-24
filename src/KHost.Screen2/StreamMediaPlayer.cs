@@ -123,37 +123,15 @@ internal sealed class StreamMediaPlayer : IMediaPlayer
         Send(new { type = "stem-volume", role = role.ToString(), volume });
     }
 
-    /// <summary>Applied in the page: correction runs far more often than the IPC ticks.</summary>
+    /// <summary>Kept here, not in the page: it turns the page's own report stamps into host time.</summary>
     public void SetClockOffset(TimeSpan offset)
     {
         lock (_lock) _clockOffset = offset;
 
         _logger.LogInformation("Clock offset to host: {Offset}", offset);
-        Send(new { type = "clock", offsetMs = offset.TotalMilliseconds });
     }
 
-    /// <summary>Converted to stream time here so the page never needs the song offset or tempo.</summary>
-    /// <remarks>A retimed stream still advances one stream second per second, all the page assumes.</remarks>
-    public void SetTimeline(TimeSpan position, DateTime anchorUtc, bool isPlaying, bool isPrimary)
-    {
-        TimeSpan offset;
-        double rate;
-        lock (_lock) { offset = _streamStartOffset; rate = _rate; }
-
-        var withinStream = (position - offset) / rate;
-
-        Send(new
-        {
-            type = "timeline",
-            position = Math.Max(0, withinStream.TotalSeconds),
-            anchorEpochMs = (anchorUtc - DateTime.UnixEpoch).TotalMilliseconds,
-            playing = isPlaying,
-            primary = isPrimary,
-        });
-    }
-
-    /// <summary>Points the second channel at a stream with no timeline and no correction.</summary>
-    /// <remarks>Only the screen the room hears gets this, so nothing needs to stay in step with it.</remarks>
+    /// <summary>Points the second channel at a stream with no song position of its own.</summary>
     public void LoadBackground(string url, bool autoPlay)
     {
         lock (_lock)
@@ -318,7 +296,7 @@ internal sealed class StreamMediaPlayer : IMediaPlayer
 
     public string? StillUrl { get { lock (_lock) return _stillUrl; } }
 
-    /// <summary>Blanks the picture. Playback continues, so the screen stays on the timeline.</summary>
+    /// <summary>Blanks the picture. Playback continues, so the picture is still on the song when it returns.</summary>
     public void SetVideoEnabled(bool enabled)
     {
         _logger.LogInformation("Video {State}", enabled ? "on" : "blanked");

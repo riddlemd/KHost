@@ -14,13 +14,12 @@ internal sealed class ScreenServerService : IScreenServer, IHubCallback
 
         /// <summary>Caps live hub connections before a screen registers, to bound a LAN flood.</summary>
         public int MaxConcurrentConnections { get; set; } = 20;
-
-        /// <summary>Caps registered screens apart from the connection cap; reusing an id isn't new.</summary>
-        /// <remarks>One, to match <c>IDisplayProvider.MaxConnectedDevices</c> on the screens: the
-        /// host drives one display at a time, and a hand-launched second screen would otherwise
-        /// simply join and be sent a timeline it was never chosen for.</remarks>
-        public int MaxRegisteredScreens { get; set; } = 1;
     }
+
+    /// <summary>Caps registered screens apart from the connection cap; reusing an id isn't new.</summary>
+    /// <remarks>The host drives one display at a time, and a hand-launched second screen would
+    /// otherwise simply join and be sent a song it was never chosen for.</remarks>
+    private const int MaxRegisteredScreens = 1;
 
     private readonly IHubContext<ScreenHub> _hubContext;
     private readonly IScreenKeyStore _keyStore;
@@ -131,13 +130,13 @@ internal sealed class ScreenServerService : IScreenServer, IHubCallback
             }
 
             // A re-registration under an existing id overwrites in place; it doesn't count against the cap.
-            if (!_connections.ContainsKey(envelope.ScreenId) && _connections.Count >= _options.MaxRegisteredScreens)
+            if (!_connections.ContainsKey(envelope.ScreenId) && _connections.Count >= MaxRegisteredScreens)
             {
                 // Logged, not silent: a refused screen shows "Lost the host" and waits, which looks
                 // identical to a crash from the operator's side of the room.
                 _logger?.LogWarning(
                     "Refused registration for '{ScreenId}': {Count} of {Max} screens are already registered",
-                    envelope.ScreenId, _connections.Count, _options.MaxRegisteredScreens);
+                    envelope.ScreenId, _connections.Count, MaxRegisteredScreens);
 
                 return false;
             }
@@ -223,22 +222,10 @@ internal sealed class ScreenServerService : IScreenServer, IHubCallback
             yield return conn;
     }
 
-    public async Task SendCommandAsync(string screenId, IScreenCommand command)
-    {
-        ScreenConnection? conn;
-        await _lock.WaitAsync();
-        try { _connections.TryGetValue(screenId, out conn); }
-        finally { _lock.Release(); }
-
-        if (conn is null) return;
-
-        await SendToAsync(conn, command);
-    }
-
     public async Task BroadcastCommandAsync(IScreenCommand command)
     {
-        // Every command is signed with the addressed screen's own key, so there is no Clients.All
-        // shortcut: a single message cannot carry a MAC every screen would accept.
+        // Every command is signed with the screen's own key, so it goes to that connection alone,
+        // never Clients.All, which would hand it to connections that have not registered.
         List<ScreenConnection> snapshot;
         await _lock.WaitAsync();
         try { snapshot = [.. _connections.Values]; }

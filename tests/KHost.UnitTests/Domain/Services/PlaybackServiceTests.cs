@@ -845,56 +845,6 @@ public class PlaybackServiceTests : IDisposable
         Assert.True(await WaitForBroadcastAsync<SeekCommand>());
     }
 
-    [Fact]
-    public async Task Play_AnchorsTheTimelineSlightlyAhead_SoEveryScreenStartsOnTheSameInstant()
-    {
-        var (performance, media) = CreatePerformance();
-        await _service.LoadAsync(performance, media);
-
-        var before = DateTime.UtcNow;
-        await _service.PlayAsync();
-
-        var timeline = LastTimeline();
-        Assert.NotNull(timeline);
-        Assert.True(timeline.IsPlaying);
-
-        // Starting on arrival is what puts screens seconds apart; the anchor is the shared instant.
-        Assert.True(timeline.AnchorUtc > before,
-            $"anchor {timeline.AnchorUtc:O} should be ahead of {before:O}");
-    }
-
-    [Fact]
-    public async Task Pause_PublishesAFrozenTimeline()
-    {
-        var (performance, media) = CreatePerformance();
-        await _service.LoadAsync(performance, media);
-        await _service.PlayAsync();
-        await _service.PauseAsync();
-
-        var timeline = LastTimeline();
-        Assert.NotNull(timeline);
-        Assert.False(timeline.IsPlaying);
-    }
-
-    [Fact]
-    public async Task ScreenReconnect_RepublishesTheTimeline_SoTheJoinerLandsOnTheGroupPosition()
-    {
-        var (performance, media) = CreatePerformance();
-        await _service.LoadAsync(performance, media);
-        await _service.PlayAsync();
-        await _service.TickAsync();
-        _screenServer.ClearReceivedCalls();
-
-        RaiseScreenConnected();
-        Assert.True(await WaitForBroadcastAsync<PlayCommand>());
-
-        // Without this the joiner starts at the top of the song while the group is mid-verse.
-        var timeline = LastTimeline();
-        Assert.NotNull(timeline);
-        Assert.True(timeline.IsPlaying);
-        Assert.True(timeline.Position > TimeSpan.Zero);
-    }
-
     /// <summary>A host pause landing between the sync's awaited display calls must win: replaying
     /// PlayCommand afterwards would restart the song over the host's own pause.</summary>
     [Fact]
@@ -936,35 +886,15 @@ public class PlaybackServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task PrimaryStateReports_DoNotPublishATimelinePerReport()
-    {
-        var (performance, media) = CreatePerformance();
-        await _service.LoadAsync(performance, media);
-        await _service.PlayAsync();
-        _screenServer.ClearReceivedCalls();
-
-        // A screen answers every command with a state report, so an unthrottled re-anchor turned
-        // one report into a timeline into another report, a command storm that aborted play().
-        for (var i = 0; i < 25; i++) RaisePrimaryState(TimeSpan.FromSeconds(i));
-
-        var timelines = _screenServer.ReceivedCalls()
-            .Count(c => c.GetMethodInfo().Name == nameof(IScreenServer.SendCommandAsync)
-                        && c.GetArguments().ElementAtOrDefault(1) is SetTimelineCommand);
-
-        Assert.True(timelines <= 2, $"25 reports produced {timelines} timelines");
-    }
-
-    [Fact]
-    public async Task PrimaryStateReports_StillMoveThePosition_EvenWhenTheRepublishIsSkipped()
+    public async Task ScreenStateReports_MoveTheHostsPosition()
     {
         var (performance, media) = CreatePerformance();
         await _service.LoadAsync(performance, media);
         await _service.PlayAsync();
 
-        RaisePrimaryState(TimeSpan.FromSeconds(40));
-        RaisePrimaryState(TimeSpan.FromSeconds(41));
+        RaiseScreenState(TimeSpan.FromSeconds(40));
+        RaiseScreenState(TimeSpan.FromSeconds(41));
 
-        // Throttling the republish must not throttle following the primary.
         Assert.InRange(_service.Position, TimeSpan.FromSeconds(40.5), TimeSpan.FromSeconds(41.5));
     }
 
@@ -1024,7 +954,7 @@ public class PlaybackServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task Position_FollowsTheReceiver_WhenThereIsNoPrimaryScreen()
+    public async Task Position_FollowsTheReceiver_WhenNoScreenIsUp()
     {
         ConnectScreens(0);
         _display.ConnectedDeviceId.Returns("Living Room TV");
@@ -1063,14 +993,15 @@ public class PlaybackServiceTests : IDisposable
                 SampledAtUtc = DateTime.UtcNow,
             });
 
-        // A primary's reports are timestamped against a measured clock offset; a receiver's are
+        // A screen's reports are timestamped against a measured clock offset; a receiver's are
         // only timestamped on arrival, so the better clock wins.
         Assert.True(_service.Position < TimeSpan.FromSeconds(5), $"position jumped to {_service.Position}");
     }
 
     [Fact]
-    public async Task Playback_IsMirroredToAConnectedCastReceiver()
+    public async Task Playback_DrivesAConnectedCastReceiver()
     {
+        ConnectScreens(0);
         _display.ConnectedDeviceId.Returns("Living Room TV");
 
         var (performance, media) = CreatePerformance();
@@ -1107,6 +1038,7 @@ public class PlaybackServiceTests : IDisposable
     [Fact]
     public async Task Playback_SurvivesAReceiverThatRefuses()
     {
+        ConnectScreens(0);
         _display.ConnectedDeviceId.Returns("Living Room TV");
         _display.PlayAsync(Arg.Any<CancellationToken>())
             .Returns<Task>(_ => throw new InvalidOperationException("receiver went away"));
@@ -1221,10 +1153,13 @@ public class PlaybackServiceTests : IDisposable
     }
 
     /// <summary>Selecting a device, as the Screens dialog does: a connection and an announcement.</summary>
+    /// <summary>A switch, not an addition: one display at a time, so the screen goes as the
+    /// receiver arrives. The receiver first, or the screen's loss would park the song.</summary>
     private void ConnectCast()
     {
         _display.ConnectedDeviceId.Returns("Living Room TV");
         _display.SessionId.Returns(Guid.NewGuid());
+        ConnectScreens(0);
 
         _broker.Announce(new DisplaysChanged());
     }
@@ -1267,7 +1202,7 @@ public class PlaybackServiceTests : IDisposable
         RaiseScreenConnected();
         Assert.True(await WaitForBroadcastAsync<PlayCommand>());
 
-        // One host transcode feeding every screen is the whole reason ffmpeg moved off the screens.
+        // One host transcode per song is the whole reason ffmpeg moved off the screens.
         await _mediaStreams.Received(1).OpenAsync(
             Arg.Any<string>(), Arg.Any<TimeSpan>(), Arg.Any<int>(), Arg.Any<int>(), Arg.Any<AudioMix?>(), Arg.Any<CancellationToken>());
     }
@@ -1307,7 +1242,7 @@ public class PlaybackServiceTests : IDisposable
 
         var (performance, media) = CreatePerformance();
 
-        // No stream means no playback: every screen plays the host's transcode, so a load that
+        // No stream means no playback: the screen plays the host's transcode, so a load that
         // could not start one has nothing to send and must not be passed off as success.
         var error = await Assert.ThrowsAsync<KHostException>(() => _service.LoadAsync(performance, media));
 
@@ -1379,8 +1314,7 @@ public class PlaybackServiceTests : IDisposable
     {
         var performance = await PlayThenLoseAllScreensAsync(tick: true);
 
-        Assert.True(await WaitForStateAsync(PlaybackState.Paused));
-        Assert.Equal(TimeSpan.Zero, _service.Position);
+        Assert.True(await WaitForParkedAtStartAsync());
         Assert.Same(performance, _service.CurrentPerformance);
     }
 
@@ -1417,8 +1351,7 @@ public class PlaybackServiceTests : IDisposable
         _venuesService.ReadSelectedVenueAsync().Returns((Venue?)null);
         await PlayThenLoseAllScreensAsync(tick: true);
 
-        Assert.True(await WaitForStateAsync(PlaybackState.Paused));
-        Assert.Equal(TimeSpan.Zero, _service.Position);
+        Assert.True(await WaitForParkedAtStartAsync());
     }
 
     private async Task<Performance> PlayThenLoseAllScreensAsync(bool tick = false)
@@ -1517,10 +1450,10 @@ public class PlaybackServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task Load_TellsTheRendererNothingMixes_WhenSomethingConnectedCannot()
+    public async Task Load_TellsTheRendererNothingMixes_WhenTheDisplayCannot()
     {
-        // One device still hearing the host's own mix means the stems would have to be encoded
-        // anyway, so offering them at all is waste. All or nothing, like the fade.
+        // A device hearing the host's own mix needs the encode, so offering stems is waste.
+        ConnectScreens(0);
         _display.ConnectedDeviceId.Returns("Living Room TV");
         _display.Devices.Returns([new DisplayDevice
         {
@@ -1579,8 +1512,8 @@ public class PlaybackServiceTests : IDisposable
             .Select(c => c.GetArguments().FirstOrDefault() as TCommand)
             .LastOrDefault(c => c is not null);
 
-    /// <summary>The one screen defines the clock now, so its own id is what reports against it.</summary>
-    private void RaisePrimaryState(TimeSpan position, TimeSpan? sampledAgo = null)
+    /// <summary>The screen defines the clock, so its own id is what reports against it.</summary>
+    private void RaiseScreenState(TimeSpan position, TimeSpan? sampledAgo = null)
         => _screenServer.StateReceived += Raise.EventWith(_screenServer, new ScreenStateReceivedEventArgs
         {
             ScreenId = "Screen 1",
@@ -1598,12 +1531,6 @@ public class PlaybackServiceTests : IDisposable
     {
         for (var i = 0; i < 100 && !condition(); i++) await Task.Delay(10);
     }
-
-    private SetTimelineCommand? LastTimeline()
-        => _screenServer.ReceivedCalls()
-            .Where(c => c.GetMethodInfo().Name == nameof(IScreenServer.SendCommandAsync))
-            .Select(c => c.GetArguments().ElementAtOrDefault(1) as SetTimelineCommand)
-            .LastOrDefault(c => c is not null);
 
     private async Task<bool> WaitForBroadcastAsync<TCommand>() where TCommand : IScreenCommand
     {
@@ -1641,6 +1568,19 @@ public class PlaybackServiceTests : IDisposable
     }
 
     // The disconnect handler runs detached so it cannot deadlock the hub lock.
+    // The loss handler pauses and only then rewinds, so waiting on Paused alone reads the
+    // position in between.
+    private async Task<bool> WaitForParkedAtStartAsync()
+    {
+        for (var i = 0; i < 50; i++)
+        {
+            if (_service.State == PlaybackState.Paused && _service.Position == TimeSpan.Zero) return true;
+            await Task.Delay(10);
+        }
+
+        return false;
+    }
+
     private async Task<bool> WaitForStateAsync(PlaybackState expected)
     {
         for (var i = 0; i < 50; i++)
@@ -3271,14 +3211,14 @@ public class PlaybackServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task PrimaryReport_ExtrapolatesSongTimeByTheTempo()
+    public async Task ScreenReport_ExtrapolatesSongTimeByTheTempo()
     {
         var (performance, media) = CreatePerformance();
         performance.Tempo = 50;
         await _service.LoadAsync(performance, media);
         await _service.PlayAsync();
 
-        RaisePrimaryState(TimeSpan.FromSeconds(60), sampledAgo: TimeSpan.FromSeconds(2));
+        RaiseScreenState(TimeSpan.FromSeconds(60), sampledAgo: TimeSpan.FromSeconds(2));
 
         // The report is two seconds old in wall time, and at 1.5x the song moved three seconds in
         // it. Extrapolating one-to-one would leave the host's playhead a second behind the room.
@@ -3289,8 +3229,21 @@ public class PlaybackServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task Load_TellsTheScreensAndTheReceiverTheTempo()
+    public async Task Load_TellsTheScreenTheTempo()
     {
+        var (performance, media) = CreatePerformance();
+        performance.Tempo = -30;
+
+        await _service.LoadAsync(performance, media);
+
+        // The page counts stream seconds, so it cannot recover song time without this.
+        Assert.Equal(-30, LastBroadcast<LoadMediaCommand>()?.Tempo);
+    }
+
+    [Fact]
+    public async Task Load_TellsTheReceiverTheTempo()
+    {
+        ConnectScreens(0);
         _display.ConnectedDeviceId.Returns("Living Room TV");
 
         var (performance, media) = CreatePerformance();
@@ -3298,8 +3251,7 @@ public class PlaybackServiceTests : IDisposable
 
         await _service.LoadAsync(performance, media);
 
-        // Both keep their own clock in stream seconds, so neither recovers song time without it.
-        Assert.Equal(-30, LastBroadcast<LoadMediaCommand>()?.Tempo);
+        // It keeps its own clock in stream seconds, so it cannot recover song time without this.
         await _display.Received(1).LoadAsync(
             Arg.Is<LoadMediaCommand>(c => c.Tempo == -30), Arg.Any<CancellationToken>());
     }
@@ -3615,10 +3567,6 @@ public class PlaybackServiceTests : IDisposable
         // Opened at the playhead, and the clock says the same: the stream's zero is where the song is.
         Assert.Equal(TimeSpan.FromSeconds(60), LastOpenedAt());
         Assert.Equal(TimeSpan.FromSeconds(60), _service.Position);
-
-        // The group is anchored there too, or a screen is told to chase a point its stream has not
-        // reached and stalls doing it.
-        Assert.Equal(TimeSpan.FromSeconds(60), LastTimeline()?.Position);
 
         // Nothing is skipped forward on anyone's behalf. A transport that cannot cover the rebuild
         // makes the difference up inside its own load, where it knows what it is driving.

@@ -113,4 +113,65 @@ public class ScreenDisplayProviderTests
     [Fact]
     public void SearchesForDevices_IsFalse()
         => Assert.False(_provider.SearchesForDevices);
+
+    /// <summary>One display at a time: a second screen is refused rather than replacing the first.</summary>
+    [Fact]
+    public async Task ConnectAsync_WhileADifferentScreenIsUp_IsRefusedWithoutLaunching()
+    {
+        var launcher = AvailableLauncher();
+        var provider = new ScreenDisplayProvider(
+            NullLogger<ScreenDisplayProvider>.Instance, _screenServer, [launcher], _broker);
+        RaiseConnected(Connection("Screen 1", "conn-a"));
+
+        Assert.False(await provider.ConnectAsync("Screen 2"));
+
+        await launcher.DidNotReceive().LaunchAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
+        Assert.Equal("Screen 1", provider.ConnectedDeviceId);
+    }
+
+    [Fact]
+    public async Task ConnectAsync_ToTheScreenAlreadyUp_SucceedsWithoutLaunching()
+    {
+        var launcher = AvailableLauncher();
+        var provider = new ScreenDisplayProvider(
+            NullLogger<ScreenDisplayProvider>.Instance, _screenServer, [launcher], _broker);
+        RaiseConnected(Connection("Screen 1", "conn-a"));
+
+        Assert.True(await provider.ConnectAsync("Screen 1"));
+
+        await launcher.DidNotReceive().LaunchAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task StartDiscoveryAsync_WhileAScreenIsUp_DoesNotLaunchASecond()
+    {
+        var launcher = AvailableLauncher();
+        var provider = new ScreenDisplayProvider(
+            NullLogger<ScreenDisplayProvider>.Instance, _screenServer, [launcher], _broker);
+        RaiseConnected(Connection("Screen 1", "conn-a"));
+
+        await provider.StartDiscoveryAsync();
+
+        await launcher.DidNotReceive().LaunchAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task ConnectAsync_WithNoScreenUp_LaunchesTheLocalOne()
+    {
+        var launcher = AvailableLauncher();
+        var provider = new ScreenDisplayProvider(
+            NullLogger<ScreenDisplayProvider>.Instance, _screenServer, [launcher], _broker);
+
+        await provider.ConnectAsync(ScreenDisplayProvider.LocalScreenId);
+
+        await launcher.Received(1).LaunchAsync(ScreenDisplayProvider.LocalScreenId, Arg.Any<CancellationToken>());
+    }
+
+    private static IScreenProvider AvailableLauncher()
+    {
+        var launcher = Substitute.For<IScreenProvider>();
+        launcher.IsAvailable.Returns(true);
+
+        return launcher;
+    }
 }

@@ -160,7 +160,7 @@ public sealed class ScreenMarqueeService : BaseService, IScreenMarqueeService, I
     {
         try
         {
-            await _screenServer.SendCommandAsync(e.Connection.ScreenId, await BuildAsync());
+            await _screenServer.BroadcastCommandAsync(await BuildAsync());
         }
         catch (Exception ex)
         {
