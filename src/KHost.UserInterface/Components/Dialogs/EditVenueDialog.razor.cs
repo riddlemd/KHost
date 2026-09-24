@@ -342,9 +342,6 @@ public partial class EditVenueDialog
 
     private void CloseRotationDialog() => _rotationDialogOpen = false;
 
-    private string GetClassString()
-        => $"kh-singer-edit-dialog {Class?.Trim()}".Trim();
-
     public record DialogRequest : EditDialogRequest<Venue>
     {
         public DialogRequest(Venue? value, Func<Venue?, Task> onSave, Action? onCancel, Action onClose) : base(value, onSave, onCancel, onClose)

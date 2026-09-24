@@ -116,12 +116,6 @@ public partial class MediaManagerPage : IAsyncDisposable
         await Task.CompletedTask;
     }
 
-    private async Task ClearSearchAsync()
-    {
-        _searchQuery = "";
-        await SearchAsync();
-    }
-
     private async Task PreviousPageAsync()
     {
         if (_currentPage > 1)

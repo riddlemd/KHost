@@ -1,4 +1,3 @@
-using KHost.Abstractions.Models.Plugins;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 
@@ -8,19 +7,7 @@ namespace KHost.UnitTests.Conventions;
 // off the `async` keyword and never see `Task Foo() => Bar()`.
 public class AsyncNamingConventionTests
 {
-    // Bare KHost.Domain.X would bind to this project's mirrored namespace, not the real one.
-    private static readonly Assembly[] Assemblies =
-    [
-        typeof(global::KHost.Abstractions.MediaPlayer.IMediaPlayer).Assembly,
-        typeof(global::KHost.DataAccess.ProjectExtensions).Assembly,
-        typeof(global::KHost.Domain.ProjectExtensions).Assembly,
-        typeof(global::KHost.IPC.SignalR.ProjectExtensions).Assembly,
-        typeof(global::KHost.LrcLib.ILrcLibClient).Assembly,
-        typeof(global::KHost.Abstractions.Models.Plugins.PluginApi).Assembly,
-        typeof(global::KHost.Telemetry.KHostActivitySource).Assembly,
-        typeof(global::KHost.UserInterface.Services.ThemeService).Assembly,
-        typeof(global::KHost.CatalogSync.GitHubClient).Assembly,
-    ];
+    private static readonly Assembly[] Assemblies = HostAssemblies.All;
 
     [Fact]
     public void TaskReturningMethods_AcrossAllAssemblies_EndInAsync()
