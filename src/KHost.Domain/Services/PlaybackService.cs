@@ -83,11 +83,6 @@ public class PlaybackService : BaseService, IPlaybackService, IPlaybackProgram, 
     private readonly IOptionsMonitor<ServiceOptions> _optionsMonitor;
     private readonly IAudioTrackService _audioTracks;
     private readonly IMediaGateService _mediaGate;
-    private readonly ITimedLyricsService _timedLyrics;
-
-    /// <summary>The words sent for the song now loaded, kept so a screen joining mid-song gets
-    /// them too. Null for a song that has none, which is most of them.</summary>
-    private TimedLyrics? _currentLyrics;
     private readonly IFlashService _flash;
 
     // Read per use rather than captured: the App Settings page writes the overlay live, and a
@@ -137,7 +132,6 @@ public class PlaybackService : BaseService, IPlaybackService, IPlaybackProgram, 
         IOptionsMonitor<ServiceOptions> options,
         IAudioTrackService audioTracks,
         IMediaGateService mediaGate,
-        ITimedLyricsService timedLyrics,
         IFlashService flash,
         IMessageBroker broker)
         : base(logger)
@@ -157,7 +151,6 @@ public class PlaybackService : BaseService, IPlaybackService, IPlaybackProgram, 
         _optionsMonitor = options;
         _audioTracks = audioTracks;
         _mediaGate = mediaGate;
-        _timedLyrics = timedLyrics;
         _flash = flash;
 
         _screenServer.ScreenConnected += OnScreenConnected;
@@ -266,11 +259,8 @@ public class PlaybackService : BaseService, IPlaybackService, IPlaybackProgram, 
 
         try
         {
+            // A display that draws the words loads them itself, inside this call.
             await ToDisplaysAsync(await BuildLoadCommandAsync(media, TimeSpan.Zero));
-
-            // After the load and before play: a screen holds the words until the next load, and one
-            // that arrived mid-song would light every syllable already sung at once.
-            await SendTimedLyricsAsync(media);
         }
         catch
         {
@@ -800,9 +790,7 @@ public class PlaybackService : BaseService, IPlaybackService, IPlaybackProgram, 
 
             Logger.LogInformation("Screen connected; reloading '{Title}' at {Position}", media.Title, Position);
 
-            // Without the words a screen joining mid-song plays the audio and draws nothing: they
-            // were sent once, when the song started, to whoever was connected then.
-            await ReplayOntoDisplayAsync(media, seekPast: TimeSpan.Zero, withLyrics: true);
+            await ReplayOntoDisplayAsync(media, seekPast: TimeSpan.Zero);
         }
         catch (Exception ex)
         {
@@ -881,7 +869,6 @@ public class PlaybackService : BaseService, IPlaybackService, IPlaybackProgram, 
         _sessionActivity = null;
 
         CurrentlyPerformingUserId = null;
-        _currentLyrics = null;
 
         // Cancelled rather than left to fire: it would otherwise reopen a transcode for the song
         // that has just been torn down.
@@ -898,23 +885,6 @@ public class PlaybackService : BaseService, IPlaybackService, IPlaybackProgram, 
         AudioTracks = [];
         LeadVolume = AudioMix.DefaultLeadVolume;
         BackingVolume = Options.DefaultBackingVolume;
-    }
-
-    /// <summary>Gives the screens the words for this song, or clears the last song's.</summary>
-    /// <remarks>Never throws: a song whose lyrics could not be read still plays, the same as one
-    /// that never had any. Sent even when there are none, or a screen keeps drawing the words of
-    /// the song before this one over it.</remarks>
-    private async Task SendTimedLyricsAsync(Media media)
-    {
-        TimedLyrics? lyrics = null;
-
-        try { lyrics = await _timedLyrics.GetTimedLyricsAsync(media.FilePath); }
-        catch (Exception ex) { Logger.LogWarning(ex, "Could not read the lyric timing for '{Title}'", media.Title); }
-
-        _currentLyrics = lyrics;
-
-        try { await ToDisplaysAsync(new SetTimedLyricsCommand { Lyrics = lyrics }); }
-        catch (Exception ex) { Logger.LogWarning(ex, "Could not send the lyric timing for '{Title}'", media.Title); }
     }
 
     /// <summary>Throws when the transcode will not start: there is no playback without it.</summary>
@@ -1018,8 +988,8 @@ public class PlaybackService : BaseService, IPlaybackService, IPlaybackProgram, 
 
     /// <summary>Hands the running stream to a display that has nothing loaded, and resumes it.</summary>
     /// <param name="seekPast">Where the stream itself opens; a playhead no further on needs no seek.</param>
-    /// <param name="withLyrics">After the load and before the seek, the order LoadAsync uses.</param>
-    private async Task ReplayOntoDisplayAsync(Media media, TimeSpan seekPast, bool withLyrics = false)
+    /// <remarks>A display that draws the words resends them inside the load, ahead of the seek.</remarks>
+    private async Task ReplayOntoDisplayAsync(Media media, TimeSpan seekPast)
     {
         // A song parked at the start after a rebuild sits behind its stream, which holds nothing
         // before the playhead the rebuild opened it at: replayed as-is, the room resumes there.
@@ -1034,9 +1004,6 @@ public class PlaybackService : BaseService, IPlaybackService, IPlaybackProgram, 
         {
             await ToDisplaysAsync(DescribeStream(media));
         }
-
-        if (withLyrics)
-            await ToDisplaysAsync(new SetTimedLyricsCommand { Lyrics = _currentLyrics });
 
         var position = Position;
 
@@ -1217,8 +1184,8 @@ public class PlaybackService : BaseService, IPlaybackService, IPlaybackProgram, 
 
     /// <summary>Sends one command to whatever the song is coming out of.</summary>
     /// <remarks>One path for every display, screens included: the screens reach the host through a
-    /// provider like anything else. A command nothing can show is not sent — the device says what
-    /// it can draw, so a television is never handed a marquee it would drop on the floor.
+    /// provider like anything else. Only transport goes this way; what a display draws is its own
+    /// business. A stem gain goes only to a device that said it mixes.
     ///
     /// <para>A provider that throws is logged, never rethrown: the caller is moving the show on and
     /// a display that has gone must not stop it.</para></remarks>
@@ -1246,18 +1213,11 @@ public class PlaybackService : BaseService, IPlaybackService, IPlaybackProgram, 
         => ConnectedDisplay.Find(_displays) is { } connected
             && (connected.Device is null || connected.Device.SupportsFade);
 
-    /// <summary>Whether this device can show this command at all.</summary>
-    /// <remarks>Transport is never gated — every display plays the song. Only the drawn things ask,
-    /// and each asks its own flag, because the host answers them differently: words it can composite
-    /// into the picture, a marquee it simply leaves off.</remarks>
+    /// <summary>Whether this device can take this command at all.</summary>
+    /// <remarks>Transport is never gated: every display plays the song.</remarks>
     private static bool CanShow(DisplayDevice device, IScreenCommand command) => command switch
     {
-        SetTimedLyricsCommand => device.SupportsLyrics,
         SetStemVolumeCommand => device.SupportsStemMix,
-        SetMarqueeCommand => device.SupportsMarquee,
-        SetScreenQrCodesCommand => device.SupportsQrCodes,
-        ShowNextSingerCommand or SetBreakMusicCardCommand or ShowImageCommand or HideImageCommand
-            => device.SupportsImage,
         _ => true,
     };
 
@@ -1272,14 +1232,6 @@ public class PlaybackService : BaseService, IPlaybackService, IPlaybackProgram, 
         SetVolumeCommand c => display.SetVolumeAsync(c.Volume),
         SetStemVolumeCommand c => display.SetStemVolumeAsync(c),
         SetVideoCommand c => display.SetVideoAsync(c.Enabled),
-
-        SetTimedLyricsCommand c => display.SetTimedLyricsAsync(c),
-        SetMarqueeCommand c => display.SetMarqueeAsync(c),
-        SetScreenQrCodesCommand c => display.SetQrCodesAsync(c),
-        ShowNextSingerCommand c => display.ShowNextSingerAsync(c),
-        SetBreakMusicCardCommand c => display.SetBreakMusicCardAsync(c),
-        ShowImageCommand c => display.ShowImageAsync(c),
-        HideImageCommand => display.HideImageAsync(),
 
         LoadBackgroundCommand c => display.LoadBackgroundAsync(c),
         PlayBackgroundCommand => display.PlayBackgroundAsync(),

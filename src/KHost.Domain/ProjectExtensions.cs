@@ -117,6 +117,8 @@ namespace KHost.Domain
             serviceCollection.AddSingleton<Services.Screens.IScreenQrCodeService, Services.Screens.ScreenQrCodeService>();
             serviceCollection.AddSingleton<Services.Screens.IBreakMusicCardService, Services.Screens.BreakMusicCardService>();
             serviceCollection.AddSingleton<IPlaybackService, PlaybackService>();
+            serviceCollection.AddSingleton<IPlaybackProgram>(
+                sp => (IPlaybackProgram)sp.GetRequiredService<IPlaybackService>());
 
             // The same singletons again, under the marker the host builds on the way up: pointed at what is
             // already registered. A fresh registration would build twice, and the extra copy would listen.
