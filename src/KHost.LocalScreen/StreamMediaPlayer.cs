@@ -1,7 +1,6 @@
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services.IPC;
 using System.Text.Json;
-using KHost.Abstractions.MediaPlayer;
 using Microsoft.Extensions.Logging;
 using KHost.Common.Media;
 

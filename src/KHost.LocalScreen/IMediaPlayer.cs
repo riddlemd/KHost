@@ -1,15 +1,12 @@
-namespace KHost.Abstractions.MediaPlayer;
+namespace KHost.LocalScreen;
 
 /// <summary>The player that puts the song out of a screen: transport, position and level.</summary>
 /// <remarks>
-/// <para>Host-only: the playback surface inside the host's own LocalScreen app, driven by the
-/// commands the host sends it. A plugin has no business with it; a plugin display drives its own
-/// device through <see cref="Services.IDisplayProvider"/>.</para>
-/// <para>Platform-neutral: no dependency on System.Drawing or any OS-specific graphics API. The
+/// Platform-neutral: no dependency on System.Drawing or any OS-specific graphics API. The
 /// transport members ask; the state properties follow once the player reports back, so reading
-/// <see cref="IsPlaying"/> straight after <see cref="Play"/> may still say false.</para>
+/// <see cref="IsPlaying"/> straight after <see cref="Play"/> may still say false.
 /// </remarks>
-public interface IMediaPlayer : IDisposable
+internal interface IMediaPlayer : IDisposable
 {
 
     /// <summary>What is known about the loaded media, or null if nothing is loaded.</summary>
@@ -51,7 +48,7 @@ public interface IMediaPlayer : IDisposable
     void Seek(TimeSpan position);
 
     /// <summary>What is known about the loaded media; a value not known is zero, false or empty.</summary>
-    public sealed class MediaInfo
+    internal sealed class MediaInfo
     {
         /// <summary>The path or URL the player loaded.</summary>
         public required string FilePath { get; init; }
