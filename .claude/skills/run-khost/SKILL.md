@@ -84,8 +84,9 @@ curl -s -o /dev/null -w '%{http_code}\n' --retry 60 --retry-delay 2 --retry-conn
   --max-time 10 http://localhost:5251/
 ```
 
-Startup is confirmed by `Singer queue loaded (N users)`. File log:
-`src/KHost.UserInterface/bin/Debug/net10.0/logs/YYYYMMDD.log`.
+Startup is confirmed by `Singer queue loaded (N users)`. Every launch writes its own file
+(`host-<yyyyMMdd-HHmmss>.log`), so the newest is what to read:
+`ls -t src/KHost.UserInterface/bin/Debug/net10.0/logs/host-*.log | head -1`.
 
 ## Driving the windowed UI
 
@@ -211,7 +212,8 @@ looks for a key that is not there, or presents one that does not match:
   `[IO.File]::WriteAllText(...)` adds neither a newline nor a BOM.
 
 Its player page is embedded in the executable — no `screen-ui/` files on disk, page edits need a
-rebuild. Logs land in `logs/<screen-id>-YYYYMMDD.log` beside its binary.
+rebuild. Every launch writes its own file, `logs/<screen-id>-<yyyyMMdd-HHmmss>-<pid>.log` beside
+its binary; `ls -t logs/*.log | head -1` finds the newest.
 
 ## Toolbox — one primitive per row
 

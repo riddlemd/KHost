@@ -100,12 +100,7 @@ internal static class Program
 
         var logDirectory = Path.Combine(AppContext.BaseDirectory, "logs");
         Directory.CreateDirectory(logDirectory);
-
-        foreach (var staleLog in new DirectoryInfo(logDirectory).GetFiles("*.log")
-            .Where(f => f.LastWriteTimeUtc < DateTime.UtcNow.AddDays(-7)))
-        {
-            staleLog.Delete();
-        }
+        KHostLogFiles.SweepStaleLogs(logDirectory);
 
         builder.Host.UseSerilog((_, _, cfg) => cfg
             .MinimumLevel.Information()
@@ -113,10 +108,17 @@ internal static class Program
             .MinimumLevel.Override("Microsoft.AspNetCore", LogEventLevel.Warning)
             .WriteTo.Console()
             .WriteTo.File(
-                path: Path.Combine(logDirectory, ".log"),
-                rollingInterval: RollingInterval.Day,
+                path: Path.Combine(logDirectory, KHostLogFiles.HostFileName()),
+                // Infinite: the filename already carries the launch timestamp, so a date-rolled
+                // segment on top of it would just repeat today's date in the name.
+                rollingInterval: RollingInterval.Infinite,
+                rollOnFileSizeLimit: true,
+                fileSizeLimitBytes: 10_000_000,
                 retainedFileCountLimit: null,
                 outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] {Message:lj}{NewLine}{Exception}"));
+
+        // A sweep at launch never fires again for a host left running for weeks.
+        builder.Services.AddHostedService(_ => new LogRetentionHostedService(logDirectory));
 
         builder.AddServiceDefaults();
 
@@ -450,9 +452,13 @@ internal static class Program
         if (exitCode == 0)
         {
             // The reset must not be silent: whoever reads the logs sees recovery was used.
+            var logDirectory = Path.Combine(AppContext.BaseDirectory, "logs");
+            Directory.CreateDirectory(logDirectory);
+            KHostLogFiles.SweepStaleLogs(logDirectory);
+
             var line = $"{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff zzz} [WRN] Password reset via {ResetPasswordFlag} for '{name}'";
             File.AppendAllText(
-                Path.Combine(AppContext.BaseDirectory, "logs", $"{DateTime.Now:yyyyMMdd}.log"),
+                Path.Combine(logDirectory, KHostLogFiles.HostFileName()),
                 line + Environment.NewLine);
         }
 
