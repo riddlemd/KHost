@@ -256,6 +256,14 @@ cannot name another's: its secrets, and the QR code it offers the screens.
     are fixed for the whole song and can be **burned into the stream** for a device that cannot draw
     them, while a marquee that rescrolls on every venue edit would mean restarting the encode, so it
     is simply left off.
+  - **The provider owns presentation; the host only supplies data.** `ScreenDisplayProvider` hears
+    what moved — the queue, the venue, playback, break music, a QR registration — and pulls the
+    whole current state of whatever that message drives (marquee, QR codes, the break music card,
+    the next-singer card, the idle card and an ad's still, the song's timed words) and draws it
+    itself. `PlaybackService`, `LibraryBreakMusicProvider` and the four overlay services no longer
+    hold `IScreenServer` or send anything: the overlay services only build what a display should be
+    showing when asked, and `PlaybackService` announces `PlaybackChanged` and reads `CurrentProgram`
+    like anything else would.
   - **`SupportsFade` is the one capability the host acts on for itself.** `StopAsync` *waits out*
     the fade it asks for, so a device that cuts dead — a receiver, which has no mixer of the host's
     to ride down — would otherwise buy the room that many seconds of silence before the queue moved
@@ -270,9 +278,11 @@ cannot name another's: its secrets, and the QR code it offers the screens.
     a sweep.
   - **There are no roles and no sync.** No audio screen, no primary, no timeline and no per-screen
     audio or video override: with one display there is nothing to choose between and nothing to
-    steer onto anything else. The display that is up defines the song's clock — a screen's
-    timestamped state reports move the host's playhead, and a receiver's status does when no screen
-    is up — and nothing is ever corrected towards anything. The venue's volume is applied by
+    steer onto anything else. The display that is up defines the song's clock: every provider
+    raises `PlaybackStatusChanged` with its own timestamped position, and the host trusts only the
+    report from whichever one is connected — a screen's own state reports reach `PlaybackService`
+    the same way a receiver's do, through `ScreenDisplayProvider` translating them, not a side
+    channel. Nothing is ever corrected towards anything. The venue's volume is applied by
     `ScreenDisplayProvider` on connect and on a venue edit.
   - **Covering a rebuild is the transport's business, not the host's.** Changing key, tempo or the
     mix reopens the stream at the playhead, and the host resumes there and skips nothing. It used
@@ -400,8 +410,9 @@ folder: `PluginLoader` hands that string straight to `LoadFromAssemblyPath`.
 
 ## What is playing between singers
 
-`BreakMusicCardService` names the break music in a corner of the screen, pushed whole on every
-change the same way the marquee is.
+`BreakMusicCardService` names the break music in a corner of the screen, built whole on every
+change the same way the marquee is — and, like the marquee, only when the display asks for it, not
+pushed by the service itself.
 
 - **It says what is *playing*, not what is cued.** A host's pause and the hand-off to a singer both
   take it down, so the screen never names a track over somebody else's performance. `Suspended` counts as not playing.

@@ -6,10 +6,9 @@ using KHost.Domain.Services;
 
 namespace KHost.UnitTests.Domain.Services;
 
-[Collection(FileCacheCollection.Name)]
 public class JsonFileCacheServiceTests : IDisposable
 {
-    private static readonly string _cacheDir = Path.Combine(AppContext.BaseDirectory, "cache");
+    private readonly string _cacheDir = Path.Combine(Path.GetTempPath(), $"khost-cache-{Guid.NewGuid():N}");
     private readonly JsonFileCacheService _service;
 
     public JsonFileCacheServiceTests()
@@ -18,23 +17,13 @@ public class JsonFileCacheServiceTests : IDisposable
             Directory.CreateDirectory(_cacheDir);
 
         var analytics = Substitute.For<IAnalyticsService>();
-        _service = new JsonFileCacheService(NullLogger<JsonFileCacheService>.Instance, analytics);
+        _service = new JsonFileCacheService(NullLogger<JsonFileCacheService>.Instance, analytics, _cacheDir);
     }
 
     public void Dispose()
     {
-        CleanupCacheFile("strings");
-        CleanupCacheFile("testobj");
-        CleanupCacheFile("container");
-        CleanupCacheFile("number");
-        CleanupCacheFile("dict");
-    }
-
-    private void CleanupCacheFile(string key)
-    {
-        var path = Path.Combine(_cacheDir, key + ".json");
-        if (File.Exists(path))
-            File.Delete(path);
+        if (Directory.Exists(_cacheDir))
+            Directory.Delete(_cacheDir, recursive: true);
     }
 
     [Fact]
@@ -98,26 +87,21 @@ public class JsonFileCacheServiceTests : IDisposable
         Assert.DoesNotContain("old content", content);
     }
 
+    // GetCacheLocation resolves off AppContext.BaseDirectory, which two concurrent test runs share
+    // as the same physical bin/ — deleting and recreating that real "cache" folder here used to
+    // race a second run doing the same thing ("Directory not empty"). Redirecting BaseDirectory to
+    // a unique temp root for the one SaveAsync call gives this test a directory nothing else on the
+    // machine ever created, so there is nothing left to race.
     [Fact]
     public async Task SaveAsync_CreatesDirectory_IfItDoesNotExist()
     {
-        var cacheDir = Path.Combine(_cacheDir);
-        if (Directory.Exists(cacheDir))
-            Directory.Delete(cacheDir, recursive: true);
+        var missing = Path.Combine(_cacheDir, "not-yet");
+        var service = new JsonFileCacheService(
+            NullLogger<JsonFileCacheService>.Instance, Substitute.For<IAnalyticsService>(), missing);
 
-        try
-        {
-            await _service.SaveAsync("testkey", "test");
+        await service.SaveAsync("testkey", "test");
 
-            var path = Path.Combine(cacheDir, "testkey.json");
-            Assert.True(File.Exists(path));
-        }
-        finally
-        {
-            if (Directory.Exists(cacheDir))
-                Directory.Delete(cacheDir, recursive: true);
-            Directory.CreateDirectory(cacheDir);
-        }
+        Assert.True(File.Exists(Path.Combine(missing, "testkey.json")));
     }
 
     [Fact]

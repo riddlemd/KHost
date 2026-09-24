@@ -12,10 +12,9 @@ using Microsoft.Extensions.Options;
 
 namespace KHost.UnitTests.Domain.Services;
 
-[Collection(FileCacheCollection.Name)]
 public class SingerQueueServiceTests : IDisposable
 {
-    private static readonly string _cacheDir = Path.Combine(AppContext.BaseDirectory, "cache");
+    private readonly string _cacheDir = Path.Combine(Path.GetTempPath(), $"khost-queue-cache-{Guid.NewGuid():N}");
     private readonly ICacheService _cacheService;
     private readonly IPerformanceService _performanceService;
     private readonly IUsersService _usersService;
@@ -28,7 +27,7 @@ public class SingerQueueServiceTests : IDisposable
     public SingerQueueServiceTests()
     {
         var analyticsCache = Substitute.For<IAnalyticsService>();
-        _cacheService = new JsonFileCacheService(NullLogger<JsonFileCacheService>.Instance, analyticsCache);
+        _cacheService = new JsonFileCacheService(NullLogger<JsonFileCacheService>.Instance, analyticsCache, _cacheDir);
         _performanceService = Substitute.For<IPerformanceService>();
         _usersService = Substitute.For<IUsersService>();
         _venuesService = Substitute.For<IVenuesService>();
@@ -67,9 +66,8 @@ public class SingerQueueServiceTests : IDisposable
 
     public void Dispose()
     {
-        var cacheFile = Path.Combine(_cacheDir, "singer-queue.json");
-        if (File.Exists(cacheFile))
-            File.Delete(cacheFile);
+        if (Directory.Exists(_cacheDir))
+            Directory.Delete(_cacheDir, recursive: true);
     }
 
     [Fact]

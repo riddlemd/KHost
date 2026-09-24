@@ -162,9 +162,12 @@ and that is a decision the flags let the host make separately rather than all at
 
 - **`IScreenServer` survives, wrapped.** `ScreenDisplayProvider` holds it rather than replacing it:
   the registration handshake, the MAC and the per-screen stream-URL rewrite are all still its job,
-  and the provider is a face over them. There is one way to reach a screen — `PlaybackService`
-  drives displays, and the screens are one of them. The server registers one screen (a constant,
-  not an option) and sends only by `BroadcastCommandAsync`.
+  and the provider is a face over them. There is one way to reach a screen — `ScreenDisplayProvider`
+  itself, and nothing else holds `IScreenServer` any more. `PlaybackService` drives transport
+  through it like any other display; the marquee, QR codes, break music card and next-singer card
+  are pulled and sent by the provider on its own, in response to what the broker says moved, never
+  pushed by `PlaybackService` or by the overlay services that build them. The server registers one
+  screen (a constant, not an option) and sends only by `BroadcastCommandAsync`.
 - **Switching displays** disconnects whatever was live before connecting the new one, in
   `SettingsButton.SelectDisplayAsync`, and every provider is asked — two displays carrying one song
   is the state the control exists to make unreachable. The "Launch Screen" confirm in

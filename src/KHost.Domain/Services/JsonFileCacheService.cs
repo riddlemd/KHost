@@ -10,11 +10,15 @@ public class JsonFileCacheService : ICacheService
     private readonly SemaphoreSlim _lock = new(1, 1);
     private readonly ILogger<JsonFileCacheService> _logger;
     private readonly IAnalyticsService _analytics;
+    private readonly string _directory;
 
-    public JsonFileCacheService(ILogger<JsonFileCacheService> logger, IAnalyticsService analytics)
+    /// <param name="directory">Defaults to <c>cache</c> beside the executable. A test passes its own, since a
+    /// shared one is deleted and rewritten under any other test run using the same build output.</param>
+    public JsonFileCacheService(ILogger<JsonFileCacheService> logger, IAnalyticsService analytics, string? directory = null)
     {
         _logger = logger;
         _analytics = analytics;
+        _directory = directory ?? Path.Combine(AppContext.BaseDirectory, "cache");
     }
 
     public async Task<T?> LoadAsync<T>(string key)
@@ -73,6 +77,6 @@ public class JsonFileCacheService : ICacheService
     }
 
     private string GetCacheLocation(string key)
-        => Path.Combine(AppContext.BaseDirectory, "cache", JsonNamingPolicy.KebabCaseLower.ConvertName(key) + ".json");
+        => Path.Combine(_directory, JsonNamingPolicy.KebabCaseLower.ConvertName(key) + ".json");
 
 }
