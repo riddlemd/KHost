@@ -12,8 +12,7 @@ let incoming = null;
 let stemMixer = null;
 
 /// Whichever element is about to be heard. A handover brings the new stream up to speed behind
-/// the one still playing, and this is what the transport, the correction loop and the state
-/// report all address.
+/// the one still playing, and this is what the transport and the state report both address.
 ///
 /// A stem mix answers here too, shaped enough like an element that none of those callers has to
 /// know which kind of song is playing.
@@ -352,8 +351,7 @@ async function fadeOutAndStop(fadeMs) {
     send({ type: 'state', position: 0, duration: 0, playing: false });
 }
 
-// The second channel. No timeline and no correction: only the screen the room hears receives any
-// of it, so there is no group for it to stay in step with.
+// The second channel, for break music and an ad's bed. It has no song position of its own.
 let backgroundVolume = 1;
 let backgroundGeneration = 0;
 
@@ -388,73 +386,6 @@ async function fadeOutBackground(fadeMs) {
     teardownBackground();
     background.volume = backgroundVolume;
 }
-
-// Screens attach at different moments, so each steers onto the host's timeline rather than its own
-// start time, never via playbackRate: that pitches audio, and WKWebView walks currentTime backwards.
-const REALIGN_THRESHOLD = 0.15;
-
-// A seek costs a rebuffer, so the drift has to be genuine rather than one noisy sample.
-const REALIGN_CONFIRMATIONS = 3;
-
-let clockOffsetMs = 0;
-let timeline = null;
-let isPrimary = false;
-
-let driftConfirmations = 0;
-
-function hostNowMs() {
-    return Date.now() + clockOffsetMs;
-}
-
-/// Where the stream should be right now, or null when the group is not playing.
-function expectedStreamTime() {
-    if (!timeline) return null;
-    if (!timeline.playing) return timeline.position;
-
-    const elapsed = (hostNowMs() - timeline.anchorEpochMs) / 1000;
-    // Before the anchor the group has not started yet; hold at the start position.
-    return timeline.position + Math.max(0, elapsed);
-}
-
-function correct() {
-    // Whichever is holding the song. A room may have one screen drawing it and another streaming
-    // the render of it, and both have to answer the same timeline to within the threshold below.
-    const player = target();
-
-    // The primary defines the timeline rather than chasing one, so it is never corrected.
-    // There is nothing for it to be corrected towards.
-    if (isPrimary) {
-        video.playbackRate = 1;
-        return;
-    }
-
-    const expected = expectedStreamTime();
-    if (expected === null || player.readyState < 2 || player.seeking) return;
-
-    if (!timeline.playing) {
-        video.playbackRate = 1;
-        return;
-    }
-
-    // Every screen plays at true speed. The only correction is where the playhead sits.
-    video.playbackRate = 1;
-
-    const error = player.currentTime - expected;
-
-    if (Math.abs(error) < REALIGN_THRESHOLD) {
-        driftConfirmations = 0;
-        return;
-    }
-
-    if (++driftConfirmations < REALIGN_CONFIRMATIONS) return;
-
-    driftConfirmations = 0;
-    try { player.currentTime = expected; } catch { /* outside the buffered range yet */ }
-}
-
-// setInterval, not rAF: rAF stops while the window is occluded, freezing the correction exactly
-// when a screen is most likely to have drifted.
-setInterval(correct, 200);
 
 // Pixels per second the band travels when a venue has not chosen. A rate, not a lap time, so a
 // long line does not race to keep the same pace as a short one.
@@ -739,17 +670,14 @@ function handleCommand(raw) {
     let message;
     try { message = JSON.parse(raw); } catch { return; }
 
-    // Taking the screen back: a song starting, or the picture being set. Deliberately not marquee,
-    // codes or a timeline tick, which would cancel an announcement the host had only just made.
+    // Taking the screen back: a song starting, or the picture being set. Deliberately not marquee
+    // or codes, which would cancel an announcement the host had only just made.
     if (['load', 'play', 'stop', 'show-image', 'hide-image'].includes(message.type)) clearNextSinger();
 
     switch (message.type) {
         case 'load':
             playbackGeneration++;
             placeholder.hidden = false;
-            // The old timeline would seek the new stream to a position that means nothing in it.
-            timeline = null;
-            driftConfirmations = 0;
             // Where this stream sits in the song. A rebuild after a seek sends new values, and the
             // words are drawn against the song, so they have to move with it.
             songOffsetSeconds = message.songOffsetSeconds || 0;
@@ -783,21 +711,6 @@ function handleCommand(raw) {
             // Null clears it, which is what a song with no words looks like.
             overlay.setLyrics(message.lyrics || null);
             break;
-        case 'clock':
-            clockOffsetMs = message.offsetMs || 0;
-            break;
-        case 'timeline': {
-            const next = {
-                position: message.position || 0,
-                anchorEpochMs: message.anchorEpochMs || 0,
-                playing: message.playing === true,
-            };
-
-            isPrimary = message.primary === true;
-
-            timeline = next;
-            break;
-        }
         case 'play':
             playbackGeneration++;
             placeholder.hidden = true;
@@ -815,7 +728,6 @@ function handleCommand(raw) {
             target().pause();
             break;
         case 'stop':
-            timeline = null;
             fadeOutAndStop(Math.max(1, message.fadeMs || 0));
             break;
         case 'seek':
@@ -830,7 +742,7 @@ function handleCommand(raw) {
             // visibility, not display: display:none drops it from the render tree, stalling WebKit's decoder.
             videos.forEach((v) => { v.style.visibility = message.enabled === false ? 'hidden' : ''; });
             // The canvas hides the same way, and for the same reason: the engine keeps drawing so
-            // its clock and the group's stay together while the picture is off.
+            // the words are still on the song when the picture comes back.
             lyricsCanvas.style.visibility = message.enabled === false ? 'hidden' : '';
             blanked.hidden = message.enabled !== false;
             break;
@@ -926,9 +838,8 @@ background.addEventListener('error', () => {
 
 // The host polls nothing; position reaches it only through these reports.
 setInterval(() => {
-    const expected = expectedStreamTime();
-    // The engine when it holds the song: reporting the idle video element's zero would have the
-    // host correct the whole group towards a screen that is not playing anything.
+    // The engine when it holds the song: reporting the idle video element's zero would move the
+    // host's playhead back to the start of a song that is still playing.
     const player = target();
 
     send({
@@ -936,10 +847,8 @@ setInterval(() => {
         position: Number.isFinite(player.currentTime) ? player.currentTime : 0,
         duration: Number.isFinite(player.duration) ? player.duration : 0,
         playing: !player.paused && !player.ended && player.readyState > 2,
-        // Sample time, not send time: guessed latency would bias the timeline forever.
+        // Sample time, not send time: guessed latency would bias the host's playhead forever.
         sampledAtEpochMs: Date.now(),
-        // Without this a screen drifting off the group is invisible to the host.
-        expected: expected === null ? -1 : expected,
         rate: player.playbackRate,
         readyState: player.readyState,
     });

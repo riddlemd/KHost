@@ -1,8 +1,8 @@
 # What an `IDisplayProvider` is
 
 **Implemented.** `IDisplayProvider` is in `KHost.Abstractions/Services/`, the screens reach it
-through `KHost.Domain/Services/Screens/ScreenDisplayProvider.cs`, and `PlaybackService` drives the
-whole collection through one dispatcher. The interface itself is the authority on the current
+through `KHost.Domain/Services/Screens/ScreenDisplayProvider.cs`, and `PlaybackService` drives
+whichever one is connected through one dispatcher. The interface itself is the authority on the current
 surface; this note keeps the reasoning behind its shape.
 
 > A display provider owns **a transport to places the song comes out**, and everything the host can
@@ -50,13 +50,6 @@ public interface IDisplayProvider
     /// <summary>Names the transport for the console, so no wording is built into the host.</summary>
     string Name { get; }
 
-    /// <summary>How many devices this transport drives at once. One, for now, everywhere.</summary>
-    /// <remarks>Enforced, not advertised: a provider at its limit refuses the next connection
-    /// rather than accepting it and behaving oddly. It is also the tripwire — ConnectedDeviceId,
-    /// SessionId and every argument-free member below are honest only while this is 1. The day it
-    /// is 2, those become collections and each drawable member needs a device to address.</remarks>
-    int MaxConnectedDevices { get; }
-
     // --- discovery ---
 
     bool IsDiscovering { get; }
@@ -66,8 +59,11 @@ public interface IDisplayProvider
 
     // --- connection ---
 
+    /// <summary>The one device this transport drives; every argument-free member addresses it.</summary>
     string? ConnectedDeviceId { get; }
     Guid? SessionId { get; }
+
+    /// <summary>Refused, not a replacement, while a different device is connected.</summary>
     Task<bool> ConnectAsync(string deviceId, CancellationToken cancellationToken = default);
     Task DisconnectAsync(CancellationToken cancellationToken = default);
 
@@ -101,8 +97,10 @@ public interface IDisplayProvider
 }
 ```
 
-There is deliberately **no timeline or sync member**. With one display there is nothing to steer
-onto anything else.
+There is deliberately **no timeline or sync member, and no device count**. One display, full stop:
+the local screen or a receiver, never both and never two of either. A plugin display handles its
+own communication with its device, so the host keeps no seam for several — the display that is up
+defines the song's clock and nothing is steered onto anything else.
 
 ## What a device carries
 
@@ -164,22 +162,25 @@ and that is a decision the flags let the host make separately rather than all at
 
 - **`IScreenServer` survives, wrapped.** `ScreenDisplayProvider` holds it rather than replacing it:
   the registration handshake, the MAC and the per-screen stream-URL rewrite are all still its job,
-  and the provider is a face over them. What went instead was the *second* way to reach a screen —
-  `PlaybackService` no longer sends to screens and drive displays as two different acts.
+  and the provider is a face over them. There is one way to reach a screen — `PlaybackService`
+  drives displays, and the screens are one of them. The server registers one screen (a constant,
+  not an option) and sends only by `BroadcastCommandAsync`.
 - **Switching displays** disconnects whatever was live before connecting the new one, in
   `SettingsButton.SelectDisplayAsync`, and every provider is asked — two displays carrying one song
-  is the state the control exists to make unreachable. The selector is a **Quick Settings row in
+  is the state the control exists to make unreachable. The "Launch Screen" confirm in
+  `DialogService` goes the same way, so a second screen is refused by the provider rather than
+  opened beside the first. `ConnectedDisplay.Find` is how the host finds the one provider that is
+  connected among the several registered. The selector is a **Quick Settings row in
   the menu**, beside Venue and Theme: the three ask the same question — what is this set to, and
   what else could it be — so they share a shape rather than inventing a control for this one.
 - **Searching is a toggle driven by `IsDiscovering`**, never by a flag the UI keeps. Discovery
   outlives the call that starts it (the Cast provider sweeps once, then listens continuously), so
   anything tracking its own "searching" state says so for one sweep and then lies. Stopping has to
   be reachable: a console runs all night on whatever wifi the room has.
-- **Roles and sync came out whole.** `ScreenCoordinationService`, `IScreenCoordinationService`,
-  `ScreenCapabilities.SupportsSync` and the `RegisterPayload` field are deleted. The one thing that
-  had to survive was the part that was never about roles: the venue's volume, which that service
-  applied on every connect and venue edit. It now lives on `ScreenDisplayProvider`, which is where
-  the screens' own housekeeping belongs.
+- **There are no roles and no sync.** No coordination service, no sync capability, no timeline
+  command and no start lead. The one thing that was never about roles is the venue's volume,
+  applied on every connect and venue edit by `ScreenDisplayProvider`, which is where the screens'
+  own housekeeping belongs.
 - **`LibraryBreakMusicProvider` routes to the displays**, not to an audio screen. A display that
   cannot take a second channel inherits the no-op defaults and still counts as somewhere the track
   played, or a television that simply cannot carry the bed would suppress the card naming it.
@@ -193,4 +194,4 @@ and that is a decision the flags let the host make separately rather than all at
 2. What does a plugin author implement, minimally, to send a song to a device?
 3. Which component decides a stream needs words burned into it, and what does it ask?
 4. Why are lyrics burned when unsupported while the marquee is simply dropped?
-5. What breaks first if a venue wants two displays at once?
+5. Why is there no way for a venue to have two displays at once?

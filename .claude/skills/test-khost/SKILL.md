@@ -113,7 +113,8 @@ one rotation per singer added, so a raw count of 5 can still be correct.
 Numbers to compare against, not thresholds to enforce:
 
 - Host CPU **~3%** while playing, **~0%** idle
-- `SetTimelineCommand` on the screen at **1.00/s**, steady (`14:27:05.865, :06.867, :07.868…`)
+- No periodic command traffic while a song plays: the screen logs `Command received:` only for
+  real commands (load, play, seek, stop), while its state reports flow the other way
 - Host log **~140 lines for a whole day** of normal use
 - Graceful stop to process exit: **1–2s**
 - Zero `ffmpeg` after shutdown

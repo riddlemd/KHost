@@ -7,7 +7,6 @@ public interface IScreenServer
     event EventHandler<ScreenStateReceivedEventArgs>? StateReceived;
 
     IAsyncEnumerable<IScreenConnection> GetConnectedScreensAsync();
-    Task SendCommandAsync(string screenId, IScreenCommand command);
     Task BroadcastCommandAsync(IScreenCommand command);
 }
 

@@ -158,10 +158,10 @@ Dialogs close via their X, which moves with dialog height, so re-capture and re-
 
 1. Enqueue a song for the selected singer (search → Enqueue). The library ships with test media only
    if previously imported; check the `Media` count in `cache/khost.db`.
-2. Screens dialog → Launch (Local). The screen registers in ~1s: grep the log for
-   `RegisterScreen sent`. It takes the audio + primary roles when alone.
-3. Play from the singer's queue row. Evidence of health: `Command received: SetTimelineCommand`
-   about once a second, and the Screens dialog row showing "Artist - Title ▶ Playing mm:ss / mm:ss".
+2. Display menu → Local Display. The screen registers in ~1s: grep the log for
+   `RegisterScreen sent`. One screen at a time; a second is refused.
+3. Play from the singer's queue row. Evidence of health: `Command received: PlayCommand` on the
+   screen, the console's position advancing (it follows the screen's state reports), and the row showing "Artist - Title ▶ Playing mm:ss / mm:ss".
 4. Stop: expect `Playback stopping (fade=00:00:05)` and `Command received: StopCommand` in the same
    second, then `Queue rotated`.
 5. Playback needs ffmpeg on PATH (one process per song, HLS). After shutdown there must be zero

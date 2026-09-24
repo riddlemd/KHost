@@ -61,11 +61,6 @@ public class ScreenServerServiceTests
         return callback.TryRegisterScreen(connectionId, hostAddress, new SignedEnvelope(screenId, seq, payload, mac).ToJson());
     }
 
-    /// <summary>The server addresses any number of screens; only the default cap says one may
-    /// register. These raise it rather than assert the fan-out through a door shut to one.</summary>
-    private ScreenServerService MultiScreenService()
-        => ServiceWithOptions(new ScreenServerService.ServiceOptions { MaxRegisteredScreens = 8 });
-
     private bool SendState(string connectionId, string screenId, IScreenState state, long seq, byte[]? signWith = null)
     {
         var nonce = Nonce(connectionId);
@@ -240,14 +235,21 @@ public class ScreenServerServiceTests
     [Fact]
     public async Task OnScreenDisconnected_RemovesTheMatchingConnection()
     {
-        var service = MultiScreenService();
-        Register("conn-a", "Screen 1", on: service);
-        Register("conn-b", "Screen 2", on: service);
+        Register("conn-a", "Screen 1");
 
-        ((IHubCallback)service).OnScreenDisconnected("conn-a");
+        Callback.OnScreenDisconnected("conn-a");
 
-        var only = Assert.Single(await ConnectedScreensAsync(service));
-        Assert.Equal("Screen 2", only.ScreenId);
+        Assert.Empty(await ConnectedScreensAsync());
+    }
+
+    [Fact]
+    public async Task OnScreenDisconnected_ForAnotherConnection_LeavesTheScreenTracked()
+    {
+        Register("conn-a", "Screen 1");
+
+        Callback.OnScreenDisconnected("conn-unregistered");
+
+        Assert.Equal("Screen 1", Assert.Single(await ConnectedScreensAsync()).ScreenId);
     }
 
     [Fact]
@@ -286,7 +288,7 @@ public class ScreenServerServiceTests
     }
 
     [Fact]
-    public async Task SendCommandAsync_SendsASignedCommandToTheMatchingConnection()
+    public async Task BroadcastCommandAsync_SendsASignedCommandToTheScreensConnection()
     {
         Register("conn-a", "Screen 1");
 
@@ -294,7 +296,7 @@ public class ScreenServerServiceTests
         await _singleClient.SendCoreAsync(
             Arg.Any<string>(), Arg.Do<object?[]>(a => sent = a[0] as string), Arg.Any<CancellationToken>());
 
-        await _service.SendCommandAsync("Screen 1", new PlayCommand());
+        await _service.BroadcastCommandAsync(new PlayCommand());
 
         _clients.Received().Client("conn-a");
 
@@ -307,28 +309,28 @@ public class ScreenServerServiceTests
     }
 
     [Fact]
-    public async Task SendCommandAsync_IsANoOp_ForUnknownScreenId()
+    public async Task BroadcastCommandAsync_IsANoOp_WithNoScreenRegistered()
     {
-        await _service.SendCommandAsync("Nope", new PlayCommand());
+        await _service.BroadcastCommandAsync(new PlayCommand());
 
         await _singleClient.DidNotReceive().SendCoreAsync(
             Arg.Any<string>(), Arg.Any<object?[]>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public async Task SendCommandAsync_DoesNotSend_AfterTheScreenDisconnects()
+    public async Task BroadcastCommandAsync_DoesNotSend_AfterTheScreenDisconnects()
     {
         Register("conn-a", "Screen 1");
         Callback.OnScreenDisconnected("conn-a");
 
-        await _service.SendCommandAsync("Screen 1", new PlayCommand());
+        await _service.BroadcastCommandAsync(new PlayCommand());
 
         await _singleClient.DidNotReceive().SendCoreAsync(
             Arg.Any<string>(), Arg.Any<object?[]>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public async Task SendCommandAsync_RewritesTheStreamUrlForThatScreen()
+    public async Task BroadcastCommandAsync_GivesAScreenAcrossTheNetworkAStreamUrlItCanReach()
     {
         Register("conn-across", "Across", hostAddress: "192.168.0.99");
 
@@ -336,45 +338,37 @@ public class ScreenServerServiceTests
         await _singleClient.SendCoreAsync(
             Arg.Any<string>(), Arg.Do<object?[]>(a => sent = a[0] as string), Arg.Any<CancellationToken>());
 
-        await _service.SendCommandAsync("Across", new LoadMediaCommand
+        await _service.BroadcastCommandAsync(new LoadMediaCommand
         {
             StreamUrl = "http://localhost:5251/media/abc/stream.m3u8",
         });
 
         Assert.Contains("192.168.0.99:5251", InnerPayload(sent));
+        Assert.DoesNotContain("localhost:5251", InnerPayload(sent));
     }
 
     [Fact]
-    public async Task BroadcastCommandAsync_GivesEachScreenAStreamUrlItCanReach()
+    public async Task BroadcastCommandAsync_LeavesALocalScreensStreamUrlAlone()
     {
-        var service = MultiScreenService();
-        var here = Substitute.For<ISingleClientProxy>();
-        var across = Substitute.For<ISingleClientProxy>();
-        _clients.Client("conn-here").Returns(here);
-        _clients.Client("conn-across").Returns(across);
+        Register("conn-here", "Here", hostAddress: "127.0.0.1");
 
-        Register("conn-here", "Here", hostAddress: "127.0.0.1", on: service);
-        Register("conn-across", "Across", hostAddress: "192.168.0.99", on: service);
+        string? sent = null;
+        await _singleClient.SendCoreAsync(
+            Arg.Any<string>(), Arg.Do<object?[]>(a => sent = a[0] as string), Arg.Any<CancellationToken>());
 
-        string? herePayload = null, acrossPayload = null;
-        await here.SendCoreAsync(Arg.Any<string>(), Arg.Do<object?[]>(a => herePayload = a[0] as string), Arg.Any<CancellationToken>());
-        await across.SendCoreAsync(Arg.Any<string>(), Arg.Do<object?[]>(a => acrossPayload = a[0] as string), Arg.Any<CancellationToken>());
-
-        await service.BroadcastCommandAsync(new LoadMediaCommand
+        await _service.BroadcastCommandAsync(new LoadMediaCommand
         {
             StreamUrl = "http://localhost:5251/media/abc/stream.m3u8",
         });
 
-        Assert.Contains("localhost:5251", InnerPayload(herePayload));
-        Assert.Contains("192.168.0.99:5251", InnerPayload(acrossPayload));
-        Assert.DoesNotContain("localhost:5251", InnerPayload(acrossPayload));
+        Assert.Contains("localhost:5251", InnerPayload(sent));
     }
 
     [Fact]
-    public async Task BroadcastCommandAsync_FansOutPerScreen_EvenWithNoUrlToRewrite()
+    public async Task BroadcastCommandAsync_SendsToTheScreensOwnConnection_EvenWithNoUrlToRewrite()
     {
-        // No Clients.All any more: each screen's command carries its own MAC, so a broadcast is a
-        // per-connection send even for a command with nothing screen-specific in it.
+        // Never Clients.All: the command carries a MAC under the screen's own key, so even one with
+        // nothing screen-specific in it goes to that connection alone.
         Register("conn-a", "Screen 1");
 
         await _service.BroadcastCommandAsync(new PlayCommand());
@@ -384,7 +378,7 @@ public class ScreenServerServiceTests
     }
 
     [Fact]
-    public async Task SendCommandAsync_SerializesTheCommandThroughItsBaseType()
+    public async Task BroadcastCommandAsync_SerializesTheCommandThroughItsBaseType()
     {
         Register("conn-a", "Screen 1");
 
@@ -392,53 +386,36 @@ public class ScreenServerServiceTests
         await _singleClient.SendCoreAsync(
             Arg.Any<string>(), Arg.Do<object?[]>(a => sent = a[0] as string), Arg.Any<CancellationToken>());
 
-        await _service.SendCommandAsync("Screen 1", new SeekCommand { Position = TimeSpan.FromSeconds(30) });
+        await _service.BroadcastCommandAsync(new SeekCommand { Position = TimeSpan.FromSeconds(30) });
 
         var back = System.Text.Json.JsonSerializer.Deserialize<ScreenCommandBase>(
             InnerPayload(sent)!, new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web));
         Assert.Equal(TimeSpan.FromSeconds(30), Assert.IsType<SeekCommand>(back).Position);
     }
 
+    // One display at a time: a hand-launched second screen must not simply join.
     [Fact]
-    public async Task Register_BeyondScreenCap_IsRefused_AndDoesNotRaiseScreenConnected()
-    {
-        var service = ServiceWithOptions(new ScreenServerService.ServiceOptions { MaxRegisteredScreens = 2 });
-        var raised = 0;
-        service.ScreenConnected += (_, _) => raised++;
-
-        RegisterOn(service, "conn-a", "Screen 1");
-        RegisterOn(service, "conn-b", "Screen 2");
-        Assert.False(RegisterOn(service, "conn-c", "Screen 3"));
-
-        var screens = await ConnectedScreensAsync(service);
-        Assert.Equal(2, screens.Count);
-        Assert.DoesNotContain(screens, s => s.ScreenId == "Screen 3");
-        Assert.Equal(2, raised);
-    }
-
-    // The cap's default is the behaviour, not the option: a venue never sets this, so a default of
-    // sixteen meant a hand-launched second screen simply joined a host driving one display.
-    [Fact]
-    public async Task Register_ASecondScreen_IsRefusedByDefault()
+    public async Task Register_ASecondScreen_IsRefused_AndDoesNotRaiseScreenConnected()
     {
         var service = new ScreenServerService(_hubContext, _keys);
+        var raised = 0;
+        service.ScreenConnected += (_, _) => raised++;
 
         Assert.True(RegisterOn(service, "conn-a", "Screen 1"));
         Assert.False(RegisterOn(service, "conn-b", "Screen 2"));
 
         var only = Assert.Single(await ConnectedScreensAsync(service));
         Assert.Equal("Screen 1", only.ScreenId);
+        Assert.Equal(1, raised);
     }
 
     [Fact]
-    public async Task Register_ReRegistrationOfAnExistingIdAtCap_StillOverwrites()
+    public async Task Register_ReRegistrationOfTheSameId_StillOverwrites()
     {
-        var service = ServiceWithOptions(new ScreenServerService.ServiceOptions { MaxRegisteredScreens = 1 });
+        RegisterOn(_service, "conn-a", "Screen 1");
+        Assert.True(RegisterOn(_service, "conn-b", "Screen 1"));
 
-        RegisterOn(service, "conn-a", "Screen 1");
-        RegisterOn(service, "conn-b", "Screen 1");
-
-        var only = Assert.Single(await ConnectedScreensAsync(service));
+        var only = Assert.Single(await ConnectedScreensAsync());
         Assert.Equal("conn-b", only.ConnectionId);
     }
 
@@ -485,7 +462,7 @@ public class ScreenServerServiceTests
     /// <summary>Concurrent sends reach the screen in order; a non-advancing sequence is dropped.</summary>
     /// <remarks>Deterministic: the first send is held until the second could overtake.</remarks>
     [Fact]
-    public async Task SendCommandAsync_TwoAtOnce_ReachTheScreenInSequenceOrder()
+    public async Task BroadcastCommandAsync_TwoAtOnce_ReachTheScreenInSequenceOrder()
     {
         Register("conn-a", "Screen 1");
 
@@ -510,12 +487,12 @@ public class ScreenServerServiceTests
                 lock (delivered) delivered.Add(seq);
             });
 
-        var first = _service.SendCommandAsync("Screen 1", new PlayCommand());
+        var first = _service.BroadcastCommandAsync(new PlayCommand());
         await firstIsHeld.Task;
 
         // Issued while the first is still in the transport. Ordered delivery parks it behind;
         // unordered delivery lets it straight past.
-        var second = _service.SendCommandAsync("Screen 1", new PauseCommand());
+        var second = _service.BroadcastCommandAsync(new PauseCommand());
         var overtook = await Task.WhenAny(second, Task.Delay(TimeSpan.FromMilliseconds(250))) == second;
 
         release.TrySetResult();

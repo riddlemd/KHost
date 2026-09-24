@@ -12,14 +12,6 @@ public interface IDisplayProvider
     /// <summary>Names the transport for the console, so no wording here has to be built in.</summary>
     string Name { get; }
 
-    /// <summary>How many devices this transport drives at once.</summary>
-    /// <remarks>Enforced, not advertised: a provider at its limit refuses the next connection
-    /// rather than taking it and behaving oddly. It is also the tripwire —
-    /// <see cref="ConnectedDeviceId"/>, <see cref="SessionId"/> and every argument-free member
-    /// below are honest only while this is 1. The day it is 2 they become collections and each
-    /// drawable member needs a device to address.</remarks>
-    int MaxConnectedDevices => 1;
-
     /// <summary>The only clock with no syncable screen; a free timer would end the song early.</summary>
     event EventHandler<DisplayPlaybackStatus>? PlaybackStatusChanged;
 
@@ -47,14 +39,16 @@ public interface IDisplayProvider
 
     // --- connection ---
 
+    /// <summary>The one device this transport drives, or null. Every argument-free member below
+    /// addresses it.</summary>
     string? ConnectedDeviceId { get; }
 
     /// <summary>Identifies the device session; changes on reconnect. Null if disconnected.</summary>
     Guid? SessionId { get; }
 
     /// <summary>Replaces whatever was connected before: one song, one device.</summary>
-    /// <returns>False when the device refused, or when the provider is already at
-    /// <see cref="MaxConnectedDevices"/> and will not give up what it has.</returns>
+    /// <returns>False when the device refused, or when the provider already drives a different
+    /// device and will not give it up.</returns>
     Task<bool> ConnectAsync(string deviceId, CancellationToken cancellationToken = default);
 
     Task DisconnectAsync(CancellationToken cancellationToken = default);

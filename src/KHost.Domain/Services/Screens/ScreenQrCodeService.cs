@@ -181,7 +181,7 @@ public sealed class ScreenQrCodeService : BaseService, IScreenQrCodeService, IDi
         {
             // Sent even when there is nothing up: it is the whole state, so it also clears a code
             // left on a screen that dropped and came back.
-            await _screenServer.SendCommandAsync(e.Connection.ScreenId, await BuildAsync());
+            await _screenServer.BroadcastCommandAsync(await BuildAsync());
         }
         catch (Exception ex)
         {

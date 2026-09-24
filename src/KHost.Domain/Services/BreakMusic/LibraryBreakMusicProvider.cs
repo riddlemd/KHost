@@ -4,6 +4,7 @@ using KHost.Abstractions.Services.IPC;
 using KHost.Abstractions.Messaging;
 using KHost.Abstractions.Messaging.Messages;
 using Microsoft.Extensions.Logging;
+using KHost.Domain.Services.Screens;
 
 namespace KHost.Domain.Services.BreakMusic;
 
@@ -226,27 +227,22 @@ public class LibraryBreakMusicProvider : BaseService, IBreakMusicProvider, IDisp
     /// would otherwise be suppressed by a television that simply cannot carry the bed.</remarks>
     private async Task<bool> SendToDisplaysAsync(IScreenCommand command)
     {
-        var sent = false;
-
-        foreach (var display in _displays)
+        if (ConnectedDisplay.Find(_displays) is not { } connected)
         {
-            if (display.ConnectedDeviceId is not { Length: > 0 }) continue;
-
-            try
-            {
-                await DispatchAsync(display, command);
-                sent = true;
-            }
-            catch (Exception ex)
-            {
-                Logger.LogWarning(ex, "Failed to send {Command} to {Provider}", command.GetType().Name, display.Name);
-            }
+            Logger.LogInformation("Break music has nowhere to play: nothing is connected");
+            return false;
         }
 
-        if (!sent)
-            Logger.LogInformation("Break music has nowhere to play: nothing is connected");
-
-        return sent;
+        try
+        {
+            await DispatchAsync(connected.Provider, command);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Failed to send {Command} to {Provider}", command.GetType().Name, connected.Provider.Name);
+            return false;
+        }
     }
 
     private static Task DispatchAsync(IDisplayProvider display, IScreenCommand command) => command switch
