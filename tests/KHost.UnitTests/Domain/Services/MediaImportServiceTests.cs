@@ -1,3 +1,4 @@
+using System.Reflection;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Models.Plugins;
 using KHost.Abstractions.Repositories;
@@ -123,6 +124,33 @@ public class MediaImportServiceTests
         Assert.Equal(ImportState.Cancelling, _service.State);
         tcs.SetResult(new Media { FilePath = "/a.mp4", Title = "A" });
         await WaitForIdleAsync();
+    }
+
+    /// <summary>The bug this exists for: the finally block used to set Idle, then dispose and null
+    /// the field unconditionally, so a StartAsync that raced into the gap had its brand-new CTS
+    /// disposed and its own field entry wiped out from under it. The field is poked directly to
+    /// stand in for that race, since the real one is a same-instant multi-thread race with no seam
+    /// to trigger deterministically.</summary>
+    [Fact]
+    public async Task RunImportAsync_LeavesANewerCts_WhenAStartAsyncRacedTheCleanup()
+    {
+        var tcs = new TaskCompletionSource<Media>();
+        _parser.LoadAndParseAsync(Arg.Any<string>()).Returns(_ => tcs.Task);
+
+        await _service.StartAsync(["/a.mp4"]);
+
+        var ctsField = typeof(MediaImportService)
+            .GetField("_cts", BindingFlags.NonPublic | BindingFlags.Instance)!;
+        using var impostor = new CancellationTokenSource();
+        ctsField.SetValue(_service, impostor);
+
+        tcs.SetResult(new Media { FilePath = "/a.mp4", Title = "A" });
+        await WaitForIdleAsync();
+
+        // Left alone: not disposed (Cancel would throw ObjectDisposedException otherwise), and
+        // not nulled out from under whichever run actually owns it.
+        Assert.Same(impostor, ctsField.GetValue(_service));
+        impostor.Cancel();
     }
 
     [Fact]
