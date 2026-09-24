@@ -72,9 +72,6 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
     // transcode when the renderer started one, and nothing when the displays play the parts direct.
     private MediaRendition? _rendition;
 
-    /// <summary>The transcode behind the current rendition, which is what there is to close.</summary>
-    private MediaStreamSession? _stream => _rendition?.Session;
-
     private CancellationTokenSource? _reopenSettle;
 
     // An ad's own audio track, which borrows the background channel from break music.
@@ -860,11 +857,6 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
                 return;
             }
 
-            // Only a song still running carries on. A screen arriving to a paused song leaves it
-            // paused: the pause is either the host's or the one a lost display just caused, and
-            // neither should restart the room on its own.
-            bool resume = State == PlaybackState.Playing;
-
             // Reloading costs an ffmpeg spin-up; a running clock resumes the screen behind the UI.
             StopClock();
 
@@ -888,26 +880,25 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
                 await ToDisplaysAsync(new SeekCommand { Position = position });
             }
 
-            if (!resume)
+            // Re-read State rather than a value captured before the awaits above: a host pause or
+            // stop landing mid-sync must be respected, not overridden by a stale "was playing".
+            switch (State)
             {
-                // A screen that joins a paused song still needs to know where the group is parked.
-                await PublishTimelineAsync(isPlaying: false, position);
-                return;
-            }
+                case PlaybackState.Playing:
+                    await ToDisplaysAsync(new PlayCommand());
 
-            // PlayAsync is a no-op while State is already Playing, so drive the screen directly
-            // there and keep it for the paused case, which still needs the state transition.
-            if (State == PlaybackState.Playing)
-            {
-                await ToDisplaysAsync(new PlayCommand());
+                    // Re-anchoring moves the whole group, not just the joiner, which is correct: the
+                    // reload froze the clock, so every screen has to be told where the song now is.
+                    await PublishTimelineAsync(isPlaying: true, position, scheduleAhead: true);
+                    break;
 
-                // Re-anchoring moves the whole group, not just the joiner, which is correct: the
-                // reload froze the clock, so every screen has to be told where the song now is.
-                await PublishTimelineAsync(isPlaying: true, position, scheduleAhead: true);
-            }
-            else
-            {
-                await PlayAsync();
+                case PlaybackState.Paused:
+                    // A screen that joins a paused song still needs to know where the group is
+                    // parked, whether it was already paused or the host paused during the sync.
+                    await PublishTimelineAsync(isPlaying: false, position);
+                    break;
+
+                // Stopped/Stopping: the host moved on while the sync was in flight; nothing to send.
             }
         }
         catch (Exception ex)

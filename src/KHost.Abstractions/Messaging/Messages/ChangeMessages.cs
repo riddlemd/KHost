@@ -14,8 +14,6 @@ public sealed record SingerQueueChanged;
 
 public sealed record PerformancesChanged;
 
-public sealed record ScreensChanged;
-
 public sealed record MediaLibraryChanged;
 
 public sealed record MediaImportChanged;

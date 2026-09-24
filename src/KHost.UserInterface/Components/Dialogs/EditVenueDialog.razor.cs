@@ -34,7 +34,6 @@ public partial class EditVenueDialog
 
     [Parameter] public EventCallback<Venue> OnSave { get; set; }
     [Parameter] public EventCallback OnClose { get; set; }
-    [Parameter] public EventCallback OnOpen { get; set; }
 
     [Inject] private IMediaService Media { get; set; } = default!;
     [Inject] private IMediaPoolService MediaPools { get; set; } = default!;

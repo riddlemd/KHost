@@ -2,7 +2,7 @@
 
 **KHost** — karaoke host app. .NET 10 + Blazor Server UI, Photino screen app. Solution: `KHost.slnx` (no `.sln`).
 
-Projects (`src/`): `Abstractions` (every interface, the shared models, and what a plugin is built against — MIT, no project refs, the bottom layer) ← `Common` (helpers over those contracts, MIT) ← `Domain` (services) / `DataAccess` (EF Core 10 + SQLite) ← `UserInterface` (Blazor Server) and `Screen2` (Photino video output), plus `IPC.SignalR` (UI↔Screen), `Cast` (Chromecast), `LrcLib`, `Telemetry`, `ServiceDefaults`/`AppHost` (Aspire), `tools/` (`KHost.CatalogSync`, the CLI that writes `plugin-catalog.json` entries), `build/` (`KHost.Analyzers`, a netstandard2.0 Roslyn analyzer referenced only at build time), and `tests/` (`KHost.UnitTests` — hermetic, no skips; `KHost.IntegrationTests` — needs ffmpeg/ffprobe, Cast tests skip without the Chromecast emulator on 127.0.0.1:8009).
+Projects (`src/`): `Abstractions` (every interface, the shared models, and what a plugin is built against — MIT, no project refs, the bottom layer) ← `Common` (helpers over those contracts, MIT) ← `Domain` (services) / `DataAccess` (EF Core 10 + SQLite) ← `UserInterface` (Blazor Server) and `Screen2` (Photino video output), plus `IPC.SignalR` (UI↔Screen), `Secrets` (per-OS secret store behind `ISecretStore`; `Interop/` is ported from Git Credential Manager and kept textually close to upstream), `LrcLib`, `Telemetry`, `ServiceDefaults`/`AppHost` (Aspire), `tools/` (`KHost.CatalogSync`, the CLI that writes `plugin-catalog.json` entries), `build/` (`KHost.Analyzers`, a netstandard2.0 Roslyn analyzer referenced only at build time), and `tests/` (`KHost.UnitTests` — hermetic, no skips; `KHost.IntegrationTests` — needs ffmpeg/ffprobe, and the OS secret-store tests skip on any other platform).
 
 ## Commands
 
@@ -16,6 +16,7 @@ dotnet test tests/KHost.IntegrationTests                    # drives real ffmpeg
 dotnet run --project tools/KHost.CatalogSync -- <owner/repo> # add a plugin's GitHub release to plugin-catalog.json
 
 ./build/pack-contracts.sh                                   # pack Abstractions + Common to the local NuGet feed
+./build/check-secrets-drift.sh                               # diff src/KHost.Secrets/Interop against the pinned upstream commit; needs network
 ```
 
 **Prefer `--headless` for testing.** The console is then an ordinary page at `http://localhost:5251`, so it drives with browser tooling and reads with the DOM instead of screenshot coordinate math — the Photino window reaches neither, and a Screen2 window launched over it turns every later capture into a black rectangle. Only the window itself needs the windowed run: native chrome, `SetSize`, and the appliance lockdown. Port 5251 is held by an exclusive `.instance.lock`, so stop one before starting the other.
@@ -86,14 +87,14 @@ network device meets this, and sharing it costs nothing: it is BCL plus a `DllIm
 
 `IMessageBroker` (`KHost.Abstractions/Messaging/`) is how services and components hear about each other. A plugin can subscribe to what the show is doing, `Abstractions` being what it builds against.
 
-- **`Announce(message)`** is fire-and-forget, for "this moved, redraw". **`await PublishAsync(message)`** waits for every handler and is for the case the publisher's next decision depends on: `PlaybackService` awaits the end-of-performance gap so an ad can claim it before break music comes back.
+- **`Announce(message)`** is fire-and-forget, for "this moved, redraw". **`await PublishAsync(message)`** waits for every handler and is for the case the publisher's next decision depends on the outcome.
 - Handlers run **one at a time, in subscription order** — what one does decides what the next may do. A handler that throws is logged and skipped: a broken subscriber must not stop the queue reaching the next singer.
 - Routing is on the message's **runtime type**, and exact — a handler for a base type is not called for a derived one.
 - Subscriptions return `IDisposable`. Hold them in a `SubscriptionSet` and dispose it; a missed unsubscribe keeps a Blazor component — and its whole circuit — alive on the broker.
 - Never take a lock around a publish. `ScreenConnected` arrives on the SignalR hub thread already holding one, which is why those handlers are `_ = Task.Run(...)`.
 - Components `[Inject] IMessageBroker Broker`, subscribe in `OnInitialized`, dispose the set in `Dispose`.
 
-Three things deliberately stay plain C# events, and should stay that way: Screen2's `IMediaPlayer` and `IScreenClient` (a separate process — the broker is in-process and SignalR is the transport), `IDialogService.ShowRequested` (a request with a payload and one legitimate subscriber, not a notification), and `IPlaybackService.PositionChanged` (twice a second for a whole night; it says only that `Position` moved, so take it to redraw a playhead and nothing else).
+Four things deliberately stay plain C# events, and should stay that way: Screen2's `IMediaPlayer` and `IScreenClient` (a separate process — the broker is in-process and SignalR is the transport), `IDialogService.ShowRequested` (a request with a payload and one legitimate subscriber, not a notification), `IPlaybackService.PositionChanged` (twice a second for a whole night; it says only that `Position` moved, so take it to redraw a playhead and nothing else), and `IPlaybackService.PerformanceEnded` (a gap with a payload the subscriber fills: a request, not a notification).
 
 ## What a plugin can reach
 
@@ -494,7 +495,7 @@ clips and the card it puts up between singers are ordinary library rows.
 
 ## Tests
 
-xUnit + NSubstitute, and bunit for components. A test that needs anything outside the process — an external binary (ffmpeg), a live service (the Cast emulator) — belongs in `KHost.IntegrationTests`; `KHost.UnitTests` must stay skip-free so green means everything ran. In-process I/O (temp files, in-memory SQLite) stays in unit tests.
+xUnit + NSubstitute, and bunit for components. A test that needs anything outside the process — an external binary (ffmpeg), a live service (a network device) — belongs in `KHost.IntegrationTests`; `KHost.UnitTests` must stay skip-free so green means everything ran. In-process I/O (temp files, in-memory SQLite) stays in unit tests.
 
 `MethodUnderTest_Scenario_ExpectedBehavior`; substitutes in field initializers; mirror the source layout (`Domain/Services/Foo.cs` → `Domain/Services/FooTests.cs`). Test an announcement by subscribing a counter to the real broker the service was built with (`using var subscription = _broker.Subscribe<VenuesChanged>(_ => raised++)`), or substitute `IMessageBroker` and assert `Received(1).Announce(...)`. A bunit fixture must register a broker — components `[Inject]` one — or every render throws on the missing service.
 

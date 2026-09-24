@@ -895,6 +895,46 @@ public class PlaybackServiceTests : IDisposable
         Assert.True(timeline.Position > TimeSpan.Zero);
     }
 
+    /// <summary>A host pause landing between the sync's awaited display calls must win: replaying
+    /// PlayCommand afterwards would restart the song over the host's own pause.</summary>
+    [Fact]
+    public async Task SyncNewScreenAsync_HostPausesWhileTheSyncIsInFlight_DoesNotReplay()
+    {
+        var (performance, media) = CreatePerformance();
+        await _service.LoadAsync(performance, media);
+        await _service.PlayAsync();
+        await _service.TickAsync();
+        _screenServer.ClearReceivedCalls();
+
+        // Blocks the sync mid-flight, after the reload and before the trailing play/pause decision,
+        // without blocking PauseAsync's own PauseCommand, which is not gated on this.
+        var gate = new TaskCompletionSource();
+        _screenServer.BroadcastCommandAsync(Arg.Any<IScreenCommand>()).Returns(async call =>
+        {
+            if (call.Arg<IScreenCommand>() is SetTimedLyricsCommand)
+                await gate.Task;
+        });
+
+        RaiseScreenConnected();
+
+        // The sync must actually be parked on the gate before the host acts, or the pause below
+        // would race a sync that had not started yet.
+        Assert.True(await WaitForBroadcastAsync<SetTimedLyricsCommand>());
+
+        await _service.PauseAsync();
+        Assert.Equal(PlaybackState.Paused, _service.State);
+
+        gate.SetResult();
+
+        // Give the freed sync a chance to finish running past the point it would have replayed.
+        await WaitForAsync(() => _screenServer.ReceivedCalls().Any(c =>
+            c.GetMethodInfo().Name == nameof(IScreenServer.BroadcastCommandAsync) &&
+            c.GetArguments().FirstOrDefault() is SeekCommand));
+
+        Assert.Equal(PlaybackState.Paused, _service.State);
+        await _screenServer.DidNotReceive().BroadcastCommandAsync(Arg.Any<PlayCommand>());
+    }
+
     [Fact]
     public async Task PrimaryStateReports_DoNotPublishATimelinePerReport()
     {

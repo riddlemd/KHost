@@ -194,7 +194,10 @@ public class PlayerPageTests
         ramp = ramp[..ramp.IndexOf("teardown();", StringComparison.Ordinal)];
 
         // Inside the tick, not merely after the await it is driving.
-        Assert.Contains("if (generation !== playbackGeneration) return resolve(false);", ramp, StringComparison.Ordinal);
+        Assert.Contains("() => generation === playbackGeneration", ramp, StringComparison.Ordinal);
+        var step = page[page.IndexOf("function rampVolume", StringComparison.Ordinal)..];
+        step = step[..step.IndexOf("el.volume =", StringComparison.Ordinal)];
+        Assert.Contains("if (!stillCurrent())", step, StringComparison.Ordinal);
 
         // And the level goes back, or the element the next song is already using stays silent.
         Assert.Contains("element.volume = currentVolume;", ramp, StringComparison.Ordinal);
