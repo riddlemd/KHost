@@ -30,6 +30,7 @@ public class PlaybackServiceTests : IDisposable
     private readonly IFlashService _flash = Substitute.For<IFlashService>();
     private readonly ITimedLyricsService _timedLyrics = Substitute.For<ITimedLyricsService>();
 
+    private readonly StubRenderer _renderer = new();
     private readonly PlaybackService _service;
     private int _streamsOpened;
 
@@ -139,6 +140,12 @@ public class PlaybackServiceTests : IDisposable
         Substitute.For<IAnalyticsService>(),
         _screenServer,
         _mediaStreams,
+        // The real router over the real fallback, so these tests still arrange the stream service
+        // they always did and the renderer layer is exercised rather than stubbed past.
+        new MediaRendererService(
+            NullLogger<MediaRendererService>.Instance,
+            [_renderer],
+            new StreamingMediaRenderer(_mediaStreams)),
         [ScreensAsADisplay(), _display],
         _breakMusic,
         _mediaService,
@@ -1391,20 +1398,37 @@ public class PlaybackServiceTests : IDisposable
 
     // --- stems a display mixes for itself ---
 
-    /// <summary>Points the open stream at loose stems, the way a resolved kit leaves them.</summary>
-    private void StreamCarriesStems(params string[] names)
-        => _mediaStreams
-            .OpenAsync(Arg.Any<string>(), Arg.Any<TimeSpan>(), Arg.Any<int>(), Arg.Any<int>(), Arg.Any<AudioMix?>(), Arg.Any<CancellationToken>())
-            .Returns(call => new MediaStreamSession
-            {
-                Id = $"stream-{Interlocked.Increment(ref _streamsOpened)}",
-                SourcePath = call.ArgAt<string>(0),
-                PlaylistUrl = $"http://host/media/stream-{_streamsOpened}/stream.m3u8",
-                StartOffset = call.ArgAt<TimeSpan>(1),
-                Pitch = call.ArgAt<int>(2),
-                Tempo = call.ArgAt<int>(3),
-                StemUrls = [.. names.Select(n => $"http://host/media/stream-{_streamsOpened}/{n}")],
-            });
+    /// <summary>Arms the stand-in renderer to answer with stems, as a kit's own would.</summary>
+    /// <remarks>What a renderer decides is its own business and is tested where it lives; these
+    /// only care that the host asks it, passes on what it says, and drives it afterwards.</remarks>
+    private void RendererOffersStems(params AudioTrackRole[] roles)
+        => _renderer.Rendition = new MediaRendition
+        {
+            Stems = [.. roles.Select((role, i) => new StemSource(
+                i,
+                role,
+                $"http://host/media/stems/stem{i}.ogg",
+                role == AudioTrackRole.Music ? AudioMix.MaxVolume : 50))],
+            SeekableInPlace = true,
+        };
+
+    /// <summary>A renderer that answers only when a test has armed it, and claims everything.</summary>
+    private sealed class StubRenderer : IMediaRenderer
+    {
+        public MediaRendition? Rendition { get; set; }
+
+        public MediaRenderRequest? LastRequest { get; private set; }
+
+        public bool CanRender(string filePath) => true;
+
+        public Task<MediaRendition?> RenderAsync(MediaRenderRequest request, CancellationToken cancellationToken = default)
+        {
+            LastRequest = request;
+
+            // Null falls through to the fallback, which is every test that never armed this.
+            return Task.FromResult(Rendition);
+        }
+    }
 
     private void TracksAre(params AudioTrackRole[] roles)
         => _audioTracks
@@ -1413,83 +1437,70 @@ public class PlaybackServiceTests : IDisposable
                 [.. roles.Select((role, i) => new AudioTrack(i, role, role.ToString()))]);
 
     [Fact]
-    public async Task Load_HandsOverTheStems_WithTheLevelEachRidesAt()
+    public async Task Load_HandsOverWhateverTheRendererAnswered()
     {
-        StreamCarriesStems("stem0.ogg", "stem1.ogg", "stem2.ogg");
-        TracksAre(AudioTrackRole.Music, AudioTrackRole.Lead, AudioTrackRole.Backing);
+        // What to offer is the renderer's decision and is tested where that decision lives. The
+        // host's job is to ask, and to send on what it was given rather than rebuilding it.
+        RendererOffersStems(AudioTrackRole.Music, AudioTrackRole.Lead);
 
         var (performance, media) = CreatePerformance();
-        performance.LeadVolume = 30;
-        performance.BackingVolume = 70;
-
         await _service.LoadAsync(performance, media);
 
-        var stems = LastBroadcast<LoadMediaCommand>()?.Stems;
-        Assert.NotNull(stems);
-        Assert.Equal(3, stems.Count);
+        var load = LastBroadcast<LoadMediaCommand>();
+        Assert.NotNull(load);
+        Assert.Equal(
+            [AudioTrackRole.Music, AudioTrackRole.Lead],
+            load.Stems.Select(stem => stem.Role));
 
-        // The music is the reference the voices are set against, so it rides at full whatever the
-        // console is showing; the other two carry exactly what the host would have given ffmpeg.
-        Assert.Equal(AudioMix.MaxVolume, stems.Single(s => s.Role == AudioTrackRole.Music).Volume);
-        Assert.Equal(30, stems.Single(s => s.Role == AudioTrackRole.Lead).Volume);
-        Assert.Equal(70, stems.Single(s => s.Role == AudioTrackRole.Backing).Volume);
-        Assert.Equal("http://host/media/stream-1/stem1.ogg", stems.Single(s => s.Role == AudioTrackRole.Lead).Url);
+        // Nothing was encoded for it, so there is no stream to name.
+        Assert.Null(load.StreamUrl);
+        Assert.False(await WaitForStreamsOpenedAsync(1));
     }
 
     [Fact]
-    public async Task Load_SendsNoStems_WhenTheyDoNotLineUpWithTheProbedTracks()
+    public async Task Load_TellsTheRendererTheKeyTheSpeedAndWhatTheDisplayCanTake()
     {
-        // Two files against three voices: the two readings disagree, and a display handed the
-        // overlap would play the song with a part missing rather than say anything was wrong.
-        StreamCarriesStems("stem0.ogg", "stem1.ogg");
-        TracksAre(AudioTrackRole.Music, AudioTrackRole.Lead, AudioTrackRole.Backing);
-
+        // Everything the renderer needs to decide with. Sent wrong, a kit would be handed to a
+        // screen as raw stems at the written key while the song's clock ran at the asked-for rate.
         var (performance, media) = CreatePerformance();
+        performance.Pitch = 2;
+        performance.Tempo = -30;
+
         await _service.LoadAsync(performance, media);
 
-        Assert.Empty(LastBroadcast<LoadMediaCommand>()?.Stems ?? []);
+        var request = _renderer.LastRequest;
+        Assert.NotNull(request);
+        Assert.Equal(media.FilePath, request.FilePath);
+        Assert.Equal(2, request.Pitch);
+        Assert.Equal(-30, request.Tempo);
+        Assert.True(request.Target.MixesStems);
     }
 
     [Fact]
-    public async Task Load_SendsNoStems_WhenThereAreMoreStemsThanTracks()
+    public async Task Load_TellsTheRendererNothingMixes_WhenSomethingConnectedCannot()
     {
-        // The other direction, and the one only the count catches: every track would find a file,
-        // so the walk succeeds and quietly drops the stem nothing claimed — a voice the room never
-        // hears, with the song otherwise playing normally.
-        StreamCarriesStems("stem0.ogg", "stem1.ogg", "stem2.ogg");
-        TracksAre(AudioTrackRole.Music, AudioTrackRole.Lead);
+        // One device still hearing the host's own mix means the stems would have to be encoded
+        // anyway, so offering them at all is waste. All or nothing, like the fade.
+        _display.ConnectedDeviceId.Returns("Living Room TV");
+        _display.Devices.Returns([new DisplayDevice
+        {
+            Id = "Living Room TV",
+            Name = "Living Room TV",
+            IsConnected = true,
+            SupportsAudio = true,
+            SupportsStemMix = false,
+        }]);
 
         var (performance, media) = CreatePerformance();
         await _service.LoadAsync(performance, media);
 
-        Assert.Empty(LastBroadcast<LoadMediaCommand>()?.Stems ?? []);
-    }
-
-    [Theory]
-    [InlineData(2, 0)]
-    [InlineData(0, -30)]
-    public async Task Load_SendsNoStems_WhenTheSongIsRetimedOrTransposed(int pitch, int tempo)
-    {
-        // Key and speed live in ffmpeg's filter graph. Raw stems carry neither, so a display given
-        // them would play the written key at recorded speed while the song's clock — and with it
-        // the words — ran at the rate that was asked for.
-        StreamCarriesStems("stem0.ogg", "stem1.ogg");
-        TracksAre(AudioTrackRole.Music, AudioTrackRole.Lead);
-
-        var (performance, media) = CreatePerformance();
-        performance.Pitch = pitch;
-        performance.Tempo = tempo;
-
-        await _service.LoadAsync(performance, media);
-
-        Assert.Empty(LastBroadcast<LoadMediaCommand>()?.Stems ?? []);
+        Assert.False(_renderer.LastRequest?.Target.MixesStems);
     }
 
     [Fact]
     public async Task SetLeadVolume_MovesTheStem_AndLeavesTheTranscodeAlone()
     {
-        StreamCarriesStems("stem0.ogg", "stem1.ogg");
-        TracksAre(AudioTrackRole.Music, AudioTrackRole.Lead);
+        RendererOffersStems(AudioTrackRole.Music, AudioTrackRole.Lead);
 
         var (performance, media) = CreatePerformance();
         await _service.LoadAsync(performance, media);
@@ -1502,29 +1513,16 @@ public class PlaybackServiceTests : IDisposable
         Assert.Equal(AudioTrackRole.Lead, moved.Role);
         Assert.Equal(55, moved.Volume);
 
-        // The whole point: no second ffmpeg, so the room hears the change with no hole in the song.
-        Assert.False(await WaitForStreamsOpenedAsync(2));
+        // The whole point: no ffmpeg, so the room hears the change with no hole in the song.
+        Assert.False(await WaitForStreamsOpenedAsync(1));
         Assert.Equal(PlaybackState.Playing, _service.State);
     }
 
     [Fact]
-    public async Task SetLeadVolume_RebuildsTheStream_WhenSomethingConnectedCannotMix()
+    public async Task SetLeadVolume_RebuildsTheStream_WhenNothingIsMixingForUs()
     {
-        StreamCarriesStems("stem0.ogg", "stem1.ogg");
-        TracksAre(AudioTrackRole.Music, AudioTrackRole.Lead);
-
-        // A receiver hearing the host's own mix has the old levels baked into it, and only a new
-        // encode can move them. One such device is enough to put everyone back on the rebuild.
-        _display.ConnectedDeviceId.Returns("Living Room TV");
-        _display.Devices.Returns([new DisplayDevice
-        {
-            Id = "Living Room TV",
-            Name = "Living Room TV",
-            IsConnected = true,
-            SupportsAudio = true,
-            SupportsStemMix = false,
-        }]);
-
+        // The renderer answered with a stream rather than stems, so the levels are baked into it
+        // and only a new encode can move them.
         var (performance, media) = CreatePerformance();
         await _service.LoadAsync(performance, media);
         await _service.PlayAsync();

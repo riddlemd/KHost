@@ -133,17 +133,13 @@ namespace KHost.Domain.Services
 
         private async Task<ProbeResult?> TryProbeAsync(string filePath)
         {
-            var probeFilePath = Path.GetExtension(filePath).Equals(".cdg", StringComparison.OrdinalIgnoreCase)
-                ? Path.ChangeExtension(filePath, ".mp3")
-                : filePath;
-
             var sw = Stopwatch.StartNew();
             try
             {
                 // Through the probe service, so a plugin's own container is described by whoever
                 // wrote it. Scanned straight off disk, a closed container had no duration at all
                 // here: ffprobe cannot open one, and the length only ever arrived on a search result.
-                if (await _probes.ProbeAsync(probeFilePath) is not { } probe)
+                if (await _probes.ProbeAsync(filePath) is not { } probe)
                 {
                     _logger.LogDebug("Could not probe {FilePath}; falling back to filename-derived metadata", filePath);
                     return null;

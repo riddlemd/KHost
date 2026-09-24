@@ -27,7 +27,12 @@ public class MediaProbeRegistrationTests
     {
         using var provider = Container();
 
-        Assert.Empty(provider.GetServices<IMediaProbe>());
+        // Not "there are none": the host registers CdgMediaProbe openly, which is exactly where a
+        // plugin's probe arrives too. What must never be here is the greedy one, because it claims
+        // every file and would answer ahead of whoever actually owns the format.
+        Assert.DoesNotContain(
+            provider.GetServices<IMediaProbe>(),
+            probe => probe is FfprobeMediaProbe);
     }
 
     /// <summary>The failure this exists for: resolving the service is what binds the keyed

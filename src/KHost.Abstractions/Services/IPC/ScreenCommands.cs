@@ -46,7 +46,10 @@ public sealed class SetTimelineCommand : ScreenCommandBase
 public sealed class LoadMediaCommand : ScreenCommandBase
 {
     /// <summary>The host transcodes once; every screen plays the stream, with no decoder.</summary>
-    public required string StreamUrl { get; init; }
+    /// <remarks>Null when nothing was encoded because the display plays the parts itself. Never
+    /// null at the same time as <see cref="Stems"/> is empty — that would be a song with nowhere
+    /// to come from.</remarks>
+    public string? StreamUrl { get; init; }
 
     /// <summary>Song position the stream's zero maps to; add it before reporting a position.</summary>
     public TimeSpan StreamStartOffset { get; init; }

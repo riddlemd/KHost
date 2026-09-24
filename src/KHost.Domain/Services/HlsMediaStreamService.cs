@@ -63,6 +63,40 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, ID
     /// Settings expects the next song to honour it, not the next launch.</summary>
     private ServiceOptions Options => _options.CurrentValue;
 
+    public async Task<MediaStreamSession> OpenWithoutEncodeAsync(
+        string filePath,
+        CancellationToken cancellationToken = default)
+    {
+        if (!File.Exists(filePath))
+            throw new FileNotFoundException($"Media file not found: {filePath}", filePath);
+
+        var id = Guid.NewGuid().ToString("n");
+        var directory = Path.Combine(_root, id);
+        Directory.CreateDirectory(directory);
+
+        var session = new Session(id, directory, process: null);
+
+        await _lock.WaitAsync(cancellationToken);
+        try { _sessions[id] = session; }
+        finally { _lock.Release(); }
+
+        Logger.LogInformation("Opened {SessionId} for '{FilePath}' with no transcode", id, filePath);
+
+        return new MediaStreamSession
+        {
+            Id = id,
+            SourcePath = filePath,
+
+            // Nothing to play as one stream: whatever wrote here names its own files, and they are
+            // reached through the same /media/{sessionId}/{fileName} route the segments use.
+            PlaylistUrl = null,
+            WorkingDirectory = directory,
+            StartOffset = TimeSpan.Zero,
+            Pitch = 0,
+            Tempo = 0,
+        };
+    }
+
     public async Task<MediaStreamSession> OpenAsync(
         string filePath,
         TimeSpan startOffset = default,
@@ -81,16 +115,6 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, ID
         // Into the session's own directory, so a converted copy is swept with the segments when
         // the session closes and nothing has to remember it exists.
         var source = await _playableSources.ResolvePlayableAsync(filePath, directory, cancellationToken);
-
-        // Named now, while the resolver's own working directory is still the answer. Only files it
-        // actually wrote there are offered: the URL is built from the bare name, and the endpoint
-        // serving them refuses anything that is not a direct child of the session directory.
-        var stems = _playableSources
-            .StemsOf(filePath, source)
-            .Where(stem => File.Exists(stem)
-                && Path.GetDirectoryName(stem) == directory)
-            .Select(stem => $"{Options.BaseAddress.TrimEnd('/')}/media/{id}/{Path.GetFileName(stem)}")
-            .ToArray();
 
         // Everything below reads the resolved path: a companion .mp3 sits beside the original, but
         // what ffmpeg opens, and what decides the graphics-only frame rate, is what it will read.
@@ -143,7 +167,6 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, ID
             StartOffset = startOffset,
             Pitch = pitch,
             Tempo = tempo,
-            StemUrls = stems,
         };
     }
 
@@ -206,6 +229,9 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, ID
     public string BuildImageUrl(Guid mediaId)
         => $"{Options.BaseAddress.TrimEnd('/')}/media/image/{mediaId}";
 
+    public string BuildArtifactUrl(string sessionId, string fileName)
+        => $"{Options.BaseAddress.TrimEnd('/')}/media/{sessionId}/{fileName}";
+
     public string? ResolveArtifact(string sessionId, string fileName)
     {
         // Anything that is not a bare file name is rejected before it reaches the filesystem.
@@ -244,8 +270,12 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, ID
         var arguments = "-hide_banner -loglevel error";
 
         // CDG decoding is stateful, so an input seek lands mid-packet and the graphics decode to
-        // garbage. A paired source seeks on the output instead and eats the frames.
-        var seekOnOutput = companionAudioPath is not null;
+        // garbage. Such a source seeks on the output instead and eats the frames.
+        //
+        // Asked of the graphics, not of the companion audio: a .cdg with no .mp3 beside it is still
+        // a stateful decode, and keying this off the pairing seeked it on the input and drew
+        // garbage for the one case that already had no sound.
+        var seekOnOutput = IsGraphicsOnly(filePath);
 
         if (startOffset > TimeSpan.Zero && !seekOnOutput)
             arguments += string.Format(CultureInfo.InvariantCulture, " -ss {0:F3}", startOffset.TotalSeconds);
@@ -317,14 +347,10 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, ID
         => Path.GetExtension(filePath).Equals(".cdg", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>A .cdg holds only graphics; its audio is the same-named .mp3 beside it.</summary>
-    /// <remarks>Only .mp3: CD+G rips have always shipped that way.</remarks>
+    /// <remarks>Through <see cref="MediaFormats.FindKaraokeAudio"/>, so the importer, the probe and
+    /// the renderer all decide a pair the same way.</remarks>
     internal static string? ResolveCompanionAudio(string filePath)
-    {
-        if (!IsGraphicsOnly(filePath)) return null;
-
-        var companion = Path.ChangeExtension(filePath, ".mp3");
-        return File.Exists(companion) ? companion : null;
-    }
+        => IsGraphicsOnly(filePath) ? MediaFormats.FindKaraokeAudio(filePath) : null;
 
     private static string BuildAudioFilter(int pitch, int tempo)
     {
@@ -443,17 +469,22 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, ID
         _lock.Dispose();
     }
 
-    private sealed class Session(string id, string directory, Process process) : IDisposable
+    /// <remarks><paramref name="process"/> is null for a session opened without an encode: a served,
+    /// swept directory a renderer writes its own files into, with no ffmpeg behind it.</remarks>
+    private sealed class Session(string id, string directory, Process? process) : IDisposable
     {
         public string Id { get; } = id;
         public string Directory { get; } = directory;
 
         public void Dispose()
         {
-            try { if (!process.HasExited) process.Kill(entireProcessTree: true); }
-            catch { /* already gone */ }
+            if (process is not null)
+            {
+                try { if (!process.HasExited) process.Kill(entireProcessTree: true); }
+                catch { /* already gone */ }
 
-            process.Dispose();
+                process.Dispose();
+            }
 
             // A consumer may still hold a segment open; the directory is scratch either way.
             try { System.IO.Directory.Delete(Directory, recursive: true); }

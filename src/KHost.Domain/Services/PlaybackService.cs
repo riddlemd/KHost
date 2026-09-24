@@ -68,8 +68,12 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
 
     private IAnalyticsActivity? _sessionActivity;
 
-    // The host-side transcode currently feeding the screens, if any.
-    private MediaStreamSession? _stream;
+    // What the displays are playing for the current song, if anything. It carries the host-side
+    // transcode when the renderer started one, and nothing when the displays play the parts direct.
+    private MediaRendition? _rendition;
+
+    /// <summary>The transcode behind the current rendition, which is what there is to close.</summary>
+    private MediaStreamSession? _stream => _rendition?.Session;
 
     private CancellationTokenSource? _reopenSettle;
 
@@ -88,6 +92,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
     private readonly IAnalyticsService _analytics;
     private readonly IScreenServer _screenServer;
     private readonly IMediaStreamService _mediaStreams;
+    private readonly IMediaRendererService _renderers;
     private readonly IReadOnlyList<IDisplayProvider> _displays;
     private readonly IBreakMusicService _breakMusic;
     private readonly IMediaService _mediaService;
@@ -129,7 +134,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
 
     /// <summary>Song seconds per wall-clock second, from the open stream not the wanted tempo.</summary>
     /// <remarks>The room is still on the old rate until the stream reopens.</remarks>
-    private double Rate => _stream is { } stream ? stream.PlaybackRate() : 1.0;
+    private double Rate => _rendition is { } rendition ? StreamRate.FromTempo(rendition.Tempo) : 1.0;
 
     public PlaybackService(
         ILogger<PlaybackService> logger,
@@ -139,6 +144,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         IAnalyticsService analytics,
         IScreenServer screenServer,
         IMediaStreamService mediaStreams,
+        IMediaRendererService renderers,
         IEnumerable<IDisplayProvider> displayProviders,
         IBreakMusicService breakMusic,
         IMediaService mediaService,
@@ -157,6 +163,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         _analytics = analytics;
         _screenServer = screenServer;
         _mediaStreams = mediaStreams;
+        _renderers = renderers;
         // Every display the host can reach, screens included — the screens are a provider too.
         // One is connected at a time, which the providers enforce; this is simply all of them.
         _displays = [.. displayProviders];
@@ -513,7 +520,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
 
         // A stream opened part-way through a song holds nothing before its own zero (a rate or mix change
         // rebuilds it at the playhead). Seeking back past that point clamps there, not to the true target.
-        if (_stream is { } open && target < open.StartOffset)
+        if (_rendition is { SeekableInPlace: false } open && target < open.StartOffset)
         {
             Logger.LogInformation("Seeking to {Position}, behind the stream; rebuilding it", target);
 
@@ -619,7 +626,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         await PersistRateAsync();
 
         // Nothing open to rebuild; the row is written and the next load reads it back.
-        if (_stream is null) return;
+        if (_rendition is null) return;
 
         var settle = new CancellationTokenSource();
         var superseded = Interlocked.Exchange(ref _reopenSettle, settle);
@@ -809,7 +816,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
 
             // Hand over the transcode already running rather than opening a second one; if there is none,
             // whatever starts next loads itself: an image has no stream a device could take.
-            if (_stream is not { PlaylistUrl.Length: > 0 } stream
+            if (_rendition is not { Url.Length: > 0 }
                 || media is null
                 || MediaFormats.IsImage(media.Format)) return;
 
@@ -818,14 +825,9 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
             Logger.LogInformation(
                 "Display session is new; loading '{Title}' at {Position}", media.Title, position);
 
-            await ToDisplaysAsync(new LoadMediaCommand
-            {
-                StreamUrl = stream.PlaylistUrl,
-                StreamStartOffset = stream.StartOffset,
-                Tempo = stream.Tempo,
-            });
+            await ToDisplaysAsync(DescribeStream(media));
 
-            if (position > stream.StartOffset)
+            if (position > _rendition.StartOffset)
                 await ToDisplaysAsync(new SeekCommand { Position = position });
 
             if (State == PlaybackState.Playing)
@@ -872,7 +874,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
 
             // Reuse the transcode that is already running rather than starting a second one: one
             // host stream feeding every screen is the whole point of moving ffmpeg here.
-            await ToDisplaysAsync(_stream is not null
+            await ToDisplaysAsync(_rendition is not null
                 ? DescribeStream(media)
                 : await BuildLoadCommandAsync(media, TimeSpan.Zero));
 
@@ -1035,17 +1037,24 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
     {
         // Held, not closed: tearing down first would leave the room on buffered frames while the new one
         // spins up (or on nothing, if it fails). A failed rebuild costs the change, not the song.
-        var superseded = _stream;
+        var superseded = _rendition;
 
-        // Not swallowed: every screen plays the host's stream, so without one there is nothing to
-        // send and pretending otherwise leaves the room staring at a screen that never starts.
+        // Not swallowed: without a rendition there is nothing to send, and pretending otherwise
+        // leaves the room staring at a screen that never starts.
         try
         {
             // The ad path reaches here and reads zero: PlayAdAsync resets the state first.
-            _stream = await _mediaStreams.OpenAsync(
-                media.FilePath, startOffset, Pitch, Tempo, CurrentMix);
+            _rendition = await _renderers.RenderAsync(new MediaRenderRequest
+            {
+                FilePath = media.FilePath,
+                StartOffset = startOffset,
+                Pitch = Pitch,
+                Tempo = Tempo,
+                Mix = CurrentMix,
+                Target = DescribeTarget(),
+            });
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not KHostException)
         {
             throw new KHostException(
                 $"KHost couldn't prepare \u201c{media.Title}\u201d for the screens, so nothing was sent to them.",
@@ -1056,9 +1065,9 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         finally
         {
             // Retired rather than closed, and only if the replacement actually took: on failure
-            // _stream still points at the old session, and closing it would take the song too.
-            if (!ReferenceEquals(superseded, _stream))
-                RetireSession(superseded);
+            // _rendition still points at the old one, and closing it would take the song too.
+            if (!ReferenceEquals(superseded, _rendition))
+                RetireSession(superseded?.Session);
         }
 
         var command = DescribeStream(media);
@@ -1073,7 +1082,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         try
         {
             // A still holds no stream to rebuild, and an ad is nobody's song to transpose.
-            if (CurrentMedia is not { } media || IsPlayingAd || _stream is null)
+            if (CurrentMedia is not { } media || IsPlayingAd || _rendition is null)
                 return;
 
             var resume = State == PlaybackState.Playing;
@@ -1138,37 +1147,35 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
 
     private LoadMediaCommand DescribeStream(Media media) => new()
     {
-        StreamUrl = _stream?.PlaylistUrl
-            ?? throw new InvalidOperationException($"No host stream is open for '{media.Title}'."),
-        StreamStartOffset = _stream?.StartOffset ?? TimeSpan.Zero,
-        Tempo = _stream?.Tempo ?? 0,
-        Stems = DescribeStems(),
+        // Null when the display plays the parts directly and nothing was encoded for it. The two
+        // are never both empty: a rendition with neither would be a song with nowhere to come from.
+        StreamUrl = _rendition?.Url,
+        StreamStartOffset = _rendition?.StartOffset ?? TimeSpan.Zero,
+        Tempo = _rendition?.Tempo ?? 0,
+        Stems = _rendition?.Stems ?? [],
     };
 
-    /// <summary>The stems and the level each rides at, for a display that mixes them itself.</summary>
-    /// <remarks>Empty unless the source named stems <em>and</em> they line up with the tracks that
-    /// were probed: the two come from different readings of the same file, and a display handed a
-    /// half-matched set would play a song with a voice missing rather than fail.</remarks>
-    private IReadOnlyList<StemSource> DescribeStems()
+    /// <summary>What the displays that are up can take, which decides what is worth producing.</summary>
+    /// <remarks>All or nothing on the mix: one device still hearing the host's own mix means the
+    /// stems would have to be encoded anyway, and producing both is the waste this exists to stop.
+    /// Nothing connected asks for nothing special — whatever connects later triggers a reload.</remarks>
+    private RenderTarget DescribeTarget()
     {
-        if (_stream is not { StemUrls.Count: > 0 } stream) return [];
-        if (AudioTracks.Count != stream.StemUrls.Count) return [];
+        var connected = 0;
 
-        // Key and speed are ffmpeg's filter graph, and a display handed raw stems has no such
-        // thing: it would play the written key at recorded speed while the song's clock — and so
-        // the words — ran at the rate that was asked for. Those songs keep the host's mix.
-        if (stream.Pitch != 0 || stream.Tempo != 0) return [];
-
-        var stems = new List<StemSource>(stream.StemUrls.Count);
-
-        foreach (var track in AudioTracks)
+        foreach (var display in _displays)
         {
-            if (track.Index < 0 || track.Index >= stream.StemUrls.Count) return [];
+            if (display.ConnectedDeviceId is not { Length: > 0 } deviceId) continue;
 
-            stems.Add(new StemSource(track.Index, track.Role, stream.StemUrls[track.Index], LevelFor(track.Role)));
+            var device = display.Devices.FirstOrDefault(d => d.Id == deviceId)
+                ?? display.Devices.FirstOrDefault(d => d.IsConnected);
+
+            if (device is null || !device.SupportsStemMix) return RenderTarget.None;
+
+            connected++;
         }
 
-        return stems;
+        return connected == 0 ? RenderTarget.None : new RenderTarget { MixesStems = true };
     }
 
     /// <summary>The same levels <c>BuildMixGraph</c> compiles into ffmpeg, so neither path drifts.</summary>
@@ -1189,7 +1196,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
     /// single-display rule exists to prevent.</remarks>
     private async Task<bool> TryMoveStemAsync(AudioTrackRole role, int volume)
     {
-        if (DescribeStems().Count == 0) return false;
+        if (_rendition is not { Stems.Count: > 0 }) return false;
 
         var reached = 0;
 
@@ -1248,10 +1255,10 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
 
     private async Task CloseStreamAsync()
     {
-        var stream = _stream;
-        _stream = null;
+        var rendition = _rendition;
+        _rendition = null;
 
-        await CloseSessionAsync(stream);
+        await CloseSessionAsync(rendition?.Session);
     }
 
     /// <summary>Lets a replaced session stand until whatever is still reading it has moved on.</summary>

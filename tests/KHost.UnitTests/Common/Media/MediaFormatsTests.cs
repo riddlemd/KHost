@@ -93,4 +93,77 @@ public class MediaFormatsTests
     [Fact]
     public void IsKaraokeTrack_NoPath_IsNot()
         => Assert.False(MediaFormats.IsKaraokeTrack(""));
+
+    // --- finding the audio half of a pair ---
+
+    [Fact]
+    public void FindKaraokeAudio_FindsTheMp3BesideTheGraphics()
+    {
+        var folder = Directory.CreateTempSubdirectory("khost-pair");
+
+        try
+        {
+            File.WriteAllBytes(Path.Combine(folder.FullName, "song.cdg"), [1]);
+            var audio = Path.Combine(folder.FullName, "song.mp3");
+            File.WriteAllBytes(audio, [1]);
+
+            Assert.Equal(audio, MediaFormats.FindKaraokeAudio(Path.Combine(folder.FullName, "song.cdg")));
+        }
+        finally { folder.Delete(recursive: true); }
+    }
+
+    /// <summary>The pairing is a fact about the disk, not about how anyone typed the name. A
+    /// case-sensitive filesystem has SONG.CDG and song.mp3 as a pair that an exact-case lookup on a
+    /// built name never finds, and the song then plays silent.</summary>
+    [Fact]
+    public void FindKaraokeAudio_MatchesWithoutRegardToCase()
+    {
+        var folder = Directory.CreateTempSubdirectory("khost-pair");
+
+        try
+        {
+            File.WriteAllBytes(Path.Combine(folder.FullName, "SONG.cdg"), [1]);
+            var audio = Path.Combine(folder.FullName, "song.MP3");
+            File.WriteAllBytes(audio, [1]);
+
+            Assert.Equal(audio, MediaFormats.FindKaraokeAudio(Path.Combine(folder.FullName, "SONG.cdg")));
+        }
+        finally { folder.Delete(recursive: true); }
+    }
+
+    /// <summary>IsKaraokeTrack has always counted any audio file beside a .cdg as the pair's other
+    /// half, while the players only ever looked for .mp3 — so a .wav pair was excluded from import
+    /// as "part of a pair" and then played silent. One rule now, and it is the broad one.</summary>
+    [Fact]
+    public void FindKaraokeAudio_TakesAnyAudioExtension_NotOnlyMp3()
+    {
+        var folder = Directory.CreateTempSubdirectory("khost-pair");
+
+        try
+        {
+            File.WriteAllBytes(Path.Combine(folder.FullName, "song.cdg"), [1]);
+            var audio = Path.Combine(folder.FullName, "song.wav");
+            File.WriteAllBytes(audio, [1]);
+
+            Assert.Equal(audio, MediaFormats.FindKaraokeAudio(Path.Combine(folder.FullName, "song.cdg")));
+        }
+        finally { folder.Delete(recursive: true); }
+    }
+
+    [Fact]
+    public void FindKaraokeAudio_AnswersNothing_WhenOnlyTheGraphicsAreThere()
+    {
+        var folder = Directory.CreateTempSubdirectory("khost-pair");
+
+        try
+        {
+            File.WriteAllBytes(Path.Combine(folder.FullName, "song.cdg"), [1]);
+
+            // A .txt beside it is not the other half, and must not be mistaken for it.
+            File.WriteAllBytes(Path.Combine(folder.FullName, "song.txt"), [1]);
+
+            Assert.Null(MediaFormats.FindKaraokeAudio(Path.Combine(folder.FullName, "song.cdg")));
+        }
+        finally { folder.Delete(recursive: true); }
+    }
 }

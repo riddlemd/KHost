@@ -192,12 +192,42 @@ cannot name another's: its secrets, and the QR code it offers the screens.
   reads. `Claims` has a **default body**, which is behaviour in `Abstractions` the KH0001 analyzer
   cannot see; it exists so a plugin with no opinion loads unchanged. A deliberate exception, not a
   precedent.
-- **There is no host-side render path.** `IMediaPreparer` and `PreparedMediaService` are gone, along
+- **There is no host-side *pre*-render.** `IMediaPreparer` and `PreparedMediaService` are gone, along
   with `PerformancePreparation`, the copy plan and the keyframe-cadence rules built on them:
   measured against streaming, the pre-render bought ~0.1–0.2s of start latency and no reliable CPU
   saving. A format the host cannot play is therefore **unplayable** until the native render path
-  lands — see `src/KHost.Screen2/RESEARCH.md`. Everything now streams through
-  `HlsMediaStreamService`, which always encodes.
+  lands — see `src/KHost.Screen2/RESEARCH.md`.
+- **`IMediaRenderer` is not that, and will be mistaken for it.** It turns one file into something a
+  display can play, and it is asked **once, when a song starts**. It produces nothing the stream
+  session does not sweep, caches nothing, reports no progress, and holds no state that outlives the
+  song — which is every property that made the pre-render worth deleting. The full shape and its
+  reasoning live in `docs/media-renderer.md`; this is the short form.
+  - **It answers with what to play, not always with a stream.** A `MediaRendition` carries a URL to
+    play end to end, or the separate `Stems` a display mixes for itself, or both. `StreamUrl` on
+    `LoadMediaCommand` is nullable for exactly this: a kit on a screen that mixes runs **no ffmpeg
+    at all**, where it used to encode a whole song for a consumer that never fetched it.
+  - **Claim by file, not by extension or by `MediaType`.** `CanRender(path)` and a keyed fallback,
+    the same shape `IMediaProbe` uses — `MediaFormats.TypeForFile` has never heard of `.kit`, and a
+    plain `.mp4` is `Karaoke` or `Video` depending on a flag the *caller* passes. Unlike
+    `IMediaPlaybackGate.Claims` and `IMediaProbe.CanProbe`, which answer from the path alone because
+    they run for every queued turn on every reconcile, this is asked once per song and **may open
+    the file** — which is what would let a renderer decide on a container's codecs rather than its
+    name.
+  - **Returning null means "nothing better for this target"**, and falls through to
+    `StreamingMediaRenderer`, which claims everything and encodes as the host always has. That is
+    how a kit reaches a receiver: the plugin sees a target that cannot mix, declines, and the
+    fallback resolves the `.kfa` through `IPlayableMediaSource` exactly as before.
+  - **The target is part of the question.** `RenderTarget.MixesStems` is all-or-nothing across the
+    connected displays: one device still hearing the host's own mix means the stems have to be
+    encoded anyway, so offering them at all would be waste.
+  - **A renderer may inherit the encode rather than replace it.** `GraphicsKaraokeRenderer` claims
+    `.cdg` and derives from `StreamingMediaRenderer`, because subcode graphics still need ffmpeg to
+    become a picture. It exists so the rules that belong to the format have a home: the first is
+    that **a `.cdg` with no `.mp3` beside it is invalid, not silent**, and it now fails with
+    `KH-CDG-NO-AUDIO` instead of encoding a silent song. The split is that a renderer owns whether
+    the media is *valid*, and `BuildArguments` owns how it is *encoded*.
+  - Everything still streams through `HlsMediaStreamService` unless a renderer says otherwise, and
+    its ffmpeg argument building was never the problem — being the only answer was.
 - **`IDisplayProvider` is a transport to somewhere the song comes out, and everything the host can
   put on it.** It finds such places, connects to one, hands it a stream, drives transport on it, and
   draws on it. It does not decide what the show is — it is told. The full shape and its reasoning
@@ -432,6 +462,24 @@ against a render the host had already made, and making those renders cost more t
 The scanner takes everything the host can play, not only karaoke: a venue's break music, its ad
 clips and the card it puts up between singers are ordinary library rows.
 
+- **A `.cdg` with no audio beside it is an invalid state, not a quiet song.** The graphics carry
+  the words and nothing else. Such a file used to import as a normal row and reach the room as a
+  silent stream with a warning in a log nobody reads, so it is now refused twice: the importer
+  skips it and counts it failed, and `GraphicsKaraokeRenderer` fails the play with
+  `KH-CDG-NO-AUDIO`. Rows already in a library predate the first check and are caught by the
+  second.
+  - **`MediaFormats.FindKaraokeAudio` is the one rule**, and every asker goes through it. There
+    used to be four copies and two answers: `IsKaraokeTrack` counted *any* audio file beside a
+    `.cdg` as the pair's other half, while the probe, the companion resolver and the player looked
+    only for `.mp3` — so a `.cdg` next to a `.wav` was excluded from import as "part of a pair" and
+    then played silent. It now matches any audio extension, and **without regard to case**: a
+    case-sensitive filesystem has `SONG.CDG` and `song.mp3` as a pair that no exact-case lookup on
+    a built name ever finds.
+  - **`CdgMediaProbe` describes the pair**, reading the audio half for duration and tags, because a
+    `.cdg` has neither. That was a special case inlined in `MediaFileParsingService`, which knows
+    about no other format and should not have known about this one. It answers **empty, not null**
+    when the audio is missing — "I looked and there is nothing", which is what lets the importer
+    tell that apart from "I could not tell".
 - **`MediaFormats` owns the extension lists and the question.** `TypeForFile(path, videoIsKaraoke)`
   decides what a file is, and the scanner, the row icon and the import itself all ask it — so none
   of them can disagree with the other two.

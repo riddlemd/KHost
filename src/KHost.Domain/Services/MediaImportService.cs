@@ -155,6 +155,20 @@ public class MediaImportService : BaseService, IMediaImportService
                 ? chosen
                 : MediaFormats.TypeForFile(candidate.Path, VideoIsKaraoke);
 
+            // Half a song is not a row. A .cdg carries the words and no sound, so without the audio
+            // beside it there is nothing to play — and imported anyway it reached the room as
+            // silence, which is the one symptom that never points at its own cause.
+            if (MediaFormats.IsGraphicsOnlyKaraoke(candidate.Path)
+                && MediaFormats.FindKaraokeAudio(candidate.Path) is null)
+            {
+                FailedCount++;
+                _analytics.RecordImportFilesProcessed(1, "failed");
+                Logger.LogWarning(
+                    "Skipping {FilePath}: no audio file beside it, so the pair is incomplete",
+                    candidate.Path);
+                return;
+            }
+
             var media = await _parser.LoadAndParseAsync(candidate.Path, type);
 
             media.FileSize = candidate.Size;
