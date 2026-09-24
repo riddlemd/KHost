@@ -76,7 +76,6 @@ public class ScreenDisconnectPausesPlaybackTests : IDisposable
             // beside them stands in for a television, which is the only second display there can be.
             [new ScreenDisplayProvider(NullLogger<ScreenDisplayProvider>.Instance, _screenServer, [], _broker), _receiver],
             Substitute.For<IBreakMusicService>(),
-            Substitute.For<IMediaService>(),
             Monitor(new PlaybackService.ServiceOptions { StopFadeDuration = TimeSpan.Zero }),
             Substitute.For<IAudioTrackService>(),
             AllowingGate(),

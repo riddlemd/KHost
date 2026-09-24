@@ -1,6 +1,8 @@
 using KHost.Abstractions.Messaging;
 using KHost.Abstractions.Messaging.Messages;
+using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
+using KHost.Common.Media;
 using KHost.Abstractions.Services.IPC;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -14,7 +16,7 @@ namespace KHost.Domain.Services.Screens;
 /// drive.
 ///
 /// <para>It owns everything the screen shows, not only the song: the marquee, the QR codes, the
-/// break music card and the venue's level. The host announces what moved and this pulls the whole
+/// break music card, the venue's card or an ad's still, and the venue's level. The host announces what moved and this pulls the whole
 /// current state of whatever that message drives, so a screen that connects is sent everything
 /// afresh rather than a replay of what it missed.</para>
 ///
@@ -43,6 +45,12 @@ public sealed class ScreenDisplayProvider : IDisplayProvider, IStartsWithTheHost
     // Resolved on use, never in the constructor: the marquee reaches IPlaybackService, which takes
     // every IDisplayProvider, this one included.
     private readonly IServiceProvider? _services;
+
+    // Serialises picture draws, which arrive from the load path and from several detached redraws.
+    private readonly SemaphoreSlim _pictureLock = new(1, 1);
+
+    /// <summary>The program the screen's picture was last drawn for; null until anything was.</summary>
+    private PlaybackProgram? _pictured;
     private readonly TimeSpan _registrationTimeout;
 
     private bool _launching;
@@ -84,14 +92,15 @@ public sealed class ScreenDisplayProvider : IDisplayProvider, IStartsWithTheHost
         // The venue owns the level, and everything about how the marquee, the codes and the card
         // look, including whether each is there at all.
         _subscriptions.Add(broker.Subscribe<SelectedVenueChanged>(
-            _ => Redraw(Overlay.Volume | Overlay.Marquee | Overlay.QrCodes | Overlay.BreakMusicCard)));
+            _ => Redraw(Overlay.Volume | Overlay.Marquee | Overlay.QrCodes | Overlay.BreakMusicCard | Overlay.IdleCard)));
 
         // The queue's order is the marquee's content.
         _subscriptions.Add(broker.Subscribe<SingerQueueChanged>(_ => Redraw(Overlay.Marquee)));
         _subscriptions.Add(broker.Subscribe<PerformancesChanged>(_ => Redraw(Overlay.Marquee)));
 
-        // Who is at the mic decides who the band leaves out, and whether a venue hides its codes.
-        _subscriptions.Add(broker.Subscribe<PlaybackChanged>(_ => Redraw(Overlay.Marquee | Overlay.QrCodes)));
+        // Who is at the mic decides who the band leaves out, and whether a venue hides its codes;
+        // what is on the main channel decides the picture.
+        _subscriptions.Add(broker.Subscribe<PlaybackChanged>(_ => Redraw(Overlay.Marquee | Overlay.QrCodes | Overlay.Picture)));
 
         // A provider moving to the next track says so apart from a start, pause or hand-off.
         _subscriptions.Add(broker.Subscribe<BreakMusicChanged>(_ => Redraw(Overlay.BreakMusicCard)));
@@ -247,8 +256,12 @@ public sealed class ScreenDisplayProvider : IDisplayProvider, IStartsWithTheHost
         });
 
     /// <summary>Sent whole, so the stems ride along with it; the page mixes when there are any.</summary>
-    public Task LoadAsync(LoadMediaCommand media, CancellationToken cancellationToken = default)
-        => SendAsync(media);
+    public async Task LoadAsync(LoadMediaCommand media, CancellationToken cancellationToken = default)
+    {
+        // Ahead of the load, so the venue's card is down before the song's first frame.
+        await DrawPictureAsync(PictureCause.ProgramMoved);
+        await SendAsync(media);
+    }
 
     public Task PlayAsync(CancellationToken cancellationToken = default) => SendAsync(new PlayCommand());
     public Task PauseAsync(CancellationToken cancellationToken = default) => SendAsync(new PauseCommand());
@@ -356,6 +369,14 @@ public sealed class ScreenDisplayProvider : IDisplayProvider, IStartsWithTheHost
             catch (Exception ex) { _logger.LogWarning(ex, "Could not apply the venue's volume to the screen"); }
         }
 
+        // Ahead of the overlays, which read the database: the picture is what the room notices late.
+        if (overlays.HasFlag(Overlay.Connected))
+            await DrawPictureAsync(PictureCause.Connected);
+        else if (overlays.HasFlag(Overlay.Picture))
+            await DrawPictureAsync(PictureCause.ProgramMoved);
+        else if (overlays.HasFlag(Overlay.IdleCard))
+            await DrawPictureAsync(PictureCause.VenueChanged);
+
         if (overlays.HasFlag(Overlay.Marquee))
             await DrawAsync<IScreenMarqueeService>("marquee", async marquee => await marquee.BuildAsync());
 
@@ -366,6 +387,87 @@ public sealed class ScreenDisplayProvider : IDisplayProvider, IStartsWithTheHost
 
         if (overlays.HasFlag(Overlay.BreakMusicCard))
             await DrawAsync<IBreakMusicCardService>("break music card", async card => await card.BuildAsync());
+    }
+
+    /// <summary>Puts up the venue's card, an ad's still, or takes either down for a song.</summary>
+    /// <remarks>Drawn only when the program has moved, since PlaybackChanged also means a seek or a
+    /// pause. A screen that has just connected gets the picture whatever it was last sent, and a
+    /// venue edit redraws only the card: a still over a singer is worse than a stale one.</remarks>
+    private async Task DrawPictureAsync(PictureCause cause)
+    {
+        if (_services?.GetService<IPlaybackProgram>() is not { } playback) return;
+
+        await _pictureLock.WaitAsync();
+        try
+        {
+            var program = playback.CurrentProgram;
+
+            switch (cause)
+            {
+                case PictureCause.ProgramMoved when Equals(program, _pictured):
+                case PictureCause.VenueChanged when program is not PlaybackProgram.Idle:
+                    return;
+            }
+
+            _pictured = program;
+
+            switch (program)
+            {
+                case PlaybackProgram.AdStill still:
+                    await SendAsync(new ShowImageCommand { Url = still.ImageUrl, Scaling = still.Scaling });
+                    break;
+
+                // A joiner shows nothing until the song reloads onto it, so there is nothing to take down.
+                case PlaybackProgram.Playing when cause == PictureCause.Connected:
+                    break;
+
+                case PlaybackProgram.Playing:
+                    await SendAsync(new HideImageCommand());
+                    break;
+
+                default:
+                    await DrawIdleCardAsync();
+                    break;
+            }
+        }
+        catch (Exception ex)
+        {
+            // Decoration: failing to draw it must not stop the queue moving on to the next singer.
+            _logger.LogWarning(ex, "Could not draw the screen's picture");
+        }
+        finally
+        {
+            _pictureLock.Release();
+        }
+    }
+
+    /// <summary>The venue's card while nothing is playing, or a clear screen when it has none.</summary>
+    private async Task DrawIdleCardAsync()
+    {
+        var venue = _venuesService is null ? null : await _venuesService.ReadSelectedVenueAsync();
+
+        if (venue?.Settings.BrandingImageMediaId is not { } brandingId
+            || _services?.GetService<IMediaService>() is not { } library
+            || _services.GetService<IMediaStreamService>() is not { } streams)
+        {
+            await SendAsync(new HideImageCommand());
+            return;
+        }
+
+        // A branding row pointing at a song would be handed over as an image URL serving nothing.
+        if (await library.ReadAsync(brandingId) is not { } media || !MediaFormats.IsImage(media.Format))
+        {
+            await SendAsync(new HideImageCommand());
+            return;
+        }
+
+        // The venue's scaling wins when set: the same picture can be the card in two rooms of
+        // different shapes, and a host adjusting it here need not go edit the library image.
+        await SendAsync(new ShowImageCommand
+        {
+            Url = streams.BuildImageUrl(media.Id),
+            Scaling = venue.Settings.BrandingImageScaling ?? media.ImageScaling,
+        });
     }
 
     private async Task DrawAsync<TSource>(string what, Func<TSource, Task<IScreenCommand>> build)
@@ -394,7 +496,7 @@ public sealed class ScreenDisplayProvider : IDisplayProvider, IStartsWithTheHost
 
         // The whole current state, pulled fresh: a screen joining mid-show has been sent none of
         // it, and one that dropped and came back may still be drawing what has since changed.
-        Redraw(Overlay.All);
+        Redraw(Overlay.All | Overlay.Connected);
     }
 
     /// <summary>Matched on the connection, not the screen id: a screen coming back under the same
@@ -424,6 +526,23 @@ public sealed class ScreenDisplayProvider : IDisplayProvider, IStartsWithTheHost
         Marquee = 2,
         QrCodes = 4,
         BreakMusicCard = 8,
-        All = Volume | Marquee | QrCodes | BreakMusicCard,
+
+        /// <summary>The picture, redrawn only when the program has moved.</summary>
+        Picture = 16,
+
+        /// <summary>The venue's card, redrawn while it is what is up.</summary>
+        IdleCard = 32,
+
+        /// <summary>A screen that has just joined: the picture is drawn whatever was last sent.</summary>
+        Connected = 64,
+
+        All = Volume | Marquee | QrCodes | BreakMusicCard | Picture,
+    }
+
+    private enum PictureCause
+    {
+        ProgramMoved,
+        VenueChanged,
+        Connected,
     }
 }
