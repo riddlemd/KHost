@@ -2,6 +2,7 @@ using KHost.Abstractions.Models;
 
 namespace KHost.Common.Media;
 
+/// <summary>Groupings over <see cref="MediaStatus"/> that more than one caller needs to agree on.</summary>
 public static class MediaStatuses
 {
     /// <summary>The same question <see cref="IsAcquiring"/> asks, as data, for LINQ-to-entities.</summary>

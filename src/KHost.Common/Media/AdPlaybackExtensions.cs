@@ -2,6 +2,7 @@ using KHost.Abstractions.Models;
 
 namespace KHost.Common.Media;
 
+/// <summary>Whether an <see cref="AdPlayback"/> carries its own audio or needs break music underneath it.</summary>
 public static class AdPlaybackExtensions
 {
     /// <summary>Whether the room hears the ad rather than the bed underneath it.</summary>

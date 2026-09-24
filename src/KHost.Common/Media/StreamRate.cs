@@ -2,6 +2,7 @@ using KHost.Abstractions.Models;
 
 namespace KHost.Common.Media;
 
+/// <summary>Converts a session's tempo percentage to the playback speed multiplier it stands for.</summary>
 public static class StreamRate
 {
     /// <summary>The one definition of what a tempo percentage means.</summary>

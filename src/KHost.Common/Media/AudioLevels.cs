@@ -2,6 +2,7 @@ using KHost.Abstractions.Models;
 
 namespace KHost.Common.Media;
 
+/// <summary>Keeps a stored or incoming volume inside the mixer's supported range.</summary>
 public static class AudioLevels
 {
     /// <summary>A stored volume is whatever was last written, older build's range included.</summary>

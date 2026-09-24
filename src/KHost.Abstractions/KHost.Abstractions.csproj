@@ -4,6 +4,9 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <!-- The XML ships in the package and is what plugin authors read: an undocumented member fails the build. -->
+    <WarningsAsErrors>$(WarningsAsErrors);CS1591;CS1573;CS1574</WarningsAsErrors>
     <!-- A plugin compiles against this assembly and ships a copy of it, so a non-compete term here
          would forbid copyleft plugins outright. MIT while the rest of KHost is PolyForm Shield.
          See ./LICENSE. -->

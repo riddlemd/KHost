@@ -2,19 +2,34 @@ using KHost.Abstractions.Models.QueueRotation;
 
 namespace KHost.Abstractions.Models;
 
+/// <summary>One room the host runs a show in, with its own settings.</summary>
 public class Venue : RepositoryModel
 {
+    /// <summary>Whether this venue is offered for selection. A disabled venue's data is kept, not
+    /// deleted.</summary>
     public bool Enabled { get; set; } = true;
+
+    /// <summary>The venue's name, shown throughout the host.</summary>
     public required string Name { get; set; }
 
-    /// <summary>The name as search matches it. Written by the persistence layer, not by hand.</summary>
+    /// <summary>A search-friendly form of <see cref="Name"/>, computed by the host — do not set
+    /// this directly.</summary>
     public string NameFolded { get; set; } = string.Empty;
+
+    /// <summary>Free-form notes about the venue.</summary>
     public string Notes { get; set; } = "";
+
+    /// <summary>The venue's street address.</summary>
     public string Address { get; set; } = "";
+
+    /// <summary>The venue's phone number.</summary>
     public string Phone { get; set; } = "";
+
+    /// <summary>This venue's own settings.</summary>
     public VenueSettings Settings { get; set; } = new();
 
-    /// <summary>Copies under a fresh id; Settings is deep-copied, the rest memberwise.</summary>
+    /// <summary>Copies this venue under a fresh id and a new name, as an independent venue with its
+    /// own settings.</summary>
     public Venue CloneAs(string name)
     {
         var clone = (Venue)MemberwiseClone();
@@ -26,20 +41,40 @@ public class Venue : RepositoryModel
         return clone;
     }
 
+    /// <summary>A venue's own settings: the show's rules, the screen's look, and how guests reach
+    /// it.</summary>
     public class VenueSettings
     {
+        /// <summary>Master volume this venue's displays start at, 0-100.</summary>
         public int DefaultVolume { get; set; } = 100;
+
+        /// <summary>Whether a singer's estimated wait is shown on the queue.</summary>
         public bool ShowEstimatedWaitTime { get; set; } = true;
+
+        /// <summary>Whether tipping is offered at this venue at all.</summary>
         public bool TippingEnabled { get; set; } = true;
         // Off by default: it adds a prompt, so venues opt in rather than inherit one.
+        /// <summary>Warns a host when a singer requests a song they already sang recently, within
+        /// <see cref="DuplicateSongWindowHours"/>. Off by default.</summary>
         public bool WarnOnDuplicateSong { get; set; }
+
+        /// <summary>How far back, in hours, a repeat request counts as a duplicate. Only read when
+        /// <see cref="WarnOnDuplicateSong"/> is on.</summary>
         public int DuplicateSongWindowHours { get; set; } = 4;
+
+        /// <summary>Asks for confirmation before a singer is removed from the queue.</summary>
         public bool PromptBeforeRemovingSinger { get; set; } = true;
+
+        /// <summary>Asks for confirmation before a performance is removed.</summary>
         public bool PromptBeforeRemovingPerformance { get; set; } = true;
+
+        /// <summary>Whether the queue is emptied automatically when the venue's show is closed.</summary>
         public bool ClearQueueOnClose { get; set; } = true;
 
         // Nullable: EF reads venue rows saved before this key existed as null (initializers
         // are ignored for missing JSON keys); callers fall back to a default config.
+        /// <summary>This venue's queue rotation rules. Null means the venue has never set any;
+        /// callers fall back to the default rotation config.</summary>
         public QueueRotationConfig? QueueRotation { get; set; }
 
         /// <summary>Shown on screen whenever nothing is playing. Null leaves the screen blank.</summary>
@@ -88,11 +123,13 @@ public class Venue : RepositoryModel
         /// <summary>Up-next line; tags like <c>{song}</c> replace per singer. Blank uses a default.</summary>
         public string? MarqueeEntryFormat { get; set; }
 
+        /// <summary>Which edge of the screen the marquee band sits against.</summary>
         public MarqueePosition MarqueePosition { get; set; }
 
         /// <summary>Null takes the screen's own default, which is what most venues want.</summary>
         public string? MarqueeBackgroundColor { get; set; }
 
+        /// <summary>Null takes the screen's own default, which is what most venues want.</summary>
         public string? MarqueeTextColor { get; set; }
 
         /// <summary>Text height in pixels; zero takes the screen's own size, em-sizing the rest.</summary>
@@ -150,7 +187,8 @@ public class Venue : RepositoryModel
         /// <summary>Which corner names it; null takes bottom-left, not the QR's bottom-right.</summary>
         public ScreenCorner? BreakMusicCardCorner { get; set; }
 
-        /// <summary>Memberwise copy plus a deep copy of the one reference-type member.</summary>
+        /// <summary>An independent copy, including its own <see cref="QueueRotation"/>; changing
+        /// one never affects the other.</summary>
         public VenueSettings Clone()
         {
             var clone = (VenueSettings)MemberwiseClone();

@@ -4,6 +4,7 @@ namespace KHost.Abstractions.Exceptions;
 /// <remarks>Stays in Abstractions: it is how a plugin reports a failure the host can act on.</remarks>
 public class KHostException : Exception
 {
+    /// <summary>Builds the exception from the three reader-facing fields.</summary>
     public KHostException(
         string whatHappened,
         string suggestion,

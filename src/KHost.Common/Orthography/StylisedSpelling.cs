@@ -15,6 +15,7 @@ public static class StylisedSpelling
         ['@'] = 'a',
     };
 
+    /// <summary>Replaces known stand-in symbols with the letters they represent; null/empty stays empty.</summary>
     public static string ResolveToPlainSpelling(string? value)
     {
         if (string.IsNullOrEmpty(value))

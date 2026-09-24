@@ -3,6 +3,9 @@ using System.Text.Json.Serialization;
 
 namespace KHost.Abstractions.Services.IPC;
 
+/// <summary>Base for every command the host sends to its own LocalScreen app. Host-only wire
+/// protocol: a plugin's own display talks to its device through <see
+/// cref="IDisplayProvider"/> instead, never through these types directly.</summary>
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "$type")]
 [JsonDerivedType(typeof(LoadMediaCommand), "loadMedia")]
 [JsonDerivedType(typeof(PlayCommand), "play")]
@@ -26,6 +29,10 @@ namespace KHost.Abstractions.Services.IPC;
 [JsonDerivedType(typeof(SetTimedLyricsCommand), "setTimedLyrics")]
 public abstract class ScreenCommandBase : IScreenCommand { }
 
+/// <summary>Loads one song or clip, ready to play but not playing: a stream to play end to end,
+/// stems to mix, or both.</summary>
+/// <remarks>Also what <see cref="IDisplayProvider.LoadAsync(LoadMediaCommand, CancellationToken)"/>
+/// hands a plugin display.</remarks>
 public sealed class LoadMediaCommand : ScreenCommandBase
 {
     /// <summary>The host transcodes; the display plays the stream, with no decoder of its own.</summary>
@@ -41,8 +48,8 @@ public sealed class LoadMediaCommand : ScreenCommandBase
     public int Tempo { get; init; }
 
     /// <summary>Stems for a display that mixes them itself; empty when the host already mixed.</summary>
-    /// <remarks><see cref="StreamUrl"/> is still set beside these, so a display that turns out not
-    /// to mix has something to play rather than silence.</remarks>
+    /// <remarks><see cref="StreamUrl"/> may be set beside these, for a display that turns out not to
+    /// mix; when it is null, the stems are the only way the song comes out.</remarks>
     public IReadOnlyList<StemSource> Stems { get; init; } = [];
 }
 
@@ -50,72 +57,93 @@ public sealed class LoadMediaCommand : ScreenCommandBase
 /// <remarks>By role rather than by index, because that is how a host asks for it — the lead and the
 /// backing are what the console offers. A display with no such stem ignores it.
 ///
-/// <para>This is the whole reason a display mixes: the host's own mix is compiled into an ffmpeg
-/// filter graph, so moving it reopens the stream mid-song. This moves a gain instead.</para></remarks>
+/// <para>This is the whole reason a display mixes: the host's own mix is baked into the stream, so
+/// changing it means reopening the stream mid-song. This moves a gain instead.</para></remarks>
 public sealed class SetStemVolumeCommand : ScreenCommandBase
 {
+    /// <summary>Which voice this changes the level of.</summary>
     public required AudioTrackRole Role { get; init; }
 
-    /// <summary>Against the music, which is the reference and has no level of its own.</summary>
+    /// <summary>Gain against the music, 0-100; the music track itself has no level of its own.</summary>
     public required int Volume { get; init; }
 }
 
+/// <summary>Resumes playback from the current position.</summary>
 public sealed class PlayCommand : ScreenCommandBase { }
+
+/// <summary>Pauses playback at the current position.</summary>
 public sealed class PauseCommand : ScreenCommandBase { }
 
+/// <summary>Stops playback and releases the current song.</summary>
 public sealed class StopCommand : ScreenCommandBase
 {
+    /// <summary>How long to fade before stopping; null or zero stops at once.</summary>
     public TimeSpan? FadeDuration { get; init; }
 }
 
+/// <summary>Moves playback to a new position in the current song.</summary>
 public sealed class SeekCommand : ScreenCommandBase
 {
+    /// <summary>The song position to seek to.</summary>
     public required TimeSpan Position { get; init; }
 }
 
+/// <summary>Sets the master volume of the current song.</summary>
 public sealed class SetVolumeCommand : ScreenCommandBase
 {
+    /// <summary>Linear gain, 0.0-1.0.</summary>
     public required float Volume { get; init; }
 }
 
 /// <summary>Blanks the picture without stopping playback, so the song carries on underneath.</summary>
 public sealed class SetVideoCommand : ScreenCommandBase
 {
+    /// <summary>False blanks the picture; true restores it. The song keeps playing either way.</summary>
     public required bool Enabled { get; init; }
 }
 
 /// <summary>Second audio channel for break music and an ad's bed; it has no song position.</summary>
 public sealed class LoadBackgroundCommand : ScreenCommandBase
 {
+    /// <summary>Where the display fetches the background audio.</summary>
     public required string StreamUrl { get; init; }
 
     /// <summary>Starts as soon as it can play, sparing the caller a second round trip.</summary>
     public bool AutoPlay { get; init; } = true;
 }
 
+/// <summary>Resumes the background channel.</summary>
 public sealed class PlayBackgroundCommand : ScreenCommandBase { }
+
+/// <summary>Pauses the background channel.</summary>
 public sealed class PauseBackgroundCommand : ScreenCommandBase { }
 
+/// <summary>Stops the background channel.</summary>
 public sealed class StopBackgroundCommand : ScreenCommandBase
 {
+    /// <summary>How long to fade before stopping; null or zero stops at once.</summary>
     public TimeSpan? FadeDuration { get; init; }
 }
 
 /// <summary>Separate from <see cref="SetVolumeCommand"/>: a bed sits under the song's fader.</summary>
 public sealed class SetBackgroundVolumeCommand : ScreenCommandBase
 {
+    /// <summary>Linear gain, 0.0-1.0.</summary>
     public required float Volume { get; init; }
 }
 
 /// <summary>Puts a still on screen; no duration, so the host's clock decides when it comes down.</summary>
 public sealed class ShowImageCommand : ScreenCommandBase
 {
+    /// <summary>Where the display fetches the still image.</summary>
     public required string Url { get; init; }
 
-    /// <summary>Sent with the picture: the screen holds no library to look it up in.</summary>
+    /// <summary>How the image fills the screen.</summary>
+    /// <remarks>Sent with the picture: the screen holds no library to look it up in.</remarks>
     public ImageScaling Scaling { get; init; }
 }
 
+/// <summary>Takes the still down.</summary>
 public sealed class HideImageCommand : ScreenCommandBase { }
 
 /// <summary>Names who is up, put on the screens by a host between songs.</summary>
@@ -130,12 +158,14 @@ public sealed class ShowNextSingerCommand : ScreenCommandBase
     /// rather than promising a song that does not exist.</summary>
     public string? Song { get; init; }
 
+    /// <summary>Null where the queued song has no artist recorded.</summary>
     public string? Artist { get; init; }
 }
 
 /// <summary>Every QR code on screen, sent whole on change, like <see cref="SetMarqueeCommand"/>.</summary>
 public sealed class SetScreenQrCodesCommand : ScreenCommandBase
 {
+    /// <summary>Every code currently shown; empty takes every code off the screen.</summary>
     public IReadOnlyList<ScreenQrCodePlacement> Codes { get; init; } = [];
 }
 
@@ -145,10 +175,13 @@ public sealed class ScreenQrCodePlacement
     /// <summary>The finished picture, an SVG data URI; the screen holds no QR library.</summary>
     public required string ImageUrl { get; init; }
 
+    /// <summary>Text shown beside the code. Null shows the code alone.</summary>
     public string? Caption { get; init; }
 
+    /// <summary>Which corner it sits in.</summary>
     public ScreenCorner Corner { get; init; }
 
+    /// <summary>How big it is drawn.</summary>
     public ScreenQrSize Size { get; init; }
 
     /// <summary>Modules across; the picture carries no quiet zone (see <see cref="SafeZone"/>).</summary>
@@ -189,13 +222,16 @@ public sealed class SetMarqueeCommand : ScreenCommandBase
     /// <summary>One line per upcoming turn, in queue order, composed host-side.</summary>
     public IReadOnlyList<string> Singers { get; init; } = [];
 
+    /// <summary>The venue's own line, e.g. a drink special. Null shows only singers.</summary>
     public string? Message { get; init; }
 
+    /// <summary>Which edge of the screen the band sits against.</summary>
     public MarqueePosition Position { get; init; }
 
     /// <summary>Null leaves the screen's own default; sent as CSS colours for the screen to render.</summary>
     public string? BackgroundColor { get; init; }
 
+    /// <summary>Null leaves the screen's own default; sent as CSS colours for the screen to render.</summary>
     public string? TextColor { get; init; }
 
     /// <summary>Text height in pixels; zero leaves the screen's own size.</summary>
@@ -220,6 +256,8 @@ public sealed class SetTimedLyricsCommand : ScreenCommandBase
     public required TimedLyrics? Lyrics { get; init; }
 }
 
+/// <summary>Base for state the LocalScreen app reports back to the host. Host-only wire protocol;
+/// a plugin's own display reports through <see cref="IDisplayProvider"/> instead.</summary>
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "$type")]
 [JsonDerivedType(typeof(ScreenPlaybackState), "playback")]
 [JsonDerivedType(typeof(ScreenBackgroundState), "background")]
@@ -228,19 +266,29 @@ public abstract class ScreenStateBase : IScreenState { }
 /// <summary>Sent when the background track ends; the song's position clock must not see this.</summary>
 public sealed class ScreenBackgroundState : ScreenStateBase
 {
+    /// <summary>The background stream currently loaded, or null when none is.</summary>
     public required string? StreamUrl { get; init; }
+
+    /// <summary>Whether the background channel is currently playing.</summary>
     public required bool IsPlaying { get; init; }
 
     /// <summary>True exactly once per track, when it played out on its own.</summary>
     public required bool HasEnded { get; init; }
 }
 
+/// <summary>Where the current song is, reported back for the host's own position clock.</summary>
 public sealed class ScreenPlaybackState : ScreenStateBase
 {
     /// <summary>The stream the screen is playing, not a file; a screen opens nothing local.</summary>
     public required string? StreamUrl { get; init; }
+
+    /// <summary>Whether the song is currently playing.</summary>
     public required bool IsPlaying { get; init; }
+
+    /// <summary>How far into the song playback currently is.</summary>
     public required TimeSpan Position { get; init; }
+
+    /// <summary>The song's total length.</summary>
     public required TimeSpan Duration { get; init; }
 
     /// <summary>Sample time via the screen's measured offset. Null before one is established.</summary>

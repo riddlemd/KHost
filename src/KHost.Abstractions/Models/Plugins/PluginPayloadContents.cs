@@ -10,5 +10,6 @@ public sealed record PluginPayloadContents
     /// release zip wrapped everything in.</summary>
     public required string Root { get; init; }
 
+    /// <summary>The manifest read out of this payload.</summary>
     public required PluginManifest Manifest { get; init; }
 }

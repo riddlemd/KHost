@@ -2,8 +2,14 @@ using KHost.Abstractions.Models.QueueRotation;
 
 namespace KHost.Common.QueueRotation;
 
+/// <summary>Where a finished singer's id lands back in the queue, per a rotation strategy's rules.</summary>
 public static class DropPositionHelper
 {
+    /// <summary><paramref name="queue"/> with <paramref name="finishedSingerId"/> moved to where
+    /// <paramref name="mode"/> places it, or left out entirely under
+    /// <see cref="DropPositionMode.LeavesQueue"/>. <paramref name="fixedIndex"/> only matters for
+    /// <see cref="DropPositionMode.FixedIndex"/>; <paramref name="random"/> only for
+    /// <see cref="DropPositionMode.RandomBackHalf"/>.</summary>
     public static IReadOnlyList<Guid> ApplyDropPosition(
         IReadOnlyList<Guid> queue,
         Guid finishedSingerId,

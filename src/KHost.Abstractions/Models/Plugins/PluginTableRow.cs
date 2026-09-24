@@ -10,6 +10,7 @@ public sealed record PluginTableRow
     /// <summary>Cell text keyed by <see cref="PluginTableColumn.Key"/>; a missing key is blank.</summary>
     public IReadOnlyDictionary<string, string> Fields { get; init; } = new Dictionary<string, string>();
 
+    /// <summary>Buttons on this row alone — connect, remove, sign out.</summary>
     public IEnumerable<PluginTableAction> Actions { get; init; } = [];
 
     /// <summary>Drawn as the row in effect — the device being used, the account signed in.</summary>
