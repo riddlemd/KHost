@@ -100,22 +100,24 @@ public partial class SettingsButton : IDisposable
             _subscriptions.Add(Broker.Subscribe<SelectedVenueChanged>(_ => QueueRebuild()));
         }
 
-        _subscriptions.Add(Broker.Subscribe<ThemeChanged>(_ => QueueRebuild()));
+        _subscriptions.Add(Broker.Subscribe<ThemeChanged>(_ => QueueRedraw()));
 
         // A sweep finding a receiver, or a screen arriving, changes what this row says without
         // anyone touching the menu.
         _subscriptions.Add(Broker.Subscribe<DisplaysChanged>(message => QueueRedraw()));
         _subscriptions.Add(Broker.Subscribe<BreakMusicChanged>(_ => QueueRebuild()));
-        _subscriptions.Add(Broker.Subscribe<ThemesChanged>(_ => QueueRebuild()));
+        _subscriptions.Add(Broker.Subscribe<ThemesChanged>(_ => QueueRedraw()));
 
         await RebuildAsync();
     }
 
     // Handlers run in subscription order and a slow one holds up the rest, so the rebuild is
-    // started rather than awaited here.
-    private void QueueRebuild() => _ = RebuildAsync();
+    // started rather than awaited here. Dispatched through InvokeAsync so the venue/permission
+    // reads inside RebuildAsync land on the renderer thread, not the broker's.
+    private void QueueRebuild() => _ = InvokeAsync(RebuildAsync);
 
-    // Announced off the render thread, and nothing here needs re-reading — only redrawing.
+    // Announced off the render thread. Themes and displays change no page's visibility, so they
+    // need only a redraw, not a re-read of venues and permissions.
     private void QueueRedraw() => _ = InvokeAsync(StateHasChanged);
 
     /// <summary>Reads the venue before filtering, or a venue-dependent page is judged too soon.</summary>

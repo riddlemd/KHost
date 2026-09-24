@@ -29,8 +29,8 @@ public partial class BreakMusicBar : IDisposable
         GC.SuppressFinalize(this);
     }
 
-    private async void OnStateChanged()
-        => await InvokeAsync(StateHasChanged);
+    private void OnStateChanged()
+        => _ = InvokeAsync(StateHasChanged);
 
     // Only reached when the provider names no track. A provider driving another app never does,
     // so Playing has to be spelled out here or the bar reports "off" over audible music.

@@ -80,7 +80,7 @@ public partial class MediaManagerPage : IAsyncDisposable
         _paginatedResult = await MediaService.SearchAsync(_searchQuery, _currentPage, _pageSize, sort, MediaSearchOptions.AllTypes);
     }
 
-    private void OnSortColumnClicked(string column)
+    private async Task OnSortColumnClickedAsync(string column)
     {
         if (_sortColumn == column)
             _sortDescending = !_sortDescending;
@@ -90,7 +90,7 @@ public partial class MediaManagerPage : IAsyncDisposable
             _sortDescending = false;
         }
         _currentPage = 1;
-        _ = SearchAsync();
+        await SearchAsync();
     }
 
     private async Task OnSearchKeyDownAsync(KeyboardEventArgs e)

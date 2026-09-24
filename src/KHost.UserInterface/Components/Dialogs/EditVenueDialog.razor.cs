@@ -328,9 +328,9 @@ public partial class EditVenueDialog
         venue.Settings.QrCodeSafeZone = _model.QrCodeSafeZone;
         venue.Settings.QrCodeOffset = _model.QrCodeOffset;
 
+        // DialogHost closes after awaiting this itself; closing again here would also fire
+        // OnClose's onCancel, marking a successful save as a cancel.
         await OnSave.InvokeAsync(venue);
-
-        await CloseAsync();
     }
 
     public async Task CloseAsync()

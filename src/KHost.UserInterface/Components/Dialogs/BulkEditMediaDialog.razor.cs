@@ -44,8 +44,9 @@ public partial class BulkEditMediaDialog
 
     private async Task SaveAsync()
     {
+        // DialogHost closes after awaiting this itself; closing again here would also fire
+        // OnClose's onCancel, marking a successful save as a cancel.
         await OnSave.InvokeAsync(_model);
-        await CloseAsync();
     }
 
     public async Task CloseAsync()

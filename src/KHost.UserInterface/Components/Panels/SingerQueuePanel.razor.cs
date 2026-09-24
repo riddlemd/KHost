@@ -48,6 +48,8 @@ public partial class SingerQueuePanel : IAsyncDisposable
     private bool _canAddToQueue;
     private bool _canRemoveFromQueue;
     private bool _canReorderQueue;
+    private bool _sortableAttached;
+    private Guid? _lastScrolledSingerId;
 
     protected override async Task OnInitializedAsync()
     {
@@ -80,29 +82,42 @@ public partial class SingerQueuePanel : IAsyncDisposable
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        await RefreshPerformanceCountsAsync();
-
-        // Sortable would happily reorder for someone the arrows are hidden from.
-        if (firstRender && JS is not null && _canReorderQueue)
+        // A truly-async first await in OnInitializedAsync leaves _canReorderQueue still false on
+        // firstRender, so attaching has to follow the permission in rather than fire once on it.
+        if (_canReorderQueue != _sortableAttached && JS is not null)
         {
-            _dotNetRef = DotNetObjectReference.Create(this);
-            // The name reaches JS as a string; nameof turns a missed rename into a compile
-            // error instead of a callback that silently stops firing.
-            await JS.InvokeVoidAsync(
-                "khSortable.init",
-                "singers",
-                ".kh-singer-queue-panel__singer-queue",
-                // The row itself drags. Its buttons are filtered out so a press on remove or an
-                // arrow does what it says, and the locked row still refuses to move.
-                null,
-                "button, .kh-singer-queue-panel__singer-queue__singer--locked",
-                _dotNetRef,
-                nameof(OnSortEndAsync),
-                "singerId");
+            if (_canReorderQueue)
+            {
+                _dotNetRef ??= DotNetObjectReference.Create(this);
+                // The name reaches JS as a string; nameof turns a missed rename into a compile
+                // error instead of a callback that silently stops firing.
+                await JS.InvokeVoidAsync(
+                    "khSortable.init",
+                    "singers",
+                    ".kh-singer-queue-panel__singer-queue",
+                    // The row itself drags. Its buttons are filtered out so a press on remove or an
+                    // arrow does what it says, and the locked row still refuses to move.
+                    null,
+                    "button, .kh-singer-queue-panel__singer-queue__singer--locked",
+                    _dotNetRef,
+                    nameof(OnSortEndAsync),
+                    "singerId");
+            }
+            else
+            {
+                await JS.InvokeVoidAsync("khSortable.destroy", "singers");
+            }
+
+            _sortableAttached = _canReorderQueue;
         }
 
-        if (SingerQueueService?.SelectedUserId is not null)
+        // Only on an actual selection change: scrolling on every render yanks the list while
+        // the host is scrolling it by hand.
+        if (SingerQueueService?.SelectedUserId is { } selectedId && selectedId != _lastScrolledSingerId)
+        {
+            _lastScrolledSingerId = selectedId;
             await ScrollToSelectedSingerAsync();
+        }
     }
 
     [JSInvokable]
@@ -263,7 +278,7 @@ public partial class SingerQueuePanel : IAsyncDisposable
         {
             if (DialogService is null) return;
 
-            bool confirmed = await DialogService.ShowConfirmationAsync(
+            await DialogService.ShowConfirmationAsync(
                 $"Are you sure you want to remove <span class=\"kh-emphasis\">{user.Name}</span> from the queue?",
                 async () => await SingerQueueService.RemoveUserAsync(user.Id),
                 "Remove Singer From Queue",
