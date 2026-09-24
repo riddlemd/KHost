@@ -55,26 +55,6 @@
         }
     }
 
-    &__results-header {
-        display: flex;
-        justify-content: right;
-        align-items: center;
-        padding: 8px;
-    }
-
-    &__file-icon {
-        color: var(--kh-text-muted);
-        font-size: 0.75rem;
-    }
-
-    &__add-btn {
-        padding: 2px 8px;
-    }
-
-    &__hint {
-        font-size: 0.72rem;
-        color: var(--kh-warning);
-    }
 }
 
 // Where the results will land, not on the button: a yt-dlp search is tens of seconds, and a

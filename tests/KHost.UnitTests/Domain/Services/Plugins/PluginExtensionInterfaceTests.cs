@@ -1,6 +1,6 @@
 using System.Reflection;
-using KHost.Domain.Services;
 using KHost.Domain.Services.Plugins;
+using KHost.UnitTests.Conventions;
 
 namespace KHost.UnitTests.Domain.Services.Plugins;
 
@@ -52,8 +52,8 @@ public class PluginExtensionInterfaceTests
     }
 
     private static IReadOnlyList<Type> CollectedInterfaces()
-        => typeof(MediaProbeService).Assembly
-            .GetTypes()
+        => HostAssemblies.All
+            .SelectMany(assembly => assembly.GetTypes())
             .Where(type => type is { IsClass: true, IsAbstract: false })
             .SelectMany(type => type.GetConstructors())
             .SelectMany(constructor => constructor.GetParameters())

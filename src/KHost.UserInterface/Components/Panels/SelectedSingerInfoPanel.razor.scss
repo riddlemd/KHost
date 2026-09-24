@@ -136,24 +136,6 @@
             opacity: 0.45;
         }
     }
-    &__btn--play {
-        width: 26px;
-        height: 26px;
-        padding: 0;
-        border-radius: 50%;
-        background: var(--kh-primary-subtle);
-        border: 1px solid var(--kh-border-bright);
-        color: var(--kh-primary-bright);
-        font-size: 11px;
-        transition: all var(--kh-transition);
-
-        &:hover {
-            background: var(--kh-primary);
-            border-color: var(--kh-primary-hover);
-            color: #fff;
-            box-shadow: 0 2px 8px var(--kh-primary-glow);
-        }
-    }
     &__col--number {
         padding: 0 0.5em;
     }

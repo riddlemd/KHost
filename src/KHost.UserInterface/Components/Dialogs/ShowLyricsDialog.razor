@@ -33,11 +33,11 @@
     <Footer>
         @if(_loading)
         {
-            <span>...</span>
+            <span class="@(_rootClassName)__footer">...</span>
         }
         else
         {
-            <span>Lyrics provided by <a href="@_lyrics?.ProviderUrl" target="_blank">@_lyrics?.ProviderName</a></span>
+            <span class="@(_rootClassName)__footer">Lyrics provided by <a href="@_lyrics?.ProviderUrl" target="_blank">@_lyrics?.ProviderName</a></span>
         }
     </Footer>
 </Dialog>

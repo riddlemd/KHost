@@ -1,5 +1,5 @@
 .kh-show-lyrics-dialog {
-    &__textarea {
+    &__content {
         font-family: var(--kh-font-mono, monospace);
         white-space: pre;
     }
@@ -12,12 +12,16 @@
         gap: 1em;
         padding: 2em 0;
 
-        .kh-loader {
+        // Loader is a child component, so its own .kh-loader carries Loader's scope, not ours.
+        ::deep .kh-loader {
             font-size: 5em;
         }
     }
 
-    .kh-dialog__footer {
+    // Dialog renders kh-dialog__footer around this content, making it an ancestor rather than a
+    // descendant — unreachable from here even with ::deep, so the span we render is styled instead.
+    &__footer {
+        display: block;
         text-align: right;
     }
 }

@@ -128,13 +128,6 @@ public partial class VenuesManagerPage : IDisposable
         );
     }
 
-    private async Task ClearSearchAsync()
-    {
-        _searchQuery = "";
-        _currentPage = 1;
-        await SearchAsync();
-    }
-
     private async Task PreviousPageAsync()
     {
         if (_currentPage > 1)
