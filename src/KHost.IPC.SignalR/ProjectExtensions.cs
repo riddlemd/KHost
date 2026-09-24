@@ -36,7 +36,5 @@ public static class ProjectExtensions
         return services;
     }
 
-    public static IScreenClient CreateScreenClient() => new ScreenClient();
-
     public static IScreenClient CreateScreenClient(ILoggerFactory? loggerFactory) => new ScreenClient(loggerFactory);
 }

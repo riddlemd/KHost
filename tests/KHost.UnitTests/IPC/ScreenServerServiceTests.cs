@@ -506,6 +506,63 @@ public class ScreenServerServiceTests
         Assert.Equal(order.OrderBy(seq => seq), order);
     }
 
+    /// <summary>Regression test: disconnect must clear the session's key, not just remove the session
+    /// entry — a send already queued behind the per-screen gate holds its own reference to that
+    /// object, so only nulling the key on it (not just removing it from the dictionary) reaches the
+    /// "re-read under the gate" guard in <c>SendToAsync</c>.</summary>
+    [Fact]
+    public async Task BroadcastCommandAsync_QueuedBehindTheGate_IsDropped_IfTheScreenDisconnectsMeanwhile()
+    {
+        Register("conn-a", "Screen 1");
+
+        var firstIsHeld = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var sendCount = 0;
+        var entered = 0;
+
+        _singleClient.SendCoreAsync(Arg.Any<string>(), Arg.Any<object?[]>(), Arg.Any<CancellationToken>())
+            .Returns(async call =>
+            {
+                Interlocked.Increment(ref sendCount);
+
+                if (Interlocked.Increment(ref entered) == 1)
+                {
+                    firstIsHeld.TrySetResult();
+                    await release.Task;
+                }
+            });
+
+        var first = _service.BroadcastCommandAsync(new PlayCommand());
+        await firstIsHeld.Task;
+
+        // Captures its own session reference under the lock (still valid) and then queues behind the
+        // send gate the first send is holding.
+        var second = _service.BroadcastCommandAsync(new PauseCommand());
+        var overtook = await Task.WhenAny(second, Task.Delay(TimeSpan.FromMilliseconds(250))) == second;
+        Assert.False(overtook, "the second send must still be queued behind the gate for this test to prove anything");
+
+        Callback.OnScreenDisconnected("conn-a");
+
+        release.TrySetResult();
+        await Task.WhenAll(first, second);
+
+        Assert.Equal(1, sendCount);
+    }
+
+    /// <summary>ScreenConnected must fire after the lock that registered the screen is released, or a
+    /// subscriber that calls back into the server (e.g. to broadcast on connect) deadlocks reentering
+    /// the non-reentrant lock from inside the very call that still holds it.</summary>
+    [Fact]
+    public async Task Register_RaisesScreenConnected_AfterReleasingTheLock_SoASubscriberCanCallBackIn()
+    {
+        _service.ScreenConnected += (_, _) => _service.BroadcastCommandAsync(new PlayCommand()).GetAwaiter().GetResult();
+
+        var registered = Task.Run(() => Register("conn-a", "Screen 1"));
+        var finished = await Task.WhenAny(registered, Task.Delay(TimeSpan.FromSeconds(2))) == registered;
+
+        Assert.True(finished, "registering deadlocked: ScreenConnected must be raised after the lock is released");
+    }
+
     private sealed class FakeKeyStore : IScreenKeyStore
     {
         private readonly Dictionary<string, byte[]> _keys = [];
