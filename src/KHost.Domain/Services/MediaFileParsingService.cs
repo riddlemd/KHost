@@ -1,4 +1,3 @@
-using FFMpegCore;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using Microsoft.Extensions.Logging;
@@ -20,9 +19,7 @@ namespace KHost.Domain.Services
         private readonly IAnalyticsService _analytics;
         private readonly IMediaProbeService _probes;
 
-        private Regex[] _prefixStrippers = [];
-        private Regex[] _titleNoiseStrippers = [];
-        private Regex? _featuringRegex;
+        private CompiledPatterns _patterns = new([], [], null);
 
         public MediaFileParsingService(
             ILogger<MediaFileParsingService> logger,
@@ -83,34 +80,25 @@ namespace KHost.Domain.Services
 
         private string StripPrefixes(string name)
         {
-            foreach (var stripper in _prefixStrippers)
+            foreach (var stripper in _patterns.PrefixStrippers)
                 name = stripper.Replace(name, "").Trim();
             return name;
         }
 
-        private void Rebuild(ServiceOptions opts)
-        {
-            _prefixStrippers = CompileMany(opts.PrefixStripPatterns, RegexOptions.Compiled);
-            _titleNoiseStrippers = CompileMany(opts.TitleNoisePatterns, RegexOptions.Compiled | RegexOptions.IgnoreCase);
-            _featuringRegex = CompileOne(opts.FeaturingPattern, RegexOptions.Compiled | RegexOptions.IgnoreCase);
-        }
+        // One field swapped atomically rather than three, so a lookup mid-OnChange never sees the
+        // new prefix patterns paired with the old featuring regex.
+        private void Rebuild(ServiceOptions opts) => _patterns = new CompiledPatterns(
+            CompileMany(opts.PrefixStripPatterns, RegexOptions.Compiled),
+            CompileMany(opts.TitleNoisePatterns, RegexOptions.Compiled | RegexOptions.IgnoreCase),
+            CompileOne(opts.FeaturingPattern, RegexOptions.Compiled | RegexOptions.IgnoreCase));
 
         private Regex[] CompileMany(string[] patterns, RegexOptions options)
         {
             var result = new List<Regex>(patterns.Length);
             foreach (var pattern in patterns)
             {
-                if (string.IsNullOrWhiteSpace(pattern))
-                    continue;
-
-                try
-                {
-                    result.Add(new Regex(pattern, options));
-                }
-                catch (ArgumentException ex)
-                {
-                    _logger.LogWarning(ex, "Skipping invalid filename-parsing regex: {Pattern}", pattern);
-                }
+                if (CompileOne(pattern, options) is { } compiled)
+                    result.Add(compiled);
             }
             return result.ToArray();
         }
@@ -212,36 +200,20 @@ namespace KHost.Domain.Services
 
         private void ApplyFeaturingHandling(Media media, ServiceOptions opts)
         {
-            if (_featuringRegex is null || opts.FeaturingHandling == FeaturingHandling.Ignore)
+            if (_patterns.FeaturingRegex is null || opts.FeaturingHandling == FeaturingHandling.Ignore)
                 return;
 
-            if (!TryExtractFeatured(media.Title, out var featured, out var cleanedTitle))
-                return;
-
-            ApplyFeaturedArtistToMedia(media, cleanedTitle, featured, opts.FeaturingHandling);
-        }
-
-        private bool TryExtractFeatured(string title, out string featured, out string cleanedTitle)
-        {
-            featured = string.Empty;
-            cleanedTitle = title;
-
-            var m = _featuringRegex!.Match(title);
+            var m = _patterns.FeaturingRegex.Match(media.Title);
             if (!m.Success)
-                return false;
+                return;
 
-            var candidate = m.Groups[1].Value.Trim();
-            if (string.IsNullOrWhiteSpace(candidate))
-                return false;
+            var featured = m.Groups[1].Value.Trim();
+            if (string.IsNullOrWhiteSpace(featured))
+                return;
 
-            featured = candidate;
-            cleanedTitle = title[..m.Index].TrimEnd();
-            return true;
-        }
+            var cleanedTitle = media.Title[..m.Index].TrimEnd();
 
-        private static void ApplyFeaturedArtistToMedia(Media media, string cleanedTitle, string featured, FeaturingHandling handling)
-        {
-            switch (handling)
+            switch (opts.FeaturingHandling)
             {
                 case FeaturingHandling.AppendToArtist:
                     media.Title = cleanedTitle;
@@ -265,7 +237,7 @@ namespace KHost.Domain.Services
             do
             {
                 changed = false;
-                foreach (var stripper in _titleNoiseStrippers)
+                foreach (var stripper in _patterns.TitleNoiseStrippers)
                 {
                     var next = stripper.Replace(title, "").TrimEnd();
                     if (next != title)
@@ -311,6 +283,11 @@ namespace KHost.Domain.Services
         }
 
         private sealed record ProbeResult(TimeSpan? Duration, string? Title, string? Artist);
+
+        /// <summary>One field to swap on <see cref="IOptionsMonitor{TOptions}.OnChange"/> rather
+        /// than three, so a rebuild is never observed half-applied.</summary>
+        private sealed record CompiledPatterns(
+            Regex[] PrefixStrippers, Regex[] TitleNoiseStrippers, Regex? FeaturingRegex);
     }
 
     public enum FilenameFormat
