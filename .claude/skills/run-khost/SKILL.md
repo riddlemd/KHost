@@ -174,8 +174,10 @@ Stop the host gracefully (toolbox) and confirm it in the log — `Singer queue c
 merely dying. Both exit in ~2s and release 5251; lingering past ~5s is a bug, not slowness
 (commit b3859c3).
 
-**A launched screen outlives the host by design** (it shows "Lost the host" and waits). Kill any
-`KHost.Screen2` during cleanup.
+**A launched screen outlives the host by design** (it shows "Lost the host" and keeps retrying,
+backing off to every 15s, then clears the banner and re-registers when a host is back). Kill any
+`KHost.Screen2` during cleanup: a host that died without revoking its key leaves one the next
+host you start will accept.
 
 Then restore the cache backup with the host stopped, and prove the restore from the relaunch log.
 
