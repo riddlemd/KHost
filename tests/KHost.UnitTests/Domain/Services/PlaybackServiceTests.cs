@@ -1397,6 +1397,49 @@ public class PlaybackServiceTests : IDisposable
         Assert.True(await WaitForParkedAtStartAsync());
     }
 
+    /// <summary>A key change opens its stream at the playhead, so parked at the start the song sits
+    /// behind it: handed that stream, the returning screen resumed where the key changed.</summary>
+    [Fact]
+    public async Task ScreenReconnect_ParkedBehindARebuiltStream_ReopensItAtTheStart()
+    {
+        var (performance, media) = CreatePerformance();
+        await _service.LoadAsync(performance, media);
+        await _service.PlayAsync();
+        await _service.SeekAsync(TimeSpan.FromSeconds(45));
+        await _service.SetPitchAsync(2);
+        Assert.True(await WaitForStreamsOpenedAsync(2));
+
+        ConnectScreens(0);
+        Assert.True(await WaitForParkedAtStartAsync());
+        _screenServer.ClearReceivedCalls();
+
+        ConnectScreens(1);
+
+        Assert.True(await WaitForStreamsOpenedAsync(3));
+        Assert.True(await WaitForBroadcastAsync<LoadMediaCommand>());
+        var load = LastBroadcast<LoadMediaCommand>();
+        Assert.NotNull(load);
+        Assert.Equal("http://host/media/stream-3/stream.m3u8", load.StreamUrl);
+        Assert.Equal(TimeSpan.Zero, load.StreamStartOffset);
+        Assert.Equal(2, _service.Pitch);
+    }
+
+    /// <summary>A stream that already opens at the start holds the parked playhead, so a returning
+    /// screen takes it rather than paying for a second transcode.</summary>
+    [Fact]
+    public async Task ScreenReconnect_ParkedOnAStreamFromTheStart_ReusesIt()
+    {
+        await PlayThenLoseAllScreensAsync(tick: true);
+        Assert.True(await WaitForParkedAtStartAsync());
+        _screenServer.ClearReceivedCalls();
+
+        ConnectScreens(1);
+
+        Assert.True(await WaitForBroadcastAsync<LoadMediaCommand>());
+        Assert.Equal("http://host/media/stream-1/stream.m3u8", LastBroadcast<LoadMediaCommand>()?.StreamUrl);
+        Assert.Equal(1, _streamsOpened);
+    }
+
     private async Task<Performance> PlayThenLoseAllScreensAsync(bool tick = false)
     {
         var (performance, media) = CreatePerformance();

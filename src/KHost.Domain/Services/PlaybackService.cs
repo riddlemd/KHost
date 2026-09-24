@@ -784,6 +784,11 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
 
             await ReplayOntoDisplayAsync(media, seekPast: _rendition.StartOffset);
         }
+        catch (Exception ex)
+        {
+            // Never rethrown: this runs detached, where nothing observes it.
+            Logger.LogError(ex, "Failed to load the song onto a new display session");
+        }
         finally { _screenSyncLock.Release(); }
     }
 
@@ -1042,7 +1047,19 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
     /// <param name="withLyrics">After the load and before the seek, the order LoadAsync uses.</param>
     private async Task ReplayOntoDisplayAsync(Media media, TimeSpan seekPast, bool withLyrics = false)
     {
-        await ToDisplaysAsync(DescribeStream(media));
+        // A song parked at the start after a rebuild sits behind its stream, which holds nothing
+        // before the playhead the rebuild opened it at: replayed as-is, the room resumes there.
+        if (_rendition is { SeekableInPlace: false } open && Position < open.StartOffset)
+        {
+            Logger.LogInformation("Rebuilding the stream at {Position}, behind where it opens", Position);
+
+            await ToDisplaysAsync(await BuildLoadCommandAsync(media, Position));
+            seekPast = Position;
+        }
+        else
+        {
+            await ToDisplaysAsync(DescribeStream(media));
+        }
 
         if (withLyrics)
             await ToDisplaysAsync(new SetTimedLyricsCommand { Lyrics = _currentLyrics });
