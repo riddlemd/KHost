@@ -1,5 +1,3 @@
-using KHost.Abstractions.Messaging;
-using KHost.Abstractions.Messaging.Messages;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using KHost.Abstractions.Services.IPC;
@@ -13,7 +11,6 @@ namespace KHost.UnitTests.Domain.Services;
 
 public class ScreenQrCodeServiceTests
 {
-    private readonly IScreenServer _screens = Substitute.For<IScreenServer>();
     private readonly IVenuesService _venues = Substitute.For<IVenuesService>();
     private readonly IPlaybackService _playback = Substitute.For<IPlaybackService>();
     private readonly MessageBroker _broker = new(NullLogger<MessageBroker>.Instance);
@@ -21,7 +18,7 @@ public class ScreenQrCodeServiceTests
     // Through a container, because the service looks playback up rather than taking it: a plugin
     // that shows a code and gates playback would otherwise close a constructor ring through it.
     private ScreenQrCodeService Service() => new(
-        NullLogger<ScreenQrCodeService>.Instance, _screens, _venues,
+        NullLogger<ScreenQrCodeService>.Instance, _venues,
         new ServiceCollection().AddSingleton(_playback).BuildServiceProvider(), _broker);
 
     private static ScreenQrCode Code(string owner, string? caption = null) => new()
@@ -350,86 +347,46 @@ public class ScreenQrCodeServiceTests
         => System.Text.Encoding.UTF8.GetString(
             Convert.FromBase64String(dataUri["data:image/svg+xml;base64,".Length..]));
 
+    /// <summary>The display redraws on this, so an offer that moved must say so.</summary>
     [Fact]
-    public async Task RegisterAsync_SendsTheWholeSetToTheScreens()
+    public async Task RegisterAsync_AnnouncesThatTheCodesMoved()
     {
         Arrange();
-        using var service = Service();
+        var service = Service();
+        var raised = 0;
+        using var subscription = _broker.Subscribe<ScreenQrCodesChanged>(_ => raised++);
 
         await service.RegisterAsync(Code("example"));
 
-        await _screens.Received(1).BroadcastCommandAsync(Arg.Is<SetScreenQrCodesCommand>(
-            command => command.Codes.Count == 1));
+        // Published, not announced: the count is settled by the time the call returns.
+        Assert.Equal(1, raised);
     }
 
-    /// <summary>A venue moving its codes reaches the screens on its own; nobody re-calls ShowAsync.</summary>
     [Fact]
-    public async Task SelectedVenueChanged_RepublishesWhereTheCodesSit()
+    public async Task UnregisterAsync_AnnouncesThatTheCodesMoved()
     {
         Arrange();
-        using var service = Service();
+        var service = Service();
         await service.RegisterAsync(Code("example"));
-        _screens.ClearReceivedCalls();
+        var raised = 0;
+        using var subscription = _broker.Subscribe<ScreenQrCodesChanged>(_ => raised++);
 
-        _venues.ReadSelectedVenueAsync().Returns(new Venue
-        {
-            Name = "The Bar",
-            Settings = new Venue.VenueSettings { QrCodeSource = "example", QrCodeCorner = ScreenCorner.TopLeft },
-        });
+        await service.UnregisterAsync("example");
 
-        _broker.Announce(new SelectedVenueChanged());
-
-        await WaitForBroadcastAsync(command => command.Codes.Single().Corner == ScreenCorner.TopLeft);
+        Assert.Equal(1, raised);
     }
 
-    /// <summary>Holding this host-side means a screen that drops mid-show comes back correct.</summary>
+    /// <summary>Withdrawing what was never offered moved nothing, so nothing is redrawn.</summary>
     [Fact]
-    public async Task ScreenConnected_SendsTheCodesToThatScreen()
+    public async Task UnregisterAsync_OwnerThatShowedNothing_AnnouncesNothing()
     {
         Arrange();
-        using var service = Service();
-        await service.RegisterAsync(Code("example"));
+        var service = Service();
+        var raised = 0;
+        using var subscription = _broker.Subscribe<ScreenQrCodesChanged>(_ => raised++);
 
-        // The registration broadcast is awaited above, so anything after this is the catch-up.
-        _screens.ClearReceivedCalls();
+        await service.UnregisterAsync("never-showed-anything");
 
-        _screens.ScreenConnected += Raise.EventWith(new ScreenConnectionEventArgs { Connection = Connection("screen-1") });
-
-        for (var attempt = 0; attempt < 100; attempt++)
-        {
-            if (_screens.ReceivedCalls().Any(call =>
-                    call.GetMethodInfo().Name == nameof(IScreenServer.BroadcastCommandAsync)
-                    && call.GetArguments().FirstOrDefault() is SetScreenQrCodesCommand))
-                return;
-
-            await Task.Delay(10);
-        }
-
-        Assert.Fail("The codes were never sent to the reconnecting screen.");
-    }
-
-    private static IScreenConnection Connection(string screenId)
-    {
-        var connection = Substitute.For<IScreenConnection>();
-        connection.ScreenId.Returns(screenId);
-        return connection;
-    }
-
-    // The handlers hand off to Task.Run so the hub thread is never held, so an assertion made
-    // straight after an announce races the publish rather than observing it.
-    private async Task WaitForBroadcastAsync(Func<SetScreenQrCodesCommand, bool> matches)
-    {
-        for (var attempt = 0; attempt < 100; attempt++)
-        {
-            if (_screens.ReceivedCalls().Any(call =>
-                    call.GetMethodInfo().Name == nameof(IScreenServer.BroadcastCommandAsync)
-                    && call.GetArguments().FirstOrDefault() is SetScreenQrCodesCommand command
-                    && matches(command)))
-                return;
-
-            await Task.Delay(10);
-        }
-
-        Assert.Fail("The codes were never broadcast.");
+        Assert.Equal(0, raised);
     }
 }

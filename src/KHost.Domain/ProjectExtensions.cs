@@ -115,17 +115,11 @@ namespace KHost.Domain
                 provider => provider.GetRequiredService<Services.Screens.ScreenDisplayProvider>());
             serviceCollection.AddSingleton<INextSingerCardService, Services.Screens.NextSingerCardService>();
             serviceCollection.AddSingleton<Services.Screens.IScreenQrCodeService, Services.Screens.ScreenQrCodeService>();
-            serviceCollection.AddSingleton<Services.Screens.BreakMusicCardService>();
+            serviceCollection.AddSingleton<Services.Screens.IBreakMusicCardService, Services.Screens.BreakMusicCardService>();
             serviceCollection.AddSingleton<IPlaybackService, PlaybackService>();
 
             // The same singletons again, under the marker the host builds on the way up: pointed at what is
             // already registered. A fresh registration would build twice, and the extra copy would listen.
-            serviceCollection.AddSingleton<Services.Screens.IStartsWithTheHost>(
-                sp => (Services.Screens.IStartsWithTheHost)sp.GetRequiredService<IScreenMarqueeService>());
-            serviceCollection.AddSingleton<Services.Screens.IStartsWithTheHost>(
-                sp => (Services.Screens.IStartsWithTheHost)sp.GetRequiredService<Services.Screens.IScreenQrCodeService>());
-            serviceCollection.AddSingleton<Services.Screens.IStartsWithTheHost>(
-                sp => sp.GetRequiredService<Services.Screens.BreakMusicCardService>());
             serviceCollection.AddSingleton<Services.Screens.IStartsWithTheHost>(
                 sp => (Services.Screens.IStartsWithTheHost)sp.GetRequiredService<IPlaybackService>());
             serviceCollection.AddSingleton<IMediaSearchService, MediaSearchService>();

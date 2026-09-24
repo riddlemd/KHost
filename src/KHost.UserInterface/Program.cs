@@ -236,9 +236,6 @@ internal static class Program
         // Before the hub is mapped: a service nobody has resolved cannot hear the first screen arrive.
         try
         {
-            app.Services.GetRequiredService<IScreenMarqueeService>().InitializeAsync().GetAwaiter().GetResult();
-            app.Services.GetRequiredService<BreakMusicCardService>().InitializeAsync().GetAwaiter().GetResult();
-
             // Each of these wires itself to the broker in its constructor, so enumerating is what
             // makes it exist: a loop, because a line each is what kept going missing.
             foreach (var _ in app.Services.GetServices<KHost.Domain.Services.Screens.IStartsWithTheHost>())
