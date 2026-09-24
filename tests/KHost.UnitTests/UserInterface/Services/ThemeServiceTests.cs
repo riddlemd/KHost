@@ -118,6 +118,33 @@ public class ThemeServiceTests : IDisposable
         Assert.Contains("cherry", (await CreateInitialisedAsync()).AvailableThemes);
     }
 
+    /// <summary>Regression: the guards used to be read ahead of the lock, so a second call already
+    /// past them would redundantly disable and re-announce a theme the first one had just settled.</summary>
+    [Fact]
+    public async Task SetEnabledAsync_ForTheSameThemeConcurrently_DoesNotActOnStaleGuardState()
+    {
+        var service = await CreateInitialisedAsync();
+        var announced = 0;
+        using var subscription = _broker.Subscribe<ThemesChanged>(_ => Interlocked.Increment(ref announced));
+
+        var gate = new TaskCompletionSource();
+        _cache.GateNextThemesSave(gate.Task);
+
+        var first = service.SetEnabledAsync("cherry", false);
+        await _cache.ThemesSaveReached;
+
+        // The first call is now holding the lock, inside its (gated) commit. A second call for the
+        // same theme runs its guards synchronously up to the point it, too, blocks on the lock — the
+        // window the bug lived in.
+        var second = service.SetEnabledAsync("cherry", false);
+
+        gate.SetResult();
+        await Task.WhenAll(first, second);
+
+        Assert.Equal(1, _cache.ThemesSaveCount);
+        Assert.Equal(1, announced);
+    }
+
     [Fact]
     public async Task SetEnabledAsync_Announces()
     {
@@ -406,6 +433,16 @@ public class ThemeServiceTests : IDisposable
     private sealed class FakeCache : ICacheService
     {
         private readonly Dictionary<string, string> _store = [];
+        private readonly TaskCompletionSource _themesSaveReached = new();
+        private Task? _gate;
+
+        public int ThemesSaveCount { get; private set; }
+
+        /// <summary>Completes once a "themes" save is under way, gate or not.</summary>
+        public Task ThemesSaveReached => _themesSaveReached.Task;
+
+        /// <summary>Makes the next "themes" save await <paramref name="gate"/> before it commits.</summary>
+        public void GateNextThemesSave(Task gate) => _gate = gate;
 
         public string? Raw(string key) => _store.GetValueOrDefault(key);
 
@@ -416,10 +453,20 @@ public class ThemeServiceTests : IDisposable
                 ? JsonSerializer.Deserialize<T>(json, JsonSerializerOptions.Web)
                 : default);
 
-        public Task SaveAsync<T>(string key, T state)
+        public async Task SaveAsync<T>(string key, T state)
         {
+            if (key == "themes")
+            {
+                ThemesSaveCount++;
+                var gate = _gate;
+                _gate = null;
+                _themesSaveReached.TrySetResult();
+
+                if (gate is not null)
+                    await gate;
+            }
+
             _store[key] = JsonSerializer.Serialize(state, JsonSerializerOptions.Web);
-            return Task.CompletedTask;
         }
     }
 }

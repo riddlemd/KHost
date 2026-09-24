@@ -1,5 +1,4 @@
 using KHost.Abstractions.Messaging;
-using KHost.Abstractions.Messaging.Messages;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using KHost.Abstractions.Services.IPC;
@@ -10,10 +9,11 @@ using QRCoder;
 namespace KHost.Domain.Services.Screens;
 
 /// <summary>Holds what every owner is offering and draws the one the venue picked.</summary>
-/// <remarks>Registering and showing stay separate, so a switch mid-show draws instantly.</remarks>
-public sealed class ScreenQrCodeService : BaseService, IScreenQrCodeService, IDisposable, IStartsWithTheHost
+/// <remarks>Registering and showing stay separate, so a switch mid-show draws instantly. The
+/// display asks for the codes on each change it hears; this only says when an owner's offer moved.</remarks>
+public sealed class ScreenQrCodeService : BaseService, IScreenQrCodeService
 {
-    private readonly IScreenServer _screenServer;
+    private readonly IMessageBroker _broker;
     private readonly IVenuesService _venuesService;
 
     // Resolved on use, never in the constructor: taking IPlaybackService there closes a DI ring when a
@@ -22,7 +22,6 @@ public sealed class ScreenQrCodeService : BaseService, IScreenQrCodeService, IDi
     private IPlaybackService? _playbackService;
 
     private IPlaybackService Playback => _playbackService ??= _services.GetRequiredService<IPlaybackService>();
-    private readonly SubscriptionSet _subscriptions = new();
 
     // Singleton, so the codes are guarded rather than assumed single-threaded: a plugin shows one
     // off its own task while a venue edit is recomposing.
@@ -35,24 +34,14 @@ public sealed class ScreenQrCodeService : BaseService, IScreenQrCodeService, IDi
 
     public ScreenQrCodeService(
         ILogger<ScreenQrCodeService> logger,
-        IScreenServer screenServer,
         IVenuesService venuesService,
         IServiceProvider services,
         IMessageBroker broker)
         : base(logger)
     {
-        _screenServer = screenServer;
+        _broker = broker;
         _venuesService = venuesService;
         _services = services;
-
-        // The venue owns where these sit and how big they are, and whether a song hides them.
-        _subscriptions.Add(broker.Subscribe<SelectedVenueChanged>(_ => Republish()));
-
-        // Only matters to a venue that hides them during a song, but the service cannot know that
-        // without reading the venue, which is what republishing does anyway.
-        _subscriptions.Add(broker.Subscribe<PlaybackChanged>(_ => Republish()));
-
-        _screenServer.ScreenConnected += OnScreenConnected;
     }
 
     public async Task RegisterAsync(ScreenQrCode code)
@@ -69,7 +58,8 @@ public sealed class ScreenQrCodeService : BaseService, IScreenQrCodeService, IDi
 
         Logger.LogInformation("{OwnerId} registered a QR code", code.OwnerId);
 
-        await BroadcastAsync();
+        // Awaited, so a caller registering during a show knows the display has been told.
+        await _broker.PublishAsync(new ScreenQrCodesChanged());
     }
 
     public async Task UnregisterAsync(string ownerId)
@@ -86,14 +76,14 @@ public sealed class ScreenQrCodeService : BaseService, IScreenQrCodeService, IDi
             _lock.Release();
         }
 
-        // A caller withdrawing what it never registered is not worth a broadcast, nor a
+        // A caller withdrawing what it never registered is not worth a redraw, nor a
         // complaint: unregistering on the way out is the right shape either way.
         if (!removed)
             return;
 
         Logger.LogInformation("{OwnerId} withdrew its QR code", ownerId);
 
-        await BroadcastAsync();
+        await _broker.PublishAsync(new ScreenQrCodesChanged());
     }
 
     public async Task<SetScreenQrCodesCommand> BuildAsync(CancellationToken cancellationToken = default)
@@ -153,43 +143,6 @@ public sealed class ScreenQrCodeService : BaseService, IScreenQrCodeService, IDi
             ],
         };
     }
-
-    public void Dispose()
-    {
-        _screenServer.ScreenConnected -= OnScreenConnected;
-        _subscriptions.Dispose();
-    }
-
-    private async Task BroadcastAsync(CancellationToken cancellationToken = default)
-    {
-        try
-        {
-            await _screenServer.BroadcastCommandAsync(await BuildAsync(cancellationToken));
-        }
-        catch (Exception ex)
-        {
-            // A code that fails to reach the screens must not take the show down with it.
-            Logger.LogWarning(ex, "Failed to send QR codes to screens");
-        }
-    }
-
-    // ScreenConnected arrives on the hub thread already holding a lock, so nothing here may be
-    // awaited on it.
-    private void OnScreenConnected(object? sender, ScreenConnectionEventArgs e) => _ = Task.Run(async () =>
-    {
-        try
-        {
-            // Sent even when there is nothing up: it is the whole state, so it also clears a code
-            // left on a screen that dropped and came back.
-            await _screenServer.SendCommandAsync(e.Connection.ScreenId, await BuildAsync());
-        }
-        catch (Exception ex)
-        {
-            Logger.LogWarning(ex, "Failed to send QR codes to screen {ScreenId}", e.Connection.ScreenId);
-        }
-    });
-
-    private void Republish() => _ = Task.Run(() => BroadcastAsync());
 
     // Every venue edit and every song republishes the whole set, and the picture only changes when
     // the payload does. Encoding a few times a minute for an unchanged string is work for nothing.

@@ -8,7 +8,14 @@ public sealed class MediaStreamSession
     public required string SourcePath { get; init; }
 
     /// <summary>Absolute URL of the HLS playlist every consumer fetches.</summary>
-    public required string PlaylistUrl { get; init; }
+    /// <remarks>Null when the session holds no transcode at all — a directory opened so a renderer
+    /// has somewhere served and swept to write its own files, with no ffmpeg behind it.</remarks>
+    public string? PlaylistUrl { get; init; }
+
+    /// <summary>Where a renderer may write files that are served and swept with this session.</summary>
+    /// <remarks>Reached over HTTP as <c>/media/{Id}/{fileName}</c>, and deleted when the session
+    /// closes, so nothing written here outlives the song.</remarks>
+    public string? WorkingDirectory { get; init; }
 
     /// <summary>Song position the stream's zero maps to; add it to get an absolute clock.</summary>
     public required TimeSpan StartOffset { get; init; }

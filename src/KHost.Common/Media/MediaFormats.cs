@@ -41,16 +41,77 @@ public static class MediaFormats
 
     public static bool IsImage(string? format) => ContentTypeFor(format) is not null;
 
+    /// <summary>Whether this is the graphics half of a pair, which carries no sound of its own.</summary>
+    public static bool IsGraphicsOnlyKaraoke(string filePath)
+        => Path.GetExtension(filePath).Equals(KaraokeGraphicsExtension, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>The audio that belongs to a <c>.cdg</c>, or null when it is not beside it.</summary>
+    /// <remarks>The graphics carry the words and nothing else, so a <c>.cdg</c> without this is half
+    /// a song. One helper because four places used to ask this question and two of them disagreed:
+    /// <see cref="IsKaraokeTrack"/> counted any audio file beside a <c>.cdg</c> as the pair's other
+    /// half, while the players only ever looked for <c>.mp3</c> — so a <c>.cdg</c> next to a
+    /// <c>.wav</c> was excluded from import as "part of a pair" and then played silent.
+    ///
+    /// <para>Matched without regard to case, and by directory listing rather than by
+    /// <c>File.Exists</c> on a built name: a case-sensitive filesystem has <c>SONG.CDG</c> and
+    /// <c>SONG.MP3</c> as a pair that no exact-case lookup ever finds.</para></remarks>
+    public static string? FindKaraokeAudio(string graphicsPath)
+    {
+        if (string.IsNullOrWhiteSpace(graphicsPath)) return null;
+
+        var directory = Path.GetDirectoryName(graphicsPath);
+        if (string.IsNullOrEmpty(directory) || !Directory.Exists(directory)) return null;
+
+        var stem = Path.GetFileNameWithoutExtension(graphicsPath);
+
+        foreach (var candidate in Directory.EnumerateFiles(directory))
+        {
+            if (!Path.GetFileNameWithoutExtension(candidate).Equals(stem, StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            var extension = Path.GetExtension(candidate).ToLowerInvariant();
+
+            if (AudioExtensions.Contains(extension)) return candidate;
+        }
+
+        return null;
+    }
+
+    /// <summary>The graphics that belong to an audio file, or null when none is beside it.</summary>
+    /// <remarks>Mirror of <see cref="FindKaraokeAudio"/>: matched by directory listing rather than
+    /// <c>File.Exists</c> on a built name, so a case-sensitive filesystem still finds SONG.CDG
+    /// beside song.mp3.</remarks>
+    public static string? FindKaraokeGraphics(string audioPath)
+    {
+        if (string.IsNullOrWhiteSpace(audioPath)) return null;
+
+        var directory = Path.GetDirectoryName(audioPath);
+        if (string.IsNullOrEmpty(directory) || !Directory.Exists(directory)) return null;
+
+        var stem = Path.GetFileNameWithoutExtension(audioPath);
+
+        foreach (var candidate in Directory.EnumerateFiles(directory))
+        {
+            if (!Path.GetFileNameWithoutExtension(candidate).Equals(stem, StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            if (Path.GetExtension(candidate).Equals(KaraokeGraphicsExtension, StringComparison.OrdinalIgnoreCase))
+                return candidate;
+        }
+
+        return null;
+    }
+
     /// <summary>A .cdg says so outright; an audio file with one beside it is the pair's other half.</summary>
     public static bool IsKaraokeTrack(string filePath)
     {
         if (string.IsNullOrWhiteSpace(filePath))
             return false;
 
-        if (Path.GetExtension(filePath).Equals(".cdg", StringComparison.OrdinalIgnoreCase))
+        if (Path.GetExtension(filePath).Equals(KaraokeGraphicsExtension, StringComparison.OrdinalIgnoreCase))
             return true;
 
-        return File.Exists(Path.ChangeExtension(filePath, ".cdg"));
+        return FindKaraokeGraphics(filePath) is not null;
     }
 
     /// <summary>What a file is, from its name and what sits beside it: asked, not assumed.</summary>

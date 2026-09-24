@@ -63,6 +63,17 @@ public class MediaImportPairedAudioTests : IDisposable
         Assert.Empty(MediaImportService.WithoutPairedAudio([audio]));
     }
 
+    /// <summary>The graphics file may sit on disk under any case; a case-sensitive filesystem has
+    /// SONG.CDG and song.mp3 as a pair that an exact-case lookup on a built name never finds.</summary>
+    [Fact]
+    public void ThePairing_IgnoresTheCaseOfTheGraphicsFileName()
+    {
+        Write("SONG.CDG");
+        var audio = Write("song.mp3");
+
+        Assert.Empty(MediaImportService.WithoutPairedAudio([audio]));
+    }
+
     /// <summary>Video is never the audio half of anything, and a .cdg beside one is coincidence.
     /// </summary>
     [Fact]

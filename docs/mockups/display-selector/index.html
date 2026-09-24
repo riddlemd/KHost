@@ -1,0 +1,372 @@
+<meta charset="utf-8">
+<title>Display Selector</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  /* KHost grape theme, verbatim from wwwroot/scss/themes/grape.scss */
+  :root {
+    --kh-primary: #5D2B90;
+    --kh-primary-bright: #A86AD4;
+    --kh-primary-subtle: rgba(93, 43, 144, 0.14);
+    --kh-accent-bright: #FF6B1A;
+    --kh-bg: #0B0814;
+    --kh-bg-card: #131025;
+    --kh-bg-elevated: #1C1836;
+    --kh-bg-input: #0E0C1C;
+    --kh-border: rgba(93, 43, 144, 0.28);
+    --kh-border-bright: rgba(93, 43, 144, 0.55);
+    --kh-text: #DDD4F0;
+    --kh-text-secondary: #8878A8;
+    --kh-text-muted: #6b5a82;
+    --kh-warning: #F59E0B;
+    --kh-danger: #EF4444;
+    --kh-success: #37B36B;
+
+    --page-ink: #0B0814;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--kh-bg); color: var(--kh-text);
+    font: 400 15px/1.55 "IBM Plex Sans", system-ui, -apple-system, sans-serif;
+  }
+  code, .mono { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 0.86em; }
+
+  .wrap { max-width: 1040px; width: 100%; margin-inline: auto; padding: 48px 20px 96px; }
+
+  .masthead { border-bottom: 1px solid var(--kh-border); padding-bottom: 22px; margin-bottom: 26px; }
+  .eyebrow {
+    margin: 0 0 6px; color: var(--kh-text-secondary);
+    font-size: 0.72rem; letter-spacing: 0.14em; text-transform: uppercase;
+  }
+  h1 { margin: 0 0 10px; font-size: 1.9rem; font-weight: 600; text-wrap: balance; }
+  .masthead p:last-child { margin: 0; color: var(--kh-text-secondary); max-width: 68ch; }
+
+  .brief {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+    gap: 14px; margin: 0 0 38px; padding: 16px;
+    background: var(--kh-bg-card); border: 1px solid var(--kh-border); border-radius: 10px;
+  }
+  .brief div { margin: 0; }
+  .brief dt {
+    color: var(--kh-text-secondary); font-size: 0.68rem;
+    letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 3px;
+  }
+  .brief dd { margin: 0; font-size: 0.9rem; }
+
+  h2 { font-size: 1.05rem; font-weight: 600; margin: 0 0 4px; }
+  .num {
+    display: inline-block; min-width: 1.9em; color: var(--kh-primary-bright);
+    font-family: "IBM Plex Mono", monospace; font-size: 0.85em;
+  }
+  .tag {
+    display: inline-block; margin-left: 8px; padding: 1px 8px; border-radius: 999px;
+    font-size: 0.64rem; letter-spacing: 0.08em; text-transform: uppercase; vertical-align: 2px;
+  }
+  .tag--pick { background: var(--kh-success); color: var(--page-ink); }
+  .tag--no { background: var(--kh-bg-elevated); color: var(--kh-text-muted); border: 1px solid var(--kh-border); }
+
+  .option {
+    display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 340px);
+    gap: 26px; align-items: start;
+    padding: 22px 0; border-top: 1px solid var(--kh-border);
+  }
+  .option__note p { margin: 8px 0 0; color: var(--kh-text-secondary); font-size: 0.9rem; }
+  .option__note .verdict { color: var(--kh-text); }
+
+  /* ---- KHost control styles, as the console renders them ---- */
+  .kh-card {
+    background: var(--kh-bg-card); border: 1px solid var(--kh-border);
+    border-radius: 10px; overflow: hidden;
+  }
+  .kh-card__head {
+    display: flex; align-items: center; gap: 8px;
+    padding: 10px 14px; border-bottom: 1px solid var(--kh-border);
+    font-size: 0.72rem; letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--kh-text-secondary);
+  }
+  .kh-card__body { padding: 12px 14px; }
+
+  .kh-display-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 10px; border-radius: 8px; cursor: pointer;
+    border: 1px solid transparent;
+  }
+  .kh-display-row + .kh-display-row { margin-top: 4px; }
+  .kh-display-row:hover { background: var(--kh-bg-elevated); }
+  .kh-display-row--live {
+    background: var(--kh-primary-subtle); border-color: var(--kh-border-bright);
+  }
+  .kh-display-row__radio {
+    width: 15px; height: 15px; border-radius: 50%; flex: none;
+    border: 1.5px solid var(--kh-border-bright); position: relative;
+  }
+  .kh-display-row--live .kh-display-row__radio { border-color: var(--kh-success); }
+  .kh-display-row--live .kh-display-row__radio::after {
+    content: ""; position: absolute; inset: 3px; border-radius: 50%; background: var(--kh-success);
+  }
+  .kh-display-row__text { min-width: 0; flex: 1; }
+  .kh-display-row__name { display: block; font-size: 0.92rem; }
+  .kh-display-row__meta {
+    display: block; color: var(--kh-text-muted); font-size: 0.74rem; margin-top: 1px;
+  }
+  .kh-display-row__state {
+    flex: none; font-size: 0.68rem; letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--kh-success);
+  }
+
+  .kh-badge {
+    display: inline-block; padding: 1px 7px; border-radius: 999px;
+    font-size: 0.62rem; letter-spacing: 0.06em; text-transform: uppercase;
+    border: 1px solid var(--kh-border); color: var(--kh-text-muted);
+    margin-left: 6px; vertical-align: 1px;
+  }
+  .kh-badge--warn { color: var(--kh-warning); border-color: rgba(245, 158, 11, 0.4); }
+
+  .kh-note {
+    display: block; margin: 8px 0 0; color: var(--kh-text-muted);
+    font-size: 0.75rem; line-height: 1.5;
+  }
+  .kh-empty {
+    padding: 18px 8px; text-align: center; color: var(--kh-text-muted); font-size: 0.85rem;
+  }
+
+  .kh-button {
+    appearance: none; border: 1px solid var(--kh-border-bright); border-radius: 7px;
+    background: linear-gradient(var(--kh-primary-bright), var(--kh-primary));
+    color: #fff; font: inherit; font-size: 0.83rem; padding: 6px 13px; cursor: pointer;
+  }
+  .kh-button--secondary { background: var(--kh-bg-elevated); color: var(--kh-text); }
+  .kh-button--ghost { background: transparent; border-color: var(--kh-border); color: var(--kh-text-secondary); }
+  .kh-button--sm { font-size: 0.76rem; padding: 4px 10px; }
+
+  .kh-toolbar { display: flex; gap: 8px; align-items: center; }
+  .kh-toolbar--end { justify-content: flex-end; margin-top: 10px; }
+
+  .kh-header {
+    display: flex; align-items: center; gap: 10px; justify-content: flex-end;
+    padding: 9px 12px; background: var(--kh-bg-card);
+    border: 1px solid var(--kh-border); border-radius: 10px;
+  }
+  .kh-header__btn {
+    display: inline-flex; align-items: center; gap: 7px;
+    padding: 5px 11px; border-radius: 7px; border: 1px solid var(--kh-border);
+    background: var(--kh-bg-elevated); font-size: 0.8rem;
+  }
+  .kh-header__btn--on { border-color: var(--kh-success); color: var(--kh-success); }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--kh-text-muted); }
+  .dot--on { background: var(--kh-success); }
+
+  .kh-seg { display: inline-flex; border: 1px solid var(--kh-border); border-radius: 8px; overflow: hidden; }
+  .kh-seg button {
+    appearance: none; border: 0; background: transparent; color: var(--kh-text-secondary);
+    font: inherit; font-size: 0.8rem; padding: 7px 14px; cursor: pointer;
+  }
+  .kh-seg button[aria-pressed="true"] { background: var(--kh-primary); color: #fff; }
+
+  .kh-confirm {
+    border: 1px solid rgba(245, 158, 11, 0.4); background: rgba(245, 158, 11, 0.08);
+    border-radius: 8px; padding: 11px 12px;
+  }
+  .kh-confirm p { margin: 0 0 9px; font-size: 0.85rem; }
+
+  .states { display: grid; gap: 14px; }
+  .states h3 {
+    margin: 0 0 6px; font-size: 0.7rem; letter-spacing: 0.1em;
+    text-transform: uppercase; color: var(--kh-text-secondary); font-weight: 500;
+  }
+
+  @media (max-width: 800px) { .option { grid-template-columns: 1fr; } }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+
+<div class="wrap">
+  <header class="masthead">
+    <p class="eyebrow">Console header · one display at a time</p>
+    <h1>Choosing where the song comes out</h1>
+    <p>
+      One display is live at a time — the local screen <em>or</em> a Cast receiver, never both. There
+      is no control for that today: the header button opens and closes the local screen, and
+      receivers are picked from the Chromecast plugin's own table. Four ways to present the choice,
+      in KHost's own classes.
+    </p>
+  </header>
+
+  <dl class="brief">
+    <div>
+      <dt>Live at once</dt>
+      <dd>Exactly one, across every provider</dd>
+    </div>
+    <div>
+      <dt>Sources</dt>
+      <dd>Local screen (core) · Cast receivers (plugin)</dd>
+    </div>
+    <div>
+      <dt>Default</dt>
+      <dd>Nothing live — a host opens one deliberately</dd>
+    </div>
+    <div>
+      <dt>Words</dt>
+      <dd>Shown per device, because a TV cannot draw them</dd>
+    </div>
+  </dl>
+
+  <!-- 01 -->
+  <section class="option">
+    <div>
+      <div class="kh-card">
+        <div class="kh-card__head">Display</div>
+        <div class="kh-card__body">
+          <div class="kh-display-row kh-display-row--live">
+            <span class="kh-display-row__radio"></span>
+            <span class="kh-display-row__text">
+              <span class="kh-display-row__name">This computer</span>
+              <span class="kh-display-row__meta">Screen 1 · draws the words</span>
+            </span>
+            <span class="kh-display-row__state">Live</span>
+          </div>
+          <div class="kh-display-row">
+            <span class="kh-display-row__radio"></span>
+            <span class="kh-display-row__text">
+              <span class="kh-display-row__name">Living Room TV
+                <span class="kh-badge kh-badge--warn">words burned in</span>
+              </span>
+              <span class="kh-display-row__meta">Chromecast · 192.168.1.14</span>
+            </span>
+          </div>
+          <div class="kh-display-row">
+            <span class="kh-display-row__radio"></span>
+            <span class="kh-display-row__text">
+              <span class="kh-display-row__name">Patio
+                <span class="kh-badge kh-badge--warn">words burned in</span>
+              </span>
+              <span class="kh-display-row__meta">Chromecast · 192.168.1.22</span>
+            </span>
+          </div>
+          <span class="kh-note">Picking one puts the other away. Only one display runs at a time.</span>
+          <div class="kh-toolbar kh-toolbar--end">
+            <button class="kh-button kh-button--ghost kh-button--sm">Search for receivers</button>
+            <button class="kh-button kh-button--secondary kh-button--sm">Turn off</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="option__note">
+      <h2><span class="num">01</span> One list, radio selection <span class="tag tag--pick">Recommended</span></h2>
+      <p>
+        Every display in one place, whichever provider found it, with the live one marked. The radio
+        shape carries the rule by itself — picking one plainly unpicks the other, so "one at a time"
+        needs no sentence to explain it.
+      </p>
+      <p class="verdict">
+        The badge is the honest part: a host learns <em>before</em> choosing that a television cannot
+        draw the words and the host will burn them in instead. Searching sits at the bottom because a
+        sweep is rare and deliberate, not the first thing you reach for.
+      </p>
+    </div>
+  </section>
+
+  <!-- 02 -->
+  <section class="option">
+    <div>
+      <div class="kh-header">
+        <span class="kh-header__btn kh-header__btn--on">
+          <span class="dot dot--on"></span> Living Room TV
+        </span>
+      </div>
+      <span class="kh-note">
+        The existing header button, now naming what is live. Pressing it opens the list from 01.
+      </span>
+    </div>
+    <div class="option__note">
+      <h2><span class="num">02</span> Header button says what is live</h2>
+      <p>
+        Not an alternative so much as the way into one. The button already reports whether anything
+        is on; it becomes the display's name, and the press opens the picker rather than toggling the
+        local screen.
+      </p>
+      <p class="verdict">
+        Worth having whichever list wins — a host glances at the header to answer "where is this
+        going?" without opening anything.
+      </p>
+    </div>
+  </section>
+
+  <!-- 03 -->
+  <section class="option">
+    <div>
+      <div class="kh-card">
+        <div class="kh-card__body">
+          <div class="kh-seg">
+            <button aria-pressed="false">Off</button>
+            <button aria-pressed="true">This computer</button>
+            <button aria-pressed="false">Living Room TV</button>
+          </div>
+          <span class="kh-note">Off is a position, not a separate button.</span>
+        </div>
+      </div>
+    </div>
+    <div class="option__note">
+      <h2><span class="num">03</span> Segmented control <span class="tag tag--no">Rejected</span></h2>
+      <p>
+        Compact, and "off" reads as just another position. Fine with two displays.
+      </p>
+      <p class="verdict">
+        It stops working the moment a venue has three receivers — the names truncate and the control
+        overflows a panel that can be 180px wide. It also has nowhere to put the badge that says a
+        device cannot draw the words, which is the thing a host most needs to know.
+      </p>
+    </div>
+  </section>
+
+  <!-- 04 -->
+  <section class="option">
+    <div class="states">
+      <div>
+        <h3>Nothing live yet</h3>
+        <div class="kh-card">
+          <div class="kh-card__head">Display</div>
+          <div class="kh-card__body">
+            <div class="kh-display-row">
+              <span class="kh-display-row__radio"></span>
+              <span class="kh-display-row__text">
+                <span class="kh-display-row__name">This computer</span>
+                <span class="kh-display-row__meta">Opens a window on this machine</span>
+              </span>
+            </div>
+            <div class="kh-empty">No receivers found yet.</div>
+            <div class="kh-toolbar kh-toolbar--end">
+              <button class="kh-button kh-button--ghost kh-button--sm">Search for receivers</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div>
+        <h3>Switching while a song is playing</h3>
+        <div class="kh-confirm">
+          <p>
+            <b>Move the song to Living Room TV?</b><br>
+            The screen on this computer closes, and the song restarts on the television.
+          </p>
+          <div class="kh-toolbar">
+            <button class="kh-button kh-button--sm">Move it</button>
+            <button class="kh-button kh-button--secondary kh-button--sm">Stay here</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="option__note">
+      <h2><span class="num">04</span> The two states that decide it</h2>
+      <p>
+        <b>Before anything is up</b>, the local screen is still offered as a row rather than a
+        button, so the list is the one place displays live. The empty line says what is true —
+        nothing has been found — rather than implying a failure.
+      </p>
+      <p class="verdict">
+        <b>Switching mid-song asks first</b>, because it is not free: the new display gets its own
+        stream and starts from where the song is, which the room hears as a gap. A host who meant it
+        gets a short wait; a host who mis-clicked gets their show back. Switching while nothing is
+        playing needs no prompt at all.
+      </p>
+    </div>
+  </section>
+</div>

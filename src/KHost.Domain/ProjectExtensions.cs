@@ -87,31 +87,41 @@ namespace KHost.Domain
             // Keyed, so it never appears in the IMediaProbe enumerable the plugin probes arrive
             // through: it claims every file and would answer ahead of whoever owns the format.
             serviceCollection.AddKeyedSingleton<IMediaProbe, FfprobeMediaProbe>(MediaProbeService.FallbackKey);
+            // A CD+G's facts live in the audio beside it, so it describes itself rather than
+            // having the parsing service redirect the probe on its behalf.
+            serviceCollection.AddSingleton<IMediaProbe, CdgMediaProbe>();
             serviceCollection.AddSingleton<IMediaProbeService, MediaProbeService>();
+            serviceCollection.AddSingleton<IMediaRenderer, GraphicsKaraokeRenderer>();
+            // Keyed for the same reason as the probe fallback: it claims every file, so it must not
+            // race the renderers that claim one.
+            serviceCollection.AddKeyedSingleton<IMediaRenderer, StreamingMediaRenderer>(MediaRendererService.FallbackKey);
+            serviceCollection.AddSingleton<IMediaRendererService, MediaRendererService>();
+            serviceCollection.AddSingleton<IPlayableMediaSourceService, PlayableMediaSourceService>();
+            serviceCollection.AddSingleton<ITimedLyricsService, TimedLyricsService>();
             serviceCollection.AddSingleton<IAudioTrackService, AudioTrackService>();
             serviceCollection.AddSingleton<IMediaTagReader, MediaTagReader>();
             serviceCollection.AddSingleton<IMediaGateService, MediaGateService>();
-            serviceCollection.AddSingleton<IScreenCoordinationService, ScreenCoordinationService>();
-            serviceCollection.AddSingleton<PreparedMediaService>();
-            serviceCollection.AddSingleton<IPreparedMediaService>(sp => sp.GetRequiredService<PreparedMediaService>());
             serviceCollection.AddSingleton<IScreenMarqueeService, ScreenMarqueeService>();
+
+            // Core, not a plugin: the host's own transport to the screens, registered here so it
+            // reaches PlaybackService in the same collection a plugin's display does. PluginLoader
+            // must never bind it, and it must not appear on the Plugins page.
+            serviceCollection.AddSingleton<Services.Screens.ScreenDisplayProvider>();
+            serviceCollection.AddSingleton<IDisplayProvider>(
+                provider => provider.GetRequiredService<Services.Screens.ScreenDisplayProvider>());
+
+            // It wires ScreenConnected in its constructor, so it must exist before a screen does.
+            serviceCollection.AddSingleton<Services.Screens.IStartsWithTheHost>(
+                provider => provider.GetRequiredService<Services.Screens.ScreenDisplayProvider>());
             serviceCollection.AddSingleton<INextSingerCardService, Services.Screens.NextSingerCardService>();
             serviceCollection.AddSingleton<Services.Screens.IScreenQrCodeService, Services.Screens.ScreenQrCodeService>();
-            serviceCollection.AddSingleton<Services.Screens.BreakMusicCardService>();
+            serviceCollection.AddSingleton<Services.Screens.IBreakMusicCardService, Services.Screens.BreakMusicCardService>();
             serviceCollection.AddSingleton<IPlaybackService, PlaybackService>();
+            serviceCollection.AddSingleton<IPlaybackProgram>(
+                sp => (IPlaybackProgram)sp.GetRequiredService<IPlaybackService>());
 
             // The same singletons again, under the marker the host builds on the way up: pointed at what is
             // already registered. A fresh registration would build twice, and the extra copy would listen.
-            serviceCollection.AddSingleton<Services.Screens.IStartsWithTheHost>(
-                sp => (Services.Screens.IStartsWithTheHost)sp.GetRequiredService<IScreenCoordinationService>());
-            serviceCollection.AddSingleton<Services.Screens.IStartsWithTheHost>(
-                sp => (Services.Screens.IStartsWithTheHost)sp.GetRequiredService<IScreenMarqueeService>());
-            serviceCollection.AddSingleton<Services.Screens.IStartsWithTheHost>(
-                sp => sp.GetRequiredService<PreparedMediaService>());
-            serviceCollection.AddSingleton<Services.Screens.IStartsWithTheHost>(
-                sp => (Services.Screens.IStartsWithTheHost)sp.GetRequiredService<Services.Screens.IScreenQrCodeService>());
-            serviceCollection.AddSingleton<Services.Screens.IStartsWithTheHost>(
-                sp => sp.GetRequiredService<Services.Screens.BreakMusicCardService>());
             serviceCollection.AddSingleton<Services.Screens.IStartsWithTheHost>(
                 sp => (Services.Screens.IStartsWithTheHost)sp.GetRequiredService<IPlaybackService>());
             serviceCollection.AddSingleton<IMediaSearchService, MediaSearchService>();

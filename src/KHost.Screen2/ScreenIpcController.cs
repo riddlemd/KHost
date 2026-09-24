@@ -36,20 +36,20 @@ internal sealed class ScreenIpcController : IAsyncDisposable
         _player.BackgroundEnded += OnBackgroundEnded;
     }
 
-    /// <summary>Holds a scheduled start, and can be the screen the room hears.</summary>
+    /// <summary>Plays sound and picture, and stamps its reports in the host clock from the start.</summary>
     public async Task ConnectAsync(string serverUri, string screenId, byte[] authKey, CancellationToken cancellationToken = default)
     {
         await _client.ConnectAsync(
             serverUri,
             screenId,
-            new ScreenCapabilities { SupportsSync = true, SupportsAudio = true, SupportsVideo = true },
+            new ScreenCapabilities { SupportsAudio = true, SupportsVideo = true },
             authKey,
             cancellationToken);
 
         await ResyncClockAsync(cancellationToken);
     }
 
-    /// <summary>Clocks drift over a long night, and a stale offset biases the whole group.</summary>
+    /// <summary>Clocks drift over a long night, and a stale offset skews every report stamp.</summary>
     public async Task ResyncClockAsync(CancellationToken cancellationToken = default)
     {
         try
@@ -126,7 +126,10 @@ internal sealed class ScreenIpcController : IAsyncDisposable
         switch (command)
         {
             case LoadMediaCommand cmd:
-                _player.LoadStream(cmd.StreamUrl, cmd.StreamStartOffset, cmd.Tempo);
+                _player.LoadStream(cmd.StreamUrl, cmd.StreamStartOffset, cmd.Tempo, cmd.Stems);
+                break;
+            case SetStemVolumeCommand cmd:
+                _player.SetStemVolume(cmd.Role, cmd.Volume);
                 break;
             case PlayCommand:
                 _player.Play();
@@ -142,9 +145,6 @@ internal sealed class ScreenIpcController : IAsyncDisposable
                 break;
             case SetVolumeCommand cmd:
                 _player.Volume = cmd.Volume;
-                break;
-            case SetTimelineCommand cmd:
-                _player.SetTimeline(cmd.Position, cmd.AnchorUtc, cmd.IsPlaying, cmd.IsPrimary);
                 break;
             case SetVideoCommand cmd:
                 _player.SetVideoEnabled(cmd.Enabled);
@@ -182,15 +182,13 @@ internal sealed class ScreenIpcController : IAsyncDisposable
             case ShowNextSingerCommand cmd:
                 _player.ShowNextSinger(cmd);
                 break;
+            case SetTimedLyricsCommand cmd:
+                _player.SetTimedLyrics(cmd);
+                break;
             default:
                 _logger.LogWarning("Unhandled command: {Type}", command.GetType().Name);
                 break;
         }
-
-        // A timeline says where to be, not what changed. Answering one makes the host re-anchor,
-        // which sends another timeline, forever.
-        if (command is SetTimelineCommand)
-            return;
 
         // The bed reports on its own channel. Answering with playback state would tell the host
         // the song had moved because a background command arrived.

@@ -1,26 +1,20 @@
-using KHost.Abstractions.Messaging;
-using KHost.Abstractions.Messaging.Messages;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
-using KHost.Abstractions.Services.IPC;
 using KHost.Domain.Services;
-using KHost.Domain.Services.Messaging;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace KHost.UnitTests.Domain.Services;
 
 public class ScreenMarqueeServiceTests
 {
-    private readonly IScreenServer _screens = Substitute.For<IScreenServer>();
     private readonly IVenuesService _venues = Substitute.For<IVenuesService>();
     private readonly ISingerQueueService _queue = Substitute.For<ISingerQueueService>();
     private readonly IPerformanceService _performances = Substitute.For<IPerformanceService>();
     private readonly IMediaService _media = Substitute.For<IMediaService>();
     private readonly IPlaybackService _playback = Substitute.For<IPlaybackService>();
-    private readonly MessageBroker _broker = new(NullLogger<MessageBroker>.Instance);
 
     private ScreenMarqueeService Service() => new(
-        NullLogger<ScreenMarqueeService>.Instance, _screens, _venues, _queue, _performances, _media, _playback, _broker);
+        NullLogger<ScreenMarqueeService>.Instance, _venues, _queue, _performances, _media, _playback);
 
     public ScreenMarqueeServiceTests()
         // NSubstitute hands back a task wrapping null otherwise, and the composition .Where()s it.
@@ -200,19 +194,6 @@ public class ScreenMarqueeServiceTests
         Assert.Equal(140, (await Service().BuildAsync()).ScrollSpeed);
     }
 
-    /// <summary>A song enqueued changes what the band says, not just who is on it.</summary>
-    [Fact]
-    public async Task PerformancesChanged_ResendsTheMarquee()
-    {
-        Arrange(new Venue.VenueSettings { MarqueeEnabled = true });
-
-        using var service = Service();
-
-        _broker.Announce(new PerformancesChanged());
-
-        await WaitForBroadcastAsync();
-    }
-
     /// <summary>Zero is a message-only band, not a broken one; the venue asked for no names.</summary>
     [Fact]
     public async Task BuildAsync_ZeroSingerCount_KeepsTheMessageAndNamesNobody()
@@ -293,83 +274,6 @@ public class ScreenMarqueeServiceTests
         Assert.Null(command.TextColor);
     }
 
-    [Fact]
-    public async Task InitializeAsync_SendsTheMarqueeToEveryScreen()
-    {
-        Arrange(new Venue.VenueSettings { MarqueeEnabled = true, MarqueeSingerCount = 1 }, Singer("Ada"));
-
-        await Service().InitializeAsync();
-
-        await _screens.Received(1).BroadcastCommandAsync(
-            Arg.Is<SetMarqueeCommand>(c => c.Enabled && c.Singers.Count == 1));
-    }
-
-    /// <summary>A dequeue or reorder must reach the room without waiting for a venue edit.</summary>
-    [Fact]
-    public async Task SingerQueueChanged_ResendsTheMarquee()
-    {
-        Arrange(new Venue.VenueSettings { MarqueeEnabled = true, MarqueeSingerCount = 1 }, Singer("Ada"));
-
-        using var service = Service();
-
-        _broker.Announce(new SingerQueueChanged());
-
-        await WaitForBroadcastAsync();
-    }
-
-    /// <summary>Editing the venue turns the marquee on; it cannot wait for a queue move.</summary>
-    [Fact]
-    public async Task SelectedVenueChanged_ResendsTheMarquee()
-    {
-        Arrange(new Venue.VenueSettings { MarqueeEnabled = true });
-
-        using var service = Service();
-
-        _broker.Announce(new SelectedVenueChanged());
-
-        await WaitForBroadcastAsync();
-    }
-
-    /// <summary>A screen joining mid-show has never been sent one, and the room would see nothing.</summary>
-    [Fact]
-    public async Task ScreenConnected_SendsTheMarqueeToThatScreenAlone()
-    {
-        Arrange(new Venue.VenueSettings { MarqueeEnabled = true });
-
-        var connection = Substitute.For<IScreenConnection>();
-        connection.ScreenId.Returns("screen-2");
-
-        using var service = Service();
-
-        _screens.ScreenConnected += Raise.EventWith(new ScreenConnectionEventArgs { Connection = connection });
-
-        for (var attempt = 0; attempt < 100; attempt++)
-        {
-            if (_screens.ReceivedCalls().Any(c => c.GetMethodInfo().Name == nameof(IScreenServer.SendCommandAsync)))
-                break;
-
-            await Task.Delay(10);
-        }
-
-        await _screens.Received(1).SendCommandAsync("screen-2", Arg.Any<SetMarqueeCommand>());
-        await _screens.DidNotReceive().BroadcastCommandAsync(Arg.Any<SetMarqueeCommand>());
-    }
-
-    /// <summary>Disposing must release the broker, or a rebuilt service leaves the old publishing.</summary>
-    [Fact]
-    public async Task Dispose_StopsRespondingToTheQueue()
-    {
-        Arrange(new Venue.VenueSettings { MarqueeEnabled = true });
-
-        var service = Service();
-        service.Dispose();
-
-        _broker.Announce(new SingerQueueChanged());
-        await Task.Delay(50);
-
-        await _screens.DidNotReceive().BroadcastCommandAsync(Arg.Any<SetMarqueeCommand>());
-    }
-
     /// <summary>"Up next" over who the room is already watching reads as the band a song behind.</summary>
     [Fact]
     public async Task BuildAsync_SomeoneIsSinging_LeavesThemOutOfUpNext()
@@ -417,18 +321,6 @@ public class ScreenMarqueeServiceTests
         Assert.Empty((await Service().BuildAsync()).Singers);
     }
 
-    /// <summary>A song starting changes who is up next, so the screens have to hear about it.</summary>
-    [Fact]
-    public async Task PlaybackChanged_RepublishesTheMarquee()
-    {
-        Arrange(new Venue.VenueSettings { MarqueeEnabled = true, MarqueeSingerCount = 1 }, Singer("Ada"));
-        using var service = Service();
-
-        _broker.Announce(new PlaybackChanged());
-
-        await WaitForBroadcastAsync();
-    }
-
     private void Singing(KHostUser singer)
         => _playback.CurrentPerformance.Returns(new Performance { SingerId = singer.Id, MediaId = Guid.NewGuid() });
 
@@ -450,20 +342,6 @@ public class ScreenMarqueeServiceTests
         _media.ReadAsync(mediaId).Returns(new Media { Id = mediaId, Title = title, Artist = artist, FilePath = "/x.mp4" });
     }
 
-    // The handlers hand off to Task.Run so the hub thread is never held, so an assertion made
-    // straight after an announce races the publish rather than observing it.
-    private async Task WaitForBroadcastAsync()
-    {
-        for (var attempt = 0; attempt < 100; attempt++)
-        {
-            if (_screens.ReceivedCalls().Any(c => c.GetMethodInfo().Name == nameof(IScreenServer.BroadcastCommandAsync)))
-                return;
-
-            await Task.Delay(10);
-        }
-
-        Assert.Fail("The marquee was never broadcast.");
-    }
     [Fact]
     public async Task UpNext_ANameQueuedWithTheSong_IsTheOneTheBandSays()
     {

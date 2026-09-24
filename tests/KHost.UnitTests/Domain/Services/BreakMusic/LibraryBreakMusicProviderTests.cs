@@ -2,7 +2,9 @@ using KHost.Domain.Services.Messaging;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using KHost.Abstractions.Services.IPC;
+using KHost.Abstractions.Messaging;
 using KHost.Domain.Services.BreakMusic;
+using KHost.Domain.Services.Screens;
 using KHost.Abstractions.Messaging.Messages;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -17,9 +19,10 @@ public class LibraryBreakMusicProviderTests : IDisposable
     private readonly IMediaService _media = Substitute.For<IMediaService>();
     private readonly IMediaStreamService _streams = Substitute.For<IMediaStreamService>();
     private readonly IScreenServer _screenServer = Substitute.For<IScreenServer>();
-    private readonly IScreenCoordinationService _screenCoordination = Substitute.For<IScreenCoordinationService>();
+    private readonly IDisplayProvider _display = Substitute.For<IDisplayProvider>();
     private readonly IVenuesService _venues = Substitute.For<IVenuesService>();
     private readonly List<IScreenCommand> _sent = [];
+    private readonly ScreenDisplayProvider _screens;
     private readonly LibraryBreakMusicProvider _provider;
 
     private readonly Guid _poolId = Guid.NewGuid();
@@ -27,8 +30,19 @@ public class LibraryBreakMusicProviderTests : IDisposable
 
     public LibraryBreakMusicProviderTests()
     {
-        _screenCoordination.EnsureRolesAsync(Arg.Any<CancellationToken>()).Returns(Task.FromResult<string?>(AudioScreenId));
-        _screenServer.SendCommandAsync(Arg.Any<string>(), Arg.Do<IScreenCommand>(_sent.Add)).Returns(Task.CompletedTask);
+        // The bed goes to whatever the song is coming out of now, so the display is what records
+        // it. Rebuilt into commands rather than asserted per method, so the assertions below still
+        // read as "what did the room get", which is the question they were always asking.
+        _display.Name.Returns("Test display");
+        _display.ConnectedDeviceId.Returns(AudioScreenId);
+        _display.LoadBackgroundAsync(Arg.Do<LoadBackgroundCommand>(_sent.Add), Arg.Any<CancellationToken>())
+            .Returns(Task.CompletedTask);
+        _display.PlayBackgroundAsync(Arg.Any<CancellationToken>())
+            .Returns(_ => { _sent.Add(new PlayBackgroundCommand()); return Task.CompletedTask; });
+        _display.PauseBackgroundAsync(Arg.Any<CancellationToken>())
+            .Returns(_ => { _sent.Add(new PauseBackgroundCommand()); return Task.CompletedTask; });
+        _display.StopBackgroundAsync(Arg.Any<TimeSpan?>(), Arg.Any<CancellationToken>())
+            .Returns(call => { _sent.Add(new StopBackgroundCommand { FadeDuration = call.ArgAt<TimeSpan?>(0) }); return Task.CompletedTask; });
 
         _streams.OpenAsync(Arg.Any<string>(), Arg.Any<TimeSpan>(), Arg.Any<int>(), Arg.Any<int>(), Arg.Any<AudioMix?>(), Arg.Any<CancellationToken>())
             .Returns(call => Task.FromResult(new MediaStreamSession
@@ -41,9 +55,59 @@ public class LibraryBreakMusicProviderTests : IDisposable
                 Tempo = 0,
             }));
 
+        // Registered beside the display and never connected: it is only here to say when the bed
+        // ran out, which the screens report and nothing else does.
+        _screens = new ScreenDisplayProvider(
+            NullLogger<ScreenDisplayProvider>.Instance, _screenServer, [], Substitute.For<IMessageBroker>());
+
         _provider = new LibraryBreakMusicProvider(
             NullLogger<LibraryBreakMusicProvider>.Instance,
-            _pools, _media, _streams, _screenServer, _screenCoordination, _venues, _broker);
+            _pools, _media, _streams, [_display, _screens], _venues, _broker);
+    }
+
+    private void RaiseBackgroundEnded()
+        => _screenServer.StateReceived += Raise.EventWith(_screenServer, new ScreenStateReceivedEventArgs
+        {
+            ScreenId = AudioScreenId,
+            State = new ScreenBackgroundState { StreamUrl = "http://host/media/bed-stream/stream.m3u8", IsPlaying = false, HasEnded = true },
+        });
+
+    private async Task<bool> WaitForLoadsAsync(int count)
+    {
+        for (var i = 0; i < 100; i++)
+        {
+            if (_sent.OfType<LoadBackgroundCommand>().Count() >= count) return true;
+            await Task.Delay(10);
+        }
+
+        return false;
+    }
+
+    /// <summary>The pool owes another track once the screen says the last one played out.</summary>
+    [Fact]
+    public async Task TheScreenSaysTheBedEnded_PlaysTheNextTrack()
+    {
+        VenueWithPool(_poolId);
+        PoolYields();
+        await _provider.StartAsync();
+
+        RaiseBackgroundEnded();
+
+        Assert.True(await WaitForLoadsAsync(2));
+    }
+
+    /// <summary>A stopped bed ending is not a reason to start another.</summary>
+    [Fact]
+    public async Task TheScreenSaysTheBedEnded_AfterAStop_PlaysNothing()
+    {
+        VenueWithPool(_poolId);
+        PoolYields();
+        await _provider.StartAsync();
+        await _provider.StopAsync();
+
+        RaiseBackgroundEnded();
+
+        Assert.False(await WaitForLoadsAsync(2));
     }
 
     public void Dispose()
@@ -127,23 +191,23 @@ public class LibraryBreakMusicProviderTests : IDisposable
     }
 
     [Fact]
-    public async Task StartAsync_SendsToTheAudioScreenRatherThanBroadcasting()
+    public async Task StartAsync_SendsToTheDisplayRatherThanBroadcasting()
     {
         VenueWithPool(_poolId);
         PoolYields();
 
         await _provider.StartAsync();
 
-        await _screenServer.Received().SendCommandAsync(AudioScreenId, Arg.Any<IScreenCommand>());
+        await _display.Received().LoadBackgroundAsync(Arg.Any<LoadBackgroundCommand>(), Arg.Any<CancellationToken>());
         await _screenServer.DidNotReceive().BroadcastCommandAsync(Arg.Any<IScreenCommand>());
     }
 
     [Fact]
-    public async Task StartAsync_WithNoAudioScreen_DoesNotPlayAndClosesTheStream()
+    public async Task StartAsync_WithNothingConnected_DoesNotPlayAndClosesTheStream()
     {
         VenueWithPool(_poolId);
         PoolYields();
-        _screenCoordination.EnsureRolesAsync(Arg.Any<CancellationToken>()).Returns(Task.FromResult<string?>(null));
+        _display.ConnectedDeviceId.Returns((string?)null);
 
         Assert.False(await _provider.StartAsync());
 
@@ -199,8 +263,8 @@ public class LibraryBreakMusicProviderTests : IDisposable
         Assert.Contains(_sent, c => c is StopBackgroundCommand);
     }
 
-    // This provider's audio rides the screen, and ScreenCoordination sets that channel from the
-    // venue alongside the song's. Setting it here too would be a second place for one number.
+    // This provider's audio rides the display's second channel, whose level the display sets from
+    // the venue alongside the song's. Setting it here too would be a second place for one number.
     [Fact]
     public async Task SetVolumeAsync_SendsNothing()
     {

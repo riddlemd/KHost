@@ -14,16 +14,24 @@ public partial class SettingsButton : IDisposable
     private const string HomeRoute = "/";
     private const string VenueSection = "venue";
     private const string ThemeSection = "theme";
+    private const string DisplaySection = "display";
     private const string ManageGroup = "Manage";
     private const string ApplicationGroup = "Application";
 
-    [Inject] private NavigationManager? NavigationManager { get; set; }
-    [Inject] private IPermissionService? Permissions { get; set; }
-    [Inject] private IAppSettingsService? AppSettings { get; set; }
-    [Inject] private IVenuesService? VenuesService { get; set; }
-    [Inject] private IThemeService? ThemeService { get; set; }
-    [Inject] private IBreakMusicService? BreakMusic { get; set; }
-    [Inject] private IDialogService? DialogService { get; set; }
+    // [Inject] throws at property-injection time when the type is not registered, whatever the
+    // nullable annotation says, so a plain `is not null` guard below it can never be false: it was
+    // dead code, not an optional-service check.
+    [Inject] private NavigationManager NavigationManager { get; set; } = default!;
+    [Inject] private IPermissionService Permissions { get; set; } = default!;
+    [Inject] private IAppSettingsService AppSettings { get; set; } = default!;
+    [Inject] private IVenuesService VenuesService { get; set; } = default!;
+    [Inject] private IThemeService ThemeService { get; set; } = default!;
+
+    // The one real exception: IEnumerable resolves to an empty sequence rather than throwing, so
+    // "no display plugin installed" is a legitimate empty collection, not a missing service.
+    [Inject] private IEnumerable<IDisplayProvider> DisplayProviders { get; set; } = [];
+    [Inject] private IBreakMusicService BreakMusic { get; set; } = default!;
+    [Inject] private IDialogService DialogService { get; set; } = default!;
     [Inject] private IJSRuntime JS { get; set; } = default!;
     [Inject] private IMessageBroker Broker { get; set; } = default!;
 
@@ -74,36 +82,49 @@ public partial class SettingsButton : IDisposable
     private IJSObjectReference? _module;
     private ElementReference _venueRowRef;
     private ElementReference _themeRowRef;
+    private ElementReference _displayRowRef;
     private ElementReference _flyoutRef;
     private IReadOnlyList<Venue> _venues = [];
     private Venue? _selectedVenue;
 
     private List<IGrouping<string, SettingsPage>> _groups = [];
+    private IReadOnlyList<IDisplayProvider> _displays = [];
 
     protected override async Task OnInitializedAsync()
     {
+        // Fixed for the component's lifetime: the set of registered providers does not change at
+        // runtime, only their connections do, so copying it once here spares every render the
+        // allocation a fresh `[.. DisplayProviders]` on each access would cost.
+        _displays = [.. DisplayProviders];
+
         // Locking a console that signs everyone in automatically would be a button to nowhere.
-        _canLock = AppSettings?.Current.RequireLogin != false;
+        _canLock = AppSettings.Current.RequireLogin != false;
 
-        if (VenuesService is not null)
-        {
-            _subscriptions.Add(Broker.Subscribe<VenuesChanged>(_ => QueueRebuild()));
+        _subscriptions.Add(Broker.Subscribe<VenuesChanged>(_ => QueueRebuild()));
 
-            // Not VenuesChanged: that one fires for any venue's edit, and which pages apply is a
-            // question about the venue the console is running.
-            _subscriptions.Add(Broker.Subscribe<SelectedVenueChanged>(_ => QueueRebuild()));
-        }
+        // Not VenuesChanged: that one fires for any venue's edit, and which pages apply is a
+        // question about the venue the console is running.
+        _subscriptions.Add(Broker.Subscribe<SelectedVenueChanged>(_ => QueueRebuild()));
 
-        _subscriptions.Add(Broker.Subscribe<ThemeChanged>(_ => QueueRebuild()));
+        _subscriptions.Add(Broker.Subscribe<ThemeChanged>(_ => QueueRedraw()));
+
+        // A sweep finding a receiver, or a screen arriving, changes what this row says without
+        // anyone touching the menu.
+        _subscriptions.Add(Broker.Subscribe<DisplaysChanged>(message => QueueRedraw()));
         _subscriptions.Add(Broker.Subscribe<BreakMusicChanged>(_ => QueueRebuild()));
-        _subscriptions.Add(Broker.Subscribe<ThemesChanged>(_ => QueueRebuild()));
+        _subscriptions.Add(Broker.Subscribe<ThemesChanged>(_ => QueueRedraw()));
 
         await RebuildAsync();
     }
 
     // Handlers run in subscription order and a slow one holds up the rest, so the rebuild is
-    // started rather than awaited here.
-    private void QueueRebuild() => _ = RebuildAsync();
+    // started rather than awaited here. Dispatched through InvokeAsync so the venue/permission
+    // reads inside RebuildAsync land on the renderer thread, not the broker's.
+    private void QueueRebuild() => _ = InvokeAsync(RebuildAsync);
+
+    // Announced off the render thread. Themes and displays change no page's visibility, so they
+    // need only a redraw, not a re-read of venues and permissions.
+    private void QueueRedraw() => _ = InvokeAsync(StateHasChanged);
 
     /// <summary>Reads the venue before filtering, or a venue-dependent page is judged too soon.</summary>
     private async Task RebuildAsync()
@@ -117,8 +138,6 @@ public partial class SettingsButton : IDisposable
 
     private async Task RefreshVenuesAsync()
     {
-        if (VenuesService is null) return;
-
         var result = await VenuesService.ReadAllAsync(pageSize: 1000);
         _selectedVenue = await VenuesService.ReadSelectedVenueAsync();
 
@@ -132,7 +151,7 @@ public partial class SettingsButton : IDisposable
 
     /// <summary>Checked against the running provider, not RendersThroughHost, which it may bypass.</summary>
     private bool VenuePlaysLocalBreakMusic
-        => BreakMusic?.LibraryProvider is { } library
+        => BreakMusic.LibraryProvider is { } library
            && BreakMusic.ActiveProvider is { } active
            && string.Equals(active.SourceName, library.SourceName, StringComparison.OrdinalIgnoreCase);
 
@@ -155,32 +174,163 @@ public partial class SettingsButton : IDisposable
 
         _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "/js/dropdown-menu.js");
 
-        await _module.InvokeVoidAsync("positionFlyout",
-            IsOpen(VenueSection) ? _venueRowRef : _themeRowRef, _flyoutRef);
+        await _module.InvokeVoidAsync("positionFlyout", RowFor(_openSection), _flyoutRef);
     }
+
+    private ElementReference RowFor(string? section) => section switch
+    {
+        VenueSection => _venueRowRef,
+        DisplaySection => _displayRowRef,
+        _ => _themeRowRef,
+    };
 
     // One at a time: both open at once pushes the managers off the bottom of the menu.
     private void ToggleSection(string section) => _openSection = IsOpen(section) ? null : section;
 
     private async Task SelectVenueAsync(Guid venueId)
     {
-        if (VenuesService is not null)
-            await VenuesService.SelectVenueAsync(venueId);
+        await VenuesService.SelectVenueAsync(venueId);
 
         CloseMenu();
     }
 
     private async Task SelectThemeAsync(string theme)
     {
-        if (ThemeService is not null)
-            await ThemeService.SetThemeAsync(theme);
+        await ThemeService.SetThemeAsync(theme);
 
         CloseMenu();
     }
 
+    // --- display ---
+
+    internal IReadOnlyList<IDisplayProvider> Displays => _displays;
+
+    /// <summary>The one display carrying the song, if any.</summary>
+    internal IDisplayProvider? LiveDisplay
+        => Displays.FirstOrDefault(display => display.ConnectedDeviceId is { Length: > 0 });
+
+    /// <summary>What the row reads on the right: the device, not the transport. A host reads the
+    /// room, not the wiring.</summary>
+    internal string DisplayValue => DisplayValueFor(LiveDisplay);
+
+    /// <summary>Takes the live display rather than reading <see cref="LiveDisplay"/> itself, so the
+    /// markup can compute it once per render and hand it to both this and the flyout's own check
+    /// instead of walking <see cref="Displays"/> twice.</summary>
+    private static string DisplayValueFor(IDisplayProvider? live)
+        => live is null ? "None" : DeviceOf(live)?.Name ?? live.Name;
+
+    private static DisplayDevice? DeviceOf(IDisplayProvider display)
+        => display.Devices.FirstOrDefault(device => device.Id == display.ConnectedDeviceId)
+            ?? display.Devices.FirstOrDefault(device => device.IsConnected);
+
+    /// <summary>Every device every transport knows about, live one included — unlike a split
+    /// button's primary half, a checked row in a list is the ordinary way to show the current
+    /// choice, and it sits beside the others so switching back is one press.</summary>
+    internal IEnumerable<(IDisplayProvider Provider, DisplayDevice Device)> AvailableDisplays()
+    {
+        foreach (var provider in Displays)
+        {
+            IReadOnlyList<DisplayDevice> devices;
+
+            // A provider mid-sweep can throw here, and one bad plugin must not empty the list.
+            try { devices = provider.Devices; }
+            catch { continue; }
+
+            foreach (var device in devices)
+                yield return (provider, device);
+        }
+    }
+
+    internal static bool IsLive(IDisplayProvider provider, DisplayDevice device)
+        => provider.ConnectedDeviceId == device.Id;
+
+    /// <summary>Names the transport under the device, so two rooms called "TV" are still telling.</summary>
+    internal static string DescribeDisplay(IDisplayProvider provider, DisplayDevice device)
+    {
+        var model = string.IsNullOrWhiteSpace(device.Model) ? provider.Name : device.Model;
+
+        return string.IsNullOrWhiteSpace(device.Address) ? model : $"{model} · {device.Address}";
+    }
+
+    /// <summary>True while any transport is actually sweeping — asked of the providers, never
+    /// tracked here: discovery outlives the call that started it, so a flag of our own would say
+    /// "searching" for five seconds and then lie for the rest of the night.</summary>
+    internal bool IsSearching => Displays.Any(display => display.SearchesForDevices && display.IsDiscovering);
+
+    /// <summary>Nothing to offer when every transport opens its own device rather than finding one.</summary>
+    internal bool CanSearch => Displays.Any(display => display.SearchesForDevices);
+
+    /// <summary>Switches the song to a device, taking it off whatever had it.</summary>
+    internal async Task SelectDisplayAsync(IDisplayProvider provider, DisplayDevice device)
+    {
+        // Already there: a press on the checked row should not tear the song down and rebuild it.
+        if (IsLive(provider, device))
+        {
+            CloseMenu();
+            return;
+        }
+
+        // Off first, and every other provider, or a press that fails below leaves the song on two.
+        await DisconnectOthersAsync(except: provider);
+
+        await SafelyAsync(() => provider.ConnectAsync(device.Id));
+
+        CloseMenu();
+    }
+
+    internal async Task TurnOffDisplayAsync()
+    {
+        await DisconnectOthersAsync();
+
+        CloseMenu();
+    }
+
+    /// <summary>Every connected provider besides <paramref name="except"/> lets go of the song —
+    /// one display at a time across the whole system, whether switching to another or turning off.</summary>
+    private async Task DisconnectOthersAsync(IDisplayProvider? except = null)
+    {
+        foreach (var display in Displays)
+        {
+            if (display == except) continue;
+            if (display.ConnectedDeviceId is not { Length: > 0 }) continue;
+
+            await SafelyAsync(() => display.DisconnectAsync());
+        }
+    }
+
+    /// <summary>One control for both halves, because the answer is one piece of state: a sweep is
+    /// either running or it is not. Stopping matters — a console runs all night on whatever wifi
+    /// the room has, and browsing is off until someone asks for it.</summary>
+    internal async Task ToggleSearchAsync()
+    {
+        var searching = IsSearching;
+
+        foreach (var provider in Displays)
+        {
+            // The screens are opened, not found: asking them to discover launches a screen, which
+            // is not what pressing "search" asked for.
+            if (!provider.SearchesForDevices) continue;
+
+            await SafelyAsync(() => searching
+                ? provider.StopDiscoveryAsync()
+                : provider.StartDiscoveryAsync());
+        }
+
+        // Deliberately left open: a sweep fills the list underneath, and closing the menu would
+        // hide the very thing that was asked for.
+        StateHasChanged();
+    }
+
+    /// <summary>A transport that throws must not take the menu down with it.</summary>
+    private static async Task SafelyAsync(Func<Task> action)
+    {
+        try { await action(); }
+        catch (Exception) { }
+    }
+
     private async Task EditVenueAsync()
     {
-        if (VenuesService is null || DialogService is null || _selectedVenue is null) return;
+        if (_selectedVenue is null) return;
 
         CloseMenu();
 
@@ -193,7 +343,7 @@ public partial class SettingsButton : IDisposable
 
     // A custom theme carries a name of its own; only a built-in is named by its filename.
     private string ThemeName(string? theme)
-        => string.IsNullOrEmpty(theme) ? "" : ThemeService?.DisplayNameFor(theme) ?? theme;
+        => string.IsNullOrEmpty(theme) ? "" : ThemeService.DisplayNameFor(theme);
 
     // The menu keeps itself open so a section can expand in place, so anything that finishes a
     // choice has to close it by hand.
@@ -205,8 +355,6 @@ public partial class SettingsButton : IDisposable
 
     private async Task<List<SettingsPage>> VisiblePagesAsync()
     {
-        if (Permissions is null) return _allPages;
-
         var visible = new List<SettingsPage>();
         var isAdmin = await Permissions.IsAdminAsync();
 
@@ -232,21 +380,21 @@ public partial class SettingsButton : IDisposable
         if (page.Opens is { } open)
             await open(this);
         else
-            NavigationManager?.NavigateTo(page.Route);
+            NavigationManager.NavigateTo(page.Route);
     }
 
-    private Task ShowShortcutsAsync() => DialogService?.ShowShortcutsAsync() ?? Task.CompletedTask;
+    private Task ShowShortcutsAsync() => DialogService.ShowShortcutsAsync();
 
     private void NavigateTo(string route)
     {
         CloseMenu();
-        NavigationManager?.NavigateTo(route);
+        NavigationManager.NavigateTo(route);
     }
 
     // Read as the menu opens rather than tracked: the items are a fragment, so this runs each time
     // the menu is rendered and there is no navigation to subscribe to.
     private string CurrentClass(string route)
-        => !string.IsNullOrEmpty(route) && IsSameRoute(new Uri(NavigationManager?.Uri ?? HomeRoute).AbsolutePath, route)
+        => !string.IsNullOrEmpty(route) && IsSameRoute(new Uri(NavigationManager.Uri).AbsolutePath, route)
             ? "kh-dropdown__item--current"
             : "";
 

@@ -84,8 +84,9 @@ curl -s -o /dev/null -w '%{http_code}\n' --retry 60 --retry-delay 2 --retry-conn
   --max-time 10 http://localhost:5251/
 ```
 
-Startup is confirmed by `Singer queue loaded (N users)`. File log:
-`src/KHost.UserInterface/bin/Debug/net10.0/logs/YYYYMMDD.log`.
+Startup is confirmed by `Singer queue loaded (N users)`. Every launch writes its own file
+(`host-<yyyyMMdd-HHmmss>.log`), so the newest is what to read:
+`ls -t src/KHost.UserInterface/bin/Debug/net10.0/logs/host-*.log | head -1`.
 
 ## Driving the windowed UI
 
@@ -158,10 +159,10 @@ Dialogs close via their X, which moves with dialog height, so re-capture and re-
 
 1. Enqueue a song for the selected singer (search → Enqueue). The library ships with test media only
    if previously imported; check the `Media` count in `cache/khost.db`.
-2. Screens dialog → Launch (Local). The screen registers in ~1s: grep the log for
-   `RegisterScreen sent`. It takes the audio + primary roles when alone.
-3. Play from the singer's queue row. Evidence of health: `Command received: SetTimelineCommand`
-   about once a second, and the Screens dialog row showing "Artist - Title ▶ Playing mm:ss / mm:ss".
+2. Display menu → Local Display. The screen registers in ~1s: grep the log for
+   `RegisterScreen sent`. One screen at a time; a second is refused.
+3. Play from the singer's queue row. Evidence of health: `Command received: PlayCommand` on the
+   screen, the console's position advancing (it follows the screen's state reports), and the row showing "Artist - Title ▶ Playing mm:ss / mm:ss".
 4. Stop: expect `Playback stopping (fade=00:00:05)` and `Command received: StopCommand` in the same
    second, then `Queue rotated`.
 5. Playback needs ffmpeg on PATH (one process per song, HLS). After shutdown there must be zero
@@ -174,8 +175,10 @@ Stop the host gracefully (toolbox) and confirm it in the log — `Singer queue c
 merely dying. Both exit in ~2s and release 5251; lingering past ~5s is a bug, not slowness
 (commit b3859c3).
 
-**A launched screen outlives the host by design** (it shows "Lost the host" and waits). Kill any
-`KHost.Screen2` during cleanup.
+**A launched screen outlives the host by design** (it shows "Lost the host" and keeps retrying,
+backing off to every 15s, then clears the banner and re-registers when a host is back). Kill any
+`KHost.Screen2` during cleanup: a host that died without revoking its key leaves one the next
+host you start will accept.
 
 Then restore the cache backup with the host stopped, and prove the restore from the relaunch log.
 
@@ -209,7 +212,8 @@ looks for a key that is not there, or presents one that does not match:
   `[IO.File]::WriteAllText(...)` adds neither a newline nor a BOM.
 
 Its player page is embedded in the executable — no `screen-ui/` files on disk, page edits need a
-rebuild. Logs land in `logs/<screen-id>-YYYYMMDD.log` beside its binary.
+rebuild. Every launch writes its own file, `logs/<screen-id>-<yyyyMMdd-HHmmss>-<pid>.log` beside
+its binary; `ls -t logs/*.log | head -1` finds the newest.
 
 ## Toolbox — one primitive per row
 
@@ -270,6 +274,9 @@ executable, and that is the identity a signed KHost should be trusting.
 **Copy / remove a directory tree**
 - macOS/Linux/Git Bash: `cp -R src dst` / `rm -rf dst`
 - Windows: `Copy-Item src dst -Recurse` / `Remove-Item dst -Recurse -Force`
+- **Restoring over an existing `cache/`: remove it first** (`rm -rf cache && cp -R backup cache`).
+  Both copies put `src` *inside* a `dst` that already exists, so a plain restore leaves the live
+  cache untouched and a stale `cache/cache/` beside it — which reads as a successful restore.
 
 **Scratch space for backups** — prefer the session's scratchpad directory over `/tmp`. `/tmp` does
 exist in Git Bash on Windows, but it is not where the operator will look, and `$TEMP` there is a

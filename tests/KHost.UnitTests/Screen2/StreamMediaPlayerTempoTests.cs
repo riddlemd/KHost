@@ -13,17 +13,6 @@ public class StreamMediaPlayerTempoTests
     public StreamMediaPlayerTempoTests() => _player.SendToBrowser = _sentToPage.Add;
 
     [Fact]
-    public void SetTimeline_ConvertsTheSongPositionIntoStreamSeconds()
-    {
-        _player.LoadStream("http://host/s/stream.m3u8", TimeSpan.FromSeconds(30), tempo: 50);
-
-        _player.SetTimeline(TimeSpan.FromSeconds(90), DateTime.UtcNow, isPlaying: true, isPrimary: false);
-
-        // 60 song seconds past the stream's zero, which at 1.5x is 40 seconds of stream.
-        Assert.Equal(40.0, LastValue("timeline", "position"), 3);
-    }
-
-    [Fact]
     public void Seek_ConvertsTheTargetIntoStreamSeconds()
     {
         _player.LoadStream("http://host/s/stream.m3u8", TimeSpan.FromSeconds(10), tempo: -50);
@@ -51,10 +40,10 @@ public class StreamMediaPlayerTempoTests
     {
         _player.LoadStream("http://host/s/stream.m3u8", TimeSpan.FromSeconds(30));
 
-        _player.SetTimeline(TimeSpan.FromSeconds(90), DateTime.UtcNow, isPlaying: true, isPrimary: false);
+        _player.Seek(TimeSpan.FromSeconds(90));
         _player.HandleBrowserMessage("""{"type":"state","position":60,"playing":true}""");
 
-        Assert.Equal(60.0, LastValue("timeline", "position"), 3);
+        Assert.Equal(60.0, LastValue("seek", "position"), 3);
         Assert.Equal(TimeSpan.FromSeconds(90), _player.Position);
     }
 

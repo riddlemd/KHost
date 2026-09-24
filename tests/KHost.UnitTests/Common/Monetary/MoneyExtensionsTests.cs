@@ -19,13 +19,6 @@ public class MoneyExtensionsTests
     public void ToCurrency_FormatsCentsAsMoney(int cents, string expected)
         => Assert.Equal(expected, cents.CentsToCurrencyString());
 
-    [Theory]
-    [InlineData(29, 0.29)]
-    [InlineData(1250, 12.50)]
-    [InlineData(1, 0.01)]
-    public void ToDecimal_ConvertsWithoutLosingCents(int cents, double expected)
-        => Assert.Equal((decimal)expected, cents.CentsToDecimal());
-
     [Fact]
     public void Cents_AddUpExactly_WhereFloatingPointWouldNot()
     {

@@ -207,12 +207,15 @@
             border-radius: 0.15vmin;
             background: #fff;
             box-shadow: 0 0.4vmin 1.6vmin rgba(0, 0, 0, 0.45);
-            --kh-qr-size: 18vmin;
+            --kh-qr-size: 9.5vmin;
         }
 
-        .kh-qr[data-size="small"] { --kh-qr-size: 12vmin; }
-        .kh-qr[data-size="medium"] { --kh-qr-size: 18vmin; }
-        .kh-qr[data-size="large"] { --kh-qr-size: 25vmin; }
+        /* The largest is about as big as a code should ever get: it only has to be scannable from
+           a table, and every vmin it takes is one the words are drawn around. The steps below are
+           for a room close enough that even that is more than it needs. */
+        .kh-qr[data-size="small"] { --kh-qr-size: 7.5vmin; }
+        .kh-qr[data-size="medium"] { --kh-qr-size: 9.5vmin; }
+        .kh-qr[data-size="large"] { --kh-qr-size: 12vmin; }
 
         /* Three pixels a module is about where a phone camera stops reading one, so a long payload
            holds the code above the venue's requested size rather than shrinking past scannable. */
@@ -360,8 +363,11 @@
 <body>
     <video id="video" class="video" playsinline></video>
     <video id="video-b" class="video" playsinline></video>
-    <!-- Break music and an ad's own bed. Audio-only and never on the group timeline, so it is a
-         separate element rather than a second source on the video above. -->
+    <!-- The native path's picture. Sits with the video elements because it stands in their place:
+         a song is drawn here or streamed there, never both. -->
+    <canvas id="lyrics" class="video" hidden></canvas>
+    <!-- Break music and an ad's own bed. Audio-only and plays across the gap
+         between songs, so it is a separate element rather than a second source on the video above. -->
     <audio id="background"></audio>
     <!-- Image ads and the venue card. Above the video so a still covers it, and hidden until asked for. -->
     <img id="still" hidden alt="" />
@@ -387,6 +393,8 @@
     <div class="kh-corner" data-corner="bottomleft"></div>
     <div class="kh-corner" data-corner="bottomright"></div>
     <script src="hls.light.min.js"></script>
+    <script src="lyrics-overlay.js"></script>
+    <script src="stem-mixer.js"></script>
     <script src="player.js"></script>
 </body>
 </html>

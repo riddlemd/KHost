@@ -15,7 +15,7 @@
                     <Icon Name="folder2-open" />
                 </button>
             </div>
-            @if (PluginsService?.RestartRequired == true)
+            @if (PluginsService.RestartRequired)
             {
                 var waiting = WaitingOnRestart.ToList();
 
@@ -61,7 +61,7 @@
             <div class="kh-card__body">
                 @if (_tab == Tab.Available)
                 {
-                    var snapshot = Catalog?.Current;
+                    var snapshot = Catalog.Current;
 
                     <div class="kh-plugins-manager__catalog-bar">
                         <span class="kh-plugins-manager__catalog-state">
@@ -85,7 +85,7 @@
                         </button>
                     </div>
 
-                    @if (Catalog?.LastError is { } catalogError)
+                    @if (Catalog.LastError is { } catalogError)
                     {
                         <div class="kh-plugins-manager__notice kh-plugins-manager__notice--warning">
                             <Icon Name="exclamation-circle" />
@@ -297,7 +297,7 @@
                                                aria-label="@($"Enable {plugin.DisplayName}")"
                                                checked="@enabled"
                                                disabled="@(!CanEnable(plugin, enabled))"
-                                               @onchange="e => ToggleAsync(plugin.Id, (bool)(e.Value ?? false))" />
+                                               @onchange="e => SetEnabledAsync(plugin.Id, (bool)(e.Value ?? false))" />
                                     </label>
                                 </div>
                             </div>
@@ -388,7 +388,7 @@
                                     }
 
                                     @{
-                                        var buttons = PluginButtons?.ButtonsFor(plugin.Id) ?? [];
+                                        var buttons = PluginButtons.ButtonsFor(plugin.Id);
                                     }
                                     <div class="kh-plugins-manager__foot">
                                         <button type="button" class="kh-plugins-manager__path" title="Open this plugin's folder"

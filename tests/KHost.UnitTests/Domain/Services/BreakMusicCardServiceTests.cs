@@ -1,9 +1,6 @@
-using KHost.Abstractions.Messaging;
-using KHost.Abstractions.Messaging.Messages;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using KHost.Abstractions.Services.IPC;
-using KHost.Domain.Services.Messaging;
 using KHost.Domain.Services.Screens;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -13,16 +10,14 @@ namespace KHost.UnitTests.Domain.Services;
 /// <summary>Every state where the room hears something else takes the card down.</summary>
 public class BreakMusicCardServiceTests
 {
-    private readonly IScreenServer _screens = Substitute.For<IScreenServer>();
     private readonly IVenuesService _venues = Substitute.For<IVenuesService>();
     private readonly IBreakMusicService _breakMusic = Substitute.For<IBreakMusicService>();
-    private readonly MessageBroker _broker = new(NullLogger<MessageBroker>.Instance);
 
     // Through a container, because break music reaches every provider a plugin registered and a
     // plugin is one instance pointed at each extension interface it implements.
     private BreakMusicCardService Service() => new(
-        NullLogger<BreakMusicCardService>.Instance, _screens, _venues,
-        new ServiceCollection().AddSingleton(_breakMusic).BuildServiceProvider(), _broker);
+        NullLogger<BreakMusicCardService>.Instance, _venues,
+        new ServiceCollection().AddSingleton(_breakMusic).BuildServiceProvider());
 
     private void Arrange(
         bool enabled = true,
@@ -157,53 +152,5 @@ public class BreakMusicCardServiceTests
         Arrange(offset: 0);
 
         Assert.Equal(0.2, (await Service().BuildAsync()).Offset, 3);
-    }
-
-    /// <summary>A provider moving to the next track changes no state, so the card must republish.</summary>
-    [Fact]
-    public async Task TrackChanged_RepublishesWhatIsPlayingNow()
-    {
-        Arrange();
-        using var service = Service();
-        _screens.ClearReceivedCalls();
-
-        _breakMusic.CurrentTrack.Returns(new BreakMusicTrack { Title = "Runnin' Down a Dream", Artist = "Tom Petty" });
-        _broker.Announce(new BreakMusicTrackChanged("Spotify"));
-
-        await WaitForBroadcastAsync(command => command.Title == "Runnin' Down a Dream");
-    }
-
-    /// <summary>Starting, pausing and yielding to a singer all arrive as this one.</summary>
-    [Fact]
-    public async Task BreakMusicChanged_Republishes()
-    {
-        Arrange(state: BreakMusicState.Playing);
-        using var service = Service();
-        _screens.ClearReceivedCalls();
-
-        _breakMusic.State.Returns(BreakMusicState.Suspended);
-        _broker.Announce(new BreakMusicChanged());
-
-        await WaitForBroadcastAsync(command => !command.Enabled);
-    }
-
-    private async Task WaitForBroadcastAsync(Func<SetBreakMusicCardCommand, bool> settled)
-    {
-        var deadline = DateTime.UtcNow.AddSeconds(5);
-
-        while (DateTime.UtcNow < deadline)
-        {
-            var sent = _screens.ReceivedCalls()
-                .Where(call => call.GetMethodInfo().Name == nameof(IScreenServer.BroadcastCommandAsync))
-                .Select(call => call.GetArguments()[0])
-                .OfType<SetBreakMusicCardCommand>();
-
-            if (sent.Any(settled))
-                return;
-
-            await Task.Delay(5);
-        }
-
-        throw new TimeoutException("The card never reached the screens.");
     }
 }

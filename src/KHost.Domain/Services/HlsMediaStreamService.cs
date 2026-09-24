@@ -25,28 +25,6 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, ID
         /// <summary>Shorter segments start sooner; longer ones survive a worse network.</summary>
         public int SegmentSeconds { get; set; } = 2;
 
-        /// <summary>Whether queued songs are rendered ahead of play time at all.</summary>
-        /// <remarks>On by default: the render is what turns starting a song into a stream copy,
-        /// and turning it off trades that back for the CPU and the disk. It governs the
-        /// optimisation only. A format just a plugin can read is rendered either way, that render
-        /// being the whole of its playability rather than a saving. Read live, so a host changing
-        /// it does not have to restart.</remarks>
-        public bool PreRenderQueuedSongs { get; set; } = true;
-
-        /// <summary>How much of the disk pre-rendering may hold, in megabytes. Zero lifts the cap.
-        /// </summary>
-        /// <remarks>Every queued turn gets a render and nothing else bounds the directory, so this
-        /// is a backstop rather than something a normal night reaches. Past it a song plays the way
-        /// it always did, by transcoding at play time: the pre-render is an optimisation and must
-        /// not be the reason a machine runs out of disk mid-show.</remarks>
-        public int PreparedBudgetMegabytes { get; set; } = 8192;
-
-        /// <summary>Free space to leave alone, in megabytes. Zero lifts the floor.</summary>
-        /// <remarks>Separate from the budget because the budget knows nothing about what else is on
-        /// the volume. The working directory is under temp, which is the same volume as the database
-        /// and the logs on a normal install: filling it takes the whole show down, not just the
-        /// renders.</remarks>
-        public int PreparedFreeSpaceFloorMegabytes { get; set; } = 2048;
     }
 
     internal const string PlaylistFileName = "stream.m3u8";
@@ -55,19 +33,19 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, ID
     private static readonly TimeSpan PlaylistTimeout = TimeSpan.FromSeconds(15);
 
     private readonly IOptionsMonitor<ServiceOptions> _options;
-    private readonly IPreparedMediaService _prepared;
     private readonly Dictionary<string, Session> _sessions = [];
     private readonly SemaphoreSlim _lock = new(1, 1);
+    private readonly IPlayableMediaSourceService _playableSources;
     private readonly string _root;
 
     public HlsMediaStreamService(
         ILogger<HlsMediaStreamService> logger,
         IOptionsMonitor<ServiceOptions> options,
-        IPreparedMediaService prepared)
+        IPlayableMediaSourceService playableSources)
         : base(logger)
     {
-        _prepared = prepared;
         _options = options;
+        _playableSources = playableSources;
 
         // The root is resolved once and the rest is read live. Moving the directory under running
         // sessions would strand the segments they are already serving, where a changed segment
@@ -85,6 +63,52 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, ID
     /// Settings expects the next song to honour it, not the next launch.</summary>
     private ServiceOptions Options => _options.CurrentValue;
 
+    /// <summary>A fresh session's id and scratch directory, shared by both open paths.</summary>
+    private (string Id, string Directory) NewSession()
+    {
+        var id = Guid.NewGuid().ToString("n");
+        var directory = Path.Combine(_root, id);
+        Directory.CreateDirectory(directory);
+
+        return (id, directory);
+    }
+
+    private async Task RegisterAsync(Session session, CancellationToken cancellationToken)
+    {
+        await _lock.WaitAsync(cancellationToken);
+        try { _sessions[session.Id] = session; }
+        finally { _lock.Release(); }
+    }
+
+    public async Task<MediaStreamSession> OpenWithoutEncodeAsync(
+        string filePath,
+        CancellationToken cancellationToken = default)
+    {
+        if (!File.Exists(filePath))
+            throw new FileNotFoundException($"Media file not found: {filePath}", filePath);
+
+        var (id, directory) = NewSession();
+        var session = new Session(id, directory, process: null);
+
+        await RegisterAsync(session, cancellationToken);
+
+        Logger.LogInformation("Opened {SessionId} for '{FilePath}' with no transcode", id, filePath);
+
+        return new MediaStreamSession
+        {
+            Id = id,
+            SourcePath = filePath,
+
+            // Nothing to play as one stream: whatever wrote here names its own files, and they are
+            // reached through the same /media/{sessionId}/{fileName} route the segments use.
+            PlaylistUrl = null,
+            WorkingDirectory = directory,
+            StartOffset = TimeSpan.Zero,
+            Pitch = 0,
+            Tempo = 0,
+        };
+    }
+
     public async Task<MediaStreamSession> OpenAsync(
         string filePath,
         TimeSpan startOffset = default,
@@ -96,37 +120,22 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, ID
         if (!File.Exists(filePath))
             throw new FileNotFoundException($"Media file not found: {filePath}", filePath);
 
-        var id = Guid.NewGuid().ToString("n");
-        var directory = Path.Combine(_root, id);
-        Directory.CreateDirectory(directory);
+        var (id, directory) = NewSession();
 
-        var prepared = _prepared.TryResolve(filePath);
+        // Into the session's own directory, so a converted copy is swept with the segments when
+        // the session closes and nothing has to remember it exists.
+        var source = await _playableSources.ResolvePlayableAsync(filePath, directory, cancellationToken);
 
-        // A format a plugin owns is not a media file at all until it has been rendered, so there is
-        // nothing to fall back to. Refused rather than handed to ffmpeg, which would fail with
-        // something nobody could act on.
-        if (prepared is null && _prepared.RequiresPreparation(filePath))
-            throw new InvalidOperationException($"'{filePath}' is still being made ready to play.");
+        // Everything below reads the resolved path: a companion .mp3 sits beside the original, but
+        // what ffmpeg opens, and what decides the graphics-only frame rate, is what it will read.
+        var companionAudio = ResolveCompanionAudio(source);
+        if (companionAudio is null && IsGraphicsOnly(source))
+            Logger.LogWarning("No companion audio beside '{FilePath}'; the stream will be silent", source);
 
-        // The render always wins as the input where there is one: it carries this file's audio, and
-        // for a plugin's format it is the only readable thing. What is then copied and what is
-        // rebuilt is a separate question, asked per stream just below.
-        var source = prepared ?? filePath;
-        var (copyWhole, copyVideo) = CopyPlan(
-            prepared is not null, pitch, tempo, mix,
-            Options.SegmentSeconds, _prepared.KeyframeSecondsFor(filePath));
-        var copyFrom = copyWhole ? prepared : null;
+        var arguments = BuildArguments(
+            source, startOffset, pitch, tempo, Options.SegmentSeconds, companionAudio, mix);
 
-        var companionAudio = prepared is null ? ResolveCompanionAudio(filePath) : null;
-        if (prepared is null && companionAudio is null && IsGraphicsOnly(filePath))
-            Logger.LogWarning("No companion audio beside '{FilePath}'; the stream will be silent", filePath);
-
-        var arguments = copyFrom is null
-            ? BuildArguments(
-                source, startOffset, pitch, tempo, Options.SegmentSeconds, companionAudio, mix, copyVideo)
-            : BuildCopyArguments(copyFrom, startOffset, Options.SegmentSeconds);
-
-        Logger.LogInformation("Opening stream {SessionId} for '{FilePath}' at {Offset}", id, filePath, startOffset);
+        Logger.LogInformation("Opening stream {SessionId} for '{FilePath}' at {Offset}", id, source, startOffset);
         Logger.LogDebug("ffmpeg {Arguments}", arguments);
 
         var process = Process.Start(new ProcessStartInfo(ResolveFfmpegPath(), arguments)
@@ -139,6 +148,11 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, ID
 
         var session = new Session(id, directory, process);
 
+        // Registered with a token that never cancels: a caller giving up between Start and here
+        // must still find the process in _sessions, or nothing ever tears it down and it runs
+        // until the app exits rather than until the next CloseAsync/CloseAllAsync.
+        await RegisterAsync(session, CancellationToken.None);
+
         // ffmpeg blocks once the stderr pipe fills, so it has to be drained even when discarded.
         _ = Task.Run(async () =>
         {
@@ -147,17 +161,23 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, ID
                 Logger.LogWarning("ffmpeg for {SessionId}: {Error}", id, text.Trim());
         }, CancellationToken.None);
 
-        await _lock.WaitAsync(cancellationToken);
-        try { _sessions[id] = session; }
-        finally { _lock.Release(); }
-
-        // A URL handed out early 404s, which a media element reports as "source not supported"
-        // and never retries.
-        if (!await WaitForPlaylistAsync(directory, cancellationToken))
+        try
         {
+            // A URL handed out early 404s, which a media element reports as "source not supported"
+            // and never retries.
+            if (!await WaitForPlaylistAsync(directory, cancellationToken))
+            {
+                await CloseAsync(id);
+                throw new InvalidOperationException(
+                    $"ffmpeg produced no playlist for '{filePath}'. See the warning logged for session {id}.");
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // The session is already registered above, so a caller who gives up mid-wait still
+            // gets the process killed and the directory swept instead of it outliving this call.
             await CloseAsync(id);
-            throw new InvalidOperationException(
-                $"ffmpeg produced no playlist for '{filePath}'. See {Path.Combine(directory, "ffmpeg.log")}.");
+            throw;
         }
 
         return new MediaStreamSession
@@ -230,6 +250,9 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, ID
     public string BuildImageUrl(Guid mediaId)
         => $"{Options.BaseAddress.TrimEnd('/')}/media/image/{mediaId}";
 
+    public string BuildArtifactUrl(string sessionId, string fileName)
+        => $"{Options.BaseAddress.TrimEnd('/')}/media/{sessionId}/{fileName}";
+
     public string? ResolveArtifact(string sessionId, string fileName)
     {
         // Anything that is not a bare file name is rejected before it reaches the filesystem.
@@ -263,16 +286,20 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, ID
         int tempo,
         int segmentSeconds,
         string? companionAudioPath = null,
-        AudioMix? mix = null,
-        bool copyVideo = false)
+        AudioMix? mix = null)
     {
         var arguments = "-hide_banner -loglevel error";
 
         // CDG decoding is stateful, so an input seek lands mid-packet and the graphics decode to
-        // garbage. A paired source seeks on the output instead and eats the frames.
-        var seekOnOutput = companionAudioPath is not null;
+        // garbage. Such a source seeks on the output instead and eats the frames.
+        //
+        // Asked of the graphics, not of the companion audio: a .cdg with no .mp3 beside it is still
+        // a stateful decode, and keying this off the pairing seeked it on the input and drew
+        // garbage for the one case that already had no sound. Reused below for the frame-rate
+        // decision, which asks the same question of the same file.
+        var isGraphicsOnly = IsGraphicsOnly(filePath);
 
-        if (startOffset > TimeSpan.Zero && !seekOnOutput)
+        if (startOffset > TimeSpan.Zero && !isGraphicsOnly)
             arguments += string.Format(CultureInfo.InvariantCulture, " -ss {0:F3}", startOffset.TotalSeconds);
 
         arguments += $" -i \"{filePath}\"";
@@ -284,27 +311,24 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, ID
             arguments += $" -i \"{companionAudioPath}\" -map 0:v:0 -map 1:a:0";
         }
 
-        if (startOffset > TimeSpan.Zero && seekOnOutput)
+        if (startOffset > TimeSpan.Zero && isGraphicsOnly)
             arguments += string.Format(CultureInfo.InvariantCulture, " -ss {0:F3}", startOffset.TotalSeconds);
 
         var segment = Math.Max(1, segmentSeconds);
 
-        if (copyVideo)
-        {
-            // The render was written with keyframes on this same clock, so the muxer can already
-            // cut where it is asked to and re-encoding would only reproduce what is there.
-            arguments += " -c:v copy";
-        }
-        else
-        {
-            // Keyframes on time, not a frame count: -g is in frames, so it matches the segment length
-            // at exactly one source frame rate, and the muxer can only cut where a keyframe already is.
-            arguments += " -c:v libx264 -preset veryfast -profile:v main -level 4.1 -pix_fmt yuv420p"
-                       + string.Format(
-                            CultureInfo.InvariantCulture,
-                            " -force_key_frames \"expr:gte(t,n_forced*{0})\" -sc_threshold 0",
-                            segment);
-        }
+        // A .cdg only emits a frame when the graphics change, so x264 is handed a wildly variable
+        // rate and encodes far more than the picture needs. Measured on two songs: 110 and 154
+        // CPU-seconds without this against 33 and 44 with it, for the same segments either way.
+        if (isGraphicsOnly)
+            arguments += " -r 30";
+
+        // Keyframes on time, not a frame count: -g is in frames, so it matches the segment length
+        // at exactly one source frame rate, and the muxer can only cut where a keyframe already is.
+        arguments += " -c:v libx264 -preset veryfast -profile:v main -level 4.1 -pix_fmt yuv420p"
+                   + string.Format(
+                        CultureInfo.InvariantCulture,
+                        " -force_key_frames \"expr:gte(t,n_forced*{0})\" -sc_threshold 0",
+                        segment);
 
         var audioFilter = BuildAudioFilter(pitch, tempo);
         var mixGraph = BuildMixGraph(mix, audioFilter);
@@ -312,8 +336,11 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, ID
         if (mixGraph.Length > 0)
         {
             // Explicit maps: the graph names the audio output, and without saying so ffmpeg would
-            // also carry one of the raw tracks through beside it.
-            arguments += $" -filter_complex \"{mixGraph}\" -map 0:v:0 -map \"[a]\"";
+            // also carry one of the raw tracks through beside it. The picture is optional ("?")
+            // because a multi-track container can be audio alone — a mix is the one case where a
+            // missing video stream would otherwise be a fatal unmatched mapping rather than a
+            // silently dropped one.
+            arguments += $" -filter_complex \"{mixGraph}\" -map 0:v:0? -map \"[a]\"";
         }
         else if (audioFilter.Length > 0)
         {
@@ -338,82 +365,14 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, ID
         return arguments + $" {PlaylistFileName}";
     }
 
-    /// <summary>Segments an already-encoded render without touching the frames. The seek is on the
-    /// input, since there is no filter graph here for an output seek to sit behind.</summary>
-    internal static string BuildCopyArguments(string filePath, TimeSpan startOffset, int segmentSeconds)
-    {
-        var arguments = "-hide_banner -loglevel error";
-
-        if (startOffset > TimeSpan.Zero)
-            arguments += string.Format(CultureInfo.InvariantCulture, " -ss {0:F3}", startOffset.TotalSeconds);
-
-        var segment = Math.Max(1, segmentSeconds);
-
-        return arguments
-            + $" -i \"{filePath}\" -c copy"
-            + string.Format(
-                CultureInfo.InvariantCulture,
-                " -f hls -hls_time {0} -hls_playlist_type event -hls_flags independent_segments"
-                + " -hls_segment_filename seg_%05d.ts {1}",
-                segment, PlaylistFileName);
-    }
-
-    /// <summary>Whether the picture can be carried across untouched.</summary>
-    /// <remarks>Only tempo retimes the frames. Pitch and the mix are audio alone, so a song whose
-    /// key a host has shifted still keeps its picture rather than re-encoding it to no effect.
-    /// </remarks>
-    internal static bool CanCopyVideo(int tempo) => StreamRate.FromTempo(tempo) == 1.0;
-
-    /// <summary>Whether the audio can be carried across untouched.</summary>
-    /// <remarks>A copy carries each track at its recorded level, so a mix with anything to balance
-    /// has to be built even though nothing about the picture has changed.</remarks>
-    internal static bool CanCopyAudio(int pitch, int tempo, AudioMix? mix)
-        => pitch == 0
-        && StreamRate.FromTempo(tempo) == 1.0
-        && mix is not { IsMixable: true };
-
-    /// <summary>Which of a job's streams come across untouched.</summary>
-    /// <remarks>Asked per stream, because a re-levelled mix or a shifted key rebuilds the audio
-    /// and leaves every frame alone. Nothing is ever copied from the original file: a render is
-    /// the one input written with keyframes on the segment clock, and the muxer cuts nowhere
-    /// else.</remarks>
-    internal static (bool Whole, bool Picture) CopyPlan(
-        bool hasPrepared, int pitch, int tempo, AudioMix? mix, int segmentSeconds, int? keyframeSeconds)
-    {
-        if (!hasPrepared || !CutsCleanly(segmentSeconds, keyframeSeconds)) return (false, false);
-
-        var whole = CanStreamCopy(pitch, tempo, mix);
-        return (whole, !whole && CanCopyVideo(tempo));
-    }
-
-    /// <summary>Whether a render's keyframes fall where this host wants to cut.</summary>
-    /// <remarks>The muxer cuts a copy only where a keyframe already is, so a segment length that
-    /// is not a multiple of the render's cadence does not fail, it silently runs each segment on
-    /// to the next keyframe. Measured on a 2s render: 4s and 6s cut exactly, 3s and 5s overshoot
-    /// to 4s and 6s. A render that will not say its cadence is encoded instead, which is the
-    /// answer that is never wrong.</remarks>
-    internal static bool CutsCleanly(int segmentSeconds, int? keyframeSeconds)
-        => keyframeSeconds is { } keyframe and > 0 && Math.Max(1, segmentSeconds) % keyframe == 0;
-
-    /// <summary>Whether a prepared render can be copied whole rather than transcoded again.</summary>
-    /// <remarks>Both halves or neither: this is the all-copy job, which needs no filter graph at
-    /// all. Where only the picture survives, the stream is built with <c>copyVideo</c> instead.
-    /// </remarks>
-    internal static bool CanStreamCopy(int pitch, int tempo, AudioMix? mix)
-        => CanCopyVideo(tempo) && CanCopyAudio(pitch, tempo, mix);
-
     internal static bool IsGraphicsOnly(string filePath)
         => Path.GetExtension(filePath).Equals(".cdg", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>A .cdg holds only graphics; its audio is the same-named .mp3 beside it.</summary>
-    /// <remarks>Only .mp3: CD+G rips have always shipped that way.</remarks>
+    /// <remarks>Through <see cref="MediaFormats.FindKaraokeAudio"/>, so the importer, the probe and
+    /// the renderer all decide a pair the same way.</remarks>
     internal static string? ResolveCompanionAudio(string filePath)
-    {
-        if (!IsGraphicsOnly(filePath)) return null;
-
-        var companion = Path.ChangeExtension(filePath, ".mp3");
-        return File.Exists(companion) ? companion : null;
-    }
+        => IsGraphicsOnly(filePath) ? MediaFormats.FindKaraokeAudio(filePath) : null;
 
     private static string BuildAudioFilter(int pitch, int tempo)
     {
@@ -510,8 +469,6 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, ID
             : FormattableString.Invariant($"setpts=PTS/{rate:F6}");
     }
 
-    internal static string ResolveFfmpeg() => ResolveFfmpegPath();
-
     private static string ResolveFfmpegPath()
     {
         var exeName = OperatingSystem.IsWindows() ? "ffmpeg.exe" : "ffmpeg";
@@ -532,17 +489,22 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, ID
         _lock.Dispose();
     }
 
-    private sealed class Session(string id, string directory, Process process) : IDisposable
+    /// <remarks><paramref name="process"/> is null for a session opened without an encode: a served,
+    /// swept directory a renderer writes its own files into, with no ffmpeg behind it.</remarks>
+    private sealed class Session(string id, string directory, Process? process) : IDisposable
     {
         public string Id { get; } = id;
         public string Directory { get; } = directory;
 
         public void Dispose()
         {
-            try { if (!process.HasExited) process.Kill(entireProcessTree: true); }
-            catch { /* already gone */ }
+            if (process is not null)
+            {
+                try { if (!process.HasExited) process.Kill(entireProcessTree: true); }
+                catch { /* already gone */ }
 
-            process.Dispose();
+                process.Dispose();
+            }
 
             // A consumer may still hold a segment open; the directory is scratch either way.
             try { System.IO.Directory.Delete(Directory, recursive: true); }

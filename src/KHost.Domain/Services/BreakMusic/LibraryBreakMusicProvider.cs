@@ -4,11 +4,12 @@ using KHost.Abstractions.Services.IPC;
 using KHost.Abstractions.Messaging;
 using KHost.Abstractions.Messaging.Messages;
 using Microsoft.Extensions.Logging;
+using KHost.Domain.Services.Screens;
 
 namespace KHost.Domain.Services.BreakMusic;
 
-/// <summary>Break music from the hosts library, sent only to the screen the room hears.</summary>
-/// <remarks>It carries no timeline to sync a second screen to.</remarks>
+/// <summary>Break music from the host's library, sent to whatever the song is coming out of.</summary>
+/// <remarks>It rides the second audio channel, which carries no timeline of its own.</remarks>
 public class LibraryBreakMusicProvider : BaseService, IBreakMusicProvider, IDisposable
 {
     private readonly SemaphoreSlim _lock = new(1, 1);
@@ -16,8 +17,11 @@ public class LibraryBreakMusicProvider : BaseService, IBreakMusicProvider, IDisp
     private readonly IMediaPoolService _pools;
     private readonly IMediaService _media;
     private readonly IMediaStreamService _streams;
-    private readonly IScreenServer _screenServer;
-    private readonly IScreenCoordinationService _screenCoordination;
+    private readonly IReadOnlyList<IDisplayProvider> _displays;
+
+    // The one display that says when the bed ran out; the second channel has no timeline in the
+    // contract, so this is the screens provider's own hook rather than anything a plugin raises.
+    private readonly IReadOnlyList<ScreenDisplayProvider> _screens;
     private readonly IVenuesService _venues;
 
     private MediaStreamSession? _stream;
@@ -31,8 +35,7 @@ public class LibraryBreakMusicProvider : BaseService, IBreakMusicProvider, IDisp
         IMediaPoolService pools,
         IMediaService media,
         IMediaStreamService streams,
-        IScreenServer screenServer,
-        IScreenCoordinationService screenCoordination,
+        IEnumerable<IDisplayProvider> displays,
         IVenuesService venues,
         IMessageBroker broker)
         : base(logger)
@@ -41,11 +44,12 @@ public class LibraryBreakMusicProvider : BaseService, IBreakMusicProvider, IDisp
         _pools = pools;
         _media = media;
         _streams = streams;
-        _screenServer = screenServer;
-        _screenCoordination = screenCoordination;
+        _displays = [.. displays];
+        _screens = [.. _displays.OfType<ScreenDisplayProvider>()];
         _venues = venues;
 
-        _screenServer.StateReceived += OnScreenStateReceived;
+        foreach (var screens in _screens)
+            screens.BackgroundTrackEnded += OnBackgroundTrackEnded;
     }
 
 
@@ -72,17 +76,17 @@ public class LibraryBreakMusicProvider : BaseService, IBreakMusicProvider, IDisp
     }
 
     public Task PauseAsync(CancellationToken cancellationToken = default)
-        => SendToAudioScreenAsync(new PauseBackgroundCommand());
+        => SendToDisplaysAsync(new PauseBackgroundCommand());
 
     public Task ResumeAsync(CancellationToken cancellationToken = default)
-        => SendToAudioScreenAsync(new PlayBackgroundCommand());
+        => SendToDisplaysAsync(new PlayBackgroundCommand());
 
     public async Task StopAsync(TimeSpan? fadeDuration = null, CancellationToken cancellationToken = default)
     {
         await _lock.WaitAsync(cancellationToken);
         try
         {
-            await SendToAudioScreenAsync(new StopBackgroundCommand { FadeDuration = fadeDuration });
+            await SendToDisplaysAsync(new StopBackgroundCommand { FadeDuration = fadeDuration });
 
             _currentTrack = null;
 
@@ -110,22 +114,23 @@ public class LibraryBreakMusicProvider : BaseService, IBreakMusicProvider, IDisp
     }
 
     /// <summary>Deliberately nothing: this provider's audio rides the screen channel.</summary>
-    /// <remarks>ScreenCoordination sets that channel alongside the song's own.</remarks>
+    /// <remarks>ScreenDisplayProvider sets that channel alongside the song's own.</remarks>
     public Task SetVolumeAsync(float volume, CancellationToken cancellationToken = default)
         => Task.CompletedTask;
 
     public void Dispose()
     {
-        _screenServer.StateReceived -= OnScreenStateReceived;
+        foreach (var screens in _screens)
+            screens.BackgroundTrackEnded -= OnBackgroundTrackEnded;
+
         _lock.Dispose();
 
         GC.SuppressFinalize(this);
     }
 
     /// <summary>The bed track played out, so the pool owes another one.</summary>
-    private void OnScreenStateReceived(object? sender, ScreenStateReceivedEventArgs e)
+    private void OnBackgroundTrackEnded(object? sender, EventArgs e)
     {
-        if (e.State is not ScreenBackgroundState { HasEnded: true }) return;
         if (CurrentTrack is null) return;
 
         _ = AdvanceAfterEndAsync();
@@ -182,7 +187,7 @@ public class LibraryBreakMusicProvider : BaseService, IBreakMusicProvider, IDisp
 
         _stream = await _streams.OpenAsync(media.FilePath, cancellationToken: cancellationToken);
 
-        var sent = await SendToAudioScreenAsync(new LoadBackgroundCommand
+        var sent = await SendToDisplaysAsync(new LoadBackgroundCommand
         {
             StreamUrl = _stream.PlaylistUrl,
             AutoPlay = true,
@@ -220,26 +225,36 @@ public class LibraryBreakMusicProvider : BaseService, IBreakMusicProvider, IDisp
         catch (Exception ex) { Logger.LogWarning(ex, "Failed to close break music stream {SessionId}", stream.Id); }
     }
 
-    /// <summary>False when no screen is carrying the room's audio, so there is nowhere to play.</summary>
-    private async Task<bool> SendToAudioScreenAsync(IScreenCommand command)
+    /// <summary>False when nothing is connected, so there is nowhere for the break music to play.</summary>
+    /// <remarks>A display that cannot take a second channel inherits the no-op defaults and is
+    /// still counted: the track is playing as far as the room is concerned, and a card naming it
+    /// would otherwise be suppressed by a television that simply cannot carry the bed.</remarks>
+    private async Task<bool> SendToDisplaysAsync(IScreenCommand command)
     {
+        if (ConnectedDisplay.Find(_displays) is not { } connected)
+        {
+            Logger.LogInformation("Break music has nowhere to play: nothing is connected");
+            return false;
+        }
+
         try
         {
-            var screenId = await _screenCoordination.EnsureRolesAsync();
-
-            if (screenId is null)
-            {
-                Logger.LogInformation("Break music has nowhere to play: no screen carries the room's audio");
-                return false;
-            }
-
-            await _screenServer.SendCommandAsync(screenId, command);
+            await DispatchAsync(connected.Provider, command);
             return true;
         }
         catch (Exception ex)
         {
-            Logger.LogWarning(ex, "Failed to send {Command} to the audio screen", command.GetType().Name);
+            Logger.LogWarning(ex, "Failed to send {Command} to {Provider}", command.GetType().Name, connected.Provider.Name);
             return false;
         }
     }
+
+    private static Task DispatchAsync(IDisplayProvider display, IScreenCommand command) => command switch
+    {
+        LoadBackgroundCommand c => display.LoadBackgroundAsync(c),
+        PlayBackgroundCommand => display.PlayBackgroundAsync(),
+        PauseBackgroundCommand => display.PauseBackgroundAsync(),
+        StopBackgroundCommand c => display.StopBackgroundAsync(c.FadeDuration),
+        _ => Task.CompletedTask,
+    };
 }

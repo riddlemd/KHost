@@ -18,6 +18,14 @@ internal class MediaRepository : BaseRepository<Media>, IMediaRepository
     // stripping them instead made a hyphenated title unsearchable by its own name.
     private const char FtsQuote = '"';
 
+    // Shared by every raw-SQL search path; {0} is the FTS match expression, appended text (if
+    // any) is the type/status filter that cannot be pushed into the join itself.
+    private const string FtsJoinAndMatchSql = """
+        FROM "Media" AS m
+        INNER JOIN "media_fts" AS f ON f."media_id" = m."Id"
+        WHERE "media_fts" MATCH {0}
+        """;
+
     // Linux filesystems are case-sensitive; Windows and default macOS volumes are not. Folding case
     // on Linux would treat Song.mp4 and song.mp4 as the same file and silently drop one on import.
     private static readonly bool _caseSensitivePaths = OperatingSystem.IsLinux();
@@ -81,11 +89,15 @@ internal class MediaRepository : BaseRepository<Media>, IMediaRepository
             return await context.Media.FirstOrDefaultAsync(m => m.FilePath == filePath);
 
         // Same reasoning as GetExistingFilePathsAsync: bundled SQLite folds ASCII only, so this
-        // has to compare in .NET rather than push a lower() down into the query.
-        await foreach (var row in context.Media.AsAsyncEnumerable())
+        // has to compare in .NET rather than push a lower() down into the query. Only Id and
+        // FilePath are pulled over for the scan; the full row is loaded once a match is found
+        // rather than materialising every column of every row up front.
+        await foreach (var candidate in context.Media
+            .Select(m => new { m.Id, m.FilePath })
+            .AsAsyncEnumerable())
         {
-            if (string.Equals(row.FilePath, filePath, StringComparison.OrdinalIgnoreCase))
-                return row;
+            if (string.Equals(candidate.FilePath, filePath, StringComparison.OrdinalIgnoreCase))
+                return await context.Media.FirstOrDefaultAsync(m => m.Id == candidate.Id);
         }
 
         return null;
@@ -246,16 +258,12 @@ internal class MediaRepository : BaseRepository<Media>, IMediaRepository
 
         var countSql = $$"""
             SELECT COUNT(*) AS "Value"
-            FROM "Media" AS m
-            INNER JOIN "media_fts" AS f ON f."media_id" = m."Id"
-            WHERE "media_fts" MATCH {0}{{filters}}
+            {{FtsJoinAndMatchSql}}{{filters}}
             """;
 
         var pageSql = $$"""
             SELECT m.*
-            FROM "Media" AS m
-            INNER JOIN "media_fts" AS f ON f."media_id" = m."Id"
-            WHERE "media_fts" MATCH {0}{{filters}}
+            {{FtsJoinAndMatchSql}}{{filters}}
             ORDER BY bm25("media_fts")
             LIMIT {1} OFFSET {2}
             """;
@@ -283,17 +291,8 @@ internal class MediaRepository : BaseRepository<Media>, IMediaRepository
         if (match is null)
             return await base.SearchAsync(query, pageNumber, pageSize, options);
 
-        var sw = Stopwatch.StartNew();
-        try
-        {
-            return await SearchRankedAsync(match, query, pageNumber, pageSize, options as MediaSearchOptions);
-        }
-        finally
-        {
-            KHostMetrics.SearchDuration.Record(sw.ElapsedMilliseconds,
-                new KeyValuePair<string, object?>("entity", nameof(Media)),
-                new KeyValuePair<string, object?>("used_fts", true));
-        }
+        return await WithSearchDurationRecordedAsync(
+            () => SearchRankedAsync(match, query, pageNumber, pageSize, options as MediaSearchOptions));
     }
 
     public override Task<PaginatedResult<Media>> SearchAsync(string query, int pageNumber, int pageSize, SortDescriptor? sort)
@@ -311,19 +310,17 @@ internal class MediaRepository : BaseRepository<Media>, IMediaRepository
                 q => ApplySort(ApplySearchFilters(q, query, options ?? MediaSearchOptions.Default), sort));
         }
 
-        var sw = Stopwatch.StartNew();
-        try
-        {
-            // An explicit sort supersedes relevance rather than combining with it (bm25 could only
-            // break ties within it), but with no sort the ranking is the order, paged in this query.
-            if (sort is null)
-                return await SearchRankedAsync(match, query, pageNumber, pageSize, options);
+        // An explicit sort supersedes relevance rather than combining with it (bm25 could only
+        // break ties within it), but with no sort the ranking is the order, paged in this query.
+        if (sort is null)
+            return await WithSearchDurationRecordedAsync(
+                () => SearchRankedAsync(match, query, pageNumber, pageSize, options));
 
+        return await WithSearchDurationRecordedAsync(async () =>
+        {
             var sql = $$"""
                 SELECT m.*
-                FROM "Media" AS m
-                INNER JOIN "media_fts" AS f ON f."media_id" = m."Id"
-                WHERE "media_fts" MATCH {0}
+                {{FtsJoinAndMatchSql}}
                 """;
 
             using var context = await ContextFactory.CreateDbContextAsync();
@@ -344,10 +341,22 @@ internal class MediaRepository : BaseRepository<Media>, IMediaRepository
                 .Paginate(queryable, pageNumber, pageSize)
                 .ToListAsync();
 
-            Logger.LogDebug("MediaRepository.SearchAsync q={Query} match={Match} sort={Sort} elapsed={ElapsedMs}ms results={ResultCount} usedFts=true",
-                query, match, sort?.Column, sw.ElapsedMilliseconds, totalCount);
+            Logger.LogDebug("MediaRepository.SearchAsync q={Query} match={Match} sort={Sort} results={ResultCount} usedFts=true",
+                query, match, sort?.Column, totalCount);
 
             return PaginationComponent.BuildResult(items, totalCount, pageNumber, pageSize);
+        });
+    }
+
+    /// <summary>Times a search path and records it under one metric shape, shared by every FTS
+    /// caller so the stopwatch and the tag pair are written in exactly one place.</summary>
+    private static async Task<PaginatedResult<Media>> WithSearchDurationRecordedAsync(
+        Func<Task<PaginatedResult<Media>>> search)
+    {
+        var sw = Stopwatch.StartNew();
+        try
+        {
+            return await search();
         }
         finally
         {

@@ -49,9 +49,9 @@ unchanged. A restore you did not verify is a restore that did not happen.
 
 ## 3. Baseline before, same numbers after
 
-Take the log line count for today and the ffmpeg count (`run-khost` toolbox — the ffmpeg count must
-print 0 cleanly rather than erroring). Log path:
-`src/KHost.UserInterface/bin/Debug/net10.0/logs/YYYYMMDD.log`.
+Take the log line count for this run and the ffmpeg count (`run-khost` toolbox — the ffmpeg count
+must print 0 cleanly rather than erroring). Every launch writes its own file, so the newest one is
+this run's log: `ls -t src/KHost.UserInterface/bin/Debug/net10.0/logs/host-*.log | head -1`.
 
 ## 4. The core pass — run this every time
 
@@ -87,14 +87,14 @@ tell 1× from 2× reliably.
 Step 9 catches double-rotation, and it needs counting rather than reading:
 
 ```bash
-L=src/KHost.UserInterface/bin/Debug/net10.0/logs/$(date +%Y%m%d).log
+L=$(ls -t src/KHost.UserInterface/bin/Debug/net10.0/logs/host-*.log | head -1)
 grep -c 'Playback concluded'   "$L"
 grep -c 'Dequeued performance' "$L"
 grep "Queue rotated" "$L" | tail -3        # timestamps, not just the count
 ```
 
-Count against the *conclusion's timestamp*, not the file total — the file carries earlier runs and
-one rotation per singer added, so a raw count of 5 can still be correct.
+Count against the *conclusion's timestamp*, not the file total — one rotation per singer added
+during this run, so a raw count of 5 can still be correct.
 
 ## 5. Add a pass for what changed
 
@@ -113,7 +113,8 @@ one rotation per singer added, so a raw count of 5 can still be correct.
 Numbers to compare against, not thresholds to enforce:
 
 - Host CPU **~3%** while playing, **~0%** idle
-- `SetTimelineCommand` on the screen at **1.00/s**, steady (`14:27:05.865, :06.867, :07.868…`)
+- No periodic command traffic while a song plays: the screen logs `Command received:` only for
+  real commands (load, play, seek, stop), while its state reports flow the other way
 - Host log **~140 lines for a whole day** of normal use
 - Graceful stop to process exit: **1–2s**
 - Zero `ffmpeg` after shutdown

@@ -23,8 +23,9 @@ public class HlsMediaStreamServiceTranscodeTests : IDisposable
                 BaseAddress = "http://host:5251/",
                 WorkingDirectory = _workingDirectory,
             }),
-            // No prepared render: these are about what the transcode itself builds.
-            new NothingPrepared());
+            // The real router with nothing registered: every path resolves to itself, which is
+            // what the host does for all but a provider's own container.
+            new PlayableMediaSourceService(NullLogger<PlayableMediaSourceService>.Instance, []));
 
     [RequiresFfmpegFact]
     public async Task OpenAsync_ProducesAPlaylistAndSegmentsTheHostCanServe()
@@ -83,6 +84,27 @@ public class HlsMediaStreamServiceTranscodeTests : IDisposable
     }
 
     [RequiresFfmpegFact]
+    public async Task OpenAsync_CancelledWhileWaitingForThePlaylist_TearsDownTheOrphanedProcess()
+    {
+        var source = await CreateSampleAsync(seconds: 4);
+        using var cts = new CancellationTokenSource();
+
+        // Shorter than ffmpeg needs to start encoding, so the cancellation lands inside the
+        // playlist wait rather than before or after it.
+        cts.CancelAfter(TimeSpan.FromMilliseconds(50));
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => _service.OpenAsync(source, cancellationToken: cts.Token));
+
+        // A cancelled caller must not leave ffmpeg running to app exit, nor its scratch directory
+        // sitting until CloseAllAsync: this session is torn down the moment the wait is cancelled.
+        for (var i = 0; i < 100 && Directory.GetDirectories(_workingDirectory).Length > 0; i++)
+            await Task.Delay(50);
+
+        Assert.Empty(Directory.GetDirectories(_workingDirectory));
+    }
+
+    [RequiresFfmpegFact]
     public async Task OpenAsync_ServesTwoConcurrentSessionsIndependently()
     {
         var source = await CreateSampleAsync(seconds: 4);
@@ -94,7 +116,7 @@ public class HlsMediaStreamServiceTranscodeTests : IDisposable
         Assert.NotNull(await WaitForArtifactAsync(first.Id, "stream.m3u8"));
         Assert.NotNull(await WaitForArtifactAsync(second.Id, "stream.m3u8"));
 
-        // Closing one must not disturb the other. A second screen's stream outlives the first.
+        // Closing one must not disturb the other: a replaced stream is retired while its successor plays.
         await _service.CloseAsync(first.Id);
         Assert.Null(_service.ResolveArtifact(first.Id, "stream.m3u8"));
         Assert.NotNull(_service.ResolveArtifact(second.Id, "stream.m3u8"));
@@ -116,7 +138,7 @@ public class HlsMediaStreamServiceTranscodeTests : IDisposable
     }
 
     [RequiresFfmpegFact]
-    public async Task OpenAsync_DoesNotTreatANonMp3NeighbourAsTheCompanion()
+    public async Task OpenAsync_PairsANonMp3NeighbourAsTheCompanion()
     {
         var cdg = await CreateCdgPairAsync(seconds: 4);
         var mp3 = Path.ChangeExtension(cdg, ".mp3");
@@ -125,9 +147,10 @@ public class HlsMediaStreamServiceTranscodeTests : IDisposable
         var session = await _service.OpenAsync(cdg);
         var segment = await WaitForArtifactAsync(session.Id, "seg_00000.ts");
 
-        // CD+G pairs with .mp3 and nothing else, so a same-named .wav is a different track.
+        // Any audio beside a .cdg is its other half; looking only for .mp3 is how a .cdg next to a
+        // .wav was once excluded from import as part of a pair and then played silent.
         Assert.NotNull(segment);
-        Assert.DoesNotContain("audio", await ProbeStreamTypesAsync(segment));
+        Assert.Contains("audio", await ProbeStreamTypesAsync(segment));
     }
 
     [RequiresFfmpegFact]

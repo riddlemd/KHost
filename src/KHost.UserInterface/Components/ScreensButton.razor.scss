@@ -1,9 +1,0 @@
-.kh-screens-btn {
-    position: relative;
-
-    // Colour rather than a count: the toolbar only has to answer "is anything showing this?",
-    // and the dialog is where the screens are named.
-    &__icon--active {
-        color: var(--kh-success);
-    }
-}

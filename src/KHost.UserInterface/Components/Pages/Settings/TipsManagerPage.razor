@@ -42,14 +42,14 @@
                     <table class="kh-table">
                         <thead>
                             <tr>
-                                <th class="kh-table__col--sortable" @onclick='() => OnSortColumnClicked("createdDate")'>
+                                <th class="kh-table__col--sortable" @onclick='() => OnSortColumnClickedAsync("createdDate")'>
                                     Date @if (_sortColumn == "createdDate") { <Icon Name="@(_sortDescending ? "sort-down" : "sort-up")" class="kh-table__sort-indicator" /> }
                                 </th>
                                 <th>Singer</th>
-                                <th class="kh-table__col--sortable" @onclick='() => OnSortColumnClicked("amount")'>
+                                <th class="kh-table__col--sortable" @onclick='() => OnSortColumnClickedAsync("amount")'>
                                     Amount @if (_sortColumn == "amount") { <Icon Name="@(_sortDescending ? "sort-down" : "sort-up")" class="kh-table__sort-indicator" /> }
                                 </th>
-                                <th class="kh-table__col--sortable" @onclick='() => OnSortColumnClicked("paymentMethod")'>
+                                <th class="kh-table__col--sortable" @onclick='() => OnSortColumnClickedAsync("paymentMethod")'>
                                     Payment Method @if (_sortColumn == "paymentMethod") { <Icon Name="@(_sortDescending ? "sort-down" : "sort-up")" class="kh-table__sort-indicator" /> }
                                 </th>
                                 <th>Venue</th>

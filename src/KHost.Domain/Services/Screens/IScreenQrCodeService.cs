@@ -1,3 +1,5 @@
+using KHost.Abstractions.Services.IPC;
+
 namespace KHost.Domain.Services.Screens;
 
 /// <summary>Holds the QR codes every owner offers and shows the venue's chosen one.</summary>
@@ -9,4 +11,7 @@ public interface IScreenQrCodeService
 
     /// <summary>Withdraws what <paramref name="ownerId"/> offered. Unknown owners are not an error.</summary>
     Task UnregisterAsync(string ownerId);
+
+    /// <summary>The venue's chosen code as it should be drawn now, or an empty set.</summary>
+    Task<SetScreenQrCodesCommand> BuildAsync(CancellationToken cancellationToken = default);
 }

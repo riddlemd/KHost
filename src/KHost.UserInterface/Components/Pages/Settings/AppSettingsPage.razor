@@ -50,29 +50,10 @@
                 </label>
                 <label class="kh-app-settings__row">
                     <span>
-                        Sync start lead (milliseconds)
-                        <span class="kh-app-settings__apply">applies immediately</span>
-                    </span>
-                    <InputNumber class="kh-form-control kh-app-settings__number" @bind-Value="_model.SyncStartLeadMilliseconds" min="0" step="50" />
-                </label>
-                <label class="kh-app-settings__row">
-                    <span>
                         HLS segment length (seconds)
                         <span class="kh-app-settings__apply">applies immediately</span>
                     </span>
                     <InputNumber class="kh-form-control kh-app-settings__number" @bind-Value="_model.SegmentSeconds" min="1" step="1" />
-                </label>
-                <label class="kh-app-settings__row kh-form-check">
-                    <span class="kh-form-check-label">
-                        Get queued songs ready before they are played
-                        <span class="kh-app-settings__apply">applies immediately</span>
-                        <span class="kh-note">
-                            Spends CPU and disk ahead of time so a song starts without a pause.
-                            Turning it off releases what was rendered for it. Formats only a plugin
-                            can read are always got ready, since nothing else can play them.
-                        </span>
-                    </span>
-                    <InputCheckbox class="kh-form-check-input" @bind-Value="_model.PreRenderQueuedSongs" />
                 </label>
 
                 <label class="kh-app-settings__row">

@@ -30,7 +30,7 @@ public static class PluginLoader
     /// reads the domain for services taking <c>IEnumerable&lt;T&gt;</c> of an Abstractions interface
     /// and fails on any that is not listed, so the list maintains itself.</remarks>
     internal static readonly Type[] ExtensionInterfaces =
-        [.. CapabilityInterfaces.Select(c => c.Interface), typeof(IPluginButtonHandler), typeof(IMediaPlaybackGate), typeof(IMediaPreparer), typeof(IMediaProbe)];
+        [.. CapabilityInterfaces.Select(c => c.Interface), typeof(IPluginButtonHandler), typeof(IMediaPlaybackGate), typeof(IMediaProbe), typeof(ITimedLyricsProvider), typeof(IPlayableMediaSource), typeof(IMediaRenderer)];
 
     public static PluginsState ReadState(string cacheDirectory)
     {
@@ -110,15 +110,7 @@ public static class PluginLoader
             return Errored(directory, manifest, $"Duplicate plugin id '{manifest.Id}'.");
 
         if (manifest.ApiVersion != PluginApi.CurrentVersion)
-        {
-            return new DiscoveredPlugin
-            {
-                Directory = directory,
-                Manifest = manifest,
-                Status = PluginStatus.Incompatible,
-                Error = $"Requires plugin API v{manifest.ApiVersion}; this host supports v{PluginApi.CurrentVersion}.",
-            };
-        }
+            return Incompatible(directory, manifest);
 
         if (!File.Exists(Path.Combine(directory, manifest.EntryAssembly)))
             return Errored(directory, manifest, $"Entry assembly '{manifest.EntryAssembly}' not found.");
@@ -227,22 +219,22 @@ public static class PluginLoader
         var registered = 0;
         var storedValues = state.Settings.GetValueOrDefault(manifest.Id.ToString());
 
+        PluginContext CreateContext(IServiceProvider serviceProvider) => new(manifest, storedValues, plugin,
+            serviceProvider.GetRequiredService<Secrets.IPluginSecretStore>(),
+            serviceProvider.GetRequiredService<Screens.IScreenQrCodeService>());
+
+        var concreteTypes = types.Where(t => t.IsClass && !t.IsAbstract).ToList();
+
         // One singleton per extension type, every interface pointing at the same instance. Per-interface
         // registration would build two, so signing in on one would not sign in the other.
-        var extensionTypes = types
-            .Where(t => t.IsClass && !t.IsAbstract && ExtensionInterfaces.Any(i => i.IsAssignableFrom(t)))
-            .ToList();
+        var extensionTypes = concreteTypes.Where(t => ExtensionInterfaces.Any(i => i.IsAssignableFrom(t))).ToList();
 
         foreach (var type in extensionTypes)
         {
             var implementationType = type;
 
             services.AddSingleton(implementationType, serviceProvider => ActivatorUtilities.CreateInstance(
-                serviceProvider,
-                implementationType,
-                new PluginContext(manifest, storedValues, plugin,
-                    serviceProvider.GetRequiredService<Secrets.IPluginSecretStore>(),
-                    serviceProvider.GetRequiredService<Screens.IScreenQrCodeService>())));
+                serviceProvider, implementationType, CreateContext(serviceProvider)));
 
             foreach (var extensionInterface in ExtensionInterfaces.Where(i => i.IsAssignableFrom(implementationType)))
                 services.AddSingleton(extensionInterface, sp => sp.GetRequiredService(implementationType));
@@ -264,16 +256,14 @@ public static class PluginLoader
                 plugin.Capabilities.Add(capability);
 
         // Optional: a plugin that only exposes providers needs no entry point, and loads as before.
-        foreach (var type in types.Where(t => t.IsClass && !t.IsAbstract && typeof(IPlugin).IsAssignableFrom(t)))
+        foreach (var type in concreteTypes.Where(t => typeof(IPlugin).IsAssignableFrom(t)))
         {
             var entryPointType = type;
 
             services.AddSingleton<LoadedPlugin>(serviceProvider => new LoadedPlugin(
                 plugin,
                 (IPlugin)ActivatorUtilities.CreateInstance(serviceProvider, entryPointType),
-                new PluginContext(manifest, storedValues, plugin,
-                    serviceProvider.GetRequiredService<Secrets.IPluginSecretStore>(),
-                    serviceProvider.GetRequiredService<Screens.IScreenQrCodeService>())));
+                CreateContext(serviceProvider)));
 
             registered++;
         }
@@ -292,5 +282,13 @@ public static class PluginLoader
         Manifest = manifest,
         Status = PluginStatus.Errored,
         Error = error,
+    };
+
+    private static DiscoveredPlugin Incompatible(string directory, PluginManifest manifest) => new()
+    {
+        Directory = directory,
+        Manifest = manifest,
+        Status = PluginStatus.Incompatible,
+        Error = $"Requires plugin API v{manifest.ApiVersion}; this host supports v{PluginApi.CurrentVersion}.",
     };
 }
