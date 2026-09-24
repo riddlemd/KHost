@@ -21,6 +21,10 @@ public class SingerQueueService : ISingerQueueService, IDisposable
     private readonly IQueueRotationStrategyFactory _rotationStrategyFactory;
     private readonly IMessageBroker _broker;
     private readonly List<Guid> _userIds = [];
+    // A singleton with no other synchronization: PruneDeletedSingersAsync runs on its own
+    // Task.Run off a broker subscription and would otherwise mutate _userIds while a UI call
+    // is enumerating it.
+    private readonly SemaphoreSlim _lock = new(1, 1);
     private List<KHostUser> _cachedUsers = [];
     private readonly SubscriptionSet _subscriptions = new();
 
@@ -29,9 +33,7 @@ public class SingerQueueService : ISingerQueueService, IDisposable
     public Guid? SelectedUserId { get; private set; }
     public KHostUser? SelectedUser =>
         SelectedUserId is { } id ? _cachedUsers.FirstOrDefault(u => u.Id == id) : null;
-    public bool IsTopSlotLocked => _isTopSlotLocked;
-
-    private bool _isTopSlotLocked;
+    public bool IsTopSlotLocked { get; private set; }
 
     public SingerQueueService(
         ILogger<SingerQueueService> logger,
@@ -63,33 +65,43 @@ public class SingerQueueService : ISingerQueueService, IDisposable
     {
         try
         {
-            List<Guid> missing = [];
-
-            foreach (var id in _userIds.ToList())
-                if (await _usersService.ReadAsync(id) is null)
-                    missing.Add(id);
-
-            if (missing.Count == 0)
-                return;
-
-            foreach (var id in missing)
+            await _lock.WaitAsync();
+            try
             {
-                _userIds.Remove(id);
+                List<Guid> missing = [];
 
-                if (SelectedUserId == id)
-                    SelectedUserId = null;
+                foreach (var id in _userIds.ToList())
+                    if (await _usersService.ReadAsync(id) is null)
+                        missing.Add(id);
 
-                var queued = await _performanceService.ReadBySingerIdAsync(id, pageSize: 0, filter: PerformanceFilter.Queued);
+                if (missing.Count == 0)
+                    return;
 
-                foreach (var performance in queued.Items)
-                    await _performanceService.DeleteAsync(performance.Id);
+                foreach (var id in missing)
+                {
+                    _userIds.Remove(id);
 
-                _logger.LogInformation(
-                    "Took deleted singer {UserId} out of the queue with {Count} song(s) waiting",
-                    id, queued.Items.Count);
+                    if (SelectedUserId == id)
+                        SelectedUserId = null;
+
+                    var queued = await _performanceService.ReadBySingerIdAsync(id, pageSize: 0, filter: PerformanceFilter.Queued);
+
+                    foreach (var performance in queued.Items)
+                        await _performanceService.DeleteAsync(performance.Id);
+
+                    _logger.LogInformation(
+                        "Took deleted singer {UserId} out of the queue with {Count} song(s) waiting",
+                        id, queued.Items.Count);
+                }
+
+                await NotifyLockedAsync();
+            }
+            finally
+            {
+                _lock.Release();
             }
 
-            await NotifyAsync();
+            PublishChanged();
         }
         catch (Exception ex)
         {
@@ -103,46 +115,88 @@ public class SingerQueueService : ISingerQueueService, IDisposable
 
     public async Task SelectUserAsync(Guid? userId)
     {
-        SelectedUserId = userId;
+        await _lock.WaitAsync();
+        try
+        {
+            await SelectUserLockedAsync(userId);
+        }
+        finally
+        {
+            _lock.Release();
+        }
 
-        _logger.LogInformation("Selected user {UserId}", userId);
-
-        await NotifyAsync();
+        PublishChanged();
     }
 
     public async Task AddUserAsync(Guid userId)
     {
-        _userIds.Add(userId);
+        await _lock.WaitAsync();
+        try
+        {
+            _userIds.Add(userId);
 
-        _logger.LogInformation("User {UserId} added to queue", userId);
+            _logger.LogInformation("User {UserId} added to queue", userId);
 
-        var config = await ReadRotationConfigAsync();
+            var config = await ReadRotationConfigAsync();
 
-        await ApplyRotationAsync(config, finishedSingerId: null, joiningSingerId: userId);
+            await ApplyRotationAsync(config, finishedSingerId: null, joiningSingerId: userId);
 
-        await NotifyAsync();
+            await NotifyLockedAsync();
+        }
+        finally
+        {
+            _lock.Release();
+        }
+
+        PublishChanged();
     }
 
     public async Task RotateQueueAsync(Guid finishedSingerId)
     {
-        if (_userIds.Count == 0) return;
+        bool hadSingers;
 
-        var config = await ReadRotationConfigAsync();
+        await _lock.WaitAsync();
+        try
+        {
+            hadSingers = _userIds.Count > 0;
 
-        await ApplyRotationAsync(config, finishedSingerId: finishedSingerId, joiningSingerId: null);
-        await SelectFirstUserInQueueAsync();
+            if (hadSingers)
+            {
+                var config = await ReadRotationConfigAsync();
+
+                await ApplyRotationAsync(config, finishedSingerId: finishedSingerId, joiningSingerId: null);
+                await SelectFirstUserInQueueLockedAsync();
+            }
+        }
+        finally
+        {
+            _lock.Release();
+        }
+
+        if (hadSingers)
+            PublishChanged();
     }
 
     public async Task RemoveUserAsync(Guid userId)
     {
-        _userIds.Remove(userId);
+        await _lock.WaitAsync();
+        try
+        {
+            _userIds.Remove(userId);
 
-        if (SelectedUserId == userId)
-            SelectedUserId = null;
+            if (SelectedUserId == userId)
+                SelectedUserId = null;
 
-        _logger.LogInformation("User {UserId} removed from queue", userId);
+            _logger.LogInformation("User {UserId} removed from queue", userId);
 
-        await NotifyAsync();
+            await NotifyLockedAsync();
+        }
+        finally
+        {
+            _lock.Release();
+        }
+
+        PublishChanged();
     }
 
     public async Task AddMediaAsync(Guid userId, MediaSearchEntity media)
@@ -170,103 +224,169 @@ public class SingerQueueService : ISingerQueueService, IDisposable
 
     public async Task MoveUserUpAsync(Guid userId)
     {
-        var idx = _userIds.IndexOf(userId);
-
-        SelectedUserId = userId;
-
-        if (idx > 0 && !(idx == 1 && IsTopSlotLocked))
+        await _lock.WaitAsync();
+        try
         {
-            (_userIds[idx], _userIds[idx - 1]) = (_userIds[idx - 1], _userIds[idx]);
+            var idx = _userIds.IndexOf(userId);
 
-            _logger.LogDebug("User {UserId} moved up from position {OldIndex} to {NewIndex}", userId, idx, idx - 1);
+            SelectedUserId = userId;
+
+            if (idx > 0 && !(idx == 1 && IsTopSlotLocked))
+            {
+                (_userIds[idx], _userIds[idx - 1]) = (_userIds[idx - 1], _userIds[idx]);
+
+                _logger.LogDebug("User {UserId} moved up from position {OldIndex} to {NewIndex}", userId, idx, idx - 1);
+            }
+
+            await NotifyLockedAsync();
+        }
+        finally
+        {
+            _lock.Release();
         }
 
-        await NotifyAsync();
+        PublishChanged();
     }
 
     public async Task MoveUserDownAsync(Guid userId)
     {
-        var idx = _userIds.IndexOf(userId);
-
-        SelectedUserId = userId;
-
-        if (idx >= 0 && idx < _userIds.Count - 1)
+        await _lock.WaitAsync();
+        try
         {
-            (_userIds[idx], _userIds[idx + 1]) = (_userIds[idx + 1], _userIds[idx]);
+            var idx = _userIds.IndexOf(userId);
 
-            _logger.LogDebug("User {UserId} moved down from position {OldIndex} to {NewIndex}", userId, idx, idx + 1);
+            SelectedUserId = userId;
+
+            // Mirrors MoveUserUpAsync's guard: index 0 is the locked slot here, so leaving it
+            // downward is exactly as forbidden as another singer displacing it from above.
+            if (idx >= 0 && idx < _userIds.Count - 1 && !(idx == 0 && IsTopSlotLocked))
+            {
+                (_userIds[idx], _userIds[idx + 1]) = (_userIds[idx + 1], _userIds[idx]);
+
+                _logger.LogDebug("User {UserId} moved down from position {OldIndex} to {NewIndex}", userId, idx, idx + 1);
+            }
+
+            await NotifyLockedAsync();
+        }
+        finally
+        {
+            _lock.Release();
         }
 
-        await NotifyAsync();
+        PublishChanged();
     }
 
     public async Task MoveUserToStartAsync(Guid userId)
     {
-        var idx = _userIds.IndexOf(userId);
-
-        if (idx > 0 && !IsTopSlotLocked)
+        await _lock.WaitAsync();
+        try
         {
+            var idx = _userIds.IndexOf(userId);
+
+            if (idx <= 0 || IsTopSlotLocked) return;
+
             _userIds.RemoveAt(idx);
 
             _userIds.Insert(0, userId);
 
             _logger.LogDebug("User {UserId} moved to start of queue", userId);
 
-            await NotifyAsync();
+            await NotifyLockedAsync();
         }
+        finally
+        {
+            _lock.Release();
+        }
+
+        PublishChanged();
     }
 
-    public void LockTopSlot() => _isTopSlotLocked = true;
+    public void LockTopSlot() => IsTopSlotLocked = true;
 
-    public void UnlockTopSlot() => _isTopSlotLocked = false;
+    public void UnlockTopSlot() => IsTopSlotLocked = false;
 
     public async Task MoveUserToEndAsync(Guid userId)
     {
-        var idx = _userIds.IndexOf(userId);
-
-        if (idx >= 0 && idx < _userIds.Count - 1)
+        await _lock.WaitAsync();
+        try
         {
+            var idx = _userIds.IndexOf(userId);
+
+            if (idx < 0 || idx >= _userIds.Count - 1) return;
+
             _userIds.RemoveAt(idx);
 
             _userIds.Add(userId);
 
             _logger.LogDebug("User {UserId} moved to end of queue", userId);
 
-            await NotifyAsync();
+            await NotifyLockedAsync();
         }
+        finally
+        {
+            _lock.Release();
+        }
+
+        PublishChanged();
     }
 
     public async Task MoveUserToIndexAsync(Guid userId, int newIndex)
     {
-        var idx = _userIds.IndexOf(userId);
+        await _lock.WaitAsync();
+        try
+        {
+            var idx = _userIds.IndexOf(userId);
 
-        if (idx < 0) return;
+            if (idx < 0) return;
 
-        if (IsTopSlotLocked && newIndex == 0) return;
+            if (IsTopSlotLocked && newIndex == 0) return;
 
-        var clampedIndex = Math.Clamp(newIndex, 0, _userIds.Count - 1);
+            var clampedIndex = Math.Clamp(newIndex, 0, _userIds.Count - 1);
 
-        _userIds.RemoveAt(idx);
+            _userIds.RemoveAt(idx);
 
-        _userIds.Insert(clampedIndex, userId);
+            _userIds.Insert(clampedIndex, userId);
 
-        _logger.LogDebug("User {UserId} moved to index {NewIndex}", userId, clampedIndex);
+            _logger.LogDebug("User {UserId} moved to index {NewIndex}", userId, clampedIndex);
 
-        await NotifyAsync();
+            await NotifyLockedAsync();
+        }
+        finally
+        {
+            _lock.Release();
+        }
+
+        PublishChanged();
     }
 
     public async Task SelectFirstUserInQueueAsync()
     {
-        var firstId = _userIds.FirstOrDefault();
+        await _lock.WaitAsync();
+        try
+        {
+            await SelectFirstUserInQueueLockedAsync();
+        }
+        finally
+        {
+            _lock.Release();
+        }
 
-        if (firstId == Guid.Empty) return;
-
-        await SelectUserAsync(firstId);
+        PublishChanged();
     }
 
     public async Task RefreshAsync()
     {
-        await NotifyAsync();
+        await _lock.WaitAsync();
+        try
+        {
+            await NotifyLockedAsync();
+        }
+        finally
+        {
+            _lock.Release();
+        }
+
+        PublishChanged();
     }
 
     public async Task ClearAsync()
@@ -275,11 +395,19 @@ public class SingerQueueService : ISingerQueueService, IDisposable
         if (venue?.Settings.ClearQueueOnClose != true)
             return;
 
-        _userIds.Clear();
+        await _lock.WaitAsync();
+        try
+        {
+            _userIds.Clear();
 
-        SelectedUserId = null;
+            SelectedUserId = null;
 
-        await SaveAsync();
+            await SaveAsync();
+        }
+        finally
+        {
+            _lock.Release();
+        }
 
         _logger.LogInformation("Singer queue cleared on close");
 
@@ -296,12 +424,20 @@ public class SingerQueueService : ISingerQueueService, IDisposable
             return;
         }
 
-        _userIds.AddRange(queueData.UserIds);
-        SelectedUserId = queueData.SelectedUserId;
-        await ResolveAsync();
+        await _lock.WaitAsync();
+        try
+        {
+            _userIds.AddRange(queueData.UserIds);
+            SelectedUserId = queueData.SelectedUserId;
+            await ResolveAsync();
+        }
+        finally
+        {
+            _lock.Release();
+        }
+
         _logger.LogInformation("Singer queue loaded ({Count} users)", queueData.UserIds.Count);
-        if (_broker is { } broker)
-            _ = broker.PublishAsync(new SingerQueueChanged());
+        PublishChanged();
     }
 
     // Venues saved before rotation existed read the JSON key back as null; default to fifo,
@@ -408,15 +544,37 @@ public class SingerQueueService : ISingerQueueService, IDisposable
         _cachedUsers = resolved;
     }
 
-    private async Task NotifyAsync()
+    // Assumes _lock is held: resolves and saves, but never publishes, so a caller can release
+    // the lock before the broker fans out to subscribers.
+    private async Task NotifyLockedAsync()
     {
         _analytics.RecordQueueMutation();
         await ResolveAsync();
         await SaveAsync();
-
-        if (_broker is { } broker)
-            _ = broker.PublishAsync(new SingerQueueChanged());
     }
+
+    // Assumes _lock is held, for RotateQueueAsync to call it without re-entering the semaphore.
+    private async Task SelectUserLockedAsync(Guid? userId)
+    {
+        SelectedUserId = userId;
+
+        _logger.LogInformation("Selected user {UserId}", userId);
+
+        await NotifyLockedAsync();
+    }
+
+    // Assumes _lock is held, for RotateQueueAsync to call it without re-entering the semaphore.
+    // An empty queue still has to select nobody and notify, or the singer who just finished
+    // stays cached and unsaved after leaving.
+    private async Task SelectFirstUserInQueueLockedAsync()
+    {
+        Guid? firstId = _userIds.Count > 0 ? _userIds[0] : null;
+
+        await SelectUserLockedAsync(firstId);
+    }
+
+    // Never called with _lock held: publishing must not block on a handler that calls back in.
+    private void PublishChanged() => _ = _broker.PublishAsync(new SingerQueueChanged());
 
     private class QueueCacheData
     {
