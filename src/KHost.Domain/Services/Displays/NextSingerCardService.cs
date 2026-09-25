@@ -1,4 +1,5 @@
 using KHost.Abstractions.Messaging;
+using KHost.Abstractions.Messaging.Messages;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using KHost.Abstractions.Services.IPC;
@@ -9,7 +10,7 @@ namespace KHost.Domain.Services.Displays;
 /// <summary>Names who is up, on the screens, when a host presses the button.</summary>
 /// <remarks>Host triggered and one shot, unlike the marquee and the break music card, which follow
 /// state. Nothing subscribes and nothing republishes: the card stands until the next thing drawn.
-/// It is handed to the display as a request, since drawing it is the display's business.</remarks>
+/// It is handed to every display as a request, since drawing it is the display's business.</remarks>
 public sealed class NextSingerCardService(
     ILogger<NextSingerCardService> logger,
     IMessageBroker broker,
@@ -53,7 +54,12 @@ public sealed class NextSingerCardService(
 
         // Awaited, so the button settles once the display has been handed the card; a display
         // that fails to draw it logs and is skipped by the broker, never taking the show down.
-        await broker.PublishAsync(new NextSingerCardRequested(card), cancellationToken);
+        await broker.PublishAsync(new NextSingerAnnounced(new NextSingerCard
+        {
+            Singer = card.Singer,
+            Song = card.Song,
+            Artist = card.Artist,
+        }), cancellationToken);
         return true;
     }
 

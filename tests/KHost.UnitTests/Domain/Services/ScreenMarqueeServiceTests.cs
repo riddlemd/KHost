@@ -1,6 +1,8 @@
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using KHost.Domain.Services;
+using KHost.Abstractions.Messaging;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace KHost.UnitTests.Domain.Services;
@@ -13,8 +15,13 @@ public class ScreenMarqueeServiceTests
     private readonly IMediaService _media = Substitute.For<IMediaService>();
     private readonly IPlaybackService _playback = Substitute.For<IPlaybackService>();
 
+    // Through the real up-next list, which is where the singers the band names come from.
     private ScreenMarqueeService Service() => new(
-        NullLogger<ScreenMarqueeService>.Instance, _venues, _queue, _performances, _media, _playback);
+        NullLogger<ScreenMarqueeService>.Instance,
+        _venues,
+        new UpNextService(
+            NullLogger<UpNextService>.Instance, Substitute.For<IMessageBroker>(), _venues, _queue, _performances, _media,
+            new ServiceCollection().AddSingleton(_playback).BuildServiceProvider()));
 
     public ScreenMarqueeServiceTests()
         // NSubstitute hands back a task wrapping null otherwise, and the composition .Where()s it.

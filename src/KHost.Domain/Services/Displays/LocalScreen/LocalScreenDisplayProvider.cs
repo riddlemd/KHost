@@ -7,7 +7,6 @@ using KHost.Abstractions.Services.IPC;
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using KHost.Domain.Services.QrCodes;
 using QRCoder;
 
 namespace KHost.Domain.Services.Displays.LocalScreen;
@@ -19,9 +18,11 @@ namespace KHost.Domain.Services.Displays.LocalScreen;
 /// drive.
 ///
 /// <para>It owns everything the screen shows, not only the song: the marquee, the QR codes, the
-/// break music card, the venue's card or an ad's still, the song's timed words, and the venue's level. The host announces what moved and this pulls the whole
-/// current state of whatever that message drives, so a screen that connects is sent everything
-/// afresh rather than a replay of what it missed.</para>
+/// break music card, the venue's card or an ad's still, the song's timed words, and the venue's
+/// level. The host announces what moved and this pulls the whole current state of whatever that
+/// message drives, so a screen that connects is sent everything afresh rather than a replay of what
+/// it missed. It reads only what a plugin's display could read; encoding and the screen's commands
+/// are its own.</para>
 ///
 /// <para>Discovery here is not a sweep. There is nothing to find on a machine: starting discovery
 /// launches a screen and it registers back, which is why <see cref="IsDiscovering"/> reports the
@@ -60,8 +61,8 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
     private readonly SubscriptionSet _subscriptions = new();
     private readonly ILogger<LocalScreenDisplayProvider> _logger;
 
-    // Resolved on use, never in the constructor: the marquee and break music both reach services
-    // that take every IDisplayProvider, this one included.
+    // Resolved on use, never in the constructor: playback, and the services behind the marquee and
+    // break music, take every IDisplayProvider, this one included.
     private readonly IServiceProvider? _services;
 
     // Serialises picture draws, which arrive from the load path and from several detached redraws.
@@ -140,13 +141,12 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
         _subscriptions.Add(broker.Subscribe<SelectedVenueChanged>(
             _ => Redraw(Overlay.Volume | Overlay.Marquee | Overlay.QrCodes | Overlay.BreakMusicCard | Overlay.IdleCard)));
 
-        // The queue's order is the marquee's content.
-        _subscriptions.Add(broker.Subscribe<SingerQueueChanged>(_ => Redraw(Overlay.Marquee)));
-        _subscriptions.Add(broker.Subscribe<PerformancesChanged>(_ => Redraw(Overlay.Marquee)));
+        // Who is next is the marquee's content, however the queue, the turns or the mic moved it.
+        _subscriptions.Add(broker.Subscribe<UpNextChanged>(_ => Redraw(Overlay.Marquee)));
 
-        // Who is at the mic decides who the band leaves out, and whether a venue hides its codes;
-        // what is on the main channel decides the picture.
-        _subscriptions.Add(broker.Subscribe<PlaybackChanged>(_ => Redraw(Overlay.Marquee | Overlay.QrCodes | Overlay.Picture)));
+        // Who is at the mic decides whether a venue hides its codes; what is on the main channel
+        // decides the picture.
+        _subscriptions.Add(broker.Subscribe<PlaybackChanged>(_ => Redraw(Overlay.QrCodes | Overlay.Picture)));
 
         // A provider moving to the next track says so apart from a start, pause or hand-off.
         _subscriptions.Add(broker.Subscribe<BreakMusicChanged>(_ => Redraw(Overlay.BreakMusicCard)));
@@ -154,7 +154,12 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
 
         // Awaited rather than detached: the owner registering a code is waiting on this publish.
         _subscriptions.Add(broker.Subscribe<QrCodeOfferChanged>((_, _) => RedrawAsync(Overlay.QrCodes)));
-        _subscriptions.Add(broker.Subscribe<NextSingerCardRequested>((request, _) => SendAsync(request.Card)));
+        _subscriptions.Add(broker.Subscribe<NextSingerAnnounced>((announced, _) => SendAsync(new ShowNextSingerCommand
+        {
+            Singer = announced.Card.Singer,
+            Song = announced.Card.Song,
+            Artist = announced.Card.Artist,
+        })));
     }
 
     /// <summary>What it is, not where it is. "This computer" read as a location a host might be
@@ -297,6 +302,9 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
 
     // --- transport ---
 
+    /// <summary>Takes the stems and draws the words itself, so it wants neither mixed nor burned in.</summary>
+    public RenderTarget DescribeTarget() => new() { MixesStems = true, BurnLyrics = false };
+
     public Task LoadAsync(string streamUrl, TimeSpan startOffset, int tempo = 0, CancellationToken cancellationToken = default)
         => SendAsync(new LoadMediaCommand
         {
@@ -438,7 +446,7 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
     /// and a song with none still sends, or the screen keeps lighting the last song's.</remarks>
     private async Task SendTimedLyricsAsync()
     {
-        if (_services?.GetService<IPlaybackProgram>()?.CurrentProgram is not PlaybackProgram.Playing { Performance: not null } song)
+        if (_services?.GetService<IPlaybackService>()?.CurrentProgram is not PlaybackProgram.Playing { Performance: not null } song)
             return;
 
         await _lyricsLock.WaitAsync();
@@ -529,7 +537,7 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
         // Sent even when there is nothing up: it is the whole state, so it also clears a code left
         // on a screen that dropped and came back.
         if (overlays.HasFlag(Overlay.QrCodes))
-            await DrawAsync<IQrCodeService>("QR codes", async codes => BuildQrCodes(await codes.ReadOfferAsync()));
+            await DrawAsync<IQrCodeOfferService>("QR codes", async codes => BuildQrCodes(await codes.ReadOfferAsync()));
 
         if (overlays.HasFlag(Overlay.BreakMusicCard))
             await DrawAsync<IBreakMusicService>("break music card", BuildBreakMusicCardAsync);
@@ -633,7 +641,7 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
     /// venue edit redraws only the card: a still over a singer is worse than a stale one.</remarks>
     private async Task DrawPictureAsync(PictureCause cause)
     {
-        if (_services?.GetService<IPlaybackProgram>() is not { } playback) return;
+        if (_services?.GetService<IPlaybackService>() is not { } playback) return;
 
         await _pictureLock.WaitAsync();
         try

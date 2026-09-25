@@ -259,14 +259,28 @@ cannot name another's: its secrets, and the QR code it offers the screens.
   - **The provider owns presentation; the host only supplies data and services.** A display
     provider talks to some service or hardware the host may or may not control, and the local
     screen app is simply the device behind one of them. `LocalScreenDisplayProvider` hears what
-    moved — the queue, the venue, playback, break music, a QR offer — pulls the whole current state
-    of whatever that message drives (marquee, QR code, break music card, next-singer card, the idle
-    card and an ad's still, the song's timed words) and decides how it looks. `IQrCodeService`
-    answers with a `QrCodeOffer` — payload, caption and the venue's placement, null where the venue
-    never chose — and the provider encodes the SVG and fills the unset placement; the break music
-    card is composed by the provider from `IBreakMusicService` and the venue's settings. Nothing
-    but the provider holds `IScreenServer`: `PlaybackService` announces `PlaybackChanged` and
-    reads `CurrentProgram` like anything else would.
+    moved, pulls the whole current state of whatever that message drives and decides how it looks,
+    reading **only what a plugin display can read**: `IPlaybackService.CurrentProgram` (idle, a
+    song, or an ad still; announced by `PlaybackChanged`, so compare by value), `IUpNextService` +
+    `UpNextChanged`, `IQrCodeOfferService` + `QrCodeOfferChanged`, `NextSingerAnnounced`,
+    `IBreakMusicService` and `ITimedLyricsService`. Encoding the QR SVG, filling an unset placement
+    and building the screen's commands stay inside it. Registering a code (`IQrCodeService`, which
+    takes an owner id) stays Domain-only. `IPlaybackService` takes every display, so a provider
+    resolves it on first use, never in its constructor.
+  - **`UpNextChanged` is announced from one place, `UpNextService`.** It hears `SingerQueueChanged`,
+    `PerformancesChanged`, `PlaybackChanged` (only when the singer at the mic moved) and
+    `SelectedVenueChanged` (only when `AllowAliases` moved), and settles for 50ms so a stop — the
+    playback, the dequeue and the rotation — is one announcement. Producers never announce it.
+    `ScreenMarqueeService` names the singers `IUpNextService` reads, so the two cannot disagree.
+  - **`DescribeTarget()` is how a display says what to render for it.** `PlaybackService` asks the
+    connected provider on every load; a throw or a null is `RenderTarget.None`. The default body is
+    the host's old answer (`MixesStems` from the connected device's `SupportsStemMix`, nothing
+    else). `RenderTarget.BurnLyrics` is a request a renderer **may** honour — the KaraFun renderer
+    can, `StreamingMediaRenderer` ignores it — and one that cannot returns its normal rendition.
+    The local screen overrides it: stems, no burned words.
+  - **An ad still's `ImageUrl` is reachable like a stream URL**: the same base address, under
+    `/media`, which answers off-box. It may name loopback, so a provider for a device elsewhere on
+    the network swaps in a LAN address exactly as it does for `StreamUrl`.
   - **`SupportsFade` is the one capability the host acts on for itself.** `StopAsync` *waits out*
     the fade it asks for, so a device that cuts dead — a receiver, which has no mixer of the host's
     to ride down — would otherwise buy the room that many seconds of silence before the queue moved

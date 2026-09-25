@@ -65,6 +65,15 @@ public interface IPlaybackService : IDisposable
     /// <summary>Whether the main channel is carrying an ad rather than a singer's song.</summary>
     bool IsPlayingAd { get; }
 
+    /// <summary>What the main channel is carrying now — nothing, a song or video ad, or an ad's
+    /// still — as facts a display pictures for itself.</summary>
+    /// <remarks>Moves only with <see cref="KHost.Abstractions.Messaging.Messages.PlaybackChanged"/>,
+    /// which is its announcement; that message also fires when the program has not moved, so
+    /// compare by value. Set before the display is handed the load, so a provider reading it during
+    /// <see cref="IDisplayProvider.LoadAsync(Services.IPC.LoadMediaCommand, CancellationToken)"/>
+    /// sees the program being loaded.</remarks>
+    PlaybackProgram CurrentProgram { get; }
+
     /// <summary>Where the transport stands.</summary>
     PlaybackState State { get; }
 

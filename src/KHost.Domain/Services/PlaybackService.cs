@@ -11,7 +11,7 @@ using KHost.Domain.Services.Displays;
 
 namespace KHost.Domain.Services;
 
-public class PlaybackService : BaseService, IPlaybackService, IPlaybackProgram, IStartsWithTheHost
+public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
 {
     public sealed class ServiceOptions
     {
@@ -98,7 +98,6 @@ public class PlaybackService : BaseService, IPlaybackService, IPlaybackProgram, 
     /// <summary>Whether the main channel is carrying an ad rather than a singer's song.</summary>
     public bool IsPlayingAd => _ad is not null;
 
-    /// <summary>Moves with <see cref="PlaybackChanged"/>; a display pictures it for itself.</summary>
     public PlaybackProgram CurrentProgram => _program;
     public PlaybackState State { get; private set; } = PlaybackState.Stopped;
     public TimeSpan Position { get; private set; }
@@ -987,13 +986,25 @@ public class PlaybackService : BaseService, IPlaybackService, IPlaybackProgram, 
         Stems = _rendition?.Stems ?? [],
     };
 
-    /// <summary>What the display that is up can take, which decides what is worth producing.</summary>
+    /// <summary>What the display that is up can take, in its own words, which decides what is
+    /// worth producing.</summary>
     /// <remarks>Nothing connected asks for nothing special — whatever connects later triggers a
-    /// reload.</remarks>
+    /// reload. A plugin's answer is guarded: a provider that cannot describe itself still plays.</remarks>
     private RenderTarget DescribeTarget()
-        => ConnectedDisplay.Find(_displays) is { Device.SupportsStemMix: true }
-            ? new RenderTarget { MixesStems = true }
-            : RenderTarget.None;
+    {
+        if (ConnectedDisplay.Find(_displays) is not { Provider: var provider })
+            return RenderTarget.None;
+
+        try
+        {
+            return provider.DescribeTarget() ?? RenderTarget.None;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "{Display} could not describe what it takes; rendering for nothing special", provider.Name);
+            return RenderTarget.None;
+        }
+    }
 
     /// <summary>The same levels <c>BuildMixGraph</c> compiles into ffmpeg, so neither path drifts.</summary>
     private int LevelFor(AudioTrackRole role) => role switch

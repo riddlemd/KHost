@@ -71,6 +71,9 @@ public interface IDisplayProvider
 
     // --- transport ---
 
+    /// <summary>What to render for the connected device; the default asks for stems when it mixes.</summary>
+    RenderTarget DescribeTarget() => /* MixesStems from the connected device's SupportsStemMix */;
+
     Task LoadAsync(string streamUrl, TimeSpan startOffset, int tempo = 0, CancellationToken ct = default);
     Task PlayAsync(CancellationToken cancellationToken = default);
     Task PauseAsync(CancellationToken cancellationToken = default);
@@ -166,8 +169,11 @@ and that is a decision the flags let the host make separately rather than all at
   itself, and nothing else holds `IScreenServer` any more. `PlaybackService` drives transport
   through it like any other display; the marquee, QR codes, break music card and next-singer card
   are pulled and sent by the provider on its own, in response to what the broker says moved, never
-  pushed by `PlaybackService`. The QR code arrives as data (`IQrCodeService`'s `QrCodeOffer`) and the
-  break music card is composed from `IBreakMusicService`; encoding and placement are the provider's. The server registers one
+  pushed by `PlaybackService`. Everything it draws from is public, so a plugin display can do the
+  same: the QR code arrives as data (`IQrCodeOfferService`'s `QrCodeOffer`), the singers from
+  `IUpNextService`, the next-singer card as `NextSingerAnnounced`, the picture from
+  `IPlaybackService.CurrentProgram`, and the break music card is composed from
+  `IBreakMusicService`; encoding and placement are the provider's. The server registers one
   screen (a constant, not an option) and sends only by `BroadcastCommandAsync`.
 - **Switching displays** disconnects whatever was live before connecting the new one, in
   `SettingsButton.SelectDisplayAsync`, and every provider is asked — two displays carrying one song
@@ -190,6 +196,16 @@ and that is a decision the flags let the host make separately rather than all at
   played, or a television that simply cannot carry the bed would suppress the card naming it.
 - **`SearchesForDevices`** was added while wiring the selector: "discovery" really is two acts, and
   a console offering a search button has to know which it is about to trigger.
+
+## What to render is the display's to say
+
+`IDisplayProvider.DescribeTarget()` answers the `RenderTarget` the host hands every renderer, asked
+of the connected provider on each load. Its default body is the answer the host used to work out
+itself — stems when the connected device claims `SupportsStemMix`, nothing else — so every provider
+written before it behaves as it did. `RenderTarget.BurnLyrics` is the display asking for the words
+in the picture because it cannot draw them; a renderer that can (KaraFun's) honours it, and one
+that cannot, including the host's own `StreamingMediaRenderer`, returns its normal rendition. The
+local screen draws its own words, so it never asks. This is the answer to question 3 below.
 
 ## Questions this should answer without further argument
 
