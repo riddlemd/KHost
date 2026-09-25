@@ -42,6 +42,8 @@ internal class DefaultContext : DbContext
     {
         base.OnModelCreating(modelBuilder);
 
+        SqliteSortKeys.Register(modelBuilder);
+
         modelBuilder.Entity<Media>(entity =>
         {
             entity.Property(e => e.FilePath)

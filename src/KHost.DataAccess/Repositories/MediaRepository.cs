@@ -38,7 +38,7 @@ internal class MediaRepository : BaseRepository<Media>, IMediaRepository
             ["format"] = m => m.Format,
             ["dateAdded"] = m => m.DateAdded,
             ["status"] = m => m.Status,
-            ["duration"] = m => (object)(m.Duration ?? TimeSpan.Zero),
+            ["duration"] = m => SqliteSortKeys.TimeSpanText(m.Duration),
         };
 
     public MediaRepository(IDbContextFactory<DefaultContext> contextFactory, ILogger<BaseRepository<Media>> logger)
