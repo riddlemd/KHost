@@ -101,6 +101,41 @@ public class LocalScreenDisplayProviderTests
         Assert.False(Assert.Single(_provider.Devices).IsConnected);
     }
 
+    [Fact]
+    public void DisconnectWasRequested_IsFalse_BeforeAnyDisconnect()
+        => Assert.False(_provider.DisconnectWasRequested);
+
+    /// <summary>The Turn Off / switch-display path: DisconnectAsync is the one call both go
+    /// through, so marking it there covers both without either caller knowing this exists.</summary>
+    [Fact]
+    public async Task DisconnectAsync_MarksTheLossThatFollowsAsRequested()
+    {
+        await _provider.DisconnectAsync();
+
+        Assert.True(_provider.DisconnectWasRequested);
+    }
+
+    /// <summary>The shutdown path: Program.cs closes screens directly, bypassing DisconnectAsync
+    /// for reliability, so it calls this instead to leave the same mark behind.</summary>
+    [Fact]
+    public void NotifyDisconnectRequested_AloneAlsoMarksIt()
+    {
+        _provider.NotifyDisconnectRequested();
+
+        Assert.True(_provider.DisconnectWasRequested);
+    }
+
+    /// <summary>A fresh registration means the next loss, whenever it comes, is unexplained again.</summary>
+    [Fact]
+    public void OnScreenConnected_ClearsAnEarlierDisconnectRequest()
+    {
+        _provider.NotifyDisconnectRequested();
+
+        RaiseConnected(Connection("Screen 1", "conn-a"));
+
+        Assert.False(_provider.DisconnectWasRequested);
+    }
+
     /// <summary>A screen coming back under the same id is already tracked by the time its old
     /// connection's disconnect arrives; clearing on the id would take the live one down too.</summary>
     [Fact]

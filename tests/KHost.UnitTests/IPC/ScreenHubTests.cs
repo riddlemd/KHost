@@ -46,13 +46,40 @@ public class ScreenHubTests
     }
 
     [Fact]
-    public void RegisterScreenAsync_ThatDoesNotVerify_AbortsTheConnection()
+    public async Task RegisterScreenAsync_ThatDoesNotVerify_AbortsTheConnection()
     {
-        _callback.TryRegisterScreen("conn-a", Arg.Any<string?>(), "bad-envelope").Returns(false);
+        _callback.TryRegisterScreen("conn-a", Arg.Any<string?>(), "bad-envelope").Returns("its registration could not be read");
 
-        _hub.RegisterScreenAsync("bad-envelope");
+        await _hub.RegisterScreenAsync("bad-envelope");
 
         _context.Received(1).Abort();
+    }
+
+    [Fact]
+    public async Task RegisterScreenAsync_Refused_SendsTheReasonToTheCallerBeforeAborting()
+    {
+        _callback.TryRegisterScreen("conn-a", Arg.Any<string?>(), "bad-envelope").Returns("1 of 1 screens are already registered");
+
+        await _hub.RegisterScreenAsync("bad-envelope");
+
+        // Sent first: a screen told nothing before the abort reads it as a lost connection rather
+        // than the refusal it actually was.
+        await _caller.Received(1).SendCoreAsync(
+            "RegistrationRefused",
+            Arg.Is<object?[]>(a => a.Length == 1 && (string)a[0]! == "1 of 1 screens are already registered"),
+            Arg.Any<CancellationToken>());
+        _context.Received(1).Abort();
+    }
+
+    [Fact]
+    public async Task RegisterScreenAsync_Accepted_NeverSendsARefusalOrAborts()
+    {
+        _callback.TryRegisterScreen("conn-a", Arg.Any<string?>(), "good-envelope").Returns((string?)null);
+
+        await _hub.RegisterScreenAsync("good-envelope");
+
+        await _caller.DidNotReceiveWithAnyArgs().SendCoreAsync(default!, default!, default);
+        _context.DidNotReceive().Abort();
     }
 
     [Fact]

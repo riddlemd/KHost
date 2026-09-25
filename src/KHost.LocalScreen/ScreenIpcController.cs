@@ -36,6 +36,10 @@ internal sealed class ScreenIpcController : IAsyncDisposable
         _player.BackgroundEnded += OnBackgroundEnded;
     }
 
+    /// <summary>Why the most recent registration attempt was refused, if it was; see
+    /// <see cref="IScreenClient.LastRefusalReason"/>.</summary>
+    public string? LastRefusalReason => _client.LastRefusalReason;
+
     /// <summary>Plays sound and picture, and stamps its reports in the host clock from the start.</summary>
     public async Task ConnectAsync(string serverUri, string screenId, byte[] authKey, CancellationToken cancellationToken = default)
     {

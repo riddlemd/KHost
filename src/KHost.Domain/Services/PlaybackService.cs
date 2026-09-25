@@ -7,6 +7,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using KHost.Common.Media;
 using KHost.Domain.Services.Displays;
+using KHost.Domain.Services.Displays.LocalScreen;
 using System.Runtime.CompilerServices;
 
 namespace KHost.Domain.Services;
@@ -774,7 +775,14 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
             if (await HasConnectedScreenAsync())
                 return;
 
-            Logger.LogWarning("The display carrying the song went away mid-performance; parking it at the start");
+            // A deliberate Turn Off, a switch or a host shutdown all leave no display joined too,
+            // and read identically from here for any display. Only the screen — core, not a
+            // plugin, per LocalScreenDisplayProvider's own remarks — tracks which; a plugin
+            // display's own disconnect has no such signal and keeps logging as unexpected.
+            if (_displays.OfType<LocalScreenDisplayProvider>().Any(screen => screen.DisconnectWasRequested))
+                Logger.LogInformation("The display carrying the song was disconnected; parking it at the start");
+            else
+                Logger.LogWarning("The display carrying the song went away mid-performance; parking it at the start");
 
             // Always back to zero, never picked up where it stopped. A receiver's idea of where it
             // was is its own — it buffers seconds ahead, reports a position it has not reached, and

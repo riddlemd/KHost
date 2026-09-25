@@ -15,7 +15,7 @@ namespace KHost.UnitTests.Domain.Services;
 
 public class PlaybackServiceTests : IDisposable
 {
-    private readonly ILogger<PlaybackService> _logger = Substitute.For<ILogger<PlaybackService>>();
+    private readonly RecordingLogger _logger = new();
     private readonly MessageBroker _broker = new(NullLogger<MessageBroker>.Instance);
     private readonly ISingerQueueService _queueService = Substitute.For<ISingerQueueService>();
     private readonly IPerformanceService _performanceService = Substitute.For<IPerformanceService>();
@@ -132,6 +132,11 @@ public class PlaybackServiceTests : IDisposable
         await Task.CompletedTask;
     }
 
+    /// <summary>The screens half of whichever service <see cref="MakeService"/> most recently
+    /// built, so a test can call <see cref="LocalScreenDisplayProvider.NotifyDisconnectRequested"/>
+    /// on the same instance <c>PlaybackService</c> holds.</summary>
+    private LocalScreenDisplayProvider? _screensProvider;
+
     private PlaybackService MakeService(
         TimeSpan stopFadeDuration,
         TimeSpan? pitchSettleDelay = null,
@@ -159,7 +164,7 @@ public class PlaybackServiceTests : IDisposable
             NullLogger<MediaRendererService>.Instance,
             [_renderer],
             new StreamingMediaRenderer(_mediaStreams)),
-        [ScreensAsADisplay(services), _display],
+        [_screensProvider = ScreensAsADisplay(services), _display],
         _breakMusic,
         Monitor(new PlaybackService.ServiceOptions
         {
@@ -742,6 +747,44 @@ public class PlaybackServiceTests : IDisposable
 
         Assert.True(await WaitForStateAsync(PlaybackState.Paused));
         Assert.Same(performance, _service.CurrentPerformance);
+    }
+
+    /// <summary>The ordinary case: nothing told the provider this was coming, so it reads as what
+    /// it is — a crash, not a choice — and the operator sees a warning, not an information line.</summary>
+    [Fact]
+    public async Task ScreenDisconnect_WithNoRequestBehindIt_LogsAWarning()
+    {
+        var (performance, media) = CreatePerformance();
+        await _service.LoadAsync(performance, media);
+        await _service.PlayAsync();
+
+        ConnectScreens(0);
+        RaiseScreenDisconnected();
+
+        Assert.True(await WaitForParkedAtStartAsync());
+        Assert.True(_logger.HasEntry(LogLevel.Warning, "went away mid-performance"));
+        Assert.False(_logger.HasEntry(LogLevel.Information, "disconnected"));
+    }
+
+    /// <summary>A provider that reports the loss as one it asked for — a deliberate Turn Off, a
+    /// switch, or a host shutdown — must not read as the display having crashed.</summary>
+    [Fact]
+    public async Task ScreenDisconnect_ThatTheProviderMarkedAsRequested_LogsInformationInstead()
+    {
+        var (performance, media) = CreatePerformance();
+        await _service.LoadAsync(performance, media);
+        await _service.PlayAsync();
+
+        // The screen is the one PlaybackService reads this from, and the one Turn Off/switch/
+        // shutdown call it on: marking it before it drops is what makes the loss expected.
+        _screensProvider!.NotifyDisconnectRequested();
+
+        ConnectScreens(0);
+        RaiseScreenDisconnected();
+
+        Assert.True(await WaitForParkedAtStartAsync());
+        Assert.True(_logger.HasEntry(LogLevel.Information, "disconnected"));
+        Assert.False(_logger.HasEntry(LogLevel.Warning, "went away mid-performance"));
     }
 
     [Fact]
@@ -1476,6 +1519,24 @@ public class PlaybackServiceTests : IDisposable
                 role == AudioTrackRole.Music ? AudioMix.MaxVolume : 50))],
             SeekableInPlace = true,
         };
+
+    /// <summary>Captures level and formatted message rather than asserting on NSubstitute's
+    /// generic <c>Log&lt;TState&gt;</c>, which cannot be matched by type from outside the framework.</summary>
+    private sealed class RecordingLogger : ILogger<PlaybackService>
+    {
+        public List<(LogLevel Level, string Message)> Entries { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
+            Func<TState, Exception?, string> formatter)
+            => Entries.Add((logLevel, formatter(state, exception)));
+
+        public bool HasEntry(LogLevel level, string containing)
+            => Entries.Any(e => e.Level == level && e.Message.Contains(containing));
+    }
 
     /// <summary>A renderer that answers only when a test has armed it, and claims everything.</summary>
     private sealed class StubRenderer : IMediaRenderer

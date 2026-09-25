@@ -40,7 +40,7 @@ internal sealed class ScreenHub : Hub
         return base.OnDisconnectedAsync(exception);
     }
 
-    public Task RegisterScreenAsync(string envelopeJson)
+    public async Task RegisterScreenAsync(string envelopeJson)
     {
         // The address this screen connected to, not one we pick: a host with several interfaces
         // must hand each screen the one it already routed to.
@@ -48,13 +48,19 @@ internal sealed class ScreenHub : Hub
 
         // A registration that does not verify is a stranger or a forgery. Drop the connection
         // rather than leave it half-open.
-        if (!_callback.TryRegisterScreen(Context.ConnectionId, hostAddress, envelopeJson))
+        var refusalReason = _callback.TryRegisterScreen(Context.ConnectionId, hostAddress, envelopeJson);
+        if (refusalReason is not null)
         {
-            _logger.LogWarning("Dropped connection {ConnectionId}: its registration was refused", Context.ConnectionId);
+            _logger.LogWarning(
+                "Dropped connection {ConnectionId}: its registration was refused ({Reason})", Context.ConnectionId, refusalReason);
+
+            // Sent before the abort: without it the screen sees only the connection die, which reads
+            // as a network failure rather than the refusal it actually was.
+            try { await Clients.Caller.SendAsync("RegistrationRefused", refusalReason); }
+            catch (Exception ex) { _logger.LogDebug(ex, "Could not tell {ConnectionId} why it was refused", Context.ConnectionId); }
+
             Context.Abort();
         }
-
-        return Task.CompletedTask;
     }
 
     /// <summary>Does nothing else: any work lands inside the round trip being measured.</summary>

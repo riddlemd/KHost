@@ -56,6 +56,11 @@ internal sealed class ScreenClient : IScreenClient, IAsyncDisposable
 
     public string? ScreenId { get; private set; }
 
+    /// <summary>Set from the hub's "RegistrationRefused" message, and reset at the start of every
+    /// registration attempt in <see cref="SendRegisterAsync"/> so a stale reason is never blamed
+    /// on a later, genuine network failure.</summary>
+    public string? LastRefusalReason { get; private set; }
+
     public ScreenClient(ILoggerFactory? loggerFactory)
     {
         _logger = (loggerFactory ?? new Microsoft.Extensions.Logging.Abstractions.NullLoggerFactory())
@@ -152,6 +157,10 @@ internal sealed class ScreenClient : IScreenClient, IAsyncDisposable
             });
 
             _connection.On<string>("ReceiveCommand", OnCommandEnvelope);
+
+            // Arrives right before the hub aborts a refused registration, so it is in hand by the
+            // time the abort turns SendRegisterAsync's pending invoke into an exception.
+            _connection.On<string>("RegistrationRefused", reason => LastRefusalReason = reason);
 
             _connection.Closed += error => OnClosedAsync(connection, error);
 
@@ -336,8 +345,17 @@ internal sealed class ScreenClient : IScreenClient, IAsyncDisposable
             }
             catch (Exception ex)
             {
+                // A refusal is not a network problem: one clear line naming why, no stack, and the
+                // same backoff either way — the host may free the slot before the next attempt.
+                if (LastRefusalReason is { } reason)
+                {
+                    if (attempt == 0)
+                        _logger.LogWarning("Registration refused by the host: {Reason}", reason);
+                    else
+                        _logger.LogDebug("Still refused by the host: {Reason}", reason);
+                }
                 // The first failure carries the stack; a host that stays away would otherwise fill the log.
-                if (attempt == 0)
+                else if (attempt == 0)
                     _logger.LogWarning(ex, "Could not reconnect to the host; retrying");
                 else
                     _logger.LogDebug("Still could not reconnect (attempt {Attempt}): {Message}", attempt + 1, ex.Message);
@@ -390,6 +408,10 @@ internal sealed class ScreenClient : IScreenClient, IAsyncDisposable
     private async Task SendRegisterAsync()
     {
         if (_connection is null) return;
+
+        // Cleared per attempt: a reason left over from an earlier refusal must not be blamed for a
+        // later, genuine network failure on a retry.
+        LastRefusalReason = null;
 
         _logger.LogInformation(
             "RegisterScreen sent for {ScreenId} (audio={SupportsAudio} video={SupportsVideo})",

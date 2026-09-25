@@ -430,9 +430,18 @@ internal static class Program
             {
                 var wait = attempt < ConnectBackoff.Length ? ConnectBackoff[attempt] : ConnectRetryInterval;
 
+                // A refusal reached the host and was told no — not a network problem, and the
+                // stack trace below is one that never gets fixed by retrying.
+                if (_ipc!.LastRefusalReason is { } reason)
+                {
+                    if (attempt == 0)
+                        logger.LogWarning("Registration refused by the host: {Reason}", reason);
+                    else
+                        logger.LogDebug("Still refused by the host: {Reason}", reason);
+                }
                 // The first failure is the one worth a stack trace: a host that is simply not up
                 // yet would otherwise fill the night's log with the same exception.
-                if (attempt == 0)
+                else if (attempt == 0)
                     logger.LogWarning(ex, "Could not reach the IPC server at {Uri}; retrying", serverUri);
                 else
                     logger.LogDebug("Still could not reach {Uri} (attempt {Attempt}): {Message}", serverUri, attempt + 1, ex.Message);
