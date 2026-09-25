@@ -1,4 +1,4 @@
-using KHost.Abstractions.Services.IPC;
+using KHost.IPC.SignalR.Contracts;
 using KHost.LocalScreen;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;

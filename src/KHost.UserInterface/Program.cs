@@ -10,7 +10,7 @@ using KHost.Abstractions.Interactions.Requests;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Models.Plugins;
 using KHost.Abstractions.Services;
-using KHost.Abstractions.Services.IPC;
+using KHost.IPC.SignalR.Contracts;
 using KHost.DataAccess;
 using KHost.Domain;
 using KHost.IPC.SignalR;

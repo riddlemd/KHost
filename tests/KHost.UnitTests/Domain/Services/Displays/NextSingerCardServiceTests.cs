@@ -2,7 +2,7 @@ using KHost.Abstractions.Models;
 using KHost.Abstractions.Messaging;
 using KHost.Abstractions.Messaging.Messages;
 using KHost.Abstractions.Services;
-using KHost.Abstractions.Services.IPC;
+using KHost.IPC.SignalR.Contracts;
 using KHost.Domain.Services.Displays;
 using Microsoft.Extensions.Logging.Abstractions;
 

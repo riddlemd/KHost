@@ -2,7 +2,7 @@ using KHost.Abstractions.Messaging;
 using KHost.Abstractions.Messaging.Messages;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
-using KHost.Abstractions.Services.IPC;
+using KHost.IPC.SignalR.Contracts;
 using KHost.Domain.Services;
 using KHost.Domain.Services.Messaging;
 using KHost.Domain.Services.Displays;
@@ -22,7 +22,8 @@ public class LocalScreenDisplayProviderTests
 
     // What the screen is drawn from, for the tests that follow a change message to the screen.
     private readonly MessageBroker _realBroker = new(NullLogger<MessageBroker>.Instance);
-    private readonly IScreenMarqueeService _marquee = Substitute.For<IScreenMarqueeService>();
+    private readonly IUpNextService _upNext = Substitute.For<IUpNextService>();
+    private readonly Venue.VenueSettings _settings = new() { DefaultVolume = 50, MarqueeEnabled = true, MarqueeMessage = "Tonight" };
     private readonly IQrCodeOfferService _qrCodes = Substitute.For<IQrCodeOfferService>();
     private readonly IBreakMusicService _breakMusic = Substitute.For<IBreakMusicService>();
     private readonly IVenuesService _venues = Substitute.For<IVenuesService>();
@@ -33,10 +34,10 @@ public class LocalScreenDisplayProviderTests
 
     public LocalScreenDisplayProviderTests()
     {
-        _marquee.BuildAsync(Arg.Any<CancellationToken>()).Returns(new SetMarqueeCommand { Enabled = true, Message = "Tonight" });
+        _upNext.ReadAsync(Arg.Any<int>(), Arg.Any<CancellationToken>()).Returns((IReadOnlyList<UpNextEntry>)[]);
         _qrCodes.ReadOfferAsync(Arg.Any<CancellationToken>()).Returns((QrCodeOffer?)null);
         _breakMusic.State.Returns(BreakMusicState.Stopped);
-        _venues.ReadSelectedVenueAsync().Returns(new Venue { Name = "The Bar", Settings = new Venue.VenueSettings { DefaultVolume = 50 } });
+        _venues.ReadSelectedVenueAsync().Returns(new Venue { Name = "The Bar", Settings = _settings });
         _playback.CurrentProgram.Returns(new PlaybackProgram.Idle());
         _streams.BuildImageUrl(Arg.Any<Guid>()).Returns(call => $"http://host/media/image/{call.Arg<Guid>()}");
 
@@ -49,7 +50,7 @@ public class LocalScreenDisplayProviderTests
         => new(
             NullLogger<LocalScreenDisplayProvider>.Instance, _screenServer, [], _realBroker, _venues,
             services: services ?? new ServiceCollection()
-                .AddSingleton(_marquee)
+                .AddSingleton(_upNext)
                 .AddSingleton(_qrCodes)
                 .AddSingleton(_breakMusic)
                 .AddSingleton(_playback)
@@ -144,13 +145,8 @@ public class LocalScreenDisplayProviderTests
         Assert.True(device.SupportsAudio);
         Assert.True(device.SupportsVideo);
         Assert.True(device.SupportsFade);
-        Assert.True(device.SupportsLyrics);
-        Assert.True(device.SupportsMarquee);
-        Assert.True(device.SupportsQrCodes);
-        Assert.True(device.SupportsImage);
     }
 
-    /// <summary>There is nothing to find on this machine: the host opens the screen itself.</summary>
     /// <summary>A screen mixes its own stems and draws its own words, so it wants neither baked in.</summary>
     [Fact]
     public void DescribeTarget_TakesTheStemsAndAsksForNoBurnedWords()
@@ -163,6 +159,7 @@ public class LocalScreenDisplayProviderTests
         Assert.False(target.BurnLyrics);
     }
 
+    /// <summary>There is nothing to find on this machine: the host opens the screen itself.</summary>
     [Fact]
     public void SearchesForDevices_IsFalse()
         => Assert.False(_provider.SearchesForDevices);
@@ -415,7 +412,7 @@ public class LocalScreenDisplayProviderTests
         _realBroker.Announce(new UpNextChanged());
         Assert.True(await WaitForSentAsync<SetMarqueeCommand>(marquee => marquee.Message == "Tonight"));
 
-        _marquee.BuildAsync(Arg.Any<CancellationToken>()).Returns(new SetMarqueeCommand { Enabled = true, Message = "Last call" });
+        _settings.MarqueeMessage = "Last call";
         _screenServer.ClearReceivedCalls();
 
         RaiseConnected(Connection("Screen 1", "conn-a"));
@@ -501,7 +498,7 @@ public class LocalScreenDisplayProviderTests
     [Fact]
     public async Task ScreenConnected_AnOverlayThatThrows_DoesNotKeepTheOthersOff()
     {
-        _marquee.BuildAsync(Arg.Any<CancellationToken>()).Returns<SetMarqueeCommand>(_ => throw new InvalidOperationException("no venue"));
+        _upNext.ReadAsync(Arg.Any<int>(), Arg.Any<CancellationToken>()).Returns<IReadOnlyList<UpNextEntry>>(_ => throw new InvalidOperationException("no queue"));
         using var provider = DrawingProvider();
 
         RaiseConnected(Connection("Screen 1", "conn-a"));
@@ -548,11 +545,11 @@ public class LocalScreenDisplayProviderTests
         });
         _screenServer.ClearReceivedCalls();
 
-        venue.QrCodeCorner = ScreenCorner.TopLeft;
+        venue.QrCodeCorner = OverlayCorner.TopLeft;
         _realBroker.Announce(new SelectedVenueChanged());
 
         Assert.True(await WaitForSentAsync<SetScreenQrCodesCommand>(
-            codes => codes.Codes.Count == 1 && codes.Codes[0].Corner == ScreenCorner.TopLeft));
+            codes => codes.Codes.Count == 1 && codes.Codes[0].Corner == OverlayCorner.TopLeft));
     }
 
     // --- the QR code ---
@@ -599,8 +596,8 @@ public class LocalScreenDisplayProviderTests
 
         var placed = Assert.IsType<ScreenQrCodePlacement>(await DrawnCodeAsync(provider, Offer()));
 
-        Assert.Equal(ScreenCorner.BottomRight, placed.Corner);
-        Assert.Equal(ScreenQrSize.Medium, placed.Size);
+        Assert.Equal(OverlayCorner.BottomRight, placed.Corner);
+        Assert.Equal(QrCodeSize.Medium, placed.Size);
         Assert.Equal(1, placed.SafeZone);
         Assert.Equal(0.2, placed.Offset);
     }
@@ -613,14 +610,14 @@ public class LocalScreenDisplayProviderTests
 
         var placed = Assert.IsType<ScreenQrCodePlacement>(await DrawnCodeAsync(provider, Offer() with
         {
-            Corner = ScreenCorner.TopLeft,
-            Size = ScreenQrSize.Large,
+            Corner = OverlayCorner.TopLeft,
+            Size = QrCodeSize.Large,
             SafeZone = 4,
             Offset = 3.5,
         }));
 
-        Assert.Equal(ScreenCorner.TopLeft, placed.Corner);
-        Assert.Equal(ScreenQrSize.Large, placed.Size);
+        Assert.Equal(OverlayCorner.TopLeft, placed.Corner);
+        Assert.Equal(QrCodeSize.Large, placed.Size);
         Assert.Equal(4, placed.SafeZone);
         Assert.Equal(3.5, placed.Offset);
     }
@@ -689,7 +686,7 @@ public class LocalScreenDisplayProviderTests
         BreakMusicState state = BreakMusicState.Playing,
         string? title = "Free Fallin'",
         string artist = "Tom Petty",
-        ScreenCorner? corner = null,
+        OverlayCorner? corner = null,
         double offset = 0)
     {
         _venues.ReadSelectedVenueAsync().Returns(new Venue
@@ -798,15 +795,15 @@ public class LocalScreenDisplayProviderTests
     {
         ArrangeBreakMusic();
 
-        Assert.Equal(ScreenCorner.BottomLeft, (await DrawnCardAsync()).Corner);
+        Assert.Equal(OverlayCorner.BottomLeft, (await DrawnCardAsync()).Corner);
     }
 
     [Fact]
     public async Task BreakMusicCard_VenueChoseACorner_UsesIt()
     {
-        ArrangeBreakMusic(corner: ScreenCorner.TopRight);
+        ArrangeBreakMusic(corner: OverlayCorner.TopRight);
 
-        Assert.Equal(ScreenCorner.TopRight, (await DrawnCardAsync()).Corner);
+        Assert.Equal(OverlayCorner.TopRight, (await DrawnCardAsync()).Corner);
     }
 
     /// <summary>The inset belongs to the corner, not what sits in it: a card and a code must agree.</summary>
@@ -986,6 +983,70 @@ public class LocalScreenDisplayProviderTests
         Assert.Empty(Sent<ShowImageCommand>());
     }
 
+    // --- the host's calls, as the screen's own commands ---
+
+    /// <summary>Every field the screen keeps its clock and its mixer by; one dropped here plays the
+    /// song but reports positions against the wrong zero or rate.</summary>
+    [Fact]
+    public async Task LoadAsync_HandsTheScreenEverythingTheHostLoaded()
+    {
+        StemSource[] stems = [new(0, AudioTrackRole.Music, "http://host/m.ogg", 100), new(1, AudioTrackRole.Lead, "http://host/l.ogg", 30)];
+
+        await _provider.LoadAsync(new DisplayLoad
+        {
+            StreamUrl = "http://host/s.m3u8",
+            StartOffset = TimeSpan.FromSeconds(42),
+            Tempo = -20,
+            Stems = stems,
+        });
+
+        var load = Assert.Single(Sent<LoadMediaCommand>());
+        Assert.Equal("http://host/s.m3u8", load.StreamUrl);
+        Assert.Equal(TimeSpan.FromSeconds(42), load.StreamStartOffset);
+        Assert.Equal(-20, load.Tempo);
+        Assert.Equal(stems, load.Stems);
+    }
+
+    /// <summary>Stems alone: nothing was encoded, and the screen must not be handed a stream name.</summary>
+    [Fact]
+    public async Task LoadAsync_StemsOnly_SendsNoStream()
+    {
+        await _provider.LoadAsync(new DisplayLoad { Stems = [new(0, AudioTrackRole.Music, "http://host/m.ogg", 100)] });
+
+        Assert.Null(Assert.Single(Sent<LoadMediaCommand>()).StreamUrl);
+    }
+
+    [Fact]
+    public async Task SetStemVolumeAsync_RidesTheLevelOnTheScreen()
+    {
+        var taken = await _provider.SetStemVolumeAsync(new StemLevel { Role = AudioTrackRole.Backing, Volume = 35 });
+
+        Assert.True(taken);
+        var level = Assert.Single(Sent<SetStemVolumeCommand>());
+        Assert.Equal((AudioTrackRole.Backing, 35), (level.Role, level.Volume));
+    }
+
+    /// <summary>A send that never landed is a level the room never heard; saying so has the host
+    /// carry it in a rebuilt stream instead.</summary>
+    [Fact]
+    public async Task SetStemVolumeAsync_TheSendFails_SaysItWasNotTaken()
+    {
+        _screenServer.BroadcastCommandAsync(Arg.Any<IScreenCommand>()).Returns(_ => throw new InvalidOperationException("gone"));
+
+        Assert.False(await _provider.SetStemVolumeAsync(new StemLevel { Role = AudioTrackRole.Lead, Volume = 10 }));
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task LoadBackgroundAsync_HandsTheScreenTheBed(bool autoPlay)
+    {
+        await _provider.LoadBackgroundAsync(new BackgroundLoad { StreamUrl = "http://host/bed.m3u8", AutoPlay = autoPlay });
+
+        var bed = Assert.Single(Sent<LoadBackgroundCommand>());
+        Assert.Equal(("http://host/bed.m3u8", autoPlay), (bed.StreamUrl, bed.AutoPlay));
+    }
+
     /// <summary>The card comes down ahead of the song's first frame, not after it.</summary>
     [Fact]
     public async Task LoadAsync_ANewProgram_TakesThePictureDownBeforeTheLoad()
@@ -993,7 +1054,7 @@ public class LocalScreenDisplayProviderTests
         using var provider = DrawingProvider();
         _playback.CurrentProgram.Returns(Song());
 
-        await provider.LoadAsync(new LoadMediaCommand { StreamUrl = "http://host/s.m3u8" });
+        await provider.LoadAsync(new DisplayLoad { StreamUrl = "http://host/s.m3u8" });
 
         var sent = _screenServer.ReceivedCalls().Select(call => call.GetArguments()[0]).ToList();
         Assert.True(sent.FindIndex(c => c is HideImageCommand) is >= 0 and var hide
@@ -1006,10 +1067,10 @@ public class LocalScreenDisplayProviderTests
     {
         using var provider = DrawingProvider();
         _playback.CurrentProgram.Returns(Song());
-        await provider.LoadAsync(new LoadMediaCommand { StreamUrl = "http://host/s.m3u8" });
+        await provider.LoadAsync(new DisplayLoad { StreamUrl = "http://host/s.m3u8" });
         _screenServer.ClearReceivedCalls();
 
-        await provider.LoadAsync(new LoadMediaCommand { StreamUrl = "http://host/s2.m3u8" });
+        await provider.LoadAsync(new DisplayLoad { StreamUrl = "http://host/s2.m3u8" });
 
         Assert.Empty(Sent<HideImageCommand>());
         Assert.Single(Sent<LoadMediaCommand>());
@@ -1017,7 +1078,7 @@ public class LocalScreenDisplayProviderTests
 
     // --- the words ---
 
-    private static readonly LoadMediaCommand ALoad = new() { StreamUrl = "http://host/s.m3u8" };
+    private static readonly DisplayLoad ALoad = new() { StreamUrl = "http://host/s.m3u8" };
 
     private TimedLyrics WordsFor(PlaybackProgram.Playing song)
     {

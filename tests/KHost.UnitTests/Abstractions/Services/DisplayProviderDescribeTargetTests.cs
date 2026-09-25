@@ -1,77 +1,50 @@
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
-using KHost.Domain.Services.Displays;
 
 namespace KHost.UnitTests.Abstractions.Services;
 
-/// <summary>The default body is what every provider that predates it answers, so it must be the
-/// answer the host used to work out for itself.</summary>
+/// <summary>The default bodies are what a provider that implements only transport answers, so they
+/// must never commit it to something it did not ask for.</summary>
 public class DisplayProviderDescribeTargetTests
 {
-    public static TheoryData<string?, DisplayDevice[]> Displays() => new()
+    /// <summary>Stems a provider never asked for would reach it with nothing encoded to play.</summary>
+    [Fact]
+    public void DefaultDescribeTarget_AsksForNothingSpecial()
     {
-        { "tv", [Device("tv", mixes: true)] },
-        { "tv", [Device("tv", mixes: false)] },
-        { "tv", [Device("other", mixes: true), Device("tv", mixes: false)] },
-
-        // Listed under another id: the connected row answers, as it always did.
-        { "session-7", [Device("other", mixes: false), Device("tv", mixes: true, connected: true)] },
-        { "session-7", [Device("tv", mixes: false, connected: true)] },
-
-        // Connected before it lists anything.
-        { "tv", [] },
-    };
-
-    [Theory]
-    [MemberData(nameof(Displays))]
-    public void DefaultBody_AnswersWhatTheHostUsedToWorkOut(string? connectedId, DisplayDevice[] devices)
-    {
-        IDisplayProvider provider = new BareDisplay(connectedId, devices);
+        IDisplayProvider provider = new BareDisplay();
 
         var target = provider.DescribeTarget();
 
-        var used = ConnectedDisplay.Find([provider]) is { Device.SupportsStemMix: true };
-        Assert.Equal(used, target.MixesStems);
+        Assert.False(target.MixesStems);
         Assert.False(target.BurnLyrics);
     }
 
+    /// <summary>False is what makes the host rebuild the stream, so a provider that cannot ride a
+    /// level still hears the new mix.</summary>
     [Fact]
-    public void DefaultBody_ADeviceThatMixes_AsksForTheStems()
+    public async Task DefaultSetStemVolume_Refuses()
     {
-        IDisplayProvider provider = new BareDisplay("tv", [Device("tv", mixes: true)]);
+        IDisplayProvider provider = new BareDisplay();
 
-        Assert.True(provider.DescribeTarget().MixesStems);
+        Assert.False(await provider.SetStemVolumeAsync(new StemLevel { Role = AudioTrackRole.Lead, Volume = 40 }));
     }
-
-    [Fact]
-    public void DefaultBody_ADeviceThatCannotMix_AsksForNothingSpecial()
-    {
-        IDisplayProvider provider = new BareDisplay("tv", [Device("tv", mixes: false)]);
-
-        var target = provider.DescribeTarget();
-
-        Assert.False(target.MixesStems || target.BurnLyrics);
-    }
-
-    private static DisplayDevice Device(string id, bool mixes, bool connected = false)
-        => new() { Id = id, Name = id, IsConnected = connected, SupportsStemMix = mixes };
 
     /// <summary>Implements only what an interface without default bodies would demand.</summary>
-    private sealed class BareDisplay(string? connectedId, IReadOnlyList<DisplayDevice> devices) : IDisplayProvider
+    private sealed class BareDisplay : IDisplayProvider
     {
         public event EventHandler<DisplayPlaybackStatus>? PlaybackStatusChanged { add { } remove { } }
 
         public string Name => "Bare";
         public bool IsDiscovering => false;
-        public IReadOnlyList<DisplayDevice> Devices => devices;
-        public string? ConnectedDeviceId => connectedId;
+        public IReadOnlyList<DisplayDevice> Devices => [new DisplayDevice { Id = "tv", Name = "TV", IsConnected = true }];
+        public string? ConnectedDeviceId => "tv";
         public Guid? SessionId => null;
 
         public Task StartDiscoveryAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task StopDiscoveryAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task<bool> ConnectAsync(string deviceId, CancellationToken cancellationToken = default) => Task.FromResult(false);
         public Task DisconnectAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
-        public Task LoadAsync(string streamUrl, TimeSpan startOffset, int tempo = 0, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task LoadAsync(DisplayLoad load, CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task PlayAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task PauseAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task StopAsync(TimeSpan? fade = null, CancellationToken cancellationToken = default) => Task.CompletedTask;

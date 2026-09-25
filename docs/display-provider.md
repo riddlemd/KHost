@@ -5,9 +5,9 @@ through `KHost.Domain/Services/Displays/LocalScreen/LocalScreenDisplayProvider.c
 whichever one is connected through one dispatcher. The interface itself is the authority on the current
 surface; this note keeps the reasoning behind its shape.
 
-> A display provider owns **a transport to places the song comes out**, and everything the host can
-> put on them. It finds such places, connects to one, hands it a stream, drives transport on it, and
-> draws on it. It does not decide *what* the show is — it is told.
+> A display provider owns **a transport to places the song comes out**. It finds such places,
+> connects to one, hands it what to play and drives transport on it. What it draws there is its own
+> business, from data the host publishes. It does not decide *what* the show is — it is told.
 
 ## Why it exists
 
@@ -30,7 +30,7 @@ one answer to "where does the song come out, and what can it show?"
 | Transport | SignalR IPC over loopback | CASTV2 across the LAN |
 | Reach | same machine only | off-box |
 | Finding devices | launching one — the host starts the process | mDNS browse |
-| Drawable surface | all of it | none; inherits the defaults |
+| Draws | everything, from the host's public read-sides | nothing; asks for burned-in words |
 
 The screens provider is **core logic**, registered by the host. It travels the same path a plugin's
 display travels, but `PluginLoader` must not bind it and it must never appear on the Plugins page.
@@ -45,121 +45,78 @@ they are the same.
 ```csharp
 public interface IDisplayProvider
 {
-    // --- identity ---
-
-    /// <summary>Names the transport for the console, so no wording is built into the host.</summary>
     string Name { get; }
-
-    // --- discovery ---
-
-    bool IsDiscovering { get; }
-    Task StartDiscoveryAsync(CancellationToken cancellationToken = default);
-    Task StopDiscoveryAsync(CancellationToken cancellationToken = default);
-    IReadOnlyList<DisplayDevice> Devices { get; }
-
-    // --- connection ---
-
-    /// <summary>The one device this transport drives; every argument-free member addresses it.</summary>
-    string? ConnectedDeviceId { get; }
-    Guid? SessionId { get; }
-
-    /// <summary>Refused, not a replacement, while a different device is connected.</summary>
-    Task<bool> ConnectAsync(string deviceId, CancellationToken cancellationToken = default);
-    Task DisconnectAsync(CancellationToken cancellationToken = default);
-
     event EventHandler<DisplayPlaybackStatus>? PlaybackStatusChanged;
 
-    // --- transport ---
+    // --- discovery ---
+    bool IsDiscovering { get; }
+    bool SearchesForDevices => true;
+    Task StartDiscoveryAsync(CancellationToken ct = default);
+    Task StopDiscoveryAsync(CancellationToken ct = default);
+    IReadOnlyList<DisplayDevice> Devices { get; }
 
-    /// <summary>What to render for the connected device; the default asks for stems when it mixes.</summary>
-    RenderTarget DescribeTarget() => /* MixesStems from the connected device's SupportsStemMix */;
+    // --- connection: one device, which every argument-free member addresses ---
+    string? ConnectedDeviceId { get; }
+    Guid? SessionId { get; }
+    Task<bool> ConnectAsync(string deviceId, CancellationToken ct = default);
+    Task DisconnectAsync(CancellationToken ct = default);
 
-    Task LoadAsync(string streamUrl, TimeSpan startOffset, int tempo = 0, CancellationToken ct = default);
-    Task PlayAsync(CancellationToken cancellationToken = default);
-    Task PauseAsync(CancellationToken cancellationToken = default);
-    Task StopAsync(TimeSpan? fade = null, CancellationToken cancellationToken = default);
-    Task SeekAsync(TimeSpan position, CancellationToken cancellationToken = default);
-    Task SetVolumeAsync(double volume, CancellationToken cancellationToken = default);
+    // --- transport and control ---
+    RenderTarget DescribeTarget() => RenderTarget.None;
+    Task LoadAsync(DisplayLoad load, CancellationToken ct = default);
+    Task PlayAsync(CancellationToken ct = default);
+    Task PauseAsync(CancellationToken ct = default);
+    Task StopAsync(TimeSpan? fade = null, CancellationToken ct = default);
+    Task SeekAsync(TimeSpan position, CancellationToken ct = default);
+    Task SetVolumeAsync(float volume, CancellationToken ct = default) => Task.CompletedTask;
+    Task<bool> SetStemVolumeAsync(StemLevel level, CancellationToken ct = default) => Task.FromResult(false);
 
-    // --- drawable: every one has a default body ---
-    //
-    // This is what makes the full surface honest for a device that cannot draw. A Cast plugin
-    // implements the six transport members and ignores the rest; it does not write ten stubs.
-    // Precedent: IMediaPlaybackGate.Claims, IPluginButtonHandler.DescribeButton.
-
-    Task SetTimedLyricsAsync(TimedLyrics? lyrics, CancellationToken ct = default) => Task.CompletedTask;
-    Task SetMarqueeAsync(MarqueeState? marquee, CancellationToken ct = default) => Task.CompletedTask;
-    Task SetQrCodesAsync(IReadOnlyList<ScreenQrCodePlacement> codes, CancellationToken ct = default) => Task.CompletedTask;
-    Task ShowNextSingerAsync(NextSingerCard card, CancellationToken ct = default) => Task.CompletedTask;
-    Task SetBreakMusicCardAsync(BreakMusicCard? card, CancellationToken ct = default) => Task.CompletedTask;
-    Task ShowImageAsync(string imageUrl, CancellationToken ct = default) => Task.CompletedTask;
-    Task HideImageAsync(CancellationToken ct = default) => Task.CompletedTask;
-    Task LoadBackgroundAsync(string url, CancellationToken ct = default) => Task.CompletedTask;
-    Task SetBackgroundVolumeAsync(double volume, CancellationToken ct = default) => Task.CompletedTask;
-    Task SetVideoAsync(bool enabled, CancellationToken ct = default) => Task.CompletedTask;
+    // --- the second audio channel ---
+    Task LoadBackgroundAsync(BackgroundLoad background, CancellationToken ct = default) => Task.CompletedTask;
+    Task PlayBackgroundAsync(CancellationToken ct = default) => Task.CompletedTask;
+    Task PauseBackgroundAsync(CancellationToken ct = default) => Task.CompletedTask;
+    Task StopBackgroundAsync(TimeSpan? fade = null, CancellationToken ct = default) => Task.CompletedTask;
+    Task SetBackgroundVolumeAsync(float volume, CancellationToken ct = default) => Task.CompletedTask;
 }
 ```
 
+**Nothing drawn is on it.** The drawing members it once had — words, marquee, codes, cards,
+pictures — had no host caller once every overlay became something the provider pulls for itself,
+so they went, along with the `PlaybackService` dispatcher that turned the local screen's wire
+commands into calls. A provider
+that draws reads `IPlaybackService.CurrentProgram`, `IUpNextService`, `IQrCodeOfferService`,
+`NextSingerAnnounced`, `IBreakMusicService`, `ITimedLyricsService` and the venue's settings, each
+with the message that says it moved.
+
+**Its arguments are models, not a wire.** `DisplayLoad`, `StemLevel` and `BackgroundLoad` live in
+`Abstractions`; the local screen's commands live in `KHost.IPC.SignalR.Contracts`, which no plugin
+sees, and `LocalScreenDisplayProvider` maps one onto the other.
+
 There is deliberately **no timeline or sync member, and no device count**. One display, full stop:
-the local screen or a receiver, never both and never two of either. A plugin display handles its
-own communication with its device, so the host keeps no seam for several — the display that is up
-defines the song's clock and nothing is steered onto anything else.
+the local screen or a receiver, never both and never two of either. The display that is up defines
+the song's clock and nothing is steered onto anything else.
 
 ## What a device carries
 
-`ScreenCapabilities` folds into `DisplayDevice`, because it was always describing a device rather
-than a transport.
+`DisplayDevice` is the row in the console — id, name, model, address, whether it is the connected
+one — and three facts about sound and picture: `SupportsAudio`, `SupportsVideo` and
+`SupportsFade`.
 
-```csharp
-public sealed class DisplayDevice
-{
-    public required string Id { get; init; }
-    public required string Name { get; init; }
-    public string? Model { get; init; }
-    public string? Address { get; init; }
-    public bool IsConnected { get; init; }
+`SupportsFade` is the one the host acts on for its *own* behaviour. `PlaybackService.StopAsync`
+waits out the fade it asked for, so a device that cuts dead has to say so or every stop costs the
+room that many seconds of silence before the queue moves on.
 
-    public bool SupportsAudio { get; init; }
-    public bool SupportsVideo { get; init; }
+It once carried a flag per overlay and one for mixing stems. With drawing the provider's own
+business the overlay flags had nothing to gate, and what to render moved to `DescribeTarget()`,
+which the provider answers for the device it is actually connected to.
 
-    /// <summary>Draws a song's words itself, from the timing the host hands over.</summary>
-    public bool SupportsLyrics { get; init; }
+### Why only the words are burned
 
-    public bool SupportsMarquee { get; init; }
-    public bool SupportsQrCodes { get; init; }
-
-    /// <summary>Rides the song down on a stop rather than cutting it dead.</summary>
-    public bool SupportsFade { get; init; }
-
-    /// <summary>Anything put up as a picture rather than a layer: the next-singer card, the
-    /// break-music card, and a plain shown image, which already share that shape.</summary>
-    public bool SupportsImage { get; init; }
-}
-```
-
-They sit on the device, not the provider: a provider may reach devices of differing ability, and the
-host is asking about the thing in the room. LocalScreen answers true to all of them; a Cast receiver
-answers false to the four drawable ones.
-
-### One flag per overlay, not one flag for all
-
-Because the host's answer to each differs, and collapsing them would hide that.
-
-| Overlay | Fixed for the song? | If the device cannot draw it |
-|---|---|---|
-| Lyrics | **yes** — every syllable known at load | **burn into the stream** |
-| Marquee | no — scrolls, text changes on a venue edit | leave it off |
-| QR codes | no — placement can change mid-song | leave it off |
-| Images / cards | no — appear on a host's action | leave it off |
-
-`SupportsFade` is the odd one out: it is not drawn, and it is the only flag the host acts on for
-its *own* behaviour rather than for what it sends. `PlaybackService.StopAsync` waits out the fade
-it asked for, so a device that cuts dead has to say so or every stop costs the room that many
-seconds of silence before the queue moves on.
-
-Burning anything but the lyrics would mean restarting the encode each time it moved, which is an
-audible gap every time a host edits the marquee. So the words are the only thing worth compositing,
-and that is a decision the flags let the host make separately rather than all at once.
+Lyrics are fixed for the whole song — every syllable is known at load — so a display that cannot
+draw them asks for `RenderTarget.BurnLyrics` and a renderer able to (KaraFun's) composites them.
+The marquee rescrolls on a venue edit, QR codes move, cards appear on a host's action: burning any of
+those would restart the encode each time, an audible gap. A display that cannot draw them simply
+does not.
 
 ## What implementing it settled
 
@@ -192,7 +149,7 @@ and that is a decision the flags let the host make separately rather than all at
   applied on every connect and venue edit by `LocalScreenDisplayProvider`, which is where the screens'
   own housekeeping belongs.
 - **`LibraryBreakMusicProvider` routes to the displays**, not to an audio screen. A display that
-  cannot take a second channel inherits the no-op defaults and still counts as somewhere the track
+  cannot take a second channel keeps the no-op defaults and still counts as somewhere the track
   played, or a television that simply cannot carry the bed would suppress the card naming it.
 - **`SearchesForDevices`** was added while wiring the selector: "discovery" really is two acts, and
   a console offering a search button has to know which it is about to trigger.
@@ -200,17 +157,16 @@ and that is a decision the flags let the host make separately rather than all at
 ## What to render is the display's to say
 
 `IDisplayProvider.DescribeTarget()` answers the `RenderTarget` the host hands every renderer, asked
-of the connected provider on each load. Its default body is the answer the host used to work out
-itself — stems when the connected device claims `SupportsStemMix`, nothing else — so every provider
-written before it behaves as it did. `RenderTarget.BurnLyrics` is the display asking for the words
-in the picture because it cannot draw them; a renderer that can (KaraFun's) honours it, and one
-that cannot, including the host's own `StreamingMediaRenderer`, returns its normal rendition. The
-local screen draws its own words, so it never asks. This is the answer to question 3 below.
+of the connected provider on each load and each reconnect. Its default body is `RenderTarget.None`:
+one mixed stream, no burned words, which is all a transport-only provider can play.
+`RenderTarget.MixesStems` commits a provider to playing `DisplayLoad.Stems` and answering
+`SetStemVolumeAsync`; when that answers false, the host rebuilds the stream at the playhead with the
+new mix instead. `RenderTarget.BurnLyrics` is a request a renderer may honour. The local screen
+mixes and draws its own words, so it asks for stems and no burning.
 
 ## Questions this should answer without further argument
 
-1. Where does a new overlay go, does it get its own flag, and what happens on a device that cannot
-   draw it?
+1. Where does a new overlay go, and what happens on a device that cannot draw it?
 2. What does a plugin author implement, minimally, to send a song to a device?
 3. Which component decides a stream needs words burned into it, and what does it ask?
 4. Why are lyrics burned when unsupported while the marquee is simply dropped?

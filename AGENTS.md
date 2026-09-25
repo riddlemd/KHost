@@ -205,7 +205,7 @@ cannot name another's: its secrets, and the QR code it offers the screens.
   reasoning live in `docs/media-renderer.md`; this is the short form.
   - **It answers with what to play, not always with a stream.** A `MediaRendition` carries a URL to
     play end to end, or the separate `Stems` a display mixes for itself, or both. `StreamUrl` on
-    `LoadMediaCommand` is nullable for exactly this: a kit on a screen that mixes runs **no ffmpeg
+    `DisplayLoad` is nullable for exactly this: a kit on a screen that mixes runs **no ffmpeg
     at all**, where it used to encode a whole song for a consumer that never fetched it.
   - **Claim by file, not by extension or by `MediaType`.** `CanRender(path)` and a keyed fallback,
     the same shape `IMediaProbe` uses — `MediaFormats.TypeForFile` has never heard of `.kit`, and a
@@ -229,9 +229,9 @@ cannot name another's: its secrets, and the QR code it offers the screens.
     the media is *valid*, and `BuildArguments` owns how it is *encoded*.
   - Everything still streams through `HlsMediaStreamService` unless a renderer says otherwise, and
     its ffmpeg argument building was never the problem — being the only answer was.
-- **`IDisplayProvider` is a transport to somewhere the song comes out, and everything the host can
-  put on it.** It finds such places, connects to one, hands it a stream, drives transport on it, and
-  draws on it. It does not decide what the show is — it is told. The full shape and its reasoning
+- **`IDisplayProvider` is a transport to somewhere the song comes out: transport and control,
+  nothing drawn.** It finds such places, connects to one, hands it what to play and drives transport
+  on it. It does not decide what the show is — it is told. The full shape and its reasoning
   live in `docs/display-provider.md`; this is the short form.
   - **The screens provider is core logic, not a plugin.** LocalScreen reaches the host through a
     provider the host itself registers, travelling the same path a plugin's display travels.
@@ -247,15 +247,23 @@ cannot name another's: its secrets, and the QR code it offers the screens.
     `DialogService`, which goes the same way). `PlaybackService` and the break music provider ask
     `ConnectedDisplay.Find` for the one connected provider — several are registered at once, so
     finding it stays.
-  - **Every drawable member has a default body**, so a provider implements what it can do and
-    ignores the rest. A Cast plugin writes the six transport members, not ten stubs. The same
-    deliberate exception `IMediaPlaybackGate.Claims` and `IPluginButtonHandler.DescribeButton` are.
-  - **What a device can show belongs on the device**, not the transport: `DisplayDevice` carries
-    `SupportsLyrics`, `SupportsMarquee`, `SupportsQrCodes` and `SupportsImage` beside audio and
-    video. One flag each rather than one for all, because the host answers each differently — lyrics
-    are fixed for the whole song and can be **burned into the stream** for a device that cannot draw
-    them, while a marquee that rescrolls on every venue edit would mean restarting the encode, so it
-    is simply left off.
+  - **The interface has no drawing members.** A plugin writes discovery, connection,
+    `LoadAsync(DisplayLoad)`, play, pause, stop and seek; `DescribeTarget` (`RenderTarget.None`),
+    `SetStemVolumeAsync` (false), `SetVolumeAsync` and the second channel have default bodies —
+    the same deliberate exception `IMediaPlaybackGate.Claims` is. Its arguments are
+    `Abstractions` models (`DisplayLoad`, `StemLevel`, `BackgroundLoad`), never the local
+    screen's wire commands.
+  - **What a device takes is the provider's answer, not a flag on the device.** `DisplayDevice`
+    carries only `SupportsAudio`, `SupportsVideo` and `SupportsFade`. Lyrics are the one overlay
+    worth compositing — fixed for the whole song — so a display that cannot draw them asks for
+    `RenderTarget.BurnLyrics`; anything else it cannot draw, it simply does not draw.
+  - **`SetStemVolumeAsync` answers whether the level landed.** False means the display cannot
+    ride it, and the host rebuilds the stream at the playhead with the new mix baked in. It is
+    called only while the loaded song carries stems.
+  - **The wire to the local screen is not a contract.** `IScreenServer`, `IScreenClient`,
+    `IScreenProvider`, `IScreenKeyStore` and every command and state type live in
+    `KHost.IPC.SignalR.Contracts`, which `Domain` references; nothing a plugin builds against
+    names them. `LocalScreenDisplayProvider` maps the host's calls onto its own commands.
   - **The provider owns presentation; the host only supplies data and services.** A display
     provider talks to some service or hardware the host may or may not control, and the local
     screen app is simply the device behind one of them. `LocalScreenDisplayProvider` hears what
@@ -263,7 +271,9 @@ cannot name another's: its secrets, and the QR code it offers the screens.
     reading **only what a plugin display can read**: `IPlaybackService.CurrentProgram` (idle, a
     song, or an ad still; announced by `PlaybackChanged`, so compare by value), `IUpNextService` +
     `UpNextChanged`, `IQrCodeOfferService` + `QrCodeOfferChanged`, `NextSingerAnnounced`,
-    `IBreakMusicService` and `ITimedLyricsService`. Encoding the QR SVG, filling an unset placement
+    `IBreakMusicService`, `ITimedLyricsService` and the venue's settings. It composes the marquee
+    itself (`BuildMarqueeAsync`), with the wording rules in `Common/Display/MarqueeText` so a
+    plugin display drawing one says the same thing. Encoding the QR SVG, filling an unset placement
     and building the screen's commands stay inside it. Registering a code (`IQrCodeService`, which
     takes an owner id) stays Domain-only. `IPlaybackService` takes every display, so a provider
     resolves it on first use, never in its constructor.
@@ -271,11 +281,10 @@ cannot name another's: its secrets, and the QR code it offers the screens.
     `PerformancesChanged`, `PlaybackChanged` (only when the singer at the mic moved) and
     `SelectedVenueChanged` (only when `AllowAliases` moved), and settles for 50ms so a stop — the
     playback, the dequeue and the rotation — is one announcement. Producers never announce it.
-    `ScreenMarqueeService` names the singers `IUpNextService` reads, so the two cannot disagree.
+    The marquee names exactly the singers `IUpNextService` reads, so the two cannot disagree.
   - **`DescribeTarget()` is how a display says what to render for it.** `PlaybackService` asks the
     connected provider on every load; a throw or a null is `RenderTarget.None`. The default body is
-    the host's old answer (`MixesStems` from the connected device's `SupportsStemMix`, nothing
-    else). `RenderTarget.BurnLyrics` is a request a renderer **may** honour — the KaraFun renderer
+    `RenderTarget.None`: one mixed stream, no burned words. `RenderTarget.BurnLyrics` is a request a renderer **may** honour — the KaraFun renderer
     can, `StreamingMediaRenderer` ignores it — and one that cannot returns its normal rendition.
     The local screen overrides it: stems, no burned words.
   - **An ad still's `ImageUrl` is reachable like a stream URL**: the same base address, under
@@ -344,7 +353,7 @@ cannot name another's: its secrets, and the QR code it offers the screens.
 - `<ContractsVersion>` in `Directory.Build.props` is the version of both. It moves whenever the
   shape an author compiles against changes at all, additions included; 0.x while the contracts
   still move.
-- `PluginApi.CurrentVersion` (at **4**) is the runtime gate the host checks a manifest against, and
+- `PluginApi.CurrentVersion` (at **5**) is the runtime gate the host checks a manifest against, and
   it moves only on a break. Changing a method a plugin **calls or implements** is a break, including
   adding an optional parameter: the default compiles into the call site, and a changed implemented
   signature is a `TypeLoadException` at load. A new interface member with a **default body** is not.

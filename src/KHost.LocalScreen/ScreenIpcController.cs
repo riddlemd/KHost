@@ -1,5 +1,5 @@
 using KHost.Abstractions.Models;
-using KHost.Abstractions.Services.IPC;
+using KHost.IPC.SignalR.Contracts;
 using Microsoft.Extensions.Logging;
 
 namespace KHost.LocalScreen;

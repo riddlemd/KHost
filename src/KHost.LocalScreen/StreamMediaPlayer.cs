@@ -1,5 +1,5 @@
 using KHost.Abstractions.Models;
-using KHost.Abstractions.Services.IPC;
+using KHost.IPC.SignalR.Contracts;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using KHost.Common.Media;

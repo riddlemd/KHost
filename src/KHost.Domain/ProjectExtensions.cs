@@ -1,6 +1,6 @@
 ﻿using KHost.Abstractions.Messaging;
 using KHost.Abstractions.Services;
-using KHost.Abstractions.Services.IPC;
+using KHost.IPC.SignalR.Contracts;
 using KHost.Domain.Services;
 using KHost.Domain.Services.Messaging;
 using KHost.Domain.Services.AuthProviders;
@@ -104,7 +104,6 @@ namespace KHost.Domain
             serviceCollection.AddSingleton<IAudioTrackService, AudioTrackService>();
             serviceCollection.AddSingleton<IMediaTagReader, MediaTagReader>();
             serviceCollection.AddSingleton<IMediaGateService, MediaGateService>();
-            serviceCollection.AddSingleton<IScreenMarqueeService, ScreenMarqueeService>();
 
             // Core, not a plugin: the host's own transport to the local screen app, registered here so it
             // reaches PlaybackService in the same collection a plugin's display does. PluginLoader

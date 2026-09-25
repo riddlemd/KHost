@@ -1,13 +1,16 @@
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using KHost.Domain.Services;
+using KHost.Domain.Services.Displays.LocalScreen;
+using KHost.IPC.SignalR.Contracts;
 using KHost.Abstractions.Messaging;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 
-namespace KHost.UnitTests.Domain.Services;
+namespace KHost.UnitTests.Domain.Services.Displays.LocalScreen;
 
-public class ScreenMarqueeServiceTests
+/// <summary>What the local screen's marquee says, composed by its provider from the venue and who is next.</summary>
+public class LocalScreenMarqueeTests
 {
     private readonly IVenuesService _venues = Substitute.For<IVenuesService>();
     private readonly ISingerQueueService _queue = Substitute.For<ISingerQueueService>();
@@ -16,59 +19,59 @@ public class ScreenMarqueeServiceTests
     private readonly IPlaybackService _playback = Substitute.For<IPlaybackService>();
 
     // Through the real up-next list, which is where the singers the band names come from.
-    private ScreenMarqueeService Service() => new(
-        NullLogger<ScreenMarqueeService>.Instance,
-        _venues,
-        new UpNextService(
-            NullLogger<UpNextService>.Instance, Substitute.For<IMessageBroker>(), _venues, _queue, _performances, _media,
-            new ServiceCollection().AddSingleton(_playback).BuildServiceProvider()));
+    private async Task<SetMarqueeCommand> BuildAsync()
+        => await LocalScreenDisplayProvider.BuildMarqueeAsync(
+            (await _venues.ReadSelectedVenueAsync())?.Settings,
+            new UpNextService(
+                NullLogger<UpNextService>.Instance, Substitute.For<IMessageBroker>(), _venues, _queue, _performances, _media,
+                new ServiceCollection().AddSingleton(_playback).BuildServiceProvider()));
 
-    public ScreenMarqueeServiceTests()
+    public LocalScreenMarqueeTests()
         // NSubstitute hands back a task wrapping null otherwise, and the composition .Where()s it.
         => _performances.ReadQueuedAsync().Returns([]);
 
     [Fact]
-    public async Task BuildAsync_NoVenueSelected_IsDisabled()
+    public async Task BuildMarqueeAsync_NoVenueSelected_IsDisabled()
     {
         _venues.ReadSelectedVenueAsync().Returns((Venue?)null);
 
-        Assert.False((await Service().BuildAsync()).Enabled);
+        Assert.False((await BuildAsync()).Enabled);
     }
 
     [Fact]
-    public async Task BuildAsync_VenueHasMarqueeOff_IsDisabled()
+    public async Task BuildMarqueeAsync_VenueHasMarqueeOff_IsDisabled()
     {
         Arrange(new Venue.VenueSettings { MarqueeEnabled = false, MarqueeMessage = "Ignored" });
 
-        Assert.False((await Service().BuildAsync()).Enabled);
+        Assert.False((await BuildAsync()).Enabled);
     }
 
     [Fact]
-    public async Task BuildAsync_MarqueeOn_TakesOnlyTheVenuesSingerCountInQueueOrder()
+    public async Task BuildMarqueeAsync_MarqueeOn_TakesOnlyTheVenuesSingerCountInQueueOrder()
     {
         Arrange(
             new Venue.VenueSettings { MarqueeEnabled = true, MarqueeSingerCount = 2 },
             Singer("Ada"), Singer("Grace"), Singer("Linus"));
 
-        var command = await Service().BuildAsync();
+        var command = await BuildAsync();
 
         Assert.Equal(["Ada", "Grace"], command.Singers);
     }
 
     /// <summary>The room is looking for the song as much as the name, so the band leads with it.</summary>
     [Fact]
-    public async Task BuildAsync_SingerHasASongQueued_ReadsSongThenSinger()
+    public async Task BuildMarqueeAsync_SingerHasASongQueued_ReadsSongThenSinger()
     {
         var ada = Singer("Ada");
         Arrange(new Venue.VenueSettings { MarqueeEnabled = true, MarqueeSingerCount = 1 }, ada);
         Queued(ada, "Bohemian Rhapsody");
 
-        Assert.Equal(["Bohemian Rhapsody - Ada"], (await Service().BuildAsync()).Singers);
+        Assert.Equal(["Bohemian Rhapsody - Ada"], (await BuildAsync()).Singers);
     }
 
     /// <summary>A host's own wording replaces "{song} - {singer}", tag for tag.</summary>
     [Fact]
-    public async Task BuildAsync_CustomEntryFormat_UsesTheVenuesWording()
+    public async Task BuildMarqueeAsync_CustomEntryFormat_UsesTheVenuesWording()
     {
         var ada = Singer("Ada");
         Arrange(
@@ -76,12 +79,12 @@ public class ScreenMarqueeServiceTests
             ada);
         Queued(ada, "Bohemian Rhapsody", "Queen");
 
-        Assert.Equal(["Queen - Bohemian Rhapsody"], (await Service().BuildAsync()).Singers);
+        Assert.Equal(["Queen - Bohemian Rhapsody"], (await BuildAsync()).Singers);
     }
 
     /// <summary>Numbering starts at one, matching how a host would read the list aloud.</summary>
     [Fact]
-    public async Task BuildAsync_EntryFormatUsesPosition_NumbersFromOne()
+    public async Task BuildMarqueeAsync_EntryFormatUsesPosition_NumbersFromOne()
     {
         var ada = Singer("Ada");
         var grace = Singer("Grace");
@@ -91,12 +94,12 @@ public class ScreenMarqueeServiceTests
         Queued(ada, "Africa");
         Queued(grace, "Wonderwall");
 
-        Assert.Equal(["1. Africa - Ada", "2. Wonderwall - Grace"], (await Service().BuildAsync()).Singers);
+        Assert.Equal(["1. Africa - Ada", "2. Wonderwall - Grace"], (await BuildAsync()).Singers);
     }
 
     /// <summary>Tags read the same regardless of how a host capitalises them while typing.</summary>
     [Fact]
-    public async Task BuildAsync_EntryFormatTagsAreCaseInsensitive()
+    public async Task BuildMarqueeAsync_EntryFormatTagsAreCaseInsensitive()
     {
         var ada = Singer("Ada");
         Arrange(
@@ -104,14 +107,14 @@ public class ScreenMarqueeServiceTests
             ada);
         Queued(ada, "Africa");
 
-        Assert.Equal(["Africa by Ada"], (await Service().BuildAsync()).Singers);
+        Assert.Equal(["Africa by Ada"], (await BuildAsync()).Singers);
     }
 
     /// <summary>A blank format would compose empty lines, so it reads as unset.</summary>
     [Theory]
     [InlineData("")]
     [InlineData("   ")]
-    public async Task BuildAsync_BlankEntryFormat_FallsBackToTheDefault(string blank)
+    public async Task BuildMarqueeAsync_BlankEntryFormat_FallsBackToTheDefault(string blank)
     {
         var ada = Singer("Ada");
         Arrange(
@@ -119,21 +122,21 @@ public class ScreenMarqueeServiceTests
             ada);
         Queued(ada, "Bohemian Rhapsody");
 
-        Assert.Equal(["Bohemian Rhapsody - Ada"], (await Service().BuildAsync()).Singers);
+        Assert.Equal(["Bohemian Rhapsody - Ada"], (await BuildAsync()).Singers);
     }
 
     /// <summary>A singer with nothing queued must still show, or the band disagrees with the queue.</summary>
     [Fact]
-    public async Task BuildAsync_SingerHasNoSongQueued_NamesThemAlone()
+    public async Task BuildMarqueeAsync_SingerHasNoSongQueued_NamesThemAlone()
     {
         Arrange(new Venue.VenueSettings { MarqueeEnabled = true, MarqueeSingerCount = 1 }, Singer("Ada"));
 
-        Assert.Equal(["Ada"], (await Service().BuildAsync()).Singers);
+        Assert.Equal(["Ada"], (await BuildAsync()).Singers);
     }
 
     /// <summary>Each singer gets their own song, not the first one in the queue.</summary>
     [Fact]
-    public async Task BuildAsync_SeveralSingers_PairsEachWithTheirOwnSong()
+    public async Task BuildMarqueeAsync_SeveralSingers_PairsEachWithTheirOwnSong()
     {
         var ada = Singer("Ada");
         var grace = Singer("Grace");
@@ -141,23 +144,23 @@ public class ScreenMarqueeServiceTests
         Queued(ada, "Africa");
         Queued(grace, "Wonderwall");
 
-        Assert.Equal(["Africa - Ada", "Wonderwall - Grace"], (await Service().BuildAsync()).Singers);
+        Assert.Equal(["Africa - Ada", "Wonderwall - Grace"], (await BuildAsync()).Singers);
     }
 
     /// <summary>A media row that has lost its title must not read as " - Ada".</summary>
     [Fact]
-    public async Task BuildAsync_QueuedSongHasNoTitle_NamesTheSingerAlone()
+    public async Task BuildMarqueeAsync_QueuedSongHasNoTitle_NamesTheSingerAlone()
     {
         var ada = Singer("Ada");
         Arrange(new Venue.VenueSettings { MarqueeEnabled = true, MarqueeSingerCount = 1 }, ada);
         Queued(ada, "   ");
 
-        Assert.Equal(["Ada"], (await Service().BuildAsync()).Singers);
+        Assert.Equal(["Ada"], (await BuildAsync()).Singers);
     }
 
     /// <summary>The band is one line; a pasted message keeps its words and loses its shape.</summary>
     [Fact]
-    public async Task BuildAsync_MessageSpansLines_ArrivesAsOneLine()
+    public async Task BuildMarqueeAsync_MessageSpansLines_ArrivesAsOneLine()
     {
         Arrange(new Venue.VenueSettings
         {
@@ -165,51 +168,51 @@ public class ScreenMarqueeServiceTests
             MarqueeMessage = "Happy hour until 8\n\nask your host   about specials",
         });
 
-        Assert.Equal("Happy hour until 8 ask your host about specials", (await Service().BuildAsync()).Message);
+        Assert.Equal("Happy hour until 8 ask your host about specials", (await BuildAsync()).Message);
     }
 
     /// <summary>A modifier, not a look: it composes with whatever else the venue chose.</summary>
     [Fact]
-    public async Task BuildAsync_CarriesWhetherTheLabelIsPinned()
+    public async Task BuildMarqueeAsync_CarriesWhetherTheLabelIsPinned()
     {
         Arrange(new Venue.VenueSettings { MarqueeEnabled = true, MarqueePinLabel = true });
 
-        Assert.True((await Service().BuildAsync()).PinLabel);
+        Assert.True((await BuildAsync()).PinLabel);
     }
 
     [Fact]
-    public async Task BuildAsync_LabelNotPinned_SaysSo()
+    public async Task BuildMarqueeAsync_LabelNotPinned_SaysSo()
     {
         Arrange(new Venue.VenueSettings { MarqueeEnabled = true });
 
-        Assert.False((await Service().BuildAsync()).PinLabel);
+        Assert.False((await BuildAsync()).PinLabel);
     }
 
     [Fact]
-    public async Task BuildAsync_NoScrollSpeedChosen_LeavesItToTheScreen()
+    public async Task BuildMarqueeAsync_NoScrollSpeedChosen_LeavesItToTheScreen()
     {
         Arrange(new Venue.VenueSettings { MarqueeEnabled = true });
 
-        Assert.Equal(0, (await Service().BuildAsync()).ScrollSpeed);
+        Assert.Equal(0, (await BuildAsync()).ScrollSpeed);
     }
 
     [Fact]
-    public async Task BuildAsync_CarriesTheVenuesScrollSpeed()
+    public async Task BuildMarqueeAsync_CarriesTheVenuesScrollSpeed()
     {
         Arrange(new Venue.VenueSettings { MarqueeEnabled = true, MarqueeScrollSpeed = 140 });
 
-        Assert.Equal(140, (await Service().BuildAsync()).ScrollSpeed);
+        Assert.Equal(140, (await BuildAsync()).ScrollSpeed);
     }
 
     /// <summary>Zero is a message-only band, not a broken one; the venue asked for no names.</summary>
     [Fact]
-    public async Task BuildAsync_ZeroSingerCount_KeepsTheMessageAndNamesNobody()
+    public async Task BuildMarqueeAsync_ZeroSingerCount_KeepsTheMessageAndNamesNobody()
     {
         Arrange(
             new Venue.VenueSettings { MarqueeEnabled = true, MarqueeSingerCount = 0, MarqueeMessage = "Happy hour" },
             Singer("Ada"));
 
-        var command = await Service().BuildAsync();
+        var command = await BuildAsync();
 
         Assert.True(command.Enabled);
         Assert.Empty(command.Singers);
@@ -218,32 +221,32 @@ public class ScreenMarqueeServiceTests
 
     /// <summary>A count past the queue's length is a quiet night, not an exception.</summary>
     [Fact]
-    public async Task BuildAsync_MoreSingersWantedThanQueued_TakesWhatThereIs()
+    public async Task BuildMarqueeAsync_MoreSingersWantedThanQueued_TakesWhatThereIs()
     {
         Arrange(new Venue.VenueSettings { MarqueeEnabled = true, MarqueeSingerCount = 5 }, Singer("Ada"));
 
-        Assert.Equal(["Ada"], (await Service().BuildAsync()).Singers);
+        Assert.Equal(["Ada"], (await BuildAsync()).Singers);
     }
 
     /// <summary>Zero is "the screen decides", and the screen is what holds that default.</summary>
     [Fact]
-    public async Task BuildAsync_NoFontSizeChosen_LeavesItToTheScreen()
+    public async Task BuildMarqueeAsync_NoFontSizeChosen_LeavesItToTheScreen()
     {
         Arrange(new Venue.VenueSettings { MarqueeEnabled = true });
 
-        Assert.Equal(0, (await Service().BuildAsync()).FontSizePixels);
+        Assert.Equal(0, (await BuildAsync()).FontSizePixels);
     }
 
     [Fact]
-    public async Task BuildAsync_CarriesTheVenuesFontSize()
+    public async Task BuildMarqueeAsync_CarriesTheVenuesFontSize()
     {
         Arrange(new Venue.VenueSettings { MarqueeEnabled = true, MarqueeFontSizePixels = 44 });
 
-        Assert.Equal(44, (await Service().BuildAsync()).FontSizePixels);
+        Assert.Equal(44, (await BuildAsync()).FontSizePixels);
     }
 
     [Fact]
-    public async Task BuildAsync_CarriesPositionAndColours()
+    public async Task BuildMarqueeAsync_CarriesPositionAndColours()
     {
         Arrange(new Venue.VenueSettings
         {
@@ -253,7 +256,7 @@ public class ScreenMarqueeServiceTests
             MarqueeTextColor = "#f2f2f5",
         });
 
-        var command = await Service().BuildAsync();
+        var command = await BuildAsync();
 
         Assert.Equal(MarqueePosition.Top, command.Position);
         Assert.Equal("#101820", command.BackgroundColor);
@@ -264,7 +267,7 @@ public class ScreenMarqueeServiceTests
     [Theory]
     [InlineData("")]
     [InlineData("   ")]
-    public async Task BuildAsync_BlankColoursAndMessage_ArriveAsNull(string blank)
+    public async Task BuildMarqueeAsync_BlankColoursAndMessage_ArriveAsNull(string blank)
     {
         Arrange(new Venue.VenueSettings
         {
@@ -274,7 +277,7 @@ public class ScreenMarqueeServiceTests
             MarqueeTextColor = blank,
         });
 
-        var command = await Service().BuildAsync();
+        var command = await BuildAsync();
 
         Assert.Null(command.Message);
         Assert.Null(command.BackgroundColor);
@@ -283,19 +286,19 @@ public class ScreenMarqueeServiceTests
 
     /// <summary>"Up next" over who the room is already watching reads as the band a song behind.</summary>
     [Fact]
-    public async Task BuildAsync_SomeoneIsSinging_LeavesThemOutOfUpNext()
+    public async Task BuildMarqueeAsync_SomeoneIsSinging_LeavesThemOutOfUpNext()
     {
         var ada = Singer("Ada");
         var grace = Singer("Grace");
         Arrange(new Venue.VenueSettings { MarqueeEnabled = true, MarqueeSingerCount = 3 }, ada, grace);
         Singing(ada);
 
-        Assert.Equal(["Grace"], (await Service().BuildAsync()).Singers);
+        Assert.Equal(["Grace"], (await BuildAsync()).Singers);
     }
 
     /// <summary>Dropping the singer must not cost the venue a slot on the band.</summary>
     [Fact]
-    public async Task BuildAsync_SomeoneIsSinging_StillFillsTheVenuesSingerCount()
+    public async Task BuildMarqueeAsync_SomeoneIsSinging_StillFillsTheVenuesSingerCount()
     {
         var ada = Singer("Ada");
         Arrange(
@@ -303,29 +306,29 @@ public class ScreenMarqueeServiceTests
             ada, Singer("Grace"), Singer("Linus"));
         Singing(ada);
 
-        Assert.Equal(["Grace", "Linus"], (await Service().BuildAsync()).Singers);
+        Assert.Equal(["Grace", "Linus"], (await BuildAsync()).Singers);
     }
 
     /// <summary>Nothing playing is the ordinary case: the whole queue is up next.</summary>
     [Fact]
-    public async Task BuildAsync_NothingPlaying_NamesEveryQueuedSinger()
+    public async Task BuildMarqueeAsync_NothingPlaying_NamesEveryQueuedSinger()
     {
         Arrange(
             new Venue.VenueSettings { MarqueeEnabled = true, MarqueeSingerCount = 2 },
             Singer("Ada"), Singer("Grace"));
 
-        Assert.Equal(["Ada", "Grace"], (await Service().BuildAsync()).Singers);
+        Assert.Equal(["Ada", "Grace"], (await BuildAsync()).Singers);
     }
 
     /// <summary>A one-singer room has nothing up next; the screen hides, not a bare label.</summary>
     [Fact]
-    public async Task BuildAsync_TheOnlySingerIsSinging_NamesNobody()
+    public async Task BuildMarqueeAsync_TheOnlySingerIsSinging_NamesNobody()
     {
         var ada = Singer("Ada");
         Arrange(new Venue.VenueSettings { MarqueeEnabled = true, MarqueeSingerCount = 3 }, ada);
         Singing(ada);
 
-        Assert.Empty((await Service().BuildAsync()).Singers);
+        Assert.Empty((await BuildAsync()).Singers);
     }
 
     private void Singing(KHostUser singer)
@@ -356,7 +359,7 @@ public class ScreenMarqueeServiceTests
         Arrange(new Venue.VenueSettings { MarqueeEnabled = true, MarqueeSingerCount = 1, AllowAliases = true }, singer);
         Queued(singer, "Africa", sungAs: "DJ P");
 
-        var command = await Service().BuildAsync();
+        var command = await BuildAsync();
 
         // The room is watching someone who typed their own name into a phone; the band saying the
         // account name would be naming a person nobody in the room is looking for.
@@ -370,7 +373,7 @@ public class ScreenMarqueeServiceTests
         Arrange(new Venue.VenueSettings { MarqueeEnabled = true, MarqueeSingerCount = 1, AllowAliases = false }, singer);
         Queued(singer, "Africa", sungAs: "DJ P");
 
-        var command = await Service().BuildAsync();
+        var command = await BuildAsync();
 
         Assert.Equal("Africa - Priya", Assert.Single(command.Singers));
     }
@@ -382,7 +385,7 @@ public class ScreenMarqueeServiceTests
         Arrange(new Venue.VenueSettings { MarqueeEnabled = true, MarqueeSingerCount = 1, AllowAliases = true }, singer);
         Queued(singer, "Africa");
 
-        var command = await Service().BuildAsync();
+        var command = await BuildAsync();
 
         Assert.Equal("Africa - Priya", Assert.Single(command.Singers));
     }

@@ -13,10 +13,10 @@ public sealed record QrCodeOffer
     public string? Caption { get; init; }
 
     /// <summary>The corner the venue chose, or null where it never chose one.</summary>
-    public ScreenCorner? Corner { get; init; }
+    public OverlayCorner? Corner { get; init; }
 
     /// <summary>The size the venue chose, or null where it never chose one.</summary>
-    public ScreenQrSize? Size { get; init; }
+    public QrCodeSize? Size { get; init; }
 
     /// <summary>Modules of white around the code, or null where the venue never chose.</summary>
     public int? SafeZone { get; init; }

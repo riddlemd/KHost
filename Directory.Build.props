@@ -14,7 +14,7 @@
     day — and a 1.0 would promise otherwise.
   -->
   <PropertyGroup>
-    <ContractsVersion>0.29.0</ContractsVersion>
+    <ContractsVersion>0.30.0</ContractsVersion>
     <!--
       The assembly version is pinned and the package version is not, because they answer to
       different people. A plugin's compiled reference binds to this number, so moving it makes
@@ -22,7 +22,7 @@
       these were packed: KHost.Plugins.Spotify bound to 1.0.0.0, the host served 0.1.0.0, and its
       break-music provider silently vanished with one line in the log.
 
-      So it does not move at all, and has not since: PluginApi.CurrentVersion has gone 1 to 2 to 3
+      So it does not move at all, and has not since: PluginApi.CurrentVersion has gone 1 to 5
       while this stayed 1.0.0.0 on purpose. That number is the host's real compatibility gate, and
       it is checked against a manifest before a single assembly is bound, so an incompatible plugin
       is refused with a message a host can act on rather than failing to load for a reason nobody

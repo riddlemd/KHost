@@ -1,7 +1,7 @@
 using KHost.Abstractions.Messaging.Messages;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
-using KHost.Abstractions.Services.IPC;
+using KHost.IPC.SignalR.Contracts;
 using KHost.Domain.Services;
 using KHost.Domain.Services.BreakMusic;
 using KHost.Domain.Services.Displays.LocalScreen;
@@ -25,7 +25,7 @@ public class LocalScreenDisplayProviderBurstTests : IDisposable
 
     private readonly MessageBroker _broker = new(NullLogger<MessageBroker>.Instance);
     private readonly IScreenServer _screenServer = Substitute.For<IScreenServer>();
-    private readonly IScreenMarqueeService _marquee = Substitute.For<IScreenMarqueeService>();
+    private readonly IUpNextService _named = Substitute.For<IUpNextService>();
     private readonly IQrCodeOfferService _qrCodes = Substitute.For<IQrCodeOfferService>();
     private readonly IVenuesService _venues = Substitute.For<IVenuesService>();
     private readonly ISingerQueueService _queue = Substitute.For<ISingerQueueService>();
@@ -39,10 +39,11 @@ public class LocalScreenDisplayProviderBurstTests : IDisposable
 
     public LocalScreenDisplayProviderBurstTests()
     {
-        _marquee.BuildAsync(Arg.Any<CancellationToken>())
-            .Returns(_ => new SetMarqueeCommand { Enabled = true, Message = _upNext });
+        // The marquee reads who is next here; the real UpNextService below only times the announcing.
+        _named.ReadAsync(Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(_ => (IReadOnlyList<UpNextEntry>)[.. _upNext.Split(", ").Select((singer, i) => new UpNextEntry { Position = i + 1, Singer = singer })]);
         _qrCodes.ReadOfferAsync(Arg.Any<CancellationToken>()).Returns((QrCodeOffer?)null);
-        _venues.ReadSelectedVenueAsync().Returns(new Venue { Name = "The Bar", Settings = new Venue.VenueSettings() });
+        _venues.ReadSelectedVenueAsync().Returns(new Venue { Name = "The Bar", Settings = new Venue.VenueSettings { MarqueeEnabled = true, MarqueeSingerCount = 5 } });
         _gate.EvaluateAsync(Arg.Any<MediaAction>(), Arg.Any<Media>(), Arg.Any<CancellationToken>()).Returns(PlaybackGateResult.Ok);
         _streams
             .OpenAsync(Arg.Any<string>(), Arg.Any<TimeSpan>(), Arg.Any<int>(), Arg.Any<int>(), Arg.Any<AudioMix?>(), Arg.Any<CancellationToken>())
@@ -85,16 +86,16 @@ public class LocalScreenDisplayProviderBurstTests : IDisposable
         await playback.LoadAsync(performance, media);
         await playback.PlayAsync();
 
-        Assert.True(await WaitForSentAsync<SetMarqueeCommand>(marquee => marquee.Message == "Bo, Cy"));
+        Assert.True(await WaitForSentAsync<SetMarqueeCommand>(marquee => Named(marquee) == "Bo, Cy"));
         await Task.Delay(Settle * 2);
         _screenServer.ClearReceivedCalls();
 
         await playback.StopAsync();
 
-        Assert.True(await WaitForSentAsync<SetMarqueeCommand>(marquee => marquee.Message == "Bo, Cy, Ada"));
+        Assert.True(await WaitForSentAsync<SetMarqueeCommand>(marquee => Named(marquee) == "Bo, Cy, Ada"));
         await Task.Delay(Settle * 2);
 
-        Assert.Equal("Bo, Cy, Ada", Assert.Single(Sent<SetMarqueeCommand>()).Message);
+        Assert.Equal("Bo, Cy, Ada", Named(Assert.Single(Sent<SetMarqueeCommand>())));
     }
 
     /// <summary>The other one: the break card sent twice within 2ms, both off, when a provider said
@@ -144,10 +145,12 @@ public class LocalScreenDisplayProviderBurstTests : IDisposable
         _screenServer.ClearReceivedCalls();
         Connect("conn-b");
 
-        Assert.True(await WaitForSentAsync<SetMarqueeCommand>(marquee => marquee.Message == "Bo, Cy"));
+        Assert.True(await WaitForSentAsync<SetMarqueeCommand>(marquee => Named(marquee) == "Bo, Cy"));
         Assert.True(await WaitForSentAsync<SetScreenQrCodesCommand>());
         Assert.True(await WaitForSentAsync<SetBreakMusicCardCommand>());
     }
+
+    private static string Named(SetMarqueeCommand marquee) => string.Join(", ", marquee.Singers);
 
     private async Task RotateAsync()
     {
@@ -162,7 +165,7 @@ public class LocalScreenDisplayProviderBurstTests : IDisposable
         PlaybackService? playback = null;
 
         var services = new ServiceCollection()
-            .AddSingleton(_marquee)
+            .AddSingleton(_named)
             .AddSingleton(_qrCodes)
             .AddSingleton(breakMusic)
             .AddSingleton<IPlaybackService>(_ => playback!)

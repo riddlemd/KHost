@@ -1,10 +1,7 @@
-namespace KHost.Abstractions.Services.IPC;
+namespace KHost.IPC.SignalR.Contracts;
 
 /// <summary>The LocalScreen app's end of the link to the host: receives commands, reports state.</summary>
 /// <remarks>
-/// <para>Host-only. This is the wire contract between the host and its own LocalScreen app, used
-/// only inside that app. A plugin has no business with it: a plugin display reaches its own device
-/// through <see cref="IDisplayProvider"/>.</para>
 /// <para>Once connected, a dropped link is won back on its own, with the state passing through
 /// <see cref="ScreenClientState.Reconnecting"/>, until <see cref="DisconnectAsync"/> is called.
 /// A first <see cref="ConnectAsync"/> that fails is the caller's to retry.</para>

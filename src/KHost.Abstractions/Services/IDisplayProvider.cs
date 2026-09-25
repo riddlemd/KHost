@@ -1,13 +1,12 @@
 using KHost.Abstractions.Models;
-using KHost.Abstractions.Services.IPC;
 
 namespace KHost.Abstractions.Services;
 
-/// <summary>A transport to somewhere the song comes out, and everything the host can put on it.</summary>
-/// <remarks>It finds such places, connects to one, hands it a stream, drives transport on it, and
-/// draws on it. It does not decide what the show is — it is told. The screens reach the host
-/// through one of these too; that one is core rather than a plugin. See
-/// <c>docs/display-provider.md</c> for the shape's reasoning.
+/// <summary>A transport to somewhere the song comes out.</summary>
+/// <remarks>It finds such places, connects to one, hands it what to play and drives transport on
+/// it. It does not decide what the show is — it is told. The screens reach the host through one of
+/// these too; that one is core rather than a plugin. See <c>docs/display-provider.md</c> for the
+/// shape's reasoning.
 ///
 /// <para>An extension point: a plugin IMPLEMENTS it and the host discovers it, listing it as
 /// "Display provider" on the Plugins page. The plugin's object is one singleton shared across every
@@ -17,20 +16,19 @@ namespace KHost.Abstractions.Services;
 /// disconnects every other provider, and the provider whose <see cref="ConnectedDeviceId"/> is set
 /// is the one the song goes to. A provider refuses a second device rather than driving two.</para>
 ///
-/// <para><b>The host drives transport; the provider owns presentation.</b> The host calls only the
-/// loading, transport, stem and second-channel members. Everything drawn on the device — the words,
-/// the marquee, cards, pictures — and the device's volume are the provider's own business: it reads
-/// what it needs from the host's services and messages and sends it to its own device. The drawable
-/// members have default bodies that do nothing, so a provider implements what its device can do and
-/// ignores the rest.</para>
+/// <para><b>The host drives transport; the provider owns presentation.</b> This interface is
+/// transport and control only. Everything drawn on the device — the words, the marquee, cards,
+/// pictures — and the device's volume are the provider's own business: it reads what it needs from
+/// the host's services and messages and sends it to its device however that device takes it.</para>
 ///
 /// <para><b>What a provider can read to draw with.</b> What is on the main channel is
 /// <see cref="IPlaybackService.CurrentProgram"/>; who sings next is <see cref="IUpNextService"/>; the
 /// venue's QR code is <see cref="IQrCodeOfferService"/>; the card naming who is up arrives as
 /// <see cref="KHost.Abstractions.Messaging.Messages.NextSingerAnnounced"/>; the break music is
-/// <see cref="IBreakMusicService"/>; a song's words are <see cref="ITimedLyricsService"/>. Each
-/// names the message that says it moved. <see cref="IPlaybackService"/> depends on every display
-/// provider, so a provider must not take it in its constructor: resolve it on first use.</para>
+/// <see cref="IBreakMusicService"/>; a song's words are <see cref="ITimedLyricsService"/>; the venue's
+/// marquee and overlay settings are on <see cref="IVenuesService"/>. Each names the message that says
+/// it moved. <see cref="IPlaybackService"/> depends on every display provider, so a provider must not
+/// take it in its constructor: resolve it on first use.</para>
 ///
 /// <para>Announce <see cref="KHost.Abstractions.Messaging.Messages.DisplaysChanged"/> whenever the
 /// device list, the connection or the <see cref="SessionId"/> moves. The host re-reads the
@@ -78,8 +76,7 @@ public interface IDisplayProvider
     Task StopDiscoveryAsync(CancellationToken cancellationToken = default);
 
     /// <summary>Every device this transport currently knows, connected or not.</summary>
-    /// <remarks>Read often and from any thread, so answer from memory. The connected device's entry
-    /// is where the host reads what it can do; see <see cref="DisplayDevice"/>.</remarks>
+    /// <remarks>Read often and from any thread, so answer from memory.</remarks>
     IReadOnlyList<DisplayDevice> Devices { get; }
 
     // --- connection ---
@@ -111,50 +108,24 @@ public interface IDisplayProvider
 
     // --- transport ---
 
-    /// <summary>What the connected device can take, which decides what the host asks a renderer to
-    /// produce for it.</summary>
-    /// <remarks>Asked on every load, only of the provider that is connected, so answer from memory.
-    /// An answer that throws or is null is taken as asking for nothing special.
+    /// <summary>What the connected device wants rendered for it, which decides what the host asks a
+    /// renderer to produce.</summary>
+    /// <remarks>Asked on every load and every reconnect, only of the provider that is connected, so
+    /// answer from memory. An answer that throws or is null is taken as asking for nothing special.
     ///
-    /// <para>Has a default body: <see cref="RenderTarget.MixesStems"/> when the connected device's
-    /// entry in <see cref="Devices"/> claims <see cref="DisplayDevice.SupportsStemMix"/>, and every
-    /// other flag false. Override it to ask for more — <see cref="RenderTarget.BurnLyrics"/> for a
-    /// device that shows a picture but cannot draw words — keeping it in step with what
-    /// <see cref="Devices"/> claims.</para></remarks>
-    RenderTarget DescribeTarget()
-    {
-        var device = Devices.FirstOrDefault(d => d.Id == ConnectedDeviceId)
-            ?? Devices.FirstOrDefault(d => d.IsConnected);
+    /// <para>Has a default body answering <see cref="RenderTarget.None"/>: one stream, mixed and
+    /// without burned words. Override it to ask for <see cref="RenderTarget.MixesStems"/> — which
+    /// commits the provider to playing <see cref="DisplayLoad.Stems"/> and answering
+    /// <see cref="SetStemVolumeAsync"/> — or <see cref="RenderTarget.BurnLyrics"/> for a device that
+    /// shows a picture but cannot draw words.</para></remarks>
+    RenderTarget DescribeTarget() => RenderTarget.None;
 
-        return device is { SupportsStemMix: true }
-            ? new RenderTarget { MixesStems = true }
-            : RenderTarget.None;
-    }
-
-    /// <summary>Loads a stream the host encoded, ready to play but not playing.</summary>
-    /// <param name="streamUrl">What to play end to end.</param>
-    /// <param name="startOffset">The song position the stream's zero maps to; add it to every
-    /// position reported back.</param>
-    /// <param name="tempo">Percent the stream was retimed by; converts the device's seconds back to
-    /// song seconds.</param>
-    /// <param name="cancellationToken">Abandons the load.</param>
-    /// <remarks>The minimum a provider must implement to put a song out. The host never calls it
-    /// directly: it calls the <see cref="LoadMediaCommand"/> overload, whose default body forwards
-    /// here.</remarks>
-    Task LoadAsync(string streamUrl, TimeSpan startOffset, int tempo = 0, CancellationToken cancellationToken = default);
-
-    /// <summary>The whole load, including stems for a device that mixes them itself.</summary>
+    /// <summary>Loads one song or clip, ready to play but not playing.</summary>
     /// <remarks>The call the host makes for every song, every ad clip on the main channel, and every
     /// reload after a key, tempo or mix change, which reopens the stream at the playhead. Play
     /// follows separately. A provider that draws the words reads them for itself during this call,
-    /// before play, so they are in place before the first syllable.
-    ///
-    /// <para>Has a default body forwarding the stream to the other overload, so a provider that has
-    /// not heard of stems keeps working and simply plays what the host already mixed. Override it
-    /// only alongside <see cref="DisplayDevice.SupportsStemMix"/>; the two are one claim made in two
-    /// places.</para></remarks>
-    Task LoadAsync(LoadMediaCommand media, CancellationToken cancellationToken = default)
-        => LoadAsync(media.StreamUrl, media.StreamStartOffset, media.Tempo, cancellationToken);
+    /// before play, so they are in place before the first syllable.</remarks>
+    Task LoadAsync(DisplayLoad load, CancellationToken cancellationToken = default);
 
     /// <summary>Starts or resumes what was loaded.</summary>
     Task PlayAsync(CancellationToken cancellationToken = default);
@@ -178,75 +149,13 @@ public interface IDisplayProvider
         => Task.CompletedTask;
 
     /// <summary>Moves one voice against the music, on a display that mixes the stems itself.</summary>
-    /// <remarks>Only ever sent to a device whose <see cref="DisplayDevice.SupportsStemMix"/> is set;
-    /// anything else was handed a stream the host already mixed, where the levels are baked in.
-    /// Has a default body that does nothing.</remarks>
-    Task SetStemVolumeAsync(SetStemVolumeCommand stem, CancellationToken cancellationToken = default)
-        => Task.CompletedTask;
-
-    // --- drawable ---
-    //
-    // Every one has a default body, which is what makes the full surface honest for a device that
-    // cannot draw: a receiver's provider implements the transport above and ignores all of this.
-    // The same deliberate exception IMediaPlaybackGate.Claims and IPluginButtonHandler.DescribeButton
-    // are. What a device can actually show is on DisplayDevice, so the host need not send what
-    // will not land.
-
-    /// <summary>Hands the device a song's words and their timing, to draw over the song.</summary>
-    /// <remarks>The host does not call this; presentation is the provider's. A provider whose device
-    /// draws words reads them from <see cref="ITimedLyricsService"/> while loading and sends them
-    /// itself. A device that cannot draw them can still show them: ask for
-    /// <see cref="RenderTarget.BurnLyrics"/> through <see cref="DescribeTarget"/>, and a renderer
-    /// able to may burn them into the picture. Has a default body that does nothing.</remarks>
-    Task SetTimedLyricsAsync(SetTimedLyricsCommand lyrics, CancellationToken cancellationToken = default)
-        => Task.CompletedTask;
-
-    /// <summary>Hands the device the marquee, whole.</summary>
-    /// <remarks>The host does not call this; presentation is the provider's. The content comes from
-    /// <see cref="IScreenMarqueeService.BuildAsync"/>, which names the singers
-    /// <see cref="IUpNextService"/> does; ask again on
-    /// <see cref="KHost.Abstractions.Messaging.Messages.SelectedVenueChanged"/> and
-    /// <see cref="KHost.Abstractions.Messaging.Messages.UpNextChanged"/>. Has a default body that
-    /// does nothing.</remarks>
-    Task SetMarqueeAsync(SetMarqueeCommand marquee, CancellationToken cancellationToken = default)
-        => Task.CompletedTask;
-
-    /// <summary>Hands the device the QR codes to show, whole; an empty set clears them.</summary>
-    /// <remarks>The host does not call this; presentation is the provider's. What to show comes from
-    /// <see cref="IQrCodeOfferService"/>, which names when to read it again. Has a default body
-    /// that does nothing.</remarks>
-    Task SetQrCodesAsync(SetScreenQrCodesCommand codes, CancellationToken cancellationToken = default)
-        => Task.CompletedTask;
-
-    /// <summary>Puts up the card naming who sings next.</summary>
-    /// <remarks>The host does not call this; presentation is the provider's. The card arrives as
-    /// <see cref="KHost.Abstractions.Messaging.Messages.NextSingerAnnounced"/> when a host asks for
-    /// it. Has a default body that does nothing.</remarks>
-    Task ShowNextSingerAsync(ShowNextSingerCommand card, CancellationToken cancellationToken = default)
-        => Task.CompletedTask;
-
-    /// <summary>Puts up, or takes down, the card naming the break music, sent whole on change.</summary>
-    /// <remarks>The host does not call this; presentation is the provider's. Has a default body
-    /// that does nothing.</remarks>
-    Task SetBreakMusicCardAsync(SetBreakMusicCardCommand card, CancellationToken cancellationToken = default)
-        => Task.CompletedTask;
-
-    /// <summary>Puts a still up, such as the venue's card or an ad's; it stays until taken down.</summary>
-    /// <remarks>The host does not call this; presentation is the provider's. An ad's still is
-    /// <see cref="PlaybackProgram.AdStill"/> on <see cref="IPlaybackService.CurrentProgram"/>. Has a
-    /// default body that does nothing.</remarks>
-    Task ShowImageAsync(ShowImageCommand image, CancellationToken cancellationToken = default)
-        => Task.CompletedTask;
-
-    /// <summary>Takes down whatever <see cref="ShowImageAsync"/> put up.</summary>
-    /// <remarks>The host does not call this. Has a default body that does nothing.</remarks>
-    Task HideImageAsync(CancellationToken cancellationToken = default)
-        => Task.CompletedTask;
-
-    /// <summary>Blanks or restores the song's picture without stopping playback.</summary>
-    /// <remarks>The host does not call this. Has a default body that does nothing.</remarks>
-    Task SetVideoAsync(bool enabled, CancellationToken cancellationToken = default)
-        => Task.CompletedTask;
+    /// <returns>True when the device took the new level. False when it cannot ride it — it was
+    /// handed a stream the host already mixed — and the host then rebuilds the stream at the
+    /// playhead with the new mix instead.</returns>
+    /// <remarks>Called only while the loaded song carries <see cref="DisplayLoad.Stems"/>. Has a
+    /// default body answering false.</remarks>
+    Task<bool> SetStemVolumeAsync(StemLevel level, CancellationToken cancellationToken = default)
+        => Task.FromResult(false);
 
     // --- the second audio channel: break music and an ad's bed ---
 
@@ -255,7 +164,7 @@ public interface IDisplayProvider
     /// <remarks>Called by the host's library break music and for an ad's own voiceover. A device that
     /// keeps the default, which does nothing, simply plays no host-carried break music, while
     /// the host still treats the track as playing.</remarks>
-    Task LoadBackgroundAsync(LoadBackgroundCommand background, CancellationToken cancellationToken = default)
+    Task LoadBackgroundAsync(BackgroundLoad background, CancellationToken cancellationToken = default)
         => Task.CompletedTask;
 
     /// <summary>Starts or resumes the second channel. Has a default body that does nothing.</summary>
@@ -295,13 +204,9 @@ public sealed class DisplayPlaybackStatus
     public required DateTime SampledAtUtc { get; init; }
 }
 
-/// <summary>One place a song can come out, and what it can show once it is there.</summary>
-/// <remarks>The capabilities sit here rather than on the provider: a provider may reach devices of
-/// differing ability, and the host is asking about the thing in the room. One flag per drawn thing
-/// rather than one for all of them, because the host answers each differently — lyrics are fixed
-/// for the whole song and can be burned into the stream by a renderer for a device that cannot
-/// draw them, while a marquee that rescrolls on every venue edit would mean restarting the encode,
-/// so it is simply left off.</remarks>
+/// <summary>One place a song can come out.</summary>
+/// <remarks>What the device wants rendered is not here: the provider answers that through
+/// <see cref="IDisplayProvider.DescribeTarget"/>, and what it draws is its own business.</remarks>
 public sealed class DisplayDevice
 {
     /// <summary>Identifies the device within its provider; what
@@ -329,23 +234,4 @@ public sealed class DisplayDevice
     /// cannot fade must say so or every stop buys that many seconds of silence before the queue
     /// moves on. A receiver driven over its own transport has no mixer to ride down.</remarks>
     public bool SupportsFade { get; init; }
-
-    /// <summary>Takes the stems unmixed and rides the levels itself.</summary>
-    /// <remarks>Changes what the host does, not only what it sends: on a device without this, a mix
-    /// change reopens the stream at the playhead, which the room hears. A device with it is sent a
-    /// gain instead and nothing is re-encoded. The host then need not encode the song at all for
-    /// such a device, so the stems must be something it can decode on its own.</remarks>
-    public bool SupportsStemMix { get; init; }
-
-    /// <summary>Draws a song's words itself, from the timing the host hands over.</summary>
-    public bool SupportsLyrics { get; init; }
-
-    /// <summary>Draws the venue's scrolling marquee; a device without it shows none.</summary>
-    public bool SupportsMarquee { get; init; }
-    /// <summary>Draws the QR code the venue has chosen to show; a device without it shows none.</summary>
-    public bool SupportsQrCodes { get; init; }
-
-    /// <summary>Anything put up as a picture rather than a layer: the next-singer card, the
-    /// break-music card, and a plain shown image, which already share that shape.</summary>
-    public bool SupportsImage { get; init; }
 }

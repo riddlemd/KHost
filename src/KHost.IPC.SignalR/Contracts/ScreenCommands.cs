@@ -1,11 +1,9 @@
 using KHost.Abstractions.Models;
 using System.Text.Json.Serialization;
 
-namespace KHost.Abstractions.Services.IPC;
+namespace KHost.IPC.SignalR.Contracts;
 
-/// <summary>Base for every command the host sends to its own LocalScreen app. Host-only wire
-/// protocol: a plugin's own display talks to its device through <see
-/// cref="IDisplayProvider"/> instead, never through these types directly.</summary>
+/// <summary>Base for every command the host sends to its own LocalScreen app.</summary>
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "$type")]
 [JsonDerivedType(typeof(LoadMediaCommand), "loadMedia")]
 [JsonDerivedType(typeof(PlayCommand), "play")]
@@ -31,8 +29,6 @@ public abstract class ScreenCommandBase : IScreenCommand { }
 
 /// <summary>Loads one song or clip, ready to play but not playing: a stream to play end to end,
 /// stems to mix, or both.</summary>
-/// <remarks>Also what <see cref="IDisplayProvider.LoadAsync(LoadMediaCommand, CancellationToken)"/>
-/// hands a plugin display.</remarks>
 public sealed class LoadMediaCommand : ScreenCommandBase
 {
     /// <summary>The host transcodes; the display plays the stream, with no decoder of its own.</summary>
@@ -179,10 +175,10 @@ public sealed class ScreenQrCodePlacement
     public string? Caption { get; init; }
 
     /// <summary>Which corner it sits in.</summary>
-    public ScreenCorner Corner { get; init; }
+    public OverlayCorner Corner { get; init; }
 
     /// <summary>How big it is drawn.</summary>
-    public ScreenQrSize Size { get; init; }
+    public QrCodeSize Size { get; init; }
 
     /// <summary>Modules across; the picture carries no quiet zone (see <see cref="SafeZone"/>).</summary>
     public int Modules { get; init; }
@@ -207,7 +203,7 @@ public sealed class SetBreakMusicCardCommand : ScreenCommandBase
     public string? Artist { get; init; }
 
     /// <summary>Which corner it sits in; shares the corner rather than covering what's there.</summary>
-    public ScreenCorner Corner { get; init; }
+    public OverlayCorner Corner { get; init; }
 
     /// <summary>Inset from the edges as a percent of the shorter side; a property of the corner.</summary>
     public double Offset { get; init; }
@@ -256,8 +252,7 @@ public sealed class SetTimedLyricsCommand : ScreenCommandBase
     public required TimedLyrics? Lyrics { get; init; }
 }
 
-/// <summary>Base for state the LocalScreen app reports back to the host. Host-only wire protocol;
-/// a plugin's own display reports through <see cref="IDisplayProvider"/> instead.</summary>
+/// <summary>Base for state the LocalScreen app reports back to the host.</summary>
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "$type")]
 [JsonDerivedType(typeof(ScreenPlaybackState), "playback")]
 [JsonDerivedType(typeof(ScreenBackgroundState), "background")]

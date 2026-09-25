@@ -38,7 +38,7 @@ public class SettingsButtonDisplayTests : BunitContext
         _screens.SearchesForDevices.Returns(false);
         _cast.SearchesForDevices.Returns(true);
 
-        _screens.Devices.Returns([Device("Screen 1", "Local Display", model: "This computer", lyrics: true)]);
+        _screens.Devices.Returns([Device("Screen 1", "Local Display", model: "This computer")]);
         _cast.Devices.Returns([]);
 
         _providers = [_screens, _cast];
@@ -64,14 +64,13 @@ public class SettingsButtonDisplayTests : BunitContext
     }
 
     private static DisplayDevice Device(
-        string id, string name, string? model = null, string? address = null, bool lyrics = false)
+        string id, string name, string? model = null, string? address = null)
         => new()
         {
             Id = id,
             Name = name,
             Model = model,
             Address = address,
-            SupportsLyrics = lyrics,
         };
 
     private static void Connect(IDisplayProvider provider, string deviceId)
@@ -157,18 +156,6 @@ public class SettingsButtonDisplayTests : BunitContext
         var live = Row(rows, "Local Display");
 
         Assert.Contains("kh-dropdown__item--selected", live.ClassName);
-    }
-
-    /// <summary>A device that cannot draw the words is chosen knowing that, or the host finds out
-    /// when the room does.</summary>
-    [Fact]
-    public void TheFlyout_MarksADeviceThatCannotShowTheWords()
-    {
-        _cast.Devices.Returns([Device("tv-1", "Living Room TV")]);
-
-        var (menu, _) = OpenDisplaySection();
-
-        Assert.Contains("no words", menu.Markup);
     }
 
     [Fact]

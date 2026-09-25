@@ -152,8 +152,8 @@ public class EditVenueDialogQrCodeTests : BunitContext
     {
         var cut = Render(new Venue.VenueSettings { QrCodeSource = "any" });
 
-        Assert.Equal(nameof(ScreenCorner.BottomRight), cut.Find(CornerSelector).GetAttribute("value"));
-        Assert.Equal(nameof(ScreenQrSize.Medium), cut.Find(SizeSelector).GetAttribute("value"));
+        Assert.Equal(nameof(OverlayCorner.BottomRight), cut.Find(CornerSelector).GetAttribute("value"));
+        Assert.Equal(nameof(QrCodeSize.Medium), cut.Find(SizeSelector).GetAttribute("value"));
         Assert.False(cut.Find(HideSelector).HasAttribute("checked"));
     }
 
@@ -163,13 +163,13 @@ public class EditVenueDialogQrCodeTests : BunitContext
         var cut = Render(new Venue.VenueSettings
         {
             QrCodeSource = "any",
-            QrCodeCorner = ScreenCorner.TopLeft,
-            QrCodeSize = ScreenQrSize.Large,
+            QrCodeCorner = OverlayCorner.TopLeft,
+            QrCodeSize = QrCodeSize.Large,
             QrCodeHideDuringSong = true,
         });
 
-        Assert.Equal(nameof(ScreenCorner.TopLeft), cut.Find(CornerSelector).GetAttribute("value"));
-        Assert.Equal(nameof(ScreenQrSize.Large), cut.Find(SizeSelector).GetAttribute("value"));
+        Assert.Equal(nameof(OverlayCorner.TopLeft), cut.Find(CornerSelector).GetAttribute("value"));
+        Assert.Equal(nameof(QrCodeSize.Large), cut.Find(SizeSelector).GetAttribute("value"));
         Assert.True(cut.Find(HideSelector).HasAttribute("checked"));
     }
 
@@ -179,14 +179,14 @@ public class EditVenueDialogQrCodeTests : BunitContext
         Venue? saved = null;
         var cut = Render(new Venue.VenueSettings { QrCodeSource = "any" }, venue => saved = venue);
 
-        cut.Find(CornerSelector).Change(nameof(ScreenCorner.TopRight));
-        cut.Find(SizeSelector).Change(nameof(ScreenQrSize.Small));
+        cut.Find(CornerSelector).Change(nameof(OverlayCorner.TopRight));
+        cut.Find(SizeSelector).Change(nameof(QrCodeSize.Small));
         cut.Find(HideSelector).Change(true);
         cut.Find("form").Submit();
 
         Assert.NotNull(saved);
-        Assert.Equal(ScreenCorner.TopRight, saved!.Settings.QrCodeCorner);
-        Assert.Equal(ScreenQrSize.Small, saved.Settings.QrCodeSize);
+        Assert.Equal(OverlayCorner.TopRight, saved!.Settings.QrCodeCorner);
+        Assert.Equal(QrCodeSize.Small, saved.Settings.QrCodeSize);
         Assert.True(saved.Settings.QrCodeHideDuringSong);
     }
 
@@ -200,8 +200,8 @@ public class EditVenueDialogQrCodeTests : BunitContext
         cut.Find("form").Submit();
 
         Assert.NotNull(saved);
-        Assert.Equal(ScreenCorner.BottomRight, saved!.Settings.QrCodeCorner);
-        Assert.Equal(ScreenQrSize.Medium, saved.Settings.QrCodeSize);
+        Assert.Equal(OverlayCorner.BottomRight, saved!.Settings.QrCodeCorner);
+        Assert.Equal(QrCodeSize.Medium, saved.Settings.QrCodeSize);
     }
 
     private IRenderedComponent<EditVenueDialog> Render(

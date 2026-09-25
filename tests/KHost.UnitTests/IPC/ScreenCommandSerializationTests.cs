@@ -2,7 +2,7 @@ using KHost.Abstractions.Models;
 using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using KHost.Abstractions.Services.IPC;
+using KHost.IPC.SignalR.Contracts;
 
 namespace KHost.UnitTests.IPC;
 
@@ -52,7 +52,7 @@ public class ScreenCommandSerializationTests
             Enabled = true,
             Title = "Free Fallin'",
             Artist = "Tom Petty",
-            Corner = ScreenCorner.BottomLeft,
+            Corner = OverlayCorner.BottomLeft,
             Offset = 1.5,
         },
         [nameof(SetTimedLyricsCommand)] = new SetTimedLyricsCommand
@@ -100,8 +100,8 @@ public class ScreenCommandSerializationTests
                 {
                     ImageUrl = "data:image/svg+xml;base64,PHN2Zy8+",
                     Caption = "Scan to join the queue",
-                    Corner = ScreenCorner.TopLeft,
-                    Size = ScreenQrSize.Large,
+                    Corner = OverlayCorner.TopLeft,
+                    Size = QrCodeSize.Large,
                 },
             ],
         },

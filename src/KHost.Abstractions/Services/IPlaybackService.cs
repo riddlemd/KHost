@@ -70,7 +70,7 @@ public interface IPlaybackService : IDisposable
     /// <remarks>Moves only with <see cref="KHost.Abstractions.Messaging.Messages.PlaybackChanged"/>,
     /// which is its announcement; that message also fires when the program has not moved, so
     /// compare by value. Set before the display is handed the load, so a provider reading it during
-    /// <see cref="IDisplayProvider.LoadAsync(Services.IPC.LoadMediaCommand, CancellationToken)"/>
+    /// <see cref="IDisplayProvider.LoadAsync"/>
     /// sees the program being loaded.</remarks>
     PlaybackProgram CurrentProgram { get; }
 

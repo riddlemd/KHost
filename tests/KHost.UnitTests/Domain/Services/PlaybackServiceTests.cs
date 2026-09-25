@@ -2,7 +2,7 @@ using KHost.Abstractions.Messaging;
 using KHost.Abstractions.Exceptions;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
-using KHost.Abstractions.Services.IPC;
+using KHost.IPC.SignalR.Contracts;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -1063,12 +1063,10 @@ public class PlaybackServiceTests : IDisposable
         await _service.PlayAsync();
 
         // A receiver is not a screen, so nothing broadcasts to it; playback has to drive it.
-        // Asserted on the command rather than the bare URL: a provider that cannot mix reaches its
-        // own LoadAsync through the default body, which a substitute does not run.
         await _display.Received(1).LoadAsync(
-            Arg.Is<LoadMediaCommand>(c =>
+            Arg.Is<DisplayLoad>(c =>
                 c.StreamUrl == "http://host/media/stream-1/stream.m3u8"
-                && c.StreamStartOffset == TimeSpan.Zero
+                && c.StartOffset == TimeSpan.Zero
                 && c.Tempo == 0),
             Arg.Any<CancellationToken>());
         await _display.Received(1).PlayAsync(Arg.Any<CancellationToken>());
@@ -1084,8 +1082,7 @@ public class PlaybackServiceTests : IDisposable
         await _service.PlayAsync();
         await _service.PauseAsync();
 
-        await _display.DidNotReceive().LoadAsync(
-            Arg.Any<string>(), Arg.Any<TimeSpan>(), Arg.Any<int>(), Arg.Any<CancellationToken>());
+        await _display.DidNotReceive().LoadAsync(Arg.Any<DisplayLoad>(), Arg.Any<CancellationToken>());
         await _display.DidNotReceive().PlayAsync(Arg.Any<CancellationToken>());
     }
 
@@ -1190,8 +1187,7 @@ public class PlaybackServiceTests : IDisposable
         await _broker.PublishAsync(new DisplaysChanged());
         await Task.Delay(100);
 
-        await _display.DidNotReceive().LoadAsync(
-            Arg.Any<string>(), Arg.Any<TimeSpan>(), Arg.Any<int>(), Arg.Any<CancellationToken>());
+        await _display.DidNotReceive().LoadAsync(Arg.Any<DisplayLoad>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -1202,8 +1198,7 @@ public class PlaybackServiceTests : IDisposable
 
         // Nothing is open to hand over, and opening one to fill the silence would start an
         // ffmpeg for a song no one asked for.
-        await _display.DidNotReceive().LoadAsync(
-            Arg.Any<string>(), Arg.Any<TimeSpan>(), Arg.Any<int>(), Arg.Any<CancellationToken>());
+        await _display.DidNotReceive().LoadAsync(Arg.Any<DisplayLoad>(), Arg.Any<CancellationToken>());
     }
 
     /// <summary>Selecting a device, as the Screens dialog does: a connection and an announcement.</summary>
@@ -1540,7 +1535,7 @@ public class PlaybackServiceTests : IDisposable
         await _broker.PublishAsync(new DisplaysChanged());
         await Task.Delay(100);
 
-        await _display.DidNotReceive().LoadAsync(Arg.Any<LoadMediaCommand>(), Arg.Any<CancellationToken>());
+        await _display.DidNotReceive().LoadAsync(Arg.Any<DisplayLoad>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -1589,14 +1584,8 @@ public class PlaybackServiceTests : IDisposable
         // A device hearing the host's own mix needs the encode, so offering stems is waste.
         ConnectScreens(0);
         _display.ConnectedDeviceId.Returns("Living Room TV");
-        _display.Devices.Returns([new DisplayDevice
-        {
-            Id = "Living Room TV",
-            Name = "Living Room TV",
-            IsConnected = true,
-            SupportsAudio = true,
-            SupportsStemMix = false,
-        }]);
+        _display.Devices.Returns([new DisplayDevice { Id = "Living Room TV", Name = "Living Room TV", IsConnected = true, SupportsAudio = true }]);
+        _display.DescribeTarget().Returns(RenderTarget.None);
 
         var (performance, media) = CreatePerformance();
         await _service.LoadAsync(performance, media);
@@ -1669,6 +1658,58 @@ public class PlaybackServiceTests : IDisposable
 
         Assert.True(await WaitForStreamsOpenedAsync(2));
         Assert.Null(LastBroadcast<SetStemVolumeCommand>());
+    }
+
+    /// <summary>The display's own answer decides: one that cannot ride the level still hears the
+    /// new mix, because the host bakes it into a rebuilt stream.</summary>
+    [Fact]
+    public async Task SetLeadVolume_TheDisplayRefusesTheLevel_ReloadsItWithTheNewMix()
+    {
+        await StemsOnAReceiverAsync(ridesTheLevel: false);
+
+        await _service.SetLeadVolumeAsync(55);
+
+        await _display.Received(1).SetStemVolumeAsync(
+            Arg.Is<StemLevel>(level => level.Role == AudioTrackRole.Lead && level.Volume == 55), Arg.Any<CancellationToken>());
+        Assert.True(await WaitForDisplayLoadsAsync(2));
+        Assert.Equal(55, _renderer.LastRequest?.Mix?.LeadVolume);
+    }
+
+    [Fact]
+    public async Task SetLeadVolume_TheDisplayRidesTheLevel_ReloadsNothing()
+    {
+        await StemsOnAReceiverAsync(ridesTheLevel: true);
+
+        await _service.SetLeadVolumeAsync(55);
+        await Task.Delay(100);
+
+        Assert.Equal(1, DisplayLoads());
+        Assert.Equal(PlaybackState.Playing, _service.State);
+    }
+
+    private async Task StemsOnAReceiverAsync(bool ridesTheLevel)
+    {
+        ConnectScreens(0);
+        _display.ConnectedDeviceId.Returns("Living Room TV");
+        _display.DescribeTarget().Returns(new RenderTarget { MixesStems = true });
+        _display.SetStemVolumeAsync(Arg.Any<StemLevel>(), Arg.Any<CancellationToken>()).Returns(ridesTheLevel);
+        TracksAre(AudioTrackRole.Music, AudioTrackRole.Lead);
+        RendererOffersStems(AudioTrackRole.Music, AudioTrackRole.Lead);
+
+        var (performance, media) = CreatePerformance();
+        await _service.LoadAsync(performance, media);
+        await _service.PlayAsync();
+
+        Assert.Equal(1, DisplayLoads());
+    }
+
+    private int DisplayLoads()
+        => _display.ReceivedCalls().Count(c => c.GetMethodInfo().Name == nameof(IDisplayProvider.LoadAsync));
+
+    private async Task<bool> WaitForDisplayLoadsAsync(int count)
+    {
+        for (var i = 0; i < 100 && DisplayLoads() < count; i++) await Task.Delay(10);
+        return DisplayLoads() >= count;
     }
 
     private TCommand? LastBroadcast<TCommand>() where TCommand : class, IScreenCommand
@@ -3550,7 +3591,7 @@ public class PlaybackServiceTests : IDisposable
 
         // It keeps its own clock in stream seconds, so it cannot recover song time without this.
         await _display.Received(1).LoadAsync(
-            Arg.Is<LoadMediaCommand>(c => c.Tempo == -30), Arg.Any<CancellationToken>());
+            Arg.Is<DisplayLoad>(c => c.Tempo == -30), Arg.Any<CancellationToken>());
     }
 
     [Fact]
