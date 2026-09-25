@@ -113,6 +113,7 @@ internal sealed class StreamMediaPlayer : IMediaPlayer
             {
                 index = s.Index,
                 role = s.Role.ToString(),
+                voice = s.Voice,
                 url = s.Url,
                 volume = s.Volume,
             }).ToArray(),
@@ -120,10 +121,10 @@ internal sealed class StreamMediaPlayer : IMediaPlayer
     }
 
     /// <summary>Moves one voice where the page is mixing; nothing is re-encoded.</summary>
-    public void SetStemVolume(AudioTrackRole role, int volume)
+    public void SetStemVolume(AudioTrackRole role, string? voice, int volume)
     {
-        _logger.LogInformation("Stem {Role} to {Volume}", role, volume);
-        Send(new { type = "stem-volume", role = role.ToString(), volume });
+        _logger.LogInformation("Stem {Role} ({Voice}) to {Volume}", role, voice ?? "no voice", volume);
+        Send(new { type = "stem-volume", role = role.ToString(), voice, volume });
     }
 
     /// <summary>Kept here, not in the page: it turns the page's own report stamps into host time.</summary>

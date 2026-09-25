@@ -113,6 +113,9 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
     public int LeadVolume { get; private set; }
     public int BackingVolume { get; private set; } = AudioMix.DefaultBackingVolume;
 
+    // Replaced whole on every change, never edited: a mix handed to a renderer holds the old one.
+    public IReadOnlyDictionary<string, int> VoiceVolumes { get; private set; } = new Dictionary<string, int>();
+
     /// <summary>Song seconds per wall-clock second, from the open stream not the wanted tempo.</summary>
     /// <remarks>The room is still on the old rate until the stream reopens.</remarks>
     private double Rate => _rendition is { } rendition ? StreamRate.FromTempo(rendition.Tempo) : 1.0;
@@ -244,6 +247,12 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         // would otherwise keep whatever its tracks were called at import.
         //
         AudioTracks = await _audioTracks.ReadTracksAsync(media.FilePath);
+
+        // An entry for every voice, so the unnamed lead's level never reaches a named singer's stem.
+        VoiceVolumes = VoicesIn(AudioTracks).ToDictionary(
+            voice => voice,
+            voice => AudioLevels.ClampVolume(
+                performance.VoiceVolumes?.GetValueOrDefault(voice, AudioMix.DefaultLeadVolume) ?? AudioMix.DefaultLeadVolume));
 
         _sessionActivity = _analytics.StartActivity(AnalyticActivities.Session);
         _sessionActivity.SetTag("media_id", media.Id);
@@ -504,7 +513,12 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
 
     /// <summary>What the open stream is mixed to, or null when the file has nothing to balance.</summary>
     private AudioMix? CurrentMix =>
-        AudioTracks.Count == 0 ? null : new AudioMix(AudioTracks, LeadVolume, BackingVolume);
+        AudioTracks.Count == 0 ? null : new AudioMix(AudioTracks, LeadVolume, BackingVolume) { VoiceVolumes = VoiceVolumes };
+
+    private static IEnumerable<string> VoicesIn(IEnumerable<AudioTrack> tracks) => tracks
+        .Where(t => t.Role == AudioTrackRole.Lead && t.Voice is not null)
+        .Select(t => t.Voice!)
+        .Distinct(StringComparer.Ordinal);
 
     public async Task SetLeadVolumeAsync(int volume)
     {
@@ -530,6 +544,24 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         await AfterMixChangeAsync(AudioTrackRole.Backing, target);
     }
 
+    public async Task SetVoiceVolumeAsync(string voice, int volume)
+    {
+        var target = AudioLevels.ClampVolume(volume);
+
+        if (!VoiceVolumes.TryGetValue(voice, out var current))
+        {
+            Logger.LogWarning("No lead in this song is sung by {Voice}; level left alone", voice);
+            return;
+        }
+
+        if (target == current) return;
+
+        VoiceVolumes = new Dictionary<string, int>(VoiceVolumes) { [voice] = target };
+        Logger.LogInformation("Lead vocal for {Voice} set to {Volume}%", voice, target);
+
+        await AfterMixChangeAsync(AudioTrackRole.Lead, target, voice);
+    }
+
     public async Task SetTempoAsync(int tempo)
     {
         var target = Math.Clamp(tempo, IPlaybackService.MinTempo, IPlaybackService.MaxTempo);
@@ -545,9 +577,9 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
     /// <summary>A moved voice, which a mixing display takes as a gain rather than a new encode.</summary>
     /// <remarks>Falls through to the rebuild whenever the displays cannot do it themselves, so this
     /// is a shortcut past <see cref="AfterRateChangeAsync"/> and never a second way of doing it.</remarks>
-    private async Task AfterMixChangeAsync(AudioTrackRole role, int volume)
+    private async Task AfterMixChangeAsync(AudioTrackRole role, int volume, string? voice = null)
     {
-        if (await TryMoveStemAsync(role, volume))
+        if (await TryMoveStemAsync(role, volume, voice))
         {
             // The rebuild path announces and persists on its way through; this one still must.
             _broker.Announce(new PlaybackChanged());
@@ -605,6 +637,14 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         performance.Tempo = Tempo;
         performance.LeadVolume = LeadVolume;
         performance.BackingVolume = BackingVolume;
+
+        // Merged, not replaced: a song whose probe came back empty must not wipe how it was sung.
+        if (VoiceVolumes.Count > 0)
+        {
+            var voices = performance.VoiceVolumes is null ? [] : new Dictionary<string, int>(performance.VoiceVolumes);
+            foreach (var (voice, level) in VoiceVolumes) voices[voice] = level;
+            performance.VoiceVolumes = voices;
+        }
 
         try
         {
@@ -850,6 +890,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         AudioTracks = [];
         LeadVolume = AudioMix.DefaultLeadVolume;
         BackingVolume = Options.DefaultBackingVolume;
+        VoiceVolumes = new Dictionary<string, int>();
     }
 
     /// <summary>Throws when the transcode will not start: there is no playback without it.</summary>
@@ -1013,20 +1054,10 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         }
     }
 
-    /// <summary>The same levels <c>BuildMixGraph</c> compiles into ffmpeg, so neither path drifts.</summary>
-    private int LevelFor(AudioTrackRole role) => role switch
-    {
-        AudioTrackRole.Lead => LeadVolume,
-        AudioTrackRole.Backing => BackingVolume,
-
-        // The music is the reference the voices are set against, and carries no level of its own.
-        _ => AudioMix.MaxVolume,
-    };
-
     /// <summary>Moves a voice on the displays instead of rebuilding the stream, where that works.</summary>
     /// <returns>False when the display is hearing the host's own mix, which only a new encode can
     /// change.</returns>
-    private async Task<bool> TryMoveStemAsync(AudioTrackRole role, int volume)
+    private async Task<bool> TryMoveStemAsync(AudioTrackRole role, int volume, string? voice)
     {
         if (_rendition is not { Stems.Count: > 0 }) return false;
         if (ConnectedDisplay.Find(_displays) is not { Provider: var display }) return false;
@@ -1034,7 +1065,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         // A throw counts as a refusal: a change that silently never lands is worse than a rebuild.
         try
         {
-            return await display.SetStemVolumeAsync(new StemLevel { Role = role, Volume = volume });
+            return await display.SetStemVolumeAsync(new StemLevel { Role = role, Voice = voice, Volume = volume });
         }
         catch (Exception ex)
         {

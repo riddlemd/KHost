@@ -364,6 +364,9 @@ namespace KHost.DataAccess.Migrations
                     b.Property<Guid?>("VenueId")
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("VoiceVolumes")
+                        .HasColumnType("TEXT");
+
                     b.HasKey("Id");
 
                     b.HasIndex("CreatedDate");

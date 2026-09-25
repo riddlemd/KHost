@@ -60,6 +60,10 @@ public sealed class SetStemVolumeCommand : ScreenCommandBase
     /// <summary>Which voice this changes the level of.</summary>
     public required AudioTrackRole Role { get; init; }
 
+    /// <summary>The singer whose lead this moves, matched exactly against a stem's own voice; null
+    /// moves the stems of <see cref="Role"/> that carry none.</summary>
+    public string? Voice { get; init; }
+
     /// <summary>Gain against the music, 0-100; the music track itself has no level of its own.</summary>
     public required int Volume { get; init; }
 }

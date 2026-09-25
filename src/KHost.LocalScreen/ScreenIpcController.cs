@@ -133,7 +133,7 @@ internal sealed class ScreenIpcController : IAsyncDisposable
                 _player.LoadStream(cmd.StreamUrl, cmd.StreamStartOffset, cmd.Tempo, cmd.Stems);
                 break;
             case SetStemVolumeCommand cmd:
-                _player.SetStemVolume(cmd.Role, cmd.Volume);
+                _player.SetStemVolume(cmd.Role, cmd.Voice, cmd.Volume);
                 break;
             case PlayCommand:
                 _player.Play();

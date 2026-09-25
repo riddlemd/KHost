@@ -1061,6 +1061,15 @@ public class LocalScreenDisplayProviderTests
         Assert.Equal((AudioTrackRole.Backing, 35), (level.Role, level.Volume));
     }
 
+    [Fact]
+    public async Task SetStemVolumeAsync_NamesTheSingerWhoseLeadMoves()
+    {
+        await _provider.SetStemVolumeAsync(new StemLevel { Role = AudioTrackRole.Lead, Voice = "♂", Volume = 20 });
+
+        var level = Assert.Single(Sent<SetStemVolumeCommand>());
+        Assert.Equal((AudioTrackRole.Lead, "♂", 20), (level.Role, level.Voice, level.Volume));
+    }
+
     /// <summary>A send that never landed is a level the room never heard; saying so has the host
     /// carry it in a rebuilt stream instead.</summary>
     [Fact]

@@ -427,20 +427,15 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, ID
 
         foreach (var track in mix.Tracks)
         {
-            var volume = track.Role switch
-            {
-                // The reference the others are set against, so it is never anything but full.
-                AudioTrackRole.Music => 100,
-                AudioTrackRole.Lead => AudioLevels.ClampVolume(mix.LeadVolume),
-                _ => AudioLevels.ClampVolume(mix.BackingVolume),
-            };
+            var volume = mix.VolumeFor(track);
 
+            // Suffixed by index: a duet carries two leads, and a repeated pad label is an ffmpeg error.
             var label = track.Role switch
             {
                 AudioTrackRole.Music => "m",
                 AudioTrackRole.Lead => "l",
                 _ => "b",
-            };
+            } + track.Index.ToString(CultureInfo.InvariantCulture);
 
             stages.Add(FormattableString.Invariant(
                 $"[0:a:{track.Index}]volume={volume / 100.0:F3}[{label}]"));

@@ -94,6 +94,7 @@ public class SingerPerformanceHistoryDialogPitchTests : BunitContext
             MediaId = _media.Id,
             LeadVolume = 35,
             BackingVolume = 70,
+            VoiceVolumes = new() { ["♂"] = 40 },
         });
 
         var dialog = Render<SingerPerformanceHistoryDialog>(p => p
@@ -103,7 +104,8 @@ public class SingerPerformanceHistoryDialogPitchTests : BunitContext
         dialog.Find(EnqueueSelector).Click();
 
         _performances.Received(1).CreateAndEnqueueAsync(
-            Arg.Is<Performance>(p => p.LeadVolume == 35 && p.BackingVolume == 70));
+            Arg.Is<Performance>(p => p.LeadVolume == 35 && p.BackingVolume == 70
+                && p.VoiceVolumes != null && p.VoiceVolumes["♂"] == 40));
     }
 
     [Fact]

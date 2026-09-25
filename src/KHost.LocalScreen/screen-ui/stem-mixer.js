@@ -13,6 +13,12 @@
 /// Enough for every stem to be scheduled before the first is due to sound.
 const START_LEAD_SECONDS = 0.12;
 
+/// Whether a stem-volume message is for this stem. Voices compare exactly, and a missing voice
+/// on either side is the same as null — the host omits it for a stem no singer is named on.
+function stemMatches(stem, role, voice) {
+    return stem.role === role && (stem.voice ?? null) === (voice ?? null);
+}
+
 /// Mixes stems into one voice the rest of the page can drive like a single media element.
 ///
 /// The returned object is deliberately shaped like one — `currentTime`, `play`, `pause`,
@@ -169,11 +175,12 @@ function createStemMixer(stems, startOffsetSeconds, reportError) {
         },
 
         /// Moves one voice without re-encoding anything, which is the point of mixing here.
-        setStemVolume(role, volume) {
+        /// A null voice moves only stems carrying none: a named singer's lead has its own level.
+        setStemVolume(role, voice, volume) {
             let moved = 0;
 
             for (const part of parts) {
-                if (part.stem.role !== role) continue;
+                if (!stemMatches(part.stem, role, voice)) continue;
 
                 part.gain.gain.value = levelOf({ role, volume });
                 moved++;
