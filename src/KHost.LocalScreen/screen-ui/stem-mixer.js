@@ -64,7 +64,14 @@ function createStemMixer(stems, startOffsetSeconds, reportError) {
     function songTime() {
         if (startedAt === null) return position;
 
-        return position + (ctx.currentTime - startedAt);
+        // The start lead is not song time: reported, it reads as a playhead before zero.
+        return position + Math.max(0, ctx.currentTime - startedAt);
+    }
+
+    /// Started is not sounding: a suspended or interrupted context freezes its clock and plays
+    /// nothing, and reporting that as playing pins the host's playhead to wherever it froze.
+    function sounding() {
+        return startedAt !== null && ctx.state === 'running';
     }
 
     function longest() {
@@ -115,7 +122,10 @@ function createStemMixer(stems, startOffsetSeconds, reportError) {
         /// estimates from a nominal bitrate and reads minutes long on a variable-rate stem.
         get duration() { return Math.max(0, longest() - startOffsetSeconds); },
 
-        get paused() { return startedAt === null; },
+        get paused() { return !sounding(); },
+
+        /// Carried on the state report, so a mix stalled on its context shows in a debug log.
+        get audioState() { return ctx.state; },
 
         /// Never mid-seek: a seek here is arithmetic and a fresh set of sources, not a fetch.
         get seeking() { return false; },
@@ -137,7 +147,11 @@ function createStemMixer(stems, startOffsetSeconds, reportError) {
         set playbackRate(_) { /* the stems play at written speed; the host retimes with ffmpeg */ },
 
         async play() {
-            if (startedAt !== null) return;
+            // Started but not sounding: the host's play is the only retry a stopped context gets.
+            if (startedAt !== null) {
+                await ctx.resume();
+                return;
+            }
 
             await ready;
             await ctx.resume();
