@@ -1,6 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
-using KHost.Abstractions.Services.IPC;
+using KHost.IPC.SignalR.Contracts;
 using Microsoft.Extensions.Logging;
 
 namespace KHost.Domain.Services.Displays.LocalScreen;

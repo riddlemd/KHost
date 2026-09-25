@@ -1,9 +1,7 @@
-namespace KHost.Abstractions.Services.IPC;
+namespace KHost.IPC.SignalR.Contracts;
 
 /// <summary>Which key authenticates which screen; keyless is refused, keeping LAN strangers out.</summary>
-/// <remarks>Host-only: part of the wire contract between the host and its own LocalScreen app. A
-/// plugin has no business with it; a plugin display authenticates to its own device however that
-/// device requires, behind <see cref="IDisplayProvider"/>. A singleton, safe from any thread.</remarks>
+/// <remarks>A singleton, safe from any thread.</remarks>
 public interface IScreenKeyStore
 {
     /// <summary>Generates and persists a fresh key, returning the file path to hand the screen.</summary>

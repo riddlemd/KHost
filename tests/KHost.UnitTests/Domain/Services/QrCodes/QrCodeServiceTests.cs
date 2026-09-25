@@ -64,7 +64,7 @@ public class QrCodeServiceTests
     [Fact]
     public async Task TheOfferReadSide_FromTheHostsRegistration_ReadsTheSameOfferTheRegistryBuilds()
     {
-        Arrange(new Venue.VenueSettings { QrCodeCorner = ScreenCorner.TopLeft, QrCodeSafeZone = 2 });
+        Arrange(new Venue.VenueSettings { QrCodeCorner = OverlayCorner.TopLeft, QrCodeSafeZone = 2 });
         using var container = HostContainer();
         var registry = container.GetRequiredService<IQrCodeService>();
         var reader = container.GetRequiredService<IQrCodeOfferService>();
@@ -74,7 +74,7 @@ public class QrCodeServiceTests
         var offered = await reader.ReadOfferAsync();
         Assert.NotNull(offered);
         Assert.Equal(await registry.ReadOfferAsync(), offered);
-        Assert.Equal(("https://example.test/example", "Scan me", ScreenCorner.TopLeft, 2),
+        Assert.Equal(("https://example.test/example", "Scan me", OverlayCorner.TopLeft, 2),
             (offered.Payload, offered.Caption, offered.Corner, offered.SafeZone));
     }
 
@@ -141,14 +141,14 @@ public class QrCodeServiceTests
     [Fact]
     public async Task ReadOfferAsync_VenueChoseACorner_OffersIt()
     {
-        Arrange(new Venue.VenueSettings { QrCodeCorner = ScreenCorner.TopLeft, QrCodeSize = ScreenQrSize.Large });
+        Arrange(new Venue.VenueSettings { QrCodeCorner = OverlayCorner.TopLeft, QrCodeSize = QrCodeSize.Large });
         var service = Service();
 
         await service.RegisterAsync(Code("example"));
 
         var offer = Assert.IsType<QrCodeOffer>(await service.ReadOfferAsync());
-        Assert.Equal(ScreenCorner.TopLeft, offer.Corner);
-        Assert.Equal(ScreenQrSize.Large, offer.Size);
+        Assert.Equal(OverlayCorner.TopLeft, offer.Corner);
+        Assert.Equal(QrCodeSize.Large, offer.Size);
     }
 
     /// <summary>A never-asked venue stores zero, meaning "no preference" here, not "none".</summary>

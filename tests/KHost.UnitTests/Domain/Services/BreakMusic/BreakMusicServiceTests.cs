@@ -1,6 +1,6 @@
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
-using KHost.Abstractions.Services.IPC;
+using KHost.IPC.SignalR.Contracts;
 using KHost.Domain.Services.BreakMusic;
 using KHost.Domain.Services.Messaging;
 using KHost.Abstractions.Messaging.Messages;

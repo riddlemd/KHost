@@ -1,7 +1,8 @@
 namespace KHost.Abstractions.Models;
 
-/// <summary>QR size in three steps, not pixels, since only the screen knows its own resolution.</summary>
-public enum ScreenQrSize
+/// <summary>QR size in three steps, not pixels, since only the display knows its own resolution.</summary>
+/// <remarks>A venue's saved settings hold this by number, so the values keep their order.</remarks>
+public enum QrCodeSize
 {
     /// <summary>The smallest of the three steps.</summary>
     Small,

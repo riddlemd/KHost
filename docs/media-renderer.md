@@ -83,8 +83,8 @@ express none of them.
    today; with three renderers it has to be stated.
 3. **What the target can do.** Whether an encode is needed depends on the display, not only the file:
    the same kit needs one for a Chromecast and none for a screen. So the request carries the target's
-   capabilities, and `DisplayDevice.SupportsStemMix` stops being something `PlaybackService` reads on
-   the side.
+   capabilities, answered by the connected provider's `DescribeTarget()` rather than read off a
+   device flag on the side.
 4. **Some rules are about the decode, not the format.** Output-seek belongs to "stateful graphics
    decode", not to "there is a companion mp3". Moving it into the renderer that owns CDG lets it be
    named for what it is.

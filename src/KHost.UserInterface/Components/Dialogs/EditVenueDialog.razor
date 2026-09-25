@@ -129,19 +129,19 @@
                 <div class="kh-venue-settings__row">
                     <label for="venue-qr-corner" class="kh-form-label">Corner</label>
                     <InputSelect id="venue-qr-corner" class="kh-form-select" @bind-Value="_model.QrCodeCorner">
-                        <option value="@ScreenCorner.BottomRight">Bottom right</option>
-                        <option value="@ScreenCorner.BottomLeft">Bottom left</option>
-                        <option value="@ScreenCorner.TopRight">Top right</option>
-                        <option value="@ScreenCorner.TopLeft">Top left</option>
+                        <option value="@OverlayCorner.BottomRight">Bottom right</option>
+                        <option value="@OverlayCorner.BottomLeft">Bottom left</option>
+                        <option value="@OverlayCorner.TopRight">Top right</option>
+                        <option value="@OverlayCorner.TopLeft">Top left</option>
                     </InputSelect>
                 </div>
 
                 <div class="kh-venue-settings__row">
                     <label for="venue-qr-size" class="kh-form-label">Size</label>
                     <InputSelect id="venue-qr-size" class="kh-form-select" @bind-Value="_model.QrCodeSize">
-                        <option value="@ScreenQrSize.Small">Small</option>
-                        <option value="@ScreenQrSize.Medium">Medium</option>
-                        <option value="@ScreenQrSize.Large">Large</option>
+                        <option value="@QrCodeSize.Small">Small</option>
+                        <option value="@QrCodeSize.Medium">Medium</option>
+                        <option value="@QrCodeSize.Large">Large</option>
                     </InputSelect>
                 </div>
 
@@ -298,10 +298,10 @@
                         <label for="venue-break-music-card-corner" class="kh-form-label">Corner</label>
                         <InputSelect id="venue-break-music-card-corner" class="kh-form-select"
                                      @bind-Value="_model.BreakMusicCardCorner">
-                            <option value="@ScreenCorner.BottomLeft">Bottom left</option>
-                            <option value="@ScreenCorner.BottomRight">Bottom right</option>
-                            <option value="@ScreenCorner.TopLeft">Top left</option>
-                            <option value="@ScreenCorner.TopRight">Top right</option>
+                            <option value="@OverlayCorner.BottomLeft">Bottom left</option>
+                            <option value="@OverlayCorner.BottomRight">Bottom right</option>
+                            <option value="@OverlayCorner.TopLeft">Top left</option>
+                            <option value="@OverlayCorner.TopRight">Top right</option>
                         </InputSelect>
                     </div>
                 }

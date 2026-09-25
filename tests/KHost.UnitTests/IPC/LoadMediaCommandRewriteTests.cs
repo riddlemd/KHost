@@ -1,6 +1,6 @@
 using System.Reflection;
 using KHost.Abstractions.Models;
-using KHost.Abstractions.Services.IPC;
+using KHost.IPC.SignalR.Contracts;
 using KHost.IPC.SignalR;
 
 namespace KHost.UnitTests.IPC;

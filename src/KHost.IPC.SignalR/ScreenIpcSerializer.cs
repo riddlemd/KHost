@@ -1,5 +1,5 @@
 using System.Text.Json;
-using KHost.Abstractions.Services.IPC;
+using KHost.IPC.SignalR.Contracts;
 
 namespace KHost.IPC.SignalR;
 

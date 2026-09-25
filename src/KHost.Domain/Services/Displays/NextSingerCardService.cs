@@ -2,7 +2,6 @@ using KHost.Abstractions.Messaging;
 using KHost.Abstractions.Messaging.Messages;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
-using KHost.Abstractions.Services.IPC;
 using Microsoft.Extensions.Logging;
 
 namespace KHost.Domain.Services.Displays;
@@ -20,7 +19,7 @@ public sealed class NextSingerCardService(
     IMediaService media,
     IPlaybackService playback) : BaseService(logger), INextSingerCardService
 {
-    public async Task<ShowNextSingerCommand?> BuildAsync(CancellationToken cancellationToken = default)
+    public async Task<NextSingerCard?> BuildAsync(CancellationToken cancellationToken = default)
     {
         // The singer at the microphone is not up next, and a card saying so would disagree with
         // the room. The same rule the marquee applies, for the same reason.
@@ -36,7 +35,7 @@ public sealed class NextSingerCardService(
 
         var aliasesAllowed = (await venuesService.ReadSelectedVenueAsync())?.Settings.AllowAliases ?? false;
 
-        return new ShowNextSingerCommand
+        return new NextSingerCard
         {
             Singer = NameFor(performance, next, aliasesAllowed),
 
@@ -54,12 +53,7 @@ public sealed class NextSingerCardService(
 
         // Awaited, so the button settles once the display has been handed the card; a display
         // that fails to draw it logs and is skipped by the broker, never taking the show down.
-        await broker.PublishAsync(new NextSingerAnnounced(new NextSingerCard
-        {
-            Singer = card.Singer,
-            Song = card.Song,
-            Artist = card.Artist,
-        }), cancellationToken);
+        await broker.PublishAsync(new NextSingerAnnounced(card), cancellationToken);
         return true;
     }
 

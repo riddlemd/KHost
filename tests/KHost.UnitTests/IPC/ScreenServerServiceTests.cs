@@ -1,5 +1,5 @@
 using System.Security.Cryptography;
-using KHost.Abstractions.Services.IPC;
+using KHost.IPC.SignalR.Contracts;
 using KHost.IPC.SignalR;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Options;

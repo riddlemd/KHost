@@ -163,10 +163,10 @@ public class Venue : RepositoryModel
         public string? QrCodeSource { get; set; }
 
         /// <summary>Corner the code sits in; null reads as "no preference", not bottom-right.</summary>
-        public ScreenCorner? QrCodeCorner { get; set; }
+        public OverlayCorner? QrCodeCorner { get; set; }
 
         /// <summary>How big it is drawn. Null takes medium.</summary>
-        public ScreenQrSize? QrCodeSize { get; set; }
+        public QrCodeSize? QrCodeSize { get; set; }
 
         /// <summary>Hides the code while someone sings; off when unset, so vanishing is default.</summary>
         public bool QrCodeHideDuringSong { get; set; }
@@ -185,7 +185,7 @@ public class Venue : RepositoryModel
         public bool BreakMusicCardEnabled { get; set; }
 
         /// <summary>Which corner names it; null takes bottom-left, not the QR's bottom-right.</summary>
-        public ScreenCorner? BreakMusicCardCorner { get; set; }
+        public OverlayCorner? BreakMusicCardCorner { get; set; }
 
         /// <summary>An independent copy, including its own <see cref="QueueRotation"/>; changing
         /// one never affects the other.</summary>

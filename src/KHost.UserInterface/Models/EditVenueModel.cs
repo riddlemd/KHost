@@ -81,13 +81,13 @@ public class EditVenueModel
 
     public bool BreakMusicCardEnabled { get; set; }
 
-    public ScreenCorner? BreakMusicCardCorner { get; set; }
+    public OverlayCorner? BreakMusicCardCorner { get; set; }
 
     /// <summary>Corner and size are not nullable here, unlike how the venue stores them.</summary>
     /// <remarks>The dialog shows what a code would take anyway, so saving back changes nothing.</remarks>
-    public ScreenCorner QrCodeCorner { get; set; } = ScreenCorner.BottomRight;
+    public OverlayCorner QrCodeCorner { get; set; } = OverlayCorner.BottomRight;
 
-    public ScreenQrSize QrCodeSize { get; set; } = ScreenQrSize.Medium;
+    public QrCodeSize QrCodeSize { get; set; } = QrCodeSize.Medium;
 
     public bool QrCodeHideDuringSong { get; set; }
 

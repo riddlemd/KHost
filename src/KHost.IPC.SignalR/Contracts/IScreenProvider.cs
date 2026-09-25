@@ -1,9 +1,7 @@
-namespace KHost.Abstractions.Services.IPC;
+namespace KHost.IPC.SignalR.Contracts;
 
 /// <summary>Starts and stops LocalScreen app processes on the host's own machine.</summary>
-/// <remarks>Host-only: used by the host's screens display provider and at startup and shutdown.
-/// A plugin has no business with it; a plugin display finds or opens its own devices through
-/// <see cref="IDisplayProvider"/>. A singleton.</remarks>
+/// <remarks>A singleton.</remarks>
 public interface IScreenProvider
 {
     /// <summary>A short name for logs and messages.</summary>

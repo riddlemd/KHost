@@ -1,11 +1,8 @@
-namespace KHost.Abstractions.Services.IPC;
+namespace KHost.IPC.SignalR.Contracts;
 
 /// <summary>The host's end of the link to its own LocalScreen app: who is connected, what they
 /// report, and the commands sent to them.</summary>
 /// <remarks>
-/// <para>Host-only. This is the wire contract between the host and the LocalScreen app it launches,
-/// used only by the host's own screens display provider. A plugin has no business with it: a plugin
-/// display reaches its own device through <see cref="IDisplayProvider"/>.</para>
 /// <para>A singleton. Only a screen that proves it holds a key from <see cref="IScreenKeyStore"/>
 /// counts as connected, and at most one screen is registered at a time: a second screen id is
 /// refused until the first leaves, while the same id reconnecting replaces itself.</para>
@@ -38,7 +35,7 @@ public interface IScreenServer
 }
 
 /// <summary>One registered screen, as <see cref="IScreenServer"/> sees it.</summary>
-/// <remarks>Host-only, as <see cref="IScreenServer"/> is. A snapshot: it does not change after it is
+/// <remarks>A snapshot: it does not change after it is
 /// handed out.</remarks>
 public interface IScreenConnection
 {
@@ -72,12 +69,12 @@ public sealed class ScreenCapabilities
 }
 
 /// <summary>Marks a message the host sends to its LocalScreen app.</summary>
-/// <remarks>Host-only, as <see cref="IScreenServer"/> is. Only the <see cref="ScreenCommandBase"/>
+/// <remarks>Only the <see cref="ScreenCommandBase"/>
 /// types travel; implementing this marker on another type makes nothing sendable.</remarks>
 public interface IScreenCommand { }
 
 /// <summary>Marks a report the LocalScreen app sends back to the host.</summary>
-/// <remarks>Host-only. Only the <see cref="ScreenStateBase"/> types travel.</remarks>
+/// <remarks>Only the <see cref="ScreenStateBase"/> types travel.</remarks>
 public interface IScreenState { }
 
 /// <summary>Carries the screen for <see cref="IScreenServer.ScreenConnected"/> and

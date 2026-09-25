@@ -1,5 +1,4 @@
 using KHost.Abstractions.Models;
-using KHost.Abstractions.Services.IPC;
 using KHost.Abstractions.Services;
 using KHost.Abstractions.Exceptions;
 using KHost.Abstractions.Messaging.Messages;
@@ -8,6 +7,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using KHost.Common.Media;
 using KHost.Domain.Services.Displays;
+using System.Runtime.CompilerServices;
 
 namespace KHost.Domain.Services;
 
@@ -255,7 +255,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         try
         {
             // A display that draws the words loads them itself, inside this call.
-            await ToDisplaysAsync(await BuildLoadCommandAsync(media, TimeSpan.Zero));
+            await LoadOntoDisplayAsync(await BuildLoadAsync(media, TimeSpan.Zero));
         }
         catch
         {
@@ -373,7 +373,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         };
 
         if (playsOnMainChannel)
-            await ToDisplaysAsync(await BuildLoadCommandAsync(ad.Visual!, TimeSpan.Zero));
+            await LoadOntoDisplayAsync(await BuildLoadAsync(ad.Visual!, TimeSpan.Zero));
 
         // Opened at the offset rather than trimmed: a clip out of a longer file costs no re-encode,
         // and the host clock stops it at the ad's duration.
@@ -381,11 +381,8 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         {
             _adAudioStream = await _mediaStreams.OpenAsync(audio.FilePath, ad.AudioStart);
 
-            await ToDisplaysAsync(new LoadBackgroundCommand
-            {
-                StreamUrl = _adAudioStream.PlaylistUrl,
-                AutoPlay = true,
-            });
+            var bed = new BackgroundLoad { StreamUrl = _adAudioStream.PlaylistUrl, AutoPlay = true };
+            await ToDisplayAsync(display => display.LoadBackgroundAsync(bed));
         }
 
         _broker.Announce(new PlaybackChanged());
@@ -451,7 +448,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         }
         else
         {
-            await ToDisplaysAsync(new PlayCommand());
+            await ToDisplayAsync(display => display.PlayAsync());
         }
 
         _broker.Announce(new PlaybackChanged());
@@ -484,7 +481,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
 
         Logger.LogInformation("Seeking to {Position}", target);
 
-        await ToDisplaysAsync(new SeekCommand { Position = target });
+        await ToDisplayAsync(display => display.SeekAsync(target));
 
         if (wasPlaying)
             StartClock();
@@ -639,7 +636,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
 
         Logger.LogInformation("Playback paused at {Position}", Position);
 
-        await ToDisplaysAsync(new PauseCommand());
+        await ToDisplayAsync(display => display.PauseAsync());
 
         _broker.Announce(new PlaybackChanged());
     }
@@ -668,7 +665,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
 
         _broker.Announce(new PlaybackChanged());
 
-        await ToDisplaysAsync(new StopCommand { FadeDuration = fade });
+        await ToDisplayAsync(display => display.StopAsync(fade));
 
         if (fade > TimeSpan.Zero)
             await Task.Delay(fade);
@@ -741,7 +738,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
             if (_rendition is not { } rendition || media is null || MediaFormats.IsImage(media.Format)) return;
 
             // Stems alone reach only a display that mixes; anything else needs the encoded stream.
-            var mixes = joined.Devices.FirstOrDefault(d => d.Id == joined.ConnectedDeviceId)?.SupportsStemMix == true;
+            var mixes = DescribeTarget(joined).MixesStems;
             if (rendition.Url is not { Length: > 0 } && !(mixes && rendition.Stems.Count > 0)) return;
 
             // Reloading costs a spin-up; a running clock resumes the display behind the UI.
@@ -848,7 +845,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
     }
 
     /// <summary>Throws when the transcode will not start: there is no playback without it.</summary>
-    private async Task<LoadMediaCommand> BuildLoadCommandAsync(Media media, TimeSpan startOffset)
+    private async Task<DisplayLoad> BuildLoadAsync(Media media, TimeSpan startOffset)
     {
         // Held, not closed: tearing down first would leave the room on buffered frames while the new one
         // spins up (or on nothing, if it fails). A failed rebuild costs the change, not the song.
@@ -914,7 +911,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
 
             // Opened at the playhead, not opened at zero and seeked: the stream's own zero moves
             // with it, which is what StreamStartOffset carries to the screens.
-            await ToDisplaysAsync(await BuildLoadCommandAsync(media, position));
+            await LoadOntoDisplayAsync(await BuildLoadAsync(media, position));
 
             // Re-read rather than captured before the rebuild: a host pause landing during it must
             // not be overridden by a Play the host never asked for.
@@ -927,7 +924,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
             // business — a screen keeps its old element playing until the new one has sound.
             Position = position;
 
-            await ToDisplaysAsync(new PlayCommand());
+            await ToDisplayAsync(display => display.PlayAsync());
         }
         catch (Exception ex)
         {
@@ -957,31 +954,31 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         {
             Logger.LogInformation("Rebuilding the stream at {Position}, behind where it opens", Position);
 
-            await ToDisplaysAsync(await BuildLoadCommandAsync(media, Position));
+            await LoadOntoDisplayAsync(await BuildLoadAsync(media, Position));
             seekPast = Position;
         }
         else
         {
-            await ToDisplaysAsync(DescribeStream(media));
+            await LoadOntoDisplayAsync(DescribeStream(media));
         }
 
         var position = Position;
 
         if (position > seekPast)
-            await ToDisplaysAsync(new SeekCommand { Position = position });
+            await ToDisplayAsync(display => display.SeekAsync(position));
 
         // Re-read rather than captured before the awaits: a host pause or stop landing mid-replay
         // must win over a stale "was playing".
         if (State == PlaybackState.Playing)
-            await ToDisplaysAsync(new PlayCommand());
+            await ToDisplayAsync(display => display.PlayAsync());
     }
 
-    private LoadMediaCommand DescribeStream(Media media) => new()
+    private DisplayLoad DescribeStream(Media media) => new()
     {
         // Null when the display plays the parts directly and nothing was encoded for it. The two
         // are never both empty: a rendition with neither would be a song with nowhere to come from.
         StreamUrl = _rendition?.Url,
-        StreamStartOffset = _rendition?.StartOffset ?? TimeSpan.Zero,
+        StartOffset = _rendition?.StartOffset ?? TimeSpan.Zero,
         Tempo = _rendition?.Tempo ?? 0,
         Stems = _rendition?.Stems ?? [],
     };
@@ -991,10 +988,12 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
     /// <remarks>Nothing connected asks for nothing special — whatever connects later triggers a
     /// reload. A plugin's answer is guarded: a provider that cannot describe itself still plays.</remarks>
     private RenderTarget DescribeTarget()
-    {
-        if (ConnectedDisplay.Find(_displays) is not { Provider: var provider })
-            return RenderTarget.None;
+        => ConnectedDisplay.Find(_displays) is { Provider: var provider }
+            ? DescribeTarget(provider)
+            : RenderTarget.None;
 
+    private RenderTarget DescribeTarget(IDisplayProvider provider)
+    {
         try
         {
             return provider.DescribeTarget() ?? RenderTarget.None;
@@ -1022,13 +1021,18 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
     private async Task<bool> TryMoveStemAsync(AudioTrackRole role, int volume)
     {
         if (_rendition is not { Stems.Count: > 0 }) return false;
+        if (ConnectedDisplay.Find(_displays) is not { Provider: var display }) return false;
 
-        // Unknown is not assumed capable here, unlike the fade: guessing wrong costs a mix change
-        // that silently never lands, where guessing wrong on a fade costs a pause.
-        if (ConnectedDisplay.Find(_displays) is not { Device.SupportsStemMix: true }) return false;
-
-        await ToDisplaysAsync(new SetStemVolumeCommand { Role = role, Volume = volume });
-        return true;
+        // A throw counts as a refusal: a change that silently never lands is worse than a rebuild.
+        try
+        {
+            return await display.SetStemVolumeAsync(new StemLevel { Role = role, Volume = volume });
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "{Display} could not move the {Role} stem; rebuilding the stream", display.Name, role);
+            return false;
+        }
     }
 
     /// <summary>Ends an ad before its clock ran out.</summary>
@@ -1047,7 +1051,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
     {
         if (_adAudioStream is null) return;
 
-        await ToDisplaysAsync(new StopBackgroundCommand());
+        await ToDisplayAsync(display => display.StopBackgroundAsync());
 
         var stream = _adAudioStream;
         _adAudioStream = null;
@@ -1154,66 +1158,31 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         await _breakMusic.RestoreAsync();
     }
 
-    /// <summary>Sends one command to whatever the song is coming out of.</summary>
-    /// <remarks>One path for every display, screens included: the screens reach the host through a
-    /// provider like anything else. Only transport goes this way; what a display draws is its own
-    /// business. A stem gain goes only to a device that said it mixes.
-    ///
-    /// <para>A provider that throws is logged, never rethrown: the caller is moving the show on and
-    /// a display that has gone must not stop it.</para></remarks>
-    private async Task ToDisplaysAsync(IScreenCommand command)
+    private Task LoadOntoDisplayAsync(DisplayLoad load)
+        => ToDisplayAsync(display => display.LoadAsync(load));
+
+    /// <summary>Makes one call on whatever the song is coming out of.</summary>
+    /// <remarks>A provider that throws is logged, never rethrown: the caller is moving the show on
+    /// and a display that has gone must not stop it.</remarks>
+    private async Task ToDisplayAsync(
+        Func<IDisplayProvider, Task> call,
+        [CallerArgumentExpression(nameof(call))] string what = "")
     {
         if (ConnectedDisplay.Find(_displays) is not { } connected) return;
 
-        // An unlisted device is under-reporting rather than refusing, so it is sent everything
-        // and drops what it cannot draw through the interface's own defaults.
-        if (connected.Device is { } device && !CanShow(device, command)) return;
-
-        try { await DispatchAsync(connected.Provider, command); }
+        try { await call(connected.Provider); }
         catch (Exception ex)
         {
-            Logger.LogWarning(
-                ex, "Failed to send {Command} to {Provider}", command.GetType().Name, connected.Provider.Name);
+            Logger.LogWarning(ex, "Failed to send {Call} to {Provider}", what, connected.Provider.Name);
         }
     }
 
     /// <summary>Whether the display carrying the song can ride it down rather than cut it.</summary>
-    /// <remarks>A device that has not listed itself yet is taken to fade, the same permissive
-    /// stance <see cref="ToDisplaysAsync"/> takes: over-waiting is a pause nobody hears, while
-    /// under-waiting cuts a song off mid-word.</remarks>
+    /// <remarks>A device that has not listed itself yet is taken to fade: over-waiting is a pause
+    /// nobody hears, while under-waiting cuts a song off mid-word.</remarks>
     private bool DisplayCanFade()
         => ConnectedDisplay.Find(_displays) is { } connected
             && (connected.Device is null || connected.Device.SupportsFade);
-
-    /// <summary>Whether this device can take this command at all.</summary>
-    /// <remarks>Transport is never gated: every display plays the song.</remarks>
-    private static bool CanShow(DisplayDevice device, IScreenCommand command) => command switch
-    {
-        SetStemVolumeCommand => device.SupportsStemMix,
-        _ => true,
-    };
-
-    /// <summary>The one place a command becomes a call, so a provider sees named members.</summary>
-    private static Task DispatchAsync(IDisplayProvider display, IScreenCommand command) => command switch
-    {
-        LoadMediaCommand c => display.LoadAsync(c),
-        PlayCommand => display.PlayAsync(),
-        PauseCommand => display.PauseAsync(),
-        StopCommand c => display.StopAsync(c.FadeDuration),
-        SeekCommand c => display.SeekAsync(c.Position),
-        SetVolumeCommand c => display.SetVolumeAsync(c.Volume),
-        SetStemVolumeCommand c => display.SetStemVolumeAsync(c),
-        SetVideoCommand c => display.SetVideoAsync(c.Enabled),
-
-        LoadBackgroundCommand c => display.LoadBackgroundAsync(c),
-        PlayBackgroundCommand => display.PlayBackgroundAsync(),
-        PauseBackgroundCommand => display.PauseBackgroundAsync(),
-        StopBackgroundCommand c => display.StopBackgroundAsync(c.FadeDuration),
-        SetBackgroundVolumeCommand c => display.SetBackgroundVolumeAsync(c.Volume),
-
-        // No provider carries anything else.
-        _ => Task.CompletedTask,
-    };
 
     /// <summary>Follows the position the display reached, not one the host asserts.</summary>
     /// <remarks>An HLS stream starts on a segment boundary, so an asserted clock is off from the

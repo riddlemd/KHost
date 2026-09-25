@@ -1,6 +1,6 @@
 using System.Text.Json;
 using KHost.Abstractions.Models;
-using KHost.Abstractions.Services.IPC;
+using KHost.IPC.SignalR.Contracts;
 using KHost.LocalScreen;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -30,8 +30,8 @@ public class StreamMediaPlayerQrCodeTests
     {
         ImageUrl = "data:image/svg+xml;base64,AAAA",
         Modules = 29,
-        Corner = ScreenCorner.TopLeft,
-        Size = ScreenQrSize.Large,
+        Corner = OverlayCorner.TopLeft,
+        Size = QrCodeSize.Large,
         SafeZone = safeZone,
         Offset = offset,
     };
@@ -75,7 +75,7 @@ public class StreamMediaPlayerQrCodeTests
             Enabled = true,
             Title = "Free Fallin'",
             Artist = "Tom Petty",
-            Corner = ScreenCorner.BottomLeft,
+            Corner = OverlayCorner.BottomLeft,
             Offset = 2.5,
         });
 

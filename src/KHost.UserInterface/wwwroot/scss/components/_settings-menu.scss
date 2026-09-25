@@ -63,18 +63,6 @@
         color: var(--kh-text-muted);
         font-size: 0.75em;
     }
-
-    // Says the words will not be on that screen, which is the one thing a host cannot see coming.
-    .kh-settings-menu__badge {
-        padding: 0 0.5em;
-        border: 1px solid var(--kh-border);
-        border-radius: 999px;
-        color: var(--kh-warning);
-        font-size: 0.6rem;
-        letter-spacing: 0.06em;
-        text-transform: uppercase;
-        white-space: nowrap;
-    }
 }
 
 /* Fixed so the parent menu's own scrolling cannot clip it; placed by dropdown-menu.js. */

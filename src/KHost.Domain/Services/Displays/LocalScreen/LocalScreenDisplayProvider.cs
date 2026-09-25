@@ -2,8 +2,9 @@ using KHost.Abstractions.Messaging;
 using KHost.Abstractions.Messaging.Messages;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
+using KHost.Common.Display;
 using KHost.Common.Media;
-using KHost.Abstractions.Services.IPC;
+using KHost.IPC.SignalR.Contracts;
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -17,9 +18,10 @@ namespace KHost.Domain.Services.Displays.LocalScreen;
 /// travels the path a plugin's display travels, so <c>PlaybackService</c> has one kind of thing to
 /// drive.
 ///
-/// <para>It owns everything the screen shows, not only the song: the marquee, the QR codes, the
-/// break music card, the venue's card or an ad's still, the song's timed words, and the venue's
-/// level. The host announces what moved and this pulls the whole current state of whatever that
+/// <para>It owns everything the screen shows, not only the song: the marquee (composed here from the
+/// venue's settings and <c>IUpNextService</c>), the QR codes, the break music card, the venue's card
+/// or an ad's still, the song's timed words, and the venue's level. None of that is on
+/// <c>IDisplayProvider</c>, which is transport only. The host announces what moved and this pulls the whole current state of whatever that
 /// message drives, so a screen that connects is sent everything afresh rather than a replay of what
 /// it missed. It reads only what a plugin's display could read; encoding and the screen's commands
 /// are its own.</para>
@@ -43,7 +45,7 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
     private const double DefaultOffset = 0.2;
 
     /// <summary>Bottom-left, away from the code's default corner, so the two stack when unset.</summary>
-    private const ScreenCorner DefaultBreakMusicCardCorner = ScreenCorner.BottomLeft;
+    private const OverlayCorner DefaultBreakMusicCardCorner = OverlayCorner.BottomLeft;
 
     /// <summary>A screen takes seconds to register once launched; this is how long ConnectAsync
     /// waits for it before reporting a launch that never came back rather than a refusal.</summary>
@@ -200,20 +202,11 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
                     Model = "This computer",
                     IsConnected = connected is not null,
 
-                    // A screen draws everything the host can put on it. That is what it is for.
                     SupportsAudio = true,
                     SupportsVideo = true,
 
                     // It owns its own mixer, so a stop rides down instead of cutting.
                     SupportsFade = true,
-
-                    // Both engines behind a screen decode Vorbis, so it can take the stems whole
-                    // and ride their levels rather than making the host re-encode to move one.
-                    SupportsStemMix = true,
-                    SupportsLyrics = true,
-                    SupportsMarquee = true,
-                    SupportsQrCodes = true,
-                    SupportsImage = true,
                 },
             ];
         }
@@ -303,22 +296,16 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
     // --- transport ---
 
     /// <summary>Takes the stems and draws the words itself, so it wants neither mixed nor burned in.</summary>
+    /// <remarks>Both engines behind a screen decode Vorbis, so it can take the stems whole and ride
+    /// their levels rather than making the host re-encode to move one.</remarks>
     public RenderTarget DescribeTarget() => new() { MixesStems = true, BurnLyrics = false };
 
-    public Task LoadAsync(string streamUrl, TimeSpan startOffset, int tempo = 0, CancellationToken cancellationToken = default)
-        => SendAsync(new LoadMediaCommand
-        {
-            StreamUrl = streamUrl,
-            StreamStartOffset = startOffset,
-            Tempo = tempo,
-        });
-
     /// <summary>Sent whole, so the stems ride along with it; the page mixes when there are any.</summary>
-    public async Task LoadAsync(LoadMediaCommand media, CancellationToken cancellationToken = default)
+    public async Task LoadAsync(DisplayLoad load, CancellationToken cancellationToken = default)
     {
         // Ahead of the load, so the venue's card is down before the song's first frame.
         await DrawPictureAsync(PictureCause.ProgramMoved);
-        await SendAsync(media);
+        await SendAsync(ToCommand(load));
 
         // After the load and before play, which every caller sends after this returns: a screen
         // holds the words until the next load, and one given them mid-song would light every
@@ -337,41 +324,14 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
     public Task SetVolumeAsync(float volume, CancellationToken cancellationToken = default)
         => SendAsync(new SetVolumeCommand { Volume = volume });
 
-    public Task SetStemVolumeAsync(SetStemVolumeCommand stem, CancellationToken cancellationToken = default)
-        => SendAsync(stem);
-
-    // --- drawable ---
-
-    public Task SetTimedLyricsAsync(SetTimedLyricsCommand lyrics, CancellationToken cancellationToken = default)
-        => SendAsync(lyrics);
-
-    // Always sent when asked for by name, and recorded, or a redraw of what was up before would be
-    // skipped as already on the screen.
-    public Task SetMarqueeAsync(SetMarqueeCommand marquee, CancellationToken cancellationToken = default)
-        => SendOverlayAsync(marquee, always: true);
-
-    public Task SetQrCodesAsync(SetScreenQrCodesCommand codes, CancellationToken cancellationToken = default)
-        => SendOverlayAsync(codes, always: true);
-
-    public Task ShowNextSingerAsync(ShowNextSingerCommand card, CancellationToken cancellationToken = default)
-        => SendAsync(card);
-
-    public Task SetBreakMusicCardAsync(SetBreakMusicCardCommand card, CancellationToken cancellationToken = default)
-        => SendOverlayAsync(card, always: true);
-
-    public Task ShowImageAsync(ShowImageCommand image, CancellationToken cancellationToken = default)
-        => SendAsync(image);
-
-    public Task HideImageAsync(CancellationToken cancellationToken = default)
-        => SendAsync(new HideImageCommand());
-
-    public Task SetVideoAsync(bool enabled, CancellationToken cancellationToken = default)
-        => SendAsync(new SetVideoCommand { Enabled = enabled });
+    /// <summary>The page rides the level itself; false only when the send did not land.</summary>
+    public Task<bool> SetStemVolumeAsync(StemLevel level, CancellationToken cancellationToken = default)
+        => SendAsync(new SetStemVolumeCommand { Role = level.Role, Volume = level.Volume });
 
     // --- the second audio channel ---
 
-    public Task LoadBackgroundAsync(LoadBackgroundCommand background, CancellationToken cancellationToken = default)
-        => SendAsync(background);
+    public Task LoadBackgroundAsync(BackgroundLoad background, CancellationToken cancellationToken = default)
+        => SendAsync(new LoadBackgroundCommand { StreamUrl = background.StreamUrl, AutoPlay = background.AutoPlay });
 
     public Task PlayBackgroundAsync(CancellationToken cancellationToken = default)
         => SendAsync(new PlayBackgroundCommand());
@@ -386,6 +346,41 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
         => SendAsync(new SetBackgroundVolumeCommand { Volume = volume });
 
     // --- plumbing ---
+
+    internal static LoadMediaCommand ToCommand(DisplayLoad load) => new()
+    {
+        StreamUrl = load.StreamUrl,
+        StreamStartOffset = load.StartOffset,
+        Tempo = load.Tempo,
+        Stems = load.Stems,
+    };
+
+    /// <summary>The marquee as the screen draws it, whole, from the venue's settings and who is next.</summary>
+    /// <remarks>Disabled with no venue selected, or one that has the marquee off. The singers are
+    /// exactly what <see cref="IUpNextService"/> answers for the venue's count, so the band and
+    /// anything else naming who is next cannot disagree.</remarks>
+    internal static async Task<SetMarqueeCommand> BuildMarqueeAsync(Venue.VenueSettings? settings, IUpNextService upNext)
+    {
+        if (settings is null || !settings.MarqueeEnabled)
+            return new SetMarqueeCommand { Enabled = false };
+
+        var entries = await upNext.ReadAsync(settings.MarqueeSingerCount);
+
+        return new SetMarqueeCommand
+        {
+            Enabled = true,
+            Singers = [.. entries.Select(entry => MarqueeText.ComposeEntry(entry, settings.MarqueeEntryFormat))],
+            Message = MarqueeText.CollapseToOneLine(settings.MarqueeMessage),
+            Position = settings.MarqueePosition,
+
+            // A cleared colour is no colour, not an empty CSS value the screen would take.
+            BackgroundColor = string.IsNullOrWhiteSpace(settings.MarqueeBackgroundColor) ? null : settings.MarqueeBackgroundColor.Trim(),
+            TextColor = string.IsNullOrWhiteSpace(settings.MarqueeTextColor) ? null : settings.MarqueeTextColor.Trim(),
+            FontSizePixels = settings.MarqueeFontSizePixels,
+            ScrollSpeed = settings.MarqueeScrollSpeed,
+            PinLabel = settings.MarqueePinLabel,
+        };
+    }
 
     /// <summary>A failed send never costs the song: a screen that has gone is not an error here.</summary>
     private async Task<bool> SendAsync(IScreenCommand command)
@@ -405,7 +400,7 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
     /// <summary>Sends an overlay unless this session's screen already shows exactly that.</summary>
     /// <remarks>Compared as sent, not by reference or record equality: a rebuilt command is a new
     /// object, and the codes carry a list, which a record compares by reference.</remarks>
-    private async Task SendOverlayAsync(IScreenCommand command, bool always = false)
+    private async Task SendOverlayAsync(IScreenCommand command)
     {
         var type = command.GetType();
         var drawn = JsonSerializer.Serialize(command, type);
@@ -420,7 +415,7 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
             }
 
             // With no screen up there is nothing it could already be showing.
-            if (!always && session is not null && _overlaysSent.TryGetValue(type, out var last) && last == drawn)
+            if (session is not null && _overlaysSent.TryGetValue(type, out var last) && last == drawn)
                 return;
 
             _overlaysSent[type] = drawn;
@@ -532,7 +527,7 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
             await DrawPictureAsync(PictureCause.VenueChanged);
 
         if (overlays.HasFlag(Overlay.Marquee))
-            await DrawAsync<IScreenMarqueeService>("marquee", async marquee => await marquee.BuildAsync());
+            await DrawAsync<IUpNextService>("marquee", async upNext => await BuildMarqueeAsync(await ReadVenueSettingsAsync(), upNext));
 
         // Sent even when there is nothing up: it is the whole state, so it also clears a code left
         // on a screen that dropped and came back.
@@ -560,8 +555,8 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
                     ImageUrl = image,
                     Modules = modules,
                     Caption = offer.Caption,
-                    Corner = offer.Corner ?? ScreenCorner.BottomRight,
-                    Size = offer.Size ?? ScreenQrSize.Medium,
+                    Corner = offer.Corner ?? OverlayCorner.BottomRight,
+                    Size = offer.Size ?? QrCodeSize.Medium,
 
                     // Resolved here, not on the screen, which decides nothing.
                     SafeZone = offer.SafeZone ?? DefaultSafeZone,
@@ -601,10 +596,13 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
         return encoded;
     }
 
+    private async Task<Venue.VenueSettings?> ReadVenueSettingsAsync()
+        => _venuesService is null ? null : (await _venuesService.ReadSelectedVenueAsync())?.Settings;
+
     /// <summary>Names the break music in a corner; says what is playing, not what is cued.</summary>
     private async Task<IScreenCommand> BuildBreakMusicCardAsync(IBreakMusicService breakMusic)
     {
-        var settings = _venuesService is null ? null : (await _venuesService.ReadSelectedVenueAsync())?.Settings;
+        var settings = await ReadVenueSettingsAsync();
 
         // A venue that wants none gets none, and a console with no venue selected has nobody to
         // have asked, which is the same answer.

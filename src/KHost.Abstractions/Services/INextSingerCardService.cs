@@ -1,4 +1,4 @@
-using KHost.Abstractions.Services.IPC;
+using KHost.Abstractions.Models;
 
 namespace KHost.Abstractions.Services;
 
@@ -16,7 +16,7 @@ public interface INextSingerCardService
     /// <remarks>Skips the singer at the microphone. Names the singer as they asked to be called
     /// when the venue allows it, and their next queued song; a singer with nothing queued is named
     /// alone, with no song.</remarks>
-    Task<ShowNextSingerCommand?> BuildAsync(CancellationToken cancellationToken = default);
+    Task<NextSingerCard?> BuildAsync(CancellationToken cancellationToken = default);
 
     /// <summary>Puts the card up. False when the queue had nobody left to name.</summary>
     /// <remarks>Returns once the card has been handed on for drawing: it is published as

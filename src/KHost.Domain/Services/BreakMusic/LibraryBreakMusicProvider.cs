@@ -1,11 +1,11 @@
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
-using KHost.Abstractions.Services.IPC;
 using KHost.Abstractions.Messaging;
 using KHost.Abstractions.Messaging.Messages;
 using Microsoft.Extensions.Logging;
 using KHost.Domain.Services.Displays;
 using KHost.Domain.Services.Displays.LocalScreen;
+using System.Runtime.CompilerServices;
 
 namespace KHost.Domain.Services.BreakMusic;
 
@@ -77,17 +77,17 @@ public class LibraryBreakMusicProvider : BaseService, IBreakMusicProvider, IDisp
     }
 
     public Task PauseAsync(CancellationToken cancellationToken = default)
-        => SendToDisplaysAsync(new PauseBackgroundCommand());
+        => SendToDisplaysAsync(display => display.PauseBackgroundAsync());
 
     public Task ResumeAsync(CancellationToken cancellationToken = default)
-        => SendToDisplaysAsync(new PlayBackgroundCommand());
+        => SendToDisplaysAsync(display => display.PlayBackgroundAsync());
 
     public async Task StopAsync(TimeSpan? fadeDuration = null, CancellationToken cancellationToken = default)
     {
         await _lock.WaitAsync(cancellationToken);
         try
         {
-            await SendToDisplaysAsync(new StopBackgroundCommand { FadeDuration = fadeDuration });
+            await SendToDisplaysAsync(display => display.StopBackgroundAsync(fadeDuration));
 
             _currentTrack = null;
 
@@ -188,11 +188,8 @@ public class LibraryBreakMusicProvider : BaseService, IBreakMusicProvider, IDisp
 
         _stream = await _streams.OpenAsync(media.FilePath, cancellationToken: cancellationToken);
 
-        var sent = await SendToDisplaysAsync(new LoadBackgroundCommand
-        {
-            StreamUrl = _stream.PlaylistUrl,
-            AutoPlay = true,
-        });
+        var track = new BackgroundLoad { StreamUrl = _stream.PlaylistUrl, AutoPlay = true };
+        var sent = await SendToDisplaysAsync(display => display.LoadBackgroundAsync(track));
 
         if (!sent)
         {
@@ -230,7 +227,9 @@ public class LibraryBreakMusicProvider : BaseService, IBreakMusicProvider, IDisp
     /// <remarks>A display that cannot take a second channel inherits the no-op defaults and is
     /// still counted: the track is playing as far as the room is concerned, and a card naming it
     /// would otherwise be suppressed by a television that simply cannot carry the bed.</remarks>
-    private async Task<bool> SendToDisplaysAsync(IScreenCommand command)
+    private async Task<bool> SendToDisplaysAsync(
+        Func<IDisplayProvider, Task> call,
+        [CallerArgumentExpression(nameof(call))] string what = "")
     {
         if (ConnectedDisplay.Find(_displays) is not { } connected)
         {
@@ -240,22 +239,13 @@ public class LibraryBreakMusicProvider : BaseService, IBreakMusicProvider, IDisp
 
         try
         {
-            await DispatchAsync(connected.Provider, command);
+            await call(connected.Provider);
             return true;
         }
         catch (Exception ex)
         {
-            Logger.LogWarning(ex, "Failed to send {Command} to {Provider}", command.GetType().Name, connected.Provider.Name);
+            Logger.LogWarning(ex, "Failed to send {Call} to {Provider}", what, connected.Provider.Name);
             return false;
         }
     }
-
-    private static Task DispatchAsync(IDisplayProvider display, IScreenCommand command) => command switch
-    {
-        LoadBackgroundCommand c => display.LoadBackgroundAsync(c),
-        PlayBackgroundCommand => display.PlayBackgroundAsync(),
-        PauseBackgroundCommand => display.PauseBackgroundAsync(),
-        StopBackgroundCommand c => display.StopBackgroundAsync(c.FadeDuration),
-        _ => Task.CompletedTask,
-    };
 }

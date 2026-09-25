@@ -16,11 +16,6 @@ public class PluginExtensionInterfaceTests
     private static readonly Type[] HostOnly =
     [
         typeof(KHost.Abstractions.Services.IAuthProvider),
-
-        // A screen launcher starts a process on this machine. Binding it would let an installed
-        // plugin launch one, which is a decision about what a plugin is trusted with rather than a
-        // list this test may quietly grow. The screens' own display provider collects these.
-        typeof(KHost.Abstractions.Services.IPC.IScreenProvider),
     ];
 
     /// <summary>A domain service taking <c>IEnumerable&lt;T&gt;</c> of an Abstractions interface is

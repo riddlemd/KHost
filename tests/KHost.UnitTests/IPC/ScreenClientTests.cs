@@ -1,6 +1,6 @@
 using System.Reflection;
 using System.Security.Cryptography;
-using KHost.Abstractions.Services.IPC;
+using KHost.IPC.SignalR.Contracts;
 using KHost.IPC.SignalR;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;

@@ -297,8 +297,8 @@ What it does not do yet:
 
 - No artwork or background behind the words; the canvas is transparent over whatever is there.
 - Text is laid out per syllable with `fillText`, not HarfBuzz glyph runs — see "what is hard".
-- `ScreenCapabilities` is untouched: the screen is sent the words and draws them if it can. A
-  `SupportsLyrics` flag is only worth adding when a screen exists that cannot.
+- `ScreenCapabilities` is untouched: the screen is sent the words and draws them. A display that
+  cannot draw them asks for `RenderTarget.BurnLyrics` instead.
 
 ## Open questions
 

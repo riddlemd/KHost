@@ -1,7 +1,7 @@
 using KHost.Domain.Services.Messaging;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
-using KHost.Abstractions.Services.IPC;
+using KHost.IPC.SignalR.Contracts;
 using KHost.Abstractions.Messaging;
 using KHost.Domain.Services.BreakMusic;
 using KHost.Domain.Services.Displays.LocalScreen;
@@ -35,7 +35,9 @@ public class LibraryBreakMusicProviderTests : IDisposable
         // read as "what did the room get", which is the question they were always asking.
         _display.Name.Returns("Test display");
         _display.ConnectedDeviceId.Returns(AudioScreenId);
-        _display.LoadBackgroundAsync(Arg.Do<LoadBackgroundCommand>(_sent.Add), Arg.Any<CancellationToken>())
+        _display.LoadBackgroundAsync(
+                Arg.Do<BackgroundLoad>(bed => _sent.Add(new LoadBackgroundCommand { StreamUrl = bed.StreamUrl, AutoPlay = bed.AutoPlay })),
+                Arg.Any<CancellationToken>())
             .Returns(Task.CompletedTask);
         _display.PlayBackgroundAsync(Arg.Any<CancellationToken>())
             .Returns(_ => { _sent.Add(new PlayBackgroundCommand()); return Task.CompletedTask; });
@@ -198,7 +200,7 @@ public class LibraryBreakMusicProviderTests : IDisposable
 
         await _provider.StartAsync();
 
-        await _display.Received().LoadBackgroundAsync(Arg.Any<LoadBackgroundCommand>(), Arg.Any<CancellationToken>());
+        await _display.Received().LoadBackgroundAsync(Arg.Any<BackgroundLoad>(), Arg.Any<CancellationToken>());
         await _screenServer.DidNotReceive().BroadcastCommandAsync(Arg.Any<IScreenCommand>());
     }
 

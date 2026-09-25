@@ -1,4 +1,4 @@
-using KHost.Abstractions.Services.IPC;
+using KHost.IPC.SignalR.Contracts;
 using System.Text.Json.Serialization;
 
 namespace KHost.IPC.SignalR;
