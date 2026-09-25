@@ -31,6 +31,14 @@ public sealed class RenderTarget
     /// <summary>Whether the one connected display takes the stems unmixed and rides the levels itself.</summary>
     public bool MixesStems { get; init; }
 
-    /// <summary>Nothing connected, so nothing is worth producing beyond what a later target needs.</summary>
+    /// <summary>Whether the display cannot draw a song's timed words itself and wants them in the
+    /// picture.</summary>
+    /// <remarks>A request, not a demand: a renderer MAY honour it by drawing the words into what it
+    /// produces, and one that cannot returns the rendition it would have returned anyway rather than
+    /// declining or failing. The host draws no words of its own, so a song whose renderer cannot
+    /// honour it reaches such a display without them.</remarks>
+    public bool BurnLyrics { get; init; }
+
+    /// <summary>Nothing connected, or nothing special asked for: every flag false.</summary>
     public static RenderTarget None { get; } = new();
 }

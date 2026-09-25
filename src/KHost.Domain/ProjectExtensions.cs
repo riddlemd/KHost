@@ -118,9 +118,15 @@ namespace KHost.Domain
                 provider => provider.GetRequiredService<LocalScreenDisplayProvider>());
             serviceCollection.AddSingleton<INextSingerCardService, NextSingerCardService>();
             serviceCollection.AddSingleton<IQrCodeService, QrCodeService>();
+
+            // The same singleton, so a reader sees what the registry holds; only the read side is public.
+            serviceCollection.AddSingleton<IQrCodeOfferService>(sp => sp.GetRequiredService<IQrCodeService>());
+            serviceCollection.AddSingleton<IUpNextService, UpNextService>();
+
+            // It subscribes in its constructor, so it must exist before anything announces.
+            serviceCollection.AddSingleton<IStartsWithTheHost>(
+                sp => (IStartsWithTheHost)sp.GetRequiredService<IUpNextService>());
             serviceCollection.AddSingleton<IPlaybackService, PlaybackService>();
-            serviceCollection.AddSingleton<IPlaybackProgram>(
-                sp => (IPlaybackProgram)sp.GetRequiredService<IPlaybackService>());
 
             // The same singletons again, under the marker the host builds on the way up: pointed at what is
             // already registered. A fresh registration would build twice, and the extra copy would listen.

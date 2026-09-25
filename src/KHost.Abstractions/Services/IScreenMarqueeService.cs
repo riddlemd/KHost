@@ -6,10 +6,9 @@ namespace KHost.Abstractions.Services;
 /// either moves.</summary>
 /// <remarks>A display provider that draws a marquee TAKES this and calls <see cref="BuildAsync"/>
 /// on connect and again whenever it hears
-/// <see cref="KHost.Abstractions.Messaging.Messages.SelectedVenueChanged"/>,
-/// <see cref="KHost.Abstractions.Messaging.Messages.SingerQueueChanged"/>,
-/// <see cref="KHost.Abstractions.Messaging.Messages.PerformancesChanged"/> or
-/// <see cref="KHost.Abstractions.Messaging.Messages.PlaybackChanged"/>. This service holds no
+/// <see cref="KHost.Abstractions.Messaging.Messages.SelectedVenueChanged"/> or
+/// <see cref="KHost.Abstractions.Messaging.Messages.UpNextChanged"/>. The singers it names are the
+/// ones <see cref="IUpNextService"/> reads, so the two never disagree. This service holds no
 /// subscriptions and announces nothing: when and how the marquee is drawn is the display's. A host
 /// singleton, callable from any thread.</remarks>
 public interface IScreenMarqueeService
@@ -22,6 +21,7 @@ public interface IScreenMarqueeService
     /// <summary>What the screens should be showing now. Disabled when the venue has no marquee.</summary>
     /// <remarks>The whole marquee, to replace whatever was drawn: the venue's message and styling,
     /// and the next singers in queue order — leaving out whoever is singing now — each with their
-    /// next song when they have one queued.</remarks>
+    /// next song when they have one queued, exactly as <see cref="IUpNextService.ReadAsync"/>
+    /// answers for the venue's count.</remarks>
     Task<SetMarqueeCommand> BuildAsync(CancellationToken cancellationToken = default);
 }

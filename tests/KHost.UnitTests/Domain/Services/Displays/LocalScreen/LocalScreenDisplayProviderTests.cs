@@ -23,10 +23,10 @@ public class LocalScreenDisplayProviderTests
     // What the screen is drawn from, for the tests that follow a change message to the screen.
     private readonly MessageBroker _realBroker = new(NullLogger<MessageBroker>.Instance);
     private readonly IScreenMarqueeService _marquee = Substitute.For<IScreenMarqueeService>();
-    private readonly IQrCodeService _qrCodes = Substitute.For<IQrCodeService>();
+    private readonly IQrCodeOfferService _qrCodes = Substitute.For<IQrCodeOfferService>();
     private readonly IBreakMusicService _breakMusic = Substitute.For<IBreakMusicService>();
     private readonly IVenuesService _venues = Substitute.For<IVenuesService>();
-    private readonly IPlaybackProgram _playback = Substitute.For<IPlaybackProgram>();
+    private readonly IPlaybackService _playback = Substitute.For<IPlaybackService>();
     private readonly IMediaService _library = Substitute.For<IMediaService>();
     private readonly IMediaStreamService _streams = Substitute.For<IMediaStreamService>();
     private readonly ITimedLyricsService _timedLyrics = Substitute.For<ITimedLyricsService>();
@@ -151,6 +151,18 @@ public class LocalScreenDisplayProviderTests
     }
 
     /// <summary>There is nothing to find on this machine: the host opens the screen itself.</summary>
+    /// <summary>A screen mixes its own stems and draws its own words, so it wants neither baked in.</summary>
+    [Fact]
+    public void DescribeTarget_TakesTheStemsAndAsksForNoBurnedWords()
+    {
+        IDisplayProvider provider = _provider;
+
+        var target = provider.DescribeTarget();
+
+        Assert.True(target.MixesStems);
+        Assert.False(target.BurnLyrics);
+    }
+
     [Fact]
     public void SearchesForDevices_IsFalse()
         => Assert.False(_provider.SearchesForDevices);
@@ -400,7 +412,7 @@ public class LocalScreenDisplayProviderTests
     public async Task ScreenConnected_SendsTheStateAsItIsNow_NotWhatWasLastSent()
     {
         using var provider = DrawingProvider();
-        _realBroker.Announce(new SingerQueueChanged());
+        _realBroker.Announce(new UpNextChanged());
         Assert.True(await WaitForSentAsync<SetMarqueeCommand>(marquee => marquee.Message == "Tonight"));
 
         _marquee.BuildAsync(Arg.Any<CancellationToken>()).Returns(new SetMarqueeCommand { Enabled = true, Message = "Last call" });
@@ -416,9 +428,12 @@ public class LocalScreenDisplayProviderTests
     {
         // message,                                   marquee, codes, card
         { new SelectedVenueChanged(),                  true,    true,  true  },
-        { new SingerQueueChanged(),                    true,    false, false },
-        { new PerformancesChanged(),                   true,    false, false },
-        { new PlaybackChanged(),                       true,    true,  false },
+        { new UpNextChanged(),                         true,    false, false },
+
+        // Who is next reaches the marquee through UpNextChanged alone, which covers all three.
+        { new SingerQueueChanged(),                    false,   false, false },
+        { new PerformancesChanged(),                   false,   false, false },
+        { new PlaybackChanged(),                       false,   true,  false },
         { new BreakMusicChanged(),                     false,   false, true  },
         { new BreakMusicTrackChanged("Library"),       false,   false, true  },
     };
@@ -472,14 +487,14 @@ public class LocalScreenDisplayProviderTests
     }
 
     [Fact]
-    public async Task NextSingerCardRequested_DrawsThatCard()
+    public async Task NextSingerAnnounced_DrawsThatCard()
     {
         using var provider = DrawingProvider();
-        var card = new ShowNextSingerCommand { Singer = "Ada", Song = "Today" };
 
-        await _realBroker.PublishAsync(new NextSingerCardRequested(card));
+        await _realBroker.PublishAsync(new NextSingerAnnounced(new NextSingerCard { Singer = "Ada", Song = "Today", Artist = "Pogues" }));
 
-        Assert.Same(card, Assert.Single(Sent<ShowNextSingerCommand>()));
+        var drawn = Assert.Single(Sent<ShowNextSingerCommand>());
+        Assert.Equal(("Ada", "Today", "Pogues"), (drawn.Singer, drawn.Song, drawn.Artist));
     }
 
     /// <summary>One overlay that cannot be built must not keep the rest off a screen that just joined.</summary>
@@ -502,7 +517,7 @@ public class LocalScreenDisplayProviderTests
         var provider = DrawingProvider();
         provider.Dispose();
 
-        _realBroker.Announce(new SingerQueueChanged());
+        _realBroker.Announce(new UpNextChanged());
         await Task.Delay(50);
 
         Assert.Empty(Sent<SetMarqueeCommand>());
@@ -521,6 +536,7 @@ public class LocalScreenDisplayProviderTests
             .AddSingleton<IMessageBroker>(_realBroker)
             .AddSingleton<IQrCodeService>(sp => new QrCodeService(
                 NullLogger<QrCodeService>.Instance, _venues, sp, _realBroker))
+            .AddSingleton<IQrCodeOfferService>(sp => sp.GetRequiredService<IQrCodeService>())
             .BuildServiceProvider();
 
         using var provider = DrawingProvider(services);
@@ -839,7 +855,7 @@ public class LocalScreenDisplayProviderTests
         _screenServer.ClearReceivedCalls();
 
         _realBroker.Announce(new PlaybackChanged());
-        Assert.True(await WaitForSentAsync<SetMarqueeCommand>());
+        Assert.True(await WaitForSentAsync<SetScreenQrCodesCommand>());
         await Task.Delay(50);
 
         Assert.Empty(Sent<ShowImageCommand>());

@@ -1,4 +1,6 @@
 using KHost.Abstractions.Messaging;
+using KHost.Abstractions.Messaging.Messages;
+using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;

@@ -67,3 +67,18 @@ public sealed record DisplaysChanged;
 /// <remarks>Deliberately not per-plugin: the dialog shows one table at a time, and a re-read is
 /// cheap enough that telling them apart would buy nothing.</remarks>
 public sealed record PluginTableChanged;
+
+/// <summary>The QR code a venue shows may have moved: an owner offered or withdrew one.</summary>
+/// <remarks>Read <see cref="KHost.Abstractions.Services.IQrCodeOfferService.ReadOfferAsync"/> again
+/// on it. A venue edit that moves the code announces
+/// <see cref="SelectedVenueChanged"/> instead, and a song starting or ending
+/// <see cref="PlaybackChanged"/>, so a display drawing the code listens to all three. Published and
+/// awaited: the owner that offered the code returns once every display has been told.</remarks>
+public sealed record QrCodeOfferChanged;
+
+/// <summary>Who sings next, or what they sing, may have moved.</summary>
+/// <remarks>Read <see cref="KHost.Abstractions.Services.IUpNextService.ReadAsync"/> again on it.
+/// Announced once for one host action, however many steps it took, and not for a change that
+/// cannot move the list — a pause, a seek, a venue edit that leaves its alias rule alone. It may
+/// still arrive when the list reads the same afterwards.</remarks>
+public sealed record UpNextChanged;

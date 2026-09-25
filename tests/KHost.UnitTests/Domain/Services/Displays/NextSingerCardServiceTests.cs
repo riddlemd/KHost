@@ -1,5 +1,6 @@
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Messaging;
+using KHost.Abstractions.Messaging.Messages;
 using KHost.Abstractions.Services;
 using KHost.Abstractions.Services.IPC;
 using KHost.Domain.Services.Displays;
@@ -113,7 +114,7 @@ public class NextSingerCardServiceTests
         Assert.True(await Service().AnnounceAsync());
 
         await _broker.Received(1).PublishAsync(
-            Arg.Is<NextSingerCardRequested>(request => request.Card.Singer == "Ada" && request.Card.Song == "Today"),
+            Arg.Is<NextSingerAnnounced>(announced => announced.Card.Singer == "Ada" && announced.Card.Song == "Today"),
             Arg.Any<CancellationToken>());
     }
 
@@ -123,7 +124,7 @@ public class NextSingerCardServiceTests
     {
         Assert.False(await Service().AnnounceAsync());
 
-        await _broker.DidNotReceive().PublishAsync(Arg.Any<NextSingerCardRequested>(), Arg.Any<CancellationToken>());
+        await _broker.DidNotReceive().PublishAsync(Arg.Any<NextSingerAnnounced>(), Arg.Any<CancellationToken>());
     }
 
     private void Queue(params KHostUser[] singers) => _queue.Users.Returns(singers);

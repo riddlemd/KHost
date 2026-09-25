@@ -26,7 +26,7 @@ public class LocalScreenDisplayProviderBurstTests : IDisposable
     private readonly MessageBroker _broker = new(NullLogger<MessageBroker>.Instance);
     private readonly IScreenServer _screenServer = Substitute.For<IScreenServer>();
     private readonly IScreenMarqueeService _marquee = Substitute.For<IScreenMarqueeService>();
-    private readonly IQrCodeService _qrCodes = Substitute.For<IQrCodeService>();
+    private readonly IQrCodeOfferService _qrCodes = Substitute.For<IQrCodeOfferService>();
     private readonly IVenuesService _venues = Substitute.For<IVenuesService>();
     private readonly ISingerQueueService _queue = Substitute.For<ISingerQueueService>();
     private readonly IPerformanceService _performances = Substitute.For<IPerformanceService>();
@@ -165,8 +165,14 @@ public class LocalScreenDisplayProviderBurstTests : IDisposable
             .AddSingleton(_marquee)
             .AddSingleton(_qrCodes)
             .AddSingleton(breakMusic)
-            .AddSingleton<IPlaybackProgram>(_ => playback!)
+            .AddSingleton<IPlaybackService>(_ => playback!)
             .BuildServiceProvider();
+
+        // Real, since it is what turns the stop's several announcements into the marquee's one.
+        var upNext = new UpNextService(
+            NullLogger<UpNextService>.Instance, _broker, _venues, _queue, _performances,
+            Substitute.For<IMediaService>(), services, Settle);
+        _built.Add(upNext);
 
         var screen = new LocalScreenDisplayProvider(
             NullLogger<LocalScreenDisplayProvider>.Instance, _screenServer, [], _broker, _venues,

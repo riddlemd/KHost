@@ -1,5 +1,8 @@
+using KHost.Abstractions.Messaging;
+using KHost.Abstractions.Messaging.Messages;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
+using KHost.Domain;
 using KHost.Domain.Services;
 using KHost.Domain.Services.QrCodes;
 using KHost.Domain.Services.Messaging;
@@ -20,6 +23,26 @@ public class QrCodeServiceTests
         NullLogger<QrCodeService>.Instance, _venues,
         new ServiceCollection().AddSingleton(_playback).BuildServiceProvider(), _broker);
 
+    /// <summary>The QR registrations as <c>AddDomain()</c> writes them, over this fixture's venue,
+    /// playback and broker; the rest of the domain needs configuration and a database.</summary>
+    private ServiceProvider HostContainer()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+
+        foreach (var descriptor in new ServiceCollection().AddDomain()
+                     .Where(d => d.ServiceType == typeof(IQrCodeService) || d.ServiceType == typeof(IQrCodeOfferService)))
+        {
+            ((IList<ServiceDescriptor>)services).Add(descriptor);
+        }
+
+        return services
+            .AddSingleton(_venues)
+            .AddSingleton(_playback)
+            .AddSingleton<IMessageBroker>(_broker)
+            .BuildServiceProvider();
+    }
+
     private static QrCodeRegistration Code(string owner, string? caption = null) => new()
     {
         OwnerId = owner,
@@ -34,6 +57,36 @@ public class QrCodeServiceTests
         settings.QrCodeSource ??= source;
 
         _venues.ReadSelectedVenueAsync().Returns(new Venue { Name = "The Bar", Settings = settings });
+    }
+
+    /// <summary>The public read side is the registry itself, through the host's own registration:
+    /// a second instance would read an empty registry and offer nothing, forever.</summary>
+    [Fact]
+    public async Task TheOfferReadSide_FromTheHostsRegistration_ReadsTheSameOfferTheRegistryBuilds()
+    {
+        Arrange(new Venue.VenueSettings { QrCodeCorner = ScreenCorner.TopLeft, QrCodeSafeZone = 2 });
+        using var container = HostContainer();
+        var registry = container.GetRequiredService<IQrCodeService>();
+        var reader = container.GetRequiredService<IQrCodeOfferService>();
+
+        await registry.RegisterAsync(Code("example", "Scan me"));
+
+        var offered = await reader.ReadOfferAsync();
+        Assert.NotNull(offered);
+        Assert.Equal(await registry.ReadOfferAsync(), offered);
+        Assert.Equal(("https://example.test/example", "Scan me", ScreenCorner.TopLeft, 2),
+            (offered.Payload, offered.Caption, offered.Corner, offered.SafeZone));
+    }
+
+    /// <summary>A plugin reaches the read side; registering takes an owner id, so it must not.</summary>
+    [Fact]
+    public void TheOfferReadSide_OffersNoWayToRegister()
+    {
+        var members = typeof(IQrCodeOfferService).GetMethods()
+            .Concat(typeof(IQrCodeOfferService).GetInterfaces().SelectMany(inherited => inherited.GetMethods()))
+            .Select(method => method.Name);
+
+        Assert.Equal([nameof(IQrCodeOfferService.ReadOfferAsync)], members);
     }
 
     /// <summary>Taking IPlaybackService directly closes a constructor ring through a plugin.</summary>

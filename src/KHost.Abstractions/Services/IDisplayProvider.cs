@@ -1,3 +1,4 @@
+using KHost.Abstractions.Models;
 using KHost.Abstractions.Services.IPC;
 
 namespace KHost.Abstractions.Services;
@@ -22,6 +23,14 @@ namespace KHost.Abstractions.Services;
 /// what it needs from the host's services and messages and sends it to its own device. The drawable
 /// members have default bodies that do nothing, so a provider implements what its device can do and
 /// ignores the rest.</para>
+///
+/// <para><b>What a provider can read to draw with.</b> What is on the main channel is
+/// <see cref="IPlaybackService.CurrentProgram"/>; who sings next is <see cref="IUpNextService"/>; the
+/// venue's QR code is <see cref="IQrCodeOfferService"/>; the card naming who is up arrives as
+/// <see cref="KHost.Abstractions.Messaging.Messages.NextSingerAnnounced"/>; the break music is
+/// <see cref="IBreakMusicService"/>; a song's words are <see cref="ITimedLyricsService"/>. Each
+/// names the message that says it moved. <see cref="IPlaybackService"/> depends on every display
+/// provider, so a provider must not take it in its constructor: resolve it on first use.</para>
 ///
 /// <para>Announce <see cref="KHost.Abstractions.Messaging.Messages.DisplaysChanged"/> whenever the
 /// device list, the connection or the <see cref="SessionId"/> moves. The host re-reads the
@@ -102,6 +111,26 @@ public interface IDisplayProvider
 
     // --- transport ---
 
+    /// <summary>What the connected device can take, which decides what the host asks a renderer to
+    /// produce for it.</summary>
+    /// <remarks>Asked on every load, only of the provider that is connected, so answer from memory.
+    /// An answer that throws or is null is taken as asking for nothing special.
+    ///
+    /// <para>Has a default body: <see cref="RenderTarget.MixesStems"/> when the connected device's
+    /// entry in <see cref="Devices"/> claims <see cref="DisplayDevice.SupportsStemMix"/>, and every
+    /// other flag false. Override it to ask for more — <see cref="RenderTarget.BurnLyrics"/> for a
+    /// device that shows a picture but cannot draw words — keeping it in step with what
+    /// <see cref="Devices"/> claims.</para></remarks>
+    RenderTarget DescribeTarget()
+    {
+        var device = Devices.FirstOrDefault(d => d.Id == ConnectedDeviceId)
+            ?? Devices.FirstOrDefault(d => d.IsConnected);
+
+        return device is { SupportsStemMix: true }
+            ? new RenderTarget { MixesStems = true }
+            : RenderTarget.None;
+    }
+
     /// <summary>Loads a stream the host encoded, ready to play but not playing.</summary>
     /// <param name="streamUrl">What to play end to end.</param>
     /// <param name="startOffset">The song position the stream's zero maps to; add it to every
@@ -166,27 +195,33 @@ public interface IDisplayProvider
     /// <summary>Hands the device a song's words and their timing, to draw over the song.</summary>
     /// <remarks>The host does not call this; presentation is the provider's. A provider whose device
     /// draws words reads them from <see cref="ITimedLyricsService"/> while loading and sends them
-    /// itself. A device that cannot draw them can still show them: a renderer can burn them into
-    /// the stream. Has a default body that does nothing.</remarks>
+    /// itself. A device that cannot draw them can still show them: ask for
+    /// <see cref="RenderTarget.BurnLyrics"/> through <see cref="DescribeTarget"/>, and a renderer
+    /// able to may burn them into the picture. Has a default body that does nothing.</remarks>
     Task SetTimedLyricsAsync(SetTimedLyricsCommand lyrics, CancellationToken cancellationToken = default)
         => Task.CompletedTask;
 
     /// <summary>Hands the device the marquee, whole.</summary>
     /// <remarks>The host does not call this; presentation is the provider's. The content comes from
-    /// <see cref="IScreenMarqueeService.BuildAsync"/>, asked again whenever the venue, the queue or
-    /// playback moves. Has a default body that does nothing.</remarks>
+    /// <see cref="IScreenMarqueeService.BuildAsync"/>, which names the singers
+    /// <see cref="IUpNextService"/> does; ask again on
+    /// <see cref="KHost.Abstractions.Messaging.Messages.SelectedVenueChanged"/> and
+    /// <see cref="KHost.Abstractions.Messaging.Messages.UpNextChanged"/>. Has a default body that
+    /// does nothing.</remarks>
     Task SetMarqueeAsync(SetMarqueeCommand marquee, CancellationToken cancellationToken = default)
         => Task.CompletedTask;
 
     /// <summary>Hands the device the QR codes to show, whole; an empty set clears them.</summary>
-    /// <remarks>The host does not call this; presentation is the provider's. Has a default body
+    /// <remarks>The host does not call this; presentation is the provider's. What to show comes from
+    /// <see cref="IQrCodeOfferService"/>, which names when to read it again. Has a default body
     /// that does nothing.</remarks>
     Task SetQrCodesAsync(SetScreenQrCodesCommand codes, CancellationToken cancellationToken = default)
         => Task.CompletedTask;
 
     /// <summary>Puts up the card naming who sings next.</summary>
-    /// <remarks>The host does not call this; presentation is the provider's. The card is built by
-    /// <see cref="INextSingerCardService.BuildAsync"/>. Has a default body that does nothing.</remarks>
+    /// <remarks>The host does not call this; presentation is the provider's. The card arrives as
+    /// <see cref="KHost.Abstractions.Messaging.Messages.NextSingerAnnounced"/> when a host asks for
+    /// it. Has a default body that does nothing.</remarks>
     Task ShowNextSingerAsync(ShowNextSingerCommand card, CancellationToken cancellationToken = default)
         => Task.CompletedTask;
 
@@ -197,8 +232,9 @@ public interface IDisplayProvider
         => Task.CompletedTask;
 
     /// <summary>Puts a still up, such as the venue's card or an ad's; it stays until taken down.</summary>
-    /// <remarks>The host does not call this; presentation is the provider's. Has a default body
-    /// that does nothing.</remarks>
+    /// <remarks>The host does not call this; presentation is the provider's. An ad's still is
+    /// <see cref="PlaybackProgram.AdStill"/> on <see cref="IPlaybackService.CurrentProgram"/>. Has a
+    /// default body that does nothing.</remarks>
     Task ShowImageAsync(ShowImageCommand image, CancellationToken cancellationToken = default)
         => Task.CompletedTask;
 

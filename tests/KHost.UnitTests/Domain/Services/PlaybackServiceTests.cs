@@ -141,7 +141,7 @@ public class PlaybackServiceTests : IDisposable
         PlaybackService? built = null;
 
         var services = Substitute.For<IServiceProvider>();
-        services.GetService(typeof(IPlaybackProgram)).Returns(_ => built);
+        services.GetService(typeof(IPlaybackService)).Returns(_ => built);
         services.GetService(typeof(IMediaService)).Returns(_mediaService);
         services.GetService(typeof(IMediaStreamService)).Returns(_mediaStreams);
         services.GetService(typeof(ITimedLyricsService)).Returns(_timedLyrics);
@@ -1602,6 +1602,37 @@ public class PlaybackServiceTests : IDisposable
         await _service.LoadAsync(performance, media);
 
         Assert.False(_renderer.LastRequest?.Target.MixesStems);
+    }
+
+    /// <summary>What to produce is the connected display's to say, including what the host itself
+    /// has no way to know, such as wanting the words in the picture.</summary>
+    [Fact]
+    public async Task Load_AsksTheConnectedDisplayWhatItTakes()
+    {
+        ConnectScreens(0);
+        _display.ConnectedDeviceId.Returns("Living Room TV");
+        _display.DescribeTarget().Returns(new RenderTarget { BurnLyrics = true });
+
+        var (performance, media) = CreatePerformance();
+        await _service.LoadAsync(performance, media);
+
+        Assert.True(_renderer.LastRequest?.Target.BurnLyrics);
+    }
+
+    /// <summary>A plugin's answer is guarded: one that cannot describe itself still gets the song.</summary>
+    [Fact]
+    public async Task Load_ADisplayThatThrowsDescribingItself_IsRenderedForNothingSpecial()
+    {
+        ConnectScreens(0);
+        _display.ConnectedDeviceId.Returns("Living Room TV");
+        _display.DescribeTarget().Returns(_ => throw new InvalidOperationException("no idea"));
+
+        var (performance, media) = CreatePerformance();
+        await _service.LoadAsync(performance, media);
+
+        var target = _renderer.LastRequest?.Target;
+        Assert.NotNull(target);
+        Assert.False(target.MixesStems || target.BurnLyrics);
     }
 
     [Fact]

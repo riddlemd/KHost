@@ -19,8 +19,8 @@ public interface INextSingerCardService
     Task<ShowNextSingerCommand?> BuildAsync(CancellationToken cancellationToken = default);
 
     /// <summary>Puts the card up. False when the queue had nobody left to name.</summary>
-    /// <remarks>Returns once the card has been handed on for drawing. The hand-off is internal to
-    /// the host and reaches the host's own screens only; a plugin display provider is not sent
-    /// it.</remarks>
+    /// <remarks>Returns once the card has been handed on for drawing: it is published as
+    /// <see cref="KHost.Abstractions.Messaging.Messages.NextSingerAnnounced"/> and awaited, so every
+    /// display provider listening has had it by then.</remarks>
     Task<bool> AnnounceAsync(CancellationToken cancellationToken = default);
 }
