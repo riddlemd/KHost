@@ -74,9 +74,11 @@ internal sealed class StreamMediaPlayer : IMediaPlayer
 
     /// <summary>Points the page at a host stream rather than a file load: nothing local is opened.</summary>
     /// <remarks>Stems, when there are any, are what the page actually plays — the host has not mixed
-    /// them and <paramref name="url"/> is only what a page that cannot mix would fall back to.</remarks>
+    /// them and <paramref name="url"/> is only what a page that cannot mix would fall back to. Null
+    /// when there is no fallback at all: the page's own "load" handler never reaches its HLS element
+    /// for a stems-only load, so a null here never needs one either.</remarks>
     public void LoadStream(
-        string url,
+        string? url,
         TimeSpan streamStartOffset,
         int tempo = 0,
         IReadOnlyList<StemSource>? stems = null)
@@ -85,7 +87,7 @@ internal sealed class StreamMediaPlayer : IMediaPlayer
 
         lock (_lock)
         {
-            _info = new IMediaPlayer.MediaInfo { FilePath = url };
+            _info = new IMediaPlayer.MediaInfo { FilePath = url ?? string.Empty };
             _streamStartOffset = streamStartOffset;
             _rate = rate;
             _position = streamStartOffset;

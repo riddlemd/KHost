@@ -313,6 +313,11 @@ internal static class Program
         // inside Photino, so container disposal never runs and a screen would be left announcing a lost host.
         app.Lifetime.ApplicationStopping.Register(() =>
         {
+            // Told first: this bypasses LocalScreenDisplayProvider.DisconnectAsync for the reliable
+            // close below, so nothing else marks the drop about to happen as one the host asked for.
+            foreach (var screen in app.Services.GetServices<IDisplayProvider>().OfType<LocalScreenDisplayProvider>())
+                screen.NotifyDisconnectRequested();
+
             foreach (var provider in app.Services.GetServices<IScreenProvider>())
             {
                 try

@@ -73,71 +73,69 @@ internal sealed class ScreenServerService : IScreenServer, IHubCallback
         return nonce;
     }
 
-    bool IHubCallback.TryRegisterScreen(string connectionId, string? hostAddress, string envelopeJson)
+    string? IHubCallback.TryRegisterScreen(string connectionId, string? hostAddress, string envelopeJson)
     {
         var envelope = SignedEnvelope.TryParse(envelopeJson);
-        if (envelope is null) return false;
+        if (envelope is null) return "its registration could not be read";
 
         var key = _keyStore.GetKey(envelope.ScreenId);
         if (key is null)
         {
-            _logger?.LogWarning("Refused registration for '{ScreenId}': no key is provisioned for it", envelope.ScreenId);
-            return false;
+            const string reason = "no key is provisioned for it";
+            _logger?.LogWarning("Refused registration for '{ScreenId}': {Reason}", envelope.ScreenId, reason);
+            return reason;
         }
 
         ScreenConnection conn;
 
         lock (_lock)
         {
-            // Every refusal below says why. A screen the host turned away shows "Lost the host"
-            // and waits, which from the room looks exactly like a screen that crashed.
+            // Every refusal below says why, and is now sent to the screen as well as logged: a
+            // screen told nothing reads an abort as a lost connection rather than a refusal.
             if (!_sessions.TryGetValue(connectionId, out var session))
             {
+                const string reason = "no session was begun for this connection";
                 _logger?.LogWarning(
-                    "Refused registration for '{ScreenId}': no session was begun for {ConnectionId}",
-                    envelope.ScreenId, connectionId);
+                    "Refused registration for '{ScreenId}': {Reason} ({ConnectionId})",
+                    envelope.ScreenId, reason, connectionId);
 
-                return false;
+                return reason;
             }
 
             if (!ScreenMessageAuth.Verify(key, session.Nonce, envelope.Seq, envelope.Payload, envelope.Mac))
             {
-                _logger?.LogWarning(
-                    "Refused registration for '{ScreenId}': the signature did not verify",
-                    envelope.ScreenId);
+                const string reason = "the signature did not verify";
+                _logger?.LogWarning("Refused registration for '{ScreenId}': {Reason}", envelope.ScreenId, reason);
 
-                return false;
+                return reason;
             }
 
             if (envelope.Seq <= session.ExpectedInboundSeq)
             {
-                _logger?.LogWarning(
-                    "Refused registration for '{ScreenId}': sequence {Seq} is not past {Expected}",
-                    envelope.ScreenId, envelope.Seq, session.ExpectedInboundSeq);
+                var reason = $"sequence {envelope.Seq} is not past {session.ExpectedInboundSeq}";
+                _logger?.LogWarning("Refused registration for '{ScreenId}': {Reason}", envelope.ScreenId, reason);
 
-                return false;
+                return reason;
             }
 
             var payload = RegisterPayload.TryParse(envelope.Payload);
             if (payload is null)
             {
-                _logger?.LogWarning(
-                    "Refused registration for '{ScreenId}': its payload could not be read",
-                    envelope.ScreenId);
+                const string reason = "its payload could not be read";
+                _logger?.LogWarning("Refused registration for '{ScreenId}': {Reason}", envelope.ScreenId, reason);
 
-                return false;
+                return reason;
             }
 
             // A re-registration under an existing id overwrites in place; it doesn't count against the cap.
             if (!_connections.ContainsKey(envelope.ScreenId) && _connections.Count >= MaxRegisteredScreens)
             {
-                // Logged, not silent: a refused screen shows "Lost the host" and waits, which looks
-                // identical to a crash from the operator's side of the room.
-                _logger?.LogWarning(
-                    "Refused registration for '{ScreenId}': {Count} of {Max} screens are already registered",
-                    envelope.ScreenId, _connections.Count, MaxRegisteredScreens);
+                // Logged and sent to the screen: told nothing, it reads a refused cap as a crash
+                // from the operator's side of the room.
+                var reason = $"{_connections.Count} of {MaxRegisteredScreens} screens are already registered";
+                _logger?.LogWarning("Refused registration for '{ScreenId}': {Reason}", envelope.ScreenId, reason);
 
-                return false;
+                return reason;
             }
 
             session.Key = key;
@@ -158,7 +156,7 @@ internal sealed class ScreenServerService : IScreenServer, IHubCallback
         // Raised outside the lock, the same as TryAcceptState raises StateReceived: a subscriber
         // that calls back in (e.g. BroadcastCommandAsync) would otherwise re-enter this non-reentrant lock.
         ScreenConnected?.Invoke(this, new ScreenConnectionEventArgs { Connection = conn });
-        return true;
+        return null;
     }
 
     bool IHubCallback.TryAcceptState(string connectionId, string envelopeJson)

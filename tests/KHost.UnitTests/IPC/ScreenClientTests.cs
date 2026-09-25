@@ -284,6 +284,28 @@ public sealed class ScreenClientTests : IAsyncLifetime
         Assert.Equal(ScreenClientState.Connected, holder.State);
     }
 
+    /// <summary>Without this, the exception <see cref="ConnectAsync_RefusedByTheScreenCap_Throws"/>
+    /// asserts on is indistinguishable from the host simply never answering — which is the bug: a
+    /// refused screen logged "could not reach the IPC server" and retried all night believing it had
+    /// a network problem, when the host had answered and said no.</summary>
+    [Fact]
+    public async Task ConnectAsync_RefusedByTheScreenCap_NamesTheReasonInsteadOfLookingUnreachable()
+    {
+        var first = RandomNumberGenerator.GetBytes(32);
+        var second = RandomNumberGenerator.GetBytes(32);
+        _keys.Set("Screen 1", first);
+        _keys.Set("Screen 2", second);
+
+        await using var holder = new ScreenClient(NullLoggerFactory.Instance);
+        await holder.ConnectAsync(_url, "Screen 1", authKey: first);
+
+        await using var refused = new ScreenClient(NullLoggerFactory.Instance);
+        await Assert.ThrowsAnyAsync<Exception>(() => refused.ConnectAsync(_url, "Screen 2", authKey: second));
+
+        Assert.NotNull(refused.LastRefusalReason);
+        Assert.Contains("already registered", refused.LastRefusalReason);
+    }
+
     private static ScreenPlaybackState PlaybackState() => new()
     {
         StreamUrl = null,
@@ -321,7 +343,7 @@ public sealed class ScreenClientTests : IAsyncLifetime
         public bool TryAcquireConnectionSlot(string connectionId) => inner.TryAcquireConnectionSlot(connectionId);
         public void ReleaseConnectionSlot(string connectionId) => inner.ReleaseConnectionSlot(connectionId);
         public string BeginSession(string connectionId) => inner.BeginSession(connectionId);
-        public bool TryRegisterScreen(string connectionId, string? hostAddress, string envelopeJson)
+        public string? TryRegisterScreen(string connectionId, string? hostAddress, string envelopeJson)
         {
             if (RegisterDelay > TimeSpan.Zero) Thread.Sleep(RegisterDelay);
             return inner.TryRegisterScreen(connectionId, hostAddress, envelopeJson);

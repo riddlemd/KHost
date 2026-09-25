@@ -14,8 +14,10 @@ internal interface IHubCallback
     string BeginSession(string connectionId);
 
     /// <summary>Verifies a signed registration and registers the screen on success.</summary>
-    /// <remarks>False refuses it: no key, a bad MAC, a stale sequence, or the screen cap.</remarks>
-    bool TryRegisterScreen(string connectionId, string? hostAddress, string envelopeJson);
+    /// <returns>Null on success; otherwise why it was refused, so the caller can tell the screen
+    /// before dropping it — a refusal reads as a lost connection to a screen told nothing.</returns>
+    /// <remarks>Refuses for: no key, a bad MAC, a stale sequence, or the screen cap.</remarks>
+    string? TryRegisterScreen(string connectionId, string? hostAddress, string envelopeJson);
 
     /// <summary>Verifies a signed state message and dispatches it on success.</summary>
     /// <remarks>False refuses it: not yet authenticated, a bad MAC, or a stale sequence.</remarks>

@@ -115,6 +115,10 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
     /// comes back is known to hold nothing even under the same connection.</remarks>
     private volatile ScreenSession? _connected;
 
+    /// <summary>Set by <see cref="NotifyDisconnectRequested"/>; read by <see cref="DisconnectWasRequested"/>.
+    /// Cleared on the next registration, so a later unexpected drop is not blamed on an old request.</summary>
+    private volatile bool _disconnectRequested;
+
     public LocalScreenDisplayProvider(
         ILogger<LocalScreenDisplayProvider> logger,
         IScreenServer screenServer,
@@ -253,6 +257,12 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
     /// holds nothing, and the host hands it the song again.</summary>
     public Guid? SessionId => _connected?.Id;
 
+    /// <summary>True once <see cref="NotifyDisconnectRequested"/> ran for the screen now gone, so
+    /// <c>PlaybackService</c> can tell a deliberate hand-off (Turn Off, a switch, host shutdown)
+    /// from the screen disappearing on its own. Not part of <see cref="IDisplayProvider"/>: a
+    /// plugin display's own disconnect keeps logging as an unexpected loss.</summary>
+    public bool DisconnectWasRequested => _disconnectRequested;
+
     /// <summary>Opens the screen if it is not already up. Refused while a different one is.</summary>
     /// <remarks>Launching only starts the process; the screen still has to register back over IPC,
     /// which takes seconds. Answering as soon as the launch call returns reported a launch that
@@ -282,6 +292,8 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
 
     public Task DisconnectAsync(CancellationToken cancellationToken = default)
     {
+        NotifyDisconnectRequested();
+
         foreach (var launcher in _launchers)
         {
             try { launcher.CloseSpawnedScreens(); }
@@ -292,6 +304,11 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
 
         return Task.CompletedTask;
     }
+
+    /// <summary>Marks the loss that follows as one the host asked for. Called from
+    /// <see cref="DisconnectAsync"/> for a Turn Off or a switch, and directly by the host's
+    /// shutdown path, which closes the screen process without going through it.</summary>
+    public void NotifyDisconnectRequested() => _disconnectRequested = true;
 
     // --- transport ---
 
@@ -775,6 +792,7 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
     private void OnScreenConnected(object? sender, ScreenConnectionEventArgs e)
     {
         _connected = new ScreenSession(e.Connection, Guid.NewGuid());
+        _disconnectRequested = false;
 
         // Answers a ConnectAsync waiting on this launch; a screen that registers without anyone
         // waiting (a relaunch, or one recovering on its own) leaves this null and the call no-ops.

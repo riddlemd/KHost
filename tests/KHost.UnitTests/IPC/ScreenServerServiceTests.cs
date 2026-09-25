@@ -58,7 +58,7 @@ public class ScreenServerServiceTests
         var payload = RegisterPayload.From(capabilities ?? ScreenCapabilities.None).ToJson();
         var mac = ScreenMessageAuth.Sign(signWith ?? KeyFor(screenId), nonce, seq, payload);
 
-        return callback.TryRegisterScreen(connectionId, hostAddress, new SignedEnvelope(screenId, seq, payload, mac).ToJson());
+        return callback.TryRegisterScreen(connectionId, hostAddress, new SignedEnvelope(screenId, seq, payload, mac).ToJson()) is null;
     }
 
     private bool SendState(string connectionId, string screenId, IScreenState state, long seq, byte[]? signWith = null)
@@ -140,7 +140,7 @@ public class ScreenServerServiceTests
         // A key nobody put in the store: the screen id has none, so the registration cannot be trusted.
         var mac = ScreenMessageAuth.Sign(RandomNumberGenerator.GetBytes(32), nonce, 1, payload);
 
-        Assert.False(Callback.TryRegisterScreen("conn-a", null, new SignedEnvelope("stranger", 1, payload, mac).ToJson()));
+        Assert.NotNull(Callback.TryRegisterScreen("conn-a", null, new SignedEnvelope("stranger", 1, payload, mac).ToJson()));
         Assert.Empty(await ConnectedScreensAsync());
     }
 
@@ -168,7 +168,7 @@ public class ScreenServerServiceTests
         var mac = ScreenMessageAuth.Sign(KeyFor("Screen 1"), "some-nonce", 1, payload);
 
         // No BeginSession for this connection id, so there is no nonce to have signed against.
-        Assert.False(Callback.TryRegisterScreen("never-began", null, new SignedEnvelope("Screen 1", 1, payload, mac).ToJson()));
+        Assert.NotNull(Callback.TryRegisterScreen("never-began", null, new SignedEnvelope("Screen 1", 1, payload, mac).ToJson()));
     }
 
     [Fact]
@@ -409,6 +409,29 @@ public class ScreenServerServiceTests
         Assert.Equal(1, raised);
     }
 
+    /// <summary>The reason is what the hub now sends the screen before dropping it — without it,
+    /// a refused cap reads on the screen as a network failure rather than the refusal it is.</summary>
+    [Fact]
+    public void Register_BeyondTheScreenCap_NamesTheCapInTheRefusalReason()
+    {
+        var service = new ScreenServerService(_hubContext, _keys);
+        IHubCallback callback = service;
+
+        var nonceA = callback.BeginSession("conn-a");
+        var payloadA = RegisterPayload.From(ScreenCapabilities.None).ToJson();
+        var macA = ScreenMessageAuth.Sign(KeyFor("Screen 1"), nonceA, 1, payloadA);
+        Assert.Null(callback.TryRegisterScreen("conn-a", null, new SignedEnvelope("Screen 1", 1, payloadA, macA).ToJson()));
+
+        var nonceB = callback.BeginSession("conn-b");
+        var payloadB = RegisterPayload.From(ScreenCapabilities.None).ToJson();
+        var macB = ScreenMessageAuth.Sign(KeyFor("Screen 2"), nonceB, 1, payloadB);
+        var reason = callback.TryRegisterScreen("conn-b", null, new SignedEnvelope("Screen 2", 1, payloadB, macB).ToJson());
+
+        Assert.NotNull(reason);
+        Assert.Contains("1 of 1", reason);
+        Assert.Contains("already registered", reason);
+    }
+
     [Fact]
     public async Task Register_ReRegistrationOfTheSameId_StillOverwrites()
     {
@@ -448,7 +471,7 @@ public class ScreenServerServiceTests
         var payload = RegisterPayload.From(ScreenCapabilities.None).ToJson();
         var mac = ScreenMessageAuth.Sign(KeyFor(screenId), nonce, 1, payload);
 
-        return callback.TryRegisterScreen(connectionId, null, new SignedEnvelope(screenId, 1, payload, mac).ToJson());
+        return callback.TryRegisterScreen(connectionId, null, new SignedEnvelope(screenId, 1, payload, mac).ToJson()) is null;
     }
 
     private static ScreenPlaybackState Playing() => new()

@@ -25,6 +25,13 @@ public interface IScreenClient
     /// accepted the registration.</summary>
     ScreenClientState State { get; }
 
+    /// <summary>Why the most recent registration attempt was refused, if it was; null otherwise,
+    /// including for a link that was never reached at all.</summary>
+    /// <remarks>Both read the same from here: without this, a caller logging a failed
+    /// <see cref="ConnectAsync"/> cannot tell a refusal — the host answered and said no — from
+    /// never having reached it. Reset at the start of each registration attempt.</remarks>
+    string? LastRefusalReason { get; }
+
     /// <summary>Connects to the host and registers as <paramref name="screenId"/>, completing once the
     /// host has accepted it.</summary>
     /// <param name="serverUri">The host's screen endpoint.</param>

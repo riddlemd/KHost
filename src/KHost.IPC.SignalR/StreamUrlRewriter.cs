@@ -6,7 +6,9 @@ namespace KHost.IPC.SignalR;
 /// <remarks>A remote screen gets the address it actually reached the host on, not a loopback one.</remarks>
 internal static class StreamUrlRewriter
 {
-    internal static string ForScreen(string streamUrl, string? hostAddress)
+    /// <summary>Null means a stems-only load, which has no stream to rewrite; the null carries
+    /// straight through.</summary>
+    internal static string? ForScreen(string? streamUrl, string? hostAddress)
     {
         if (string.IsNullOrEmpty(streamUrl) || string.IsNullOrEmpty(hostAddress)) return streamUrl;
         if (!Uri.TryCreate(streamUrl, UriKind.Absolute, out var uri) || !uri.IsLoopback) return streamUrl;
