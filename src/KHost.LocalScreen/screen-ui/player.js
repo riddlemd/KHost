@@ -858,6 +858,8 @@ setInterval(() => {
         sampledAtEpochMs: Date.now(),
         rate: player.playbackRate,
         readyState: player.readyState,
+        // A stem mix's context state; undefined for an element, so it drops out of the JSON.
+        audioState: player.audioState,
     });
 }, 250);
 
