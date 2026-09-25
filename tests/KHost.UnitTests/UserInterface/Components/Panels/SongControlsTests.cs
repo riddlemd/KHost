@@ -178,7 +178,7 @@ public class SongControlsTests : BunitContext
         _playback.LeadVolume.Returns(40);
 
         var cut = Open();
-        var lead = cut.FindAll(Sliders)[2].GetAttribute("style")!;
+        var lead = cut.FindAll(Sliders)[3].GetAttribute("style")!;
 
         // A volume has no negative side, so its rest is the left edge.
         Assert.Contains("--from-frac:0.0000", lead);
@@ -230,8 +230,8 @@ public class SongControlsTests : BunitContext
         var cut = Open();
         var sliders = cut.FindAll(Sliders);
 
-        sliders[2].Change("60");
-        sliders[3].Change("35");
+        sliders[3].Change("60");
+        sliders[2].Change("35");
 
         _playback.Received(1).SetLeadVolumeAsync(60);
         _playback.Received(1).SetBackingVolumeAsync(35);
@@ -284,7 +284,7 @@ public class SongControlsTests : BunitContext
         var grips = cut.FindAll(".kh-song-control__grip");
 
         grips[0].Change("-3");
-        grips[3].Change("45");
+        grips[2].Change("45");
 
         // Both shapes drive the same values; only the drawing differs.
         _playback.Received(1).SetPitchAsync(-3);
@@ -322,6 +322,84 @@ public class SongControlsTests : BunitContext
         Assert.Equal("30.63 163.36", arc.GetAttribute("stroke-dasharray"));
         Assert.Equal("-61.26", arc.GetAttribute("stroke-dashoffset"));
     }
+
+    [Fact]
+    public void VocalRows_ADuetWithALeadPerSinger_GetsAFaderPerSingerUnderTheirCaption()
+    {
+        GiveTracks(
+            new AudioTrack(0, AudioTrackRole.Music, "Instrumental"),
+            new AudioTrack(1, AudioTrackRole.Backing, "Backing Vocal"),
+            new AudioTrack(2, AudioTrackRole.Lead, "Lead Vocal (♂)") { Voice = "♂" },
+            new AudioTrack(3, AudioTrackRole.Lead, "Lead Vocal (♀)") { Voice = "♀" });
+
+        var cut = Open();
+
+        // As KaraFun lays it out: no fader for the music, and no shared lead where each singer has one.
+        Assert.Equal(["Key", "Tempo", "Backing Vocals", "♂", "♀"], Labels(cut));
+    }
+
+    [Fact]
+    public void VocalRows_ASharedUncaptionedLead_IsOneLeadVocalFader()
+    {
+        GiveTracks(
+            new AudioTrack(0, AudioTrackRole.Music, "Instrumental"),
+            new AudioTrack(1, AudioTrackRole.Lead, "Lead Vocal"));
+
+        var cut = Open();
+
+        Assert.Equal(["Key", "Tempo", "Lead Vocal"], Labels(cut));
+    }
+
+    [Fact]
+    public void VocalRows_APlainKit_IsBackingThenLead()
+    {
+        GiveVocalTracks();
+
+        var cut = Open();
+
+        Assert.Equal(["Key", "Tempo", "Backing Vocals", "Lead Vocal"], Labels(cut));
+    }
+
+    [Fact]
+    public void VocalRows_TwoLeadsForOneSinger_ShareOneFader()
+    {
+        GiveTracks(
+            new AudioTrack(0, AudioTrackRole.Music, "Instrumental"),
+            new AudioTrack(1, AudioTrackRole.Lead, "Lead Vocal (♂)") { Voice = "♂" },
+            new AudioTrack(2, AudioTrackRole.Lead, "Lead Vocal (♂)") { Voice = "♂" });
+
+        var cut = Open();
+
+        Assert.Equal(["Key", "Tempo", "♂"], Labels(cut));
+    }
+
+    [Fact]
+    public void SingerFader_StartsAtThatSingersLevel_AndCommitsToThatSinger()
+    {
+        GiveTracks(
+            new AudioTrack(0, AudioTrackRole.Music, "Instrumental"),
+            new AudioTrack(1, AudioTrackRole.Lead, "Lead Vocal (♂)") { Voice = "♂" },
+            new AudioTrack(2, AudioTrackRole.Lead, "Lead Vocal (♀)") { Voice = "♀" });
+        _playback.VoiceVolumes.Returns(new Dictionary<string, int> { ["♂"] = 25, ["♀"] = 0 });
+
+        var cut = Open();
+        var sliders = cut.FindAll(Sliders);
+
+        Assert.Equal("25%", cut.FindAll(Values)[2].TextContent.Trim());
+
+        sliders[3].Change("45");
+
+        _playback.Received(1).SetVoiceVolumeAsync("♀", 45);
+        _playback.DidNotReceive().SetVoiceVolumeAsync("♂", Arg.Any<int>());
+        _playback.DidNotReceive().SetLeadVolumeAsync(Arg.Any<int>());
+        Assert.Equal("45%", cut.FindAll(Values)[3].TextContent.Trim());
+    }
+
+    private void GiveTracks(params AudioTrack[] tracks) =>
+        _playback.AudioTracks.Returns<IReadOnlyList<AudioTrack>>(tracks);
+
+    private static List<string> Labels(IRenderedComponent<SongControls> cut) =>
+        [.. cut.FindAll(".kh-song-control__label").Select(label => label.TextContent.Trim())];
 
     private void GiveVocalTracks() =>
         _playback.AudioTracks.Returns<IReadOnlyList<AudioTrack>>(

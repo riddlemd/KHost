@@ -11,4 +11,10 @@ namespace KHost.Abstractions.Models;
 /// <param name="Role">Which voice this stem carries.</param>
 /// <param name="Url">Where the display fetches this stem's audio.</param>
 /// <param name="Volume">Gain against the music, 0-100; the music track itself has no level.</param>
-public sealed record StemSource(int Index, AudioTrackRole Role, string Url, int Volume);
+public sealed record StemSource(int Index, AudioTrackRole Role, string Url, int Volume)
+{
+    /// <summary>The singer this stem's lead belongs to, matching <see cref="AudioTrack.Voice"/>;
+    /// null for a lead no singer is named on and for every other role.</summary>
+    /// <remarks>What a <see cref="StemLevel"/> is matched against, together with the role.</remarks>
+    public string? Voice { get; init; }
+}

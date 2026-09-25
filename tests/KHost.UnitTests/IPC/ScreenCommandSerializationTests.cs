@@ -156,6 +156,25 @@ public class ScreenCommandSerializationTests
     }
 
     [Fact]
+    public void RoundTrip_KeepsTheSingerAStemAndALevelBelongTo()
+    {
+        var load = new LoadMediaCommand
+        {
+            Stems = [new StemSource(2, AudioTrackRole.Lead, "http://host/l.ogg", 0) { Voice = "♀" }],
+        };
+        var level = new SetStemVolumeCommand { Role = AudioTrackRole.Lead, Voice = "♀", Volume = 55 };
+
+        var loaded = Assert.IsType<LoadMediaCommand>(JsonSerializer.Deserialize<ScreenCommandBase>(
+            JsonSerializer.Serialize(load, typeof(ScreenCommandBase), Options), Options));
+        var moved = Assert.IsType<SetStemVolumeCommand>(JsonSerializer.Deserialize<ScreenCommandBase>(
+            JsonSerializer.Serialize(level, typeof(ScreenCommandBase), Options), Options));
+
+        // Lost on the wire, a named singer's stem would answer to the unnamed lead's fader.
+        Assert.Equal("♀", Assert.Single(loaded.Stems).Voice);
+        Assert.Equal("♀", moved.Voice);
+    }
+
+    [Fact]
     public void RoundTrip_PreservesCommandPayloads()
     {
         static T RoundTrip<T>(T command) where T : ScreenCommandBase

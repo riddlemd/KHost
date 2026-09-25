@@ -150,7 +150,14 @@ public interface IPlaybackService : IDisposable
     IReadOnlyList<AudioTrack> AudioTracks { get; }
 
     /// <summary>Percent of the original lead vocal riding on the music. Zero by default.</summary>
+    /// <remarks>Applies to every lead whose voice has no level in <see cref="VoiceVolumes"/>.</remarks>
     int LeadVolume { get; }
+
+    /// <summary>The level of each named singer's lead in the loaded song, keyed by
+    /// <see cref="AudioTrack.Voice"/>; empty when no lead names a singer.</summary>
+    /// <remarks>Every voice among <see cref="AudioTracks"/> has an entry while a song is loaded:
+    /// the level the performance was sung at, else <see cref="AudioMix.DefaultLeadVolume"/>.</remarks>
+    IReadOnlyDictionary<string, int> VoiceVolumes { get; }
 
     /// <summary>Backing voice percent; starts at the machine setting, which defaults to full.</summary>
     int BackingVolume { get; }
@@ -162,6 +169,11 @@ public interface IPlaybackService : IDisposable
 
     /// <inheritdoc cref="SetLeadVolumeAsync"/>
     Task SetBackingVolumeAsync(int volume);
+
+    /// <summary>Sets one named singer's lead, leaving every other lead where it is.</summary>
+    /// <remarks>Does nothing for a voice no lead in the loaded song carries. Otherwise behaves as
+    /// <see cref="SetLeadVolumeAsync"/>.</remarks>
+    Task SetVoiceVolumeAsync(string voice, int volume);
 }
 
 // Stopping is appended so the existing numeric values stay stable for telemetry.

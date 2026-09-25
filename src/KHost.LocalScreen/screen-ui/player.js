@@ -713,8 +713,8 @@ function handleCommand(raw) {
             // Silently doing nothing would look exactly like a mix that has stopped responding.
             if (!stemMixer) { reportError('stem-volume with no stems playing'); break; }
 
-            const moved = stemMixer.setStemVolume(message.role, message.volume || 0);
-            if (moved === 0) reportError(`stem-volume for ${message.role}, which this song has none of`);
+            const moved = stemMixer.setStemVolume(message.role, message.voice ?? null, message.volume || 0);
+            if (moved === 0) reportError(`stem-volume for ${message.role} ${message.voice ?? ''}, which this song has none of`);
             break;
         }
         case 'timed-lyrics':

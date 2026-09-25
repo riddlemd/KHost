@@ -30,6 +30,7 @@ public partial class SongControls : IDisposable
     private int _tempo;
     private int _lead;
     private int _backing;
+    private Dictionary<string, int> _voices = [];
 
     // The volumes are deliberately not part of this. Lead sits at zero and backing at the house
     // setting on every song, so counting them would leave the trigger marked all night.
@@ -40,27 +41,39 @@ public partial class SongControls : IDisposable
     /// <summary>The panel as data: one list rendered twice, not copies that could drift apart.</summary>
     private IEnumerable<SongControl> Controls()
     {
-        yield return new SongControl("Key", "Key, in semitones from the recording",
+        yield return new SongControl(this, "Key", "Key, in semitones from the recording",
             _pitch, IPlaybackService.MinPitch, IPlaybackService.MaxPitch, 1,
             FormatPitch, v => _pitch = v, CommitPitchAsync);
 
-        yield return new SongControl("Tempo", "Tempo, as a percentage of the recording",
+        yield return new SongControl(this, "Tempo", "Tempo, as a percentage of the recording",
             _tempo, IPlaybackService.MinTempo, IPlaybackService.MaxTempo, TempoStep,
             FormatTempo, v => _tempo = v, CommitTempoAsync);
 
-        // Only a file that ships its voices apart has anything here to balance.
-        if (HasTrack(AudioTrackRole.Lead))
-            yield return new SongControl("Lead", "Lead vocal volume, as a percentage",
+        // Only a file that ships its voices apart has anything here to balance, and the music
+        // never gets a fader: it is the reference the voices are set against. Laid out as KaraFun
+        // does — backing, then a fader per singer's lead — so a host moving from it finds them.
+        if (HasTrack(AudioTrackRole.Backing))
+            yield return new SongControl(this, "Backing Vocals", "Backing vocal volume, as a percentage",
+                _backing, AudioMix.MinVolume, AudioMix.MaxVolume, VolumeStep,
+                FormatVolume, v => _backing = v, CommitBackingAsync);
+
+        var leads = PlaybackService?.AudioTracks.Where(t => t.Role == AudioTrackRole.Lead).ToList() ?? [];
+
+        if (leads.Any(t => t.Voice is null))
+            yield return new SongControl(this, "Lead Vocal", "Lead vocal volume, as a percentage",
                 _lead, AudioMix.MinVolume, AudioMix.MaxVolume, VolumeStep,
                 FormatVolume, v => _lead = v, CommitLeadAsync);
 
-        if (HasTrack(AudioTrackRole.Backing))
-            yield return new SongControl("Backing", "Backing vocal volume, as a percentage",
-                _backing, AudioMix.MinVolume, AudioMix.MaxVolume, VolumeStep,
-                FormatVolume, v => _backing = v, CommitBackingAsync);
+        foreach (var voice in leads.Select(t => t.Voice).OfType<string>().Distinct(StringComparer.Ordinal))
+            yield return new SongControl(this, voice, $"Lead vocal for {voice}, as a percentage",
+                _voices.GetValueOrDefault(voice, _lead), AudioMix.MinVolume, AudioMix.MaxVolume, VolumeStep,
+                FormatVolume, v => _voices[voice] = v, v => CommitVoiceAsync(voice, v));
     }
 
+    /// <param name="Receiver">The panel, which re-renders after each callback. Named rather than
+    /// taken from the delegate: a lambda closing over a voice targets its closure, not the panel.</param>
     private sealed record SongControl(
+        object Receiver,
         string Label,
         string AriaLabel,
         int Value,
@@ -72,9 +85,9 @@ public partial class SongControls : IDisposable
         Func<int, Task> Commit)
     {
         /// <summary>Moves the readout with the drag; the service hears nothing yet.</summary>
-        public EventCallback<int> OnInput => EventCallback.Factory.Create<int>(this, Track);
+        public EventCallback<int> OnInput => EventCallback.Factory.Create<int>(Receiver, Track);
 
-        public EventCallback<int> OnCommit => EventCallback.Factory.Create<int>(this, Commit);
+        public EventCallback<int> OnCommit => EventCallback.Factory.Create<int>(Receiver, Commit);
     }
 
     private bool HasTrack(AudioTrackRole role) =>
@@ -102,6 +115,7 @@ public partial class SongControls : IDisposable
         _tempo = PlaybackService?.Tempo ?? 0;
         _lead = PlaybackService?.LeadVolume ?? AudioMix.DefaultLeadVolume;
         _backing = PlaybackService?.BackingVolume ?? AudioMix.DefaultBackingVolume;
+        _voices = PlaybackService?.VoiceVolumes is { } voices ? new Dictionary<string, int>(voices) : [];
     }
 
     private bool _open;
@@ -141,6 +155,13 @@ public partial class SongControls : IDisposable
         _lead = value;
 
         return PlaybackService?.SetLeadVolumeAsync(value) ?? Task.CompletedTask;
+    }
+
+    private Task CommitVoiceAsync(string voice, int value)
+    {
+        _voices[voice] = value;
+
+        return PlaybackService?.SetVoiceVolumeAsync(voice, value) ?? Task.CompletedTask;
     }
 
     private Task CommitBackingAsync(int value)

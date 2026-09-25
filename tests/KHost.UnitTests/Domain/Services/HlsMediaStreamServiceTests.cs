@@ -280,9 +280,9 @@ public class HlsMediaStreamServiceTests : IDisposable
             "/songs/a.mp4", TimeSpan.Zero, 0, 0, 2, null, ThreeTrackMix(lead: 40, backing: 80));
 
         // The music is the reference the voices are set against, so it is never anything but full.
-        Assert.Contains("[0:a:0]volume=1.000[m]", arguments);
-        Assert.Contains("[0:a:2]volume=0.400[l]", arguments);
-        Assert.Contains("[0:a:1]volume=0.800[b]", arguments);
+        Assert.Contains("[0:a:0]volume=1.000[m0]", arguments);
+        Assert.Contains("[0:a:2]volume=0.400[l2]", arguments);
+        Assert.Contains("[0:a:1]volume=0.800[b1]", arguments);
     }
 
     [Fact]
@@ -356,7 +356,7 @@ public class HlsMediaStreamServiceTests : IDisposable
             ], LeadVolume: 30, BackingVolume: 100));
 
         Assert.Contains("amix=inputs=2:normalize=0", arguments);
-        Assert.Contains("[0:a:1]volume=0.300[l]", arguments);
+        Assert.Contains("[0:a:1]volume=0.300[l1]", arguments);
     }
 
     [Theory]
@@ -367,7 +367,48 @@ public class HlsMediaStreamServiceTests : IDisposable
         var arguments = HlsMediaStreamService.BuildArguments(
             "/songs/a.mp4", TimeSpan.Zero, 0, 0, 2, null, ThreeTrackMix(lead, 100));
 
-        Assert.Contains($"volume={expected}[l]", arguments);
+        Assert.Contains($"volume={expected}[l2]", arguments);
+    }
+
+    [Fact]
+    public void BuildArguments_GivesEachSingersLeadItsOwnLevel()
+    {
+        var arguments = HlsMediaStreamService.BuildArguments(
+            "/songs/a.mp4", TimeSpan.Zero, 0, 0, 2, null,
+            new AudioMix(
+            [
+                new AudioTrack(0, AudioTrackRole.Music, "Instrumental"),
+                new AudioTrack(1, AudioTrackRole.Backing, "Backing Vocal"),
+                new AudioTrack(2, AudioTrackRole.Lead, "Lead Vocal (♂)") { Voice = "♂" },
+                new AudioTrack(3, AudioTrackRole.Lead, "Lead Vocal (♀)") { Voice = "♀" },
+            ], LeadVolume: 10, BackingVolume: 100)
+            {
+                VoiceVolumes = new Dictionary<string, int> { ["♂"] = 60, ["♀"] = 20 },
+            });
+
+        Assert.Contains("[0:a:2]volume=0.600[l2]", arguments);
+        Assert.Contains("[0:a:3]volume=0.200[l3]", arguments);
+        // A pad label per track: two leads sharing one is a graph ffmpeg refuses to build.
+        Assert.Contains("[m0][b1][l2][l3]amix=inputs=4:normalize=0", arguments);
+    }
+
+    [Fact]
+    public void BuildArguments_ALeadWhoseVoiceHasNoLevel_RidesAtTheLeadLevel()
+    {
+        var arguments = HlsMediaStreamService.BuildArguments(
+            "/songs/a.mp4", TimeSpan.Zero, 0, 0, 2, null,
+            new AudioMix(
+            [
+                new AudioTrack(0, AudioTrackRole.Music, "Instrumental"),
+                new AudioTrack(1, AudioTrackRole.Lead, "Lead Vocal (♂)") { Voice = "♂" },
+                new AudioTrack(2, AudioTrackRole.Lead, "Lead Vocal"),
+            ], LeadVolume: 30, BackingVolume: 100)
+            {
+                VoiceVolumes = new Dictionary<string, int> { ["♀"] = 90 },
+            });
+
+        Assert.Contains("[0:a:1]volume=0.300[l1]", arguments);
+        Assert.Contains("[0:a:2]volume=0.300[l2]", arguments);
     }
 
     /// <summary>Named and ordered as the real files are: music first, then backing, then lead.</summary>

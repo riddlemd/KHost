@@ -343,7 +343,7 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
 
     /// <summary>The page rides the level itself; false only when the send did not land.</summary>
     public Task<bool> SetStemVolumeAsync(StemLevel level, CancellationToken cancellationToken = default)
-        => SendAsync(new SetStemVolumeCommand { Role = level.Role, Volume = level.Volume });
+        => SendAsync(new SetStemVolumeCommand { Role = level.Role, Voice = level.Voice, Volume = level.Volume });
 
     // --- the second audio channel ---
 

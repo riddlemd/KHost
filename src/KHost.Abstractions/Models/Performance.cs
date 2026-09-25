@@ -24,6 +24,10 @@ public class Performance : RepositoryModel
     /// <summary>Lead vocal volume, for a file shipping voices apart. Zero by default.</summary>
     public int LeadVolume { get; set; }
 
+    /// <summary>Levels for the leads of named singers, keyed by <see cref="AudioTrack.Voice"/>.</summary>
+    /// <remarks>Null or missing a voice means that singer's lead sits at the default.</remarks>
+    public Dictionary<string, int>? VoiceVolumes { get; set; }
+
     /// <summary>Backing volume; null means untouched, so the machine setting answers.</summary>
     public int? BackingVolume { get; set; }
 

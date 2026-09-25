@@ -3832,6 +3832,191 @@ public class PlaybackServiceTests : IDisposable
     }
 
     /// <summary>Named and ordered as the real files are: music, then backing, then lead.</summary>
+    // --- a lead per singer ---
+
+    /// <summary>A duet as a KaraFun kit ships it: a lead for each singer, named by caption.</summary>
+    private void GiveADuet(Media media) =>
+        _audioTracks.ReadTracksAsync(media.FilePath, Arg.Any<CancellationToken>()).Returns<IReadOnlyList<AudioTrack>>(
+        [
+            new AudioTrack(0, AudioTrackRole.Music, "Instrumental"),
+            new AudioTrack(1, AudioTrackRole.Backing, "Backing Vocal"),
+            new AudioTrack(2, AudioTrackRole.Lead, "Lead Vocal (♂)") { Voice = "♂" },
+            new AudioTrack(3, AudioTrackRole.Lead, "Lead Vocal (♀)") { Voice = "♀" },
+        ]);
+
+    [Fact]
+    public async Task Load_StartsEverySingersLeadOutOfTheWay()
+    {
+        var (performance, media) = CreatePerformance();
+        GiveADuet(media);
+
+        await _service.LoadAsync(performance, media);
+
+        Assert.Equal(new Dictionary<string, int> { ["♂"] = 0, ["♀"] = 0 }, _service.VoiceVolumes);
+    }
+
+    [Fact]
+    public async Task Load_TakesEachSingersLevelFromHowItWasSung()
+    {
+        var (performance, media) = CreatePerformance();
+        performance.VoiceVolumes = new() { ["♀"] = 45, ["gone"] = 80 };
+        GiveADuet(media);
+
+        await _service.LoadAsync(performance, media);
+
+        // Only the voices this file has; a level for a singer it does not carry has nothing to ride.
+        Assert.Equal(new Dictionary<string, int> { ["♂"] = 0, ["♀"] = 45 }, _service.VoiceVolumes);
+    }
+
+    [Fact]
+    public async Task Load_HandsTheRendererEachSingersLevel()
+    {
+        var (performance, media) = CreatePerformance();
+        performance.VoiceVolumes = new() { ["♂"] = 30 };
+        GiveADuet(media);
+
+        await _service.LoadAsync(performance, media);
+
+        Assert.Equal(30, _renderer.LastRequest?.Mix?.VoiceVolumes?["♂"]);
+    }
+
+    [Fact]
+    public async Task SetVoiceVolume_MovesOnlyThatSingersStem()
+    {
+        var (performance, media) = CreatePerformance();
+        GiveADuet(media);
+        RendererOffersStems(AudioTrackRole.Music, AudioTrackRole.Backing, AudioTrackRole.Lead, AudioTrackRole.Lead);
+        await _service.LoadAsync(performance, media);
+        await _service.PlayAsync();
+
+        await _service.SetVoiceVolumeAsync("♀", 60);
+
+        var moved = LastBroadcast<SetStemVolumeCommand>();
+        Assert.NotNull(moved);
+        Assert.Equal(AudioTrackRole.Lead, moved.Role);
+        Assert.Equal("♀", moved.Voice);
+        Assert.Equal(60, moved.Volume);
+        Assert.Equal(60, _service.VoiceVolumes["♀"]);
+        Assert.Equal(0, _service.VoiceVolumes["♂"]);
+        Assert.False(await WaitForStreamsOpenedAsync(1));
+    }
+
+    [Fact]
+    public async Task SetLeadVolume_OnADuet_SendsTheLevelForTheUnnamedLeadOnly()
+    {
+        var (performance, media) = CreatePerformance();
+        GiveADuet(media);
+        RendererOffersStems(AudioTrackRole.Music, AudioTrackRole.Lead);
+        await _service.LoadAsync(performance, media);
+        await _service.PlayAsync();
+
+        await _service.SetLeadVolumeAsync(40);
+
+        // No voice on the level, so the screen leaves both singers' stems where they are.
+        Assert.Null(LastBroadcast<SetStemVolumeCommand>()?.Voice);
+    }
+
+    [Fact]
+    public async Task SetVoiceVolume_TheDisplayRefusesTheLevel_RebuildsWithThatSingersLevel()
+    {
+        ConnectScreens(0);
+        _display.ConnectedDeviceId.Returns("Living Room TV");
+        _display.DescribeTarget().Returns(new RenderTarget { MixesStems = true });
+        _display.SetStemVolumeAsync(Arg.Any<StemLevel>(), Arg.Any<CancellationToken>()).Returns(false);
+        RendererOffersStems(AudioTrackRole.Music, AudioTrackRole.Lead, AudioTrackRole.Lead);
+        var (performance, media) = CreatePerformance();
+        GiveADuet(media);
+        await _service.LoadAsync(performance, media);
+        await _service.PlayAsync();
+
+        await _service.SetVoiceVolumeAsync("♂", 70);
+
+        await _display.Received(1).SetStemVolumeAsync(
+            Arg.Is<StemLevel>(l => l.Role == AudioTrackRole.Lead && l.Voice == "♂" && l.Volume == 70),
+            Arg.Any<CancellationToken>());
+        Assert.True(await WaitForDisplayLoadsAsync(2));
+        Assert.Equal(70, _renderer.LastRequest?.Mix?.VoiceVolumes?["♂"]);
+        Assert.Equal(0, _renderer.LastRequest?.Mix?.VoiceVolumes?["♀"]);
+    }
+
+    [Fact]
+    public async Task SetVoiceVolume_ForASingerTheSongDoesNotHave_DoesNothing()
+    {
+        var (performance, media) = CreatePerformance();
+        GiveADuet(media);
+        await _service.LoadAsync(performance, media);
+        _performanceService.ClearReceivedCalls();
+
+        await _service.SetVoiceVolumeAsync("Nate Dogg", 50);
+
+        Assert.False(_service.VoiceVolumes.ContainsKey("Nate Dogg"));
+        await _performanceService.DidNotReceive().UpdateAsync(Arg.Any<Performance>());
+    }
+
+    [Theory]
+    [InlineData(140, 100)]
+    [InlineData(-20, 0)]
+    public async Task SetVoiceVolume_ClampsToWhatAFaderCanAsk(int requested, int expected)
+    {
+        var (performance, media) = CreatePerformance();
+        GiveADuet(media);
+        await _service.LoadAsync(performance, media);
+
+        await _service.SetVoiceVolumeAsync("♂", requested);
+
+        Assert.Equal(expected, _service.VoiceVolumes["♂"]);
+    }
+
+    [Fact]
+    public async Task SetVoiceVolume_RecordsEverySingersLevelOnThePerformance()
+    {
+        var (performance, media) = CreatePerformance();
+        performance.VoiceVolumes = new() { ["kept"] = 15 };
+        GiveADuet(media);
+        await _service.LoadAsync(performance, media);
+
+        await _service.SetVoiceVolumeAsync("♂", 35);
+
+        // Merged: a voice this file does not carry keeps what it was sung at.
+        await _performanceService.Received().UpdateAsync(Arg.Is<Performance>(p =>
+            p.VoiceVolumes != null && p.VoiceVolumes["♂"] == 35 && p.VoiceVolumes["♀"] == 0
+            && p.VoiceVolumes["kept"] == 15));
+    }
+
+    [Fact]
+    public async Task Load_TwoLeadsForOneSinger_AreOneLevel()
+    {
+        var (performance, media) = CreatePerformance();
+        _audioTracks.ReadTracksAsync(media.FilePath, Arg.Any<CancellationToken>()).Returns<IReadOnlyList<AudioTrack>>(
+        [
+            new AudioTrack(0, AudioTrackRole.Music, "Instrumental"),
+            new AudioTrack(1, AudioTrackRole.Lead, "Lead Vocal (♂)") { Voice = "♂" },
+            new AudioTrack(2, AudioTrackRole.Lead, "Lead Vocal (♂)") { Voice = "♂" },
+        ]);
+
+        await _service.LoadAsync(performance, media);
+
+        Assert.Equal(new Dictionary<string, int> { ["♂"] = 0 }, _service.VoiceVolumes);
+    }
+
+    [Fact]
+    public async Task Stop_ForgetsTheSingersLevels()
+    {
+        var (performance, media) = CreatePerformance();
+        GiveADuet(media);
+        await _service.LoadAsync(performance, media);
+        await _service.PlayAsync();
+
+        await _service.StopAsync();
+
+        // The next thing loaded brings its own voices; a stopped console offers none.
+        Assert.Empty(_service.VoiceVolumes);
+    }
+
+    [Fact]
+    public void DefaultBackingSetting_IsFull()
+        => Assert.Equal(100, new PlaybackService.ServiceOptions().DefaultBackingVolume);
+
     private void GiveThreeTracks(Media media) =>
         _audioTracks.ReadTracksAsync(media.FilePath, Arg.Any<CancellationToken>()).Returns<IReadOnlyList<AudioTrack>>(
         [

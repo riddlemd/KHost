@@ -103,6 +103,9 @@ public partial class SingerPerformanceHistoryDialog
             Tempo = sung.Tempo,
             LeadVolume = sung.LeadVolume,
             BackingVolume = sung.BackingVolume,
+            // Copied: the new row is saved and played on its own, so sharing one dictionary with
+            // the old row would let a change to either move the other.
+            VoiceVolumes = sung.VoiceVolumes is null ? null : new(sung.VoiceVolumes),
         });
 
         // Stay open when the duplicate warning was declined, so the choice isn't lost.

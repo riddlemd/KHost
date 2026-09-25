@@ -269,6 +269,17 @@ internal class DefaultContext : DbContext
             entity.Property(e => e.SungAs)
                 .HasMaxLength(255);
 
+            // A comparer by content: by reference, a level changed in place on a tracked row is
+            // never seen as a change and never saved.
+            entity.Property(e => e.VoiceVolumes)
+                .HasConversion(
+                    v => v == null ? null : JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
+                    v => v == null ? null : JsonSerializer.Deserialize<Dictionary<string, int>>(v, (JsonSerializerOptions?)null),
+                    new ValueComparer<Dictionary<string, int>?>(
+                        (a, b) => a == null ? b == null : b != null && a.Count == b.Count && !a.Except(b).Any(),
+                        v => v == null ? 0 : v.Aggregate(0, (hash, pair) => hash ^ HashCode.Combine(pair.Key, pair.Value)),
+                        v => v == null ? null : new Dictionary<string, int>(v)));
+
             // Indexed, deliberately without foreign keys: deleting a song, a singer or a venue
             // must leave the record of who sang what standing rather than cascade it away.
             entity.HasIndex(e => e.SingerId);

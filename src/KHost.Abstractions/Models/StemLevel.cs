@@ -8,6 +8,13 @@ public sealed class StemLevel
     /// <summary>Which voice this changes the level of.</summary>
     public required AudioTrackRole Role { get; init; }
 
+    /// <summary>Which singer's lead this changes, matched exactly against
+    /// <see cref="StemSource.Voice"/>; null changes the stems of <see cref="Role"/> that carry no
+    /// voice.</summary>
+    /// <remarks>A stem whose voice is set is moved only by a level naming that voice, so riding the
+    /// unnamed lead never drags a named singer along with it.</remarks>
+    public string? Voice { get; init; }
+
     /// <summary>Gain against the music, 0-100; the music track itself has no level of its own.</summary>
     public required int Volume { get; init; }
 }

@@ -73,13 +73,12 @@ public class AppSettingsServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task BackingVocalVolume_DefaultsToSilent_AndRoundTripsThroughTheOverlay()
+    public async Task BackingVocalVolume_DefaultsToFull_AndRoundTripsThroughTheOverlay()
     {
         var service = Service();
 
-        // Out of the way until a room asks for it, the same as the lead: a harmony over the
-        // singer is still a voice competing with them.
-        Assert.Equal(0, service.Current.BackingVocalVolume);
+        // KaraFun's own default: the harmonies are part of the song the singer sings over.
+        Assert.Equal(100, service.Current.BackingVocalVolume);
 
         await service.SaveAsync(new AppSettings { BackingVocalVolume = 60 });
 
