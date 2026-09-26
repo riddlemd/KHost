@@ -26,6 +26,9 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
         /// <summary>Shorter segments start sooner; longer ones survive a worse network.</summary>
         public int SegmentSeconds { get; set; } = 2;
 
+        /// <summary>The frame height a .cdg is scaled into, and the size of every burned-in frame;
+        /// one of <see cref="GraphicsScaling.Heights"/>.</summary>
+        public int GraphicsScaleHeight { get; set; } = GraphicsScaling.DefaultHeight;
     }
 
     internal const string PlaylistFileName = "stream.m3u8";
@@ -156,12 +159,16 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
         if (companionAudio is null && IsGraphicsOnly(source))
             Logger.LogWarning("No companion audio beside '{FilePath}'; the stream will be silent", source);
 
+        // Read once per open, so a change made mid-song applies from the next song or reopen.
+        var graphicsHeight = GraphicsScaling.SnapToOffered(Options.GraphicsScaleHeight);
+
         var burnIn = words is null
             ? null
-            : await PlanBurnInAsync(source, words, backgroundPath, startOffset, tempo, cancellationToken);
+            : await PlanBurnInAsync(source, words, backgroundPath, startOffset, tempo, graphicsHeight, cancellationToken);
 
         var arguments = BuildArguments(
-            source, startOffset, pitch, tempo, Options.SegmentSeconds, companionAudio, mix, burnIn?.Overlay);
+            source, startOffset, pitch, tempo, Options.SegmentSeconds, companionAudio, mix, burnIn?.Overlay,
+            graphicsHeight);
 
         Logger.LogInformation(
             "Opening stream {SessionId} for '{FilePath}' at {Offset}{BurnIn}",
@@ -233,7 +240,7 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
     /// discards everything before the playhead, painted frames included.</para></remarks>
     private async Task<BurnInPlan> PlanBurnInAsync(
         string source, TimedLyrics words, string? backgroundPath, TimeSpan startOffset, int tempo,
-        CancellationToken cancellationToken)
+        int graphicsHeight, CancellationToken cancellationToken)
     {
         var (hasVideo, duration) = await ProbePictureAsync(source, cancellationToken);
 
@@ -241,8 +248,9 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
             ? BurnInBase.SourceVideo
             : backgroundPath is not null && File.Exists(backgroundPath) ? BurnInBase.Background : BurnInBase.Fill;
 
+        var (width, height) = BurnInOverlay.FrameFor(graphicsHeight);
         var overlay = new BurnInOverlay(
-            BurnInOverlay.DefaultWidth, BurnInOverlay.DefaultHeight, BurnInOverlay.DefaultFramesPerSecond,
+            width, height, BurnInOverlay.DefaultFramesPerSecond,
             basePicture, basePicture == BurnInBase.Background ? backgroundPath : null);
 
         // Laid over a picture nobody made with the words in mind, so the band they sit in is darkened.
@@ -366,7 +374,8 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
 
     /// <summary>EVENT playlist type so a consumer can start on the first segment.</summary>
     /// <remarks>H.264 Main@4.1 + AAC-LC decodes in every browser and in WKWebView, which is what
-    /// LocalScreen renders through; a display provider's device is a third consumer it also suits.</remarks>
+    /// LocalScreen renders through; a display provider's device is a third consumer it also suits.
+    /// A frame taller than 1080 lines is Main@5.1, the lowest level that allows one.</remarks>
     internal static string BuildArguments(
         string filePath,
         TimeSpan startOffset,
@@ -375,7 +384,8 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
         int segmentSeconds,
         string? companionAudioPath = null,
         AudioMix? mix = null,
-        BurnInOverlay? burnIn = null)
+        BurnInOverlay? burnIn = null,
+        int graphicsHeight = GraphicsScaling.Off)
     {
         var arguments = "-hide_banner -loglevel error";
 
@@ -394,6 +404,11 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
         // Never without audio: an endless picture with nothing to end it would never finish.
         var holdsPictureToTheAudio = isGraphicsOnly && companionAudioPath is not null;
 
+        // Zero when unscaled: the native picture, as it always was.
+        var graphicsFrame = isGraphicsOnly && graphicsHeight > GraphicsScaling.Off
+            ? GraphicsScaling.FrameOfHeight(graphicsHeight)
+            : (Width: 0, Height: 0);
+
         if (startOffset > TimeSpan.Zero && !isGraphicsOnly)
             arguments += string.Format(CultureInfo.InvariantCulture, " -ss {0:F3}", startOffset.TotalSeconds);
 
@@ -404,8 +419,9 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
             arguments += $" -i \"{companionAudioPath}\"";
 
             // Without the mapping ffmpeg picks one stream per type from the first input that has
-            // one, and a .cdg carries no audio at all. A burn-in maps its own, after its inputs.
-            if (burnIn is null) arguments += " -map 0:v:0 -map 1:a:0";
+            // one, and a .cdg carries no audio at all. A burn-in and a held picture each map their
+            // own, after their graph.
+            if (burnIn is null && !holdsPictureToTheAudio) arguments += " -map 0:v:0 -map 1:a:0";
         }
 
         // Inputs come before the output seek below, or that -ss would bind to the next input.
@@ -421,11 +437,13 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
         // rate and encodes far more than the picture needs. Measured on two songs: 110 and 154
         // CPU-seconds without this against 33 and 44 with it, for the same segments either way.
         if (isGraphicsOnly)
-            arguments += " -r 30";
+            arguments += $" -r {GraphicsFramesPerSecond}";
+
+        var level = (burnIn?.Height ?? graphicsFrame.Height) > 1080 ? "5.1" : "4.1";
 
         // Keyframes on time, not a frame count: -g is in frames, so it matches the segment length
         // at exactly one source frame rate, and the muxer can only cut where a keyframe already is.
-        arguments += " -c:v libx264 -preset veryfast -profile:v main -level 4.1 -pix_fmt yuv420p"
+        arguments += $" -c:v libx264 -preset veryfast -profile:v main -level {level} -pix_fmt yuv420p"
                    + string.Format(
                         CultureInfo.InvariantCulture,
                         " -force_key_frames \"expr:gte(t,n_forced*{0})\" -sc_threshold 0",
@@ -437,7 +455,18 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
         if (burnIn is not null)
         {
             arguments += BurnInMapping(
-                burnIn, pipeInput, tempo, companionAudioPath is null ? 0 : 1, mixGraph, audioFilter, holdsPictureToTheAudio);
+                burnIn, pipeInput, tempo, companionAudioPath is null ? 0 : 1, mixGraph, audioFilter,
+                isGraphicsOnly, holdsPictureToTheAudio);
+        }
+        else if (holdsPictureToTheAudio)
+        {
+            var picture = GraphicsOnCanvas(
+                tempo, GraphicsFramesPerSecond, GraphicsFit(graphicsFrame.Width, graphicsFrame.Height), "v");
+
+            arguments += mixGraph.Length > 0
+                ? $" -filter_complex \"{picture};{mixGraph}\" -map \"[v]\" -map \"[a]\""
+                : $" -filter_complex \"{picture}\" -map \"[v]\" -map 1:a:0"
+                  + (audioFilter.Length > 0 ? $" -af \"{audioFilter}\"" : "");
         }
         else if (mixGraph.Length > 0)
         {
@@ -453,13 +482,16 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
             arguments += $" -af \"{audioFilter}\"";
         }
 
-        // -vf rather than a filter_complex: it composes with the CDG mapping above, and ffmpeg
-        // drops it silently on a source with no video rather than failing on an unmatched label.
-        // A burn-in retimes its picture inside its own graph instead.
-        var videoFilter = holdsPictureToTheAudio
-            ? string.Join(',', new[] { HoldLastFrame, BuildVideoFilter(tempo) }.Where(f => f.Length > 0))
+        // -vf rather than a filter_complex: ffmpeg drops it silently on a source with no video
+        // rather than failing on an unmatched label. A burn-in and a held picture retime inside
+        // their own graphs instead.
+        var videoFilter = graphicsFrame.Height > 0
+            ? string.Join(',', new[]
+            {
+                BuildVideoFilter(tempo), $"fps={GraphicsFramesPerSecond}", GraphicsFit(graphicsFrame.Width, graphicsFrame.Height),
+            }.Where(f => f.Length > 0))
             : BuildVideoFilter(tempo);
-        if (videoFilter.Length > 0 && burnIn is null) arguments += $" -vf \"{videoFilter}\"";
+        if (videoFilter.Length > 0 && burnIn is null && !holdsPictureToTheAudio) arguments += $" -vf \"{videoFilter}\"";
 
         if (holdsPictureToTheAudio) arguments += " -shortest";
 
@@ -519,17 +551,21 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
     /// itself and carries on without them if the words run out first.</para></remarks>
     private static string BurnInMapping(
         BurnInOverlay burnIn, int pipeInput, int tempo, int audioInput, string mixGraph, string audioFilter,
-        bool holdsPictureToTheAudio)
+        bool isGraphicsOnly, bool holdsPictureToTheAudio)
     {
         var size = string.Format(CultureInfo.InvariantCulture, "{0}:{1}", burnIn.Width, burnIn.Height);
         var rate = burnIn.FramesPerSecond.ToString(CultureInfo.InvariantCulture);
         var baseInput = pipeInput + 1;
+        var retime = BuildVideoFilter(tempo) is { Length: > 0 } filter ? filter + "," : "";
 
         var picture = burnIn.Base switch
         {
-            BurnInBase.SourceVideo => "[0:v:0]"
-                + (holdsPictureToTheAudio ? HoldLastFrame + "," : "")
-                + (BuildVideoFilter(tempo) is { Length: > 0 } retime ? retime + "," : "")
+            // Scaled exactly as it is without words over it, so turning the words on moves no block.
+            BurnInBase.SourceVideo when holdsPictureToTheAudio
+                => GraphicsOnCanvas(tempo, burnIn.FramesPerSecond, GraphicsFit(burnIn.Width, burnIn.Height), "base"),
+            BurnInBase.SourceVideo when isGraphicsOnly
+                => $"[0:v:0]{retime}fps={rate},{GraphicsFit(burnIn.Width, burnIn.Height)}[base]",
+            BurnInBase.SourceVideo => $"[0:v:0]{retime}"
                 + $"fps={rate},scale={size}:force_original_aspect_ratio=decrease,"
                 + $"pad={size}:(ow-iw)/2:(oh-ih)/2,setsar=1[base]",
             BurnInBase.Background => $"[{baseInput}:v]scale={size}:force_original_aspect_ratio=increase,"
@@ -627,11 +663,50 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
         return string.Join(';', stages);
     }
 
-    /// <summary>Retimes the picture: output frame rate becomes the source times the rate.</summary>
-    /// <remarks>The keyframe expression is immune, since it is written in output time.</remarks>
     /// <summary>Repeats the last frame without end; <c>-shortest</c> is what stops it.</summary>
     private const string HoldLastFrame = "tpad=stop=-1:stop_mode=clone";
 
+    /// <summary>The rate a graphics-only source is brought to.</summary>
+    private const int GraphicsFramesPerSecond = 30;
+
+    /// <summary>A .cdg held to its audio, laid on black, and fitted into its frame; ends in
+    /// <c>[<paramref name="label"/>]</c>.</summary>
+    /// <remarks>
+    /// <para>The canvas is what a disc that never draws still shows: with no decoded frame the
+    /// graph emits nothing, and the encode produces no segment at all. Native size, so it is cheap.</para>
+    /// <para>The order is load-bearing. The hold precedes <c>fps</c>, which drops the last frames
+    /// at the end of its input. <c>fps</c> precedes the scale: a .cdg decodes up to 300 frames a
+    /// second while it draws, and scaling each doubles the CPU. The overlay is RGB, since YUV
+    /// halves the colour before the scale.</para>
+    /// </remarks>
+    private static string GraphicsOnCanvas(int tempo, int fps, string fit, string label)
+        => string.Format(
+               CultureInfo.InvariantCulture,
+               "color=c=black:s={0}x{1}:r={2}[canvas];",
+               GraphicsScaling.SourceWidth, GraphicsScaling.SourceHeight, fps)
+           + $"[0:v:0]{HoldLastFrame},"
+           + (BuildVideoFilter(tempo) is { Length: > 0 } retime ? retime + "," : "")
+           + string.Format(CultureInfo.InvariantCulture, "fps={0}[graphics];", fps)
+           + $"[canvas][graphics]overlay=format=rgb,{fit}[{label}]";
+
+    /// <summary>Scales the native picture by the largest whole number that fits the frame, on
+    /// nearest neighbour, and centres it; a zero-sized frame leaves it native.</summary>
+    /// <remarks>Shared by every path a .cdg takes, so the words going on or off never moves a block.
+    /// </remarks>
+    internal static string GraphicsFit(int width, int height)
+    {
+        if (width <= 0 || height <= 0) return "setsar=1";
+
+        var factor = GraphicsScaling.WholeScaleFor(width, height);
+
+        return string.Format(
+            CultureInfo.InvariantCulture,
+            "scale=iw*{0}:ih*{0}:flags=neighbor,pad={1}:{2}:(ow-iw)/2:(oh-ih)/2,setsar=1",
+            factor, width, height);
+    }
+
+    /// <summary>Retimes the picture: output frame rate becomes the source times the rate.</summary>
+    /// <remarks>The keyframe expression is immune, since it is written in output time.</remarks>
     private static string BuildVideoFilter(int tempo)
     {
         var rate = StreamRate.FromTempo(tempo);

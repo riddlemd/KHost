@@ -326,6 +326,7 @@ internal sealed class ScreenServerService : IScreenServer, IHubCallback
         StreamStartOffset = load.StreamStartOffset,
         Tempo = load.Tempo,
         Stems = load.Stems,
+        IsGraphicsOnly = load.IsGraphicsOnly,
     };
 
     private sealed class SessionAuth

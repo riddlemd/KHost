@@ -247,7 +247,7 @@ public class PlayerPageTests
         Assert.Contains("if (outgoing === leaving) dropOutgoing();", handOver, StringComparison.Ordinal);
 
         // And a handover takes the free element from the crossfade before attaching to it.
-        var load = page[page.IndexOf("function load(url, autoplay)", StringComparison.Ordinal)..];
+        var load = page[page.IndexOf("function load(url, autoplay", StringComparison.Ordinal)..];
         load = load[..load.IndexOf("attach(arriving, url, true);", StringComparison.Ordinal)];
         Assert.Contains("dropOutgoing();", load[load.IndexOf("Something is playing", StringComparison.Ordinal)..], StringComparison.Ordinal);
     }

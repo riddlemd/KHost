@@ -14,11 +14,12 @@ public class HlsMediaStreamServiceEncodeTests : IDisposable
         Path.Combine(Path.GetTempPath(), $"khost-encode-tests-{Guid.NewGuid():n}");
 
     private readonly HlsMediaStreamService _service;
+    private readonly TestOptionsMonitor<HlsMediaStreamService.ServiceOptions> _options;
 
     public HlsMediaStreamServiceEncodeTests()
         => _service = new HlsMediaStreamService(
             NullLogger<HlsMediaStreamService>.Instance,
-            new TestOptionsMonitor<HlsMediaStreamService.ServiceOptions>(new HlsMediaStreamService.ServiceOptions
+            _options = new TestOptionsMonitor<HlsMediaStreamService.ServiceOptions>(new HlsMediaStreamService.ServiceOptions
             {
                 BaseAddress = "http://host:5251/",
                 WorkingDirectory = _workingDirectory,
@@ -184,6 +185,69 @@ public class HlsMediaStreamServiceEncodeTests : IDisposable
         Assert.InRange(Math.Abs(audio - video), 0, 1.0);
     }
 
+    /// <summary>Whole-pixel scaled into the chosen frame, read live, and still ended by the audio.</summary>
+    [RequiresFfmpegFact]
+    public async Task OpenAsync_ScalesACdgInto720p_AndEndsItWithItsAudio()
+        => await AssertScaledCdgAsync(720, "1280,720");
+
+    [RequiresFfmpegFact]
+    public async Task OpenAsync_ScalesACdgInto1080p_AndEndsItWithItsAudio()
+        => await AssertScaledCdgAsync(1080, "1920,1080");
+
+    /// <summary>A disc that never draws decodes no frame at all, and used to encode to nothing; the
+    /// black canvas under it is the picture instead.</summary>
+    [RequiresFfmpegFact]
+    public async Task OpenAsync_GivesACdgThatNeverDrawsABlackPictureEndingWithItsAudio()
+    {
+        var cdg = await CreateCdgPairAsync(seconds: 4, draws: false);
+
+        var session = await _service.OpenAsync(cdg);
+
+        var total = ParseSegmentDurations(await WaitForCompletePlaylistAsync(session.Id)).Sum();
+        Assert.InRange(total, 3.0, 5.0);
+
+        var playlist = _service.ResolveArtifact(session.Id, "stream.m3u8")!;
+        Assert.Equal("1280,720", await ProbeFrameSizeAsync(playlist));
+        Assert.InRange(Math.Abs(await ProbeLastTimestampAsync(playlist, 'a') - await ProbeLastTimestampAsync(playlist, 'v')), 0, 1.0);
+    }
+
+    private async Task AssertScaledCdgAsync(int height, string expectedSize)
+    {
+        _options.Set(new HlsMediaStreamService.ServiceOptions
+        {
+            BaseAddress = "http://host:5251/",
+            WorkingDirectory = _workingDirectory,
+            GraphicsScaleHeight = height,
+        });
+        var cdg = await CreateCdgPairAsync(seconds: 4, graphicsSeconds: 6);
+
+        var session = await _service.OpenAsync(cdg);
+
+        var total = ParseSegmentDurations(await WaitForCompletePlaylistAsync(session.Id)).Sum();
+        Assert.InRange(total, 3.0, 5.0);
+
+        var playlist = _service.ResolveArtifact(session.Id, "stream.m3u8")!;
+        Assert.Equal(expectedSize, await ProbeFrameSizeAsync(playlist));
+        Assert.InRange(Math.Abs(await ProbeLastTimestampAsync(playlist, 'a') - await ProbeLastTimestampAsync(playlist, 'v')), 0, 1.0);
+    }
+
+    private static async Task<string> ProbeFrameSizeAsync(string path)
+    {
+        using var process = Process.Start(new ProcessStartInfo("ffprobe",
+            $"-hide_banner -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0 \"{path}\"")
+        {
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+        })!;
+
+        var output = await process.StandardOutput.ReadToEndAsync();
+        await process.WaitForExitAsync();
+
+        // A playlist of TS segments lists the stream once per program; the first is enough.
+        return output.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).FirstOrDefault() ?? "";
+    }
+
     [RequiresFfmpegFact]
     public async Task OpenAsync_SegmentsAtTheConfiguredLength_WhateverTheSourceFrameRate()
     {
@@ -341,7 +405,7 @@ public class HlsMediaStreamServiceEncodeTests : IDisposable
     }
 
     /// <summary>Writes a blank but structurally valid .cdg next to a real .mp3.</summary>
-    private async Task<string> CreateCdgPairAsync(int seconds, int? graphicsSeconds = null)
+    private async Task<string> CreateCdgPairAsync(int seconds, int? graphicsSeconds = null, bool draws = true)
     {
         var audio = await CreateSampleAsync(seconds, audioOnly: true);
         var cdg = Path.ChangeExtension(audio, ".cdg");
@@ -351,7 +415,7 @@ public class HlsMediaStreamServiceEncodeTests : IDisposable
         // one frame: a .cdg that never draws gives none, and a picture held to the audio has
         // nothing to hold.
         var packets = new byte[24 * 300 * (graphicsSeconds ?? seconds)];
-        (packets[0], packets[1], packets[4]) = (0x09, 1, 3);
+        if (draws) (packets[0], packets[1], packets[4]) = (0x09, 1, 3);
 
         await File.WriteAllBytesAsync(cdg, packets);
 

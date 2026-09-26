@@ -79,7 +79,7 @@ public class HlsMediaStreamServiceTests : IDisposable
         Assert.Contains("-i \"/songs/a.mp3\"", arguments);
 
         // Without the mapping ffmpeg takes both streams from the first input, which has no audio.
-        Assert.Contains("-map 0:v:0 -map 1:a:0", arguments);
+        Assert.Contains("-map \"[v]\" -map 1:a:0", arguments);
     }
 
     /// <summary>A .cdg emits a frame only when the graphics change, so x264 is handed a wildly
@@ -104,7 +104,7 @@ public class HlsMediaStreamServiceTests : IDisposable
         var arguments = HlsMediaStreamService.BuildArguments(
             "/songs/a.cdg", TimeSpan.Zero, 0, 0, 2, "/songs/a.mp3");
 
-        Assert.Contains("-vf \"tpad=stop=-1:stop_mode=clone\"", arguments);
+        Assert.Contains("[0:v:0]tpad=stop=-1:stop_mode=clone,fps=30[graphics]", arguments);
         Assert.Contains(" -shortest ", arguments);
     }
 
@@ -114,7 +114,7 @@ public class HlsMediaStreamServiceTests : IDisposable
         var arguments = HlsMediaStreamService.BuildArguments(
             "/songs/a.cdg", TimeSpan.Zero, 0, 20, 2, "/songs/a.mp3");
 
-        Assert.Contains("-vf \"tpad=stop=-1:stop_mode=clone,setpts=PTS/", arguments);
+        Assert.Contains("[0:v:0]tpad=stop=-1:stop_mode=clone,setpts=PTS/1.200000,fps=30[graphics]", arguments);
         Assert.Contains(" -shortest ", arguments);
     }
 

@@ -81,7 +81,8 @@ internal sealed class StreamMediaPlayer : IMediaPlayer
         string? url,
         TimeSpan streamStartOffset,
         int tempo = 0,
-        IReadOnlyList<StemSource>? stems = null)
+        IReadOnlyList<StemSource>? stems = null,
+        bool pixelated = false)
     {
         var rate = StreamRate.FromTempo(tempo);
 
@@ -109,6 +110,7 @@ internal sealed class StreamMediaPlayer : IMediaPlayer
             autoplay = false,
             songOffsetSeconds = streamStartOffset.TotalSeconds,
             rate,
+            pixelated,
             stems = (stems ?? []).Select(s => new
             {
                 index = s.Index,

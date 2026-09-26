@@ -195,10 +195,11 @@ function hlsErrorHandler(instance) {
     };
 }
 
-function load(url, autoplay) {
+function load(url, autoplay, pixelated) {
     // Nothing to hand over from: a stopped or unstarted player takes the stream directly, which
     // is the path every fresh song uses and the one that has always worked.
     if (!current.hls || current.el.paused || current.el.readyState < 3) {
+        setPixelated(current.el, pixelated);
         reveal(current.el);
 
         detachHls();
@@ -219,6 +220,7 @@ function load(url, autoplay) {
     const arriving = { el: videos.find((v) => v !== current.el), hls: null };
 
     retire(arriving.el);
+    setPixelated(arriving.el, pixelated);
     incoming = arriving;
 
     arriving.el.volume = 0;
@@ -237,6 +239,12 @@ function load(url, autoplay) {
     arriving.el.addEventListener('playing', swap, { once: true });
 
     attach(arriving, url, true);
+}
+
+/// Block graphics scaled without smoothing, on the element that is about to show them. Set on every
+/// load, so a video that follows a CD+G onto the same element is smoothed again.
+function setPixelated(el, pixelated) {
+    el.classList.toggle('video--pixelated', pixelated === true);
 }
 
 /// Wires one player to a stream. The engine dance below is why this is shared rather than copied.
@@ -827,7 +835,7 @@ function handleCommand(raw) {
             }
 
             detachStems();
-            load(message.url, message.autoplay === true);
+            load(message.url, message.autoplay === true, message.pixelated === true);
             break;
         case 'stem-volume': {
             // Silently doing nothing would look exactly like a mix that has stopped responding.

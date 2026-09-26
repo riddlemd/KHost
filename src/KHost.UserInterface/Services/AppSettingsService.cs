@@ -1,6 +1,7 @@
 using System.Text.Json;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
+using KHost.Domain.Services;
 using KHost.UserInterface.Models;
 using Microsoft.Extensions.Configuration;
 using KHost.Common.Media;
@@ -38,6 +39,8 @@ internal sealed class AppSettingsService : IAppSettingsService
         SongBackgroundFolder = Blank(_configuration["Backgrounds:Folder"]),
         StopFadeSeconds = (_configuration.GetValue<TimeSpan?>("Playback:StopFadeDuration") ?? TimeSpan.FromSeconds(5)).TotalSeconds,
         SegmentSeconds = _configuration.GetValue<int?>("MediaStream:SegmentSeconds") ?? 2,
+        GraphicsScaleHeight = GraphicsScaling.SnapToOffered(
+            _configuration.GetValue<int?>("MediaStream:GraphicsScaleHeight") ?? GraphicsScaling.DefaultHeight),
         AdDefaultDurationSeconds = AdDurationClamp(
             (_configuration.GetValue<TimeSpan?>("Ads:DefaultDuration")
                 ?? TimeSpan.FromSeconds(AppSettings.DefaultAdDurationSeconds)).TotalSeconds),
@@ -107,6 +110,7 @@ internal sealed class AppSettingsService : IAppSettingsService
             ["MediaStream"] = new Dictionary<string, object?>
             {
                 ["SegmentSeconds"] = settings.SegmentSeconds,
+                ["GraphicsScaleHeight"] = GraphicsScaling.SnapToOffered(settings.GraphicsScaleHeight),
             },
             ["Ads"] = new Dictionary<string, object?>
             {

@@ -1081,6 +1081,28 @@ public class LocalScreenDisplayProviderTests
         Assert.Equal(stems, load.Stems);
     }
 
+    /// <summary>Block graphics are scaled unsmoothed on the screen; a video must never be.</summary>
+    [Theory]
+    [InlineData("/songs/africa.cdg", true)]
+    [InlineData("/songs/AFRICA.CDG", true)]
+    [InlineData("/songs/africa.mp4", false)]
+    public async Task LoadAsync_TellsTheScreenWhetherThePictureIsGraphicsOnly(string path, bool graphicsOnly)
+    {
+        _playback.CurrentProgram.Returns(new PlaybackProgram.Playing(new Media { Title = "Africa", FilePath = path }, new Performance()));
+
+        await DrawingProvider().LoadAsync(new DisplayLoad { StreamUrl = "http://host/s.m3u8" });
+
+        Assert.Equal(graphicsOnly, Assert.Single(Sent<LoadMediaCommand>()).IsGraphicsOnly);
+    }
+
+    [Fact]
+    public async Task LoadAsync_WithNothingPlaying_IsNotGraphicsOnly()
+    {
+        await DrawingProvider().LoadAsync(new DisplayLoad { StreamUrl = "http://host/s.m3u8" });
+
+        Assert.False(Assert.Single(Sent<LoadMediaCommand>()).IsGraphicsOnly);
+    }
+
     /// <summary>Stems alone: nothing was encoded, and the screen must not be handed a stream name.</summary>
     [Fact]
     public async Task LoadAsync_StemsOnly_SendsNoStream()

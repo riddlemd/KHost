@@ -165,6 +165,20 @@ public class ScreenCommandSerializationTests
         Assert.Equal("http://host/media/a/stream.m3u8", back.StreamUrl);
     }
 
+    /// <summary>Lost on the wire, a CD+G would be smoothed back into a blur on the screen.</summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void RoundTrip_KeepsWhetherTheStreamIsGraphicsOnly(bool graphicsOnly)
+    {
+        var json = JsonSerializer.Serialize(
+            (ScreenCommandBase)new LoadMediaCommand { StreamUrl = "http://host/media/a/stream.m3u8", IsGraphicsOnly = graphicsOnly },
+            typeof(ScreenCommandBase), Options);
+
+        var back = Assert.IsType<LoadMediaCommand>(JsonSerializer.Deserialize<ScreenCommandBase>(json, Options));
+        Assert.Equal(graphicsOnly, back.IsGraphicsOnly);
+    }
+
     [Fact]
     public void RoundTrip_KeepsTheSingerAStemAndALevelBelongTo()
     {

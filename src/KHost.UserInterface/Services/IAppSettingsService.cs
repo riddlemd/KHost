@@ -1,4 +1,5 @@
 using KHost.Abstractions.Models;
+using KHost.Domain.Services;
 using KHost.UserInterface.Models;
 
 namespace KHost.UserInterface.Services;
@@ -17,6 +18,10 @@ public sealed record AppSettings
     public string? SongBackgroundFolder { get; set; }
     public double StopFadeSeconds { get; set; } = 5;
     public int SegmentSeconds { get; set; } = 2;
+
+    /// <summary>The frame height a CD+G is scaled into; one of <see cref="GraphicsScaling.Heights"/>,
+    /// <see cref="GraphicsScaling.Off"/> for its native size.</summary>
+    public int GraphicsScaleHeight { get; set; } = GraphicsScaling.DefaultHeight;
 
     /// <summary>How long an ad runs when its playlist entry and the media itself say nothing.</summary>
     /// <remarks>A still with no voiceover; a video ad runs its own length regardless.</remarks>

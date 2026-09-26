@@ -15,6 +15,8 @@ public class LoadMediaCommandRewriteTests
         StreamStartOffset = TimeSpan.FromSeconds(42),
         Tempo = -30,
         Stems = [new StemSource(0, AudioTrackRole.Music, "http://127.0.0.1:5251/media/s1/stem0.ogg", 100)],
+        // Not the default, or a rewrite that drops it would still compare equal.
+        IsGraphicsOnly = true,
     };
 
     [Fact]
