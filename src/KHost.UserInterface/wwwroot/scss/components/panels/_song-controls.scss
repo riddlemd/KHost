@@ -61,11 +61,17 @@
 
 // One line per control, not two: four stacked pairs came to 160px in a card that is 180px at a
 // 900px window, and the last of them fell off the bottom.
+// A grid rather than a column of rows: the label column takes the longest name, so a singer's name
+// stays on one line and every track still starts at the same x.
 .kh-song-controls__panel--sliders {
-    flex-direction: column;
-    gap: 5px;
+    display: grid;
+    grid-template-columns: minmax(46px, max-content) minmax(150px, 1fr) 40px;
+    align-items: center;
+    column-gap: 7px;
+    row-gap: 5px;
     padding: 6px 7px;
-    width: 264px;
+    width: max-content;
+    min-width: 264px;
 }
 
 // Four across, which is shorter than the trigger row and clears the card's width with room over.
@@ -92,19 +98,20 @@
     }
 }
 
+// Its three parts sit in the panel's grid columns, which is what lines the tracks up across rows.
 .kh-song-control--slider {
-    display: flex;
-    align-items: center;
-    gap: 7px;
+    display: contents;
 
-    // Fixed, so every track starts at the same x however long the word is.
+    // Capped, so a kit with a very long singer name cannot push the panel off the card.
     .kh-song-control__label {
-        flex: 0 0 46px;
+        max-width: 12rem;
+        overflow: hidden;
         font-size: 0.66rem;
+        white-space: nowrap;
+        text-overflow: ellipsis;
     }
 
     .kh-song-control__value {
-        flex: 0 0 40px;
         text-align: right;
         font-size: 0.74rem;
     }
@@ -125,7 +132,7 @@
 
     -webkit-appearance: none;
     appearance: none;
-    flex: 1;
+    width: 100%;
     min-width: 0;
     height: 14px;
     margin: 0;
