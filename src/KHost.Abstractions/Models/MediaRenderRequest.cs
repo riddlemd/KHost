@@ -33,10 +33,12 @@ public sealed class RenderTarget
 
     /// <summary>Whether the display cannot draw a song's timed words itself and wants them in the
     /// picture.</summary>
-    /// <remarks>A request, not a demand: a renderer MAY honour it by drawing the words into what it
-    /// produces, and one that cannot returns the rendition it would have returned anyway rather than
-    /// declining or failing. The host draws no words of its own, so a song whose renderer cannot
-    /// honour it reaches such a display without them.</remarks>
+    /// <remarks>A request, not a demand. The host's own encode honours it for any song some
+    /// <see cref="Services.ITimedLyricsProvider"/> supplies timed words for, painting them into the
+    /// picture, so a renderer that declines hands such a song to an encode that burns them in. A
+    /// renderer that answers with a rendition of its own MAY honour it; one that cannot returns the
+    /// rendition it would have returned anyway rather than declining or failing, and that song
+    /// reaches the display without its words.</remarks>
     public bool BurnLyrics { get; init; }
 
     /// <summary>Nothing connected, or nothing special asked for: every flag false.</summary>

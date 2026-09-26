@@ -34,7 +34,7 @@ Three formats were surveyed specifically because they disagree on every axis tha
 | Files in | two — graphics plus a sibling `.mp3` | one | one container, demuxed to N stems |
 | Picture | **synthesized** — ffmpeg decodes the subcode graphics | already encoded in the file | **none at all** (see below) |
 | Audio | the companion `.mp3`, ffmpeg input 1 | embedded in the container | N Ogg Vorbis stems |
-| Words | burned in | burned in, or none | `ITimedLyricsProvider` |
+| Words | burned in | burned in, or none | `ITimedLyricsProvider`; burned in by the host for a display that asks |
 | Needs a host encode? | **always** | no, unless shifted | no, unless shifted |
 | Seeking | must seek on **output** | input seek is fine | free — the parts are the whole song |
 | Levels rideable at play? | no | no | yes |
@@ -60,13 +60,12 @@ Where each of those lives today:
 
 ### A stems-only format has no picture, and that is not an oversight
 
-The plugin's old picture-painting path — the SkiaSharp path that used to pick a backdrop — is dead
-code, and its own comment says so. Nothing in the host calls it. So the format plays as a black
-screen with the words burned in.
-
-This matters to the shape: the renderer for such a format is the one that would eventually have to
-answer "and what goes behind the words" — a still, a video bed, or a generated visualisation. Any of
-those is a rendition, not a special case bolted onto playback.
+A screen that mixes draws the words itself over nothing. A display that cannot draw them asks for
+`RenderTarget.BurnLyrics`, and the host's encode paints them in: over one of the venue's chosen
+song backgrounds when there is one, over black otherwise. That is the host's rule for *any* song
+with timed words and no picture of its own — no renderer paints anything, and a plugin that ships
+such a format supplies `TimedLyrics` and declines the burn-in target so the song reaches that
+encode.
 
 ## What the differences demand of the interface
 
@@ -213,9 +212,8 @@ service that only knows how to encode. `StemsOf`, added days ago, is the seam sh
   per-play router that answers "how does this file reach this display", produces nothing that
   outlives the session, and has no cache. **If that distinction is not written into `AGENTS.md` at
   the same time, someone deletes this in six months and cites that line correctly.**
-- ~~**The name collides.**~~ Avoided: the plugin implements `IMediaRenderer` on its own provider
-  type — one singleton across every extension interface, as the plugin rules require — so no new
-  type sits beside its dead SkiaSharp picture-painting renderer.
+- ~~**The name collides.**~~ Avoided: the plugin implements `IMediaRenderer` on its own extension
+  type, and no painting code of its own is left beside it — the host paints burned-in words.
 - **Direct play needs a new endpoint, and it is the risky one.** Nothing today serves a library path
   with ranged GETs: `MediaStreamEndpoints` deliberately restricts to bare filenames inside an active
   session's temp directory. A route that serves library files must be keyed by media id with a
@@ -231,9 +229,9 @@ service that only knows how to encode. `StemsOf`, added days ago, is the seam sh
 1. Does `DirectMediaRenderer` earn its place? It needs a new endpoint and codec-compatibility logic,
    against a saving that is only real if screens genuinely play library MP4s without help. Worth
    measuring one before building it — the pre-render was removed for exactly this kind of assumption.
-2. Where does a stems-only format's **backdrop** come from once there is somewhere to put it — a
-   still, a video bed, or a generated visualisation? The renderer is the thing that would answer,
-   and today the answer is "nothing".
+2. ~~Where does a stems-only format's **backdrop** come from?~~ Answered for burned-in streams:
+   the venue's chosen song background, else black. A screen that draws its own words still shows
+   them over nothing.
 3. A remuxed stems container's duration currently comes from a legacy sidecar file only, not from
    the container itself. Does the rendition carry duration so the host stops asking the file twice?
 4. Does a rendition need to say **why** it refused to be direct, so the console can explain a song

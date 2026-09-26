@@ -236,6 +236,29 @@ cannot name another's: its secrets, and the QR code it offers the screens.
   - **The target is part of the question.** `RenderTarget.MixesStems` says whether the one
     connected display mixes for itself; a device hearing the host's own mix needs the encode, so
     offering it stems would be waste.
+  - **The host burns in the words, not the renderer that owns the format.** When the target asks for
+    `RenderTarget.BurnLyrics` and `ITimedLyricsService` has timed words for the file,
+    `StreamingMediaRenderer` opens the song through `LyricBurnIn` instead of the plain encode. The
+    words are painted by `TimedLyricsPainter` (SkiaSharp + HarfBuzz, `Domain/Services/BurnIn/`)
+    and fed down a raw RGBA pipe into the **same** ffmpeg run as an overlay input, so key, tempo and
+    the per-voice mix still apply. Every provider that supplies `TimedLyrics` gets this without
+    painting anything itself, and one that renders its own format declines a burn-in target so the
+    song reaches this encode. A song with no timed words encodes as it always did.
+    - **One set of drawing rules.** The painter follows `screen-ui/lyrics-overlay.js`: the page
+      fitted and centred, theme colours for anything the timing leaves unset, a linear wipe,
+      count-ins that ease over one step and are gone by the next page's arrival, lead-ins running to
+      the line's leading edge, and a line with no position stacked under the one before it. Change
+      one and change the other. Where they part, the painter is the better one: it shapes a line
+      through HarfBuzz, so a joined script joins and a right-to-left line is laid from its box's
+      right edge.
+    - **The picture under the words** is the source's own video when it has one (fitted into
+      1280x720), else one of the venue's ticked song backgrounds (looped, cropped to cover), else
+      black — what the screen shows behind a song with no picture. A cover image stored as a video
+      stream does not count as a picture. Over a picture, the band the words sit in is darkened.
+    - **Fonts are the system's**, in the order a web view's `sans-serif` resolves them per OS:
+      Helvetica, Arial, DejaVu Sans, Liberation Sans, Noto Sans, then Skia's default; a character the
+      face lacks falls back per line through the OS. Nothing is bundled.
+    - `CompactDiscPlusGraphicsRenderer` passes no burn-in: a CDG's words are its picture.
   - **A renderer may inherit the encode rather than replace it.** `CompactDiscPlusGraphicsRenderer` claims
     `.cdg` and derives from `StreamingMediaRenderer`, because subcode graphics still need ffmpeg to
     become a picture. It exists so the rules that belong to the format have a home: the first is
@@ -300,8 +323,8 @@ cannot name another's: its secrets, and the QR code it offers the screens.
   - **`DescribeTarget()` is how a display says what to render for it.** `PlaybackService` asks the
     connected provider on every load; a throw or a null is `RenderTarget.None`. The default body is
     `RenderTarget.None`: one mixed stream, no burned-in words. `RenderTarget.BurnLyrics` is a request
-    a renderer **may** honour — a renderer that paints lyrics into the picture can,
-    `StreamingMediaRenderer` ignores it — and one that cannot returns its normal rendition.
+    the host's encode honours for any song with timed words; a renderer answering with a rendition
+    of its own may honour it, and one that cannot returns its normal rendition.
     The local screen overrides it: stems, no burned-in words.
   - **An ad still's `ImageUrl` is reachable like a stream URL**: the same base address, under
     `/media`, which answers off-box. It may name loopback, so a provider for a device elsewhere on
@@ -482,6 +505,13 @@ against a render the host had already made, and making those renders cost more t
   it. App Settings says they apply immediately, and that has to be true.
 - `BuildArguments` is static and is where every codec, filter and muxer decision lives, so the unit
   tests can assert the command line without running ffmpeg.
+- **A burn-in is one more input, not another encode.** The painted frames arrive as
+  `-f rawvideo -pix_fmt rgba … -i pipe:0` in straight alpha, and one `filter_complex` lays them
+  over the picture and carries the audio mix beside it, so every map is explicit. The picture is
+  the base and the words the overlay: `overlay` takes its alpha from the base, so reversed, the
+  words vanish from an encode that still runs. The base is brought to the painted 30fps. Inputs all
+  precede the output seek, or that `-ss` binds to the pipe. The session owns the painter: closing
+  it cancels the painting and kills ffmpeg, which releases a write blocked in the pipe.
 
 ## Components
 

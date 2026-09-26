@@ -11,6 +11,16 @@
     <PackageReference Include="Konscious.Security.Cryptography.Argon2" />
     <PackageReference Include="FFMpegCore" />
     <PackageReference Include="QRCoder" />
+    <!-- Paints timed words into the picture for a display that cannot draw them. Native assets for
+         every desktop the host runs on, since the host is not built per platform. -->
+    <PackageReference Include="SkiaSharp" />
+    <PackageReference Include="SkiaSharp.NativeAssets.Win32" />
+    <PackageReference Include="SkiaSharp.NativeAssets.macOS" />
+    <PackageReference Include="SkiaSharp.NativeAssets.Linux" />
+    <PackageReference Include="HarfBuzzSharp" />
+    <PackageReference Include="HarfBuzzSharp.NativeAssets.Win32" />
+    <PackageReference Include="HarfBuzzSharp.NativeAssets.macOS" />
+    <PackageReference Include="HarfBuzzSharp.NativeAssets.Linux" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
     <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
   </ItemGroup>

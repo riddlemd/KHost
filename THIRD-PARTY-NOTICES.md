@@ -24,7 +24,7 @@ These ship inside a KHost build (host and/or screen app, or the browser assets).
 | FFMpegCore | host, screen | MIT | Malte Rosenbjerg and contributors |
 | Avalonia (Desktop, Themes.Fluent) | screen | MIT | The AvaloniaUI Project / .NET Foundation |
 | Avalonia.Fonts.Inter — Inter typeface | screen | SIL Open Font License 1.1 | Rasmus Andersson (font); Avalonia (packaging, MIT) |
-| SkiaSharp / HarfBuzzSharp (via Avalonia) | screen | MIT (Skia: BSD-3-Clause) | Microsoft / Google |
+| SkiaSharp / HarfBuzzSharp (with their Win32, macOS and Linux native assets) | host (burned-in words) | MIT (Skia: BSD-3-Clause; HarfBuzz: Old MIT) | Microsoft / Google / HarfBuzz contributors |
 | Silk.NET.OpenAL.Soft.Native — binding | screen | MIT | .NET Foundation / Silk.NET contributors |
 | Konscious.Security.Cryptography.Argon2 | host | MIT | Keef Aragon |
 | Entity Framework Core + Microsoft.Data.Sqlite | host | MIT | Microsoft / .NET Foundation |
