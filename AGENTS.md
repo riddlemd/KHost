@@ -230,20 +230,27 @@ cannot name another's: its secrets, and the QR code it offers the screens.
     once per song and **may open the file** — which is what would let a renderer decide on a
     container's codecs rather than its name.
   - **Returning null means "nothing better for this target"**, and falls through to
-    `StreamingMediaRenderer`, which claims everything and encodes as the host always has. That is
-    how a stems-only format reaches a receiver: the plugin sees a target that cannot mix, declines,
-    and the fallback resolves its remuxed container through `IPlayableMediaSource` exactly as before.
+    `StreamingMediaRenderer`, which claims everything and encodes as the host always has.
+  - **A renderer supplies stems; the host decides what the target needs from them.** A renderer
+    whose format is stems answers with its `Stems` for **every** target, every key and every
+    tempo, and makes no mixing decision. `MediaRendererService` passes stems alone straight through
+    only to a target that `MixesStems` with no key or tempo change and no `BurnLyrics`; anything
+    else goes to `StemMixdown`, which has `HlsMediaStreamService.OpenStemsAsync` read every stem
+    as an input — off disk when it sits in one of the host's sessions — and run them through the
+    same per-voice mix graph, key/tempo chain and burn-in overlay as any other encode, over the
+    venue's background or black. The encode **adopts** the renderer's session, so closing it
+    sweeps the stems as well. Such a plugin needs no `IPlayableMediaSource` and should not
+    implement one; that contract stays for a format the host's encoder cannot open at all. A
+    rendition that carries its own `Url` is never re-encoded.
   - **The target is part of the question.** `RenderTarget.MixesStems` says whether the one
-    connected display mixes for itself; a device hearing the host's own mix needs the encode, so
-    offering it stems would be waste.
+    connected display mixes for itself; a device hearing the host's own mix needs the encode.
   - **The host burns in the words, not the renderer that owns the format.** When the target asks for
     `RenderTarget.BurnLyrics` and `ITimedLyricsService` has timed words for the file,
     `StreamingMediaRenderer` opens the song through `LyricBurnIn` instead of the plain encode. The
     words are painted by `TimedLyricsPainter` (SkiaSharp + HarfBuzz, `Domain/Services/BurnIn/`)
     and fed down a raw RGBA pipe into the **same** ffmpeg run as an overlay input, so key, tempo and
     the per-voice mix still apply. Every provider that supplies `TimedLyrics` gets this without
-    painting anything itself, and one that renders its own format declines a burn-in target so the
-    song reaches this encode. A song with no timed words encodes as it always did.
+    painting anything itself, whether its song reaches the encode as a file or as stems. A song with no timed words encodes as it always did.
     - **One set of drawing rules.** The painter follows `screen-ui/lyrics-overlay.js`: the page
       fitted and centred, theme colours for anything the timing leaves unset, a linear wipe,
       count-ins that ease over one step and are gone by the next page's arrival, lead-ins running to

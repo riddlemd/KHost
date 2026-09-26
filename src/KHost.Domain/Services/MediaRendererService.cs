@@ -10,7 +10,8 @@ namespace KHost.Domain.Services;
 public sealed class MediaRendererService(
     ILogger<MediaRendererService> logger,
     IEnumerable<IMediaRenderer> renderers,
-    [FromKeyedServices(MediaRendererService.FallbackKey)] IMediaRenderer fallback) : IMediaRendererService
+    [FromKeyedServices(MediaRendererService.FallbackKey)] IMediaRenderer fallback,
+    IStemMixdown mixdown) : IMediaRendererService
 {
     /// <summary>Registration key for the renderer of last resort.</summary>
     /// <remarks>Keyed so it stays out of <c>IEnumerable&lt;IMediaRenderer&gt;</c> altogether: it
@@ -73,10 +74,14 @@ public sealed class MediaRendererService(
                     ex);
             }
 
-            // Null is "nothing better for this target", not a failure: a stems-only format on a
-            // receiver that cannot mix says so this way, having left a playable container behind
-            // for the encode.
-            if (rendition is not null) return rendition;
+            // Stems carry no key, speed or picture, so what this target needs from them is decided
+            // here rather than by each renderer that supplies them.
+            if (rendition is not null)
+                return StemMixdown.IsNeeded(rendition, request)
+                    ? await mixdown.EncodeAsync(rendition, request, cancellationToken)
+                    : rendition;
+
+            // Null is "nothing better for this target", not a failure.
 
             break;
         }

@@ -207,7 +207,8 @@ public class HlsMediaStreamServiceEncodeTests : IDisposable
         Assert.InRange(total, 3.0, 5.0);
 
         var playlist = _service.ResolveArtifact(session.Id, "stream.m3u8")!;
-        Assert.Equal("1280,720", await ProbeFrameSizeAsync(playlist));
+        // Scaling is off by default, so the canvas stays at the native picture size.
+        Assert.Equal("300,216", await ProbeFrameSizeAsync(playlist));
         Assert.InRange(Math.Abs(await ProbeLastTimestampAsync(playlist, 'a') - await ProbeLastTimestampAsync(playlist, 'v')), 0, 1.0);
     }
 

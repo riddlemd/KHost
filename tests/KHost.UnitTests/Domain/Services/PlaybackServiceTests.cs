@@ -163,7 +163,7 @@ public class PlaybackServiceTests : IDisposable
         new MediaRendererService(
             NullLogger<MediaRendererService>.Instance,
             [_renderer],
-            new StreamingMediaRenderer(_mediaStreams)),
+            new StreamingMediaRenderer(_mediaStreams), Substitute.For<IStemMixdown>()),
         [_screensProvider = ScreensAsADisplay(services), _display],
         _breakMusic,
         Monitor(new PlaybackService.ServiceOptions

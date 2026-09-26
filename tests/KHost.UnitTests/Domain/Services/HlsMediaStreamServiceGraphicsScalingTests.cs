@@ -114,6 +114,10 @@ public class HlsMediaStreamServiceGraphicsScalingTests
         Assert.Contains("[0:v:0]fps=30,scale=iw*3:ih*3:flags=neighbor,pad=1280:720:(ow-iw)/2:(oh-ih)/2,setsar=1[base]", arguments);
     }
 
+    [Fact]
+    public void ServiceOptions_GraphicsScaleHeight_DefaultsToOff()
+        => Assert.Equal(GraphicsScaling.Off, new HlsMediaStreamService.ServiceOptions().GraphicsScaleHeight);
+
     /// <summary>Burned-in words always need a frame, so scaling off still paints at 720p.</summary>
     [Fact]
     public void BurnInFrame_WithScalingOff_Is720p()

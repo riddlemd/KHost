@@ -10,7 +10,8 @@ public static class GraphicsScaling
     /// <summary>The native picture, unscaled.</summary>
     public const int Off = 0;
 
-    public const int DefaultHeight = 720;
+    /// <summary>Native until a host opts in: scaling costs encode time on every CD+G song.</summary>
+    public const int DefaultHeight = Off;
 
     /// <summary>The heights offered, smallest first. Each has been measured to encode at least three
     /// times faster than the song plays, tempo filter included.</summary>

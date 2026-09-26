@@ -91,7 +91,9 @@ namespace KHost.Domain
             serviceCollection.AddSingleton<IMediaStreamService>(services => services.GetRequiredService<HlsMediaStreamService>());
             // The same instance, so a burned-in stream is one of its sessions and closes like any other.
             serviceCollection.AddSingleton<IBurnInStreamService>(services => services.GetRequiredService<HlsMediaStreamService>());
+            serviceCollection.AddSingleton<IStemStreamService>(services => services.GetRequiredService<HlsMediaStreamService>());
             serviceCollection.AddSingleton<LyricBurnIn>();
+            serviceCollection.AddSingleton<IStemMixdown, StemMixdown>();
             // Keyed, so it never appears in the IMediaProbe enumerable the plugin probes arrive
             // through: it claims every file and would answer ahead of whoever owns the format.
             serviceCollection.AddKeyedSingleton<IMediaProbe, FfprobeMediaProbe>(MediaProbeService.FallbackKey);
