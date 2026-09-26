@@ -1148,6 +1148,32 @@ public class LocalScreenDisplayProviderTests
         Assert.True(load >= 0 && lyrics > load, "The words did not follow the load.");
     }
 
+    /// <summary>The screen draws the count-ins and lead-ins itself, so they reach it exactly as the
+    /// provider gave them.</summary>
+    [Fact]
+    public async Task LoadAsync_ASongWithCountInsAndLeadIns_SendsBothToTheScreen()
+    {
+        var song = Song();
+        var countIn = new LyricCountIn { StartSeconds = 165.38, EndSeconds = 186.4, Position = new LyricBox(60, 282.5, 520, 35), Steps = 4, StepSeconds = 1 };
+        var leadIn = new LyricLeadIn(185.2, 110.5);
+        _timedLyrics.GetTimedLyricsAsync(song.Media.FilePath, Arg.Any<CancellationToken>()).Returns(new TimedLyrics
+        {
+            DurationSeconds = 300,
+            Bounds = new LyricBox(0, 0, 640, 377.5),
+            CountIns = [countIn],
+            Pages = [new LyricPage { ShowFromSeconds = 185.2, ShowUntilSeconds = 189.4, Lines = [new LyricLine { LeadIn = leadIn }] }],
+        });
+        _playback.CurrentProgram.Returns(song);
+        using var provider = DrawingProvider();
+
+        await provider.LoadAsync(ALoad);
+
+        var lyrics = Assert.Single(Sent<SetTimedLyricsCommand>()).Lyrics;
+        Assert.NotNull(lyrics);
+        Assert.Equal(countIn, Assert.Single(lyrics.CountIns));
+        Assert.Equal(leadIn, lyrics.Pages[0].Lines[0].LeadIn);
+    }
+
     /// <summary>Skipping the send leaves the last song's words lit over this one.</summary>
     [Fact]
     public async Task LoadAsync_ASongWithNoWords_StillClearsTheLastSongs()

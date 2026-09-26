@@ -333,6 +333,12 @@ function teardown() {
     retire(current.el);
 }
 
+/// Puts the words back at full view at once, which a stop's fade leaves part way or gone.
+function showWords() {
+    lyricsCanvas.style.transition = 'none';
+    lyricsCanvas.style.opacity = '1';
+}
+
 /// Brings a player back to full view at the room's level, which a fade leaves part way.
 function reveal(el) {
     el.style.transition = `opacity ${CROSSFADE_MS}ms linear`;
@@ -360,6 +366,9 @@ async function fadeOutAndStop(fadeMs) {
 
     element.style.transition = `opacity ${fadeMs}ms linear`;
     element.style.opacity = '0';
+    // The words are a stem song's whole picture, its element sitting empty, so they dim with the sound.
+    lyricsCanvas.style.transition = `opacity ${fadeMs}ms linear`;
+    lyricsCanvas.style.opacity = '0';
 
     // The generation is checked inside the ramp, not only after it: a fade the host has already
     // superseded would otherwise go on pulling the volume down over the song that replaced it.
@@ -383,6 +392,9 @@ async function fadeOutAndStop(fadeMs) {
 
     teardown();
     reveal(current.el);
+    // Cleared before it is shown again, or the frame the fade hid comes back for a moment.
+    overlay.clear();
+    showWords();
     placeholder.hidden = false;
     send({ type: 'state', position: 0, duration: 0, playing: false });
 }
@@ -711,6 +723,7 @@ function handleCommand(raw) {
     switch (message.type) {
         case 'load':
             playbackGeneration++;
+            showWords();
             placeholder.hidden = false;
             // Where this stream sits in the song. A rebuild after a seek sends new values, and the
             // words are drawn against the song, so they have to move with it.
@@ -747,6 +760,7 @@ function handleCommand(raw) {
             break;
         case 'play':
             playbackGeneration++;
+            showWords();
             placeholder.hidden = true;
             // A fade leaves these mid-ramp. Left alone during a handover: the incoming player is
             // deliberately silent and invisible until it has sound to give.

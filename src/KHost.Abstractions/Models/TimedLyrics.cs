@@ -24,6 +24,48 @@ public sealed record TimedLyrics
 
     /// <summary>Right-to-left songs exist and a page says so for itself.</summary>
     public bool IsRightToLeft { get; init; }
+
+    /// <summary>The stretches with nothing to sing that the timing marks with a count-in, in song
+    /// order.</summary>
+    /// <remarks>Empty when the timing marks none, which most do. Nothing is inferred from a gap
+    /// between syllables: a screen draws a count-in only where one was given.</remarks>
+    public IReadOnlyList<LyricCountIn> CountIns { get; init; } = [];
+}
+
+/// <summary>A bar that fills across a stretch with nothing to sing, counting the singer back in.</summary>
+/// <remarks>Drawn on its own, not as part of a page: it belongs to the gap, and a gap usually has no
+/// page on screen at all.</remarks>
+public sealed record LyricCountIn
+{
+    /// <summary>When the bar appears and starts to fill, as an absolute song position.</summary>
+    public required double StartSeconds { get; init; }
+
+    /// <summary>When the bar is full and gone, as an absolute song position.</summary>
+    /// <remarks>Usually where the next words start, but that is the timing's choice, not a promise
+    /// that it meets a syllable.</remarks>
+    public required double EndSeconds { get; init; }
+
+    /// <summary>Where the bar sits, in the space <see cref="TimedLyrics.Bounds"/> describes.</summary>
+    public required LyricBox Position { get; init; }
+
+    /// <summary>How long one beat of the countdown lasts, or zero for no countdown.</summary>
+    public double StepSeconds { get; init; }
+
+    /// <summary>How many beats are counted down before <see cref="EndSeconds"/>, the last one being
+    /// one. Zero for no countdown.</summary>
+    public int Steps { get; init; }
+
+    /// <summary>The colour of the part already filled, or null to leave it to the screen's theme.</summary>
+    public LyricColor? Active { get; init; }
+
+    /// <summary>The colour of the part still to fill, or null for the screen's theme.</summary>
+    public LyricColor? Inactive { get; init; }
+
+    /// <summary>The outline's colour, or null for the screen's theme.</summary>
+    public LyricColor? Border { get; init; }
+
+    /// <summary>The outline's thickness, in the timing's own units; zero for none.</summary>
+    public double BorderWidth { get; init; }
 }
 
 /// <summary>One screenful of words, and when it arrives and leaves.</summary>
@@ -64,7 +106,21 @@ public sealed record LyricLine
     /// <remarks>Syllables, not words: the chase reveals a word part by part, and a provider that
     /// only knows whole words says so by giving each one a single syllable.</remarks>
     public IReadOnlyList<LyricSyllable> Syllables { get; init; } = [];
+
+    /// <summary>A marker that runs into the line ahead of its first syllable, or null for none.</summary>
+    public LyricLeadIn? LeadIn { get; init; }
 }
+
+/// <summary>A marker that travels up to a line's first word, so a singer coming out of a silence
+/// sees the moment to start.</summary>
+/// <remarks>It arrives where and when the line starts — at the line's leading edge, as its first
+/// syllable is lit — so only where it sets off from is carried. A line with no syllables or no
+/// <see cref="LyricLine.Position"/> gives it nowhere to arrive, and nothing is drawn.</remarks>
+/// <param name="StartSeconds">Song position the marker appears and sets off.</param>
+/// <param name="X">Where it sets off, in the timing's own units, on the same axis as the line's
+/// <see cref="LyricBox.X"/>. The distance from here to the line's left edge is the run it makes;
+/// a right-to-left song makes the same run into the line's right edge from outside it.</param>
+public sealed record LyricLeadIn(double StartSeconds, double X);
 
 /// <summary>One piece of a word, lit between two moments.</summary>
 /// <remarks><see cref="Text"/> carries its own spacing. Joining syllables with a space inserts one

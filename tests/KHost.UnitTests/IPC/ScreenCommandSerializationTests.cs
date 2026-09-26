@@ -174,6 +174,41 @@ public class ScreenCommandSerializationTests
         Assert.Equal("♀", moved.Voice);
     }
 
+    /// <summary>The timing travels as the contract type itself, so everything the screen draws
+    /// between the words has to survive the wire as well as the words do.</summary>
+    [Fact]
+    public void RoundTrip_KeepsTheCountInsAndLeadIns()
+    {
+        var countIn = new LyricCountIn
+        {
+            StartSeconds = 165.38,
+            EndSeconds = 186.4,
+            Position = new LyricBox(60, 282.5, 520, 35),
+            StepSeconds = 1,
+            Steps = 4,
+            Active = new LyricColor(245, 44, 119),
+            Inactive = new LyricColor(253, 215, 230),
+            Border = new LyricColor(0, 0, 0),
+            BorderWidth = 2.5,
+        };
+        var command = new SetTimedLyricsCommand
+        {
+            Lyrics = new TimedLyrics
+            {
+                DurationSeconds = 300,
+                Bounds = new LyricBox(0, 0, 640, 377.5),
+                CountIns = [countIn],
+                Pages = [new LyricPage { ShowFromSeconds = 185.2, ShowUntilSeconds = 189.4, Lines = [new LyricLine { LeadIn = new LyricLeadIn(185.2, 110.5) }] }],
+            },
+        };
+
+        var back = Assert.IsType<SetTimedLyricsCommand>(JsonSerializer.Deserialize<ScreenCommandBase>(
+            JsonSerializer.Serialize(command, typeof(ScreenCommandBase), Options), Options));
+
+        Assert.Equal(countIn, Assert.Single(back.Lyrics!.CountIns));
+        Assert.Equal(new LyricLeadIn(185.2, 110.5), back.Lyrics.Pages[0].Lines[0].LeadIn);
+    }
+
     [Fact]
     public void RoundTrip_PreservesCommandPayloads()
     {
