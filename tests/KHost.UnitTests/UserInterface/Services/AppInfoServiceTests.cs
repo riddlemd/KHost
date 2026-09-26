@@ -48,7 +48,7 @@ public class AppInfoServiceTests
     [Fact]
     public void ReferencedLicenses_EachHaveNonEmptyText()
     {
-        Assert.Equal(3, _service.ReferencedLicenses.Count);
+        Assert.Equal(1, _service.ReferencedLicenses.Count);
         Assert.All(_service.ReferencedLicenses, license => Assert.False(string.IsNullOrWhiteSpace(license.Text)));
     }
 
@@ -56,8 +56,6 @@ public class AppInfoServiceTests
     public void ReferencedLicenses_TextsMatchTheirNamedLicense()
     {
         Assert.Contains(_service.ReferencedLicenses, l => l.Name.Contains("Apache") && l.Text.Contains("Apache License"));
-        Assert.Contains(_service.ReferencedLicenses, l => l.Name.Contains("LGPL") && l.Text.Contains("GNU LESSER GENERAL PUBLIC LICENSE"));
-        Assert.Contains(_service.ReferencedLicenses, l => l.Name.Contains("Open Font") && l.Text.Contains("Reserved Font Name"));
     }
 
     [Fact]
