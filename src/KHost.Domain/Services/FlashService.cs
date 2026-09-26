@@ -5,16 +5,24 @@ using KHost.Abstractions.Services;
 using KHost.Abstractions.Messaging;
 using KHost.Abstractions.Messaging.Messages;
 
-/// <summary>Holds the current message and nothing else; the countdown stays out of here.</summary>
-/// <remarks>Deterministic, with no timer running inside a singleton.</remarks>
+/// <summary>Holds the stack of showing messages and nothing else; the countdown stays out of here.</summary>
+/// <remarks>Deterministic, with no timer running inside a singleton. Reachable from background
+/// work, so the list is guarded by a lock that is released before every publish.</remarks>
 public class FlashService : IFlashService
 {
     private readonly IMessageBroker _broker;
+    private readonly object _gate = new();
+    private readonly List<FlashMessage> _messages = [];
 
-    private FlashMessage? _current;
+    public FlashMessage? Current
+    {
+        get { lock (_gate) return _messages.Count > 0 ? _messages[^1] : null; }
+    }
 
-
-    public FlashMessage? Current => _current;
+    public IReadOnlyList<FlashMessage> Messages
+    {
+        get { lock (_gate) return [.. _messages]; }
+    }
 
     public FlashService(IMessageBroker broker)
     {
@@ -23,18 +31,35 @@ public class FlashService : IFlashService
 
     public void Show(string text, FlashType type = FlashType.Success)
     {
-        _current = new FlashMessage(text, type);
-        if (_broker is { } broker)
-            _ = broker.PublishAsync(new FlashChanged());
+        lock (_gate) _messages.Add(new FlashMessage(text, type));
+
+        _ = _broker.PublishAsync(new FlashChanged());
     }
 
     public void Dismiss()
     {
-        // Exchanged rather than tested and cleared: this is reachable from background work, and two
-        // callers racing must not both announce the same withdrawal.
-        if (Interlocked.Exchange(ref _current, null) is null) return;
+        FlashMessage message;
 
-        if (_broker is { } broker)
-            _ = broker.PublishAsync(new FlashChanged());
+        lock (_gate)
+        {
+            if (_messages.Count == 0) return;
+
+            message = _messages[^1];
+            _messages.RemoveAt(_messages.Count - 1);
+        }
+
+        _ = _broker.PublishAsync(new FlashChanged());
+    }
+
+    public void Dismiss(FlashMessage message)
+    {
+        bool removed;
+
+        // Id-based, not the reference: a caller can hold a copy of the record it read earlier.
+        lock (_gate) removed = _messages.RemoveAll(m => m.Id == message.Id) > 0;
+
+        if (!removed) return;
+
+        _ = _broker.PublishAsync(new FlashChanged());
     }
 }

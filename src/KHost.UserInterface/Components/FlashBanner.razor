@@ -1,12 +1,19 @@
 @using KHost.Abstractions.Models
 
-@if (Flash?.Current is { } message)
+@if (Flash is not null && Flash.Messages is { Count: > 0 } messages)
 {
-    <div class="kh-flash kh-flash--@message.Type.ToString().ToLowerInvariant()" role="status">
-        <Icon Name="@(message.Type == FlashType.Success ? "check2-circle" : "exclamation-triangle")" />
-        <span class="kh-flash__text">@message.Text</span>
-        <button class="kh-flash__dismiss kh-button--icon-minimal" title="Dismiss" @onclick="() => Flash.Dismiss()">
-            <Icon Name="x-lg" />
-        </button>
+    <div class="kh-flash-stack">
+        @foreach (var message in messages)
+        {
+            <div class="kh-flash kh-flash--@message.Type.ToString().ToLowerInvariant()"
+                 role="@(message.Type == FlashType.Warning ? "alert" : "status")"
+                 aria-live="@(message.Type == FlashType.Warning ? "assertive" : "polite")">
+                <Icon Name="@(message.Type == FlashType.Success ? "check2-circle" : "exclamation-triangle")" />
+                <span class="kh-flash__text">@message.Text</span>
+                <button class="kh-flash__dismiss kh-button--icon-minimal" title="Dismiss" @onclick="() => Flash.Dismiss(message)">
+                    <Icon Name="x-lg" />
+                </button>
+            </div>
+        }
     </div>
 }

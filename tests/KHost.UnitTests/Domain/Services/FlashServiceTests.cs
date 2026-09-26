@@ -61,12 +61,13 @@ public class FlashServiceTests : IDisposable
     }
 
     [Fact]
-    public void ANewerMessage_ReplacesTheOneShowing()
+    public void ANewerMessage_BecomesCurrentWhileTheOlderStaysInTheStack()
     {
         _flash.Show("First.");
         _flash.Show("Second.");
 
         Assert.Equal("Second.", _flash.Current?.Text);
+        Assert.Equal(["First.", "Second."], _flash.Messages.Select(m => m.Text));
     }
 
     /// <summary>The banner tells messages apart by identity, so the same words must still differ.</summary>
@@ -79,5 +80,52 @@ public class FlashServiceTests : IDisposable
         _flash.Show("Saved.");
 
         Assert.NotSame(first, _flash.Current);
+        Assert.NotEqual(first?.Id, _flash.Current?.Id);
+    }
+
+    [Fact]
+    public void Messages_WithNothingShown_IsEmpty()
+    {
+        Assert.Empty(_flash.Messages);
+    }
+
+    [Fact]
+    public void Dismiss_ByMessage_RemovesOnlyThatOneAndAnnouncesIt()
+    {
+        _flash.Show("First.");
+        _flash.Show("Second.");
+        var first = _flash.Messages[0];
+        _changes = 0;
+
+        _flash.Dismiss(first);
+
+        Assert.Equal(["Second."], _flash.Messages.Select(m => m.Text));
+        Assert.Equal(1, _changes);
+    }
+
+    /// <summary>Dismissing an id no longer in the stack must not announce a change that did not
+    /// happen, the same rule the no-arg overload already keeps.</summary>
+    [Fact]
+    public void Dismiss_ByMessage_AlreadyGone_AnnouncesNothing()
+    {
+        _flash.Show("First.");
+        var first = _flash.Messages[0];
+        _flash.Dismiss(first);
+        _changes = 0;
+
+        _flash.Dismiss(first);
+
+        Assert.Equal(0, _changes);
+    }
+
+    [Fact]
+    public void Dismiss_Parameterless_RemovesTheMostRecentAndKeepsTheOlder()
+    {
+        _flash.Show("First.");
+        _flash.Show("Second.");
+
+        _flash.Dismiss();
+
+        Assert.Equal(["First."], _flash.Messages.Select(m => m.Text));
     }
 }

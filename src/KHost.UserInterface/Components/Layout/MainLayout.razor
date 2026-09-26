@@ -15,9 +15,13 @@
     <SettingsButton />
 </header>
 
+@* Fixed to the viewport (see FlashBanner.razor.scss), so it belongs beside DialogHost rather than
+   inside the scrolling .kh-app: nesting it there was harmless only by accident, before it was
+   fixed-position itself. *@
+<FlashBanner />
+
 <div class="kh-shell @(IsMainPage ? "" : "kh-shell--scroll")">
     <div class="kh-app" tabindex="0">
-        <FlashBanner />
         <KHostErrorBoundary>
             @Body
         </KHostErrorBoundary>

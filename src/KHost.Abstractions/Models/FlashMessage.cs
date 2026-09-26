@@ -10,7 +10,12 @@ public enum FlashType
     Warning
 }
 
-/// <summary>A message shown across the top of the console and then withdrawn.</summary>
+/// <summary>A message shown over the viewport and then withdrawn.</summary>
 /// <param name="Text">The message shown to the host.</param>
 /// <param name="Type">How it is styled.</param>
-public sealed record FlashMessage(string Text, FlashType Type);
+public sealed record FlashMessage(string Text, FlashType Type)
+{
+    /// <summary>Tells two messages with the same words apart, so a stack of several can each be
+    /// dismissed on its own.</summary>
+    public Guid Id { get; init; } = Guid.NewGuid();
+}

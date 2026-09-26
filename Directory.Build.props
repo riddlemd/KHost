@@ -14,7 +14,7 @@
     day — and a 1.0 would promise otherwise.
   -->
   <PropertyGroup>
-    <ContractsVersion>0.34.0</ContractsVersion>
+    <ContractsVersion>0.35.0</ContractsVersion>
     <!--
       The assembly version is pinned and the package version is not, because they answer to
       different people. A plugin's compiled reference binds to this number, so moving it makes

@@ -1,3 +1,4 @@
+using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using KHost.Domain.Services;
 using KHost.UserInterface.Services;
@@ -105,6 +106,7 @@ public partial class AppSettingsPage : IDisposable
         else
         {
             _error = result.Error;
+            Flash?.Show(_error ?? "App settings were not saved.", FlashType.Warning);
             // The refused toggle must not keep looking flipped.
             _model = AppSettings.Current;
         }
