@@ -67,6 +67,17 @@ public class EditVenueModel
 
     public bool MarqueePinLabel { get; set; }
 
+    // Unlike font size/scroll speed, zero is a real opacity (fully transparent), so this cannot
+    // reuse "zero means the screen decides" — the dialog shows the screen's own default resolved,
+    // the same way it already does for the two colours below.
+    [Range(0, 100, ErrorMessage = "Opacity must be between 0 and 100 percent.")]
+    public int MarqueeBackgroundOpacity { get; set; } = 82;
+
+    public string? MarqueeSingerColor { get; set; }
+    public string? MarqueeSongColor { get; set; }
+    public string? MarqueeDividerColor { get; set; }
+    public MarqueeDividerShape MarqueeDividerShape { get; set; }
+
     /// <summary>The plugin whose code this venue shows, or null for none. Null is the default.</summary>
     public string? QrCodeSource { get; set; }
 

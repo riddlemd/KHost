@@ -150,7 +150,10 @@ public class LocalScreenDisplayProviderBurstTests : IDisposable
         Assert.True(await WaitForSentAsync<SetBreakMusicCardCommand>());
     }
 
-    private static string Named(SetMarqueeCommand marquee) => string.Join(", ", marquee.Singers);
+    // Names only: these tests never queue a song, so each turn is one plain Singer segment and the
+    // real divider (a "•", not ", ") never enters into what this compares.
+    private static string Named(SetMarqueeCommand marquee)
+        => string.Join(", ", marquee.Entries.Where(s => s.Kind != MarqueeSegmentKind.Separator).Select(s => s.Text));
 
     private async Task RotateAsync()
     {
