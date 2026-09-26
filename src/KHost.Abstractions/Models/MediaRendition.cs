@@ -3,7 +3,8 @@ namespace KHost.Abstractions.Models;
 /// <summary>What a display should actually play for one song, and how it may be driven.</summary>
 /// <remarks>Not always a stream. A renderer may answer with one URL to play end to end, with the
 /// separate parts a display mixes for itself, or with both — the parts for a display that can take
-/// them and the URL for one that cannot.</remarks>
+/// them and the URL for one that cannot. Parts alone are enough: for a display that cannot take them,
+/// the host encodes one stream from them.</remarks>
 public sealed class MediaRendition
 {
     /// <summary>One thing the display plays end to end, when there is one to play.</summary>

@@ -35,7 +35,7 @@ Three formats were surveyed specifically because they disagree on every axis tha
 | Picture | **synthesized** — ffmpeg decodes the subcode graphics | already encoded in the file | **none at all** (see below) |
 | Audio | the companion `.mp3`, ffmpeg input 1 | embedded in the container | N Ogg Vorbis stems |
 | Words | burned in | burned in, or none | `ITimedLyricsProvider`; burned in by the host for a display that asks |
-| Needs a host encode? | **always** | no, unless shifted | no, unless shifted |
+| Needs a host encode? | **always** | no, unless shifted | only when shifted, or the target cannot mix or wants words burned in |
 | Seeking | must seek on **output** | input seek is fine | free — the parts are the whole song |
 | Levels rideable at play? | no | no | yes |
 | What is cleaned up | the session directory | nothing — a library file | the session directory |
@@ -55,8 +55,9 @@ Where each of those lives today:
   `IsGraphicsOnly`; see staging step 3.
 - **`-map 0:v:0? -map "[a]"`** (`:291`) — the `?` exists so a mix graph tolerates a source with no
   video, which is the stems-only case leaking into the general path.
-- **The stems format's remux** — the plugin's own remux step stream-copies the stems into a
-  video-less container, purely so `HlsMediaStreamService` has something to open.
+- **The stems format's remux** — *gone.* The plugin used to stream-copy its stems into a video-less
+  container purely so `HlsMediaStreamService` had something to open. The host now reads the stems
+  themselves (`OpenStemsAsync`), so a stems format builds no second container at all.
 
 ### A stems-only format has no picture, and that is not an oversight
 
@@ -64,8 +65,8 @@ A screen that mixes draws the words itself over nothing. A display that cannot d
 `RenderTarget.BurnLyrics`, and the host's encode paints them in: over one of the venue's chosen
 song backgrounds when there is one, over black otherwise. That is the host's rule for *any* song
 with timed words and no picture of its own — no renderer paints anything, and a plugin that ships
-such a format supplies `TimedLyrics` and declines the burn-in target so the song reaches that
-encode.
+such a format supplies `TimedLyrics` and answers with its stems as always; the host encodes them
+with the words over that background.
 
 ## What the differences demand of the interface
 
@@ -140,10 +141,18 @@ ffmpeg behind it, and `BuildArtifactUrl` names the URL a display fetches from it
 route's shape in one place and answers open item 5 — a rendition without an encode still has a
 session, it just has no process in it.
 
-Returning **null** means "nothing to do here" and falls through to the next renderer, the same
-contract `ResolvePlayableAsync` already uses. That is how a stems-only format on a Chromecast works:
-its renderer writes the stems, sees a target that cannot mix, remuxes them into a container the
-streaming renderer can open, and hands it on rather than trying to encode itself.
+Returning **null** means "nothing to do here" and falls through to the fallback renderer.
+
+**A renderer supplies stems; the host decides what the target needs.** A stems format answers with
+its stems for every target, key and tempo, and makes no mixing decision. `MediaRendererService`
+hands stems alone straight to a target that `MixesStems` when no key or tempo change and no
+`BurnLyrics` was asked for. Anything else — a Chromecast, a key change on a screen, a device
+wanting words in the picture — goes to `StemMixdown`, and `HlsMediaStreamService.OpenStemsAsync`
+encodes one stream: every stem an input (read off disk when it sits in a host session, fetched
+over http otherwise), mixed at its `StemSource.Volume` through the same per-voice graph, then keyed,
+retimed, and — for `BurnLyrics` — laid under the words over the venue's background or black. The
+encode adopts the renderer's session, so closing it sweeps the stems too. A key, tempo or mix change
+re-renders at the playhead and goes through the same decision.
 
 ### The renderers
 
@@ -151,7 +160,7 @@ streaming renderer can open, and hands it on rather than trying to encode itself
 |---|---|---|
 | `StreamingMediaRenderer` (fallback, keyed) | everything | the HLS session it builds today; owns the CDG rules |
 | `DirectMediaRenderer` | containers the target plays as-is, unshifted | a URL to the library file, `SeekableInPlace` |
-| a plugin's renderer for its own stems format | the format's own extension | stems for a mixing target; otherwise a remuxed container to encode |
+| a plugin's renderer for its own stems format | the format's own extension | its stems, for every target; the host encodes them where needed |
 
 The fallback is registered **keyed**, exactly as `FfprobeMediaProbe` is behind
 `MediaProbeService.FallbackKey`, so it never appears in the `IMediaRenderer` enumerable — it claims
@@ -196,9 +205,9 @@ Claim-by-file is the pattern this codebase already uses for exactly this reason.
 
 ## What this replaces
 
-`IPlayableMediaSource` folds into it. "Turn this into something playable" and "decide what playing it
-means" are the same question asked twice, and splitting them is why the encode decision ended up in a
-service that only knows how to encode. `StemsOf`, added days ago, is the seam showing.
+A stems format no longer needs `IPlayableMediaSource`: the host encodes from the stems a renderer
+hands back. The contract stays, for a format whose file the host's encoder cannot open and that a
+cheap transform turns into one it can.
 
 `HlsMediaStreamService` survives, wrapped — the same way `IScreenServer` survived behind
 `LocalScreenDisplayProvider`. Its ffmpeg argument building is not the problem; being the only answer is.
@@ -232,8 +241,8 @@ service that only knows how to encode. `StemsOf`, added days ago, is the seam sh
 2. ~~Where does a stems-only format's **backdrop** come from?~~ Answered for burned-in streams:
    the venue's chosen song background, else black. A screen that draws its own words still shows
    them over nothing.
-3. A remuxed stems container's duration currently comes from a legacy sidecar file only, not from
-   the container itself. Does the rendition carry duration so the host stops asking the file twice?
+3. ~~A remuxed stems container's duration~~ Moot: no stems container is built any more. A burn-in
+   over stems probes the stems themselves for how long to paint.
 4. Does a rendition need to say **why** it refused to be direct, so the console can explain a song
    that fell back to an encode?
 5. What happens when the display changes mid-song? Today a connect triggers a reload; with renditions

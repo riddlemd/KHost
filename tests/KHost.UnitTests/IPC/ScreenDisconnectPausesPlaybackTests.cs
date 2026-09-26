@@ -69,7 +69,7 @@ public class ScreenDisconnectPausesPlaybackTests : IDisposable
             new MediaRendererService(
                 NullLogger<MediaRendererService>.Instance,
                 [],
-                new StreamingMediaRenderer(mediaStreams)),
+                new StreamingMediaRenderer(mediaStreams), Substitute.For<IStemMixdown>()),
             // The screens reach playback as a display now, over this same real server, so a
             // registration here is still what gives the song somewhere to come out. The receiver
             // beside them stands in for a television, which is the only second display there can be.

@@ -16,8 +16,10 @@ namespace KHost.Abstractions.Services;
 ///
 /// <para>An extension point: a plugin IMPLEMENTS it and the host discovers it. The host asks the
 /// renderers in turn and the first whose <see cref="CanRender"/> is true answers; when no renderer
-/// claims the file, or the claiming one returns null, the host's own encode plays it. A renderer may
-/// also burn things into the picture for a display that cannot draw them, such as a song's words.
+/// claims the file, or the claiming one returns null, the host's own encode plays it. A rendition of
+/// stems alone reaches the display as it is only when the target mixes them and no key, tempo or
+/// burned-in words were asked for; otherwise the host encodes one stream from those stems itself, so
+/// a renderer whose format is stems answers with them for every target.
 /// The plugin's object is one singleton shared across every extension interface it implements, and
 /// is called from any thread.</para></remarks>
 public interface IMediaRenderer
@@ -32,9 +34,10 @@ public interface IMediaRenderer
 
     /// <summary>What to play, or null to leave it to the host's own encode.</summary>
     /// <remarks>Null is not a failure — it means this renderer had nothing better to offer for that
-    /// target, and the host encodes the file as it would any other; no other renderer is asked. Read
-    /// <see cref="MediaRenderRequest.Target"/>: stems are worth offering only to a target that mixes
-    /// them.</remarks>
+    /// target, and the host encodes the file as it would any other; no other renderer is asked. Stems
+    /// need no reading of <see cref="MediaRenderRequest.Target"/>: the host turns them into one stream
+    /// for any target that cannot take them as they are, at the key and tempo asked for, with the
+    /// levels each <see cref="StemSource.Volume"/> carries.</remarks>
     /// <exception cref="KHost.Abstractions.Exceptions.KHostException">Throw this when a file this
     /// renderer claimed cannot be produced, with a line a host can act on; it reaches the host as
     /// written. Any other exception is wrapped in a generic one. Either way the song fails with a

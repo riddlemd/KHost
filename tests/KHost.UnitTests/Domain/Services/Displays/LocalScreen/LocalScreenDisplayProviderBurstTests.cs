@@ -201,7 +201,7 @@ public class LocalScreenDisplayProviderBurstTests : IDisposable
             Substitute.For<IAnalyticsService>(),
             _streams,
             new MediaRendererService(
-                NullLogger<MediaRendererService>.Instance, [], new StreamingMediaRenderer(_streams)),
+                NullLogger<MediaRendererService>.Instance, [], new StreamingMediaRenderer(_streams), Substitute.For<IStemMixdown>()),
             [screen],
             breakMusic,
             options,

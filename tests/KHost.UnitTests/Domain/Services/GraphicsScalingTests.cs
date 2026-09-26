@@ -5,7 +5,7 @@ namespace KHost.UnitTests.Domain.Services;
 public class GraphicsScalingTests
 {
     [Fact]
-    public void DefaultHeight_Is720p() => Assert.Equal(720, GraphicsScaling.DefaultHeight);
+    public void DefaultHeight_IsOff() => Assert.Equal(GraphicsScaling.Off, GraphicsScaling.DefaultHeight);
 
     [Theory]
     [InlineData(0, 0)]

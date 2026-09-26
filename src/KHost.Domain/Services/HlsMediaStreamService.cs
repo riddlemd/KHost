@@ -11,7 +11,7 @@ using KHost.Domain.Services.BurnIn;
 namespace KHost.Domain.Services;
 
 /// <summary>One ffmpeg run feeds any number of consumers, all of them plain HTTP clients.</summary>
-public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IBurnInStreamService, IDisposable
+public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IBurnInStreamService, IStemStreamService, IDisposable
 {
     public sealed class ServiceOptions
     {
@@ -173,6 +173,111 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
         Logger.LogInformation(
             "Opening stream {SessionId} for '{FilePath}' at {Offset}{BurnIn}",
             id, source, startOffset, burnIn is null ? "" : $", words burned in over {burnIn.Overlay.Base}");
+
+        return await StartEncodeAsync(
+            id, directory, filePath, arguments, burnIn, startOffset, pitch, tempo, adopted: null, cancellationToken);
+    }
+
+    public async Task<MediaStreamSession> OpenStemsAsync(
+        string sourcePath,
+        IReadOnlyList<StemSource> stems,
+        TimeSpan startOffset,
+        int pitch,
+        int tempo,
+        TimedLyrics? words,
+        string? backgroundPath,
+        MediaStreamSession? adopt,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            if (stems.Count == 0)
+                throw new InvalidOperationException($"No stems to encode for '{sourcePath}'.");
+
+            var inputs = stems
+                .Select(stem => new StemInput(ResolveStemInput(stem.Url), stem.Role, stem.Volume))
+                .ToList();
+
+            var (id, directory) = NewSession();
+
+            // A stem set has no picture of its own, so the words go over the venue's background or
+            // black, for as long as the longest stem runs.
+            BurnInPlan? burnIn = null;
+            if (words is { Pages.Count: > 0 })
+            {
+                burnIn = PlanBurnIn(
+                    hasVideo: false, await LongestDurationAsync(inputs, cancellationToken), isGraphicsOnly: false,
+                    words, backgroundPath, startOffset, tempo, GraphicsScaling.SnapToOffered(Options.GraphicsScaleHeight));
+            }
+
+            var arguments = BuildStemArguments(inputs, startOffset, pitch, tempo, Options.SegmentSeconds, burnIn?.Overlay);
+
+            Logger.LogInformation(
+                "Opening stream {SessionId} from {Count} stems of '{FilePath}' at {Offset}{BurnIn}",
+                id, inputs.Count, sourcePath, startOffset,
+                burnIn is null ? "" : $", words burned in over {burnIn.Overlay.Base}");
+
+            return await StartEncodeAsync(
+                id, directory, sourcePath, arguments, burnIn, startOffset, pitch, tempo, adopt?.Id, cancellationToken);
+        }
+        catch
+        {
+            // Owned from the call on: a caller whose encode never started has nothing to close it by.
+            if (adopt is not null) await CloseAsync(adopt.Id);
+            throw;
+        }
+    }
+
+    /// <summary>A local path for a stem written into one of this service's sessions, else the http
+    /// address itself for ffmpeg to fetch.</summary>
+    /// <remarks>Read off disk where it can be: fetching our own server over loopback only adds a hop.</remarks>
+    internal string ResolveStemInput(string url)
+    {
+        var prefix = $"{Options.BaseAddress.TrimEnd('/')}/media/";
+
+        if (url.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+        {
+            var parts = url[prefix.Length..].Split('/');
+
+            return parts.Length == 2 && ResolveArtifact(parts[0], Uri.UnescapeDataString(parts[1])) is { } path
+                ? path
+                : throw new InvalidOperationException($"The stem '{url}' names a session file that is not there.");
+        }
+
+        // Quoted onto ffmpeg's command line, where a quote inside would end the argument early.
+        if (Uri.TryCreate(url, UriKind.Absolute, out var uri)
+            && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps)
+            && !url.Contains('"'))
+            return url;
+
+        throw new InvalidOperationException($"The stem '{url}' is neither a session file nor an http address.");
+    }
+
+    /// <remarks>A stem that cannot be probed counts as zero: the words then last as long as they run.</remarks>
+    private static async Task<double> LongestDurationAsync(IReadOnlyList<StemInput> inputs, CancellationToken cancellationToken)
+    {
+        var durations = await Task.WhenAll(inputs.Select(async input =>
+        {
+            try
+            {
+                return (await FFProbe.AnalyseAsync(input.Input, cancellationToken: cancellationToken)).Duration.TotalSeconds;
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                return 0;
+            }
+        }));
+
+        return durations.Max();
+    }
+
+    /// <summary>Starts ffmpeg in a session directory, registers it, and waits for a playlist worth
+    /// handing out.</summary>
+    /// <param name="adopted">A session closed along with this one: the files it reads from.</param>
+    private async Task<MediaStreamSession> StartEncodeAsync(
+        string id, string directory, string filePath, string arguments, BurnInPlan? burnIn,
+        TimeSpan startOffset, int pitch, int tempo, string? adopted, CancellationToken cancellationToken)
+    {
         Logger.LogDebug("ffmpeg {Arguments}", arguments);
 
         var process = Process.Start(new ProcessStartInfo(ResolveFfmpegPath(), arguments)
@@ -184,7 +289,7 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
             CreateNoWindow = true,
         }) ?? throw new InvalidOperationException("Failed to start ffmpeg");
 
-        var session = new Session(id, directory, process);
+        var session = new Session(id, directory, process) { AdoptedSessionId = adopted };
 
         if (burnIn is not null) session.StartPainting(burnIn, process.StandardInput.BaseStream, Logger);
 
@@ -244,6 +349,14 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
     {
         var (hasVideo, duration) = await ProbePictureAsync(source, cancellationToken);
 
+        return PlanBurnIn(
+            hasVideo, duration, IsGraphicsOnly(source), words, backgroundPath, startOffset, tempo, graphicsHeight);
+    }
+
+    private static BurnInPlan PlanBurnIn(
+        bool hasVideo, double duration, bool isGraphicsOnly, TimedLyrics words, string? backgroundPath,
+        TimeSpan startOffset, int tempo, int graphicsHeight)
+    {
         var basePicture = hasVideo
             ? BurnInBase.SourceVideo
             : backgroundPath is not null && File.Exists(backgroundPath) ? BurnInBase.Background : BurnInBase.Fill;
@@ -256,7 +369,7 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
         // Laid over a picture nobody made with the words in mind, so the band they sit in is darkened.
         var painter = new TimedLyricsPainter(words, overlay.Width, overlay.Height, scrim: basePicture != BurnInBase.Fill);
 
-        var start = IsGraphicsOnly(source) ? 0 : startOffset.TotalSeconds;
+        var start = isGraphicsOnly ? 0 : startOffset.TotalSeconds;
         var rate = StreamRate.FromTempo(tempo);
         var end = Math.Max(painter.DurationSeconds, duration);
 
@@ -326,6 +439,8 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
 
         Logger.LogInformation("Closing stream {SessionId}", sessionId);
         session!.Dispose();
+
+        if (session.AdoptedSessionId is { } adopted) await CloseAsync(adopted);
     }
 
     public async Task CloseAllAsync()
@@ -439,15 +554,7 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
         if (isGraphicsOnly)
             arguments += $" -r {GraphicsFramesPerSecond}";
 
-        var level = (burnIn?.Height ?? graphicsFrame.Height) > 1080 ? "5.1" : "4.1";
-
-        // Keyframes on time, not a frame count: -g is in frames, so it matches the segment length
-        // at exactly one source frame rate, and the muxer can only cut where a keyframe already is.
-        arguments += $" -c:v libx264 -preset veryfast -profile:v main -level {level} -pix_fmt yuv420p"
-                   + string.Format(
-                        CultureInfo.InvariantCulture,
-                        " -force_key_frames \"expr:gte(t,n_forced*{0})\" -sc_threshold 0",
-                        segment);
+        arguments += VideoEncode(burnIn?.Height ?? graphicsFrame.Height, segment);
 
         var audioFilter = BuildAudioFilter(pitch, tempo);
         var mixGraph = BuildMixGraph(mix, audioFilter);
@@ -495,18 +602,75 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
 
         if (holdsPictureToTheAudio) arguments += " -shortest";
 
-        arguments += " -c:a aac -ar 44100 -ac 2 -b:a 128k";
-
-        // MPEG-TS segments rather than fMP4: TS plays everywhere, and CMAF needs a newer device
-        // than some display providers reach. Wanting CMAF means asking the provider first.
-        arguments += string.Format(
-            CultureInfo.InvariantCulture,
-            " -f hls -hls_time {0} -hls_playlist_type event -hls_flags independent_segments"
-            + " -hls_segment_filename seg_%05d.ts",
-            segment);
-
-        return arguments + $" {PlaylistFileName}";
+        return arguments + HlsOutput(segment);
     }
+
+    /// <summary>One stem as ffmpeg reads it: a local path or an http address, and its level.</summary>
+    internal sealed record StemInput(string Input, AudioTrackRole Role, int Volume);
+
+    /// <summary>The encode for a song that arrived as separate stems: every stem an input, mixed at
+    /// its own level, then keyed and retimed as one.</summary>
+    /// <remarks>Audio alone unless words are burned in, as a stems-only song has no picture of its own
+    /// and a display drawing its own words wants none. Burned-in words go over
+    /// <see cref="BurnInOverlay.Base"/>, which here is only ever the venue's background or black.
+    /// </remarks>
+    internal static string BuildStemArguments(
+        IReadOnlyList<StemInput> stems,
+        TimeSpan startOffset,
+        int pitch,
+        int tempo,
+        int segmentSeconds,
+        BurnInOverlay? burnIn = null)
+    {
+        var arguments = "-hide_banner -loglevel error";
+
+        // Each input seeks on its own: -ss binds to the next -i only.
+        var seek = startOffset > TimeSpan.Zero
+            ? string.Format(CultureInfo.InvariantCulture, " -ss {0:F3}", startOffset.TotalSeconds)
+            : "";
+
+        foreach (var stem in stems) arguments += $"{seek} -i \"{stem.Input}\"";
+
+        if (burnIn is not null) arguments += BurnInInputs(burnIn);
+
+        var segment = Math.Max(1, segmentSeconds);
+        var audioFilter = BuildAudioFilter(pitch, tempo);
+        var mixGraph = MixGraph(
+            stems.Select((stem, index) => (Pad: $"{index}:a:0", stem.Role, Index: index, stem.Volume)), audioFilter);
+
+        if (burnIn is not null)
+        {
+            arguments += VideoEncode(burnIn.Height, segment)
+                         + BurnInMapping(burnIn, stems.Count, tempo, 0, mixGraph, audioFilter, false, false);
+        }
+        else
+        {
+            arguments += $" -filter_complex \"{mixGraph}\" -map \"[a]\"";
+        }
+
+        return arguments + HlsOutput(segment);
+    }
+
+    /// <remarks>Keyframes on time, not a frame count: -g is in frames, so it matches the segment
+    /// length at exactly one source frame rate, and the muxer can only cut where a keyframe already is.
+    /// </remarks>
+    private static string VideoEncode(int frameHeight, int segment)
+        => $" -c:v libx264 -preset veryfast -profile:v main -level {(frameHeight > 1080 ? "5.1" : "4.1")} -pix_fmt yuv420p"
+           + string.Format(
+               CultureInfo.InvariantCulture,
+               " -force_key_frames \"expr:gte(t,n_forced*{0})\" -sc_threshold 0",
+               segment);
+
+    /// <remarks>MPEG-TS segments rather than fMP4: TS plays everywhere, and CMAF needs a newer device
+    /// than some display providers reach. Wanting CMAF means asking the provider first.</remarks>
+    private static string HlsOutput(int segment)
+        => " -c:a aac -ar 44100 -ac 2 -b:a 128k"
+           + string.Format(
+               CultureInfo.InvariantCulture,
+               " -f hls -hls_time {0} -hls_playlist_type event -hls_flags independent_segments"
+               + " -hls_segment_filename seg_%05d.ts",
+               segment)
+           + $" {PlaylistFileName}";
 
     internal static bool IsGraphicsOnly(string filePath)
         => Path.GetExtension(filePath).Equals(".cdg", StringComparison.OrdinalIgnoreCase);
@@ -632,23 +796,30 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
     {
         if (mix is not { IsMixable: true }) return string.Empty;
 
+        return MixGraph(
+            mix.Tracks.Select(track => (Pad: $"0:a:{track.Index}", track.Role, track.Index, Volume: mix.VolumeFor(track))),
+            audioFilter);
+    }
+
+    /// <summary>Each source pad at its own level, summed, then carried through the pitch and tempo
+    /// chain; ends in <c>[a]</c>.</summary>
+    private static string MixGraph(
+        IEnumerable<(string Pad, AudioTrackRole Role, int Index, int Volume)> sources, string audioFilter)
+    {
         var stages = new List<string>();
         var labels = new List<string>();
 
-        foreach (var track in mix.Tracks)
+        foreach (var (pad, role, index, volume) in sources)
         {
-            var volume = mix.VolumeFor(track);
-
             // Suffixed by index: a duet carries two leads, and a repeated pad label is an ffmpeg error.
-            var label = track.Role switch
+            var label = role switch
             {
                 AudioTrackRole.Music => "m",
                 AudioTrackRole.Lead => "l",
                 _ => "b",
-            } + track.Index.ToString(CultureInfo.InvariantCulture);
+            } + index.ToString(CultureInfo.InvariantCulture);
 
-            stages.Add(FormattableString.Invariant(
-                $"[0:a:{track.Index}]volume={volume / 100.0:F3}[{label}]"));
+            stages.Add(FormattableString.Invariant($"[{pad}]volume={volume / 100.0:F3}[{label}]"));
             labels.Add($"[{label}]");
         }
 
@@ -751,6 +922,9 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
 
         public string Id { get; } = id;
         public string Directory { get; } = directory;
+
+        /// <summary>Another session this one reads from, closed after it.</summary>
+        public string? AdoptedSessionId { get; init; }
 
         /// <summary>Feeds ffmpeg the painted words until the song ends or the session closes.</summary>
         public void StartPainting(BurnInPlan plan, Stream pipe, ILogger logger)

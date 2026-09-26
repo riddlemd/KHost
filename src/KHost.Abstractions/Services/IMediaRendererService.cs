@@ -10,7 +10,8 @@ public interface IMediaRendererService
 {
     /// <summary>What to play for this file on this target. Never null — something always plays.</summary>
     /// <remarks>The host's own encode takes anything nothing else claimed, and anything its claiming
-    /// renderer declined, which is what makes this total. The caller owns the returned
+    /// renderer declined, which is what makes this total. Stems the target cannot take as they are come
+    /// back encoded into one stream. The caller owns the returned
     /// <see cref="MediaRendition.Session"/> and closes it.</remarks>
     /// <exception cref="KHost.Abstractions.Exceptions.KHostException">When a claiming renderer cannot
     /// produce the song; carries a line for the host.</exception>

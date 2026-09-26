@@ -25,8 +25,7 @@ public sealed class LyricBurnIn(
     /// burn in.</summary>
     public async Task<MediaStreamSession?> OpenAsync(MediaRenderRequest request, CancellationToken cancellationToken = default)
     {
-        var words = await lyrics.GetTimedLyricsAsync(request.FilePath, cancellationToken);
-        if (words is not { Pages.Count: > 0 }) return null;
+        if (await FindAsync(request.FilePath, cancellationToken) is not { } found) return null;
 
         return await streams.OpenBurningInAsync(
             request.FilePath,
@@ -34,9 +33,20 @@ public sealed class LyricBurnIn(
             request.Pitch,
             request.Tempo,
             request.Mix,
-            words,
-            await PickBackgroundAsync(cancellationToken),
+            found.Words,
+            found.BackgroundPath,
             cancellationToken);
+    }
+
+    /// <summary>The song's timed words and the background to put them over, or null when it has no
+    /// words to burn in.</summary>
+    public async Task<(TimedLyrics Words, string? BackgroundPath)?> FindAsync(
+        string filePath, CancellationToken cancellationToken = default)
+    {
+        var words = await lyrics.GetTimedLyricsAsync(filePath, cancellationToken);
+        if (words is not { Pages.Count: > 0 }) return null;
+
+        return (words, await PickBackgroundAsync(cancellationToken));
     }
 
     /// <summary>One of the venue's chosen song backgrounds, or null for black.</summary>

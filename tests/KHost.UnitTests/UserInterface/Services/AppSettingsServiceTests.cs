@@ -1,5 +1,6 @@
 using System.Text.Json;
 using KHost.Abstractions.Services;
+using KHost.Domain.Services;
 using KHost.UserInterface.Models;
 using KHost.UserInterface.Services;
 using Microsoft.Extensions.Configuration;
@@ -128,11 +129,11 @@ public class AppSettingsServiceTests : IDisposable
         => Assert.Equal(expected, Service(new KeyValuePair<string, string?>("Playback:LeadInGraceSeconds", stored)).Current.LeadInGraceSeconds);
 
     [Fact]
-    public async Task GraphicsScaleHeight_DefaultsTo720p_AndRoundTripsThroughTheOverlay()
+    public async Task GraphicsScaleHeight_DefaultsToOff_AndRoundTripsThroughTheOverlay()
     {
         var service = Service();
 
-        Assert.Equal(720, service.Current.GraphicsScaleHeight);
+        Assert.Equal(GraphicsScaling.Off, service.Current.GraphicsScaleHeight);
 
         await service.SaveAsync(new AppSettings { GraphicsScaleHeight = 1080 });
 

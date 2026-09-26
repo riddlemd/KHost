@@ -23,9 +23,10 @@ public sealed class MediaRenderRequest
 }
 
 /// <summary>What the display this is being rendered for can do with what it is handed.</summary>
-/// <remarks>The same file renders differently for different targets — a stems-only format needs an
-/// encode for a receiver and none for a screen that mixes — so this is part of the question, not
-/// context a renderer is expected to look up.</remarks>
+/// <remarks>The same file renders differently for different targets — stems need an encode for a
+/// receiver and none for a screen that mixes — so this is part of the question, not context a
+/// renderer is expected to look up. A renderer answering with stems may ignore it: the host makes
+/// that encode from them.</remarks>
 public sealed class RenderTarget
 {
     /// <summary>Whether the one connected display takes the stems unmixed and rides the levels itself.</summary>
@@ -35,10 +36,10 @@ public sealed class RenderTarget
     /// picture.</summary>
     /// <remarks>A request, not a demand. The host's own encode honours it for any song some
     /// <see cref="Services.ITimedLyricsProvider"/> supplies timed words for, painting them into the
-    /// picture, so a renderer that declines hands such a song to an encode that burns them in. A
-    /// renderer that answers with a rendition of its own MAY honour it; one that cannot returns the
-    /// rendition it would have returned anyway rather than declining or failing, and that song
-    /// reaches the display without its words.</remarks>
+    /// picture, so a renderer that declines, or answers with stems alone, hands such a song to an
+    /// encode that burns them in. A renderer that answers with a stream of its own MAY honour it; one
+    /// that cannot returns the rendition it would have returned anyway rather than declining or
+    /// failing, and that song reaches the display without its words.</remarks>
     public bool BurnLyrics { get; init; }
 
     /// <summary>Nothing connected, or nothing special asked for: every flag false.</summary>
