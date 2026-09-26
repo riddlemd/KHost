@@ -7,9 +7,9 @@ inclusion in a source-available and/or commercial product; nothing here changes
 the terms of the PolyForm Shield License covering KHost's own code.
 
 > Full verbatim texts of the licenses that require inclusion in binary
-> distributions are bundled under [`licenses/`](licenses): Apache-2.0, GNU
-> LGPL v2.1, and SIL OFL 1.1. MIT and BSD-3-Clause are reproduced inline in
-> [§4](#4-common-license-texts).
+> distributions are bundled under [`licenses/`](licenses): Apache-2.0, and the
+> Skia/HarfBuzz native library notices. MIT and BSD-3-Clause are reproduced
+> inline in [§4](#4-common-license-texts).
 
 ---
 
@@ -17,57 +17,49 @@ the terms of the PolyForm Shield License covering KHost's own code.
 
 These ship inside a KHost build (host and/or screen app, or the browser assets).
 
-### Permissive (MIT / BSD / Apache-2.0 / OFL)
+### Permissive (MIT / BSD / Apache-2.0)
 
-| Component | Used in | License | Copyright / Author |
-|---|---|---|---|
-| FFMpegCore | host, screen | MIT | Malte Rosenbjerg and contributors |
-| Avalonia (Desktop, Themes.Fluent) | screen | MIT | The AvaloniaUI Project / .NET Foundation |
-| Avalonia.Fonts.Inter — Inter typeface | screen | SIL Open Font License 1.1 | Rasmus Andersson (font); Avalonia (packaging, MIT) |
-| SkiaSharp / HarfBuzzSharp (with their Win32, macOS and Linux native assets) | host (burned-in words) | MIT (Skia: BSD-3-Clause; HarfBuzz: Old MIT) | Microsoft / Google / HarfBuzz contributors |
-| Silk.NET.OpenAL.Soft.Native — binding | screen | MIT | .NET Foundation / Silk.NET contributors |
-| Konscious.Security.Cryptography.Argon2 | host | MIT | Keef Aragon |
-| Entity Framework Core + Microsoft.Data.Sqlite | host | MIT | Microsoft / .NET Foundation |
-| Microsoft.Extensions.* (DI, Logging, Http, Options, ServiceDiscovery, Resilience) | host, screen | MIT | Microsoft / .NET Foundation |
-| Microsoft.AspNetCore.SignalR.Client | screen | MIT | Microsoft / .NET Foundation |
-| Polly (via Microsoft.Extensions.Http.Resilience) | host | BSD-3-Clause | App vNext |
-| SQLitePCLRaw (native SQLite provider) | host | Apache-2.0 | Eric Sink / SourceGear |
-| SQLite engine | host | Public Domain | D. Richard Hipp and contributors |
-| Serilog, Serilog.AspNetCore, Serilog.Extensions.Logging, Serilog.Sinks.File | host, screen | Apache-2.0 | Serilog Contributors |
-| OpenTelemetry .NET (SDK, exporters, instrumentation) | host | Apache-2.0 | The OpenTelemetry Authors |
-| Bootstrap Icons (`wwwroot/css/bootstrap-icons.css`, `wwwroot/css/fonts/bootstrap-icons.woff*`) | host UI (browser) | MIT | The Bootstrap Authors |
-| SortableJS (`wwwroot/js/Sortable.min.js`) | host UI (browser) | MIT | All contributors to SortableJS |
-| hls.js (`screen-ui/hls.light.min.js`, embedded in the screen executable) | screen | Apache-2.0 | Dailymotion and contributors |
+| Component | Version | Used in | License | Copyright / Author |
+|---|---|---|---|---|
+| FFMpegCore | 5.4.0 | host | MIT | Malte Rosenbjerg and contributors |
+| Photino.NET | 4.0.16 | host, screen | Apache-2.0 | TryPhotino |
+| QRCoder | 1.6.0 | host | MIT | Raffael Herrmann |
+| SkiaSharp / HarfBuzzSharp (with their Win32, macOS and Linux native assets) | SkiaSharp 3.119.3-preview.1.1; HarfBuzzSharp 8.3.1.3 | host (burned-in words) | MIT (Skia: BSD-3-Clause; HarfBuzz: Old MIT) | Microsoft / Google / HarfBuzz contributors |
+| Konscious.Security.Cryptography.Argon2 | 1.3.1 | host | MIT | Keef Aragon |
+| Entity Framework Core + Microsoft.Data.Sqlite | 10.0.7 | host | MIT | Microsoft / .NET Foundation |
+| Microsoft.Extensions.* (DI, Logging, Http, Options, ServiceDiscovery, Resilience) | 10.0.7 / 10.5.0 | host, screen | MIT | Microsoft / .NET Foundation |
+| Microsoft.AspNetCore.SignalR.Client | 8.0.0 | screen | MIT | Microsoft / .NET Foundation |
+| Polly (via Microsoft.Extensions.Http.Resilience) | 8.4.2 | host | BSD-3-Clause | App vNext |
+| SQLitePCLRaw (native SQLite provider) | 2.1.12 | host | Apache-2.0 | Eric Sink / SourceGear |
+| SQLite engine | bundled by SQLitePCLRaw.bundle_e_sqlite3 2.1.12 | host | Public Domain | D. Richard Hipp and contributors |
+| Serilog, Serilog.AspNetCore, Serilog.Extensions.Logging, Serilog.Sinks.File | 4.3.0 / 10.0.0 / 10.0.0 / 7.0.0 | host, screen | Apache-2.0 | Serilog Contributors |
+| OpenTelemetry .NET (SDK, exporters, instrumentation) | 1.15.1 – 1.15.3 | host | Apache-2.0 | The OpenTelemetry Authors |
+| Bootstrap Icons (`wwwroot/css/bootstrap-icons.css`, `wwwroot/css/fonts/bootstrap-icons.woff*`) | 1.11.3 | host UI (browser) | MIT | The Bootstrap Authors |
+| SortableJS (`wwwroot/js/Sortable.min.js`) | 1.15.7 | host UI (browser) | MIT | All contributors to SortableJS |
+| hls.js (`screen-ui/hls.light.min.js`, embedded in the screen executable) | 1.7.1 | screen | Apache-2.0 | Dailymotion and contributors |
 
 License texts:
 - MIT and BSD-3-Clause are reproduced in [§4](#4-common-license-texts).
 - Apache-2.0: [`licenses/Apache-2.0.txt`](licenses/Apache-2.0.txt)
   (https://www.apache.org/licenses/LICENSE-2.0) — retain each project's `NOTICE`
-  file where provided.
-- SIL Open Font License 1.1: [`licenses/SIL-OFL-1.1.txt`](licenses/SIL-OFL-1.1.txt)
-  (https://openfontlicense.org) — the Inter font may be bundled and used freely
-  (including commercially); it may not be sold on its own, and its
-  license/copyright must travel with the font files.
+  file where provided. Photino.NET and Photino.Native ship no `NOTICE` file.
+- Skia / HarfBuzz native library notices, for the SkiaSharp / HarfBuzzSharp row
+  above: [`licenses/SkiaSharp-native-THIRD-PARTY-NOTICES.txt`](licenses/SkiaSharp-native-THIRD-PARTY-NOTICES.txt)
+  (the native asset packages' own bundled third-party notices, identical across
+  the Win32, macOS and Linux packages, and covering Skia's BSD-3-Clause
+  copyright along with the other third-party code Skia itself embeds) and
+  [`licenses/Old-MIT-HarfBuzz.txt`](licenses/Old-MIT-HarfBuzz.txt) (HarfBuzz's
+  own "Old MIT" text, identical across the same three packages).
 
-### Weak copyleft — requires the compliance steps below
-
-| Component | Used in | License | Copyright / Author |
-|---|---|---|---|
-| OpenAL Soft (native `soft_oal` / `OpenAL32` library, bundled by `Silk.NET.OpenAL.Soft.Native`) | screen | GNU LGPL v2.1 | Chris Robinson (kcat) and contributors |
-
-**OpenAL Soft (LGPL-2.1) compliance.** KHost satisfies the LGPL by linking OpenAL
-Soft **dynamically** as a standalone, replaceable native library loaded at runtime
-(via Silk.NET) — it is never statically linked into KHost code. To remain
-compliant when distributing a KHost build you must:
-1. Keep OpenAL Soft as a separate library file the user can replace with their own
-   compatible build.
-2. Include a copy of the GNU LGPL v2.1 ([`licenses/LGPL-2.1.txt`](licenses/LGPL-2.1.txt);
-   https://www.gnu.org/licenses/old-licenses/lgpl-2.1.txt) and this notice.
-3. Not remove OpenAL Soft's copyright notices.
-
-This obligation applies only to OpenAL Soft itself; it does **not** require
-disclosing KHost's own source code, and is compatible with the PolyForm Shield
-License and with selling commercial licenses to KHost.
+**A note on transitive dependencies.** Direct dependencies are listed above;
+notable transitive runtime dependencies with non-MIT licenses are listed too —
+Polly is the existing example, pulled in via Microsoft.Extensions.Http.Resilience.
+Google.Protobuf and Grpc.Net.Client, which the OpenTelemetry OTLP exporter can
+pull in on other configurations, were checked (`dotnet list package
+--include-transitive`, and the build output under `obj/_build`) and do not
+appear in KHost's own dependency graph or published output at the pinned
+OpenTelemetry version — the two `Google.Protobuf.dll` copies present in this
+checkout belong to installed plugins, not the host.
 
 ---
 
@@ -196,8 +188,9 @@ OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```
 
-Full verbatim texts of Apache-2.0, GNU LGPL v2.1, and SIL OFL 1.1 are bundled
-under [`licenses/`](licenses) and are included with binary distributions.
+Full verbatim texts of Apache-2.0 and the Skia/HarfBuzz native library notices
+are bundled under [`licenses/`](licenses) and are included with binary
+distributions.
 
 ---
 

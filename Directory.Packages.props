@@ -8,7 +8,6 @@
     <!-- Media -->
     <PackageVersion Include="FFMpegCore" Version="5.4.0" />
     <PackageVersion Include="QRCoder" Version="1.6.0" />
-    <PackageVersion Include="Silk.NET.OpenAL.Soft.Native" Version="1.23.1" />
     <!-- Lyric burn-in: Skia paints the frames, HarfBuzz shapes the words (joins, right to left). -->
     <PackageVersion Include="SkiaSharp" Version="3.119.3-preview.1.1" />
     <PackageVersion Include="SkiaSharp.NativeAssets.Win32" Version="3.119.3-preview.1.1" />
@@ -55,10 +54,6 @@
     <!-- Cast - CASTV2 sender (discovery, receiver control, media control) -->
     <!-- UI - Photino (native shell hosting the Blazor UI) -->
     <PackageVersion Include="Photino.NET" Version="4.0.16" />
-    <!-- UI - Avalonia -->
-    <PackageVersion Include="Avalonia.Desktop" Version="12.0.1" />
-    <PackageVersion Include="Avalonia.Fonts.Inter" Version="12.0.1" />
-    <PackageVersion Include="Avalonia.Themes.Fluent" Version="12.0.1" />
     <!-- Real-time Communication -->
     <PackageVersion Include="Microsoft.AspNetCore.SignalR.Client" Version="8.0.0" />
     <!-- Build -->

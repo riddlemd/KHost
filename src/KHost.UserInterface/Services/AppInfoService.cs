@@ -34,8 +34,6 @@ public sealed class AppInfoService : IAppInfoService
         ReferencedLicenses =
         [
             new ReferencedLicense("Apache License 2.0", ReadResource(assembly, "Apache-2.0.txt")),
-            new ReferencedLicense("GNU LGPL v2.1", ReadResource(assembly, "LGPL-2.1.txt")),
-            new ReferencedLicense("SIL Open Font License 1.1", ReadResource(assembly, "SIL-OFL-1.1.txt")),
         ];
 
         // The csproj's RepositoryUrl becomes an AssemblyMetadataAttribute automatically: the same
