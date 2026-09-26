@@ -68,7 +68,8 @@ function createLyricsOverlay(canvas, clock) {
         if (!box || t < countIn.startSeconds || t >= countIn.endSeconds) return;
 
         const handover = handoverAt(countIn);
-        const leaving = handover === null ? 1 : 1 - progress(t, handover, handover + HANDOVER_SECONDS);
+        // Gone by the time the page shows, not after: a singer pre-reads the first line as it lands.
+        const leaving = handover === null ? 1 : 1 - progress(t, handover - HANDOVER_SECONDS, handover);
         if (leaving <= 0) return;
 
         const step = countIn.stepSeconds || 0;
