@@ -19,6 +19,10 @@ function createLyricsOverlay(canvas, clock) {
     let offsetY = 0;
     let frame = 0;
 
+    // How long a count-in takes to clear once a page arrives inside its window. A timing brings
+    // the next page up a beat before the gap ends, often over the bar's own spot.
+    const HANDOVER_SECONDS = 0.5;
+
     function css(color, fallback) {
         return color ? `rgb(${color.r},${color.g},${color.b})` : fallback;
     }
@@ -29,6 +33,117 @@ function createLyricsOverlay(canvas, clock) {
             if (t >= page.showFromSeconds && t <= page.showUntilSeconds) out.push(page);
         }
         return out;
+    }
+
+    /// Linear, clamped to 0..1: where t sits between two song positions.
+    function progress(t, from, to) {
+        return to <= from ? (t >= from ? 1 : 0) : Math.max(0, Math.min(1, (t - from) / (to - from)));
+    }
+
+    function roundedRect(x, y, w, h, r) {
+        ctx2d.beginPath();
+        ctx2d.moveTo(x + r, y);
+        ctx2d.arcTo(x + w, y, x + w, y + h, r);
+        ctx2d.arcTo(x + w, y + h, x, y + h, r);
+        ctx2d.arcTo(x, y + h, x, y, r);
+        ctx2d.arcTo(x, y, x + w, y, r);
+        ctx2d.closePath();
+    }
+
+    /// When the first page to arrive inside a count-in's window shows, or null when none does.
+    function handoverAt(countIn) {
+        let at = null;
+        for (const page of lyrics.pages || []) {
+            const from = page.showFromSeconds;
+            if (from > countIn.startSeconds && from < countIn.endSeconds && (at === null || from < at)) at = from;
+        }
+        return at;
+    }
+
+    /// The bar across a gap: filled left to right over its whole window, eased in and out over one
+    /// step, with the last `steps` steps counted down over it as n, n-1 … 1. It gives way to the
+    /// next page as that page arrives, whose lead-in is the cue from then on.
+    function drawCountIn(countIn, t) {
+        const box = countIn.position;
+        if (!box || t < countIn.startSeconds || t >= countIn.endSeconds) return;
+
+        const handover = handoverAt(countIn);
+        const leaving = handover === null ? 1 : 1 - progress(t, handover, handover + HANDOVER_SECONDS);
+        if (leaving <= 0) return;
+
+        const step = countIn.stepSeconds || 0;
+        const alpha = Math.min(leaving, step > 0
+            ? Math.min(1, (t - countIn.startSeconds) / step, (countIn.endSeconds - t) / step)
+            : 1);
+        const x = offsetX + box.x * scale;
+        const y = offsetY + box.y * scale;
+        const w = box.width * scale;
+        const h = box.height * scale;
+        const fill = progress(t, countIn.startSeconds, countIn.endSeconds);
+
+        ctx2d.save();
+        ctx2d.globalAlpha = alpha;
+        roundedRect(x, y, w, h, 4 * scale);
+        ctx2d.fillStyle = css(countIn.inactive, '#ffffff');
+        ctx2d.fill();
+
+        ctx2d.save();
+        ctx2d.clip();
+        ctx2d.fillStyle = css(countIn.active, '#8558fa');
+        ctx2d.fillRect(x, y, w * fill, h);
+        ctx2d.restore();
+
+        if (countIn.borderWidth > 0) {
+            ctx2d.lineWidth = countIn.borderWidth * scale;
+            ctx2d.strokeStyle = css(countIn.border, '#000000');
+            ctx2d.stroke();
+        }
+        ctx2d.restore();
+
+        // The countdown is not eased with the bar: the last number is the one that must be read.
+        // It still leaves with the handover, or its digits land on the page's first line.
+        const steps = countIn.steps || 0;
+        if (step <= 0 || steps <= 0 || t < countIn.endSeconds - steps * step) return;
+
+        const n = Math.min(steps, Math.floor((countIn.endSeconds - t) / step) + 1);
+        const fontSize = h * 1.6;
+        ctx2d.save();
+        ctx2d.globalAlpha = leaving;
+        ctx2d.font = `800 ${fontSize.toFixed(2)}px sans-serif`;
+        ctx2d.textAlign = 'center';
+        ctx2d.textBaseline = 'alphabetic';
+        ctx2d.lineWidth = Math.max(2, fontSize * 0.06);
+        ctx2d.lineJoin = 'round';
+        ctx2d.strokeStyle = 'rgba(0,0,0,0.85)';
+        ctx2d.strokeText(String(n), x + w / 2, y + h * 1.25);
+        ctx2d.fillStyle = '#ffffff';
+        ctx2d.fillText(String(n), x + w / 2, y + h * 1.25);
+        ctx2d.restore();
+    }
+
+    /// A small block that travels in to the line's leading edge, arriving as its first syllable lights.
+    function drawLeadIn(page, line, t, baseline, fontSize) {
+        const leadIn = line.leadIn;
+        const box = line.position;
+        const first = (line.syllables || [])[0];
+        if (!leadIn || !box || !first || t < leadIn.startSeconds || t >= first.startSeconds) return;
+
+        const run = box.x - leadIn.x;
+        // Mirrored for right to left: the same run, made into the right edge from outside it.
+        const from = lyrics.isRightToLeft ? box.x + box.width + run : leadIn.x;
+        const to = lyrics.isRightToLeft ? box.x + box.width : box.x;
+        const head = from + (to - from) * progress(t, leadIn.startSeconds, first.startSeconds);
+
+        const w = 10 * scale;
+        const h = box.height * 0.3 * scale;
+        const x = offsetX + head * scale - w / 2;
+        const y = baseline - fontSize * 0.35 - h / 2;
+
+        ctx2d.fillStyle = css(page.active, '#8558fa');
+        ctx2d.fillRect(x, y, w, h);
+        ctx2d.lineWidth = 3 * scale;
+        ctx2d.strokeStyle = 'rgba(0,0,0,0.85)';
+        ctx2d.strokeRect(x, y, w, h);
     }
 
     function drawLine(page, line, t) {
@@ -55,6 +170,8 @@ function createLyricsOverlay(canvas, clock) {
             fontSize *= boxWidth / measured;
             ctx2d.font = `600 ${fontSize.toFixed(2)}px sans-serif`;
         }
+
+        drawLeadIn(page, line, t, baseline, fontSize);
 
         for (const syl of line.syllables || []) {
             if (!syl.text) continue;
@@ -107,6 +224,8 @@ function createLyricsOverlay(canvas, clock) {
         const t = clock();
         if (t === null || t === undefined) return;
 
+        for (const countIn of lyrics.countIns || []) drawCountIn(countIn, t);
+
         for (const page of visiblePages(t)) {
             for (const line of page.lines || []) drawLine(page, line, t);
         }
@@ -143,6 +262,9 @@ function createLyricsOverlay(canvas, clock) {
 
     return {
         get isActive() { return lyrics !== null; },
+
+        /// Wipes what is drawn and keeps the timing: the next frame draws again if a song is held.
+        clear() { ctx2d.clearRect(0, 0, canvas.width, canvas.height); },
 
         /// `value` is the host's TimedLyrics, or null for a song with no words to draw.
         setLyrics(value) {
