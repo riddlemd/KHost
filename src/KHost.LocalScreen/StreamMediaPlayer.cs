@@ -18,6 +18,7 @@ internal sealed class StreamMediaPlayer : IMediaPlayer
     private TimeSpan _duration;
     private bool _isPlaying;
     private bool _isPaused;
+    private bool _isHolding;
     private float _volume = 1.0f;
 
     /// <summary>How a payload is spelled for the page, which reads camelCase throughout.</summary>
@@ -44,6 +45,10 @@ internal sealed class StreamMediaPlayer : IMediaPlayer
 
     public event EventHandler? PlaybackEnded;
 
+    /// <summary>A lead-in hold began or ran out. Raised so the host hears it at once rather than on
+    /// the next periodic report, which would leave its clock running into the hold meanwhile.</summary>
+    public event EventHandler? HoldingChanged;
+
     /// <summary>The background track played out. How the host knows to pick the next one.</summary>
     public event EventHandler? BackgroundEnded;
 
@@ -58,6 +63,9 @@ internal sealed class StreamMediaPlayer : IMediaPlayer
     public bool IsPaused { get { lock (_lock) return _isPaused; } }
     public TimeSpan Position { get { lock (_lock) return _position; } }
     public TimeSpan Duration { get { lock (_lock) return _duration; } }
+
+    /// <summary>Whether the page is holding the song back before its start, as last reported.</summary>
+    public bool IsHolding { get { lock (_lock) return _isHolding; } }
 
     /// <summary>Host-clock instant <see cref="Position"/> was sampled at, or null before a report.</summary>
     public DateTime? SampledAtUtc { get { lock (_lock) return _sampledAtUtc; } }
@@ -95,6 +103,7 @@ internal sealed class StreamMediaPlayer : IMediaPlayer
             _duration = TimeSpan.Zero;
             _isPlaying = false;
             _isPaused = false;
+            _isHolding = false;
         }
 
         _logger.LogInformation(
@@ -372,8 +381,13 @@ internal sealed class StreamMediaPlayer : IMediaPlayer
         {
             case "state":
                 _logger.LogDebug("<- browser {Json}", message);
+                bool holdingMoved;
                 lock (_lock)
                 {
+                    var reportedHolding = root.TryGetProperty("holding", out var h) && h.GetBoolean();
+                    holdingMoved = reportedHolding != _isHolding;
+                    _isHolding = reportedHolding;
+
                     var reported = TimeSpan.FromSeconds(root.GetProperty("position").GetDouble());
                     _position = ToSongTime(reported);
                     _isPlaying = root.GetProperty("playing").GetBoolean();
@@ -388,10 +402,24 @@ internal sealed class StreamMediaPlayer : IMediaPlayer
                     if (root.TryGetProperty("duration", out var d) && d.GetDouble() > 0)
                         _duration = ToSongTime(TimeSpan.FromSeconds(d.GetDouble()));
                 }
+
+                if (holdingMoved) HoldingChanged?.Invoke(this, EventArgs.Empty);
                 return true;
 
             case "ended":
-                lock (_lock) { _isPlaying = false; _isPaused = false; }
+                lock (_lock)
+                {
+                    _isPlaying = false;
+                    _isPaused = false;
+                    _isHolding = false;
+
+                    // Stamped at the end itself, not at the last periodic report: the host drops an
+                    // end sampled before its own last seek or rebuild as belonging to the old stream.
+                    if (root.TryGetProperty("position", out var endedAt))
+                        _position = ToSongTime(TimeSpan.FromSeconds(endedAt.GetDouble()));
+                    if (root.TryGetProperty("sampledAtEpochMs", out var endedStamp))
+                        _sampledAtUtc = DateTime.UnixEpoch.AddMilliseconds(endedStamp.GetDouble()) + _clockOffset;
+                }
                 PlaybackEnded?.Invoke(this, EventArgs.Empty);
                 return true;
 

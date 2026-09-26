@@ -120,6 +120,10 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
     /// Cleared on the next registration, so a later unexpected drop is not blamed on an old request.</summary>
     private volatile bool _disconnectRequested;
 
+    /// <summary>The stream the last load pointed the screen at, empty for a stems-only load, as the
+    /// screen's reports spell it. An end reported against any other is the old stream's.</summary>
+    private volatile string _loadedStreamUrl = string.Empty;
+
     public LocalScreenDisplayProvider(
         ILogger<LocalScreenDisplayProvider> logger,
         IScreenServer screenServer,
@@ -181,6 +185,18 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
     /// <remarks>Domain-only: the second channel has no timeline in the contract, and only the
     /// library's break music, which rides it through this provider, needs to hear this.</remarks>
     public event EventHandler? BackgroundTrackEnded;
+
+    /// <summary>The song played out to its end on the screen, reported once, stamped at the end.</summary>
+    /// <remarks>Domain-only, as <see cref="BackgroundTrackEnded"/> is: <see cref="DisplayPlaybackStatus"/>
+    /// has no way to say it, and <c>PlaybackService</c> concludes the song on it as well as on its
+    /// clock. An end against a stream other than the one last loaded is dropped here.</remarks>
+    public event EventHandler<DisplayPlaybackStatus>? SongEnded;
+
+    /// <summary>The screen is holding the song back before its start, raised in place of
+    /// <see cref="PlaybackStatusChanged"/> for as long as the hold runs.</summary>
+    /// <remarks>Domain-only, for the same reason: the hold is this host's own setting, and the
+    /// playhead must sit at the song's zero through it rather than run on and jump back.</remarks>
+    public event EventHandler<DisplayPlaybackStatus>? HoldingBeforeSong;
 
     // --- finding devices ---
 
@@ -323,6 +339,7 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
     {
         // Ahead of the load, so the venue's card is down before the song's first frame.
         await DrawPictureAsync(PictureCause.ProgramMoved);
+        _loadedStreamUrl = load.StreamUrl ?? string.Empty;
         await SendAsync(ToCommand(load, IsGraphicsOnly(_services?.GetService<IPlaybackService>()?.CurrentProgram)));
 
         // After the load and before play, which every caller sends after this returns: a screen
@@ -866,12 +883,24 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
             // Unsampled means the screen has no measured offset yet, and an unanchored report would
             // move the playhead by however long it spent in flight.
             case ScreenPlaybackState { SampledAtUtc: { } sampledAt } state:
-                PlaybackStatusChanged?.Invoke(this, new DisplayPlaybackStatus
+                var status = new DisplayPlaybackStatus
                 {
                     Position = state.Position,
                     IsPlaying = state.IsPlaying,
                     SampledAtUtc = sampledAt,
-                });
+                };
+
+                if (state.HasEnded)
+                {
+                    if ((state.StreamUrl ?? string.Empty) == _loadedStreamUrl)
+                        SongEnded?.Invoke(this, status);
+                    else
+                        _logger.LogInformation("Dropped an end reported for {Stream}, which is no longer loaded", state.StreamUrl);
+                }
+                else if (state.IsHolding)
+                    HoldingBeforeSong?.Invoke(this, status);
+                else
+                    PlaybackStatusChanged?.Invoke(this, status);
                 break;
 
             case ScreenBackgroundState { HasEnded: true }:

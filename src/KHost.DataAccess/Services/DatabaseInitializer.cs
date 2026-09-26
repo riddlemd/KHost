@@ -211,6 +211,14 @@ internal class DatabaseInitializer : IDatabaseInitializer
 
     private async Task SeedOneMediaFileAsync(ServiceOptions.DefaultMediaOptions entry)
     {
+        // The parser answers a missing file with a Ready row and no duration, which the queue
+        // then offers and the screens cannot play.
+        if (!File.Exists(entry.FilePath))
+        {
+            _logger.LogInformation("Skipped seeding media {FilePath}: there is no file there", entry.FilePath);
+            return;
+        }
+
         try
         {
             var media = await _mediaFileParsingService.LoadAndParseAsync(entry.FilePath);

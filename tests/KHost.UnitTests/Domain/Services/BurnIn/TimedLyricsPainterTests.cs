@@ -97,6 +97,33 @@ public class TimedLyricsPainterTests
         Assert.Equal(0, Covered(PaintAt(lyrics, 3.0)));
     }
 
+    /// <summary>With a page arriving inside the window the bar fills to that page, not to the first
+    /// word: 2.4s into a 3s run to the page is 80% of 100..500.</summary>
+    [Fact]
+    public void Paint_ACountInWithAPageInside_FillsToThePage()
+        => Assert.InRange(Read(PaintAt(CountIn(pageArrivesAt: 3.0), 2.4), IsGreen)[0].MaxX, 417, 423);
+
+    /// <summary>The countdown runs to the page too, so its 1 is up for the second before the page and
+    /// not cut off by the handover: at 2.2 it reads 1, where counting to the word would read 2.</summary>
+    [Fact]
+    public void Paint_ACountInWithAPageInside_CountsDownToThePage()
+    {
+        // Pinned by the cap rather than by the arithmetic under test: one step can only ever show 1,
+        // and two steps a step and a half out can only show 2.
+        var one = WhiteMask(PaintAt(CountIn(steps: 1), 3.5));
+        var two = WhiteMask(PaintAt(CountIn(steps: 2), 2.5));
+        var shown = WhiteMask(PaintAt(CountIn(pageArrivesAt: 3.0), 2.2));
+
+        Assert.True(Differing(one, two) > 50, "the reference digits 1 and 2 are not told apart");
+        Assert.True(Differing(shown, one) < Differing(shown, two), "the digit a second before the page is not 1");
+    }
+
+    /// <summary>The countdown's steps are the last ones before the page: three one-second steps before
+    /// 3s start at 0s, where with no page inside they start at 1s.</summary>
+    [Fact]
+    public void Paint_ACountInWithAPageInside_StartsItsCountdownStepsBeforeThePage()
+        => Assert.True(Read(PaintAt(CountIn(pageArrivesAt: 3.0), 0.5), IsWhite)[0].Count > 50, "no countdown digit three steps before the page");
+
     /// <summary>The block runs from where the lead-in sets off to the line's leading edge, arriving
     /// as the first syllable lights.</summary>
     [Theory]
@@ -180,6 +207,11 @@ public class TimedLyricsPainterTests
     /// <summary>How many pixels carry anything at all.</summary>
     private static int Covered(byte[] pixels) => Enumerable.Range(0, pixels.Length / 4).Count(i => pixels[i * 4 + 3] != 0);
 
+    private static bool[] WhiteMask(byte[] pixels)
+        => [.. Enumerable.Range(0, pixels.Length / 4).Select(i => IsWhite(pixels[i * 4], pixels[i * 4 + 1], pixels[i * 4 + 2], pixels[i * 4 + 3]))];
+
+    private static int Differing(bool[] a, bool[] b) => a.Zip(b).Count(pair => pair.First != pair.Second);
+
     private sealed record Ink(int Count, int MinX, int MaxX, double MeanX);
 
     private static Ink[] Read(byte[] pixels, params Func<byte, byte, byte, byte, bool>[] matches)
@@ -251,7 +283,7 @@ public class TimedLyricsPainterTests
     ], rightToLeft);
 
     /// <summary>A bar across 100..500 from 0s to 4s, counting down its last three one-second steps.</summary>
-    private static TimedLyrics CountIn(double? pageArrivesAt = null) => Song(
+    private static TimedLyrics CountIn(double? pageArrivesAt = null, int steps = 3) => Song(
         pageArrivesAt is { } at ? [new LyricPage { ShowFromSeconds = at, ShowUntilSeconds = at + 5 }] : [],
         countIns:
         [
@@ -261,7 +293,7 @@ public class TimedLyricsPainterTests
                 EndSeconds = 4,
                 Position = new LyricBox(100, 200, 400, 20),
                 StepSeconds = 1,
-                Steps = 3,
+                Steps = steps,
                 Active = Green,
                 Inactive = Blue,
             },

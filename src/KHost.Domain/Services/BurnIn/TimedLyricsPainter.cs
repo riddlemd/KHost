@@ -186,14 +186,19 @@ public sealed class TimedLyricsPainter
         canvas.DrawRect(new SKRect(0, top, width, height), paint);
     }
 
-    /// <summary>The bar across a gap: filled over its whole window, eased in and out over one step,
-    /// the last <see cref="LyricCountIn.Steps"/> steps counted down over it.</summary>
+    /// <summary>The bar across a gap: eased in and out over one step, filled and counted down over
+    /// its last <see cref="LyricCountIn.Steps"/> steps to the page arriving inside it, or to its end
+    /// when none does.</summary>
     private void PaintCountIn(Worker worker, SKCanvas canvas, int index, double t)
     {
         var countIn = _lyrics.CountIns[index];
         if (t < countIn.StartSeconds || t >= countIn.EndSeconds) return;
 
         var handover = _handovers[index];
+
+        // Counted to the page rather than the first word: the bar is gone by then, so a count to the
+        // word would never show its 1. The screen's overlay counts by the same rule.
+        var countTo = handover ?? countIn.EndSeconds;
         var leaving = handover is { } at ? 1 - Progress(t, at - HandoverSeconds, at) : 1;
         if (leaving <= 0) return;
 
@@ -207,7 +212,7 @@ public sealed class TimedLyricsPainter
         var y = _offsetY + (float)box.Y * _scale;
         var w = (float)box.Width * _scale;
         var h = (float)box.Height * _scale;
-        var fill = Progress(t, countIn.StartSeconds, countIn.EndSeconds);
+        var fill = Progress(t, countIn.StartSeconds, countTo);
         var bar = new SKRoundRect(new SKRect(x, y, x + w, y + h), 4 * _scale);
 
         using (var layer = new SKPaint { Color = SKColors.White.WithAlpha(ToByte(alpha)) })
@@ -240,9 +245,9 @@ public sealed class TimedLyricsPainter
 
         // Not eased with the bar — the last number is the one that must be read — but it still
         // leaves with the handover, or its digits land on the page's first line.
-        if (step <= 0 || countIn.Steps <= 0 || t < countIn.EndSeconds - countIn.Steps * step) return;
+        if (step <= 0 || countIn.Steps <= 0 || t < countTo - countIn.Steps * step) return;
 
-        var n = Math.Min(countIn.Steps, (int)Math.Floor((countIn.EndSeconds - t) / step) + 1);
+        var n = Math.Min(countIn.Steps, (int)Math.Floor((countTo - t) / step) + 1);
         var font = worker.Font(LyricFonts.Countdown, h * 1.6f);
         var text = n.ToString(System.Globalization.CultureInfo.InvariantCulture);
 

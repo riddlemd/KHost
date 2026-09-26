@@ -426,6 +426,15 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
         return false;
     }
 
+    /// <summary>The id of the ffmpeg behind a session, or null for none: lets a test watch the
+    /// encode go without asking the OS for command lines, which only some platforms answer.</summary>
+    internal async Task<int?> EncoderProcessIdAsync(string sessionId)
+    {
+        await _lock.WaitAsync();
+        try { return _sessions.TryGetValue(sessionId, out var session) ? session.ProcessId : null; }
+        finally { _lock.Release(); }
+    }
+
     public async Task CloseAsync(string sessionId)
     {
         Session? session;
@@ -922,6 +931,8 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
 
         public string Id { get; } = id;
         public string Directory { get; } = directory;
+
+        public int? ProcessId { get; } = process?.Id;
 
         /// <summary>Another session this one reads from, closed after it.</summary>
         public string? AdoptedSessionId { get; init; }
