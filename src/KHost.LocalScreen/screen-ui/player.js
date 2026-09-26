@@ -57,7 +57,7 @@ const corners = new Map(
 // The card sits above the code, which keeps the pair from swapping places as each comes and goes.
 const cornerItems = { breakMusic: null, qr: null };
 
-function renderCorners() {
+function drawCorners() {
     for (const el of corners.values()) el.replaceChildren();
 
     for (const key of ['breakMusic', 'qr']) {
@@ -482,7 +482,7 @@ function clearNextSinger() {
 function setBreakMusicCard(message) {
     if (!message.enabled || !message.title) {
         cornerItems.breakMusic = null;
-        renderCorners();
+        drawCorners();
         return;
     }
 
@@ -508,7 +508,7 @@ function setBreakMusicCard(message) {
         node: card,
     };
 
-    renderCorners();
+    drawCorners();
 }
 
 function setQrCodes(message) {
@@ -519,7 +519,7 @@ function setQrCodes(message) {
 
     if (!code) {
         cornerItems.qr = null;
-        renderCorners();
+        drawCorners();
         return;
     }
 
@@ -557,7 +557,7 @@ function setQrCodes(message) {
         node: figure,
     };
 
-    renderCorners();
+    drawCorners();
 }
 
 function setMarquee(message) {
@@ -776,7 +776,7 @@ function handleCommand(raw) {
             fadeOutAndStop(Math.max(1, message.fadeMs || 0));
             break;
         case 'seek':
-            // Seeking within a stream the page already holds, rather than restarting a transcode.
+            // Seeking within a stream the page already holds, rather than restarting an encode.
             try { target().currentTime = message.position || 0; } catch (e) { reportError(`seek: ${e}`); }
             break;
         case 'hostLost':

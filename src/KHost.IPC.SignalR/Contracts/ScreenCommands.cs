@@ -31,7 +31,7 @@ public abstract class ScreenCommandBase : IScreenCommand { }
 /// stems to mix, or both.</summary>
 public sealed class LoadMediaCommand : ScreenCommandBase
 {
-    /// <summary>The host transcodes; the display plays the stream, with no decoder of its own.</summary>
+    /// <summary>The host encodes; the display plays the stream, with no decoder of its own.</summary>
     /// <remarks>Null when nothing was encoded because the display plays the parts itself. Never
     /// null at the same time as <see cref="Stems"/> is empty — that would be a song with nowhere
     /// to come from.</remarks>
@@ -40,7 +40,7 @@ public sealed class LoadMediaCommand : ScreenCommandBase
     /// <summary>Song position the stream's zero maps to; add it before reporting a position.</summary>
     public TimeSpan StreamStartOffset { get; init; }
 
-    /// <summary>Tempo percent the stream was transcoded at; scales every position crossing it.</summary>
+    /// <summary>Tempo percent the stream was encoded at; scales every position crossing it.</summary>
     public int Tempo { get; init; }
 
     /// <summary>Stems for a display that mixes them itself; empty when the host already mixed.</summary>
@@ -228,10 +228,10 @@ public sealed class SetMarqueeCommand : ScreenCommandBase
     /// <summary>Which edge of the screen the band sits against.</summary>
     public MarqueePosition Position { get; init; }
 
-    /// <summary>Null leaves the screen's own default; sent as CSS colours for the screen to render.</summary>
+    /// <summary>Null leaves the screen's own default; sent as CSS colours for the screen to draw with.</summary>
     public string? BackgroundColor { get; init; }
 
-    /// <summary>Null leaves the screen's own default; sent as CSS colours for the screen to render.</summary>
+    /// <summary>Null leaves the screen's own default; sent as CSS colours for the screen to draw with.</summary>
     public string? TextColor { get; init; }
 
     /// <summary>Text height in pixels; zero leaves the screen's own size.</summary>

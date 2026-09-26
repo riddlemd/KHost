@@ -73,8 +73,9 @@ public sealed class MediaRendererService(
                     ex);
             }
 
-            // Null is "nothing better for this target", not a failure: a kit on a receiver that
-            // cannot mix says so this way, having left a playable container behind for the encode.
+            // Null is "nothing better for this target", not a failure: a stems-only format on a
+            // receiver that cannot mix says so this way, having left a playable container behind
+            // for the encode.
             if (rendition is not null) return rendition;
 
             break;

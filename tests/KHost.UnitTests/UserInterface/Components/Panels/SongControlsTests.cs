@@ -334,7 +334,7 @@ public class SongControlsTests : BunitContext
 
         var cut = Open();
 
-        // As KaraFun lays it out: no fader for the music, and no shared lead where each singer has one.
+        // As a familiar karaoke product lays it out: no fader for the music, and no shared lead where each singer has one.
         Assert.Equal(["Key", "Tempo", "Backing Vocals", "♂", "♀"], Labels(cut));
     }
 

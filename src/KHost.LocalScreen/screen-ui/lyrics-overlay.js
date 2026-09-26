@@ -159,7 +159,7 @@ function createLyricsOverlay(canvas, clock) {
         // against the font that renderer shapes with. This draws in whatever sans-serif the web
         // view has, which is wider, so a line that just fits there can run off the screen here —
         // and whether it shows depends on the window's shape, which makes it look intermittent.
-        // The box is the width the kit promised the line would keep, so hold it to that.
+        // The box is the width the format promised the line would keep, so hold it to that.
         let fontSize = h * 0.82;
         ctx2d.font = `600 ${fontSize.toFixed(2)}px sans-serif`;
 

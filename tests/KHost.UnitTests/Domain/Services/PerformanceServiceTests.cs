@@ -264,7 +264,7 @@ public class PerformanceServiceTests
             .Returns(PlaybackGateResult.Ok);
         _services.GetService(typeof(IMediaGateService)).Returns(gate);
         var mediaId = Guid.NewGuid();
-        _mediaService.ReadAsync(mediaId).Returns(new Media { Id = mediaId, FilePath = "/library/song.kit", Title = "Song" });
+        _mediaService.ReadAsync(mediaId).Returns(new Media { Id = mediaId, FilePath = "/library/song.mp4", Title = "Song" });
 
         await _service.CreateAndEnqueueAsync(
             new Performance { Id = Guid.NewGuid(), SingerId = Guid.NewGuid(), MediaId = mediaId });
@@ -293,7 +293,7 @@ public class PerformanceServiceTests
             .Returns<PlaybackGateResult>(_ => throw new InvalidOperationException("the plugin fell over"));
         _services.GetService(typeof(IMediaGateService)).Returns(gate);
         var mediaId = Guid.NewGuid();
-        _mediaService.ReadAsync(mediaId).Returns(new Media { Id = mediaId, FilePath = "/library/song.kit", Title = "Song" });
+        _mediaService.ReadAsync(mediaId).Returns(new Media { Id = mediaId, FilePath = "/library/song.mp4", Title = "Song" });
 
         Assert.NotNull(await _service.CreateAndEnqueueAsync(
             new Performance { Id = Guid.NewGuid(), SingerId = Guid.NewGuid(), MediaId = mediaId }));
@@ -303,7 +303,7 @@ public class PerformanceServiceTests
     private Guid ArrangeGatedMedia(PlaybackGateResult verdict)
     {
         var mediaId = Guid.NewGuid();
-        _mediaService.ReadAsync(mediaId).Returns(new Media { Id = mediaId, FilePath = "/library/song.kit", Title = "Song" });
+        _mediaService.ReadAsync(mediaId).Returns(new Media { Id = mediaId, FilePath = "/library/song.mp4", Title = "Song" });
 
         var gate = Substitute.For<IMediaGateService>();
         gate.EvaluateAsync(Arg.Any<MediaAction>(), Arg.Any<Media>(), Arg.Any<CancellationToken>()).Returns(verdict);

@@ -15,10 +15,11 @@ surface; this note keeps the reasoning behind its shape.
 something else entirely: `IScreenServer`, twenty commands, its own registration handshake, roles and
 sync. Two kinds of output with no shared vocabulary.
 
-That cost something real. When kit rendering moved to the screen, the words went out as
-`SetTimedLyricsCommand` — a *screen* command — so a connected Chromecast silently played a stream
-with no words on it, and a `.kit` with no picture at all. Nothing in the design caught it, because
-nothing in the design said these were two of the same thing.
+That cost something real. When drawing lyrics moved off the encode and onto the display for a format
+that ships separate stems, the words went out as `SetTimedLyricsCommand` — a *screen* command — so a
+connected Chromecast silently played a stream with no words on it, and that stems-only format with
+no picture at all. Nothing in the design caught it, because nothing in the design said these were
+two of the same thing.
 
 A screen is not a plugin. But the screens should reach the host **through a provider**, so there is
 one answer to "where does the song come out, and what can it show?"
@@ -110,13 +111,13 @@ It once carried a flag per overlay and one for mixing stems. With drawing the pr
 business the overlay flags had nothing to gate, and what to render moved to `DescribeTarget()`,
 which the provider answers for the device it is actually connected to.
 
-### Why only the words are burned
+### Why only the words are burned in
 
 Lyrics are fixed for the whole song — every syllable is known at load — so a display that cannot
-draw them asks for `RenderTarget.BurnLyrics` and a renderer able to (KaraFun's) composites them.
-The marquee rescrolls on a venue edit, QR codes move, cards appear on a host's action: burning any of
-those would restart the encode each time, an audible gap. A display that cannot draw them simply
-does not.
+draw them asks for `RenderTarget.BurnLyrics`, and a renderer able to burn them in composes the
+picture. The marquee rescrolls on a venue edit, QR codes move, cards appear on a host's action:
+burning any of those in would restart the encode each time, an audible gap. A display that cannot
+draw them simply does not.
 
 ## What implementing it settled
 
@@ -158,16 +159,16 @@ does not.
 
 `IDisplayProvider.DescribeTarget()` answers the `RenderTarget` the host hands every renderer, asked
 of the connected provider on each load and each reconnect. Its default body is `RenderTarget.None`:
-one mixed stream, no burned words, which is all a transport-only provider can play.
+one mixed stream, no burned-in words, which is all a transport-only provider can play.
 `RenderTarget.MixesStems` commits a provider to playing `DisplayLoad.Stems` and answering
 `SetStemVolumeAsync`; when that answers false, the host rebuilds the stream at the playhead with the
 new mix instead. `RenderTarget.BurnLyrics` is a request a renderer may honour. The local screen
-mixes and draws its own words, so it asks for stems and no burning.
+mixes and draws its own words, so it asks for stems, with nothing burned in.
 
 ## Questions this should answer without further argument
 
 1. Where does a new overlay go, and what happens on a device that cannot draw it?
 2. What does a plugin author implement, minimally, to send a song to a device?
-3. Which component decides a stream needs words burned into it, and what does it ask?
-4. Why are lyrics burned when unsupported while the marquee is simply dropped?
+3. Which component decides a stream needs words burned in, and what does it ask?
+4. Why are lyrics burned in when unsupported while the marquee is simply dropped?
 5. Why is there no way for a venue to have two displays at once?

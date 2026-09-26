@@ -213,45 +213,46 @@ the need to vet each generator by hand.
 The Homebrew build has **no `drawtext`, no `subtitles`, no `ass`** — it is configured without
 `libfreetype` and `libass`. Consequences, in order of importance:
 
-1. **It reinforces the loop plan.** Nothing can be burned into the picture, so the video track stays
+1. **It reinforces the loop plan.** Nothing can be burned in, so the video track stays
    a pure background and stays stream-copyable.
 2. **Lyrics have to be composited some other way.** Rendering the lyric page to a transparent PNG and
    using `overlay` works and needs no ffmpeg text support at all — that is how the legibility images
    above were made (`rsvg-convert` → `overlay`). A syllable wipe would be an alpha mask animated over
    that PNG rather than 30 re-renders a second.
-3. **This constrains host-side text only.** It does not stop a plugin: the KaraFun preparer draws
-   its own lyric frames and hands back a finished picture, so it never asks ffmpeg to set type.
-   And because those lyrics are *in the picture*, a Chromecast does show them — the stock receiver
-   needs no overlay when the text is already muxed in.
+3. **This constrains host-side text only.** It does not stop a plugin: a plugin's own preparer
+   paints its own lyric frames and hands back a finished picture, so it never asks ffmpeg to set
+   type. And because those lyrics are *in the picture*, a Chromecast does show them — the stock
+   receiver needs no overlay when the text is already muxed in.
 
 Requiring an ffmpeg built with `libfreetype`/`libass` is the other way out, but it makes the host's
 ffmpeg dependency stricter than "whatever is on the machine".
 
-# How KaraFun content interacts
+# How a stems-and-lyrics format interacts
 
-A KaraFun kit is a multi-stream container carrying timing XML, Ogg Vorbis **stems** (instrumental,
-backing, lead — duets ship two named leads), **JPEG background art**, PNG overlay art, and Milkdrop
-`.milk` visualiser presets. Its render model is layered: background art, then a lyric layer with
-per-syllable wipe timing between an active and inactive colour, then an effects layer that is either
-a Milkdrop preset or timed decorative text. Stems are mixed live; no mixdown is baked in.
+A stems-and-lyrics format shipped by one plugin is a multi-stream container carrying timing XML,
+Ogg Vorbis **stems** (instrumental, backing, lead — a duet ships two named leads), **JPEG background
+art**, PNG overlay art, and audio-reactive visualiser presets. Its picture is built in layers:
+background art, then a lyric layer with per-syllable wipe timing between an active and inactive
+colour, then an effects layer that is either a visualiser preset or timed decorative text. Stems are
+mixed live; no mixdown is baked in.
 
 Four consequences, and they do not all point the same way.
 
 - **The picture is a still, not a video — the format has no video stream type at all.** So every
-  KaraFun song is by definition media with no picture track, which is exactly the case this note is
-  about.
-- **But kits ship their own background art, so the picture is not actually missing.** A generated
-  loop is an *upgrade* (motion instead of a still) or a fallback for a kit with no art — and no kit
-  without art has been observed. This weakens the premise that KaraFun is the consumer that needs
-  generated backgrounds most.
-- **Stems make KaraFun the ideal shape for copying the picture.** Multi-stem audio is always rebuilt,
-  which is already what `CopyPlan` expects: `Picture = !Whole && CanCopyVideo(tempo)`. A looped
-  background copies while the stems mix. Nothing new is needed for that to work.
-- **The format's own answer for motion is Milkdrop, not a generic loop.** A kit names the visualiser
-  it wants. A generic loop is less faithful than what the kit asks for; matching it means an
-  audio-reactive preset engine, which is a far larger job than any of this.
+  song in this format is by definition media with no picture track, which is exactly the case this
+  note is about.
+- **But the format ships its own background art, so the picture is not actually missing.** A
+  generated loop is an *upgrade* (motion instead of a still) or a fallback for a file with no art —
+  and none without art has been observed. This weakens the premise that this format is the consumer
+  that needs generated backgrounds most.
+- **Stems make this format the ideal shape for copying the picture.** Multi-stem audio is always
+  rebuilt, which is already what `CopyPlan` expects: `Picture = !Whole && CanCopyVideo(tempo)`. A
+  looped background copies while the stems mix. Nothing new is needed for that to work.
+- **The format's own answer for motion is its visualiser presets, not a generic loop.** A file names
+  the visualiser it wants. A generic loop is less faithful than what it asks for; matching it means
+  an audio-reactive preset engine, which is a far larger job than any of this.
 
-**Lyrics are already solved, by the plugin, inside its own render.** The KaraFun plugin implements
+**Lyrics are already solved, by the plugin, inside its own rendition.** The plugin implements
 `IMediaPreparer` and burns the syllable-timed lyrics into the picture it produces — which is exactly
 what the contract was written for: *"One may be stems and a timing document, not a video, so nothing
 downstream can open it: the plugin renders it and the host plays what comes out"*
@@ -274,7 +275,7 @@ The rest of the pipeline is already the right shape for it, and needs nothing ne
   the pre-render into `CutsCleanly` before that path was removed.
 
 **The consequence for the loop economics.** The plugin is encoding its picture either way, so the
-150× stream-copy win does **not** apply to KaraFun — that win lives at the host's copy path, which is
+150× stream-copy win does **not** apply to this format — that win lives at the host's copy path, which is
 already being taken on the finished render. Inside `PrepareAsync` a pre-generated loop saves only the
 *generation* cost, not the encode: the measured gap there is the 9.5× live-generate figure against a
 cheaper decode-and-composite, not 150×. **The large win stays with providers that ship audio and
@@ -289,55 +290,52 @@ rather than a host feature.
 
 1. **Ship the loop library and the scrim rule.** Cheap, self-contained, and it serves every provider
    that hands over audio and nothing else — which is where the 150× copy win actually lands.
-2. **Decide whose asset the loops are.** For KaraFun they have to be composited inside
+2. **Decide whose asset the loops are.** For this format they have to be composited inside
    `PrepareAsync`, at a resolution the plugin alone knows, so they are more naturally the plugin's
    own asset than a host feature. A shared *authoring* recipe (`mkloop.sh` + the scrim) is the part
    worth having in common.
-3. **Treat a generated loop for KaraFun as an aesthetic option, not a gap being filled.** Kits ship
-   their own background art, and the format's own answer for motion is Milkdrop. Leave Milkdrop
-   alone until someone asks.
+3. **Treat a generated loop for this format as an aesthetic option, not a gap being filled.** Files
+   in this format ship their own background art, and its own answer for motion is its visualiser
+   presets. Leave those alone until someone asks.
 
 ---
 
-# Where it attaches in the KaraFun plugin
+# Where it attaches in the plugin
 
-Read from `KHost.Plugins.KaraFun`. `KaraFunMediaProvider` implements `IMediaProvider`,
-`IPluginButtonHandler`, `IMediaPlaybackGate`, `IMediaPreparer` and `IMediaProbe`
-(`KaraFunMediaProvider.cs:18`); `PrepareAsync` (`:1209`) hands off to `KitRenderer.Render`
-(`Kit/KitRenderer.cs:54`).
+Read from the plugin's own repo. Its media provider implements `IMediaProvider`,
+`IPluginButtonHandler`, `IMediaPlaybackGate`, `IMediaPreparer` and `IMediaProbe`; `PrepareAsync`
+hands off to its own Skia-based renderer.
 
-**The render is Skia drawing into an ffmpeg pipe.** SkiaSharp draws every frame, snapshots it to a
-pixel buffer and writes it to ffmpeg's stdin as raw RGBA — `-f rawvideo -pix_fmt rgba -s WxH -r 30
--i pipe:0` (`KitRenderer.cs:71-72`, write at `:115`). ffmpeg only demuxes the stems and encodes.
-The class comment is explicit that this is to skip `libass`/`drawtext` entirely
-(`KitRenderer.cs:6-7`) — so **the missing `drawtext` in the host's ffmpeg does not touch this plugin
-at all**, and the lyrics being *in the picture* is why a Chromecast shows them.
+**The rendition is Skia painting into an ffmpeg pipe.** SkiaSharp paints every frame, snapshots it
+to a pixel buffer and writes it to ffmpeg's stdin as raw RGBA — `-f rawvideo -pix_fmt rgba -s WxH
+-r 30 -i pipe:0`. ffmpeg only demuxes the stems and encodes. Its own comment is explicit that this
+is to skip `libass`/`drawtext` entirely — so **the missing `drawtext` in the host's ffmpeg does not
+touch this plugin at all**, and the lyrics being *in the picture* is why a Chromecast shows them.
 
 Facts that constrain a background:
 
-- **Output is 720 tall, and the width is derived per kit** from the lyric layout's bounding box
-  (`KitRenderer.cs:18,32-46`) — so there is no fixed aspect ratio to author against.
-- **`libx264 -preset veryfast`, 30 fps** (`KitRenderer.cs:74`), not hardware encoding.
-- **`KeyframeSeconds` is 2** (`KaraFunMediaProvider.cs:1200`, `KitRenderer.cs:16`), forced with
-  `-force_key_frames expr:gte(t,n_forced*2) -sc_threshold 0` (`:160-169`) — already matching the
-  host's default `SegmentSeconds`, so `CutsCleanly` holds and the picture copies.
-- **Stems stay separate**: one AAC track per Ogg stem, instrumental default
-  (`KitRenderer.cs:78-87,198-211`).
+- **Output is 720 tall, and the width is derived per file** from the lyric layout's bounding box —
+  so there is no fixed aspect ratio to author against.
+- **`libx264 -preset veryfast`, 30 fps**, not hardware encoding.
+- **`KeyframeSeconds` is 2**, forced with `-force_key_frames expr:gte(t,n_forced*2)
+  -sc_threshold 0` — already matching the host's default `SegmentSeconds`, so `CutsCleanly` holds
+  and the picture copies.
+- **Stems stay separate**: one AAC track per Ogg stem, instrumental default.
 
 **There is already a background step to replace.** Every frame begins
-`canvas.Clear(new SKColor(8, 8, 12))` (`KitRenderer.cs:218`); if the kit carries cover art it is
-drawn to cover, dimmed to alpha 150, then covered by a black rect at alpha 90 (`:219-227`). That
-dim-and-scrim is the plugin independently arriving at the same conclusion the luminance measurements
-above reach — **treat it as the precedent, and give a loop the same treatment.**
+`canvas.Clear(new SKColor(8, 8, 12))`; if the file carries cover art it is painted to cover, dimmed
+to alpha 150, then covered by a black rect at alpha 90. That dim-and-scrim is the plugin
+independently arriving at the same conclusion the luminance measurements above reach — **treat it
+as the precedent, and give a loop the same treatment.**
 
 ## The change: pipe alpha, let ffmpeg overlay
 
 Compositing a *video* loop in Skia would mean decoding video inside .NET, which SkiaSharp cannot do.
 The way round it is to leave the loop in ffmpeg, where a decoder already is:
 
-1. Skia keeps drawing only the lyric layer, but on a **transparent** canvas instead of `Clear(8,8,12)`.
+1. Skia keeps painting only the lyric layer, but on a **transparent** canvas instead of `Clear(8,8,12)`.
 2. The background becomes a second ffmpeg input, `-stream_loop -1 -i <loop>.mp4`.
-3. `-map 0:v` becomes a `filter_complex` that scales-to-cover, crops to the kit's canvas, and
+3. `-map 0:v` becomes a `filter_complex` that scales-to-cover, crops to the file's canvas, and
    overlays the piped layer.
 
 Verified end to end at the plugin's own settings (1280×720, 30 fps, `libx264 veryfast`, keyframes
@@ -373,7 +371,7 @@ right. Pipe the lyric layer as the *overlay*, never as the base.
 
 Re-measured once backgrounds were implemented, because the composite tripled the encode cost and
 made the encoder look like the thing to fix. **It is not.** Everything below is 120 s of output at
-1224×720 (a real kit canvas), on this Mac.
+1224×720 (a real canvas size from this format), on this Mac.
 
 **Encoder in isolation**, same decoded source, so the only variable is the encoder:
 
@@ -406,8 +404,8 @@ is the compositing, and there the measurable win is elsewhere:
 | loop rescaled every frame (as implemented) | 17× |
 | loop pre-scaled to the canvas | **20.5×** |
 
-Pre-scaling the loop to the kit's canvas is worth about **21%**, and it is the only optimisation here
-with a real number behind it. It is deliberately not built: the canvas size is derived per kit, so a
+Pre-scaling the loop to the file's canvas is worth about **21%**, and it is the only optimisation here
+with a real number behind it. It is deliberately not built: the canvas size is derived per file, so a
 cache would be keyed on a dimension pair and would need invalidating against the loop file — real
 complexity for a render that already runs many times faster than realtime and sits off the path
 anyone waits on. Worth doing if the render ever becomes the thing holding a song up; not before.

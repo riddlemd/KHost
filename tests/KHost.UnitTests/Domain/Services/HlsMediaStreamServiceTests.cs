@@ -310,7 +310,7 @@ public class HlsMediaStreamServiceTests : IDisposable
     public void BuildArguments_MapsThePictureOptionally_SoAnAudioOnlyMixStillOpens()
     {
         var arguments = HlsMediaStreamService.BuildArguments(
-            "/songs/a.kfa", TimeSpan.Zero, 0, 0, 2, null, ThreeTrackMix(50, 50));
+            "/songs/a.stems", TimeSpan.Zero, 0, 0, 2, null, ThreeTrackMix(50, 50));
 
         // A stems-only container has no video stream, and a required mapping onto one is fatal:
         // ffmpeg exits before a segment is written, which reads as the song simply never starting.

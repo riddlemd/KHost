@@ -10,7 +10,7 @@ namespace KHost.UnitTests.Domain.Services;
 /// <summary>Choosing who answers for a file, and what happens when nobody can.</summary>
 public class TimedLyricsServiceTests
 {
-    private const string Kit = "/library/karafun/6229.kfa";
+    private const string SourceFile = "/library/plugin/6229.stems";
 
     private static TimedLyrics SomeLyrics() => new()
     {
@@ -35,10 +35,10 @@ public class TimedLyricsServiceTests
         var mine = Provider(claims: true, answer: SomeLyrics());
         var other = Provider(claims: false);
 
-        var lyrics = await Service(other, mine).GetTimedLyricsAsync(Kit);
+        var lyrics = await Service(other, mine).GetTimedLyricsAsync(SourceFile);
 
         Assert.NotNull(lyrics);
-        await mine.Received(1).GetTimedLyricsAsync(Kit, Arg.Any<CancellationToken>());
+        await mine.Received(1).GetTimedLyricsAsync(SourceFile, Arg.Any<CancellationToken>());
         await other.DidNotReceive().GetTimedLyricsAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
     }
 
@@ -60,7 +60,7 @@ public class TimedLyricsServiceTests
         broken.CanProvide(Arg.Any<string>()).Throws(new InvalidOperationException("boom"));
         var mine = Provider(claims: true, answer: SomeLyrics());
 
-        var lyrics = await Service(broken, mine).GetTimedLyricsAsync(Kit);
+        var lyrics = await Service(broken, mine).GetTimedLyricsAsync(SourceFile);
 
         // One plugin having a bad day must not cost the song its words.
         Assert.NotNull(lyrics);
@@ -72,10 +72,10 @@ public class TimedLyricsServiceTests
         var broken = Substitute.For<ITimedLyricsProvider>();
         broken.CanProvide(Arg.Any<string>()).Returns(true);
         broken.GetTimedLyricsAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
-            .Throws(new InvalidDataException("not a kit"));
+            .Throws(new InvalidDataException("not a real file"));
         var later = Provider(claims: true, answer: SomeLyrics());
 
-        var lyrics = await Service(broken, later).GetTimedLyricsAsync(Kit);
+        var lyrics = await Service(broken, later).GetTimedLyricsAsync(SourceFile);
 
         // Nobody else can read a container its owner could not, so the search stops rather than
         // handing the file to a provider that would answer about a format it never wrote.
@@ -94,6 +94,6 @@ public class TimedLyricsServiceTests
         // A cancelled load is not a plugin that failed, and swallowing it would report "no words"
         // for a song that was simply abandoned.
         await Assert.ThrowsAsync<OperationCanceledException>(
-            () => Service(provider).GetTimedLyricsAsync(Kit));
+            () => Service(provider).GetTimedLyricsAsync(SourceFile));
     }
 }

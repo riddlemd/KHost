@@ -3,7 +3,7 @@ using KHost.Abstractions.Models;
 namespace KHost.Common.Media;
 
 /// <summary>Whether a row is a still rather than something that plays.</summary>
-/// <remarks>A still opens no transcode, so the host clock alone times it.</remarks>
+/// <remarks>A still opens no encode, so the host clock alone times it.</remarks>
 public static class MediaFormats
 {
     private static readonly Dictionary<string, string> _imageContentTypes = new(StringComparer.OrdinalIgnoreCase)

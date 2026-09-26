@@ -117,7 +117,7 @@ public partial class NowPlayingPanel : IDisposable
         => Percent(Math.Clamp(seconds / durationSeconds * 100, 0, 100));
 
     /// <summary>Where lane <paramref name="index"/> of <paramref name="count"/> sits in the track,
-    /// as SVG percentages. A lone lane is half the track's height, as KaraFun draws it; stacked
+    /// as SVG percentages. A lone lane is half the track's height; stacked
     /// lanes take more of their band so each stays thick enough to see.</summary>
     private static (string Y, string Height) LaneBand(int index, int count)
     {

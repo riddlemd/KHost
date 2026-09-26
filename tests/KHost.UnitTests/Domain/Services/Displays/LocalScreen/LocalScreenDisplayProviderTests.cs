@@ -184,7 +184,7 @@ public class LocalScreenDisplayProviderTests
 
     /// <summary>A screen mixes its own stems and draws its own words, so it wants neither baked in.</summary>
     [Fact]
-    public void DescribeTarget_TakesTheStemsAndAsksForNoBurnedWords()
+    public void DescribeTarget_TakesTheStemsAndAsksForNoBurnedInWords()
     {
         IDisplayProvider provider = _provider;
 

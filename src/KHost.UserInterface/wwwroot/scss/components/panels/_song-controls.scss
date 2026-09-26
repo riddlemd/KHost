@@ -102,7 +102,7 @@
 .kh-song-control--slider {
     display: contents;
 
-    // Capped, so a kit with a very long singer name cannot push the panel off the card.
+    // Capped, so a stems-only format with a very long singer name cannot push the panel off the card.
     .kh-song-control__label {
         max-width: 12rem;
         overflow: hidden;

@@ -788,7 +788,7 @@ public class SingerQueueServiceTests : IDisposable
         Assert.Equal(1, announceCount);
     }
 
-    /// <summary>Regression: a plugin (KaraFun) signs a remote guest up mid-show via plain
+    /// <summary>Regression: a plugin offering remote sign-up adds a guest mid-show via plain
     /// AddUserAsync; it must not steal whoever the host already has selected at the console.</summary>
     [Fact]
     public async Task AddUserAsync_DoesNotChangeSelectedUser()

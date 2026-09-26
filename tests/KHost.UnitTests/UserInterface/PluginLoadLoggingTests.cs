@@ -55,7 +55,7 @@ public class PluginLoadLoggingTests
     [Fact]
     public void LogDiscoveredPlugins_WhenAPluginIsDisabled_DoesNotWarn()
     {
-        var events = Capture(Registry(Plugin("KaraFun Integration", PluginStatus.Disabled)));
+        var events = Capture(Registry(Plugin("Sample Plugin", PluginStatus.Disabled)));
 
         Assert.Equal(LogEventLevel.Information, Assert.Single(events).Level);
     }

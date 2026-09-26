@@ -24,7 +24,7 @@ public sealed class MediaRendition
     public int Pitch { get; init; }
 
     /// <summary>Whether a seek lands without rebuilding this.</summary>
-    /// <remarks>False for a stream transcoded from the playhead, where seeking outside what has
+    /// <remarks>False for a stream encoded from the playhead, where seeking outside what has
     /// been written means opening a new one. True for a whole file or a set of parts, which are
     /// the entire song and can be seeked anywhere for free.</remarks>
     public bool SeekableInPlace { get; init; }

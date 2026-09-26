@@ -149,7 +149,7 @@ public class SingerQueueService : ISingerQueueService, IDisposable
         PublishChanged();
     }
 
-    // A plugin (KaraFun's remote sign-up) calls plain AddUserAsync mid-show; selecting the joiner
+    // A plugin offering remote sign-up calls plain AddUserAsync mid-show; selecting the joiner
     // there would steal the host's current selection out from under them. This is for the console's
     // own add form, where the host just typed the name and expects that singer open next.
     public async Task AddAndSelectUserAsync(Guid userId)

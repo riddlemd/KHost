@@ -47,7 +47,7 @@ public class AudioLevelsTests
         => Assert.Equal(expected, Mix(new Dictionary<string, int> { ["♂"] = stored }).VolumeFor(AudioTrackRole.Lead, "♂"));
 
     [Fact]
-    public void DefaultLevels_MatchKaraFun_BackingFullAndLeadOut()
+    public void DefaultLevels_MatchTheFamiliarConvention_BackingFullAndLeadOut()
     {
         Assert.Equal(100, AudioMix.DefaultBackingVolume);
         Assert.Equal(0, AudioMix.DefaultLeadVolume);

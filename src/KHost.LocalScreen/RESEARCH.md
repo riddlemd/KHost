@@ -1,8 +1,8 @@
-# Playing a `.kit` natively
+# Playing a stems-and-lyrics format natively
 
 Why the screen draws a song's words itself, and what is still unanswered about it.
 
-The question: instead of rendering a `.kit` to mp4 with SkiaSharp and ffmpeg and then streaming
+The question: instead of rendering that format to mp4 with SkiaSharp and ffmpeg and then streaming
 that back as HLS, could a screen decode the stems and draw the lyrics itself?
 
 The numbers below came from a throwaway `KHost.Screen3` probe, which has served its purpose and
@@ -12,7 +12,7 @@ been deleted. Its measurements are kept here because the engine's design rests o
 `PreparedMediaService`, `PerformancePreparation` and the whole stream-copy contract
 (`CopyPlan`, `CutsCleanly`, `CanCopyVideo`, `CanCopyAudio`, `KeyframeSecondsFor`) are gone:
 benchmarked against plain streaming, pre-rendering bought ~0.1–0.2s of start latency and no
-reliable CPU saving, and it existed mainly for `.kit`. So a `.kit` is **unplayable today** — the
+reliable CPU saving, and it existed mainly for that format. So the format is **unplayable today** — the
 native path below is not an optimisation any more, it is the only way back. Where the sections
 below say a native path would "skip" that machinery, read it as already skipped for everyone.
 
@@ -31,15 +31,15 @@ One 6:02 song, measured on this machine (i7-1250U, 12 threads):
 | Render, no background | 41.6s |
 | Render, venue background | **84.1s** |
 | Render output | 23.7 MB |
-| The `.kit` it was made from | **8.7 MB** |
+| The source file it was made from | **8.7 MB** |
 
 The render is 2.7x larger than its own source, and takes longer than a third of the song's
 length to produce. A background loop doubles it, and almost all of that is ffmpeg's filter graph
 — decode, scale, crop, overlay — not our rasterizer, which only rises 11%.
 
-## What is actually in a `.kit`
+## What is actually in a stems container
 
-Measured by dumping one through `KitContainer.Read().Demux()`:
+Measured by dumping one through the plugin's own container reader:
 
 | stream | kind | bytes | share |
 |---|---|---|---|
@@ -62,7 +62,7 @@ anything depends on them.
 ## What the webview can do
 
 Measured inside Photino's own webview rather than a desktop browser, with a real Vorbis stem cut
-from the kit above. WebView2 on this machine:
+from the file above. WebView2 on this machine:
 
 | | |
 |---|---|
@@ -139,7 +139,7 @@ file the screen can open itself:
 - The ffmpeg filter graphs for pitch, tempo and mix.
 
 ~~`PreparedMediaService` and the keyframe contract~~ — since removed outright, for everyone. The
-per-song saving this section claimed (an 84-second render and 23.7 MB on disk per kit) has already
+per-song saving this section claimed (an 84-second render and 23.7 MB on disk per file) has already
 been taken; what a native path buys on top of it is playability, not speed.
 
 ## What it would have to reproduce
@@ -202,9 +202,9 @@ i.e. the easy version.** It is strong evidence there is headroom, not evidence t
 free.
 
 **Cast — answered by the fallback.** A Chromecast receiver is handed the same HLS URL the screens
-get, and native stems have no analogue. Since the render path is staying anyway, a kit that has to
-cast simply renders as it does now. Worth noting the consequence: casting a kit keeps the 84-second
-wait, so the two paths differ in more than fidelity.
+get, and native stems have no analogue. Since the render path is staying anyway, a file in this
+format that has to cast simply renders as it does now. Worth noting the consequence: casting one
+keeps the 84-second wait, so the two paths differ in more than fidelity.
 
 **The command contract.** `ScreenCommandBase` is a closed `[JsonDerivedType]` set and
 `LoadMediaCommand` carries a single URL. Carrying stems plus timing data means new command types,
@@ -218,7 +218,7 @@ pause/seek/stop, so the host cannot tell from the transport which one the displa
 
 ## Options
 
-**A — Native path in LocalScreen.** For `.kit` only, the screen receives stems + timing and does
+**A — Native path in LocalScreen.** For this stems format only, the screen receives stems + timing and does
 everything: decode, mix, draw. Falls back to the existing stream for Cast, for screens that cannot
 render natively, and for every other format. Biggest win, and it owns pitch/tempo and text fidelity.
 
@@ -247,15 +247,15 @@ graph, so there is no phase vocoder to write; and the screen syncs its draw loop
 element's `currentTime` rather than owning an `AudioContext`, so the device-open offset never
 enters the picture. What was already built — the old engine's drawing half — is the half B keeps.
 
-**A `.kit` is the plugin's, and stays the plugin's.** The host must not learn the container, so B
+**The format is the plugin's, and stays the plugin's.** The host must not learn the container, so B
 needs a format-agnostic contract in `KHost.Abstractions`: a plugin is asked for a *timeline* and a
-set of *stems*, and answers for the file it owns. `KitContainer` and the timing parser already
-exist in the KaraFun plugin's own repo; nothing of them moves here.
+set of *stems*, and answers for the file it owns. Its container reader and timing parser already
+exist in the plugin's own repo; nothing of them moves here.
 
 The shape:
 
 - The plugin extracts its stems to files and parses its timing, and hands back both. The host
-  learns nothing about Ogg, XML or `.kit`.
+  learns nothing about Ogg, XML or the container format.
 - The host mixes those stems through ffmpeg into an **audio-only** HLS stream — the same
   `LeadVolume` / `BackingVolume`, pitch and tempo that reach `amix` today, with no video encode
   and no rasterizer.
@@ -270,12 +270,12 @@ way.
 
 Option B, end to end.
 
-`lyrics-overlay.js` replaces `kit-engine.js`. It is the drawing half of the old engine and nothing
-else: it takes the host's `TimedLyrics`, draws the chase on a canvas over whatever is playing, and
-reads its clock from the element holding the song rather than owning one. The audio half — the
-`AudioContext`, the stem decode, the gain mix and the video-element shape — is gone, along with
-the `load-kit` and `kit-mix` browser messages. Option A's screen side is recoverable from git
-history if the native path is ever revisited.
+`lyrics-overlay.js` replaces the old drawing-and-decode engine. It is the drawing half of that
+engine and nothing else: it takes the host's `TimedLyrics`, draws the chase on a canvas over
+whatever is playing, and reads its clock from the element holding the song rather than owning one.
+The audio half — the `AudioContext`, the stem decode, the gain mix and the video-element shape — is
+gone, along with the browser messages that used to load and mix the stems. Option A's screen side
+is recoverable from git history if the native path is ever revisited.
 
 Host side, which was deliberately absent before:
 
@@ -304,7 +304,7 @@ What it does not do yet:
 
 1. Independent pitch and tempo. An AudioWorklet is available once the page has an origin, so the
    phase vocoder is a question of effort rather than of platform. The fallback answer is still
-   there if it is not worth building: a kit whose pitch or tempo has been shifted plays from the
+   there if it is not worth building: a file whose pitch or tempo has been shifted plays from the
    stream, and only the unshifted case plays natively. Worth measuring how often a host actually
    shifts before spending a vocoder on it.
 2. Does the clock hold? Mostly answered: the -700 ms was never drift but the ~685 ms the output

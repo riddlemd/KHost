@@ -57,7 +57,7 @@ public class MediaTagReaderTests : IDisposable
     [Fact]
     public async Task ReadTag_AFileThatIsNotThere_IsNullAndIsNeverProbed()
     {
-        var missing = System.IO.Path.Combine(System.IO.Path.GetTempPath(), $"khost-gone-{Guid.NewGuid():N}.kit");
+        var missing = System.IO.Path.Combine(System.IO.Path.GetTempPath(), $"khost-gone-{Guid.NewGuid():N}.mp4");
 
         Assert.Null(await Reader().ReadTagAsync(missing, "khost_provider"));
         await _probes.DidNotReceive().ProbeAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());

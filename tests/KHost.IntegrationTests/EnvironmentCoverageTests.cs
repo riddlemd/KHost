@@ -9,13 +9,13 @@ public class EnvironmentCoverageTests
     private const string OptOutVariable = "KHOST_SKIP_ENVIRONMENT_TESTS";
 
     [Fact]
-    public void Ffmpeg_IsInstalled_OrTheTranscodeTestsCoveredNothing()
+    public void Ffmpeg_IsInstalled_OrTheEncodeTestsCoveredNothing()
     {
         if (Environment.GetEnvironmentVariable(OptOutVariable) is { Length: > 0 }) return;
 
         Assert.True(
             IsOnPath("ffmpeg"),
-            $"ffmpeg is not on PATH, so every transcode test skipped and this run proved nothing "
+            $"ffmpeg is not on PATH, so every encode test skipped and this run proved nothing "
             + $"about streaming. README lists it as a prerequisite. Install it, or set "
             + $"{OptOutVariable}=1 to accept the gap.");
     }

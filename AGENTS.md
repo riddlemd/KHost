@@ -96,6 +96,21 @@ network device meets this, and sharing it costs nothing: it is BCL plus a `DllIm
 
 Four things deliberately stay plain C# events, and should stay that way: LocalScreen's `IMediaPlayer` and `IScreenClient` (a separate process — the broker is in-process and SignalR is the transport), `IDialogService.ShowRequested` (a request with a payload and one legitimate subscriber, not a notification), `IPlaybackService.PositionChanged` (twice a second for a whole night; it says only that `Position` moved, so take it to redraw a playhead and nothing else), and `IPlaybackService.PerformanceEnded` (a gap with a payload the subscriber fills: a request, not a notification).
 
+## Vocabulary
+
+- **Renderer** means only an `IMediaRenderer` — the thing that decides what a display gets when a
+  song starts. Its answer is a **rendition**.
+- **Encode** is ffmpeg producing a stream; **remux** is a container change with no re-encode. Never
+  "transcode".
+- **Burn in** (verb) and **burned-in** (adjective) mean words drawn into video frames — not "burn-in"
+  as a noun, and not "burnt".
+- **Mix** is combining stems: the host's mix (ffmpeg) or the screen's mixer (WebAudio). **Paint** is
+  drawing a video frame for an encode; **compose** is assembling painted frames and audio into one.
+- **Draw** is what a display does to present something — the lyrics overlay, cards, the progress
+  bar. "Render" as a verb stays only for an `IMediaRenderer` producing its rendition, or for the
+  separate Blazor/HTML sense (`OnAfterRender`, "re-render", bunit's `Render<>`) — never for a
+  display drawing something.
+
 ## What a plugin can reach
 
 A plugin's entry point is constructed with `ActivatorUtilities.CreateInstance` against the host
@@ -205,19 +220,19 @@ cannot name another's: its secrets, and the QR code it offers the screens.
   reasoning live in `docs/media-renderer.md`; this is the short form.
   - **It answers with what to play, not always with a stream.** A `MediaRendition` carries a URL to
     play end to end, or the separate `Stems` a display mixes for itself, or both. `StreamUrl` on
-    `DisplayLoad` is nullable for exactly this: a kit on a screen that mixes runs **no ffmpeg
-    at all**, where it used to encode a whole song for a consumer that never fetched it.
+    `DisplayLoad` is nullable for exactly this: a stems-only format on a screen that mixes runs
+    **no ffmpeg at all**, where it used to encode a whole song for a consumer that never fetched it.
   - **Claim by file, not by extension or by `MediaType`.** `CanRender(path)` and a keyed fallback,
-    the same shape `IMediaProbe` uses — `MediaFormats.TypeForFile` has never heard of `.kit`, and a
-    plain `.mp4` is `Karaoke` or `Video` depending on a flag the *caller* passes. Unlike
-    `IMediaPlaybackGate.Claims` and `IMediaProbe.CanProbe`, which answer from the path alone because
-    they run for every queued turn on every reconcile, this is asked once per song and **may open
-    the file** — which is what would let a renderer decide on a container's codecs rather than its
-    name.
+    the same shape `IMediaProbe` uses — `MediaFormats.TypeForFile` has never heard of a plugin's own
+    stems-format extension, and a plain `.mp4` is `Karaoke` or `Video` depending on a flag the
+    *caller* passes. Unlike `IMediaPlaybackGate.Claims` and `IMediaProbe.CanProbe`, which answer
+    from the path alone because they run for every queued turn on every reconcile, this is asked
+    once per song and **may open the file** — which is what would let a renderer decide on a
+    container's codecs rather than its name.
   - **Returning null means "nothing better for this target"**, and falls through to
     `StreamingMediaRenderer`, which claims everything and encodes as the host always has. That is
-    how a kit reaches a receiver: the plugin sees a target that cannot mix, declines, and the
-    fallback resolves the `.kfa` through `IPlayableMediaSource` exactly as before.
+    how a stems-only format reaches a receiver: the plugin sees a target that cannot mix, declines,
+    and the fallback resolves its remuxed container through `IPlayableMediaSource` exactly as before.
   - **The target is part of the question.** `RenderTarget.MixesStems` says whether the one
     connected display mixes for itself; a device hearing the host's own mix needs the encode, so
     offering it stems would be waste.
@@ -284,9 +299,10 @@ cannot name another's: its secrets, and the QR code it offers the screens.
     The marquee names exactly the singers `IUpNextService` reads, so the two cannot disagree.
   - **`DescribeTarget()` is how a display says what to render for it.** `PlaybackService` asks the
     connected provider on every load; a throw or a null is `RenderTarget.None`. The default body is
-    `RenderTarget.None`: one mixed stream, no burned words. `RenderTarget.BurnLyrics` is a request a renderer **may** honour — the KaraFun renderer
-    can, `StreamingMediaRenderer` ignores it — and one that cannot returns its normal rendition.
-    The local screen overrides it: stems, no burned words.
+    `RenderTarget.None`: one mixed stream, no burned-in words. `RenderTarget.BurnLyrics` is a request
+    a renderer **may** honour — a renderer that paints lyrics into the picture can,
+    `StreamingMediaRenderer` ignores it — and one that cannot returns its normal rendition.
+    The local screen overrides it: stems, no burned-in words.
   - **An ad still's `ImageUrl` is reachable like a stream URL**: the same base address, under
     `/media`, which answers off-box. It may name loopback, so a provider for a device elsewhere on
     the network swaps in a LAN address exactly as it does for `StreamUrl`.
@@ -451,7 +467,7 @@ on every change the same way the marquee is (`LocalScreenDisplayProvider` for th
 
 ## Streaming a song
 
-`HlsMediaStreamService` transcodes at play time, one ffmpeg per song, into
+`HlsMediaStreamService` encodes at play time, one ffmpeg per song, into
 `<temp>/khost-streams`. There is no pre-render and no stream-copy path: the copy only ever paid off
 against a render the host had already made, and making those renders cost more than it saved.
 

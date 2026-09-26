@@ -50,8 +50,9 @@ public partial class SongControls : IDisposable
             FormatTempo, v => _tempo = v, CommitTempoAsync);
 
         // Only a file that ships its voices apart has anything here to balance, and the music
-        // never gets a fader: it is the reference the voices are set against. Laid out as KaraFun
-        // does — backing, then a fader per singer's lead — so a host moving from it finds them.
+        // never gets a fader: it is the reference the voices are set against. Laid out the way
+        // another karaoke product orders its faders — backing, then a fader per singer's lead —
+        // so a host moving from one finds them.
         if (HasTrack(AudioTrackRole.Backing))
             yield return new SongControl(this, "Backing Vocals", "Backing vocal volume, as a percentage",
                 _backing, AudioMix.MinVolume, AudioMix.MaxVolume, VolumeStep,

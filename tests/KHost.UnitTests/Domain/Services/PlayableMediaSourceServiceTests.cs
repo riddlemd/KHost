@@ -10,9 +10,9 @@ namespace KHost.UnitTests.Domain.Services;
 /// nobody can.</summary>
 public class PlayableMediaSourceServiceTests
 {
-    private const string Kit = "/library/karafun/6229.kit";
+    private const string SourceFile = "/library/plugin/6229.src";
     private const string Session = "/tmp/khost-streams/abc";
-    private const string Converted = "/tmp/khost-streams/abc/6229.kfa";
+    private const string Converted = "/tmp/khost-streams/abc/6229.converted";
 
     private static IPlayableMediaSource Source(bool claims, string? answer = null)
     {
@@ -40,8 +40,8 @@ public class PlayableMediaSourceServiceTests
     {
         var mine = Source(claims: true, answer: Converted);
 
-        Assert.Equal(Converted, await Service(Source(claims: false), mine).ResolvePlayableAsync(Kit, Session));
-        await mine.Received(1).ResolvePlayableAsync(Kit, Session, Arg.Any<CancellationToken>());
+        Assert.Equal(Converted, await Service(Source(claims: false), mine).ResolvePlayableAsync(SourceFile, Session));
+        await mine.Received(1).ResolvePlayableAsync(SourceFile, Session, Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -49,7 +49,7 @@ public class PlayableMediaSourceServiceTests
     {
         var mine = Source(claims: true, answer: Converted);
 
-        await Service(mine).ResolvePlayableAsync(Kit, Session);
+        await Service(mine).ResolvePlayableAsync(SourceFile, Session);
 
         // The converted copy has to land where the session's own cleanup will sweep it; a source
         // writing beside the library would leave a playable copy of every song it ever opened.
@@ -64,7 +64,7 @@ public class PlayableMediaSourceServiceTests
 
         // One plugin having a bad day must not stop a song another plugin can open.
         Assert.Equal(Converted, await Service(broken, Source(claims: true, answer: Converted))
-            .ResolvePlayableAsync(Kit, Session));
+            .ResolvePlayableAsync(SourceFile, Session));
     }
 
     [Fact]
@@ -73,17 +73,17 @@ public class PlayableMediaSourceServiceTests
         var broken = Substitute.For<IPlayableMediaSource>();
         broken.CanResolve(Arg.Any<string>()).Returns(true);
         broken.ResolvePlayableAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
-            .Throws(new InvalidDataException("not a kit"));
+            .Throws(new InvalidDataException("not a real file"));
 
         // Swallowing it would hand ffmpeg the original, which it cannot read either — the room
         // gets a song that never starts and the log never names why.
-        await Assert.ThrowsAsync<InvalidDataException>(() => Service(broken).ResolvePlayableAsync(Kit, Session));
+        await Assert.ThrowsAsync<InvalidDataException>(() => Service(broken).ResolvePlayableAsync(SourceFile, Session));
     }
 
     [Fact]
     public async Task ResolvePlayableAsync_ASourceClaimsButHasNothingToDo_FallsBackToTheOriginal()
     {
         // Null is "nothing to do here", not a failure.
-        Assert.Equal(Kit, await Service(Source(claims: true, answer: null)).ResolvePlayableAsync(Kit, Session));
+        Assert.Equal(SourceFile, await Service(Source(claims: true, answer: null)).ResolvePlayableAsync(SourceFile, Session));
     }
 }

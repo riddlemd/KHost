@@ -2,7 +2,7 @@ using KHost.Abstractions.Models;
 
 namespace KHost.Abstractions.Services;
 
-/// <summary>Owns transcoding, so a display needs neither an encoder nor access to the library.</summary>
+/// <summary>Owns encoding, so a display needs neither an encoder nor access to the library.</summary>
 /// <remarks>Opens per-song sessions, each a served directory addressable over HTTP by any number of
 /// consumers, and removed with everything in it when the session closes. A plugin renderer takes it
 /// to encode a file or to get somewhere to write its own; a display provider only ever receives the
@@ -35,7 +35,7 @@ public interface IMediaStreamService
         AudioMix? mix = null,
         CancellationToken cancellationToken = default);
 
-    /// <summary>A served, swept directory with no transcode in it.</summary>
+    /// <summary>A served, swept directory with no encode in it.</summary>
     /// <remarks>For a renderer that produces its own files — stems demuxed out of a container, say
     /// — and needs somewhere the display can fetch them from that is cleaned up with the song. The
     /// session it returns carries no <see cref="MediaStreamSession.PlaylistUrl"/>, and is closed

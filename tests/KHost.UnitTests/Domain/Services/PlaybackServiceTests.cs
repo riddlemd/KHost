@@ -940,7 +940,7 @@ public class PlaybackServiceTests : IDisposable
         await _screenServer.DidNotReceive().BroadcastCommandAsync(Arg.Any<PlayCommand>());
     }
 
-    /// <summary>A screen joining while the song's first transcode is still starting must not start
+    /// <summary>A screen joining while the song's first encode is still starting must not start
     /// another: the load in flight reaches it anyway, and a second one is never closed.</summary>
     [Fact]
     public async Task ScreenConnect_WhileTheSongIsStillRendering_OpensNoSecondStreamAndSendsNoEmptyLoad()
@@ -1285,7 +1285,7 @@ public class PlaybackServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task ScreenReconnect_ReusesTheRunningTranscode_RatherThanStartingASecond()
+    public async Task ScreenReconnect_ReusesTheRunningEncode_RatherThanStartingASecond()
     {
         var (performance, media) = CreatePerformance();
         await _service.LoadAsync(performance, media);
@@ -1294,7 +1294,7 @@ public class PlaybackServiceTests : IDisposable
         RaiseScreenConnected();
         Assert.True(await WaitForBroadcastAsync<PlayCommand>());
 
-        // One host transcode per song is the whole reason ffmpeg moved off the screens.
+        // One host encode per song is the whole reason ffmpeg moved off the screens.
         await _mediaStreams.Received(1).OpenAsync(
             Arg.Any<string>(), Arg.Any<TimeSpan>(), Arg.Any<int>(), Arg.Any<int>(), Arg.Any<AudioMix?>(), Arg.Any<CancellationToken>());
     }
@@ -1308,7 +1308,7 @@ public class PlaybackServiceTests : IDisposable
 
         await _service.StopAsync();
 
-        // An orphaned ffmpeg would keep transcoding a song nobody is playing.
+        // An orphaned ffmpeg would keep encoding a song nobody is playing.
         await _mediaStreams.Received().CloseAsync("stream-1");
     }
 
@@ -1326,7 +1326,7 @@ public class PlaybackServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task Load_FailsPresentably_WhenTheTranscodeCannotStart()
+    public async Task Load_FailsPresentably_WhenTheEncodeCannotStart()
     {
         _mediaStreams
             .OpenAsync(Arg.Any<string>(), Arg.Any<TimeSpan>(), Arg.Any<int>(), Arg.Any<int>(), Arg.Any<AudioMix?>(), Arg.Any<CancellationToken>())
@@ -1334,7 +1334,7 @@ public class PlaybackServiceTests : IDisposable
 
         var (performance, media) = CreatePerformance();
 
-        // No stream means no playback: the screen plays the host's transcode, so a load that
+        // No stream means no playback: the screen plays the host's encode, so a load that
         // could not start one has nothing to send and must not be passed off as success.
         var error = await Assert.ThrowsAsync<KHostException>(() => _service.LoadAsync(performance, media));
 
@@ -1474,7 +1474,7 @@ public class PlaybackServiceTests : IDisposable
     }
 
     /// <summary>A stream that already opens at the start holds the parked playhead, so a returning
-    /// screen takes it rather than paying for a second transcode.</summary>
+    /// screen takes it rather than paying for a second encode.</summary>
     [Fact]
     public async Task ScreenReconnect_ParkedOnAStreamFromTheStart_ReusesIt()
     {
@@ -1506,7 +1506,7 @@ public class PlaybackServiceTests : IDisposable
 
     // --- stems a display mixes for itself ---
 
-    /// <summary>Arms the stand-in renderer to answer with stems, as a kit's own would.</summary>
+    /// <summary>Arms the stand-in renderer to answer with stems, as a stems-only format's own would.</summary>
     /// <remarks>What a renderer decides is its own business and is tested where it lives; these
     /// only care that the host asks it, passes on what it says, and drives it afterwards.</remarks>
     private void RendererOffersStems(params AudioTrackRole[] roles)
@@ -1562,8 +1562,8 @@ public class PlaybackServiceTests : IDisposable
             .Returns<IReadOnlyList<AudioTrack>>(
                 [.. roles.Select((role, i) => new AudioTrack(i, role, role.ToString()))]);
 
-    /// <summary>A kit on a mixing screen has no encoded stream at all; a screen that rejoins still
-    /// gets the stems, or it sits silent through the rest of the song.</summary>
+    /// <summary>A stems-only format on a mixing screen has no encoded stream at all; a screen that
+    /// rejoins still gets the stems, or it sits silent through the rest of the song.</summary>
     [Fact]
     public async Task ScreenReconnect_AStemsOnlySong_ReplaysTheStems()
     {
@@ -1623,8 +1623,9 @@ public class PlaybackServiceTests : IDisposable
     [Fact]
     public async Task Load_TellsTheRendererTheKeyTheSpeedAndWhatTheDisplayCanTake()
     {
-        // Everything the renderer needs to decide with. Sent wrong, a kit would be handed to a
-        // screen as raw stems at the written key while the song's clock ran at the asked-for rate.
+        // Everything the renderer needs to decide with. Sent wrong, a stems-only format would be
+        // handed to a screen as raw stems at the written key while the song's clock ran at the
+        // asked-for rate.
         var (performance, media) = CreatePerformance();
         performance.Pitch = 2;
         performance.Tempo = -30;
@@ -1686,7 +1687,7 @@ public class PlaybackServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task SetLeadVolume_MovesTheStem_AndLeavesTheTranscodeAlone()
+    public async Task SetLeadVolume_MovesTheStem_AndLeavesTheEncodeAlone()
     {
         RendererOffersStems(AudioTrackRole.Music, AudioTrackRole.Lead);
 
@@ -2651,7 +2652,7 @@ public class PlaybackServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task PlayAdAsync_AStill_ShowsItWithoutOpeningATranscode()
+    public async Task PlayAdAsync_AStill_ShowsItWithoutOpeningAEncode()
     {
         _mediaStreams.BuildImageUrl(Arg.Any<Guid>()).Returns("http://host/media/image/x");
 
@@ -3218,9 +3219,9 @@ public class PlaybackServiceTests : IDisposable
     }
 
     // A still is on the screen, not in a stream. Reloading it would try to open an ffmpeg
-    // transcode for a picture, which fails and leaves the joiner showing nothing.
+    // encode for a picture, which fails and leaves the joiner showing nothing.
     [Fact]
-    public async Task ScreenConnecting_WhileAStillIsUp_ReshowsItWithoutOpeningATranscode()
+    public async Task ScreenConnecting_WhileAStillIsUp_ReshowsItWithoutOpeningAEncode()
     {
         _mediaStreams.BuildImageUrl(Arg.Any<Guid>()).Returns("http://host/media/image/x");
 
@@ -3302,7 +3303,7 @@ public class PlaybackServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task SetPitch_ReopensTheTranscodeAtThePlayhead_WithTheNewPitch()
+    public async Task SetPitch_ReopensTheEncodeAtThePlayhead_WithTheNewPitch()
     {
         var (performance, media) = CreatePerformance();
         await _service.LoadAsync(performance, media);
@@ -3311,14 +3312,14 @@ public class PlaybackServiceTests : IDisposable
 
         await _service.SetPitchAsync(2);
 
-        // ffmpeg fixes its filter graph at process start, so only a fresh transcode carries the
+        // ffmpeg fixes its filter graph at process start, so only a fresh encode carries the
         // change; opening at the playhead is what stops the song restarting.
         Assert.True(await WaitForStreamsOpenedAsync(2));
         await _mediaStreams.Received(1).OpenAsync(
             media.FilePath, TimeSpan.FromSeconds(30), 2, 0, Arg.Any<AudioMix?>(), Arg.Any<CancellationToken>());
     }
 
-    /// <summary>A pause landing while the new transcode starts must win: resuming afterwards plays
+    /// <summary>A pause landing while the new encode starts must win: resuming afterwards plays
     /// the room a song the console shows as paused.</summary>
     [Fact]
     public async Task SetPitch_HostPausesWhileTheStreamRebuilds_DoesNotResume()
@@ -3372,7 +3373,7 @@ public class PlaybackServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task SetPitch_ClosesThePreviousTranscode()
+    public async Task SetPitch_ClosesThePreviousEncode()
     {
         var (performance, media) = CreatePerformance();
         await _service.LoadAsync(performance, media);
@@ -3403,7 +3404,7 @@ public class PlaybackServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task SetPitch_DoesNotOpenATranscode_WhenNothingIsLoaded()
+    public async Task SetPitch_DoesNotOpenAEncode_WhenNothingIsLoaded()
     {
         await _service.SetPitchAsync(3);
 
@@ -3427,7 +3428,7 @@ public class PlaybackServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task SetPitch_AnnouncesBeforeTheTranscodeIsRebuilt()
+    public async Task SetPitch_AnnouncesBeforeTheEncodeIsRebuilt()
     {
         // A settle long enough that the reopen cannot have run: the announcement under test is
         // the one landing before ffmpeg is touched.
@@ -3575,7 +3576,7 @@ public class PlaybackServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task SetTempo_ReopensTheTranscodeAtTheNewTempo()
+    public async Task SetTempo_ReopensTheEncodeAtTheNewTempo()
     {
         var (performance, media) = CreatePerformance();
         await _service.LoadAsync(performance, media);
@@ -3763,7 +3764,7 @@ public class PlaybackServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task SetLeadVolume_ReopensTheTranscodeWithTheNewMix()
+    public async Task SetLeadVolume_ReopensTheEncodeWithTheNewMix()
     {
         var (performance, media) = CreatePerformance();
         GiveThreeTracks(media);
@@ -3834,7 +3835,7 @@ public class PlaybackServiceTests : IDisposable
     /// <summary>Named and ordered as the real files are: music, then backing, then lead.</summary>
     // --- a lead per singer ---
 
-    /// <summary>A duet as a KaraFun kit ships it: a lead for each singer, named by caption.</summary>
+    /// <summary>A duet as a stems-and-lyrics format ships it: a lead for each singer, named by caption.</summary>
     private void GiveADuet(Media media) =>
         _audioTracks.ReadTracksAsync(media.FilePath, Arg.Any<CancellationToken>()).Returns<IReadOnlyList<AudioTrack>>(
         [
@@ -4033,7 +4034,7 @@ public class PlaybackServiceTests : IDisposable
         await _service.PlayAsync();
         await _service.SeekAsync(TimeSpan.FromSeconds(200));
 
-        // A rate change rebuilds the transcode at the playhead, so the stream now starts at 200s.
+        // A rate change rebuilds the encode at the playhead, so the stream now starts at 200s.
         await _service.SetPitchAsync(2);
         Assert.True(await WaitForStreamsOpenedAsync(2));
 
@@ -4083,7 +4084,7 @@ public class PlaybackServiceTests : IDisposable
         Assert.True(await WaitForStreamsOpenedAsync(2));
 
         // The screens play on from their buffer while ffmpeg spins up, and hear nothing at all if
-        // the old transcode was already gone.
+        // the old encode was already gone.
         Assert.DoesNotContain("stream-1", closedWhileOpening);
         await _mediaStreams.Received().CloseAsync("stream-1");
     }

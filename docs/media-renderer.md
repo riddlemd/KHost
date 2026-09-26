@@ -20,21 +20,21 @@ which owns it:
 - `PlaybackService.DescribeStems` — gates on pitch, tempo, and whether stems agree with the tracks
 - `screen-ui/player.js` — picks stem mixing over the stream
 
-That spread has a measurable cost right now. A kit played on a screen that mixes takes the stem
-branch in the page and never constructs hls.js, so the playlist is never fetched — while the host
-runs a full libx264 + AAC encode of the whole song for a consumer that does not exist. Nothing in
+That spread has a measurable cost right now. A stems-only format played on a screen that mixes takes
+the stem branch in the page and never constructs hls.js, so the playlist is never fetched — while the
+host runs a full libx264 + AAC encode of the whole song for a consumer that does not exist. Nothing in
 the pipeline can say "this one needs no encode", so every format gets the same treatment.
 
 ## The three cases, side by side
 
 Three formats were surveyed specifically because they disagree on every axis that matters.
 
-| | **CDG + MP3** | **MP4** | **`.kit`** |
+| | **CDG + MP3** | **MP4** | **a stems format** |
 |---|---|---|---|
 | Files in | two — graphics plus a sibling `.mp3` | one | one container, demuxed to N stems |
 | Picture | **synthesized** — ffmpeg decodes the subcode graphics | already encoded in the file | **none at all** (see below) |
 | Audio | the companion `.mp3`, ffmpeg input 1 | embedded in the container | N Ogg Vorbis stems |
-| Words | burned into the picture | burned in, or none | `ITimedLyricsProvider` |
+| Words | burned in | burned in, or none | `ITimedLyricsProvider` |
 | Needs a host encode? | **always** | no, unless shifted | no, unless shifted |
 | Seeking | must seek on **output** | input seek is fine | free — the parts are the whole song |
 | Levels rideable at play? | no | no | yes |
@@ -54,20 +54,19 @@ Where each of those lives today:
   the thing it was about — and wrong for a `.cdg` with no `.mp3` beside it. Now keyed off
   `IsGraphicsOnly`; see staging step 3.
 - **`-map 0:v:0? -map "[a]"`** (`:291`) — the `?` exists so a mix graph tolerates a source with no
-  video, which is the kit case leaking into the general path.
-- **The kit's remux** — `BuildRemuxArguments` (`KaraFunMediaProvider.cs:1849-1869`) stream-copies
-  the stems into a Matroska `.kfa` with **no video stream**, purely so `HlsMediaStreamService` has
-  something to open.
+  video, which is the stems-only case leaking into the general path.
+- **The stems format's remux** — the plugin's own remux step stream-copies the stems into a
+  video-less container, purely so `HlsMediaStreamService` has something to open.
 
-### A kit has no picture, and that is not an oversight
+### A stems-only format has no picture, and that is not an oversight
 
-`RenderAsync`/`KitRenderer` in the plugin — the SkiaSharp path that used to pick a backdrop — is dead
-code, and its own comment says so (`KaraFunMediaProvider.cs:1494-1499`). Nothing in the host calls
-it. So a kit plays as a black screen with the words drawn over it.
+The plugin's old picture-painting path — the SkiaSharp path that used to pick a backdrop — is dead
+code, and its own comment says so. Nothing in the host calls it. So the format plays as a black
+screen with the words burned in.
 
-This matters to the shape: the renderer for a kit is the one that would eventually have to answer
-"and what goes behind the words" — a still, a video bed, or a generated visualisation. Any of those
-is a rendition, not a special case bolted onto playback.
+This matters to the shape: the renderer for such a format is the one that would eventually have to
+answer "and what goes behind the words" — a still, a video bed, or a generated visualisation. Any of
+those is a rendition, not a special case bolted onto playback.
 
 ## What the differences demand of the interface
 
@@ -78,11 +77,11 @@ express none of them.
    a set of parts with no single URL at all. `LoadMediaCommand.StreamUrl` being `required` is the
    current shape's way of insisting otherwise.
 2. **Whether a seek needs a rebuild.** An HLS stream is cut at the playhead, so its zero is
-   `StreamStartOffset` and seeking outside the transcoded range means reopening. A whole MP4 or a set
+   `StreamStartOffset` and seeking outside the encoded range means reopening. A whole MP4 or a set
    of stems is the entire song and a seek is free. That distinction is implicit in `StreamStartOffset`
    today; with three renderers it has to be stated.
 3. **What the target can do.** Whether an encode is needed depends on the display, not only the file:
-   the same kit needs one for a Chromecast and none for a screen. So the request carries the target's
+   the same stems-only format needs one for a Chromecast and none for a screen. So the request carries the target's
    capabilities, answered by the connected provider's `DescribeTarget()` rather than read off a
    device flag on the side.
 4. **Some rules are about the decode, not the format.** Output-seek belongs to "stateful graphics
@@ -125,7 +124,7 @@ public sealed class MediaRendition
     /// <summary>One thing the display plays end to end, when there is one.</summary>
     public string? Url { get; init; }
 
-    /// <summary>Parts the display mixes itself; empty for everything that is not a kit today.</summary>
+    /// <summary>Parts the display mixes itself; empty for everything that does not ship separate stems today.</summary>
     public IReadOnlyList<StemSource> Stems { get; init; } = [];
 
     /// <summary>Where this rendition's zero sits in the song.</summary>
@@ -143,9 +142,9 @@ route's shape in one place and answers open item 5 — a rendition without an en
 session, it just has no process in it.
 
 Returning **null** means "nothing to do here" and falls through to the next renderer, the same
-contract `ResolvePlayableAsync` already uses. That is how a kit on a Chromecast works: the kit
-renderer writes its stems, sees a target that cannot mix, remuxes, and hands the `.kfa` on to the
-streaming renderer rather than trying to encode itself.
+contract `ResolvePlayableAsync` already uses. That is how a stems-only format on a Chromecast works:
+its renderer writes the stems, sees a target that cannot mix, remuxes them into a container the
+streaming renderer can open, and hands it on rather than trying to encode itself.
 
 ### The renderers
 
@@ -153,7 +152,7 @@ streaming renderer rather than trying to encode itself.
 |---|---|---|
 | `StreamingMediaRenderer` (fallback, keyed) | everything | the HLS session it builds today; owns the CDG rules |
 | `DirectMediaRenderer` | containers the target plays as-is, unshifted | a URL to the library file, `SeekableInPlace` |
-| the kit renderer (plugin) | `.kit` | stems for a mixing target; otherwise a `.kfa` to encode |
+| a plugin's renderer for its own stems format | the format's own extension | stems for a mixing target; otherwise a remuxed container to encode |
 
 The fallback is registered **keyed**, exactly as `FfprobeMediaProbe` is behind
 `MediaProbeService.FallbackKey`, so it never appears in the `IMediaRenderer` enumerable — it claims
@@ -161,7 +160,7 @@ every file and would win every race.
 
 ### Why not key off the extension
 
-It is close, and it is nearly enough. A renderer declares `[".kit"]`, the host builds a dictionary,
+It is close, and it is nearly enough. A renderer declares its own extension, the host builds a dictionary,
 and what claims what is readable without running anything. For the formats here it would work: a
 played `.cdg` pair is always the `.cdg`, because the graphics half is **the half that becomes the
 library row** and the audio beside it is found at play time, never imported separately
@@ -175,8 +174,9 @@ caller of it is an import or browse path, not playback.
   AAC yes, HEVC or DTS no. An extension key would have the direct renderer claim files it then
   cannot render and hand back a null — which is `CanRender` again, only later and less honestly.
   Declaring extensions forecloses looking; a predicate does not.
-- **It costs a plugin nothing either way.** `bool CanRender(string p) => IsAKit(p);` is the same line
-  as declaring `[".kit"]`, so the flexibility is free. Most renderers really will be that one line.
+- **It costs a plugin nothing either way.** `bool CanRender(string p) => IsMyFormat(p);` is the same
+  line as declaring an extension list, so the flexibility is free. Most renderers really will be
+  that one line.
 
 The usual argument for a dictionary does not apply: `CanRender` is asked **once per song**, not per
 queued turn like `Claims` and `CanProbe`, so iterating every renderer costs nothing.
@@ -189,8 +189,8 @@ order with nothing to read.
 ### Why not key off `MediaType`
 
 Because the type does not carry the distinction. `MediaFormats.TypeForFile`
-(`KHost.Common/Media/MediaFormats.cs:58-74`) has no idea `.kit` or `.kfa` exist — KaraFun claims
-those extensions independently — and a plain `.mp4` comes back `Karaoke` or `Video` depending on a
+(`KHost.Common/Media/MediaFormats.cs:58-74`) has no idea a plugin's own stems-format extensions
+exist — a plugin claims those independently — and a plain `.mp4` comes back `Karaoke` or `Video` depending on a
 flag the *caller* passes, not on anything about the file. An enum switch would therefore have to be
 extended by the host every time a plugin brought a format, which is the opposite of the point.
 Claim-by-file is the pattern this codebase already uses for exactly this reason.
@@ -213,9 +213,9 @@ service that only knows how to encode. `StemsOf`, added days ago, is the seam sh
   per-play router that answers "how does this file reach this display", produces nothing that
   outlives the session, and has no cache. **If that distinction is not written into `AGENTS.md` at
   the same time, someone deletes this in six months and cites that line correctly.**
-- ~~**The name collides.**~~ Avoided: the plugin implements `IMediaRenderer` on
-  `KaraFunMediaProvider` itself — one singleton across every extension interface, as the plugin
-  rules require — so no new type sits beside the dead SkiaSharp `KitRenderer`.
+- ~~**The name collides.**~~ Avoided: the plugin implements `IMediaRenderer` on its own provider
+  type — one singleton across every extension interface, as the plugin rules require — so no new
+  type sits beside its dead SkiaSharp picture-painting renderer.
 - **Direct play needs a new endpoint, and it is the risky one.** Nothing today serves a library path
   with ranged GETs: `MediaStreamEndpoints` deliberately restricts to bare filenames inside an active
   session's temp directory. A route that serves library files must be keyed by media id with a
@@ -231,12 +231,11 @@ service that only knows how to encode. `StemsOf`, added days ago, is the seam sh
 1. Does `DirectMediaRenderer` earn its place? It needs a new endpoint and codec-compatibility logic,
    against a saving that is only real if screens genuinely play library MP4s without help. Worth
    measuring one before building it — the pre-render was removed for exactly this kind of assumption.
-2. Where does the kit's **backdrop** come from once there is somewhere to put it — a still, a video
-   bed, or a generated visualisation? The renderer is the thing that would answer, and today the
-   answer is "nothing".
-3. `.kfa` duration currently comes from a legacy `.kft` sidecar only
-   (`KaraFunMediaProvider.cs:1266-1273`), not from the container. Does the rendition carry duration
-   so the host stops asking the file twice?
+2. Where does a stems-only format's **backdrop** come from once there is somewhere to put it — a
+   still, a video bed, or a generated visualisation? The renderer is the thing that would answer,
+   and today the answer is "nothing".
+3. A remuxed stems container's duration currently comes from a legacy sidecar file only, not from
+   the container itself. Does the rendition carry duration so the host stops asking the file twice?
 4. Does a rendition need to say **why** it refused to be direct, so the console can explain a song
    that fell back to an encode?
 5. What happens when the display changes mid-song? Today a connect triggers a reload; with renditions
@@ -249,15 +248,15 @@ Each step is separately shippable, and the first two are worth doing whether or 
 1. **Introduce the contracts and the fallback only.** `IMediaRenderer`, `MediaRendition`,
    `MediaRenderRequest`, and a `StreamingMediaRenderer` that wraps `HlsMediaStreamService` and
    reproduces today's behaviour exactly. Nothing else changes; the suite should be green untouched.
-2. **Move the kit onto it.** The plugin implements the renderer, `StemsOf` and the `DescribeStems`
-   gating in `PlaybackService` both disappear into it, and a kit on a mixing screen stops running
-   ffmpeg at all — which is the original goal.
+2. **Move the stems-only format onto it.** The plugin implements the renderer, `StemsOf` and the
+   `DescribeStems` gating in `PlaybackService` both disappear into it, and that format on a mixing
+   screen stops running ffmpeg at all — which is the original goal.
 3. **Give CDG its own renderer.** `CompactDiscPlusGraphicsRenderer` claims `.cdg` and **inherits the
    encode** from `StreamingMediaRenderer` rather than reimplementing it: subcode graphics still have
    to be decoded into a picture and ffmpeg is what does that. It exists anyway, because the rules
    that belong to the format need somewhere to live — and because the day a screen draws a CDG
-   itself, the way a kit's stems are now mixed there, that body is what changes and nothing above it
-   notices.
+   itself, the way a stems format's parts are now mixed there, that body is what changes and
+   nothing above it notices.
    - The first rule it owns: **a `.cdg` with no `.mp3` beside it is an invalid state, not a quiet
      song.** It was importable and playable, reaching the room as a silent stream with a warning in
      a log nobody reads. It now fails with `KH-CDG-NO-AUDIO`, naming the file to put back.

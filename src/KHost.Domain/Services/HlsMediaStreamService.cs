@@ -92,7 +92,7 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, ID
 
         await RegisterAsync(session, cancellationToken);
 
-        Logger.LogInformation("Opened {SessionId} for '{FilePath}' with no transcode", id, filePath);
+        Logger.LogInformation("Opened {SessionId} for '{FilePath}' with no encode", id, filePath);
 
         return new MediaStreamSession
         {

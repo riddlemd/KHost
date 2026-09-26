@@ -77,7 +77,7 @@ public class AppSettingsServiceTests : IDisposable
     {
         var service = Service();
 
-        // KaraFun's own default: the harmonies are part of the song the singer sings over.
+        // A familiar karaoke product's own default: the harmonies are part of the song the singer sings over.
         Assert.Equal(100, service.Current.BackingVocalVolume);
 
         await service.SaveAsync(new AppSettings { BackingVocalVolume = 60 });

@@ -8,14 +8,14 @@ using Microsoft.Extensions.Options;
 namespace KHost.IntegrationTests.Domain.Services;
 
 /// <summary>Drives real ffmpeg, and skips where it is not installed.</summary>
-public class HlsMediaStreamServiceTranscodeTests : IDisposable
+public class HlsMediaStreamServiceEncodeTests : IDisposable
 {
     private readonly string _workingDirectory =
-        Path.Combine(Path.GetTempPath(), $"khost-transcode-tests-{Guid.NewGuid():n}");
+        Path.Combine(Path.GetTempPath(), $"khost-encode-tests-{Guid.NewGuid():n}");
 
     private readonly HlsMediaStreamService _service;
 
-    public HlsMediaStreamServiceTranscodeTests()
+    public HlsMediaStreamServiceEncodeTests()
         => _service = new HlsMediaStreamService(
             NullLogger<HlsMediaStreamService>.Instance,
             new TestOptionsMonitor<HlsMediaStreamService.ServiceOptions>(new HlsMediaStreamService.ServiceOptions
@@ -61,7 +61,7 @@ public class HlsMediaStreamServiceTranscodeTests : IDisposable
     }
 
     [RequiresFfmpegFact]
-    public async Task OpenAsync_ThrowsAndCleansUp_WhenTheSourceCannotBeTranscoded()
+    public async Task OpenAsync_ThrowsAndCleansUp_WhenTheSourceCannotBeEncoded()
     {
         Directory.CreateDirectory(_workingDirectory);
         var notMedia = Path.Combine(_workingDirectory, "notmedia.mp4");
@@ -71,7 +71,7 @@ public class HlsMediaStreamServiceTranscodeTests : IDisposable
     }
 
     [RequiresFfmpegFact]
-    public async Task CloseAsync_StopsTheTranscodeAndDiscardsItsSegments()
+    public async Task CloseAsync_StopsTheEncodeAndDiscardsItsSegments()
     {
         var source = await CreateSampleAsync(seconds: 4);
         var session = await _service.OpenAsync(source);
@@ -233,7 +233,7 @@ public class HlsMediaStreamServiceTranscodeTests : IDisposable
     }
 
     [RequiresFfmpegFact]
-    public async Task OpenAsync_TranscodesPitchUpAgainstTempoDown()
+    public async Task OpenAsync_EncodesPitchUpAgainstTempoDown()
     {
         var source = await CreateSampleAsync(seconds: 6);
 

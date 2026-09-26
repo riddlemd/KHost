@@ -9,7 +9,7 @@ namespace KHost.UnitTests.Domain.Services;
 /// is the routing: these never reach ffprobe.</summary>
 public class MediaProbeServiceTests
 {
-    private const string Kit = "/library/example/6229.kit";
+    private const string SourceFile = "/library/example/6229.src";
 
     // Substituted rather than the real ffprobe: what these test is who gets asked, and a real
     // fallback answers null for every path that does not exist, which hides being called at all.
@@ -38,7 +38,7 @@ public class MediaProbeServiceTests
     {
         var expected = new MediaProbeResult { Duration = TimeSpan.FromSeconds(243) };
 
-        var result = await Service(Probe(claims: true, expected)).ProbeAsync(Kit);
+        var result = await Service(Probe(claims: true, expected)).ProbeAsync(SourceFile);
 
         Assert.Same(expected, result);
     }
@@ -69,7 +69,7 @@ public class MediaProbeServiceTests
             NullLogger<MediaProbeService>.Instance, [_fallback, owner], _fallback);
 
 
-        Assert.Same(expected, await service.ProbeAsync(Kit));
+        Assert.Same(expected, await service.ProbeAsync(SourceFile));
     }
 
     /// <summary>Its own format, and it could not read it. Falling through to ffprobe would only
@@ -83,7 +83,7 @@ public class MediaProbeServiceTests
         _fallback.ProbeAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(new MediaProbeResult { Duration = TimeSpan.FromSeconds(9) });
 
-        Assert.Null(await Service(Probe(claims: true, result: null)).ProbeAsync(Kit));
+        Assert.Null(await Service(Probe(claims: true, result: null)).ProbeAsync(SourceFile));
         await _fallback.DidNotReceive().ProbeAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
     }
 
@@ -97,7 +97,7 @@ public class MediaProbeServiceTests
 
         var expected = new MediaProbeResult { Duration = TimeSpan.FromSeconds(1) };
 
-        Assert.Same(expected, await Service(thrower, Probe(claims: true, expected)).ProbeAsync(Kit));
+        Assert.Same(expected, await Service(thrower, Probe(claims: true, expected)).ProbeAsync(SourceFile));
     }
 
     /// <summary>A plugin that throws reading its own file answers null, the same as one that
@@ -112,7 +112,7 @@ public class MediaProbeServiceTests
         _fallback.ProbeAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(new MediaProbeResult { Duration = TimeSpan.FromSeconds(9) });
 
-        Assert.Null(await Service(thrower).ProbeAsync(Kit));
+        Assert.Null(await Service(thrower).ProbeAsync(SourceFile));
         await _fallback.DidNotReceive().ProbeAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
     }
 
@@ -123,7 +123,7 @@ public class MediaProbeServiceTests
         var first = Probe(claims: true, new MediaProbeResult { Duration = TimeSpan.FromSeconds(1) });
         var second = Probe(claims: true, new MediaProbeResult { Duration = TimeSpan.FromSeconds(2) });
 
-        var result = await Service(first, second).ProbeAsync(Kit);
+        var result = await Service(first, second).ProbeAsync(SourceFile);
 
         Assert.Equal(TimeSpan.FromSeconds(1), result!.Duration);
         await second.DidNotReceive().ProbeAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());

@@ -110,7 +110,7 @@ public class NowPlayingPanelTests : BunitContext
     [Fact]
     public void Lanes_TimedLyrics_DrawOneRectPerSungStretchInItsSingersColour()
     {
-        var media = Song("duet.kit");
+        var media = Song("duet.mp4");
         _lyrics.GetTimedLyricsAsync(media.FilePath, Arg.Any<CancellationToken>()).Returns(Duet());
         Load(Performance(), media);
 
@@ -128,7 +128,7 @@ public class NowPlayingPanelTests : BunitContext
     [Fact]
     public void Lanes_ALaneWithNoColour_TakesTheThemeClassAndNoFill()
     {
-        var media = Song("plain.kit");
+        var media = Song("plain.mp4");
         _lyrics.GetTimedLyricsAsync(media.FilePath, Arg.Any<CancellationToken>())
             .Returns(Lyrics(new LyricPage { ShowFromSeconds = 0, ShowUntilSeconds = 240, Lines = [Line(60, 120)] }));
         Load(Performance(), media);
@@ -142,7 +142,7 @@ public class NowPlayingPanelTests : BunitContext
     [Fact]
     public void Lanes_PlayedWash_CoversTheSongUpToThePlayhead()
     {
-        var media = Song("duet.kit");
+        var media = Song("duet.mp4");
         _lyrics.GetTimedLyricsAsync(media.FilePath, Arg.Any<CancellationToken>()).Returns(Duet());
         _playback.Position.Returns(TimeSpan.FromSeconds(60));
         Load(Performance(), media);
@@ -175,7 +175,7 @@ public class NowPlayingPanelTests : BunitContext
     [Fact]
     public void Lanes_PositionTicks_ReadTheLyricsOncePerSong()
     {
-        var media = Song("duet.kit");
+        var media = Song("duet.mp4");
         _lyrics.GetTimedLyricsAsync(media.FilePath, Arg.Any<CancellationToken>()).Returns(Duet());
         Load(Performance(), media);
 
@@ -192,8 +192,8 @@ public class NowPlayingPanelTests : BunitContext
     [Fact]
     public void Lanes_TheNextSong_ReadsItsOwnLyrics()
     {
-        var first = Song("duet.kit");
-        var second = Song("solo.kit");
+        var first = Song("duet.mp4");
+        var second = Song("solo.mp4");
         _lyrics.GetTimedLyricsAsync(first.FilePath, Arg.Any<CancellationToken>()).Returns(Duet());
         _lyrics.GetTimedLyricsAsync(second.FilePath, Arg.Any<CancellationToken>())
             .Returns(Lyrics(new LyricPage { ShowFromSeconds = 0, ShowUntilSeconds = 240, Voice = "solo", Lines = [Line(0, 10)] }));
@@ -212,7 +212,7 @@ public class NowPlayingPanelTests : BunitContext
     [Fact]
     public void Lanes_AReadThatFinishesAfterTheSongChanged_IsDiscarded()
     {
-        var first = Song("duet.kit");
+        var first = Song("duet.mp4");
         var second = Song("plain.mp4");
         var slow = new TaskCompletionSource<TimedLyrics?>();
         _lyrics.GetTimedLyricsAsync(first.FilePath, Arg.Any<CancellationToken>()).Returns(slow.Task);
