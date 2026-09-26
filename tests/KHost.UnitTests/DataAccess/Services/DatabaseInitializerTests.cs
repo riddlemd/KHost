@@ -6,6 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 using KHost.Abstractions.Services;
 using KHost.DataAccess.Repositories;
 using KHost.DataAccess.Services;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using static KHost.DataAccess.Services.DatabaseInitializer;
@@ -22,12 +23,13 @@ public class DatabaseInitializerTests
     private readonly IMediaFileParsingService _mediaFileParsingService = Substitute.For<IMediaFileParsingService>();
     private readonly IOptionsMonitor<ServiceOptions> _optionsMonitor = Substitute.For<IOptionsMonitor<ServiceOptions>>();
 
-    private DatabaseInitializer CreateSut(ServiceOptions options, IDbContextFactory<DefaultContext>? factory = null)
+    private DatabaseInitializer CreateSut(
+        ServiceOptions options, IDbContextFactory<DefaultContext>? factory = null, ILogger<DatabaseInitializer>? logger = null)
     {
         _optionsMonitor.CurrentValue.Returns(options);
         return new DatabaseInitializer(
             factory!,
-            NullLogger<DatabaseInitializer>.Instance,
+            logger ?? NullLogger<DatabaseInitializer>.Instance,
             _optionsMonitor,
             _usersService,
             _userGroupsService,
@@ -156,52 +158,131 @@ public class DatabaseInitializerTests
         await _mediaFileParsingService.DidNotReceive().LoadAndParseAsync(Arg.Any<string>());
     }
 
+    /// <summary>Real files, since the seeder asks the disk whether each one is there.</summary>
+    private static string TempMediaFile(string name)
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "khost-seed-" + Guid.NewGuid().ToString("n"));
+        Directory.CreateDirectory(directory);
+        var path = Path.Combine(directory, name);
+        File.WriteAllBytes(path, [0]);
+        return path;
+    }
+
+    private static void DeleteTempMediaFile(string path)
+    {
+        try { Directory.Delete(Path.GetDirectoryName(path)!, recursive: true); } catch { /* scratch */ }
+    }
+
+    private static ServiceOptions Seeding(params string[] paths) => new()
+    {
+        DefaultMedia = [.. paths.Select(path => new ServiceOptions.DefaultMediaOptions { FilePath = path })],
+    };
+
     [Fact]
     public async Task SeedDefaultMediaAsync_ParsesAndCreatesEachFile()
     {
-        _mediaService.HasAnyAsync().Returns(false);
-        var mediaA = new Media { Title = "A", FilePath = "a.mp4" };
-        var mediaB = new Media { Title = "B", FilePath = "b.mp4" };
-        _mediaFileParsingService.LoadAndParseAsync("a.mp4").Returns(mediaA);
-        _mediaFileParsingService.LoadAndParseAsync("b.mp4").Returns(mediaB);
-        _mediaService.CreateAsync(Arg.Any<Media>()).Returns(c => c.Arg<Media>());
-
-        var sut = CreateSut(new ServiceOptions
+        var a = TempMediaFile("a.mp4");
+        var b = TempMediaFile("b.mp4");
+        try
         {
-            DefaultMedia =
-            [
-                new ServiceOptions.DefaultMediaOptions { FilePath = "a.mp4" },
-                new ServiceOptions.DefaultMediaOptions { FilePath = "b.mp4" },
-            ]
-        });
+            _mediaService.HasAnyAsync().Returns(false);
+            var mediaA = new Media { Title = "A", FilePath = a };
+            var mediaB = new Media { Title = "B", FilePath = b };
+            _mediaFileParsingService.LoadAndParseAsync(a).Returns(mediaA);
+            _mediaFileParsingService.LoadAndParseAsync(b).Returns(mediaB);
+            _mediaService.CreateAsync(Arg.Any<Media>()).Returns(c => c.Arg<Media>());
 
-        await sut.SeedDefaultMediaAsync();
+            await CreateSut(Seeding(a, b)).SeedDefaultMediaAsync();
 
-        await _mediaService.Received(1).CreateAsync(mediaA);
-        await _mediaService.Received(1).CreateAsync(mediaB);
+            await _mediaService.Received(1).CreateAsync(mediaA);
+            await _mediaService.Received(1).CreateAsync(mediaB);
+        }
+        finally
+        {
+            DeleteTempMediaFile(a);
+            DeleteTempMediaFile(b);
+        }
     }
 
     [Fact]
     public async Task SeedDefaultMediaAsync_ContinuesAfterOneFileFailure()
     {
-        _mediaService.HasAnyAsync().Returns(false);
-        _mediaFileParsingService.LoadAndParseAsync("bad.mp4").Returns(Task.FromException<Media>(new InvalidOperationException("parse error")));
-        var mediaB = new Media { Title = "B", FilePath = "good.mp4" };
-        _mediaFileParsingService.LoadAndParseAsync("good.mp4").Returns(mediaB);
-        _mediaService.CreateAsync(Arg.Any<Media>()).Returns(c => c.Arg<Media>());
-
-        var sut = CreateSut(new ServiceOptions
+        var bad = TempMediaFile("bad.mp4");
+        var good = TempMediaFile("good.mp4");
+        try
         {
-            DefaultMedia =
-            [
-                new ServiceOptions.DefaultMediaOptions { FilePath = "bad.mp4" },
-                new ServiceOptions.DefaultMediaOptions { FilePath = "good.mp4" },
-            ]
-        });
+            _mediaService.HasAnyAsync().Returns(false);
+            _mediaFileParsingService.LoadAndParseAsync(bad).Returns(Task.FromException<Media>(new InvalidOperationException("parse error")));
+            var mediaB = new Media { Title = "B", FilePath = good };
+            _mediaFileParsingService.LoadAndParseAsync(good).Returns(mediaB);
+            _mediaService.CreateAsync(Arg.Any<Media>()).Returns(c => c.Arg<Media>());
 
-        await sut.SeedDefaultMediaAsync();
+            await CreateSut(Seeding(bad, good)).SeedDefaultMediaAsync();
 
-        await _mediaService.Received(1).CreateAsync(mediaB);
+            await _mediaService.Received(1).CreateAsync(mediaB);
+        }
+        finally
+        {
+            DeleteTempMediaFile(bad);
+            DeleteTempMediaFile(good);
+        }
+    }
+
+    /// <summary>The parser would answer a missing file with a Ready row and no duration, which
+    /// the queue offers and the screens cannot play, so nothing is made for it.</summary>
+    [Fact]
+    public async Task SeedDefaultMediaAsync_AFileThatIsNotThere_IsNotSeeded()
+    {
+        var present = TempMediaFile("present.mp4");
+        var missing = Path.Combine(Path.GetDirectoryName(present)!, "missing.mp4");
+        try
+        {
+            _mediaService.HasAnyAsync().Returns(false);
+            _mediaFileParsingService.LoadAndParseAsync(Arg.Any<string>())
+                .Returns(c => new Media { Title = "T", FilePath = c.Arg<string>(), Status = MediaStatus.Ready });
+            _mediaService.CreateAsync(Arg.Any<Media>()).Returns(c => c.Arg<Media>());
+            var logger = new RecordingLogger();
+
+            await CreateSut(Seeding(missing, present), logger: logger).SeedDefaultMediaAsync();
+
+            await _mediaService.DidNotReceive().CreateAsync(Arg.Is<Media>(m => m.FilePath == missing));
+            await _mediaService.Received(1).CreateAsync(Arg.Is<Media>(m => m.FilePath == present));
+            Assert.Contains(logger.Entries, e => e.Level == LogLevel.Information && e.Message.Contains(missing, StringComparison.Ordinal));
+        }
+        finally { DeleteTempMediaFile(present); }
+    }
+
+    /// <summary>Seeding runs on every start; a library it already filled is left alone.</summary>
+    [Fact]
+    public async Task SeedDefaultMediaAsync_RunTwice_SeedsAnExistingFileOnce()
+    {
+        var path = TempMediaFile("once.mp4");
+        try
+        {
+            var seeded = false;
+            _mediaService.HasAnyAsync().Returns(_ => seeded);
+            _mediaFileParsingService.LoadAndParseAsync(path).Returns(_ => new Media { Title = "Once", FilePath = path });
+            _mediaService.CreateAsync(Arg.Any<Media>()).Returns(c => { seeded = true; return c.Arg<Media>(); });
+            var sut = CreateSut(Seeding(path));
+
+            await sut.SeedDefaultMediaAsync();
+            await sut.SeedDefaultMediaAsync();
+
+            await _mediaService.Received(1).CreateAsync(Arg.Is<Media>(m => m.FilePath == path));
+        }
+        finally { DeleteTempMediaFile(path); }
+    }
+
+    private sealed class RecordingLogger : ILogger<DatabaseInitializer>
+    {
+        public List<(LogLevel Level, string Message)> Entries { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+            => Entries.Add((logLevel, formatter(state, exception)));
     }
 
     [Fact]

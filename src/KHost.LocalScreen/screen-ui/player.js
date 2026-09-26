@@ -52,7 +52,11 @@ const introLayer = document.getElementById('intro-layer');
 const introCard = createIntroCard(introLayer, songClock);
 
 // Runs out into the song: the element or the mix is started only once the hold is over.
-const leadIn = createLeadInHold(() => target().play().catch((e) => reportError(`play: ${e}`)));
+// Reported at once either way, so the host's clock holds with it rather than a report later.
+const leadIn = createLeadInHold(() => {
+    target().play().catch((e) => reportError(`play: ${e}`));
+    reportState();
+});
 
 // The words as the host sent them, kept so the lead-in's bar can be put on and taken off again.
 let words = { lyrics: null, intro: null, leadInSeconds: 0, led: false };
@@ -879,6 +883,7 @@ function handleCommand(raw) {
             if (leadIn.armed && atSongStart()) {
                 showLyrics(true);
                 leadIn.start();
+                reportState();
                 break;
             }
 
@@ -992,7 +997,9 @@ videos.forEach((v) => {
     v.addEventListener('loadeddata', () => { placeholder.hidden = true; });
     // Only from the player the room is hearing: the outgoing one runs out during a handover, and
     // that would retire the singer on the strength of a stream nobody is listening to any more.
-    v.addEventListener('ended', () => { if (v === current.el) send({ type: 'ended' }); });
+    v.addEventListener('ended', () => {
+        if (v === current.el) send({ type: 'ended', position: v.currentTime, sampledAtEpochMs: Date.now() });
+    });
     v.addEventListener('error', () => {
         if (v !== current.el) return;
 
@@ -1045,10 +1052,31 @@ const watchForWake = createWakeWatch((asleepMs) => {
     if (stemMixer) rebuildStemsAfterWake();
 });
 
+// A stem mix has no element to fire 'ended', so it is told once per run to its end: the host
+// otherwise waits on a clock that a mix sitting past its last sample never corrects.
+let stemEndReported = null;
+
+function reportStemEnd() {
+    if (!stemMixer) return;
+
+    if (!stemMixer.ended) {
+        if (stemEndReported === stemMixer) stemEndReported = null;
+        return;
+    }
+
+    if (stemEndReported === stemMixer) return;
+    stemEndReported = stemMixer;
+    send({ type: 'ended', position: stemMixer.currentTime, sampledAtEpochMs: Date.now() });
+}
+
 // The host polls nothing; position reaches it only through these reports.
 setInterval(() => {
     watchForWake();
+    reportStemEnd();
+    reportState();
+}, 250);
 
+function reportState() {
     // The engine when it holds the song: reporting the idle video element's zero would move the
     // host's playhead back to the start of a song that is still playing.
     const player = target();
@@ -1062,6 +1090,8 @@ setInterval(() => {
         position: holding ? 0 : Number.isFinite(player.currentTime) ? player.currentTime : 0,
         duration: Number.isFinite(player.duration) ? player.duration : 0,
         playing: holding ? !leadIn.paused : !player.paused && !player.ended && player.readyState > 2,
+        // Said outright rather than left to the zero: the host freezes its clock on it.
+        holding,
         // Sample time, not send time: guessed latency would bias the host's playhead forever.
         sampledAtEpochMs: Date.now(),
         rate: player.playbackRate,
@@ -1069,7 +1099,7 @@ setInterval(() => {
         // A stem mix's context state; undefined for an element, so it drops out of the JSON.
         audioState: player.audioState,
     });
-}, 250);
+}
 
 if (window.external && window.external.receiveMessage) {
     window.external.receiveMessage(handleCommand);

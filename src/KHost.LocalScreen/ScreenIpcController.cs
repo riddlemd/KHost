@@ -33,6 +33,7 @@ internal sealed class ScreenIpcController : IAsyncDisposable
         _client.CommandReceived += OnCommandReceived;
         _client.StateChanged += OnClientStateChanged;
         _player.PlaybackEnded += OnPlaybackEnded;
+        _player.HoldingChanged += OnHoldingChanged;
         _player.BackgroundEnded += OnBackgroundEnded;
     }
 
@@ -209,7 +210,9 @@ internal sealed class ScreenIpcController : IAsyncDisposable
         or StopBackgroundCommand
         or SetBackgroundVolumeCommand;
 
-    private void OnPlaybackEnded(object? sender, EventArgs e) => _ = SendCurrentStateAsync();
+    private void OnPlaybackEnded(object? sender, EventArgs e) => _ = SendCurrentStateAsync(hasEnded: true);
+
+    private void OnHoldingChanged(object? sender, EventArgs e) => _ = SendCurrentStateAsync();
 
     private void OnBackgroundEnded(object? sender, EventArgs e) => _ = SendBackgroundStateAsync(hasEnded: true);
 
@@ -232,7 +235,8 @@ internal sealed class ScreenIpcController : IAsyncDisposable
         }
     }
 
-    public async Task SendCurrentStateAsync()
+    /// <param name="hasEnded">True only for the one report sent as the song plays out.</param>
+    public async Task SendCurrentStateAsync(bool hasEnded = false)
     {
         var state = new ScreenPlaybackState
         {
@@ -241,6 +245,8 @@ internal sealed class ScreenIpcController : IAsyncDisposable
             Position = _player.Position,
             Duration = _player.Duration,
             SampledAtUtc = _player.SampledAtUtc,
+            HasEnded = hasEnded,
+            IsHolding = _player.IsHolding,
         };
 
         try
@@ -264,6 +270,7 @@ internal sealed class ScreenIpcController : IAsyncDisposable
             _hostLostTimer = null;
         }
         _player.PlaybackEnded -= OnPlaybackEnded;
+        _player.HoldingChanged -= OnHoldingChanged;
         _player.BackgroundEnded -= OnBackgroundEnded;
         await _client.DisconnectAsync();
         if (_client is IAsyncDisposable disposable) await disposable.DisposeAsync();

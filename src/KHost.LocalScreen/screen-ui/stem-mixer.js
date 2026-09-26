@@ -139,6 +139,10 @@ function createStemMixer(stems, startOffsetSeconds, reportError, volume = 1) {
 
         get paused() { return !sounding(); },
 
+        /// Started and run past its longest stem. The context clock runs on past the last sample,
+        /// so without this a finished mix reads as playing forever.
+        get ended() { return startedAt !== null && songTime() >= longest(); },
+
         /// Carried on the state report, so a mix stalled on its context shows in a debug log.
         get audioState() { return ctx.state; },
 

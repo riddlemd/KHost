@@ -40,6 +40,10 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
 
     private const int ClockIntervalMs = 500;
 
+    /// <summary>How long after a load, seek or play an end the display reports is still taken to
+    /// belong to what came before it.</summary>
+    private static readonly TimeSpan EndedSettle = TimeSpan.FromSeconds(1);
+
     // _timer's swap is read-then-assign, reached from the UI dispatcher and Task.Run continuations at once;
     // unguarded, the loser's Timer becomes unreachable but keeps ticking, driving a second clock forever.
     private readonly Lock _clockLock = new();
@@ -51,6 +55,20 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
     private int _ticking;
 
     private DateTime _lastTick;
+
+    // Moves on every reset and every conclusion, under _clockLock. A conclusion claims the value it
+    // was raised under, so the clock and the display's own end cannot both retire one song.
+    private long _generation;
+
+    // The screen is holding the song before its start: the playhead sits at zero, not running on.
+    private bool _holding;
+
+    private DateTime _transportMovedAtUtc = DateTime.MinValue;
+
+    /// <summary>Where the display's end is concluded: off the hub thread that reported it.</summary>
+    /// <remarks>A seam so a test can hold that work back until the clock has concluded, which is the
+    /// one interleaving the single-fire claim exists for and the thread pool will not reproduce.</remarks>
+    internal Action<Func<Task>> DeferConclusion { get; set; } = work => _ = Task.Run(work);
 
     // Connect and disconnect both arrive as fire-and-forget continuations, so without this they
     // can interleave and a reconnect's resume races the disconnect's pause.
@@ -161,6 +179,13 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
 
         foreach (var display in _displays)
             display.PlaybackStatusChanged += OnDisplayStatusReceived;
+
+        // The contract has no way to say either, so only the screens report them.
+        foreach (var screen in _displays.OfType<LocalScreenDisplayProvider>())
+        {
+            screen.SongEnded += OnDisplaySongEnded;
+            screen.HoldingBeforeSong += OnDisplayHolding;
+        }
 
         // A display joining, rejoining or going away, screens included: each says so here.
         _displaySubscription = _broker.Subscribe<DisplaysChanged>(message => { _ = Task.Run(SyncDisplaySessionAsync); });
@@ -446,6 +471,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         }
 
         CurrentlyPerformingUserId = CurrentPerformance?.SingerId;
+        MarkTransportMoved();
 
         // Leaving Stopping here is what tells an in-flight StopAsync to abandon its completion.
         State = PlaybackState.Playing;
@@ -494,6 +520,10 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         // Stopped first: the tick would otherwise carry the old position over the new one.
         StopClock();
         Position = target;
+
+        // The screen drops the rest of a hold on a seek and starts the song there.
+        lock (_clockLock) _holding = false;
+        MarkTransportMoved();
 
         Logger.LogInformation("Seeking to {Position}", target);
 
@@ -744,6 +774,11 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         {
             foreach (var display in _displays)
                 display.PlaybackStatusChanged -= OnDisplayStatusReceived;
+            foreach (var screen in _displays.OfType<LocalScreenDisplayProvider>())
+            {
+                screen.SongEnded -= OnDisplaySongEnded;
+                screen.HoldingBeforeSong -= OnDisplayHolding;
+            }
             _displaySubscription?.Dispose();
             _displaySubscription = null;
 
@@ -875,6 +910,12 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
     private void ResetState()
     {
         StopClock();
+
+        lock (_clockLock)
+        {
+            _generation++;
+            _holding = false;
+        }
 
         _sessionActivity?.Dispose();
         _sessionActivity = null;
@@ -1204,7 +1245,15 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
     }
 
     private Task LoadOntoDisplayAsync(DisplayLoad load)
-        => ToDisplayAsync(display => display.LoadAsync(load));
+    {
+        MarkTransportMoved();
+        return ToDisplayAsync(display => display.LoadAsync(load));
+    }
+
+    private void MarkTransportMoved()
+    {
+        lock (_clockLock) _transportMovedAtUtc = DateTime.UtcNow;
+    }
 
     /// <summary>Makes one call on whatever the song is coming out of.</summary>
     /// <remarks>A provider that throws is logged, never rethrown: the caller is moving the show on
@@ -1243,8 +1292,84 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
 
         var now = DateTime.UtcNow;
 
-        Position = status.Position + ((now - status.SampledAtUtc) * Rate);
-        _lastTick = now;
+        lock (_clockLock)
+        {
+            _holding = false;
+            Position = status.Position + ((now - status.SampledAtUtc) * Rate);
+            _lastTick = now;
+        }
+    }
+
+    /// <summary>The screen is holding the song back before its start: the playhead stays at the
+    /// song's zero until a report says the song itself is running.</summary>
+    /// <remarks>State stays Playing, since the room is being led in, not paused.</remarks>
+    private void OnDisplayHolding(object? sender, DisplayPlaybackStatus status)
+    {
+        if (State != PlaybackState.Playing) return;
+        if (ConnectedDisplay.Find(_displays)?.Provider is not { } carrying || !ReferenceEquals(sender, carrying)) return;
+
+        lock (_clockLock)
+        {
+            _holding = true;
+            Position = status.Position;
+            _lastTick = DateTime.UtcNow;
+        }
+    }
+
+    /// <summary>The display played the song out: concluded here as well as on the clock, whichever
+    /// comes first, since a stream that stops short of the media's duration never runs the clock out.
+    /// </summary>
+    private void OnDisplaySongEnded(object? sender, DisplayPlaybackStatus status)
+    {
+        if (State != PlaybackState.Playing) return;
+        if (ConnectedDisplay.Find(_displays)?.Provider is not { } carrying || !ReferenceEquals(sender, carrying)) return;
+
+        long generation;
+        lock (_clockLock)
+        {
+            if (_holding) return;
+
+            // Sampled before the last load, seek or play landed, or so soon after it that the
+            // display cannot have reached an end since: the old stream's end, not this one's.
+            if (status.SampledAtUtc < _transportMovedAtUtc + EndedSettle)
+            {
+                Logger.LogInformation("Ignored an end the display reported at {Position}, from before the last seek or load", status.Position);
+                return;
+            }
+
+            generation = _generation;
+        }
+
+        DeferConclusion(async () =>
+        {
+            try
+            {
+                await ConcludeAsync(generation, "the display reached the end");
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "Failed to conclude the song the display finished");
+            }
+        });
+    }
+
+    /// <summary>Retires the song that was playing under <paramref name="generation"/>, once.</summary>
+    private async Task ConcludeAsync(long generation, string why)
+    {
+        lock (_clockLock)
+        {
+            // Claimed by moving the generation on, so the other path finds it spent.
+            if (generation != _generation) return;
+            _generation++;
+        }
+
+        ResetState();
+
+        Logger.LogInformation("Playback concluded: {Why}", why);
+
+        await EndedAsync();
+
+        _broker.Announce(new PlaybackChanged());
     }
 
     private async void OnTick(object? state)
@@ -1269,6 +1394,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
 
     internal async Task TickAsync()
     {
+        long generation;
         lock (_clockLock)
         {
             // Timer.Dispose does not wait out a callback already running, so a tick can land after
@@ -1278,20 +1404,16 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
             var now = DateTime.UtcNow;
 
             // Position is song time and the clock is wall time, so a retimed song covers more or
-            // less of itself per tick.
-            Position += (now - _lastTick) * Rate;
+            // less of itself per tick. A hold is the song not yet started, so it covers none.
+            if (!_holding)
+                Position += (now - _lastTick) * Rate;
             _lastTick = now;
+            generation = _generation;
         }
 
         if (HasPlaybackEnded())
         {
-            ResetState();
-
-            Logger.LogInformation("Playback concluded");
-
-            await EndedAsync();
-
-            _broker.Announce(new PlaybackChanged());
+            await ConcludeAsync(generation, "the clock reached the media's duration");
             return;
         }
 

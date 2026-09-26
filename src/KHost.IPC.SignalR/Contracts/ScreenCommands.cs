@@ -370,4 +370,13 @@ public sealed class ScreenPlaybackState : ScreenStateBase
 
     /// <summary>Sample time via the screen's measured offset. Null before one is established.</summary>
     public DateTime? SampledAtUtc { get; init; }
+
+    /// <summary>True exactly once per song, when it played out to its end on the screen.</summary>
+    /// <remarks>How a song that sits at its end still reporting playing gets concluded: the host's
+    /// clock alone waits for a duration the stream may never quite reach.</remarks>
+    public bool HasEnded { get; init; }
+
+    /// <summary>Whether the screen is holding the song back before its start, so a singer is led in.
+    /// <see cref="Position"/> is then the song's zero and does not move until the hold runs out.</summary>
+    public bool IsHolding { get; init; }
 }

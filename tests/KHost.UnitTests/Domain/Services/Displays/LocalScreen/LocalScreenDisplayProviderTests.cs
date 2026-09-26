@@ -387,6 +387,73 @@ public class LocalScreenDisplayProviderTests
         Assert.Equal(0, raised);
     }
 
+    private static ScreenPlaybackState SongReport(string? streamUrl, bool hasEnded = false, bool isHolding = false) => new()
+    {
+        StreamUrl = streamUrl,
+        IsPlaying = !hasEnded,
+        Position = TimeSpan.FromSeconds(hasEnded ? 180 : 0),
+        Duration = TimeSpan.FromMinutes(3),
+        SampledAtUtc = DateTime.UtcNow,
+        HasEnded = hasEnded,
+        IsHolding = isHolding,
+    };
+
+    [Fact]
+    public async Task TheSongEnding_RaisesSongEnded_AndNotTheSongsClock()
+    {
+        await _provider.LoadAsync(new DisplayLoad { StreamUrl = "http://host/s.m3u8" });
+        DisplayPlaybackStatus? ended = null;
+        var clocked = 0;
+        _provider.SongEnded += (_, status) => ended = status;
+        _provider.PlaybackStatusChanged += (_, _) => clocked++;
+
+        RaiseState(SongReport("http://host/s.m3u8", hasEnded: true));
+
+        Assert.NotNull(ended);
+        Assert.Equal(TimeSpan.FromSeconds(180), ended.Position);
+        Assert.Equal(0, clocked);
+    }
+
+    /// <summary>A stems-only load has no stream, which the screen reports as empty.</summary>
+    [Fact]
+    public async Task TheSongEnding_OnAStemsOnlyLoad_RaisesSongEnded()
+    {
+        await _provider.LoadAsync(new DisplayLoad { StreamUrl = null });
+        var ended = 0;
+        _provider.SongEnded += (_, _) => ended++;
+
+        RaiseState(SongReport(string.Empty, hasEnded: true));
+
+        Assert.Equal(1, ended);
+    }
+
+    /// <summary>The old stream's end arriving after a rebuild loaded a new one is not this song's.</summary>
+    [Fact]
+    public async Task AnEndForAStreamNoLongerLoaded_IsDropped()
+    {
+        await _provider.LoadAsync(new DisplayLoad { StreamUrl = "http://host/new.m3u8" });
+        var ended = 0;
+        _provider.SongEnded += (_, _) => ended++;
+
+        RaiseState(SongReport("http://host/old.m3u8", hasEnded: true));
+
+        Assert.Equal(0, ended);
+    }
+
+    [Fact]
+    public void AHoldingReport_RaisesHoldingBeforeSong_AndNotTheSongsClock()
+    {
+        var holding = 0;
+        var clocked = 0;
+        _provider.HoldingBeforeSong += (_, _) => holding++;
+        _provider.PlaybackStatusChanged += (_, _) => clocked++;
+
+        RaiseState(SongReport("http://host/s.m3u8", isHolding: true));
+
+        Assert.Equal(1, holding);
+        Assert.Equal(0, clocked);
+    }
+
     /// <summary>The bed ending is the second channel's news; the song's clock must not see it.</summary>
     [Fact]
     public void TheBedEnding_RaisesBackgroundTrackEnded_AndNotTheSongsClock()

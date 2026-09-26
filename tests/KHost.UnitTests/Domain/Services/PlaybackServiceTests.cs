@@ -2136,6 +2136,235 @@ public class PlaybackServiceTests : IDisposable
         await _performanceService.Received().DequeueAsync(performance.SingerId, performance.Id);
     }
 
+    // --- the display's own end, and a lead-in hold ---
+
+    /// <summary>A song the screen says it finished, reported well after the play that started it.</summary>
+    private void RaiseScreenEnded(TimeSpan? sampledAfterNow = null, string? streamUrl = null)
+        => RaiseScreenReport(hasEnded: true, sampledAtUtc: DateTime.UtcNow + (sampledAfterNow ?? TimeSpan.FromSeconds(2)), streamUrl: streamUrl);
+
+    private void RaiseScreenReport(
+        bool hasEnded = false, bool isHolding = false, TimeSpan? position = null, DateTime? sampledAtUtc = null, string? streamUrl = null)
+        => _screenServer.StateReceived += Raise.EventWith(_screenServer, new ScreenStateReceivedEventArgs
+        {
+            ScreenId = "Screen 1",
+            State = new ScreenPlaybackState
+            {
+                // What the screen was last loaded with, unless a test says otherwise.
+                StreamUrl = streamUrl ?? LastBroadcast<LoadMediaCommand>()?.StreamUrl ?? string.Empty,
+                IsPlaying = !hasEnded,
+                Position = position ?? TimeSpan.Zero,
+                Duration = TimeSpan.FromMinutes(4),
+                SampledAtUtc = sampledAtUtc ?? DateTime.UtcNow,
+                HasEnded = hasEnded,
+                IsHolding = isHolding,
+            },
+        });
+
+    private async Task<(Performance Performance, Media Media)> PlayingAsync(TimeSpan? duration = null)
+    {
+        var (performance, media) = CreatePerformance();
+        media.Duration = duration ?? TimeSpan.FromHours(1);
+
+        await _service.LoadAsync(performance, media);
+        await _service.PlayAsync();
+
+        return (performance, media);
+    }
+
+    /// <summary>A stream that stops short of the media's duration never runs the clock out, so the
+    /// display's own end concludes the song.</summary>
+    [Fact]
+    public async Task SongEnded_WhilePlaying_ConcludesTheSong()
+    {
+        var (performance, _) = await PlayingAsync();
+
+        RaiseScreenEnded();
+        await WaitForAsync(() => _service.State == PlaybackState.Stopped);
+
+        Assert.Equal(PlaybackState.Stopped, _service.State);
+        Assert.Null(_service.CurrentPerformance);
+        await _performanceService.Received(1).DequeueAsync(performance.SingerId, performance.Id);
+        await _queueService.Received(1).RotateQueueAsync(performance.SingerId);
+    }
+
+    [Fact]
+    public async Task SongEnded_ReportedTwice_ConcludesOnce()
+    {
+        var (performance, _) = await PlayingAsync();
+
+        RaiseScreenEnded();
+        RaiseScreenEnded();
+        await WaitForAsync(() => _service.State == PlaybackState.Stopped);
+        await Task.Delay(50);
+
+        await _performanceService.Received(1).DequeueAsync(performance.SingerId, performance.Id);
+        await _queueService.Received(1).RotateQueueAsync(performance.SingerId);
+    }
+
+    /// <summary>The clock and the display's end arriving together retire the song once, never
+    /// twice: a second dequeue and rotation would cost the next singer their turn.</summary>
+    /// <remarks>The end is accepted while the song still plays, the clock then concludes it and parks
+    /// inside its stream close, and only then does the end's deferred conclusion run. Past the
+    /// guard it concludes the song a second time: the dequeue happens once only because the first
+    /// conclusion has not yet read the song, so the conclusion itself is what is counted.</remarks>
+    [Fact]
+    public async Task SongEnded_RacingTheClock_ConcludesOnce()
+    {
+        var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        _mediaStreams.CloseAsync(Arg.Any<string>()).Returns(_ => gate.Task);
+        Func<Task>? deferred = null;
+        _service.DeferConclusion = work => deferred = work;
+
+        var (performance, _) = await PlayingAsync(TimeSpan.FromMilliseconds(1));
+        await Task.Delay(5);
+
+        RaiseScreenEnded();
+        var tick = _service.TickAsync();
+        Assert.NotNull(deferred);
+        var late = deferred();
+
+        gate.SetResult();
+        await Task.WhenAll(tick, late);
+
+        Assert.Single(_logger.Entries.ToArray(), e => e.Message.StartsWith("Playback concluded", StringComparison.Ordinal));
+        _queueService.Received(1).UnlockTopSlot();
+        await _performanceService.Received(1).DequeueAsync(performance.SingerId, performance.Id);
+        await _queueService.Received(1).RotateQueueAsync(performance.SingerId);
+    }
+
+    /// <summary>After a rebuild the old stream can still play out; its end is not this song's.</summary>
+    [Fact]
+    public async Task SongEnded_ForAStreamNoLongerLoaded_IsIgnored()
+    {
+        await PlayingAsync();
+
+        RaiseScreenEnded(streamUrl: "http://host/media/an-old-stream/stream.m3u8");
+        await Task.Delay(100);
+
+        Assert.Equal(PlaybackState.Playing, _service.State);
+        await _performanceService.DidNotReceive().DequeueAsync(Arg.Any<Guid>(), Arg.Any<Guid>());
+    }
+
+    /// <summary>An end sampled before the host's last seek belongs to where the song was.</summary>
+    /// <remarks>The seek lands well after the play, so it is the seek alone that rules the end out.</remarks>
+    [Fact]
+    public async Task SongEnded_SampledBeforeTheLastSeek_IsIgnored()
+    {
+        await PlayingAsync();
+        await Task.Delay(1300);
+        await _service.SeekAsync(TimeSpan.FromSeconds(30));
+
+        RaiseScreenEnded(sampledAfterNow: TimeSpan.FromMilliseconds(-100));
+        await Task.Delay(100);
+
+        Assert.Equal(PlaybackState.Playing, _service.State);
+        await _performanceService.DidNotReceive().DequeueAsync(Arg.Any<Guid>(), Arg.Any<Guid>());
+    }
+
+    /// <summary>Nor can the display have played out a song in the moment since the seek landed.</summary>
+    [Fact]
+    public async Task SongEnded_JustAfterASeek_IsIgnored()
+    {
+        await PlayingAsync();
+        await Task.Delay(1300);
+        await _service.SeekAsync(TimeSpan.FromSeconds(30));
+
+        RaiseScreenEnded(sampledAfterNow: TimeSpan.FromMilliseconds(300));
+        await Task.Delay(100);
+
+        Assert.Equal(PlaybackState.Playing, _service.State);
+    }
+
+    [Fact]
+    public async Task SongEnded_WhilePaused_IsIgnored()
+    {
+        var (performance, _) = await PlayingAsync();
+        await _service.PauseAsync();
+
+        RaiseScreenEnded();
+        await Task.Delay(100);
+
+        Assert.Equal(PlaybackState.Paused, _service.State);
+        Assert.Same(performance, _service.CurrentPerformance);
+        await _performanceService.DidNotReceive().DequeueAsync(Arg.Any<Guid>(), Arg.Any<Guid>());
+    }
+
+    [Fact]
+    public async Task SongEnded_WhileTheScreenIsHolding_IsIgnored()
+    {
+        await PlayingAsync();
+        RaiseScreenReport(isHolding: true);
+
+        RaiseScreenEnded();
+        await Task.Delay(100);
+
+        Assert.Equal(PlaybackState.Playing, _service.State);
+        await _performanceService.DidNotReceive().DequeueAsync(Arg.Any<Guid>(), Arg.Any<Guid>());
+    }
+
+    /// <summary>The screen holds the song at its zero before a singer's first words; the console's
+    /// clock holds there with it rather than running on and jumping back.</summary>
+    [Fact]
+    public async Task Holding_KeepsTheClockAtTheSongsStart()
+    {
+        await PlayingAsync();
+
+        // The clock ran on from the play before the screen said it was holding.
+        await Task.Delay(30);
+        await _service.TickAsync();
+        Assert.True(_service.Position > TimeSpan.Zero);
+
+        RaiseScreenReport(isHolding: true, sampledAtUtc: DateTime.UtcNow.AddMilliseconds(-400));
+        await Task.Delay(30);
+        await _service.TickAsync();
+        await _service.TickAsync();
+
+        Assert.Equal(TimeSpan.Zero, _service.Position);
+        Assert.Equal(PlaybackState.Playing, _service.State);
+    }
+
+    [Fact]
+    public async Task AfterTheHold_TheClockRunsOnFromTheStart()
+    {
+        await PlayingAsync();
+        RaiseScreenReport(isHolding: true);
+        await Task.Delay(30);
+        await _service.TickAsync();
+
+        RaiseScreenReport(position: TimeSpan.Zero);
+        await Task.Delay(30);
+        await _service.TickAsync();
+
+        Assert.InRange(_service.Position, TimeSpan.FromMilliseconds(1), TimeSpan.FromSeconds(1));
+    }
+
+    /// <summary>A hold reported while the host has the song paused does not move anything.</summary>
+    [Fact]
+    public async Task Holding_WhilePaused_LeavesThePlayheadAlone()
+    {
+        await PlayingAsync();
+        await _service.SeekAsync(TimeSpan.FromSeconds(30));
+        await _service.PauseAsync();
+
+        RaiseScreenReport(isHolding: true);
+
+        Assert.Equal(TimeSpan.FromSeconds(30), _service.Position);
+    }
+
+    /// <summary>A seek drops the rest of the screen's hold, so the clock runs from the seek.</summary>
+    [Fact]
+    public async Task Holding_ThenASeek_RunsTheClockAgain()
+    {
+        await PlayingAsync();
+        RaiseScreenReport(isHolding: true);
+
+        await _service.SeekAsync(TimeSpan.FromSeconds(30));
+        await Task.Delay(30);
+        await _service.TickAsync();
+
+        Assert.True(_service.Position > TimeSpan.FromSeconds(30));
+    }
+
     /// <summary>Timer.Dispose does not wait out a callback already running, so a tick can arrive
     /// after the pause stopped the clock. Calling it directly is that late callback.</summary>
     [Fact]

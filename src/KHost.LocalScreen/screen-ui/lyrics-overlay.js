@@ -60,14 +60,17 @@ function createLyricsOverlay(canvas, clock) {
         return at;
     }
 
-    /// The bar across a gap: filled left to right over its whole window, eased in and out over one
-    /// step, with the last `steps` steps counted down over it as n, n-1 … 1. It gives way to the
-    /// next page as that page arrives, whose lead-in is the cue from then on.
+    /// The bar across a gap: filled left to right, eased in and out over one step, with the last
+    /// `steps` steps counted down over it as n, n-1 … 1. It gives way to the next page as that page
+    /// arrives, whose lead-in is the cue from then on, so the fill and the count run to that moment.
     function drawCountIn(countIn, t) {
         const box = countIn.position;
         if (!box || t < countIn.startSeconds || t >= countIn.endSeconds) return;
 
         const handover = handoverAt(countIn);
+        // Counted to the page rather than the first word: the bar is gone by then, so a count to the
+        // word would never show its 1. The host's painter counts by the same rule.
+        const countTo = handover === null ? countIn.endSeconds : handover;
         // Gone by the time the page shows, not after: a singer pre-reads the first line as it lands.
         const leaving = handover === null ? 1 : 1 - progress(t, handover - HANDOVER_SECONDS, handover);
         if (leaving <= 0) return;
@@ -80,7 +83,7 @@ function createLyricsOverlay(canvas, clock) {
         const y = offsetY + box.y * scale;
         const w = box.width * scale;
         const h = box.height * scale;
-        const fill = progress(t, countIn.startSeconds, countIn.endSeconds);
+        const fill = progress(t, countIn.startSeconds, countTo);
 
         ctx2d.save();
         ctx2d.globalAlpha = alpha;
@@ -104,9 +107,9 @@ function createLyricsOverlay(canvas, clock) {
         // The countdown is not eased with the bar: the last number is the one that must be read.
         // It still leaves with the handover, or its digits land on the page's first line.
         const steps = countIn.steps || 0;
-        if (step <= 0 || steps <= 0 || t < countIn.endSeconds - steps * step) return;
+        if (step <= 0 || steps <= 0 || t < countTo - steps * step) return;
 
-        const n = Math.min(steps, Math.floor((countIn.endSeconds - t) / step) + 1);
+        const n = Math.min(steps, Math.floor((countTo - t) / step) + 1);
         const fontSize = h * 1.6;
         ctx2d.save();
         ctx2d.globalAlpha = leaving;

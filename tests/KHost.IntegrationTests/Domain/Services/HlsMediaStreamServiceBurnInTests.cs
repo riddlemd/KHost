@@ -62,12 +62,13 @@ public class HlsMediaStreamServiceBurnInTests : IDisposable
         var source = await CreateToneAsync(seconds: 120);
 
         var session = await _service.OpenBurningInAsync(source, TimeSpan.Zero, 0, 0, null, Words(120), null);
-        Assert.True(await CountProcessesReadingAsync(source) > 0, "no encode was running to stop");
+        var encoder = await _service.EncoderProcessIdAsync(session.Id);
+        Assert.True(encoder is { } running && IsRunning(running), "no encode was running to stop");
 
         await _service.CloseAsync(session.Id);
 
-        for (var i = 0; i < 40 && await CountProcessesReadingAsync(source) > 0; i++) await Task.Delay(50);
-        Assert.Equal(0, await CountProcessesReadingAsync(source));
+        for (var i = 0; i < 40 && IsRunning(encoder!.Value); i++) await Task.Delay(50);
+        Assert.False(IsRunning(encoder!.Value), "the encode outlived its session");
         Assert.False(Directory.Exists(Path.Combine(_workingDirectory, session.Id)));
     }
 
@@ -166,17 +167,18 @@ public class HlsMediaStreamServiceBurnInTests : IDisposable
         throw new TimeoutException($"the burned-in encode never finished for session {sessionId}");
     }
 
-    private static async Task<int> CountProcessesReadingAsync(string source)
+    /// <summary>By id rather than by command line, which only some platforms will read back.</summary>
+    private static bool IsRunning(int processId)
     {
-        using var process = Process.Start(new ProcessStartInfo("pgrep", $"-f \"{source}\"")
+        try
         {
-            UseShellExecute = false,
-            RedirectStandardOutput = true,
-        })!;
-
-        var output = await process.StandardOutput.ReadToEndAsync();
-        await process.WaitForExitAsync();
-        return output.Split('\n', StringSplitOptions.RemoveEmptyEntries).Length;
+            using var process = Process.GetProcessById(processId);
+            return !process.HasExited;
+        }
+        catch (ArgumentException)
+        {
+            return false;
+        }
     }
 
     private async Task<string> CreateToneAsync(int seconds)
