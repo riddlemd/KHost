@@ -291,6 +291,19 @@ function rampVolume(el, from, to, ms, stillCurrent) {
     });
 }
 
+/// Waits ms, resolving false early once stillCurrent() says the wait has been superseded.
+/// A timer for the same reason rampVolume uses one.
+function waitUnlessSuperseded(ms, stillCurrent) {
+    return new Promise((resolve) => {
+        const endsAt = performance.now() + ms;
+
+        const timer = setInterval(() => {
+            if (!stillCurrent()) { clearInterval(timer); resolve(false); return; }
+            if (performance.now() >= endsAt) { clearInterval(timer); resolve(true); }
+        }, 16);
+    });
+}
+
 /// Stops an element and lets go of its source, without touching whatever is playing.
 function retire(el) {
     try { el.pause(); } catch { /* ignore */ }
@@ -342,19 +355,29 @@ async function fadeOutAndStop(fadeMs) {
     // Held locally rather than read each tick: a handover that swaps mid-fade would otherwise move
     // the ramp onto the element that just took the room over.
     const element = current.el;
+    // A stem song is heard through the mixer, not the element, which sits idle and silent.
+    const mixer = stemMixer;
 
     element.style.transition = `opacity ${fadeMs}ms linear`;
     element.style.opacity = '0';
 
     // The generation is checked inside the ramp, not only after it: a fade the host has already
     // superseded would otherwise go on pulling the volume down over the song that replaced it.
-    const completed = await rampVolume(
-        element, element.volume, 0, fadeMs, () => generation === playbackGeneration);
+    const stillCurrent = () => generation === playbackGeneration;
+    let completed;
+
+    if (mixer) {
+        mixer.fadeOut(fadeMs);
+        completed = await waitUnlessSuperseded(fadeMs, stillCurrent);
+    } else {
+        completed = await rampVolume(element, element.volume, 0, fadeMs, stillCurrent);
+    }
 
     // Superseded: the host started playing again during the fade, and the song that replaced this
     // one is using the element now. A ramp abandoned part way would leave it playing unheard.
     if (!completed) {
         element.volume = currentVolume;
+        if (mixer && mixer === stemMixer) mixer.volume = currentVolume;
         return;
     }
 
@@ -699,7 +722,7 @@ function handleCommand(raw) {
             // could not mix would have played instead.
             if (message.stems && message.stems.length > 0) {
                 teardown();
-                stemMixer = createStemMixer(message.stems, songOffsetSeconds, reportError);
+                stemMixer = createStemMixer(message.stems, songOffsetSeconds, reportError, currentVolume);
                 if (message.autoplay === true) {
                     stemMixer.play().catch((e) => reportError(`stem play: ${e}`));
                 }
@@ -728,6 +751,7 @@ function handleCommand(raw) {
             // A fade leaves these mid-ramp. Left alone during a handover: the incoming player is
             // deliberately silent and invisible until it has sound to give.
             if (!incoming) reveal(current.el);
+            if (stemMixer) stemMixer.volume = currentVolume;
 
             target().play().catch((e) => reportError(`play: ${e}`));
             break;
