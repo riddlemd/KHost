@@ -881,8 +881,44 @@ background.addEventListener('error', () => {
     if (error) reportError(`background media error ${error.code}`);
 });
 
+/// A context that lived through a sleep can keep its clock running and play nothing, so a stem
+/// mix is rebuilt on a fresh one. An element's stream is left alone: each load gets its own.
+async function rebuildStemsAfterWake() {
+    const old = stemMixer;
+    const create = (stems) => createStemMixer(stems, songOffsetSeconds, reportError, currentVolume);
+
+    try {
+        const rebuilt = await rebuildStemMixer(old, create, () => stemMixer === old);
+        if (!rebuilt) return;
+
+        stemMixer = rebuilt.mixer;
+        if (rebuilt.playing) await stemMixer.play();
+
+        send({
+            type: 'audio-rebuilt',
+            position: rebuilt.position,
+            playing: rebuilt.playing,
+            audioState: stemMixer.audioState,
+        });
+    } catch (e) {
+        reportError(`stems after wake: ${e}`);
+    }
+}
+
+const watchForWake = createWakeWatch((asleepMs) => {
+    send({
+        type: 'wake',
+        asleepSeconds: Math.round(asleepMs / 1000),
+        holding: stemMixer ? 'stems' : current.hls ? 'stream' : 'nothing',
+    });
+
+    if (stemMixer) rebuildStemsAfterWake();
+});
+
 // The host polls nothing; position reaches it only through these reports.
 setInterval(() => {
+    watchForWake();
+
     // The engine when it holds the song: reporting the idle video element's zero would move the
     // host's playhead back to the start of a song that is still playing.
     const player = target();
