@@ -182,7 +182,7 @@ public class LibraryBreakMusicProvider : BaseService, IBreakMusicProvider, IDisp
             return false;
         }
 
-        // Closed before the next one opens, not after: an orphaned transcode keeps burning CPU
+        // Closed before the next one opens, not after: an orphaned encode keeps burning CPU
         // for a track nobody is listening to.
         await CloseStreamAsync();
 

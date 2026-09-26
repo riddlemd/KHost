@@ -1,6 +1,6 @@
 namespace KHost.Abstractions.Models;
 
-/// <summary>One host-side transcode, addressable by any number of consumers as a single URL.</summary>
+/// <summary>One host-side encode, addressable by any number of consumers as a single URL.</summary>
 public sealed class MediaStreamSession
 {
     /// <summary>Identifies this session; part of the URLs consumers fetch through it.</summary>
@@ -10,7 +10,7 @@ public sealed class MediaStreamSession
     public required string SourcePath { get; init; }
 
     /// <summary>Absolute URL of the HLS playlist every consumer fetches.</summary>
-    /// <remarks>Null when the session holds no transcode at all — a directory opened so a renderer
+    /// <remarks>Null when the session holds no encode at all — a directory opened so a renderer
     /// has somewhere served and swept to write its own files, with no host encode behind it.</remarks>
     public string? PlaylistUrl { get; init; }
 

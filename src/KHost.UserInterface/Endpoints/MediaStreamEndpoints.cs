@@ -34,10 +34,10 @@ public static class MediaStreamEndpoints
 
             if (contentType.Contains("mpegurl", StringComparison.Ordinal))
             {
-                // An EVENT playlist grows while the song transcodes, so it must never be cached.
+                // An EVENT playlist grows while the song encodes, so it must never be cached.
                 context.Response.Headers.CacheControl = "no-cache, no-store";
 
-                // Transcoding outruns playback, so a player would join at the live edge and start
+                // Encoding outruns playback, so a player would join at the live edge and start
                 // the song part-way in. EXT-X-START pins every consumer to the top.
                 var playlist = File.ReadAllText(path);
                 if (!playlist.Contains("#EXT-X-START", StringComparison.Ordinal))

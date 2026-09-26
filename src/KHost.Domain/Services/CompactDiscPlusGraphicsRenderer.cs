@@ -14,7 +14,7 @@ namespace KHost.Domain.Services;
 /// <para>The encode is inherited because subcode graphics have to be decoded into a picture and
 /// ffmpeg is what does that today. It is its own renderer anyway, so the rules that belong to the
 /// format have somewhere to live — and so the day a CDG is drawn natively on the screen, the way a
-/// kit's stems are now mixed there, this body is what changes and nothing above it notices.</para>
+/// stems format's parts are now mixed there, this body is what changes and nothing above it notices.</para>
 /// </remarks>
 public sealed class CompactDiscPlusGraphicsRenderer(IMediaStreamService streams) : StreamingMediaRenderer(streams)
 {

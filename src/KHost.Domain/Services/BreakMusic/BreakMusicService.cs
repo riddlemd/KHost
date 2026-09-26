@@ -311,7 +311,7 @@ public class BreakMusicService : BaseService, IBreakMusicService, IDisposable
             return;
 
         // Started rather than resumed: the suspend stopped the provider outright, because a bed
-        // held open across a whole song is a transcode running for nobody. Awaited to completion
+        // held open across a whole song is an encode running for nobody. Awaited to completion
         // (and its own lock released) before this locks again, or the two would deadlock each other.
         if (await StartAsync(cancellationToken))
             return;

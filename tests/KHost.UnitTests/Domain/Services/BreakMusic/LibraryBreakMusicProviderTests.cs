@@ -213,7 +213,7 @@ public class LibraryBreakMusicProviderTests : IDisposable
 
         Assert.False(await _provider.StartAsync());
 
-        // The transcode opened before the send was refused; leaving it running burns CPU on a
+        // The encode opened before the send was refused; leaving it running burns CPU on a
         // track nobody can hear.
         await _streams.Received(1).CloseAsync("bed-stream");
     }

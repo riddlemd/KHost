@@ -27,7 +27,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         /// <summary>Where backing sits on an unmixed song; the lead has none, a singer replaces it.</summary>
         public int DefaultBackingVolume { get; set; } = AudioMix.DefaultBackingVolume;
 
-        /// <summary>How long a replaced transcode stays before deletion.</summary>
+        /// <summary>How long a replaced encode stays before deletion.</summary>
         /// <remarks>No second player exists mid-fetch, and a receiver reads a 404 body as media.</remarks>
         public TimeSpan StreamRetireGrace { get; set; } = TimeSpan.FromSeconds(8);
     }
@@ -59,7 +59,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
     private IAnalyticsActivity? _sessionActivity;
 
     // What the displays are playing for the current song, if anything. It carries the host-side
-    // transcode when the renderer started one, and nothing when the displays play the parts direct.
+    // encode when the renderer started one, and nothing when the displays play the parts direct.
     private MediaRendition? _rendition;
 
     private CancellationTokenSource? _reopenSettle;
@@ -593,7 +593,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
     /// <summary>Shared by key and speed, so changing both costs the song one break rather than two.</summary>
     private async Task AfterRateChangeAsync()
     {
-        // Before the transcode is touched, so the readout answers the button rather than ffmpeg.
+        // Before the encode is touched, so the readout answers the button rather than ffmpeg.
         _broker.Announce(new PlaybackChanged());
 
         // Not on the settle below: a song ending inside that window would lose the change.
@@ -774,7 +774,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
             var media = CurrentMedia;
 
             // Mid-render (a load, or a song ending): whatever is rendering sends its own load, which
-            // reaches this display too. Replaying here as well opens a second transcode nothing
+            // reaches this display too. Replaying here as well opens a second encode nothing
             // closes. A still or nothing at all is a picture, which the display draws for itself.
             if (_rendition is not { } rendition || media is null || MediaFormats.IsImage(media.Format)) return;
 
@@ -875,7 +875,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
 
         CurrentlyPerformingUserId = null;
 
-        // Cancelled rather than left to fire: it would otherwise reopen a transcode for the song
+        // Cancelled rather than left to fire: it would otherwise reopen an encode for the song
         // that has just been torn down.
         Interlocked.Exchange(ref _reopenSettle, null)?.Cancel();
 
@@ -893,7 +893,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         VoiceVolumes = new Dictionary<string, int>();
     }
 
-    /// <summary>Throws when the transcode will not start: there is no playback without it.</summary>
+    /// <summary>Throws when the encode will not start: there is no playback without it.</summary>
     private async Task<DisplayLoad> BuildLoadAsync(Media media, TimeSpan startOffset)
     {
         // Held, not closed: tearing down first would leave the room on buffered frames while the new one
@@ -1138,7 +1138,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
     private async Task EndedAsync()
     {
         // Every path that finishes a performance runs through here, so it is the one place the
-        // transcode has to stop. An orphaned ffmpeg would keep burning CPU for a song nobody plays.
+        // encode has to stop. An orphaned ffmpeg would keep burning CPU for a song nobody plays.
         await CloseStreamAsync();
 
         var currentPerformance = CurrentPerformance;

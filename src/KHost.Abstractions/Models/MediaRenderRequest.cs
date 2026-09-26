@@ -23,9 +23,9 @@ public sealed class MediaRenderRequest
 }
 
 /// <summary>What the display this is being rendered for can do with what it is handed.</summary>
-/// <remarks>The same file renders differently for different targets — a kit needs an encode for a
-/// receiver and none for a screen that mixes — so this is part of the question, not context a
-/// renderer is expected to look up.</remarks>
+/// <remarks>The same file renders differently for different targets — a stems-only format needs an
+/// encode for a receiver and none for a screen that mixes — so this is part of the question, not
+/// context a renderer is expected to look up.</remarks>
 public sealed class RenderTarget
 {
     /// <summary>Whether the one connected display takes the stems unmixed and rides the levels itself.</summary>

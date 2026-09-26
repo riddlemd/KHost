@@ -331,7 +331,7 @@ internal sealed class StreamMediaPlayer : IMediaPlayer
     public void Stop(TimeSpan? fadeDuration = null)
         => Send(new { type = "stop", fadeMs = (fadeDuration ?? TimeSpan.FromSeconds(5)).TotalMilliseconds });
 
-    /// <summary>A move within the stream the page already holds: no transcode restart.</summary>
+    /// <summary>A move within the stream the page already holds: no encode restart.</summary>
     public void Seek(TimeSpan position)
     {
         TimeSpan offset;
