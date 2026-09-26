@@ -165,6 +165,25 @@ public class HlsMediaStreamServiceEncodeTests : IDisposable
         Assert.NotNull(await WaitForArtifactAsync(session.Id, "seg_00000.ts"));
     }
 
+    /// <summary>A .cdg decodes a frame only when its graphics change, so its picture stops at the
+    /// last change while the audio runs on; a player then stalls rather than ending the song.</summary>
+    [RequiresFfmpegFact]
+    public async Task OpenAsync_EndsACdgWithItsAudio_WhenTheGraphicsStopEarlyAndRunLong()
+    {
+        // One graphics change at the start, six seconds of packets, four of audio.
+        var cdg = await CreateCdgPairAsync(seconds: 4, graphicsSeconds: 6);
+
+        var session = await _service.OpenAsync(cdg);
+
+        var total = ParseSegmentDurations(await WaitForCompletePlaylistAsync(session.Id)).Sum();
+        Assert.InRange(total, 3.0, 5.0);
+
+        var playlist = _service.ResolveArtifact(session.Id, "stream.m3u8")!;
+        var video = await ProbeLastTimestampAsync(playlist, 'v');
+        var audio = await ProbeLastTimestampAsync(playlist, 'a');
+        Assert.InRange(Math.Abs(audio - video), 0, 1.0);
+    }
+
     [RequiresFfmpegFact]
     public async Task OpenAsync_SegmentsAtTheConfiguredLength_WhateverTheSourceFrameRate()
     {
@@ -322,13 +341,19 @@ public class HlsMediaStreamServiceEncodeTests : IDisposable
     }
 
     /// <summary>Writes a blank but structurally valid .cdg next to a real .mp3.</summary>
-    private async Task<string> CreateCdgPairAsync(int seconds)
+    private async Task<string> CreateCdgPairAsync(int seconds, int? graphicsSeconds = null)
     {
         var audio = await CreateSampleAsync(seconds, audioOnly: true);
         var cdg = Path.ChangeExtension(audio, ".cdg");
 
-        // CD+G is 24-byte packets at 300 per second; all-zero packets decode to an empty screen.
-        await File.WriteAllBytesAsync(cdg, new byte[24 * 300 * seconds]);
+        // CD+G is 24-byte packets at 300 per second, and a packet decodes to a frame only when it
+        // draws. Opening on a memory preset (0x09, instruction 1) as a real disc does gives exactly
+        // one frame: a .cdg that never draws gives none, and a picture held to the audio has
+        // nothing to hold.
+        var packets = new byte[24 * 300 * (graphicsSeconds ?? seconds)];
+        (packets[0], packets[1], packets[4]) = (0x09, 1, 3);
+
+        await File.WriteAllBytesAsync(cdg, packets);
 
         return cdg;
     }

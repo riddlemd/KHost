@@ -96,6 +96,50 @@ public class HlsMediaStreamServiceTests : IDisposable
         Assert.Contains("-r 30", arguments, StringComparison.Ordinal);
     }
 
+    /// <summary>A .cdg's picture stops at its last graphics change, seconds before the audio, and
+    /// a player stalls on the missing video instead of ending the song.</summary>
+    [Fact]
+    public void BuildArguments_HoldsTheGraphicsUntilTheAudioEnds_ForAPairedSource()
+    {
+        var arguments = HlsMediaStreamService.BuildArguments(
+            "/songs/a.cdg", TimeSpan.Zero, 0, 0, 2, "/songs/a.mp3");
+
+        Assert.Contains("-vf \"tpad=stop=-1:stop_mode=clone\"", arguments);
+        Assert.Contains(" -shortest ", arguments);
+    }
+
+    [Fact]
+    public void BuildArguments_HoldsTheGraphicsAndRetimesThem_AtAChangedTempo()
+    {
+        var arguments = HlsMediaStreamService.BuildArguments(
+            "/songs/a.cdg", TimeSpan.Zero, 0, 20, 2, "/songs/a.mp3");
+
+        Assert.Contains("-vf \"tpad=stop=-1:stop_mode=clone,setpts=PTS/", arguments);
+        Assert.Contains(" -shortest ", arguments);
+    }
+
+    /// <summary>With no audio there is nothing to end an endless picture, and the encode would
+    /// never finish.</summary>
+    [Fact]
+    public void BuildArguments_NeverHoldsGraphics_WithNoAudioToEndThem()
+    {
+        var arguments = HlsMediaStreamService.BuildArguments(
+            "/songs/a.cdg", TimeSpan.Zero, 0, 0, 2);
+
+        Assert.DoesNotContain("tpad", arguments);
+        Assert.DoesNotContain("-shortest", arguments);
+    }
+
+    /// <summary>A video's own tracks end where they end; cutting to the shorter would clip one.</summary>
+    [Fact]
+    public void BuildArguments_LeavesAnOrdinaryVideosEndAlone()
+    {
+        var arguments = HlsMediaStreamService.BuildArguments("/songs/a.mp4", TimeSpan.Zero, 0, 0, 2);
+
+        Assert.DoesNotContain("tpad", arguments);
+        Assert.DoesNotContain("-shortest", arguments);
+    }
+
     /// <summary>An ordinary video already has a frame rate; forcing one would resample it.</summary>
     [Fact]
     public void BuildArguments_LeavesAnOrdinaryVideosFrameRateAlone()

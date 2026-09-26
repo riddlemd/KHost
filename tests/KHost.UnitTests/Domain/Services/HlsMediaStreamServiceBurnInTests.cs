@@ -145,6 +145,26 @@ public class HlsMediaStreamServiceBurnInTests
     }
 
     [Fact]
+    public void BuildArguments_BurningInGraphics_HoldsThePictureUntilTheAudioEnds()
+    {
+        var arguments = HlsMediaStreamService.BuildArguments(
+            "/songs/a.cdg", TimeSpan.Zero, 0, 0, 2, "/songs/a.mp3", burnIn: OverSource);
+
+        Assert.Contains("[0:v:0]tpad=stop=-1:stop_mode=clone,fps=30,", arguments);
+        Assert.Contains(" -shortest ", arguments);
+    }
+
+    [Fact]
+    public void BuildArguments_BurningIntoAVideo_LeavesItsEndAlone()
+    {
+        var arguments = HlsMediaStreamService.BuildArguments(
+            "/songs/a.mp4", TimeSpan.Zero, 0, 0, 2, burnIn: OverSource);
+
+        Assert.DoesNotContain("tpad", arguments);
+        Assert.DoesNotContain("-shortest", arguments);
+    }
+
+    [Fact]
     public void BuildArguments_BurningInGraphics_KeepsTheConstantFrameRate()
     {
         var arguments = HlsMediaStreamService.BuildArguments(
