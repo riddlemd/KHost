@@ -6,9 +6,17 @@ public interface IControlState
 {
     /// <summary>Which source Song Search uses by default; null/empty means the local library.</summary>
     string? MediaSearchSource { get; set; }
+
+    /// <summary>Whether the help dialog's Quick guide section is expanded; collapsed by default.</summary>
+    bool HelpQuickGuideExpanded { get; set; }
+
+    /// <summary>Whether the help dialog's Keyboard shortcuts section is expanded; collapsed by default.</summary>
+    bool HelpShortcutsExpanded { get; set; }
 }
 
 public sealed class ControlState : IControlState
 {
     public string? MediaSearchSource { get; set; }
+    public bool HelpQuickGuideExpanded { get; set; }
+    public bool HelpShortcutsExpanded { get; set; }
 }
