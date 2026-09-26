@@ -388,6 +388,12 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
         // decision, which asks the same question of the same file.
         var isGraphicsOnly = IsGraphicsOnly(filePath);
 
+        // A .cdg decodes a frame only when its graphics change, so its picture stops at the last
+        // change, seconds before the audio. A player then stalls on the missing video rather than
+        // ending, and the song never concludes. The picture is held until the audio ends it.
+        // Never without audio: an endless picture with nothing to end it would never finish.
+        var holdsPictureToTheAudio = isGraphicsOnly && companionAudioPath is not null;
+
         if (startOffset > TimeSpan.Zero && !isGraphicsOnly)
             arguments += string.Format(CultureInfo.InvariantCulture, " -ss {0:F3}", startOffset.TotalSeconds);
 
@@ -430,7 +436,8 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
 
         if (burnIn is not null)
         {
-            arguments += BurnInMapping(burnIn, pipeInput, tempo, companionAudioPath is null ? 0 : 1, mixGraph, audioFilter);
+            arguments += BurnInMapping(
+                burnIn, pipeInput, tempo, companionAudioPath is null ? 0 : 1, mixGraph, audioFilter, holdsPictureToTheAudio);
         }
         else if (mixGraph.Length > 0)
         {
@@ -449,8 +456,12 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
         // -vf rather than a filter_complex: it composes with the CDG mapping above, and ffmpeg
         // drops it silently on a source with no video rather than failing on an unmatched label.
         // A burn-in retimes its picture inside its own graph instead.
-        var videoFilter = BuildVideoFilter(tempo);
+        var videoFilter = holdsPictureToTheAudio
+            ? string.Join(',', new[] { HoldLastFrame, BuildVideoFilter(tempo) }.Where(f => f.Length > 0))
+            : BuildVideoFilter(tempo);
         if (videoFilter.Length > 0 && burnIn is null) arguments += $" -vf \"{videoFilter}\"";
+
+        if (holdsPictureToTheAudio) arguments += " -shortest";
 
         arguments += " -c:a aac -ar 44100 -ac 2 -b:a 128k";
 
@@ -507,7 +518,8 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
     /// keep. An endless base ends with the words (<c>shortest=1</c>); a finite one ends the picture
     /// itself and carries on without them if the words run out first.</para></remarks>
     private static string BurnInMapping(
-        BurnInOverlay burnIn, int pipeInput, int tempo, int audioInput, string mixGraph, string audioFilter)
+        BurnInOverlay burnIn, int pipeInput, int tempo, int audioInput, string mixGraph, string audioFilter,
+        bool holdsPictureToTheAudio)
     {
         var size = string.Format(CultureInfo.InvariantCulture, "{0}:{1}", burnIn.Width, burnIn.Height);
         var rate = burnIn.FramesPerSecond.ToString(CultureInfo.InvariantCulture);
@@ -516,6 +528,7 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
         var picture = burnIn.Base switch
         {
             BurnInBase.SourceVideo => "[0:v:0]"
+                + (holdsPictureToTheAudio ? HoldLastFrame + "," : "")
                 + (BuildVideoFilter(tempo) is { Length: > 0 } retime ? retime + "," : "")
                 + $"fps={rate},scale={size}:force_original_aspect_ratio=decrease,"
                 + $"pad={size}:(ow-iw)/2:(oh-ih)/2,setsar=1[base]",
@@ -616,6 +629,9 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
 
     /// <summary>Retimes the picture: output frame rate becomes the source times the rate.</summary>
     /// <remarks>The keyframe expression is immune, since it is written in output time.</remarks>
+    /// <summary>Repeats the last frame without end; <c>-shortest</c> is what stops it.</summary>
+    private const string HoldLastFrame = "tpad=stop=-1:stop_mode=clone";
+
     private static string BuildVideoFilter(int tempo)
     {
         var rate = StreamRate.FromTempo(tempo);
