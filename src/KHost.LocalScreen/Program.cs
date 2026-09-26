@@ -262,6 +262,7 @@ internal static class Program
         // sits, so the page's own tag order is what decides what is defined first.
         html = Inline(html, "lyrics-overlay.js");
         html = Inline(html, "stem-mixer.js");
+        html = Inline(html, "wake-watch.js");
         html = Inline(html, "player.js");
 
         return html;

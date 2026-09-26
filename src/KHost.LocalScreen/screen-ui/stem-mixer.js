@@ -46,7 +46,8 @@ function createStemMixer(stems, startOffsetSeconds, reportError, volume = 1) {
         gain.gain.value = levelOf(stem);
         gain.connect(master);
 
-        return { stem, gain, buffer: null, source: null };
+        // The level as the host last set it, kept so a rebuilt mix can start where this one is.
+        return { stem, gain, buffer: null, source: null, volume: stem.volume };
     });
 
     // Song seconds, absolute. Where the mix sits when it is not running, and what it was started
@@ -207,12 +208,25 @@ function createStemMixer(stems, startOffsetSeconds, reportError, volume = 1) {
                 if (!stemMatches(part.stem, role, voice)) continue;
 
                 part.gain.gain.value = levelOf({ role, volume });
+                part.volume = volume;
                 moved++;
             }
 
             return moved;
         },
 
+        /// Everything a fresh mixer needs to carry on from here: the stems at their current levels,
+        /// the position, and whether the host has it playing — started, not sounding, since a
+        /// context a wake left behind may report either.
+        snapshot() {
+            return {
+                stems: parts.map((part) => ({ ...part.stem, volume: part.volume })),
+                currentTime: songTime() - startOffsetSeconds,
+                playing: startedAt !== null,
+            };
+        },
+
+        /// Resolves once the context has closed, for a caller that must not open the next one sooner.
         destroy() {
             stopSources();
             startedAt = null;
@@ -221,7 +235,24 @@ function createStemMixer(stems, startOffsetSeconds, reportError, volume = 1) {
             // here rather than left for the collector to notice.
             for (const part of parts) part.buffer = null;
 
-            try { ctx.close(); } catch { /* already gone with the page */ }
+            try { return Promise.resolve(ctx.close()).catch(() => {}); } catch { return Promise.resolve(); }
         },
     };
+}
+
+/// Replaces a mix with one on a fresh context, at the same place and levels, for a machine that
+/// slept under it. Resolves null when `stillWanted()` says a load or stop replaced it meanwhile.
+///
+/// The old context is closed before the new one opens: a context opened while another is still
+/// open may be handed that one's output, and a wake is what leaves an output dead.
+async function rebuildStemMixer(mixer, create, stillWanted) {
+    const state = mixer.snapshot();
+
+    await mixer.destroy();
+    if (!stillWanted()) return null;
+
+    const next = create(state.stems);
+    next.currentTime = state.currentTime;
+
+    return { mixer: next, playing: state.playing, position: state.currentTime };
 }

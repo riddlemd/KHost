@@ -395,6 +395,22 @@ internal sealed class StreamMediaPlayer : IMediaPlayer
                 BackgroundEnded?.Invoke(this, EventArgs.Empty);
                 return true;
 
+            // Information, not Debug: a screen that goes silent after a sleep is explained only here.
+            case "wake":
+                _logger.LogInformation(
+                    "Screen woke after about {Seconds}s asleep, holding {Holding}",
+                    root.TryGetProperty("asleepSeconds", out var asleep) ? asleep.GetDouble() : 0,
+                    root.TryGetProperty("holding", out var holding) ? holding.GetString() : "unknown");
+                return true;
+
+            case "audio-rebuilt":
+                _logger.LogInformation(
+                    "Rebuilt the stem mix after a wake at {Position}s, {Transport}, audio {AudioState}",
+                    root.TryGetProperty("position", out var at) ? at.GetDouble() : 0,
+                    root.TryGetProperty("playing", out var playing) && playing.GetBoolean() ? "playing" : "paused",
+                    root.TryGetProperty("audioState", out var audio) ? audio.GetString() : "unknown");
+                return true;
+
             case "error":
                 var text = root.TryGetProperty("message", out var m) ? m.GetString() ?? "unknown" : "unknown";
                 _logger.LogError("Player error: {Message}", text);

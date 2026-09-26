@@ -67,6 +67,21 @@ public class PlayerPageTests
         Assert.True(player > library, "hls.js must be inlined before player.js reads Hls");
     }
 
+    // player.js builds the wake watch as it loads; missing, a page throws before it ever says ready.
+    [Fact]
+    public void BuildPlayerPage_Always_PutsTheWakeWatchBeforeThePlayer()
+    {
+        var page = Program.BuildPlayerPage();
+
+        var watch = page.IndexOf("function createWakeWatch", StringComparison.Ordinal);
+        var player = page.IndexOf("createWakeWatch((", StringComparison.Ordinal);
+
+        Assert.True(watch >= 0, "the wake watch is missing from the page");
+        Assert.True(player >= 0, "the player never builds the wake watch");
+        Assert.True(watch < player, "the player would call a wake watch that is not defined yet");
+        Assert.DoesNotContain("<script src=\"wake-watch.js\"></script>", page, StringComparison.Ordinal);
+    }
+
     // canPlayType answers 'maybe' for mpegurl on both web views, so it can never pick a path,
     // and with the native fallback gone there is no second path for it to pick.
     [Fact]
