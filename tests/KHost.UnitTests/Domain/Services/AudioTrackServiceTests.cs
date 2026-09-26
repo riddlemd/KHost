@@ -29,6 +29,19 @@ public class AudioTrackServiceTests
         Assert.Equal(3, (await Service().ReadTracksAsync(Path)).Count);
     }
 
+    /// <summary>Each singer's voice is what gives them a fader of their own; dropping it here would
+    /// fold a duet back onto one shared lead.</summary>
+    [Fact]
+    public async Task ReadTracks_ADuetsLeads_KeepTheirVoices()
+    {
+        Found(
+            new AudioTrack(0, AudioTrackRole.Music, "Instrumental"),
+            new AudioTrack(1, AudioTrackRole.Lead, "Lead Vocal (Sheryl Crow)") { Voice = "Sheryl Crow" },
+            new AudioTrack(2, AudioTrackRole.Lead, "Lead Vocal (Kid Rock)") { Voice = "Kid Rock" });
+
+        Assert.Equal(["Sheryl Crow", "Kid Rock"], (await Service().ReadTracksAsync(Path)).Select(track => track.Voice).OfType<string>());
+    }
+
     /// <summary>One track is nothing to balance, whatever it happens to be called.</summary>
     [Fact]
     public async Task ReadTracks_ASingleTrack_OffersNothing()

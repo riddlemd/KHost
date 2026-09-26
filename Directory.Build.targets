@@ -1,6 +1,23 @@
 <Project>
+  <!--
+    The app keeps its runtime state beside the binary (AppContext.BaseDirectory): the library db,
+    queue, settings and screen keys in cache/, installed and staged plugins, and logs. A clean takes
+    every build file and spares those, so a no-incremental build cannot wipe a host's library.
+    Both roots are swept the same way: a redirected build (BaseOutputPath under obj/) runs from obj.
+  -->
   <Target Name="DeepClean" AfterTargets="Clean">
-    <RemoveDir Directories="$(BaseIntermediateOutputPath)" />
-    <RemoveDir Directories="$(BaseOutputPath)" />
+    <PropertyGroup>
+      <_DeepCleanOutput>$([MSBuild]::NormalizeDirectory('$(MSBuildProjectDirectory)', '$(BaseOutputPath)'))</_DeepCleanOutput>
+      <_DeepCleanIntermediate>$([MSBuild]::NormalizeDirectory('$(MSBuildProjectDirectory)', '$(BaseIntermediateOutputPath)'))</_DeepCleanIntermediate>
+    </PropertyGroup>
+    <ItemGroup>
+      <_DeepCleanKeptInOutput Include="$(_DeepCleanOutput)**/cache/**;$(_DeepCleanOutput)**/plugins/**;$(_DeepCleanOutput)**/plugins-staging/**;$(_DeepCleanOutput)**/logs/**" />
+      <_DeepCleanKeptInIntermediate Include="$(_DeepCleanIntermediate)**/cache/**;$(_DeepCleanIntermediate)**/plugins/**;$(_DeepCleanIntermediate)**/plugins-staging/**;$(_DeepCleanIntermediate)**/logs/**" />
+      <_DeepCleanFile Include="$(_DeepCleanOutput)**;$(_DeepCleanIntermediate)**" Exclude="@(_DeepCleanKeptInOutput);@(_DeepCleanKeptInIntermediate)" />
+    </ItemGroup>
+    <Delete Files="@(_DeepCleanFile)" />
+    <!-- Only a root with nothing kept goes whole; one holding runtime state keeps its empty folders. -->
+    <RemoveDir Directories="$(_DeepCleanOutput)" Condition="'@(_DeepCleanKeptInOutput)' == ''" />
+    <RemoveDir Directories="$(_DeepCleanIntermediate)" Condition="'@(_DeepCleanKeptInIntermediate)' == ''" />
   </Target>
 </Project>

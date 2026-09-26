@@ -141,7 +141,8 @@ public class PlaybackServiceTests : IDisposable
         TimeSpan stopFadeDuration,
         TimeSpan? pitchSettleDelay = null,
         int defaultBackingVolume = AudioMix.DefaultBackingVolume,
-        TimeSpan? retireGrace = null)
+        TimeSpan? retireGrace = null,
+        TimeSpan? displayStartTimeout = null)
     {
         PlaybackService? built = null;
 
@@ -175,6 +176,8 @@ public class PlaybackServiceTests : IDisposable
             // The grace exists so a consumer can finish reading the old session; the tests assert
             // on what was closed, not on when.
             StreamRetireGrace = retireGrace ?? TimeSpan.Zero,
+            // Most tests tick with no display reporting; the wait for one has its own tests.
+            DisplayStartTimeout = displayStartTimeout ?? TimeSpan.Zero,
         }),
         _audioTracks,
         _mediaGate,
@@ -596,6 +599,29 @@ public class PlaybackServiceTests : IDisposable
         await _service.PlayAsync();
 
         await _screenServer.Received(1).BroadcastCommandAsync(Arg.Any<PlayCommand>());
+    }
+
+    /// <summary>A display's DisplaysChanged is announced off the hub thread and can land after the
+    /// song reached that same session; it must not replay the song on top of itself.</summary>
+    /// <remarks>The race behind a PlayCommand counted twice under load, made deterministic: the
+    /// announcement for the receiver's session is held back until after the load and play.</remarks>
+    [Fact]
+    public async Task DisplaysChanged_ForTheSessionTheSongWasLoadedOnto_ReplaysNothing()
+    {
+        ConnectScreens(0);
+        await Task.Delay(100);
+        _display.ConnectedDeviceId.Returns("Living Room TV");
+        _display.SessionId.Returns(Guid.NewGuid());
+
+        var (performance, media) = CreatePerformance();
+        await _service.LoadAsync(performance, media);
+        await _service.PlayAsync();
+
+        await _broker.PublishAsync(new DisplaysChanged());
+        await Task.Delay(200);
+
+        Assert.Equal(1, DisplayLoads());
+        await _display.Received(1).PlayAsync(Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -1543,6 +1569,9 @@ public class PlaybackServiceTests : IDisposable
     {
         public MediaRendition? Rendition { get; set; }
 
+        /// <summary>Answers per request when set, ahead of <see cref="Rendition"/>.</summary>
+        public Func<MediaRenderRequest, MediaRendition?>? Answer { get; set; }
+
         public MediaRenderRequest? LastRequest { get; private set; }
 
         public bool CanRender(string filePath) => true;
@@ -1552,7 +1581,7 @@ public class PlaybackServiceTests : IDisposable
             LastRequest = request;
 
             // Null falls through to the fallback, which is every test that never armed this.
-            return Task.FromResult(Rendition);
+            return Task.FromResult(Answer is { } answer ? answer(request) : Rendition);
         }
     }
 
@@ -1748,6 +1777,106 @@ public class PlaybackServiceTests : IDisposable
         Assert.Equal(1, DisplayLoads());
         Assert.Equal(PlaybackState.Playing, _service.State);
     }
+
+    // --- a rebuild onto a rendition of the whole song ---
+
+    /// <summary>Stems are the whole song from its zero, so a key change reopening onto them has to
+    /// move the display to the playhead, or the song restarts from the top.</summary>
+    [Fact]
+    public async Task SetPitch_BackToTheWrittenKey_SeeksTheReopenedStemsToThePlayheadBeforePlaying()
+    {
+        await TransposedAt66SecondsAsync();
+
+        await _service.SetPitchAsync(0);
+
+        Assert.True(await WaitForBroadcastAsync<PlayCommand>());
+        var sent = Broadcasts();
+        var load = sent.FindIndex(c => c is LoadMediaCommand);
+        var seek = sent.FindIndex(c => c is SeekCommand);
+        var play = sent.FindIndex(c => c is PlayCommand);
+
+        Assert.True(load >= 0 && seek > load && play > seek, $"sent {string.Join(", ", sent.Select(c => c.GetType().Name))}");
+        Assert.InRange(((SeekCommand)sent[seek]).Position, TimeSpan.FromSeconds(66), TimeSpan.FromSeconds(67));
+    }
+
+    /// <summary>Paused, the screen still has to sit at the playhead for the play that follows.</summary>
+    [Fact]
+    public async Task SetPitch_BackToTheWrittenKeyWhilePaused_SeeksWithoutPlaying()
+    {
+        await TransposedAt66SecondsAsync();
+        await _service.PauseAsync();
+        _screenServer.ClearReceivedCalls();
+
+        await _service.SetPitchAsync(0);
+
+        Assert.True(await WaitForBroadcastAsync<SeekCommand>(seek => seek.Position >= TimeSpan.FromSeconds(66) && seek.Position < TimeSpan.FromSeconds(67)));
+        Assert.Null(LastBroadcast<PlayCommand>());
+    }
+
+    /// <summary>Stems at the written key, a stream cut at the playhead once transposed, as a
+    /// stems format's renderer answers; left transposed at 66s with the calls cleared.</summary>
+    private async Task TransposedAt66SecondsAsync()
+    {
+        var stems = new MediaRendition
+        {
+            Stems = [new StemSource(0, AudioTrackRole.Music, "http://host/media/stems/stem0.ogg", AudioMix.MaxVolume)],
+            SeekableInPlace = true,
+        };
+        _renderer.Answer = request => request.Pitch == 0 && request.Tempo == 0
+            ? stems
+            : new MediaRendition { Url = $"http://host/media/cut-{request.StartOffset.TotalMilliseconds}/stream.m3u8", StartOffset = request.StartOffset };
+
+        var (performance, media) = CreatePerformance();
+        media.Duration = TimeSpan.FromMinutes(4);
+        await _service.LoadAsync(performance, media);
+        await _service.PlayAsync();
+        await _service.SeekAsync(TimeSpan.FromSeconds(66));
+        await _service.SetPitchAsync(1);
+        Assert.True(await WaitForBroadcastAsync<LoadMediaCommand>(load => load.StreamUrl?.Contains("/cut-") == true));
+        Assert.True(await WaitForBroadcastAsync<PlayCommand>());
+        await Task.Delay(50);
+        _screenServer.ClearReceivedCalls();
+    }
+
+    /// <summary>A stream cut at the playhead already starts there; a seek would only add a hole.</summary>
+    [Fact]
+    public async Task SetPitch_ReopeningAStreamAtThePlayhead_SendsNoSeek()
+    {
+        var (performance, media) = CreatePerformance();
+        media.Duration = TimeSpan.FromMinutes(4);
+        await _service.LoadAsync(performance, media);
+        await _service.PlayAsync();
+        await _service.SeekAsync(TimeSpan.FromSeconds(66));
+        _screenServer.ClearReceivedCalls();
+
+        await _service.SetPitchAsync(1);
+
+        Assert.True(await WaitForBroadcastAsync<PlayCommand>());
+        Assert.Null(LastBroadcast<SeekCommand>());
+    }
+
+    /// <summary>A display refusing a level forces the rebuild; onto stems, that lands at the playhead too.</summary>
+    [Fact]
+    public async Task SetLeadVolume_TheDisplayRefusesTheLevel_SeeksTheRebuiltStemsToThePlayhead()
+    {
+        await StemsOnAReceiverAsync(ridesTheLevel: false);
+        await _service.SeekAsync(TimeSpan.FromSeconds(66));
+        _display.ClearReceivedCalls();
+
+        await _service.SetLeadVolumeAsync(55);
+
+        Assert.True(await WaitForDisplayLoadsAsync(1));
+        for (var i = 0; i < 100 && !_display.ReceivedCalls().Any(c => c.GetMethodInfo().Name == nameof(IDisplayProvider.PlayAsync)); i++)
+            await Task.Delay(10);
+        await _display.Received(1).SeekAsync(
+            Arg.Is<TimeSpan>(at => at >= TimeSpan.FromSeconds(66) && at < TimeSpan.FromSeconds(67)), Arg.Any<CancellationToken>());
+    }
+
+    private List<IScreenCommand> Broadcasts()
+        => [.. _screenServer.ReceivedCalls()
+            .Where(c => c.GetMethodInfo().Name == nameof(IScreenServer.BroadcastCommandAsync))
+            .Select(c => c.GetArguments().FirstOrDefault())
+            .OfType<IScreenCommand>()];
 
     private async Task StemsOnAReceiverAsync(bool ridesTheLevel)
     {
@@ -2136,6 +2265,149 @@ public class PlaybackServiceTests : IDisposable
         await _performanceService.Received().DequeueAsync(performance.SingerId, performance.Id);
     }
 
+    // --- a concluded song leaves the screen ---
+
+    /// <summary>A song that played out comes down as a stop does, or its last frame stays up.</summary>
+    [Fact]
+    public async Task SongEnded_StopsTheScreenWithoutAFade()
+    {
+        // A venue that fades its stops: the song ending is not one.
+        using var service = MakeService(TimeSpan.FromSeconds(5));
+        var (performance, media) = CreatePerformance();
+        media.Duration = TimeSpan.FromHours(1);
+        await service.LoadAsync(performance, media);
+        await service.PlayAsync();
+        var loaded = LastBroadcast<LoadMediaCommand>()?.StreamUrl;
+        _screenServer.ClearReceivedCalls();
+
+        RaiseScreenEnded(streamUrl: loaded);
+
+        Assert.True(await WaitForBroadcastAsync<StopCommand>());
+        Assert.All(Broadcasts().OfType<StopCommand>(), stop => Assert.Equal(TimeSpan.Zero, stop.FadeDuration));
+    }
+
+    [Fact]
+    public async Task TickAsync_RunningTheSongOut_StopsTheScreenWithoutAFade()
+    {
+        await PlayingAsync(TimeSpan.FromMilliseconds(1));
+        await Task.Delay(5);
+        _screenServer.ClearReceivedCalls();
+
+        await _service.TickAsync();
+
+        Assert.Equal(PlaybackState.Stopped, _service.State);
+        Assert.True(await WaitForBroadcastAsync<StopCommand>(stop => stop.FadeDuration == TimeSpan.Zero));
+    }
+
+    /// <summary>The stop goes out before the gap is filled, or it would take down the ad filling it.</summary>
+    [Fact]
+    public async Task SongEnded_StopsTheScreenBeforeTheGapIsFilled()
+    {
+        var stopsBeforeTheGap = -1;
+        _service.PerformanceEnded += (_, _) => stopsBeforeTheGap = Broadcasts().Count(c => c is StopCommand);
+        await PlayingAsync();
+        var loaded = LastBroadcast<LoadMediaCommand>()?.StreamUrl;
+        _screenServer.ClearReceivedCalls();
+
+        RaiseScreenEnded(streamUrl: loaded);
+        await WaitForAsync(() => stopsBeforeTheGap >= 0);
+
+        Assert.Equal(1, stopsBeforeTheGap);
+    }
+
+    // --- the playhead waits for the display to start ---
+
+    /// <summary>A display still fetching the song plays nothing yet; a clock running meanwhile
+    /// shows seconds the room has not heard, then jumps back.</summary>
+    [Fact]
+    public async Task PlayAsync_BeforeTheDisplayReportsPlaying_HoldsTheClock()
+    {
+        using var service = MakeService(TimeSpan.Zero, displayStartTimeout: TimeSpan.FromSeconds(15));
+        var (performance, media) = CreatePerformance();
+        media.Duration = TimeSpan.FromHours(1);
+        await service.LoadAsync(performance, media);
+        await service.PlayAsync();
+
+        await Task.Delay(30);
+        await service.TickAsync();
+
+        Assert.Equal(TimeSpan.Zero, service.Position);
+        Assert.Equal(PlaybackState.Playing, service.State);
+    }
+
+    [Fact]
+    public async Task PlayAsync_OnceTheDisplayReportsPlaying_RunsTheClock()
+    {
+        using var service = MakeService(TimeSpan.Zero, displayStartTimeout: TimeSpan.FromSeconds(15));
+        var (performance, media) = CreatePerformance();
+        media.Duration = TimeSpan.FromHours(1);
+        await service.LoadAsync(performance, media);
+        await service.PlayAsync();
+
+        RaiseScreenReport(position: TimeSpan.Zero, sampledAtUtc: DateTime.UtcNow);
+        var reported = service.Position;
+        await Task.Delay(50);
+        await service.TickAsync();
+
+        // Measured from the report, which itself lands a moment on: the tick is what must move it.
+        Assert.InRange(service.Position - reported, TimeSpan.FromMilliseconds(30), TimeSpan.FromSeconds(1));
+    }
+
+    /// <summary>A report sampled before the play is the old stream still sounding, not this start.</summary>
+    [Fact]
+    public async Task PlayAsync_AReportSampledBeforeThePlay_KeepsHolding()
+    {
+        using var service = MakeService(TimeSpan.Zero, displayStartTimeout: TimeSpan.FromSeconds(15));
+        var (performance, media) = CreatePerformance();
+        media.Duration = TimeSpan.FromHours(1);
+        await service.LoadAsync(performance, media);
+        await service.PlayAsync();
+
+        RaiseScreenReport(position: TimeSpan.FromSeconds(40), sampledAtUtc: DateTime.UtcNow.AddSeconds(-1));
+        await Task.Delay(30);
+        await service.TickAsync();
+
+        Assert.Equal(TimeSpan.Zero, service.Position);
+    }
+
+    /// <summary>A rebuild reloads the display, which plays nothing until the new stream has sound.</summary>
+    [Fact]
+    public async Task Reopen_HoldsTheClockUntilTheDisplayReportsPlayingAgain()
+    {
+        using var service = MakeService(TimeSpan.Zero, displayStartTimeout: TimeSpan.FromSeconds(15));
+        var (performance, media) = CreatePerformance();
+        media.Duration = TimeSpan.FromHours(1);
+        await service.LoadAsync(performance, media);
+        await service.PlayAsync();
+        await service.SeekAsync(TimeSpan.FromSeconds(60));
+        RaiseScreenReport(position: TimeSpan.FromSeconds(60), sampledAtUtc: DateTime.UtcNow);
+
+        await service.SetPitchAsync(1);
+        Assert.True(await WaitForStreamsOpenedAsync(2));
+        Assert.True(await WaitForBroadcastAsync<PlayCommand>(_ => Broadcasts().OfType<PlayCommand>().Count() >= 2));
+        await Task.Delay(50);
+        await service.TickAsync();
+
+        // The report itself lands a few microseconds on; a clock let run would be 50ms on.
+        Assert.InRange(service.Position, TimeSpan.FromSeconds(60), TimeSpan.FromSeconds(60.01));
+    }
+
+    /// <summary>A display that never reports must not freeze the song forever.</summary>
+    [Fact]
+    public async Task PlayAsync_TheDisplayNeverReports_RunsTheClockAfterTheTimeout()
+    {
+        using var service = MakeService(TimeSpan.Zero, displayStartTimeout: TimeSpan.FromMilliseconds(20));
+        var (performance, media) = CreatePerformance();
+        media.Duration = TimeSpan.FromHours(1);
+        await service.LoadAsync(performance, media);
+        await service.PlayAsync();
+
+        await Task.Delay(40);
+        await service.TickAsync();
+
+        Assert.True(service.Position > TimeSpan.Zero);
+    }
+
     // --- the display's own end, and a lead-in hold ---
 
     /// <summary>A song the screen says it finished, reported well after the play that started it.</summary>
@@ -2179,7 +2451,8 @@ public class PlaybackServiceTests : IDisposable
         var (performance, _) = await PlayingAsync();
 
         RaiseScreenEnded();
-        await WaitForAsync(() => _service.State == PlaybackState.Stopped);
+        // The last step of a conclusion, not State: that flips first, before the song is cleared.
+        await WaitForAsync(() => _service.CurrentPerformance is null);
 
         Assert.Equal(PlaybackState.Stopped, _service.State);
         Assert.Null(_service.CurrentPerformance);
@@ -4368,19 +4641,23 @@ public class PlaybackServiceTests : IDisposable
                 };
             });
 
+        // Held until the display reports, as a live one is: a free-running clock ticks past 60s
+        // under load and says nothing about a skip.
+        using var service = MakeService(TimeSpan.Zero, displayStartTimeout: TimeSpan.FromSeconds(15));
+
         var (performance, media) = CreatePerformance();
-        await _service.LoadAsync(performance, media);
-        await _service.PlayAsync();
-        await _service.SeekAsync(TimeSpan.FromSeconds(60));
+        await service.LoadAsync(performance, media);
+        await service.PlayAsync();
+        await service.SeekAsync(TimeSpan.FromSeconds(60));
         _display.ClearReceivedCalls();
 
-        await _service.SetPitchAsync(2);
+        await service.SetPitchAsync(2);
         Assert.True(await WaitForStreamsOpenedAsync(2));
         await Task.Delay(100);
 
         // Opened at the playhead, and the clock says the same: the stream's zero is where the song is.
         Assert.Equal(TimeSpan.FromSeconds(60), LastOpenedAt());
-        Assert.Equal(TimeSpan.FromSeconds(60), _service.Position);
+        Assert.Equal(TimeSpan.FromSeconds(60), service.Position);
 
         // Nothing is skipped forward on anyone's behalf. A transport that cannot cover the rebuild
         // makes the difference up inside its own load, where it knows what it is driving.

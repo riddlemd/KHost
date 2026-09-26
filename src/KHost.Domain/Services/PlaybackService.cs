@@ -36,6 +36,11 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         /// <summary>How long a replaced encode stays before deletion.</summary>
         /// <remarks>No second player exists mid-fetch, and a receiver reads a 404 body as media.</remarks>
         public TimeSpan StreamRetireGrace { get; set; } = TimeSpan.FromSeconds(8);
+
+        /// <summary>The longest the playhead waits after a play for the display to say it is
+        /// playing; zero never waits.</summary>
+        /// <remarks>Bounded so a display that never reports still runs the song out.</remarks>
+        public TimeSpan DisplayStartTimeout { get; set; } = TimeSpan.FromSeconds(15);
     }
 
     private const int ClockIntervalMs = 500;
@@ -64,6 +69,10 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
     private bool _holding;
 
     private DateTime _transportMovedAtUtc = DateTime.MinValue;
+
+    // Set when a play goes out, cleared by the display's first playing report after it. A display
+    // still fetching the song plays nothing, and a clock running meanwhile jumps back when it starts.
+    private DateTime? _awaitingDisplaySince;
 
     /// <summary>Where the display's end is concluded: off the hub thread that reported it.</summary>
     /// <remarks>A seam so a test can hold that work back until the clock has concluded, which is the
@@ -476,6 +485,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         // Leaving Stopping here is what tells an in-flight StopAsync to abandon its completion.
         State = PlaybackState.Playing;
         StopFadeDuration = null;
+        AwaitDisplayStart();
         StartClock();
 
         _analytics.RecordPlaybackStateTransition(PlaybackState.Playing);
@@ -798,7 +808,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
 
         if (joined?.SessionId is null)
         {
-            _displaySessionId = null;
+            lock (_clockLock) _displaySessionId = null;
             await HandleDisplayLossAsync();
             return;
         }
@@ -808,9 +818,13 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         {
             // Read inside the lock: DisplaysChanged is announced for discovery as well, so several
             // land close together and only one of them may claim the session.
-            if (joined.SessionId is not { } session || session == _displaySessionId) return;
+            if (joined.SessionId is not { } session) return;
 
-            _displaySessionId = session;
+            lock (_clockLock)
+            {
+                if (session == _displaySessionId) return;
+                _displaySessionId = session;
+            }
 
             var media = CurrentMedia;
 
@@ -915,6 +929,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         {
             _generation++;
             _holding = false;
+            _awaitingDisplaySince = null;
         }
 
         _sessionActivity?.Dispose();
@@ -1009,6 +1024,10 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
             // with it, which is what StreamStartOffset carries to the screens.
             await LoadOntoDisplayAsync(await BuildLoadAsync(media, position));
 
+            // A rendition of the whole song (stems) opens at the song's zero, not the playhead.
+            if (_rendition is { } opened && position > opened.StartOffset)
+                await ToDisplayAsync(display => display.SeekAsync(position));
+
             // Re-read rather than captured before the rebuild: a host pause landing during it must
             // not be overridden by a Play the host never asked for.
             if (State != PlaybackState.Playing)
@@ -1019,6 +1038,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
             // ffmpeg has not written, and the element starves. Covering the gap is the transport's
             // business — a screen keeps its old element playing until the new one has sound.
             Position = position;
+            AwaitDisplayStart();
 
             await ToDisplayAsync(display => display.PlayAsync());
         }
@@ -1066,7 +1086,10 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         // Re-read rather than captured before the awaits: a host pause or stop landing mid-replay
         // must win over a stale "was playing".
         if (State == PlaybackState.Playing)
+        {
+            AwaitDisplayStart();
             await ToDisplayAsync(display => display.PlayAsync());
+        }
     }
 
     private DisplayLoad DescribeStream(Media media) => new()
@@ -1247,6 +1270,12 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
     private Task LoadOntoDisplayAsync(DisplayLoad load)
     {
         MarkTransportMoved();
+
+        // This session now has the song: a DisplaysChanged for it arriving late (announced off the
+        // hub thread) must not replay it on top, a second load and a second play.
+        if (ConnectedDisplay.Find(_displays)?.Provider.SessionId is { } session)
+            lock (_clockLock) _displaySessionId = session;
+
         return ToDisplayAsync(display => display.LoadAsync(load));
     }
 
@@ -1294,10 +1323,21 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
 
         lock (_clockLock)
         {
+            // Sampled before the play went out: the old stream still sounding, not this start.
+            if (status.SampledAtUtc < _awaitingDisplaySince) return;
+
+            _awaitingDisplaySince = null;
             _holding = false;
             Position = status.Position + ((now - status.SampledAtUtc) * Rate);
             _lastTick = now;
         }
+    }
+
+    private void AwaitDisplayStart()
+    {
+        if (Options.DisplayStartTimeout <= TimeSpan.Zero) return;
+
+        lock (_clockLock) _awaitingDisplaySince = DateTime.UtcNow;
     }
 
     /// <summary>The screen is holding the song back before its start: the playhead stays at the
@@ -1363,6 +1403,10 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
             _generation++;
         }
 
+        // As a stop does, so the song's last frame comes down; unfaded, the song being over.
+        // Before EndedAsync, which may start a gap ad this would otherwise stop.
+        await ToDisplayAsync(display => display.StopAsync(TimeSpan.Zero));
+
         ResetState();
 
         Logger.LogInformation("Playback concluded: {Why}", why);
@@ -1405,7 +1449,11 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
 
             // Position is song time and the clock is wall time, so a retimed song covers more or
             // less of itself per tick. A hold is the song not yet started, so it covers none.
-            if (!_holding)
+            // Timed out: a display that never reports must still run the song out, from here.
+            if (_awaitingDisplaySince is { } since && now - since >= Options.DisplayStartTimeout)
+                _awaitingDisplaySince = null;
+
+            if (!_holding && _awaitingDisplaySince is null)
                 Position += (now - _lastTick) * Rate;
             _lastTick = now;
             generation = _generation;

@@ -28,6 +28,11 @@ public class SingerQueueService : ISingerQueueService, IDisposable
     private List<KHostUser> _cachedUsers = [];
     private readonly SubscriptionSet _subscriptions = new();
 
+    /// <summary>How long disposal waits out a prune still writing the queue.</summary>
+    private static readonly TimeSpan DisposeWait = TimeSpan.FromSeconds(5);
+
+    // Set under _lock, so a prune queued before disposal and started after it writes nothing.
+    private bool _disposed;
 
     public IReadOnlyList<KHostUser> Users => _cachedUsers.AsReadOnly();
     public Guid? SelectedUserId { get; private set; }
@@ -68,6 +73,8 @@ public class SingerQueueService : ISingerQueueService, IDisposable
             await _lock.WaitAsync();
             try
             {
+                if (_disposed) return;
+
                 List<Guid> missing = [];
 
                 foreach (var id in _userIds.ToList())
@@ -111,7 +118,18 @@ public class SingerQueueService : ISingerQueueService, IDisposable
         }
     }
 
-    public void Dispose() => _subscriptions.Dispose();
+    /// <remarks>Waits out a prune mid-save: it runs detached off the broker, and a save landing
+    /// after the owner has moved on (a shutdown, a test deleting its cache) races that teardown.
+    /// </remarks>
+    public void Dispose()
+    {
+        _subscriptions.Dispose();
+
+        if (!_lock.Wait(DisposeWait)) return;
+
+        _disposed = true;
+        _lock.Release();
+    }
 
     public async Task SelectUserAsync(Guid? userId)
     {
