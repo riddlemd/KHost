@@ -29,6 +29,16 @@ public class StreamMediaPlayerStemTests
     }
 
     [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void LoadStream_TellsThePageWhetherToScaleThePictureUnsmoothed(bool pixelated)
+    {
+        _player.LoadStream("http://host/s.m3u8", TimeSpan.Zero, pixelated: pixelated);
+
+        Assert.Equal(pixelated, Last("load").GetProperty("pixelated").GetBoolean());
+    }
+
+    [Theory]
     [InlineData("♀")]
     [InlineData(null)]
     public void SetStemVolume_TellsThePageWhichSingerTheLevelIsFor(string? voice)

@@ -27,6 +27,9 @@
             transition: opacity 120ms linear;
         }
 
+        /* Block graphics only: smoothing a scaled-up CD+G blurs every edge it is made of. */
+        .video--pixelated { image-rendering: pixelated; }
+
         /* Two elements so a rebuilt stream can be brought up to speed behind the one still
            playing, and swapped for it once it has sound to give. */
         #video-b { opacity: 0; }

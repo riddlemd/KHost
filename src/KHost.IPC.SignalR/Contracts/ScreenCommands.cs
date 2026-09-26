@@ -47,6 +47,10 @@ public sealed class LoadMediaCommand : ScreenCommandBase
     /// <remarks><see cref="StreamUrl"/> may be set beside these, for a display that turns out not to
     /// mix; when it is null, the stems are the only way the song comes out.</remarks>
     public IReadOnlyList<StemSource> Stems { get; init; } = [];
+
+    /// <summary>The stream is block graphics with no photographic picture (a CD+G), so the screen
+    /// scales it without smoothing and keeps the block edges hard.</summary>
+    public bool IsGraphicsOnly { get; init; }
 }
 
 /// <summary>Moves one voice against the music on a display doing its own mixing.</summary>

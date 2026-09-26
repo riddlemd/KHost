@@ -150,7 +150,7 @@ public class HlsMediaStreamServiceBurnInTests
         var arguments = HlsMediaStreamService.BuildArguments(
             "/songs/a.cdg", TimeSpan.Zero, 0, 0, 2, "/songs/a.mp3", burnIn: OverSource);
 
-        Assert.Contains("[0:v:0]tpad=stop=-1:stop_mode=clone,fps=30,", arguments);
+        Assert.Contains("[0:v:0]tpad=stop=-1:stop_mode=clone,fps=30[graphics]", arguments);
         Assert.Contains(" -shortest ", arguments);
     }
 

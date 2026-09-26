@@ -323,7 +323,7 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
     {
         // Ahead of the load, so the venue's card is down before the song's first frame.
         await DrawPictureAsync(PictureCause.ProgramMoved);
-        await SendAsync(ToCommand(load));
+        await SendAsync(ToCommand(load, IsGraphicsOnly(_services?.GetService<IPlaybackService>()?.CurrentProgram)));
 
         // After the load and before play, which every caller sends after this returns: a screen
         // holds the words until the next load, and one given them mid-song would light every
@@ -365,13 +365,20 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
 
     // --- plumbing ---
 
-    internal static LoadMediaCommand ToCommand(DisplayLoad load) => new()
+    internal static LoadMediaCommand ToCommand(DisplayLoad load, bool isGraphicsOnly = false) => new()
     {
         StreamUrl = load.StreamUrl,
         StreamStartOffset = load.StartOffset,
         Tempo = load.Tempo,
         Stems = load.Stems,
+        IsGraphicsOnly = isGraphicsOnly,
     };
+
+    /// <summary>Whether the program loading is a .cdg, whose picture the screen scales unsmoothed.</summary>
+    /// <remarks>Read off the program because the load carries only URLs; the program is set before
+    /// a display is asked to load it.</remarks>
+    internal static bool IsGraphicsOnly(PlaybackProgram? program)
+        => program is PlaybackProgram.Playing { Media.FilePath: { } path } && HlsMediaStreamService.IsGraphicsOnly(path);
 
     /// <summary>The marquee as the screen draws it, whole, from the venue's settings and who is next.</summary>
     /// <remarks>Disabled with no venue selected, or one that has the marquee off. The singers are

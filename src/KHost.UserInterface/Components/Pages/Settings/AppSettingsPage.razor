@@ -55,6 +55,22 @@
                     </span>
                     <InputNumber class="kh-form-control kh-app-settings__number" @bind-Value="_model.SegmentSeconds" min="1" step="1" />
                 </label>
+                <label class="kh-app-settings__row">
+                    <span class="kh-app-settings__labelled">
+                        CD+G scaling
+                        <span class="kh-app-settings__apply">applies from the next song</span>
+                        <span class="kh-note">
+                            Sharpens CD+G graphics by scaling them up before they're sent to the
+                            display. Higher sizes cost more processing.
+                        </span>
+                    </span>
+                    <select id="graphics-scale" class="kh-form-select kh-app-settings__number" @bind="_model.GraphicsScaleHeight">
+                        @foreach (var height in GraphicsScaleChoices)
+                        {
+                            <option value="@height">@GraphicsScaleLabel(height)</option>
+                        }
+                    </select>
+                </label>
 
                 <label class="kh-app-settings__row">
                     <span>

@@ -1,4 +1,5 @@
 using KHost.Abstractions.Services;
+using KHost.Domain.Services;
 using KHost.UserInterface.Services;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Routing;
@@ -78,6 +79,15 @@ public partial class AppSettingsPage : IDisposable
     private static IReadOnlyList<int> LeadInGraceChoices => KHost.UserInterface.Services.AppSettings.LeadInGraceChoices;
 
     private static string LeadInGraceLabel(int seconds) => seconds == 0 ? "Off" : $"{seconds} seconds";
+
+    private static IReadOnlyList<int> GraphicsScaleChoices => GraphicsScaling.Heights;
+
+    private static string GraphicsScaleLabel(int height) => height switch
+    {
+        GraphicsScaling.Off => "Off",
+        2160 => "4K",
+        _ => $"{height}p",
+    };
 
     private async Task SaveAsync()
     {

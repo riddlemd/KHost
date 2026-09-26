@@ -128,6 +128,40 @@ public class AppSettingsServiceTests : IDisposable
         => Assert.Equal(expected, Service(new KeyValuePair<string, string?>("Playback:LeadInGraceSeconds", stored)).Current.LeadInGraceSeconds);
 
     [Fact]
+    public async Task GraphicsScaleHeight_DefaultsTo720p_AndRoundTripsThroughTheOverlay()
+    {
+        var service = Service();
+
+        Assert.Equal(720, service.Current.GraphicsScaleHeight);
+
+        await service.SaveAsync(new AppSettings { GraphicsScaleHeight = 1080 });
+
+        using var overlay = JsonDocument.Parse(
+            await File.ReadAllTextAsync(Path.Combine(_directory, AppSettingsService.OverlayFileName)));
+        Assert.Equal(1080, overlay.RootElement.GetProperty("MediaStream").GetProperty("GraphicsScaleHeight").GetInt32());
+    }
+
+    [Fact]
+    public async Task GraphicsScaleHeight_SavesOnlyAnOfferedHeight()
+    {
+        await Service().SaveAsync(new AppSettings { GraphicsScaleHeight = 900 });
+
+        using var overlay = JsonDocument.Parse(
+            await File.ReadAllTextAsync(Path.Combine(_directory, AppSettingsService.OverlayFileName)));
+        Assert.Equal(720, overlay.RootElement.GetProperty("MediaStream").GetProperty("GraphicsScaleHeight").GetInt32());
+    }
+
+    /// <summary>A hand-edited height the select does not offer would show as none of its choices.</summary>
+    [Theory]
+    [InlineData("0", 0)]
+    [InlineData("1080", 1080)]
+    [InlineData("900", 720)]
+    [InlineData("99999", 2160)]
+    [InlineData("-1", 0)]
+    public void GraphicsScaleHeight_ReadsAsOneOfTheChoices(string stored, int expected)
+        => Assert.Equal(expected, Service(new KeyValuePair<string, string?>("MediaStream:GraphicsScaleHeight", stored)).Current.GraphicsScaleHeight);
+
+    [Fact]
     public async Task SongControlStyle_DefaultsToSliders_AndRoundTrips()
     {
         var service = Service();
