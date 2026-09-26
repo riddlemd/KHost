@@ -77,23 +77,30 @@
                         </InputSelect>
                     </div>
 
-                    <div class="kh-venue-settings__row">
-                        <label for="marquee-background" class="kh-form-label">Background color</label>
-                        <InputText id="marquee-background" type="color" class="kh-form-control kh-venue-settings__color"
-                                   @bind-Value="_model.MarqueeBackgroundColor" />
-                    </div>
-
-                    <div class="kh-venue-settings__row">
-                        <label for="marquee-text" class="kh-form-label">Text color</label>
-                        <InputText id="marquee-text" type="color" class="kh-form-control kh-venue-settings__color"
-                                   @bind-Value="_model.MarqueeTextColor" />
-                    </div>
-
                     <label class="kh-venue-settings__row kh-form-check">
                         <span class="kh-form-check-label">Hold &ldquo;Up next&rdquo; at the edge instead of scrolling it</span>
                         <input id="venue-marquee-pin-label" type="checkbox" class="kh-form-check-input"
                                @bind="_model.MarqueePinLabel" />
                     </label>
+
+                    <div class="kh-venue-settings__row">
+                        <label for="marquee-divider-shape" class="kh-form-label">Divider</label>
+                        <InputSelect id="marquee-divider-shape" class="kh-form-select" @bind-Value="_model.MarqueeDividerShape">
+                            <option value="@MarqueeDividerShape.Dot">Dot &bull;</option>
+                            <option value="@MarqueeDividerShape.Diamond">Diamond &#9670;</option>
+                            <option value="@MarqueeDividerShape.Star">Star &#9733;</option>
+                            <option value="@MarqueeDividerShape.Slash">Slash /</option>
+                            <option value="@MarqueeDividerShape.Pipe">Pipe |</option>
+                            <option value="@MarqueeDividerShape.Note">Note &#9834;</option>
+                            <option value="@MarqueeDividerShape.None">None</option>
+                        </InputSelect>
+                    </div>
+
+                    <div class="kh-venue-settings__row">
+                        <label for="marquee-background" class="kh-form-label">Background color</label>
+                        <InputText id="marquee-background" type="color" class="kh-form-control kh-venue-settings__color"
+                                   @bind-Value="_model.MarqueeBackgroundColor" />
+                    </div>
 
                     <div class="kh-venue-settings__row">
                         <span class="kh-venue-settings__labelled">
@@ -104,6 +111,12 @@
                         </span>
                         <InputNumber id="marquee-background-opacity" class="kh-form-control" min="0" max="100" step="5"
                                      @bind-Value="_model.MarqueeBackgroundOpacity" />
+                    </div>
+
+                    <div class="kh-venue-settings__row">
+                        <label for="marquee-text" class="kh-form-label">Text color</label>
+                        <InputText id="marquee-text" type="color" class="kh-form-control kh-venue-settings__color"
+                                   @bind-Value="_model.MarqueeTextColor" />
                     </div>
 
                     <div class="kh-venue-settings__row">
@@ -122,19 +135,6 @@
                         <label for="marquee-divider-color" class="kh-form-label">Divider color</label>
                         <InputText id="marquee-divider-color" type="color" class="kh-form-control kh-venue-settings__color"
                                    @bind-Value="_model.MarqueeDividerColor" />
-                    </div>
-
-                    <div class="kh-venue-settings__row">
-                        <label for="marquee-divider-shape" class="kh-form-label">Divider</label>
-                        <InputSelect id="marquee-divider-shape" class="kh-form-select" @bind-Value="_model.MarqueeDividerShape">
-                            <option value="@MarqueeDividerShape.Dot">Dot &bull;</option>
-                            <option value="@MarqueeDividerShape.Diamond">Diamond &#9670;</option>
-                            <option value="@MarqueeDividerShape.Star">Star &#9733;</option>
-                            <option value="@MarqueeDividerShape.Slash">Slash /</option>
-                            <option value="@MarqueeDividerShape.Pipe">Pipe |</option>
-                            <option value="@MarqueeDividerShape.Note">Note &#9834;</option>
-                            <option value="@MarqueeDividerShape.None">None</option>
-                        </InputSelect>
                     </div>
                 }
             </div>
