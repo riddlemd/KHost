@@ -1,4 +1,5 @@
 using KHost.UserInterface.Models;
+using KHost.UserInterface.Services;
 using Microsoft.AspNetCore.Components;
 
 namespace KHost.UserInterface.Components.Dialogs;
@@ -7,6 +8,8 @@ public partial class HelpDialog
 {
     private const string _rootClassName = "kh-help-dialog";
 
+    [Inject] private IControlState ControlState { get; set; } = default!;
+
     [Parameter] public bool IsOpen { get; set; }
     [Parameter] public string Class { get; set; } = "";
     [Parameter] public bool CloseOnScrimClick { get; set; }
@@ -14,6 +17,10 @@ public partial class HelpDialog
     [Parameter] public EventCallback OnClose { get; set; }
 
     private static KeyboardShortcutGroup[] Shortcuts => KeyboardShortcuts.All;
+
+    // <details open> is one-way from state; toggle only ever flips it, so the two never fight.
+    private void ToggleQuickGuide() => ControlState.HelpQuickGuideExpanded = !ControlState.HelpQuickGuideExpanded;
+    private void ToggleShortcuts() => ControlState.HelpShortcutsExpanded = !ControlState.HelpShortcutsExpanded;
 
     // Operational only: what running a night looks like, not what the app is or how it is licensed
     // — that stays in the About page. Checked against the actual panels rather than aspired-to ones.
