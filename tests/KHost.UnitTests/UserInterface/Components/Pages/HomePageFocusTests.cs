@@ -95,6 +95,8 @@ public class HomePageFocusTests : BunitContext
         Services.AddSingleton(Substitute.For<INextSingerCardService>());
         Services.AddSingleton(Substitute.For<IFlashService>());
         Services.AddSingleton(Substitute.For<IDialogService>());
+        // The Now Playing panel reads a song's timing to draw who sings where.
+        Services.AddSingleton(Substitute.For<ITimedLyricsService>());
         Services.AddSingleton(Substitute.For<IAdService>());
         Services.AddSingleton(Substitute.For<IFlashService>());
         Services.AddSingleton(Substitute.For<IBreakMusicService>());

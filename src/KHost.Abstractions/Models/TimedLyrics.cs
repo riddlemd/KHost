@@ -46,6 +46,12 @@ public sealed record LyricPage
 
     /// <summary>The colour of a syllable not yet reached, or null for the screen's theme.</summary>
     public LyricColor? Inactive { get; init; }
+
+    /// <summary>The singer who sings this page, named as the media names them.</summary>
+    /// <remarks>Taken as the media spells it, never corrected, so it equals an
+    /// <see cref="AudioTrack.Voice"/> only when the media names the singer the same way on their lead
+    /// stem. Null when the media does not say who sings.</remarks>
+    public string? Voice { get; init; }
 }
 
 /// <summary>One line of words, and where on the page it sits.</summary>

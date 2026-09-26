@@ -5,6 +5,7 @@ using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using KHost.Abstractions.Messaging;
 using KHost.Abstractions.Messaging.Messages;
+using KHost.Common.Lyrics;
 using KHost.UserInterface.Services;
 
 namespace KHost.UserInterface.Components.Panels;
@@ -18,6 +19,7 @@ public partial class NowPlayingPanel : IDisposable
     [Inject] private IMessageBroker Broker { get; set; } = default!;
     [Inject] private INextSingerCardService? NextSingerCard { get; set; }
     [Inject] private IFlashService? Flash { get; set; }
+    [Inject] private ITimedLyricsService? LyricsService { get; set; }
 
     private readonly SubscriptionSet _subscriptions = new();
 
@@ -28,15 +30,27 @@ public partial class NowPlayingPanel : IDisposable
     private ElementReference _trackRef;
     private IJSObjectReference? _seekBar;
 
+    // Read once per song and kept: the playhead redraws twice a second, and asking the provider
+    // on each of those would reopen the song's container every time.
+    private Guid? _lanesMediaId;
+    private IReadOnlyList<LyricLane> _lanes = [];
+    private LyricLane? _oneLane;
+
     protected override void OnInitialized()
     {
         if (PlaybackService is null) return;
 
-        _subscriptions.Add(Broker.Subscribe<PlaybackChanged>(_ => OnStateChanged(null, EventArgs.Empty)));
+        _subscriptions.Add(Broker.Subscribe<PlaybackChanged>(changed =>
+        {
+            _ = InvokeAsync(RefreshLanesAsync);
+            OnStateChanged(null, EventArgs.Empty);
+        }));
 
         // The only panel that takes the position clock: it draws the playhead, and a redraw is all
         // it does with either event.
         PlaybackService.PositionChanged += OnStateChanged;
+
+        _ = InvokeAsync(RefreshLanesAsync);
     }
 
     private async Task PlayAsync()
@@ -72,6 +86,53 @@ public partial class NowPlayingPanel : IDisposable
 
         await PlaybackService.SeekAsync(duration * fraction);
     }
+
+    /// <summary>Works out who sings where when the song changes, and at no other time.</summary>
+    private async Task RefreshLanesAsync()
+    {
+        var media = PlaybackService?.CurrentMedia;
+        if (media?.Id == _lanesMediaId) return;
+
+        _lanesMediaId = media?.Id;
+        _lanes = [];
+        _oneLane = null;
+
+        if (media is null || LyricsService is null) return;
+
+        TimedLyrics? lyrics;
+        try { lyrics = await LyricsService.GetTimedLyricsAsync(media.FilePath); }
+        // Nothing awaits this; a failure only costs the lanes, and the plain bar still seeks.
+        catch (Exception) { return; }
+
+        // A newer song may have started while this one was being read.
+        if (lyrics is null || _lanesMediaId != media.Id) return;
+
+        _lanes = LyricLanes.SungSpansByVoice(lyrics);
+        _oneLane = LyricLanes.SungSpansAsOneLane(lyrics);
+        StateHasChanged();
+    }
+
+    /// <summary>A position as a percentage of the song, for an SVG coordinate.</summary>
+    private static string PercentOf(double seconds, double durationSeconds)
+        => Percent(Math.Clamp(seconds / durationSeconds * 100, 0, 100));
+
+    /// <summary>Where lane <paramref name="index"/> of <paramref name="count"/> sits in the track,
+    /// as SVG percentages. A lone lane is half the track's height, as KaraFun draws it; stacked
+    /// lanes take more of their band so each stays thick enough to see.</summary>
+    private static (string Y, string Height) LaneBand(int index, int count)
+    {
+        var band = 100.0 / count;
+        var height = band * (count == 1 ? 0.5 : 0.7);
+        var y = band * index + (band - height) / 2;
+
+        return (Percent(y), Percent(height));
+    }
+
+    private static string Percent(double value)
+        => value.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture) + "%";
+
+    private static string? FillOf(LyricLane lane)
+        => lane.Color is { } c ? $"#{c.R:X2}{c.G:X2}{c.B:X2}" : null;
 
     private void OnStateChanged(object? sender, EventArgs e) => InvokeAsync(StateHasChanged);
 
