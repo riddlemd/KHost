@@ -4241,6 +4241,29 @@ public class PlaybackServiceTests : IDisposable
         Assert.Equal(expected, _service.CurrentSingerName);
     }
 
+    /// <summary>The screen's intro card names the singer by the same rule the console does.</summary>
+    [Theory]
+    [InlineData(true, "DJ P")]
+    [InlineData(false, "Priya")]
+    public async Task LoadAsync_ASongWithWords_NamesTheSingerOnTheIntroCardByTheVenuesAliasRule(bool allowAliases, string expected)
+    {
+        var (performance, media) = CreatePerformance();
+        performance.SungAs = "DJ P";
+        ArrangeSinger(performance.SingerId, "Priya");
+        ArrangeVenue(allowAliases);
+        _timedLyrics.GetTimedLyricsAsync(media.FilePath, Arg.Any<CancellationToken>()).Returns(new TimedLyrics
+        {
+            DurationSeconds = 90,
+            Bounds = new LyricBox(0, 0, 640, 360),
+            Pages = [new LyricPage { ShowFromSeconds = 12, ShowUntilSeconds = 16 }],
+        });
+
+        await _service.LoadAsync(performance, media);
+
+        await _screenServer.Received(1).BroadcastCommandAsync(
+            Arg.Is<SetTimedLyricsCommand>(command => command.Intro != null && command.Intro.Singer == expected));
+    }
+
     [Fact]
     public async Task LoadAsync_NoNameQueuedWithTheSong_NamesTheSinger()
     {

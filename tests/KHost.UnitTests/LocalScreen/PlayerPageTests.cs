@@ -53,6 +53,21 @@ public class PlayerPageTests
         Assert.True(overlay < player, "the player would call an overlay that is not defined yet");
     }
 
+    // player.js builds the intro card as it loads, the same ordering rule the overlay is held to.
+    [Fact]
+    public void BuildPlayerPage_Always_PutsTheIntroCardBeforeThePlayer()
+    {
+        var page = Program.BuildPlayerPage();
+
+        var card = page.IndexOf("function createIntroCard", StringComparison.Ordinal);
+        var player = page.IndexOf("createIntroCard(introLayer", StringComparison.Ordinal);
+
+        Assert.True(card >= 0, "the intro card is missing from the page");
+        Assert.True(player >= 0, "the player never builds the intro card");
+        Assert.True(card < player, "the player would call an intro card that is not defined yet");
+        Assert.DoesNotContain("<script src=\"intro-card.js\"></script>", page, StringComparison.Ordinal);
+    }
+
     // hls.js has to be defined before player.js reads it to choose a playback path.
     [Fact]
     public void BuildPlayerPage_Always_PutsHlsJsBeforeThePlayer()

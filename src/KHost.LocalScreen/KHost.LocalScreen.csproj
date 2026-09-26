@@ -45,6 +45,7 @@
     <EmbeddedResource Include="screen-ui\index.html" LogicalName="screen-ui/index.html" />
     <EmbeddedResource Include="screen-ui\hls.light.min.js" LogicalName="screen-ui/hls.light.min.js" />
     <EmbeddedResource Include="screen-ui\lyrics-overlay.js" LogicalName="screen-ui/lyrics-overlay.js" />
+    <EmbeddedResource Include="screen-ui\intro-card.js" LogicalName="screen-ui/intro-card.js" />
     <EmbeddedResource Include="screen-ui\stem-mixer.js" LogicalName="screen-ui/stem-mixer.js" />
     <EmbeddedResource Include="screen-ui\wake-watch.js" LogicalName="screen-ui/wake-watch.js" />
     <EmbeddedResource Include="screen-ui\player.js" LogicalName="screen-ui/player.js" />

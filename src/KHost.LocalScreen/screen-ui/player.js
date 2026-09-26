@@ -28,7 +28,9 @@ let songRate = 1;
 // The words drawn over the song, when the host sent any. They follow the element's clock rather
 // than one of their own, so there is a single clock in the room and they cannot drift from it.
 const lyricsCanvas = document.getElementById('lyrics');
-const overlay = createLyricsOverlay(lyricsCanvas, () => {
+
+/// The song position in seconds, or null when nothing is holding the song.
+function songClock() {
     const player = target();
 
     // srcObject as well as src: WebKit refuses hls.js's blob: URL on this opaque-origin page, so
@@ -37,7 +39,17 @@ const overlay = createLyricsOverlay(lyricsCanvas, () => {
     if (!player || (!player.src && !player.srcObject) || player.readyState < 1) return null;
 
     return songOffsetSeconds + player.currentTime * songRate;
-});
+}
+
+const overlay = createLyricsOverlay(lyricsCanvas, songClock);
+
+// The card heading the words, on the words' own clock. Its layer is what a stop fades, since the
+// card sets its own opacity from the clock.
+const introLayer = document.getElementById('intro-layer');
+const introCard = createIntroCard(introLayer, songClock);
+
+// Everything drawn over the song rather than streamed: a stop dims these with the sound.
+const songLayers = [lyricsCanvas, introLayer];
 const background = document.getElementById('background');
 const still = document.getElementById('still');
 
@@ -335,8 +347,10 @@ function teardown() {
 
 /// Puts the words back at full view at once, which a stop's fade leaves part way or gone.
 function showWords() {
-    lyricsCanvas.style.transition = 'none';
-    lyricsCanvas.style.opacity = '1';
+    for (const layer of songLayers) {
+        layer.style.transition = 'none';
+        layer.style.opacity = '1';
+    }
 }
 
 /// Brings a player back to full view at the room's level, which a fade leaves part way.
@@ -367,8 +381,10 @@ async function fadeOutAndStop(fadeMs) {
     element.style.transition = `opacity ${fadeMs}ms linear`;
     element.style.opacity = '0';
     // The words are a stem song's whole picture, its element sitting empty, so they dim with the sound.
-    lyricsCanvas.style.transition = `opacity ${fadeMs}ms linear`;
-    lyricsCanvas.style.opacity = '0';
+    for (const layer of songLayers) {
+        layer.style.transition = `opacity ${fadeMs}ms linear`;
+        layer.style.opacity = '0';
+    }
 
     // The generation is checked inside the ramp, not only after it: a fade the host has already
     // superseded would otherwise go on pulling the volume down over the song that replaced it.
@@ -757,6 +773,8 @@ function handleCommand(raw) {
             // The whole timing document, sent once with the load rather than on the transport.
             // Null clears it, which is what a song with no words looks like.
             overlay.setLyrics(message.lyrics || null);
+            // Only ever beside words: the host sends none for a picture that carries its own.
+            introCard.set(message.intro || null, message.lyrics || null);
             break;
         case 'play':
             playbackGeneration++;
@@ -786,9 +804,9 @@ function handleCommand(raw) {
             // Hidden, not paused: a paused element would drift the moment it's turned back on.
             // visibility, not display: display:none drops it from the render tree, stalling WebKit's decoder.
             videos.forEach((v) => { v.style.visibility = message.enabled === false ? 'hidden' : ''; });
-            // The canvas hides the same way, and for the same reason: the engine keeps drawing so
+            // The words and their card hide the same way, and for the same reason: the engine keeps drawing so
             // the words are still on the song when the picture comes back.
-            lyricsCanvas.style.visibility = message.enabled === false ? 'hidden' : '';
+            for (const layer of songLayers) layer.style.visibility = message.enabled === false ? 'hidden' : '';
             blanked.hidden = message.enabled !== false;
             break;
         case 'volume':

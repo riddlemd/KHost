@@ -254,6 +254,27 @@ public sealed class SetTimedLyricsCommand : ScreenCommandBase
 {
     /// <summary>The timing, or null when this song has none and the screen should clear what it holds.</summary>
     public required TimedLyrics? Lyrics { get; init; }
+
+    /// <summary>The card naming the song and its singer until the first page of words arrives, or
+    /// null for none.</summary>
+    /// <remarks>Carried here rather than on its own command because it exists only beside words the
+    /// screen draws itself: a picture that carries its own words carries its own intro too. Sent
+    /// together, the screen can never hold one song's card over another song's words.</remarks>
+    public ScreenIntroCard? Intro { get; init; }
+}
+
+/// <summary>What the intro card says, as finished strings: the screen holds no library or queue.</summary>
+public sealed class ScreenIntroCard
+{
+    /// <summary>The song's title.</summary>
+    public required string Title { get; init; }
+
+    /// <summary>Null where the song has no artist recorded.</summary>
+    public string? Artist { get; init; }
+
+    /// <summary>The name the room should hear, the alias where the venue allows one; null when
+    /// there is nobody to name.</summary>
+    public string? Singer { get; init; }
 }
 
 /// <summary>Base for state the LocalScreen app reports back to the host.</summary>

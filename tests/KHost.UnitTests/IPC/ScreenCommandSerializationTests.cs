@@ -210,6 +210,34 @@ public class ScreenCommandSerializationTests
     }
 
     [Fact]
+    public void RoundTrip_KeepsTheIntroCard()
+    {
+        var command = new SetTimedLyricsCommand
+        {
+            Lyrics = new TimedLyrics { DurationSeconds = 90, Bounds = new LyricBox(0, 0, 640, 360) },
+            Intro = new ScreenIntroCard { Title = "Africa", Artist = "Toto", Singer = "DJ P" },
+        };
+
+        var back = Assert.IsType<SetTimedLyricsCommand>(JsonSerializer.Deserialize<ScreenCommandBase>(
+            JsonSerializer.Serialize(command, typeof(ScreenCommandBase), Options), Options));
+
+        Assert.NotNull(back.Intro);
+        Assert.Equal(("Africa", "Toto", "DJ P"), (back.Intro.Title, back.Intro.Artist, back.Intro.Singer));
+    }
+
+    /// <summary>A song without a card must arrive without one, not with an empty card to draw.</summary>
+    [Fact]
+    public void RoundTrip_NoIntroCard_StaysNone()
+    {
+        var command = new SetTimedLyricsCommand { Lyrics = null };
+
+        var back = Assert.IsType<SetTimedLyricsCommand>(JsonSerializer.Deserialize<ScreenCommandBase>(
+            JsonSerializer.Serialize(command, typeof(ScreenCommandBase), Options), Options));
+
+        Assert.Null(back.Intro);
+    }
+
+    [Fact]
     public void RoundTrip_PreservesCommandPayloads()
     {
         static T RoundTrip<T>(T command) where T : ScreenCommandBase
