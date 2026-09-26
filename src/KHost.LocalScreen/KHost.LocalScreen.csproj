@@ -18,6 +18,20 @@
     <OutputType>Exe</OutputType>
   </PropertyGroup>
 
+  <!-- The app icon: embedded in the exe for Explorer and the taskbar, and copied beside it for the
+       window and the Dock, which read it at runtime. assets/icon/build-icons.py regenerates them. -->
+  <PropertyGroup>
+    <DefineConstants>$(DefineConstants);KHOST_LOCALSCREEN</DefineConstants>
+    <ApplicationIcon>..\..\assets\icon\khost.ico</ApplicationIcon>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\Shared\AppIcon.cs" Link="AppIcon.cs" />
+    <None Include="..\..\assets\icon\khost.ico" Link="icons\khost.ico" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\assets\icon\khost.icns" Link="icons\khost.icns" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\assets\icon\linux\khost-256.png" Link="icons\khost-256.png" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>

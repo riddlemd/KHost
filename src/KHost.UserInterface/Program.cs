@@ -1,6 +1,7 @@
 using FFMpegCore;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using KHost.Abstractions.Repositories;
 using KHost.Domain.Services;
@@ -484,10 +485,12 @@ internal static class Program
         PhotinoWindow? window = null;
         window = new PhotinoWindow()
             .SetTitle("KHost")
+            .SetAppIcon(NullLogger.Instance)
             .SetUseOsDefaultSize(false)
             .SetSize(1, 1)
             .RegisterWindowCreatedHandler((_, _) =>
             {
+                MacDockIcon.TrySet(NullLogger.Instance);
                 window!.ShowMessage("KHost", Message, PhotinoDialogButtons.Ok, PhotinoDialogIcon.Warning);
 
                 // Close() here does not break out of WaitForClose, which would leave the process
@@ -540,8 +543,10 @@ internal static class Program
 
         var window = new PhotinoWindow()
             .SetTitle("KHost")
+            .SetAppIcon(app.Logger)
             .SetUseOsDefaultSize(false)
             .SetSize(1440, 900)
+            .RegisterWindowCreatedHandler((_, _) => MacDockIcon.TrySet(app.Logger))
             // Blocks both "Inspect Element" in the native text-field menu and F12/Cmd-Opt-I. It is
             // the only switch that closes both, while leaving cut/copy/paste on that menu alone.
             .SetDevToolsEnabled(IsDebugBuild)
