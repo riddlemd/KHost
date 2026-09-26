@@ -1266,6 +1266,79 @@ public class LocalScreenDisplayProviderTests
         Assert.Same(secondWords, Sent<SetTimedLyricsCommand>().Last().Lyrics);
     }
 
+    // --- the intro card ---
+
+    private void PagedWordsFor(PlaybackProgram.Playing song)
+        => _timedLyrics.GetTimedLyricsAsync(song.Media.FilePath, Arg.Any<CancellationToken>()).Returns(new TimedLyrics
+        {
+            DurationSeconds = 90,
+            Bounds = new LyricBox(0, 0, 640, 360),
+            Pages = [new LyricPage { ShowFromSeconds = 12, ShowUntilSeconds = 16 }],
+        });
+
+    /// <summary>Words the screen draws itself get the card naming the song and who is singing it.</summary>
+    [Fact]
+    public async Task LoadAsync_ASongWithWords_SendsTheIntroCardWithTheSongAndSinger()
+    {
+        var song = new PlaybackProgram.Playing(
+            new Media { Title = "Africa", Artist = "Toto", FilePath = "/africa.mp4" }, new Performance());
+        PagedWordsFor(song);
+        _playback.CurrentProgram.Returns(song);
+        _playback.CurrentSingerName.Returns("DJ P");
+        using var provider = DrawingProvider();
+
+        await provider.LoadAsync(ALoad);
+
+        var intro = Assert.Single(Sent<SetTimedLyricsCommand>()).Intro;
+        Assert.NotNull(intro);
+        Assert.Equal(("Africa", "Toto", "DJ P"), (intro.Title, intro.Artist, intro.Singer));
+    }
+
+    /// <summary>A picture that carries its own words carries its own intro, and sends no timing.</summary>
+    [Fact]
+    public async Task LoadAsync_ASongWithNoWords_SendsNoIntroCard()
+    {
+        _playback.CurrentProgram.Returns(Song());
+        _playback.CurrentSingerName.Returns("DJ P");
+        _timedLyrics.GetTimedLyricsAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns((TimedLyrics?)null);
+        using var provider = DrawingProvider();
+
+        await provider.LoadAsync(ALoad);
+
+        Assert.Null(Assert.Single(Sent<SetTimedLyricsCommand>()).Intro);
+    }
+
+    /// <summary>With no first page there is nothing for the card to give way to.</summary>
+    [Fact]
+    public async Task LoadAsync_WordsWithNoPages_SendsNoIntroCard()
+    {
+        var song = Song();
+        WordsFor(song);
+        _playback.CurrentProgram.Returns(song);
+        using var provider = DrawingProvider();
+
+        await provider.LoadAsync(ALoad);
+
+        Assert.Null(Assert.Single(Sent<SetTimedLyricsCommand>()).Intro);
+    }
+
+    /// <summary>Blank reads as absent, so the screen draws no empty line where an artist would go.</summary>
+    [Fact]
+    public async Task LoadAsync_ASongWithNoArtistOrSinger_SendsTheIntroCardWithTitleAlone()
+    {
+        var song = Song();
+        PagedWordsFor(song);
+        _playback.CurrentProgram.Returns(song);
+        _playback.CurrentSingerName.Returns((string?)null);
+        using var provider = DrawingProvider();
+
+        await provider.LoadAsync(ALoad);
+
+        var intro = Assert.Single(Sent<SetTimedLyricsCommand>()).Intro;
+        Assert.NotNull(intro);
+        Assert.Equal(("Africa", (string?)null, (string?)null), (intro.Title, intro.Artist, intro.Singer));
+    }
+
     /// <summary>A venue whose card is an image in the library.</summary>
     private Guid Branding(ImageScaling? venueScaling = null, string format = "PNG")
     {

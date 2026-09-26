@@ -20,7 +20,7 @@ namespace KHost.Domain.Services.Displays.LocalScreen;
 ///
 /// <para>It owns everything the screen shows, not only the song: the marquee (composed here from the
 /// venue's settings and <c>IUpNextService</c>), the QR codes, the break music card, the venue's card
-/// or an ad's still, the song's timed words, and the venue's level. None of that is on
+/// or an ad's still, the song's timed words and the intro card ahead of them, and the venue's level. None of that is on
 /// <c>IDisplayProvider</c>, which is transport only. The host announces what moved and this pulls the whole current state of whatever that
 /// message drives, so a screen that connects is sent everything afresh rather than a replay of what
 /// it missed. It reads only what a plugin's display could read; encoding and the screen's commands
@@ -478,12 +478,32 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
 
             _lyricsSentOn = session;
 
-            await SendAsync(new SetTimedLyricsCommand { Lyrics = _lyrics });
+            await SendAsync(new SetTimedLyricsCommand { Lyrics = _lyrics, Intro = BuildIntroCard(song.Media, _lyrics) });
         }
         finally
         {
             _lyricsLock.Release();
         }
+    }
+
+    /// <summary>The song and its singer, shown until the words start; only for words drawn here.</summary>
+    /// <remarks>Decided by the timing alone, never the format: a song whose picture carries its own
+    /// words carries its own intro, and sends no timing. A timing with no pages has no first page
+    /// for the card to give way to, and a song with no title has nothing to head it.</remarks>
+    private ScreenIntroCard? BuildIntroCard(Media media, TimedLyrics? lyrics)
+    {
+        if (lyrics is not { Pages.Count: > 0 } || string.IsNullOrWhiteSpace(media.Title))
+            return null;
+
+        // The name playback settled at load, alias rule applied, so the card and the console agree.
+        var singer = _services?.GetService<IPlaybackService>()?.CurrentSingerName;
+
+        return new ScreenIntroCard
+        {
+            Title = media.Title.Trim(),
+            Artist = string.IsNullOrWhiteSpace(media.Artist) ? null : media.Artist.Trim(),
+            Singer = string.IsNullOrWhiteSpace(singer) ? null : singer.Trim(),
+        };
     }
 
     private async Task<TimedLyrics?> ReadTimedLyricsAsync(Media media)
