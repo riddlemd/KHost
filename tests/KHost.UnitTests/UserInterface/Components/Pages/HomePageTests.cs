@@ -47,6 +47,8 @@ public class HomePageTests : BunitContext
         Services.AddSingleton(appSettings);
         Services.AddSingleton<IMessageBroker>(new MessageBroker(NullLogger<MessageBroker>.Instance));
         Services.AddSingleton(Substitute.For<IDialogService>());
+        // The Now Playing panel reads a song's timing to draw who sings where.
+        Services.AddSingleton(Substitute.For<ITimedLyricsService>());
         Services.AddSingleton(Substitute.For<IAdService>());
         Services.AddSingleton(Substitute.For<IFlashService>());
         // Same trap: with a singer queued the panel counts that singer's performances, and a

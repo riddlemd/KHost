@@ -270,6 +270,60 @@
             border-radius: 2px;
             animation: np-progress-slide 1.8s linear infinite;
         }
+
+        // The lanes' played wash does the filling; the fill stays only to carry the thumb. No
+        // transition, or the thumb glides half a second behind a wash that steps.
+        &--over-lanes {
+            position: absolute;
+            top: 0;
+            left: 0;
+            min-width: 0;
+            background: transparent;
+            transition: none;
+
+            &::after {
+                right: -7px;
+                width: 14px;
+                height: 14px;
+            }
+        }
+    }
+
+    // Still shorter than the times beside it, so the section and the panel's height cap are
+    // unchanged by a song that has lanes.
+    &__progress-track--lanes {
+        height: 12px;
+        border-radius: 6px;
+        background: var(--kh-scrim);
+    }
+
+    &__progress-track--many-lanes {
+        height: 16px;
+        border-radius: 8px;
+    }
+
+    &__lanes {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        border-radius: inherit;
+        overflow: hidden;
+        pointer-events: none;
+
+        &--one {
+            display: none;
+        }
+    }
+
+    // A data colour arrives as the rect's fill attribute, which any CSS fill would override; only a
+    // lane the song gave no colour takes the theme's.
+    &__lane-span--themed {
+        fill: var(--kh-primary-bright);
+    }
+
+    &__played {
+        fill: color-mix(in srgb, var(--kh-text) 22%, transparent);
     }
 
     &__times {
@@ -335,6 +389,23 @@
             animation-delay: 0.1s;
             height: 6px;
         }
+    }
+}
+
+// The panel is about 1130px wide at 1440 with the queue at its default; at half that a hand-off of a
+// few seconds is a sliver, and stacked lanes read as noise rather than as who sings where.
+@container kh-now-playing (max-width: 560px) {
+    .kh-now-playing__lanes--by-voice {
+        display: none;
+    }
+
+    .kh-now-playing__lanes--one {
+        display: block;
+    }
+
+    .kh-now-playing__progress-track--many-lanes {
+        height: 12px;
+        border-radius: 6px;
     }
 }
 
