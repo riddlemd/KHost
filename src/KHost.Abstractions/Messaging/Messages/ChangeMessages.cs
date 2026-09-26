@@ -57,7 +57,7 @@ public sealed record PluginCatalogChanged;
 /// <summary>An install moved: progress, a settled result, or a staging change.</summary>
 public sealed record PluginInstallsChanged;
 
-/// <summary>The message banner across the top of the console changed: a new message or withdrawn.</summary>
+/// <summary>The flash stack changed: a message was shown or one was withdrawn.</summary>
 public sealed record FlashChanged;
 
 /// <summary>The connected display, or what it can do, changed.</summary>

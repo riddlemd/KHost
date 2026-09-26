@@ -1,10 +1,22 @@
-/* Absolute rather than in the flow: the panels below must not jump down and back as it comes and goes. */
+/* Fixed to the viewport, not to .kh-app's own box: a scrolled settings page must not carry the
+   stack up above the fold with it, which is what position: absolute here used to do. */
+.kh-flash-stack {
+    position: fixed;
+    inset-block-start: 0.5em;
+    inset-inline: 0;
+    // Above ordinary content, below the dialog scrim (1000): a notice under an open dialog is
+    // still there once it closes, rather than fighting the scrim for the same layer.
+    z-index: 900;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.4em;
+    // The gaps between stacked cards must not swallow clicks on whatever sits under them.
+    pointer-events: none;
+}
+
 .kh-flash {
-    position: absolute;
-    top: 0.5em;
-    left: 50%;
-    transform: translateX(-50%);
-    z-index: 50;
+    pointer-events: auto;
     display: flex;
     align-items: center;
     gap: 0.6em;
@@ -36,5 +48,15 @@
     &__dismiss {
         margin-left: 0.25em;
         color: inherit;
+    }
+}
+
+@media (max-width: 480px) {
+    .kh-flash-stack {
+        inset-inline: 0.75em;
+    }
+
+    .kh-flash {
+        max-width: 100%;
     }
 }

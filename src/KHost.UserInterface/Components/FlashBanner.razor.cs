@@ -9,14 +9,21 @@ namespace KHost.UserInterface.Components;
 public partial class FlashBanner : IDisposable
 {
     /// <summary>Long enough to notice and read, short enough not to sit over the queue.</summary>
-    private const int VisibleMilliseconds = 4000;
+    private const int SuccessVisibleMilliseconds = 4000;
+
+    /// <summary>Warnings and errors get longer on screen: the host is more likely to be mid-task
+    /// when one appears and needs a moment before it reads as background noise.</summary>
+    private const int WarningVisibleMilliseconds = 8000;
+
+    /// <summary>Test seam: a mutation sweep or an auto-dismiss assertion swaps this for something
+    /// that resolves at once, rather than waiting out the real duration.</summary>
+    internal Func<int, Task> Delay { get; set; } = ms => Task.Delay(ms);
 
     [Inject] private IFlashService? Flash { get; set; }
     [Inject] private IMessageBroker Broker { get; set; } = default!;
 
     private readonly SubscriptionSet _subscriptions = new();
-
-    private FlashMessage? _counting;
+    private readonly HashSet<Guid> _counting = [];
 
     protected override void OnInitialized()
     {
@@ -25,12 +32,12 @@ public partial class FlashBanner : IDisposable
 
     private void OnFlashChanged(FlashChanged flashChanged)
     {
-        var message = Flash?.Current;
-
-        if (message is not null && !ReferenceEquals(message, _counting))
+        foreach (var message in Flash?.Messages ?? [])
         {
-            _counting = message;
-            _ = WithdrawAsync(message);
+            // One countdown per message: a second Show while the first is still up must not reset
+            // or duplicate the timer already running for it.
+            if (_counting.Add(message.Id))
+                _ = WithdrawAsync(message);
         }
 
         _ = InvokeAsync(StateHasChanged);
@@ -38,11 +45,14 @@ public partial class FlashBanner : IDisposable
 
     private async Task WithdrawAsync(FlashMessage message)
     {
-        await Task.Delay(VisibleMilliseconds);
+        var visibleMilliseconds = message.Type == FlashType.Success
+            ? SuccessVisibleMilliseconds
+            : WarningVisibleMilliseconds;
 
-        // Reference equality: a message shown since owns the banner, and this countdown is stale.
-        if (ReferenceEquals(Flash?.Current, message))
-            Flash.Dismiss();
+        await Delay(visibleMilliseconds);
+
+        _counting.Remove(message.Id);
+        Flash?.Dismiss(message);
     }
 
     public void Dispose() => _subscriptions.Dispose();
