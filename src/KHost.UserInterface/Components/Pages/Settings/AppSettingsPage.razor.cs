@@ -74,6 +74,11 @@ public partial class AppSettingsPage : IDisposable
 
     public void Dispose() => _navigationGuard?.Dispose();
 
+    // Qualified: the injected service is also called AppSettings on this page.
+    private static IReadOnlyList<int> LeadInGraceChoices => KHost.UserInterface.Services.AppSettings.LeadInGraceChoices;
+
+    private static string LeadInGraceLabel(int seconds) => seconds == 0 ? "Off" : $"{seconds} seconds";
+
     private async Task SaveAsync()
     {
         if (AppSettings is null) return;

@@ -68,6 +68,21 @@ public class PlayerPageTests
         Assert.DoesNotContain("<script src=\"intro-card.js\"></script>", page, StringComparison.Ordinal);
     }
 
+    // player.js builds the lead-in hold as it loads; missing, a page throws before it ever says ready.
+    [Fact]
+    public void BuildPlayerPage_Always_PutsTheLeadInBeforeThePlayer()
+    {
+        var page = Program.BuildPlayerPage();
+
+        var leadIn = page.IndexOf("function createLeadInHold", StringComparison.Ordinal);
+        var player = page.IndexOf("createLeadInHold(() =>", StringComparison.Ordinal);
+
+        Assert.True(leadIn >= 0, "the lead-in is missing from the page");
+        Assert.True(player >= 0, "the player never builds the lead-in");
+        Assert.True(leadIn < player, "the player would call a lead-in that is not defined yet");
+        Assert.DoesNotContain("<script src=\"lead-in.js\"></script>", page, StringComparison.Ordinal);
+    }
+
     // hls.js has to be defined before player.js reads it to choose a playback path.
     [Fact]
     public void BuildPlayerPage_Always_PutsHlsJsBeforeThePlayer()

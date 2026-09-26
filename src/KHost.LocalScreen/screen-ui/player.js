@@ -31,6 +31,9 @@ const lyricsCanvas = document.getElementById('lyrics');
 
 /// The song position in seconds, or null when nothing is holding the song.
 function songClock() {
+    // Below zero while a lead-in holds the song back, so the card and the bar run on across it.
+    if (leadIn.active) return songOffsetSeconds - leadIn.remaining;
+
     const player = target();
 
     // srcObject as well as src: WebKit refuses hls.js's blob: URL on this opaque-origin page, so
@@ -47,6 +50,28 @@ const overlay = createLyricsOverlay(lyricsCanvas, songClock);
 // card sets its own opacity from the clock.
 const introLayer = document.getElementById('intro-layer');
 const introCard = createIntroCard(introLayer, songClock);
+
+// Runs out into the song: the element or the mix is started only once the hold is over.
+const leadIn = createLeadInHold(() => target().play().catch((e) => reportError(`play: ${e}`)));
+
+// The words as the host sent them, kept so the lead-in's bar can be put on and taken off again.
+let words = { lyrics: null, intro: null, leadInSeconds: 0, led: false };
+
+/// Hands the words to the overlay and the card, with the lead-in's bar on them or without.
+function showLyrics(led) {
+    words.led = led && words.leadInSeconds > 0;
+
+    const lyrics = words.led ? withLeadInCountIn(words.lyrics, words.leadInSeconds) : words.lyrics;
+    overlay.setLyrics(lyrics);
+    // Only ever beside words: the host sends none for a picture that carries its own.
+    introCard.set(words.intro, lyrics, words.led ? words.leadInSeconds : 0);
+}
+
+/// Nothing of the song has been heard yet: a stream opened at zero that has not moved.
+function atSongStart() {
+    const player = target();
+    return songOffsetSeconds === 0 && !(Number(player && player.currentTime) > 0.05);
+}
 
 // Everything drawn over the song rather than streamed: a stop dims these with the sound.
 const songLayers = [lyricsCanvas, introLayer];
@@ -407,6 +432,7 @@ async function fadeOutAndStop(fadeMs) {
     }
 
     teardown();
+    leadIn.cancel();
     reveal(current.el);
     // Cleared before it is shown again, or the frame the fade hid comes back for a moment.
     overlay.clear();
@@ -746,6 +772,10 @@ function handleCommand(raw) {
             songOffsetSeconds = message.songOffsetSeconds || 0;
             songRate = message.rate || 1;
 
+            // A stream reopened under a running hold (a key change at the top) keeps the hold;
+            // one opened part way in is a song already under way.
+            if (songOffsetSeconds > 0 && !leadIn.active) leadIn.cancel();
+
             // Stems arrive unmixed and are mixed here, so moving a voice later costs a gain rather
             // than a new encode. The stream URL is still sent beside them, and is what a page that
             // could not mix would have played instead.
@@ -772,9 +802,19 @@ function handleCommand(raw) {
         case 'timed-lyrics':
             // The whole timing document, sent once with the load rather than on the transport.
             // Null clears it, which is what a song with no words looks like.
-            overlay.setLyrics(message.lyrics || null);
-            // Only ever beside words: the host sends none for a picture that carries its own.
-            introCard.set(message.intro || null, message.lyrics || null);
+            words = {
+                lyrics: message.lyrics || null,
+                intro: message.intro || null,
+                leadInSeconds: Number(message.leadInSeconds) || 0,
+                led: false,
+            };
+            showLyrics(false);
+
+            // Words arrive once per song, so whatever hold the last one left goes. Armed only ahead
+            // of a page, since with none there is nothing to lead the singer in to; the play that
+            // starts it checks the song is still at its top.
+            leadIn.cancel();
+            if (firstPageAt(words.lyrics) !== null) leadIn.arm(words.leadInSeconds);
             break;
         case 'play':
             playbackGeneration++;
@@ -785,18 +825,44 @@ function handleCommand(raw) {
             if (!incoming) reveal(current.el);
             if (stemMixer) stemMixer.volume = currentVolume;
 
+            if (leadIn.active) {
+                leadIn.resume();
+                break;
+            }
+
+            if (leadIn.armed && atSongStart()) {
+                showLyrics(true);
+                leadIn.start();
+                break;
+            }
+
+            // Once only: a later resume from the top is not a song starting.
+            leadIn.cancel();
             target().play().catch((e) => reportError(`play: ${e}`));
             break;
         case 'pause':
+            leadIn.pause();
             target().pause();
             break;
         case 'stop':
+            // Paused rather than dropped: a play superseding the fade picks it back up, and a
+            // fade that completes cancels it with everything else.
+            leadIn.pause();
             fadeOutAndStop(Math.max(1, message.fadeMs || 0));
             break;
-        case 'seek':
+        case 'seek': {
+            // The host chose a place in the song, so the rest of any hold goes and the song
+            // starts there, running if the hold was.
+            const holdWasRunning = leadIn.active && !leadIn.paused;
+            leadIn.cancel();
+            if (words.led) showLyrics(false);
+
             // Seeking within a stream the page already holds, rather than restarting an encode.
             try { target().currentTime = message.position || 0; } catch (e) { reportError(`seek: ${e}`); }
+
+            if (holdWasRunning) target().play().catch((e) => reportError(`play: ${e}`));
             break;
+        }
         case 'hostLost':
             hostLost.hidden = message.lost !== true;
             break;
@@ -941,11 +1007,15 @@ setInterval(() => {
     // host's playhead back to the start of a song that is still playing.
     const player = target();
 
+    // A hold is the song at zero, playing: the host's playhead sits at the start rather than
+    // running on through the hold and jumping back when the song starts.
+    const holding = leadIn.active;
+
     send({
         type: 'state',
-        position: Number.isFinite(player.currentTime) ? player.currentTime : 0,
+        position: holding ? 0 : Number.isFinite(player.currentTime) ? player.currentTime : 0,
         duration: Number.isFinite(player.duration) ? player.duration : 0,
-        playing: !player.paused && !player.ended && player.readyState > 2,
+        playing: holding ? !leadIn.paused : !player.paused && !player.ended && player.readyState > 2,
         // Sample time, not send time: guessed latency would bias the host's playhead forever.
         sampledAtEpochMs: Date.now(),
         rate: player.playbackRate,

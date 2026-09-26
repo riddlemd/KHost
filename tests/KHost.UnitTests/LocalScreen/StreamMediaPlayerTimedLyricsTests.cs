@@ -33,6 +33,20 @@ public class StreamMediaPlayerTimedLyricsTests
     }
 
     [Fact]
+    public void SetTimedLyrics_WithALeadIn_CarriesItToThePage()
+    {
+        _player.SetTimedLyrics(new SetTimedLyricsCommand
+        {
+            Lyrics = new TimedLyrics { DurationSeconds = 90, Bounds = new LyricBox(0, 0, 640, 360) },
+            LeadInSeconds = 3.8,
+        });
+
+        var message = JsonDocument.Parse(_sentToPage[^1]).RootElement;
+
+        Assert.Equal(3.8, message.GetProperty("leadInSeconds").GetDouble());
+    }
+
+    [Fact]
     public void SetTimedLyrics_WithNoIntroCard_SendsNone()
     {
         _player.SetTimedLyrics(new SetTimedLyricsCommand { Lyrics = null });

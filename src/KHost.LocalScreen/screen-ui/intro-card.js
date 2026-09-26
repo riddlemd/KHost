@@ -16,7 +16,8 @@ function introCardOpacity(t, firstPageAt) {
 
 /// The band of the lyric page the card may use, in the timing's own units: the whole page, or the
 /// part above a count-in bar that runs while the card is up, which the room is reading as its cue.
-function introCardBand(lyrics, firstPageAt) {
+/// `from` is where the words' clock starts, below zero while a lead-in holds the song back.
+function introCardBand(lyrics, firstPageAt, from = 0) {
     const bounds = (lyrics && lyrics.bounds) || null;
     const height = (bounds && bounds.height) || 360;
     const gap = height * 0.03;
@@ -25,7 +26,7 @@ function introCardBand(lyrics, firstPageAt) {
 
     for (const countIn of (lyrics && lyrics.countIns) || []) {
         const box = countIn.position;
-        if (!box || countIn.startSeconds >= firstPageAt || countIn.endSeconds <= 0) continue;
+        if (!box || countIn.startSeconds >= firstPageAt || countIn.endSeconds <= from) continue;
 
         bottom = Math.min(bottom, box.y - gap);
     }
@@ -36,7 +37,7 @@ function introCardBand(lyrics, firstPageAt) {
         bottom = height;
         for (const countIn of (lyrics && lyrics.countIns) || []) {
             const box = countIn.position;
-            if (!box || countIn.startSeconds >= firstPageAt || countIn.endSeconds <= 0) continue;
+            if (!box || countIn.startSeconds >= firstPageAt || countIn.endSeconds <= from) continue;
 
             top = Math.max(top, box.y + box.height + gap);
         }
@@ -54,6 +55,7 @@ function createIntroCard(layer, clock) {
 
     let lyrics = null;
     let firstPageAt = null;
+    let from = 0;
     let frame = 0;
 
     function line(className, text) {
@@ -74,7 +76,7 @@ function createIntroCard(layer, clock) {
         const scale = Math.min(width / logicalW, height / logicalH);
         const offsetX = (width - logicalW * scale) / 2;
         const offsetY = (height - logicalH * scale) / 2;
-        const band = introCardBand(lyrics, firstPageAt);
+        const band = introCardBand(lyrics, firstPageAt, from);
         const bandHeight = (band.bottom - band.top) * scale;
 
         card.style.left = `${offsetX}px`;
@@ -110,9 +112,11 @@ function createIntroCard(layer, clock) {
         tick,
 
         /// `intro` is the host's card and `timing` the words it heads; either null clears the card.
-        set(intro, timing) {
+        /// `leadInSeconds` is how long a hold runs the clock below zero ahead of the song.
+        set(intro, timing, leadInSeconds = 0) {
             const pages = (timing && timing.pages) || [];
             card.replaceChildren();
+            from = leadInSeconds > 0 ? -leadInSeconds : 0;
 
             if (!intro || !intro.title || pages.length === 0) {
                 lyrics = null;

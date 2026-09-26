@@ -32,6 +32,11 @@ public sealed record AppSettings
     /// <remarks>The lead vocal has none; a singer is there to replace it and starts silent.</remarks>
     public int BackingVocalVolume { get; set; } = AudioMix.DefaultBackingVolume;
 
+    /// <summary>The least run-up, in seconds, before the first words of a song whose words the
+    /// screen draws; zero for none.</summary>
+    /// <remarks>One of <see cref="LeadInGraceChoices"/>.</remarks>
+    public int LeadInGraceSeconds { get; set; }
+
     /// <summary>Which shape the key, tempo and vocal controls take. Presentation only.</summary>
     /// <remarks>Both shapes drive the same underlying values.</remarks>
     public SongControlStyle SongControlStyle { get; set; } = SongControlStyle.Sliders;
@@ -42,6 +47,9 @@ public sealed record AppSettings
 
     /// <summary>The screen launched at startup is named this, so it reclaims its own window.</summary>
     public const string StartupScreenName = "Screen 1";
+
+    /// <summary>The graces the page offers, off first.</summary>
+    public static readonly IReadOnlyList<int> LeadInGraceChoices = [0, 5, 10];
 
     public const double DefaultAdDurationSeconds = 10;
     // A spot has to be long enough to read and short enough that the room does not turn back to

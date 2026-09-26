@@ -38,6 +38,17 @@
         }
     }
 
+    // A label with its note under it, as one column, so the control beside it centres on the pair.
+    &__labelled {
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+
+        .kh-note {
+            margin: 0;
+        }
+    }
+
     &__apply {
         display: block;
         font-size: 0.75rem;
