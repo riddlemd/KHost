@@ -71,7 +71,6 @@ public partial class SettingsButton : IDisposable
         new SettingsPage { Title = "Users Manager", Icon = "person-fill", Route = "/settings/users-manager", Requires = KHostPermission.EditUser },
         new SettingsPage { Title = "Venues Manager", Icon = "geo-alt-fill", Route = "/settings/venues-manager", Requires = KHostPermission.EditVenue },
         new SettingsPage { Title = "App Settings", Icon = "gear-fill", Route = "/settings/app-settings", Group = ApplicationGroup, AdminOnly = true },
-        new SettingsPage { Title = "Keyboard Shortcuts", Icon = "keyboard", Group = ApplicationGroup, Opens = menu => menu.ShowShortcutsAsync() },
         new SettingsPage { Title = "About", Icon = "info-circle", Route = "/settings/about", Group = ApplicationGroup }
     ];
 
@@ -382,8 +381,6 @@ public partial class SettingsButton : IDisposable
         else
             NavigationManager.NavigateTo(page.Route);
     }
-
-    private Task ShowShortcutsAsync() => DialogService.ShowShortcutsAsync();
 
     private void NavigateTo(string route)
     {

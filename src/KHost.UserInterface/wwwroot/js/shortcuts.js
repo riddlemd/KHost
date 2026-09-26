@@ -38,3 +38,27 @@
             event.preventDefault();
     });
 })();
+
+// "?" opens help. Matched on event.key rather than the physical key code, since "?" is Shift+/ on a
+// US layout and the code alone can't tell that apart from a bare "/". Clicking the header button
+// that is already wired up avoids a second JSInterop path just for this one chord.
+(function () {
+    document.addEventListener('keydown', function (event) {
+        if (event.key !== '?' || event.ctrlKey || event.metaKey || event.altKey) return;
+
+        const target = event.target;
+        if (target instanceof HTMLElement) {
+            const tag = target.tagName;
+            if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target.isContentEditable)
+                return;
+        }
+
+        // Already open: closing it is the toggle, not a second copy stacked on top.
+        const closeBtn = document.querySelector('.kh-help-dialog .kh-dialog__close-btn');
+        const button = closeBtn ?? document.querySelector('[data-kh-shortcut="help"]');
+        if (!button) return;
+
+        event.preventDefault();
+        button.click();
+    });
+})();

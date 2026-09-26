@@ -1,0 +1,9 @@
+@* data-kh-shortcut is how the global "?" chord in shortcuts.js reaches this without JSInterop:
+   it just clicks the button that is already wired to open the dialog. *@
+<button class="kh-header__help-btn kh-button--icon-minimal" type="button"
+        data-kh-shortcut="help"
+        title="Help and shortcuts (?)"
+        aria-label="Help and shortcuts"
+        @onclick="OpenAsync">
+    <Icon Name="question-circle" />
+</button>

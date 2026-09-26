@@ -87,10 +87,10 @@ public class DialogService : IDialogService
         return Task.CompletedTask;
     }
 
-    public Task ShowShortcutsAsync(Action? onClose = null)
+    public Task ShowHelpAsync(Action? onClose = null)
     {
-        _logger.LogDebug("Dialog requested: {DialogType}", nameof(ShortcutsDialog));
-        Show(new ShortcutsDialog.DialogRequest(onClose), onClose);
+        _logger.LogDebug("Dialog requested: {DialogType}", nameof(HelpDialog));
+        Show(new HelpDialog.DialogRequest(onClose), onClose);
 
         return Task.CompletedTask;
     }
