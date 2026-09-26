@@ -66,6 +66,9 @@ public class SingerQueueServiceTests : IDisposable
 
     public void Dispose()
     {
+        // First, so a prune still writing the queue has finished before its directory goes.
+        _service.Dispose();
+
         if (Directory.Exists(_cacheDir))
             Directory.Delete(_cacheDir, recursive: true);
     }
@@ -673,6 +676,42 @@ public class SingerQueueServiceTests : IDisposable
         await WaitForQueueAsync(() => _service.Users.Count == 1);
 
         Assert.Equal(alice.Id, Assert.Single(_service.Users).Id);
+    }
+
+    /// <summary>A prune runs detached off the broker; disposing must wait out its save rather than
+    /// return while it still writes the queue file, which is what a teardown then collides with.</summary>
+    [Fact]
+    public async Task Dispose_WhileAPruneIsStillSaving_WaitsForTheSave()
+    {
+        var cache = new GatedCache();
+        var service = new SingerQueueService(NullLogger<SingerQueueService>.Instance, cache, _performanceService, _usersService,
+            _venuesService, Substitute.For<IAnalyticsService>(), _rotationFactory, _broker);
+        var bob = new KHostUser { Id = Guid.NewGuid(), Name = "Bob" };
+        _userDb[bob.Id] = bob;
+        await service.AddUserAsync(bob.Id);
+
+        cache.Saving = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        _userDb.Remove(bob.Id);
+        _broker.Announce(new UsersChanged());
+        for (var i = 0; i < 200 && service.Users.Count != 0; i++) await Task.Delay(10);
+        Assert.Empty(service.Users);
+
+        var disposing = Task.Run(service.Dispose);
+        await Task.Delay(150);
+        Assert.False(disposing.IsCompleted, "Dispose returned while the prune was still saving");
+
+        cache.Saving.SetResult();
+        Assert.Same(disposing, await Task.WhenAny(disposing, Task.Delay(5000)));
+    }
+
+    /// <summary>Saves complete at once until a test arms <see cref="Saving"/> to hold them.</summary>
+    private sealed class GatedCache : ICacheService
+    {
+        public TaskCompletionSource? Saving { get; set; }
+
+        public Task<T?> LoadAsync<T>(string key) => Task.FromResult<T?>(default);
+
+        public Task SaveAsync<T>(string key, T state) => Saving?.Task ?? Task.CompletedTask;
     }
 
     /// <summary>Waiting performances are deleted, not left standing; nobody can sing them now.</summary>
