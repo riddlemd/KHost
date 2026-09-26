@@ -59,6 +59,8 @@ internal static class Program
         var ready = false;
         window = new PhotinoWindow()
             .SetTitle("KHost Screen")
+            .SetAppIcon(logger)
+            .RegisterWindowCreatedHandler((_, _) => MacDockIcon.TrySet(logger))
 #if !DEBUG
             .SetDevToolsEnabled(false)
 #endif

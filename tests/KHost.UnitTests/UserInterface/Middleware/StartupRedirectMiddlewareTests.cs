@@ -76,6 +76,24 @@ public class StartupRedirectMiddlewareTests
     }
 
     [Theory]
+    [InlineData("/favicon.ico")]
+    [InlineData("/favicon.svg")]
+    [InlineData("/apple-touch-icon.png")]
+    [InlineData("/icon-192.png")]
+    [InlineData("/icon-512.png")]
+    public async Task InvokeAsync_SkipsRedirect_ForTheAppIcons(string path)
+    {
+        // A browser fetches these off the setup page too; a 302 to /setup leaves the tab iconless.
+        var provider = MakeProvider(shouldRedirect: true);
+        var (context, nextCalled, middleware) = Arrange(path, provider);
+
+        await middleware.InvokeAsync(context);
+
+        Assert.True(nextCalled());
+        await provider.DidNotReceive().ShouldRedirectAsync(Arg.Any<HttpContext>());
+    }
+
+    [Theory]
     [InlineData("/media/abc123/stream.m3u8")]
     [InlineData("/media/abc123/seg_00001.ts")]
     [InlineData("/ipc/screen")]
