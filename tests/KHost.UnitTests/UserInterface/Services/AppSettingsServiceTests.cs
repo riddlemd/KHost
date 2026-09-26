@@ -105,6 +105,29 @@ public class AppSettingsServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task LeadInGraceSeconds_DefaultsToOff_AndRoundTripsThroughTheOverlay()
+    {
+        var service = Service();
+
+        Assert.Equal(0, service.Current.LeadInGraceSeconds);
+
+        await service.SaveAsync(new AppSettings { LeadInGraceSeconds = 10 });
+
+        using var overlay = JsonDocument.Parse(
+            await File.ReadAllTextAsync(Path.Combine(_directory, AppSettingsService.OverlayFileName)));
+        Assert.Equal(10, overlay.RootElement.GetProperty("Playback").GetProperty("LeadInGraceSeconds").GetInt32());
+    }
+
+    /// <summary>A hand-edited value the select does not offer would show as none of its choices.</summary>
+    [Theory]
+    [InlineData("5", 5)]
+    [InlineData("7", 5)]
+    [InlineData("60", 10)]
+    [InlineData("-3", 0)]
+    public void LeadInGraceSeconds_ReadsAsOneOfTheChoices(string stored, int expected)
+        => Assert.Equal(expected, Service(new KeyValuePair<string, string?>("Playback:LeadInGraceSeconds", stored)).Current.LeadInGraceSeconds);
+
+    [Fact]
     public async Task SongControlStyle_DefaultsToSliders_AndRoundTrips()
     {
         var service = Service();

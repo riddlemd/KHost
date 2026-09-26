@@ -10,6 +10,7 @@ using KHost.Domain.Services.Displays.LocalScreen;
 using KHost.Domain.Services.QrCodes;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using NSubstitute;
 
 namespace KHost.UnitTests.Domain.Services.Displays.LocalScreen;
@@ -31,6 +32,7 @@ public class LocalScreenDisplayProviderTests
     private readonly IMediaService _library = Substitute.For<IMediaService>();
     private readonly IMediaStreamService _streams = Substitute.For<IMediaStreamService>();
     private readonly ITimedLyricsService _timedLyrics = Substitute.For<ITimedLyricsService>();
+    private readonly TestOptionsMonitor<PlaybackService.ServiceOptions> _playbackOptions = new(new PlaybackService.ServiceOptions());
 
     public LocalScreenDisplayProviderTests()
     {
@@ -57,6 +59,7 @@ public class LocalScreenDisplayProviderTests
                 .AddSingleton(_library)
                 .AddSingleton(_streams)
                 .AddSingleton(_timedLyrics)
+                .AddSingleton<IOptionsMonitor<PlaybackService.ServiceOptions>>(_playbackOptions)
                 .BuildServiceProvider());
 
     private static IScreenConnection Connection(string screenId, string connectionId)
@@ -1264,6 +1267,71 @@ public class LocalScreenDisplayProviderTests
         await provider.LoadAsync(ALoad);
 
         Assert.Same(secondWords, Sent<SetTimedLyricsCommand>().Last().Lyrics);
+    }
+
+    // --- the lead-in grace ---
+
+    private void WordsStartingAt(PlaybackProgram.Playing song, double firstWords)
+        => _timedLyrics.GetTimedLyricsAsync(song.Media.FilePath, Arg.Any<CancellationToken>()).Returns(new TimedLyrics
+        {
+            DurationSeconds = 90,
+            Bounds = new LyricBox(0, 0, 640, 360),
+            Pages =
+            [
+                new LyricPage
+                {
+                    ShowFromSeconds = 0,
+                    ShowUntilSeconds = 6,
+                    Lines = [new LyricLine { Syllables = [new LyricSyllable(firstWords, firstWords + 0.5, "Hi")] }],
+                },
+            ],
+        });
+
+    /// <summary>Read on every song, so the App Settings page takes effect from the next one.</summary>
+    [Fact]
+    public async Task LoadAsync_ASongWithTimedWords_SendsTheLeadInFromTheLiveGrace()
+    {
+        var first = Song();
+        var second = Song() with { Media = new Media { Title = "Rosanna", FilePath = "/rosanna.mp4" } };
+        WordsStartingAt(first, 1.2);
+        WordsStartingAt(second, 1.2);
+        using var provider = DrawingProvider();
+        _playbackOptions.Set(new PlaybackService.ServiceOptions { LeadInGraceSeconds = 5 });
+
+        _playback.CurrentProgram.Returns(first);
+        await provider.LoadAsync(ALoad);
+        _playbackOptions.Set(new PlaybackService.ServiceOptions { LeadInGraceSeconds = 10 });
+        _playback.CurrentProgram.Returns(second);
+        await provider.LoadAsync(ALoad);
+
+        Assert.Equal([3.8, 8.8], Sent<SetTimedLyricsCommand>().Select(command => Math.Round(command.LeadInSeconds, 9)));
+    }
+
+    /// <summary>Only words the screen draws itself are led in to: a picture with its own words is not held.</summary>
+    [Fact]
+    public async Task LoadAsync_ASongWithNoTimedWords_SendsNoLeadIn()
+    {
+        _playback.CurrentProgram.Returns(Song());
+        _timedLyrics.GetTimedLyricsAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns((TimedLyrics?)null);
+        _playbackOptions.Set(new PlaybackService.ServiceOptions { LeadInGraceSeconds = 10 });
+        using var provider = DrawingProvider();
+
+        await provider.LoadAsync(ALoad);
+
+        Assert.Equal(0, Assert.Single(Sent<SetTimedLyricsCommand>()).LeadInSeconds);
+    }
+
+    [Fact]
+    public async Task LoadAsync_TheGraceOff_SendsNoLeadIn()
+    {
+        var song = Song();
+        WordsStartingAt(song, 0);
+        _playback.CurrentProgram.Returns(song);
+        using var provider = DrawingProvider();
+
+        await provider.LoadAsync(ALoad);
+
+        Assert.Equal(0, Assert.Single(Sent<SetTimedLyricsCommand>()).LeadInSeconds);
     }
 
     // --- the intro card ---

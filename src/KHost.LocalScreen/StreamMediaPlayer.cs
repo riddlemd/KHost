@@ -211,7 +211,7 @@ internal sealed class StreamMediaPlayer : IMediaPlayer
             command.Lyrics is null ? "cleared" : $"set, {command.Lyrics.Pages.Count} page(s)");
 
         // Sent whole, as the host's own model: the page draws it and nothing here reshapes it.
-        Send(new { type = "timed-lyrics", lyrics = command.Lyrics, intro = command.Intro });
+        Send(new { type = "timed-lyrics", lyrics = command.Lyrics, intro = command.Intro, leadInSeconds = command.LeadInSeconds });
     }
 
     public void SetMarquee(SetMarqueeCommand command)

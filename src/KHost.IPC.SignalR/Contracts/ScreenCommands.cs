@@ -261,6 +261,12 @@ public sealed class SetTimedLyricsCommand : ScreenCommandBase
     /// screen draws itself: a picture that carries its own words carries its own intro too. Sent
     /// together, the screen can never hold one song's card over another song's words.</remarks>
     public ScreenIntroCard? Intro { get; init; }
+
+    /// <summary>Seconds the screen holds this song back before its zero when it is played from the
+    /// start, with the intro card up and a count-in running; zero for none.</summary>
+    /// <remarks>Held only on a play from the very start: a resume, or a play after a seek, starts
+    /// where it is. The song's position stays at zero throughout.</remarks>
+    public double LeadInSeconds { get; init; }
 }
 
 /// <summary>What the intro card says, as finished strings: the screen holds no library or queue.</summary>

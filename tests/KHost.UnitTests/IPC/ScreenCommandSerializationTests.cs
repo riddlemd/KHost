@@ -225,6 +225,22 @@ public class ScreenCommandSerializationTests
         Assert.Equal(("Africa", "Toto", "DJ P"), (back.Intro.Title, back.Intro.Artist, back.Intro.Singer));
     }
 
+    /// <summary>Dropped on the wire, a song whose words start at once would start at once.</summary>
+    [Fact]
+    public void RoundTrip_KeepsTheLeadIn()
+    {
+        var command = new SetTimedLyricsCommand
+        {
+            Lyrics = new TimedLyrics { DurationSeconds = 90, Bounds = new LyricBox(0, 0, 640, 360) },
+            LeadInSeconds = 3.8,
+        };
+
+        var back = Assert.IsType<SetTimedLyricsCommand>(JsonSerializer.Deserialize<ScreenCommandBase>(
+            JsonSerializer.Serialize(command, typeof(ScreenCommandBase), Options), Options));
+
+        Assert.Equal(3.8, back.LeadInSeconds);
+    }
+
     /// <summary>A song without a card must arrive without one, not with an empty card to draw.</summary>
     [Fact]
     public void RoundTrip_NoIntroCard_StaysNone()

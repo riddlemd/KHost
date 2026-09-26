@@ -73,6 +73,22 @@
                     </span>
                     <InputNumber class="kh-form-control kh-app-settings__number" @bind-Value="_model.BackingVocalVolume" min="0" max="100" step="5" />
                 </label>
+                <label class="kh-app-settings__row">
+                    <span class="kh-app-settings__labelled">
+                        Lead-in grace
+                        <span class="kh-app-settings__apply">applies from the next song</span>
+                        <span class="kh-note">
+                            Holds the start of a song whose words begin almost at once, so the singer
+                            is led in. Songs with their own intro are not delayed beyond it.
+                        </span>
+                    </span>
+                    <select id="lead-in-grace" class="kh-form-select kh-app-settings__number" @bind="_model.LeadInGraceSeconds">
+                        @foreach (var seconds in LeadInGraceChoices)
+                        {
+                            <option value="@seconds">@LeadInGraceLabel(seconds)</option>
+                        }
+                    </select>
+                </label>
 
                 <div class="kh-app-settings__section">Ads</div>
                 <label class="kh-app-settings__row">

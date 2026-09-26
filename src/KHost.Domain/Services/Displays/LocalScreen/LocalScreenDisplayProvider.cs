@@ -8,6 +8,7 @@ using KHost.IPC.SignalR.Contracts;
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using QRCoder;
 
 namespace KHost.Domain.Services.Displays.LocalScreen;
@@ -478,7 +479,12 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
 
             _lyricsSentOn = session;
 
-            await SendAsync(new SetTimedLyricsCommand { Lyrics = _lyrics, Intro = BuildIntroCard(song.Media, _lyrics) });
+            await SendAsync(new SetTimedLyricsCommand
+            {
+                Lyrics = _lyrics,
+                Intro = BuildIntroCard(song.Media, _lyrics),
+                LeadInSeconds = LeadInGrace.PreRollSeconds(_lyrics, LeadInGraceSeconds()),
+            });
         }
         finally
         {
@@ -505,6 +511,10 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
             Singer = string.IsNullOrWhiteSpace(singer) ? null : singer.Trim(),
         };
     }
+
+    /// <summary>The machine's grace, read on every send so an App Settings change needs no restart.</summary>
+    private int LeadInGraceSeconds()
+        => _services?.GetService<IOptionsMonitor<PlaybackService.ServiceOptions>>()?.CurrentValue.LeadInGraceSeconds ?? 0;
 
     private async Task<TimedLyrics?> ReadTimedLyricsAsync(Media media)
     {
