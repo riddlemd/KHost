@@ -529,9 +529,7 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
         var holdsPictureToTheAudio = isGraphicsOnly && companionAudioPath is not null;
 
         // Zero when unscaled: the native picture, as it always was.
-        var graphicsFrame = isGraphicsOnly && graphicsHeight > GraphicsScaling.Off
-            ? GraphicsScaling.FrameOfHeight(graphicsHeight)
-            : (Width: 0, Height: 0);
+        var scaledHeight = isGraphicsOnly && graphicsHeight > GraphicsScaling.Off ? graphicsHeight : 0;
 
         if (startOffset > TimeSpan.Zero && !isGraphicsOnly)
             arguments += string.Format(CultureInfo.InvariantCulture, " -ss {0:F3}", startOffset.TotalSeconds);
@@ -563,7 +561,7 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
         if (isGraphicsOnly)
             arguments += $" -r {GraphicsFramesPerSecond}";
 
-        arguments += VideoEncode(burnIn?.Height ?? graphicsFrame.Height, segment);
+        arguments += VideoEncode(burnIn?.Height ?? scaledHeight, segment);
 
         var audioFilter = BuildAudioFilter(pitch, tempo);
         var mixGraph = BuildMixGraph(mix, audioFilter);
@@ -577,7 +575,7 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
         else if (holdsPictureToTheAudio)
         {
             var picture = GraphicsOnCanvas(
-                tempo, GraphicsFramesPerSecond, GraphicsFit(graphicsFrame.Width, graphicsFrame.Height), "v");
+                tempo, GraphicsFramesPerSecond, GraphicsFill(scaledHeight), "v");
 
             arguments += mixGraph.Length > 0
                 ? $" -filter_complex \"{picture};{mixGraph}\" -map \"[v]\" -map \"[a]\""
@@ -601,10 +599,10 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
         // -vf rather than a filter_complex: ffmpeg drops it silently on a source with no video
         // rather than failing on an unmatched label. A burn-in and a held picture retime inside
         // their own graphs instead.
-        var videoFilter = graphicsFrame.Height > 0
+        var videoFilter = scaledHeight > 0
             ? string.Join(',', new[]
             {
-                BuildVideoFilter(tempo), $"fps={GraphicsFramesPerSecond}", GraphicsFit(graphicsFrame.Width, graphicsFrame.Height),
+                BuildVideoFilter(tempo), $"fps={GraphicsFramesPerSecond}", GraphicsFill(scaledHeight),
             }.Where(f => f.Length > 0))
             : BuildVideoFilter(tempo);
         if (videoFilter.Length > 0 && burnIn is null && !holdsPictureToTheAudio) arguments += $" -vf \"{videoFilter}\"";
@@ -869,9 +867,28 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
            + string.Format(CultureInfo.InvariantCulture, "fps={0}[graphics];", fps)
            + $"[canvas][graphics]overlay=format=rgb,{fit}[{label}]";
 
+    /// <summary>Scales the native picture up to <paramref name="height"/> at its own shape, with no
+    /// bands; zero leaves it native.</summary>
+    /// <remarks>Whole pixels on nearest neighbour as far as they go, then one short bicubic step to the
+    /// exact height where the height is not a multiple of the native one. Bicubic over lanczos: at
+    /// ~1.1x it is as sharp, and rings less around hard colour edges.</remarks>
+    internal static string GraphicsFill(int height)
+    {
+        if (height <= 0) return "setsar=1";
+
+        var (width, _) = GraphicsScaling.PictureOfHeight(height);
+        var factor = GraphicsScaling.WholeScaleFor(width, height);
+        var finish = factor * GraphicsScaling.SourceHeight == height
+            ? ""
+            : string.Format(CultureInfo.InvariantCulture, "scale={0}:{1}:flags=bicubic,", width, height);
+
+        return string.Format(CultureInfo.InvariantCulture, "scale=iw*{0}:ih*{0}:flags=neighbor,", factor)
+               + finish + "setsar=1";
+    }
+
     /// <summary>Scales the native picture by the largest whole number that fits the frame, on
     /// nearest neighbour, and centres it; a zero-sized frame leaves it native.</summary>
-    /// <remarks>Shared by every path a .cdg takes, so the words going on or off never moves a block.
+    /// <remarks>The burn-in frame only. A .cdg never reaches it, since its renderer burns no words.
     /// </remarks>
     internal static string GraphicsFit(int width, int height)
     {

@@ -1,7 +1,7 @@
 namespace KHost.Domain.Services;
 
 /// <summary>How far a graphics-only source (a .cdg) is scaled up before it reaches a display, named
-/// by the height of the frame it is laid out in.</summary>
+/// by the height of the picture it becomes.</summary>
 /// <remarks>Scaled here, on whole pixels, because a display left to do it smears the blocks, and an
 /// encode at the native 300x216 halves the colour resolution of a picture that is nothing but hard
 /// colour edges.</remarks>
@@ -28,6 +28,13 @@ public static class GraphicsScaling
     /// <remarks>Read as well as saved: a hand-edited height the list does not offer must still
     /// name a frame the encode knows how to fill.</remarks>
     public static int SnapToOffered(int height) => Heights.LastOrDefault(offered => offered <= height);
+
+    /// <summary>The native picture's own shape at a given height, its width rounded to the nearest even number.</summary>
+    /// <remarks>No bands: a picture padded out to 16:9 is fitted by the display as a whole, so the
+    /// graphics end up smaller than the native picture the display would have stretched to the
+    /// height. Even, because H.264 at 4:2:0 cannot encode an odd width.</remarks>
+    public static (int Width, int Height) PictureOfHeight(int height)
+        => ((int)Math.Round(height * SourceWidth / (double)SourceHeight / 2) * 2, height);
 
     /// <summary>The 16:9 frame of a given height.</summary>
     public static (int Width, int Height) FrameOfHeight(int height) => (height * 16 / 9, height);
