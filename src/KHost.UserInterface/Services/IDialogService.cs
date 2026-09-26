@@ -28,7 +28,8 @@ public interface IDialogService
 
     /// <summary>Draws a table a plugin described; a plugin cannot ship markup of its own.</summary>
     Task ShowPluginTableAsync(ShowPluginTableRequest table, Action? onClose = null);
-    Task ShowShortcutsAsync(Action? onClose = null);
+    /// <summary>Keyboard shortcuts plus a short quick guide; not the About page.</summary>
+    Task ShowHelpAsync(Action? onClose = null);
 
     /// <summary>Tells the host playback needs a screen, offering to open the Screens dialog.</summary>
     Task ShowNoScreensAsync();

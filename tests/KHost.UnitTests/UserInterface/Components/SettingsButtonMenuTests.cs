@@ -1,24 +1,23 @@
-using Microsoft.Extensions.Logging.Abstractions;
-using KHost.Abstractions.Messaging;
-using KHost.Domain.Services.Messaging;
 using AngleSharp.Dom;
 using Bunit;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
+using KHost.Domain.Services.Messaging;
+using KHost.Abstractions.Messaging;
 using KHost.UserInterface.Components;
 using KHost.UserInterface.Services;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace KHost.UnitTests.UserInterface.Components;
 
-/// <summary>The shortcuts item opens a dialog, unlike every other entry, which is a route.</summary>
-public class SettingsButtonShortcutsTests : BunitContext
+/// <summary>Shortcuts moved to the header's help glyph; About did not move.</summary>
+public class SettingsButtonMenuTests : BunitContext
 {
-    private readonly IDialogService _dialogs = Substitute.For<IDialogService>();
     private readonly MessageBroker _broker = new(NullLogger<MessageBroker>.Instance);
     private readonly IPermissionService _permissions = Substitute.For<IPermissionService>();
 
-    public SettingsButtonShortcutsTests()
+    public SettingsButtonMenuTests()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
 
@@ -28,7 +27,7 @@ public class SettingsButtonShortcutsTests : BunitContext
         var appSettings = Substitute.For<IAppSettingsService>();
         appSettings.Current.Returns(new AppSettings());
 
-        Services.AddSingleton(_dialogs);
+        Services.AddSingleton(Substitute.For<IDialogService>());
         Services.AddSingleton<IMessageBroker>(_broker);
         Services.AddSingleton(_permissions);
         Services.AddSingleton(venues);
@@ -37,35 +36,29 @@ public class SettingsButtonShortcutsTests : BunitContext
         Services.AddSingleton(Substitute.For<IBreakMusicService>());
     }
 
-    private IElement OpenMenuAndFindShortcutsItem()
+    private IReadOnlyList<IElement> MenuItems()
     {
         var menu = Render<SettingsButton>();
         menu.Find(".kh-dropdown__trigger").Click();
 
-        return menu.FindAll(".kh-dropdown__item").Single(i => i.TextContent.Contains("Keyboard Shortcuts"));
+        return menu.FindAll(".kh-dropdown__item");
     }
 
     [Fact]
-    public void TheMenu_OffersTheShortcutsDialog_ToEveryone()
+    public void TheMenu_NoLongerOffersKeyboardShortcuts()
     {
         _permissions.IsAdminAsync().Returns(false);
         _permissions.HasAsync(Arg.Any<KHostPermission>()).Returns(false);
 
-        Assert.NotNull(OpenMenuAndFindShortcutsItem());
+        Assert.DoesNotContain(MenuItems(), i => i.TextContent.Contains("Keyboard Shortcuts"));
     }
 
     [Fact]
-    public void ChoosingIt_OpensTheDialog()
+    public void TheMenu_StillOffersAbout()
     {
-        OpenMenuAndFindShortcutsItem().Click();
+        _permissions.IsAdminAsync().Returns(false);
+        _permissions.HasAsync(Arg.Any<KHostPermission>()).Returns(false);
 
-        _dialogs.Received(1).ShowShortcutsAsync(Arg.Any<Action?>());
-    }
-
-    // Every other item is a route, and an empty one used to match the console's own path.
-    [Fact]
-    public void ItIsNotMarkedAsTheCurrentPage()
-    {
-        Assert.DoesNotContain("kh-dropdown__item--current", OpenMenuAndFindShortcutsItem().ClassName);
+        Assert.Contains(MenuItems(), i => i.TextContent.Contains("About"));
     }
 }

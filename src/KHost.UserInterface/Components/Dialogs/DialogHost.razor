@@ -81,8 +81,8 @@
                 OnClose="@(() => { r.OnCancel?.Invoke(); Close(r); })" />
             break;
 
-        case ShortcutsDialog.DialogRequest r:
-            <ShortcutsDialog @key="r.Id" IsOpen="true"
+        case HelpDialog.DialogRequest r:
+            <HelpDialog @key="r.Id" IsOpen="true"
                 OnClose="@(() => { r.OnClose?.Invoke(); Close(r); })" />
             break;
 

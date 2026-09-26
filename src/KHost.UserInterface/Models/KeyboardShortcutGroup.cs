@@ -13,6 +13,11 @@ public static class KeyboardShortcuts
 
     public static readonly KeyboardShortcutGroup[] All =
     [
+        new("General",
+        [
+            new(["?"], "Open help and keyboard shortcuts"),
+        ]),
+
         new("Panels",
         [
             new([Accel, "1"], "Focus the new singer's name field"),

@@ -1,0 +1,50 @@
+@using KHost.UserInterface.Models
+
+<Dialog IsOpen="IsOpen" Class="@($"{_rootClassName} {Class?.Trim()}".Trim())" OnClose="OnClose" CloseOnScrimClick="CloseOnScrimClick">
+    <Header>
+        <Icon Name="question-circle" /> Help
+    </Header>
+    <Body>
+        <section class="@(_rootClassName)__section">
+            <h3 class="@(_rootClassName)__section-title">Keyboard shortcuts</h3>
+
+            @foreach (var group in Shortcuts)
+            {
+                <div class="@(_rootClassName)__group">
+                    <div class="@(_rootClassName)__group-title">@group.Title</div>
+                    @if (group.Note is { } note)
+                    {
+                        <p class="@(_rootClassName)__note">@note</p>
+                    }
+                    <dl class="@(_rootClassName)__list">
+                        @foreach (var shortcut in group.Shortcuts)
+                        {
+                            <dt class="@(_rootClassName)__keys">
+                                @foreach (var (key, keyIdx) in shortcut.Keys.Select((k, i) => (k, i)))
+                                {
+                                    @if (keyIdx > 0)
+                                    {
+                                        <span class="@(_rootClassName)__plus">+</span>
+                                    }
+                                    <kbd class="@(_rootClassName)__key">@key</kbd>
+                                }
+                            </dt>
+                            <dd class="@(_rootClassName)__description">@shortcut.Description</dd>
+                        }
+                    </dl>
+                </div>
+            }
+        </section>
+
+        <section class="@(_rootClassName)__section">
+            <h3 class="@(_rootClassName)__section-title">Quick guide</h3>
+
+            <ul class="@(_rootClassName)__guide">
+                @foreach (var line in QuickGuide)
+                {
+                    <li>@line</li>
+                }
+            </ul>
+        </section>
+    </Body>
+</Dialog>

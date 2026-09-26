@@ -1,0 +1,16 @@
+// icon-minimal's 26px/white-icon sizing assumes it sits on a dark card; the header is its own
+// background, so this overrides to match .kh-dropdown__trigger next to it in the same row.
+.kh-header__help-btn {
+    width: auto;
+    height: var(--kh-control-height);
+    padding: 0 0.35rem;
+    color: var(--kh-text);
+
+    &:hover:not(:disabled) {
+        color: var(--kh-primary-bright);
+    }
+
+    i {
+        font-size: 1.35em;
+    }
+}
