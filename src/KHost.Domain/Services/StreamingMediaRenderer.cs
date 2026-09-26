@@ -1,5 +1,6 @@
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
+using KHost.Domain.Services.BurnIn;
 
 namespace KHost.Domain.Services;
 
@@ -10,12 +11,14 @@ namespace KHost.Domain.Services;
 /// <para>A face over <see cref="IMediaStreamService"/> rather than a replacement for it. The
 /// ffmpeg argument building was never the problem — being the only answer was.</para>
 ///
-/// <para>Ignores <see cref="RenderTarget.BurnLyrics"/>: the host has no words to burn in, so a
-/// display asking for them gets the ordinary encode.</para></remarks>
+/// <para>Honours <see cref="RenderTarget.BurnLyrics"/> for any song with timed words, whoever
+/// supplied them: the words are painted into the same encode, so key, tempo and the mix still
+/// apply. A song with none gets the ordinary encode.</para></remarks>
 /// <remarks>Open rather than sealed so a format with rules of its own can inherit the encode while
 /// owning its own claim — see <c>CompactDiscPlusGraphicsRenderer</c>. A subclass that later grows a way to
 /// play its format without ffmpeg replaces the body and nothing above it changes.</remarks>
-public class StreamingMediaRenderer(IMediaStreamService streams) : IMediaRenderer
+/// <param name="burnIn">Null for a renderer whose format carries its words in its own picture.</param>
+public class StreamingMediaRenderer(IMediaStreamService streams, LyricBurnIn? burnIn = null) : IMediaRenderer
 {
     /// <summary>The stream service the encode runs through, for whoever inherits this.</summary>
     protected IMediaStreamService Streams { get; } = streams;
@@ -27,7 +30,11 @@ public class StreamingMediaRenderer(IMediaStreamService streams) : IMediaRendere
         MediaRenderRequest request,
         CancellationToken cancellationToken = default)
     {
-        var session = await Streams.OpenAsync(
+        var session = request.Target.BurnLyrics && burnIn is not null
+            ? await burnIn.OpenAsync(request, cancellationToken)
+            : null;
+
+        session ??= await Streams.OpenAsync(
             request.FilePath,
             request.StartOffset,
             request.Pitch,

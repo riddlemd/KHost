@@ -114,8 +114,8 @@ which the provider answers for the device it is actually connected to.
 ### Why only the words are burned in
 
 Lyrics are fixed for the whole song — every syllable is known at load — so a display that cannot
-draw them asks for `RenderTarget.BurnLyrics`, and a renderer able to burn them in composes the
-picture. The marquee rescrolls on a venue edit, QR codes move, cards appear on a host's action:
+draw them asks for `RenderTarget.BurnLyrics`, and the host's encode paints them into the picture for
+any song with timed words, whoever supplied them. The marquee rescrolls on a venue edit, QR codes move, cards appear on a host's action:
 burning any of those in would restart the encode each time, an audible gap. A display that cannot
 draw them simply does not.
 
@@ -162,7 +162,8 @@ of the connected provider on each load and each reconnect. Its default body is `
 one mixed stream, no burned-in words, which is all a transport-only provider can play.
 `RenderTarget.MixesStems` commits a provider to playing `DisplayLoad.Stems` and answering
 `SetStemVolumeAsync`; when that answers false, the host rebuilds the stream at the playhead with the
-new mix instead. `RenderTarget.BurnLyrics` is a request a renderer may honour. The local screen
+new mix instead. `RenderTarget.BurnLyrics` is honoured by the host's encode for any song with timed
+words; a renderer with a rendition of its own may honour it too. The local screen
 mixes and draws its own words, so it asks for stems, with nothing burned in.
 
 ## Questions this should answer without further argument

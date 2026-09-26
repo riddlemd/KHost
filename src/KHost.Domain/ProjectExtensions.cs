@@ -2,6 +2,7 @@
 using KHost.Abstractions.Services;
 using KHost.IPC.SignalR.Contracts;
 using KHost.Domain.Services;
+using KHost.Domain.Services.BurnIn;
 using KHost.Domain.Services.Messaging;
 using KHost.Domain.Services.AuthProviders;
 using KHost.Domain.Services.Ads;
@@ -86,7 +87,11 @@ namespace KHost.Domain
             serviceCollection.AddSingleton<IMediaImportService, MediaImportService>();
             serviceCollection.AddSingleton<ICacheService, JsonFileCacheService>();
             serviceCollection.AddSingleton<ISingerQueueService, SingerQueueService>();
-            serviceCollection.AddSingleton<IMediaStreamService, HlsMediaStreamService>();
+            serviceCollection.AddSingleton<HlsMediaStreamService>();
+            serviceCollection.AddSingleton<IMediaStreamService>(services => services.GetRequiredService<HlsMediaStreamService>());
+            // The same instance, so a burned-in stream is one of its sessions and closes like any other.
+            serviceCollection.AddSingleton<IBurnInStreamService>(services => services.GetRequiredService<HlsMediaStreamService>());
+            serviceCollection.AddSingleton<LyricBurnIn>();
             // Keyed, so it never appears in the IMediaProbe enumerable the plugin probes arrive
             // through: it claims every file and would answer ahead of whoever owns the format.
             serviceCollection.AddKeyedSingleton<IMediaProbe, FfprobeMediaProbe>(MediaProbeService.FallbackKey);

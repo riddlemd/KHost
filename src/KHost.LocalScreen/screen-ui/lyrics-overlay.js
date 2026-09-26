@@ -147,12 +147,22 @@ function createLyricsOverlay(canvas, clock) {
         ctx2d.strokeRect(x, y, w, h);
     }
 
-    function drawLine(page, line, t) {
-        const box = line.position;
-        const h = ((box && box.height) || 48) * scale;
-        const boxWidth = ((box && box.width) || 520) * scale;
-        const baseline = offsetY + ((box && box.y) || 40) * scale + h * 0.8;
-        let penX = offsetX + ((box && box.x) || 40) * scale;
+    /// Where each line of a page sits: its own position, or stacked directly under the line before
+    /// it, the first at the default spot. The host paints burned-in words by the same rule.
+    function lineBoxes(lines) {
+        const boxes = [];
+        for (const line of lines) {
+            const above = boxes[boxes.length - 1];
+            boxes.push(line.position || { x: 40, y: above ? above.y + above.height : 40, width: 520, height: 48 });
+        }
+        return boxes;
+    }
+
+    function drawLine(page, line, box, t) {
+        const h = box.height * scale;
+        const boxWidth = box.width * scale;
+        const baseline = offsetY + box.y * scale + h * 0.8;
+        let penX = offsetX + box.x * scale;
 
         ctx2d.textBaseline = 'alphabetic';
 
@@ -228,7 +238,9 @@ function createLyricsOverlay(canvas, clock) {
         for (const countIn of lyrics.countIns || []) drawCountIn(countIn, t);
 
         for (const page of visiblePages(t)) {
-            for (const line of page.lines || []) drawLine(page, line, t);
+            const lines = page.lines || [];
+            const boxes = lineBoxes(lines);
+            lines.forEach((line, i) => drawLine(page, line, boxes[i], t));
         }
     }
 
