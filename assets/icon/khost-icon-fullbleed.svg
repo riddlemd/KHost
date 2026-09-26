@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+<!-- Windows, Linux and web: the plate reaches the canvas edge, since those shells add no margin of their own. -->
+<defs><linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#A86AD4"/><stop offset="1" stop-color="#5D2B90"/></linearGradient></defs>
+<rect id="plate" width="1024" height="1024" rx="180" fill="url(#bg)"/>
+<g transform="translate(512 512) scale(1.2) translate(-512 -512)">
+<g fill="#fff">
+<rect x="250" y="230" width="140" height="564" rx="24"/>
+<path d="M390 482 L554 482 L780 794 L625 794 Z"/>
+<circle cx="655" cy="300" r="125"/>
+</g>
+<path d="M370 560 L590 360" stroke="#fff" stroke-width="96" stroke-linecap="round"/>
+<g stroke="#5D2B90" stroke-width="20" stroke-linecap="round"><path d="M600 250 L700 350 M580 300 L650 370 M650 230 L720 300"/></g>
+</g>
+</svg>
