@@ -3,17 +3,17 @@ using KHost.Domain.Services.BurnIn;
 
 namespace KHost.UnitTests.Domain.Services;
 
-/// <summary>A .cdg scaled up on whole pixels into the frame the host chose, laid on black so a disc
+/// <summary>A .cdg scaled up to the height the host chose at its own shape, with no bands, laid on black so a disc
 /// that never draws still has a picture, and held until its audio ends.</summary>
 public class HlsMediaStreamServiceGraphicsScalingTests
 {
     /// <summary>The whole chain, in order: hold, fps, canvas, then the scale. fps ahead of the scale
     /// halves the CPU, since a .cdg decodes up to 300 frames a second while it draws.</summary>
     [Theory]
-    [InlineData(720, 3, 1280)]
-    [InlineData(1080, 5, 1920)]
-    [InlineData(2160, 10, 3840)]
-    public void BuildArguments_ScalesGraphicsOnWholePixelsIntoTheChosenFrame(int height, int factor, int width)
+    [InlineData(1080, "scale=iw*5:ih*5:flags=neighbor,")]
+    [InlineData(2160, "scale=iw*10:ih*10:flags=neighbor,")]
+    [InlineData(720, "scale=iw*3:ih*3:flags=neighbor,scale=1000:720:flags=bicubic,")]
+    public void BuildArguments_ScalesGraphicsToTheChosenHeightWithNoBands(int height, string scale)
     {
         var arguments = HlsMediaStreamService.BuildArguments(
             "/songs/a.cdg", TimeSpan.Zero, 0, 0, 2, "/songs/a.mp3", graphicsHeight: height);
@@ -21,10 +21,10 @@ public class HlsMediaStreamServiceGraphicsScalingTests
         Assert.Contains(
             "-filter_complex \"color=c=black:s=300x216:r=30[canvas];"
             + "[0:v:0]tpad=stop=-1:stop_mode=clone,fps=30[graphics];"
-            + $"[canvas][graphics]overlay=format=rgb,scale=iw*{factor}:ih*{factor}:flags=neighbor,"
-            + $"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2,setsar=1[v]\" -map \"[v]\" -map 1:a:0",
+            + $"[canvas][graphics]overlay=format=rgb,{scale}setsar=1[v]\" -map \"[v]\" -map 1:a:0",
             arguments);
         Assert.Contains(" -shortest ", arguments);
+        Assert.DoesNotContain(",pad=", arguments);
     }
 
     /// <summary>The retime comes first, so the frame rate and everything after it run in output time.</summary>
@@ -69,7 +69,7 @@ public class HlsMediaStreamServiceGraphicsScalingTests
         var arguments = HlsMediaStreamService.BuildArguments(
             "/songs/a.cdg", TimeSpan.Zero, 0, 0, 2, graphicsHeight: 720);
 
-        Assert.Contains("-vf \"fps=30,scale=iw*3:ih*3:flags=neighbor,pad=1280:720:(ow-iw)/2:(oh-ih)/2,setsar=1\"", arguments);
+        Assert.Contains("-vf \"fps=30,scale=iw*3:ih*3:flags=neighbor,scale=1000:720:flags=bicubic,setsar=1\"", arguments);
         Assert.DoesNotContain("tpad", arguments);
         Assert.DoesNotContain("-shortest", arguments);
     }

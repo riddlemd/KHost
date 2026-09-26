@@ -27,6 +27,15 @@ public class GraphicsScalingTests
     public void WholeScaleFor_IsTheLargestWholeMultipleThatFits(int width, int height, int expected)
         => Assert.Equal(expected, GraphicsScaling.WholeScaleFor(width, height));
 
+    [Theory]
+    [InlineData(720, 1000)]
+    [InlineData(1080, 1500)]
+    [InlineData(2160, 3000)]
+    [InlineData(700, 972)]
+    [InlineData(11, 16)]
+    public void PictureOfHeight_KeepsTheNativeShape_OnAnEvenWidth(int height, int width)
+        => Assert.Equal((width, height), GraphicsScaling.PictureOfHeight(height));
+
     [Fact]
     public void FrameOfHeight_Is16By9() => Assert.Equal((1920, 1080), GraphicsScaling.FrameOfHeight(1080));
 }

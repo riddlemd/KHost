@@ -185,14 +185,14 @@ public class HlsMediaStreamServiceEncodeTests : IDisposable
         Assert.InRange(Math.Abs(audio - video), 0, 1.0);
     }
 
-    /// <summary>Whole-pixel scaled into the chosen frame, read live, and still ended by the audio.</summary>
+    /// <summary>Scaled to the chosen height at the native shape, read live, and still ended by the audio.</summary>
     [RequiresFfmpegFact]
     public async Task OpenAsync_ScalesACdgInto720p_AndEndsItWithItsAudio()
-        => await AssertScaledCdgAsync(720, "1280,720");
+        => await AssertScaledCdgAsync(720, "1000,720");
 
     [RequiresFfmpegFact]
     public async Task OpenAsync_ScalesACdgInto1080p_AndEndsItWithItsAudio()
-        => await AssertScaledCdgAsync(1080, "1920,1080");
+        => await AssertScaledCdgAsync(1080, "1500,1080");
 
     /// <summary>A disc that never draws decodes no frame at all, and used to encode to nothing; the
     /// black canvas under it is the picture instead.</summary>
