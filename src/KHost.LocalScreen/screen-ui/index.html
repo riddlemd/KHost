@@ -185,7 +185,8 @@
             position: absolute;
             inset: 0;
             background: var(--marquee-bg, #000);
-            opacity: 0.82;
+            /* 0.82 is today's look: a venue that has never chosen a value must see this exactly. */
+            opacity: var(--marquee-bg-opacity, 0.82);
         }
 
         #marquee[hidden] { display: none; }
@@ -403,7 +404,10 @@
         }
 
         .marquee-sep {
-            opacity: 0.38;
+            /* currentColor + 0.38 is today's look: a venue that has never chosen a divider colour
+               must see this exactly. */
+            color: var(--marquee-sep-fg, currentColor);
+            opacity: var(--marquee-sep-opacity, 0.38);
             padding: 0 0.55em;
             font-weight: 400;
         }
@@ -413,6 +417,11 @@
             font-weight: 400;
             opacity: 0.88;
         }
+
+        /* Coloured independently of the band's own text colour; unset takes it, so a venue that
+           never chose either singer or song colour sees one plain line, as before. */
+        .marquee-singer { color: var(--marquee-singer-fg, currentColor); }
+        .marquee-song { color: var(--marquee-song-fg, currentColor); }
 
         /* One copy's width, whatever the copy count is: the track carries as many as it takes to
            cover the screen, and shifting by exactly one puts the next where the last began. */

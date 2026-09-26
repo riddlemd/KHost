@@ -459,6 +459,42 @@ public class LocalScreenDisplayProviderTests
         Assert.DoesNotContain(Sent<SetMarqueeCommand>(), marquee => marquee.Message == "Tonight");
     }
 
+    /// <summary>The dedupe in <c>SendOverlayAsync</c> compares the whole command as sent, so a
+    /// field nothing else changed must still make it resend rather than being read as unchanged.</summary>
+    [Fact]
+    public async Task SelectedVenueChanged_OpacityOnlyEdit_StillResendsTheMarquee()
+    {
+        using var provider = DrawingProvider();
+        _realBroker.Announce(new SelectedVenueChanged());
+        Assert.True(await WaitForSentAsync<SetMarqueeCommand>());
+        _screenServer.ClearReceivedCalls();
+
+        _settings.MarqueeBackgroundOpacity = 40;
+        _realBroker.Announce(new SelectedVenueChanged());
+
+        Assert.True(await WaitForSentAsync<SetMarqueeCommand>(marquee => marquee.BackgroundOpacityPercent == 40));
+    }
+
+    /// <summary>Same dedupe, for the divider's own colour and shape.</summary>
+    [Fact]
+    public async Task SelectedVenueChanged_DividerColourOrShapeOnlyEdit_StillResendsTheMarquee()
+    {
+        using var provider = DrawingProvider();
+        _realBroker.Announce(new SelectedVenueChanged());
+        Assert.True(await WaitForSentAsync<SetMarqueeCommand>());
+        _screenServer.ClearReceivedCalls();
+
+        _settings.MarqueeDividerColor = "#8888ff";
+        _realBroker.Announce(new SelectedVenueChanged());
+        Assert.True(await WaitForSentAsync<SetMarqueeCommand>(marquee => marquee.DividerColor == "#8888ff"));
+        _screenServer.ClearReceivedCalls();
+
+        _settings.MarqueeDividerShape = MarqueeDividerShape.Star;
+        _realBroker.Announce(new SelectedVenueChanged());
+
+        Assert.True(await WaitForSentAsync<SetMarqueeCommand>(marquee => marquee.DividerGlyph == "★"));
+    }
+
     public static TheoryData<object, bool, bool, bool> WhatEachChangeRedraws() => new()
     {
         // message,                                   marquee, codes, card

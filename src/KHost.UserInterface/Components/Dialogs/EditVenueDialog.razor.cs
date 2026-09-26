@@ -18,6 +18,10 @@ public partial class EditVenueDialog
     private const string DefaultMarqueeBackground = "#000000";
     private const string DefaultMarqueeText = "#f2f2f5";
 
+    // The screen's own default look: today's opacity, and the singer/song colour with nothing
+    // chosen, which is the same one colour as the band's own text.
+    private const int DefaultMarqueeBackgroundOpacity = 82;
+
     /// <summary>What a venue turning the marquee on for the first time is offered.</summary>
     private const int DefaultMarqueeSingerCount = 3;
 
@@ -158,6 +162,12 @@ public partial class EditVenueDialog
                         ? Venue.Settings.MarqueeScrollSpeed
                         : DefaultMarqueeScrollSpeed,
                     MarqueePinLabel = Venue.Settings.MarqueePinLabel,
+                    // Null is "the screen decides", which a number input cannot say either.
+                    MarqueeBackgroundOpacity = Venue.Settings.MarqueeBackgroundOpacity ?? DefaultMarqueeBackgroundOpacity,
+                    MarqueeSingerColor = Venue.Settings.MarqueeSingerColor ?? DefaultMarqueeText,
+                    MarqueeSongColor = Venue.Settings.MarqueeSongColor ?? DefaultMarqueeText,
+                    MarqueeDividerColor = Venue.Settings.MarqueeDividerColor ?? DefaultMarqueeText,
+                    MarqueeDividerShape = Venue.Settings.MarqueeDividerShape,
 
                     // Null is "no preference", which a select cannot show. It offers what a code
                     // would take anyway, and saving that back changes nothing.
@@ -318,6 +328,11 @@ public partial class EditVenueDialog
         venue.Settings.MarqueeFontSizePixels = Math.Clamp(_model.MarqueeFontSizePixels, 12, 96);
         venue.Settings.MarqueeScrollSpeed = Math.Clamp(_model.MarqueeScrollSpeed, 15, 400);
         venue.Settings.MarqueePinLabel = _model.MarqueePinLabel;
+        venue.Settings.MarqueeBackgroundOpacity = Math.Clamp(_model.MarqueeBackgroundOpacity, 0, 100);
+        venue.Settings.MarqueeSingerColor = _model.MarqueeSingerColor;
+        venue.Settings.MarqueeSongColor = _model.MarqueeSongColor;
+        venue.Settings.MarqueeDividerColor = _model.MarqueeDividerColor;
+        venue.Settings.MarqueeDividerShape = _model.MarqueeDividerShape;
         venue.Settings.QrCodeSource = _model.QrCodeSource;
         venue.Settings.BrandingImageScaling = _model.BrandingImageScaling;
         venue.Settings.BreakMusicCardEnabled = _model.BreakMusicCardEnabled;

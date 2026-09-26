@@ -94,6 +94,48 @@
                         <input id="venue-marquee-pin-label" type="checkbox" class="kh-form-check-input"
                                @bind="_model.MarqueePinLabel" />
                     </label>
+
+                    <div class="kh-venue-settings__row">
+                        <span class="kh-venue-settings__labelled">
+                            <label for="marquee-background-opacity" class="kh-form-label">Background opacity</label>
+                            <span class="kh-note">
+                                How much of the song shows through behind the marquee.
+                            </span>
+                        </span>
+                        <InputNumber id="marquee-background-opacity" class="kh-form-control" min="0" max="100" step="5"
+                                     @bind-Value="_model.MarqueeBackgroundOpacity" />
+                    </div>
+
+                    <div class="kh-venue-settings__row">
+                        <label for="marquee-singer-color" class="kh-form-label">Singer color</label>
+                        <InputText id="marquee-singer-color" type="color" class="kh-form-control kh-venue-settings__color"
+                                   @bind-Value="_model.MarqueeSingerColor" />
+                    </div>
+
+                    <div class="kh-venue-settings__row">
+                        <label for="marquee-song-color" class="kh-form-label">Song color</label>
+                        <InputText id="marquee-song-color" type="color" class="kh-form-control kh-venue-settings__color"
+                                   @bind-Value="_model.MarqueeSongColor" />
+                    </div>
+
+                    <div class="kh-venue-settings__row">
+                        <label for="marquee-divider-color" class="kh-form-label">Divider color</label>
+                        <InputText id="marquee-divider-color" type="color" class="kh-form-control kh-venue-settings__color"
+                                   @bind-Value="_model.MarqueeDividerColor" />
+                    </div>
+
+                    <div class="kh-venue-settings__row">
+                        <label for="marquee-divider-shape" class="kh-form-label">Divider</label>
+                        <InputSelect id="marquee-divider-shape" class="kh-form-select" @bind-Value="_model.MarqueeDividerShape">
+                            <option value="@MarqueeDividerShape.Dot">Dot &bull;</option>
+                            <option value="@MarqueeDividerShape.Diamond">Diamond &#9670;</option>
+                            <option value="@MarqueeDividerShape.Star">Star &#9733;</option>
+                            <option value="@MarqueeDividerShape.Slash">Slash /</option>
+                            <option value="@MarqueeDividerShape.Pipe">Pipe |</option>
+                            <option value="@MarqueeDividerShape.Note">Note &#9834;</option>
+                            <option value="@MarqueeDividerShape.None">None</option>
+                        </InputSelect>
+                    </div>
                 }
             </div>
 

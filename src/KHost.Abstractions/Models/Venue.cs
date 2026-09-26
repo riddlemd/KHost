@@ -141,6 +141,23 @@ public class Venue : RepositoryModel
         /// <summary>Pins "Up next" at the leading edge, unscrolled; a modifier, not a style.</summary>
         public bool MarqueePinLabel { get; set; }
 
+        /// <summary>Percent of the band that is colour rather than picture; null takes the screen's
+        /// own default, which is what most venues want. Unlike the pixel and speed settings above,
+        /// zero is a real choice (fully transparent), so it cannot double as "unset".</summary>
+        public int? MarqueeBackgroundOpacity { get; set; }
+
+        /// <summary>Null takes the screen's own default, which is what most venues want.</summary>
+        public string? MarqueeSingerColor { get; set; }
+
+        /// <summary>Null takes the screen's own default, which is what most venues want.</summary>
+        public string? MarqueeSongColor { get; set; }
+
+        /// <summary>Null takes the screen's own default, which is what most venues want.</summary>
+        public string? MarqueeDividerColor { get; set; }
+
+        /// <summary>Dot is the zero value, so an old row defaults there — today's look.</summary>
+        public MarqueeDividerShape MarqueeDividerShape { get; set; }
+
         /// <summary>Which of the folder's backgrounds a song may be given, by manifest file name.
         /// </summary>
         /// <remarks>Empty is the black background, which is what a venue that has never been asked

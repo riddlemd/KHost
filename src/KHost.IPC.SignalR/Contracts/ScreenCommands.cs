@@ -213,14 +213,43 @@ public sealed class SetBreakMusicCardCommand : ScreenCommandBase
     public double Offset { get; init; }
 }
 
+/// <summary>What one run of marquee text is, so the screen can colour it without knowing karaoke.</summary>
+public enum MarqueeSegmentKind
+{
+    /// <summary>Template punctuation and literal text; drawn in the band's own text colour.</summary>
+    Other,
+
+    /// <summary>A singer's name.</summary>
+    Singer,
+
+    /// <summary>A song's title or artist.</summary>
+    Song,
+
+    /// <summary>The divider between two turns; its text is empty, the glyph is
+    /// <see cref="SetMarqueeCommand.DividerGlyph"/>.</summary>
+    Separator,
+}
+
+/// <summary>One run of the marquee's text, host-composed so the screen never parses a template.</summary>
+public sealed class MarqueeSegment
+{
+    /// <summary>Empty for <see cref="MarqueeSegmentKind.Separator"/>, whose glyph is
+    /// <see cref="SetMarqueeCommand.DividerGlyph"/> instead.</summary>
+    public required string Text { get; init; }
+
+    public MarqueeSegmentKind Kind { get; init; }
+}
+
 /// <summary>The marquee band. Singers arrive as names; a screen has no library to resolve ids.</summary>
 public sealed class SetMarqueeCommand : ScreenCommandBase
 {
     /// <summary>False takes the band off the screen entirely; the rest is then ignored.</summary>
     public required bool Enabled { get; init; }
 
-    /// <summary>One line per upcoming turn, in queue order, composed host-side.</summary>
-    public IReadOnlyList<string> Singers { get; init; } = [];
+    /// <summary>Every upcoming turn's segments run together in queue order, a
+    /// <see cref="MarqueeSegmentKind.Separator"/> between two turns; composed host-side so the
+    /// screen never parses <see cref="Venue.VenueSettings.MarqueeEntryFormat"/> itself.</summary>
+    public IReadOnlyList<MarqueeSegment> Entries { get; init; } = [];
 
     /// <summary>The venue's own line, e.g. a drink special. Null shows only singers.</summary>
     public string? Message { get; init; }
@@ -233,6 +262,24 @@ public sealed class SetMarqueeCommand : ScreenCommandBase
 
     /// <summary>Null leaves the screen's own default; sent as CSS colours for the screen to draw with.</summary>
     public string? TextColor { get; init; }
+
+    /// <summary>Colours a <see cref="MarqueeSegmentKind.Singer"/> run; null takes <see cref="TextColor"/>.</summary>
+    public string? SingerColor { get; init; }
+
+    /// <summary>Colours a <see cref="MarqueeSegmentKind.Song"/> run; null takes <see cref="TextColor"/>.</summary>
+    public string? SongColor { get; init; }
+
+    /// <summary>Colours the divider glyph; null leaves the screen's own dimmed default.</summary>
+    public string? DividerColor { get; init; }
+
+    /// <summary>The divider glyph resolved host-side from the venue's chosen shape; null or empty
+    /// draws no divider at all (shape "None"), for a <see cref="MarqueeSegmentKind.Separator"/> and
+    /// for the divider the screen draws of its own accord before <see cref="Message"/>.</summary>
+    public string? DividerGlyph { get; init; }
+
+    /// <summary>Percent of the band that is colour rather than picture; null leaves the screen's
+    /// own default.</summary>
+    public int? BackgroundOpacityPercent { get; init; }
 
     /// <summary>Text height in pixels; zero leaves the screen's own size.</summary>
     public int FontSizePixels { get; init; }

@@ -217,7 +217,7 @@ internal sealed class StreamMediaPlayer : IMediaPlayer
     public void SetMarquee(SetMarqueeCommand command)
     {
         _logger.LogInformation("Marquee {State} with {Count} singer(s)",
-            command.Enabled ? "on" : "off", command.Singers.Count);
+            command.Enabled ? "on" : "off", command.Entries.Count(e => e.Kind == MarqueeSegmentKind.Singer));
 
         // Lowercased here rather than in the page, the same as show-image's scaling: the page
         // knows CSS words, not this enum's spelling.
@@ -225,11 +225,16 @@ internal sealed class StreamMediaPlayer : IMediaPlayer
         {
             type = "marquee",
             enabled = command.Enabled,
-            singers = command.Singers,
+            entries = command.Entries.Select(e => new { text = e.Text, kind = e.Kind.ToString().ToLowerInvariant() }),
             message = command.Message,
             position = command.Position.ToString().ToLowerInvariant(),
             backgroundColor = command.BackgroundColor,
             textColor = command.TextColor,
+            singerColor = command.SingerColor,
+            songColor = command.SongColor,
+            dividerColor = command.DividerColor,
+            dividerGlyph = command.DividerGlyph,
+            backgroundOpacityPercent = command.BackgroundOpacityPercent,
             fontSizePixels = command.FontSizePixels,
             scrollSpeed = command.ScrollSpeed,
             pinLabel = command.PinLabel,

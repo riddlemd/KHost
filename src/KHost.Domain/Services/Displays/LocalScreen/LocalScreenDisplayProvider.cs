@@ -382,18 +382,34 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
         if (settings is null || !settings.MarqueeEnabled)
             return new SetMarqueeCommand { Enabled = false };
 
-        var entries = await upNext.ReadAsync(settings.MarqueeSingerCount);
+        var upcoming = await upNext.ReadAsync(settings.MarqueeSingerCount);
+        var glyph = MarqueeEntrySegmenter.ResolveGlyph(settings.MarqueeDividerShape);
+
+        var segments = new List<MarqueeSegment>();
+        foreach (var (entry, index) in upcoming.Select((entry, index) => (entry, index)))
+        {
+            // Glyph null means "None" was chosen: entries run together with no divider at all.
+            if (index > 0 && glyph is not null)
+                segments.Add(new MarqueeSegment { Text = "", Kind = MarqueeSegmentKind.Separator });
+
+            segments.AddRange(MarqueeEntrySegmenter.ComposeSegments(entry, settings.MarqueeEntryFormat));
+        }
 
         return new SetMarqueeCommand
         {
             Enabled = true,
-            Singers = [.. entries.Select(entry => MarqueeText.ComposeEntry(entry, settings.MarqueeEntryFormat))],
+            Entries = segments,
             Message = MarqueeText.CollapseToOneLine(settings.MarqueeMessage),
             Position = settings.MarqueePosition,
 
             // A cleared colour is no colour, not an empty CSS value the screen would take.
             BackgroundColor = string.IsNullOrWhiteSpace(settings.MarqueeBackgroundColor) ? null : settings.MarqueeBackgroundColor.Trim(),
             TextColor = string.IsNullOrWhiteSpace(settings.MarqueeTextColor) ? null : settings.MarqueeTextColor.Trim(),
+            SingerColor = string.IsNullOrWhiteSpace(settings.MarqueeSingerColor) ? null : settings.MarqueeSingerColor.Trim(),
+            SongColor = string.IsNullOrWhiteSpace(settings.MarqueeSongColor) ? null : settings.MarqueeSongColor.Trim(),
+            DividerColor = string.IsNullOrWhiteSpace(settings.MarqueeDividerColor) ? null : settings.MarqueeDividerColor.Trim(),
+            DividerGlyph = glyph,
+            BackgroundOpacityPercent = settings.MarqueeBackgroundOpacity,
             FontSizePixels = settings.MarqueeFontSizePixels,
             ScrollSpeed = settings.MarqueeScrollSpeed,
             PinLabel = settings.MarqueePinLabel,

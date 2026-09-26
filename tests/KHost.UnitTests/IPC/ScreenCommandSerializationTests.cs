@@ -38,11 +38,21 @@ public class ScreenCommandSerializationTests
         [nameof(SetMarqueeCommand)] = new SetMarqueeCommand
         {
             Enabled = true,
-            Singers = ["Ada", "Grace"],
+            Entries =
+            [
+                new MarqueeSegment { Text = "Ada", Kind = MarqueeSegmentKind.Singer },
+                new MarqueeSegment { Text = "", Kind = MarqueeSegmentKind.Separator },
+                new MarqueeSegment { Text = "Grace", Kind = MarqueeSegmentKind.Singer },
+            ],
             Message = "Happy hour until 8",
             Position = MarqueePosition.Top,
             BackgroundColor = "#101820",
             TextColor = "#f2f2f5",
+            SingerColor = "#ff8800",
+            SongColor = "#00ffaa",
+            DividerColor = "#8888ff",
+            DividerGlyph = "•",
+            BackgroundOpacityPercent = 40,
             FontSizePixels = 36,
             ScrollSpeed = 140,
             PinLabel = true,
@@ -272,6 +282,39 @@ public class ScreenCommandSerializationTests
         var stem = RoundTrip(new SetStemVolumeCommand { Role = AudioTrackRole.Backing, Volume = 65 });
         Assert.Equal(AudioTrackRole.Backing, stem.Role);
         Assert.Equal(65, stem.Volume);
+    }
+
+    /// <summary>The colours, opacity, glyph and segment kinds all have to survive the wire, or a
+    /// venue's chosen look reaches the screen as its own default instead.</summary>
+    [Fact]
+    public void RoundTrip_KeepsTheMarqueesColoursOpacityAndSegments()
+    {
+        var command = (SetMarqueeCommand)Samples[nameof(SetMarqueeCommand)];
+
+        var back = Assert.IsType<SetMarqueeCommand>(JsonSerializer.Deserialize<ScreenCommandBase>(
+            JsonSerializer.Serialize(command, typeof(ScreenCommandBase), Options), Options));
+
+        Assert.Equal(command.SingerColor, back.SingerColor);
+        Assert.Equal(command.SongColor, back.SongColor);
+        Assert.Equal(command.DividerColor, back.DividerColor);
+        Assert.Equal(command.DividerGlyph, back.DividerGlyph);
+        Assert.Equal(command.BackgroundOpacityPercent, back.BackgroundOpacityPercent);
+        Assert.Equal(
+            command.Entries.Select(s => (s.Kind, s.Text)),
+            back.Entries.Select(s => (s.Kind, s.Text)));
+    }
+
+    /// <summary>Zero opacity is a real, fully-transparent choice; it must not round-trip as null,
+    /// which the venue's "never chosen" reads as instead.</summary>
+    [Fact]
+    public void RoundTrip_ZeroOpacity_StaysZeroNotNull()
+    {
+        var command = new SetMarqueeCommand { Enabled = true, BackgroundOpacityPercent = 0 };
+
+        var back = Assert.IsType<SetMarqueeCommand>(JsonSerializer.Deserialize<ScreenCommandBase>(
+            JsonSerializer.Serialize(command, typeof(ScreenCommandBase), Options), Options));
+
+        Assert.Equal(0, back.BackgroundOpacityPercent);
     }
 
     [Fact]
