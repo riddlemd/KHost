@@ -19,6 +19,10 @@ function stemMatches(stem, role, voice) {
     return stem.role === role && (stem.voice ?? null) === (voice ?? null);
 }
 
+function clampLevel(value) {
+    return Number.isFinite(value) ? Math.max(0, Math.min(1, value)) : 1;
+}
+
 /// Mixes stems into one voice the rest of the page can drive like a single media element.
 ///
 /// The returned object is deliberately shaped like one — `currentTime`, `play`, `pause`,
@@ -28,9 +32,13 @@ function stemMatches(stem, role, voice) {
 /// `startOffsetSeconds` is where the stream this replaces would have begun. The stems are always
 /// the whole song from zero, so everything exposed here is shifted back by it and the rest of the
 /// page goes on reading stream-relative time.
-function createStemMixer(stems, startOffsetSeconds, reportError) {
+///
+/// `volume` is the room's level. The venue sends it only on connect and on an edit, so a mix
+/// that started at unity would play every song after the first at full level.
+function createStemMixer(stems, startOffsetSeconds, reportError, volume = 1) {
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
     const master = ctx.createGain();
+    master.gain.value = clampLevel(volume);
     master.connect(ctx.destination);
 
     const parts = stems.map((stem) => {
@@ -147,7 +155,23 @@ function createStemMixer(stems, startOffsetSeconds, reportError) {
         },
 
         get volume() { return master.gain.value; },
-        set volume(value) { master.gain.value = Math.max(0, Math.min(1, value)); },
+        set volume(value) {
+            // A fade still scheduled would win over a bare `.value`, pulling a resumed song down.
+            const now = ctx.currentTime;
+            master.gain.cancelScheduledValues(now);
+            master.gain.setValueAtTime(clampLevel(value), now);
+        },
+
+        /// Rides the whole mix down to silence on the context clock, from wherever it is now.
+        /// Scheduled rather than stepped from a timer, so it keeps time with the audio it fades.
+        fadeOut(ms) {
+            const now = ctx.currentTime;
+            const from = master.gain.value;
+
+            master.gain.cancelScheduledValues(now);
+            master.gain.setValueAtTime(from, now);
+            master.gain.linearRampToValueAtTime(0, now + Math.max(0, ms) / 1000);
+        },
 
         get playbackRate() { return 1; },
         set playbackRate(_) { /* the stems play at written speed; the host retimes with ffmpeg */ },
