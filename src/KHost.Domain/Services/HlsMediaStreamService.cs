@@ -7,6 +7,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using KHost.Common.Media;
 using KHost.Domain.Services.BurnIn;
+using KHost.Domain.Services.VideoEncoding;
 
 namespace KHost.Domain.Services;
 
@@ -29,6 +30,9 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
         /// <summary>The frame height a .cdg is scaled into, and the size of every burned-in frame;
         /// one of <see cref="GraphicsScaling.Heights"/>.</summary>
         public int GraphicsScaleHeight { get; set; } = GraphicsScaling.DefaultHeight;
+
+        /// <summary>Whether video is cut on a hardware H.264 encoder; read per song.</summary>
+        public VideoEncoderPreference Encoder { get; set; } = VideoEncoderPreference.Auto;
     }
 
     internal const string PlaylistFileName = "stream.m3u8";
@@ -40,17 +44,22 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
     private readonly Dictionary<string, Session> _sessions = [];
     private readonly SemaphoreSlim _lock = new(1, 1);
     private readonly IPlayableMediaSourceService _playableSources;
+    private readonly IVideoEncoderSelector? _encoders;
     private readonly string _root;
     private int _disposed;
 
     public HlsMediaStreamService(
         ILogger<HlsMediaStreamService> logger,
         IOptionsMonitor<ServiceOptions> options,
-        IPlayableMediaSourceService playableSources)
+        IPlayableMediaSourceService playableSources,
+        IVideoEncoderSelector? encoders = null)
         : base(logger)
     {
         _options = options;
         _playableSources = playableSources;
+
+        // Null encodes on libx264 without probing, which is what a test building this by hand wants.
+        _encoders = encoders;
 
         // The root is resolved once and the rest is read live. Moving the directory under running
         // sessions would strand the segments they are already serving, where a changed segment
@@ -166,16 +175,17 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
             ? null
             : await PlanBurnInAsync(source, words, backgroundPath, startOffset, tempo, graphicsHeight, cancellationToken);
 
-        var arguments = BuildArguments(
-            source, startOffset, pitch, tempo, Options.SegmentSeconds, companionAudio, mix, burnIn?.Overlay,
-            graphicsHeight);
+        var segmentSeconds = Options.SegmentSeconds;
+        string Arguments(VideoEncoderProfile encoder) => BuildArguments(
+            source, startOffset, pitch, tempo, segmentSeconds, companionAudio, mix, burnIn?.Overlay,
+            graphicsHeight, encoder);
 
         Logger.LogInformation(
             "Opening stream {SessionId} for '{FilePath}' at {Offset}{BurnIn}",
             id, source, startOffset, burnIn is null ? "" : $", words burned in over {burnIn.Overlay.Base}");
 
         return await StartEncodeAsync(
-            id, directory, filePath, arguments, burnIn, startOffset, pitch, tempo, adopted: null, cancellationToken);
+            id, directory, filePath, Arguments, burnIn, startOffset, pitch, tempo, adopted: null, cancellationToken);
     }
 
     public async Task<MediaStreamSession> OpenStemsAsync(
@@ -210,7 +220,9 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
                     words, backgroundPath, startOffset, tempo, GraphicsScaling.SnapToOffered(Options.GraphicsScaleHeight));
             }
 
-            var arguments = BuildStemArguments(inputs, startOffset, pitch, tempo, Options.SegmentSeconds, burnIn?.Overlay);
+            var segmentSeconds = Options.SegmentSeconds;
+            string Arguments(VideoEncoderProfile encoder)
+                => BuildStemArguments(inputs, startOffset, pitch, tempo, segmentSeconds, burnIn?.Overlay, encoder);
 
             Logger.LogInformation(
                 "Opening stream {SessionId} from {Count} stems of '{FilePath}' at {Offset}{BurnIn}",
@@ -218,7 +230,7 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
                 burnIn is null ? "" : $", words burned in over {burnIn.Overlay.Base}");
 
             return await StartEncodeAsync(
-                id, directory, sourcePath, arguments, burnIn, startOffset, pitch, tempo, adopt?.Id, cancellationToken);
+                id, directory, sourcePath, Arguments, burnIn, startOffset, pitch, tempo, adopt?.Id, cancellationToken);
         }
         catch
         {
@@ -273,14 +285,61 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
 
     /// <summary>Starts ffmpeg in a session directory, registers it, and waits for a playlist worth
     /// handing out.</summary>
+    /// <param name="arguments">The command line for a given encoder, so a failed hardware start can
+    /// be rebuilt on software.</param>
     /// <param name="adopted">A session closed along with this one: the files it reads from.</param>
     private async Task<MediaStreamSession> StartEncodeAsync(
-        string id, string directory, string filePath, string arguments, BurnInPlan? burnIn,
+        string id, string directory, string filePath, Func<VideoEncoderProfile, string> arguments, BurnInPlan? burnIn,
         TimeSpan startOffset, int pitch, int tempo, string? adopted, CancellationToken cancellationToken)
+    {
+        var encoder = _encoders is null
+            ? VideoEncoderProfile.Software
+            : await _encoders.SelectAsync(Options.Encoder, cancellationToken);
+
+        var started = await TryStartAsync(id, directory, arguments(encoder), burnIn, adopted, cancellationToken);
+
+        // Audio alone reads the same either way, and a retry would only fail the same way again.
+        if (!started && encoder.IsHardware && arguments(encoder) != arguments(VideoEncoderProfile.Software))
+        {
+            Logger.LogWarning(
+                "{Codec} produced no stream for {SessionId}; retrying it on libx264", encoder.Codec, id);
+
+            await DiscardAttemptAsync(id, directory);
+            started = await TryStartAsync(
+                id, directory, arguments(VideoEncoderProfile.Software), burnIn, adopted, cancellationToken);
+
+            // Blamed only when software then works: a source that cannot be read fails both.
+            if (started) _encoders!.ReportFailure(encoder);
+        }
+
+        // TODO: a hardware encoder failing after the playlist is handed out ends the song early; a
+        // consumer holds that URL, so continuing on libx264 needs the playlist carried across.
+        if (!started)
+        {
+            await CloseAsync(id);
+            throw new InvalidOperationException(
+                $"ffmpeg produced no playlist for '{filePath}'. See the warning logged for session {id}.");
+        }
+
+        return new MediaStreamSession
+        {
+            Id = id,
+            SourcePath = filePath,
+            PlaylistUrl = $"{Options.BaseAddress.TrimEnd('/')}/media/{id}/{PlaylistFileName}",
+            StartOffset = startOffset,
+            Pitch = pitch,
+            Tempo = tempo,
+        };
+    }
+
+    /// <summary>Whether ffmpeg, started under <paramref name="id"/>, wrote a playlist worth handing out.</summary>
+    private async Task<bool> TryStartAsync(
+        string id, string directory, string arguments, BurnInPlan? burnIn, string? adopted,
+        CancellationToken cancellationToken)
     {
         Logger.LogDebug("ffmpeg {Arguments}", arguments);
 
-        var process = Process.Start(new ProcessStartInfo(ResolveFfmpegPath(), arguments)
+        var process = Process.Start(new ProcessStartInfo(FfmpegProcessRunner.ResolvePath(), arguments)
         {
             WorkingDirectory = directory,
             UseShellExecute = false,
@@ -310,12 +369,7 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
         {
             // A URL handed out early 404s, which a media element reports as "source not supported"
             // and never retries.
-            if (!await WaitForPlaylistAsync(directory, cancellationToken))
-            {
-                await CloseAsync(id);
-                throw new InvalidOperationException(
-                    $"ffmpeg produced no playlist for '{filePath}'. See the warning logged for session {id}.");
-            }
+            return await WaitForPlaylistAsync(directory, process, cancellationToken);
         }
         catch (OperationCanceledException)
         {
@@ -324,16 +378,24 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
             await CloseAsync(id);
             throw;
         }
+    }
 
-        return new MediaStreamSession
+    /// <summary>Stops a failed attempt and clears what it wrote, keeping the directory: a converted
+    /// source lives in it, and the adopted session is still wanted by the retry.</summary>
+    private async Task DiscardAttemptAsync(string id, string directory)
+    {
+        Session? failed;
+
+        await _lock.WaitAsync();
+        try { _sessions.Remove(id, out failed); }
+        finally { _lock.Release(); }
+
+        failed?.Stop();
+
+        foreach (var file in Directory.EnumerateFiles(directory, "seg_*.ts").Append(Path.Combine(directory, PlaylistFileName)))
         {
-            Id = id,
-            SourcePath = filePath,
-            PlaylistUrl = $"{Options.BaseAddress.TrimEnd('/')}/media/{id}/{PlaylistFileName}",
-            StartOffset = startOffset,
-            Pitch = pitch,
-            Tempo = tempo,
-        };
+            try { File.Delete(file); } catch { /* overwritten by the retry */ }
+        }
     }
 
     /// <summary>What the words go over and how many frames of them to paint.</summary>
@@ -401,13 +463,17 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
     }
 
     /// <summary>The file appears before a segment is listed in it, so existing is not playable.</summary>
-    private static async Task<bool> WaitForPlaylistAsync(string directory, CancellationToken cancellationToken)
+    /// <remarks>Gives up as soon as ffmpeg has exited without one, so a failed start costs no timeout.</remarks>
+    private static async Task<bool> WaitForPlaylistAsync(string directory, Process process, CancellationToken cancellationToken)
     {
         var playlist = Path.Combine(directory, PlaylistFileName);
         var deadline = DateTime.UtcNow + PlaylistTimeout;
 
         while (DateTime.UtcNow < deadline)
         {
+            // Read before the file, so a short song that finished between the two still counts.
+            var exited = process.HasExited;
+
             if (File.Exists(playlist))
             {
                 try
@@ -419,6 +485,8 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
                     // ffmpeg is mid-rewrite; the next poll gets a whole file.
                 }
             }
+
+            if (exited) return false;
 
             await Task.Delay(25, cancellationToken);
         }
@@ -509,7 +577,8 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
         string? companionAudioPath = null,
         AudioMix? mix = null,
         BurnInOverlay? burnIn = null,
-        int graphicsHeight = GraphicsScaling.Off)
+        int graphicsHeight = GraphicsScaling.Off,
+        VideoEncoderProfile? encoder = null)
     {
         var arguments = "-hide_banner -loglevel error";
 
@@ -561,7 +630,8 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
         if (isGraphicsOnly)
             arguments += $" -r {GraphicsFramesPerSecond}";
 
-        arguments += VideoEncode(burnIn?.Height ?? scaledHeight, segment);
+        // The filters above all run on the CPU, so whichever encoder is chosen sees the same frames.
+        arguments += (encoder ?? VideoEncoderProfile.Software).Arguments(burnIn?.Height ?? scaledHeight, segment);
 
         var audioFilter = BuildAudioFilter(pitch, tempo);
         var mixGraph = BuildMixGraph(mix, audioFilter);
@@ -627,7 +697,8 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
         int pitch,
         int tempo,
         int segmentSeconds,
-        BurnInOverlay? burnIn = null)
+        BurnInOverlay? burnIn = null,
+        VideoEncoderProfile? encoder = null)
     {
         var arguments = "-hide_banner -loglevel error";
 
@@ -647,7 +718,7 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
 
         if (burnIn is not null)
         {
-            arguments += VideoEncode(burnIn.Height, segment)
+            arguments += (encoder ?? VideoEncoderProfile.Software).Arguments(burnIn.Height, segment)
                          + BurnInMapping(burnIn, stems.Count, tempo, 0, mixGraph, audioFilter, false, false);
         }
         else
@@ -657,16 +728,6 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
 
         return arguments + HlsOutput(segment);
     }
-
-    /// <remarks>Keyframes on time, not a frame count: -g is in frames, so it matches the segment
-    /// length at exactly one source frame rate, and the muxer can only cut where a keyframe already is.
-    /// </remarks>
-    private static string VideoEncode(int frameHeight, int segment)
-        => $" -c:v libx264 -preset veryfast -profile:v main -level {(frameHeight > 1080 ? "5.1" : "4.1")} -pix_fmt yuv420p"
-           + string.Format(
-               CultureInfo.InvariantCulture,
-               " -force_key_frames \"expr:gte(t,n_forced*{0})\" -sc_threshold 0",
-               segment);
 
     /// <remarks>MPEG-TS segments rather than fMP4: TS plays everywhere, and CMAF needs a newer device
     /// than some display providers reach. Wanting CMAF means asking the provider first.</remarks>
@@ -913,20 +974,6 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
             : FormattableString.Invariant($"setpts=PTS/{rate:F6}");
     }
 
-    private static string ResolveFfmpegPath()
-    {
-        var exeName = OperatingSystem.IsWindows() ? "ffmpeg.exe" : "ffmpeg";
-
-        var folder = GlobalFFOptions.Current.BinaryFolder;
-        if (!string.IsNullOrEmpty(folder))
-        {
-            var candidate = Path.Combine(folder, exeName);
-            if (File.Exists(candidate)) return candidate;
-        }
-
-        return exeName;
-    }
-
     public void Dispose()
     {
         // Registered under more than one service type, and a container disposes each.
@@ -945,6 +992,7 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
 
         private readonly CancellationTokenSource _painting = new();
         private Task? _painter;
+        private int _stopped;
 
         public string Id { get; } = id;
         public string Directory { get; } = directory;
@@ -972,8 +1020,11 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
             }, CancellationToken.None);
         }
 
-        public void Dispose()
+        /// <summary>Stops the encode and its painters, leaving the directory.</summary>
+        public void Stop()
         {
+            if (Interlocked.Exchange(ref _stopped, 1) == 1) return;
+
             _painting.Cancel();
 
             if (process is not null)
@@ -990,6 +1041,11 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
             catch { /* its fault is already logged */ }
 
             _painting.Dispose();
+        }
+
+        public void Dispose()
+        {
+            Stop();
 
             // A consumer may still hold a segment open; the directory is scratch either way.
             try { System.IO.Directory.Delete(Directory, recursive: true); }
