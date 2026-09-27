@@ -17,6 +17,7 @@ using KHost.Domain.Services.PasswordHashers;
 using KHost.Domain.Services.Plugins;
 using KHost.Domain.Services.QueueRotation;
 using KHost.Domain.Services.QueueRotation.Modes;
+using KHost.Domain.Services.VideoEncoding;
 using KHost.LrcLib;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -87,6 +88,8 @@ namespace KHost.Domain
             serviceCollection.AddSingleton<IMediaImportService, MediaImportService>();
             serviceCollection.AddSingleton<ICacheService, JsonFileCacheService>();
             serviceCollection.AddSingleton<ISingerQueueService, SingerQueueService>();
+            serviceCollection.AddSingleton<IFfmpegProcessRunner, FfmpegProcessRunner>();
+            serviceCollection.AddSingleton<IVideoEncoderSelector, VideoEncoderSelector>();
             serviceCollection.AddSingleton<HlsMediaStreamService>();
             serviceCollection.AddSingleton<IMediaStreamService>(services => services.GetRequiredService<HlsMediaStreamService>());
             // The same instance, so a burned-in stream is one of its sessions and closes like any other.

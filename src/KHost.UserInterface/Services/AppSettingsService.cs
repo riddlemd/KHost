@@ -2,6 +2,7 @@ using System.Text.Json;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using KHost.Domain.Services;
+using KHost.Domain.Services.VideoEncoding;
 using KHost.UserInterface.Models;
 using Microsoft.Extensions.Configuration;
 using KHost.Common.Media;
@@ -41,6 +42,12 @@ internal sealed class AppSettingsService : IAppSettingsService
         SegmentSeconds = _configuration.GetValue<int?>("MediaStream:SegmentSeconds") ?? 2,
         GraphicsScaleHeight = GraphicsScaling.SnapToOffered(
             _configuration.GetValue<int?>("MediaStream:GraphicsScaleHeight") ?? GraphicsScaling.DefaultHeight),
+        // Parsed rather than bound: a hand-edited word that names no choice reads as Auto.
+        VideoEncoder = Enum.TryParse<VideoEncoderPreference>(
+            _configuration["MediaStream:Encoder"], ignoreCase: true, out var encoder)
+            && Enum.IsDefined(encoder)
+            ? encoder
+            : VideoEncoderPreference.Auto,
         AdDefaultDurationSeconds = AdDurationClamp(
             (_configuration.GetValue<TimeSpan?>("Ads:DefaultDuration")
                 ?? TimeSpan.FromSeconds(AppSettings.DefaultAdDurationSeconds)).TotalSeconds),
@@ -111,6 +118,7 @@ internal sealed class AppSettingsService : IAppSettingsService
             {
                 ["SegmentSeconds"] = settings.SegmentSeconds,
                 ["GraphicsScaleHeight"] = GraphicsScaling.SnapToOffered(settings.GraphicsScaleHeight),
+                ["Encoder"] = settings.VideoEncoder.ToString(),
             },
             ["Ads"] = new Dictionary<string, object?>
             {

@@ -1,5 +1,6 @@
 using KHost.Abstractions.Models;
 using KHost.Domain.Services;
+using KHost.Domain.Services.VideoEncoding;
 using KHost.UserInterface.Models;
 
 namespace KHost.UserInterface.Services;
@@ -22,6 +23,10 @@ public sealed record AppSettings
     /// <summary>The frame height a CD+G is scaled into; one of <see cref="GraphicsScaling.Heights"/>,
     /// <see cref="GraphicsScaling.Off"/> for its native size.</summary>
     public int GraphicsScaleHeight { get; set; } = GraphicsScaling.DefaultHeight;
+
+    /// <summary>Whether songs are encoded on the graphics chip, on the processor, or on the chip
+    /// when this machine has one that works.</summary>
+    public VideoEncoderPreference VideoEncoder { get; set; } = VideoEncoderPreference.Auto;
 
     /// <summary>How long an ad runs when its playlist entry and the media itself say nothing.</summary>
     /// <remarks>A still with no voiceover; a video ad runs its own length regardless.</remarks>
