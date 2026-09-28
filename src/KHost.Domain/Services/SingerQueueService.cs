@@ -427,8 +427,19 @@ public class SingerQueueService : ISingerQueueService, IDisposable
     public async Task ClearAsync()
     {
         var venue = await _venuesService.ReadSelectedVenueAsync();
-        if (venue?.Settings.ClearQueueOnClose != true)
+
+        // Said either way: a kept queue and a shutdown that never got here otherwise read the same.
+        if (venue is null)
+        {
+            _logger.LogInformation("Singer queue kept on close: no venue is selected");
             return;
+        }
+
+        if (!venue.Settings.ClearQueueOnClose)
+        {
+            _logger.LogInformation("Singer queue kept on close: venue {VenueName} keeps its queue", venue.Name);
+            return;
+        }
 
         await _lock.WaitAsync();
         try
