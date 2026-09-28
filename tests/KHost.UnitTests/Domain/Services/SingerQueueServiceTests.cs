@@ -7,6 +7,7 @@ using KHost.Domain.Services.Messaging;
 using KHost.Domain.Services.QueueRotation;
 using KHost.Domain.Services.QueueRotation.Modes;
 using KHost.Abstractions.Messaging.Messages;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
@@ -479,6 +480,36 @@ public class SingerQueueServiceTests : IDisposable
         await _performanceService.DidNotReceive().DeleteAllQueuedAsync();
     }
 
+    // A kept queue and a shutdown that never reached the clear otherwise leave the same log.
+    [Fact]
+    public async Task ClearAsync_NoVenueSelected_SaysTheQueueWasKept()
+    {
+        var log = new RecordingLogger();
+        var service = new SingerQueueService(log, _cacheService, _performanceService, _usersService,
+            _venuesService, Substitute.For<IAnalyticsService>(), _rotationFactory, _broker);
+        _venuesService.ReadSelectedVenueAsync().Returns((Venue?)null);
+
+        await service.ClearAsync();
+
+        Assert.Contains("Singer queue kept on close: no venue is selected", log.Messages);
+        await _performanceService.DidNotReceive().DeleteAllQueuedAsync();
+    }
+
+    [Fact]
+    public async Task ClearAsync_VenueKeepsItsQueue_SaysSo()
+    {
+        var log = new RecordingLogger();
+        var service = new SingerQueueService(log, _cacheService, _performanceService, _usersService,
+            _venuesService, Substitute.For<IAnalyticsService>(), _rotationFactory, _broker);
+        _venuesService.ReadSelectedVenueAsync()
+            .Returns(new Venue { Name = "Test", Settings = new Venue.VenueSettings { ClearQueueOnClose = false } });
+
+        await service.ClearAsync();
+
+        Assert.Contains("Singer queue kept on close: venue Test keeps its queue", log.Messages);
+        await _performanceService.DidNotReceive().DeleteAllQueuedAsync();
+    }
+
     [Fact]
     public async Task InitializeAsync_DoesNothing_WhenCacheIsEmpty()
     {
@@ -702,6 +733,21 @@ public class SingerQueueServiceTests : IDisposable
 
         cache.Saving.SetResult();
         Assert.Same(disposing, await Task.WhenAny(disposing, Task.Delay(5000)));
+    }
+
+    private sealed class RecordingLogger : ILogger<SingerQueueService>
+    {
+        public List<string> Messages { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            lock (Messages) Messages.Add(formatter(state, exception));
+        }
     }
 
     /// <summary>Saves complete at once until a test arms <see cref="Saving"/> to hold them.</summary>
