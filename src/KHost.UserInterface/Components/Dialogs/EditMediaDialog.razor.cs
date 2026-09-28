@@ -10,43 +10,33 @@ public partial class EditMediaDialog
 {
     private const string _rootClassName = "kh-media-edit-dialog";
 
-    [Inject] private IMediaSearchService? MediaSearchService { get; set; }
+    [Inject] private IMediaSearchService MediaSearchService { get; set; } = default!;
 
     [Parameter] public bool IsOpen { get; set; }
     [Parameter] public Media? Media { get; set; }
-    [Parameter] public string Class { get; set; } = "";
-    [Parameter] public bool CloseOnScrimClick { get; set; }
 
     [Parameter] public EventCallback<Media> OnSave { get; set; }
     [Parameter] public EventCallback OnClose { get; set; }
 
     private EditMediaModel _model = new();
     private EditContext _editContext = default!;
-    private bool _prevIsOpen;
 
+    // DialogHost keys every dialog by request id, so a fresh instance is created per open; this
+    // runs exactly once with Media already bound.
     protected override void OnInitialized()
     {
+        _model = Media is null
+            ? new EditMediaModel()
+            : new EditMediaModel
+            {
+                Id = Media.Id,
+                Title = Media.Title,
+                Artist = Media.Artist,
+                Notes = Media.Notes,
+                Status = Media.Status,
+                ImageScaling = Media.ImageScaling
+            };
         _editContext = new EditContext(_model);
-    }
-
-    protected override void OnParametersSet()
-    {
-        if (IsOpen && !_prevIsOpen)
-        {
-            _model = Media is null
-                ? new EditMediaModel()
-                : new EditMediaModel
-                {
-                    Id = Media.Id,
-                    Title = Media.Title,
-                    Artist = Media.Artist,
-                    Notes = Media.Notes,
-                    Status = Media.Status,
-                    ImageScaling = Media.ImageScaling
-                };
-            _editContext = new EditContext(_model);
-        }
-        _prevIsOpen = IsOpen;
     }
 
     private async Task SubmitAsync()
@@ -85,7 +75,7 @@ public partial class EditMediaDialog
             if (Media?.Source is not { Length: > 0 } stored)
                 return "Local";
 
-            var provider = MediaSearchService?.Providers.FirstOrDefault(
+            var provider = MediaSearchService.Providers.FirstOrDefault(
                 candidate => string.Equals(candidate.SourceName, stored, StringComparison.OrdinalIgnoreCase));
 
             // A plugin that is gone resolves to nobody. Its own name beats "Local", which would

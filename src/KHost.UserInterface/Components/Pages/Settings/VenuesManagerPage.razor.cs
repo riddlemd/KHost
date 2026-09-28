@@ -9,73 +9,39 @@ namespace KHost.UserInterface.Components.Pages.Settings;
 
 public partial class VenuesManagerPage : IDisposable
 {
-    [Inject] private IVenuesService? VenuesService { get; set; }
-    [Inject] private IDialogService? DialogService { get; set; }
-    [Inject] private IAppSettingsService? AppSettingsService { get; set; }
+    [Inject] private IVenuesService VenuesService { get; set; } = default!;
+    [Inject] private IDialogService DialogService { get; set; } = default!;
+    [Inject] private IAppSettingsService AppSettingsService { get; set; } = default!;
     [Inject] private IMessageBroker Broker { get; set; } = default!;
 
     private readonly SubscriptionSet _subscriptions = new();
 
-    private int _pageSize = AppSettings.DefaultPageSize;
     // Mirrors EditVenueModel's [MaxLength] so a generated name can't fail validation later.
     private const int NameMaxLength = 32;
-    private int _currentPage = 1;
-    private string _searchQuery = "";
-    private string? _sortColumn;
-    private bool _sortDescending;
-    private PaginatedResult<Venue>? _paginatedResult;
+
+    private PagedSearch<Venue> _search = default!;
 
     protected override async Task OnInitializedAsync()
     {
         _subscriptions.Add(Broker.Subscribe<VenuesChanged>(OnStateChanged));
 
-        _pageSize = AppSettingsService!.Current.VenuesPageSize;
+        _search = new PagedSearch<Venue>(VenuesService.SearchAsync) { Size = AppSettingsService.Current.VenuesPageSize };
 
-        await SearchAsync();
-    }
-
-    private async Task SearchAsync()
-    {
-        if (VenuesService is null)
-            return;
-
-        var sort = _sortColumn is not null ? new SortDescriptor(_sortColumn, _sortDescending) : null;
-        _paginatedResult = await VenuesService.SearchAsync(_searchQuery, _currentPage, _pageSize, sort);
-    }
-
-    private async Task OnSortColumnClickedAsync(string column)
-    {
-        if (_sortColumn == column)
-            _sortDescending = !_sortDescending;
-        else
-        {
-            _sortColumn = column;
-            _sortDescending = false;
-        }
-        _currentPage = 1;
-        await SearchAsync();
-    }
-
-    private async Task OnSearchChangedAsync()
-    {
-        _currentPage = 1;
-        await SearchAsync();
+        await _search.SearchAsync();
     }
 
     private async Task OpenAddDialogAsync()
     {
-        await DialogService!.RequestEditAsync(new Venue { Name = "" }, async venue => await SaveAsync(venue));
+        await DialogService.RequestEditAsync(new Venue { Name = "" }, async venue => await SaveAsync(venue));
     }
 
     private async Task OpenEditDialogAsync(Venue venue)
     {
-        await DialogService!.RequestEditAsync(venue, async updated => await SaveAsync(updated));
+        await DialogService.RequestEditAsync(venue, async updated => await SaveAsync(updated));
     }
 
     private async Task CloneAsync(Venue venue)
     {
-        if (VenuesService is null) return;
-
         var taken = (await VenuesService.ReadAllAsync(pageSize: 1000)).Items
             .Select(v => v.Name)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
@@ -106,8 +72,7 @@ public partial class VenuesManagerPage : IDisposable
 
     private async Task SaveAsync(Venue? venue)
     {
-        if (VenuesService is null || venue is null)
-            return;
+        if (venue is null) return;
 
         var existing = await VenuesService.ReadAsync(venue.Id);
         if (existing is null)
@@ -118,8 +83,6 @@ public partial class VenuesManagerPage : IDisposable
 
     private async Task StartDeleteAsync(Venue venue)
     {
-        if (VenuesService is null || DialogService is null) return;
-
         await DialogService.ShowConfirmationAsync(
             $"Are you sure you want to delete <span class=\"kh-emphasis\">{venue.Name}</span>?",
             async () => await VenuesService.DeleteAsync(venue.Id),
@@ -128,36 +91,10 @@ public partial class VenuesManagerPage : IDisposable
         );
     }
 
-    private async Task PreviousPageAsync()
-    {
-        if (_currentPage > 1)
-        {
-            _currentPage--;
-            await SearchAsync();
-        }
-    }
-
-    private async Task NextPageAsync()
-    {
-        if (_currentPage < (_paginatedResult?.TotalPages ?? 0))
-        {
-            _currentPage++;
-            await SearchAsync();
-        }
-    }
-
     private void OnStateChanged(VenuesChanged message)
         => _ = InvokeAsync(async () =>
         {
-            await SearchAsync();
-
-            var totalPages = _paginatedResult?.TotalPages ?? 0;
-            if (_paginatedResult?.Items.Count == 0 && _currentPage > 1)
-            {
-                _currentPage = Math.Max(1, totalPages);
-                await SearchAsync();
-            }
-
+            await _search.ReloadClampedAsync();
             StateHasChanged();
         });
 

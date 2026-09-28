@@ -1,0 +1,12 @@
+@if (AppSettings is not null)
+{
+    <button type="button"
+            class="kh-lyric-colours-toggle @(_on ? "kh-lyric-colours-toggle--on" : "")"
+            title="@Title"
+            aria-label="Colour-blind friendly lyrics"
+            aria-pressed="@(_on ? "true" : "false")"
+            disabled="@_saving"
+            @onclick="ToggleAsync">
+        <Icon Name="@(_on ? "palette-fill" : "palette")" Class="kh-lyric-colours-toggle__icon" />
+    </button>
+}

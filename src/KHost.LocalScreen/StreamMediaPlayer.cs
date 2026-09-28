@@ -219,10 +219,10 @@ internal sealed class StreamMediaPlayer : IMediaPlayer
     public void SetTimedLyrics(SetTimedLyricsCommand command)
     {
         _logger.LogInformation("Lyric timing {State}",
-            command.Lyrics is null ? "cleared" : $"set, {command.Lyrics.Pages.Count} page(s)");
+            command.Lyrics is null ? "cleared" : $"{(command.Replacing ? "replaced" : "set")}, {command.Lyrics.Pages.Count} page(s)");
 
         // Sent whole, as the host's own model: the page draws it and nothing here reshapes it.
-        Send(new { type = "timed-lyrics", lyrics = command.Lyrics, intro = command.Intro, leadInSeconds = command.LeadInSeconds });
+        Send(new { type = "timed-lyrics", lyrics = command.Lyrics, intro = command.Intro, leadInSeconds = command.LeadInSeconds, replacing = command.Replacing });
     }
 
     public void SetMarquee(SetMarqueeCommand command)

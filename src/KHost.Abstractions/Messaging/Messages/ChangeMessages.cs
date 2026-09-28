@@ -82,3 +82,14 @@ public sealed record QrCodeOfferChanged;
 /// cannot move the list — a pause, a seek, a venue edit that leaves its alias rule alone. It may
 /// still arrive when the list reads the same afterwards.</remarks>
 public sealed record UpNextChanged;
+
+/// <summary>How the host adjusts a song's timed lyrics changed, so words read before it are stale.</summary>
+/// <remarks>Read <see cref="KHost.Abstractions.Services.ITimedLyricsService.GetTimedLyricsAsync"/> again
+/// on it. Announced once for one save, however many of the adjustments it moved, and not for a save
+/// that moved none of them.</remarks>
+public sealed record TimedLyricsSettingsChanged;
+
+/// <summary>What the host knows about ffmpeg and ffprobe moved: a check or an install changed it.</summary>
+/// <remarks>Read <see cref="KHost.Abstractions.Services.IFFmpegService.Status"/> again on it. Also
+/// announced as an install's progress moves by a whole percent.</remarks>
+public sealed record FFmpegChanged;

@@ -62,10 +62,10 @@ public class PerformanceService : BaseRepositoryService<Performance, IPerformanc
         return deleted;
     }
 
-    public async Task<PaginatedResult<Performance>> ReadBySingerIdAsync(Guid singerId, int pageNumber = 1, int pageSize = 0, PerformanceFilter filter = PerformanceFilter.All, DateTime? startDate = null)
+    public async Task<PaginatedResult<Performance>> ReadBySingerIdAsync(Guid singerId, int pageNumber = 1, int pageSize = 0, PerformanceFilter filter = PerformanceFilter.UnQueued, DateTime? startDate = null)
         => await Repository.ReadBySingerIdAsync(singerId, pageNumber, pageSize, filter, startDate);
 
-    public async Task<PaginatedResult<Performance>> ReadByMediaIdAsync(Guid mediaId, int pageNumber = 1, int pageSize = 0, PerformanceFilter filter = PerformanceFilter.All)
+    public async Task<PaginatedResult<Performance>> ReadByMediaIdAsync(Guid mediaId, int pageNumber = 1, int pageSize = 0, PerformanceFilter filter = PerformanceFilter.UnQueued)
         => await Repository.ReadByMediaIdAsync(mediaId, pageNumber, pageSize, filter);
 
     public async Task<IReadOnlyDictionary<Guid, int>> CountSungSinceAsync(IEnumerable<Guid> singerIds, DateTime since)
@@ -83,7 +83,7 @@ public class PerformanceService : BaseRepositoryService<Performance, IPerformanc
     public async Task<List<Performance>> ReadQueuedAsync()
         => await Repository.ReadQueuedAsync();
 
-    public async Task<PaginatedResult<Performance>> ReadAllAsync(int pageNumber = 1, int pageSize = 0, PerformanceFilter filter = PerformanceFilter.All)
+    public async Task<PaginatedResult<Performance>> ReadAllAsync(int pageNumber = 1, int pageSize = 0, PerformanceFilter filter = PerformanceFilter.Queued)
         => await Repository.ReadAllAsync(pageNumber, pageSize, filter);
 
     public async Task<Performance?> CreateAndEnqueueAsync(Performance performance)

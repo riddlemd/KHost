@@ -4,7 +4,6 @@ using KHost.Abstractions.Messaging;
 using KHost.Abstractions.Messaging.Messages;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
-using System.Collections.Concurrent;
 using KHost.Common.Media;
 using KHost.Abstractions.Models;
 
@@ -31,7 +30,7 @@ public partial class MediaBrowser : IDisposable
     private SortColumn _sortColumn = SortColumn.Name;
     private bool _sortAsc = true;
     private bool _breadcrumbEditMode = false;
-    private readonly ConcurrentDictionary<string, (string Title, string? Artist)> _parsedMetadataCache = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, (string Title, string? Artist)> _parsedMetadataCache = new(StringComparer.OrdinalIgnoreCase);
     private List<FileEntry> _entries = [];
     private readonly HashSet<string> _selectedPaths = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> _selectedFolderPaths = new(StringComparer.OrdinalIgnoreCase);
@@ -276,22 +275,24 @@ public partial class MediaBrowser : IDisposable
         {
             var groupFiles = group.ToList();
 
-            var cdgFile = groupFiles.FirstOrDefault(f => f.Extension.Equals("cdg", StringComparison.OrdinalIgnoreCase));
+            var cdgFile = groupFiles.FirstOrDefault(f => MediaFormats.IsGraphicsOnlyKaraoke(f.FullPath));
 
-            // .mp3 only: CD+G rips have always shipped that way, so a same-named file in another
-            // format is a different track and keeps its own row rather than joining the pair.
-            var mp3File = groupFiles.FirstOrDefault(f => f.Extension.Equals("mp3", StringComparison.OrdinalIgnoreCase));
+            // The rule the importer and the player use, so a row shown as a pair is one they play.
+            var audioPath = cdgFile is null
+                ? null
+                : MediaFormats.FindKaraokeAudioAmong(cdgFile.FullPath, groupFiles.Select(f => f.FullPath));
+            var audioFile = groupFiles.FirstOrDefault(f => f.FullPath == audioPath);
 
-            if (cdgFile is not null && mp3File is not null)
+            if (cdgFile is not null && audioFile is not null)
             {
                 result.Add(cdgFile with
                 {
-                    Name = $"{group.Key} (CDG + MP3)",
-                    PairedPaths = [cdgFile.FullPath, mp3File.FullPath],
+                    Name = $"{group.Key} (CDG + {audioFile.Extension.ToUpperInvariant()})",
+                    PairedPaths = [cdgFile.FullPath, audioFile.FullPath],
                 });
 
                 processedPaths.Add(cdgFile.FullPath);
-                processedPaths.Add(mp3File.FullPath);
+                processedPaths.Add(audioFile.FullPath);
             }
 
             foreach (var file in groupFiles)
@@ -330,24 +331,15 @@ public partial class MediaBrowser : IDisposable
         if (entry.IsDirectory)
             return entry.SupportedFileCount is not null ? $"{entry.Name} ({entry.SupportedFileCount})" : entry.Name;
 
-        if (_parsedMetadataCache.TryGetValue(entry.FullPath, out var cached))
-            return $"{cached.Title} - {cached.Artist ?? "Unknown"}";
-
-        _ = Task.Run(async () =>
+        // The filename parse is synchronous, so a background Task.Run per uncached row only bought
+        // a render storm on first paint for no real work.
+        if (!_parsedMetadataCache.TryGetValue(entry.FullPath, out var cached))
         {
-            if (!_parsedMetadataCache.ContainsKey(entry.FullPath))
-            {
-                try
-                {
-                    var (title, artist) = ParsingService.GetTitleAndArtistFromFilename(entry.FullPath);
-                    _parsedMetadataCache.TryAdd(entry.FullPath, (title, artist));
-                    await InvokeAsync(StateHasChanged);
-                }
-                catch { }
-            }
-        });
+            cached = ParsingService.GetTitleAndArtistFromFilename(entry.FullPath);
+            _parsedMetadataCache[entry.FullPath] = cached;
+        }
 
-        return entry.Name;
+        return $"{cached.Title} - {cached.Artist ?? "Unknown"}";
     }
 
     private void OnSortColumnClicked(SortColumn column)
@@ -501,6 +493,18 @@ public partial class MediaBrowser : IDisposable
             ImportService.TypeOverrides.Remove(entry.FullPath);
         else
             ImportService.TypeOverrides[entry.FullPath] = flipped;
+    }
+
+    /// <summary>The parenthesised counts on the Import button, or empty when nothing is selected.</summary>
+    private string ImportSelectionSummary
+    {
+        get
+        {
+            var parts = new List<string>();
+            if (_selectedPaths.Count > 0) parts.Add($"{_selectedPaths.Count} file{(_selectedPaths.Count == 1 ? "" : "s")}");
+            if (_selectedFolderPaths.Count > 0) parts.Add($"{_selectedFolderPaths.Count} folder{(_selectedFolderPaths.Count == 1 ? "" : "s")}");
+            return parts.Count > 0 ? $" ({string.Join(", ", parts)})" : "";
+        }
     }
 
     /// <summary>Only worth asking where it changes something: stills have no video to call ads.</summary>

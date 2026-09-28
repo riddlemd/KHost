@@ -137,3 +137,32 @@ function createLeadInHold(onElapsed, now = () => performance.now()) {
         },
     };
 }
+
+/// The words a `timed-lyrics` message leaves the screen holding, with the hold armed to match.
+///
+/// Words that arrive with a load start the hold over. A replacement arrives mid-song, so it keeps
+/// the hold as it is: one running goes on with the bar it put up, one already spent is not armed
+/// again, and only one still to come takes the new length.
+function receiveWords(held, message, hold) {
+    const next = {
+        lyrics: message.lyrics || null,
+        intro: message.intro || null,
+        leadInSeconds: Number(message.leadInSeconds) || 0,
+        led: false,
+    };
+
+    if (message.replacing === true) {
+        if (hold.active) {
+            // The bar is timed to the hold already running, so it keeps that hold's length.
+            next.leadInSeconds = held.leadInSeconds;
+            next.led = held.led;
+            return next;
+        }
+
+        if (!hold.armed) return next;
+    }
+
+    hold.cancel();
+    if (firstPageAt(next.lyrics) !== null) hold.arm(next.leadInSeconds);
+    return next;
+}

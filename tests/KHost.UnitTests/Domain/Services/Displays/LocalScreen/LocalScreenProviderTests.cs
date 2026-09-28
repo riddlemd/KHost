@@ -62,6 +62,18 @@ public class LocalScreenProviderTests
     }
 
     [Fact]
+    public void BuildArguments_WithALogLevel_PassesItToTheScreen()
+    {
+        var args = LocalScreenProvider.BuildArguments("http://host/ipc", "Screen 1", "/keys/s.key", "Debug");
+
+        Assert.Equal(["--log-level", "Debug"], args[^2..]);
+    }
+
+    [Fact]
+    public void BuildArguments_WithNoLogLevel_LeavesTheScreenAtItsDefault()
+        => Assert.DoesNotContain("--log-level", LocalScreenProvider.BuildArguments("http://host/ipc", "Screen 1", "/keys/s.key", null));
+
+    [Fact]
     public void BuildArguments_DistinguishesScreenIdsThatDifferOnlyAfterASpace()
     {
         var first = LocalScreenProvider.BuildArguments("http://host/ipc", "Screen 1", "/keys/a.key");

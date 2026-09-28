@@ -17,14 +17,14 @@
             <div class="kh-card__body">
                 <form class="kh-panel__form-row" @onsubmit:preventDefault>
                     <input type="text" class="kh-form-control kh-panel__form-grow" placeholder="Search venues..."
-                            autocomplete="off" @bind="_searchQuery" @bind:event="oninput" @onchange="OnSearchChangedAsync" />
+                            autocomplete="off" @bind="_search.Query" @bind:event="oninput" @onchange="_search.SearchChangedAsync" />
                 </form>
             </div>
             <div class="kh-card__body">
-                @if (_paginatedResult?.Items.Count == 0)
+                @if (_search.Result?.Items.Count == 0)
                 {
                     <div class="kh-panel--empty kh-panel--empty-lg">
-                        @if (string.IsNullOrWhiteSpace(_searchQuery))
+                        @if (string.IsNullOrWhiteSpace(_search.Query))
                         {
                             <Icon Name="geo-alt" />
                             <span>No venues yet. Add one using the button above to get started.</span>
@@ -41,18 +41,18 @@
                     <table class="kh-table">
                         <thead>
                             <tr>
-                                <th class="kh-table__col--sortable" @onclick='() => OnSortColumnClickedAsync("name")'>
-                                    Name @if (_sortColumn == "name") { <Icon Name="@(_sortDescending ? "sort-down" : "sort-up")" class="kh-table__sort-indicator" /> }
+                                <th class="kh-table__col--sortable" @onclick='() => _search.SortByAsync("name")'>
+                                    Name @if (_search.SortColumn == "name") { <Icon Name="@(_search.Descending ? "sort-down" : "sort-up")" class="kh-table__sort-indicator" /> }
                                 </th>
                                 <th>Notes</th>
-                                <th class="kh-table__col--sortable kh-table__cell--centered" @onclick='() => OnSortColumnClickedAsync("enabled")'>
-                                    Enabled @if (_sortColumn == "enabled") { <Icon Name="@(_sortDescending ? "sort-down" : "sort-up")" class="kh-table__sort-indicator" /> }
+                                <th class="kh-table__col--sortable kh-table__cell--centered" @onclick='() => _search.SortByAsync("enabled")'>
+                                    Enabled @if (_search.SortColumn == "enabled") { <Icon Name="@(_search.Descending ? "sort-down" : "sort-up")" class="kh-table__sort-indicator" /> }
                                 </th>
                                 <th>Actions</th>
                             </tr>
                         </thead>
                         <tbody>
-                            @foreach (var venue in _paginatedResult!.Items)
+                            @foreach (var venue in _search.Result!.Items)
                             {
                                 <tr>
                                     <td class="kh-table__cell--fill">@venue.Name</td>
@@ -68,7 +68,7 @@
                                             <Icon Name="copy" />
                                         </button>
                                         @{
-                                            var isSelectedVenue = VenuesService?.SelectedVenueId == venue.Id;
+                                            var isSelectedVenue = VenuesService.SelectedVenueId == venue.Id;
                                         }
                                         <AuthorizeView Policy="@nameof(KHostPermission.DeleteVenue)" Context="_auth">
                                         <button class="kh-venues-manager__delete-btn kh-button--icon-minimal"
@@ -85,10 +85,10 @@
                     </table>
 
                     <Pagination
-                        CurrentPage="_currentPage"
-                        TotalPages="@(_paginatedResult?.TotalPages ?? 0)"
-                        OnPreviousPage="PreviousPageAsync"
-                        OnNextPage="NextPageAsync" />
+                        CurrentPage="_search.Page"
+                        TotalPages="@(_search.Result?.TotalPages ?? 0)"
+                        OnPreviousPage="_search.PreviousAsync"
+                        OnNextPage="_search.NextAsync" />
                 }
             </div>
         </div>

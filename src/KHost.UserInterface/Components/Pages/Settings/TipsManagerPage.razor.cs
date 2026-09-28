@@ -11,21 +11,16 @@ namespace KHost.UserInterface.Components.Pages.Settings;
 
 public partial class TipsManagerPage : IDisposable
 {
-    [Inject] private ITipsService? TipsService { get; set; }
-    [Inject] private IUsersService? UsersService { get; set; }
-    [Inject] private IDialogService? DialogService { get; set; }
-    [Inject] private IVenuesService? VenuesService { get; set; }
-    [Inject] private IAppSettingsService? AppSettingsService { get; set; }
+    [Inject] private ITipsService TipsService { get; set; } = default!;
+    [Inject] private IUsersService UsersService { get; set; } = default!;
+    [Inject] private IDialogService DialogService { get; set; } = default!;
+    [Inject] private IVenuesService VenuesService { get; set; } = default!;
+    [Inject] private IAppSettingsService AppSettingsService { get; set; } = default!;
     [Inject] private IMessageBroker Broker { get; set; } = default!;
 
     private readonly SubscriptionSet _subscriptions = new();
 
-    private int _pageSize = AppSettings.DefaultPageSize;
-    private int _currentPage = 1;
-    private string _searchQuery = "";
-    private string? _sortColumn;
-    private bool _sortDescending;
-    private PaginatedResult<Tip>? _paginatedResult;
+    private PagedSearch<Tip> _search = default!;
     private Dictionary<Guid, string> _userNames = [];
     private Dictionary<Guid, string> _venueNames = [];
 
@@ -33,17 +28,15 @@ public partial class TipsManagerPage : IDisposable
     {
         _subscriptions.Add(Broker.Subscribe<TipsChanged>(OnStateChanged));
 
-        _pageSize = AppSettingsService!.Current.TipsPageSize;
+        _search = new PagedSearch<Tip>(TipsService.SearchAsync) { Size = AppSettingsService.Current.TipsPageSize };
 
         await LoadUsersAsync();
         await LoadVenuesAsync();
-        await SearchAsync();
+        await _search.SearchAsync();
     }
 
     private async Task LoadUsersAsync()
     {
-        if (UsersService is null) return;
-
         var result = await UsersService.ReadAllAsync(pageSize: 1000);
         _userNames = result.Items.ToDictionary(u => u.Id, u => u.Name);
     }
@@ -55,8 +48,6 @@ public partial class TipsManagerPage : IDisposable
 
     private async Task LoadVenuesAsync()
     {
-        if (VenuesService is null) return;
-
         var result = await VenuesService.ReadAllAsync(pageSize: 1000);
         _venueNames = result.Items.ToDictionary(v => v.Id, v => v.Name);
     }
@@ -65,50 +56,21 @@ public partial class TipsManagerPage : IDisposable
     private string GetVenueName(Guid? venueId)
         => venueId is { } id && _venueNames.TryGetValue(id, out var name) ? name : "Unknown";
 
-    private async Task SearchAsync()
-    {
-        if (TipsService is null)
-            return;
-
-        var sort = _sortColumn is not null ? new SortDescriptor(_sortColumn, _sortDescending) : null;
-        _paginatedResult = await TipsService.SearchAsync(_searchQuery, _currentPage, _pageSize, sort);
-    }
-
-    private async Task OnSortColumnClickedAsync(string column)
-    {
-        if (_sortColumn == column)
-            _sortDescending = !_sortDescending;
-        else
-        {
-            _sortColumn = column;
-            _sortDescending = false;
-        }
-        _currentPage = 1;
-        await SearchAsync();
-    }
-
-    private async Task OnSearchChangedAsync()
-    {
-        _currentPage = 1;
-        await SearchAsync();
-    }
-
     private async Task OpenAddDialogAsync()
     {
         // Typed parameter: the RequestEditAsync overloads differ only in their model, so a bare
         // null and an untyped lambda cannot pick one.
-        await DialogService!.RequestEditAsync(null, async (Tip? tip) => await SaveAsync(tip));
+        await DialogService.RequestEditAsync(null, async (Tip? tip) => await SaveAsync(tip));
     }
 
     private async Task OpenEditDialogAsync(Tip tip)
     {
-        await DialogService!.RequestEditAsync(tip, async updated => await SaveAsync(updated));
+        await DialogService.RequestEditAsync(tip, async updated => await SaveAsync(updated));
     }
 
     private async Task SaveAsync(Tip? tip)
     {
-        if (TipsService is null || tip is null)
-            return;
+        if (tip is null) return;
 
         var existing = await TipsService.ReadAsync(tip.Id);
         if (existing is null)
@@ -120,8 +82,6 @@ public partial class TipsManagerPage : IDisposable
     // Unconditional: a destructive action must not hinge on which venue is selected.
     private async Task StartDeleteAsync(Tip tip)
     {
-        if (TipsService is null || DialogService is null) return;
-
         var singer = GetSingerName(tip.UserId);
 
         await DialogService.ShowConfirmationAsync(
@@ -132,36 +92,10 @@ public partial class TipsManagerPage : IDisposable
         );
     }
 
-    private async Task PreviousPageAsync()
-    {
-        if (_currentPage > 1)
-        {
-            _currentPage--;
-            await SearchAsync();
-        }
-    }
-
-    private async Task NextPageAsync()
-    {
-        if (_currentPage < (_paginatedResult?.TotalPages ?? 0))
-        {
-            _currentPage++;
-            await SearchAsync();
-        }
-    }
-
     private void OnStateChanged(TipsChanged message)
         => _ = InvokeAsync(async () =>
         {
-            await SearchAsync();
-
-            var totalPages = _paginatedResult?.TotalPages ?? 0;
-            if (_paginatedResult?.Items.Count == 0 && _currentPage > 1)
-            {
-                _currentPage = Math.Max(1, totalPages);
-                await SearchAsync();
-            }
-
+            await _search.ReloadClampedAsync();
             StateHasChanged();
         });
 

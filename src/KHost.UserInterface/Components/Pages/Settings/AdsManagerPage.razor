@@ -1,75 +1,17 @@
 @page "/settings/ads-manager"
 @attribute [Authorize(Policy = nameof(KHostPermission.ManageMedia))]
 @using KHost.Abstractions.Models
-@using KHost.UserInterface.Models
 
 <PageTitle>KHost: Ads</PageTitle>
 
 <div class="kh-app__body">
     <div class="kh-settings-page">
-        <div class="kh-card">
-            <div class="kh-card__header">
-                <span class="kh-card__title"><Icon Name="megaphone" /> Ads Manager</span>
-                <button class="kh-button kh-button--primary" @onclick="OpenAddDialog" type="button">
-                    <Icon Name="plus-lg" /> Add Playlist
-                </button>
-            </div>
-
-            <div class="kh-card__body">
-                @if (_pools.Count == 0)
-                {
-                    <div class="kh-panel--empty kh-panel--empty-lg">
-                        <Icon Name="collection" />
-                        <span>No ad playlists yet. Add one using the button above.</span>
-                    </div>
-                }
-                else
-                {
-                    <table class="kh-table">
-                        <thead>
-                            <tr>
-                                <th>Name</th>
-                                <th>Picks</th>
-                                <th>Entries</th>
-                                <th>They play</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach (var pool in _pools)
-                            {
-                                <tr>
-                                    <td class="kh-table__cell--fill">
-                                        <span class="kh-ads-manager__name">
-                                            @pool.Name
-                                            @if (pool.Id == _activePoolId)
-                                            {
-                                                <span class="kh-badge kh-badge--secondary">In use</span>
-                                            }
-                                        </span>
-                                    </td>
-                                    <td>@PlaylistDisplay.DescribeSelection(pool)</td>
-                                    <td>@PlaylistDisplay.DescribeEntries(pool)</td>
-                                    <td>@PlaylistDisplay.DescribeTrigger(pool)</td>
-                                    <td class="kh-table__cell--actions">
-                                        <button class="kh-button--icon-minimal" title="Edit playlist"
-                                                @onclick="() => OpenEditDialog(pool)">
-                                            <Icon Name="pencil" />
-                                        </button>
-                                        <button class="kh-button--icon-minimal" title="Delete playlist"
-                                                @onclick="@(async () => await StartDeleteAsync(pool))">
-                                            <Icon Name="trash" />
-                                        </button>
-                                    </td>
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
-                }
-            </div>
-        </div>
+        <PlaylistManager Purpose="PoolPurpose.Ads"
+                          Title="Ads Manager"
+                          Icon="megaphone"
+                          EmptyText="No ad playlists yet. Add one using the button above."
+                          DeleteWarning="Any venue using it stops running ads."
+                          ShowTrigger="true"
+                          ActivePoolOf="settings => settings.AdPoolId" />
     </div>
 </div>
-
-<EditPlaylistDialog IsOpen="_dialogOpen" Pool="_editing" Purpose="PoolPurpose.Ads"
-                    OnSave="SavePoolAsync" OnClose="CloseDialog" />

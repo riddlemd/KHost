@@ -34,6 +34,12 @@
     </AssemblyAttribute>
   </ItemGroup>
 
+  <!-- Embedded, not copied beside the binary: it is the trust root for what the host downloads
+       and runs, so it must not be a file anyone can edit in the install folder. -->
+  <ItemGroup>
+    <EmbeddedResource Include="Services/FFmpeg/ffmpeg-builds.json" LogicalName="KHost.Domain.ffmpeg-builds.json" />
+  </ItemGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\KHost.Common\KHost.Common.csproj" />
     <ProjectReference Include="..\KHost.Abstractions\KHost.Abstractions.csproj" />

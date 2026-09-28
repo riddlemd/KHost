@@ -47,6 +47,18 @@ public sealed record AppSettings
     /// <remarks>One of <see cref="LeadInGraceChoices"/>.</remarks>
     public int LeadInGraceSeconds { get; set; }
 
+    /// <summary>Whether the host adds a lead-in to a line the timed lyrics left without one.</summary>
+    /// <remarks>Off by default: it changes how every provider's songs look.</remarks>
+    public bool DynamicLeadIns { get; set; }
+
+    /// <summary>The silence before a line, in seconds, that earns it a host-added lead-in.</summary>
+    /// <remarks>One of <see cref="DynamicLeadInPauseChoices"/>.</remarks>
+    public int DynamicLeadInPauseSeconds { get; set; } = LeadInGenerator.DefaultLongPauseSeconds;
+
+    /// <summary>Whether the host moves apart timed-lyric colours a colour-blind viewer would confuse.</summary>
+    /// <remarks>Off by default: it changes how some songs' colours look to everyone.</remarks>
+    public bool ColorBlindFriendlyLyrics { get; set; }
+
     /// <summary>Which shape the key, tempo and vocal controls take. Presentation only.</summary>
     /// <remarks>Both shapes drive the same underlying values.</remarks>
     public SongControlStyle SongControlStyle { get; set; } = SongControlStyle.Sliders;
@@ -60,6 +72,9 @@ public sealed record AppSettings
 
     /// <summary>The graces the page offers, off first.</summary>
     public static readonly IReadOnlyList<int> LeadInGraceChoices = [0, 5, 10];
+
+    /// <summary>The pauses the page offers, shortest first.</summary>
+    public static readonly IReadOnlyList<int> DynamicLeadInPauseChoices = [1, 2, 3, 4, 5];
 
     public const double DefaultAdDurationSeconds = 10;
     // A spot has to be long enough to read and short enough that the room does not turn back to

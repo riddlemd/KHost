@@ -83,8 +83,9 @@ dotnet run --project tools/KHost.CatalogSync -- <owner/repo>
 - [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)
 - [Node.js](https://nodejs.org/): the build needs `node_modules` (`npm install` in
   `src/KHost.UserInterface`)
-- [FFmpeg](https://ffmpeg.org/download.html), with `ffmpeg` and `ffprobe` on `PATH`. FFmpeg is not
-  distributed with KHost.
+- [FFmpeg](https://ffmpeg.org/download.html) (`ffmpeg` and `ffprobe`): on `PATH`, in a folder named
+  in App Settings, or installed by KHost from a pinned third-party build on Windows x64 and macOS
+  (App Settings → Install FFmpeg, or the setup wizard). FFmpeg is not distributed with KHost.
 
 ### Hardware
 
@@ -118,6 +119,11 @@ dotnet run --project src/KHost.UserInterface -- --headless   # console at http:/
 
 The first run walks through setup at `/setup`. Only one instance runs at a time: port 5251 is held
 by a lock, so stop one before starting another.
+
+Logging is at Information by default. Raise it with the standard `Logging:LogLevel:Default` key, in
+`appsettings.json`, as `Logging__LogLevel__Default=Debug` in the environment, or on the command line
+(`-- --Logging:LogLevel:Default=Debug`). A screen the host launches inherits the level;
+`LocalScreen:LogLevel` sets the screen's on its own.
 
 ## Building and testing
 

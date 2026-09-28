@@ -17,7 +17,7 @@ public interface IVideoEncoderSelector
     void ReportFailure(VideoEncoderProfile encoder);
 }
 
-/// <summary>Finds the first hardware encoder that really works here, once per process.</summary>
+/// <summary>Finds the first hardware encoder that really works here, once per ffmpeg the host runs.</summary>
 /// <remarks>Listed is not working: a build lists every encoder it was compiled with, whatever the
 /// machine has. Each candidate therefore runs a short real encode, cut into segments the way a song
 /// is, and passes only when the keyframes land on the segment cadence.</remarks>
@@ -32,7 +32,7 @@ internal sealed class VideoEncoderSelector : BaseService, IVideoEncoderSelector
 
     private readonly IFfmpegProcessRunner _runner;
     private readonly IReadOnlyList<VideoEncoderProfile> _candidates;
-    private readonly Lazy<Task<VideoEncoderProfile?>> _detected;
+    private readonly ConcurrentDictionary<string, Lazy<Task<VideoEncoderProfile?>>> _detected = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<string, bool> _failed = new(StringComparer.Ordinal);
     private int _warnedNoHardware;
 
@@ -47,7 +47,6 @@ internal sealed class VideoEncoderSelector : BaseService, IVideoEncoderSelector
     {
         _runner = runner;
         _candidates = candidates;
-        _detected = new(DetectAsync, LazyThreadSafetyMode.ExecutionAndPublication);
     }
 
     /// <summary>Hardware candidates in the order they are tried.</summary>
@@ -77,8 +76,14 @@ internal sealed class VideoEncoderSelector : BaseService, IVideoEncoderSelector
     {
         if (preference == VideoEncoderPreference.Software) return VideoEncoderProfile.Software;
 
+        // No ffmpeg is the encode's own failure to report, and a probe cached now would pin
+        // libx264 past the install that fixes it. Keyed by path: a new copy may list other encoders.
+        if (_runner.Locate() is not { } ffmpeg) return VideoEncoderProfile.Software;
+
         // Shared by every caller, so one caller giving up must not cancel the probe for the rest.
-        var detected = await _detected.Value.WaitAsync(cancellationToken);
+        var detected = await _detected
+            .GetOrAdd(ffmpeg, path => new(() => DetectAsync(path), LazyThreadSafetyMode.ExecutionAndPublication))
+            .Value.WaitAsync(cancellationToken);
 
         if (detected is not null && !_failed.ContainsKey(detected.Codec)) return detected;
 
@@ -95,7 +100,7 @@ internal sealed class VideoEncoderSelector : BaseService, IVideoEncoderSelector
         Logger.LogWarning("Video encoder {Codec} failed a song; using libx264 until KHost restarts", encoder.Codec);
     }
 
-    private async Task<VideoEncoderProfile?> DetectAsync()
+    private async Task<VideoEncoderProfile?> DetectAsync(string ffmpeg)
     {
         if (_candidates.Count == 0)
         {
@@ -109,7 +114,7 @@ internal sealed class VideoEncoderSelector : BaseService, IVideoEncoderSelector
         {
             Directory.CreateDirectory(scratch);
 
-            var listing = await _runner.RunAsync("-hide_banner -encoders", scratch, ListTimeout, CancellationToken.None);
+            var listing = await _runner.RunAsync(ffmpeg, "-hide_banner -encoders", scratch, ListTimeout, CancellationToken.None);
 
             foreach (var candidate in _candidates)
             {
@@ -119,7 +124,7 @@ internal sealed class VideoEncoderSelector : BaseService, IVideoEncoderSelector
                     continue;
                 }
 
-                if (await ProbeAsync(candidate, scratch) is { } reason)
+                if (await ProbeAsync(ffmpeg, candidate, scratch) is { } reason)
                 {
                     Logger.LogInformation("Video encoder {Codec}: {Reason}", candidate.Codec, reason);
                     continue;
@@ -146,11 +151,12 @@ internal sealed class VideoEncoderSelector : BaseService, IVideoEncoderSelector
     /// <summary>Why <paramref name="candidate"/> fails, or null when it works.</summary>
     /// <remarks>Three seconds cut into one-second segments. The GOP ceiling is four seconds at this
     /// rate, so an encoder ignoring the forced keyframes yields one long segment.</remarks>
-    private async Task<string?> ProbeAsync(VideoEncoderProfile candidate, string scratch)
+    private async Task<string?> ProbeAsync(string ffmpeg, VideoEncoderProfile candidate, string scratch)
     {
         foreach (var file in Directory.EnumerateFiles(scratch)) File.Delete(file);
 
         var run = await _runner.RunAsync(
+            ffmpeg,
             "-hide_banner -loglevel error -f lavfi -i testsrc2=size=1280x720:rate=30 -t 3"
             + candidate.Arguments(720, 1)
             + " -f hls -hls_time 1 -hls_playlist_type event -hls_flags independent_segments"

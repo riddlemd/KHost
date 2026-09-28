@@ -5,8 +5,25 @@
         <Icon Name="question-circle" /> Help
     </Header>
     <Body>
-        <section class="@(_rootClassName)__section">
-            <h3 class="@(_rootClassName)__section-title">Keyboard shortcuts</h3>
+        <details class="@(_rootClassName)__section" open="@ControlState.HelpQuickGuideExpanded" @ontoggle="ToggleQuickGuide">
+            <summary class="@(_rootClassName)__summary">
+                <Icon Name="chevron-right" Class="@($"{_rootClassName}__chevron")" />
+                <h3 class="@(_rootClassName)__section-title">Quick guide</h3>
+            </summary>
+
+            <ul class="@(_rootClassName)__guide">
+                @foreach (var line in QuickGuide)
+                {
+                    <li>@line</li>
+                }
+            </ul>
+        </details>
+
+        <details class="@(_rootClassName)__section" open="@ControlState.HelpShortcutsExpanded" @ontoggle="ToggleShortcuts">
+            <summary class="@(_rootClassName)__summary">
+                <Icon Name="chevron-right" Class="@($"{_rootClassName}__chevron")" />
+                <h3 class="@(_rootClassName)__section-title">Keyboard shortcuts</h3>
+            </summary>
 
             @foreach (var group in Shortcuts)
             {
@@ -34,17 +51,6 @@
                     </dl>
                 </div>
             }
-        </section>
-
-        <section class="@(_rootClassName)__section">
-            <h3 class="@(_rootClassName)__section-title">Quick guide</h3>
-
-            <ul class="@(_rootClassName)__guide">
-                @foreach (var line in QuickGuide)
-                {
-                    <li>@line</li>
-                }
-            </ul>
-        </section>
+        </details>
     </Body>
 </Dialog>

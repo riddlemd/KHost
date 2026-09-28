@@ -62,11 +62,11 @@ Where each of those lives today:
 ### A stems-only format has no picture, and that is not an oversight
 
 A screen that mixes draws the words itself over nothing. A display that cannot draw them asks for
-`RenderTarget.BurnLyrics`, and the host's encode paints them in: over one of the venue's chosen
-song backgrounds when there is one, over black otherwise. That is the host's rule for *any* song
-with timed words and no picture of its own — no renderer paints anything, and a plugin that ships
-such a format supplies `TimedLyrics` and answers with its stems as always; the host encodes them
-with the words over that background.
+`RenderTarget.BurnLyrics`, and the host's encode paints them in over black. That is the host's
+rule for *any* playing song with timed words and no picture of its own (`SongBackdrops.ForPlaying`),
+so the two displays agree — no renderer paints anything, and a plugin that ships such a format
+supplies `TimedLyrics` and answers with its stems as always; the host encodes them with the words
+over black.
 
 ## What the differences demand of the interface
 
@@ -150,7 +150,7 @@ hands stems alone straight to a target that `MixesStems` when no key or tempo ch
 wanting words in the picture — goes to `StemMixdown`, and `HlsMediaStreamService.OpenStemsAsync`
 encodes one stream: every stem an input (read off disk when it sits in a host session, fetched
 over http otherwise), mixed at its `StemSource.Volume` through the same per-voice graph, then keyed,
-retimed, and — for `BurnLyrics` — laid under the words over the venue's background or black. The
+retimed, and — for `BurnLyrics` — laid under the words over black. The
 encode adopts the renderer's session, so closing it sweeps the stems too. A key, tempo or mix change
 re-renders at the playhead and goes through the same decision.
 
@@ -239,8 +239,9 @@ cheap transform turns into one it can.
    against a saving that is only real if screens genuinely play library MP4s without help. Worth
    measuring one before building it — the pre-render was removed for exactly this kind of assumption.
 2. ~~Where does a stems-only format's **backdrop** come from?~~ Answered for burned-in streams:
-   the venue's chosen song background, else black. A screen that draws its own words still shows
-   them over nothing.
+   black, the same as a screen that draws its own words. A visualiser, when there is one, replaces
+   black in `SongBackdrops.ForPlaying`. A timed-lyric song never takes a picture from an audio
+   source, and a cover image is not a picture, on the burned-in encode and on the plain one alike.
 3. ~~A remuxed stems container's duration~~ Moot: no stems container is built any more. A burn-in
    over stems probes the stems themselves for how long to paint.
 4. Does a rendition need to say **why** it refused to be direct, so the console can explain a song

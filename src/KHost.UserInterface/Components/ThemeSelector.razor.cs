@@ -7,7 +7,7 @@ namespace KHost.UserInterface.Components;
 
 public partial class ThemeSelector : IDisposable
 {
-    [Inject] private IThemeService? ThemeService { get; set; }
+    [Inject] private IThemeService ThemeService { get; set; } = default!;
 
     [Inject] private IMessageBroker Broker { get; set; } = default!;
 
@@ -19,15 +19,11 @@ public partial class ThemeSelector : IDisposable
         _subscriptions.Add(Broker.Subscribe<ThemesChanged>(_ => OnStateChanged(null, EventArgs.Empty)));
     }
 
-    private async Task SetThemeAsync(string theme)
-    {
-        if (ThemeService is not null)
-            await ThemeService.SetThemeAsync(theme);
-    }
+    private Task SetThemeAsync(string theme) => ThemeService.SetThemeAsync(theme);
 
     // A custom theme carries a name of its own; only a built-in is named by its filename.
     private string DisplayName(string? theme)
-        => string.IsNullOrEmpty(theme) ? "" : ThemeService?.DisplayNameFor(theme) ?? theme;
+        => string.IsNullOrEmpty(theme) ? "" : ThemeService.DisplayNameFor(theme) ?? theme;
 
     private void OnStateChanged(object? sender, EventArgs e)
         => _ = InvokeAsync(StateHasChanged);

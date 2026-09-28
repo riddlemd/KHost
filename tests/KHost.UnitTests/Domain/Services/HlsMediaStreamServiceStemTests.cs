@@ -85,20 +85,6 @@ public class HlsMediaStreamServiceStemTests : IDisposable
     }
 
     [Fact]
-    public void BuildStemArguments_BurnsWordsOverTheVenuesBackground()
-    {
-        var overlay = new BurnInOverlay(1280, 720, 30, BurnInBase.Background, "/bg/clip.mp4");
-
-        var arguments = HlsMediaStreamService.BuildStemArguments(Stems, TimeSpan.Zero, 0, 0, 2, overlay);
-
-        Assert.Contains("-i pipe:0 -stream_loop -1 -i \"/bg/clip.mp4\"", arguments);
-        Assert.Contains(
-            "\"[4:v]scale=1280:720:force_original_aspect_ratio=increase,crop=1280:720,setsar=1,fps=30[base];"
-            + "[base][3:v]overlay=0:0:shortest=1[v];",
-            arguments);
-    }
-
-    [Fact]
     public async Task ResolveStemInput_ASessionFile_IsReadOffDisk()
     {
         var session = await OpenStemSessionAsync("lead.ogg");
@@ -126,7 +112,7 @@ public class HlsMediaStreamServiceStemTests : IDisposable
         StemSource[] stems = [new(0, AudioTrackRole.Lead, "http://host:5251/media/nosuchsession/x.ogg", 100)];
 
         await Assert.ThrowsAsync<InvalidOperationException>(
-            () => _service.OpenStemsAsync("/songs/a.song", stems, TimeSpan.Zero, 0, 0, null, null, session));
+            () => _service.OpenStemsAsync("/songs/a.song", stems, TimeSpan.Zero, 0, 0, null, session));
 
         Assert.False(Directory.Exists(session.WorkingDirectory));
     }

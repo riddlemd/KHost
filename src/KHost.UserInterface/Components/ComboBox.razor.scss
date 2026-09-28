@@ -9,6 +9,20 @@
     // the width its container was handed.
     &__input {
         width: 100%;
+
+        // Above the overlay only while it is up, so a click in the field still places the caret
+        // without lifting the field over anything else the rest of the time.
+        &[aria-expanded="true"] {
+            position: relative;
+            z-index: 21;
+        }
+    }
+
+    // Catches the click that dismisses the menu, like the song controls' scrim.
+    &__overlay {
+        position: fixed;
+        inset: 0;
+        z-index: 20;
     }
 
     &__menu {
@@ -16,7 +30,7 @@
         top: calc(100% + 0.25em);
         left: 0;
         right: 0;
-        z-index: 20;
+        z-index: 21;
         margin: 0;
         padding: 0.35em 0;
         list-style: none;

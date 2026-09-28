@@ -9,9 +9,9 @@ namespace KHost.UserInterface.Components.Pages;
 
 public partial class HomePage : IAsyncDisposable
 {
-    [Inject] private ISingerQueueService? QueueService { get; set; }
-    [Inject] private IMediaService? MediaService { get; set; }
-    [Inject] private IJSRuntime? JS { get; set; }
+    [Inject] private ISingerQueueService QueueService { get; set; } = default!;
+    [Inject] private IMediaService MediaService { get; set; } = default!;
+    [Inject] private IJSRuntime JS { get; set; } = default!;
     [Inject] private IMessageBroker Broker { get; set; } = default!;
 
     private readonly SubscriptionSet _subscriptions = new();
@@ -27,8 +27,7 @@ public partial class HomePage : IAsyncDisposable
     {
         _subscriptions.Add(Broker.Subscribe<SingerQueueChanged>(_ => InvokeAsync(StateHasChanged)));
 
-        if (MediaService is not null)
-            _hasMedia = await MediaService.HasAnyAsync();
+        _hasMedia = await MediaService.HasAnyAsync();
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -37,12 +36,9 @@ public partial class HomePage : IAsyncDisposable
         {
             try
             {
-                if (JS is not null)
-                {
-                    _module = await JS.InvokeAsync<IJSObjectReference>("import", "/js/panel-resize.js");
+                _module = await JS.InvokeAsync<IJSObjectReference>("import", "/js/panel-resize.js");
 
-                    _handle = await _module.InvokeAsync<IJSObjectReference>("init");
-                }
+                _handle = await _module.InvokeAsync<IJSObjectReference>("init");
             }
             catch
             {

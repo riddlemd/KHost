@@ -89,7 +89,7 @@ public class SingingAsDialogTests
         Set(dialog, nameof(SingingAsDialog.SingerName), singerName);
 
         typeof(SingingAsDialog)
-            .GetMethod("OnParametersSet", BindingFlags.NonPublic | BindingFlags.Instance)!
+            .GetMethod("OnInitialized", BindingFlags.NonPublic | BindingFlags.Instance)!
             .Invoke(dialog, null);
 
         return dialog;

@@ -1,7 +1,7 @@
 @using KHost.Abstractions.Services
 @using KHost.UserInterface.Models
 
-<Dialog IsOpen="IsOpen" Class="@($"{_rootClassName} {Class?.Trim()}".Trim())" OnClose="CloseAsync" CloseOnScrimClick="CloseOnScrimClick">
+<Dialog IsOpen="IsOpen" Class="@_rootClassName" OnClose="CloseAsync">
     <Header>
         <Icon Name="file-text" />
         @if (_loading)

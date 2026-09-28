@@ -25,7 +25,7 @@ SCSS compiles inside `dotnet build` (AspNetCore.SassCompiler) — no separate sa
 
 ## Rules
 
-- Interfaces in `src/KHost.Abstractions` (`Services/`, `Repositories/`, `Models/`); implementations in `src/KHost.Domain` or `src/KHost.DataAccess`. The rule is about what a plugin builds against, so an interface a plugin must *not* reach sits with its implementation instead — `IQrCodeService` takes an owner id, and a plugin able to pass any owner could register over another's QR code without either noticing. Register in the project's `ProjectExtensions` (`AddDomain()` / `AddDataAccess()`); UI-only services in `Program.cs`. All domain services are singletons — guard mutable state with `SemaphoreSlim`.
+- Interfaces in `src/KHost.Abstractions` (`Services/`, `Repositories/`, `Models/`); implementations in `src/KHost.Domain` or `src/KHost.DataAccess`. The rule is about what a plugin builds against, so an interface a plugin must *not* reach sits with its implementation instead — `IQrCodeService` takes an owner id, and a plugin able to pass any owner could register over another's QR code without either noticing. Register in the project's `ProjectExtensions` (`AddDomain()` / `AddDataAccess()`); UI-only services in `Startup/ServiceCollectionExtensions.cs`. All domain services are singletons — guard mutable state with `SemaphoreSlim`.
 - A helper both the host and a plugin would want goes in `KHost.Common`, not `Abstractions`: it is MIT on purpose, so a plugin author may use it without taking PolyForm code into what they redistribute. `Common` is for helpers *over* the contracts — string folding aids, formatting, list surgery, the shared drop-position mechanic. A contract, a model or anything `Abstractions` itself needs belongs in `Abstractions`, which references nothing. `Abstractions` declares, it does not compute — see **No static methods in Abstractions** below. Group by area under `Common` (`Media/`, `Plugins/`, `Discovery/`) rather than dropping types in its root, and mirror that in the tests. Name its methods for what the call site needs to read, not for what the class already says: a plugin author sees `StreamRate.FromTempo(t)` and `AudioLevels.ClampVolume(v)` without this repo's context, so `For` and `Clamp` are too thin — `PluginRid.MatchesThisHost` names what it matches against, and `int.CentsToCurrencyString()` names the unit the receiver is in. The one exception is a member that exists to fill a BCL gap (`IList<T>.FindIndex`), where the familiar name *is* the point.
 - No "gate" services: behaviour that guards a call lives on the service that owns the call (enqueue rules go in `PerformanceService.CreateAndEnqueueAsync`, not an `IEnqueueGuard` around it). `IMediaGateService`/`IMediaProbeService` are routers, not guards: they answer which plugin owns a file, and the rule itself lives in the plugin.
 - New repositories/services copy the shape of an existing one: repositories extend `BaseRepository<T>` and implement `SortColumns` / `ApplySearchFilters`; services extend `BaseService` (or `BaseRepositoryService<,>` for CRUD).
@@ -35,7 +35,7 @@ SCSS compiles inside `dotnet build` (AspNetCore.SassCompiler) — no separate sa
 - Every `Task`/`ValueTask`-returning method ends in `Async` — enforced by reflection in `AsyncNamingConventionTests`; a new project must be a `ProjectReference` of `KHost.UnitTests` to be covered.
 - Method names that cross a string boundary (`[JSInvokable]` called from JS, SignalR hub methods invoked by name) break silently when renamed: pass the name as `nameof(...)` from C# and take it as a parameter in JS (see `SingerQueuePanel` / `sortable-interop.js`, `ScreenClient` / `ScreenHub`).
 - Library/users/groups persist in SQL; queue and venue state in the JSON cache (`ICacheService`, `./cache/`).
-- Dialogs go through `IInteractionDispatcher`, which resolves `IInteractionHandler<TReq, TRes>` from DI; handlers bridge dialogs into awaitable calls with `TaskCompletionSource` and are registered in `Program.cs`.
+- Dialogs go through `IInteractionDispatcher`, which resolves `IInteractionHandler<TReq, TRes>` from DI; handlers bridge dialogs into awaitable calls with `TaskCompletionSource` and are registered in `Startup/ServiceCollectionExtensions.cs`.
 - `KHost.Abstractions` and `KHost.Common` are MIT; everything else is PolyForm Shield (`LICENSE`, and each MIT project's own `LICENSE`). `LicenceBoundaryTests` enforces it: an MIT project may reference only MIT projects, and must declare `PackageLicenseExpression` and ship a `LICENSE`. Note the compiler catches only the circular case — a reference to a leaf like `KHost.LrcLib` builds fine and breaks the licence silently, which is what that test is for. `KHostException` lives in `Abstractions` with the interfaces it is thrown across — it is the only way a plugin can report a failure the host can act on, so it has to sit where a plugin can reach it.
 - Do NOT commit unless explicitly asked.
 
@@ -237,8 +237,8 @@ cannot name another's: its secrets, and the QR code it offers the screens.
     only to a target that `MixesStems` with no key or tempo change and no `BurnLyrics`; anything
     else goes to `StemMixdown`, which has `HlsMediaStreamService.OpenStemsAsync` read every stem
     as an input — off disk when it sits in one of the host's sessions — and run them through the
-    same per-voice mix graph, key/tempo chain and burn-in overlay as any other encode, over the
-    venue's background or black. The encode **adopts** the renderer's session, so closing it
+    same per-voice mix graph, key/tempo chain and burn-in overlay as any other encode, over
+    black. The encode **adopts** the renderer's session, so closing it
     sweeps the stems as well. Such a plugin needs no `IPlayableMediaSource` and should not
     implement one; that contract stays for a format the host's encoder cannot open at all. A
     rendition that carries its own `Url` is never re-encoded.
@@ -253,15 +253,25 @@ cannot name another's: its secrets, and the QR code it offers the screens.
     painting anything itself, whether its song reaches the encode as a file or as stems. A song with no timed words encodes as it always did.
     - **One set of drawing rules.** The painter follows `screen-ui/lyrics-overlay.js`: the page
       fitted and centred, theme colours for anything the timing leaves unset, a linear wipe,
-      count-ins that ease over one step and are gone by the next page's arrival, lead-ins running to
-      the line's leading edge, and a line with no position stacked under the one before it. Change
-      one and change the other. Where they part, the painter is the better one: it shapes a line
+      count-ins that ease over one step and are gone by the next page's arrival, a line-start lead-in
+      running to the line's leading edge, a lead-in for a syllable part way along the line
+      (`ArriveAtSyllable`) shown instead as three dots over that syllable's own ink, going out one per
+      third from `StartSeconds` to when it lights, and a line with no position stacked under the one
+      before it. Change one and change the other. Where they part, the painter is the better one: it shapes a line
       through HarfBuzz, so a joined script joins and a right-to-left line is laid from its box's
       right edge.
     - **The picture under the words** is the source's own video when it has one (fitted into
-      1280x720), else one of the venue's ticked song backgrounds (looped, cropped to cover), else
-      black — what the screen shows behind a song with no picture. A cover image stored as a video
-      stream does not count as a picture. Over a picture, the band the words sit in is darkened.
+      1280x720), else black — never the venue's card or its song backgrounds, which nothing
+      playing uses. `SongBackdrops.ForPlaying` is that rule, asked by the burn-in, and it is where a
+      visualiser goes in place of black; the screen already draws nothing under a playing song.
+      **A timed-lyric song never takes a picture from an audio source** (an extension in
+      `MediaFormats.AudioExtensions`), whatever the file carries, and a cover image (an
+      `attached_pic` stream) is never a picture in any file. This holds on every encode, not only
+      the burn-in: for a display that draws its own words, `StreamingMediaRenderer` opens a
+      timed-lyric song through `IBurnInStreamService.OpenUnderDrawnWordsAsync`, whose encode maps
+      `0:V` (no attached pictures) from a video and no picture at all from an audio file — left to
+      itself ffmpeg turns an MP3's cover into a one-frame video. A song with no timed words is left
+      alone and still shows its cover. Over a picture, the band the words sit in is darkened.
     - **Fonts are the system's**, in the order a web view's `sans-serif` resolves them per OS:
       Helvetica, Arial, DejaVu Sans, Liberation Sans, Noto Sans, then Skia's default; a character the
       face lacks falls back per line through the OS. Nothing is bundled.
@@ -390,6 +400,13 @@ cannot name another's: its secrets, and the QR code it offers the screens.
   interfaces are a hand-written list in `PluginLoader`, and leaving one off is **silent**;
   `PluginExtensionInterfaceTests` fails on any Abstractions interface the domain collects that is
   not listed, so the list maintains itself.
+
+- **The host's `bin/` folder is shared, and `IHostDirectories.BinDirectory` is how a plugin finds
+  it.** A plugin that ships or downloads a program of its own (a downloader, say) puts it there under
+  a name distinctly its own, and never writes, replaces or deletes `ffmpeg`/`ffprobe` — those are the
+  host's. The host looks there before PATH. A plugin that runs ffmpeg itself asks
+  `IFFmpegService.Locate` rather than naming it bare, so it runs the same copy the host does. See
+  **Finding and installing FFmpeg**.
 
 ## The published contracts
 
@@ -520,6 +537,50 @@ against a render the host had already made, and making those renders cost more t
   precede the output seek, or that `-ss` binds to the pipe. The session owns the painter: closing
   it cancels the painting and kills ffmpeg, which releases a write blocked in the pipe.
 
+## Finding and installing FFmpeg
+
+**KHost never ships FFmpeg.** Every song encodes through ffmpeg and every import is described by
+ffprobe, so a machine without them used to fail the first song with a bare `Win32Exception` and import
+rows with no length. `IFFmpegService` (`Domain/Services/FFmpeg/`) finds them and, when asked, installs
+a pinned third-party build.
+
+- **Resolution order: the App Settings folder (`FFmpegPath`) → the host's `bin/` → PATH**, first
+  file that exists wins, per program. A configured folder without the program falls through rather
+  than failing. `Locate` is a file check and is asked per song, so an install or a new setting applies
+  from the next song with no restart; `CheckAsync` also runs `-version` and is what the status row
+  shows. It runs at startup in the background (one log line per program, and a console flash when
+  either is missing), on "Check again", after a settings save that moves the folder, and after an
+  install. It announces `FFmpegChanged`.
+- **FFMpegCore reads one global folder** (`GlobalFFOptions.BinaryFolder`) for ffprobe; every check
+  points it at the ffprobe it found, before its first await. The encode does not use it.
+- **Installs go into `<AppContext.BaseDirectory>/bin/`**, beside `cache/` and `plugins/`: the two
+  programs sit directly there so they resolve by name, with `ffmpeg-build.json` beside them naming the
+  build. In a dev run that is a nested `bin/` inside the build output; DeepClean keeps any nested
+  `**/bin/**` for that reason, and a published layout has no `bin/` of its own to collide with.
+  Scratch is `bin/.ffmpeg-install/`, so the final move never crosses a volume.
+- **`ffmpeg-builds.json` is the trust root**, the same role the plugin catalog plays, and is embedded
+  in `KHost.Domain` so it changes only with a KHost release. One build per `<platform>-<arch>`
+  (exact: an x64 build is not offered to arm64), each download an https URL with a pinned `sha256`
+  and exact `size`. The download stops past the size, the hash is compared **before the archive is
+  opened**, every entry is checked for escapes (`ZipEntryGuard`, shared with the plugin installer),
+  only the two named entries are written, under names the host chooses, and each staged program must
+  answer `-version` **before** it replaces anything in `bin/`. A failure leaves the old copy in place.
+- **Pinned today:** win-x64 (gyan.dev 9.0.2 essentials, via its GitHub release), osx-arm64
+  (OSXExperts 9.0, code-signed), osx-x64 (evermeet.cx 9.0.2). **Linux has none**: johnvansickle's
+  current release URL moves with every release and its versioned archive stops at 4.0.3. A platform
+  with no stable versioned URL is left out rather than pinned to a moving "latest".
+- **Adding or bumping a build:** download each archive, `shasum -a 256` it and take its byte size,
+  confirm the archive holds both programs (note the entry paths), run both from it on that platform,
+  and cross-check the publisher's own digest where one exists (GitHub publishes one per asset) —
+  cross-checked, never copied. Then edit the manifest; `FFmpegBuildManifestTests` checks the shape and
+  `FFmpegInstallTests` (integration) installs this machine's build for real.
+- **A missing ffmpeg at play is `KH-FFMPEG-MISSING`**, thrown from `HlsMediaStreamService` whether
+  nothing was found or what was found would not start. **A missing ffprobe at import** is one flash
+  per run from `MediaImportService`, not a silent row per file.
+- macOS: an `HttpClient` download carries no quarantine attribute, so Gatekeeper does not assess it,
+  but an unsigned arm64 binary is killed on launch (exit 137, nothing on stderr); the staged run check
+  catches that and says so.
+
 ## Components
 
 - Component logic lives in a code-behind partial (`Foo.razor.cs`, `public partial class Foo`), never an inline `@code` block. `@inject` becomes an `[Inject]` property; `@implements` becomes an interface on the partial. `@page`, `@using`, `@inherits`, `@layout`, `@attribute` stay in the `.razor`.
@@ -579,6 +640,26 @@ clips and the card it puts up between singers are ordinary library rows.
     about no other format and should not have known about this one. It answers **empty, not null**
     when the audio is missing — "I looked and there is nothing", which is what lets the importer
     tell that apart from "I could not tell".
+- **A zipped pair is one song, and the zip is the row.** A `.zip` holding exactly one `.cdg` and
+  its audio of the same name, flat, imports as Karaoke under either video answer, with `FilePath`
+  naming the zip — so re-import is idempotent by path and nothing is unpacked into the library.
+  Pairing inside it is `MediaFormats.FindKaraokeAudioAmong`, the names-only half of
+  `FindKaraokeAudio`, which the browser's pair rows use too; where several audio files qualify,
+  the earliest in `AudioExtensions` wins, so the answer never rests on listing order. Only
+  `__MACOSX/` entries and dot-files are passed over; anything else (a folder, two pairs, one half,
+  an extra file) is not a song — the importer skips it and counts it failed with the reason, and
+  `CompactDiscPlusGraphicsRenderer` fails the play with a `KH-CDG-ZIP-*` code (`SHAPE`, `CORRUPT`,
+  `ENCRYPTED`, `TOO-LARGE`).
+  - At play `ZippedKaraokeSource` (a host `IPlayableMediaSource`, registered in `AddDomain` so it
+    precedes any plugin's) writes the pair into the stream session's directory under **fixed**
+    names (`karaoke.cdg` + `karaoke.<audio ext>`), so an entry's name is never a path and a
+    `../` entry cannot steer a write. Expansion is capped and counted as written. `FindKaraokeAudio`
+    then finds the audio beside the written `.cdg` by the loose-pair rule, unchanged.
+  - `CdgMediaProbe` claims the zip and probes the inner audio from a temp file — ffprobe on a pipe
+    gives tags but no duration.
+  - **Ask `MediaFormats.IsCompactDiscGraphics` of a library row**, never the `.cdg` extension: the
+    zipped pair's row names the zip, and a `.cdg` check on it silently loses the unsmoothed CD+G
+    scaling. `IsGraphicsOnlyKaraoke` is for what ffmpeg actually opens.
 - **`MediaFormats` owns the extension lists and the question.** `TypeForFile(path, videoIsKaraoke)`
   decides what a file is, and the scanner, the row icon and the import itself all ask it — so none
   of them can disagree with the other two.

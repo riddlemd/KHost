@@ -49,10 +49,10 @@ internal class PerformancesRepository : BaseRepository<Performance>, IPerformanc
             .ToListAsync();
     }
 
-    public override Task<PaginatedResult<Performance>> ReadAllAsync(int pageNumber = 0, int pageSize = 0)
+    public override Task<PaginatedResult<Performance>> ReadAllAsync(int pageNumber = 1, int pageSize = 0)
         => ReadAllAsync(pageNumber, pageSize, PerformanceFilter.All);
 
-    public async Task<PaginatedResult<Performance>> ReadAllAsync(int pageNumber = 1, int pageSize = 0, PerformanceFilter filter = PerformanceFilter.All)
+    public async Task<PaginatedResult<Performance>> ReadAllAsync(int pageNumber = 0, int pageSize = 0, PerformanceFilter filter = PerformanceFilter.Queued)
     {
         using var context = await ContextFactory.CreateDbContextAsync();
 
@@ -68,7 +68,7 @@ internal class PerformancesRepository : BaseRepository<Performance>, IPerformanc
         return PaginationComponent.BuildResult(items, totalCount, pageNumber, pageSize);
     }
 
-    public async Task<PaginatedResult<Performance>> ReadBySingerIdAsync(Guid singerId, int pageNumber = 1, int pageSize = 0, PerformanceFilter filter = PerformanceFilter.All, DateTime? startDate = null)
+    public async Task<PaginatedResult<Performance>> ReadBySingerIdAsync(Guid singerId, int pageNumber = 0, int pageSize = 0, PerformanceFilter filter = PerformanceFilter.UnQueued, DateTime? startDate = null)
     {
         using var context = await ContextFactory.CreateDbContextAsync();
 
@@ -167,7 +167,7 @@ internal class PerformancesRepository : BaseRepository<Performance>, IPerformanc
                       .First());
     }
 
-    public async Task<PaginatedResult<Performance>> ReadByMediaIdAsync(Guid mediaId, int pageNumber = 1, int pageSize = 0, PerformanceFilter filter = PerformanceFilter.All)
+    public async Task<PaginatedResult<Performance>> ReadByMediaIdAsync(Guid mediaId, int pageNumber = 0, int pageSize = 0, PerformanceFilter filter = PerformanceFilter.UnQueued)
     {
         using var context = await ContextFactory.CreateDbContextAsync();
 

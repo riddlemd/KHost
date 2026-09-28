@@ -51,11 +51,12 @@ function createLyricsOverlay(canvas, clock) {
     }
 
     /// When the first page to arrive inside a count-in's window shows, or null when none does.
+    /// A page landing exactly as the bar ends counts: a lead-in's bar is built to end on its page.
     function handoverAt(countIn) {
         let at = null;
         for (const page of lyrics.pages || []) {
             const from = page.showFromSeconds;
-            if (from > countIn.startSeconds && from < countIn.endSeconds && (at === null || from < at)) at = from;
+            if (from > countIn.startSeconds && from <= countIn.endSeconds && (at === null || from < at)) at = from;
         }
         return at;
     }
@@ -76,8 +77,11 @@ function createLyricsOverlay(canvas, clock) {
         if (leaving <= 0) return;
 
         const step = countIn.stepSeconds || 0;
+        // Eased out over a step only when no page takes over: a handover is its own exit, and a
+        // step-long ease on top dims the last of the fill the room is counting down to.
+        const easeOut = handover === null ? (countIn.endSeconds - t) / step : 1;
         const alpha = Math.min(leaving, step > 0
-            ? Math.min(1, (t - countIn.startSeconds) / step, (countIn.endSeconds - t) / step)
+            ? Math.min(1, (t - countIn.startSeconds) / step, easeOut)
             : 1);
         const x = offsetX + box.x * scale;
         const y = offsetY + box.y * scale;
@@ -125,18 +129,69 @@ function createLyricsOverlay(canvas, clock) {
         ctx2d.restore();
     }
 
-    /// A small block that travels in to the line's leading edge, arriving as its first syllable lights.
+    /// Where a syllable part way along the line sits, ink only — its own text with a leading space
+    /// trimmed off, in canvas pixels, laid out exactly as drawLine lays it. Null when there is no
+    /// text to sit over.
+    function syllableInkBox(box, line, index) {
+        const syllables = line.syllables || [];
+        const target = syllables[index];
+        if (!target || !target.text) return null;
+
+        let penX = offsetX + box.x * scale;
+        for (let i = 0; i < index; i++) if (syllables[i].text) penX += ctx2d.measureText(syllables[i].text).width;
+
+        const lead = target.text.startsWith(' ') ? ctx2d.measureText(' ').width : 0;
+        const ink = target.text.replace(/^\s+/, '');
+        return { left: penX + lead, width: ctx2d.measureText(ink).width };
+    }
+
+    /// Three dots sitting just above a syllable part way along the line, counting down to it going
+    /// out one per third — first in reading order, so left to right, mirrored right to left — the
+    /// last going as the syllable lights. The host's painter draws the same count by the same rule.
+    function drawLeadInDots(page, box, line, index, target, t, baseline, fontSize) {
+        const ink = syllableInkBox(box, line, index);
+        if (!ink) return;
+
+        const r = Math.max(3, fontSize * 0.09);
+        const gap = r * 3.4;
+        const cx = ink.left + ink.width / 2;
+        const y = baseline - fontSize * 1.12;
+        const p = progress(t, line.leadIn.startSeconds, target.startSeconds);
+        const goneOut = Math.min(3, Math.floor(p * 3));
+
+        for (let physical = 0; physical < 3; physical++) {
+            const order = lyrics.isRightToLeft ? 2 - physical : physical;
+            const x = cx + (physical - 1) * gap;
+            ctx2d.beginPath();
+            ctx2d.arc(x, y, r, 0, Math.PI * 2);
+            ctx2d.fillStyle = order >= goneOut ? css(page.active, '#8558fa') : 'rgba(255,255,255,0.12)';
+            ctx2d.fill();
+            ctx2d.lineWidth = Math.max(1.5, r * 0.45);
+            ctx2d.strokeStyle = 'rgba(0,0,0,0.85)';
+            ctx2d.stroke();
+        }
+    }
+
+    /// At the line's start, a small block travels in to arrive as the first syllable lights. Part
+    /// way along, the run would cross words already sung in the same colour, so a count of dots sits
+    /// over the target syllable instead — see drawLeadInDots. The host's painter draws either by the
+    /// same rule.
     function drawLeadIn(page, line, t, baseline, fontSize) {
         const leadIn = line.leadIn;
         const box = line.position;
-        const first = (line.syllables || [])[0];
-        if (!leadIn || !box || !first || t < leadIn.startSeconds || t >= first.startSeconds) return;
+        const index = (leadIn && leadIn.arriveAtSyllable) || 0;
+        const target = (line.syllables || [])[index];
+        if (!leadIn || !box || !target || index < 0 || t < leadIn.startSeconds || t >= target.startSeconds) return;
+
+        if (index > 0) {
+            drawLeadInDots(page, box, line, index, target, t, baseline, fontSize);
+            return;
+        }
 
         const run = box.x - leadIn.x;
-        // Mirrored for right to left: the same run, made into the right edge from outside it.
-        const from = lyrics.isRightToLeft ? box.x + box.width + run : leadIn.x;
         const to = lyrics.isRightToLeft ? box.x + box.width : box.x;
-        const head = from + (to - from) * progress(t, leadIn.startSeconds, first.startSeconds);
+        const from = lyrics.isRightToLeft ? to + run : to - run;
+        const head = from + (to - from) * progress(t, leadIn.startSeconds, target.startSeconds);
 
         const w = 10 * scale;
         const h = box.height * 0.3 * scale;
@@ -185,6 +240,7 @@ function createLyricsOverlay(canvas, clock) {
             ctx2d.font = `600 ${fontSize.toFixed(2)}px sans-serif`;
         }
 
+        // Under the words: a line-start block overlaps the first letter, and the words must win.
         drawLeadIn(page, line, t, baseline, fontSize);
 
         for (const syl of line.syllables || []) {

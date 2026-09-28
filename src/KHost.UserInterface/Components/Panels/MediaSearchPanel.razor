@@ -66,7 +66,7 @@
         @if (_results is not null && !_searching)
         {
             <div>
-                @if (SingerQueueService?.SelectedUserId is null && _results.Count > 0)
+                @if (SingerQueueService.SelectedUserId is null && _results.Count > 0)
                 {
                     <span>
                         <Icon Name="arrow-left" Class="me-1" />Select a singer in the queue to add media
@@ -84,7 +84,7 @@
                 }
                 else
                 {
-                    var columns = MediaResultColumnSet.For(_results, MediaSearchService?.Providers ?? []);
+                    var columns = MediaResultColumnSet.For(_results, MediaSearchService.Providers);
 
                     RenderFragment<MediaSearchEntity> Actions = entity =>
                         @<text>
@@ -93,7 +93,7 @@
                                 @foreach (var action in CombineWithGlobalActions(entity.SupportedActions))
                                 {
                                     <SplitButton
-                                            disabled="@(SingerQueueService?.SelectedUserId is null)"
+                                            disabled="@(SingerQueueService.SelectedUserId is null)"
                                             @onclick="() => PerformActionAsync(action, entity)"
                                             title="@action.Description">
                                         <Text>
@@ -104,7 +104,7 @@
                                             @foreach (var subAction in action.SubActions)
                                             {
                                                 <button class="kh-button kh-button--primary"
-                                                        disabled="@(SingerQueueService?.SelectedUserId is null)"
+                                                        disabled="@(SingerQueueService.SelectedUserId is null)"
                                                         @onclick="() => PerformActionAsync(subAction, entity)"
                                                         title="@subAction.Description">
                                                     <Icon Name="@subAction.Icon" /> @subAction.DisplayName
