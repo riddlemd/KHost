@@ -227,13 +227,12 @@ internal sealed class StreamMediaPlayer : IMediaPlayer
 
     public void SetVisualiser(SetVisualiserCommand command)
     {
-        _logger.LogInformation("Visualiser {State}{Bands}",
+        _logger.LogInformation("Visualiser {State}",
             command.Enabled
                 ? $"on, {(command.BuiltIn is not null ? $"built-in '{command.BuiltIn}'" : command.PresetUrl is null ? $"preset '{command.PresetName}'" : "an imported preset")}"
                   + $" at {command.Brightness}% brightness, {command.Saturation}% colour, {command.Sensitivity}% sensitivity"
                   + (command.LevelsUrl is null ? "" : ", with host levels")
-                : "off",
-            command.DarkenLyricBands ? ", words on dark bands" : "");
+                : "off");
 
         Send(new
         {
@@ -243,7 +242,7 @@ internal sealed class StreamMediaPlayer : IMediaPlayer
             builtIn = command.BuiltIn, barCount = command.BarCount,
             colourScheme = command.ColourScheme.ToString().ToLowerInvariant(), colour = command.Colour,
             brightness = command.Brightness, saturation = command.Saturation, sensitivity = command.Sensitivity,
-            levels = command.LevelsUrl, darken = command.DarkenLyricBands,
+            levels = command.LevelsUrl,
         });
     }
 

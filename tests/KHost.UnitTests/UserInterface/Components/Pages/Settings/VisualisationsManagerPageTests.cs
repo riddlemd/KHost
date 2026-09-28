@@ -270,18 +270,6 @@ public class VisualisationsManagerPageTests : BunitContext
             && call.Arguments[1]!.ToString()!.Contains("presetName = ,")));
     }
 
-    [Fact]
-    public async Task TheBandsSwitch_IsSavedOnTheEntry()
-    {
-        var cut = Render<VisualisationsManagerPage>();
-        cut.Find("#visualisation-add-playlist").Click();
-        cut.Find("#visualisation-add-entry").Click();
-
-        cut.Find("#visualisation-darken").Change(false);
-
-        Assert.False(Assert.Single((await StoredAsync()).Entries).DarkenBehindWords);
-    }
-
     /// <summary>A slider being dragged moves the preview, not the database.</summary>
     [Fact]
     public async Task DraggingASlider_SavesNothingUntilItIsLetGo()

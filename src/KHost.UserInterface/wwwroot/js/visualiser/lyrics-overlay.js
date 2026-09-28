@@ -10,31 +10,6 @@
 // out per syllable with fillText. Kerning across a syllable boundary is therefore the browser's
 // rather than HarfBuzz's, and a script needing joins or reordering will not match.
 
-/// The band behind one line of words, in canvas pixels: the line's box grown by a quarter of its
-/// height on every side, corners rounded by the same. The host's painter lays the same band (its
-/// LyricBand); change one and change the other.
-const LYRIC_BAND_PAD = 0.25;
-
-/// How dark a band is, out of 255: the painter's figure.
-const LYRIC_BAND_ALPHA = 140;
-
-function lyricBandRect(box, scale, offsetX, offsetY) {
-    const h = box.height * scale;
-    const pad = h * LYRIC_BAND_PAD;
-    return {
-        x: offsetX + box.x * scale - pad,
-        y: offsetY + box.y * scale - pad,
-        width: box.width * scale + pad * 2,
-        height: h + pad * 2,
-        radius: pad,
-    };
-}
-
-/// Whether a line puts any words on screen, and so gets a band.
-function lyricLineHasWords(line) {
-    return (line.syllables || []).some((syl) => syl.text && syl.text.trim().length > 0);
-}
-
 /// `clock` answers the song position in seconds, or null when nothing is playing.
 function createLyricsOverlay(canvas, clock) {
     const ctx2d = canvas.getContext('2d');
@@ -43,7 +18,6 @@ function createLyricsOverlay(canvas, clock) {
     let offsetX = 0;
     let offsetY = 0;
     let frame = 0;
-    let darkenBands = false;
 
     // How long a count-in takes to clear once a page arrives inside its window. A timing brings
     // the next page up a beat before the gap ends, often over the bar's own spot.
@@ -308,34 +282,6 @@ function createLyricsOverlay(canvas, clock) {
         }
     }
 
-    /// A dark band behind each line on screen, so the words read over whatever is behind them:
-    /// one path, filled once, so where two lines' bands meet is no darker than either.
-    function drawBands(pages) {
-        ctx2d.beginPath();
-        let any = false;
-
-        for (const page of pages) {
-            const lines = page.lines || [];
-            const boxes = lineBoxes(lines);
-            lines.forEach((line, i) => {
-                if (!lyricLineHasWords(line)) return;
-
-                const r = lyricBandRect(boxes[i], scale, offsetX, offsetY);
-                ctx2d.moveTo(r.x + r.radius, r.y);
-                ctx2d.arcTo(r.x + r.width, r.y, r.x + r.width, r.y + r.height, r.radius);
-                ctx2d.arcTo(r.x + r.width, r.y + r.height, r.x, r.y + r.height, r.radius);
-                ctx2d.arcTo(r.x, r.y + r.height, r.x, r.y, r.radius);
-                ctx2d.arcTo(r.x, r.y, r.x + r.width, r.y, r.radius);
-                ctx2d.closePath();
-                any = true;
-            });
-        }
-
-        if (!any) return;
-        ctx2d.fillStyle = 'rgba(0,0,0,' + (LYRIC_BAND_ALPHA / 255) + ')';
-        ctx2d.fill('nonzero');
-    }
-
     function draw() {
         frame = requestAnimationFrame(draw);
         if (!lyrics) return;
@@ -349,9 +295,6 @@ function createLyricsOverlay(canvas, clock) {
         if (t === null || t === undefined) return;
 
         const pages = visiblePages(t);
-
-        // Under everything, behind each line while it shows, as the painter lays it.
-        if (darkenBands) drawBands(pages);
 
         for (const countIn of lyrics.countIns || []) drawCountIn(countIn, t);
 
@@ -396,10 +339,6 @@ function createLyricsOverlay(canvas, clock) {
 
         /// Wipes what is drawn and keeps the timing: the next frame draws again if a song is held.
         clear() { ctx2d.clearRect(0, 0, canvas.width, canvas.height); },
-
-        /// Whether to darken a band behind each line; the host says so only when something is
-        /// behind them. Drawn from the next frame.
-        setDarkenBands(on) { darkenBands = on === true; },
 
         /// `value` is the host's TimedLyrics, or null for a song with no words to draw.
         setLyrics(value) {

@@ -944,7 +944,6 @@ function handleCommand(raw) {
             load(message.url, message.autoplay === true, message.pixelated === true);
             break;
         case 'visualiser':
-            overlay.setDarkenBands(message.darken === true);
             if (message.enabled === true) {
                 visualiser.setLook(message);
                 // Tapped once it is up: an imported preset arrives after a fetch, and a tap is

@@ -65,7 +65,6 @@ internal class VisualisationPlaylistRepository : BaseRepository<VisualisationPla
                 Brightness = entry.Brightness,
                 Saturation = entry.Saturation,
                 Sensitivity = entry.Sensitivity,
-                DarkenBehindWords = entry.DarkenBehindWords,
                 BarCount = entry.BarCount,
                 ColourScheme = entry.ColourScheme,
                 Colour = entry.Colour,

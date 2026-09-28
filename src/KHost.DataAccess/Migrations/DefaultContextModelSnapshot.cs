@@ -484,9 +484,6 @@ namespace KHost.DataAccess.Migrations
                     b.Property<int>("ColourScheme")
                         .HasColumnType("INTEGER");
 
-                    b.Property<bool>("DarkenBehindWords")
-                        .HasColumnType("INTEGER");
-
                     b.Property<int>("Position")
                         .HasColumnType("INTEGER");
 

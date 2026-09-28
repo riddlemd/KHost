@@ -33,8 +33,8 @@ public class LocalScreenVisualiserTests
         Name = "Night",
         Entries =
         [
-            new() { PresetName = "Rovastar - Oozing Resistance", Brightness = 80, Saturation = 150, Sensitivity = 200, DarkenBehindWords = true },
-            new() { PresetName = "_Mig_049", DarkenBehindWords = false },
+            new() { PresetName = "Rovastar - Oozing Resistance", Brightness = 80, Saturation = 150, Sensitivity = 200 },
+            new() { PresetName = "_Mig_049" },
         ],
     };
     private readonly IVenuesService _venues = Substitute.For<IVenuesService>();
@@ -126,7 +126,7 @@ public class LocalScreenVisualiserTests
 
         await provider.LoadAsync(Stems);
 
-        Assert.Equal((80, 150, 200, true), (Last().Brightness, Last().Saturation, Last().Sensitivity, Last().DarkenLyricBands));
+        Assert.Equal((80, 150, 200), (Last().Brightness, Last().Saturation, Last().Sensitivity));
     }
 
     [Fact]
@@ -201,7 +201,7 @@ public class LocalScreenVisualiserTests
         Assert.True(sent.Enabled);
         Assert.Equal(("mirrored-bars", null, null), (sent.BuiltIn, sent.PresetName, sent.PresetUrl));
         Assert.Equal((64, VisualiserColourScheme.Single, "#ff0000"), (sent.BarCount, sent.ColourScheme, sent.Colour));
-        Assert.Equal((80, 150, 200, true), (sent.Brightness, sent.Saturation, sent.Sensitivity, sent.DarkenLyricBands));
+        Assert.Equal((80, 150, 200), (sent.Brightness, sent.Saturation, sent.Sensitivity));
         Assert.NotNull(sent.LevelsUrl);
     }
 
@@ -541,22 +541,6 @@ public class LocalScreenVisualiserTests
         _broker.Announce(new PlaybackChanged());
 
         Assert.True(await WaitUntilAsync(() => Sent().Count == 2 && !Last().Enabled));
-    }
-
-    // --- the dark band behind the words ---
-
-    /// <summary>The entry's own switch, per song.</summary>
-    [Fact]
-    public async Task LoadAsync_AnEntryWithTheBandsOff_SendsThemOff()
-    {
-        _playlist.Entries[0].DarkenBehindWords = false;
-        Playing("/songs/africa.song");
-        using var provider = Provider();
-
-        await provider.LoadAsync(Stems);
-
-        Assert.True(Last().Enabled);
-        Assert.False(Last().DarkenLyricBands);
     }
 
     // --- the host's levels ---

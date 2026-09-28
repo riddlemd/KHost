@@ -12,9 +12,10 @@ namespace KHost.Domain.Services.BurnIn;
 /// timing leaves unset taken from the same theme, the wipe linear with no easing, a count-in that
 /// eases over one step and clears as the next page arrives, a line-start lead-in running to the
 /// leading edge of the line, a lead-in part way along it shown as a dot count over its own syllable
-/// instead. Where the two part company it is because a web view cannot do better: this shapes
-/// each line through HarfBuzz, so a joined script joins, and a right-to-left line is laid from the
-/// right edge of its box.
+/// instead. Nothing is drawn but the words themselves and their chase — the outline is what keeps
+/// them legible over whatever is behind them. Where the two part company it is because a web view
+/// cannot do better: this shapes each line through HarfBuzz, so a joined script joins, and a
+/// right-to-left line is laid from the right edge of its box.
 ///
 /// <para>Knows nothing of ffmpeg or processes; <see cref="BurnInFramePump"/> feeds its frames to an
 /// encode. Safe to share between threads — every mutable thing lives on a <see cref="Worker"/>.</para>
@@ -36,33 +37,22 @@ public sealed class TimedLyricsPainter
     /// arrival, not after it.</remarks>
     internal const double HandoverSeconds = 0.5;
 
-    /// <summary>How far a line's band reaches past its box on every side, and how round its corners
-    /// are, as a fraction of the line's height. The screen's overlay uses the same figure.</summary>
-    internal const float BandPad = 0.25f;
-
-    /// <summary>How dark a line's band is, out of 255. The screen's overlay uses the same figure.</summary>
-    internal const byte BandAlpha = 140;
-
     // Where a line with no position of its own goes, in the timing's units: the screen's defaults.
     private const double DefaultLineX = 40, DefaultLineY = 40, DefaultLineWidth = 520, DefaultLineHeight = 48;
 
     private readonly TimedLyrics _lyrics;
-    private readonly bool _scrim;
     private readonly float _scale, _offsetX, _offsetY;
     private readonly double?[] _handovers;
     private readonly LyricBox[][] _lineBoxes;
 
     /// <param name="width">Frame width in pixels.</param>
     /// <param name="height">Frame height in pixels.</param>
-    /// <param name="scrim">Whether to darken a band behind each line of words, for words laid over
-    /// a picture that was not made with them in mind.</param>
-    public TimedLyricsPainter(TimedLyrics lyrics, int width, int height, bool scrim = false)
+    public TimedLyricsPainter(TimedLyrics lyrics, int width, int height)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(width);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(height);
 
         _lyrics = lyrics;
-        _scrim = scrim;
         Width = width;
         Height = height;
 
@@ -164,7 +154,6 @@ public sealed class TimedLyricsPainter
     private void PaintFrame(Worker worker, SKCanvas canvas, double t)
     {
         canvas.Clear(SKColors.Transparent);
-        if (_scrim) PaintBands(canvas, t);
 
         for (var i = 0; i < _lyrics.CountIns.Count; i++) PaintCountIn(worker, canvas, i, t);
 
@@ -176,46 +165,6 @@ public sealed class TimedLyricsPainter
             var layout = worker.Layouts[i] ??= LayoutPage(worker, i);
             foreach (var line in layout.Lines) PaintLine(worker, canvas, layout, line, t);
         }
-    }
-
-    /// <summary>A dark band behind each line on screen at <paramref name="t"/>, so the words read
-    /// over whatever picture is under them, wherever on the page they sit.</summary>
-    /// <remarks>One path filled once: where two lines' bands meet is no darker than either. A line
-    /// with no words gets none. The screen's overlay lays the same bands.</remarks>
-    private void PaintBands(SKCanvas canvas, double t)
-    {
-        using var path = new SKPath { FillType = SKPathFillType.Winding };
-
-        for (var i = 0; i < _lyrics.Pages.Count; i++)
-        {
-            var page = _lyrics.Pages[i];
-            if (t < page.ShowFromSeconds || t > page.ShowUntilSeconds) continue;
-
-            for (var l = 0; l < page.Lines.Count; l++)
-            {
-                if (!page.Lines[l].Syllables.Any(syllable => !string.IsNullOrWhiteSpace(syllable.Text))) continue;
-
-                using var band = LyricBand(_lineBoxes[i][l], _scale, _offsetX, _offsetY);
-                path.AddRoundRect(band);
-            }
-        }
-
-        if (path.IsEmpty) return;
-
-        using var paint = new SKPaint { Color = new SKColor(0, 0, 0, BandAlpha), IsAntialias = true };
-        canvas.DrawPath(path, paint);
-    }
-
-    /// <summary>The band behind one line, in frame pixels: its box grown by <see cref="BandPad"/> of
-    /// its height on every side, the corners rounded by the same.</summary>
-    internal static SKRoundRect LyricBand(LyricBox box, float scale, float offsetX, float offsetY)
-    {
-        var h = (float)box.Height * scale;
-        var pad = h * BandPad;
-        var x = offsetX + (float)box.X * scale;
-        var y = offsetY + (float)box.Y * scale;
-
-        return new SKRoundRect(new SKRect(x - pad, y - pad, x + (float)box.Width * scale + pad, y + h + pad), pad);
     }
 
     /// <summary>The bar across a gap: eased in and out over one step, filled and counted down over

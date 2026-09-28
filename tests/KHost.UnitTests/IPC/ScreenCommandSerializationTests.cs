@@ -96,7 +96,7 @@ public class ScreenCommandSerializationTests
                 ],
             },
         },
-        [nameof(SetVisualiserCommand)] = new SetVisualiserCommand { Enabled = true, PresetUrl = "http://host/media/visualiser-presets/Mine?v=1", Brightness = 80, Saturation = 150, Sensitivity = 200, LevelsUrl = "http://host/media/levels/abc", DarkenLyricBands = true },
+        [nameof(SetVisualiserCommand)] = new SetVisualiserCommand { Enabled = true, PresetUrl = "http://host/media/visualiser-presets/Mine?v=1", Brightness = 80, Saturation = 150, Sensitivity = 200, LevelsUrl = "http://host/media/levels/abc" },
         [nameof(ShowNextSingerCommand)] = new ShowNextSingerCommand
         {
             Singer = "Ada",
@@ -178,17 +178,6 @@ public class ScreenCommandSerializationTests
 
         var back = Assert.IsType<LoadMediaCommand>(JsonSerializer.Deserialize<ScreenCommandBase>(json, Options));
         Assert.Equal(graphicsOnly, back.IsGraphicsOnly);
-    }
-
-    [Fact]
-    public void RoundTrip_KeepsWhetherToDarkenTheWordsBand()
-    {
-        var json = JsonSerializer.Serialize(
-            (ScreenCommandBase)new SetVisualiserCommand { Enabled = false, DarkenLyricBands = true },
-            typeof(ScreenCommandBase), Options);
-
-        var back = Assert.IsType<SetVisualiserCommand>(JsonSerializer.Deserialize<ScreenCommandBase>(json, Options));
-        Assert.True(back.DarkenLyricBands);
     }
 
     [Fact]
