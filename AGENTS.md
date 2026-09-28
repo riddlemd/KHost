@@ -522,12 +522,32 @@ stay on black, and a song with its own picture keeps it.
   preset a song's timing names is ignored.
 - **It listens, it never re-routes.** A stem song is tapped off the mixer's master gain (after the
   venue level and the fade), a fan-out to analysers that lead nowhere. An encoded song is tapped
-  through `captureStream()` where the engine has it. **WebKit has no `captureStream`**, so on macOS
-  an encoded song — including a stem song after a key or tempo change — draws without the beat.
-  Do not "fix" that with `createMediaElementSource`: it takes the element's sound off the speakers
-  for good, binds it to one context a sleep can kill, and puts the fades behind a second volume.
-- **A preset must stay alive in silence**, for exactly that case. Several MilkDrop presets fade to
-  black with no input; `screen-ui/VISUALISER-NOTICE.md` says how the set was chosen.
+  through `captureStream()` where the engine has it. Do not reach for `createMediaElementSource`:
+  it takes the element's sound off the speakers for good, binds it to one context a sleep can
+  kill, and puts the fades behind a second volume.
+- **Where no tap exists, the host's levels stand in.** WebKit has no `captureStream`, so on macOS
+  an encoded song — a stem song after a key or tempo change included — has nothing to listen to.
+  For every song that draws a visualiser, `LocalScreenDisplayProvider` starts `ISongLevelsService`
+  once (a key change's reload keeps them) and sends the URL in `SetVisualiserCommand.LevelsUrl`;
+  the screen fetches it from `/media/levels/{token}`, a request that waits for the read.
+  - **What is read:** the stems at their loaded gains when the load carries stems, else the file
+    when it is a format the host opens (a `.cdg` through the audio beside it). A provider's own
+    container loaded with no stems — a stem song whose first load is already re-keyed — has
+    nothing readable, and draws without the beat. Rules in `SongLevels.InputsFor`.
+  - **What it holds:** eight bands per channel, 30 frames a second of song time, a quarter-decibel
+    a byte against each band's own loudest (`SongLevels`; about 110 KB and under a second for a
+    four-minute song, ffmpeg at one thread and below-normal priority). Butterchurn keeps only how
+    each of bass/mid/treble compares with its own running average, so that ratio is what the
+    format keeps; the band edges sit on its 320 Hz and 2800 Hz splits.
+  - **How it is drawn:** `synthesiseVisualiserLevels` rebuilds a tone per band at the frame the
+    **song clock** (`songClock`, the words' clock) falls in, so a seek, a rebuilt stream's offset
+    and a tempo all land where the words do, and a lead-in's hold reads as silence. A live tap
+    wins whenever there is one: it hears the room, fader moves and fades included.
+  - One song at a time, in memory, dropped when the next song starts or the screen goes idle —
+    not in the stream session, which a key change closes while the levels stay right.
+- **A preset must stay alive in silence.** Several MilkDrop presets fade to black with no input,
+  and a song whose levels have not arrived, or cannot be read, has none;
+  `screen-ui/VISUALISER-NOTICE.md` says how the set was chosen.
 - Capped at 30fps and a 1280x720 drawing buffer, frozen on pause (the last frame holds), and drawn
   only while shown. The engine is built on first use and never with an audio context of its own:
   samples are read here and handed to each frame, since every stem song brings a new context.

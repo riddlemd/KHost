@@ -96,7 +96,7 @@ public class ScreenCommandSerializationTests
                 ],
             },
         },
-        [nameof(SetVisualiserCommand)] = new SetVisualiserCommand { Enabled = true, Preset = 7 },
+        [nameof(SetVisualiserCommand)] = new SetVisualiserCommand { Enabled = true, Preset = 7, LevelsUrl = "http://host/media/levels/abc" },
         [nameof(ShowNextSingerCommand)] = new ShowNextSingerCommand
         {
             Singer = "Ada",

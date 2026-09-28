@@ -83,7 +83,34 @@ const visualiser = createVisualiser(visualiserCanvas, {
     engine: window.butterchurn && window.butterchurn.default,
     presets: VISUALISER_PRESETS,
     reportError,
+    // The words' clock, so a seek, a rebuild's offset and a tempo all land where the words do.
+    clock: songClock,
 });
+
+// The host's levels for the song, fetched once per URL. A fetch waits for the host's read, so a
+// newer URL (or none) arriving meanwhile must win over the answer to an older one.
+let visualiserLevelsUrl = null;
+
+function loadVisualiserLevels(url) {
+    if (url === visualiserLevelsUrl) return;
+
+    visualiserLevelsUrl = url || null;
+    visualiser.setLevels(null);
+    if (!visualiserLevelsUrl) return;
+
+    fetch(url)
+        .then((response) => (response.ok ? response.arrayBuffer() : null))
+        .then((buffer) => {
+            if (url !== visualiserLevelsUrl) return;
+
+            const track = buffer ? parseVisualiserLevels(buffer) : null;
+            // Without them the picture still moves, just not to the song.
+            if (!track) { reportError('visualiser levels: none for this song'); return; }
+
+            visualiser.setLevels(track);
+        })
+        .catch((e) => { if (url === visualiserLevelsUrl) reportError(`visualiser levels: ${e}`); });
+}
 
 // Everything drawn over the song rather than streamed: a stop dims these with the sound.
 const songLayers = [visualiserCanvas, lyricsCanvas, introLayer];
@@ -917,10 +944,12 @@ function handleCommand(raw) {
         case 'visualiser':
             if (message.enabled === true) {
                 visualiser.show(message.preset);
+                loadVisualiserLevels(message.levels);
                 retapVisualiser();
             } else {
                 visualiser.hide();
                 visualiser.setAudio(null);
+                loadVisualiserLevels(null);
                 releaseElementTap();
             }
             break;

@@ -244,7 +244,7 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
     /// <summary>A local path for a stem written into one of this service's sessions, else the http
     /// address itself for ffmpeg to fetch.</summary>
     /// <remarks>Read off disk where it can be: fetching our own server over loopback only adds a hop.</remarks>
-    internal string ResolveStemInput(string url)
+    public string ResolveStemInput(string url)
     {
         var prefix = $"{Options.BaseAddress.TrimEnd('/')}/media/";
 
@@ -936,7 +936,7 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
             : FormattableString.Invariant($"setpts=PTS/{rate:F6}");
     }
 
-    private static string ResolveFfmpegPath()
+    internal static string ResolveFfmpegPath()
     {
         var exeName = OperatingSystem.IsWindows() ? "ffmpeg.exe" : "ffmpeg";
 

@@ -341,6 +341,12 @@ public sealed class SetVisualiserCommand : ScreenCommandBase
     /// <remarks>A number rather than a name so the host need not carry a copy of the screen's
     /// list. The same number for the same song keeps a rebuild or a rejoin on the same picture.</remarks>
     public int Preset { get; init; }
+
+    /// <summary>Where the song's levels, read by the host, are fetched from; null when the host has
+    /// none for it.</summary>
+    /// <remarks>For a song the screen cannot listen to itself — an encoded song where the web view
+    /// has no <c>captureStream</c>. A fetch waits for the read, so the URL is sent at once.</remarks>
+    public string? LevelsUrl { get; init; }
 }
 
 /// <summary>What the intro card says, as finished strings: the screen holds no library or queue.</summary>
