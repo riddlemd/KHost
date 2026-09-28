@@ -11,37 +11,30 @@ namespace KHost.UserInterface.Components.Pages.Settings;
 
 public partial class MediaManagerPage : IAsyncDisposable
 {
-    private int _pageSize = AppSettings.DefaultPageSize;
-    private int _currentPage = 1;
-    private string _searchQuery = "";
-    private string? _sortColumn;
-    private bool _sortDescending;
-    private PaginatedResult<Media>? _paginatedResult;
+    private PagedSearch<Media> _search = default!;
     private HashSet<Guid> _selectedIds = [];
 
-    [Inject] private IMediaService? MediaService { get; set; }
-    [Inject] private NavigationManager? Navigation { get; set; }
-    [Inject] private IDialogService? DialogService { get; set; }
-    [Inject] private IVenuesService? VenuesService { get; set; }
-    [Inject] private IAppSettingsService? AppSettingsService { get; set; }
+    [Inject] private IMediaService MediaService { get; set; } = default!;
+    [Inject] private NavigationManager Navigation { get; set; } = default!;
+    [Inject] private IDialogService DialogService { get; set; } = default!;
+    [Inject] private IVenuesService VenuesService { get; set; } = default!;
+    [Inject] private IAppSettingsService AppSettingsService { get; set; } = default!;
     [Inject] private IMessageBroker Broker { get; set; } = default!;
 
     private readonly SubscriptionSet _subscriptions = new();
 
-    private void NavigateToImporter() => Navigation!.NavigateTo("/settings/media-importer");
+    private void NavigateToImporter() => Navigation.NavigateTo("/settings/media-importer");
 
     private Task EditAsync(Media media) =>
-        DialogService!.RequestEditAsync(media, onSave: async updated =>
+        DialogService.RequestEditAsync(media, onSave: async updated =>
         {
             if (updated is not null)
-                await MediaService!.UpdateAsync(updated);
+                await MediaService.UpdateAsync(updated);
         });
 
     // Unconditional: a destructive action must not hinge on which venue is selected.
     private async Task RemoveAsync(Media media)
     {
-        if (MediaService is null || DialogService is null) return;
-
         await DialogService.ShowConfirmationAsync(
             $"Are you sure you want to remove <span class=\"kh-emphasis\">{media.Title}</span> from the library?",
             onConfirm: () => MediaService.DeleteAsync(media.Id),
@@ -52,14 +45,15 @@ public partial class MediaManagerPage : IAsyncDisposable
 
     protected override async Task OnInitializedAsync()
     {
-        if (MediaService is null)
-            return;
-
         _subscriptions.Add(Broker.Subscribe<MediaLibraryChanged>(OnMediaStateChanged));
 
-        _pageSize = AppSettingsService!.Current.MediaPageSize;
+        // The manager is the one page that manages files rather than plays them, so it is the one
+        // place break music and ads are listed alongside songs.
+        _search = new PagedSearch<Media>(
+            (query, page, size, sort) => MediaService.SearchAsync(query, page, size, sort, MediaSearchOptions.AllTypes))
+        { Size = AppSettingsService.Current.MediaPageSize };
 
-        await SearchAsync();
+        await _search.SearchAsync();
     }
 
     private bool _addFileDialogOpen;
@@ -68,44 +62,13 @@ public partial class MediaManagerPage : IAsyncDisposable
 
     private void CloseAddFileDialog() => _addFileDialogOpen = false;
 
-    private async Task SearchAsync()
-    {
-        if (MediaService is null)
-            return;
-
-        var sort = _sortColumn is not null ? new SortDescriptor(_sortColumn, _sortDescending) : null;
-
-        // The manager is the one page that manages files rather than plays them, so it is the one
-        // place break music and ads are listed alongside songs.
-        _paginatedResult = await MediaService.SearchAsync(_searchQuery, _currentPage, _pageSize, sort, MediaSearchOptions.AllTypes);
-    }
-
-    private async Task OnSortColumnClickedAsync(string column)
-    {
-        if (_sortColumn == column)
-            _sortDescending = !_sortDescending;
-        else
-        {
-            _sortColumn = column;
-            _sortDescending = false;
-        }
-        _currentPage = 1;
-        await SearchAsync();
-    }
-
-    private async Task OnSearchKeyDownAsync(KeyboardEventArgs e)
-    {
-        if (e.Key == "Enter")
-        {
-            _currentPage = 1;
-            await SearchAsync();
-        }
-    }
+    private Task OnSearchKeyDownAsync(KeyboardEventArgs e)
+        => e.Key == "Enter" ? _search.SearchChangedAsync() : Task.CompletedTask;
 
     private void OnMediaStateChanged(MediaLibraryChanged message) =>
         _ = InvokeAsync(async () =>
         {
-            await SearchAsync();
+            await _search.SearchAsync();
             StateHasChanged();
         });
 
@@ -116,24 +79,20 @@ public partial class MediaManagerPage : IAsyncDisposable
         await Task.CompletedTask;
     }
 
+    // The paged move itself is a no-op at either end, so the selection is only cleared when the
+    // page actually changed under it.
     private async Task PreviousPageAsync()
     {
-        if (_currentPage > 1)
-        {
-            _currentPage--;
-            _selectedIds.Clear();
-            await SearchAsync();
-        }
+        var page = _search.Page;
+        await _search.PreviousAsync();
+        if (_search.Page != page) _selectedIds.Clear();
     }
 
     private async Task NextPageAsync()
     {
-        if (_paginatedResult?.HasNextPage ?? false)
-        {
-            _currentPage++;
-            _selectedIds.Clear();
-            await SearchAsync();
-        }
+        var page = _search.Page;
+        await _search.NextAsync();
+        if (_search.Page != page) _selectedIds.Clear();
     }
 
     private void ToggleSelection(Guid mediaId)
@@ -146,36 +105,36 @@ public partial class MediaManagerPage : IAsyncDisposable
 
     private void OnSelectAllClicked()
     {
-        if (_selectedIds.Count == _paginatedResult?.Items.Count)
+        if (_selectedIds.Count == _search.Result?.Items.Count)
             _selectedIds.Clear();
         else
         {
             _selectedIds.Clear();
-            foreach (var media in _paginatedResult?.Items ?? [])
+            foreach (var media in _search.Result?.Items ?? [])
                 _selectedIds.Add(media.Id);
         }
     }
 
     private string SelectAllIconName =>
         _selectedIds.Count == 0 ? "square"
-        : _selectedIds.Count == _paginatedResult?.Items.Count ? "check-square"
+        : _selectedIds.Count == _search.Result?.Items.Count ? "check-square"
         : "slash-square";
 
     private async Task EditSelectedAsync()
     {
-        var items = _paginatedResult?.Items
+        var items = _search.Result?.Items
             .Where(m => _selectedIds.Contains(m.Id))
             .ToList() ?? [];
 
         if (items.Count == 0)
             return;
 
-        await DialogService!.RequestBulkEditAsync(items, ApplyBulkEditAsync);
+        await DialogService.RequestBulkEditAsync(items, ApplyBulkEditAsync);
     }
 
     private async Task ApplyBulkEditAsync(BulkEditMediaModel model)
     {
-        var items = _paginatedResult?.Items
+        var items = _search.Result?.Items
             .Where(m => _selectedIds.Contains(m.Id))
             .ToList() ?? [];
 
@@ -186,7 +145,7 @@ public partial class MediaManagerPage : IAsyncDisposable
             if (model.UpdateArtist)
                 media.Artist = model.Artist;
 
-            await MediaService!.UpdateAsync(media);
+            await MediaService.UpdateAsync(media);
         }
 
         _selectedIds.Clear();
@@ -194,14 +153,14 @@ public partial class MediaManagerPage : IAsyncDisposable
 
     private async Task DeleteSelectedAsync()
     {
-        var items = _paginatedResult?.Items
+        var items = _search.Result?.Items
             .Where(m => _selectedIds.Contains(m.Id))
             .ToList() ?? [];
 
         if (items.Count == 0)
             return;
 
-        await DialogService!.ShowConfirmationAsync(
+        await DialogService.ShowConfirmationAsync(
             $"Are you sure you want to remove {items.Count} item(s) from the library?",
             onConfirm: () => DeleteSelectedItemsAsync(items),
             title: "Remove Media",
@@ -212,7 +171,7 @@ public partial class MediaManagerPage : IAsyncDisposable
     private async Task DeleteSelectedItemsAsync(List<Media> items)
     {
         foreach (var media in items)
-            await MediaService!.DeleteAsync(media.Id);
+            await MediaService.DeleteAsync(media.Id);
 
         _selectedIds.Clear();
     }

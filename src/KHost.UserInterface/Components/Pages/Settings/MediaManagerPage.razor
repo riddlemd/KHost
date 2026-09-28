@@ -21,14 +21,14 @@
             <div class="kh-card__body">
                 <form class="kh-panel__form-row" @onsubmit:preventDefault>
                     <input type="text" class="kh-form-control kh-panel__form-grow" placeholder="Search by title or artist (press Enter)..."
-                            autocomplete="off" @bind="_searchQuery" @bind:event="oninput" @onkeydown="OnSearchKeyDownAsync" />
+                            autocomplete="off" @bind="_search.Query" @bind:event="oninput" @onkeydown="OnSearchKeyDownAsync" />
                 </form>
             </div>
             <div class="kh-card__body">
-                @if (_paginatedResult?.Items.Count == 0)
+                @if (_search.Result?.Items.Count == 0)
                 {
                     <div class="kh-panel--empty kh-panel--empty-lg">
-                        @if (string.IsNullOrWhiteSpace(_searchQuery))
+                        @if (string.IsNullOrWhiteSpace(_search.Query))
                         {
                             <Icon Name="music-note-list" />
                             <span>No media in the library yet.</span>
@@ -48,30 +48,30 @@
                                 <th class="kh-media-manager__col--check">
                                     <Icon Name="@SelectAllIconName" class="kh-media-manager__select-icon" @onclick="OnSelectAllClicked" />
                                 </th>
-                                <th class="kh-table__col--sortable" @onclick='() => OnSortColumnClickedAsync("title")'>
-                                    Title @if (_sortColumn == "title") { <Icon Name="@(_sortDescending ? "sort-down" : "sort-up")" class="kh-table__sort-indicator" /> }
+                                <th class="kh-table__col--sortable" @onclick='() => _search.SortByAsync("title")'>
+                                    Title @if (_search.SortColumn == "title") { <Icon Name="@(_search.Descending ? "sort-down" : "sort-up")" class="kh-table__sort-indicator" /> }
                                 </th>
-                                <th class="kh-table__col--sortable" @onclick='() => OnSortColumnClickedAsync("artist")'>
-                                    Artist @if (_sortColumn == "artist") { <Icon Name="@(_sortDescending ? "sort-down" : "sort-up")" class="kh-table__sort-indicator" /> }
+                                <th class="kh-table__col--sortable" @onclick='() => _search.SortByAsync("artist")'>
+                                    Artist @if (_search.SortColumn == "artist") { <Icon Name="@(_search.Descending ? "sort-down" : "sort-up")" class="kh-table__sort-indicator" /> }
                                 </th>
                                 <th class="kh-media-manager__col--type">Type</th>
-                                <th class="kh-media-manager__col--format kh-table__col--sortable" @onclick='() => OnSortColumnClickedAsync("format")'>
-                                    Format @if (_sortColumn == "format") { <Icon Name="@(_sortDescending ? "sort-down" : "sort-up")" class="kh-table__sort-indicator" /> }
+                                <th class="kh-media-manager__col--format kh-table__col--sortable" @onclick='() => _search.SortByAsync("format")'>
+                                    Format @if (_search.SortColumn == "format") { <Icon Name="@(_search.Descending ? "sort-down" : "sort-up")" class="kh-table__sort-indicator" /> }
                                 </th>
-                                <th class="kh-media-manager__col--duration kh-table__col--sortable" @onclick='() => OnSortColumnClickedAsync("duration")'>
-                                    Duration @if (_sortColumn == "duration") { <Icon Name="@(_sortDescending ? "sort-down" : "sort-up")" class="kh-table__sort-indicator" /> }
+                                <th class="kh-media-manager__col--duration kh-table__col--sortable" @onclick='() => _search.SortByAsync("duration")'>
+                                    Duration @if (_search.SortColumn == "duration") { <Icon Name="@(_search.Descending ? "sort-down" : "sort-up")" class="kh-table__sort-indicator" /> }
                                 </th>
-                                <th class="kh-media-manager__col--status kh-table__col--sortable" @onclick='() => OnSortColumnClickedAsync("status")'>
-                                    Status @if (_sortColumn == "status") { <Icon Name="@(_sortDescending ? "sort-down" : "sort-up")" class="kh-table__sort-indicator" /> }
+                                <th class="kh-media-manager__col--status kh-table__col--sortable" @onclick='() => _search.SortByAsync("status")'>
+                                    Status @if (_search.SortColumn == "status") { <Icon Name="@(_search.Descending ? "sort-down" : "sort-up")" class="kh-table__sort-indicator" /> }
                                 </th>
-                                <th class="kh-media-manager__col--date kh-table__col--sortable" @onclick='() => OnSortColumnClickedAsync("dateAdded")'>
-                                    Date Added @if (_sortColumn == "dateAdded") { <Icon Name="@(_sortDescending ? "sort-down" : "sort-up")" class="kh-table__sort-indicator" /> }
+                                <th class="kh-media-manager__col--date kh-table__col--sortable" @onclick='() => _search.SortByAsync("dateAdded")'>
+                                    Date Added @if (_search.SortColumn == "dateAdded") { <Icon Name="@(_search.Descending ? "sort-down" : "sort-up")" class="kh-table__sort-indicator" /> }
                                 </th>
                                 <th class="kh-media-manager__col--actions"></th>
                             </tr>
                         </thead>
                         <tbody>
-                            @foreach (var media in _paginatedResult?.Items ?? [])
+                            @foreach (var media in _search.Result?.Items ?? [])
                             {
                                 <tr class="@(_selectedIds.Contains(media.Id) ? "kh-media-manager__row--selected" : "")">
                                     <td class="kh-media-manager__col--check">
@@ -143,8 +143,8 @@
                         </div>
                     }
 
-                    <Pagination CurrentPage="_paginatedResult?.PageNumber ?? 1"
-                                TotalPages="_paginatedResult?.TotalPages ?? 1"
+                    <Pagination CurrentPage="_search.Page"
+                                TotalPages="_search.Result?.TotalPages ?? 1"
                                 OnPreviousPage="PreviousPageAsync"
                                 OnNextPage="NextPageAsync" />
                 }
@@ -153,4 +153,4 @@
     </div>
 </div>
 
-<AddMediaFileDialog IsOpen="_addFileDialogOpen" OnAdded="SearchAsync" OnClose="CloseAddFileDialog" />
+<AddMediaFileDialog IsOpen="_addFileDialogOpen" OnAdded="_search.SearchAsync" OnClose="CloseAddFileDialog" />

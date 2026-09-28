@@ -1,73 +1,17 @@
 @page "/settings/break-music-manager"
 @attribute [Authorize(Policy = nameof(KHostPermission.ManageMedia))]
 @using KHost.Abstractions.Models
-@using KHost.UserInterface.Models
 
 <PageTitle>KHost: Break Music</PageTitle>
 
 <div class="kh-app__body">
     <div class="kh-settings-page">
-        <div class="kh-card">
-            <div class="kh-card__header">
-                <span class="kh-card__title"><Icon Name="music-note-beamed" /> Break Music Playlists</span>
-                <button class="kh-button kh-button--primary" @onclick="OpenAddDialog" type="button">
-                    <Icon Name="plus-lg" /> Add Playlist
-                </button>
-            </div>
-
-            <div class="kh-card__body">
-                @if (_pools.Count == 0)
-                {
-                    <div class="kh-panel--empty kh-panel--empty-lg">
-                        <Icon Name="collection" />
-                        <span>No break music playlists yet. Add one using the button above.</span>
-                    </div>
-                }
-                else
-                {
-                    <table class="kh-table">
-                        <thead>
-                            <tr>
-                                <th>Name</th>
-                                <th>Picks</th>
-                                <th>Entries</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach (var pool in _pools)
-                            {
-                                <tr>
-                                    <td class="kh-table__cell--fill">
-                                        <span class="kh-break-music-manager__name">
-                                            @pool.Name
-                                            @if (pool.Id == _activePoolId)
-                                            {
-                                                <span class="kh-badge kh-badge--secondary">In use</span>
-                                            }
-                                        </span>
-                                    </td>
-                                    <td>@PlaylistDisplay.DescribeSelection(pool)</td>
-                                    <td>@PlaylistDisplay.DescribeEntries(pool)</td>
-                                    <td class="kh-table__cell--actions">
-                                        <button class="kh-button--icon-minimal" title="Edit playlist"
-                                                @onclick="() => OpenEditDialog(pool)">
-                                            <Icon Name="pencil" />
-                                        </button>
-                                        <button class="kh-button--icon-minimal" title="Delete playlist"
-                                                @onclick="@(async () => await StartDeleteAsync(pool))">
-                                            <Icon Name="trash" />
-                                        </button>
-                                    </td>
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
-                }
-            </div>
-        </div>
+        <PlaylistManager Purpose="PoolPurpose.BreakMusic"
+                          Title="Break Music Playlists"
+                          Icon="music-note-beamed"
+                          EmptyText="No break music playlists yet. Add one using the button above."
+                          DeleteWarning="Any venue using it falls back to silence."
+                          ShowTrigger="false"
+                          ActivePoolOf="settings => settings.BreakMusicPoolId" />
     </div>
 </div>
-
-<EditPlaylistDialog IsOpen="_dialogOpen" Pool="_editing" Purpose="PoolPurpose.BreakMusic"
-                    OnSave="SavePoolAsync" OnClose="CloseDialog" />

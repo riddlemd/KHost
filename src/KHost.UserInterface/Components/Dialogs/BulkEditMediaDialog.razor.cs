@@ -11,29 +11,17 @@ public partial class BulkEditMediaDialog
 
     [Parameter] public bool IsOpen { get; set; }
     [Parameter] public IReadOnlyList<Media>? Items { get; set; }
-    [Parameter] public string Class { get; set; } = "";
-    [Parameter] public bool CloseOnScrimClick { get; set; }
 
     [Parameter] public EventCallback<BulkEditMediaModel> OnSave { get; set; }
     [Parameter] public EventCallback OnClose { get; set; }
 
     private BulkEditMediaModel _model = new();
     private EditContext _editContext = default!;
-    private bool _prevIsOpen;
 
+    // DialogHost keys every dialog by request id, so a fresh instance (and _model) is created per open.
     protected override void OnInitialized()
     {
         _editContext = new EditContext(_model);
-    }
-
-    protected override void OnParametersSet()
-    {
-        if (IsOpen && !_prevIsOpen)
-        {
-            _model = new BulkEditMediaModel();
-            _editContext = new EditContext(_model);
-        }
-        _prevIsOpen = IsOpen;
     }
 
     private async Task SubmitAsync()

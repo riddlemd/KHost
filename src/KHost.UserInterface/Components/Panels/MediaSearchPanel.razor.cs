@@ -11,11 +11,11 @@ namespace KHost.UserInterface.Components.Panels;
 
 public partial class MediaSearchPanel : IDisposable
 {
-    [Inject] private IMediaSearchService? MediaSearchService { get; set; }
-    [Inject] private ISingerQueueService? SingerQueueService { get; set; }
-    [Inject] private IPerformanceService? PerformanceService { get; set; }
-    [Inject] private IDialogService? DialogService { get; set; }
-    [Inject] private IPermissionService? Permissions { get; set; }
+    [Inject] private IMediaSearchService MediaSearchService { get; set; } = default!;
+    [Inject] private ISingerQueueService SingerQueueService { get; set; } = default!;
+    [Inject] private IPerformanceService PerformanceService { get; set; } = default!;
+    [Inject] private IDialogService DialogService { get; set; } = default!;
+    [Inject] private IPermissionService Permissions { get; set; } = default!;
     [Inject] private IMessageBroker Broker { get; set; } = default!;
     [Inject] private IControlState ControlState { get; set; } = default!;
 
@@ -50,8 +50,7 @@ public partial class MediaSearchPanel : IDisposable
         // list, so the performance service has to be listened to as well.
         _subscriptions.Add(Broker.Subscribe<PerformancesChanged>(_ => OnStateChanged()));
 
-        if (Permissions is not null)
-            _canAddToQueue = await Permissions.HasAsync(KHostPermission.AddToQueue);
+        _canAddToQueue = await Permissions.HasAsync(KHostPermission.AddToQueue);
 
         // Without this the badges stay empty until some unrelated state change fires.
         await UpdateQueuedMediaAsync();
@@ -85,10 +84,10 @@ public partial class MediaSearchPanel : IDisposable
 
     /// <summary>Omits the source already on the button: picking it again would be redundant.</summary>
     private IEnumerable<IMediaProvider> UnselectedProviders
-        => (MediaSearchService?.Providers ?? []).Where(provider => provider != SearchTarget);
+        => MediaSearchService.Providers.Where(provider => provider != SearchTarget);
 
     private IMediaProvider? Provider(string? source)
-        => MediaSearchService?.Providers.FirstOrDefault(provider =>
+        => MediaSearchService.Providers.FirstOrDefault(provider =>
             string.Equals(provider.SourceName, source, StringComparison.OrdinalIgnoreCase));
 
     /// <summary>The picture for a row spanning the table, which declares no thumbnail column.</summary>
@@ -110,9 +109,6 @@ public partial class MediaSearchPanel : IDisposable
         string sourceLabel,
         Func<IMediaSearchService, Task<List<MediaSearchEntity>>> search)
     {
-        if (MediaSearchService is null)
-            return;
-
         _lastSearch = search;
         _lastSearchSource = sourceLabel;
 
@@ -191,8 +187,6 @@ public partial class MediaSearchPanel : IDisposable
     /// <summary>Tracks what each singer already queued, so a claimed song is not offered again.</summary>
     private async Task UpdateQueuedMediaAsync()
     {
-        if (PerformanceService is null || SingerQueueService is null) return;
-
         var singerNames = SingerQueueService.Users.ToDictionary(user => user.Id, user => user.Name);
         var queued = await PerformanceService.ReadQueuedAsync();
 

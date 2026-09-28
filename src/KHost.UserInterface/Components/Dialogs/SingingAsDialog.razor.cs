@@ -14,7 +14,6 @@ public partial class SingingAsDialog
 
     private SingingAsModel _model = new();
     private EditContext _editContext = new(new SingingAsModel());
-    private bool _prevIsOpen;
 
     [Parameter] public bool IsOpen { get; set; }
     [Parameter] public Performance? Performance { get; set; }
@@ -22,25 +21,18 @@ public partial class SingingAsDialog
     /// <summary>The singer's own name, which is what a blank field falls back to.</summary>
     [Parameter] public string? SingerName { get; set; }
 
-    [Parameter] public string Class { get; set; } = "";
-    [Parameter] public bool CloseOnScrimClick { get; set; }
     [Parameter] public EventCallback<Performance> OnSave { get; set; }
     [Parameter] public EventCallback OnClose { get; set; }
 
     private string _fallbackName =>
         string.IsNullOrWhiteSpace(SingerName) ? "the singer’s own name" : SingerName!;
 
-    protected override void OnParametersSet()
+    // DialogHost keys every dialog by request id, so a fresh instance is created per open; this
+    // runs exactly once with Performance already bound.
+    protected override void OnInitialized()
     {
-        // Only on the way open. Rebuilding on every parameter change would throw away what the host
-        // has typed the moment anything else on the page re-renders.
-        if (IsOpen && !_prevIsOpen)
-        {
-            _model = new SingingAsModel { SungAs = Performance?.SungAs };
-            _editContext = new EditContext(_model);
-        }
-
-        _prevIsOpen = IsOpen;
+        _model = new SingingAsModel { SungAs = Performance?.SungAs };
+        _editContext = new EditContext(_model);
     }
 
     private async Task SubmitAsync()

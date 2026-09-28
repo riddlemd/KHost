@@ -1,0 +1,25 @@
+@if (RestartRequired)
+{
+    <div class="kh-plugins-manager__restart">
+        <Icon Name="arrow-clockwise" />
+        <span>
+            @if (Waiting.Count > 0)
+            {
+                @($"{string.Join(", ", Waiting)}: restart KHost to apply.")
+            }
+            else
+            {
+                @("Saved settings take effect after restarting KHost.")
+            }
+        </span>
+    </div>
+}
+@if (!StagingIsEmpty)
+{
+    <div class="kh-plugins-manager__restart">
+        <Icon Name="box-arrow-in-down" />
+        <span>
+            @($"{StagingSummary}: restart KHost to apply.")
+        </span>
+    </div>
+}
