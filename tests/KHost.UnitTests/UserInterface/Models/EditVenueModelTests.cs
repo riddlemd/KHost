@@ -42,6 +42,16 @@ public class EditVenueModelTests
         Assert.Equal(source.Settings.QueueRotation!.StrategyId, target.Settings.QueueRotation!.StrategyId);
     }
 
+    /// <summary>A brand-new venue — the dialog's Add path — starts pointed at the built-in playlist
+    /// rather than black; an existing venue's own choice (including "none") is never overridden.</summary>
+    [Fact]
+    public void From_ANewVenue_StartsOnTheDefaultVisualisationPlaylist()
+    {
+        var model = EditVenueModel.From(null, activeBreakMusicProviderSource: null);
+
+        Assert.Equal(VisualisationPlaylist.DefaultId, model.VisualisationPlaylistId);
+    }
+
     /// <summary>Nothing edits the retired song backgrounds, so a save leaves what a venue stored.</summary>
     [Fact]
     public void ApplyTo_LeavesTheRetiredSongBackgroundsAsStored()

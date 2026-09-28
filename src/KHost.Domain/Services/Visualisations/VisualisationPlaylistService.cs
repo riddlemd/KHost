@@ -3,6 +3,7 @@ using KHost.Abstractions.Messaging.Messages;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Repositories;
 using KHost.Abstractions.Services;
+using KHost.Common.Repositories;
 using Microsoft.Extensions.Logging;
 
 namespace KHost.Domain.Services.Visualisations;
@@ -29,6 +30,12 @@ public class VisualisationPlaylistService : BaseRepositoryService<VisualisationP
 
     public override async Task<bool> DeleteAsync(Guid id)
     {
+        if (RepositoryModels.IsBuiltIn(id))
+        {
+            Logger.LogWarning("Refused to delete built-in visualisation playlist {PlaylistId}", id);
+            return false;
+        }
+
         var deleted = await base.DeleteAsync(id);
         if (deleted) Forget(id);
 

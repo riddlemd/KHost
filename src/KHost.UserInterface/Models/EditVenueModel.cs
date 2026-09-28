@@ -131,7 +131,11 @@ public class EditVenueModel
     public static EditVenueModel From(Venue? venue, string? activeBreakMusicProviderSource)
     {
         if (venue is null)
-            return new EditVenueModel { BreakMusicProvider = activeBreakMusicProviderSource };
+            return new EditVenueModel
+            {
+                BreakMusicProvider = activeBreakMusicProviderSource,
+                VisualisationPlaylistId = VisualisationPlaylist.DefaultId,
+            };
 
         var settings = venue.Settings;
 

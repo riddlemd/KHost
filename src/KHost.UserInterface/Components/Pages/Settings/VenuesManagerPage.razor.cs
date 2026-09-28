@@ -32,7 +32,9 @@ public partial class VenuesManagerPage : IDisposable
 
     private async Task OpenAddDialogAsync()
     {
-        await DialogService.RequestEditAsync(new Venue { Name = "" }, async venue => await SaveAsync(venue));
+        // Null, not a stand-in Venue: the dialog reads Venue is null as Add, which is what starts
+        // EditVenueModel on its own defaults — including the default visualisation playlist.
+        await DialogService.RequestEditAsync(null, async (Venue? venue) => await SaveAsync(venue));
     }
 
     private async Task OpenEditDialogAsync(Venue venue)

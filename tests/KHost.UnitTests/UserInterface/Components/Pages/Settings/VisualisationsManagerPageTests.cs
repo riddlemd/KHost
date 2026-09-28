@@ -348,6 +348,24 @@ public class VisualisationsManagerPageTests : BunitContext
         cut.WaitForAssertion(() => Assert.Empty(cut.FindAll(".kh-visualisations__playlist")));
     }
 
+    /// <summary>The app ships this row; the page offers no way to remove it, matching how a
+    /// built-in theme's Delete is disabled rather than hidden.</summary>
+    [Fact]
+    public async Task TheDefaultPlaylist_HasItsDeleteButtonDisabledWithATooltip()
+    {
+        await _playlists.CreateAsync(new VisualisationPlaylist { Id = VisualisationPlaylist.DefaultId, Name = "Default Visualizations" });
+        var cut = Render<VisualisationsManagerPage>();
+
+        var row = Assert.Single(cut.FindAll(".kh-visualisations__playlist"), r => r.TextContent.Contains("Default Visualizations"));
+        var deleteButton = row.QuerySelector(".kh-visualisations__delete-playlist")!;
+
+        Assert.True(deleteButton.HasAttribute("disabled"));
+        Assert.Contains("cannot be deleted", deleteButton.GetAttribute("title"));
+
+        deleteButton.Click();
+        Assert.Single(await _playlists.ReadAllWithEntriesAsync());
+    }
+
     [Fact]
     public async Task ThePlaylistTheVenueUses_IsMarkedInUse()
     {

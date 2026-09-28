@@ -1,6 +1,7 @@
 @page "/settings/visualisations-manager"
 @attribute [Authorize(Policy = nameof(KHostPermission.ManageMedia))]
 @using KHost.Abstractions.Models
+@using KHost.Common.Repositories
 
 <PageTitle>KHost: Visualisations</PageTitle>
 
@@ -50,7 +51,9 @@
                                         </td>
                                         <td>@playlist.Entries.Count</td>
                                         <td class="kh-table__cell--actions">
-                                            <button class="kh-button--icon-minimal kh-visualisations__delete-playlist" title="Delete playlist" type="button"
+                                            <button class="kh-button--icon-minimal kh-visualisations__delete-playlist" type="button"
+                                                    title="@(playlist.IsBuiltIn() ? "Built-in playlists cannot be deleted" : "Delete playlist")"
+                                                    disabled="@playlist.IsBuiltIn()"
                                                     @onclick="() => StartDeletePlaylistAsync(playlist)" @onclick:stopPropagation="true">
                                                 <Icon Name="trash" />
                                             </button>

@@ -40,6 +40,7 @@ public partial class WizardStep2VenueSetup
                     PromptBeforeRemovingSinger = _model.PromptBeforeRemovingSinger,
                     PromptBeforeRemovingPerformance = _model.PromptBeforeRemovingPerformance,
                     ClearQueueOnClose = _model.ClearQueueOnClose,
+                    VisualisationPlaylistId = VisualisationPlaylist.DefaultId,
                 }
             };
             var createdVenue = await VenuesService.CreateAsync(venue);
