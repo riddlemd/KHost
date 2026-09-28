@@ -1,4 +1,6 @@
 using System.Diagnostics;
+using KHost.Abstractions.Models;
+using KHost.Abstractions.Services;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -27,7 +29,8 @@ public interface ISongLevelsService
 /// <inheritdoc />
 public sealed class FfmpegSongLevelsService(
     ILogger<FfmpegSongLevelsService> logger,
-    IOptionsMonitor<HlsMediaStreamService.ServiceOptions> options) : ISongLevelsService, IDisposable
+    IOptionsMonitor<HlsMediaStreamService.ServiceOptions> options,
+    IFFmpegService ffmpeg) : ISongLevelsService, IDisposable
 {
     /// <summary>Under the host's media surface, beside <c>/media/image</c>.</summary>
     public const string RoutePrefix = "/media/levels/";
@@ -75,7 +78,15 @@ public sealed class FfmpegSongLevelsService(
     private async Task<byte[]?> ReadLevelsAsync(IReadOnlyList<SongLevelsInput> inputs, CancellationToken cancellationToken)
     {
         var started = Stopwatch.StartNew();
-        var start = new ProcessStartInfo(HlsMediaStreamService.ResolveFfmpegPath())
+
+        // The same copy the song itself plays through, found afresh so an install mid-show counts.
+        if (ffmpeg.Locate(FFmpegTool.FFmpeg) is not { } ffmpegPath)
+        {
+            logger.LogWarning("Could not read the levels of {Input}: FFmpeg is not installed", inputs[0].Input);
+            return null;
+        }
+
+        var start = new ProcessStartInfo(ffmpegPath)
         {
             UseShellExecute = false,
             RedirectStandardOutput = true,

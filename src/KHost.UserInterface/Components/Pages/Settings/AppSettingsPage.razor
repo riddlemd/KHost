@@ -135,10 +135,37 @@
                     <InputNumber class="kh-form-control kh-app-settings__number" @bind-Value="_model.PerformanceHistoryPageSize" min="1" step="1" />
                 </SettingRow>
 
-                <div class="kh-app-settings__section">Media</div>
-                <SettingRow Label="FFmpeg directory (blank = use PATH)" Applies="restart required">
+                <div class="kh-app-settings__section">FFmpeg</div>
+                <div class="kh-app-settings__ffmpeg">
+                    <FFmpegStatusView Status="_ffmpegStatus" />
+                    <div class="kh-app-settings__ffmpeg-actions">
+                        @if (FFmpeg.CanInstall)
+                        {
+                            <button type="button" class="kh-button kh-button--primary kh-app-settings__install"
+                                    disabled="@_ffmpegStatus.Install.IsRunning" @onclick="InstallFFmpegAsync">
+                                @(_ffmpegStatus.IsReady ? "Reinstall FFmpeg" : "Install FFmpeg")
+                            </button>
+                        }
+                        <button type="button" class="kh-button kh-app-settings__recheck"
+                                disabled="@_ffmpegStatus.Install.IsRunning" @onclick="CheckFFmpegAsync">
+                            Check again
+                        </button>
+                    </div>
+                </div>
+                <p class="kh-note kh-app-settings__ffmpeg-licence">
+                    FFmpeg is not part of KHost and does not ship with it. Install FFmpeg downloads a
+                    GPL-licensed build from its own publisher into @_binDirectory, only because you
+                    asked, and that build stays under its publisher's licence.
+                    @if (!FFmpeg.CanInstall)
+                    {
+                        @(" KHost has no download for this computer: install FFmpeg yourself and set its folder below.")
+                    }
+                </p>
+                <SettingRow Label="FFmpeg directory (blank = KHost's bin folder, then PATH)" Applies="applies when saved">
                     <InputText class="kh-form-control kh-app-settings__path" @bind-Value="_model.FFmpegPath" placeholder="/usr/local/bin" />
                 </SettingRow>
+
+                <div class="kh-app-settings__section">Media</div>
                 <SettingRow Label="@($"Media directory (blank = {_defaultMediaDirectory})")" Applies="applies to plugin downloads immediately">
                     <InputText class="kh-form-control kh-app-settings__path" @bind-Value="_model.MediaDirectory" placeholder="@_defaultMediaDirectory" />
                 </SettingRow>

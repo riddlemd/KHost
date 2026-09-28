@@ -16,7 +16,8 @@ public class SongLevelsServiceTests : IDisposable
         new TestOptionsMonitor<HlsMediaStreamService.ServiceOptions>(new HlsMediaStreamService.ServiceOptions
         {
             BaseAddress = "http://host:5251",
-        }));
+        }),
+        new PathFFmpeg());
 
     public SongLevelsServiceTests() => Directory.CreateDirectory(_directory);
 

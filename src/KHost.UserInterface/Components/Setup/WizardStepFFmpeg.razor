@@ -1,0 +1,61 @@
+<div class="kh-setup-wizard__step">
+    <div class="kh-setup-wizard__header">
+        <h2>FFmpeg</h2>
+        <p>KHost plays every song through FFmpeg, and reads each file's length and tags with FFprobe.</p>
+    </div>
+
+    <div class="kh-setup-wizard__form kh-wizard-ffmpeg">
+        <FFmpegStatusView Status="_status" />
+
+        @if (_status.IsReady)
+        {
+            <p class="kh-wizard-ffmpeg__note">Found. Nothing to install.</p>
+        }
+        else if (!FFmpeg.CanInstall)
+        {
+            <p class="kh-wizard-ffmpeg__note">
+                KHost has no download for this computer. Install FFmpeg yourself, then set its folder in
+                App Settings. Songs will not play until it is installed.
+            </p>
+        }
+        else if (Failed)
+        {
+            <p class="kh-wizard-ffmpeg__note">
+                Songs will not play until FFmpeg is installed. You can carry on and install it later from
+                App Settings.
+            </p>
+        }
+
+        <p class="kh-wizard-ffmpeg__licence">
+            FFmpeg is not part of KHost. It is a GPL-licensed build downloaded from its own publisher
+            because you are setting KHost up, and stays under that publisher's licence.
+        </p>
+
+        <div class="kh-setup-wizard__actions">
+            @if (_status.IsReady)
+            {
+                <button type="button" class="kh-button kh-button--primary kh-wizard-ffmpeg__next" @onclick="OnNextAsync">
+                    <Icon Name="arrow-right" /> Next
+                </button>
+            }
+            else if (Busy)
+            {
+                <button type="button" class="kh-button kh-button--primary" disabled>
+                    <Icon Name="hourglass-split" /> @(_status.HasChecked ? "Installing…" : "Checking…")
+                </button>
+            }
+            else
+            {
+                @if (FFmpeg.CanInstall)
+                {
+                    <button type="button" class="kh-button kh-button--primary kh-wizard-ffmpeg__retry" @onclick="InstallAsync">
+                        <Icon Name="arrow-clockwise" /> Retry
+                    </button>
+                }
+                <button type="button" class="kh-button kh-wizard-ffmpeg__skip" @onclick="OnNextAsync">
+                    Continue without
+                </button>
+            }
+        </div>
+    </div>
+</div>

@@ -108,9 +108,12 @@ KHost uses **FFmpeg** (and `ffprobe`) for media decoding and metadata, invoked a
 **separate process** over standard streams. FFmpeg is **not** bundled, mirrored, or
 distributed as part of KHost. It is obtained by the end user:
 
-- supplied by the user (on `PATH` or via the `FFMPEG_PATH` configuration), or
-- downloaded by KHost **at the user's direction from the upstream/official source**
-  (the user obtains their own copy; KHost does not host or redistribute the binary).
+- supplied by the user (on `PATH` or via the `FFmpegPath` App Setting), or
+- downloaded by KHost **at the user's direction from the build's own publisher** (App Settings →
+  Install FFmpeg, or the setup wizard) into the host's `bin/` folder; KHost does not host or
+  redistribute the binary. The publishers and exact files are pinned, with checksums, in
+  `src/KHost.Domain/Services/FFmpeg/ffmpeg-builds.json`: gyan.dev (Windows x64, GPL-3.0),
+  OSXExperts.NET (macOS Apple silicon, GPL-2.0+) and evermeet.cx (macOS Intel, GPL-3.0).
 
 FFmpeg is licensed under the **LGPL-2.1+** or, for many prebuilt distributions,
 the **GPL-2.0+/GPL-3.0+**, depending on how the binary was compiled. Because KHost

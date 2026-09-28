@@ -1,0 +1,66 @@
+{
+  "schemaVersion": 1,
+  "notes": "Third-party static builds of FFmpeg, fetched only when a host asks. KHost does not ship FFmpeg. Every URL is versioned and every sha256 was computed from a real download; the host refuses anything that does not match before opening it. Linux is absent: johnvansickle.com publishes its current release under a URL that moves with every release, and its versioned archive stops at 4.0.3.",
+  "builds": [
+    {
+      "rid": "win-x64",
+      "version": "9.0.2",
+      "publisher": "gyan.dev (GyanD/codexffmpeg on GitHub)",
+      "licence": "GPL-3.0-or-later",
+      "notes": "Release essentials build. The GitHub release asset's own sha256 digest agrees with the one pinned here.",
+      "downloads": [
+        {
+          "url": "https://github.com/GyanD/codexffmpeg/releases/download/9.0.2/ffmpeg-9.0.2-essentials_build.zip",
+          "sha256": "60f467265b1e312373dbcd92200c2618a74850f98d3d078e94296bb3fa2047ba",
+          "size": 114768076,
+          "files": {
+            "ffmpeg": "ffmpeg-9.0.2-essentials_build/bin/ffmpeg.exe",
+            "ffprobe": "ffmpeg-9.0.2-essentials_build/bin/ffprobe.exe"
+          }
+        }
+      ]
+    },
+    {
+      "rid": "osx-arm64",
+      "version": "9.0",
+      "publisher": "OSXExperts.NET",
+      "licence": "GPL-2.0-or-later",
+      "notes": "Native Apple silicon build, code-signed. The file name carries the minor version only; a republish under it would fail the checksum rather than install something unreviewed.",
+      "downloads": [
+        {
+          "url": "https://www.osxexperts.net/ffmpeg9arm.zip",
+          "sha256": "d0c06c5c68ce48af3143b262f7a9118a7c9f67de1e237fcc24ffb14df9c67af9",
+          "size": 22608364,
+          "files": { "ffmpeg": "ffmpeg" }
+        },
+        {
+          "url": "https://www.osxexperts.net/ffprobe9arm.zip",
+          "sha256": "0c94fbdd8917022f28115eca512196cf4648732bc9e5db9ec8896c7e519d02aa",
+          "size": 22530006,
+          "files": { "ffprobe": "ffprobe" }
+        }
+      ]
+    },
+    {
+      "rid": "osx-x64",
+      "version": "9.0.2",
+      "publisher": "evermeet.cx (Helmut K. C. Tessarek)",
+      "licence": "GPL-3.0-or-later",
+      "notes": "Intel build, not code-signed.",
+      "downloads": [
+        {
+          "url": "https://evermeet.cx/ffmpeg/ffmpeg-9.0.2.zip",
+          "sha256": "4acc0be580f9b2788029eb7bd4d645ff87968911b0a62aeeb3940d42d54558d5",
+          "size": 26198325,
+          "files": { "ffmpeg": "ffmpeg" }
+        },
+        {
+          "url": "https://evermeet.cx/ffmpeg/ffprobe-9.0.2.zip",
+          "sha256": "24a9c968cd4da72d99c7245e914b921815835eb6dff01d99868031aebaf1d439",
+          "size": 26104193,
+          "files": { "ffprobe": "ffprobe" }
+        }
+      ]
+    }
+  ]
+}

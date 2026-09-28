@@ -88,7 +88,8 @@ public partial class HlsMediaStreamServiceStemTests : IDisposable
 
         using var levels = new FfmpegSongLevelsService(
             NullLogger<FfmpegSongLevelsService>.Instance,
-            new TestOptionsMonitor<HlsMediaStreamService.ServiceOptions>(new HlsMediaStreamService.ServiceOptions { BaseAddress = "http://host:5251" }));
+            new TestOptionsMonitor<HlsMediaStreamService.ServiceOptions>(new HlsMediaStreamService.ServiceOptions { BaseAddress = "http://host:5251" }),
+            new PathFFmpeg());
         var url = levels.Begin(inputs);
         var track = await levels.ReadAsync(url[(url.LastIndexOf('/') + 1)..]);
 

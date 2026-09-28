@@ -1,12 +1,15 @@
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Globalization;
 using FFMpegCore;
+using KHost.Abstractions.Exceptions;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using KHost.Common.Media;
 using KHost.Domain.Services.BurnIn;
+using KHost.Domain.Services.FFmpeg;
 
 namespace KHost.Domain.Services;
 
@@ -33,6 +36,8 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
 
     internal const string PlaylistFileName = "stream.m3u8";
 
+    internal const string FfmpegMissingCode = "KH-FFMPEG-MISSING";
+
     /// <summary>Generous: a first segment normally lands in well under a second.</summary>
     private static readonly TimeSpan PlaylistTimeout = TimeSpan.FromSeconds(15);
 
@@ -40,17 +45,22 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
     private readonly Dictionary<string, Session> _sessions = [];
     private readonly SemaphoreSlim _lock = new(1, 1);
     private readonly IPlayableMediaSourceService _playableSources;
+    private readonly IFFmpegService? _ffmpeg;
     private readonly string _root;
     private int _disposed;
 
     public HlsMediaStreamService(
         ILogger<HlsMediaStreamService> logger,
         IOptionsMonitor<ServiceOptions> options,
-        IPlayableMediaSourceService playableSources)
+        IPlayableMediaSourceService playableSources,
+        IFFmpegService? ffmpeg = null)
         : base(logger)
     {
         _options = options;
         _playableSources = playableSources;
+
+        // Optional so an encode test can run whatever ffmpeg is on PATH without the whole service.
+        _ffmpeg = ffmpeg;
 
         // The root is resolved once and the rest is read live. Moving the directory under running
         // sessions would strand the segments they are already serving, where a changed segment
@@ -308,14 +318,29 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
     {
         Logger.LogDebug("ffmpeg {Arguments}", arguments);
 
-        var process = Process.Start(new ProcessStartInfo(ResolveFfmpegPath(), arguments)
+        Process process;
+
+        try
         {
-            WorkingDirectory = directory,
-            UseShellExecute = false,
-            RedirectStandardError = true,
-            RedirectStandardInput = burnIn is not null,
-            CreateNoWindow = true,
-        }) ?? throw new InvalidOperationException("Failed to start ffmpeg");
+            var ffmpegPath = ResolveFfmpegPath() ?? throw FfmpegMissing(null);
+
+            process = Process.Start(new ProcessStartInfo(ffmpegPath, arguments)
+            {
+                WorkingDirectory = directory,
+                UseShellExecute = false,
+                RedirectStandardError = true,
+                RedirectStandardInput = burnIn is not null,
+                CreateNoWindow = true,
+            }) ?? throw new InvalidOperationException("Failed to start ffmpeg");
+        }
+        catch (Exception ex) when (ex is Win32Exception or KHostException)
+        {
+            // Nothing registered the session yet, so nothing else will sweep its folder.
+            try { Directory.Delete(directory, recursive: true); } catch (IOException) { }
+
+            // Found but not startable (deleted since, or not executable): the same fix applies.
+            throw ex as KHostException ?? FfmpegMissing(ex);
+        }
 
         var session = new Session(id, directory, process) { AdoptedSessionId = adopted, MixedStems = mixedStems };
 
@@ -722,8 +747,8 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
                segment)
            + $" {PlaylistFileName}";
 
-    internal static bool IsGraphicsOnly(string filePath)
-        => Path.GetExtension(filePath).Equals(".cdg", StringComparison.OrdinalIgnoreCase);
+    /// <summary>A loose .cdg: this is asked of what ffmpeg opens, after a zipped pair is written out.</summary>
+    internal static bool IsGraphicsOnly(string filePath) => MediaFormats.IsGraphicsOnlyKaraoke(filePath);
 
     /// <summary>A .cdg holds only graphics; its audio is the same-named .mp3 beside it.</summary>
     /// <remarks>Through <see cref="MediaFormats.FindKaraokeAudio"/>, so the importer, the probe and
@@ -951,19 +976,18 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
             : FormattableString.Invariant($"setpts=PTS/{rate:F6}");
     }
 
-    internal static string ResolveFfmpegPath()
-    {
-        var exeName = OperatingSystem.IsWindows() ? "ffmpeg.exe" : "ffmpeg";
+    /// <summary>Looked for afresh per song, so a copy installed or configured mid-show is used by
+    /// the next one without a restart.</summary>
+    private string? ResolveFfmpegPath() => _ffmpeg is not null
+        ? _ffmpeg.Locate(FFmpegTool.FFmpeg)
+        : FFmpegLocator.Resolve(FFmpegTool.FFmpeg, GlobalFFOptions.Current.BinaryFolder, null,
+            Environment.GetEnvironmentVariable("PATH"), OperatingSystem.IsWindows());
 
-        var folder = GlobalFFOptions.Current.BinaryFolder;
-        if (!string.IsNullOrEmpty(folder))
-        {
-            var candidate = Path.Combine(folder, exeName);
-            if (File.Exists(candidate)) return candidate;
-        }
-
-        return exeName;
-    }
+    private static KHostException FfmpegMissing(Exception? inner) => new(
+        "KHost cannot find FFmpeg, so it cannot play this song.",
+        "Open App Settings and choose Install FFmpeg, or set the FFmpeg directory to a folder that has ffmpeg in it.",
+        FfmpegMissingCode,
+        inner);
 
     public void Dispose()
     {
