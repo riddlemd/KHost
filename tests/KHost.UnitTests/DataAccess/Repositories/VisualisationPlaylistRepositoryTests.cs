@@ -2,6 +2,7 @@ using KHost.Abstractions.Models;
 using KHost.DataAccess.Contexts;
 using KHost.DataAccess.Repositories;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -76,6 +77,54 @@ public class VisualisationPlaylistRepositoryTests : IDisposable
         Assert.Equal((keptId, VisualiserPresetSource.Imported, 80, 150, 250, false),
             (first.Id, first.PresetSource, first.Brightness, first.Saturation, first.Sensitivity, first.DarkenBehindWords));
         Assert.NotEqual(Guid.Empty, loaded.Entries[1].Id);
+    }
+
+    [Fact]
+    public async Task ReplaceEntriesAsync_KeepsABuiltInsOptions()
+    {
+        var playlist = await _repository.CreateAsync(new VisualisationPlaylist { Name = "Night" });
+
+        await _repository.ReplaceEntriesAsync(playlist.Id,
+        [
+            new() { PresetName = "mirrored-bars", PresetSource = VisualiserPresetSource.BuiltIn, BarCount = 64, ColourScheme = VisualiserColourScheme.Single, Colour = "#ff8800" },
+        ]);
+
+        var entry = Assert.Single((await _repository.ReadWithEntriesAsync(playlist.Id))!.Entries);
+        Assert.Equal((VisualiserPresetSource.BuiltIn, "mirrored-bars", 64, VisualiserColourScheme.Single, "#ff8800"),
+            (entry.PresetSource, entry.PresetName, entry.BarCount, entry.ColourScheme, entry.Colour));
+    }
+
+    /// <summary>An entry saved before the built-in options existed reads as a fresh entry would.</summary>
+    [Fact]
+    public async Task Migrate_AnEntryFromBeforeTheBuiltIns_TakesTheDefaults()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"khost-visualisations-old-{Guid.NewGuid():N}.db");
+        var options = new DbContextOptionsBuilder<DefaultContext>().UseSqlite($"Data Source={path}").Options;
+        try
+        {
+            await using (var context = new DefaultContext(options))
+            {
+                await context.GetService<Microsoft.EntityFrameworkCore.Migrations.IMigrator>().MigrateAsync("20260928135813_AddVisualisationPlaylists");
+                // As EF writes a Guid here: upper-case text, which a bound Guid (a blob) is not.
+                var playlistId = Guid.NewGuid().ToString().ToUpperInvariant();
+                await context.Database.ExecuteSqlRawAsync(
+                    "INSERT INTO VisualisationPlaylists (Id, Name, NameFolded, Shuffle) VALUES ({0}, 'Old', 'old', 0)", playlistId);
+                await context.Database.ExecuteSqlRawAsync(
+                    "INSERT INTO VisualisationEntries (Id, VisualisationPlaylistId, Position, PresetSource, PresetName, Brightness, Saturation, Sensitivity, DarkenBehindWords) VALUES ({0}, {1}, 0, 0, '_Mig_049', 100, 100, 100, 1)",
+                    Guid.NewGuid().ToString().ToUpperInvariant(), playlistId);
+
+                await context.Database.MigrateAsync();
+
+                var entry = await context.VisualisationEntries.SingleAsync();
+                Assert.Equal((VisualisationEntry.DefaultBarCount, VisualiserColourScheme.Classic, VisualisationEntry.DefaultColour),
+                    (entry.BarCount, entry.ColourScheme, entry.Colour));
+            }
+        }
+        finally
+        {
+            Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+            try { File.Delete(path); } catch (IOException) { }
+        }
     }
 
     [Fact]

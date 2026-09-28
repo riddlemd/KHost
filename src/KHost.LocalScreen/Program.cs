@@ -269,6 +269,7 @@ internal static class Program
         html = Inline(html, "wake-watch.js");
         html = Inline(html, "butterchurn.min.js");
         html = Inline(html, "visualiser-presets.js");
+        html = Inline(html, "eq-visualisers.js");
         html = Inline(html, "visualiser.js");
         html = Inline(html, "player.js");
 

@@ -470,7 +470,18 @@ namespace KHost.DataAccess.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("TEXT");
 
+                    b.Property<int>("BarCount")
+                        .HasColumnType("INTEGER");
+
                     b.Property<int>("Brightness")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Colour")
+                        .IsRequired()
+                        .HasMaxLength(7)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("ColourScheme")
                         .HasColumnType("INTEGER");
 
                     b.Property<bool>("DarkenBehindWords")

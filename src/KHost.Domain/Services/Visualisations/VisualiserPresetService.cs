@@ -38,6 +38,16 @@ public sealed class VisualiserPresetService : IVisualiserPresetService
         "Unchained & Rovastar - Wormhole Pillars (Hall of Shadows mix)",
     ];
 
+    /// <summary>The host's own drawings, by the names <c>screen-ui/eq-visualisers.js</c> holds them
+    /// under, with what a host is shown. Change one and change the other; a test holds them together.</summary>
+    internal static readonly IReadOnlyList<(string Name, string Title)> BuiltIns =
+    [
+        ("spectrum-bars", "Spectrum bars"),
+        ("mirrored-bars", "Mirrored bars"),
+        ("oscilloscope", "Oscilloscope"),
+        ("vu-meters", "Twin VU meters"),
+    ];
+
     private static readonly string[] EquationFields =
         ["init_eqs_str", "frame_eqs_str", "pixel_eqs_str", "warp", "comp"];
 
@@ -57,8 +67,9 @@ public sealed class VisualiserPresetService : IVisualiserPresetService
 
     public IReadOnlyList<VisualiserPreset> ReadAll()
     {
-        var presets = BundledNames
-            .Select(name => new VisualiserPreset { Name = name, Source = VisualiserPresetSource.Bundled })
+        var presets = BuiltIns
+            .Select(builtIn => new VisualiserPreset { Name = builtIn.Name, Title = builtIn.Title, Source = VisualiserPresetSource.BuiltIn })
+            .Concat(BundledNames.Select(name => new VisualiserPreset { Name = name, Source = VisualiserPresetSource.Bundled }))
             .ToList();
 
         if (!Directory.Exists(_directory)) return presets;

@@ -341,6 +341,18 @@ public sealed class SetVisualiserCommand : ScreenCommandBase
     /// <summary>One of the presets the screen ships, by name.</summary>
     public string? PresetName { get; init; }
 
+    /// <summary>One of the host's own drawings, by name, drawn in place of a preset.</summary>
+    public string? BuiltIn { get; init; }
+
+    /// <summary>How many bars a built-in bar style draws.</summary>
+    public int BarCount { get; init; } = VisualisationEntry.DefaultBarCount;
+
+    /// <summary>How a built-in drawing is coloured.</summary>
+    public VisualiserColourScheme ColourScheme { get; init; }
+
+    /// <summary>The colour for <see cref="VisualiserColourScheme.Single"/>, as <c>#rrggbb</c>.</summary>
+    public string? Colour { get; init; }
+
     /// <summary>Where an imported preset's file is fetched from.</summary>
     /// <remarks>Changes when the file is re-imported, so the same URL again keeps the picture
     /// running and a new one loads the new file.</remarks>

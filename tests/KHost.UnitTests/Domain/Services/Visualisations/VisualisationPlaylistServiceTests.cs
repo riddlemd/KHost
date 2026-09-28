@@ -106,6 +106,28 @@ public class VisualisationPlaylistServiceTests
     }
 
     [Fact]
+    public async Task ReplaceEntriesAsync_HoldsTheBuiltInOptionsToWhatTheScreenDraws()
+    {
+        IReadOnlyList<VisualisationEntry>? saved = null;
+        await _repository.ReplaceEntriesAsync(_playlist.Id, Arg.Do<IReadOnlyList<VisualisationEntry>>(entries => saved = entries));
+
+        await Service().ReplaceEntriesAsync(_playlist.Id,
+        [
+            new() { PresetName = "a", BarCount = 20, ColourScheme = (VisualiserColourScheme)9, Colour = "red" },
+            new() { PresetName = "b", BarCount = 50, ColourScheme = VisualiserColourScheme.Single, Colour = "#AABBCC" },
+            new() { PresetName = "c", BarCount = 32, ColourScheme = VisualiserColourScheme.Theme, Colour = "#12345" },
+        ]);
+
+        Assert.Equal(
+            [
+                (16, VisualiserColourScheme.Classic, VisualisationEntry.DefaultColour),
+                (64, VisualiserColourScheme.Single, "#aabbcc"),
+                (32, VisualiserColourScheme.Theme, VisualisationEntry.DefaultColour),
+            ],
+            saved!.Select(e => (e.BarCount, e.ColourScheme, e.Colour)));
+    }
+
+    [Fact]
     public async Task ReplaceEntriesAsync_Announces()
     {
         var raised = 0;

@@ -28,6 +28,23 @@ public enum VisualiserPresetSource
 
     /// <summary>A preset file the host imported for itself.</summary>
     Imported,
+
+    /// <summary>One of the host's own drawings (a spectrum analyser, meters), drawn without a
+    /// preset; <see cref="VisualisationEntry.BarCount"/> and the colour settings apply to these only.</summary>
+    BuiltIn,
+}
+
+/// <summary>How a built-in visualisation is coloured.</summary>
+public enum VisualiserColourScheme
+{
+    /// <summary>Green through yellow to red as a level rises, as a hi-fi's meters are.</summary>
+    Classic,
+
+    /// <summary>The screen's own accent, the colour sung words take when a timing sets none.</summary>
+    Theme,
+
+    /// <summary><see cref="VisualisationEntry.Colour"/> throughout.</summary>
+    Single,
 }
 
 /// <summary>One line in a <see cref="VisualisationPlaylist"/>: a preset and how it is drawn.</summary>
@@ -43,6 +60,15 @@ public class VisualisationEntry : RepositoryModel
 
     /// <summary>The lowest and highest <see cref="Sensitivity"/>.</summary>
     public const int MinSensitivity = 0, MaxSensitivity = 300;
+
+    /// <summary>The <see cref="BarCount"/> an entry starts with.</summary>
+    public const int DefaultBarCount = 32;
+
+    /// <summary>The <see cref="Colour"/> an entry starts with.</summary>
+    public const string DefaultColour = "#33ccff";
+
+    /// <summary>The bar counts on offer; any other is taken as the nearest on save.</summary>
+    public static readonly IReadOnlyList<int> BarCounts = [16, 32, 64];
 
     /// <summary>The playlist this entry belongs to.</summary>
     public Guid VisualisationPlaylistId { get; set; }
@@ -69,6 +95,16 @@ public class VisualisationEntry : RepositoryModel
 
     /// <summary>Whether each line of words is drawn on a dark band so it reads over the picture.</summary>
     public bool DarkenBehindWords { get; set; } = true;
+
+    /// <summary>How many bars a built-in bar style draws, one of <see cref="BarCounts"/>.</summary>
+    public int BarCount { get; set; } = DefaultBarCount;
+
+    /// <summary>How a built-in visualisation is coloured.</summary>
+    public VisualiserColourScheme ColourScheme { get; set; }
+
+    /// <summary>The colour for <see cref="VisualiserColourScheme.Single"/>, as <c>#rrggbb</c>;
+    /// anything else is taken as <see cref="DefaultColour"/> on save.</summary>
+    public string Colour { get; set; } = DefaultColour;
 }
 
 /// <summary>A visualiser preset a host can put in a playlist.</summary>
@@ -77,8 +113,11 @@ public sealed class VisualiserPreset
     /// <summary>What an entry names it by; unique within its <see cref="Source"/>.</summary>
     public required string Name { get; init; }
 
-    /// <summary>Shipped or imported.</summary>
+    /// <summary>Built in, shipped or imported.</summary>
     public required VisualiserPresetSource Source { get; init; }
+
+    /// <summary>What a host is shown where it differs from <see cref="Name"/>; null shows the name.</summary>
+    public string? Title { get; init; }
 
     /// <summary>When an imported preset was last written, UTC; null for a shipped one.</summary>
     /// <remarks>A re-import under the same name moves it, so a display can tell the file changed.</remarks>

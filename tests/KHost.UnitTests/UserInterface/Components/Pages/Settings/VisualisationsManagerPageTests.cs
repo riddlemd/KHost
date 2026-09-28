@@ -39,6 +39,9 @@ public class VisualisationsManagerPageTests : BunitContext
             new VisualiserPreset { Name = "Rovastar - Oozing Resistance", Source = VisualiserPresetSource.Bundled },
             new VisualiserPreset { Name = "_Mig_049", Source = VisualiserPresetSource.Bundled },
             new VisualiserPreset { Name = "My Swirl", Source = VisualiserPresetSource.Imported, ImportedUtc = DateTime.UtcNow },
+            // Last here, so a select that lists them first does so by grouping, not by input order.
+            new VisualiserPreset { Name = "spectrum-bars", Title = "Spectrum bars", Source = VisualiserPresetSource.BuiltIn },
+            new VisualiserPreset { Name = "oscilloscope", Title = "Oscilloscope", Source = VisualiserPresetSource.BuiltIn },
         ]);
         _venues.ReadSelectedVenueAsync().Returns(new Venue { Name = "The Room" });
         _dialogs.ShowConfirmationAsync(Arg.Any<string>(), Arg.Do<Func<Task>>(confirm => _confirm = confirm), Arg.Any<string>(), Arg.Any<string>())
@@ -121,6 +124,99 @@ public class VisualisationsManagerPageTests : BunitContext
             _ => entry.Sensitivity,
         };
         Assert.Equal(int.Parse(value), saved);
+    }
+
+    [Fact]
+    public void ThePresetSelect_ListsTheBuiltInsFirstByTitle()
+    {
+        var cut = Render<VisualisationsManagerPage>();
+        cut.Find("#visualisation-add-playlist").Click();
+
+        var groups = cut.FindAll("#visualisation-add-preset optgroup");
+
+        Assert.Equal(["Built-in", "MilkDrop presets", "Imported"], groups.Select(g => g.GetAttribute("label")));
+        Assert.Equal(["Spectrum bars", "Oscilloscope"], groups[0].QuerySelectorAll("option").Select(o => o.TextContent));
+        Assert.Equal(["2:spectrum-bars", "2:oscilloscope"], groups[0].QuerySelectorAll("option").Select(o => o.GetAttribute("value")));
+    }
+
+    private async Task<IRenderedComponent<VisualisationsManagerPage>> WithBuiltInAsync(string name)
+    {
+        var cut = Render<VisualisationsManagerPage>();
+        cut.Find("#visualisation-add-playlist").Click();
+        cut.Find("#visualisation-add-preset").Change($"2:{name}");
+        cut.Find("#visualisation-add-entry").Click();
+
+        var entry = Assert.Single((await StoredAsync()).Entries);
+        Assert.Equal((VisualiserPresetSource.BuiltIn, name), (entry.PresetSource, entry.PresetName));
+        return cut;
+    }
+
+    [Fact]
+    public async Task ABuiltIn_IsListedByItsTitle()
+    {
+        var cut = await WithBuiltInAsync("spectrum-bars");
+
+        cut.WaitForAssertion(() => Assert.Contains("Spectrum bars", cut.Find(".kh-visualisations__entries").TextContent));
+    }
+
+    [Fact]
+    public async Task ABarCount_IsSavedOnTheEntry()
+    {
+        var cut = await WithBuiltInAsync("spectrum-bars");
+
+        cut.Find("#visualisation-bars").Change("64");
+
+        Assert.Equal(64, Assert.Single((await StoredAsync()).Entries).BarCount);
+    }
+
+    [Fact]
+    public async Task APalette_IsSavedOnTheEntry()
+    {
+        var cut = await WithBuiltInAsync("spectrum-bars");
+
+        cut.Find("#visualisation-palette").Change("Theme");
+
+        Assert.Equal(VisualiserColourScheme.Theme, Assert.Single((await StoredAsync()).Entries).ColourScheme);
+    }
+
+    [Fact]
+    public async Task OneColour_OffersAPickerAndSavesWhatIsPicked()
+    {
+        var cut = await WithBuiltInAsync("spectrum-bars");
+        Assert.Empty(cut.FindAll("#visualisation-colour"));
+
+        cut.Find("#visualisation-palette").Change("Single");
+        cut.Find("#visualisation-colour").Change("#ff0000");
+
+        var entry = Assert.Single((await StoredAsync()).Entries);
+        Assert.Equal((VisualiserColourScheme.Single, "#ff0000"), (entry.ColourScheme, entry.Colour));
+    }
+
+    /// <summary>A bar count means nothing to a line or to a preset, so neither offers one.</summary>
+    [Fact]
+    public async Task OnlyBarStylesOfferABarCount_AndOnlyBuiltInsAPalette()
+    {
+        var cut = await WithBuiltInAsync("oscilloscope");
+        Assert.Empty(cut.FindAll("#visualisation-bars"));
+        Assert.Single(cut.FindAll("#visualisation-palette"));
+
+        cut.Find("#visualisation-preset").Change("0:_Mig_049");
+
+        cut.WaitForAssertion(() => Assert.Empty(cut.FindAll("#visualisation-palette")));
+    }
+
+    [Fact]
+    public async Task ThePreview_IsToldToDrawTheBuiltInWithItsStyle()
+    {
+        var cut = await WithBuiltInAsync("spectrum-bars");
+
+        cut.Find("#visualisation-bars").Change("16");
+
+        cut.WaitForAssertion(() => Assert.Contains(JSInterop.Invocations, call =>
+            call.Identifier == "khVisualiserPreview.show"
+            && call.Arguments[1]!.ToString()!.Contains("builtIn = spectrum-bars")
+            && call.Arguments[1]!.ToString()!.Contains("barCount = 16")
+            && call.Arguments[1]!.ToString()!.Contains("presetName = ,")));
     }
 
     [Fact]

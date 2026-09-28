@@ -70,6 +70,17 @@
         accent-color: var(--kh-primary);
     }
 
+    &__choice {
+        flex: 0 1 16rem;
+        min-width: 0;
+    }
+
+    &__colour {
+        flex: 0 0 4rem;
+        height: 2.25rem;
+        padding: 0.125rem;
+    }
+
     &__value {
         flex: 0 0 3rem;
         text-align: right;

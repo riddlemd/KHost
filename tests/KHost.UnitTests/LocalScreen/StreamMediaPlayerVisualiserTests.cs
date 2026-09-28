@@ -1,4 +1,5 @@
 using System.Text.Json;
+using KHost.Abstractions.Models;
 using KHost.IPC.SignalR.Contracts;
 using KHost.LocalScreen;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -38,6 +39,22 @@ public class StreamMediaPlayerVisualiserTests
         Assert.Equal(80, message.GetProperty("brightness").GetInt32());
         Assert.Equal(150, message.GetProperty("saturation").GetInt32());
         Assert.Equal(250, message.GetProperty("sensitivity").GetInt32());
+    }
+
+    [Fact]
+    public void SetVisualiser_PassesOnABuiltInAndItsStyle()
+    {
+        _player.SetVisualiser(new SetVisualiserCommand
+        {
+            Enabled = true, BuiltIn = "spectrum-bars", BarCount = 16, ColourScheme = VisualiserColourScheme.Theme, Colour = "#abcdef",
+        });
+
+        var message = JsonDocument.Parse(Assert.Single(_sentToPage)).RootElement;
+
+        Assert.Equal("spectrum-bars", message.GetProperty("builtIn").GetString());
+        Assert.Equal(16, message.GetProperty("barCount").GetInt32());
+        Assert.Equal("theme", message.GetProperty("colourScheme").GetString());
+        Assert.Equal("#abcdef", message.GetProperty("colour").GetString());
     }
 
     [Theory]

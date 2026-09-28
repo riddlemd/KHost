@@ -112,5 +112,12 @@ public class VisualisationPlaylistService : BaseRepositoryService<VisualisationP
         Saturation = Math.Clamp(entry.Saturation, VisualisationEntry.MinSaturation, VisualisationEntry.MaxSaturation),
         Sensitivity = Math.Clamp(entry.Sensitivity, VisualisationEntry.MinSensitivity, VisualisationEntry.MaxSensitivity),
         DarkenBehindWords = entry.DarkenBehindWords,
+        BarCount = VisualisationEntry.BarCounts.MinBy(count => Math.Abs(count - entry.BarCount)),
+        ColourScheme = Enum.IsDefined(entry.ColourScheme) ? entry.ColourScheme : VisualiserColourScheme.Classic,
+        Colour = IsColour(entry.Colour) ? entry.Colour.ToLowerInvariant() : VisualisationEntry.DefaultColour,
     };
+
+    /// <summary>Whether a colour is <c>#rrggbb</c>, the one form a colour input and the screen share.</summary>
+    private static bool IsColour(string? colour)
+        => colour is { Length: 7 } && colour[0] == '#' && colour.Skip(1).All(Uri.IsHexDigit);
 }

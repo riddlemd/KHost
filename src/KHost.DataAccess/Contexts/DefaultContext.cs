@@ -164,6 +164,10 @@ internal class DefaultContext : DbContext
                 .IsRequired()
                 .HasMaxLength(255);
 
+            entity.Property(e => e.Colour)
+                .IsRequired()
+                .HasMaxLength(7);
+
             entity.HasIndex(e => e.VisualisationPlaylistId);
         });
 

@@ -672,8 +672,19 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
         // Picked only once the song is known to draw one, so a video does not use up a turn.
         if (await EntryForSongAsync(playlists, playlistId) is not { } entry) return VisualiserOff;
 
-        string? name = null, url = null;
-        if (entry.PresetSource == VisualiserPresetSource.Imported)
+        string? name = null, url = null, builtIn = null;
+        if (entry.PresetSource == VisualiserPresetSource.BuiltIn)
+        {
+            if (!VisualiserPresetService.BuiltIns.Any(b => b.Name == entry.PresetName))
+            {
+                _logger.LogWarning("The visualisation names a built-in drawing '{Preset}' the host does not have; '{Title}' plays over black",
+                    entry.PresetName, song.Media.Title);
+                return VisualiserOff;
+            }
+
+            builtIn = entry.PresetName;
+        }
+        else if (entry.PresetSource == VisualiserPresetSource.Imported)
         {
             if (ImportedPresetUrl(entry.PresetName) is not { } imported)
             {
@@ -694,6 +705,10 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
             Enabled = true,
             PresetName = name,
             PresetUrl = url,
+            BuiltIn = builtIn,
+            BarCount = entry.BarCount,
+            ColourScheme = entry.ColourScheme,
+            Colour = entry.Colour,
             Brightness = entry.Brightness,
             Saturation = entry.Saturation,
             Sensitivity = entry.Sensitivity,

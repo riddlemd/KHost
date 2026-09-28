@@ -2,15 +2,16 @@ using KHost.Abstractions.Models;
 
 namespace KHost.Abstractions.Services;
 
-/// <summary>The visualiser presets a host can put in a playlist: those the host ships, and those it
-/// imported for itself.</summary>
+/// <summary>The visualiser presets a host can put in a playlist: the host's own drawings, the presets
+/// it ships, and those it imported for itself.</summary>
 /// <remarks>Host-owned; a plugin has nothing to implement. An imported preset is a butterchurn
 /// preset file, and runs as code on whatever draws it, so importing one is trusting it. Every import
 /// and delete announces <see cref="KHost.Abstractions.Messaging.Messages.VisualiserPresetsChanged"/>.
 /// </remarks>
 public interface IVisualiserPresetService
 {
-    /// <summary>Every preset on offer: the shipped ones, then the imported ones by name.</summary>
+    /// <summary>Every preset on offer: the built-in drawings, the shipped presets, then the imported
+    /// ones by name.</summary>
     IReadOnlyList<VisualiserPreset> ReadAll();
 
     /// <summary>Stores a preset file under a name taken from <paramref name="fileName"/>, replacing
