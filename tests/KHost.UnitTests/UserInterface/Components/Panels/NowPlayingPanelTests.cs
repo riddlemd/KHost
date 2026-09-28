@@ -123,6 +123,35 @@ public class NowPlayingPanelTests : BunitContext
         Assert.Single(cut.FindAll(".kh-now-playing__lanes--by-voice .kh-now-playing__played"));
     }
 
+    /// <summary>Colour-blind friendly lyrics move the singers' colours mid-song, and the lanes are
+    /// drawn in them.</summary>
+    [Fact]
+    public void Lanes_TheLyricAdjustmentsChange_RedrawInTheNewColours()
+    {
+        var media = Song("duet.mp4");
+        var moved = Duet() with { Pages = [.. Duet().Pages.Select(page => page with { Active = new LyricColor(0xFF, 0x00, 0x00) })] };
+        _lyrics.GetTimedLyricsAsync(media.FilePath, Arg.Any<CancellationToken>()).Returns(Duet(), moved);
+        Load(Performance(), media);
+
+        var cut = Render<NowPlayingPanel>();
+        _broker.Announce(new TimedLyricsSettingsChanged());
+
+        cut.WaitForAssertion(() => Assert.All(
+            cut.FindAll(".kh-now-playing__lanes--by-voice .kh-now-playing__lane-span"),
+            span => Assert.Equal("#FF0000", span.GetAttribute("fill"))));
+    }
+
+    /// <summary>Beside the key-and-tempo trigger, and there before any song is: it is a setting
+    /// for the night, not for one song.</summary>
+    [Fact]
+    public void Header_OffersTheColourBlindLyricsToggle_NextToTheSongControls_WithNoSongLoaded()
+    {
+        var cut = Render<NowPlayingPanel>();
+
+        var toggle = cut.Find(".kh-card__header .kh-song-controls + .kh-lyric-colours-toggle");
+        Assert.False(toggle.HasAttribute("disabled"));
+    }
+
     /// <summary>A lane the song gave no colour must not carry an empty fill attribute, which would
     /// paint it black over the theme's colour.</summary>
     [Fact]

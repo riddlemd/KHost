@@ -1,0 +1,32 @@
+// Sized and coloured as the key-and-tempo trigger beside it. On is carried by the filled glyph and
+// a drawn border and fill, never by hue alone: a theme may make any accent a neutral.
+.kh-lyric-colours-toggle {
+    display: flex;
+    align-items: center;
+    margin-left: 2px;
+    padding: 1px 3px;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: var(--kh-radius);
+    color: var(--kh-text-secondary);
+    cursor: pointer;
+    transition: color var(--kh-transition), background var(--kh-transition), border-color var(--kh-transition);
+
+    &:hover:not(:disabled) { color: var(--kh-text); }
+    &:focus-visible { outline: 2px solid var(--kh-success); outline-offset: 1px; }
+
+    &:disabled {
+        opacity: 0.35;
+        cursor: default;
+    }
+
+    &--on {
+        color: var(--kh-text);
+        background: var(--kh-bg-elevated);
+        border-color: var(--kh-border-bright);
+    }
+
+    ::deep .kh-lyric-colours-toggle__icon {
+        font-size: 0.9em;
+    }
+}

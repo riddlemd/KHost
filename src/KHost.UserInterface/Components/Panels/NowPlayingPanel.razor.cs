@@ -46,6 +46,9 @@ public partial class NowPlayingPanel : IDisposable
             OnStateChanged(null, EventArgs.Empty);
         }));
 
+        // The lanes take the words' own colours, which the adjustments can move mid-song.
+        _subscriptions.Add(Broker.Subscribe<TimedLyricsSettingsChanged>(_ => InvokeAsync(() => RefreshLanesAsync(reread: true))));
+
         // The only panel that takes the position clock: it draws the playhead, and a redraw is all
         // it does with either event.
         PlaybackService.PositionChanged += OnStateChanged;
@@ -87,15 +90,22 @@ public partial class NowPlayingPanel : IDisposable
         await PlaybackService.SeekAsync(duration * fraction);
     }
 
-    /// <summary>Works out who sings where when the song changes, and at no other time.</summary>
-    private async Task RefreshLanesAsync()
+    /// <summary>Works out who sings where when the song changes, or when its words are adjusted.</summary>
+    private Task RefreshLanesAsync() => RefreshLanesAsync(reread: false);
+
+    private async Task RefreshLanesAsync(bool reread)
     {
         var media = PlaybackService?.CurrentMedia;
-        if (media?.Id == _lanesMediaId) return;
+        var sameSong = media?.Id == _lanesMediaId;
+        if (sameSong && !reread) return;
 
-        _lanesMediaId = media?.Id;
-        _lanes = [];
-        _oneLane = null;
+        // A re-read keeps the old lanes up until the new ones are in, rather than blinking them out.
+        if (!sameSong)
+        {
+            _lanesMediaId = media?.Id;
+            _lanes = [];
+            _oneLane = null;
+        }
 
         if (media is null || LyricsService is null) return;
 
