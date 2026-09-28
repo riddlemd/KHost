@@ -41,6 +41,7 @@ public class VisualisationsManagerPageTests : BunitContext
             new VisualiserPreset { Name = "My Swirl", Source = VisualiserPresetSource.Imported, ImportedUtc = DateTime.UtcNow },
             // Last here, so a select that lists them first does so by grouping, not by input order.
             new VisualiserPreset { Name = "spectrum-bars", Title = "Spectrum bars", Source = VisualiserPresetSource.BuiltIn },
+            new VisualiserPreset { Name = "ambient-embers", Title = "Rising embers", Source = VisualiserPresetSource.BuiltIn },
             new VisualiserPreset { Name = "oscilloscope", Title = "Oscilloscope", Source = VisualiserPresetSource.BuiltIn },
         ]);
         _venues.ReadSelectedVenueAsync().Returns(new Venue { Name = "The Room" });
@@ -134,9 +135,42 @@ public class VisualisationsManagerPageTests : BunitContext
 
         var groups = cut.FindAll("#visualisation-add-preset optgroup");
 
-        Assert.Equal(["Built-in", "MilkDrop presets", "Imported"], groups.Select(g => g.GetAttribute("label")));
+        Assert.Equal(["Built-in", "Ambient", "MilkDrop presets", "Imported"], groups.Select(g => g.GetAttribute("label")));
         Assert.Equal(["Spectrum bars", "Oscilloscope"], groups[0].QuerySelectorAll("option").Select(o => o.TextContent));
         Assert.Equal(["2:spectrum-bars", "2:oscilloscope"], groups[0].QuerySelectorAll("option").Select(o => o.GetAttribute("value")));
+        Assert.Equal(["Rising embers"], groups[1].QuerySelectorAll("option").Select(o => o.TextContent));
+        Assert.Equal(["2:ambient-embers"], groups[1].QuerySelectorAll("option").Select(o => o.GetAttribute("value")));
+    }
+
+    /// <summary>A scene has no bars, and its classic palette is a mix of colours, not a meter's.</summary>
+    [Fact]
+    public async Task AnAmbientScene_OffersAPaletteButNoBarCount()
+    {
+        var cut = await WithBuiltInAsync("ambient-embers");
+
+        Assert.Empty(cut.FindAll("#visualisation-bars"));
+        var classic = cut.Find($"#visualisation-palette option[value={VisualiserColourScheme.Classic}]").TextContent;
+        Assert.Contains("mix of colours", classic);
+
+        cut.Find("#visualisation-palette").Change("Theme");
+        Assert.Equal(VisualiserColourScheme.Theme, Assert.Single((await StoredAsync()).Entries).ColourScheme);
+    }
+
+    [Fact]
+    public async Task AnAnalyser_KeepsItsGreenToRedWording()
+    {
+        var cut = await WithBuiltInAsync("spectrum-bars");
+
+        Assert.Contains("green to red", cut.Find($"#visualisation-palette option[value={VisualiserColourScheme.Classic}]").TextContent);
+    }
+
+    [Fact]
+    public async Task ThePreview_IsToldToDrawAnAmbientScene()
+    {
+        await WithBuiltInAsync("ambient-embers");
+
+        Assert.Contains(JSInterop.Invocations, call =>
+            call.Identifier == "khVisualiserPreview.show" && call.Arguments[1]!.ToString()!.Contains("builtIn = ambient-embers"));
     }
 
     private async Task<IRenderedComponent<VisualisationsManagerPage>> WithBuiltInAsync(string name)

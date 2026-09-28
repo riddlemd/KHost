@@ -1,9 +1,18 @@
 @using KHost.Abstractions.Models
 
-@if (Presets.Any(p => p.Source == VisualiserPresetSource.BuiltIn))
+@if (Analysers.Any())
 {
     <optgroup label="Built-in">
-        @foreach (var preset in Presets.Where(p => p.Source == VisualiserPresetSource.BuiltIn))
+        @foreach (var preset in Analysers)
+        {
+            <option value="@VisualisationsManagerPage.PresetKey(preset.Source, preset.Name)">@(preset.Title ?? preset.Name)</option>
+        }
+    </optgroup>
+}
+@if (Ambient.Any())
+{
+    <optgroup label="Ambient">
+        @foreach (var preset in Ambient)
         {
             <option value="@VisualisationsManagerPage.PresetKey(preset.Source, preset.Name)">@(preset.Title ?? preset.Name)</option>
         }

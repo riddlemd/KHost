@@ -206,6 +206,23 @@ public class LocalScreenVisualiserTests
     }
 
     [Fact]
+    public async Task LoadAsync_AnAmbientScene_SendsItByNameWithItsPalette()
+    {
+        var entry = _playlist.Entries[0];
+        entry.PresetSource = VisualiserPresetSource.BuiltIn;
+        entry.PresetName = "ambient-embers";
+        entry.ColourScheme = VisualiserColourScheme.Theme;
+        Playing("/songs/africa.song");
+        using var provider = Provider();
+
+        await provider.LoadAsync(Stems);
+
+        var sent = Last();
+        Assert.True(sent.Enabled);
+        Assert.Equal(("ambient-embers", null, null, VisualiserColourScheme.Theme), (sent.BuiltIn, sent.PresetName, sent.PresetUrl, sent.ColourScheme));
+    }
+
+    [Fact]
     public async Task LoadAsync_ABuiltInTheHostDoesNotHave_LeavesBlack()
     {
         _playlist.Entries[0].PresetSource = VisualiserPresetSource.BuiltIn;
