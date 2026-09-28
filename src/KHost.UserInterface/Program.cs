@@ -3,9 +3,6 @@ using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.Extensions.Options;
 using KHost.Domain.Services;
-using KHost.Abstractions.Interactions;
-using KHost.Abstractions.Interactions.Requests;
-using KHost.Abstractions.Models;
 using KHost.Abstractions.Models.Plugins;
 using KHost.Abstractions.Services;
 using KHost.IPC.SignalR.Contracts;
@@ -16,9 +13,7 @@ using KHost.ServiceDefaults;
 using KHost.Telemetry;
 using KHost.UserInterface.Components;
 using KHost.UserInterface.Endpoints;
-using KHost.UserInterface.Interactions;
 using KHost.UserInterface.Middleware;
-using KHost.UserInterface.Interactions.Handlers;
 using KHost.UserInterface.Services;
 using KHost.UserInterface.Auth;
 using KHost.UserInterface.Http;
@@ -27,7 +22,6 @@ using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Mvc;
 using Serilog;
 using Serilog.Events;
-using KHost.UserInterface.Services.RedirectProviders;
 using KHost.Domain.Services.Displays.LocalScreen;
 using KHost.UserInterface.Startup;
 
@@ -78,44 +72,8 @@ internal static class Program
             ContentRootPath = AppContext.BaseDirectory,
         });
 
-        // The window locks itself down (no reload, no back, no inspector); a browser tab does not.
-        builder.Configuration.AddInMemoryCollection(
-            [new KeyValuePair<string, string?>(NativeShellKey, (!headless).ToString())]);
-
-        // The App Settings page writes this overlay; registered last, it wins over the
-        // deployment defaults, and reload-on-change lets IOptionsMonitor bindings apply live.
-        builder.Configuration.AddJsonFile(
-            Path.Combine(AppContext.BaseDirectory, "cache", AppSettingsService.OverlayFileName),
-            optional: true,
-            reloadOnChange: true);
-
-        var logDirectory = Path.Combine(AppContext.BaseDirectory, "logs");
-        Directory.CreateDirectory(logDirectory);
-        KHostLogFiles.SweepStaleLogs(logDirectory);
-
-        var logLevel = HostLogLevel.Read(builder.Configuration);
-        var frameworkLogLevel = HostLogLevel.ToSerilog(HostLogLevel.ForFramework(logLevel));
-
-        builder.Host.UseSerilog((_, _, cfg) => cfg
-            .MinimumLevel.Is(HostLogLevel.ToSerilog(logLevel))
-            .MinimumLevel.Override("Microsoft", frameworkLogLevel)
-            .MinimumLevel.Override("Microsoft.AspNetCore", frameworkLogLevel)
-            .WriteTo.Console()
-            .WriteTo.File(
-                path: Path.Combine(logDirectory, KHostLogFiles.HostFileName()),
-                // Infinite: the filename already carries the launch timestamp, so a date-rolled
-                // segment on top of it would just repeat today's date in the name.
-                rollingInterval: RollingInterval.Infinite,
-                rollOnFileSizeLimit: true,
-                fileSizeLimitBytes: 10_000_000,
-                retainedFileCountLimit: null,
-                outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] {Message:lj}{NewLine}{Exception}"));
-
-        // A sweep at launch never fires again for a host left running for weeks.
-        builder.Services.AddHostedService(_ => new LogRetentionHostedService(logDirectory));
-
-        // A screen launched while the host is raised is raised with it, unless LocalScreen:LogLevel says otherwise.
-        builder.Services.PostConfigure<LocalScreenProvider.ServiceOptions>(options => options.LogLevel ??= logLevel.ToString());
+        builder.AddKHostConfiguration(headless);
+        builder.AddKHostLogging();
 
         builder.AddServiceDefaults();
 
@@ -132,46 +90,9 @@ internal static class Program
         builder.Services.AddRazorComponents()
             .AddInteractiveServerComponents();
 
-        builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
-            .AddCookie(options =>
-            {
-                options.Cookie.Name = "khost.auth";
-                options.LoginPath = "/login";
-                options.ExpireTimeSpan = TimeSpan.FromHours(12);
-                options.SlidingExpiration = true;
-            });
-
-        // One policy per permission, admins passing all of them, so a page can gate itself with
-        // [Authorize(Policy = nameof(KHostPermission.X))] and no gate needs its own logic.
-        var authorization = builder.Services.AddAuthorizationBuilder();
-        foreach (var permission in Enum.GetValues<KHostPermission>())
-        {
-            authorization.AddPolicy(permission.ToString(), policy =>
-                policy.RequireAssertion(context =>
-                    context.User.IsInRole(KHostClaimsFactory.AdminRole)
-                    || context.User.HasClaim(KHostClaimsFactory.PermissionClaim, permission.ToString())));
-        }
-
-        builder.Services.AddCascadingAuthenticationState();
-
-        builder.Services.AddScoped<IPermissionService, PermissionService>();
-        // Scoped, not singleton: a control's pick belongs to the circuit that made it, and a
-        // reconnecting browser is a new session rather than one resuming yesterday's choices.
-        builder.Services.AddScoped<IControlState, ControlState>();
-        builder.Services.AddSingleton<IAppSettingsService, AppSettingsService>();
-        builder.Services.AddSingleton<IThemeService, ThemeService>();
-        builder.Services.AddSingleton<IAppInfoService, AppInfoService>();
-        builder.Services.AddSingleton<IExternalLinkService, ExternalLinkService>();
-        builder.Services.AddSingleton<IDialogService, DialogService>();
-        builder.Services.AddSingleton<IStartupRedirectProvider, SetupRedirectProvider>();
-        builder.Services.AddSingleton<IStartupRedirectProvider, CliStartupRedirectProvider>();
-
-        builder.Services.AddSingleton<IInteractionDispatcher, DialogInteractionDispatcher>();
-        builder.Services.AddSingleton<IInteractionHandler<EditMediaRequest, Media?>, EditMediaDialogHandler>();
-        builder.Services.AddSingleton<IInteractionHandler<ShowLyricsRequest>, ShowLyricsDialogHandler>();
-        builder.Services.AddSingleton<IInteractionHandler<ShowPluginTableRequest>, ShowPluginTableDialogHandler>();
-        builder.Services.AddSingleton<IInteractionHandler<ConfirmDuplicateSongRequest, bool>, ConfirmDuplicateSongHandler>();
-        builder.Services.AddSingleton<IInteractionHandler<TextPromptRequest, IReadOnlyDictionary<string, string>?>, TextPromptDialogHandler>();
+        builder.Services.AddKHostAuthentication();
+        builder.Services.AddUserInterfaceServices();
+        builder.Services.AddInteractionHandlers();
 
         var app = builder.Build();
 
