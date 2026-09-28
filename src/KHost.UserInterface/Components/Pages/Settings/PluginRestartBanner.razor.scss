@@ -1,0 +1,9 @@
+.kh-plugins-manager__restart {
+    display: flex;
+    align-items: center;
+    gap: 0.5em;
+    padding: 0.6em 1em;
+    background: var(--kh-warning-subtle);
+    color: var(--kh-warning);
+    border-bottom: 1px solid var(--kh-border);
+}

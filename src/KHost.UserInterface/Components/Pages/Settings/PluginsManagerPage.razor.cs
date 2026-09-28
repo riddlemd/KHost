@@ -81,11 +81,6 @@ public partial class PluginsManagerPage : IDisposable
     private bool IsDirty(string pluginId)
         => _drafts.TryGetValue(pluginId, out var draft) && draft.IsDirty;
 
-    private bool WasSaved(string pluginId) => _drafts.TryGetValue(pluginId, out var draft) && draft.Saved;
-
-    private static bool CanEnable(DiscoveredPlugin plugin, bool enabled)
-        => plugin.Status is not (PluginStatus.Errored or PluginStatus.Incompatible) || enabled;
-
     private async Task SetEnabledAsync(string pluginId, bool enabled)
     {
         await PluginsService.SetEnabledAsync(pluginId, enabled);
@@ -115,14 +110,6 @@ public partial class PluginsManagerPage : IDisposable
             ExternalLinks.Open(directory);
     }
 
-    /// <summary>An unknown style falls back to primary, not a class that resolves to nothing.</summary>
-    private static string ButtonStyleClass(string? style) => style switch
-    {
-        "secondary" => "kh-button--secondary",
-        "danger" => "kh-button--danger",
-        _ => "kh-button--primary",
-    };
-
     /// <summary>Runs a plugin's button and re-reads its state. Nothing else redraws the row when
     /// login reports "Sign out"; blocked from re-entering while already running.</summary>
     private async Task RunButtonAsync(string pluginId, string key)
@@ -151,12 +138,6 @@ public partial class PluginsManagerPage : IDisposable
     /// glyph installed than in the catalog; worn by anything that has not said otherwise.</summary>
     internal const string DefaultGlyph = "puzzle";
 
-    private static string GetGlyph(DiscoveredPlugin plugin)
-        => plugin.Manifest?.Icon is { Length: > 0 } icon
-           && !string.Equals(icon, PluginIcon.ImageSpecifier, StringComparison.OrdinalIgnoreCase)
-            ? icon
-            : DefaultGlyph;
-
     private RowState GetRowState(DiscoveredPlugin plugin)
     {
         if (plugin.Status == PluginStatus.Errored) return RowState.Failed;
@@ -172,25 +153,6 @@ public partial class PluginsManagerPage : IDisposable
             (false, false) => RowState.Off,
         };
     }
-
-    private static string GetStateLabel(RowState state) => state switch
-    {
-        RowState.Running => "Running",
-        RowState.RestartToLoad => "Restart to load",
-        RowState.RestartToUnload => "Restart to unload",
-        RowState.Failed => "Failed",
-        RowState.Incompatible => "Incompatible",
-        _ => "Off",
-    };
-
-    private static string GetStateBadgeClass(RowState state) => state switch
-    {
-        RowState.Running => "kh-badge--success",
-        RowState.RestartToLoad or RowState.RestartToUnload => "kh-badge--warning",
-        RowState.Failed => "kh-badge--danger",
-        RowState.Incompatible => "kh-badge--info",
-        _ => "kh-badge--ext",
-    };
 
     private void OnStateChanged(object message) => InvokeAsync(StateHasChanged);
 
@@ -275,7 +237,7 @@ public partial class PluginsManagerPage : IDisposable
         Available,
     }
 
-    private enum RowState
+    public enum RowState
     {
         Running,
         RestartToLoad,
