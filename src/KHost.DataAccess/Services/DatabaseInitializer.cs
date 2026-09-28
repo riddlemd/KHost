@@ -19,6 +19,8 @@ internal class DatabaseInitializer : IDatabaseInitializer
     private readonly IVenuesService _venuesService;
     private readonly IMediaService _mediaService;
     private readonly IMediaFileParsingService _mediaFileParsingService;
+    private readonly IVisualisationPlaylistService _visualisationPlaylistService;
+    private readonly IVisualiserPresetService _visualiserPresetService;
 
     public DatabaseInitializer(
         IDbContextFactory<DefaultContext> contextFactory,
@@ -29,7 +31,9 @@ internal class DatabaseInitializer : IDatabaseInitializer
         IPasswordHasher passwordHasher,
         IVenuesService venuesService,
         IMediaService mediaService,
-        IMediaFileParsingService mediaFileParsingService)
+        IMediaFileParsingService mediaFileParsingService,
+        IVisualisationPlaylistService visualisationPlaylistService,
+        IVisualiserPresetService visualiserPresetService)
     {
         _contextFactory = contextFactory;
         _logger = logger;
@@ -40,6 +44,8 @@ internal class DatabaseInitializer : IDatabaseInitializer
         _venuesService = venuesService;
         _mediaService = mediaService;
         _mediaFileParsingService = mediaFileParsingService;
+        _visualisationPlaylistService = visualisationPlaylistService;
+        _visualiserPresetService = visualiserPresetService;
     }
 
     public async Task InitializeAsync()
@@ -62,6 +68,7 @@ internal class DatabaseInitializer : IDatabaseInitializer
         await SeedDefaultAdminUserAsync();
         await SeedDefaultVenueAsync();
         await SeedDefaultMediaAsync();
+        await EnsureDefaultVisualisationPlaylistAsync();
 
         _logger.LogInformation("Database initialization complete");
     }
@@ -207,6 +214,27 @@ internal class DatabaseInitializer : IDatabaseInitializer
         _logger.LogInformation("Seeding default media ({Count} files)", options.DefaultMedia.Count);
         foreach (var entry in options.DefaultMedia)
             await SeedOneMediaFileAsync(entry);
+    }
+
+    /// <summary>Puts the "Default Visualizations" playlist back if it is somehow gone. The
+    /// migration that ships it seeds new and upgraded databases once; this covers a row deleted
+    /// out from under the app some other way, since the service itself refuses to delete it.</summary>
+    internal async Task EnsureDefaultVisualisationPlaylistAsync()
+    {
+        if (await _visualisationPlaylistService.ReadWithEntriesAsync(VisualisationPlaylist.DefaultId) is not null)
+            return;
+
+        _logger.LogWarning("The default visualisation playlist was missing; recreating it");
+
+        // Reads the live ambient set rather than a copy, so an ambient scene added later is
+        // covered by a restore without this method needing to change.
+        var ambient = _visualiserPresetService.ReadAll()
+            .Where(p => p.Source == VisualiserPresetSource.BuiltIn && p.Name.StartsWith("ambient-", StringComparison.Ordinal))
+            .Select(p => new VisualisationEntry { PresetSource = p.Source, PresetName = p.Name })
+            .ToList();
+
+        await _visualisationPlaylistService.CreateAsync(new VisualisationPlaylist { Id = VisualisationPlaylist.DefaultId, Name = "Default Visualizations" });
+        await _visualisationPlaylistService.ReplaceEntriesAsync(VisualisationPlaylist.DefaultId, ambient);
     }
 
     private async Task SeedOneMediaFileAsync(ServiceOptions.DefaultMediaOptions entry)

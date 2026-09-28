@@ -12,11 +12,6 @@ public sealed record AppSettings
     public string? FFmpegPath { get; set; }
     public string? MediaDirectory { get; set; }
 
-    /// <summary>A folder of the host's own song backgrounds, added to the set shipped with the app.
-    /// </summary>
-    /// <remarks>Machine level rather than per venue: the clips sit on this disk, and a venue only
-    /// chooses which of them it wants.</remarks>
-    public string? SongBackgroundFolder { get; set; }
     public double StopFadeSeconds { get; set; } = 5;
     public int SegmentSeconds { get; set; } = 2;
 

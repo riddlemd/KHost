@@ -12,9 +12,10 @@ namespace KHost.Domain.Services.BurnIn;
 /// timing leaves unset taken from the same theme, the wipe linear with no easing, a count-in that
 /// eases over one step and clears as the next page arrives, a line-start lead-in running to the
 /// leading edge of the line, a lead-in part way along it shown as a dot count over its own syllable
-/// instead. Where the two part company it is because a web view cannot do better: this shapes
-/// each line through HarfBuzz, so a joined script joins, and a right-to-left line is laid from the
-/// right edge of its box.
+/// instead. Nothing is drawn but the words themselves and their chase — the outline is what keeps
+/// them legible over whatever is behind them. Where the two part company it is because a web view
+/// cannot do better: this shapes each line through HarfBuzz, so a joined script joins, and a
+/// right-to-left line is laid from the right edge of its box.
 ///
 /// <para>Knows nothing of ffmpeg or processes; <see cref="BurnInFramePump"/> feeds its frames to an
 /// encode. Safe to share between threads — every mutable thing lives on a <see cref="Worker"/>.</para>
@@ -40,22 +41,18 @@ public sealed class TimedLyricsPainter
     private const double DefaultLineX = 40, DefaultLineY = 40, DefaultLineWidth = 520, DefaultLineHeight = 48;
 
     private readonly TimedLyrics _lyrics;
-    private readonly bool _scrim;
     private readonly float _scale, _offsetX, _offsetY;
     private readonly double?[] _handovers;
     private readonly LyricBox[][] _lineBoxes;
 
     /// <param name="width">Frame width in pixels.</param>
     /// <param name="height">Frame height in pixels.</param>
-    /// <param name="scrim">Whether to darken the band the words sit in, for words laid over a
-    /// picture that was not made with them in mind.</param>
-    public TimedLyricsPainter(TimedLyrics lyrics, int width, int height, bool scrim = false)
+    public TimedLyricsPainter(TimedLyrics lyrics, int width, int height)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(width);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(height);
 
         _lyrics = lyrics;
-        _scrim = scrim;
         Width = width;
         Height = height;
 
@@ -157,7 +154,6 @@ public sealed class TimedLyricsPainter
     private void PaintFrame(Worker worker, SKCanvas canvas, double t)
     {
         canvas.Clear(SKColors.Transparent);
-        if (_scrim) PaintScrim(canvas, Width, Height);
 
         for (var i = 0; i < _lyrics.CountIns.Count; i++) PaintCountIn(worker, canvas, i, t);
 
@@ -169,23 +165,6 @@ public sealed class TimedLyricsPainter
             var layout = worker.Layouts[i] ??= LayoutPage(worker, i);
             foreach (var line in layout.Lines) PaintLine(worker, canvas, layout, line, t);
         }
-    }
-
-    /// <summary>Darkens the band the words sit in, so whatever picture is under them stays readable.
-    /// </summary>
-    /// <remarks>Measured over a loop whose bright areas drift through the lower third: the worst pixel
-    /// behind the words ran to 139 of 235 without it and 88 with it, while the band's average moved
-    /// only 23 to 19, so the picture above the words is left alone.</remarks>
-    internal static void PaintScrim(SKCanvas canvas, int width, int height)
-    {
-        var top = height * 0.55f;
-        using var shader = SKShader.CreateLinearGradient(
-            new SKPoint(0, top), new SKPoint(0, height),
-            [new SKColor(0, 0, 0, 0), new SKColor(0, 0, 0, 140), new SKColor(0, 0, 0, 204)],
-            [0f, 0.51f, 1f],
-            SKShaderTileMode.Clamp);
-        using var paint = new SKPaint { Shader = shader };
-        canvas.DrawRect(new SKRect(0, top, width, height), paint);
     }
 
     /// <summary>The bar across a gap: eased in and out over one step, filled and counted down over

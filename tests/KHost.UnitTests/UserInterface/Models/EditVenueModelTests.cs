@@ -23,10 +23,13 @@ public class EditVenueModelTests
 
         foreach (var property in typeof(Venue.VenueSettings).GetProperties(BindingFlags.Public | BindingFlags.Instance))
         {
-            // Each carries the value across without being the same instance: QueueRotation is
-            // cloned and SongBackgrounds is copied into a fresh list, so they get their own checks
-            // below rather than a reference comparison here.
-            if (property.Name is nameof(Venue.VenueSettings.QueueRotation) or nameof(Venue.VenueSettings.SongBackgrounds))
+            // QueueRotation is cloned, so it gets its own check below rather than a reference
+            // comparison here.
+            if (property.Name is nameof(Venue.VenueSettings.QueueRotation))
+                continue;
+
+            // A retired setting is left as stored, which the dialog's clone carries (see below).
+            if (property.GetCustomAttribute<ObsoleteAttribute>() is not null)
                 continue;
 
             var expected = property.GetValue(source.Settings);
@@ -37,7 +40,29 @@ public class EditVenueModelTests
         }
 
         Assert.Equal(source.Settings.QueueRotation!.StrategyId, target.Settings.QueueRotation!.StrategyId);
-        Assert.Equal(source.Settings.SongBackgrounds, target.Settings.SongBackgrounds);
+    }
+
+    /// <summary>A brand-new venue — the dialog's Add path — starts pointed at the built-in playlist
+    /// rather than black; an existing venue's own choice (including "none") is never overridden.</summary>
+    [Fact]
+    public void From_ANewVenue_StartsOnTheDefaultVisualisationPlaylist()
+    {
+        var model = EditVenueModel.From(null, activeBreakMusicProviderSource: null);
+
+        Assert.Equal(VisualisationPlaylist.DefaultId, model.VisualisationPlaylistId);
+    }
+
+    /// <summary>Nothing edits the retired song backgrounds, so a save leaves what a venue stored.</summary>
+    [Fact]
+    public void ApplyTo_LeavesTheRetiredSongBackgroundsAsStored()
+    {
+        var venue = new Venue { Name = "Old Room", Settings = DistinctSettings() };
+
+        EditVenueModel.From(venue, activeBreakMusicProviderSource: null).ApplyTo(venue);
+
+#pragma warning disable CS0618 // the retired setting is exactly what this checks
+        Assert.Equal(["one.mp4", "two.mp4"], venue.Settings.SongBackgrounds);
+#pragma warning restore CS0618
     }
 
     /// <summary>Every VenueSettings field, given a value nothing in From/ApplyTo treats specially:
@@ -76,7 +101,10 @@ public class EditVenueModelTests
         MarqueeSongColor = "#222222",
         MarqueeDividerColor = "#333333",
         MarqueeDividerShape = MarqueeDividerShape.Diamond,
+#pragma warning disable CS0618 // stored by venues saved before the picker went
         SongBackgrounds = ["one.mp4", "two.mp4"],
+#pragma warning restore CS0618
+        VisualisationPlaylistId = Guid.NewGuid(),
         QrCodeSource = "khost.plugins.karafun",
         QrCodeCorner = OverlayCorner.TopLeft,
         QrCodeSize = QrCodeSize.Large,

@@ -261,8 +261,10 @@ cannot name another's: its secrets, and the QR code it offers the screens.
       through HarfBuzz, so a joined script joins and a right-to-left line is laid from its box's
       right edge.
     - **The picture under the words** is the source's own video when it has one (fitted into
-      1280x720), else black — never the venue's card or its song backgrounds, which nothing
-      playing uses. `SongBackdrops.ForPlaying` is that rule, asked by the burn-in, and it is where a
+      1280x720), else black — never the venue's card, which nothing playing uses. The venue's
+      old song-background picker is gone; `Venue.VenueSettings.SongBackgrounds` and
+      `IBackgroundPackService` stay in `Abstractions` as `[Obsolete]` so a plugin naming them
+      still compiles, but nothing reads the one and nothing implements the other. `SongBackdrops.ForPlaying` is that rule, asked by the burn-in, and it is where a
       visualiser goes in place of black; the screen already draws nothing under a playing song.
       **A timed-lyric song never takes a picture from an audio source** (an extension in
       `MediaFormats.AudioExtensions`), whatever the file carries, and a cover image (an
@@ -271,7 +273,8 @@ cannot name another's: its secrets, and the QR code it offers the screens.
       timed-lyric song through `IBurnInStreamService.OpenUnderDrawnWordsAsync`, whose encode maps
       `0:V` (no attached pictures) from a video and no picture at all from an audio file — left to
       itself ffmpeg turns an MP3's cover into a one-frame video. A song with no timed words is left
-      alone and still shows its cover. Over a picture, the band the words sit in is darkened.
+      alone and still shows its cover. The outline under every word is what keeps them legible over
+      whatever picture is behind them — there is no darkened band, on either drawer.
     - **Fonts are the system's**, in the order a web view's `sans-serif` resolves them per OS:
       Helvetica, Arial, DejaVu Sans, Liberation Sans, Noto Sans, then Skia's default; a character the
       face lacks falls back per line through the OS. Nothing is bundled.
@@ -511,6 +514,113 @@ on every change the same way the marquee is (`LocalScreenDisplayProvider` for th
 - A provider that reports no title gets no card; one that reports no artist just loses the second
   line. On macOS a Spotify advert arrives as a track with no artist and an em dash for a title, and
   is drawn as one — recognising ads would mean reading the track id, which nothing does yet.
+
+## The visualiser under the words
+
+A MilkDrop preset (butterchurn, WebGL 2) drawn by the **local screen** under a song's words, in
+place of black. Nothing else gets one: burned-in words (Cast and any display that cannot draw)
+stay on black, and a song with its own picture keeps it.
+
+- **The rule is `SongBackdrops.ForPlaying` answering `Black`**, plus a venue that names a
+  visualisation playlist (`VisualisationPlaylistId`, null when unset, no backfill) with at least one
+  entry. `LocalScreenDisplayProvider` decides it after every load, on a venue edit, and on
+  `VisualisationPlaylistsChanged` / `VisualiserPresetsChanged`, and sends `SetVisualiserCommand` —
+  IPC only, not a contract. A stems load has no picture; a stream from a non-audio file asks
+  `ISourcePictureProbe` once per song. Idle and an ad still send it off, and the screen takes it
+  down itself once a stop has faded out.
+- **Playlists, one entry per song.** `IVisualisationPlaylistService` (SQL, `VisualisationPlaylists`
+  / `VisualisationEntries`) holds ordered entries; each is a preset plus its own brightness,
+  colour and audio sensitivity, so one preset may appear several times tuned differently.
+  `SelectNextAsync` advances in order or shuffles without an immediate repeat;
+  the rotation lives in memory and starts over on a restart or an entry edit. The provider picks
+  only once a song is known to draw one (a video does not use up a turn), keeps the song's entry
+  by id across a rebuild or rejoin, and re-reads it on an edit, so a setting moved on the page
+  reaches the song on screen; an entry removed mid-song moves to the next.
+- **`VisualisationPlaylist.DefaultId` is the "Default Visualizations" playlist every install ships
+  with**: every ambient scene, in the page's own order. A migration seeds it (data only, no
+  `HasData` — that would also seed an `EnsureCreated()` test database); `DatabaseInitializer`
+  restores it at startup if the row is ever gone. `VisualisationPlaylistService.DeleteAsync` refuses
+  it and the page disables its Delete button; rename, shuffle and entry edits stay open like any
+  other playlist. Every venue-creation path (setup wizard, Add Venue, `EditVenueModel.From(null,
+  …)`) starts a new venue pointed at it; duplicating a venue keeps whatever the source had, and an
+  existing venue's unset `VisualisationPlaylistId` is left alone (still no backfill).
+- **Presets are named, never numbered.** A shipped one goes by its name in
+  `screen-ui/visualiser-presets.js`, which `VisualiserPresetService.BundledNames` mirrors (a test
+  holds them together). An imported one is a butterchurn `.json` the host brought, validated for
+  shape and size (256 KB) and kept under `cache/visualiser-presets/<name>.json` — beside the
+  database, not in the library — and served from `/media/visualiser-presets/{name}?v=<write
+  time>`, so a re-import is a new URL. A preset's equations are code run by whatever draws it:
+  importing one is trusting it. `.milk` files are not read. A name that no longer resolves draws
+  black. Any preset a song's timing names is ignored.
+- **Built-ins are the host's own drawings, not presets.** `VisualiserPresetSource.BuiltIn` names
+  one of `screen-ui/eq-visualisers.js`'s styles (spectrum bars, mirrored bars, oscilloscope, twin
+  VU meters) by a stable id that `VisualiserPresetService.BuiltIns` mirrors with its title (a test
+  holds them together); they list first on the page. Canvas 2D on a canvas of their own
+  (`#visualiser-eq`) — a canvas keeps one kind of context for life and butterchurn's is WebGL — so
+  they draw where WebGL 2 is missing. Per entry they add a bar count (16/32/64, snapped on save)
+  and a palette (classic green-to-red, the screen's `#8558fa` accent, or one `#rrggbb` colour);
+  a MilkDrop entry ignores both. Fed as butterchurn is: a live tap's spectrum, else the host's
+  eight bands mapped straight onto the bars, straight-line between band centres on a log scale —
+  so on host levels neighbouring bars ramp together rather than moving apart. The oscilloscope
+  and meters read the same samples butterchurn gets, which on host levels are the synthesised
+  tones, not the song's waveform. The sensitivity's swing gain reaches the bars as a dB shift.
+  Everything but the mirrored bars sits in the lower part of the screen, under the words.
+  - **The ambient scenes are the same renderer, not another one.** A built-in named `ambient-*`
+    (drifting colour, floating lights, rising embers, pulse rings, sweeping beams) is a calm
+    full-screen scene the page lists under "Ambient"; the prefix is the grouping
+    (`VisualiserPresetService.IsAmbient`). They take the palette (classic is a soft mix of
+    colours) and ignore the bar count. The music only nudges them: loudness and bass are read
+    off the same bars (so sensitivity lands the same way), then eased so they rise at most
+    `AMBIENT_RISE` and fall `AMBIENT_FALL` a frame, and no shape is painted past
+    `AMBIENT_MAX_ALPHA` — a scene can brighten with a chorus but cannot flash. All motion is
+    frame-counted from a seed, so a pause holds and resumes the frame it stopped on, and a still
+    is repeatable.
+- **The look is applied cheaply.** Brightness and colour are a CSS filter on the visualiser's
+  canvas. Sensitivity scales each frame's swing from its own running loudness (a plain gain would
+  cancel out: butterchurn reads every band against its own average), applied after the samples are
+  filled, so a live tap and the host's levels get the same treatment.
+- **The Visualisations page previews honestly.** It runs the screen's own `visualiser.js` and
+  `lyrics-overlay.js`, copied unchanged into `wwwroot/js/visualiser/` by `copy:vendors` (a test
+  fails on drift), in a `sandbox="allow-scripts"` frame with no origin, fed a synthetic beat and two
+  sample lines mid-screen. Sandboxed because an imported preset is code and the console holds the
+  host's session.
+- **It listens, it never re-routes.** A stem song is tapped off the mixer's master gain (after the
+  venue level and the fade), a fan-out to analysers that lead nowhere. An encoded song is tapped
+  through `captureStream()` where the engine has it. Do not reach for `createMediaElementSource`:
+  it takes the element's sound off the speakers for good, binds it to one context a sleep can
+  kill, and puts the fades behind a second volume.
+- **Where no tap exists, the host's levels stand in.** WebKit has no `captureStream`, so on macOS
+  an encoded song — a stem song after a key or tempo change included — has nothing to listen to.
+  For every song that draws a visualiser, `LocalScreenDisplayProvider` starts `ISongLevelsService`
+  once (a key change's reload keeps them) and sends the URL in `SetVisualiserCommand.LevelsUrl`;
+  the screen fetches it from `/media/levels/{token}`, a request that waits for the read.
+  - **What is read:** the stems at their loaded gains when the load carries stems; else, when the
+    load is the host's own mix of a renderer's stems (a stem song whose first load is already
+    re-keyed or retimed), those same stems, found through `IStemStreamService.StemsMixedInto`
+    from the load's stream URL; else the file when it is a format the host opens (a `.cdg`
+    through the audio beside it). Stems are read before any key or tempo, so they are song time
+    as they stand and need no mapping. A provider's own container with no stems either way draws
+    without the beat. Rules in `SongLevels.InputsFor`.
+  - **What it holds:** eight bands per channel, 30 frames a second of song time, a quarter-decibel
+    a byte against each band's own loudest (`SongLevels`; about 110 KB and under a second for a
+    four-minute song, ffmpeg at one thread and below-normal priority). Butterchurn keeps only how
+    each of bass/mid/treble compares with its own running average, so that ratio is what the
+    format keeps; the band edges sit on its 320 Hz and 2800 Hz splits.
+  - **How it is drawn:** `synthesiseVisualiserLevels` rebuilds a tone per band at the frame the
+    **song clock** (`songClock`, the words' clock) falls in, so a seek, a rebuilt stream's offset
+    and a tempo all land where the words do, and a lead-in's hold reads as silence. A live tap
+    wins whenever there is one: it hears the room, fader moves and fades included.
+  - One song at a time, in memory, dropped when the next song starts or the screen goes idle —
+    not in the stream session, which a key change closes while the levels stay right.
+- **A preset must stay alive in silence.** Several MilkDrop presets fade to black with no input,
+  and a song whose levels have not arrived, or cannot be read, has none;
+  `screen-ui/VISUALISER-NOTICE.md` says how the set was chosen.
+- **The words carry no darkened band behind them, on either drawer.** The lyrics already outline in
+  black, which is what keeps them legible over whatever is playing; `lyrics-overlay.js` and
+  `TimedLyricsPainter` draw only the words themselves (and their chase, count-ins and lead-ins).
+- Capped at 30fps and a 1280x720 drawing buffer, frozen on pause (the last frame holds), and drawn
+  only while shown. The engine is built on first use and never with an audio context of its own:
+  samples are read here and handed to each frame, since every stem song brings a new context.
 
 ## Streaming a song
 

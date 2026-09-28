@@ -63,6 +63,10 @@
     <EmbeddedResource Include="screen-ui\lead-in.js" LogicalName="screen-ui/lead-in.js" />
     <EmbeddedResource Include="screen-ui\stem-mixer.js" LogicalName="screen-ui/stem-mixer.js" />
     <EmbeddedResource Include="screen-ui\wake-watch.js" LogicalName="screen-ui/wake-watch.js" />
+    <EmbeddedResource Include="screen-ui\butterchurn.min.js" LogicalName="screen-ui/butterchurn.min.js" />
+    <EmbeddedResource Include="screen-ui\visualiser-presets.js" LogicalName="screen-ui/visualiser-presets.js" />
+    <EmbeddedResource Include="screen-ui\visualiser.js" LogicalName="screen-ui/visualiser.js" />
+    <EmbeddedResource Include="screen-ui\eq-visualisers.js" LogicalName="screen-ui/eq-visualisers.js" />
     <EmbeddedResource Include="screen-ui\player.js" LogicalName="screen-ui/player.js" />
   </ItemGroup>
 

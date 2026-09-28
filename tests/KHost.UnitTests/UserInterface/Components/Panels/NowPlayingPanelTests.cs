@@ -141,15 +141,15 @@ public class NowPlayingPanelTests : BunitContext
             span => Assert.Equal("#FF0000", span.GetAttribute("fill"))));
     }
 
-    /// <summary>Beside the key-and-tempo trigger, and there before any song is: it is a setting
-    /// for the night, not for one song.</summary>
+    /// <summary>Just left of the key-and-tempo trigger, and there before any song is: it is a
+    /// setting for the night, not for one song.</summary>
     [Fact]
-    public void Header_OffersTheColourBlindLyricsToggle_NextToTheSongControls_WithNoSongLoaded()
+    public void Header_OffersTheColourBlindLyricsToggle_LeftOfTheSongControls_WithNoSongLoaded()
     {
         var cut = Render<NowPlayingPanel>();
 
-        var toggle = cut.Find(".kh-card__header .kh-song-controls + .kh-lyric-colours-toggle");
-        Assert.False(toggle.HasAttribute("disabled"));
+        var controls = cut.Find(".kh-card__header .kh-lyric-colours-toggle + .kh-song-controls");
+        Assert.False(controls.PreviousElementSibling!.HasAttribute("disabled"));
     }
 
     /// <summary>A lane the song gave no colour must not carry an empty fill attribute, which would

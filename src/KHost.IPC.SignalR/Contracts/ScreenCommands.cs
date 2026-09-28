@@ -25,6 +25,7 @@ namespace KHost.IPC.SignalR.Contracts;
 [JsonDerivedType(typeof(SetBreakMusicCardCommand), "setBreakMusicCard")]
 [JsonDerivedType(typeof(ShowNextSingerCommand), "showNextSinger")]
 [JsonDerivedType(typeof(SetTimedLyricsCommand), "setTimedLyrics")]
+[JsonDerivedType(typeof(SetVisualiserCommand), "setVisualiser")]
 public abstract class ScreenCommandBase : IScreenCommand { }
 
 /// <summary>Loads one song or clip, ready to play but not playing: a stream to play end to end,
@@ -324,6 +325,53 @@ public sealed class SetTimedLyricsCommand : ScreenCommandBase
     /// <remarks>The song carries on under them: a hold already running or already spent stays as it
     /// is, so a replacement never starts the lead-in again or brings the intro card back.</remarks>
     public bool Replacing { get; init; }
+}
+
+/// <summary>Whether the screen draws a music-reactive visualiser under the loaded song's words, which
+/// preset, and how.</summary>
+/// <remarks>Sent after every load and whenever the program, the venue or its playlist moves, so it is
+/// the whole state. The screen also takes it down itself once a stop has faded out. Exactly one of
+/// <see cref="PresetName"/> and <see cref="PresetUrl"/> is set while it is on; a preset the screen
+/// cannot resolve leaves black.</remarks>
+public sealed class SetVisualiserCommand : ScreenCommandBase
+{
+    /// <summary>False takes it down and leaves black behind the words.</summary>
+    public required bool Enabled { get; init; }
+
+    /// <summary>One of the presets the screen ships, by name.</summary>
+    public string? PresetName { get; init; }
+
+    /// <summary>One of the host's own drawings, by name, drawn in place of a preset.</summary>
+    public string? BuiltIn { get; init; }
+
+    /// <summary>How many bars a built-in bar style draws.</summary>
+    public int BarCount { get; init; } = VisualisationEntry.DefaultBarCount;
+
+    /// <summary>How a built-in drawing is coloured.</summary>
+    public VisualiserColourScheme ColourScheme { get; init; }
+
+    /// <summary>The colour for <see cref="VisualiserColourScheme.Single"/>, as <c>#rrggbb</c>.</summary>
+    public string? Colour { get; init; }
+
+    /// <summary>Where an imported preset's file is fetched from.</summary>
+    /// <remarks>Changes when the file is re-imported, so the same URL again keeps the picture
+    /// running and a new one loads the new file.</remarks>
+    public string? PresetUrl { get; init; }
+
+    /// <summary>Percent of the preset's own brightness.</summary>
+    public int Brightness { get; init; } = 100;
+
+    /// <summary>Percent of the preset's own colour.</summary>
+    public int Saturation { get; init; } = 100;
+
+    /// <summary>How hard the picture reacts to the music, in percent, whatever it is listening to.</summary>
+    public int Sensitivity { get; init; } = 100;
+
+    /// <summary>Where the song's levels, read by the host, are fetched from; null when the host has
+    /// none for it.</summary>
+    /// <remarks>For a song the screen cannot listen to itself — an encoded song where the web view
+    /// has no <c>captureStream</c>. A fetch waits for the read, so the URL is sent at once.</remarks>
+    public string? LevelsUrl { get; init; }
 }
 
 /// <summary>What the intro card says, as finished strings: the screen holds no library or queue.</summary>

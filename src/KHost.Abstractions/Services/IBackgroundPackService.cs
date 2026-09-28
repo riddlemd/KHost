@@ -7,8 +7,10 @@ namespace KHost.Abstractions.Services;
 /// set shipped with the app, and one the host points at. A venue chooses from what they hold
 /// between them; it does not say where they are.
 ///
-/// <para>Host-owned; a plugin may take it to read the list but has nothing to implement. A host
-/// singleton, callable from any thread. Announces nothing.</para></remarks>
+/// <para>Retired: the host no longer offers song backgrounds and registers nothing for this, so a
+/// plugin that takes it in a constructor cannot be built. Kept only so one that names it still
+/// compiles.</para></remarks>
+[Obsolete("The host no longer offers song backgrounds and registers no implementation of this.")]
 public interface IBackgroundPackService
 {
     /// <summary>Everything on offer, or why there is nothing.</summary>

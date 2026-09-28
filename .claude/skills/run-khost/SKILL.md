@@ -101,9 +101,13 @@ without being able to click.
 | Move / resize | AppleScript, two statements | `user32!MoveWindow` *(unverified)* | `wmctrl -r -e` *(unverified)* |
 | Click / type | `cliclick` (Homebrew) | **see below** | `xdotool` *(unverified)* |
 
-**Capture the window, not the desktop** — it keeps the rest of the screen out of the image and does
-not require raising the app. Both verified methods capture without foregrounding, so a capture is
-safe to take while the operator is using the app.
+**Capture the window, not the desktop** — it keeps the rest of the screen out of the image. Both
+verified methods capture without foregrounding, so a capture is safe to take while the operator is
+using the app — with one exception on macOS: a **covered WKWebView window stops compositing**, so
+`screencapture -l` of the LocalScreen window while something sits over it returns a frozen or blank
+frame that looks like a stalled song. Raise it first
+(`osascript -e 'tell application "System Events" to set frontmost of (first process whose unix id is <pid>) to true'`)
+and compare two captures a second apart before trusting either.
 
 On Windows, `PrintWindow` with flag 2 (`PW_RENDERFULLCONTENT`) is the flag that matters: WebView2
 composites out of process, and the default flag returns the black rectangle this technique is

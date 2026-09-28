@@ -96,6 +96,7 @@ public class ScreenCommandSerializationTests
                 ],
             },
         },
+        [nameof(SetVisualiserCommand)] = new SetVisualiserCommand { Enabled = true, PresetUrl = "http://host/media/visualiser-presets/Mine?v=1", Brightness = 80, Saturation = 150, Sensitivity = 200, LevelsUrl = "http://host/media/levels/abc" },
         [nameof(ShowNextSingerCommand)] = new ShowNextSingerCommand
         {
             Singer = "Ada",
