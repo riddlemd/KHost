@@ -402,8 +402,7 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
         try
         {
             var analysis = await FFProbe.AnalyseAsync(source, cancellationToken: cancellationToken);
-            var hasVideo = analysis.VideoStreams.Any(
-                stream => stream.Disposition?.GetValueOrDefault("attached_pic") != true);
+            var hasVideo = analysis.VideoStreams.Any(FfprobeSourcePictureProbe.IsMovingPicture);
 
             return (hasVideo, analysis.Duration.TotalSeconds);
         }

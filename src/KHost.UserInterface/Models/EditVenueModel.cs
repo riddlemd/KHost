@@ -107,6 +107,8 @@ public class EditVenueModel
     /// the venue's choices alone.</remarks>
     public List<string> SongBackgrounds { get; set; } = [];
 
+    public bool SongVisualiserEnabled { get; set; }
+
     /// <summary>Null takes the image's own answer, which is what a venue that never asks gets.</summary>
     public ImageScaling? BrandingImageScaling { get; set; }
 
@@ -147,6 +149,7 @@ public class EditVenueModel
             DefaultVolume = settings.DefaultVolume,
             ShowEstimatedWaitTime = settings.ShowEstimatedWaitTime,
             SongBackgrounds = [.. settings.SongBackgrounds ?? []],
+            SongVisualiserEnabled = settings.SongVisualiserEnabled,
             TippingEnabled = settings.TippingEnabled,
             WarnOnDuplicateSong = settings.WarnOnDuplicateSong,
             // Venues saved before this setting existed read back 0, which is not an option.
@@ -220,6 +223,7 @@ public class EditVenueModel
         venue.Settings.DefaultVolume = DefaultVolume;
         venue.Settings.ShowEstimatedWaitTime = ShowEstimatedWaitTime;
         venue.Settings.SongBackgrounds = [.. SongBackgrounds];
+        venue.Settings.SongVisualiserEnabled = SongVisualiserEnabled;
         venue.Settings.TippingEnabled = TippingEnabled;
         venue.Settings.WarnOnDuplicateSong = WarnOnDuplicateSong;
         venue.Settings.DuplicateSongWindowHours = DuplicateSongWindowHours;

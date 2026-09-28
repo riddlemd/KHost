@@ -85,6 +85,19 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
     private Guid? _lyricsSentOn;
     private readonly TimeSpan _registrationTimeout;
 
+    // Serialises visualiser sends: a load and a venue edit can both decide it at once.
+    private readonly SemaphoreSlim _visualiserLock = new(1, 1);
+    private readonly Func<int> _pickPreset;
+
+    /// <summary>The song the visualiser was decided for, by identity, and what was picked for it:
+    /// a rebuild or a rejoin reloads the same program and must keep the same picture.</summary>
+    private PlaybackProgram.Playing? _visualiserFor;
+    private int _visualiserPreset;
+    private DisplayLoad? _visualiserLoad;
+
+    /// <summary>The probe's answer for <see cref="_visualiserFor"/>, asked once per song.</summary>
+    private bool? _visualiserSourceHasPicture;
+
     // Every venue edit and every song redraws the codes, and the picture only changes when the
     // payload does. Encoding a few times a minute for an unchanged string is work for nothing.
     private readonly Dictionary<string, (string Image, int Modules)> _encoded = [];
@@ -132,7 +145,8 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
         IVenuesService? venuesService = null,
         TimeSpan? registrationTimeout = null,
         IServiceProvider? services = null,
-        TimeSpan? redrawSettle = null)
+        TimeSpan? redrawSettle = null,
+        Func<int>? pickPreset = null)
     {
         _logger = logger;
         _screenServer = screenServer;
@@ -142,6 +156,7 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
         _registrationTimeout = registrationTimeout ?? DefaultRegistrationTimeout;
         _services = services;
         _redrawSettle = redrawSettle ?? DefaultRedrawSettle;
+        _pickPreset = pickPreset ?? Random.Shared.Next;
 
         _screenServer.ScreenConnected += OnScreenConnected;
         _screenServer.ScreenDisconnected += OnScreenDisconnected;
@@ -150,7 +165,7 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
         // The venue owns the level, and everything about how the marquee, the codes and the card
         // look, including whether each is there at all.
         _subscriptions.Add(broker.Subscribe<SelectedVenueChanged>(
-            _ => Redraw(Overlay.Volume | Overlay.Marquee | Overlay.QrCodes | Overlay.BreakMusicCard | Overlay.IdleCard)));
+            _ => Redraw(Overlay.Volume | Overlay.Marquee | Overlay.QrCodes | Overlay.BreakMusicCard | Overlay.IdleCard | Overlay.Visualiser)));
 
         // Who is next is the marquee's content, however the queue, the turns or the mic moved it.
         _subscriptions.Add(broker.Subscribe<UpNextChanged>(_ => Redraw(Overlay.Marquee)));
@@ -348,6 +363,9 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
         // holds the words until the next load, and one given them mid-song would light every
         // syllable already sung at once.
         await SendTimedLyricsAsync();
+
+        // After the words, which it is decided on.
+        await SendVisualiserAsync(load);
     }
 
     public Task PlayAsync(CancellationToken cancellationToken = default) => SendAsync(new PlayCommand());
@@ -589,6 +607,83 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
         };
     }
 
+    private static SetVisualiserCommand VisualiserOff => new() { Enabled = false };
+
+    /// <summary>Tells the screen whether to draw a visualiser under the playing song, and which.</summary>
+    /// <remarks>On a load, decided for that load; with none (a venue edit), re-decided for the song
+    /// already loaded, and skipped for a song whose own load has not decided it yet. Never throws:
+    /// the visualiser is decoration, and a song plays over black without it.</remarks>
+    private async Task SendVisualiserAsync(DisplayLoad? load)
+    {
+        if (_services?.GetService<IPlaybackService>()?.CurrentProgram is not PlaybackProgram.Playing song)
+            return;
+
+        await _visualiserLock.WaitAsync();
+        try
+        {
+            if (!ReferenceEquals(song, _visualiserFor))
+            {
+                if (load is null) return;
+
+                _visualiserFor = song;
+                _visualiserPreset = _pickPreset();
+                _visualiserSourceHasPicture = null;
+            }
+
+            if (load is not null) _visualiserLoad = load;
+            if (_visualiserLoad is not { } loaded) return;
+
+            await SendAsync(await DecideVisualiserAsync(song, loaded));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Could not decide the visualiser for '{Title}'", song.Media.Title);
+        }
+        finally
+        {
+            _visualiserLock.Release();
+        }
+    }
+
+    /// <summary>On only for a performance with timed words and nothing of its own to show under them
+    /// (<see cref="SongBackdrops.ForPlaying"/> answering black), at a venue that asked for it.</summary>
+    /// <remarks>Any preset the timing names is ignored: the host's pick applies. An ad reads no words
+    /// (<see cref="SendTimedLyricsAsync"/>), so it never gets one.</remarks>
+    private async Task<SetVisualiserCommand> DecideVisualiserAsync(PlaybackProgram.Playing song, DisplayLoad load)
+    {
+        if ((await ReadVenueSettingsAsync())?.SongVisualiserEnabled != true) return VisualiserOff;
+
+        var lyrics = ReferenceEquals(song, _lyricsFor) ? _lyrics : null;
+        if (lyrics is not { Pages.Count: > 0 }) return VisualiserOff;
+
+        var path = song.Media.FilePath;
+        var backdrop = SongBackdrops.ForPlaying(hasTimedLyrics: true, path, await PlaysOwnPictureAsync(path, load));
+
+        return backdrop == SongBackdrop.Black
+            ? new SetVisualiserCommand { Enabled = true, Preset = _visualiserPreset }
+            : VisualiserOff;
+    }
+
+    /// <summary>Whether the screen shows a picture from the song's own file for this load.</summary>
+    /// <remarks>Stems are sound only. With no probe to ask, the answer is yes: a visualiser drawn
+    /// over a singer's own video is worse than black under words.</remarks>
+    private async Task<bool> PlaysOwnPictureAsync(string path, DisplayLoad load)
+    {
+        if (load.Stems.Count > 0 || load.StreamUrl is null) return false;
+
+        // Free, and nothing from an audio file is ever shown, so the probe is skipped.
+        if (!SongBackdrops.MayShowPictureFrom(path)) return false;
+
+        if (_visualiserSourceHasPicture is { } known) return known;
+
+        if (_services?.GetService<ISourcePictureProbe>() is not { } probe) return true;
+
+        var hasPicture = await probe.HasMovingPictureAsync(path);
+        _visualiserSourceHasPicture = hasPicture;
+
+        return hasPicture;
+    }
+
     /// <summary>The machine's grace, read on every send so an App Settings change needs no restart.</summary>
     private int LeadInGraceSeconds()
         => _services?.GetService<IOptionsMonitor<PlaybackService.ServiceOptions>>()?.CurrentValue.LeadInGraceSeconds ?? 0;
@@ -649,6 +744,9 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
             await DrawPictureAsync(PictureCause.ProgramMoved);
         else if (overlays.HasFlag(Overlay.IdleCard))
             await DrawPictureAsync(PictureCause.VenueChanged);
+
+        if (overlays.HasFlag(Overlay.Visualiser))
+            await SendVisualiserAsync(load: null);
 
         if (overlays.HasFlag(Overlay.Marquee))
             await DrawAsync<IUpNextService>("marquee", async upNext => await BuildMarqueeAsync(await ReadVenueSettingsAsync(), upNext));
@@ -782,6 +880,7 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
             switch (program)
             {
                 case PlaybackProgram.AdStill still:
+                    await SendAsync(VisualiserOff);
                     await SendAsync(new ShowImageCommand { Url = still.ImageUrl, Scaling = still.Scaling });
                     break;
 
@@ -794,6 +893,8 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
                     break;
 
                 default:
+                    // Between songs is the venue's card, never the last song's visualiser.
+                    await SendAsync(VisualiserOff);
                     await DrawIdleCardAsync();
                     break;
             }
@@ -986,6 +1087,9 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
 
         /// <summary>A screen that has just joined: the picture is drawn whatever was last sent.</summary>
         Connected = 64,
+
+        /// <summary>Whether the playing song gets a visualiser; its own load decides it first.</summary>
+        Visualiser = 128,
 
         All = Volume | Marquee | QrCodes | BreakMusicCard | Picture,
     }

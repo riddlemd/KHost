@@ -237,6 +237,36 @@ public class EditVenueDialogBackgroundTests : BunitContext
         Assert.NotNull(cut.Find(".kh-background-tile__art--blank"));
     }
 
+    [Fact]
+    public void TheVisualiser_IsOffForAVenueThatWasNeverAsked()
+        => Assert.False(Render(new Venue.VenueSettings()).Find("#venue-song-visualiser").HasAttribute("checked"));
+
+    [Fact]
+    public void TickingTheVisualiser_ReachesTheVenueThatIsSaved()
+    {
+        Venue? saved = null;
+        var cut = Render(new Venue.VenueSettings(), venue => saved = venue);
+
+        cut.Find("#venue-song-visualiser").Change(true);
+        cut.Find("form").Submit();
+
+        Assert.True(saved!.Settings.SongVisualiserEnabled);
+    }
+
+    [Fact]
+    public void UntickingTheVisualiser_ReachesTheVenueThatIsSaved()
+    {
+        Venue? saved = null;
+        var cut = Render(new Venue.VenueSettings { SongVisualiserEnabled = true }, venue => saved = venue);
+
+        Assert.True(cut.Find("#venue-song-visualiser").HasAttribute("checked"));
+
+        cut.Find("#venue-song-visualiser").Change(false);
+        cut.Find("form").Submit();
+
+        Assert.False(saved!.Settings.SongVisualiserEnabled);
+    }
+
     /// <summary>The browser cannot reach the folder, so a still is fetched by name.</summary>
     [Fact]
     public void ABackgroundWithAStill_FetchesItByNameRatherThanPath()
