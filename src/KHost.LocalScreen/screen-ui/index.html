@@ -34,6 +34,20 @@
            playing, and swapped for it once it has sound to give. */
         #video-b { opacity: 0; }
 
+        /* Stands in for the black under a song's words when the song has no picture of its own.
+           Over the video elements, which have nothing to show then, and under the words. The
+           drawing buffer is smaller than the window and stretched to it. */
+        #visualiser {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            background: #000;
+            pointer-events: none;
+        }
+
+        #visualiser[hidden] { display: none; }
+
         /* The intro card's own layer, so a stop's fade can dim it while the card's timing sets
            the card. Over the song's picture and under a still, like the words. */
         #intro-layer {
@@ -444,6 +458,8 @@
 <body>
     <video id="video" class="video" playsinline></video>
     <video id="video-b" class="video" playsinline></video>
+    <!-- A visualiser under the words, for a song with no picture; filled by visualiser.js. -->
+    <canvas id="visualiser" hidden></canvas>
     <!-- The native path's picture. Sits with the video elements because it stands in their place:
          a song is drawn here or streamed there, never both. -->
     <canvas id="lyrics" class="video" hidden></canvas>
@@ -481,6 +497,9 @@
     <script src="lead-in.js"></script>
     <script src="stem-mixer.js"></script>
     <script src="wake-watch.js"></script>
+    <script src="butterchurn.min.js"></script>
+    <script src="visualiser-presets.js"></script>
+    <script src="visualiser.js"></script>
     <script src="player.js"></script>
 </body>
 </html>

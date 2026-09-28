@@ -225,6 +225,13 @@ internal sealed class StreamMediaPlayer : IMediaPlayer
         Send(new { type = "timed-lyrics", lyrics = command.Lyrics, intro = command.Intro, leadInSeconds = command.LeadInSeconds, replacing = command.Replacing });
     }
 
+    public void SetVisualiser(SetVisualiserCommand command)
+    {
+        _logger.LogInformation("Visualiser {State}", command.Enabled ? $"on, preset {command.Preset}" : "off");
+
+        Send(new { type = "visualiser", enabled = command.Enabled, preset = command.Preset });
+    }
+
     public void SetMarquee(SetMarqueeCommand command)
     {
         _logger.LogInformation("Marquee {State} with {Count} singer(s)",

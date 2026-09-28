@@ -190,6 +190,9 @@ internal sealed class ScreenIpcController : IAsyncDisposable
             case SetTimedLyricsCommand cmd:
                 _player.SetTimedLyrics(cmd);
                 break;
+            case SetVisualiserCommand cmd:
+                _player.SetVisualiser(cmd);
+                break;
             default:
                 _logger.LogWarning("Unhandled command: {Type}", command.GetType().Name);
                 break;

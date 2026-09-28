@@ -37,6 +37,8 @@ These ship inside a KHost build (host and/or screen app, or the browser assets).
 | Bootstrap Icons (`wwwroot/css/bootstrap-icons.css`, `wwwroot/css/fonts/bootstrap-icons.woff*`) | 1.11.3 | host UI (browser) | MIT | The Bootstrap Authors |
 | SortableJS (`wwwroot/js/Sortable.min.js`) | 1.15.7 | host UI (browser) | MIT | All contributors to SortableJS |
 | hls.js (`screen-ui/hls.light.min.js`, embedded in the screen executable) | 1.7.1 | screen | Apache-2.0 | Dailymotion and contributors |
+| butterchurn (`screen-ui/butterchurn.min.js`, embedded in the screen executable) | 2.6.7 | screen (visualiser) | MIT | Jordan Berg |
+| butterchurn-presets, ten presets (`screen-ui/visualiser-presets.js`, embedded) | 2.4.7 | screen (visualiser) | MIT (the pack); see `screen-ui/VISUALISER-NOTICE.md` on the presets' own authors | Jordan Berg; presets by their named MilkDrop authors |
 
 License texts:
 - MIT and BSD-3-Clause are reproduced in [§4](#4-common-license-texts).

@@ -505,6 +505,33 @@ on every change the same way the marquee is (`LocalScreenDisplayProvider` for th
   line. On macOS a Spotify advert arrives as a track with no artist and an em dash for a title, and
   is drawn as one — recognising ads would mean reading the track id, which nothing does yet.
 
+## The visualiser under the words
+
+A MilkDrop preset (butterchurn, WebGL 2) drawn by the **local screen** under a song's words, in
+place of black. Nothing else gets one: burned-in words (Cast and any display that cannot draw)
+stay on black, and a song with its own picture keeps it.
+
+- **The rule is `SongBackdrops.ForPlaying` answering `Black`**, plus the venue's
+  `SongVisualiserEnabled` (off when unset, no backfill). `LocalScreenDisplayProvider` decides it
+  after every load and on a venue edit, and sends `SetVisualiserCommand` — IPC only, not a
+  contract. A stems load has no picture; a stream from a non-audio file asks `ISourcePictureProbe`
+  once per song. Idle and an ad still send it off, and the screen takes it down itself once a stop
+  has faded out.
+- **The host picks a number per song; the screen maps it onto its own set** (`number mod length`).
+  The host never carries the preset list, and a rebuild or a rejoin keeps the same picture. Any
+  preset a song's timing names is ignored.
+- **It listens, it never re-routes.** A stem song is tapped off the mixer's master gain (after the
+  venue level and the fade), a fan-out to analysers that lead nowhere. An encoded song is tapped
+  through `captureStream()` where the engine has it. **WebKit has no `captureStream`**, so on macOS
+  an encoded song — including a stem song after a key or tempo change — draws without the beat.
+  Do not "fix" that with `createMediaElementSource`: it takes the element's sound off the speakers
+  for good, binds it to one context a sleep can kill, and puts the fades behind a second volume.
+- **A preset must stay alive in silence**, for exactly that case. Several MilkDrop presets fade to
+  black with no input; `screen-ui/VISUALISER-NOTICE.md` says how the set was chosen.
+- Capped at 30fps and a 1280x720 drawing buffer, frozen on pause (the last frame holds), and drawn
+  only while shown. The engine is built on first use and never with an audio context of its own:
+  samples are read here and handed to each frame, since every stem song brings a new context.
+
 ## Streaming a song
 
 `HlsMediaStreamService` encodes at play time, one ffmpeg per song, into

@@ -29,6 +29,18 @@
             <div class="kh-venue-settings__section">
                 <span class="kh-venue-settings__section-title">Song backgrounds</span>
 
+                <label class="kh-venue-settings__row kh-form-check">
+                    <span class="kh-form-check-label">
+                        Show a visualiser behind songs with timed lyrics
+                        <span class="kh-note">
+                            Only for a song with no picture of its own, and only on the local
+                            screen. Off, such a song plays over black.
+                        </span>
+                    </span>
+                    <input id="venue-song-visualiser" type="checkbox" class="kh-form-check-input"
+                           @bind="_model.SongVisualiserEnabled" />
+                </label>
+
                 @if (_backgroundPack.Problem is BackgroundPackProblem.FolderMissing)
                 {
                     <p class="kh-note kh-note--warning">

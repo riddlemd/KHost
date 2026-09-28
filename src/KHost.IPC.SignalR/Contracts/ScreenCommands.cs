@@ -25,6 +25,7 @@ namespace KHost.IPC.SignalR.Contracts;
 [JsonDerivedType(typeof(SetBreakMusicCardCommand), "setBreakMusicCard")]
 [JsonDerivedType(typeof(ShowNextSingerCommand), "showNextSinger")]
 [JsonDerivedType(typeof(SetTimedLyricsCommand), "setTimedLyrics")]
+[JsonDerivedType(typeof(SetVisualiserCommand), "setVisualiser")]
 public abstract class ScreenCommandBase : IScreenCommand { }
 
 /// <summary>Loads one song or clip, ready to play but not playing: a stream to play end to end,
@@ -324,6 +325,22 @@ public sealed class SetTimedLyricsCommand : ScreenCommandBase
     /// <remarks>The song carries on under them: a hold already running or already spent stays as it
     /// is, so a replacement never starts the lead-in again or brings the intro card back.</remarks>
     public bool Replacing { get; init; }
+}
+
+/// <summary>Whether the screen draws a music-reactive visualiser under the loaded song's words, and
+/// which one.</summary>
+/// <remarks>Sent after every load and whenever the program or the venue moves, so it is the whole
+/// state. The screen also takes it down itself once a stop has faded out.</remarks>
+public sealed class SetVisualiserCommand : ScreenCommandBase
+{
+    /// <summary>False takes it down and leaves black behind the words.</summary>
+    public required bool Enabled { get; init; }
+
+    /// <summary>Which of the screen's own presets, as any number: the screen takes it modulo the
+    /// set it ships.</summary>
+    /// <remarks>A number rather than a name so the host need not carry a copy of the screen's
+    /// list. The same number for the same song keeps a rebuild or a rejoin on the same picture.</remarks>
+    public int Preset { get; init; }
 }
 
 /// <summary>What the intro card says, as finished strings: the screen holds no library or queue.</summary>

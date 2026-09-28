@@ -176,6 +176,12 @@ public class Venue : RepositoryModel
 
         private List<string> _songBackgrounds = [];
 
+        /// <summary>Whether a playing song with timed words and no picture of its own gets a
+        /// music-reactive visualiser under its words instead of black.</summary>
+        /// <remarks>Off when unset, so a venue that has never been asked needs no backfill. Only a
+        /// display that draws the words itself shows one; burned-in words stay on black.</remarks>
+        public bool SongVisualiserEnabled { get; set; }
+
         /// <summary>Which plugin's QR code shows; null (default) means none shown until chosen.</summary>
         public string? QrCodeSource { get; set; }
 

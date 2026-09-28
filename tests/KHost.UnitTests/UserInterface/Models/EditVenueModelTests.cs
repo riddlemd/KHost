@@ -77,6 +77,7 @@ public class EditVenueModelTests
         MarqueeDividerColor = "#333333",
         MarqueeDividerShape = MarqueeDividerShape.Diamond,
         SongBackgrounds = ["one.mp4", "two.mp4"],
+        SongVisualiserEnabled = true,
         QrCodeSource = "khost.plugins.karafun",
         QrCodeCorner = OverlayCorner.TopLeft,
         QrCodeSize = QrCodeSize.Large,
