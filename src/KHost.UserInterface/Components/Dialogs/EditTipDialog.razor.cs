@@ -23,9 +23,6 @@ public partial class EditTipDialog : IAsyncDisposable
     /// <summary>False for a tip added from the console, where a date field has only one answer.</summary>
     [Parameter] public bool ShowDate { get; set; } = true;
 
-    [Parameter] public string Class { get; set; } = "";
-    [Parameter] public bool CloseOnScrimClick { get; set; }
-
     [Parameter] public EventCallback<Tip> OnSave { get; set; }
     [Parameter] public EventCallback OnClose { get; set; }
 
@@ -37,48 +34,40 @@ public partial class EditTipDialog : IAsyncDisposable
     private KHostUser? _singer;
     private EditTipModel _model = new();
     private EditContext _editContext = default!;
-    private bool _prevIsOpen;
     // What was last written into the input, so a re-render never overwrites what is being typed.
     private int? _pushedCents;
 
-    protected override void OnInitialized()
+    // DialogHost keys every dialog by request id, so a fresh instance is created per open; this
+    // runs exactly once with Tip already bound.
+    protected override async Task OnInitializedAsync()
     {
+        _isNew = Tip is null;
+        _model = Tip is null
+            ? new EditTipModel()
+            : new EditTipModel
+            {
+                Id = Tip.Id,
+                // The singer-locked overload can hand over a blank tip, and Guid.Empty has to
+                // read as "not chosen" for [Required] to fail on it.
+                UserId = Tip.UserId == Guid.Empty ? null : Tip.UserId,
+                VenueId = Tip.VenueId,
+                AmountInCents = Tip.AmountInCents,
+                // ToLocalTime reads an Unspecified kind as UTC, which is what SQLite hands back.
+                CreatedDate = Tip.CreatedDate.ToLocalTime(),
+                PaymentMethod = Tip.PaymentMethod,
+                Notes = Tip.Notes
+            };
+
+        if (UserId.HasValue)
+            _model.UserId = UserId.Value;
+
         _editContext = new EditContext(_model);
-    }
+        _pushedCents = null;
 
-    protected override async Task OnParametersSetAsync()
-    {
-        if (IsOpen && !_prevIsOpen)
-        {
-            _isNew = Tip is null;
-            _model = Tip is null
-                ? new EditTipModel()
-                : new EditTipModel
-                {
-                    Id = Tip.Id,
-                    // The singer-locked overload can hand over a blank tip, and Guid.Empty has to
-                    // read as "not chosen" for [Required] to fail on it.
-                    UserId = Tip.UserId == Guid.Empty ? null : Tip.UserId,
-                    VenueId = Tip.VenueId,
-                    AmountInCents = Tip.AmountInCents,
-                    // ToLocalTime reads an Unspecified kind as UTC, which is what SQLite hands back.
-                    CreatedDate = Tip.CreatedDate.ToLocalTime(),
-                    PaymentMethod = Tip.PaymentMethod,
-                    Notes = Tip.Notes
-                };
-
-            if (UserId.HasValue)
-                _model.UserId = UserId.Value;
-
-            _editContext = new EditContext(_model);
-            _pushedCents = null;
-
-            // A stored tip carries an id; the field shows a name.
-            _singer = _model.UserId is null || UsersService is null
-                ? null
-                : await UsersService.ReadAsync(_model.UserId.Value);
-        }
-        _prevIsOpen = IsOpen;
+        // A stored tip carries an id; the field shows a name.
+        _singer = _model.UserId is null || UsersService is null
+            ? null
+            : await UsersService.ReadAsync(_model.UserId.Value);
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)

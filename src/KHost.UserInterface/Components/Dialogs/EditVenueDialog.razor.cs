@@ -33,8 +33,6 @@ public partial class EditVenueDialog
 
     [Parameter] public bool IsOpen { get; set; }
     [Parameter] public Venue? Venue { get; set; }
-    [Parameter] public string Class { get; set; } = "";
-    [Parameter] public bool CloseOnScrimClick { get; set; }
 
     [Parameter] public EventCallback<Venue> OnSave { get; set; }
     [Parameter] public EventCallback OnClose { get; set; }
@@ -59,13 +57,7 @@ public partial class EditVenueDialog
     private bool _isNew;
     private EditVenueModel _model = new();
     private EditContext _editContext = default!;
-    private bool _prevIsOpen;
     private bool _rotationDialogOpen;
-
-    protected override void OnInitialized()
-    {
-        _editContext = new EditContext(_model);
-    }
 
     /// <summary>Kept selected for an unloaded provider: an unmatched select value renders blank.</summary>
     private string? UnavailableProviderSource
@@ -103,12 +95,12 @@ public partial class EditVenueDialog
             ? $"{provider.DisplayName} playlist"
             : provider.DisplayName;
 
-    protected override async Task OnParametersSetAsync()
+    // DialogHost keys every dialog by request id, so a fresh instance is created per open; this
+    // runs exactly once with Venue already bound.
+    protected override async Task OnInitializedAsync()
     {
-        if (IsOpen && !_prevIsOpen)
-        {
-            _isNew = Venue is null;
-            _model = Venue is null
+        _isNew = Venue is null;
+        _model = Venue is null
                 ? new EditVenueModel { BreakMusicProvider = BreakMusic.ActiveProvider?.SourceName }
                 : new EditVenueModel
                 {
@@ -181,11 +173,9 @@ public partial class EditVenueDialog
                     QrCodeSafeZone = Venue.Settings.QrCodeSafeZone,
                     QrCodeOffset = Venue.Settings.QrCodeOffset,
                 };
-            _editContext = new EditContext(_model);
+        _editContext = new EditContext(_model);
 
-            await LoadChoicesAsync();
-        }
-        _prevIsOpen = IsOpen;
+        await LoadChoicesAsync();
     }
 
     /// <summary>Read when the dialog opens, not held, since a new playlist would be missing.</summary>
