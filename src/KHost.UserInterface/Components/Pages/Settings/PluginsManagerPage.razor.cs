@@ -94,36 +94,6 @@ public partial class PluginsManagerPage : IDisposable
         else _enabledIds.Remove(pluginId);
     }
 
-    /// <summary>Any edit invalidates the "Saved" marker, so it can never describe stale state.</summary>
-    private void MarkEdited(string pluginId)
-    {
-        if (_drafts.TryGetValue(pluginId, out var draft))
-            draft.MarkEdited();
-    }
-
-    private void ReplaceSecret(string pluginId, SettingField field)
-    {
-        field.Replacing = true;
-        field.Text = null;
-        MarkEdited(pluginId);
-    }
-
-    private void CancelReplaceSecret(string pluginId, SettingField field)
-    {
-        field.Replacing = false;
-        field.Text = null;
-        field.StoredSecret = field.OriginalSecret;
-        MarkEdited(pluginId);
-    }
-
-    private void ClearSecret(string pluginId, SettingField field)
-    {
-        field.Replacing = false;
-        field.Text = null;
-        field.StoredSecret = null;
-        MarkEdited(pluginId);
-    }
-
     private void Revert(string pluginId)
     {
         if (_drafts.TryGetValue(pluginId, out var draft))
@@ -144,9 +114,6 @@ public partial class PluginsManagerPage : IDisposable
         if (Directory.Exists(directory))
             ExternalLinks.Open(directory);
     }
-
-    private static string GetInputType(PluginSettingDefinition definition)
-        => definition.Type == PluginSettingType.Int ? "number" : "text";
 
     /// <summary>An unknown style falls back to primary, not a class that resolves to nothing.</summary>
     private static string ButtonStyleClass(string? style) => style switch

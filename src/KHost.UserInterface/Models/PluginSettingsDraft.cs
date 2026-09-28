@@ -6,7 +6,7 @@ namespace KHost.UserInterface.Models;
 /// <summary>One plugin's settings form: its fields, whether any is unsaved, and the "Saved" flash
 /// that a fresh edit clears. Bundled here so PluginsManagerPage and PluginSettingsForm read one
 /// object instead of two parallel dictionaries keyed by plugin id.</summary>
-internal sealed class PluginSettingsDraft
+public sealed class PluginSettingsDraft
 {
     public required IReadOnlyList<SettingField> Fields { get; init; }
 
@@ -131,9 +131,9 @@ internal sealed class PluginSettingsDraft
 
 /// <summary>One heading and the settings under it. A null name is the run before any heading,
 /// which is what a manifest naming no sections produces for all of them.</summary>
-internal sealed record SettingSection(string? Name, IReadOnlyList<SettingField> Fields);
+public sealed record SettingSection(string? Name, IReadOnlyList<SettingField> Fields);
 
-internal sealed class SettingField
+public sealed class SettingField
 {
     public required PluginSettingDefinition Definition { get; init; }
 
