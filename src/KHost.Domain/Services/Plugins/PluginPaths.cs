@@ -20,4 +20,9 @@ public static class PluginPaths
     public static string Staging => Path.Combine(AppContext.BaseDirectory, "plugins-staging");
 
     public static string Cache => Path.Combine(AppContext.BaseDirectory, "cache");
+
+    /// <summary>Executables shared by the host and plugins: the installed ffmpeg, and plugins' own.</summary>
+    /// <remarks>A dev run already sits in the project's build <c>bin/</c>, so this is a nested one;
+    /// DeepClean keeps any nested <c>bin/</c> for that reason.</remarks>
+    public static string Bin => Path.Combine(AppContext.BaseDirectory, "bin");
 }

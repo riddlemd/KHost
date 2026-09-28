@@ -27,27 +27,11 @@ public class PluginPayloadReader : IPluginPayloadReader
     {
         Directory.CreateDirectory(destination);
 
-        var root = Path.GetFullPath(destination) + Path.DirectorySeparatorChar;
-
         using var archive = ZipFile.OpenRead(zipPath);
-
-        long expanded = 0;
 
         // Every entry is checked before a byte is written: a zip that escapes its destination or
         // expands past the cap must not leave half its contents on disk.
-        foreach (var entry in archive.Entries)
-        {
-            expanded += entry.Length;
-
-            if (expanded > MaxExpandedBytes)
-                throw new InvalidOperationException("The download expands to more than this host will accept.");
-
-            if (entry.FullName.EndsWith('/') || entry.FullName.EndsWith('\\'))
-                continue;
-
-            if (!Path.GetFullPath(Path.Combine(destination, entry.FullName)).StartsWith(root, StringComparison.Ordinal))
-                throw new InvalidOperationException($"The download writes outside its folder ('{entry.FullName}').");
-        }
+        ZipEntryGuard.EnsureContained(archive, destination, MaxExpandedBytes);
 
         archive.ExtractToDirectory(destination);
     }

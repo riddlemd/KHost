@@ -1,0 +1,27 @@
+@using KHost.UserInterface.Components.Pages.Settings
+
+<div class="kh-ffmpeg-status">
+    @foreach (var tool in Tools)
+    {
+        <div class="kh-ffmpeg-status__tool @(tool.IsUsable ? "" : "kh-ffmpeg-status__tool--missing")" data-tool="@NameOf(tool)">
+            <span class="kh-ffmpeg-status__name">@NameOf(tool)</span>
+            <span class="kh-ffmpeg-status__detail" title="@tool.Path">@Describe(tool)</span>
+        </div>
+    }
+
+    @if (Status.Install.IsRunning)
+    {
+        <div class="kh-ffmpeg-status__progress">
+            <span class="kh-ffmpeg-status__stage">@StageText</span>
+            @if (Status.Install.Progress is { } fraction)
+            {
+                <ProgressBar Fraction="fraction" TrackClass="kh-ffmpeg-status__track"
+                             FillClass="kh-ffmpeg-status__fill" PercentClass="kh-ffmpeg-status__percent" />
+            }
+        </div>
+    }
+    else if (Status.Install is { State: FFmpegInstallState.Failed, Error: { } error })
+    {
+        <p class="kh-ffmpeg-status__error" role="alert">@error</p>
+    }
+</div>

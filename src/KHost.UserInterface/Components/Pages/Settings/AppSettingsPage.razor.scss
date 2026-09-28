@@ -56,6 +56,19 @@
         color: var(--kh-text-secondary);
     }
 
+    &__ffmpeg {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        padding: 8px 0 0;
+    }
+
+    &__ffmpeg-actions {
+        display: flex;
+        gap: 8px;
+        justify-content: flex-end;
+    }
+
     &__actions {
         margin-top: 24px;
         display: flex;

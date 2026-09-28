@@ -11,9 +11,10 @@ public class AppSettingsServiceTests : IDisposable
 {
     private readonly string _directory = Path.Combine(Path.GetTempPath(), $"khost-settings-{Guid.NewGuid():n}");
     private readonly IUsersService _users = Substitute.For<IUsersService>();
+    private readonly IFFmpegService _ffmpeg = Substitute.For<IFFmpegService>();
 
     private AppSettingsService Service(params KeyValuePair<string, string?>[] config)
-        => new(new ConfigurationBuilder().AddInMemoryCollection(config).Build(), _users, _directory);
+        => new(new ConfigurationBuilder().AddInMemoryCollection(config).Build(), _users, _ffmpeg, _directory);
 
     [Fact]
     public async Task SaveAsync_WritesAConfigShapedOverlay()
@@ -252,16 +253,39 @@ public class AppSettingsServiceTests : IDisposable
         Assert.True(result.Saved);
     }
 
+    /// <summary>The folder applies live: the next song and probe look there, so no restart.</summary>
     [Fact]
-    public async Task SaveAsync_FlagsARestart_OnlyForTheFfmpegPath()
+    public async Task SaveAsync_ChangingTheFfmpegPath_ChecksAgainWithoutARestart()
     {
         var service = Service();
 
-        await service.SaveAsync(new AppSettings { RequireLogin = false });
-        Assert.False(service.RestartRequired);
-
         await service.SaveAsync(new AppSettings { FFmpegPath = "/opt/ffmpeg" });
-        Assert.True(service.RestartRequired);
+
+        Assert.False(service.RestartRequired);
+        await _ffmpeg.Received(1).CheckAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task SaveAsync_LeavingTheFfmpegPathAlone_DoesNotCheckAgain()
+    {
+        var service = Service(new KeyValuePair<string, string?>("FFmpegPath", "/opt/ffmpeg"));
+
+        await service.SaveAsync(service.Current with { SegmentSeconds = 4 });
+
+        await _ffmpeg.DidNotReceive().CheckAsync(Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>Cleared, it must reach the overlay as blank, or the old folder stays in force.</summary>
+    [Fact]
+    public async Task SaveAsync_ClearingTheFfmpegPath_WritesItBlank()
+    {
+        var service = Service(new KeyValuePair<string, string?>("FFmpegPath", "/opt/ffmpeg"));
+
+        await service.SaveAsync(service.Current with { FFmpegPath = " " });
+
+        using var overlay = JsonDocument.Parse(
+            await File.ReadAllTextAsync(Path.Combine(_directory, AppSettingsService.OverlayFileName)));
+        Assert.Equal(JsonValueKind.Null, overlay.RootElement.GetProperty("FFmpegPath").ValueKind);
     }
 
     [Fact]

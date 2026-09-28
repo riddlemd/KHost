@@ -83,8 +83,9 @@ dotnet run --project tools/KHost.CatalogSync -- <owner/repo>
 - [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)
 - [Node.js](https://nodejs.org/): the build needs `node_modules` (`npm install` in
   `src/KHost.UserInterface`)
-- [FFmpeg](https://ffmpeg.org/download.html), with `ffmpeg` and `ffprobe` on `PATH`. FFmpeg is not
-  distributed with KHost.
+- [FFmpeg](https://ffmpeg.org/download.html) (`ffmpeg` and `ffprobe`): on `PATH`, in a folder named
+  in App Settings, or installed by KHost from a pinned third-party build on Windows x64 and macOS
+  (App Settings → Install FFmpeg, or the setup wizard). FFmpeg is not distributed with KHost.
 
 ### Hardware
 
