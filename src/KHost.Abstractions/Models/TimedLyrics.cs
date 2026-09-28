@@ -112,25 +112,27 @@ public sealed record LyricLine
     public LyricLeadIn? LeadIn { get; init; }
 }
 
-/// <summary>A marker that travels up to a line's first word, or to a word part way along it, so a
-/// singer coming out of a silence sees the moment to start.</summary>
-/// <remarks>It arrives where and when the syllable it is for starts — at that syllable's leading
-/// edge, as it is lit — so only where it sets off from is carried. A line with no syllables or no
-/// <see cref="LyricLine.Position"/> gives it nowhere to arrive, and nothing is drawn; nor is anything
-/// drawn when <see cref="ArriveAtSyllable"/> names no syllable of the line, or one with no text.</remarks>
-/// <param name="StartSeconds">Song position the marker appears and sets off.</param>
-/// <param name="X">Where it sets off, in the timing's own units, on the same axis as the line's
-/// <see cref="LyricBox.X"/>. The line's <see cref="LyricBox.X"/> less this is the run it makes.
-/// Arriving at the line's start, the run ends on the line's left edge, and a right-to-left song
-/// makes the same run into the line's right edge from outside it. Arriving part way along, the same
-/// run ends on the target syllable's leading edge as the display lays the line out — its left edge,
-/// or its right edge in a right-to-left song.</param>
+/// <summary>Marks the moment a singer coming out of a silence should start: a countdown for a line's
+/// first word, or for a word part way along it.</summary>
+/// <remarks>A line with no syllables or no <see cref="LyricLine.Position"/> gives it nowhere to draw,
+/// and nothing is drawn; nor is anything drawn when <see cref="ArriveAtSyllable"/> names no syllable
+/// of the line, or one with no text. At the line's start (<see cref="ArriveAtSyllable"/> zero, the
+/// default) the display runs a marker in from <see cref="X"/> to arrive as the first syllable lights.
+/// Part way along the line, the count is shown over that syllable itself instead — see
+/// <see cref="ArriveAtSyllable"/> — and <see cref="X"/> plays no part.</remarks>
+/// <param name="StartSeconds">Song position the marker appears, and starts counting down, from.</param>
+/// <param name="X">Where a line-start marker sets off, in the timing's own units, on the same axis as
+/// the line's <see cref="LyricBox.X"/>; unused when <see cref="ArriveAtSyllable"/> names a later
+/// syllable. The line's <see cref="LyricBox.X"/> less this is the run it makes: arriving at the
+/// line's start, the run ends on the line's left edge, and a right-to-left song makes the same run
+/// into the line's right edge from outside it.</param>
 public sealed record LyricLeadIn(double StartSeconds, double X)
 {
-    /// <summary>Which of the line's <see cref="LyricLine.Syllables"/> the marker arrives at, by
-    /// index; zero, the default, is the line's start.</summary>
-    /// <remarks>Past zero, the marker is for a pause inside the line: it arrives as that syllable is
-    /// lit, running over words already sung.</remarks>
+    /// <summary>Which of the line's <see cref="LyricLine.Syllables"/> the marker is for, by index;
+    /// zero, the default, is the line's start.</summary>
+    /// <remarks>Past zero, the marker is for a pause inside the line: the display shows it as a count
+    /// over that syllable itself, from <see cref="StartSeconds"/> until the syllable lights, rather
+    /// than running a marker over the words already sung.</remarks>
     public int ArriveAtSyllable { get; init; }
 }
 
