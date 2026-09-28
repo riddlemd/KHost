@@ -1,4 +1,6 @@
 using Bunit;
+using KHost.Abstractions.Models;
+using KHost.Abstractions.Services;
 using KHost.UserInterface.Components.Dialogs;
 using KHost.UserInterface.Models;
 using KHost.UserInterface.Services;
@@ -24,6 +26,20 @@ public class DialogHostSaveTests : BunitContext
 
         Services.AddSingleton<IDialogService>(_dialogService);
         Services.AddSingleton(themeService);
+
+        // [Inject] is resolved for real here (unlike the reflection-built dialog tests), so every
+        // nullable dependency EditUserDialog declares still needs a registration or DI throws.
+        var userGroupsService = Substitute.For<IUserGroupsService>();
+        // NSubstitute hands back a completed task wrapping null for an unstubbed Task<T> return.
+        userGroupsService.ReadAllAsync(Arg.Any<int>(), Arg.Any<int>())
+            .Returns(new PaginatedResult<KHostUserGroup>());
+        Services.AddSingleton(userGroupsService);
+        Services.AddSingleton(Substitute.For<IUsersService>());
+        Services.AddSingleton(Substitute.For<IPerformanceService>());
+        Services.AddSingleton(Substitute.For<IMediaService>());
+        Services.AddSingleton(Substitute.For<IVenuesService>());
+        Services.AddSingleton(Substitute.For<ITipsService>());
+        Services.AddSingleton(Substitute.For<IPasswordHasher>());
     }
 
     [Fact]
@@ -45,5 +61,55 @@ public class DialogHostSaveTests : BunitContext
 
         Assert.Equal("Neon", saved!.Name);
         Assert.False(cancelled);
+    }
+
+    /// <summary>The dialog's own CancelAsync used to invoke OnClose itself before also calling
+    /// CloseAsync, which invoked it again; DialogHost's onCancel fired twice for one click.</summary>
+    [Fact]
+    public async Task CancelThroughTheDialogHost_InvokesOnCancelOnce_Theme()
+    {
+        var host = Render<DialogHost>();
+        var cancelCount = 0;
+
+        await _dialogService.RequestEditAsync(
+            (ThemeDefinition?)null,
+            onSave: _ => Task.CompletedTask,
+            onCancel: () => cancelCount++);
+
+        host.Find(".kh-theme-edit-dialog__cancel-btn").Click();
+
+        host.WaitForAssertion(() => Assert.Equal(1, cancelCount));
+    }
+
+    [Fact]
+    public async Task CancelThroughTheDialogHost_InvokesOnCancelOnce_User()
+    {
+        var host = Render<DialogHost>();
+        var cancelCount = 0;
+
+        await _dialogService.RequestEditAsync(
+            (KHostUser?)null,
+            onSave: _ => Task.CompletedTask,
+            onCancel: () => cancelCount++);
+
+        host.Find(".kh-user-edit-dialog__cancel-btn").Click();
+
+        host.WaitForAssertion(() => Assert.Equal(1, cancelCount));
+    }
+
+    [Fact]
+    public async Task CancelThroughTheDialogHost_InvokesOnCancelOnce_UserGroup()
+    {
+        var host = Render<DialogHost>();
+        var cancelCount = 0;
+
+        await _dialogService.RequestEditAsync(
+            (KHostUserGroup?)null,
+            onSave: _ => Task.CompletedTask,
+            onCancel: () => cancelCount++);
+
+        host.Find(".kh-user-group-edit-dialog__cancel-btn").Click();
+
+        host.WaitForAssertion(() => Assert.Equal(1, cancelCount));
     }
 }

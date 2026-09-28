@@ -8,7 +8,7 @@ namespace KHost.UserInterface.Components.Setup;
 
 public partial class WizardStep2VenueSetup
 {
-    [Inject] private IVenuesService? VenuesService { get; set; }
+    [Inject] private IVenuesService VenuesService { get; set; } = default!;
 
     [Parameter]
     public EventCallback OnComplete { get; set; }
@@ -42,7 +42,7 @@ public partial class WizardStep2VenueSetup
                     ClearQueueOnClose = _model.ClearQueueOnClose,
                 }
             };
-            var createdVenue = await VenuesService!.CreateAsync(venue);
+            var createdVenue = await VenuesService.CreateAsync(venue);
             await VenuesService.SelectVenueAsync(createdVenue.Id);
             await OnComplete.InvokeAsync();
         }

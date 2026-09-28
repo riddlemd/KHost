@@ -12,9 +12,9 @@ namespace KHost.UserInterface.Components.Panels;
 /// two never disagree, and a second console follows on the announcement a save leads to.</remarks>
 public partial class ColorBlindLyricsToggle : IDisposable
 {
-    [Inject] private IAppSettingsService? AppSettings { get; set; }
+    [Inject] private IAppSettingsService AppSettings { get; set; } = default!;
     [Inject] private IMessageBroker Broker { get; set; } = default!;
-    [Inject] private IFlashService? Flash { get; set; }
+    [Inject] private IFlashService Flash { get; set; } = default!;
 
     private readonly SubscriptionSet _subscriptions = new();
 
@@ -27,11 +27,11 @@ public partial class ColorBlindLyricsToggle : IDisposable
 
     protected override void OnInitialized()
     {
-        _on = AppSettings?.Current?.ColorBlindFriendlyLyrics ?? false;
+        _on = AppSettings.Current?.ColorBlindFriendlyLyrics ?? false;
 
         _subscriptions.Add(Broker.Subscribe<TimedLyricsSettingsChanged>(_ => InvokeAsync(() =>
         {
-            _on = AppSettings?.Current?.ColorBlindFriendlyLyrics ?? _on;
+            _on = AppSettings.Current?.ColorBlindFriendlyLyrics ?? _on;
             StateHasChanged();
         })));
     }
@@ -39,7 +39,7 @@ public partial class ColorBlindLyricsToggle : IDisposable
     private async Task ToggleAsync()
     {
         // The whole snapshot goes back, as the settings page sends it, with this one value moved.
-        if (AppSettings?.Current is not { } settings) return;
+        if (AppSettings.Current is not { } settings) return;
 
         settings.ColorBlindFriendlyLyrics = !_on;
 
@@ -51,7 +51,7 @@ public partial class ColorBlindLyricsToggle : IDisposable
             if (result.Saved)
                 _on = settings.ColorBlindFriendlyLyrics;
             else
-                Flash?.Show(result.Error ?? "Colour-blind friendly lyrics could not be saved.", FlashType.Warning);
+                Flash.Show(result.Error ?? "Colour-blind friendly lyrics could not be saved.", FlashType.Warning);
         }
         finally
         {

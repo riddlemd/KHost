@@ -18,204 +18,131 @@
                 }
 
                 <div class="kh-app-settings__section">Security</div>
-                <label class="kh-app-settings__row kh-form-check">
-                    <span class="kh-form-check-label">
-                        Require sign-in to use KHost
-                        <span class="kh-app-settings__apply">applies at next sign-in</span>
-                    </span>
+                <SettingRow Label="Require sign-in to use KHost" Applies="applies at next sign-in" IsCheckbox="true">
                     <InputCheckbox class="kh-form-check-input" @bind-Value="_model.RequireLogin" />
-                </label>
+                </SettingRow>
 
                 <div class="kh-app-settings__section">Screens</div>
-                <label class="kh-app-settings__row kh-form-check">
-                    <span class="kh-form-check-label">
-                        Open a screen when KHost starts
-                        <span class="kh-app-settings__apply">applies at next start</span>
-                    </span>
+                <SettingRow Label="Open a screen when KHost starts" Applies="applies at next start" IsCheckbox="true">
                     <InputCheckbox id="launch-screen-on-startup" class="kh-form-check-input"
                                    @bind-Value="_model.LaunchScreenOnStartup" />
-                </label>
+                </SettingRow>
 
                 <div class="kh-app-settings__section">Playback</div>
-                <label class="kh-app-settings__row">
-                    <span>
-                        Stop fade (seconds)
-                        <span class="kh-app-settings__apply">applies immediately</span>
-                    </span>
+                <SettingRow Label="Stop fade (seconds)" Applies="applies immediately">
                     <InputNumber class="kh-form-control kh-app-settings__number" @bind-Value="_model.StopFadeSeconds" min="0" step="0.5" />
-                </label>
-                <label class="kh-app-settings__row">
-                    <span>
-                        HLS segment length (seconds)
-                        <span class="kh-app-settings__apply">applies immediately</span>
-                    </span>
+                </SettingRow>
+                <SettingRow Label="HLS segment length (seconds)" Applies="applies immediately">
                     <InputNumber class="kh-form-control kh-app-settings__number" @bind-Value="_model.SegmentSeconds" min="1" step="1" />
-                </label>
-                <label class="kh-app-settings__row">
-                    <span class="kh-app-settings__labelled">
-                        CD+G scaling
-                        <span class="kh-app-settings__apply">applies from the next song</span>
+                </SettingRow>
+                <SettingRow Label="CD+G scaling" Applies="applies from the next song">
+                    <Note>
                         <span class="kh-note">
                             Sharpens CD+G graphics by scaling them up before they're sent to the
                             display. Higher sizes cost more processing.
                         </span>
-                    </span>
-                    <select id="graphics-scale" class="kh-form-select kh-app-settings__number" @bind="_model.GraphicsScaleHeight">
-                        @foreach (var height in GraphicsScaleChoices)
-                        {
-                            <option value="@height">@GraphicsScaleLabel(height)</option>
-                        }
-                    </select>
-                </label>
+                    </Note>
+                    <ChildContent>
+                        <ChoiceSelect TValue="int" Id="graphics-scale" Choices="GraphicsScaleChoices"
+                                      Value="_model.GraphicsScaleHeight" ValueChanged="v => _model.GraphicsScaleHeight = v"
+                                      Label="GraphicsScaleLabel" />
+                    </ChildContent>
+                </SettingRow>
 
-                <label class="kh-app-settings__row">
-                    <span>
-                        Song controls
-                        <span class="kh-app-settings__apply">applies immediately</span>
-                    </span>
+                <SettingRow Label="Song controls" Applies="applies immediately">
                     <select class="kh-form-select kh-app-settings__number" @bind="_model.SongControlStyle">
                         <option value="@SongControlStyle.Sliders">Sliders</option>
                         <option value="@SongControlStyle.Dials">Dials</option>
                     </select>
-                </label>
-                <label class="kh-app-settings__row">
-                    <span>
-                        Backing vocals (%)
-                        <span class="kh-app-settings__apply">applies immediately</span>
-                    </span>
+                </SettingRow>
+                <SettingRow Label="Backing vocals (%)" Applies="applies immediately">
                     <InputNumber class="kh-form-control kh-app-settings__number" @bind-Value="_model.BackingVocalVolume" min="0" max="100" step="5" />
-                </label>
-                <label class="kh-app-settings__row">
-                    <span class="kh-app-settings__labelled">
-                        Lead-in grace
-                        <span class="kh-app-settings__apply">applies from the next song</span>
+                </SettingRow>
+                <SettingRow Label="Lead-in grace" Applies="applies from the next song">
+                    <Note>
                         <span class="kh-note">
                             Holds the start of a song whose words begin almost at once, so the singer
                             is led in. Songs with their own intro are not delayed beyond it.
                         </span>
-                    </span>
-                    <select id="lead-in-grace" class="kh-form-select kh-app-settings__number" @bind="_model.LeadInGraceSeconds">
-                        @foreach (var seconds in LeadInGraceChoices)
-                        {
-                            <option value="@seconds">@LeadInGraceLabel(seconds)</option>
-                        }
-                    </select>
-                </label>
-                <label class="kh-app-settings__row kh-form-check">
-                    <span class="kh-form-check-label">
-                        Add lead-ins
-                        <span class="kh-app-settings__apply">applies immediately</span>
+                    </Note>
+                    <ChildContent>
+                        <ChoiceSelect TValue="int" Id="lead-in-grace" Choices="LeadInGraceChoices"
+                                      Value="_model.LeadInGraceSeconds" ValueChanged="v => _model.LeadInGraceSeconds = v"
+                                      Label="LeadInGraceLabel" />
+                    </ChildContent>
+                </SettingRow>
+                <SettingRow Label="Add lead-ins" Applies="applies immediately" IsCheckbox="true">
+                    <Note>
                         <span class="kh-note">
                             Runs a marker into the first line of a page and into a line after a long
                             pause, where the song's timing gives none. Only for words the screen draws
                             or burns in from timed lyrics, not CD+G or video.
                         </span>
-                    </span>
-                    <InputCheckbox id="dynamic-lead-ins" class="kh-form-check-input" @bind-Value="_model.DynamicLeadIns" />
-                </label>
-                <label class="kh-app-settings__row">
-                    <span class="kh-app-settings__labelled">
-                        Lead-in after a pause of
-                        <span class="kh-app-settings__apply">applies immediately</span>
+                    </Note>
+                    <ChildContent>
+                        <InputCheckbox id="dynamic-lead-ins" class="kh-form-check-input" @bind-Value="_model.DynamicLeadIns" />
+                    </ChildContent>
+                </SettingRow>
+                <SettingRow Label="Lead-in after a pause of" Applies="applies immediately">
+                    <Note>
                         <span class="kh-note">
                             How long the singing has to stop before the next line gets a lead-in.
                         </span>
-                    </span>
-                    <select id="dynamic-lead-in-pause" class="kh-form-select kh-app-settings__number" @bind="_model.DynamicLeadInPauseSeconds">
-                        @foreach (var seconds in DynamicLeadInPauseChoices)
-                        {
-                            <option value="@seconds">@DynamicLeadInPauseLabel(seconds)</option>
-                        }
-                    </select>
-                </label>
-                <label class="kh-app-settings__row kh-form-check">
-                    <span class="kh-form-check-label">
-                        Colour-blind friendly lyrics
-                        <span class="kh-app-settings__apply">applies immediately</span>
+                    </Note>
+                    <ChildContent>
+                        <ChoiceSelect TValue="int" Id="dynamic-lead-in-pause" Choices="DynamicLeadInPauseChoices"
+                                      Value="_model.DynamicLeadInPauseSeconds" ValueChanged="v => _model.DynamicLeadInPauseSeconds = v"
+                                      Label="DynamicLeadInPauseLabel" />
+                    </ChildContent>
+                </SettingRow>
+                <SettingRow Label="Colour-blind friendly lyrics" Applies="applies immediately" IsCheckbox="true">
+                    <Note>
                         <span class="kh-note">
                             Makes duet singers and sung and unsung words easier to tell apart for
                             colour-blind viewers, by separating colours that would look alike. Only
                             for timed lyrics, not CD+G or video.
                         </span>
-                    </span>
-                    <InputCheckbox id="colour-blind-lyrics" class="kh-form-check-input" @bind-Value="_model.ColorBlindFriendlyLyrics" />
-                </label>
+                    </Note>
+                    <ChildContent>
+                        <InputCheckbox id="colour-blind-lyrics" class="kh-form-check-input" @bind-Value="_model.ColorBlindFriendlyLyrics" />
+                    </ChildContent>
+                </SettingRow>
 
                 <div class="kh-app-settings__section">Ads</div>
-                <label class="kh-app-settings__row">
-                    <span>
-                        Default ad duration (seconds)
-                        <span class="kh-app-settings__apply">applies immediately</span>
-                    </span>
+                <SettingRow Label="Default ad duration (seconds)" Applies="applies immediately">
                     <InputNumber class="kh-form-control kh-app-settings__number" @bind-Value="_model.AdDefaultDurationSeconds" min="1" step="1" />
-                </label>
+                </SettingRow>
 
                 <div class="kh-app-settings__section">Pagination</div>
-                <label class="kh-app-settings__row">
-                    <span>
-                        Media library rows per page
-                        <span class="kh-app-settings__apply">applies when the list next loads</span>
-                    </span>
+                <SettingRow Label="Media library rows per page" Applies="applies when the list next loads">
                     <InputNumber class="kh-form-control kh-app-settings__number" @bind-Value="_model.MediaPageSize" min="1" step="1" />
-                </label>
-                <label class="kh-app-settings__row">
-                    <span>
-                        Users rows per page
-                        <span class="kh-app-settings__apply">applies when the list next loads</span>
-                    </span>
+                </SettingRow>
+                <SettingRow Label="Users rows per page" Applies="applies when the list next loads">
                     <InputNumber class="kh-form-control kh-app-settings__number" @bind-Value="_model.UsersPageSize" min="1" step="1" />
-                </label>
-                <label class="kh-app-settings__row">
-                    <span>
-                        User groups rows per page
-                        <span class="kh-app-settings__apply">applies when the list next loads</span>
-                    </span>
+                </SettingRow>
+                <SettingRow Label="User groups rows per page" Applies="applies when the list next loads">
                     <InputNumber class="kh-form-control kh-app-settings__number" @bind-Value="_model.UserGroupsPageSize" min="1" step="1" />
-                </label>
-                <label class="kh-app-settings__row">
-                    <span>
-                        Tips rows per page
-                        <span class="kh-app-settings__apply">applies when the list next loads</span>
-                    </span>
+                </SettingRow>
+                <SettingRow Label="Tips rows per page" Applies="applies when the list next loads">
                     <InputNumber class="kh-form-control kh-app-settings__number" @bind-Value="_model.TipsPageSize" min="1" step="1" />
-                </label>
-                <label class="kh-app-settings__row">
-                    <span>
-                        Venues rows per page
-                        <span class="kh-app-settings__apply">applies when the list next loads</span>
-                    </span>
+                </SettingRow>
+                <SettingRow Label="Venues rows per page" Applies="applies when the list next loads">
                     <InputNumber class="kh-form-control kh-app-settings__number" @bind-Value="_model.VenuesPageSize" min="1" step="1" />
-                </label>
-                <label class="kh-app-settings__row">
-                    <span>
-                        Performance history rows per page
-                        <span class="kh-app-settings__apply">applies when the dialog next opens</span>
-                    </span>
+                </SettingRow>
+                <SettingRow Label="Performance history rows per page" Applies="applies when the dialog next opens">
                     <InputNumber class="kh-form-control kh-app-settings__number" @bind-Value="_model.PerformanceHistoryPageSize" min="1" step="1" />
-                </label>
+                </SettingRow>
 
                 <div class="kh-app-settings__section">Media</div>
-                <label class="kh-app-settings__row">
-                    <span>
-                        FFmpeg directory (blank = use PATH)
-                        <span class="kh-app-settings__apply">restart required</span>
-                    </span>
+                <SettingRow Label="FFmpeg directory (blank = use PATH)" Applies="restart required">
                     <InputText class="kh-form-control kh-app-settings__path" @bind-Value="_model.FFmpegPath" placeholder="/usr/local/bin" />
-                </label>
-                <label class="kh-app-settings__row">
-                    <span>
-                        Media directory (blank = @_defaultMediaDirectory)
-                        <span class="kh-app-settings__apply">applies to plugin downloads immediately</span>
-                    </span>
+                </SettingRow>
+                <SettingRow Label="@($"Media directory (blank = {_defaultMediaDirectory})")" Applies="applies to plugin downloads immediately">
                     <InputText class="kh-form-control kh-app-settings__path" @bind-Value="_model.MediaDirectory" placeholder="@_defaultMediaDirectory" />
-                </label>
-                <label class="kh-app-settings__row">
-                    <span>
-                        Song backgrounds folder
-                        <span class="kh-app-settings__apply">added to the backgrounds shipped with KHost; a venue picks which it wants</span>
-                    </span>
+                </SettingRow>
+                <SettingRow Label="Song backgrounds folder" Applies="added to the backgrounds shipped with KHost; a venue picks which it wants">
                     <InputText class="kh-form-control kh-app-settings__path" @bind-Value="_model.SongBackgroundFolder" placeholder="none" />
-                </label>
+                </SettingRow>
 
                 <div class="kh-app-settings__actions">
                     <button class="kh-button kh-button--primary" @onclick="SaveAsync" disabled="@_saving">

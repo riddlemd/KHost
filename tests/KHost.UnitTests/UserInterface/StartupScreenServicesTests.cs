@@ -89,6 +89,20 @@ public class StartupScreenServicesTests
             + "never builds it — whatever interfaces it says it implements.");
     }
 
+    /// <summary>The marker is enumerated inside HostInitialization, not inline in Program.cs.</summary>
+    [Fact]
+    public void HostInitialization_EnumeratesTheMarker()
+    {
+        var hostInitialization = File.ReadAllText(
+            Path.Combine(RepositoryRoot(), "src", "KHost.UserInterface", "Startup", "HostInitialization.cs"));
+
+        var built = hostInitialization.IndexOf($"GetServices<KHost.Domain.Services.{nameof(IStartsWithTheHost)}>",
+            StringComparison.Ordinal);
+
+        Assert.True(built > 0,
+            $"Startup/HostInitialization.cs never enumerates {nameof(IStartsWithTheHost)}, so none of them are built.");
+    }
+
     /// <summary>A screen can connect once the hub is mapped; a late-built service has missed it.</summary>
     [Fact]
     public void TheMarkerIsEnumerated_BeforeTheHubIsMapped()
@@ -96,12 +110,11 @@ public class StartupScreenServicesTests
         var startup = File.ReadAllText(
             Path.Combine(RepositoryRoot(), "src", "KHost.UserInterface", "Program.cs"));
 
-        var built = startup.IndexOf($"GetServices<KHost.Domain.Services.{nameof(IStartsWithTheHost)}>",
-            StringComparison.Ordinal);
+        var initialized = startup.IndexOf("InitializeHost", StringComparison.Ordinal);
         var hub = startup.IndexOf("MapIPCServer", StringComparison.Ordinal);
 
-        Assert.True(built > 0, $"Program.cs never enumerates {nameof(IStartsWithTheHost)}, so none of them are built.");
+        Assert.True(initialized > 0, "Program.cs no longer calls InitializeHost, which is what enumerates the marker.");
         Assert.True(hub > 0, "Program.cs no longer maps the IPC server by that name; reread this test.");
-        Assert.True(built < hub, "The screen services are built after the hub is mapped, so the first screen misses them.");
+        Assert.True(initialized < hub, "The host is initialized after the hub is mapped, so the first screen misses the marker.");
     }
 }

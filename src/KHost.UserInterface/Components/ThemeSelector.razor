@@ -3,11 +3,11 @@
 <span class="kh-theme-selector input">
     Theme
     <DropdownMenu Class="kh-theme-selector__dropdown" Title="Change the app theme">
-        <Trigger>@DisplayName(ThemeService?.CurrentTheme)</Trigger>
+        <Trigger>@DisplayName(ThemeService.CurrentTheme)</Trigger>
         <Items>
-            @foreach (var theme in ThemeService?.AvailableThemes ?? [])
+            @foreach (var theme in ThemeService.AvailableThemes)
             {
-                var isCurrent = ThemeService?.CurrentTheme == theme;
+                var isCurrent = ThemeService.CurrentTheme == theme;
 
                 <button class="kh-dropdown__item @(isCurrent ? "kh-dropdown__item--selected" : "")"
                         @onclick="() => SetThemeAsync(theme)">

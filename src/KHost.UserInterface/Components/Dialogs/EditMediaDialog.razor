@@ -4,7 +4,7 @@
 @using System.ComponentModel.DataAnnotations
 @using KHost.Common.Media
 
-<Dialog IsOpen="IsOpen" Class="@($"{_rootClassName} {Class.Trim()}".Trim())" OnClose="OnClose" CloseOnScrimClick="CloseOnScrimClick">
+<Dialog IsOpen="IsOpen" Class="@_rootClassName" OnClose="OnClose">
     <Header>
         <Icon Name="music-note-beamed" /> Edit Media
     </Header>
@@ -65,10 +65,7 @@
                 <div>
                     <label for="edit-media-scaling" class="kh-form-label">How it fills the screen</label>
                     <select id="edit-media-scaling" class="kh-form-select" @bind="_model.ImageScaling">
-                        <option value="@ImageScaling.Fit">Fit: show all of it</option>
-                        <option value="@ImageScaling.Fill">Fill: crop the overflow</option>
-                        <option value="@ImageScaling.Stretch">Stretch: distort to fit</option>
-                        <option value="@ImageScaling.Original">Original size</option>
+                        <ImageScalingOptions />
                     </select>
                 </div>
             }
