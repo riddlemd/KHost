@@ -151,7 +151,10 @@ public static class ColorBlindSafeLyrics
         Constraint[] constraints =
         [
             .. voices.Select(v => new Constraint(Job.Wipe, v, 0, v, 1)),
-            .. together.SelectMany(p => new[] { new Constraint(Job.Sung, p.Item1, 0, p.Item2, 0), new Constraint(Job.Unsung, p.Item1, 1, p.Item2, 1) }),
+            // Two voices the media gave the same colour are meant to read as one singer, so they are
+            // never pushed apart.
+            .. together.SelectMany(p => new[] { new Constraint(Job.Sung, p.Item1, 0, p.Item2, 0), new Constraint(Job.Unsung, p.Item1, 1, p.Item2, 1) })
+                .Where(c => palette[c.X][c.XIndex] != palette[c.Y][c.YIndex]),
         ];
 
         bool AtRisk(Constraint c) => IsAtRisk(palette[c.X][c.XIndex], palette[c.Y][c.YIndex]);
