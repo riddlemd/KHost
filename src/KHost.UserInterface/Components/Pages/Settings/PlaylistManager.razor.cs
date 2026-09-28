@@ -7,13 +7,27 @@ using Microsoft.AspNetCore.Components;
 
 namespace KHost.UserInterface.Components.Pages.Settings;
 
-public partial class BreakMusicManagerPage : IDisposable
+/// <summary>The Ads and Break Music pages, which differ only in purpose, wording and whether a
+/// playlist names a trigger. A page wraps this with its own <c>@page</c> route and text.</summary>
+public partial class PlaylistManager : IDisposable
 {
     [Inject] private IMediaPoolService MediaPools { get; set; } = default!;
     [Inject] private IVenuesService Venues { get; set; } = default!;
     [Inject] private IDialogService Dialogs { get; set; } = default!;
     [Inject] private IFlashService Flash { get; set; } = default!;
     [Inject] private IMessageBroker Broker { get; set; } = default!;
+
+    [Parameter, EditorRequired] public PoolPurpose Purpose { get; set; }
+    [Parameter, EditorRequired] public string Title { get; set; } = "";
+    [Parameter, EditorRequired] public string Icon { get; set; } = "";
+    [Parameter, EditorRequired] public string EmptyText { get; set; } = "";
+    [Parameter, EditorRequired] public string DeleteWarning { get; set; } = "";
+
+    /// <summary>False for Break Music, whose playlists have no "when it plays" of their own.</summary>
+    [Parameter] public bool ShowTrigger { get; set; }
+
+    /// <summary>Which pool this page's purpose currently draws from, off the venue's settings.</summary>
+    [Parameter, EditorRequired] public Func<Venue.VenueSettings, Guid?> ActivePoolOf { get; set; } = default!;
 
     private readonly SubscriptionSet _subscriptions = new();
 
@@ -22,12 +36,24 @@ public partial class BreakMusicManagerPage : IDisposable
     private bool _dialogOpen;
 
     private Guid? _venueId;
+
+    /// <summary>Which playlist the venue runs, for the "In use" badge on the list.</summary>
     private Guid? _activePoolId;
 
     protected override async Task OnInitializedAsync()
     {
         _subscriptions.Add(Broker.Subscribe<MediaPoolsChanged>(_ => OnChanged()));
-        _subscriptions.Add(Broker.Subscribe<BreakMusicChanged>(_ => OnChanged()));
+
+        // A pool renamed or deleted elsewhere, or a different one picked for this venue, both
+        // change what this page shows; neither used to be heard, so the "In use" badge went
+        // stale after an edit made anywhere but here.
+        _subscriptions.Add(Broker.Subscribe<VenuesChanged>(_ => OnChanged()));
+        _subscriptions.Add(Broker.Subscribe<SelectedVenueChanged>(_ => OnChanged()));
+
+        // Only Break Music has anything else that announces this: an ad pool has no running state
+        // for it to report.
+        if (Purpose == PoolPurpose.BreakMusic)
+            _subscriptions.Add(Broker.Subscribe<BreakMusicChanged>(_ => OnChanged()));
 
         await RefreshAsync();
     }
@@ -51,9 +77,9 @@ public partial class BreakMusicManagerPage : IDisposable
         var venue = await Venues.ReadSelectedVenueAsync();
 
         _venueId = venue?.Id;
-        _activePoolId = venue?.Settings.BreakMusicPoolId;
+        _activePoolId = venue is null ? null : ActivePoolOf(venue.Settings);
 
-        _pools = [.. (await MediaPools.ReadAllWithEntriesAsync(PoolPurpose.BreakMusic, _venueId)).OrderBy(p => p.Name)];
+        _pools = [.. (await MediaPools.ReadAllWithEntriesAsync(Purpose, _venueId)).OrderBy(p => p.Name)];
     }
 
     private void OpenAddDialog()
@@ -96,7 +122,7 @@ public partial class BreakMusicManagerPage : IDisposable
     private async Task StartDeleteAsync(MediaPool pool)
     {
         await Dialogs.ShowConfirmationAsync(
-            $"Delete <span class=\"kh-emphasis\">{pool.Name}</span>? Any venue using it falls back to silence.",
+            $"Delete <span class=\"kh-emphasis\">{pool.Name}</span>? {DeleteWarning}",
             async () =>
             {
                 await MediaPools.DeleteAsync(pool.Id);
