@@ -1,8 +1,6 @@
 @using KHost.Abstractions.Models.Backgrounds
 @using System.ComponentModel.DataAnnotations
-@using System.Linq.Expressions
 @using KHost.UserInterface.Models
-@using KHost.UserInterface.Services
 
 <Dialog IsOpen="IsOpen" Class="@_rootClassName" OnClose="OnClose">
     <Header>
@@ -24,184 +22,9 @@
                 </label>
             </div>
 
-            <div class="kh-venue-settings__section">
-                <span class="kh-venue-settings__section-title">Screen marquee</span>
+            <EditVenueMarquee Model="_model" />
 
-                <label class="kh-venue-settings__row kh-form-check">
-                    <span class="kh-form-check-label">Show a marquee on the screen</span>
-                    <input id="venue-marquee-enabled" type="checkbox" class="kh-form-check-input" @bind="_model.MarqueeEnabled" />
-                </label>
-
-                @if (_model.MarqueeEnabled)
-                {
-                    // Local, not a component: every row is the same markup around a different
-                    // `_model` property, and InputText still needs a real ValueExpression for its
-                    // validation classes, not just a getter/setter pair.
-                    RenderFragment ColorRow(string id, string label, Expression<Func<string?>> value, Action<string?> setter) =>
-                        @<div class="kh-venue-settings__row">
-                            <label for="@id" class="kh-form-label">@label</label>
-                            <InputText id="@id" type="color" class="kh-form-control kh-venue-settings__color"
-                                       Value="@value.Compile()()" ValueChanged="setter" ValueExpression="@value" />
-                        </div>;
-
-                    <div class="kh-venue-settings__row">
-                        <label for="marquee-singer-count" class="kh-form-label">Singers to show</label>
-                        <InputNumber id="marquee-singer-count" class="kh-form-control"
-                                     @bind-Value="_model.MarqueeSingerCount" min="0" max="20" />
-                    </div>
-
-                    <div class="kh-venue-settings__field">
-                        <label for="marquee-message" class="kh-form-label">Message</label>
-                        <InputText id="marquee-message" class="kh-form-control"
-                                   @bind-Value="_model.MarqueeMessage"
-                                   placeholder="Happy hour until 8. Ask your host about specials" />
-                    </div>
-
-                    <div class="kh-venue-settings__field">
-                        <label for="marquee-entry-format" class="kh-form-label">Entry format</label>
-                        <InputText id="marquee-entry-format" class="kh-form-control"
-                                   @bind-Value="_model.MarqueeEntryFormat"
-                                   placeholder="{song} - {singer}" />
-                        <p class="kh-note">
-                            Tags: <code>{song}</code>, <code>{artist}</code>, <code>{singer}</code>, <code>{position}</code>.
-                            Left blank, entries read <code>{song} - {singer}</code>.
-                        </p>
-                    </div>
-
-                    <div class="kh-venue-settings__row">
-                        <label for="marquee-font-size" class="kh-form-label">Text size</label>
-                        <InputNumber id="marquee-font-size" class="kh-form-control"
-                                     @bind-Value="_model.MarqueeFontSizePixels" min="12" max="96" />
-                    </div>
-
-                    <div class="kh-venue-settings__row">
-                        <label for="marquee-speed" class="kh-form-label">Scroll speed</label>
-                        <InputNumber id="marquee-speed" class="kh-form-control"
-                                     @bind-Value="_model.MarqueeScrollSpeed" min="15" max="400" />
-                    </div>
-
-                    <div class="kh-venue-settings__row">
-                        <label for="marquee-position" class="kh-form-label">Position</label>
-                        <InputSelect id="marquee-position" class="kh-form-select" @bind-Value="_model.MarqueePosition">
-                            <option value="@MarqueePosition.Bottom">Bottom of the screen</option>
-                            <option value="@MarqueePosition.Top">Top of the screen</option>
-                        </InputSelect>
-                    </div>
-
-                    <label class="kh-venue-settings__row kh-form-check">
-                        <span class="kh-form-check-label">Hold &ldquo;Up next&rdquo; at the edge instead of scrolling it</span>
-                        <input id="venue-marquee-pin-label" type="checkbox" class="kh-form-check-input"
-                               @bind="_model.MarqueePinLabel" />
-                    </label>
-
-                    <div class="kh-venue-settings__row">
-                        <label for="marquee-divider-shape" class="kh-form-label">Divider</label>
-                        <InputSelect id="marquee-divider-shape" class="kh-form-select" @bind-Value="_model.MarqueeDividerShape">
-                            <option value="@MarqueeDividerShape.Dot">Dot &bull;</option>
-                            <option value="@MarqueeDividerShape.Diamond">Diamond &#9670;</option>
-                            <option value="@MarqueeDividerShape.Star">Star &#9733;</option>
-                            <option value="@MarqueeDividerShape.Slash">Slash /</option>
-                            <option value="@MarqueeDividerShape.Pipe">Pipe |</option>
-                            <option value="@MarqueeDividerShape.Note">Note &#9834;</option>
-                            <option value="@MarqueeDividerShape.None">None</option>
-                        </InputSelect>
-                    </div>
-
-                    @ColorRow("marquee-background", "Background color", () => _model.MarqueeBackgroundColor, v => _model.MarqueeBackgroundColor = v)
-
-                    <div class="kh-venue-settings__row">
-                        <span class="kh-venue-settings__labelled">
-                            <label for="marquee-background-opacity" class="kh-form-label">Background opacity</label>
-                            <span class="kh-note">
-                                How much of the song shows through behind the marquee.
-                            </span>
-                        </span>
-                        <InputNumber id="marquee-background-opacity" class="kh-form-control" min="0" max="100" step="5"
-                                     @bind-Value="_model.MarqueeBackgroundOpacity" />
-                    </div>
-
-                    @ColorRow("marquee-text", "Text color", () => _model.MarqueeTextColor, v => _model.MarqueeTextColor = v)
-                    @ColorRow("marquee-singer-color", "Singer color", () => _model.MarqueeSingerColor, v => _model.MarqueeSingerColor = v)
-                    @ColorRow("marquee-song-color", "Song color", () => _model.MarqueeSongColor, v => _model.MarqueeSongColor = v)
-                    @ColorRow("marquee-divider-color", "Divider color", () => _model.MarqueeDividerColor, v => _model.MarqueeDividerColor = v)
-                }
-            </div>
-
-            <div class="kh-venue-settings__section">
-                <span class="kh-venue-settings__section-title">Screen QR codes</span>
-
-                <div class="kh-venue-settings__row">
-                    <label for="venue-qr-source" class="kh-form-label">Code shown</label>
-                    <InputSelect id="venue-qr-source" class="kh-form-select" @bind-Value="_model.QrCodeSource">
-                        <option value="">None</option>
-                        @if (UnavailableQrCodeSource is { } missing)
-                        {
-                            <option value="@missing">@missing: not installed</option>
-                        }
-                        @foreach (var (id, label) in QrCodeSources)
-                        {
-                            <option value="@id">@label</option>
-                        }
-                    </InputSelect>
-                </div>
-                @if (UnavailableQrCodeSource is not null)
-                {
-                    <p class="kh-note kh-note--warning">
-                        No installed plugin provides this code. Check it under
-                        Settings &rsaquo; Plugins Manager. Picking another here replaces this
-                        venue's choice for good.
-                    </p>
-                }
-
-                @if (!string.IsNullOrWhiteSpace(_model.QrCodeSource))
-                {
-
-                <div class="kh-venue-settings__row">
-                    <label for="venue-qr-corner" class="kh-form-label">Corner</label>
-                    <InputSelect id="venue-qr-corner" class="kh-form-select" @bind-Value="_model.QrCodeCorner">
-                        <OverlayCornerOptions />
-                    </InputSelect>
-                </div>
-
-                <div class="kh-venue-settings__row">
-                    <label for="venue-qr-size" class="kh-form-label">Size</label>
-                    <InputSelect id="venue-qr-size" class="kh-form-select" @bind-Value="_model.QrCodeSize">
-                        <option value="@QrCodeSize.Small">Small</option>
-                        <option value="@QrCodeSize.Medium">Medium</option>
-                        <option value="@QrCodeSize.Large">Large</option>
-                    </InputSelect>
-                </div>
-
-                <div class="kh-venue-settings__row">
-                    <span class="kh-venue-settings__labelled">
-                        <label for="venue-qr-safe-zone" class="kh-form-label">Safe zone</label>
-                        <span class="kh-note">
-                            The white around the code, measured in the code&rsquo;s own squares.
-                        </span>
-                    </span>
-                    <InputNumber id="venue-qr-safe-zone" class="kh-form-control" min="0" max="8"
-                                 @bind-Value="_model.QrCodeSafeZone" />
-                </div>
-
-                <div class="kh-venue-settings__row">
-                    <span class="kh-venue-settings__labelled">
-                        <label for="venue-qr-offset" class="kh-form-label">Offset</label>
-                        <span class="kh-note">
-                            Pushes the code in from the edges it sits against, as a percentage of
-                            the screen&rsquo;s shorter side.
-                        </span>
-                    </span>
-                    <InputNumber id="venue-qr-offset" class="kh-form-control" min="0" max="20" step="0.1"
-                                 @bind-Value="_model.QrCodeOffset" />
-                </div>
-
-                <label class="kh-venue-settings__row kh-form-check">
-                    <span class="kh-form-check-label">Hide codes while someone is singing</span>
-                    <input id="venue-qr-hide-during-song" type="checkbox" class="kh-form-check-input"
-                           @bind="_model.QrCodeHideDuringSong" />
-                </label>
-                }
-            </div>
+            <EditVenueQrCodes Model="_model" />
 
             <div class="kh-venue-settings__section">
                 <span class="kh-venue-settings__section-title">Song backgrounds</span>
@@ -250,111 +73,7 @@
                 }
             </div>
 
-            <div class="kh-venue-settings__section">
-                <span class="kh-venue-settings__section-title">Between singers</span>
-
-                <div class="kh-venue-settings__row">
-                    <label for="venue-break-music-mode" class="kh-form-label">Break music mode</label>
-                    <select id="venue-break-music-mode" class="kh-form-select" @bind="_model.BreakMusicProvider">
-                        @if (UnavailableProviderSource is { } unavailable)
-                        {
-                            <option value="@unavailable">@unavailable: not loaded</option>
-                        }
-                        @foreach (var provider in BreakMusic.Providers)
-                        {
-                            <option value="@provider.SourceName">@DescribeProvider(provider)</option>
-                        }
-                    </select>
-                </div>
-
-                @if (UnavailableProviderSource is not null)
-                {
-                    <p class="kh-note kh-note--warning">
-                        Nothing loaded provides this mode. Check its plugin under
-                        Settings &rsaquo; Plugins Manager. Picking another mode here replaces this
-                        venue's choice for good.
-                    </p>
-                }
-
-                @if (UsesLocalPlaylists)
-                {
-                <div class="kh-venue-settings__row">
-                    <label class="kh-form-label">Break music playlist</label>
-                    <ComboBox TItem="MediaPool"
-                              Class="kh-venue-settings__picker kh-venue-settings__picker--break-music"
-                              Value="_breakMusicPool"
-                              ValueChanged="OnBreakMusicPoolChanged"
-                              @bind-Text="_breakMusicPoolText"
-                              Search="SearchBreakMusicPoolsAsync"
-                              DisplayName="@(pool => pool.Name)"
-                              MinimumSearchLength="0"
-                              OpenWhenEmpty="true"
-                              Placeholder="None: silence between singers" />
-                </div>
-                }
-
-                <div class="kh-venue-settings__row">
-                    <label class="kh-form-label">Ad playlist</label>
-                    <ComboBox TItem="MediaPool"
-                              Class="kh-venue-settings__picker"
-                              Value="_adPool"
-                              ValueChanged="OnAdPoolChanged"
-                              @bind-Text="_adPoolText"
-                              Search="SearchAdPoolsAsync"
-                              DisplayName="@(pool => pool.Name)"
-                              MinimumSearchLength="0"
-                              OpenWhenEmpty="true"
-                              Placeholder="None: this venue runs no ads" />
-                </div>
-
-                <label class="kh-venue-settings__row kh-form-check">
-                    <span class="kh-form-check-label">
-                        Name the break music on screen
-                        <span class="kh-note">
-                            Only while it is actually playing: it comes down for a singer,
-                            and for a pause.
-                        </span>
-                    </span>
-                    <input id="venue-break-music-card" type="checkbox" class="kh-form-check-input"
-                           @bind="_model.BreakMusicCardEnabled" />
-                </label>
-
-                @if (_model.BreakMusicCardEnabled)
-                {
-                    <div class="kh-venue-settings__row">
-                        <label for="venue-break-music-card-corner" class="kh-form-label">Corner</label>
-                        <InputSelect id="venue-break-music-card-corner" class="kh-form-select"
-                                     @bind-Value="_model.BreakMusicCardCorner">
-                            <OverlayCornerOptions />
-                        </InputSelect>
-                    </div>
-                }
-
-                <div class="kh-venue-settings__row">
-                    <label class="kh-form-label">Placeholder image</label>
-                    <ComboBox TItem="Media"
-                              Class="kh-venue-settings__picker"
-                              Value="_brandingImage"
-                              ValueChanged="OnBrandingImageChanged"
-                              @bind-Text="_brandingImageText"
-                              Search="SearchImagesAsync"
-                              DisplayName="@(image => image.Title)"
-                              MinimumSearchLength="0"
-                              OpenWhenEmpty="true"
-                              Placeholder="None: leave the screen blank" />
-                </div>
-
-                @if (_brandingImage is not null)
-                {
-                    <div class="kh-venue-settings__row">
-                        <label for="venue-branding-scaling" class="kh-form-label">How it fills the screen</label>
-                        <InputSelect id="venue-branding-scaling" class="kh-form-select"
-                                     @bind-Value="_model.BrandingImageScaling">
-                            <ImageScalingOptions IncludeUseOwn="true" />
-                        </InputSelect>
-                    </div>
-                }
-            </div>
+            <EditVenueBetweenSingers Model="_model" />
 
             <div class="kh-venue-settings__section">
                 <span class="kh-venue-settings__section-title">Playback</span>
@@ -364,51 +83,7 @@
                 </div>
             </div>
 
-            <div class="kh-venue-settings__section">
-                <span class="kh-venue-settings__section-title">Queue behavior</span>
-
-                <label class="kh-venue-settings__row kh-form-check">
-                    <span class="kh-form-check-label">Clear queue when closing</span>
-                    <InputCheckbox class="kh-form-check-input" @bind-Value="_model.ClearQueueOnClose" />
-                </label>
-                <label class="kh-venue-settings__row kh-form-check">
-                    <span class="kh-form-check-label">Show estimated wait time in the singer queue</span>
-                    <InputCheckbox class="kh-form-check-input" @bind-Value="_model.ShowEstimatedWaitTime" />
-                </label>
-                <label class="kh-venue-settings__row kh-form-check">
-                    <span class="kh-form-check-label">
-                        Allow Singer Aliases
-                        <span class="kh-note">
-                            Announce the name a song was signed up under, rather than the
-                            singer&rsquo;s own.
-                        </span>
-                    </span>
-                    <InputCheckbox id="venue-allow-aliases" class="kh-form-check-input" @bind-Value="_model.AllowAliases" />
-                </label>
-                <label class="kh-venue-settings__row kh-form-check">
-                    <span class="kh-form-check-label">Warn when queueing a song already queued or recently sung</span>
-                    <InputCheckbox class="kh-form-check-input" @bind-Value="_model.WarnOnDuplicateSong" />
-                </label>
-                @if (_model.WarnOnDuplicateSong)
-                {
-                    <div class="kh-venue-settings__row">
-                        <label for="duplicate-window" class="kh-form-label">Consider a song recently sung within</label>
-                        <InputSelect id="duplicate-window" class="kh-form-select" @bind-Value="_model.DuplicateSongWindowHours">
-                            @foreach (var hours in EditVenueModel.DuplicateWindowOptions)
-                            {
-                                <option value="@hours">@hours @(hours == 1 ? "hour" : "hours")</option>
-                            }
-                        </InputSelect>
-                    </div>
-                }
-
-                <div class="@(_rootClassName)__rotation-row">
-                    <button type="button" class="@(_rootClassName)__rotation-btn kh-button kh-button--secondary"
-                            @onclick="() => _rotationDialogOpen = true">
-                        <Icon Name="people-fill" /> Edit Singer Queue Rotation Strategy
-                    </button>
-                </div>
-            </div>
+            <EditVenueQueueBehaviour Model="_model" />
 
             <div class="kh-venue-settings__section">
                 <span class="kh-venue-settings__section-title">Guests on their phones</span>
@@ -485,6 +160,4 @@
         <button class="@(_rootClassName)__save-btn kh-button kh-button--primary" @onclick="SubmitAsync" type="button">Save</button>
     </Footer>
 </Dialog>
-
-<SingerQueueDialog IsOpen="_rotationDialogOpen" Config="_model.QueueRotation" OnClose="CloseRotationDialog" />
 
