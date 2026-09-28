@@ -228,7 +228,9 @@ public sealed class FFmpegService : BaseService, IFFmpegService, IDisposable
             var target = Path.Combine(staged, FFmpegLocator.ExecutableName(tool, windows));
             entry.ExtractToFile(target, overwrite: true);
 
-            if (!windows)
+            // The real OS as well as the build's: the mode belongs to the file system it lands on,
+            // and a Windows file system throws on one even while a macOS build is unpacked onto it.
+            if (!windows && !OperatingSystem.IsWindows())
             {
                 File.SetUnixFileMode(target,
                     UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute
