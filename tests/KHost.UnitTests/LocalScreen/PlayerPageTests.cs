@@ -271,4 +271,36 @@ public class PlayerPageTests
         // And the level goes back, or the element the next song is already using stays silent.
         Assert.Contains("element.volume = currentVolume;", ramp, StringComparison.Ordinal);
     }
+
+    // player.js builds the visualiser as it loads, from the engine and the presets; any of the three
+    // missing or late and the page throws before it says ready, which is a screen that never comes up.
+    [Fact]
+    public void BuildPlayerPage_Always_PutsTheVisualiserAndItsEngineBeforeThePlayer()
+    {
+        var page = Program.BuildPlayerPage();
+
+        var engine = page.IndexOf("t.butterchurn=e()", StringComparison.Ordinal);
+        var presets = page.IndexOf("const VISUALISER_PRESETS", StringComparison.Ordinal);
+        var visualiser = page.IndexOf("function createVisualiser(", StringComparison.Ordinal);
+        var player = page.IndexOf("createVisualiser(visualiserCanvas", StringComparison.Ordinal);
+
+        Assert.True(engine >= 0 && presets >= 0 && visualiser >= 0, "the visualiser is not all on the page");
+        Assert.True(player > engine && player > presets && player > visualiser,
+            "the player would build a visualiser that is not defined yet");
+        Assert.DoesNotContain("<script src=\"butterchurn.min.js\"></script>", page, StringComparison.Ordinal);
+    }
+
+    // Under the words and over the song's own elements: the other way round it covers the lyrics.
+    [Fact]
+    public void BuildPlayerPage_Always_DrawsTheVisualiserUnderTheWords()
+    {
+        var page = Program.BuildPlayerPage();
+
+        var videoB = page.IndexOf("<video id=\"video-b\"", StringComparison.Ordinal);
+        var visualiser = page.IndexOf("<canvas id=\"visualiser\"", StringComparison.Ordinal);
+        var lyrics = page.IndexOf("<canvas id=\"lyrics\"", StringComparison.Ordinal);
+
+        Assert.True(videoB >= 0 && visualiser > videoB && lyrics > visualiser,
+            "the visualiser must sit after the video elements and before the words in the page");
+    }
 }

@@ -1,7 +1,6 @@
 using Bunit;
 using KHost.Abstractions.Messaging;
 using KHost.Abstractions.Models;
-using KHost.Abstractions.Models.Backgrounds;
 using KHost.Abstractions.Services;
 using KHost.Domain.Services.Messaging;
 using KHost.UserInterface.Components.Dialogs;
@@ -32,15 +31,16 @@ public class EditVenueDialogGuestRemoteTests : BunitContext
 
         Services.AddSingleton(_breakMusic);
         Services.AddSingleton(_mediaPools);
+
+        // The dialog reads the visualisation playlists as it opens; none is all these need.
+        var visualisations = Substitute.For<IVisualisationPlaylistService>();
+        visualisations.ReadAllWithEntriesAsync().Returns(new List<VisualisationPlaylist>());
+        Services.AddSingleton(visualisations);
         Services.AddSingleton(_media);
         Services.AddSingleton<IMessageBroker>(_broker);
 
         // The dialog reads the venue's background folder on open; an empty pack is the
         // shape a venue that has never chosen one has.
-        var backgroundPacks = Substitute.For<IBackgroundPackService>();
-        backgroundPacks.ReadAsync(Arg.Any<CancellationToken>())
-            .Returns(new BackgroundPack());
-        Services.AddSingleton(backgroundPacks);
 
         var plugins = Substitute.For<IPluginRegistry>();
         plugins.Plugins.Returns([]);

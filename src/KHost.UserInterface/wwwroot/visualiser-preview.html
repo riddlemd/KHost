@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <title>Visualisation preview</title>
+    <link rel="stylesheet" href="css/app.css" />
+</head>
+<!-- Loaded only in a sandboxed frame by the Visualisations page: a preset's equations are code. -->
+<body class="kh-visualiser-preview">
+    <canvas id="visualiser" class="kh-visualiser-preview__layer" hidden></canvas>
+    <canvas id="visualiser-eq" class="kh-visualiser-preview__layer" hidden></canvas>
+    <canvas id="lyrics" class="kh-visualiser-preview__layer" hidden></canvas>
+    <script src="js/visualiser/butterchurn.min.js"></script>
+    <script src="js/visualiser/visualiser-presets.js"></script>
+    <script src="js/visualiser/eq-visualisers.js"></script>
+    <script src="js/visualiser/visualiser.js"></script>
+    <script src="js/visualiser/lyrics-overlay.js"></script>
+    <script src="js/visualiser-preview.js"></script>
+</body>
+</html>

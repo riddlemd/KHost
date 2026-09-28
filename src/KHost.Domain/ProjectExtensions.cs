@@ -11,6 +11,8 @@ using KHost.Domain.Services.Displays;
 using KHost.Domain.Services.FFmpeg;
 using KHost.Domain.Services.Displays.LocalScreen;
 using KHost.Domain.Services.QrCodes;
+using KHost.Domain.Services.Backgrounds;
+using KHost.Domain.Services.Visualisations;
 using KHost.Domain.Services.MediaPools;
 using KHost.Domain.Services.MediaProviders;
 using KHost.Abstractions.Services.QueueRotation;
@@ -132,6 +134,8 @@ namespace KHost.Domain
             // Core, not a plugin: the host's own transport to the local screen app, registered here so it
             // reaches PlaybackService in the same collection a plugin's display does. PluginLoader
             // must never bind it, and it must not appear on the Plugins page.
+            serviceCollection.AddSingleton<ISourcePictureProbe, FfprobeSourcePictureProbe>();
+            serviceCollection.AddSingleton<ISongLevelsService, FfmpegSongLevelsService>();
             serviceCollection.AddSingleton<LocalScreenDisplayProvider>();
             serviceCollection.AddSingleton<IDisplayProvider>(
                 provider => provider.GetRequiredService<LocalScreenDisplayProvider>());
@@ -164,9 +168,13 @@ namespace KHost.Domain
             serviceCollection.AddSingleton<IBreakMusicProvider, LibraryBreakMusicProvider>();
             serviceCollection.AddSingleton<IBreakMusicService, BreakMusicService>();
             serviceCollection.AddSingleton<IAdService, AdService>();
-            serviceCollection.AddOptions<BackgroundPackService.ServiceOptions>()
-                .BindConfiguration(BackgroundPackService.ServiceOptions.SectionName);
-            serviceCollection.AddSingleton<IBackgroundPackService, BackgroundPackService>();
+            serviceCollection.AddSingleton<IVisualisationPlaylistService, VisualisationPlaylistService>();
+            serviceCollection.AddSingleton<IVisualiserPresetService, VisualiserPresetService>();
+
+            // Retired, and answering empty, so a plugin that still takes it in a constructor loads.
+#pragma warning disable CS0618
+            serviceCollection.AddSingleton<IBackgroundPackService, NoBackgroundPackService>();
+#pragma warning restore CS0618
             serviceCollection.AddSingleton<ILyricsService, LyricsService>();
             serviceCollection.AddSingleton<IPasswordHasher, Argon2PasswordHasher>();
             serviceCollection.AddSingleton<IAuthService, AuthService>();

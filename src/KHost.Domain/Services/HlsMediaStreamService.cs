@@ -241,7 +241,8 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
                 burnIn is null ? "" : $", words burned in over {burnIn.Overlay.Base}");
 
             return await StartEncodeAsync(
-                id, directory, sourcePath, arguments, burnIn, startOffset, pitch, tempo, adopt?.Id, cancellationToken);
+                id, directory, sourcePath, arguments, burnIn, startOffset, pitch, tempo, adopt?.Id, cancellationToken,
+                mixedStems: stems);
         }
         catch
         {
@@ -254,7 +255,7 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
     /// <summary>A local path for a stem written into one of this service's sessions, else the http
     /// address itself for ffmpeg to fetch.</summary>
     /// <remarks>Read off disk where it can be: fetching our own server over loopback only adds a hop.</remarks>
-    internal string ResolveStemInput(string url)
+    public string ResolveStemInput(string url)
     {
         var prefix = $"{Options.BaseAddress.TrimEnd('/')}/media/";
 
@@ -274,6 +275,19 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
             return url;
 
         throw new InvalidOperationException($"The stem '{url}' is neither a session file nor an http address.");
+    }
+
+    public IReadOnlyList<StemSource>? StemsMixedInto(string streamUrl)
+    {
+        var prefix = $"{Options.BaseAddress.TrimEnd('/')}/media/";
+        if (!streamUrl.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) return null;
+
+        var parts = streamUrl[prefix.Length..].Split('/');
+        if (parts.Length != 2) return null;
+
+        _lock.Wait();
+        try { return _sessions.TryGetValue(parts[0], out var session) ? session.MixedStems : null; }
+        finally { _lock.Release(); }
     }
 
     /// <remarks>A stem that cannot be probed counts as zero: the words then last as long as they run.</remarks>
@@ -299,7 +313,8 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
     /// <param name="adopted">A session closed along with this one: the files it reads from.</param>
     private async Task<MediaStreamSession> StartEncodeAsync(
         string id, string directory, string filePath, string arguments, BurnInPlan? burnIn,
-        TimeSpan startOffset, int pitch, int tempo, string? adopted, CancellationToken cancellationToken)
+        TimeSpan startOffset, int pitch, int tempo, string? adopted, CancellationToken cancellationToken,
+        IReadOnlyList<StemSource>? mixedStems = null)
     {
         Logger.LogDebug("ffmpeg {Arguments}", arguments);
 
@@ -327,7 +342,7 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
             throw ex as KHostException ?? FfmpegMissing(ex);
         }
 
-        var session = new Session(id, directory, process) { AdoptedSessionId = adopted };
+        var session = new Session(id, directory, process) { AdoptedSessionId = adopted, MixedStems = mixedStems };
 
         if (burnIn is not null) session.StartPainting(burnIn, process.StandardInput.BaseStream, Logger);
 
@@ -405,8 +420,7 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
         var (width, height) = BurnInOverlay.FrameFor(graphicsHeight);
         var overlay = new BurnInOverlay(width, height, BurnInOverlay.DefaultFramesPerSecond, basePicture);
 
-        // Laid over a picture nobody made with the words in mind, so the band they sit in is darkened.
-        var painter = new TimedLyricsPainter(words, overlay.Width, overlay.Height, scrim: basePicture != BurnInBase.Fill);
+        var painter = new TimedLyricsPainter(words, overlay.Width, overlay.Height);
 
         var start = isGraphicsOnly ? 0 : startOffset.TotalSeconds;
         var rate = StreamRate.FromTempo(tempo);
@@ -427,8 +441,7 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
         try
         {
             var analysis = await FFProbe.AnalyseAsync(source, cancellationToken: cancellationToken);
-            var hasVideo = analysis.VideoStreams.Any(
-                stream => stream.Disposition?.GetValueOrDefault("attached_pic") != true);
+            var hasVideo = analysis.VideoStreams.Any(FfprobeSourcePictureProbe.IsMovingPicture);
 
             return (hasVideo, analysis.Duration.TotalSeconds);
         }
@@ -1001,6 +1014,9 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
 
         /// <summary>Another session this one reads from, closed after it.</summary>
         public string? AdoptedSessionId { get; init; }
+
+        /// <summary>The stems this session's encode mixed, when it mixed any.</summary>
+        public IReadOnlyList<StemSource>? MixedStems { get; init; }
 
         /// <summary>Feeds ffmpeg the painted words until the song ends or the session closes.</summary>
         public void StartPainting(BurnInPlan plan, Stream pipe, ILogger logger)

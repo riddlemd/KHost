@@ -77,8 +77,45 @@ function atSongStart() {
     return songOffsetSeconds === 0 && !(Number(player && player.currentTime) > 0.05);
 }
 
+// Under the words, for a song with nothing of its own to show there; the host says when.
+const visualiserCanvas = document.getElementById('visualiser');
+const visualiserEqCanvas = document.getElementById('visualiser-eq');
+const visualiser = createVisualiser(visualiserCanvas, {
+    eqCanvas: visualiserEqCanvas,
+    engine: window.butterchurn && window.butterchurn.default,
+    presets: VISUALISER_PRESETS,
+    reportError,
+    // The words' clock, so a seek, a rebuild's offset and a tempo all land where the words do.
+    clock: songClock,
+});
+
+// The host's levels for the song, fetched once per URL. A fetch waits for the host's read, so a
+// newer URL (or none) arriving meanwhile must win over the answer to an older one.
+let visualiserLevelsUrl = null;
+
+function loadVisualiserLevels(url) {
+    if (url === visualiserLevelsUrl) return;
+
+    visualiserLevelsUrl = url || null;
+    visualiser.setLevels(null);
+    if (!visualiserLevelsUrl) return;
+
+    fetch(url)
+        .then((response) => (response.ok ? response.arrayBuffer() : null))
+        .then((buffer) => {
+            if (url !== visualiserLevelsUrl) return;
+
+            const track = buffer ? parseVisualiserLevels(buffer) : null;
+            // Without them the picture still moves, just not to the song.
+            if (!track) { reportError('visualiser levels: none for this song'); return; }
+
+            visualiser.setLevels(track);
+        })
+        .catch((e) => { if (url === visualiserLevelsUrl) reportError(`visualiser levels: ${e}`); });
+}
+
 // Everything drawn over the song rather than streamed: a stop dims these with the sound.
-const songLayers = [lyricsCanvas, introLayer];
+const songLayers = [visualiserCanvas, visualiserEqCanvas, lyricsCanvas, introLayer];
 const background = document.getElementById('background');
 const still = document.getElementById('still');
 
@@ -283,6 +320,54 @@ function attach(player, url, autoplay) {
     instance.attachMedia({ media: el, mediaSource });
 }
 
+// An encoded song is listened to through a capture of its element, never by routing the element
+// into WebAudio: createMediaElementSource takes the element's sound away from the speakers for
+// good, binds it to one context that a sleep can leave dead, and puts the stop fade and the venue
+// level behind a second volume control. Where capture is missing (WebKit), the visualiser draws
+// without the beat rather than risk the song.
+let elementTapContext = null;
+let elementTap = null;
+
+function elementAudioSource(el) {
+    if (typeof el.captureStream !== 'function') return null;
+
+    const media = el.srcObject || el.currentSrc;
+    if (!media || el.readyState < 2) return null;
+
+    if (elementTap && elementTap.el === el && elementTap.media === media) return elementTap.source;
+
+    try {
+        const stream = el.captureStream();
+        if (stream.getAudioTracks().length === 0) return null;
+
+        elementTapContext = elementTapContext || new (window.AudioContext || window.webkitAudioContext)();
+        elementTapContext.resume().catch(() => {});
+
+        releaseElementTap();
+        elementTap = { el, media, stream, source: { context: elementTapContext, node: elementTapContext.createMediaStreamSource(stream) } };
+        return elementTap.source;
+    } catch (e) {
+        reportError(`visualiser capture: ${e}`);
+        return null;
+    }
+}
+
+/// Stops a capture: its tracks are copies, so the element plays on.
+function releaseElementTap() {
+    if (!elementTap) return;
+
+    try { elementTap.source.node.disconnect(); } catch { /* ignore */ }
+    for (const track of elementTap.stream.getTracks()) { try { track.stop(); } catch { /* ignore */ } }
+    elementTap = null;
+}
+
+/// Points the visualiser at whatever the room is hearing now. Asked on every change of that.
+function retapVisualiser() {
+    if (!visualiser.active) return;
+
+    visualiser.setAudio(stemMixer ? stemMixer.analysisSource() : elementAudioSource(current.el));
+}
+
 /// Dissolves picture and sound from the outgoing player to the incoming one.
 function handOver(arriving) {
     if (incoming !== arriving) return;
@@ -291,6 +376,7 @@ function handOver(arriving) {
     incoming = null;
     current = arriving;
     outgoing = leaving;
+    retapVisualiser();
 
     arriving.el.style.transition = `opacity ${CROSSFADE_MS}ms linear`;
     arriving.el.style.opacity = '1';
@@ -371,6 +457,9 @@ function destroyHls(instance) {
 function detachStems() {
     if (!stemMixer) return;
 
+    // Before the context closes under the tap.
+    visualiser.setAudio(null);
+
     try { stemMixer.destroy(); } catch (e) { reportError(`stems: ${e}`); }
     stemMixer = null;
 }
@@ -445,6 +534,9 @@ async function fadeOutAndStop(fadeMs) {
 
     teardown();
     leadIn.cancel();
+    visualiser.hide();
+    visualiser.setAudio(null);
+    releaseElementTap();
     reveal(current.el);
     // Cleared before it is shown again, or the frame the fade hid comes back for a moment.
     overlay.clear();
@@ -784,6 +876,13 @@ function retileMarquee() {
     marquee.style.setProperty('--marquee-copies', String(copiesToCoverTheBand()));
 }
 
+// Debounced for the same reason as the marquee's re-tile below: a drag reports every frame.
+let visualiserResize = 0;
+window.addEventListener('resize', () => {
+    clearTimeout(visualiserResize);
+    visualiserResize = setTimeout(() => visualiser.resize(), 150);
+});
+
 if (marqueeViewport && typeof ResizeObserver === 'function') {
     let pending = 0;
 
@@ -832,14 +931,32 @@ function handleCommand(raw) {
             if (message.stems && message.stems.length > 0) {
                 teardown();
                 stemMixer = createStemMixer(message.stems, songOffsetSeconds, reportError, currentVolume);
+                retapVisualiser();
                 if (message.autoplay === true) {
+                    visualiser.freeze(false);
                     stemMixer.play().catch((e) => reportError(`stem play: ${e}`));
                 }
                 break;
             }
 
             detachStems();
+            if (message.autoplay === true) visualiser.freeze(false);
             load(message.url, message.autoplay === true, message.pixelated === true);
+            break;
+        case 'visualiser':
+            if (message.enabled === true) {
+                visualiser.setLook(message);
+                // Tapped once it is up: an imported preset arrives after a fetch, and a tap is
+                // asked for only while the visualiser is active.
+                visualiser.show(message).then((up) => { if (up) retapVisualiser(); });
+                loadVisualiserLevels(message.levels);
+                retapVisualiser();
+            } else {
+                visualiser.hide();
+                visualiser.setAudio(null);
+                loadVisualiserLevels(null);
+                releaseElementTap();
+            }
             break;
         case 'stem-volume': {
             // Silently doing nothing would look exactly like a mix that has stopped responding.
@@ -866,6 +983,7 @@ function handleCommand(raw) {
             // deliberately silent and invisible until it has sound to give.
             if (!incoming) reveal(current.el);
             if (stemMixer) stemMixer.volume = currentVolume;
+            visualiser.freeze(false);
 
             if (leadIn.active) {
                 leadIn.resume();
@@ -886,6 +1004,7 @@ function handleCommand(raw) {
         case 'pause':
             leadIn.pause();
             target().pause();
+            visualiser.freeze(true);
             break;
         case 'stop':
             // Paused rather than dropped: a play superseding the fade picks it back up, and a
@@ -987,6 +1106,8 @@ window.addEventListener('keydown', (e) => {
 
 videos.forEach((v) => {
     v.addEventListener('loadeddata', () => { placeholder.hidden = true; });
+    // A capture has an audio track only once the element is playing something.
+    v.addEventListener('playing', () => { if (v === current.el && !stemMixer) retapVisualiser(); });
     // Only from the player the room is hearing: the outgoing one runs out during a handover, and
     // that would retire the singer on the strength of a stream nobody is listening to any more.
     v.addEventListener('ended', () => {
@@ -1021,6 +1142,7 @@ async function rebuildStemsAfterWake() {
         if (!rebuilt) return;
 
         stemMixer = rebuilt.mixer;
+        retapVisualiser();
         if (rebuilt.playing) await stemMixer.play();
 
         send({

@@ -56,6 +56,10 @@ internal static class EntityFolding
                 case MediaPool pool:
                     Set(entry, nameof(MediaPool.NameFolded), pool.NameFolded, Fold(pool.Name));
                     break;
+
+                case VisualisationPlaylist playlist:
+                    Set(entry, nameof(VisualisationPlaylist.NameFolded), playlist.NameFolded, Fold(playlist.Name));
+                    break;
             }
         }
     }
