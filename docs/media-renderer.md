@@ -240,7 +240,8 @@ cheap transform turns into one it can.
    measuring one before building it — the pre-render was removed for exactly this kind of assumption.
 2. ~~Where does a stems-only format's **backdrop** come from?~~ Answered for burned-in streams:
    black, the same as a screen that draws its own words. A visualiser, when there is one, replaces
-   black in `SongBackdrops.ForPlaying`.
+   black in `SongBackdrops.ForPlaying`. A timed-lyric song never takes a picture from an audio
+   source, and a cover image is not a picture, on the burned-in encode and on the plain one alike.
 3. ~~A remuxed stems container's duration~~ Moot: no stems container is built any more. A burn-in
    over stems probes the stems themselves for how long to paint.
 4. Does a rendition need to say **why** it refused to be direct, so the console can explain a song

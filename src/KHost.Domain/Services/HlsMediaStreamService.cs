@@ -128,7 +128,7 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
         int tempo = 0,
         AudioMix? mix = null,
         CancellationToken cancellationToken = default)
-        => OpenEncodeAsync(filePath, startOffset, pitch, tempo, mix, words: null, cancellationToken);
+        => OpenEncodeAsync(filePath, startOffset, pitch, tempo, mix, words: null, hasTimedLyrics: false, cancellationToken);
 
     public Task<MediaStreamSession> OpenBurningInAsync(
         string filePath,
@@ -138,7 +138,16 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
         AudioMix? mix,
         TimedLyrics words,
         CancellationToken cancellationToken = default)
-        => OpenEncodeAsync(filePath, startOffset, pitch, tempo, mix, words, cancellationToken);
+        => OpenEncodeAsync(filePath, startOffset, pitch, tempo, mix, words, hasTimedLyrics: true, cancellationToken);
+
+    public Task<MediaStreamSession> OpenUnderDrawnWordsAsync(
+        string filePath,
+        TimeSpan startOffset,
+        int pitch,
+        int tempo,
+        AudioMix? mix,
+        CancellationToken cancellationToken = default)
+        => OpenEncodeAsync(filePath, startOffset, pitch, tempo, mix, words: null, hasTimedLyrics: true, cancellationToken);
 
     private async Task<MediaStreamSession> OpenEncodeAsync(
         string filePath,
@@ -147,6 +156,7 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
         int tempo,
         AudioMix? mix,
         TimedLyrics? words,
+        bool hasTimedLyrics,
         CancellationToken cancellationToken)
     {
         if (!File.Exists(filePath))
@@ -173,7 +183,7 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
 
         var arguments = BuildArguments(
             source, startOffset, pitch, tempo, Options.SegmentSeconds, companionAudio, mix, burnIn?.Overlay,
-            graphicsHeight);
+            graphicsHeight, hasTimedLyrics);
 
         Logger.LogInformation(
             "Opening stream {SessionId} for '{FilePath}' at {Offset}{BurnIn}",
@@ -209,7 +219,7 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
             if (words is { Pages.Count: > 0 })
             {
                 burnIn = PlanBurnIn(
-                    hasVideo: false, await LongestDurationAsync(inputs, cancellationToken), isGraphicsOnly: false,
+                    sourcePath, hasVideo: false, await LongestDurationAsync(inputs, cancellationToken), isGraphicsOnly: false,
                     words, startOffset, tempo, GraphicsScaling.SnapToOffered(Options.GraphicsScaleHeight));
             }
 
@@ -342,7 +352,7 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
     /// <summary>What the words go over and how many frames of them to paint.</summary>
     /// <remarks>Whatever <see cref="SongBackdrops.ForPlaying"/> answers, so a burned-in display and a
     /// screen drawing its own words agree. A cover image stored as a video stream is not a picture
-    /// to play under the words — it is one frame.
+    /// to play under the words — it is one frame — and nothing in an audio file is.
     ///
     /// <para>Painted from the playhead, except for a source that seeks on its output: ffmpeg then
     /// discards everything before the playhead, painted frames included.</para></remarks>
@@ -353,14 +363,15 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
         var (hasVideo, duration) = await ProbePictureAsync(source, cancellationToken);
 
         return PlanBurnIn(
-            hasVideo, duration, IsGraphicsOnly(source), words, startOffset, tempo, graphicsHeight);
+            source, hasVideo, duration, IsGraphicsOnly(source), words, startOffset, tempo, graphicsHeight);
     }
 
+    /// <param name="hasVideo">Whether the source carries a video stream that is not an attached picture.</param>
     internal static BurnInPlan PlanBurnIn(
-        bool hasVideo, double duration, bool isGraphicsOnly, TimedLyrics words,
+        string sourcePath, bool hasVideo, double duration, bool isGraphicsOnly, TimedLyrics words,
         TimeSpan startOffset, int tempo, int graphicsHeight)
     {
-        var basePicture = SongBackdrops.ForPlaying(hasTimedLyrics: true, hasOwnPicture: hasVideo) switch
+        var basePicture = SongBackdrops.ForPlaying(hasTimedLyrics: true, sourcePath, hasMovingPicture: hasVideo) switch
         {
             SongBackdrop.OwnPicture => BurnInBase.SourceVideo,
             _ => BurnInBase.Fill,
@@ -503,6 +514,9 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
     /// <remarks>H.264 Main@4.1 + AAC-LC decodes in every browser and in WKWebView, which is what
     /// LocalScreen renders through; a display provider's device is a third consumer it also suits.
     /// A frame taller than 1080 lines is Main@5.1, the lowest level that allows one.</remarks>
+    /// <param name="hasTimedLyrics">Whether the song has timed words a display draws over it: its
+    /// picture is then only the source's own moving one, never a cover, and nothing from an audio
+    /// file (<see cref="SongBackdrops"/>).</param>
     internal static string BuildArguments(
         string filePath,
         TimeSpan startOffset,
@@ -512,7 +526,8 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
         string? companionAudioPath = null,
         AudioMix? mix = null,
         BurnInOverlay? burnIn = null,
-        int graphicsHeight = GraphicsScaling.Off)
+        int graphicsHeight = GraphicsScaling.Off,
+        bool hasTimedLyrics = false)
     {
         var arguments = "-hide_banner -loglevel error";
 
@@ -533,6 +548,11 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
 
         // Zero when unscaled: the native picture, as it always was.
         var scaledHeight = isGraphicsOnly && graphicsHeight > GraphicsScaling.Off ? graphicsHeight : 0;
+
+        // Left to itself ffmpeg encodes an MP3's cover art as a one-frame video, which a screen then
+        // shows under the words. A burn-in maps its own picture.
+        var picksOwnPicture = hasTimedLyrics && burnIn is null;
+        var hasNoPicture = picksOwnPicture && !SongBackdrops.MayShowPictureFrom(filePath);
 
         if (startOffset > TimeSpan.Zero && !isGraphicsOnly)
             arguments += string.Format(CultureInfo.InvariantCulture, " -ss {0:F3}", startOffset.TotalSeconds);
@@ -564,10 +584,13 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
         if (isGraphicsOnly)
             arguments += $" -r {GraphicsFramesPerSecond}";
 
-        arguments += VideoEncode(burnIn?.Height ?? scaledHeight, segment);
+        if (!hasNoPicture) arguments += VideoEncode(burnIn?.Height ?? scaledHeight, segment);
 
         var audioFilter = BuildAudioFilter(pitch, tempo);
         var mixGraph = BuildMixGraph(mix, audioFilter);
+
+        // Capital V matches no attached picture, so a video's own picture survives and a cover does not.
+        var pictureMap = hasNoPicture ? "" : picksOwnPicture ? " -map 0:V:0?" : " -map 0:v:0?";
 
         if (burnIn is not null)
         {
@@ -592,11 +615,13 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
             // because a multi-track container can be audio alone — a mix is the one case where a
             // missing video stream would otherwise be a fatal unmatched mapping rather than a
             // silently dropped one.
-            arguments += $" -filter_complex \"{mixGraph}\" -map 0:v:0? -map \"[a]\"";
+            arguments += $" -filter_complex \"{mixGraph}\"{pictureMap} -map \"[a]\"";
         }
-        else if (audioFilter.Length > 0)
+        else
         {
-            arguments += $" -af \"{audioFilter}\"";
+            // Any -map switches off ffmpeg's own pick for every stream type, so the audio is named too.
+            if (picksOwnPicture) arguments += $"{pictureMap} -map 0:a:0?";
+            if (audioFilter.Length > 0) arguments += $" -af \"{audioFilter}\"";
         }
 
         // -vf rather than a filter_complex: ffmpeg drops it silently on a source with no video
@@ -608,7 +633,8 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
                 BuildVideoFilter(tempo), $"fps={GraphicsFramesPerSecond}", GraphicsFill(scaledHeight),
             }.Where(f => f.Length > 0))
             : BuildVideoFilter(tempo);
-        if (videoFilter.Length > 0 && burnIn is null && !holdsPictureToTheAudio) arguments += $" -vf \"{videoFilter}\"";
+        if (videoFilter.Length > 0 && burnIn is null && !holdsPictureToTheAudio && !hasNoPicture)
+            arguments += $" -vf \"{videoFilter}\"";
 
         if (holdsPictureToTheAudio) arguments += " -shortest";
 

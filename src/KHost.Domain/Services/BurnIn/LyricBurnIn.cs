@@ -27,6 +27,24 @@ public sealed class LyricBurnIn(ITimedLyricsService lyrics, IBurnInStreamService
             cancellationToken);
     }
 
+    /// <summary>The request's stream for a display that draws the words itself, or null when the song
+    /// has none, whose picture is then whatever the file carries.</summary>
+    /// <remarks>Under timed words the picture is the source's own moving one or nothing: never a
+    /// cover, never anything from an audio file (<see cref="SongBackdrops"/>).</remarks>
+    public async Task<MediaStreamSession?> OpenUnderDrawnWordsAsync(
+        MediaRenderRequest request, CancellationToken cancellationToken = default)
+    {
+        if (await FindAsync(request.FilePath, cancellationToken) is null) return null;
+
+        return await streams.OpenUnderDrawnWordsAsync(
+            request.FilePath,
+            request.StartOffset,
+            request.Pitch,
+            request.Tempo,
+            request.Mix,
+            cancellationToken);
+    }
+
     /// <summary>The song's timed words, or null when it has none to burn in.</summary>
     public async Task<TimedLyrics?> FindAsync(string filePath, CancellationToken cancellationToken = default)
     {
