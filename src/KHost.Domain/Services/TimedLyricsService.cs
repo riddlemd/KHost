@@ -32,28 +32,43 @@ public sealed class TimedLyricsService(
 
             // Answering null once it has claimed the file ends the search: nobody else can read a
             // container its owner could not.
-            try { return Adjusted(await provider.GetTimedLyricsAsync(filePath, cancellationToken)); }
+            TimedLyrics? lyrics;
+            try { lyrics = await provider.GetTimedLyricsAsync(filePath, cancellationToken); }
             catch (OperationCanceledException) { throw; }
             catch (Exception ex)
             {
                 logger.LogWarning(ex, "The lyric provider that owns '{FilePath}' could not read it", filePath);
                 return null;
             }
+
+            return lyrics is null ? null : Adjusted(lyrics, filePath);
         }
 
         return null;
     }
 
     /// <summary>Adjusted here, the one door both the screen and the burn-in read through, so they agree.</summary>
-    private TimedLyrics? Adjusted(TimedLyrics? lyrics)
+    private TimedLyrics Adjusted(TimedLyrics lyrics, string filePath)
     {
-        if (lyrics is null) return null;
-
         var settings = options.CurrentValue;
-        if (settings.ColorBlindFriendlyLyrics) lyrics = ColorBlindSafeLyrics.Separate(lyrics);
 
-        return settings.DynamicLeadIns
-            ? LeadInGenerator.AddMissing(lyrics, settings.DynamicLeadInPauseSeconds)
-            : lyrics;
+        if (settings.ColorBlindFriendlyLyrics)
+            lyrics = AdjustedOrAsIs(lyrics, ColorBlindSafeLyrics.Separate, "separating its colours", filePath);
+
+        if (settings.DynamicLeadIns)
+            lyrics = AdjustedOrAsIs(lyrics, l => LeadInGenerator.AddMissing(l, settings.DynamicLeadInPauseSeconds), "adding lead-ins", filePath);
+
+        return lyrics;
+    }
+
+    // A failed adjustment costs only itself: a song must never lose its words over an optional nicety.
+    private TimedLyrics AdjustedOrAsIs(TimedLyrics lyrics, Func<TimedLyrics, TimedLyrics> adjust, string what, string filePath)
+    {
+        try { return adjust(lyrics); }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Showing the lyrics of '{FilePath}' as supplied: {What} failed", filePath, what);
+            return lyrics;
+        }
     }
 }
