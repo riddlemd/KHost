@@ -38,4 +38,31 @@ public static class ListKeyboardShortcuts
 
         return shift ? ListKeyAction.MoveNext : ListKeyAction.SelectNext;
     }
+
+    /// <summary>Runs what <see cref="Resolve"/> decided: <paramref name="select"/> is given the row
+    /// to select, <paramref name="move"/> is told which way to move the current row. Reordering is
+    /// a permission of its own, so a Move action is dropped rather than handed to the caller when
+    /// <paramref name="canReorder"/> is false — the arrows that do it are hidden without it.</summary>
+    public static async Task DispatchAsync(
+        ListKeyAction action, int currentIndex, bool canReorder, Func<int, Task> select, Func<bool, Task> move)
+    {
+        if (action is ListKeyAction.MovePrevious or ListKeyAction.MoveNext && !canReorder)
+            return;
+
+        switch (action)
+        {
+            case ListKeyAction.SelectPrevious:
+                await select(currentIndex - 1);
+                break;
+            case ListKeyAction.SelectNext:
+                await select(currentIndex + 1);
+                break;
+            case ListKeyAction.MovePrevious:
+                await move(true);
+                break;
+            case ListKeyAction.MoveNext:
+                await move(false);
+                break;
+        }
+    }
 }
