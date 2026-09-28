@@ -10,8 +10,8 @@ namespace KHost.Domain.Services.BurnIn;
 /// <remarks>The same rules the local screen draws by (<c>screen-ui/lyrics-overlay.js</c>), so a song
 /// reads alike whichever display it reaches: the page fitted and centred in the frame, colours the
 /// timing leaves unset taken from the same theme, the wipe linear with no easing, a count-in that
-/// eases over one step and clears as the next page arrives, and a lead-in running to the line's
-/// leading edge. Where the two part company it is because a web view cannot do better: this shapes
+/// eases over one step and clears as the next page arrives, and a lead-in running to the leading
+/// edge of the line or of the syllable it names. Where the two part company it is because a web view cannot do better: this shapes
 /// each line through HarfBuzz, so a joined script joins, and a right-to-left line is laid from the
 /// right edge of its box.
 ///
@@ -357,8 +357,6 @@ public sealed class TimedLyricsPainter
 
     private void PaintLine(Worker worker, SKCanvas canvas, PageLayout page, LineLayout line, double t)
     {
-        PaintLeadIn(canvas, page, line, t);
-
         // Every outline before any fill, so one syllable's edge never lands across its neighbour.
         worker.Outline.StrokeWidth = Math.Max(2, line.FontSize * 0.09f);
         foreach (var syllable in line.Syllables) canvas.DrawText(syllable.Blob, 0, 0, worker.Outline);
@@ -384,23 +382,42 @@ public sealed class TimedLyricsPainter
             canvas.DrawText(syllable.Blob, 0, 0, worker.Fill);
             canvas.Restore();
         }
+
+        // Over the words, not under: a lead-in for a pause inside the line runs across words already sung.
+        PaintLeadIn(canvas, page, line, t);
     }
 
-    /// <summary>A small block that travels in to the line's leading edge, arriving as its first
-    /// syllable lights.</summary>
+    /// <summary>A small block that travels in to the leading edge of the syllable it is for — the
+    /// line's start unless it names one further along — arriving as that syllable lights.</summary>
     private void PaintLeadIn(SKCanvas canvas, PageLayout page, LineLayout line, double t)
     {
         var leadIn = line.Source.LeadIn;
         var box = line.Position;
-        var first = line.Source.Syllables.Count > 0 ? line.Source.Syllables[0] : null;
-        if (leadIn is null || box is null || first is null || t < leadIn.StartSeconds || t >= first.StartSeconds) return;
+        var syllables = line.Source.Syllables;
+        var index = leadIn?.ArriveAtSyllable ?? 0;
+        if (leadIn is null || box is null || index < 0 || index >= syllables.Count) return;
+
+        var target = syllables[index];
+        if (t < leadIn.StartSeconds || t >= target.StartSeconds) return;
 
         var run = box.X - leadIn.X;
+        double to;
 
-        // Mirrored for right to left: the same run, made into the right edge from outside it.
-        var from = _lyrics.IsRightToLeft ? box.X + box.Width + run : leadIn.X;
-        var to = _lyrics.IsRightToLeft ? box.X + box.Width : box.X;
-        var head = from + (to - from) * Progress(t, leadIn.StartSeconds, first.StartSeconds);
+        if (index == 0)
+        {
+            to = _lyrics.IsRightToLeft ? box.X + box.Width : box.X;
+        }
+        else
+        {
+            // By reference: a syllable with no text has no layout, so the two lists do not line up by index.
+            var laid = line.Syllables.FirstOrDefault(syllable => ReferenceEquals(syllable.Syllable, target));
+            if (laid is null) return;
+            to = ((_lyrics.IsRightToLeft ? laid.Right : laid.Left) - _offsetX) / _scale;
+        }
+
+        // Mirrored for right to left: the same run, made into the leading edge from outside it.
+        var from = _lyrics.IsRightToLeft ? to + run : to - run;
+        var head = from + (to - from) * Progress(t, leadIn.StartSeconds, target.StartSeconds);
 
         var w = 10 * _scale;
         var h = (float)box.Height * 0.3f * _scale;

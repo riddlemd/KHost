@@ -254,7 +254,7 @@ cannot name another's: its secrets, and the QR code it offers the screens.
     - **One set of drawing rules.** The painter follows `screen-ui/lyrics-overlay.js`: the page
       fitted and centred, theme colours for anything the timing leaves unset, a linear wipe,
       count-ins that ease over one step and are gone by the next page's arrival, lead-ins running to
-      the line's leading edge, and a line with no position stacked under the one before it. Change
+      the leading edge of the line or of the syllable they name (`ArriveAtSyllable`), and a line with no position stacked under the one before it. Change
       one and change the other. Where they part, the painter is the better one: it shapes a line
       through HarfBuzz, so a joined script joins and a right-to-left line is laid from its box's
       right edge.
