@@ -128,6 +128,18 @@
                         }
                     </select>
                 </label>
+                <label class="kh-app-settings__row kh-form-check">
+                    <span class="kh-form-check-label">
+                        Colour-blind friendly lyrics
+                        <span class="kh-app-settings__apply">applies from the next song</span>
+                        <span class="kh-note">
+                            Makes duet singers and sung and unsung words easier to tell apart for
+                            colour-blind viewers, by separating colours that would look alike. Only
+                            for timed lyrics, not CD+G or video.
+                        </span>
+                    </span>
+                    <InputCheckbox id="colour-blind-lyrics" class="kh-form-check-input" @bind-Value="_model.ColorBlindFriendlyLyrics" />
+                </label>
 
                 <div class="kh-app-settings__section">Ads</div>
                 <label class="kh-app-settings__row">

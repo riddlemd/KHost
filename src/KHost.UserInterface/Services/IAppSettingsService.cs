@@ -50,6 +50,10 @@ public sealed record AppSettings
     /// <remarks>One of <see cref="DynamicLeadInPauseChoices"/>.</remarks>
     public int DynamicLeadInPauseSeconds { get; set; } = LeadInGenerator.DefaultLongPauseSeconds;
 
+    /// <summary>Whether the host moves apart timed-lyric colours a colour-blind viewer would confuse.</summary>
+    /// <remarks>Off by default: it changes how some songs' colours look to everyone.</remarks>
+    public bool ColorBlindFriendlyLyrics { get; set; }
+
     /// <summary>Which shape the key, tempo and vocal controls take. Presentation only.</summary>
     /// <remarks>Both shapes drive the same underlying values.</remarks>
     public SongControlStyle SongControlStyle { get; set; } = SongControlStyle.Sliders;
