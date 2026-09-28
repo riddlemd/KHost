@@ -148,6 +148,19 @@ public class TimedLyricsPainterTests
     public void Paint_ALeadIn_IsGoneOnceTheLineStarts()
         => Assert.Equal(0, Read(PaintAt(LeadIn(rightToLeft: false), 3.0), IsGreen)[0].Count);
 
+    /// <summary>Arriving, the block overlaps the first letter; the letter stays whole over it.</summary>
+    [Fact]
+    public void Paint_ALeadInArriving_SitsUnderTheWords()
+    {
+        var led = LeadIn(rightToLeft: false);
+        var unled = led with { Pages = [led.Pages[0] with { Lines = [led.Pages[0].Lines[0] with { LeadIn = null }] }] };
+
+        var withBlock = WhiteMask(PaintAt(led, 2.99));
+        var without = WhiteMask(PaintAt(unled, 2.99));
+
+        Assert.Equal(0, without.Zip(withBlock).Count(pair => pair.First && !pair.Second));
+    }
+
     /// <summary>Right to left, the same run is made into the line's right edge from outside it.</summary>
     [Fact]
     public void Paint_ALeadInRightToLeft_TravelsInToTheRightEdge()
