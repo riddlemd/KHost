@@ -47,7 +47,8 @@
                                      Title="@(SelectionMayHoldVideo ? $"Video files are: {DescribeVideoKind(_videoKind)}" : null)"
                                      OnClick="@(_ => StartImportAsync())">
                             <Text>
-                                <Icon Name="download" /> Import@ImportSelectionSummary
+                                @* Parenthesised: word@name is an email address to Razor and prints as text. *@
+                                <Icon Name="download" /> Import@(ImportSelectionSummary)
                             </Text>
                             <Buttons>
                                 @if (SelectionMayHoldVideo)
