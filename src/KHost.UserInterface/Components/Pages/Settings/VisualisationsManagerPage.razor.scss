@@ -47,13 +47,8 @@
 
     &__add {
         display: flex;
-        gap: 0.5rem;
+        justify-content: flex-end;
         margin-top: 0.75rem;
-
-        .kh-form-select {
-            flex: 1 1 auto;
-            min-width: 0;
-        }
     }
 
     &__slider {
