@@ -129,22 +129,53 @@ function createLyricsOverlay(canvas, clock) {
         ctx2d.restore();
     }
 
-    /// Where a syllable part way along the line starts, in the timing's units: its left edge, or its
-    /// right edge right to left, as drawLine lays it. Null when it draws nothing to arrive at.
-    function syllableLeadingEdge(line, index) {
+    /// Where a syllable part way along the line sits, ink only — its own text with a leading space
+    /// trimmed off, in canvas pixels, laid out exactly as drawLine lays it. Null when there is no
+    /// text to sit over.
+    function syllableInkBox(box, line, index) {
         const syllables = line.syllables || [];
         const target = syllables[index];
         if (!target || !target.text) return null;
 
-        let penX = offsetX + line.position.x * scale;
+        let penX = offsetX + box.x * scale;
         for (let i = 0; i < index; i++) if (syllables[i].text) penX += ctx2d.measureText(syllables[i].text).width;
-        if (lyrics.isRightToLeft) penX += ctx2d.measureText(target.text).width;
-        return (penX - offsetX) / scale;
+
+        const lead = target.text.startsWith(' ') ? ctx2d.measureText(' ').width : 0;
+        const ink = target.text.replace(/^\s+/, '');
+        return { left: penX + lead, width: ctx2d.measureText(ink).width };
     }
 
-    /// A small block that travels in to the leading edge of the syllable it is for — the line's start
-    /// unless it names one further along — arriving as that syllable lights. The host's painter
-    /// draws it by the same rule.
+    /// Three dots sitting just above a syllable part way along the line, counting down to it going
+    /// out one per third — first in reading order, so left to right, mirrored right to left — the
+    /// last going as the syllable lights. The host's painter draws the same count by the same rule.
+    function drawLeadInDots(page, box, line, index, target, t, baseline, fontSize) {
+        const ink = syllableInkBox(box, line, index);
+        if (!ink) return;
+
+        const r = Math.max(3, fontSize * 0.09);
+        const gap = r * 3.4;
+        const cx = ink.left + ink.width / 2;
+        const y = baseline - fontSize * 1.12;
+        const p = progress(t, line.leadIn.startSeconds, target.startSeconds);
+        const goneOut = Math.min(3, Math.floor(p * 3));
+
+        for (let physical = 0; physical < 3; physical++) {
+            const order = lyrics.isRightToLeft ? 2 - physical : physical;
+            const x = cx + (physical - 1) * gap;
+            ctx2d.beginPath();
+            ctx2d.arc(x, y, r, 0, Math.PI * 2);
+            ctx2d.fillStyle = order >= goneOut ? css(page.active, '#8558fa') : 'rgba(255,255,255,0.12)';
+            ctx2d.fill();
+            ctx2d.lineWidth = Math.max(1.5, r * 0.45);
+            ctx2d.strokeStyle = 'rgba(0,0,0,0.85)';
+            ctx2d.stroke();
+        }
+    }
+
+    /// At the line's start, a small block travels in to arrive as the first syllable lights. Part
+    /// way along, the run would cross words already sung in the same colour, so a count of dots sits
+    /// over the target syllable instead — see drawLeadInDots. The host's painter draws either by the
+    /// same rule.
     function drawLeadIn(page, line, t, baseline, fontSize) {
         const leadIn = line.leadIn;
         const box = line.position;
@@ -152,12 +183,13 @@ function createLyricsOverlay(canvas, clock) {
         const target = (line.syllables || [])[index];
         if (!leadIn || !box || !target || index < 0 || t < leadIn.startSeconds || t >= target.startSeconds) return;
 
-        const run = box.x - leadIn.x;
-        const edge = index === 0 ? null : syllableLeadingEdge(line, index);
-        if (index > 0 && edge === null) return;
+        if (index > 0) {
+            drawLeadInDots(page, box, line, index, target, t, baseline, fontSize);
+            return;
+        }
 
-        // Mirrored for right to left: the same run, made into the leading edge from outside it.
-        const to = edge !== null ? edge : lyrics.isRightToLeft ? box.x + box.width : box.x;
+        const run = box.x - leadIn.x;
+        const to = lyrics.isRightToLeft ? box.x + box.width : box.x;
         const from = lyrics.isRightToLeft ? to + run : to - run;
         const head = from + (to - from) * progress(t, leadIn.startSeconds, target.startSeconds);
 
@@ -246,7 +278,8 @@ function createLyricsOverlay(canvas, clock) {
             penX += w;
         }
 
-        // Over the words, not under: a lead-in for a pause inside the line runs across words already sung.
+        // Painted after the words: a line-start block draws over them, and a mid-line dot count sits
+        // clear above them, but either way it must not be drawn first and then covered.
         drawLeadIn(page, line, t, baseline, fontSize);
     }
 
