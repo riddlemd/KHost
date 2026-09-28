@@ -34,11 +34,16 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         public int LeadInGraceSeconds { get; set; }
 
         /// <summary>Whether the host adds lead-ins the timed lyrics left out.</summary>
-        /// <remarks>Read when a song's words are read, so a change applies from the next song.</remarks>
+        /// <remarks>A change reaches the song already up: see <see cref="TimedLyricsSettingsChanged"/>.</remarks>
         public bool DynamicLeadIns { get; set; }
 
         /// <summary>The silence before a line that earns it a host-added lead-in.</summary>
         public int DynamicLeadInPauseSeconds { get; set; } = LeadInGenerator.DefaultLongPauseSeconds;
+
+        /// <summary>Whether the host moves apart timed-lyric colours a colour-blind viewer would
+        /// confuse.</summary>
+        /// <remarks>A change reaches the song already up: see <see cref="TimedLyricsSettingsChanged"/>.</remarks>
+        public bool ColorBlindFriendlyLyrics { get; set; }
 
         /// <summary>How long a replaced encode stays before deletion.</summary>
         /// <remarks>No second player exists mid-fetch, and a receiver reads a 404 body as media.</remarks>
@@ -95,6 +100,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
     private Guid? _displaySessionId;
 
     private IDisposable? _displaySubscription;
+    private IDisposable? _lyricSettingsSubscription;
 
     private IAnalyticsActivity? _sessionActivity;
 
@@ -124,6 +130,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
     private readonly IAudioTrackService _audioTracks;
     private readonly IMediaGateService _mediaGate;
     private readonly IFlashService _flash;
+    private readonly ITimedLyricsService _timedLyrics;
 
     // Read per use rather than captured: the App Settings page writes the overlay live, and a
     // value snapshotted at startup would leave the console needing a restart to honour it.
@@ -174,6 +181,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         IAudioTrackService audioTracks,
         IMediaGateService mediaGate,
         IFlashService flash,
+        ITimedLyricsService timedLyrics,
         IMessageBroker broker)
         : base(logger)
     {
@@ -192,6 +200,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         _audioTracks = audioTracks;
         _mediaGate = mediaGate;
         _flash = flash;
+        _timedLyrics = timedLyrics;
 
         foreach (var display in _displays)
             display.PlaybackStatusChanged += OnDisplayStatusReceived;
@@ -205,6 +214,10 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
 
         // A display joining, rejoining or going away, screens included: each says so here.
         _displaySubscription = _broker.Subscribe<DisplaysChanged>(message => { _ = Task.Run(SyncDisplaySessionAsync); });
+
+        // Words burned into the stream change only with a new encode; a display drawing them
+        // itself hears the same message and re-reads them.
+        _lyricSettingsSubscription = _broker.Subscribe<TimedLyricsSettingsChanged>((_, _) => AfterLyricSettingsChangeAsync());
     }
 
     /// <summary>The name to show, resolved once at load: a venue edit mid-song never renames it.</summary>
@@ -655,6 +668,39 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         // Nothing open to rebuild; the row is written and the next load reads it back.
         if (_rendition is null) return;
 
+        ScheduleReopen();
+    }
+
+    /// <summary>Rebuilds the song at the playhead when the words burned into it would now read
+    /// differently, the same way a key change does.</summary>
+    /// <remarks>Only for a display that asked for burned-in words and a song that has some: any
+    /// other encode carries no words, and rebuilding it would be a hole in the song for nothing.</remarks>
+    private async Task AfterLyricSettingsChangeAsync()
+    {
+        // An ad, or a song with nothing open, is left to ReopenStreamAsync to refuse, as a key change is.
+        if (CurrentMedia is not { } media) return;
+
+        if (!DescribeTarget().BurnLyrics) return;
+
+        TimedLyrics? words;
+        try { words = await _timedLyrics.GetTimedLyricsAsync(media.FilePath); }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Could not re-read the words of '{Title}'; its stream is left as it is", media.Title);
+            return;
+        }
+
+        // The test the burn-in itself makes: a timing with no pages burns nothing in.
+        if (words is not { Pages.Count: > 0 } || !ReferenceEquals(media, CurrentMedia)) return;
+
+        Logger.LogInformation("Lyric adjustments changed; rebuilding '{Title}' with its words redrawn", media.Title);
+
+        ScheduleReopen();
+    }
+
+    /// <summary>Reopens the stream once the settle runs out, a later call restarting it.</summary>
+    private void ScheduleReopen()
+    {
         var settle = new CancellationTokenSource();
         var superseded = Interlocked.Exchange(ref _reopenSettle, settle);
         superseded?.Cancel();
@@ -798,6 +844,8 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
             }
             _displaySubscription?.Dispose();
             _displaySubscription = null;
+            _lyricSettingsSubscription?.Dispose();
+            _lyricSettingsSubscription = null;
 
             // _screenSyncLock is deliberately not disposed: a detached sync may still be holding
             // it at shutdown, and its Release would then throw.

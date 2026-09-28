@@ -1233,6 +1233,24 @@ public class LocalScreenDisplayProviderTests
             && hide < sent.FindIndex(c => c is LoadMediaCommand));
     }
 
+    /// <summary>Black behind the words: the venue's card and its song backgrounds are for idle.</summary>
+    [Fact]
+    public async Task LoadAsync_ATimedLyricSongWithNoPicture_PutsNothingBehindTheWords()
+    {
+        Branding();
+        (await _venues.ReadSelectedVenueAsync())!.Settings.SongBackgrounds = ["a.mp4"];
+        var song = new PlaybackProgram.Playing(new Media { Title = "Africa", FilePath = "/songs/africa.song" }, new Performance());
+        WordsFor(song);
+        _playback.CurrentProgram.Returns(song);
+        using var provider = DrawingProvider();
+
+        await provider.LoadAsync(new DisplayLoad { Stems = [new(0, AudioTrackRole.Music, "http://host/m.ogg", 100)] });
+
+        Assert.Single(Sent<HideImageCommand>());
+        Assert.Empty(Sent<ShowImageCommand>());
+        Assert.Null(Assert.Single(Sent<LoadMediaCommand>()).StreamUrl);
+    }
+
     /// <summary>A rebuild at a new key reloads the same program; the picture is already right.</summary>
     [Fact]
     public async Task LoadAsync_TheSameProgramAgain_LeavesThePictureAlone()

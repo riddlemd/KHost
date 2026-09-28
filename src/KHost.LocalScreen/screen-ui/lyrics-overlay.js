@@ -240,6 +240,9 @@ function createLyricsOverlay(canvas, clock) {
             ctx2d.font = `600 ${fontSize.toFixed(2)}px sans-serif`;
         }
 
+        // Under the words: a line-start block overlaps the first letter, and the words must win.
+        drawLeadIn(page, line, t, baseline, fontSize);
+
         for (const syl of line.syllables || []) {
             if (!syl.text) continue;
 
@@ -277,10 +280,6 @@ function createLyricsOverlay(canvas, clock) {
 
             penX += w;
         }
-
-        // Painted after the words: a line-start block draws over them, and a mid-line dot count sits
-        // clear above them, but either way it must not be drawn first and then covered.
-        drawLeadIn(page, line, t, baseline, fontSize);
     }
 
     function draw() {

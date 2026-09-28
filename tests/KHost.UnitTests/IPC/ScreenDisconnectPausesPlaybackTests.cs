@@ -79,6 +79,7 @@ public class ScreenDisconnectPausesPlaybackTests : IDisposable
             Substitute.For<IAudioTrackService>(),
             AllowingGate(),
             Substitute.For<IFlashService>(),
+            Substitute.For<ITimedLyricsService>(),
             _broker);
     }
 

@@ -145,6 +145,19 @@ public class AppSettingsServiceTests : IDisposable
         Assert.Equal(2, playback.GetProperty("DynamicLeadInPauseSeconds").GetInt32());
     }
 
+    [Fact]
+    public async Task ColorBlindFriendlyLyrics_DefaultsToOff_AndRoundTripsThroughTheOverlay()
+    {
+        Assert.False(Service().Current.ColorBlindFriendlyLyrics);
+
+        await Service().SaveAsync(new AppSettings { ColorBlindFriendlyLyrics = true });
+
+        using var overlay = JsonDocument.Parse(
+            await File.ReadAllTextAsync(Path.Combine(_directory, AppSettingsService.OverlayFileName)));
+        Assert.True(overlay.RootElement.GetProperty("Playback").GetProperty("ColorBlindFriendlyLyrics").GetBoolean());
+        Assert.True(Service(new KeyValuePair<string, string?>("Playback:ColorBlindFriendlyLyrics", "true")).Current.ColorBlindFriendlyLyrics);
+    }
+
     /// <summary>A hand-edited value the select does not offer would show as none of its choices.</summary>
     [Theory]
     [InlineData("4", 4)]

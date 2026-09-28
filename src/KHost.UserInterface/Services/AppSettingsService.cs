@@ -58,6 +58,7 @@ internal sealed class AppSettingsService : IAppSettingsService
         DynamicLeadIns = _configuration.GetValue<bool?>("Playback:DynamicLeadIns") ?? false,
         DynamicLeadInPauseSeconds = DynamicLeadInPauseChoice(
             _configuration.GetValue<int?>("Playback:DynamicLeadInPauseSeconds") ?? LeadInGenerator.DefaultLongPauseSeconds),
+        ColorBlindFriendlyLyrics = _configuration.GetValue<bool?>("Playback:ColorBlindFriendlyLyrics") ?? false,
         // Parsed rather than cast: a hand-edited word that names no shape falls back to sliders
         // instead of reaching the console as an enum value with no case to render it.
         SongControlStyle = Enum.TryParse<SongControlStyle>(
@@ -115,6 +116,7 @@ internal sealed class AppSettingsService : IAppSettingsService
                 ["LeadInGraceSeconds"] = LeadInGraceChoice(settings.LeadInGraceSeconds),
                 ["DynamicLeadIns"] = settings.DynamicLeadIns,
                 ["DynamicLeadInPauseSeconds"] = DynamicLeadInPauseChoice(settings.DynamicLeadInPauseSeconds),
+                ["ColorBlindFriendlyLyrics"] = settings.ColorBlindFriendlyLyrics,
             },
             ["MediaStream"] = new Dictionary<string, object?>
             {

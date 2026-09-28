@@ -850,21 +850,13 @@ function handleCommand(raw) {
             break;
         }
         case 'timed-lyrics':
-            // The whole timing document, sent once with the load rather than on the transport.
-            // Null clears it, which is what a song with no words looks like.
-            words = {
-                lyrics: message.lyrics || null,
-                intro: message.intro || null,
-                leadInSeconds: Number(message.leadInSeconds) || 0,
-                led: false,
-            };
-            showLyrics(false);
-
-            // Words arrive once per song, so whatever hold the last one left goes. Armed only ahead
-            // of a page, since with none there is nothing to lead the singer in to; the play that
-            // starts it checks the song is still at its top.
-            leadIn.cancel();
-            if (firstPageAt(words.lyrics) !== null) leadIn.arm(words.leadInSeconds);
+            // The whole timing document, sent with the load rather than on the transport, and again
+            // mid-song when the host changes how it adjusts them. Null clears it, which is what a
+            // song with no words looks like. The hold is armed only ahead of a page, since with none
+            // there is nothing to lead the singer in to; the play that starts it checks the song is
+            // still at its top.
+            words = receiveWords(words, message, leadIn);
+            showLyrics(words.led);
             break;
         case 'play':
             playbackGeneration++;

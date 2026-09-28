@@ -128,7 +128,7 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
         int tempo = 0,
         AudioMix? mix = null,
         CancellationToken cancellationToken = default)
-        => OpenEncodeAsync(filePath, startOffset, pitch, tempo, mix, words: null, backgroundPath: null, cancellationToken);
+        => OpenEncodeAsync(filePath, startOffset, pitch, tempo, mix, words: null, cancellationToken);
 
     public Task<MediaStreamSession> OpenBurningInAsync(
         string filePath,
@@ -137,9 +137,8 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
         int tempo,
         AudioMix? mix,
         TimedLyrics words,
-        string? backgroundPath,
         CancellationToken cancellationToken = default)
-        => OpenEncodeAsync(filePath, startOffset, pitch, tempo, mix, words, backgroundPath, cancellationToken);
+        => OpenEncodeAsync(filePath, startOffset, pitch, tempo, mix, words, cancellationToken);
 
     private async Task<MediaStreamSession> OpenEncodeAsync(
         string filePath,
@@ -148,7 +147,6 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
         int tempo,
         AudioMix? mix,
         TimedLyrics? words,
-        string? backgroundPath,
         CancellationToken cancellationToken)
     {
         if (!File.Exists(filePath))
@@ -171,7 +169,7 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
 
         var burnIn = words is null
             ? null
-            : await PlanBurnInAsync(source, words, backgroundPath, startOffset, tempo, graphicsHeight, cancellationToken);
+            : await PlanBurnInAsync(source, words, startOffset, tempo, graphicsHeight, cancellationToken);
 
         var arguments = BuildArguments(
             source, startOffset, pitch, tempo, Options.SegmentSeconds, companionAudio, mix, burnIn?.Overlay,
@@ -192,7 +190,6 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
         int pitch,
         int tempo,
         TimedLyrics? words,
-        string? backgroundPath,
         MediaStreamSession? adopt,
         CancellationToken cancellationToken = default)
     {
@@ -207,14 +204,13 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
 
             var (id, directory) = NewSession();
 
-            // A stem set has no picture of its own, so the words go over the venue's background or
-            // black, for as long as the longest stem runs.
+            // A stem set has no picture of its own, so the words run for as long as the longest stem.
             BurnInPlan? burnIn = null;
             if (words is { Pages.Count: > 0 })
             {
                 burnIn = PlanBurnIn(
                     hasVideo: false, await LongestDurationAsync(inputs, cancellationToken), isGraphicsOnly: false,
-                    words, backgroundPath, startOffset, tempo, GraphicsScaling.SnapToOffered(Options.GraphicsScaleHeight));
+                    words, startOffset, tempo, GraphicsScaling.SnapToOffered(Options.GraphicsScaleHeight));
             }
 
             var arguments = BuildStemArguments(inputs, startOffset, pitch, tempo, Options.SegmentSeconds, burnIn?.Overlay);
@@ -344,34 +340,34 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
     }
 
     /// <summary>What the words go over and how many frames of them to paint.</summary>
-    /// <remarks>The source's own picture when it has one; else the venue's chosen background; else a
-    /// plain black frame, which is what the screen shows behind a song with no picture. A cover
-    /// image stored as a video stream is not a picture to play under the words — it is one frame.
+    /// <remarks>Whatever <see cref="SongBackdrops.ForPlaying"/> answers, so a burned-in display and a
+    /// screen drawing its own words agree. A cover image stored as a video stream is not a picture
+    /// to play under the words — it is one frame.
     ///
     /// <para>Painted from the playhead, except for a source that seeks on its output: ffmpeg then
     /// discards everything before the playhead, painted frames included.</para></remarks>
     private async Task<BurnInPlan> PlanBurnInAsync(
-        string source, TimedLyrics words, string? backgroundPath, TimeSpan startOffset, int tempo,
+        string source, TimedLyrics words, TimeSpan startOffset, int tempo,
         int graphicsHeight, CancellationToken cancellationToken)
     {
         var (hasVideo, duration) = await ProbePictureAsync(source, cancellationToken);
 
         return PlanBurnIn(
-            hasVideo, duration, IsGraphicsOnly(source), words, backgroundPath, startOffset, tempo, graphicsHeight);
+            hasVideo, duration, IsGraphicsOnly(source), words, startOffset, tempo, graphicsHeight);
     }
 
-    private static BurnInPlan PlanBurnIn(
-        bool hasVideo, double duration, bool isGraphicsOnly, TimedLyrics words, string? backgroundPath,
+    internal static BurnInPlan PlanBurnIn(
+        bool hasVideo, double duration, bool isGraphicsOnly, TimedLyrics words,
         TimeSpan startOffset, int tempo, int graphicsHeight)
     {
-        var basePicture = hasVideo
-            ? BurnInBase.SourceVideo
-            : backgroundPath is not null && File.Exists(backgroundPath) ? BurnInBase.Background : BurnInBase.Fill;
+        var basePicture = SongBackdrops.ForPlaying(hasTimedLyrics: true, hasOwnPicture: hasVideo) switch
+        {
+            SongBackdrop.OwnPicture => BurnInBase.SourceVideo,
+            _ => BurnInBase.Fill,
+        };
 
         var (width, height) = BurnInOverlay.FrameFor(graphicsHeight);
-        var overlay = new BurnInOverlay(
-            width, height, BurnInOverlay.DefaultFramesPerSecond,
-            basePicture, basePicture == BurnInBase.Background ? backgroundPath : null);
+        var overlay = new BurnInOverlay(width, height, BurnInOverlay.DefaultFramesPerSecond, basePicture);
 
         // Laid over a picture nobody made with the words in mind, so the band they sit in is darkened.
         var painter = new TimedLyricsPainter(words, overlay.Width, overlay.Height, scrim: basePicture != BurnInBase.Fill);
@@ -625,8 +621,8 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
     /// <summary>The encode for a song that arrived as separate stems: every stem an input, mixed at
     /// its own level, then keyed and retimed as one.</summary>
     /// <remarks>Audio alone unless words are burned in, as a stems-only song has no picture of its own
-    /// and a display drawing its own words wants none. Burned-in words go over
-    /// <see cref="BurnInOverlay.Base"/>, which here is only ever the venue's background or black.
+    /// and a display drawing its own words wants none. Burned-in words go over black, a stem set
+    /// having no picture of its own.
     /// </remarks>
     internal static string BuildStemArguments(
         IReadOnlyList<StemInput> stems,
@@ -706,8 +702,6 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
 
         return burnIn.Base switch
         {
-            // Looped for as long as the song lasts; the overlay ends the picture with the words.
-            BurnInBase.Background => inputs + $" -stream_loop -1 -i \"{burnIn.BackgroundPath}\"",
             BurnInBase.Fill => inputs + string.Format(
                 CultureInfo.InvariantCulture,
                 " -f lavfi -i color=c=black:s={0}x{1}:r={2}",
@@ -724,8 +718,7 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
     ///
     /// <para>The base is brought to the painted frames' rate, because a source that only emits a
     /// frame when its picture changes would hold the chase still between them. A source's own video
-    /// is fitted inside the frame; a background clip covers it, having no framing of its own to
-    /// keep. An endless base ends with the words (<c>shortest=1</c>); a finite one ends the picture
+    /// is fitted inside the frame. An endless base ends with the words (<c>shortest=1</c>); a finite one ends the picture
     /// itself and carries on without them if the words run out first.</para></remarks>
     private static string BurnInMapping(
         BurnInOverlay burnIn, int pipeInput, int tempo, int audioInput, string mixGraph, string audioFilter,
@@ -746,8 +739,6 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
             BurnInBase.SourceVideo => $"[0:v:0]{retime}"
                 + $"fps={rate},scale={size}:force_original_aspect_ratio=decrease,"
                 + $"pad={size}:(ow-iw)/2:(oh-ih)/2,setsar=1[base]",
-            BurnInBase.Background => $"[{baseInput}:v]scale={size}:force_original_aspect_ratio=increase,"
-                + $"crop={size},setsar=1,fps={rate}[base]",
             _ => $"[{baseInput}:v]setsar=1[base]",
         };
 

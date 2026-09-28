@@ -6,16 +6,12 @@ internal enum BurnInBase
     /// <summary>The source's own moving picture, fitted inside the frame.</summary>
     SourceVideo,
 
-    /// <summary>One of the venue's song backgrounds, looped and cropped to cover the frame.</summary>
-    Background,
-
-    /// <summary>Plain black, which is what the screen shows behind a song with no picture.</summary>
+    /// <summary>Plain black: <see cref="SongBackdrop.Black"/>.</summary>
     Fill,
 }
 
 /// <summary>The painted frames an encode reads off its pipe, and the picture they go over.</summary>
-/// <param name="BackgroundPath">The clip to loop; set only for <see cref="BurnInBase.Background"/>.</param>
-internal sealed record BurnInOverlay(int Width, int Height, int FramesPerSecond, BurnInBase Base, string? BackgroundPath = null)
+internal sealed record BurnInOverlay(int Width, int Height, int FramesPerSecond, BurnInBase Base)
 {
     /// <summary>720p: the frame when graphics scaling is off, since painted words always need a
     /// frame of their own.</summary>

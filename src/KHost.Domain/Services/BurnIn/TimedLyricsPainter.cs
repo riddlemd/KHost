@@ -371,6 +371,9 @@ public sealed class TimedLyricsPainter
 
     private void PaintLine(Worker worker, SKCanvas canvas, PageLayout page, LineLayout line, double t)
     {
+        // Under the words: a line-start block overlaps the first letter, and the words must win.
+        PaintLeadIn(canvas, page, line, t);
+
         // Every outline before any fill, so one syllable's edge never lands across its neighbour.
         worker.Outline.StrokeWidth = Math.Max(2, line.FontSize * 0.09f);
         foreach (var syllable in line.Syllables) canvas.DrawText(syllable.Blob, 0, 0, worker.Outline);
@@ -396,10 +399,6 @@ public sealed class TimedLyricsPainter
             canvas.DrawText(syllable.Blob, 0, 0, worker.Fill);
             canvas.Restore();
         }
-
-        // Painted after the words: a line-start block draws over them, and a mid-line dot count sits
-        // clear above them, but either way it must not be drawn first and then covered.
-        PaintLeadIn(canvas, page, line, t);
     }
 
     /// <summary>At the line's start, a small block that travels in to arrive as the first syllable
