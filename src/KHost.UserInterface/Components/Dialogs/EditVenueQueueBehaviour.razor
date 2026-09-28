@@ -1,0 +1,49 @@
+@using KHost.UserInterface.Models
+
+<div class="kh-venue-settings__section">
+    <span class="kh-venue-settings__section-title">Queue behavior</span>
+
+    <label class="kh-venue-settings__row kh-form-check">
+        <span class="kh-form-check-label">Clear queue when closing</span>
+        <InputCheckbox class="kh-form-check-input" @bind-Value="Model.ClearQueueOnClose" />
+    </label>
+    <label class="kh-venue-settings__row kh-form-check">
+        <span class="kh-form-check-label">Show estimated wait time in the singer queue</span>
+        <InputCheckbox class="kh-form-check-input" @bind-Value="Model.ShowEstimatedWaitTime" />
+    </label>
+    <label class="kh-venue-settings__row kh-form-check">
+        <span class="kh-form-check-label">
+            Allow Singer Aliases
+            <span class="kh-note">
+                Announce the name a song was signed up under, rather than the
+                singer&rsquo;s own.
+            </span>
+        </span>
+        <InputCheckbox id="venue-allow-aliases" class="kh-form-check-input" @bind-Value="Model.AllowAliases" />
+    </label>
+    <label class="kh-venue-settings__row kh-form-check">
+        <span class="kh-form-check-label">Warn when queueing a song already queued or recently sung</span>
+        <InputCheckbox class="kh-form-check-input" @bind-Value="Model.WarnOnDuplicateSong" />
+    </label>
+    @if (Model.WarnOnDuplicateSong)
+    {
+        <div class="kh-venue-settings__row">
+            <label for="duplicate-window" class="kh-form-label">Consider a song recently sung within</label>
+            <InputSelect id="duplicate-window" class="kh-form-select" @bind-Value="Model.DuplicateSongWindowHours">
+                @foreach (var hours in EditVenueModel.DuplicateWindowOptions)
+                {
+                    <option value="@hours">@hours @(hours == 1 ? "hour" : "hours")</option>
+                }
+            </InputSelect>
+        </div>
+    }
+
+    <div class="kh-venue-queue-behaviour__rotation-row">
+        <button type="button" class="kh-venue-queue-behaviour__rotation-btn kh-button kh-button--secondary"
+                @onclick="() => _rotationDialogOpen = true">
+            <Icon Name="people-fill" /> Edit Singer Queue Rotation Strategy
+        </button>
+    </div>
+</div>
+
+<SingerQueueDialog IsOpen="_rotationDialogOpen" Config="Model.QueueRotation" OnClose="CloseRotationDialog" />
