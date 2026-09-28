@@ -2,6 +2,7 @@ using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using KHost.Domain.Services;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
 
@@ -26,8 +27,24 @@ public class TimedLyricsServiceTests
         return provider;
     }
 
-    private static TimedLyricsService Service(params ITimedLyricsProvider[] providers)
-        => new(NullLogger<TimedLyricsService>.Instance, providers);
+    private readonly PlaybackService.ServiceOptions _options = new();
+
+    private TimedLyricsService Service(params ITimedLyricsProvider[] providers)
+    {
+        var monitor = Substitute.For<IOptionsMonitor<PlaybackService.ServiceOptions>>();
+        monitor.CurrentValue.Returns(_ => _options);
+        return new(NullLogger<TimedLyricsService>.Instance, providers, monitor);
+    }
+
+    /// <summary>One opener, sung after a 2.5s silence, on a page up long enough for a full run.</summary>
+    private static TimedLyrics AfterASilence() => SomeLyrics() with
+    {
+        Pages =
+        [
+            new LyricPage { ShowFromSeconds = 0, ShowUntilSeconds = 10, Lines = [new LyricLine { Position = new LyricBox(100, 100, 400, 50), Syllables = [new LyricSyllable(1, 2, "la")] }] },
+            new LyricPage { ShowFromSeconds = 2, ShowUntilSeconds = 20, Lines = [new LyricLine { Position = new LyricBox(100, 100, 400, 50), Syllables = [new LyricSyllable(4.5, 5, "la")] }] },
+        ],
+    };
 
     [Fact]
     public async Task GetTimedLyricsAsync_AsksTheProviderThatClaimsTheFile()
@@ -40,6 +57,71 @@ public class TimedLyricsServiceTests
         Assert.NotNull(lyrics);
         await mine.Received(1).GetTimedLyricsAsync(SourceFile, Arg.Any<CancellationToken>());
         await other.DidNotReceive().GetTimedLyricsAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task GetTimedLyricsAsync_FillsInLeadInsTheProviderLeftOut()
+    {
+        _options.DynamicLeadIns = true;
+
+        var bare = SomeLyrics() with
+        {
+            Pages =
+            [
+                new LyricPage
+                {
+                    ShowFromSeconds = 10,
+                    ShowUntilSeconds = 20,
+                    Lines = [new LyricLine { Position = new LyricBox(100, 100, 400, 50), Syllables = [new LyricSyllable(15, 16, "la")] }],
+                },
+            ],
+        };
+
+        var lyrics = await Service(Provider(claims: true, answer: bare)).GetTimedLyricsAsync(SourceFile);
+
+        // Both the screen and the burn-in read through here, so this is where they learn of it.
+        Assert.NotNull(lyrics!.Pages[0].Lines[0].LeadIn);
+    }
+
+    [Fact]
+    public async Task GetTimedLyricsAsync_Off_PassesTheProvidersLyricsThroughUntouched()
+    {
+        var answer = AfterASilence();
+
+        var lyrics = await Service(Provider(claims: true, answer: answer)).GetTimedLyricsAsync(SourceFile);
+
+        Assert.Same(answer, lyrics);
+    }
+
+    [Theory]
+    [InlineData(2, true)]
+    [InlineData(3, false)]
+    public async Task GetTimedLyricsAsync_ThePauseSetting_DecidesWhichSilencesEarnOne(int pauseSeconds, bool expected)
+    {
+        _options.DynamicLeadIns = true;
+        _options.DynamicLeadInPauseSeconds = pauseSeconds;
+
+        // Two lines on one page, so only the setting's pause can earn the second one a lead-in.
+        var answer = SomeLyrics() with
+        {
+            Pages =
+            [
+                new LyricPage
+                {
+                    ShowFromSeconds = 0,
+                    ShowUntilSeconds = 20,
+                    Lines =
+                    [
+                        new LyricLine { Position = new LyricBox(100, 100, 400, 50), Syllables = [new LyricSyllable(0.2, 2, "la")] },
+                        new LyricLine { Position = new LyricBox(100, 160, 400, 50), Syllables = [new LyricSyllable(4.5, 5, "la")] },
+                    ],
+                },
+            ],
+        };
+
+        var lyrics = await Service(Provider(claims: true, answer: answer)).GetTimedLyricsAsync(SourceFile);
+
+        Assert.Equal(expected, lyrics!.Pages[0].Lines[1].LeadIn is not null);
     }
 
     [Fact]

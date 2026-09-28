@@ -55,6 +55,9 @@ internal sealed class AppSettingsService : IAppSettingsService
         BackingVocalVolume = AudioLevels.ClampVolume(
             _configuration.GetValue<int?>("Playback:DefaultBackingVolume") ?? AudioMix.DefaultBackingVolume),
         LeadInGraceSeconds = LeadInGraceChoice(_configuration.GetValue<int?>("Playback:LeadInGraceSeconds") ?? 0),
+        DynamicLeadIns = _configuration.GetValue<bool?>("Playback:DynamicLeadIns") ?? false,
+        DynamicLeadInPauseSeconds = DynamicLeadInPauseChoice(
+            _configuration.GetValue<int?>("Playback:DynamicLeadInPauseSeconds") ?? LeadInGenerator.DefaultLongPauseSeconds),
         // Parsed rather than cast: a hand-edited word that names no shape falls back to sliders
         // instead of reaching the console as an enum value with no case to render it.
         SongControlStyle = Enum.TryParse<SongControlStyle>(
@@ -74,6 +77,10 @@ internal sealed class AppSettingsService : IAppSettingsService
     // Read as well as save: a hand-edited value the select does not offer would show as none of them.
     private static int LeadInGraceChoice(int seconds) =>
         AppSettings.LeadInGraceChoices.LastOrDefault(choice => choice <= seconds);
+
+    // Read as well as save, for the same reason as the grace.
+    private static int DynamicLeadInPauseChoice(int seconds) =>
+        Math.Clamp(seconds, AppSettings.DynamicLeadInPauseChoices[0], AppSettings.DynamicLeadInPauseChoices[^1]);
 
     // Read as well as save: a hand-edited zero reaches PaginatedResult as a page that holds no rows
     // and reports no pages.
@@ -106,6 +113,8 @@ internal sealed class AppSettingsService : IAppSettingsService
                 ["StopFadeDuration"] = TimeSpan.FromSeconds(settings.StopFadeSeconds).ToString(),
                 ["DefaultBackingVolume"] = AudioLevels.ClampVolume(settings.BackingVocalVolume),
                 ["LeadInGraceSeconds"] = LeadInGraceChoice(settings.LeadInGraceSeconds),
+                ["DynamicLeadIns"] = settings.DynamicLeadIns,
+                ["DynamicLeadInPauseSeconds"] = DynamicLeadInPauseChoice(settings.DynamicLeadInPauseSeconds),
             },
             ["MediaStream"] = new Dictionary<string, object?>
             {
