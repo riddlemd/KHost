@@ -1238,7 +1238,9 @@ public class LocalScreenDisplayProviderTests
     public async Task LoadAsync_ATimedLyricSongWithNoPicture_PutsNothingBehindTheWords()
     {
         Branding();
+#pragma warning disable CS0618 // a venue that picked clips before the picker went still gets black
         (await _venues.ReadSelectedVenueAsync())!.Settings.SongBackgrounds = ["a.mp4"];
+#pragma warning restore CS0618
         var song = new PlaybackProgram.Playing(new Media { Title = "Africa", FilePath = "/songs/africa.song" }, new Performance());
         WordsFor(song);
         _playback.CurrentProgram.Returns(song);

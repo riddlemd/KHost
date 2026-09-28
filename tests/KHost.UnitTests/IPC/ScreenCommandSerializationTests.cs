@@ -181,6 +181,17 @@ public class ScreenCommandSerializationTests
     }
 
     [Fact]
+    public void RoundTrip_KeepsWhetherToDarkenTheWordsBand()
+    {
+        var json = JsonSerializer.Serialize(
+            (ScreenCommandBase)new SetVisualiserCommand { Enabled = false, DarkenLyricBands = true },
+            typeof(ScreenCommandBase), Options);
+
+        var back = Assert.IsType<SetVisualiserCommand>(JsonSerializer.Deserialize<ScreenCommandBase>(json, Options));
+        Assert.True(back.DarkenLyricBands);
+    }
+
+    [Fact]
     public void RoundTrip_KeepsTheSingerAStemAndALevelBelongTo()
     {
         var load = new LoadMediaCommand

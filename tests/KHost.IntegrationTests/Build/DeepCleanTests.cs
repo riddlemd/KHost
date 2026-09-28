@@ -15,7 +15,7 @@ public sealed class DeepCleanTests : IDisposable
         "logs/khost.log",
     ];
 
-    private static readonly string[] BuildFiles = ["KHost.dll", "wwwroot/app.css", "backgrounds/amber.jpg"];
+    private static readonly string[] BuildFiles = ["KHost.dll", "wwwroot/app.css", "screen-ui/player.js"];
 
     private readonly string _project = Path.Combine(Path.GetTempPath(), "khost-deepclean-" + Guid.NewGuid().ToString("N"));
 

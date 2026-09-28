@@ -48,6 +48,10 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
     /// <summary>Bottom-left, away from the code's default corner, so the two stack when unset.</summary>
     private const OverlayCorner DefaultBreakMusicCardCorner = OverlayCorner.BottomLeft;
 
+    /// <summary>Whether the screen darkens the band under a song's words. Off until a visualisation's
+    /// own settings supply it per song; nothing a venue sets reaches it yet.</summary>
+    private const bool DarkenLyricBands = false;
+
     /// <summary>A screen takes seconds to register once launched; this is how long ConnectAsync
     /// waits for it before reporting a launch that never came back rather than a refusal.</summary>
     private static readonly TimeSpan DefaultRegistrationTimeout = TimeSpan.FromSeconds(10);
@@ -665,7 +669,13 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
         var backdrop = SongBackdrops.ForPlaying(hasTimedLyrics: true, path, await PlaysOwnPictureAsync(path, load));
 
         return backdrop == SongBackdrop.Black
-            ? new SetVisualiserCommand { Enabled = true, Preset = _visualiserPreset, LevelsUrl = LevelsUrlFor(path, load) }
+            ? new SetVisualiserCommand
+            {
+                Enabled = true,
+                Preset = _visualiserPreset,
+                LevelsUrl = LevelsUrlFor(path, load),
+                DarkenLyricBands = DarkenLyricBands,
+            }
             : VisualiserOff;
     }
 
@@ -680,11 +690,15 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
         if (_services?.GetService<ISongLevelsService>() is not { } levels) return null;
 
         var stems = _services.GetService<IStemStreamService>();
+
+        // A stem song loaded already re-keyed arrives as the host's own mix of its stems.
+        var mixed = load.Stems.Count == 0 && load.StreamUrl is { } stream ? stems?.StemsMixedInto(stream) : null;
+
         var inputs = SongLevels.InputsFor(path, load, url =>
         {
             try { return stems?.ResolveStemInput(url); }
             catch (InvalidOperationException) { return null; }
-        });
+        }, mixed);
 
         if (inputs is null) return null;
 

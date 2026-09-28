@@ -37,4 +37,18 @@ public class StreamMediaPlayerVisualiserTests
 
         Assert.Equal(url, message.GetProperty("levels").GetString());
     }
+
+    /// <summary>Passed on whatever the visualiser is doing: the band is the words', not the preset's.</summary>
+    [Theory]
+    [InlineData(true, true)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    public void SetVisualiser_PassesOnWhetherToDarkenTheWordsBand(bool enabled, bool darken)
+    {
+        _player.SetVisualiser(new SetVisualiserCommand { Enabled = enabled, DarkenLyricBands = darken });
+
+        var message = JsonDocument.Parse(Assert.Single(_sentToPage)).RootElement;
+
+        Assert.Equal(darken, message.GetProperty("darken").GetBoolean());
+    }
 }

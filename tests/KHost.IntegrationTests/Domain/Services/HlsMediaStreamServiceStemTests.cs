@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Text.RegularExpressions;
 using KHost.Abstractions.Models;
 using KHost.Domain.Services;
+using KHost.Domain.Services.Displays.LocalScreen;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace KHost.IntegrationTests.Domain.Services;
@@ -66,6 +67,47 @@ public partial class HlsMediaStreamServiceStemTests : IDisposable
         var output = await RunFfmpegAsync($"-hide_banner -i \"{playlist}\" -f null -");
         Assert.Contains("Video: h264", output);
         Assert.Contains("Audio: aac", output);
+    }
+
+    /// <summary>A stem song loaded already re-keyed reaches the screen as this mix alone. Its levels
+    /// are read from the stems behind it, which run in song time: four seconds of stems read as four
+    /// seconds of frames, not the 3.3 the retimed stream lasts.</summary>
+    [RequiresFfmpegFact]
+    public async Task StemsMixedInto_AReKeyedRetimedMix_ReadsLevelsInSongTime()
+    {
+        var (stemSession, stems) = await WriteStemsAsync(100, 0, 60);
+        var session = await _service.OpenStemsAsync("/songs/a.song", stems, TimeSpan.Zero, 2, 20, null, stemSession);
+
+        var mixed = _service.StemsMixedInto(session.PlaylistUrl!);
+        Assert.Equal(stems, mixed);
+
+        var inputs = SongLevels.InputsFor(
+            "/songs/a.song", new DisplayLoad { StreamUrl = session.PlaylistUrl, Tempo = 20 }, _service.ResolveStemInput, mixed);
+        Assert.NotNull(inputs);
+        Assert.Equal([100, 60], inputs.Select(input => input.Volume));
+
+        using var levels = new FfmpegSongLevelsService(
+            NullLogger<FfmpegSongLevelsService>.Instance,
+            new TestOptionsMonitor<HlsMediaStreamService.ServiceOptions>(new HlsMediaStreamService.ServiceOptions { BaseAddress = "http://host:5251" }));
+        var url = levels.Begin(inputs);
+        var track = await levels.ReadAsync(url[(url.LastIndexOf('/') + 1)..]);
+
+        var frames = SongLevels.Decode(track) ?? throw new InvalidOperationException("no levels were read");
+        Assert.InRange(frames.Length, 119, 122);
+        Assert.Contains(frames, frame => frame[0].Any(level => level > 200));
+
+        await _service.CloseAsync(session.Id);
+        Assert.Null(_service.StemsMixedInto(session.PlaylistUrl!));
+    }
+
+    /// <summary>A session that mixed no stems has nothing behind it to read.</summary>
+    [RequiresFfmpegFact]
+    public async Task StemsMixedInto_AStreamNotMixedFromStems_AnswersNull()
+    {
+        var (stemSession, _) = await WriteStemsAsync(100, 100, 100);
+
+        Assert.Null(_service.StemsMixedInto(_service.BuildArtifactUrl(stemSession.Id, "stream.m3u8")));
+        Assert.Null(_service.StemsMixedInto("http://elsewhere/media/x/stream.m3u8"));
     }
 
     public void Dispose()

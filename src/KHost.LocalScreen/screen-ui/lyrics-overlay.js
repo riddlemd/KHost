@@ -18,6 +18,7 @@ function createLyricsOverlay(canvas, clock) {
     let offsetX = 0;
     let offsetY = 0;
     let frame = 0;
+    let darkenBands = false;
 
     // How long a count-in takes to clear once a page arrives inside its window. A timing brings
     // the next page up a beat before the gap ends, often over the bar's own spot.
@@ -282,6 +283,18 @@ function createLyricsOverlay(canvas, clock) {
         }
     }
 
+    /// The band the words sit in, darkened so they read over a picture: the host painter's
+    /// PaintScrim, stop for stop. Change one and change the other.
+    function drawBand() {
+        const top = canvas.height * 0.55;
+        const gradient = ctx2d.createLinearGradient(0, top, 0, canvas.height);
+        gradient.addColorStop(0, 'rgba(0,0,0,0)');
+        gradient.addColorStop(0.51, 'rgba(0,0,0,' + (140 / 255) + ')');
+        gradient.addColorStop(1, 'rgba(0,0,0,' + (204 / 255) + ')');
+        ctx2d.fillStyle = gradient;
+        ctx2d.fillRect(0, top, canvas.width, canvas.height - top);
+    }
+
     function draw() {
         frame = requestAnimationFrame(draw);
         if (!lyrics) return;
@@ -293,6 +306,9 @@ function createLyricsOverlay(canvas, clock) {
         // Drawing at zero then would light the first page over whatever is on screen.
         const t = clock();
         if (t === null || t === undefined) return;
+
+        // Under everything, for the whole song, as the painter lays it.
+        if (darkenBands) drawBand();
 
         for (const countIn of lyrics.countIns || []) drawCountIn(countIn, t);
 
@@ -337,6 +353,10 @@ function createLyricsOverlay(canvas, clock) {
 
         /// Wipes what is drawn and keeps the timing: the next frame draws again if a song is held.
         clear() { ctx2d.clearRect(0, 0, canvas.width, canvas.height); },
+
+        /// Whether to darken the band the words sit in; the host says so only when something is
+        /// behind them. Drawn from the next frame.
+        setDarkenBands(on) { darkenBands = on === true; },
 
         /// `value` is the host's TimedLyrics, or null for a song with no words to draw.
         setLyrics(value) {

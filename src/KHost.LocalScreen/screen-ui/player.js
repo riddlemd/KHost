@@ -942,6 +942,7 @@ function handleCommand(raw) {
             load(message.url, message.autoplay === true, message.pixelated === true);
             break;
         case 'visualiser':
+            overlay.setDarkenBands(message.darken === true);
             if (message.enabled === true) {
                 visualiser.show(message.preset);
                 loadVisualiserLevels(message.levels);

@@ -62,6 +62,36 @@ public class SongLevelsTests : IDisposable
         Assert.Null(SongLevels.InputsFor("/songs/africa.song", new DisplayLoad { StreamUrl = "http://s" }, url => url));
     }
 
+    /// <summary>A stem song loaded already re-keyed: the stream is the host's mix of its stems.</summary>
+    [Fact]
+    public void InputsFor_NoStemsLoaded_ReadsTheStemsMixedIntoTheStream()
+    {
+        IReadOnlyList<StemSource> mixed =
+        [
+            new(0, AudioTrackRole.Music, "http://host/media/s/music.ogg", 100),
+            new(1, AudioTrackRole.Lead, "http://host/media/s/lead.ogg", 0),
+            new(2, AudioTrackRole.Backing, "http://host/media/s/backing.ogg", 60),
+        ];
+
+        var inputs = SongLevels.InputsFor(
+            "/songs/africa.song", new DisplayLoad { StreamUrl = "http://s", Tempo = 20 },
+            url => "/disk/" + url[(url.LastIndexOf('/') + 1)..], mixed);
+
+        Assert.Equal([new SongLevelsInput("/disk/music.ogg", 100), new SongLevelsInput("/disk/backing.ogg", 60)], inputs);
+    }
+
+    [Fact]
+    public void InputsFor_StemsLoaded_WinOverAnyMixedIntoTheStream()
+    {
+        var load = StemsLoad(new StemSource(0, AudioTrackRole.Music, "http://host/media/s/loaded.ogg", 100));
+
+        var inputs = SongLevels.InputsFor(
+            "/songs/africa.song", load, url => url,
+            [new StemSource(0, AudioTrackRole.Music, "http://host/media/s/mixed.ogg", 100)]);
+
+        Assert.Equal([new SongLevelsInput("http://host/media/s/loaded.ogg", 100)], inputs);
+    }
+
     [Fact]
     public void InputsFor_ACdg_ReadsTheAudioBesideIt()
     {

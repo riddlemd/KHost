@@ -55,20 +55,24 @@ public static class SongLevels
     /// <summary>Hop between frames, in samples.</summary>
     private static int Hop => SampleRate / FramesPerSecond;
 
-    /// <summary>What to read for a song: the stems as loaded, else the file when it is one the host
-    /// opens, else null.</summary>
-    /// <remarks>Stems are read at the gains they were loaded with — what the room hears before
-    /// anyone moves a fader. A <c>.cdg</c> is read through the audio beside it. A file in a
-    /// provider's own container, loaded without stems, answers null: nothing the host can open.
-    /// </remarks>
+    /// <summary>What to read for a song: the stems as loaded, else the stems the host mixed into the
+    /// loaded stream, else the file when it is one the host opens, else null.</summary>
+    /// <remarks>Stems are read at the gains they were loaded or mixed with — what the room hears
+    /// before anyone moves a fader — and before any key or tempo, so they are song time as they
+    /// stand. A <c>.cdg</c> is read through the audio beside it. A file in a provider's own
+    /// container with no stems either way answers null: nothing the host can open.</remarks>
     /// <param name="resolveStem">A stem's URL as ffmpeg should open it, or null when it cannot.</param>
-    public static IReadOnlyList<SongLevelsInput>? InputsFor(string filePath, DisplayLoad load, Func<string, string?> resolveStem)
+    /// <param name="mixedStems">The stems behind the load's stream, when the host mixed it from some.</param>
+    public static IReadOnlyList<SongLevelsInput>? InputsFor(
+        string filePath, DisplayLoad load, Func<string, string?> resolveStem, IReadOnlyList<StemSource>? mixedStems = null)
     {
-        if (load.Stems.Count > 0)
+        var stems = load.Stems.Count > 0 ? load.Stems : mixedStems ?? [];
+
+        if (stems.Count > 0)
         {
             var inputs = new List<SongLevelsInput>();
 
-            foreach (var stem in load.Stems)
+            foreach (var stem in stems)
             {
                 if (stem.Volume <= 0) continue;
                 if (resolveStem(stem.Url) is not { Length: > 0 } input) return null;

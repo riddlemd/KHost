@@ -227,10 +227,15 @@ internal sealed class StreamMediaPlayer : IMediaPlayer
 
     public void SetVisualiser(SetVisualiserCommand command)
     {
-        _logger.LogInformation("Visualiser {State}",
-            command.Enabled ? $"on, preset {command.Preset}{(command.LevelsUrl is null ? "" : ", with host levels")}" : "off");
+        _logger.LogInformation("Visualiser {State}{Bands}",
+            command.Enabled ? $"on, preset {command.Preset}{(command.LevelsUrl is null ? "" : ", with host levels")}" : "off",
+            command.DarkenLyricBands ? ", words on a dark band" : "");
 
-        Send(new { type = "visualiser", enabled = command.Enabled, preset = command.Preset, levels = command.LevelsUrl });
+        Send(new
+        {
+            type = "visualiser", enabled = command.Enabled, preset = command.Preset, levels = command.LevelsUrl,
+            darken = command.DarkenLyricBands,
+        });
     }
 
     public void SetMarquee(SetMarqueeCommand command)

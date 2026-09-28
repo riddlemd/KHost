@@ -101,12 +101,6 @@ public class EditVenueModel
     /// <summary>The plugin whose code this venue shows, or null for none. Null is the default.</summary>
     public string? QrCodeSource { get; set; }
 
-    /// <summary>Backgrounds a song may be given, by file name. Empty is the black background.
-    /// </summary>
-    /// <remarks>Its own list rather than the venue's, so closing the dialog without saving leaves
-    /// the venue's choices alone.</remarks>
-    public List<string> SongBackgrounds { get; set; } = [];
-
     public bool SongVisualiserEnabled { get; set; }
 
     /// <summary>Null takes the image's own answer, which is what a venue that never asks gets.</summary>
@@ -148,7 +142,6 @@ public class EditVenueModel
             Enabled = venue.Enabled,
             DefaultVolume = settings.DefaultVolume,
             ShowEstimatedWaitTime = settings.ShowEstimatedWaitTime,
-            SongBackgrounds = [.. settings.SongBackgrounds ?? []],
             SongVisualiserEnabled = settings.SongVisualiserEnabled,
             TippingEnabled = settings.TippingEnabled,
             WarnOnDuplicateSong = settings.WarnOnDuplicateSong,
@@ -222,7 +215,6 @@ public class EditVenueModel
         venue.Enabled = Enabled;
         venue.Settings.DefaultVolume = DefaultVolume;
         venue.Settings.ShowEstimatedWaitTime = ShowEstimatedWaitTime;
-        venue.Settings.SongBackgrounds = [.. SongBackgrounds];
         venue.Settings.SongVisualiserEnabled = SongVisualiserEnabled;
         venue.Settings.TippingEnabled = TippingEnabled;
         venue.Settings.WarnOnDuplicateSong = WarnOnDuplicateSong;
