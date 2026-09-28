@@ -10,7 +10,7 @@ public partial class EditMediaDialog
 {
     private const string _rootClassName = "kh-media-edit-dialog";
 
-    [Inject] private IMediaSearchService? MediaSearchService { get; set; }
+    [Inject] private IMediaSearchService MediaSearchService { get; set; } = default!;
 
     [Parameter] public bool IsOpen { get; set; }
     [Parameter] public Media? Media { get; set; }
@@ -75,7 +75,7 @@ public partial class EditMediaDialog
             if (Media?.Source is not { Length: > 0 } stored)
                 return "Local";
 
-            var provider = MediaSearchService?.Providers.FirstOrDefault(
+            var provider = MediaSearchService.Providers.FirstOrDefault(
                 candidate => string.Equals(candidate.SourceName, stored, StringComparison.OrdinalIgnoreCase));
 
             // A plugin that is gone resolves to nobody. Its own name beats "Local", which would

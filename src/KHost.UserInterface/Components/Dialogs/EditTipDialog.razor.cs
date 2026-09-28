@@ -10,7 +10,7 @@ namespace KHost.UserInterface.Components.Dialogs;
 public partial class EditTipDialog : IAsyncDisposable
 {
     [Inject] private IJSRuntime JS { get; set; } = default!;
-    [Inject] private IUsersService? UsersService { get; set; }
+    [Inject] private IUsersService UsersService { get; set; } = default!;
 
     private const string _rootClassName = "kh-tip-edit-dialog";
 
@@ -65,7 +65,7 @@ public partial class EditTipDialog : IAsyncDisposable
         _pushedCents = null;
 
         // A stored tip carries an id; the field shows a name.
-        _singer = _model.UserId is null || UsersService is null
+        _singer = _model.UserId is null
             ? null
             : await UsersService.ReadAsync(_model.UserId.Value);
     }
@@ -114,8 +114,6 @@ public partial class EditTipDialog : IAsyncDisposable
 
     private async Task<IReadOnlyList<KHostUser>> SearchSingersAsync(string query)
     {
-        if (UsersService is null) return [];
-
         var result = await UsersService.SearchAsync(query, 1, SingerResultLimit);
 
         return result.Items;

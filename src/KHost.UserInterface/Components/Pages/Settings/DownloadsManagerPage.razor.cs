@@ -8,8 +8,8 @@ namespace KHost.UserInterface.Components.Pages.Settings;
 
 public partial class DownloadsManagerPage : IDisposable
 {
-    [Inject] private IDownloadsService? DownloadsService { get; set; }
-    [Inject] private IPerformanceService? PerformanceService { get; set; }
+    [Inject] private IDownloadsService DownloadsService { get; set; } = default!;
+    [Inject] private IPerformanceService PerformanceService { get; set; } = default!;
     [Inject] private IMessageBroker Broker { get; set; } = default!;
 
     private readonly SubscriptionSet _subscriptions = new();
@@ -25,23 +25,19 @@ public partial class DownloadsManagerPage : IDisposable
 
     private void Refresh()
     {
-        var snapshot = DownloadsService?.Snapshot() ?? [];
+        var snapshot = DownloadsService.Snapshot();
         _active = [.. snapshot.Where(d => d.State == DownloadState.Downloading)];
         _recent = [.. snapshot.Where(d => d.State != DownloadState.Downloading)];
     }
 
     private async Task CancelAsync(Guid mediaId)
     {
-        if (DownloadsService is null) return;
-
         await DownloadsService.CancelAsync(mediaId);
         await DequeueQueuedPerformancesForAsync([mediaId]);
     }
 
     private async Task CancelAllAsync()
     {
-        if (DownloadsService is null) return;
-
         var activeMediaIds = _active.Select(d => d.MediaId).ToHashSet();
 
         DownloadsService.CancelAll();
@@ -52,7 +48,7 @@ public partial class DownloadsManagerPage : IDisposable
     // queue row waiting on it. DeleteAsync's own cancel then no-ops, already settled above.
     private async Task DequeueQueuedPerformancesForAsync(ICollection<Guid> mediaIds)
     {
-        if (PerformanceService is null || mediaIds.Count == 0) return;
+        if (mediaIds.Count == 0) return;
 
         var queued = await PerformanceService.ReadQueuedAsync();
         foreach (var performance in queued.Where(p => mediaIds.Contains(p.MediaId)))

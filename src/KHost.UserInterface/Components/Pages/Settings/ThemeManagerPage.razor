@@ -26,7 +26,7 @@
                     <tbody>
                         @foreach (var theme in _themes)
                         {
-                            var isCurrent = ThemeService?.CurrentTheme == theme.Id;
+                            var isCurrent = ThemeService.CurrentTheme == theme.Id;
                             <tr>
                                 <td class="kh-table__cell--fill">
                                     @theme.Name

@@ -9,7 +9,7 @@ public partial class EditThemeDialog
 {
     private const string _rootClassName = "kh-theme-edit-dialog";
 
-    [Inject] private IThemeService? ThemeService { get; set; }
+    [Inject] private IThemeService ThemeService { get; set; } = default!;
 
     [Parameter] public bool IsOpen { get; set; }
     [Parameter] public ThemeDefinition? Theme { get; set; }
@@ -31,7 +31,7 @@ public partial class EditThemeDialog
             IsEnabled = Theme?.IsEnabled ?? true,
             // Resolved through the service rather than off the definition so a theme stored
             // before a variable existed still opens with every field filled in.
-            Values = Theme is null || ThemeService is null
+            Values = Theme is null
                 ? ThemeVariableCatalog.Defaults()
                 : await ThemeService.ReadVariablesAsync(Theme.Id)
         };

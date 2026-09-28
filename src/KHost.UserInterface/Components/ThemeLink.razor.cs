@@ -7,7 +7,7 @@ namespace KHost.UserInterface.Components;
 
 public partial class ThemeLink : IDisposable
 {
-    [Inject] private IThemeService? ThemeService { get; set; }
+    [Inject] private IThemeService ThemeService { get; set; } = default!;
 
     [Inject] private IMessageBroker Broker { get; set; } = default!;
 

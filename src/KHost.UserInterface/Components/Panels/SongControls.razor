@@ -4,7 +4,7 @@
 
 <div class="kh-song-controls" @onkeydown="OnKeyDown">
     <button type="button" class="kh-song-controls__trigger"
-            disabled="@(PlaybackService?.CurrentPerformance is null)"
+            disabled="@(PlaybackService.CurrentPerformance is null)"
             title="@TriggerTitle"
             aria-expanded="@_open" aria-haspopup="true"
             @onclick="Toggle">

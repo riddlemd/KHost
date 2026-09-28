@@ -1,5 +1,6 @@
 using System.Reflection;
 using KHost.Abstractions.Models;
+using KHost.Abstractions.Services;
 using KHost.UserInterface.Components.Dialogs;
 using KHost.UserInterface.Models;
 
@@ -87,6 +88,11 @@ public class EditTipDialogTests
         Set(dialog, nameof(EditTipDialog.IsOpen), true);
         Set(dialog, nameof(EditTipDialog.Tip), tip);
         Set(dialog, nameof(EditTipDialog.UserId), lockedUserId);
+        // No bunit render here, so nothing resolves [Inject] from a container; the dialog only
+        // reads this to name the already-chosen singer, which these tests never assert on.
+        typeof(EditTipDialog)
+            .GetProperty("UsersService", BindingFlags.NonPublic | BindingFlags.Instance)!
+            .SetValue(dialog, Substitute.For<IUsersService>());
 
         await (Task)typeof(EditTipDialog)
             .GetMethod("OnInitializedAsync", BindingFlags.NonPublic | BindingFlags.Instance)!

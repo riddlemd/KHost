@@ -17,11 +17,11 @@
            or before the first one, is exactly when a host reaches for it. *@
         <NowPlayingPanel />
 
-        @if (QueueService?.SelectedUser is null)
+        @if (QueueService.SelectedUser is null)
         {
             <div class="kh-panel--empty">
                 <Icon Name="arrow-left" />
-                <span>@(QueueService?.Users.Count == 0 ? "Add a singer to the Singer Queue to continue." : "Select a singer in the Singer Queue to continue.")</span>
+                <span>@(QueueService.Users.Count == 0 ? "Add a singer to the Singer Queue to continue." : "Select a singer in the Singer Queue to continue.")</span>
             </div>
             @if (!_hasMedia)
             {
