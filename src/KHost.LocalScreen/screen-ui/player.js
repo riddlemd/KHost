@@ -457,7 +457,7 @@ function destroyHls(instance) {
 function detachStems() {
     if (!stemMixer) return;
 
-    // Before the context closes under the tap.
+    // Before the mix's nodes leave the graph under the tap.
     visualiser.setAudio(null);
 
     try { stemMixer.destroy(); } catch (e) { reportError(`stems: ${e}`); }
