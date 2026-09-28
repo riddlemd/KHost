@@ -1,7 +1,6 @@
 using Bunit;
 using KHost.Abstractions.Messaging;
 using KHost.Abstractions.Models;
-using KHost.Abstractions.Models.Backgrounds;
 using KHost.Abstractions.Services;
 using KHost.Domain.Services.Messaging;
 using KHost.UserInterface.Components.Dialogs;
@@ -47,10 +46,6 @@ public class EditVenueDialogMarqueeTests : BunitContext
 
         // The dialog reads the venue's background folder on open; an empty pack is the
         // shape a venue that has never chosen one has.
-        var backgroundPacks = Substitute.For<IBackgroundPackService>();
-        backgroundPacks.ReadAsync(Arg.Any<CancellationToken>())
-            .Returns(new BackgroundPack());
-        Services.AddSingleton(backgroundPacks);
 
         // The dialog lists QR sources from the manifests; none here, but it has to resolve.
         var plugins = Substitute.For<IPluginRegistry>();

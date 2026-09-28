@@ -26,4 +26,10 @@ public interface IStemStreamService
     /// <summary>A stem's URL as ffmpeg should open it: the file on disk when it sits in one of this
     /// service's sessions, else the http address. Throws for anything else.</summary>
     string ResolveStemInput(string url);
+
+    /// <summary>The stems mixed into the open stream at <paramref name="streamUrl"/>, at the levels
+    /// they were mixed at; null for a stream not mixed from stems, or one no longer open.</summary>
+    /// <remarks>As the renderer supplied them: unkeyed and at recorded speed, so they run in song
+    /// time whatever the stream was retimed to.</remarks>
+    IReadOnlyList<StemSource>? StemsMixedInto(string streamUrl);
 }

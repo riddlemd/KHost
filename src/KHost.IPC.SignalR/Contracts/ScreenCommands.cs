@@ -347,6 +347,12 @@ public sealed class SetVisualiserCommand : ScreenCommandBase
     /// <remarks>For a song the screen cannot listen to itself — an encoded song where the web view
     /// has no <c>captureStream</c>. A fetch waits for the read, so the URL is sent at once.</remarks>
     public string? LevelsUrl { get; init; }
+
+    /// <summary>Whether the words' overlay darkens the band they sit in, the same gradient the
+    /// host's painter lays under burned-in words.</summary>
+    /// <remarks>Per song, decided by the host; the screen draws it only while it holds timed words.
+    /// </remarks>
+    public bool DarkenLyricBands { get; init; }
 }
 
 /// <summary>What the intro card says, as finished strings: the screen holds no library or queue.</summary>

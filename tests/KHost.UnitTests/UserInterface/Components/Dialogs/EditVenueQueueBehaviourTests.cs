@@ -1,7 +1,6 @@
 using Bunit;
 using KHost.Abstractions.Messaging;
 using KHost.Abstractions.Models;
-using KHost.Abstractions.Models.Backgrounds;
 using KHost.Abstractions.Services;
 using KHost.Abstractions.Services.QueueRotation;
 using KHost.Domain.Services.Messaging;
@@ -37,9 +36,6 @@ public class EditVenueQueueBehaviourTests : BunitContext
         Services.AddSingleton(_media);
         Services.AddSingleton<IMessageBroker>(_broker);
 
-        var backgroundPacks = Substitute.For<IBackgroundPackService>();
-        backgroundPacks.ReadAsync(Arg.Any<CancellationToken>()).Returns(new BackgroundPack());
-        Services.AddSingleton(backgroundPacks);
 
         var plugins = Substitute.For<IPluginRegistry>();
         plugins.Plugins.Returns([]);

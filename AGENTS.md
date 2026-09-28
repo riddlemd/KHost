@@ -261,8 +261,10 @@ cannot name another's: its secrets, and the QR code it offers the screens.
       through HarfBuzz, so a joined script joins and a right-to-left line is laid from its box's
       right edge.
     - **The picture under the words** is the source's own video when it has one (fitted into
-      1280x720), else black — never the venue's card or its song backgrounds, which nothing
-      playing uses. `SongBackdrops.ForPlaying` is that rule, asked by the burn-in, and it is where a
+      1280x720), else black — never the venue's card, which nothing playing uses. The venue's
+      old song-background picker is gone; `Venue.VenueSettings.SongBackgrounds` and
+      `IBackgroundPackService` stay in `Abstractions` as `[Obsolete]` so a plugin naming them
+      still compiles, but nothing reads the one and nothing implements the other. `SongBackdrops.ForPlaying` is that rule, asked by the burn-in, and it is where a
       visualiser goes in place of black; the screen already draws nothing under a playing song.
       **A timed-lyric song never takes a picture from an audio source** (an extension in
       `MediaFormats.AudioExtensions`), whatever the file carries, and a cover image (an
@@ -271,7 +273,9 @@ cannot name another's: its secrets, and the QR code it offers the screens.
       timed-lyric song through `IBurnInStreamService.OpenUnderDrawnWordsAsync`, whose encode maps
       `0:V` (no attached pictures) from a video and no picture at all from an audio file — left to
       itself ffmpeg turns an MP3's cover into a one-frame video. A song with no timed words is left
-      alone and still shows its cover. Over a picture, the band the words sit in is darkened.
+      alone and still shows its cover. Over a picture, the band the words sit in is darkened
+      (`PaintScrim`) — always, for burned-in words; the local screen's band is its own switch
+      (`SetVisualiserCommand.DarkenLyricBands`).
     - **Fonts are the system's**, in the order a web view's `sans-serif` resolves them per OS:
       Helvetica, Arial, DejaVu Sans, Liberation Sans, Noto Sans, then Skia's default; a character the
       face lacks falls back per line through the OS. Nothing is bundled.
@@ -530,10 +534,13 @@ stay on black, and a song with its own picture keeps it.
   For every song that draws a visualiser, `LocalScreenDisplayProvider` starts `ISongLevelsService`
   once (a key change's reload keeps them) and sends the URL in `SetVisualiserCommand.LevelsUrl`;
   the screen fetches it from `/media/levels/{token}`, a request that waits for the read.
-  - **What is read:** the stems at their loaded gains when the load carries stems, else the file
-    when it is a format the host opens (a `.cdg` through the audio beside it). A provider's own
-    container loaded with no stems — a stem song whose first load is already re-keyed — has
-    nothing readable, and draws without the beat. Rules in `SongLevels.InputsFor`.
+  - **What is read:** the stems at their loaded gains when the load carries stems; else, when the
+    load is the host's own mix of a renderer's stems (a stem song whose first load is already
+    re-keyed or retimed), those same stems, found through `IStemStreamService.StemsMixedInto`
+    from the load's stream URL; else the file when it is a format the host opens (a `.cdg`
+    through the audio beside it). Stems are read before any key or tempo, so they are song time
+    as they stand and need no mapping. A provider's own container with no stems either way draws
+    without the beat. Rules in `SongLevels.InputsFor`.
   - **What it holds:** eight bands per channel, 30 frames a second of song time, a quarter-decibel
     a byte against each band's own loudest (`SongLevels`; about 110 KB and under a second for a
     four-minute song, ffmpeg at one thread and below-normal priority). Butterchurn keeps only how
@@ -548,6 +555,10 @@ stay on black, and a song with its own picture keeps it.
 - **A preset must stay alive in silence.** Several MilkDrop presets fade to black with no input,
   and a song whose levels have not arrived, or cannot be read, has none;
   `screen-ui/VISUALISER-NOTICE.md` says how the set was chosen.
+- **The words' dark band** is a per-song value on `SetVisualiserCommand.DarkenLyricBands`, IPC
+  only. `lyrics-overlay.js` draws the painter's `PaintScrim` gradient stop for stop, under the
+  words, so the two agree; change one and change the other. The provider sends it off for now
+  (`LocalScreenDisplayProvider.DarkenLyricBands`): a visualisation's own settings are to supply it.
 - Capped at 30fps and a 1280x720 drawing buffer, frozen on pause (the last frame holds), and drawn
   only while shown. The engine is built on first use and never with an audio context of its own:
   samples are read here and handed to each frame, since every stem song brings a new context.

@@ -36,7 +36,6 @@ internal sealed class AppSettingsService : IAppSettingsService
         LaunchScreenOnStartup = _configuration.GetValue<bool?>("LocalScreen:LaunchOnStartup") ?? false,
         FFmpegPath = _configuration["FFmpegPath"],
         MediaDirectory = NormalizeMediaDirectory(_configuration["Plugins:MediaDirectory"]),
-        SongBackgroundFolder = Blank(_configuration["Backgrounds:Folder"]),
         StopFadeSeconds = (_configuration.GetValue<TimeSpan?>("Playback:StopFadeDuration") ?? TimeSpan.FromSeconds(5)).TotalSeconds,
         SegmentSeconds = _configuration.GetValue<int?>("MediaStream:SegmentSeconds") ?? 2,
         GraphicsScaleHeight = GraphicsScaling.SnapToOffered(
@@ -87,10 +86,6 @@ internal sealed class AppSettingsService : IAppSettingsService
     // and reports no pages.
     private static int PaginationClamp(int pageSize) =>
         Math.Clamp(pageSize, AppSettings.MinPageSize, AppSettings.MaxPageSize);
-
-    /// <summary>Whitespace and empty both read as unset, which is what a cleared field sends.
-    /// </summary>
-    private static string? Blank(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
     private static string? NormalizeMediaDirectory(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();
@@ -150,13 +145,6 @@ internal sealed class AppSettingsService : IAppSettingsService
 
         if (!string.IsNullOrWhiteSpace(settings.FFmpegPath))
             overlay["FFmpegPath"] = settings.FFmpegPath;
-
-        // Written even when blank, so clearing the folder reaches the overlay rather than leaving
-        // the last one standing.
-        overlay["Backgrounds"] = new Dictionary<string, object?>
-        {
-            ["Folder"] = Blank(settings.SongBackgroundFolder),
-        };
 
         var mediaDirectory = NormalizeMediaDirectory(settings.MediaDirectory);
         if (mediaDirectory is not null)

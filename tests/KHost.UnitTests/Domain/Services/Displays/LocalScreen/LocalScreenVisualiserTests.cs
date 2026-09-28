@@ -36,6 +36,7 @@ public class LocalScreenVisualiserTests
         _playback.CurrentProgram.Returns(new PlaybackProgram.Idle());
         _levels.Begin(Arg.Any<IReadOnlyList<SongLevelsInput>>()).Returns(_ => $"http://host/media/levels/{++_reads}");
         _stems.ResolveStemInput(Arg.Any<string>()).Returns(call => "/disk/" + call.Arg<string>()[(call.Arg<string>().LastIndexOf('/') + 1)..]);
+        _stems.StemsMixedInto(Arg.Any<string>()).Returns((IReadOnlyList<StemSource>?)null);
     }
 
     private LocalScreenDisplayProvider Provider(bool withProbe = true)
@@ -308,6 +309,22 @@ public class LocalScreenVisualiserTests
         Assert.True(await WaitUntilAsync(() => Sent().Count == 2 && !Last().Enabled));
     }
 
+    // --- the dark band behind the words ---
+
+    /// <summary>The screen can draw it, but nothing supplies it yet: a visualisation's own settings
+    /// will, per song.</summary>
+    [Fact]
+    public async Task LoadAsync_TheVisualiserOn_SendsTheWordsBandOff()
+    {
+        Playing("/songs/africa.song");
+        using var provider = Provider();
+
+        await provider.LoadAsync(Stems);
+
+        Assert.True(Last().Enabled);
+        Assert.False(Last().DarkenLyricBands);
+    }
+
     // --- the host's levels ---
 
     [Fact]
@@ -378,6 +395,23 @@ public class LocalScreenVisualiserTests
         Assert.True(Last().Enabled);
         Assert.Null(Last().LevelsUrl);
         _levels.DidNotReceiveWithAnyArgs().Begin(default!);
+    }
+
+    /// <summary>A stem song whose first load is already re-keyed arrives as the host's own mix, with
+    /// no stems in the load; the stems behind that mix are read instead.</summary>
+    [Fact]
+    public async Task LoadAsync_AStemSongLoadedReKeyed_ReadsTheStemsTheHostMixed()
+    {
+        _stems.StemsMixedInto(Stream.StreamUrl!).Returns(
+            [new StemSource(0, AudioTrackRole.Music, "http://host/media/s/m.ogg", 100), new StemSource(1, AudioTrackRole.Backing, "http://host/media/s/b.ogg", 70)]);
+        Playing("/songs/africa.song");
+        using var provider = Provider();
+
+        await provider.LoadAsync(Stream);
+
+        Assert.Equal("http://host/media/levels/1", Last().LevelsUrl);
+        _levels.Received(1).Begin(Arg.Is<IReadOnlyList<SongLevelsInput>>(inputs =>
+            inputs.SequenceEqual(new[] { new SongLevelsInput("/disk/m.ogg", 100), new SongLevelsInput("/disk/b.ogg", 70) })));
     }
 
     [Fact]
