@@ -3,8 +3,46 @@
     width: 100%;
     margin-inline: auto;
 
+    // SettingRow and ChoiceSelect carry no scoped CSS of their own, so everything they render
+    // (the row, its label column and the apply note) has none of this page's scope attribute;
+    // ::deep reaches it from kh-card__body, the ancestor this page still renders directly.
     .kh-card__body {
         padding: 0 1em 1em;
+
+        ::deep .kh-app-settings__row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            padding: 8px 0;
+        }
+
+        ::deep .kh-app-settings__number {
+            width: 120px;
+            text-align: right;
+        }
+
+        ::deep .kh-app-settings__path {
+            width: 320px;
+            max-width: 100%;
+        }
+
+        // A label with its note under it, as one column, so the control beside it centres on the pair.
+        ::deep .kh-app-settings__labelled {
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+
+            .kh-note {
+                margin: 0;
+            }
+        }
+
+        ::deep .kh-app-settings__apply {
+            display: block;
+            font-size: 0.75rem;
+            color: var(--kh-text-muted);
+        }
     }
 
     &__section {
@@ -16,43 +54,6 @@
         font-size: 0.8rem;
         letter-spacing: 0.06em;
         color: var(--kh-text-secondary);
-    }
-
-    &__row {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 16px;
-        padding: 8px 0;
-
-        // ::deep, hung off the row rather than the field: InputNumber and InputText render their
-        // own markup with no scope id of this page's, so a plain rule here would not match.
-        ::deep .kh-app-settings__number {
-            width: 120px;
-            text-align: right;
-        }
-
-        ::deep .kh-app-settings__path {
-            width: 320px;
-            max-width: 100%;
-        }
-    }
-
-    // A label with its note under it, as one column, so the control beside it centres on the pair.
-    &__labelled {
-        display: flex;
-        flex-direction: column;
-        min-width: 0;
-
-        .kh-note {
-            margin: 0;
-        }
-    }
-
-    &__apply {
-        display: block;
-        font-size: 0.75rem;
-        color: var(--kh-text-muted);
     }
 
     &__actions {
