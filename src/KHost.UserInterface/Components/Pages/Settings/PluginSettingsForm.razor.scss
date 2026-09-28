@@ -1,0 +1,62 @@
+// One setting per row. These were packed into as many columns as fit, which put a checkbox
+// beside a labelled input and left the panel with no shape to read down.
+.kh-plugins-manager__settings {
+    display: grid;
+    gap: 0.9em;
+}
+
+.kh-plugins-manager__section {
+    margin: 0.6em 0 0;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--kh-border);
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 0.8rem;
+    letter-spacing: 0.06em;
+    color: var(--kh-text-muted);
+
+    &:first-child {
+        margin-top: 0;
+    }
+}
+
+.kh-plugins-manager__field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35em;
+    min-width: 0;
+}
+
+.kh-plugins-manager__label {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--kh-text-secondary);
+}
+
+.kh-plugins-manager__toggle {
+    display: flex;
+    align-items: center;
+    gap: 0.6em;
+    font-size: 0.88rem;
+    color: var(--kh-text-secondary);
+}
+
+.kh-plugins-manager__secret {
+    display: flex;
+    align-items: center;
+    gap: 0.5em;
+    flex-wrap: wrap;
+
+    .kh-form-control {
+        flex: 1;
+        min-width: 8em;
+    }
+}
+
+.kh-plugins-manager__secret-state {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4em;
+    font-size: 0.88rem;
+    color: var(--kh-success);
+}

@@ -320,71 +320,7 @@
                                         </div>
                                     }
 
-                                    @if (draft is not null)
-                                    {
-                                        <div class="kh-plugins-manager__settings">
-                                            @foreach (var section in draft.Sections)
-                                            {
-                                            @if (section.Name is { } heading)
-                                            {
-                                                <div class="kh-plugins-manager__section">@heading</div>
-                                            }
-                                            @foreach (var field in section.Fields)
-                                            {
-                                                <div class="kh-plugins-manager__field">
-                                                    @if (field.Definition.Type == PluginSettingType.Bool)
-                                                    {
-                                                        <label class="kh-plugins-manager__toggle kh-form-check">
-                                                            <span class="kh-form-check-label">@field.Definition.Label</span>
-                                                            <input type="checkbox" class="kh-form-check-input"
-                                                                   checked="@field.Flag"
-                                                                   @onchange="e => { field.Flag = (bool)(e.Value ?? false); MarkEdited(plugin.Id); }" />
-                                                        </label>
-                                                    }
-                                                    else if (field.Definition.Secret)
-                                                    {
-                                                        <span class="kh-plugins-manager__label">@field.Definition.Label</span>
-                                                        @if (field.HasSecret && !field.Replacing)
-                                                        {
-                                                            <span class="kh-plugins-manager__secret">
-                                                                <span class="kh-plugins-manager__secret-state">
-                                                                    <Icon Name="key-fill" />
-                                                                    @(field.SecretHint is null ? "Set" : $"Set: ends {field.SecretHint}")
-                                                                </span>
-                                                                <button type="button" class="kh-button kh-button--secondary"
-                                                                        @onclick="() => ReplaceSecret(plugin.Id, field)">Replace</button>
-                                                                <button type="button" class="kh-button kh-button--outline-danger"
-                                                                        @onclick="() => ClearSecret(plugin.Id, field)">Clear</button>
-                                                            </span>
-                                                        }
-                                                        else
-                                                        {
-                                                            <span class="kh-plugins-manager__secret">
-                                                                <input class="kh-form-control" type="password" autocomplete="new-password"
-                                                                       placeholder="Not set"
-                                                                       @bind="field.Text" @bind:event="oninput"
-                                                                       @bind:after="() => MarkEdited(plugin.Id)" />
-                                                                @if (field.OriginalSecret is not null)
-                                                                {
-                                                                    <button type="button" class="kh-button kh-button--secondary"
-                                                                            @onclick="() => CancelReplaceSecret(plugin.Id, field)">Cancel</button>
-                                                                }
-                                                            </span>
-                                                        }
-                                                    }
-                                                    else
-                                                    {
-                                                        <span class="kh-plugins-manager__label">@field.Definition.Label</span>
-                                                        <input class="kh-form-control" type="@GetInputType(field.Definition)"
-                                                               autocomplete="off"
-                                                               @bind="field.Text" @bind:event="oninput"
-                                                               @bind:after="() => MarkEdited(plugin.Id)" />
-                                                    }
-                                                </div>
-                                            }
-                                            }
-                                        </div>
-                                    }
+                                    <PluginSettingsForm Draft="draft" OnChanged="StateHasChanged" />
 
                                     @{
                                         var buttons = PluginButtons.ButtonsFor(plugin.Id);
