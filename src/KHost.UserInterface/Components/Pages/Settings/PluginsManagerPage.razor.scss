@@ -396,6 +396,31 @@
         align-items: center;
         gap: 0.6em;
         padding: 0 12px 12px 58px;
+
+        // ProgressBar carries no scoped CSS of its own, so the track/fill/percent it renders for a
+        // known fraction need ::deep from this ancestor; the indeterminate track and the state
+        // label are rendered here directly and keep the plain sibling rules below.
+        ::deep .kh-plugins-manager__progress-track {
+            position: relative;
+            flex: 1;
+            height: 6px;
+            overflow: hidden;
+            border-radius: 999px;
+            background: var(--kh-track-bg);
+        }
+
+        ::deep .kh-plugins-manager__progress-fill {
+            height: 100%;
+            border-radius: 999px;
+            background: var(--kh-primary);
+            transition: width var(--kh-transition);
+        }
+
+        ::deep .kh-plugins-manager__progress-label {
+            flex: none;
+            font-size: 0.8rem;
+            color: var(--kh-text-muted);
+        }
     }
 
     &__progress-track {
@@ -415,13 +440,6 @@
             background: var(--kh-primary);
             animation: kh-plugins-manager-sweep 1.1s ease-in-out infinite;
         }
-    }
-
-    &__progress-fill {
-        height: 100%;
-        border-radius: 999px;
-        background: var(--kh-primary);
-        transition: width var(--kh-transition);
     }
 
     &__progress-label {

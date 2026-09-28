@@ -55,8 +55,6 @@ public partial class DownloadsManagerPage : IDisposable
             await PerformanceService.DeleteAsync(performance.Id);
     }
 
-    private static int Percent(double fraction) => (int)Math.Round(fraction * 100);
-
     /// <summary>What the bar beside it is measuring: the two halves of one acquisition.</summary>
     private static string PhaseLabel(DownloadPhase phase) => phase switch
     {
