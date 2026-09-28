@@ -98,6 +98,10 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
     /// <summary>The probe's answer for <see cref="_visualiserFor"/>, asked once per song.</summary>
     private bool? _visualiserSourceHasPicture;
 
+    /// <summary>Where <see cref="_visualiserFor"/>'s levels are served, once a read was started.
+    /// Kept across a key change's reload: the levels are indexed by song time.</summary>
+    private string? _visualiserLevelsUrl;
+
     // Every venue edit and every song redraws the codes, and the picture only changes when the
     // payload does. Encoding a few times a minute for an unchanged string is work for nothing.
     private readonly Dictionary<string, (string Image, int Modules)> _encoded = [];
@@ -628,6 +632,7 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
                 _visualiserFor = song;
                 _visualiserPreset = _pickPreset();
                 _visualiserSourceHasPicture = null;
+                _visualiserLevelsUrl = null;
             }
 
             if (load is not null) _visualiserLoad = load;
@@ -660,8 +665,37 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
         var backdrop = SongBackdrops.ForPlaying(hasTimedLyrics: true, path, await PlaysOwnPictureAsync(path, load));
 
         return backdrop == SongBackdrop.Black
-            ? new SetVisualiserCommand { Enabled = true, Preset = _visualiserPreset }
+            ? new SetVisualiserCommand { Enabled = true, Preset = _visualiserPreset, LevelsUrl = LevelsUrlFor(path, load) }
             : VisualiserOff;
+    }
+
+    /// <summary>Starts reading the song's levels the first time its visualiser is on, and answers
+    /// where they are served; null when there is nothing the host can read them from.</summary>
+    /// <remarks>Read for every song that draws one, whether or not the screen can listen for itself:
+    /// the screen decides which it uses, and a stem song that is later re-keyed becomes an encoded
+    /// one the screen cannot hear. A load with nothing readable is asked again on the next load.</remarks>
+    private string? LevelsUrlFor(string path, DisplayLoad load)
+    {
+        if (_visualiserLevelsUrl is not null) return _visualiserLevelsUrl;
+        if (_services?.GetService<ISongLevelsService>() is not { } levels) return null;
+
+        var stems = _services.GetService<IStemStreamService>();
+        var inputs = SongLevels.InputsFor(path, load, url =>
+        {
+            try { return stems?.ResolveStemInput(url); }
+            catch (InvalidOperationException) { return null; }
+        });
+
+        if (inputs is null) return null;
+
+        return _visualiserLevelsUrl = levels.Begin(inputs);
+    }
+
+    /// <summary>Takes the visualiser down between songs, and drops the last song's levels with it.</summary>
+    private async Task TakeDownVisualiserAsync()
+    {
+        _services?.GetService<ISongLevelsService>()?.Clear();
+        await SendAsync(VisualiserOff);
     }
 
     /// <summary>Whether the screen shows a picture from the song's own file for this load.</summary>
@@ -880,7 +914,7 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
             switch (program)
             {
                 case PlaybackProgram.AdStill still:
-                    await SendAsync(VisualiserOff);
+                    await TakeDownVisualiserAsync();
                     await SendAsync(new ShowImageCommand { Url = still.ImageUrl, Scaling = still.Scaling });
                     break;
 
@@ -894,7 +928,7 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
 
                 default:
                     // Between songs is the venue's card, never the last song's visualiser.
-                    await SendAsync(VisualiserOff);
+                    await TakeDownVisualiserAsync();
                     await DrawIdleCardAsync();
                     break;
             }

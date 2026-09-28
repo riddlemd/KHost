@@ -22,4 +22,8 @@ public interface IStemStreamService
         TimedLyrics? words,
         MediaStreamSession? adopt,
         CancellationToken cancellationToken = default);
+
+    /// <summary>A stem's URL as ffmpeg should open it: the file on disk when it sits in one of this
+    /// service's sessions, else the http address. Throws for anything else.</summary>
+    string ResolveStemInput(string url);
 }

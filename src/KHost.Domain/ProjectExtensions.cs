@@ -120,6 +120,7 @@ namespace KHost.Domain
             // reaches PlaybackService in the same collection a plugin's display does. PluginLoader
             // must never bind it, and it must not appear on the Plugins page.
             serviceCollection.AddSingleton<ISourcePictureProbe, FfprobeSourcePictureProbe>();
+            serviceCollection.AddSingleton<ISongLevelsService, FfmpegSongLevelsService>();
             serviceCollection.AddSingleton<LocalScreenDisplayProvider>();
             serviceCollection.AddSingleton<IDisplayProvider>(
                 provider => provider.GetRequiredService<LocalScreenDisplayProvider>());

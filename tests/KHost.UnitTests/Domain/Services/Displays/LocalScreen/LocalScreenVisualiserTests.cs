@@ -22,6 +22,9 @@ public class LocalScreenVisualiserTests
     private readonly IPlaybackService _playback = Substitute.For<IPlaybackService>();
     private readonly ITimedLyricsService _timedLyrics = Substitute.For<ITimedLyricsService>();
     private readonly ISourcePictureProbe _probe = Substitute.For<ISourcePictureProbe>();
+    private readonly ISongLevelsService _levels = Substitute.For<ISongLevelsService>();
+    private readonly IStemStreamService _stems = Substitute.For<IStemStreamService>();
+    private int _reads;
     private int _picks;
 
     private static readonly DisplayLoad Stems = new() { Stems = [new(0, AudioTrackRole.Music, "http://host/m.ogg", 100)] };
@@ -31,13 +34,17 @@ public class LocalScreenVisualiserTests
     {
         _venues.ReadSelectedVenueAsync().Returns(new Venue { Name = "The Bar", Settings = _settings });
         _playback.CurrentProgram.Returns(new PlaybackProgram.Idle());
+        _levels.Begin(Arg.Any<IReadOnlyList<SongLevelsInput>>()).Returns(_ => $"http://host/media/levels/{++_reads}");
+        _stems.ResolveStemInput(Arg.Any<string>()).Returns(call => "/disk/" + call.Arg<string>()[(call.Arg<string>().LastIndexOf('/') + 1)..]);
     }
 
     private LocalScreenDisplayProvider Provider(bool withProbe = true)
     {
         var services = new ServiceCollection()
             .AddSingleton(_playback)
-            .AddSingleton(_timedLyrics);
+            .AddSingleton(_timedLyrics)
+            .AddSingleton(_levels)
+            .AddSingleton(_stems);
 
         if (withProbe) services.AddSingleton(_probe);
 
@@ -299,6 +306,105 @@ public class LocalScreenVisualiserTests
         _broker.Announce(new PlaybackChanged());
 
         Assert.True(await WaitUntilAsync(() => Sent().Count == 2 && !Last().Enabled));
+    }
+
+    // --- the host's levels ---
+
+    [Fact]
+    public async Task LoadAsync_ItIsOn_SendsWhereTheSongsLevelsAreServed_ReadFromTheStemsOnDisk()
+    {
+        Playing("/songs/africa.song");
+        using var provider = Provider();
+
+        await provider.LoadAsync(Stems);
+
+        Assert.Equal("http://host/media/levels/1", Last().LevelsUrl);
+        _levels.Received(1).Begin(Arg.Is<IReadOnlyList<SongLevelsInput>>(inputs =>
+            inputs.SequenceEqual(new[] { new SongLevelsInput("/disk/m.ogg", 100) })));
+    }
+
+    [Fact]
+    public async Task LoadAsync_TheVenueHasItOff_ReadsNoLevels()
+    {
+        _settings.SongVisualiserEnabled = false;
+        Playing("/songs/africa.song");
+        using var provider = Provider();
+
+        await provider.LoadAsync(Stems);
+
+        Assert.Null(Last().LevelsUrl);
+        _levels.DidNotReceiveWithAnyArgs().Begin(default!);
+    }
+
+    /// <summary>A key change reloads the same program as an encode; the levels are song time, so
+    /// the stems' levels still hold and are not read again.</summary>
+    [Fact]
+    public async Task LoadAsync_TheSameProgramReKeyed_KeepsItsLevels()
+    {
+        Playing("/songs/africa.song");
+        using var provider = Provider();
+
+        await provider.LoadAsync(Stems);
+        await provider.LoadAsync(Stream);
+
+        Assert.Equal(["http://host/media/levels/1", "http://host/media/levels/1"], Sent().Select(c => c.LevelsUrl));
+        _levels.ReceivedWithAnyArgs(1).Begin(default!);
+    }
+
+    [Fact]
+    public async Task LoadAsync_TheNextSong_ReadsItsOwnLevels()
+    {
+        Playing("/songs/africa.mp3");
+        using var provider = Provider();
+        await provider.LoadAsync(Stream);
+
+        Playing("/songs/rosanna.mp3");
+        await provider.LoadAsync(Stream);
+
+        Assert.Equal(["http://host/media/levels/1", "http://host/media/levels/2"], Sent().Select(c => c.LevelsUrl));
+        _levels.Received(1).Begin(Arg.Is<IReadOnlyList<SongLevelsInput>>(inputs => inputs.Single().Input == "/songs/rosanna.mp3"));
+    }
+
+    /// <summary>Still drawn, just without the beat: a provider's own container with no stems is
+    /// nothing ffmpeg opens.</summary>
+    [Fact]
+    public async Task LoadAsync_NothingTheHostCanRead_TurnsItOnWithNoLevels()
+    {
+        Playing("/songs/africa.song");
+        using var provider = Provider();
+
+        await provider.LoadAsync(Stream);
+
+        Assert.True(Last().Enabled);
+        Assert.Null(Last().LevelsUrl);
+        _levels.DidNotReceiveWithAnyArgs().Begin(default!);
+    }
+
+    [Fact]
+    public async Task LoadAsync_AStemTheStreamServiceDoesNotKnow_TurnsItOnWithNoLevels()
+    {
+        _stems.ResolveStemInput(Arg.Any<string>()).Returns(_ => throw new InvalidOperationException("not a session file"));
+        Playing("/songs/africa.song");
+        using var provider = Provider();
+
+        await provider.LoadAsync(Stems);
+
+        Assert.True(Last().Enabled);
+        Assert.Null(Last().LevelsUrl);
+    }
+
+    [Fact]
+    public async Task PlaybackChanged_ToIdle_DropsTheLevels()
+    {
+        Playing("/songs/africa.song");
+        using var provider = Provider();
+        await provider.LoadAsync(Stems);
+        _levels.DidNotReceive().Clear();
+
+        _playback.CurrentProgram.Returns(new PlaybackProgram.Idle());
+        _broker.Announce(new PlaybackChanged());
+
+        Assert.True(await WaitUntilAsync(() => _levels.ReceivedCalls().Any(call => call.GetMethodInfo().Name == nameof(ISongLevelsService.Clear))));
     }
 
     private static async Task<bool> WaitUntilAsync(Func<bool> condition)

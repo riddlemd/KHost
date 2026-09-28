@@ -25,4 +25,16 @@ public class StreamMediaPlayerVisualiserTests
         Assert.Equal(enabled, message.GetProperty("enabled").GetBoolean());
         Assert.Equal(preset, message.GetProperty("preset").GetInt32());
     }
+
+    [Theory]
+    [InlineData("http://host/media/levels/abc")]
+    [InlineData(null)]
+    public void SetVisualiser_PassesOnWhereTheHostsLevelsAre(string? url)
+    {
+        _player.SetVisualiser(new SetVisualiserCommand { Enabled = true, Preset = 3, LevelsUrl = url });
+
+        var message = JsonDocument.Parse(Assert.Single(_sentToPage)).RootElement;
+
+        Assert.Equal(url, message.GetProperty("levels").GetString());
+    }
 }

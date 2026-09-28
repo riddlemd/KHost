@@ -3,7 +3,9 @@
 //
 // One engine for the page's life, built with no audio context of its own: butterchurn binds the
 // context it is built with, and every stem song brings a fresh one. The samples are read here from
-// whichever tap the song offers and handed to each frame instead.
+// whichever tap the song offers and handed to each frame instead. A song with no tap (an encoded
+// one in WebKit, which has no captureStream) is drawn from the levels the host read from its
+// source, rebuilt into samples at the song's own clock.
 
 /// Frames a second. The song comes first: every frame is GPU and main-thread time taken from the
 /// decoder, the mixer and the words, and a visualiser at 30 reads as smooth.
@@ -16,6 +18,105 @@ const VISUALISER_MAX_HEIGHT = 720;
 
 /// The sample count butterchurn analyses per frame, and so what each analyser must be sized to.
 const VISUALISER_SAMPLES = 1024;
+
+/// The host's bands, as SongLevels.cs splits them, in Hz; change one and change the other. 320 and
+/// 2800 are butterchurn's own bass/mid/treble splits.
+const VISUALISER_BAND_EDGES = [20, 50, 125, 320, 700, 1400, 2800, 5600, 11025];
+
+/// The rate butterchurn takes handed samples to be at when it was built with no audio context.
+const VISUALISER_SAMPLE_RATE = 44100;
+
+/// One band's tone at its loudest, on the byte scale's ±128. Several at full clip, which only
+/// roughens what is already the loudest moment.
+const VISUALISER_TONE_PEAK = 40;
+
+/// A levels track as the host serves it (see SongLevels.cs for the layout), or null.
+function parseVisualiserLevels(buffer) {
+    const bytes = new Uint8Array(buffer || new ArrayBuffer(0));
+    if (bytes.length < 12 || String.fromCharCode(bytes[0], bytes[1], bytes[2], bytes[3]) !== 'KHLV' || bytes[4] !== 1) return null;
+
+    const fps = bytes[5], bands = bytes[6], channels = bytes[7];
+    const frames = new DataView(bytes.buffer, bytes.byteOffset, 12).getUint32(8, true);
+
+    if (!fps || !channels || bands !== VISUALISER_BAND_EDGES.length - 1) return null;
+    if (bytes.length !== 12 + frames * bands * channels) return null;
+
+    return { fps, bands, channels, frames, data: bytes.subarray(12) };
+}
+
+/// The track's frame a song position falls in; -1 before the song (a lead-in's hold) or past it.
+function visualiserLevelsFrame(track, songSeconds) {
+    // A typeof check, not `>= 0` alone: null compares as 0, which reads a song nobody is holding.
+    if (!track || typeof songSeconds !== 'number' || !(songSeconds >= 0)) return -1;
+
+    const frame = Math.floor(songSeconds * track.fps);
+    return frame < track.frames ? frame : -1;
+}
+
+const visualiserBandCentres = VISUALISER_BAND_EDGES.slice(1).map((top, i) => Math.sqrt(top * VISUALISER_BAND_EDGES[i]));
+let visualiserScratch = null;
+
+/// Fills butterchurn's three arrays with one tone per band at that band's level for this song
+/// position: its own FFT reads them back as the song's bass, mid and treble. Phases follow the song
+/// clock, so the waveform a preset draws moves with the song rather than standing still. Returns
+/// false, leaving silence, where the track has nothing.
+function synthesiseVisualiserLevels(track, songSeconds, levels) {
+    const frame = visualiserLevelsFrame(track, songSeconds);
+    const outputs = [levels.timeByteArrayL, levels.timeByteArrayR];
+
+    if (frame < 0) {
+        levels.timeByteArray.fill(128);
+        for (const out of outputs) out.fill(128);
+        return false;
+    }
+
+    const length = levels.timeByteArray.length;
+    if (!visualiserScratch || visualiserScratch[0].length !== length) {
+        visualiserScratch = [new Float32Array(length), new Float32Array(length)];
+    }
+
+    const base = frame * track.channels * track.bands;
+
+    for (let channel = 0; channel < 2; channel++) {
+        const sum = visualiserScratch[channel];
+        const row = base + Math.min(channel, track.channels - 1) * track.bands;
+        sum.fill(0);
+
+        for (let band = 0; band < track.bands; band++) {
+            const level = track.data[row + band];
+            if (level === 0) continue;
+
+            // A byte is a quarter decibel under the band's loudest at 255.
+            const amplitude = VISUALISER_TONE_PEAK * Math.pow(10, (level - 255) / 80);
+            const hz = visualiserBandCentres[band];
+            const step = 2 * Math.PI * hz / VISUALISER_SAMPLE_RATE;
+            const start = 2 * Math.PI * ((hz * songSeconds) % 1);
+
+            // sin(a + (k+1)s) = 2cos(s)·sin(a + ks) − sin(a + (k−1)s): one multiply a sample.
+            const twice = 2 * Math.cos(step);
+            let previous = Math.sin(start - step);
+            let value = Math.sin(start);
+
+            for (let k = 0; k < length; k++) {
+                sum[k] += amplitude * value;
+                const next = twice * value - previous;
+                previous = value;
+                value = next;
+            }
+        }
+    }
+
+    const clip = (v) => Math.max(0, Math.min(255, Math.round(128 + v)));
+    for (let k = 0; k < length; k++) {
+        const left = visualiserScratch[0][k];
+        const right = visualiserScratch[1][k];
+        levels.timeByteArrayL[k] = clip(left);
+        levels.timeByteArrayR[k] = clip(right);
+        levels.timeByteArray[k] = clip((left + right) / 2);
+    }
+
+    return true;
+}
 
 /// Which preset a number names. Any integer, negative included, lands inside the set.
 function visualiserPresetIndex(number, count) {
@@ -71,7 +172,9 @@ function createVisualiserTap(context, node) {
 
 /// `engine` is butterchurn and `presets` the curated list; both are passed in so the logic here
 /// can be exercised without WebGL.
-function createVisualiser(canvas, { engine, presets, reportError, frame, cancelFrame, now }) {
+/// `clock` answers the song position in seconds (null when nothing holds the song), for the host
+/// levels to be read at.
+function createVisualiser(canvas, { engine, presets, reportError, frame, cancelFrame, now, clock: songClock }) {
     const requestFrame = frame || ((cb) => window.requestAnimationFrame(cb));
     const cancel = cancelFrame || ((id) => window.cancelAnimationFrame(id));
     const clock = now || (() => performance.now());
@@ -83,6 +186,7 @@ function createVisualiser(canvas, { engine, presets, reportError, frame, cancelF
     let handle = null;
     let lastFrameAt = -Infinity;
     let tap = null;
+    let track = null;
 
     // Silence is 128 on this scale, so a song with no tap still draws, just without the beat.
     const levels = {
@@ -150,6 +254,7 @@ function createVisualiser(canvas, { engine, presets, reportError, frame, cancelF
 
         try {
             if (tap) tap.read(levels);
+            else if (track) synthesiseVisualiserLevels(track, songClock ? songClock() : null, levels);
             viz.render({ audioLevels: levels });
         } catch (e) {
             reportError(`visualiser frame: ${e}`);
@@ -200,6 +305,13 @@ function createVisualiser(canvas, { engine, presets, reportError, frame, cancelF
             try { tap = createVisualiserTap(source.context, source.node); } catch (e) { reportError(`visualiser tap: ${e}`); }
         },
 
+        /// The host's levels for the song (parseVisualiserLevels), or null. Drawn from only while no
+        /// tap is listening: a tap hears the room itself.
+        setLevels(levelsTrack) {
+            track = levelsTrack || null;
+            if (!tap) silence();
+        },
+
         /// Re-sizes the drawing buffer to the window; a no-op until something is drawn.
         resize() {
             if (!viz) return;
@@ -212,6 +324,7 @@ function createVisualiser(canvas, { engine, presets, reportError, frame, cancelF
         get running() { return running(); },
         get presetName() { return presetIndex >= 0 ? presets[presetIndex].name : null; },
         get listening() { return tap !== null; },
+        get hostLevels() { return track !== null; },
     };
 
     return api;
