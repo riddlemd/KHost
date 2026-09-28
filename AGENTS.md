@@ -253,9 +253,11 @@ cannot name another's: its secrets, and the QR code it offers the screens.
     painting anything itself, whether its song reaches the encode as a file or as stems. A song with no timed words encodes as it always did.
     - **One set of drawing rules.** The painter follows `screen-ui/lyrics-overlay.js`: the page
       fitted and centred, theme colours for anything the timing leaves unset, a linear wipe,
-      count-ins that ease over one step and are gone by the next page's arrival, lead-ins running to
-      the line's leading edge, and a line with no position stacked under the one before it. Change
-      one and change the other. Where they part, the painter is the better one: it shapes a line
+      count-ins that ease over one step and are gone by the next page's arrival, a line-start lead-in
+      running to the line's leading edge, a lead-in for a syllable part way along the line
+      (`ArriveAtSyllable`) shown instead as three dots over that syllable's own ink, going out one per
+      third from `StartSeconds` to when it lights, and a line with no position stacked under the one
+      before it. Change one and change the other. Where they part, the painter is the better one: it shapes a line
       through HarfBuzz, so a joined script joins and a right-to-left line is laid from its box's
       right edge.
     - **The picture under the words** is the source's own video when it has one (fitted into
