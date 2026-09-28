@@ -108,6 +108,10 @@ namespace KHost.Domain
             serviceCollection.AddSingleton<IMediaRendererService, MediaRendererService>();
             serviceCollection.AddSingleton<IPlayableMediaSourceService, PlayableMediaSourceService>();
             serviceCollection.AddSingleton<ITimedLyricsService, TimedLyricsService>();
+
+            // It hears the options in its constructor, so it must exist before a setting is saved.
+            serviceCollection.AddSingleton<IStartsWithTheHost>(
+                sp => (IStartsWithTheHost)sp.GetRequiredService<ITimedLyricsService>());
             serviceCollection.AddSingleton<IAudioTrackService, AudioTrackService>();
             serviceCollection.AddSingleton<IMediaTagReader, MediaTagReader>();
             serviceCollection.AddSingleton<IMediaGateService, MediaGateService>();
