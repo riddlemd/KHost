@@ -1,3 +1,5 @@
+using KHost.Abstractions.Messaging;
+using KHost.Abstractions.Messaging.Messages;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Models.Plugins;
 using KHost.Abstractions.Services;
@@ -125,13 +127,38 @@ internal static class HostInitialization
                 var status = await ffmpeg.CheckAsync();
 
                 if (!status.IsReady)
-                    flash.Show(FFmpegMissingNotice(status), FlashType.Warning);
+                {
+                    var notice = FFmpegMissingNotice(status);
+                    flash.Show(notice, FlashType.Warning);
+                    WithdrawWhenFFmpegIsReady(services.GetRequiredService<IMessageBroker>(), ffmpeg, flash, notice);
+                }
             }
             catch (Exception ex)
             {
                 Log.Warning(ex, "Checking for FFmpeg failed");
             }
         });
+    }
+
+    /// <summary>Takes the missing-FFmpeg warning down once an install makes it untrue.</summary>
+    /// <remarks>The setup wizard draws no flash banner, so nothing counts the warning down there: left
+    /// up, it greets the host on the console after the wizard has already installed FFmpeg.</remarks>
+    internal static IDisposable WithdrawWhenFFmpegIsReady(
+        IMessageBroker broker, IFFmpegService ffmpeg, IFlashService flash, string notice)
+    {
+        IDisposable? subscription = null;
+
+        subscription = broker.Subscribe<FFmpegChanged>(_ =>
+        {
+            if (!ffmpeg.Status.IsReady) return;
+
+            foreach (var message in flash.Messages.Where(m => m.Text == notice && m.Type == FlashType.Warning))
+                flash.Dismiss(message);
+
+            subscription?.Dispose();
+        });
+
+        return subscription;
     }
 
     internal static string FFmpegMissingNotice(FFmpegStatus status)
