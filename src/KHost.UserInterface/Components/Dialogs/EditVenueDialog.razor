@@ -1,5 +1,6 @@
 @using KHost.Abstractions.Models.Backgrounds
 @using System.ComponentModel.DataAnnotations
+@using System.Linq.Expressions
 @using KHost.UserInterface.Models
 @using KHost.UserInterface.Services
 
@@ -33,6 +34,16 @@
 
                 @if (_model.MarqueeEnabled)
                 {
+                    // Local, not a component: every row is the same markup around a different
+                    // `_model` property, and InputText still needs a real ValueExpression for its
+                    // validation classes, not just a getter/setter pair.
+                    RenderFragment ColorRow(string id, string label, Expression<Func<string?>> value, Action<string?> setter) =>
+                        @<div class="kh-venue-settings__row">
+                            <label for="@id" class="kh-form-label">@label</label>
+                            <InputText id="@id" type="color" class="kh-form-control kh-venue-settings__color"
+                                       Value="@value.Compile()()" ValueChanged="setter" ValueExpression="@value" />
+                        </div>;
+
                     <div class="kh-venue-settings__row">
                         <label for="marquee-singer-count" class="kh-form-label">Singers to show</label>
                         <InputNumber id="marquee-singer-count" class="kh-form-control"
@@ -96,11 +107,7 @@
                         </InputSelect>
                     </div>
 
-                    <div class="kh-venue-settings__row">
-                        <label for="marquee-background" class="kh-form-label">Background color</label>
-                        <InputText id="marquee-background" type="color" class="kh-form-control kh-venue-settings__color"
-                                   @bind-Value="_model.MarqueeBackgroundColor" />
-                    </div>
+                    @ColorRow("marquee-background", "Background color", () => _model.MarqueeBackgroundColor, v => _model.MarqueeBackgroundColor = v)
 
                     <div class="kh-venue-settings__row">
                         <span class="kh-venue-settings__labelled">
@@ -113,29 +120,10 @@
                                      @bind-Value="_model.MarqueeBackgroundOpacity" />
                     </div>
 
-                    <div class="kh-venue-settings__row">
-                        <label for="marquee-text" class="kh-form-label">Text color</label>
-                        <InputText id="marquee-text" type="color" class="kh-form-control kh-venue-settings__color"
-                                   @bind-Value="_model.MarqueeTextColor" />
-                    </div>
-
-                    <div class="kh-venue-settings__row">
-                        <label for="marquee-singer-color" class="kh-form-label">Singer color</label>
-                        <InputText id="marquee-singer-color" type="color" class="kh-form-control kh-venue-settings__color"
-                                   @bind-Value="_model.MarqueeSingerColor" />
-                    </div>
-
-                    <div class="kh-venue-settings__row">
-                        <label for="marquee-song-color" class="kh-form-label">Song color</label>
-                        <InputText id="marquee-song-color" type="color" class="kh-form-control kh-venue-settings__color"
-                                   @bind-Value="_model.MarqueeSongColor" />
-                    </div>
-
-                    <div class="kh-venue-settings__row">
-                        <label for="marquee-divider-color" class="kh-form-label">Divider color</label>
-                        <InputText id="marquee-divider-color" type="color" class="kh-form-control kh-venue-settings__color"
-                                   @bind-Value="_model.MarqueeDividerColor" />
-                    </div>
+                    @ColorRow("marquee-text", "Text color", () => _model.MarqueeTextColor, v => _model.MarqueeTextColor = v)
+                    @ColorRow("marquee-singer-color", "Singer color", () => _model.MarqueeSingerColor, v => _model.MarqueeSingerColor = v)
+                    @ColorRow("marquee-song-color", "Song color", () => _model.MarqueeSongColor, v => _model.MarqueeSongColor = v)
+                    @ColorRow("marquee-divider-color", "Divider color", () => _model.MarqueeDividerColor, v => _model.MarqueeDividerColor = v)
                 }
             </div>
 
@@ -171,10 +159,7 @@
                 <div class="kh-venue-settings__row">
                     <label for="venue-qr-corner" class="kh-form-label">Corner</label>
                     <InputSelect id="venue-qr-corner" class="kh-form-select" @bind-Value="_model.QrCodeCorner">
-                        <option value="@OverlayCorner.BottomRight">Bottom right</option>
-                        <option value="@OverlayCorner.BottomLeft">Bottom left</option>
-                        <option value="@OverlayCorner.TopRight">Top right</option>
-                        <option value="@OverlayCorner.TopLeft">Top left</option>
+                        <OverlayCornerOptions />
                     </InputSelect>
                 </div>
 
@@ -340,10 +325,7 @@
                         <label for="venue-break-music-card-corner" class="kh-form-label">Corner</label>
                         <InputSelect id="venue-break-music-card-corner" class="kh-form-select"
                                      @bind-Value="_model.BreakMusicCardCorner">
-                            <option value="@OverlayCorner.BottomLeft">Bottom left</option>
-                            <option value="@OverlayCorner.BottomRight">Bottom right</option>
-                            <option value="@OverlayCorner.TopLeft">Top left</option>
-                            <option value="@OverlayCorner.TopRight">Top right</option>
+                            <OverlayCornerOptions />
                         </InputSelect>
                     </div>
                 }
@@ -368,13 +350,7 @@
                         <label for="venue-branding-scaling" class="kh-form-label">How it fills the screen</label>
                         <InputSelect id="venue-branding-scaling" class="kh-form-select"
                                      @bind-Value="_model.BrandingImageScaling">
-                            @* Blank is the image's own, which is what the library already says
-                               about it. A venue only needs this where it disagrees. *@
-                            <option value="">Use the image's own</option>
-                            <option value="@ImageScaling.Fit">Fit: show all of it</option>
-                            <option value="@ImageScaling.Fill">Fill: crop the overflow</option>
-                            <option value="@ImageScaling.Stretch">Stretch: distort to fit</option>
-                            <option value="@ImageScaling.Original">Original size</option>
+                            <ImageScalingOptions IncludeUseOwn="true" />
                         </InputSelect>
                     </div>
                 }
