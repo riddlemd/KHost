@@ -39,12 +39,29 @@ public static class MediaFormats
     /// </remarks>
     public const string KaraokeGraphicsExtension = ".cdg";
 
+    /// <summary>A karaoke pair shipped as one archive: a <c>.cdg</c> and its audio, side by side.</summary>
+    /// <remarks>The archive itself is the library row. Nothing can say from the name alone that
+    /// it holds a valid pair; that is settled when it is opened.</remarks>
+    public const string KaraokeArchiveExtension = ".zip";
+
     /// <summary>Whether <paramref name="format"/> (an extension, with or without its leading dot) is a still.</summary>
     public static bool IsImage(string? format) => ContentTypeFor(format) is not null;
 
     /// <summary>Whether this is the graphics half of a pair, which carries no sound of its own.</summary>
+    /// <remarks>A loose <c>.cdg</c> only. Ask <see cref="IsCompactDiscGraphics"/> of a library
+    /// row, which may be the pair zipped.</remarks>
     public static bool IsGraphicsOnlyKaraoke(string filePath)
         => Path.GetExtension(filePath).Equals(KaraokeGraphicsExtension, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>Whether this is a karaoke pair packed into one archive.</summary>
+    public static bool IsKaraokeArchive(string filePath)
+        => Path.GetExtension(filePath).Equals(KaraokeArchiveExtension, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>Whether this is CD+G, loose or zipped: a picture drawn from subcode graphics.</summary>
+    /// <remarks>The question to ask of a library row's path. Checking for <c>.cdg</c> alone misses
+    /// the zipped pair, whose row names the archive.</remarks>
+    public static bool IsCompactDiscGraphics(string filePath)
+        => IsGraphicsOnlyKaraoke(filePath) || IsKaraokeArchive(filePath);
 
     /// <summary>The audio that belongs to a <c>.cdg</c>, or null when it is not beside it.</summary>
     /// <remarks>The graphics carry the words and nothing else, so a <c>.cdg</c> without this is half
@@ -63,19 +80,47 @@ public static class MediaFormats
         var directory = Path.GetDirectoryName(graphicsPath);
         if (string.IsNullOrEmpty(directory) || !Directory.Exists(directory)) return null;
 
-        var stem = Path.GetFileNameWithoutExtension(graphicsPath);
+        return FindKaraokeAudioAmong(graphicsPath, Directory.EnumerateFiles(directory));
+    }
 
-        foreach (var candidate in Directory.EnumerateFiles(directory))
+    /// <summary>Which of <paramref name="candidates"/> is the audio for <paramref name="graphicsName"/>,
+    /// or null when none is.</summary>
+    /// <remarks>The rule <see cref="FindKaraokeAudio"/> applies to a directory, over names alone, so a
+    /// listing that is not a directory — an archive's entries, a browser's rows — pairs the same way:
+    /// the same stem without regard to case, and any audio extension. Where several qualify, the one
+    /// earliest in <see cref="AudioExtensions"/> wins, so the answer never rests on listing order.
+    /// Returns the candidate as given.</remarks>
+    public static string? FindKaraokeAudioAmong(string graphicsName, IEnumerable<string> candidates)
+    {
+        var stem = Path.GetFileNameWithoutExtension(graphicsName);
+        string? best = null;
+        var bestRank = int.MaxValue;
+
+        foreach (var candidate in candidates)
         {
             if (!Path.GetFileNameWithoutExtension(candidate).Equals(stem, StringComparison.OrdinalIgnoreCase))
                 continue;
 
-            var extension = Path.GetExtension(candidate).ToLowerInvariant();
+            var rank = IndexOf(AudioExtensions, Path.GetExtension(candidate).ToLowerInvariant());
 
-            if (AudioExtensions.Contains(extension)) return candidate;
+            if (rank >= 0 && rank < bestRank)
+            {
+                best = candidate;
+                bestRank = rank;
+            }
         }
 
-        return null;
+        return best;
+    }
+
+    private static int IndexOf(IReadOnlyList<string> list, string value)
+    {
+        for (var i = 0; i < list.Count; i++)
+        {
+            if (list[i] == value) return i;
+        }
+
+        return -1;
     }
 
     /// <summary>The graphics that belong to an audio file, or null when none is beside it.</summary>
@@ -103,13 +148,13 @@ public static class MediaFormats
         return null;
     }
 
-    /// <summary>A .cdg says so outright; an audio file with one beside it is the pair's other half.</summary>
+    /// <summary>A .cdg or a zipped pair says so outright; an audio file with a .cdg beside it is the pair's other half.</summary>
     public static bool IsKaraokeTrack(string filePath)
     {
         if (string.IsNullOrWhiteSpace(filePath))
             return false;
 
-        if (Path.GetExtension(filePath).Equals(KaraokeGraphicsExtension, StringComparison.OrdinalIgnoreCase))
+        if (IsCompactDiscGraphics(filePath))
             return true;
 
         return FindKaraokeGraphics(filePath) is not null;

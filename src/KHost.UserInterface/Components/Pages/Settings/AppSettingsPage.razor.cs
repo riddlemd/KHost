@@ -1,3 +1,5 @@
+using KHost.Abstractions.Messaging;
+using KHost.Abstractions.Messaging.Messages;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using KHost.Domain.Services;
@@ -14,6 +16,11 @@ public partial class AppSettingsPage : IDisposable
     [Inject] private IFlashService Flash { get; set; } = default!;
     [Inject] private IDialogService Dialog { get; set; } = default!;
     [Inject] private NavigationManager Navigation { get; set; } = default!;
+    [Inject] private IFFmpegService FFmpeg { get; set; } = default!;
+    [Inject] private IHostDirectories HostDirectories { get; set; } = default!;
+    [Inject] private IMessageBroker Broker { get; set; } = default!;
+
+    private readonly SubscriptionSet _subscriptions = new();
 
     private IDisposable? _navigationGuard;
 
@@ -25,12 +32,22 @@ public partial class AppSettingsPage : IDisposable
     private bool _saving;
     private string? _error;
     private string? _defaultMediaDirectory;
+    private FFmpegStatus _ffmpegStatus = default!;
+    private string _binDirectory = "";
 
     protected override void OnInitialized()
     {
         _model = AppSettings.Current;
         _restartRequired = AppSettings.RestartRequired;
         _defaultMediaDirectory = AppSettings.DefaultMediaDirectory;
+        _ffmpegStatus = FFmpeg.Status;
+        _binDirectory = HostDirectories.BinDirectory;
+
+        _subscriptions.Add(Broker.Subscribe<FFmpegChanged>(changed =>
+        {
+            _ffmpegStatus = FFmpeg.Status;
+            _ = InvokeAsync(StateHasChanged);
+        }));
 
         // Registered here rather than on first render: a navigation can be asked for before the
         // page has painted, and an unguarded one loses the edits without a word.
@@ -72,7 +89,21 @@ public partial class AppSettingsPage : IDisposable
         Navigation.NavigateTo(target);
     }
 
-    public void Dispose() => _navigationGuard?.Dispose();
+    public void Dispose()
+    {
+        _navigationGuard?.Dispose();
+        _subscriptions.Dispose();
+    }
+
+    private async Task InstallFFmpegAsync()
+    {
+        _ffmpegStatus = await FFmpeg.InstallAsync();
+
+        if (_ffmpegStatus.Install.State == FFmpegInstallState.Succeeded)
+            Flash.Show("FFmpeg installed. The next song uses it.");
+    }
+
+    private async Task CheckFFmpegAsync() => _ffmpegStatus = await FFmpeg.CheckAsync();
 
     // Qualified: the injected service is also called AppSettings on this page.
     private static IReadOnlyList<int> LeadInGraceChoices => KHost.UserInterface.Services.AppSettings.LeadInGraceChoices;

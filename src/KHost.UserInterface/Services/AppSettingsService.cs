@@ -2,6 +2,7 @@ using System.Text.Json;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using KHost.Domain.Services;
+using KHost.Domain.Services.FFmpeg;
 using KHost.UserInterface.Models;
 using Microsoft.Extensions.Configuration;
 using KHost.Common.Media;
@@ -16,12 +17,15 @@ internal sealed class AppSettingsService : IAppSettingsService
 
     private readonly IConfiguration _configuration;
     private readonly IUsersService _usersService;
+    private readonly IFFmpegService _ffmpeg;
     private readonly string _overlayPath;
 
-    public AppSettingsService(IConfiguration configuration, IUsersService usersService, string? overlayDirectory = null)
+    public AppSettingsService(
+        IConfiguration configuration, IUsersService usersService, IFFmpegService ffmpeg, string? overlayDirectory = null)
     {
         _configuration = configuration;
         _usersService = usersService;
+        _ffmpeg = ffmpeg;
         _overlayPath = Path.Combine(overlayDirectory ?? Path.Combine(AppContext.BaseDirectory, "cache"), OverlayFileName);
     }
 
@@ -34,7 +38,7 @@ internal sealed class AppSettingsService : IAppSettingsService
     {
         RequireLogin = _configuration.GetValue<bool?>("Auth:RequireLogin") ?? true,
         LaunchScreenOnStartup = _configuration.GetValue<bool?>("LocalScreen:LaunchOnStartup") ?? false,
-        FFmpegPath = _configuration["FFmpegPath"],
+        FFmpegPath = Blank(_configuration[FFmpegService.ConfigurationKey]),
         MediaDirectory = NormalizeMediaDirectory(_configuration["Plugins:MediaDirectory"]),
         StopFadeSeconds = (_configuration.GetValue<TimeSpan?>("Playback:StopFadeDuration") ?? TimeSpan.FromSeconds(5)).TotalSeconds,
         SegmentSeconds = _configuration.GetValue<int?>("MediaStream:SegmentSeconds") ?? 2,
@@ -86,6 +90,10 @@ internal sealed class AppSettingsService : IAppSettingsService
     // and reports no pages.
     private static int PaginationClamp(int pageSize) =>
         Math.Clamp(pageSize, AppSettings.MinPageSize, AppSettings.MaxPageSize);
+
+    /// <summary>Whitespace and empty both read as unset, which is what a cleared field sends.
+    /// </summary>
+    private static string? Blank(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
     private static string? NormalizeMediaDirectory(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();
@@ -143,8 +151,8 @@ internal sealed class AppSettingsService : IAppSettingsService
             ["LaunchOnStartup"] = settings.LaunchScreenOnStartup,
         };
 
-        if (!string.IsNullOrWhiteSpace(settings.FFmpegPath))
-            overlay["FFmpegPath"] = settings.FFmpegPath;
+        // Written even when blank: clearing it must reach the overlay.
+        overlay[FFmpegService.ConfigurationKey] = Blank(settings.FFmpegPath);
 
         var mediaDirectory = NormalizeMediaDirectory(settings.MediaDirectory);
         if (mediaDirectory is not null)
@@ -157,9 +165,18 @@ internal sealed class AppSettingsService : IAppSettingsService
 
         // Read once, on the way up: turning it on now would not open a screen, and turning it
         // off would not close the one already running.
-        if (settings.FFmpegPath != before.FFmpegPath
-            || settings.LaunchScreenOnStartup != before.LaunchScreenOnStartup)
+        if (settings.LaunchScreenOnStartup != before.LaunchScreenOnStartup)
             RestartRequired = true;
+
+        if (Blank(settings.FFmpegPath) != before.FFmpegPath)
+        {
+            // Reloaded now rather than when the file watcher gets round to it, so the check below
+            // looks in the folder just saved and the next song uses what it finds.
+            if (_configuration is IConfigurationRoot root)
+                root.Reload();
+
+            await _ffmpeg.CheckAsync();
+        }
 
         return new AppSettingsSaveResult(true);
     }

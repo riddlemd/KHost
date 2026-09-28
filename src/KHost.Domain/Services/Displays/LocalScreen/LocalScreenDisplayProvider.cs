@@ -417,11 +417,11 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
         IsGraphicsOnly = isGraphicsOnly,
     };
 
-    /// <summary>Whether the program loading is a .cdg, whose picture the screen scales unsmoothed.</summary>
+    /// <summary>Whether the program loading is CD+G, loose or zipped, whose picture the screen scales unsmoothed.</summary>
     /// <remarks>Read off the program because the load carries only URLs; the program is set before
     /// a display is asked to load it.</remarks>
     internal static bool IsGraphicsOnly(PlaybackProgram? program)
-        => program is PlaybackProgram.Playing { Media.FilePath: { } path } && HlsMediaStreamService.IsGraphicsOnly(path);
+        => program is PlaybackProgram.Playing { Media.FilePath: { } path } && MediaFormats.IsCompactDiscGraphics(path);
 
     /// <summary>The marquee as the screen draws it, whole, from the venue's settings and who is next.</summary>
     /// <remarks>Disabled with no venue selected, or one that has the marquee off. The singers are

@@ -1,4 +1,3 @@
-using FFMpegCore;
 using KHost.DataAccess;
 using KHost.Domain;
 using KHost.IPC.SignalR;
@@ -65,10 +64,6 @@ internal static class Program
         builder.Services.AddPlugins();
         builder.Services.AddDataAccess();
         builder.Services.AddSignalRIPCServer();
-
-        var ffmpegPath = builder.Configuration["FFmpegPath"];
-        if (!string.IsNullOrWhiteSpace(ffmpegPath))
-            GlobalFFOptions.Configure(opts => opts.BinaryFolder = ffmpegPath);
 
         builder.Services.AddRazorComponents()
             .AddInteractiveServerComponents();
