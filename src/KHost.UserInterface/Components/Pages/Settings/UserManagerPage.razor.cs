@@ -12,7 +12,7 @@ public partial class UserManagerPage : IDisposable
 {
     [Inject] private IUsersService UsersService { get; set; } = default!;
     [Inject] private ITipsService TipsService { get; set; } = default!;
-    [Inject] private IFlashService? Flash { get; set; }
+    [Inject] private IFlashService Flash { get; set; } = default!;
     [Inject] private IDialogService DialogService { get; set; } = default!;
     [Inject] private IVenuesService VenuesService { get; set; } = default!;
     [Inject] private IAppSettingsService AppSettingsService { get; set; } = default!;
@@ -76,7 +76,7 @@ public partial class UserManagerPage : IDisposable
         {
             // Caught here rather than left to the error boundary: a name already in use is the
             // host's mistake to correct, not a reason to replace the page they were working on.
-            Flash?.Show(taken.WhatHappened, FlashType.Warning);
+            Flash.Show(taken.WhatHappened, FlashType.Warning);
         }
     }
 

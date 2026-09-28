@@ -8,8 +8,8 @@ namespace KHost.UserInterface.Components.Pages.Settings;
 
 public partial class ThemeManagerPage : IDisposable
 {
-    [Inject] private IThemeService? ThemeService { get; set; }
-    [Inject] private IDialogService? DialogService { get; set; }
+    [Inject] private IThemeService ThemeService { get; set; } = default!;
+    [Inject] private IDialogService DialogService { get; set; } = default!;
     [Inject] private IMessageBroker Broker { get; set; } = default!;
 
     private readonly SubscriptionSet _subscriptions = new();
@@ -24,7 +24,7 @@ public partial class ThemeManagerPage : IDisposable
         Load();
     }
 
-    private void Load() => _themes = ThemeService?.AllThemes ?? [];
+    private void Load() => _themes = ThemeService.AllThemes;
 
     private void OnStateChanged()
     {
@@ -56,28 +56,22 @@ public partial class ThemeManagerPage : IDisposable
 
     private async Task ToggleAsync(ThemeDefinition theme, bool enabled)
     {
-        if (ThemeService is null) return;
-
         await ThemeService.SetEnabledAsync(theme.Id, enabled);
     }
 
     private async Task OpenAddDialogAsync()
     {
-        if (DialogService is null) return;
-
         await DialogService.RequestEditAsync(null, async theme => await SaveAsync(theme));
     }
 
     private async Task OpenEditDialogAsync(ThemeDefinition theme)
     {
-        if (DialogService is null) return;
-
         await DialogService.RequestEditAsync(theme, async updated => await SaveAsync(updated));
     }
 
     private async Task SaveAsync(ThemeDefinition? theme)
     {
-        if (ThemeService is null || theme is null) return;
+        if (theme is null) return;
 
         if (string.IsNullOrEmpty(theme.Id))
             theme.Id = ThemeService.BuildId(theme.Name);
@@ -87,15 +81,11 @@ public partial class ThemeManagerPage : IDisposable
 
     private async Task CloneAsync(ThemeDefinition theme)
     {
-        if (ThemeService is null) return;
-
         await ThemeService.CloneAsync(theme.Id);
     }
 
     private async Task StartDeleteAsync(ThemeDefinition theme)
     {
-        if (ThemeService is null || DialogService is null) return;
-
         await DialogService.ShowConfirmationAsync(
             $"Are you sure you want to delete <span class=\"kh-emphasis\">{theme.Name}</span>?",
             async () => await ThemeService.DeleteAsync(theme.Id),

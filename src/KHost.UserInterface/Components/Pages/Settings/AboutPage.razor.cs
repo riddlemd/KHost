@@ -5,19 +5,16 @@ namespace KHost.UserInterface.Components.Pages.Settings;
 
 public partial class AboutPage
 {
-    [Inject] private IAppInfoService? AppInfo { get; set; }
-    [Inject] private IExternalLinkService? ExternalLinks { get; set; }
+    [Inject] private IAppInfoService AppInfo { get; set; } = default!;
+    [Inject] private IExternalLinkService ExternalLinks { get; set; } = default!;
 
-    private IAppInfoService? _appInfo;
     private bool _licenseExpanded;
     private bool _noticesExpanded;
-
-    protected override void OnInitialized() => _appInfo = AppInfo;
 
     private void OpenLink(string url)
     {
         if (string.IsNullOrEmpty(url)) return;
 
-        ExternalLinks?.Open(url);
+        ExternalLinks.Open(url);
     }
 }

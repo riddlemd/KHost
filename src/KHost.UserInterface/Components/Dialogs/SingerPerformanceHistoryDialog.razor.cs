@@ -15,11 +15,11 @@ public partial class SingerPerformanceHistoryDialog
 
     [Parameter] public EventCallback OnClose { get; set; }
 
-    [Inject] private IPerformanceService? PerformanceService { get; set; }
-    [Inject] private IMediaService? MediaService { get; set; }
-    [Inject] private IDialogService? DialogService { get; set; }
-    [Inject] private IVenuesService? VenuesService { get; set; }
-    [Inject] private IAppSettingsService? AppSettingsService { get; set; }
+    [Inject] private IPerformanceService PerformanceService { get; set; } = default!;
+    [Inject] private IMediaService MediaService { get; set; } = default!;
+    [Inject] private IDialogService DialogService { get; set; } = default!;
+    [Inject] private IVenuesService VenuesService { get; set; } = default!;
+    [Inject] private IAppSettingsService AppSettingsService { get; set; } = default!;
 
     private PaginatedResult<Performance>? _paginatedPerformances;
     private List<Media> _media = [];
@@ -32,7 +32,7 @@ public partial class SingerPerformanceHistoryDialog
     // runs exactly once with UserId already bound.
     protected override async Task OnInitializedAsync()
     {
-        _pageSize = AppSettingsService!.Current.PerformanceHistoryPageSize;
+        _pageSize = AppSettingsService.Current.PerformanceHistoryPageSize;
         _currentPage = 1;
         await LoadPageAsync();
     }
@@ -57,9 +57,6 @@ public partial class SingerPerformanceHistoryDialog
 
     private async Task LoadPageAsync()
     {
-        if (PerformanceService is null || MediaService is null)
-            return;
-
         _paginatedPerformances = await PerformanceService.ReadBySingerIdAsync(UserId, pageNumber: _currentPage, pageSize: _pageSize, PerformanceFilter.UnQueued);
 
         var mediaIds = _paginatedPerformances.Items.Select(p => p.MediaId).Distinct().ToList();
@@ -79,9 +76,6 @@ public partial class SingerPerformanceHistoryDialog
 
     private async Task EnqueueAsync(Media media, Performance sung)
     {
-        if (PerformanceService is null)
-            return;
-
         var enqueued = await PerformanceService.CreateAndEnqueueAsync(new Performance
         {
             SingerId = UserId,
@@ -103,16 +97,12 @@ public partial class SingerPerformanceHistoryDialog
 
     private async Task EditAsync(Media media)
     {
-        if (DialogService is null) return;
-
         await DialogService.RequestEditAsync(media, async (media) => await SaveMediaAsync(media));
     }
 
     // Always confirmed: history is not recoverable from anywhere else in the app.
     private async Task ConfirmDeleteAsync(Guid performanceId)
     {
-        if (DialogService is null) return;
-
         await DialogService.ShowConfirmationAsync("Are you sure you want to delete this <span class=\"kh-emphasis\">performance</span> from the user's history?", async () =>
         {
             await DeleteAsync(performanceId);
@@ -123,9 +113,6 @@ public partial class SingerPerformanceHistoryDialog
 
     private async Task DeleteAsync(Guid performanceId)
     {
-        if (PerformanceService is null)
-            return;
-
         await PerformanceService.DeleteAsync(performanceId);
 
         await LoadPageAsync();
@@ -133,7 +120,6 @@ public partial class SingerPerformanceHistoryDialog
 
     private async Task SaveMediaAsync(Media? media)
     {
-        if (MediaService is null) return;
         if (media is null) return;
 
         await MediaService.UpdateAsync(media);

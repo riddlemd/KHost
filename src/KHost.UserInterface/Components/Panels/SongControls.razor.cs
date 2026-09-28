@@ -18,8 +18,8 @@ public partial class SongControls : IDisposable
     /// <summary>Coarser than tempo: a level is judged by ear, not read off a number.</summary>
     private const int VolumeStep = 5;
 
-    [Inject] private IPlaybackService? PlaybackService { get; set; }
-    [Inject] private IAppSettingsService? AppSettings { get; set; }
+    [Inject] private IPlaybackService PlaybackService { get; set; } = default!;
+    [Inject] private IAppSettingsService AppSettings { get; set; } = default!;
     [Inject] private IMessageBroker Broker { get; set; } = default!;
 
     private readonly SubscriptionSet _subscriptions = new();
@@ -36,7 +36,7 @@ public partial class SongControls : IDisposable
     // setting on every song, so counting them would leave the trigger marked all night.
     private bool IsChanged => _pitch != 0 || _tempo != 0;
 
-    private SongControlStyle Style => AppSettings?.Current.SongControlStyle ?? SongControlStyle.Sliders;
+    private SongControlStyle Style => AppSettings.Current.SongControlStyle;
 
     /// <summary>The panel as data: one list rendered twice, not copies that could drift apart.</summary>
     private IEnumerable<SongControl> Controls()
@@ -58,7 +58,7 @@ public partial class SongControls : IDisposable
                 _backing, AudioMix.MinVolume, AudioMix.MaxVolume, VolumeStep,
                 FormatVolume, v => _backing = v, CommitBackingAsync);
 
-        var leads = PlaybackService?.AudioTracks.Where(t => t.Role == AudioTrackRole.Lead).ToList() ?? [];
+        var leads = PlaybackService.AudioTracks.Where(t => t.Role == AudioTrackRole.Lead).ToList();
 
         if (leads.Any(t => t.Voice is null))
             yield return new SongControl(this, "Lead Vocal", "Lead vocal volume, as a percentage",
@@ -92,7 +92,7 @@ public partial class SongControls : IDisposable
     }
 
     private bool HasTrack(AudioTrackRole role) =>
-        PlaybackService?.AudioTracks.Any(t => t.Role == role) ?? false;
+        PlaybackService.AudioTracks.Any(t => t.Role == role);
 
     /// <summary>Says so on the closed trigger, or a transposed song is invisible until it plays.</summary>
     private string TriggerTitle => IsChanged
@@ -112,11 +112,11 @@ public partial class SongControls : IDisposable
 
     private void SyncFromService()
     {
-        _pitch = PlaybackService?.Pitch ?? 0;
-        _tempo = PlaybackService?.Tempo ?? 0;
-        _lead = PlaybackService?.LeadVolume ?? AudioMix.DefaultLeadVolume;
-        _backing = PlaybackService?.BackingVolume ?? AudioMix.DefaultBackingVolume;
-        _voices = PlaybackService?.VoiceVolumes is { } voices ? new Dictionary<string, int>(voices) : [];
+        _pitch = PlaybackService.Pitch;
+        _tempo = PlaybackService.Tempo;
+        _lead = PlaybackService.LeadVolume;
+        _backing = PlaybackService.BackingVolume;
+        _voices = new Dictionary<string, int>(PlaybackService.VoiceVolumes);
     }
 
     private bool _open;
@@ -141,35 +141,35 @@ public partial class SongControls : IDisposable
     {
         _pitch = value;
 
-        return PlaybackService?.SetPitchAsync(value) ?? Task.CompletedTask;
+        return PlaybackService.SetPitchAsync(value);
     }
 
     private Task CommitTempoAsync(int value)
     {
         _tempo = value;
 
-        return PlaybackService?.SetTempoAsync(value) ?? Task.CompletedTask;
+        return PlaybackService.SetTempoAsync(value);
     }
 
     private Task CommitLeadAsync(int value)
     {
         _lead = value;
 
-        return PlaybackService?.SetLeadVolumeAsync(value) ?? Task.CompletedTask;
+        return PlaybackService.SetLeadVolumeAsync(value);
     }
 
     private Task CommitVoiceAsync(string voice, int value)
     {
         _voices[voice] = value;
 
-        return PlaybackService?.SetVoiceVolumeAsync(voice, value) ?? Task.CompletedTask;
+        return PlaybackService.SetVoiceVolumeAsync(voice, value);
     }
 
     private Task CommitBackingAsync(int value)
     {
         _backing = value;
 
-        return PlaybackService?.SetBackingVolumeAsync(value) ?? Task.CompletedTask;
+        return PlaybackService.SetBackingVolumeAsync(value);
     }
 
     private static string FormatVolume(int volume) =>

@@ -10,9 +10,9 @@ namespace KHost.UserInterface.Components.Pages.Settings;
 
 public partial class AppSettingsPage : IDisposable
 {
-    [Inject] private IAppSettingsService? AppSettings { get; set; }
-    [Inject] private IFlashService? Flash { get; set; }
-    [Inject] private IDialogService? Dialog { get; set; }
+    [Inject] private IAppSettingsService AppSettings { get; set; } = default!;
+    [Inject] private IFlashService Flash { get; set; } = default!;
+    [Inject] private IDialogService Dialog { get; set; } = default!;
     [Inject] private NavigationManager Navigation { get; set; } = default!;
 
     private IDisposable? _navigationGuard;
@@ -28,8 +28,6 @@ public partial class AppSettingsPage : IDisposable
 
     protected override void OnInitialized()
     {
-        if (AppSettings is null) return;
-
         _model = AppSettings.Current;
         _restartRequired = AppSettings.RestartRequired;
         _defaultMediaDirectory = AppSettings.DefaultMediaDirectory;
@@ -40,11 +38,11 @@ public partial class AppSettingsPage : IDisposable
     }
 
     /// <summary>Compares to what is stored, so a field edited and put back reads as not dirty.</summary>
-    private bool HasUnsavedChanges => AppSettings is not null && _model != AppSettings.Current;
+    private bool HasUnsavedChanges => _model != AppSettings.Current;
 
     private async ValueTask OnLocationChangingAsync(LocationChangingContext context)
     {
-        if (_leaving || !HasUnsavedChanges || Dialog is null) return;
+        if (_leaving || !HasUnsavedChanges) return;
 
         // Held rather than cancelled: the host has not chosen yet, and the target has to survive
         // long enough to be navigated to once they do.
@@ -92,8 +90,6 @@ public partial class AppSettingsPage : IDisposable
 
     private async Task SaveAsync()
     {
-        if (AppSettings is null) return;
-
         _saving = true;
         _error = null;
 
@@ -101,12 +97,12 @@ public partial class AppSettingsPage : IDisposable
 
         if (result.Saved)
         {
-            Flash?.Show("App settings saved.");
+            Flash.Show("App settings saved.");
         }
         else
         {
             _error = result.Error;
-            Flash?.Show(_error ?? "App settings were not saved.", FlashType.Warning);
+            Flash.Show(_error ?? "App settings were not saved.", FlashType.Warning);
             // The refused toggle must not keep looking flipped.
             _model = AppSettings.Current;
         }
