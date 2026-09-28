@@ -13,8 +13,6 @@ public partial class SingerPerformanceHistoryDialog
 
     [Parameter] public bool IsOpen { get; set; }
     [Parameter] public Guid UserId { get; set; }
-    [Parameter] public string Class { get; set; } = "";
-    [Parameter] public bool CloseOnScrimClick { get; set; }
 
     [Parameter] public EventCallback OnClose { get; set; }
 
@@ -28,19 +26,16 @@ public partial class SingerPerformanceHistoryDialog
     private List<Media> _media = [];
     private int _pageSize = AppSettings.DefaultPerformanceHistoryPageSize;
     private int _currentPage = 1;
-    private bool _prevIsOpen;
 
     private int TotalPages => _paginatedPerformances?.TotalPages ?? 0;
 
-    protected override async Task OnParametersSetAsync()
+    // DialogHost keys every dialog by request id, so a fresh instance is created per open; this
+    // runs exactly once with UserId already bound.
+    protected override async Task OnInitializedAsync()
     {
-        if (IsOpen && !_prevIsOpen)
-        {
-            _pageSize = AppSettingsService!.Current.PerformanceHistoryPageSize;
-            _currentPage = 1;
-            await LoadPageAsync();
-        }
-        _prevIsOpen = IsOpen;
+        _pageSize = AppSettingsService!.Current.PerformanceHistoryPageSize;
+        _currentPage = 1;
+        await LoadPageAsync();
     }
 
     private async Task PreviousPageAsync()

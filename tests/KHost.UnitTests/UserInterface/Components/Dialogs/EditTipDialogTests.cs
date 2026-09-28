@@ -89,7 +89,7 @@ public class EditTipDialogTests
         Set(dialog, nameof(EditTipDialog.UserId), lockedUserId);
 
         await (Task)typeof(EditTipDialog)
-            .GetMethod("OnParametersSetAsync", BindingFlags.NonPublic | BindingFlags.Instance)!
+            .GetMethod("OnInitializedAsync", BindingFlags.NonPublic | BindingFlags.Instance)!
             .Invoke(dialog, null)!;
 
         return dialog;

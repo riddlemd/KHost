@@ -14,39 +14,29 @@ public partial class EditMediaDialog
 
     [Parameter] public bool IsOpen { get; set; }
     [Parameter] public Media? Media { get; set; }
-    [Parameter] public string Class { get; set; } = "";
-    [Parameter] public bool CloseOnScrimClick { get; set; }
 
     [Parameter] public EventCallback<Media> OnSave { get; set; }
     [Parameter] public EventCallback OnClose { get; set; }
 
     private EditMediaModel _model = new();
     private EditContext _editContext = default!;
-    private bool _prevIsOpen;
 
+    // DialogHost keys every dialog by request id, so a fresh instance is created per open; this
+    // runs exactly once with Media already bound.
     protected override void OnInitialized()
     {
+        _model = Media is null
+            ? new EditMediaModel()
+            : new EditMediaModel
+            {
+                Id = Media.Id,
+                Title = Media.Title,
+                Artist = Media.Artist,
+                Notes = Media.Notes,
+                Status = Media.Status,
+                ImageScaling = Media.ImageScaling
+            };
         _editContext = new EditContext(_model);
-    }
-
-    protected override void OnParametersSet()
-    {
-        if (IsOpen && !_prevIsOpen)
-        {
-            _model = Media is null
-                ? new EditMediaModel()
-                : new EditMediaModel
-                {
-                    Id = Media.Id,
-                    Title = Media.Title,
-                    Artist = Media.Artist,
-                    Notes = Media.Notes,
-                    Status = Media.Status,
-                    ImageScaling = Media.ImageScaling
-                };
-            _editContext = new EditContext(_model);
-        }
-        _prevIsOpen = IsOpen;
     }
 
     private async Task SubmitAsync()

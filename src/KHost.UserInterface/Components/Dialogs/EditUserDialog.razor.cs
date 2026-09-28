@@ -20,15 +20,12 @@ public partial class EditUserDialog
 
     [Parameter] public bool IsOpen { get; set; }
     [Parameter] public KHostUser? User { get; set; }
-    [Parameter] public bool CloseOnScrimClick { get; set; }
-    [Parameter] public string Class { get; set; } = "";
 
     [Parameter] public EventCallback<KHostUser> OnSave { get; set; }
     [Parameter] public EventCallback OnClose { get; set; }
 
     private EditUserModel _model = new();
     private EditContext _editContext = default!;
-    private bool _prevIsOpen;
     private List<KHostUserGroup> _availableGroups = [];
     private bool _isExistingUser;
     private string _newPassword = "";
@@ -40,33 +37,26 @@ public partial class EditUserDialog
     private sealed record RecentVenue(string Name, DateTime LastSungOn);
     private sealed record RecentSong(string Title, string Artist, DateTime SungOn);
 
-    protected override void OnInitialized()
+    // DialogHost keys every dialog by request id, so a fresh instance is created per open; this
+    // runs exactly once with User already bound.
+    protected override async Task OnInitializedAsync()
     {
+        _model = User is null
+                ? new EditUserModel()
+                : new EditUserModel
+                {
+                    Id = User.Id,
+                    Name = User.Name,
+                    Notes = User.Notes,
+                    SelectedGroupIds = User.Groups.Select(g => g.Id).ToList()
+                };
+
         _editContext = new EditContext(_model);
-    }
+        _newPassword = "";
+        _hasPassword = !string.IsNullOrEmpty(User?.PasswordHash);
 
-    protected override async Task OnParametersSetAsync()
-    {
-        if (IsOpen && !_prevIsOpen)
-        {
-            _model = User is null
-                    ? new EditUserModel()
-                    : new EditUserModel
-                    {
-                        Id = User.Id,
-                        Name = User.Name,
-                        Notes = User.Notes,
-                        SelectedGroupIds = User.Groups.Select(g => g.Id).ToList()
-                    };
-
-            _editContext = new EditContext(_model);
-            _newPassword = "";
-            _hasPassword = !string.IsNullOrEmpty(User?.PasswordHash);
-
-            await LoadGroupsAsync();
-            await LoadStatsAsync();
-        }
-        _prevIsOpen = IsOpen;
+        await LoadGroupsAsync();
+        await LoadStatsAsync();
     }
 
     private const int StatsCount = 5;
@@ -147,13 +137,6 @@ public partial class EditUserDialog
         IsOpen = false;
 
         await OnClose.InvokeAsync();
-    }
-
-    private async Task CancelAsync()
-    {
-        await OnClose.InvokeAsync();
-
-        await CloseAsync();
     }
 
     private async Task SaveAsync()

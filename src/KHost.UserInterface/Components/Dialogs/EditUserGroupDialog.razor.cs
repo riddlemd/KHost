@@ -12,43 +12,36 @@ public partial class EditUserGroupDialog
 
     [Parameter] public bool IsOpen { get; set; }
     [Parameter] public KHostUserGroup? Group { get; set; }
-    [Parameter] public bool CloseOnScrimClick { get; set; }
-    [Parameter] public string Class { get; set; } = "";
 
     [Parameter] public EventCallback<KHostUserGroup> OnSave { get; set; }
     [Parameter] public EventCallback OnClose { get; set; }
 
     private EditUserGroupModel _model = new();
     private EditContext _editContext = default!;
-    private bool _prevIsOpen;
     private ElementReference _permissionsTableElement;
     private Dictionary<string, object?> _permissionsTableAttrs = [];
 
+    // DialogHost keys every dialog by request id, so a fresh instance is created per open; this
+    // runs exactly once with Group already bound.
     protected override void OnInitialized()
     {
+        _model = Group is null
+            ? new EditUserGroupModel()
+            : new EditUserGroupModel
+            {
+                Id = Group.Id,
+                Name = Group.Name,
+                Description = Group.Description,
+                IsAdmin = Group.IsAdmin,
+                ExcludeFromSingerQueue = Group.ExcludeFromSingerQueue,
+                Permissions = [.. Group.Permissions]
+            };
+
         _editContext = new EditContext(_model);
     }
 
     protected override void OnParametersSet()
     {
-        if (IsOpen && !_prevIsOpen)
-        {
-            _model = Group is null
-                ? new EditUserGroupModel()
-                : new EditUserGroupModel
-                {
-                    Id = Group.Id,
-                    Name = Group.Name,
-                    Description = Group.Description,
-                    IsAdmin = Group.IsAdmin,
-                    ExcludeFromSingerQueue = Group.ExcludeFromSingerQueue,
-                    Permissions = [.. Group.Permissions]
-                };
-
-            _editContext = new EditContext(_model);
-        }
-        _prevIsOpen = IsOpen;
-
         _permissionsTableAttrs = _model.IsAdmin
             ? new Dictionary<string, object?> { { "style", "opacity: 0.6;" } }
             : [];
@@ -97,12 +90,6 @@ public partial class EditUserGroupDialog
     {
         IsOpen = false;
         await OnClose.InvokeAsync();
-    }
-
-    private async Task CancelAsync()
-    {
-        await OnClose.InvokeAsync();
-        await CloseAsync();
     }
 
     private async Task SaveAsync()
