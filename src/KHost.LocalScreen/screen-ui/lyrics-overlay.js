@@ -294,9 +294,11 @@ function createLyricsOverlay(canvas, clock) {
         const t = clock();
         if (t === null || t === undefined) return;
 
+        const pages = visiblePages(t);
+
         for (const countIn of lyrics.countIns || []) drawCountIn(countIn, t);
 
-        for (const page of visiblePages(t)) {
+        for (const page of pages) {
             const lines = page.lines || [];
             const boxes = lineBoxes(lines);
             lines.forEach((line, i) => drawLine(page, line, boxes[i], t));

@@ -22,6 +22,8 @@ public class DatabaseInitializerTests
     private readonly IMediaService _mediaService = Substitute.For<IMediaService>();
     private readonly IMediaFileParsingService _mediaFileParsingService = Substitute.For<IMediaFileParsingService>();
     private readonly IOptionsMonitor<ServiceOptions> _optionsMonitor = Substitute.For<IOptionsMonitor<ServiceOptions>>();
+    private readonly IVisualisationPlaylistService _visualisationPlaylistService = Substitute.For<IVisualisationPlaylistService>();
+    private readonly IVisualiserPresetService _visualiserPresetService = Substitute.For<IVisualiserPresetService>();
 
     private DatabaseInitializer CreateSut(
         ServiceOptions options, IDbContextFactory<DefaultContext>? factory = null, ILogger<DatabaseInitializer>? logger = null)
@@ -36,7 +38,9 @@ public class DatabaseInitializerTests
             _passwordHasher,
             _venuesService,
             _mediaService,
-            _mediaFileParsingService);
+            _mediaFileParsingService,
+            _visualisationPlaylistService,
+            _visualiserPresetService);
     }
 
     [Fact]
@@ -122,6 +126,41 @@ public class DatabaseInitializerTests
 
         await _venuesService.Received(1).CreateAsync(Arg.Is<Venue>(v => v.Name == "Main Stage" && v.Enabled));
         await _venuesService.Received(1).SelectVenueAsync(created.Id);
+    }
+
+    [Fact]
+    public async Task EnsureDefaultVisualisationPlaylistAsync_DoesNothing_WhenTheRowIsThere()
+    {
+        _visualisationPlaylistService.ReadWithEntriesAsync(VisualisationPlaylist.DefaultId)
+            .Returns(new VisualisationPlaylist { Id = VisualisationPlaylist.DefaultId, Name = "Default Visualizations" });
+        var sut = CreateSut(new ServiceOptions());
+
+        await sut.EnsureDefaultVisualisationPlaylistAsync();
+
+        await _visualisationPlaylistService.DidNotReceive().CreateAsync(Arg.Any<VisualisationPlaylist>());
+    }
+
+    [Fact]
+    public async Task EnsureDefaultVisualisationPlaylistAsync_RecreatesItFromTheLiveAmbientSet_WhenTheRowIsGone()
+    {
+        _visualisationPlaylistService.ReadWithEntriesAsync(VisualisationPlaylist.DefaultId).Returns((VisualisationPlaylist?)null);
+        _visualiserPresetService.ReadAll().Returns(
+        [
+            new VisualiserPreset { Name = "spectrum-bars", Source = VisualiserPresetSource.BuiltIn },
+            new VisualiserPreset { Name = "ambient-gradient", Source = VisualiserPresetSource.BuiltIn },
+            new VisualiserPreset { Name = "ambient-bokeh", Source = VisualiserPresetSource.BuiltIn },
+            new VisualiserPreset { Name = "Rovastar - Oozing Resistance", Source = VisualiserPresetSource.Bundled },
+        ]);
+        _visualisationPlaylistService.CreateAsync(Arg.Any<VisualisationPlaylist>()).Returns(c => c.Arg<VisualisationPlaylist>());
+        var sut = CreateSut(new ServiceOptions());
+
+        await sut.EnsureDefaultVisualisationPlaylistAsync();
+
+        await _visualisationPlaylistService.Received(1).CreateAsync(
+            Arg.Is<VisualisationPlaylist>(p => p.Id == VisualisationPlaylist.DefaultId && p.Name == "Default Visualizations"));
+        var expected = new[] { "ambient-gradient", "ambient-bokeh" };
+        await _visualisationPlaylistService.Received(1).ReplaceEntriesAsync(VisualisationPlaylist.DefaultId,
+            Arg.Is<IReadOnlyList<VisualisationEntry>>(entries => entries.Select(e => e.PresetName).SequenceEqual(expected)));
     }
 
     [Fact]

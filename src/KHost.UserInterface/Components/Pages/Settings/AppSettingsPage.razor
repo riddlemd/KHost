@@ -169,9 +169,6 @@
                 <SettingRow Label="@($"Media directory (blank = {_defaultMediaDirectory})")" Applies="applies to plugin downloads immediately">
                     <InputText class="kh-form-control kh-app-settings__path" @bind-Value="_model.MediaDirectory" placeholder="@_defaultMediaDirectory" />
                 </SettingRow>
-                <SettingRow Label="Song backgrounds folder" Applies="added to the backgrounds shipped with KHost; a venue picks which it wants">
-                    <InputText class="kh-form-control kh-app-settings__path" @bind-Value="_model.SongBackgroundFolder" placeholder="none" />
-                </SettingRow>
 
                 <div class="kh-app-settings__actions">
                     <button class="kh-button kh-button--primary" @onclick="SaveAsync" disabled="@_saving">

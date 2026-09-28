@@ -40,7 +40,6 @@ internal sealed class AppSettingsService : IAppSettingsService
         LaunchScreenOnStartup = _configuration.GetValue<bool?>("LocalScreen:LaunchOnStartup") ?? false,
         FFmpegPath = Blank(_configuration[FFmpegService.ConfigurationKey]),
         MediaDirectory = NormalizeMediaDirectory(_configuration["Plugins:MediaDirectory"]),
-        SongBackgroundFolder = Blank(_configuration["Backgrounds:Folder"]),
         StopFadeSeconds = (_configuration.GetValue<TimeSpan?>("Playback:StopFadeDuration") ?? TimeSpan.FromSeconds(5)).TotalSeconds,
         SegmentSeconds = _configuration.GetValue<int?>("MediaStream:SegmentSeconds") ?? 2,
         GraphicsScaleHeight = GraphicsScaling.SnapToOffered(
@@ -152,15 +151,8 @@ internal sealed class AppSettingsService : IAppSettingsService
             ["LaunchOnStartup"] = settings.LaunchScreenOnStartup,
         };
 
-        // Written even when blank, like the backgrounds folder: clearing it must reach the overlay.
+        // Written even when blank: clearing it must reach the overlay.
         overlay[FFmpegService.ConfigurationKey] = Blank(settings.FFmpegPath);
-
-        // Written even when blank, so clearing the folder reaches the overlay rather than leaving
-        // the last one standing.
-        overlay["Backgrounds"] = new Dictionary<string, object?>
-        {
-            ["Folder"] = Blank(settings.SongBackgroundFolder),
-        };
 
         var mediaDirectory = NormalizeMediaDirectory(settings.MediaDirectory);
         if (mediaDirectory is not null)

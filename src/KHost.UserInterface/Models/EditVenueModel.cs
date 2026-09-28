@@ -101,11 +101,8 @@ public class EditVenueModel
     /// <summary>The plugin whose code this venue shows, or null for none. Null is the default.</summary>
     public string? QrCodeSource { get; set; }
 
-    /// <summary>Backgrounds a song may be given, by file name. Empty is the black background.
-    /// </summary>
-    /// <remarks>Its own list rather than the venue's, so closing the dialog without saving leaves
-    /// the venue's choices alone.</remarks>
-    public List<string> SongBackgrounds { get; set; } = [];
+    /// <summary>The visualisation playlist under a song's words; null leaves black.</summary>
+    public Guid? VisualisationPlaylistId { get; set; }
 
     /// <summary>Null takes the image's own answer, which is what a venue that never asks gets.</summary>
     public ImageScaling? BrandingImageScaling { get; set; }
@@ -134,7 +131,11 @@ public class EditVenueModel
     public static EditVenueModel From(Venue? venue, string? activeBreakMusicProviderSource)
     {
         if (venue is null)
-            return new EditVenueModel { BreakMusicProvider = activeBreakMusicProviderSource };
+            return new EditVenueModel
+            {
+                BreakMusicProvider = activeBreakMusicProviderSource,
+                VisualisationPlaylistId = VisualisationPlaylist.DefaultId,
+            };
 
         var settings = venue.Settings;
 
@@ -146,7 +147,7 @@ public class EditVenueModel
             Enabled = venue.Enabled,
             DefaultVolume = settings.DefaultVolume,
             ShowEstimatedWaitTime = settings.ShowEstimatedWaitTime,
-            SongBackgrounds = [.. settings.SongBackgrounds ?? []],
+            VisualisationPlaylistId = settings.VisualisationPlaylistId,
             TippingEnabled = settings.TippingEnabled,
             WarnOnDuplicateSong = settings.WarnOnDuplicateSong,
             // Venues saved before this setting existed read back 0, which is not an option.
@@ -219,7 +220,7 @@ public class EditVenueModel
         venue.Enabled = Enabled;
         venue.Settings.DefaultVolume = DefaultVolume;
         venue.Settings.ShowEstimatedWaitTime = ShowEstimatedWaitTime;
-        venue.Settings.SongBackgrounds = [.. SongBackgrounds];
+        venue.Settings.VisualisationPlaylistId = VisualisationPlaylistId;
         venue.Settings.TippingEnabled = TippingEnabled;
         venue.Settings.WarnOnDuplicateSong = WarnOnDuplicateSong;
         venue.Settings.DuplicateSongWindowHours = DuplicateSongWindowHours;
