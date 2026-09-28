@@ -4,6 +4,9 @@ using KHost.Abstractions.Services;
 using KHost.Domain.Services;
 using KHost.Domain.Services.Displays.LocalScreen;
 using KHost.Domain.Services.Messaging;
+using KHost.Domain.Services.Visualisations;
+using KHost.Abstractions.Repositories;
+using Microsoft.Extensions.Options;
 using KHost.IPC.SignalR.Contracts;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -12,12 +15,28 @@ using NSubstitute;
 namespace KHost.UnitTests.Domain.Services.Displays.LocalScreen;
 
 /// <summary>The visualiser stands in for black and nothing else: a performance with timed words and
-/// no picture of its own, at a venue that asked for one.</summary>
+/// no picture of its own, at a venue whose visualisation playlist has something in it.</summary>
 public class LocalScreenVisualiserTests
 {
+    private static readonly Guid PlaylistId = Guid.NewGuid();
+
     private readonly IScreenServer _screenServer = Substitute.For<IScreenServer>();
     private readonly MessageBroker _broker = new(NullLogger<MessageBroker>.Instance);
-    private readonly Venue.VenueSettings _settings = new() { SongVisualiserEnabled = true };
+    private readonly Venue.VenueSettings _settings = new() { VisualisationPlaylistId = PlaylistId };
+    private readonly IVisualisationPlaylistRepository _playlists = Substitute.For<IVisualisationPlaylistRepository>();
+    private readonly IVisualiserPresetService _presets = Substitute.For<IVisualiserPresetService>();
+    private readonly IOptionsMonitor<HlsMediaStreamService.ServiceOptions> _streamOptions = Substitute.For<IOptionsMonitor<HlsMediaStreamService.ServiceOptions>>();
+    private readonly SequenceRandom _random = new();
+    private VisualisationPlaylist _playlist = new()
+    {
+        Id = PlaylistId,
+        Name = "Night",
+        Entries =
+        [
+            new() { PresetName = "Rovastar - Oozing Resistance", Brightness = 80, Saturation = 150, Sensitivity = 200, DarkenBehindWords = true },
+            new() { PresetName = "_Mig_049", DarkenBehindWords = false },
+        ],
+    };
     private readonly IVenuesService _venues = Substitute.For<IVenuesService>();
     private readonly IPlaybackService _playback = Substitute.For<IPlaybackService>();
     private readonly ITimedLyricsService _timedLyrics = Substitute.For<ITimedLyricsService>();
@@ -25,7 +44,6 @@ public class LocalScreenVisualiserTests
     private readonly ISongLevelsService _levels = Substitute.For<ISongLevelsService>();
     private readonly IStemStreamService _stems = Substitute.For<IStemStreamService>();
     private int _reads;
-    private int _picks;
 
     private static readonly DisplayLoad Stems = new() { Stems = [new(0, AudioTrackRole.Music, "http://host/m.ogg", 100)] };
     private static readonly DisplayLoad Stream = new() { StreamUrl = "http://host/s.m3u8" };
@@ -37,6 +55,10 @@ public class LocalScreenVisualiserTests
         _levels.Begin(Arg.Any<IReadOnlyList<SongLevelsInput>>()).Returns(_ => $"http://host/media/levels/{++_reads}");
         _stems.ResolveStemInput(Arg.Any<string>()).Returns(call => "/disk/" + call.Arg<string>()[(call.Arg<string>().LastIndexOf('/') + 1)..]);
         _stems.StemsMixedInto(Arg.Any<string>()).Returns((IReadOnlyList<StemSource>?)null);
+        _playlists.ReadWithEntriesAsync(PlaylistId).Returns(_ => _playlist);
+        _playlists.ReadAsync(PlaylistId).Returns(_ => _playlist);
+        _presets.ReadAll().Returns([]);
+        _streamOptions.CurrentValue.Returns(new HlsMediaStreamService.ServiceOptions { BaseAddress = "http://host:5251/" });
     }
 
     private LocalScreenDisplayProvider Provider(bool withProbe = true)
@@ -45,14 +67,17 @@ public class LocalScreenVisualiserTests
             .AddSingleton(_playback)
             .AddSingleton(_timedLyrics)
             .AddSingleton(_levels)
-            .AddSingleton(_stems);
+            .AddSingleton(_stems)
+            .AddSingleton<IVisualisationPlaylistService>(new VisualisationPlaylistService(
+                NullLogger<VisualisationPlaylistService>.Instance, _playlists, _broker, _random))
+            .AddSingleton(_presets)
+            .AddSingleton(_streamOptions);
 
         if (withProbe) services.AddSingleton(_probe);
 
         return new LocalScreenDisplayProvider(
             NullLogger<LocalScreenDisplayProvider>.Instance, _screenServer, [], _broker, _venues,
-            services: services.BuildServiceProvider(), redrawSettle: TimeSpan.Zero,
-            pickPreset: () => 40 + _picks++);
+            services: services.BuildServiceProvider(), redrawSettle: TimeSpan.Zero);
     }
 
     private PlaybackProgram.Playing Playing(string path, bool words = true, bool pages = true, bool performance = true)
@@ -80,7 +105,7 @@ public class LocalScreenVisualiserTests
     private SetVisualiserCommand Last() => Sent().Last();
 
     [Fact]
-    public async Task LoadAsync_StemsWithTimedWords_TurnsItOnWithThePickedPreset()
+    public async Task LoadAsync_StemsWithTimedWords_TurnsItOnWithThePlaylistsFirstEntry()
     {
         Playing("/songs/africa.song");
         using var provider = Provider();
@@ -88,13 +113,81 @@ public class LocalScreenVisualiserTests
         await provider.LoadAsync(Stems);
 
         Assert.True(Last().Enabled);
-        Assert.Equal(40, Last().Preset);
+        Assert.Equal("Rovastar - Oozing Resistance", Last().PresetName);
+        Assert.Null(Last().PresetUrl);
+    }
+
+    /// <summary>Everything the entry says about how it is drawn reaches the screen.</summary>
+    [Fact]
+    public async Task LoadAsync_SendsTheEntrysSettings()
+    {
+        Playing("/songs/africa.song");
+        using var provider = Provider();
+
+        await provider.LoadAsync(Stems);
+
+        Assert.Equal((80, 150, 200, true), (Last().Brightness, Last().Saturation, Last().Sensitivity, Last().DarkenLyricBands));
     }
 
     [Fact]
-    public async Task LoadAsync_TheVenueHasItOff_LeavesBlack()
+    public async Task LoadAsync_TheVenueHasNoPlaylist_LeavesBlack()
     {
-        _settings.SongVisualiserEnabled = false;
+        _settings.VisualisationPlaylistId = null;
+        Playing("/songs/africa.song");
+        using var provider = Provider();
+
+        await provider.LoadAsync(Stems);
+
+        Assert.False(Last().Enabled);
+    }
+
+    [Fact]
+    public async Task LoadAsync_AnEmptyPlaylist_LeavesBlack()
+    {
+        _playlist = new VisualisationPlaylist { Id = PlaylistId, Name = "Empty" };
+        Playing("/songs/africa.song");
+        using var provider = Provider();
+
+        await provider.LoadAsync(Stems);
+
+        Assert.False(Last().Enabled);
+    }
+
+    /// <summary>A playlist deleted after a venue picked it leaves the id behind.</summary>
+    [Fact]
+    public async Task LoadAsync_APlaylistThatIsGone_LeavesBlack()
+    {
+        _settings.VisualisationPlaylistId = Guid.NewGuid();
+        Playing("/songs/africa.song");
+        using var provider = Provider();
+
+        await provider.LoadAsync(Stems);
+
+        Assert.False(Last().Enabled);
+    }
+
+    [Fact]
+    public async Task LoadAsync_AnImportedPreset_SendsWhereToFetchIt()
+    {
+        var written = new DateTime(2026, 9, 28, 12, 0, 0, DateTimeKind.Utc);
+        _playlist.Entries[0].PresetSource = VisualiserPresetSource.Imported;
+        _playlist.Entries[0].PresetName = "My Swirl";
+        _presets.ReadAll().Returns([new VisualiserPreset { Name = "My Swirl", Source = VisualiserPresetSource.Imported, ImportedUtc = written }]);
+        Playing("/songs/africa.song");
+        using var provider = Provider();
+
+        await provider.LoadAsync(Stems);
+
+        Assert.True(Last().Enabled);
+        Assert.Null(Last().PresetName);
+        Assert.Equal($"http://host:5251/media/visualiser-presets/My%20Swirl?v={written.Ticks}", Last().PresetUrl);
+    }
+
+    [Fact]
+    public async Task LoadAsync_AnImportedPresetSinceDeleted_LeavesBlack()
+    {
+        _playlist.Entries[0].PresetSource = VisualiserPresetSource.Imported;
+        _playlist.Entries[0].PresetName = "Gone";
         Playing("/songs/africa.song");
         using var provider = Provider();
 
@@ -214,44 +307,133 @@ public class LocalScreenVisualiserTests
 
     /// <summary>A rebuild at a new key reloads the same program; the picture must not jump.</summary>
     [Fact]
-    public async Task LoadAsync_TheSameProgramAgain_KeepsThePresetAndProbesOnce()
+    public async Task LoadAsync_TheSameProgramAgain_KeepsTheEntryAndProbesOnce()
     {
+        _probe.HasMovingPictureAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(false);
         Playing("/songs/africa.mp4");
         using var provider = Provider();
 
         await provider.LoadAsync(Stream);
         await provider.LoadAsync(Stream);
 
-        Assert.Equal([40, 40], Sent().Select(c => c.Preset));
-        Assert.Equal(1, _picks);
+        Assert.Equal(["Rovastar - Oozing Resistance", "Rovastar - Oozing Resistance"], Sent().Select(c => c.PresetName));
         await _probe.Received(1).HasMovingPictureAsync("/songs/africa.mp4", Arg.Any<CancellationToken>());
     }
 
+    /// <summary>In order, one entry per song, wrapping at the end.</summary>
     [Fact]
-    public async Task LoadAsync_TheNextSong_PicksAgain()
+    public async Task LoadAsync_EachNextSong_TakesTheNextEntryInOrder()
     {
-        Playing("/songs/africa.song");
         using var provider = Provider();
+
+        foreach (var song in new[] { "africa", "rosanna", "hold-the-line" })
+        {
+            Playing($"/songs/{song}.song");
+            await provider.LoadAsync(Stems);
+        }
+
+        Assert.Equal(["Rovastar - Oozing Resistance", "_Mig_049", "Rovastar - Oozing Resistance"], Sent().Select(c => c.PresetName));
+    }
+
+    /// <summary>A song that shows its own picture does not use up a turn.</summary>
+    [Fact]
+    public async Task LoadAsync_ASongWithItsOwnPicture_DoesNotAdvanceTheTurn()
+    {
+        using var provider = Provider();
+        Playing("/songs/africa.song");
         await provider.LoadAsync(Stems);
+
+        Playing("/songs/video.mp4");
+        _probe.HasMovingPictureAsync("/songs/video.mp4", Arg.Any<CancellationToken>()).Returns(true);
+        await provider.LoadAsync(Stream);
 
         Playing("/songs/rosanna.song");
         await provider.LoadAsync(Stems);
 
-        Assert.Equal([40, 41], Sent().Select(c => c.Preset));
+        Assert.Equal(["Rovastar - Oozing Resistance", null, "_Mig_049"], Sent().Select(c => c.PresetName));
+    }
+
+    [Fact]
+    public async Task LoadAsync_AShuffledPlaylist_NeverRepeatsTheEntryJustShown()
+    {
+        _playlist.Shuffle = true;
+        _playlist.Entries.Add(new VisualisationEntry { PresetName = "Aderrasi - Potion of Spirits" });
+
+        // Each draw asks for the lowest choice: the first song gets entry 0, and every later one,
+        // with the last pick taken out, the lowest of what is left.
+        _random.Values.Enqueue(0);
+        _random.Values.Enqueue(0);
+        _random.Values.Enqueue(0);
+        using var provider = Provider();
+
+        foreach (var song in new[] { "africa", "rosanna", "hold-the-line" })
+        {
+            Playing($"/songs/{song}.song");
+            await provider.LoadAsync(Stems);
+        }
+
+        Assert.Equal(["Rovastar - Oozing Resistance", "_Mig_049", "Rovastar - Oozing Resistance"], Sent().Select(c => c.PresetName));
     }
 
     [Fact]
     public async Task SelectedVenueChanged_MidSong_TurnsItOnWithoutAReload()
     {
-        _settings.SongVisualiserEnabled = false;
+        _settings.VisualisationPlaylistId = null;
         Playing("/songs/africa.song");
         using var provider = Provider();
         await provider.LoadAsync(Stems);
 
-        _settings.SongVisualiserEnabled = true;
+        _settings.VisualisationPlaylistId = PlaylistId;
         _broker.Announce(new SelectedVenueChanged());
 
         Assert.True(await WaitUntilAsync(() => Sent().Any(c => c.Enabled)));
+    }
+
+    /// <summary>A setting moved on the Visualisations page reaches the song on screen.</summary>
+    [Fact]
+    public async Task VisualisationPlaylistsChanged_MidSong_SendsTheEntrysNewSettings()
+    {
+        Playing("/songs/africa.song");
+        using var provider = Provider();
+        await provider.LoadAsync(Stems);
+
+        _playlist.Entries[0].Brightness = 120;
+        _broker.Announce(new VisualisationPlaylistsChanged());
+
+        Assert.True(await WaitUntilAsync(() => Sent().Count == 2 && Last().Brightness == 120));
+        Assert.Equal("Rovastar - Oozing Resistance", Last().PresetName);
+    }
+
+    /// <summary>An edit re-reads this song's own entry, not the playlist's first, and does not
+    /// advance the rotation.</summary>
+    [Fact]
+    public async Task VisualisationPlaylistsChanged_OnTheSecondSong_KeepsThatSongsEntry()
+    {
+        using var provider = Provider();
+        Playing("/songs/africa.song");
+        await provider.LoadAsync(Stems);
+        Playing("/songs/rosanna.song");
+        await provider.LoadAsync(Stems);
+
+        _playlist.Entries[1].Saturation = 30;
+        _broker.Announce(new VisualisationPlaylistsChanged());
+
+        Assert.True(await WaitUntilAsync(() => Sent().Count == 3));
+        Assert.Equal(("_Mig_049", 30), (Last().PresetName, Last().Saturation));
+    }
+
+    /// <summary>The entry on screen was removed: the song moves on to the playlist's next.</summary>
+    [Fact]
+    public async Task VisualisationPlaylistsChanged_TheEntryOnScreenRemoved_PicksAnother()
+    {
+        Playing("/songs/africa.song");
+        using var provider = Provider();
+        await provider.LoadAsync(Stems);
+
+        _playlist = new VisualisationPlaylist { Id = PlaylistId, Name = "Night", Entries = [_playlist.Entries[1]] };
+        _broker.Announce(new VisualisationPlaylistsChanged());
+
+        Assert.True(await WaitUntilAsync(() => Sent().Count == 2 && Last().PresetName == "_Mig_049"));
     }
 
     /// <summary>A venue edit before this song has loaded must not decide it on the last song's load.</summary>
@@ -311,11 +493,11 @@ public class LocalScreenVisualiserTests
 
     // --- the dark band behind the words ---
 
-    /// <summary>The screen can draw it, but nothing supplies it yet: a visualisation's own settings
-    /// will, per song.</summary>
+    /// <summary>The entry's own switch, per song.</summary>
     [Fact]
-    public async Task LoadAsync_TheVisualiserOn_SendsTheWordsBandOff()
+    public async Task LoadAsync_AnEntryWithTheBandsOff_SendsThemOff()
     {
+        _playlist.Entries[0].DarkenBehindWords = false;
         Playing("/songs/africa.song");
         using var provider = Provider();
 
@@ -343,7 +525,7 @@ public class LocalScreenVisualiserTests
     [Fact]
     public async Task LoadAsync_TheVenueHasItOff_ReadsNoLevels()
     {
-        _settings.SongVisualiserEnabled = false;
+        _settings.VisualisationPlaylistId = null;
         Playing("/songs/africa.song");
         using var provider = Provider();
 
@@ -439,6 +621,14 @@ public class LocalScreenVisualiserTests
         _broker.Announce(new PlaybackChanged());
 
         Assert.True(await WaitUntilAsync(() => _levels.ReceivedCalls().Any(call => call.GetMethodInfo().Name == nameof(ISongLevelsService.Clear))));
+    }
+
+    /// <summary>Hands out queued values, so a shuffle's picks are known in advance.</summary>
+    private sealed class SequenceRandom : Random
+    {
+        public Queue<int> Values { get; } = new();
+
+        public override int Next(int maxValue) => Values.Count > 0 ? Math.Min(Values.Dequeue(), maxValue - 1) : 0;
     }
 
     private static async Task<bool> WaitUntilAsync(Func<bool> condition)

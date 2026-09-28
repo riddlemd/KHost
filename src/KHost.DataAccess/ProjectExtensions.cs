@@ -24,6 +24,7 @@ namespace KHost.DataAccess
 
             serviceCollection.AddSingleton<IMediaRepository, MediaRepository>();
             serviceCollection.AddSingleton<IMediaPoolRepository, MediaPoolRepository>();
+            serviceCollection.AddSingleton<IVisualisationPlaylistRepository, VisualisationPlaylistRepository>();
             serviceCollection.AddSingleton<IUsersRepository, UsersRepository>();
             serviceCollection.AddSingleton<IUserGroupsRepository, UserGroupsRepository>();
             serviceCollection.AddSingleton<IVenuesRepository, VenuesRepository>();

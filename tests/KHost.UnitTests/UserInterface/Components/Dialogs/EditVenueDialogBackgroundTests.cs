@@ -9,14 +9,17 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace KHost.UnitTests.UserInterface.Components.Dialogs;
 
-/// <summary>What goes behind a song's words: the visualiser, or black. There is no picker of
-/// background clips any more.</summary>
+/// <summary>What goes behind a song's words: a visualisation playlist, or black. There is no picker
+/// of background clips any more.</summary>
 public class EditVenueDialogBackgroundTests : BunitContext
 {
     private readonly IBreakMusicService _breakMusic = Substitute.For<IBreakMusicService>();
     private readonly IMediaPoolService _mediaPools = Substitute.For<IMediaPoolService>();
     private readonly IMediaService _media = Substitute.For<IMediaService>();
+    private readonly IVisualisationPlaylistService _visualisations = Substitute.For<IVisualisationPlaylistService>();
     private readonly MessageBroker _broker = new(NullLogger<MessageBroker>.Instance);
+    private readonly VisualisationPlaylist _night = new() { Name = "Night" };
+    private readonly VisualisationPlaylist _party = new() { Name = "Party" };
 
     public EditVenueDialogBackgroundTests()
     {
@@ -30,6 +33,9 @@ public class EditVenueDialogBackgroundTests : BunitContext
         Services.AddSingleton(_mediaPools);
         Services.AddSingleton(_media);
         Services.AddSingleton<IMessageBroker>(_broker);
+
+        _visualisations.ReadAllWithEntriesAsync().Returns(new List<VisualisationPlaylist> { _night, _party });
+        Services.AddSingleton(_visualisations);
 
         var plugins = Substitute.For<IPluginRegistry>();
         plugins.Plugins.Returns([]);
@@ -62,7 +68,7 @@ public class EditVenueDialogBackgroundTests : BunitContext
         Assert.Empty(cut.FindAll("[id^='venue-background-']"));
         Assert.DoesNotContain("plain black", cut.Markup);
         Assert.DoesNotContain("background-still", cut.Markup);
-        Assert.NotNull(cut.Find("#venue-song-visualiser"));
+        Assert.NotNull(VisualisationPicker(cut));
     }
 
     /// <summary>Nothing edits them now, so whatever a venue stored is saved back untouched.</summary>
@@ -80,34 +86,42 @@ public class EditVenueDialogBackgroundTests : BunitContext
     }
 
     [Fact]
-    public void TheVisualiser_IsOffForAVenueThatWasNeverAsked()
-        => Assert.False(Render(new Venue.VenueSettings()).Find("#venue-song-visualiser").HasAttribute("checked"));
+    public void ThePlaylist_IsNoneForAVenueThatWasNeverAsked()
+        => Assert.Equal("", VisualisationPicker(Render(new Venue.VenueSettings())).GetAttribute("value"));
 
     [Fact]
-    public void TickingTheVisualiser_ReachesTheVenueThatIsSaved()
+    public void ThePlaylist_ShowsTheOneTheVenuePicked()
+        => Assert.Equal("Party", VisualisationPicker(Render(new Venue.VenueSettings { VisualisationPlaylistId = _party.Id })).GetAttribute("value"));
+
+    [Fact]
+    public void PickingAPlaylist_ReachesTheVenueThatIsSaved()
     {
         Venue? saved = null;
         var cut = Render(new Venue.VenueSettings(), venue => saved = venue);
 
-        cut.Find("#venue-song-visualiser").Change(true);
+        VisualisationPicker(cut).Focus();
+        cut.FindAll(".kh-combobox__option").Single(option => option.TextContent == "Night").Click();
         cut.Find("form").Submit();
 
-        Assert.True(saved!.Settings.SongVisualiserEnabled);
+        Assert.Equal(_night.Id, saved!.Settings.VisualisationPlaylistId);
     }
 
     [Fact]
-    public void UntickingTheVisualiser_ReachesTheVenueThatIsSaved()
+    public void ClearingThePlaylist_ReachesTheVenueThatIsSaved()
     {
         Venue? saved = null;
-        var cut = Render(new Venue.VenueSettings { SongVisualiserEnabled = true }, venue => saved = venue);
+        var cut = Render(new Venue.VenueSettings { VisualisationPlaylistId = _night.Id }, venue => saved = venue);
 
-        Assert.True(cut.Find("#venue-song-visualiser").HasAttribute("checked"));
-
-        cut.Find("#venue-song-visualiser").Change(false);
+        VisualisationPicker(cut).Input("");
         cut.Find("form").Submit();
 
-        Assert.False(saved!.Settings.SongVisualiserEnabled);
+        Assert.Null(saved!.Settings.VisualisationPlaylistId);
     }
+
+    private static AngleSharp.Dom.IElement VisualisationPicker(IRenderedComponent<EditVenueDialog> cut)
+        => cut.FindAll(".kh-venue-settings__section")
+            .Single(section => section.TextContent.Contains("Visualisation playlist"))
+            .QuerySelector(".kh-combobox__input")!;
 
     private IRenderedComponent<EditVenueDialog> Render(
         Venue.VenueSettings settings, Action<Venue>? onSave = null)

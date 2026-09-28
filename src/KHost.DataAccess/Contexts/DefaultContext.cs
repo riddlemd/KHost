@@ -18,6 +18,8 @@ internal class DefaultContext : DbContext
     public DbSet<KHostUserForeignKey> UserForeignKeys { get; set; }
     public DbSet<MediaPool> MediaPools { get; set; }
     public DbSet<MediaPoolEntry> MediaPoolEntries { get; set; }
+    public DbSet<VisualisationPlaylist> VisualisationPlaylists { get; set; }
+    public DbSet<VisualisationEntry> VisualisationEntries { get; set; }
 
     public DefaultContext(DbContextOptions<DefaultContext> options) : base(options)
     {
@@ -136,6 +138,33 @@ internal class DefaultContext : DbContext
                 .WithMany()
                 .HasForeignKey(e => e.MediaId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<VisualisationPlaylist>(entity =>
+        {
+            entity.Property(e => e.Name)
+                .IsRequired()
+                .HasMaxLength(255);
+
+            entity.Property(e => e.NameFolded)
+                .IsRequired()
+                .HasMaxLength(255);
+
+            entity.HasMany(e => e.Entries)
+                .WithOne()
+                .HasForeignKey(e => e.VisualisationPlaylistId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<VisualisationEntry>(entity =>
+        {
+            // No foreign key to a preset: an imported one is a file, and deleting it leaves the
+            // entry naming nothing, which draws black rather than vanishing from the host's list.
+            entity.Property(e => e.PresetName)
+                .IsRequired()
+                .HasMaxLength(255);
+
+            entity.HasIndex(e => e.VisualisationPlaylistId);
         });
 
         modelBuilder.Entity<Venue>(entity =>

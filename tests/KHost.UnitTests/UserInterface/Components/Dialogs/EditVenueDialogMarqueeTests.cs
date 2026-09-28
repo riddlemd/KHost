@@ -41,6 +41,11 @@ public class EditVenueDialogMarqueeTests : BunitContext
 
         Services.AddSingleton(_breakMusic);
         Services.AddSingleton(_mediaPools);
+
+        // The dialog reads the visualisation playlists as it opens; none is all these need.
+        var visualisations = Substitute.For<IVisualisationPlaylistService>();
+        visualisations.ReadAllWithEntriesAsync().Returns(new List<VisualisationPlaylist>());
+        Services.AddSingleton(visualisations);
         Services.AddSingleton(_media);
         Services.AddSingleton<IMessageBroker>(_broker);
 

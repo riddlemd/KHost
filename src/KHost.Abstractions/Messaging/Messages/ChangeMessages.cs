@@ -30,6 +30,12 @@ public sealed record MediaImportChanged;
 /// <summary>A media pool (break music or ads) or its entries changed.</summary>
 public sealed record MediaPoolsChanged;
 
+/// <summary>A visualisation playlist or its entries changed.</summary>
+public sealed record VisualisationPlaylistsChanged;
+
+/// <summary>A visualiser preset was imported, replaced or deleted.</summary>
+public sealed record VisualiserPresetsChanged;
+
 /// <summary>Some venue was added, edited or removed; the list moved.</summary>
 public sealed record VenuesChanged;
 

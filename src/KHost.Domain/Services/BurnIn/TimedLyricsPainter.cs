@@ -36,6 +36,13 @@ public sealed class TimedLyricsPainter
     /// arrival, not after it.</remarks>
     internal const double HandoverSeconds = 0.5;
 
+    /// <summary>How far a line's band reaches past its box on every side, and how round its corners
+    /// are, as a fraction of the line's height. The screen's overlay uses the same figure.</summary>
+    internal const float BandPad = 0.25f;
+
+    /// <summary>How dark a line's band is, out of 255. The screen's overlay uses the same figure.</summary>
+    internal const byte BandAlpha = 140;
+
     // Where a line with no position of its own goes, in the timing's units: the screen's defaults.
     private const double DefaultLineX = 40, DefaultLineY = 40, DefaultLineWidth = 520, DefaultLineHeight = 48;
 
@@ -47,8 +54,8 @@ public sealed class TimedLyricsPainter
 
     /// <param name="width">Frame width in pixels.</param>
     /// <param name="height">Frame height in pixels.</param>
-    /// <param name="scrim">Whether to darken the band the words sit in, for words laid over a
-    /// picture that was not made with them in mind.</param>
+    /// <param name="scrim">Whether to darken a band behind each line of words, for words laid over
+    /// a picture that was not made with them in mind.</param>
     public TimedLyricsPainter(TimedLyrics lyrics, int width, int height, bool scrim = false)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(width);
@@ -157,7 +164,7 @@ public sealed class TimedLyricsPainter
     private void PaintFrame(Worker worker, SKCanvas canvas, double t)
     {
         canvas.Clear(SKColors.Transparent);
-        if (_scrim) PaintScrim(canvas, Width, Height);
+        if (_scrim) PaintBands(canvas, t);
 
         for (var i = 0; i < _lyrics.CountIns.Count; i++) PaintCountIn(worker, canvas, i, t);
 
@@ -171,21 +178,44 @@ public sealed class TimedLyricsPainter
         }
     }
 
-    /// <summary>Darkens the band the words sit in, so whatever picture is under them stays readable.
-    /// </summary>
-    /// <remarks>Measured over a loop whose bright areas drift through the lower third: the worst pixel
-    /// behind the words ran to 139 of 235 without it and 88 with it, while the band's average moved
-    /// only 23 to 19, so the picture above the words is left alone.</remarks>
-    internal static void PaintScrim(SKCanvas canvas, int width, int height)
+    /// <summary>A dark band behind each line on screen at <paramref name="t"/>, so the words read
+    /// over whatever picture is under them, wherever on the page they sit.</summary>
+    /// <remarks>One path filled once: where two lines' bands meet is no darker than either. A line
+    /// with no words gets none. The screen's overlay lays the same bands.</remarks>
+    private void PaintBands(SKCanvas canvas, double t)
     {
-        var top = height * 0.55f;
-        using var shader = SKShader.CreateLinearGradient(
-            new SKPoint(0, top), new SKPoint(0, height),
-            [new SKColor(0, 0, 0, 0), new SKColor(0, 0, 0, 140), new SKColor(0, 0, 0, 204)],
-            [0f, 0.51f, 1f],
-            SKShaderTileMode.Clamp);
-        using var paint = new SKPaint { Shader = shader };
-        canvas.DrawRect(new SKRect(0, top, width, height), paint);
+        using var path = new SKPath { FillType = SKPathFillType.Winding };
+
+        for (var i = 0; i < _lyrics.Pages.Count; i++)
+        {
+            var page = _lyrics.Pages[i];
+            if (t < page.ShowFromSeconds || t > page.ShowUntilSeconds) continue;
+
+            for (var l = 0; l < page.Lines.Count; l++)
+            {
+                if (!page.Lines[l].Syllables.Any(syllable => !string.IsNullOrWhiteSpace(syllable.Text))) continue;
+
+                using var band = LyricBand(_lineBoxes[i][l], _scale, _offsetX, _offsetY);
+                path.AddRoundRect(band);
+            }
+        }
+
+        if (path.IsEmpty) return;
+
+        using var paint = new SKPaint { Color = new SKColor(0, 0, 0, BandAlpha), IsAntialias = true };
+        canvas.DrawPath(path, paint);
+    }
+
+    /// <summary>The band behind one line, in frame pixels: its box grown by <see cref="BandPad"/> of
+    /// its height on every side, the corners rounded by the same.</summary>
+    internal static SKRoundRect LyricBand(LyricBox box, float scale, float offsetX, float offsetY)
+    {
+        var h = (float)box.Height * scale;
+        var pad = h * BandPad;
+        var x = offsetX + (float)box.X * scale;
+        var y = offsetY + (float)box.Y * scale;
+
+        return new SKRoundRect(new SKRect(x - pad, y - pad, x + (float)box.Width * scale + pad, y + h + pad), pad);
     }
 
     /// <summary>The bar across a gap: eased in and out over one step, filled and counted down over

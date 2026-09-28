@@ -464,6 +464,69 @@ namespace KHost.DataAccess.Migrations
                     b.ToTable("Venues");
                 });
 
+            modelBuilder.Entity("KHost.Abstractions.Models.VisualisationEntry", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Brightness")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("DarkenBehindWords")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Position")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("PresetName")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("PresetSource")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Saturation")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Sensitivity")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<Guid>("VisualisationPlaylistId")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("VisualisationPlaylistId");
+
+                    b.ToTable("VisualisationEntries");
+                });
+
+            modelBuilder.Entity("KHost.Abstractions.Models.VisualisationPlaylist", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("NameFolded")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("Shuffle")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("VisualisationPlaylists");
+                });
+
             modelBuilder.Entity("KHost.DataAccess.Models.UserGroupMembership", b =>
                 {
                     b.Property<Guid>("GroupId")
@@ -548,6 +611,12 @@ namespace KHost.DataAccess.Migrations
 
                             b1.Property<string>("MarqueeBackgroundColor");
 
+                            b1.Property<int?>("MarqueeBackgroundOpacity");
+
+                            b1.Property<string>("MarqueeDividerColor");
+
+                            b1.Property<int>("MarqueeDividerShape");
+
                             b1.Property<bool>("MarqueeEnabled");
 
                             b1.Property<string>("MarqueeEntryFormat");
@@ -562,7 +631,11 @@ namespace KHost.DataAccess.Migrations
 
                             b1.Property<int>("MarqueeScrollSpeed");
 
+                            b1.Property<string>("MarqueeSingerColor");
+
                             b1.Property<int>("MarqueeSingerCount");
+
+                            b1.Property<string>("MarqueeSongColor");
 
                             b1.Property<string>("MarqueeTextColor");
 
@@ -590,6 +663,8 @@ namespace KHost.DataAccess.Migrations
                                 .IsRequired();
 
                             b1.Property<bool>("TippingEnabled");
+
+                            b1.Property<Guid?>("VisualisationPlaylistId");
 
                             b1.Property<bool>("WarnOnDuplicateSong");
 
@@ -642,6 +717,15 @@ namespace KHost.DataAccess.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("KHost.Abstractions.Models.VisualisationEntry", b =>
+                {
+                    b.HasOne("KHost.Abstractions.Models.VisualisationPlaylist", null)
+                        .WithMany("Entries")
+                        .HasForeignKey("VisualisationPlaylistId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("KHost.DataAccess.Models.UserGroupMembership", b =>
                 {
                     b.HasOne("KHost.Abstractions.Models.KHostUserGroup", null)
@@ -665,6 +749,11 @@ namespace KHost.DataAccess.Migrations
                 });
 
             modelBuilder.Entity("KHost.Abstractions.Models.MediaPool", b =>
+                {
+                    b.Navigation("Entries");
+                });
+
+            modelBuilder.Entity("KHost.Abstractions.Models.VisualisationPlaylist", b =>
                 {
                     b.Navigation("Entries");
                 });

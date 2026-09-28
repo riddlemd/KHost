@@ -94,7 +94,7 @@ public class EditVenueModelTests
 #pragma warning disable CS0618 // stored by venues saved before the picker went
         SongBackgrounds = ["one.mp4", "two.mp4"],
 #pragma warning restore CS0618
-        SongVisualiserEnabled = true,
+        VisualisationPlaylistId = Guid.NewGuid(),
         QrCodeSource = "khost.plugins.karafun",
         QrCodeCorner = OverlayCorner.TopLeft,
         QrCodeSize = QrCodeSize.Large,

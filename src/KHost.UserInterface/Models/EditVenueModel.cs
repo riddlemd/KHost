@@ -101,7 +101,8 @@ public class EditVenueModel
     /// <summary>The plugin whose code this venue shows, or null for none. Null is the default.</summary>
     public string? QrCodeSource { get; set; }
 
-    public bool SongVisualiserEnabled { get; set; }
+    /// <summary>The visualisation playlist under a song's words; null leaves black.</summary>
+    public Guid? VisualisationPlaylistId { get; set; }
 
     /// <summary>Null takes the image's own answer, which is what a venue that never asks gets.</summary>
     public ImageScaling? BrandingImageScaling { get; set; }
@@ -142,7 +143,7 @@ public class EditVenueModel
             Enabled = venue.Enabled,
             DefaultVolume = settings.DefaultVolume,
             ShowEstimatedWaitTime = settings.ShowEstimatedWaitTime,
-            SongVisualiserEnabled = settings.SongVisualiserEnabled,
+            VisualisationPlaylistId = settings.VisualisationPlaylistId,
             TippingEnabled = settings.TippingEnabled,
             WarnOnDuplicateSong = settings.WarnOnDuplicateSong,
             // Venues saved before this setting existed read back 0, which is not an option.
@@ -215,7 +216,7 @@ public class EditVenueModel
         venue.Enabled = Enabled;
         venue.Settings.DefaultVolume = DefaultVolume;
         venue.Settings.ShowEstimatedWaitTime = ShowEstimatedWaitTime;
-        venue.Settings.SongVisualiserEnabled = SongVisualiserEnabled;
+        venue.Settings.VisualisationPlaylistId = VisualisationPlaylistId;
         venue.Settings.TippingEnabled = TippingEnabled;
         venue.Settings.WarnOnDuplicateSong = WarnOnDuplicateSong;
         venue.Settings.DuplicateSongWindowHours = DuplicateSongWindowHours;
