@@ -1,4 +1,3 @@
-using System.Globalization;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using KHost.UserInterface.Models;
@@ -70,12 +69,6 @@ public partial class SingerPerformanceHistoryDialog
 
         StateHasChanged();
     }
-
-    private static string FormatPitch(int semitones) =>
-        semitones.ToString("+#;\u2212#;0", CultureInfo.InvariantCulture);
-
-    private static string FormatTempo(int tempo) =>
-        tempo.ToString("+#;\u2212#;0", CultureInfo.InvariantCulture) + "%";
 
     public async Task CloseAsync()
     {

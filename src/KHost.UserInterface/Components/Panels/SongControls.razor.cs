@@ -43,11 +43,11 @@ public partial class SongControls : IDisposable
     {
         yield return new SongControl(this, "Key", "Key, in semitones from the recording",
             _pitch, IPlaybackService.MinPitch, IPlaybackService.MaxPitch, 1,
-            FormatPitch, v => _pitch = v, CommitPitchAsync);
+            SongAdjustmentDisplay.FormatPitch, v => _pitch = v, CommitPitchAsync);
 
         yield return new SongControl(this, "Tempo", "Tempo, as a percentage of the recording",
             _tempo, IPlaybackService.MinTempo, IPlaybackService.MaxTempo, TempoStep,
-            FormatTempo, v => _tempo = v, CommitTempoAsync);
+            SongAdjustmentDisplay.FormatTempo, v => _tempo = v, CommitTempoAsync);
 
         // Only a file that ships its voices apart has anything here to balance, and the music
         // never gets a fader: it is the reference the voices are set against. Laid out the way
@@ -96,7 +96,7 @@ public partial class SongControls : IDisposable
 
     /// <summary>Says so on the closed trigger, or a transposed song is invisible until it plays.</summary>
     private string TriggerTitle => IsChanged
-        ? $"Key {FormatPitch(_pitch)}, tempo {FormatTempo(_tempo)}"
+        ? $"Key {SongAdjustmentDisplay.FormatPitch(_pitch)}, tempo {SongAdjustmentDisplay.FormatTempo(_tempo)}"
         : "Key and tempo";
 
     protected override void OnInitialized()
@@ -174,12 +174,6 @@ public partial class SongControls : IDisposable
 
     private static string FormatVolume(int volume) =>
         volume.ToString(CultureInfo.InvariantCulture) + "%";
-
-    private static string FormatPitch(int semitones) =>
-        semitones.ToString("+#;−#;0", CultureInfo.InvariantCulture);
-
-    private static string FormatTempo(int tempo) =>
-        tempo.ToString("+#;−#;0", CultureInfo.InvariantCulture) + "%";
 
     public void Dispose() => _subscriptions.Dispose();
 }

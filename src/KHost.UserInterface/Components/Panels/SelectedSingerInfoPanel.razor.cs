@@ -1,4 +1,3 @@
-using System.Globalization;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.JSInterop;
@@ -320,12 +319,6 @@ public partial class SelectedSingerInfoPanel : IAsyncDisposable
             _lifetimeTotalInCents = 0;
         }
     }
-
-    private static string FormatPitch(int semitones) =>
-        semitones.ToString("+#;\u2212#;0", CultureInfo.InvariantCulture);
-
-    private static string FormatTempo(int tempo) =>
-        tempo.ToString("+#;\u2212#;0", CultureInfo.InvariantCulture) + "%";
 
     /// <summary>Whether this turn was queued under a name other than the singer's own.</summary>
     /// <remarks>Compares names, not SungAs presence: that field is filled by default on every row.</remarks>
