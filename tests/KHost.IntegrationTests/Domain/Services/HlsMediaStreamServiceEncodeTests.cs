@@ -63,6 +63,38 @@ public class HlsMediaStreamServiceEncodeTests : IDisposable
         Assert.Contains(".ts", await File.ReadAllTextAsync(playlist));
     }
 
+    /// <summary>On Windows a reader holding the playlist as ffmpeg finishes fails its last rename, which
+    /// a virus scanner does unprompted; the song must still end rather than stall short of its end.</summary>
+    [RequiresFfmpegFact]
+    public async Task OpenAsync_PlaylistHeldAsTheEncodeEnds_StillEndsWithItsLastSegments()
+    {
+        var source = await CreateSampleAsync(seconds: 4);
+
+        var session = await _service.OpenAsync(source);
+        var encoder = await _service.EncoderProcessIdAsync(session.Id);
+        Assert.NotNull(encoder);
+
+        using (new FileStream(_service.ResolveArtifact(session.Id, "stream.m3u8")!, FileMode.Open, FileAccess.Read, FileShare.Read))
+        {
+            for (var i = 0; i < 400 && IsRunning(encoder.Value); i++) await Task.Delay(50);
+        }
+
+        Assert.Contains("#EXT-X-ENDLIST", await WaitForCompletePlaylistAsync(session.Id));
+    }
+
+    private static bool IsRunning(int processId)
+    {
+        try
+        {
+            using var process = Process.GetProcessById(processId);
+            return !process.HasExited;
+        }
+        catch (ArgumentException)
+        {
+            return false;
+        }
+    }
+
     [RequiresFfmpegFact]
     public async Task OpenAsync_ThrowsAndCleansUp_WhenTheSourceCannotBeEncoded()
     {
