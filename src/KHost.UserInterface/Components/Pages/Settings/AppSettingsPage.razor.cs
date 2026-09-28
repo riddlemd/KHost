@@ -81,6 +81,10 @@ public partial class AppSettingsPage : IDisposable
 
     private static string LeadInGraceLabel(int seconds) => seconds == 0 ? "Off" : $"{seconds} seconds";
 
+    private static IReadOnlyList<int> DynamicLeadInPauseChoices => KHost.UserInterface.Services.AppSettings.DynamicLeadInPauseChoices;
+
+    private static string DynamicLeadInPauseLabel(int seconds) => seconds == 1 ? "1 second" : $"{seconds} seconds";
+
     private static IReadOnlyList<int> GraphicsScaleChoices => GraphicsScaling.Heights;
 
     private static string GraphicsScaleLabel(int height) => height switch

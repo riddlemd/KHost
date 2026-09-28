@@ -33,6 +33,13 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         /// song's words are sent, so a change applies from the next song.</remarks>
         public int LeadInGraceSeconds { get; set; }
 
+        /// <summary>Whether the host adds lead-ins the timed lyrics left out.</summary>
+        /// <remarks>Read when a song's words are read, so a change applies from the next song.</remarks>
+        public bool DynamicLeadIns { get; set; }
+
+        /// <summary>The silence before a line that earns it a host-added lead-in.</summary>
+        public int DynamicLeadInPauseSeconds { get; set; } = LeadInGenerator.DefaultLongPauseSeconds;
+
         /// <summary>How long a replaced encode stays before deletion.</summary>
         /// <remarks>No second player exists mid-fetch, and a receiver reads a 404 body as media.</remarks>
         public TimeSpan StreamRetireGrace { get; set; } = TimeSpan.FromSeconds(8);

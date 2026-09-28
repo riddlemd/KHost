@@ -101,6 +101,33 @@
                         }
                     </select>
                 </label>
+                <label class="kh-app-settings__row kh-form-check">
+                    <span class="kh-form-check-label">
+                        Add lead-ins
+                        <span class="kh-app-settings__apply">applies from the next song</span>
+                        <span class="kh-note">
+                            Runs a marker into the first line of a page and into a line after a long
+                            pause, where the song's timing gives none. Only for words the screen draws
+                            or burns in from timed lyrics, not CD+G or video.
+                        </span>
+                    </span>
+                    <InputCheckbox id="dynamic-lead-ins" class="kh-form-check-input" @bind-Value="_model.DynamicLeadIns" />
+                </label>
+                <label class="kh-app-settings__row">
+                    <span class="kh-app-settings__labelled">
+                        Lead-in after a pause of
+                        <span class="kh-app-settings__apply">applies from the next song</span>
+                        <span class="kh-note">
+                            How long the singing has to stop before the next line gets a lead-in.
+                        </span>
+                    </span>
+                    <select id="dynamic-lead-in-pause" class="kh-form-select kh-app-settings__number" @bind="_model.DynamicLeadInPauseSeconds">
+                        @foreach (var seconds in DynamicLeadInPauseChoices)
+                        {
+                            <option value="@seconds">@DynamicLeadInPauseLabel(seconds)</option>
+                        }
+                    </select>
+                </label>
 
                 <div class="kh-app-settings__section">Ads</div>
                 <label class="kh-app-settings__row">
