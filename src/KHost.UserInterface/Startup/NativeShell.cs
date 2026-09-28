@@ -12,7 +12,7 @@ internal static class NativeShell
     {
         app.StartAsync().GetAwaiter().GetResult();
 
-        var baseUri = Program.ResolveBaseAddress(app);
+        var baseUri = HostLifetime.ResolveBaseAddress(app);
         if (baseUri is null)
         {
             Log.Fatal("Could not resolve a listening address to open the window on");
