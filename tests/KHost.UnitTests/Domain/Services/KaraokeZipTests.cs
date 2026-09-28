@@ -101,6 +101,21 @@ public class KaraokeZipTests : IDisposable
         Assert.All(Directory.EnumerateFiles(_output), file => Assert.True(new FileInfo(file).Length <= 10));
     }
 
+    /// <summary>A real pair is about 10 MB; the default leaves room for that and little more.</summary>
+    [Theory]
+    [InlineData(4, 7, true)]
+    [InlineData(4, 17, false)]
+    public void Validate_TheDefaultCap_TakesARealSongAndRefusesMuchMore(int graphicsMegabytes, int audioMegabytes, bool taken)
+    {
+        var zip = Write(_directory, "Song.zip",
+            ("song.cdg", new byte[graphicsMegabytes * 1024 * 1024]), ("song.mp3", new byte[audioMegabytes * 1024 * 1024]));
+
+        var thrown = Record.Exception(() => KaraokeZip.Validate(zip));
+
+        if (taken) Assert.Null(thrown);
+        else Assert.Equal(KaraokeZip.TooLargeCode, Assert.IsType<KHostException>(thrown).ReferenceCode);
+    }
+
     [Fact]
     public async Task ExtractPairAsync_JustUnderTheCap_IsTaken()
     {
