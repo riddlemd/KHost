@@ -3,7 +3,8 @@ using KHost.Abstractions.Models;
 namespace KHost.Domain.Services;
 
 /// <summary>Gives a lead-in to the lines a singer has to find their way back into — a page's first
-/// line, and a line after a long silence — where the timing supplied none.</summary>
+/// line, a line after a long silence, and a word a long silence falls before part way along a line —
+/// where the timing supplied none.</summary>
 /// <remarks>Applied to the timing itself, so the screen and the burn-in draw the same markers from
 /// the same data. A lead-in the timing did supply is never touched.</remarks>
 public static class LeadInGenerator
@@ -27,7 +28,8 @@ public static class LeadInGenerator
     /// <remarks>A twentieth matches the run providers' own lead-ins make, so the two look alike.</remarks>
     public const double RunWidthFraction = 0.05;
 
-    /// <param name="longPauseSeconds">The silence before a line, page opener or not, that earns it one.</param>
+    /// <param name="longPauseSeconds">The silence before a line, page opener or not, or before a word
+    /// inside one, that earns it one.</param>
     public static TimedLyrics AddMissing(TimedLyrics lyrics, double longPauseSeconds)
     {
         var sung = lyrics.Pages
@@ -71,14 +73,6 @@ public static class LeadInGenerator
     {
         if (line.Position is not { } box || line.Syllables.Count == 0) return null;
 
-        var first = line.Syllables[0].StartSeconds;
-        var pause = first - PreviousEnd(first, starts, endedBy);
-        if (pause < (opensPage ? Math.Min(OpenerPauseSeconds, longPauseSeconds) : longPauseSeconds)) return null;
-
-        // An opener runs from the page's arrival, so it never sets off before the page is up.
-        var start = first - Math.Min(MaxRunSeconds, opensPage ? first - page.ShowFromSeconds : pause);
-        if (first - start < MinRunSeconds) return null;
-
         // Held inside the frame on the leading side; the drawers mirror the same run for right to left.
         var room = lyrics.IsRightToLeft
             ? lyrics.Bounds.X + lyrics.Bounds.Width - (box.X + box.Width)
@@ -86,7 +80,27 @@ public static class LeadInGenerator
         var run = Math.Clamp(lyrics.Bounds.Width * RunWidthFraction, 0, Math.Max(room, 0));
         if (run <= 0) return null;
 
-        return new LyricLeadIn(start, box.X - run);
+        var first = line.Syllables[0].StartSeconds;
+        var pause = first - PreviousEnd(first, starts, endedBy);
+        if (pause >= (opensPage ? Math.Min(OpenerPauseSeconds, longPauseSeconds) : longPauseSeconds))
+        {
+            // An opener runs from the page's arrival, so it never sets off before the page is up.
+            var start = first - Math.Min(MaxRunSeconds, opensPage ? first - page.ShowFromSeconds : pause);
+            if (first - start >= MinRunSeconds) return new LyricLeadIn(start, box.X - run);
+        }
+
+        // A line carries one lead-in, so only the first pause inside it that earns one gets it.
+        for (var i = 1; i < line.Syllables.Count; i++)
+        {
+            var at = line.Syllables[i].StartSeconds;
+            var gap = at - PreviousEnd(at, starts, endedBy);
+            if (gap < longPauseSeconds) continue;
+
+            var travel = Math.Min(MaxRunSeconds, gap);
+            if (travel >= MinRunSeconds) return new LyricLeadIn(at - travel, box.X - run) { ArriveAtSyllable = i };
+        }
+
+        return null;
     }
 
     /// <summary>When the singing before <paramref name="at"/> last stopped, or minus infinity if none came before.</summary>

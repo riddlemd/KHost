@@ -15,6 +15,16 @@ public class LeadInGeneratorTests
         LeadIn = leadIn,
     };
 
+    /// <summary>A placed line of several syllables, each given as its start and end.</summary>
+    private static LyricLine Words(double x, LyricLeadIn? leadIn, params (double Start, double End)[] syllables) => new()
+    {
+        Position = new LyricBox(x, 100, 400, 50),
+        Syllables = [.. syllables.Select(s => new LyricSyllable(s.Start, s.End, "la "))],
+        LeadIn = leadIn,
+    };
+
+    private static LyricLine Words(params (double Start, double End)[] syllables) => Words(100, null, syllables);
+
     private static LyricPage Page(double showFrom, params LyricLine[] lines) => new()
     {
         ShowFromSeconds = showFrom,
@@ -134,5 +144,84 @@ public class LeadInGeneratorTests
         var lyrics = Fill(Song([Page(10, Line(15, 16, x: 230))], rightToLeft: true));
 
         Assert.Equal(220, LeadInOf(lyrics, 0, 0)!.X);
+    }
+
+    // The line under test follows an opener sung straight into it, so its own start never earns one.
+
+    [Fact]
+    public void AddMissing_PauseInsideALine_AtTheSetting_LeadsInToTheWordAfterIt()
+    {
+        var lyrics = Fill(Song([Page(0, Line(1, 2), Words((2.5, 3), (6, 7)))]));
+
+        Assert.Equal(new LyricLeadIn(6 - LeadInGenerator.MaxRunSeconds, 100 - 640 * LeadInGenerator.RunWidthFraction) { ArriveAtSyllable = 1 }, LeadInOf(lyrics, 0, 1));
+    }
+
+    [Fact]
+    public void AddMissing_PauseInsideALine_ShorterThanTheSetting_GetsNone()
+    {
+        var lyrics = Fill(Song([Page(0, Line(1, 2), Words((2.5, 3), (5.9, 7)))]));
+
+        Assert.Null(LeadInOf(lyrics, 0, 1));
+    }
+
+    [Fact]
+    public void AddMissing_PauseInsideALine_ThePauseSettingDecides()
+    {
+        // The gap a room hears in "turns ... blue": 2.93s.
+        var song = Song([Page(0, Line(1, 2), Words((2.5, 20.90), (23.83, 24.5)))]);
+
+        Assert.Equal(1, LeadInGenerator.AddMissing(song, 2).Pages[0].Lines[1].LeadIn!.ArriveAtSyllable);
+        Assert.Null(LeadInGenerator.AddMissing(song, 3).Pages[0].Lines[1].LeadIn);
+    }
+
+    [Fact]
+    public void AddMissing_PauseInsideALine_ShorterThanTheLongestRun_RunsForThePause()
+    {
+        var lyrics = LeadInGenerator.AddMissing(Song([Page(0, Line(1, 2), Words((2.5, 3), (4.2, 5)))]), 1);
+
+        Assert.Equal(3, LeadInOf(lyrics, 0, 1)!.StartSeconds, 9);
+    }
+
+    [Fact]
+    public void AddMissing_LineStartAndAPauseInsideItBothEarnOne_TheLineStartKeepsIt()
+    {
+        var lyrics = Fill(Song([Page(0, Line(1, 2), Words((5, 6), (9.5, 10)))]));
+
+        Assert.Equal(0, LeadInOf(lyrics, 0, 1)!.ArriveAtSyllable);
+        Assert.Equal(3, LeadInOf(lyrics, 0, 1)!.StartSeconds);
+    }
+
+    [Fact]
+    public void AddMissing_SeveralPausesInsideALine_TheFirstGetsIt()
+    {
+        var lyrics = Fill(Song([Page(0, Line(1, 2), Words((2.5, 3), (3.2, 3.5), (6.5, 7), (10.5, 11)))]));
+
+        Assert.Equal(2, LeadInOf(lyrics, 0, 1)!.ArriveAtSyllable);
+    }
+
+    [Fact]
+    public void AddMissing_PauseInsideALine_CoveredByAHeldNoteElsewhere_GetsNone()
+    {
+        var lyrics = Fill(Song([Page(0, Line(1, 9), Words((2.5, 3), (6, 7)))]));
+
+        Assert.Null(LeadInOf(lyrics, 0, 1));
+    }
+
+    [Fact]
+    public void AddMissing_PauseInsideALine_KeepsALeadInTheTimingSupplied()
+    {
+        var supplied = new LyricLeadIn(2, 42);
+
+        var lyrics = Fill(Song([Page(0, Line(1, 2), Words(100, supplied, (2.5, 3), (6, 7)))]));
+
+        Assert.Same(supplied, LeadInOf(lyrics, 0, 1));
+    }
+
+    [Fact]
+    public void AddMissing_PauseInsideALineRightToLeft_MeasuresRoomOnTheRightOfTheLine()
+    {
+        var lyrics = Fill(Song([Page(0, Line(1, 2, x: 230), Words(230, null, (2.5, 3), (6, 7)))], rightToLeft: true));
+
+        Assert.Equal(new LyricLeadIn(4, 220) { ArriveAtSyllable = 1 }, LeadInOf(lyrics, 0, 1));
     }
 }

@@ -222,7 +222,7 @@ public class ScreenCommandSerializationTests
                 DurationSeconds = 300,
                 Bounds = new LyricBox(0, 0, 640, 377.5),
                 CountIns = [countIn],
-                Pages = [new LyricPage { ShowFromSeconds = 185.2, ShowUntilSeconds = 189.4, Lines = [new LyricLine { LeadIn = new LyricLeadIn(185.2, 110.5) }] }],
+                Pages = [new LyricPage { ShowFromSeconds = 185.2, ShowUntilSeconds = 189.4, Lines = [new LyricLine { LeadIn = new LyricLeadIn(185.2, 110.5) { ArriveAtSyllable = 3 } }] }],
             },
         };
 
@@ -230,7 +230,7 @@ public class ScreenCommandSerializationTests
             JsonSerializer.Serialize(command, typeof(ScreenCommandBase), Options), Options));
 
         Assert.Equal(countIn, Assert.Single(back.Lyrics!.CountIns));
-        Assert.Equal(new LyricLeadIn(185.2, 110.5), back.Lyrics.Pages[0].Lines[0].LeadIn);
+        Assert.Equal(new LyricLeadIn(185.2, 110.5) { ArriveAtSyllable = 3 }, back.Lyrics.Pages[0].Lines[0].LeadIn);
     }
 
     [Fact]
