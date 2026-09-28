@@ -263,9 +263,15 @@ cannot name another's: its secrets, and the QR code it offers the screens.
     - **The picture under the words** is the source's own video when it has one (fitted into
       1280x720), else black — never the venue's card or its song backgrounds, which nothing
       playing uses. `SongBackdrops.ForPlaying` is that rule, asked by the burn-in, and it is where a
-      visualiser goes in place of black; the screen already draws nothing under a playing song. A
-      cover image stored as a video stream does not count as a picture. Over a picture, the band the
-      words sit in is darkened.
+      visualiser goes in place of black; the screen already draws nothing under a playing song.
+      **A timed-lyric song never takes a picture from an audio source** (an extension in
+      `MediaFormats.AudioExtensions`), whatever the file carries, and a cover image (an
+      `attached_pic` stream) is never a picture in any file. This holds on every encode, not only
+      the burn-in: for a display that draws its own words, `StreamingMediaRenderer` opens a
+      timed-lyric song through `IBurnInStreamService.OpenUnderDrawnWordsAsync`, whose encode maps
+      `0:V` (no attached pictures) from a video and no picture at all from an audio file — left to
+      itself ffmpeg turns an MP3's cover into a one-frame video. A song with no timed words is left
+      alone and still shows its cover. Over a picture, the band the words sit in is darkened.
     - **Fonts are the system's**, in the order a web view's `sans-serif` resolves them per OS:
       Helvetica, Arial, DejaVu Sans, Liberation Sans, Noto Sans, then Skia's default; a character the
       face lacks falls back per line through the OS. Nothing is bundled.

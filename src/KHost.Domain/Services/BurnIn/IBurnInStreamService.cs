@@ -2,7 +2,8 @@ using KHost.Abstractions.Models;
 
 namespace KHost.Domain.Services.BurnIn;
 
-/// <summary>Opens a song's stream with its timed words burned into the picture.</summary>
+/// <summary>Opens the stream for a song with timed words: burned into the picture, or under words
+/// the display draws itself.</summary>
 /// <remarks>Host-only, and so not in Abstractions: a plugin reaches burned-in words by supplying
 /// <see cref="TimedLyrics"/> and letting a display ask for them, never by opening one of these
 /// itself. Implemented by the stream service, so the burn-in is the same encode with one more
@@ -18,5 +19,16 @@ public interface IBurnInStreamService
         int tempo,
         AudioMix? mix,
         TimedLyrics words,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>As <see cref="Abstractions.Services.IMediaStreamService.OpenAsync"/>, for a song with
+    /// timed words that the display draws itself: the stream carries the source's own moving picture
+    /// or none, never its cover art, and nothing from an audio file.</summary>
+    Task<MediaStreamSession> OpenUnderDrawnWordsAsync(
+        string filePath,
+        TimeSpan startOffset,
+        int pitch,
+        int tempo,
+        AudioMix? mix,
         CancellationToken cancellationToken = default);
 }
