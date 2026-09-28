@@ -1,0 +1,254 @@
+// The row/head/glyph/identity/title/name/chip/sub/aside/notice rules are shared with
+// AvailablePluginsTab's own row, rendered by a different component. Owner ruled scoped-per-child
+// CSS over a shared partial, so this duplicates AvailablePluginsTab.razor.scss rather than
+// reaching for it, deliberately.
+.kh-plugins-manager__row {
+    border-top: 1px solid var(--kh-border);
+
+    &:first-child {
+        border-top: none;
+    }
+
+    &--open {
+        background: var(--kh-primary-dim);
+    }
+}
+
+.kh-plugins-manager__head {
+    display: flex;
+    align-items: center;
+    gap: 0.75em;
+    padding-right: 12px;
+
+    &:hover {
+        background: var(--kh-primary-subtle);
+    }
+}
+
+.kh-plugins-manager__glyph {
+    width: 34px;
+    height: 34px;
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--kh-radius);
+    background: var(--kh-bg-elevated);
+    border: 1px solid var(--kh-border);
+    color: var(--kh-primary-bright);
+}
+
+.kh-plugins-manager__identity {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.kh-plugins-manager__title {
+    display: flex;
+    align-items: center;
+    gap: 0.4em;
+    flex-wrap: wrap;
+}
+
+.kh-plugins-manager__name {
+    font-weight: 600;
+    color: var(--kh-text);
+}
+
+// A capability is a neutral label, so it takes the surface tokens rather than the accent:
+// famicom reserves that for danger, and a plugin providing break music is not a warning.
+.kh-plugins-manager__chip {
+    font-size: 0.72rem;
+    padding: 0.15em 0.5em;
+    border-radius: 4px;
+    white-space: nowrap;
+    color: var(--kh-text-secondary);
+    background: var(--kh-bg-elevated);
+    border: 1px solid var(--kh-border);
+}
+
+// Truncates rather than wrapping, so a long description cannot make one row twice the height
+// of its neighbours and break the scan down the list.
+.kh-plugins-manager__sub {
+    min-width: 0;
+    font-size: 0.85rem;
+    color: var(--kh-text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.kh-plugins-manager__aside {
+    display: flex;
+    align-items: center;
+    gap: 0.75em;
+    flex: none;
+}
+
+.kh-plugins-manager__notice {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5em;
+    padding: 0.5em 0.75em;
+    border-radius: var(--kh-radius);
+    font-size: 0.88rem;
+
+    &--error {
+        color: var(--kh-danger);
+        background: var(--kh-danger-bg-subtle);
+        border: 1px solid var(--kh-danger-border-subtle);
+    }
+
+    &--warning {
+        color: var(--kh-warning);
+        background: var(--kh-warning-subtle);
+        border: 1px solid var(--kh-warning-border-subtle);
+    }
+}
+
+// The row's own control, so it sits on the badge's baseline rather than reading as body text.
+.kh-plugins-manager__enable {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5em;
+    font-size: 0.78rem;
+    color: var(--kh-text-muted);
+    cursor: pointer;
+}
+
+.kh-plugins-manager__disclosure {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 0 10px 12px;
+    background: none;
+    border: 0;
+    color: inherit;
+    text-align: left;
+    cursor: pointer;
+
+    &:focus-visible {
+        outline: 2px solid var(--kh-border-bright);
+        outline-offset: -2px;
+    }
+}
+
+.kh-plugins-manager__chevron {
+    display: inline-flex;
+    flex: none;
+    color: var(--kh-text-muted);
+    transition: transform var(--kh-transition);
+}
+
+.kh-plugins-manager__row--open .kh-plugins-manager__chevron {
+    transform: rotate(90deg);
+}
+
+.kh-plugins-manager__unsaved {
+    font-size: 0.68rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 0.15em 0.5em;
+    border-radius: 4px;
+    color: var(--kh-warning);
+    background: var(--kh-warning-subtle);
+    border: 1px solid var(--kh-warning-border-subtle);
+}
+
+.kh-plugins-manager__panel {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75em;
+    // Indented to the identity column so the settings read as belonging to the row above.
+    padding: 4px 12px 14px 82px;
+}
+
+// Matched to the glyph it replaces so a row keeps its height either way.
+.kh-plugins-manager__icon {
+    width: 1em;
+    height: 1em;
+    object-fit: contain;
+    display: block;
+}
+
+// The plugin's own actions (a login/logout button, say), run with the host's controls at the
+// right and separated from them by the divider.
+.kh-plugins-manager__actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.6em;
+}
+
+.kh-plugins-manager__divider {
+    width: 1px;
+    height: 1.6em;
+    flex: none;
+    background: var(--kh-border);
+}
+
+// What happens to the settings above and to the install itself. It must not take an auto
+// margin of its own — the path already holds one, and two would split the free space and
+// strand the plugin's buttons mid-row.
+.kh-plugins-manager__foot-right {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.6em;
+}
+
+.kh-plugins-manager__foot {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.6em;
+    padding-top: 0.75em;
+    border-top: 1px solid var(--kh-border);
+}
+
+// Holds the left edge alone and pushes every action to the right.
+.kh-plugins-manager__path {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4em;
+    margin-right: auto;
+    padding: 0;
+    background: none;
+    border: 0;
+    cursor: pointer;
+    font-size: 0.8rem;
+    color: var(--kh-text-muted);
+
+    &:hover {
+        color: var(--kh-primary-bright);
+    }
+}
+
+.kh-plugins-manager__saved {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4em;
+    font-size: 0.85rem;
+    color: var(--kh-success);
+}
+
+// Answers to the window, not a container: the settings page has no splitter beside it.
+// Threshold is the console's own narrow point, where the indent costs more than it buys.
+@media (max-width: 720px) {
+    .kh-plugins-manager__panel {
+        padding-left: 12px;
+    }
+
+    .kh-plugins-manager__sub {
+        display: none;
+    }
+
+    .kh-plugins-manager__glyph {
+        display: none;
+    }
+}

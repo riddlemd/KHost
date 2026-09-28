@@ -15,33 +15,8 @@
                     <Icon Name="folder2-open" />
                 </button>
             </div>
-            @if (PluginsService.RestartRequired)
-            {
-                var waiting = WaitingOnRestart.ToList();
-
-                <div class="kh-plugins-manager__restart">
-                    <Icon Name="arrow-clockwise" />
-                    <span>
-                        @if (waiting.Count > 0)
-                        {
-                            @($"{string.Join(", ", waiting)}: restart KHost to apply.")
-                        }
-                        else
-                        {
-                            @("Saved settings take effect after restarting KHost.")
-                        }
-                    </span>
-                </div>
-            }
-            @if (!_staging.IsEmpty)
-            {
-                <div class="kh-plugins-manager__restart">
-                    <Icon Name="box-arrow-in-down" />
-                    <span>
-                        @($"{StagingSummary}: restart KHost to apply.")
-                    </span>
-                </div>
-            }
+            <PluginRestartBanner RestartRequired="PluginsService.RestartRequired" Waiting="WaitingOnRestart.ToList()"
+                                 StagingIsEmpty="_staging.IsEmpty" StagingSummary="StagingSummary" />
             <div class="kh-plugins-manager__tabs" role="tablist">
                 <button type="button" role="tab" class="kh-plugins-manager__tab @(_tab == Tab.Installed ? "kh-plugins-manager__tab--active" : null)"
                         aria-selected="@(_tab == Tab.Installed ? "true" : "false")"
@@ -74,152 +49,14 @@
                 {
                     @foreach (var plugin in Plugins)
                     {
-                        var manifest = plugin.Manifest;
-                        var state = GetRowState(plugin);
-                        var enabled = IsEnabled(plugin.Id);
-                        var open = IsOpen(plugin);
-                        var dirty = IsDirty(plugin.Id);
-                        _drafts.TryGetValue(plugin.Id, out var draft);
-
-                        <div class="kh-plugins-manager__row @(open ? "kh-plugins-manager__row--open" : null)" @key="plugin.Directory">
-                            <div class="kh-plugins-manager__head">
-                                <button type="button" class="kh-plugins-manager__disclosure" aria-expanded="@(open ? "true" : "false")"
-                                        @onclick="() => ToggleOpen(plugin)">
-                                    <span class="kh-plugins-manager__chevron"><Icon Name="chevron-right" /></span>
-                                    <span class="kh-plugins-manager__glyph">
-                                        @if (plugin.HasIconImage)
-                                        {
-                                            @* Decorative: the plugin's name is right beside it. *@
-                                            <img class="kh-plugins-manager__icon" alt=""
-                                                 src="@($"/plugins/{plugin.Id}/icon.png")" />
-                                        }
-                                        else
-                                        {
-                                            <Icon Name="@GetGlyph(plugin)" />
-                                        }
-                                    </span>
-                                    <span class="kh-plugins-manager__identity">
-                                        <span class="kh-plugins-manager__title">
-                                            <span class="kh-plugins-manager__name">@plugin.DisplayName</span>
-                                            @if (manifest is not null)
-                                            {
-                                                <span class="kh-badge kh-badge--ext">v@(manifest.Version)</span>
-                                            }
-                                            @foreach (var capability in plugin.Capabilities)
-                                            {
-                                                <span class="kh-plugins-manager__chip">@capability</span>
-                                            }
-                                            @if (dirty)
-                                            {
-                                                <span class="kh-plugins-manager__unsaved">Unsaved</span>
-                                            }
-                                        </span>
-                                        <span class="kh-plugins-manager__sub">
-                                            @(plugin.Error ?? manifest?.Description ?? "No manifest description.")
-                                        </span>
-                                    </span>
-                                </button>
-                                <div class="kh-plugins-manager__aside">
-                                    @if (manifest is not null && IsPendingRemoval(plugin))
-                                    {
-                                        <span class="kh-badge kh-badge--warning">Restart to remove</span>
-                                    }
-                                    else
-                                    {
-                                        <span class="kh-badge @GetStateBadgeClass(state)">@GetStateLabel(state)</span>
-                                    }
-                                    <label class="kh-plugins-manager__enable kh-form-check">
-                                        <span class="kh-form-check-label">Enabled</span>
-                                        <input type="checkbox" class="kh-form-check-input"
-                                               aria-label="@($"Enable {plugin.DisplayName}")"
-                                               checked="@enabled"
-                                               disabled="@(!CanEnable(plugin, enabled))"
-                                               @onchange="e => SetEnabledAsync(plugin.Id, (bool)(e.Value ?? false))" />
-                                    </label>
-                                </div>
-                            </div>
-
-                            @if (open)
-                            {
-                                <form class="kh-plugins-manager__panel"
-                                      @onsubmit="async () => await SaveSettingsAsync(plugin.Id)" @onsubmit:preventDefault>
-                                    @if (plugin.Error is not null)
-                                    {
-                                        <div class="kh-plugins-manager__notice kh-plugins-manager__notice--error">
-                                            <Icon Name="exclamation-triangle-fill" />
-                                            <span>@plugin.Error</span>
-                                        </div>
-                                    }
-                                    @foreach (var warning in plugin.Warnings)
-                                    {
-                                        <div class="kh-plugins-manager__notice kh-plugins-manager__notice--warning">
-                                            <Icon Name="exclamation-circle" />
-                                            <span>@warning</span>
-                                        </div>
-                                    }
-
-                                    <PluginSettingsForm Draft="draft" OnChanged="StateHasChanged" />
-
-                                    @{
-                                        var buttons = PluginButtons.ButtonsFor(plugin.Id);
-                                    }
-                                    <div class="kh-plugins-manager__foot">
-                                        <button type="button" class="kh-plugins-manager__path" title="Open this plugin's folder"
-                                                @onclick="() => OpenFolder(plugin.Directory)">
-                                            <Icon Name="folder2-open" /> @Path.GetFileName(plugin.Directory)
-                                        </button>
-
-                                        @* The plugin's own buttons and the host's are two different
-                                           authorities over this row; the rule between them says which
-                                           is which, so it is drawn only when there is a side to divide. *@
-                                        @if (buttons.Count > 0)
-                                        {
-                                            <div class="kh-plugins-manager__actions">
-                                                @foreach (var (definition, buttonState) in buttons)
-                                                {
-                                                    <button type="button" class="kh-button @ButtonStyleClass(definition.Style)"
-                                                            disabled="@(!buttonState.Enabled || _runningButtons.Contains($"{plugin.Id}:{definition.Key}"))"
-                                                            @onclick="() => RunButtonAsync(plugin.Id, definition.Key)">
-                                                        <Icon Name="@definition.Icon" />
-                                                        @(buttonState.Label ?? definition.Label)
-                                                    </button>
-                                                }
-                                            </div>
-                                            <span class="kh-plugins-manager__divider" aria-hidden="true"></span>
-                                        }
-
-                                        <div class="kh-plugins-manager__foot-right">
-                                        @if (manifest is not null)
-                                        {
-                                            @if (IsPendingRemoval(plugin))
-                                            {
-                                                <button type="button" class="kh-button kh-button--secondary"
-                                                        @onclick="() => ClearRemovalAsync(plugin)">Keep it</button>
-                                            }
-                                            else
-                                            {
-                                                <button type="button" class="kh-button kh-button--outline-danger"
-                                                        @onclick="() => ConfirmUninstallAsync(plugin)">
-                                                    <Icon Name="trash" /> Remove
-                                                </button>
-                                            }
-                                        }
-                                        @if (draft is not null && dirty)
-                                        {
-                                            <button type="button" class="kh-button kh-button--secondary" @onclick="() => Revert(plugin.Id)">Revert</button>
-                                            <button type="submit" class="kh-button">
-                                                <Icon Name="floppy" /> Save settings
-                                            </button>
-                                        }
-                                        else if (WasSaved(plugin.Id))
-                                        {
-                                            <span class="kh-plugins-manager__saved"><Icon Name="check-lg" /> Saved</span>
-                                        }
-                                        </div>
-                                    </div>
-                                </form>
-                            }
-                        </div>
+                        <InstalledPluginRow @key="plugin.Directory" Plugin="plugin" Draft="_drafts.GetValueOrDefault(plugin.Id)"
+                                             Enabled="IsEnabled(plugin.Id)" Open="IsOpen(plugin)"
+                                             PendingRemoval="IsPendingRemoval(plugin)" State="GetRowState(plugin)"
+                                             RunningButtons="_runningButtons"
+                                             OnToggleOpen="() => ToggleOpen(plugin)" OnChanged="StateHasChanged"
+                                             SetEnabledAsync="SetEnabledAsync" SaveSettingsAsync="SaveSettingsAsync"
+                                             Revert="Revert" RunButtonAsync="RunButtonAsync"
+                                             ConfirmUninstallAsync="ConfirmUninstallAsync" ClearRemovalAsync="ClearRemovalAsync" />
                     }
                 }
             </div>
