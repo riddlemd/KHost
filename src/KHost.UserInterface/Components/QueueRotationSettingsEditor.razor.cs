@@ -8,8 +8,8 @@ namespace KHost.UserInterface.Components;
 
 public partial class QueueRotationSettingsEditor
 {
-    [Inject] private IQueueRotationStrategyFactory? StrategyFactory { get; set; }
-    [Inject] private IUserGroupsService? UserGroupsService { get; set; }
+    [Inject] private IQueueRotationStrategyFactory StrategyFactory { get; set; } = default!;
+    [Inject] private IUserGroupsService UserGroupsService { get; set; } = default!;
 
     [Parameter, EditorRequired] public QueueRotationConfig Config { get; set; } = new();
 
@@ -26,9 +26,6 @@ public partial class QueueRotationSettingsEditor
 
     protected override async Task OnInitializedAsync()
     {
-        if (StrategyFactory is null || UserGroupsService is null)
-            return;
-
         _modes = StrategyFactory.GetAllModes();
 
         var groups = await UserGroupsService.ReadAllAsync(pageSize: 1000);

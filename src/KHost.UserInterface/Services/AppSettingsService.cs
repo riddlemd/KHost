@@ -2,6 +2,7 @@ using System.Text.Json;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using KHost.Domain.Services;
+using KHost.Domain.Services.FFmpeg;
 using KHost.Domain.Services.VideoEncoding;
 using KHost.UserInterface.Models;
 using Microsoft.Extensions.Configuration;
@@ -17,12 +18,15 @@ internal sealed class AppSettingsService : IAppSettingsService
 
     private readonly IConfiguration _configuration;
     private readonly IUsersService _usersService;
+    private readonly IFFmpegService _ffmpeg;
     private readonly string _overlayPath;
 
-    public AppSettingsService(IConfiguration configuration, IUsersService usersService, string? overlayDirectory = null)
+    public AppSettingsService(
+        IConfiguration configuration, IUsersService usersService, IFFmpegService ffmpeg, string? overlayDirectory = null)
     {
         _configuration = configuration;
         _usersService = usersService;
+        _ffmpeg = ffmpeg;
         _overlayPath = Path.Combine(overlayDirectory ?? Path.Combine(AppContext.BaseDirectory, "cache"), OverlayFileName);
     }
 
@@ -35,7 +39,7 @@ internal sealed class AppSettingsService : IAppSettingsService
     {
         RequireLogin = _configuration.GetValue<bool?>("Auth:RequireLogin") ?? true,
         LaunchScreenOnStartup = _configuration.GetValue<bool?>("LocalScreen:LaunchOnStartup") ?? false,
-        FFmpegPath = _configuration["FFmpegPath"],
+        FFmpegPath = Blank(_configuration[FFmpegService.ConfigurationKey]),
         MediaDirectory = NormalizeMediaDirectory(_configuration["Plugins:MediaDirectory"]),
         SongBackgroundFolder = Blank(_configuration["Backgrounds:Folder"]),
         StopFadeSeconds = (_configuration.GetValue<TimeSpan?>("Playback:StopFadeDuration") ?? TimeSpan.FromSeconds(5)).TotalSeconds,
@@ -62,6 +66,10 @@ internal sealed class AppSettingsService : IAppSettingsService
         BackingVocalVolume = AudioLevels.ClampVolume(
             _configuration.GetValue<int?>("Playback:DefaultBackingVolume") ?? AudioMix.DefaultBackingVolume),
         LeadInGraceSeconds = LeadInGraceChoice(_configuration.GetValue<int?>("Playback:LeadInGraceSeconds") ?? 0),
+        DynamicLeadIns = _configuration.GetValue<bool?>("Playback:DynamicLeadIns") ?? false,
+        DynamicLeadInPauseSeconds = DynamicLeadInPauseChoice(
+            _configuration.GetValue<int?>("Playback:DynamicLeadInPauseSeconds") ?? LeadInGenerator.DefaultLongPauseSeconds),
+        ColorBlindFriendlyLyrics = _configuration.GetValue<bool?>("Playback:ColorBlindFriendlyLyrics") ?? false,
         // Parsed rather than cast: a hand-edited word that names no shape falls back to sliders
         // instead of reaching the console as an enum value with no case to render it.
         SongControlStyle = Enum.TryParse<SongControlStyle>(
@@ -81,6 +89,10 @@ internal sealed class AppSettingsService : IAppSettingsService
     // Read as well as save: a hand-edited value the select does not offer would show as none of them.
     private static int LeadInGraceChoice(int seconds) =>
         AppSettings.LeadInGraceChoices.LastOrDefault(choice => choice <= seconds);
+
+    // Read as well as save, for the same reason as the grace.
+    private static int DynamicLeadInPauseChoice(int seconds) =>
+        Math.Clamp(seconds, AppSettings.DynamicLeadInPauseChoices[0], AppSettings.DynamicLeadInPauseChoices[^1]);
 
     // Read as well as save: a hand-edited zero reaches PaginatedResult as a page that holds no rows
     // and reports no pages.
@@ -113,6 +125,9 @@ internal sealed class AppSettingsService : IAppSettingsService
                 ["StopFadeDuration"] = TimeSpan.FromSeconds(settings.StopFadeSeconds).ToString(),
                 ["DefaultBackingVolume"] = AudioLevels.ClampVolume(settings.BackingVocalVolume),
                 ["LeadInGraceSeconds"] = LeadInGraceChoice(settings.LeadInGraceSeconds),
+                ["DynamicLeadIns"] = settings.DynamicLeadIns,
+                ["DynamicLeadInPauseSeconds"] = DynamicLeadInPauseChoice(settings.DynamicLeadInPauseSeconds),
+                ["ColorBlindFriendlyLyrics"] = settings.ColorBlindFriendlyLyrics,
             },
             ["MediaStream"] = new Dictionary<string, object?>
             {
@@ -145,8 +160,8 @@ internal sealed class AppSettingsService : IAppSettingsService
             ["LaunchOnStartup"] = settings.LaunchScreenOnStartup,
         };
 
-        if (!string.IsNullOrWhiteSpace(settings.FFmpegPath))
-            overlay["FFmpegPath"] = settings.FFmpegPath;
+        // Written even when blank, like the backgrounds folder: clearing it must reach the overlay.
+        overlay[FFmpegService.ConfigurationKey] = Blank(settings.FFmpegPath);
 
         // Written even when blank, so clearing the folder reaches the overlay rather than leaving
         // the last one standing.
@@ -166,9 +181,18 @@ internal sealed class AppSettingsService : IAppSettingsService
 
         // Read once, on the way up: turning it on now would not open a screen, and turning it
         // off would not close the one already running.
-        if (settings.FFmpegPath != before.FFmpegPath
-            || settings.LaunchScreenOnStartup != before.LaunchScreenOnStartup)
+        if (settings.LaunchScreenOnStartup != before.LaunchScreenOnStartup)
             RestartRequired = true;
+
+        if (Blank(settings.FFmpegPath) != before.FFmpegPath)
+        {
+            // Reloaded now rather than when the file watcher gets round to it, so the check below
+            // looks in the folder just saved and the next song uses what it finds.
+            if (_configuration is IConfigurationRoot root)
+                root.Reload();
+
+            await _ffmpeg.CheckAsync();
+        }
 
         return new AppSettingsSaveResult(true);
     }

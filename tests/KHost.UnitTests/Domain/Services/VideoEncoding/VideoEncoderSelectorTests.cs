@@ -116,6 +116,25 @@ public class VideoEncoderSelectorTests
         Assert.Equal(2, _runner.Runs);
     }
 
+    /// <summary>With no ffmpeg the song fails on its own; caching a probe then would keep libx264
+    /// after the install that fixes it, and the probe runs the copy the host found.</summary>
+    [Fact]
+    public async Task SelectAsync_NoFfmpegYet_ProbesNothingUntilOneIsInstalled()
+    {
+        _runner.Listed("h264_videotoolbox");
+        _runner.Outcomes["h264_videotoolbox"] = Outcome.Works;
+        _runner.Located = null;
+        var selector = Selector([VideoEncoderProfile.VideoToolbox]);
+
+        Assert.Equal(VideoEncoderProfile.Software, await selector.SelectAsync(VideoEncoderPreference.Auto));
+        Assert.Equal(0, _runner.Runs);
+
+        _runner.Located = "/host/bin/ffmpeg";
+
+        Assert.Equal(VideoEncoderProfile.VideoToolbox, await selector.SelectAsync(VideoEncoderPreference.Auto));
+        Assert.All(_runner.RanWith, path => Assert.Equal("/host/bin/ffmpeg", path));
+    }
+
     [Fact]
     public async Task ReportFailure_KeepsTheFailedEncoderOffForTheRestOfTheProcess()
     {
@@ -148,6 +167,13 @@ public class VideoEncoderSelectorTests
         public List<string> Probed { get; } = [];
         public int Runs { get; private set; }
 
+        /// <summary>The ffmpeg the host would run; null while none is installed.</summary>
+        public string? Located { get; set; } = "/opt/ffmpeg/ffmpeg";
+
+        public List<string> RanWith { get; } = [];
+
+        public string? Locate() => Located;
+
         public void Listed(params string[] codecs)
             => _listing = "Encoders:\n ------\n V....D libx264              libx264 H.264\n"
                           + string.Concat(codecs.Select(c => $" V....D {c,-20} {c} H.264\n"))
@@ -155,9 +181,10 @@ public class VideoEncoderSelectorTests
                           + " V....D h264_qsv_like        not the one\n";
 
         public async Task<FfmpegRun> RunAsync(
-            string arguments, string workingDirectory, TimeSpan timeout, CancellationToken cancellationToken)
+            string ffmpegPath, string arguments, string workingDirectory, TimeSpan timeout, CancellationToken cancellationToken)
         {
             Runs++;
+            RanWith.Add(ffmpegPath);
 
             if (arguments.Contains("-encoders")) return new FfmpegRun(0, _listing, "");
 

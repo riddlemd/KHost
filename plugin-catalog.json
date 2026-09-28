@@ -31,18 +31,18 @@
       ],
       "releases": [
         {
-          "version": "1.0.3",
+          "version": "1.0.4",
           "apiVersion": 5,
-          "url": "https://github.com/riddlemd/KHost.Plugins.Spotify/releases/download/v1.0.3/KHost.Plugins.Spotify-1.0.3.zip",
-          "sha256": "2e66a94924784bc76599d93c9e645d9d7684caf6ea03fb98cce149b8cbb0af2d",
-          "sizeBytes": 54490
+          "url": "https://github.com/riddlemd/KHost.Plugins.Spotify/releases/download/v1.0.4/KHost.Plugins.Spotify-1.0.4.zip",
+          "sha256": "68d8c2429d298ea8803c379fac1705b9a79c6216696ca40f30b92c43800975c0",
+          "sizeBytes": 56374
         },
         {
-          "version": "1.0.2",
-          "apiVersion": 3,
-          "url": "https://github.com/riddlemd/KHost.Plugins.Spotify/releases/download/v1.0.2/KHost.Plugins.Spotify-1.0.2-win.zip",
-          "sha256": "96d03a8d1b8d6929900090083580de3103df6370223a356e8af00b72137348f2",
-          "sizeBytes": 6394749,
+          "version": "1.0.4",
+          "apiVersion": 5,
+          "url": "https://github.com/riddlemd/KHost.Plugins.Spotify/releases/download/v1.0.4/KHost.Plugins.Spotify-1.0.4-win.zip",
+          "sha256": "867f185f0fa094469d3de8a41965073a82a7d1f16afdac1d3efa1481e845f3ed",
+          "sizeBytes": 6681235,
           "rid": "win"
         }
       ]

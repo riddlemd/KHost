@@ -9,46 +9,34 @@ public partial class EditThemeDialog
 {
     private const string _rootClassName = "kh-theme-edit-dialog";
 
-    [Inject] private IThemeService? ThemeService { get; set; }
+    [Inject] private IThemeService ThemeService { get; set; } = default!;
 
     [Parameter] public bool IsOpen { get; set; }
     [Parameter] public ThemeDefinition? Theme { get; set; }
-    [Parameter] public bool CloseOnScrimClick { get; set; }
-    [Parameter] public string Class { get; set; } = "";
 
     [Parameter] public EventCallback<ThemeDefinition> OnSave { get; set; }
     [Parameter] public EventCallback OnClose { get; set; }
 
     private EditThemeModel _model = new();
     private EditContext _editContext = default!;
-    private bool _prevIsOpen;
 
-    protected override void OnInitialized()
+    // DialogHost keys every dialog by request id, so a fresh instance is created per open; this
+    // runs exactly once with Theme already bound.
+    protected override async Task OnInitializedAsync()
     {
-        _model.Values = ThemeVariableCatalog.Defaults();
-        _editContext = new EditContext(_model);
-    }
-
-    protected override async Task OnParametersSetAsync()
-    {
-        if (IsOpen && !_prevIsOpen)
+        _model = new EditThemeModel
         {
-            _model = new EditThemeModel
-            {
-                Id = Theme?.Id ?? "",
-                Name = Theme?.Name ?? "",
-                IsEnabled = Theme?.IsEnabled ?? true,
-                // Resolved through the service rather than off the definition so a theme stored
-                // before a variable existed still opens with every field filled in.
-                Values = Theme is null || ThemeService is null
-                    ? ThemeVariableCatalog.Defaults()
-                    : await ThemeService.ReadVariablesAsync(Theme.Id)
-            };
+            Id = Theme?.Id ?? "",
+            Name = Theme?.Name ?? "",
+            IsEnabled = Theme?.IsEnabled ?? true,
+            // Resolved through the service rather than off the definition so a theme stored
+            // before a variable existed still opens with every field filled in.
+            Values = Theme is null
+                ? ThemeVariableCatalog.Defaults()
+                : await ThemeService.ReadVariablesAsync(Theme.Id)
+        };
 
-            _editContext = new EditContext(_model);
-        }
-
-        _prevIsOpen = IsOpen;
+        _editContext = new EditContext(_model);
     }
 
     private static string FieldId(ThemeVariable field) => $"theme-field-{field.Key.TrimStart('-')}";
@@ -84,12 +72,6 @@ public partial class EditThemeDialog
     {
         IsOpen = false;
         await OnClose.InvokeAsync();
-    }
-
-    private async Task CancelAsync()
-    {
-        await OnClose.InvokeAsync();
-        await CloseAsync();
     }
 
     private async Task SaveAsync()

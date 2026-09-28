@@ -10,7 +10,6 @@ public class HlsMediaStreamServiceBurnInTests
 {
     private static readonly BurnInOverlay OverSource = new(1280, 720, 30, BurnInBase.SourceVideo);
     private static readonly BurnInOverlay OverFill = new(1280, 720, 30, BurnInBase.Fill);
-    private static readonly BurnInOverlay OverBackground = new(1280, 720, 30, BurnInBase.Background, "/backgrounds/loop.mp4");
 
     [Fact]
     public void BuildArguments_WithoutBurnIn_HasNoPipeAndNoOverlay()
@@ -55,16 +54,38 @@ public class HlsMediaStreamServiceBurnInTests
         Assert.Contains("[2:v]setsar=1[base];[base][1:v]overlay=0:0:shortest=1[v]", arguments);
     }
 
+    /// <summary>Black, as the screen draws it: never one of the venue's song backgrounds.</summary>
     [Fact]
-    public void BuildArguments_BurningInOverABackground_LoopsItAndCoversTheFrame()
+    public void PlanBurnIn_ASourceWithNoPicture_PaintsOverBlack()
     {
-        var arguments = HlsMediaStreamService.BuildArguments(
-            "/songs/a.mka", TimeSpan.Zero, 0, 0, 2, burnIn: OverBackground);
+        var plan = HlsMediaStreamService.PlanBurnIn("/songs/a.mp4", false, 10, false, Words, TimeSpan.Zero, 0, 720);
 
-        Assert.Contains(" -stream_loop -1 -i \"/backgrounds/loop.mp4\"", arguments);
-        Assert.Contains("[2:v]scale=1280:720:force_original_aspect_ratio=increase,crop=1280:720,setsar=1,fps=30[base]", arguments);
-        Assert.Contains("overlay=0:0:shortest=1[v]", arguments);
+        Assert.Equal(BurnInBase.Fill, plan.Overlay.Base);
     }
+
+    [Fact]
+    public void PlanBurnIn_ASourceWithItsOwnPicture_PaintsOverIt()
+    {
+        var plan = HlsMediaStreamService.PlanBurnIn("/songs/a.mp4", true, 10, false, Words, TimeSpan.Zero, 0, 720);
+
+        Assert.Equal(BurnInBase.SourceVideo, plan.Overlay.Base);
+    }
+
+    /// <summary>An audio file's video stream is at most its cover art, and never goes under the words.</summary>
+    [Fact]
+    public void PlanBurnIn_AnAudioSourceWithAPictureInIt_PaintsOverBlack()
+    {
+        var plan = HlsMediaStreamService.PlanBurnIn("/songs/a.mp3", true, 10, false, Words, TimeSpan.Zero, 0, 720);
+
+        Assert.Equal(BurnInBase.Fill, plan.Overlay.Base);
+    }
+
+    private static readonly TimedLyrics Words = new()
+    {
+        DurationSeconds = 10,
+        Bounds = new LyricBox(0, 0, 640, 360),
+        Pages = [new LyricPage { ShowFromSeconds = 0, ShowUntilSeconds = 5 }],
+    };
 
     /// <summary>Every map is explicit once the graph names the picture, so the sound has to be
     /// named too — and tolerated missing, or a silent source fails the whole encode.</summary>

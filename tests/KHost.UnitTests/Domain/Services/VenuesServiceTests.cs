@@ -439,4 +439,46 @@ public class VenuesServiceTests : IDisposable
 
         Assert.False(raised);
     }
+
+    // A fresh install has no venue until the setup wizard makes one; the log said "Venue selected: null".
+    [Fact]
+    public async Task InitializeAsync_NoVenueExists_LogsPlainlyAndSelectsNothing()
+    {
+        var logger = new CapturingLogger();
+        var service = new VenuesService(logger, _repository, _cacheService, _broker);
+
+        await service.InitializeAsync();
+
+        Assert.Null(service.SelectedVenueId);
+        Assert.Null(await service.ReadSelectedVenueAsync());
+        Assert.Contains(logger.Messages, m => m.StartsWith("No venue selected yet", StringComparison.Ordinal));
+        Assert.DoesNotContain(logger.Messages, m => m.Contains("null", StringComparison.OrdinalIgnoreCase));
+        await _cacheService.DidNotReceive().SaveAsync(Arg.Any<string>(), Arg.Any<Guid?>());
+    }
+
+    [Fact]
+    public async Task InitializeAsync_PersistedVenueDeletedAndNoneLeft_ClearsTheCachedSelection()
+    {
+        CacheReturns(Guid.NewGuid());
+        var logger = new CapturingLogger();
+        var service = new VenuesService(logger, _repository, _cacheService, _broker);
+
+        await service.InitializeAsync();
+
+        Assert.Null(service.SelectedVenueId);
+        await _cacheService.Received(1).SaveAsync("selected-venue", (Guid?)null);
+        Assert.DoesNotContain(logger.Messages, m => m.Contains("null", StringComparison.OrdinalIgnoreCase));
+    }
+
+    private sealed class CapturingLogger : ILogger<VenuesService>
+    {
+        public List<string> Messages { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
+            Func<TState, Exception?, string> formatter) => Messages.Add(formatter(state, exception));
+    }
 }

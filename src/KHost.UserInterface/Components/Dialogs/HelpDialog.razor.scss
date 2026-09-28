@@ -6,13 +6,46 @@
         border-top: 1px solid var(--kh-border);
     }
 
+    &__summary {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        cursor: pointer;
+        outline: none;
+        list-style: none;
+
+        // Chrome/Safari ignore list-style on summary; only the pseudo-element hides their marker.
+        &::-webkit-details-marker {
+            display: none;
+        }
+
+        &:focus-visible {
+            outline: 2px solid var(--kh-border-bright);
+            outline-offset: 2px;
+        }
+
+        // The icon is rendered by <Icon>, which carries its own scope id, not this component's.
+        ::deep .kh-help-dialog__chevron {
+            flex-shrink: 0;
+            font-size: 0.8rem;
+            color: var(--kh-text-muted);
+            transition: transform 0.15s ease;
+        }
+    }
+
+    &__section[open] {
+        ::deep .kh-help-dialog__chevron {
+            transform: rotate(90deg);
+        }
+    }
+
     &__section-title {
-        margin: 0 0 0.75em;
+        margin: 0;
         font-size: 0.95rem;
         font-weight: 700;
     }
 
-    &__group + &__group {
+    &__group {
         margin-top: 1.5em;
     }
 
@@ -71,7 +104,7 @@
     }
 
     &__guide {
-        margin: 0;
+        margin: 1em 0 0;
         padding-left: 1.25em;
 
         li + li {

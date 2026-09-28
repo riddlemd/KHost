@@ -23,6 +23,16 @@ public class MediaImportPairedAudioTests : IDisposable
         Assert.Equal([graphics], kept);
     }
 
+    /// <summary>A zipped pair carries its audio inside; an .mp3 of the same name beside it is its own file.</summary>
+    [Fact]
+    public void AZippedPair_IsKept_AndDoesNotSwallowAnMp3BesideIt()
+    {
+        var zip = Write("song.zip");
+        var audio = Write("song.mp3");
+
+        Assert.Equal([zip, audio], MediaImportService.WithoutPairedAudio([zip, audio]).ToList());
+    }
+
     /// <summary>An .mp3 on its own proves nothing about being karaoke, and is a library row like
     /// any other: break music, an ad bed, a singer's own backing track.</summary>
     [Fact]

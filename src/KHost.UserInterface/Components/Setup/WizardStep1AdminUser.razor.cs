@@ -9,9 +9,9 @@ namespace KHost.UserInterface.Components.Setup;
 
 public partial class WizardStep1AdminUser
 {
-    [Inject] private IUsersService? UsersService { get; set; }
-    [Inject] private IUserGroupsService? UserGroupsService { get; set; }
-    [Inject] private IPasswordHasher? PasswordHasher { get; set; }
+    [Inject] private IUsersService UsersService { get; set; } = default!;
+    [Inject] private IUserGroupsService UserGroupsService { get; set; } = default!;
+    [Inject] private IPasswordHasher PasswordHasher { get; set; } = default!;
 
     [Parameter]
     public EventCallback OnComplete { get; set; }
@@ -36,10 +36,10 @@ public partial class WizardStep1AdminUser
 
         try
         {
-            var passwordHash = await PasswordHasher!.HashAsync(_model.Password);
+            var passwordHash = await PasswordHasher.HashAsync(_model.Password);
             var adminUser = new KHostUser { Name = _model.Username, PasswordHash = passwordHash };
-            await UsersService!.CreateAsync(adminUser);
-            await UserGroupsService!.AddUserToGroupAsync(adminUser.Id, KHostUserGroup.AdminGroupId);
+            await UsersService.CreateAsync(adminUser);
+            await UserGroupsService.AddUserToGroupAsync(adminUser.Id, KHostUserGroup.AdminGroupId);
             await OnComplete.InvokeAsync();
         }
         catch (Exception ex)

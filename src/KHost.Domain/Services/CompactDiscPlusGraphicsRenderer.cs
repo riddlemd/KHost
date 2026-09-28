@@ -18,13 +18,20 @@ namespace KHost.Domain.Services;
 /// </remarks>
 public sealed class CompactDiscPlusGraphicsRenderer(IMediaStreamService streams) : StreamingMediaRenderer(streams)
 {
-    public override bool CanRender(string filePath)
-        => Path.GetExtension(filePath).Equals(MediaFormats.KaraokeGraphicsExtension, StringComparison.OrdinalIgnoreCase);
+    public override bool CanRender(string filePath) => MediaFormats.IsCompactDiscGraphics(filePath);
 
     public override Task<MediaRendition?> RenderAsync(
         MediaRenderRequest request,
         CancellationToken cancellationToken = default)
     {
+        // A zipped pair is judged whole here, so a bad zip fails with its own reason before an
+        // encode is opened; the audio is found beside the .cdg once it is written out.
+        if (MediaFormats.IsKaraokeArchive(request.FilePath))
+        {
+            KaraokeZip.Validate(request.FilePath);
+            return base.RenderAsync(request, cancellationToken);
+        }
+
         if (MediaFormats.FindKaraokeAudio(request.FilePath) is null)
         {
             // Named, not merely refused: the host can put the file back, and "it played silently"

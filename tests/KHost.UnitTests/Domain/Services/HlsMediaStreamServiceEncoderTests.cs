@@ -44,6 +44,22 @@ public class HlsMediaStreamServiceEncoderTests
             frameHeight: 1080);
 
     [Fact]
+    public void BuildArguments_UnderDrawnWords_Video_SwapsOnlyTheEncoder()
+        => AssertOnlyTheEncoderMoved(
+            encoder => HlsMediaStreamService.BuildArguments(
+                "/songs/a.mp4", TimeSpan.Zero, 0, 0, 2, hasTimedLyrics: true, encoder: encoder),
+            frameHeight: 0);
+
+    /// <summary>An audio file under drawn words carries no picture, so there is nothing to encode
+    /// and nothing for a failed hardware start to retry.</summary>
+    [Fact]
+    public void BuildArguments_UnderDrawnWords_AudioSource_NamesNoEncoder()
+        => Assert.DoesNotContain(
+            "-c:v",
+            HlsMediaStreamService.BuildArguments(
+                "/songs/a.mp3", TimeSpan.Zero, 0, 0, 2, hasTimedLyrics: true, encoder: Hardware));
+
+    [Fact]
     public void BuildStemArguments_WithAPicture_SwapsOnlyTheEncoder()
         => AssertOnlyTheEncoderMoved(
             encoder => HlsMediaStreamService.BuildStemArguments(

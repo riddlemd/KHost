@@ -5,7 +5,7 @@ namespace KHost.UserInterface.Components.Pages;
 
 public partial class LoginPage
 {
-    [Inject] private ICacheService? CacheService { get; set; }
+    [Inject] private ICacheService CacheService { get; set; } = default!;
 
     private string? _lastUser;
     private ElementReference _usernameInput;
@@ -17,8 +17,7 @@ public partial class LoginPage
 
     protected override async Task OnInitializedAsync()
     {
-        if (CacheService is not null)
-            _lastUser = await CacheService.LoadAsync<string>(Program.LastLoginCacheKey);
+        _lastUser = await CacheService.LoadAsync<string>(Program.LastLoginCacheKey);
     }
 
     // The page renders interactively without prerender, so the form enters the DOM after page

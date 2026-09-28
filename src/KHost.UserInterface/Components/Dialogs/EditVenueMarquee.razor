@@ -1,0 +1,106 @@
+@using System.Linq.Expressions
+@using KHost.Abstractions.Models
+@using KHost.UserInterface.Models
+
+<div class="kh-venue-settings__section">
+    <span class="kh-venue-settings__section-title">Screen marquee</span>
+
+    <label class="kh-venue-settings__row kh-form-check">
+        <span class="kh-form-check-label">Show a marquee on the screen</span>
+        <input id="venue-marquee-enabled" type="checkbox" class="kh-form-check-input" @bind="Model.MarqueeEnabled" />
+    </label>
+
+    @if (Model.MarqueeEnabled)
+    {
+        // Local, not a component: every row is the same markup around a different `Model`
+        // property, and InputText still needs a real ValueExpression for its validation classes,
+        // not just a getter/setter pair.
+        RenderFragment ColorRow(string id, string label, Expression<Func<string?>> value, Action<string?> setter) =>
+            @<div class="kh-venue-settings__row">
+                <label for="@id" class="kh-form-label">@label</label>
+                <InputText id="@id" type="color" class="kh-form-control kh-venue-settings__color"
+                           Value="@value.Compile()()" ValueChanged="setter" ValueExpression="@value" />
+            </div>;
+
+        <div class="kh-venue-settings__row">
+            <label for="marquee-singer-count" class="kh-form-label">Singers to show</label>
+            <InputNumber id="marquee-singer-count" class="kh-form-control"
+                         @bind-Value="Model.MarqueeSingerCount" min="0" max="20" />
+        </div>
+
+        <div class="kh-venue-settings__field">
+            <label for="marquee-message" class="kh-form-label">Message</label>
+            <InputText id="marquee-message" class="kh-form-control"
+                       @bind-Value="Model.MarqueeMessage"
+                       placeholder="Happy hour until 8. Ask your host about specials" />
+        </div>
+
+        <div class="kh-venue-settings__field">
+            <label for="marquee-entry-format" class="kh-form-label">Entry format</label>
+            <InputText id="marquee-entry-format" class="kh-form-control"
+                       @bind-Value="Model.MarqueeEntryFormat"
+                       placeholder="{song} - {singer}" />
+            <p class="kh-note">
+                Tags: <code>{song}</code>, <code>{artist}</code>, <code>{singer}</code>, <code>{position}</code>.
+                Left blank, entries read <code>{song} - {singer}</code>.
+            </p>
+        </div>
+
+        <div class="kh-venue-settings__row">
+            <label for="marquee-font-size" class="kh-form-label">Text size</label>
+            <InputNumber id="marquee-font-size" class="kh-form-control"
+                         @bind-Value="Model.MarqueeFontSizePixels" min="12" max="96" />
+        </div>
+
+        <div class="kh-venue-settings__row">
+            <label for="marquee-speed" class="kh-form-label">Scroll speed</label>
+            <InputNumber id="marquee-speed" class="kh-form-control"
+                         @bind-Value="Model.MarqueeScrollSpeed" min="15" max="400" />
+        </div>
+
+        <div class="kh-venue-settings__row">
+            <label for="marquee-position" class="kh-form-label">Position</label>
+            <InputSelect id="marquee-position" class="kh-form-select" @bind-Value="Model.MarqueePosition">
+                <option value="@MarqueePosition.Bottom">Bottom of the screen</option>
+                <option value="@MarqueePosition.Top">Top of the screen</option>
+            </InputSelect>
+        </div>
+
+        <label class="kh-venue-settings__row kh-form-check">
+            <span class="kh-form-check-label">Hold &ldquo;Up next&rdquo; at the edge instead of scrolling it</span>
+            <input id="venue-marquee-pin-label" type="checkbox" class="kh-form-check-input"
+                   @bind="Model.MarqueePinLabel" />
+        </label>
+
+        <div class="kh-venue-settings__row">
+            <label for="marquee-divider-shape" class="kh-form-label">Divider</label>
+            <InputSelect id="marquee-divider-shape" class="kh-form-select" @bind-Value="Model.MarqueeDividerShape">
+                <option value="@MarqueeDividerShape.Dot">Dot &bull;</option>
+                <option value="@MarqueeDividerShape.Diamond">Diamond &#9670;</option>
+                <option value="@MarqueeDividerShape.Star">Star &#9733;</option>
+                <option value="@MarqueeDividerShape.Slash">Slash /</option>
+                <option value="@MarqueeDividerShape.Pipe">Pipe |</option>
+                <option value="@MarqueeDividerShape.Note">Note &#9834;</option>
+                <option value="@MarqueeDividerShape.None">None</option>
+            </InputSelect>
+        </div>
+
+        @ColorRow("marquee-background", "Background color", () => Model.MarqueeBackgroundColor, v => Model.MarqueeBackgroundColor = v)
+
+        <div class="kh-venue-settings__row">
+            <span class="kh-venue-settings__labelled">
+                <label for="marquee-background-opacity" class="kh-form-label">Background opacity</label>
+                <span class="kh-note">
+                    How much of the song shows through behind the marquee.
+                </span>
+            </span>
+            <InputNumber id="marquee-background-opacity" class="kh-form-control" min="0" max="100" step="5"
+                         @bind-Value="Model.MarqueeBackgroundOpacity" />
+        </div>
+
+        @ColorRow("marquee-text", "Text color", () => Model.MarqueeTextColor, v => Model.MarqueeTextColor = v)
+        @ColorRow("marquee-singer-color", "Singer color", () => Model.MarqueeSingerColor, v => Model.MarqueeSingerColor = v)
+        @ColorRow("marquee-song-color", "Song color", () => Model.MarqueeSongColor, v => Model.MarqueeSongColor = v)
+        @ColorRow("marquee-divider-color", "Divider color", () => Model.MarqueeDividerColor, v => Model.MarqueeDividerColor = v)
+    }
+</div>

@@ -67,13 +67,13 @@ public abstract class BaseRepositoryService<TClass, TRepository> : BaseService, 
         return Repository.ReadAllAsync(pageNumber, pageSize, sort);
     }
 
-    public virtual async Task<PaginatedResult<TClass>> SearchAsync<TOptions>(string query, int pageNumber = 0, int pageSize = 0, TOptions? options = null)
+    public virtual async Task<PaginatedResult<TClass>> SearchAsync<TOptions>(string query, int pageNumber = 1, int pageSize = 50, TOptions? options = null)
         where TOptions : class
     {
         return await Repository.SearchAsync(query, pageNumber, pageSize, options);
     }
 
-    public virtual async Task<PaginatedResult<TClass>> SearchAsync(string query, int pageNumber = 0, int pageSize = 0)
+    public virtual async Task<PaginatedResult<TClass>> SearchAsync(string query, int pageNumber = 1, int pageSize = 50)
     {
         return await Repository.SearchAsync(query, pageNumber, pageSize);
     }

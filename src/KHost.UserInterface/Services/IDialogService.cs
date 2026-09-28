@@ -19,6 +19,11 @@ public interface IDialogService
     Task RequestEditAsync(ThemeDefinition? item, Func<ThemeDefinition?, Task> onSave, Action? onCancel = null, Action? onClose = null);
 
     Task<bool> ShowConfirmationAsync(string message, Func<Task> onConfirm, string title = "Confirm", string confirmText = "Confirm", Action? onCancel = null, Action? onClose = null);
+
+    /// <summary>Confirms first when <paramref name="ask"/>, else runs <paramref name="action"/>
+    /// straight away. What a venue's "prompt before removing" settings each answer.</summary>
+    Task ConfirmIfAsync(bool ask, Func<Task> action, string message, string title = "Confirm", string confirmText = "Confirm");
+
     /// <summary>Offers the two ways out of a page holding edits, plus a third: closing it, staying.</summary>
     /// <remarks>A host who reached the crossroads by accident loses nothing.</remarks>
     Task ShowUnsavedChangesAsync(Func<Task> onSave, Func<Task> onDiscard, string? message = null, Action? onStay = null);

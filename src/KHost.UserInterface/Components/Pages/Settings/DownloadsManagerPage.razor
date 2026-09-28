@@ -56,11 +56,9 @@
                                         @if (download.Progress is { } fraction)
                                         {
                                             <div class="kh-downloads-manager__progress">
-                                                <div class="kh-downloads-manager__progress-track">
-                                                    <div class="kh-downloads-manager__progress-fill"
-                                                         style="width:@(Percent(fraction))%"></div>
-                                                </div>
-                                                <span class="kh-downloads-manager__progress-percent">@(Percent(fraction))%</span>
+                                                <ProgressBar Fraction="fraction" TrackClass="kh-downloads-manager__progress-track"
+                                                             FillClass="kh-downloads-manager__progress-fill"
+                                                             PercentClass="kh-downloads-manager__progress-percent" />
                                             </div>
                                         }
                                         else

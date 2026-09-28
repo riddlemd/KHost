@@ -3,7 +3,7 @@
 @using KHost.UserInterface.Models
 @using KHost.UserInterface.Services
 
-<Dialog IsOpen="IsOpen" Class="@($"{_rootClassName} {Class?.Trim()}".Trim())" OnClose="OnClose" CloseOnScrimClick="CloseOnScrimClick">
+<Dialog IsOpen="IsOpen" Class="@_rootClassName" OnClose="OnClose">
     <Header>
         <Icon Name="person-badge" /> Singing As
     </Header>

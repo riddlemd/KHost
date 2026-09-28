@@ -283,7 +283,7 @@ internal class MediaRepository : BaseRepository<Media>, IMediaRepository
         return PaginationComponent.BuildResult(items, totalCount, page, size);
     }
 
-    public override async Task<PaginatedResult<Media>> SearchAsync<TOptions>(string query, int pageNumber = 0, int pageSize = 0, TOptions? options = null)
+    public override async Task<PaginatedResult<Media>> SearchAsync<TOptions>(string query, int pageNumber = 1, int pageSize = 50, TOptions? options = null)
         where TOptions : class
     {
         var match = BuildFtsMatchExpression(query);

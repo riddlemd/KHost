@@ -12,20 +12,20 @@ namespace KHost.UserInterface.Components.Panels;
 
 public partial class NowPlayingPanel : IDisposable
 {
-    [Inject] private IPlaybackService? PlaybackService { get; set; }
-    [Inject] private ISingerQueueService? SingerQueueService { get; set; }
-    [Inject] private IDialogService? DialogService { get; set; }
+    [Inject] private IPlaybackService PlaybackService { get; set; } = default!;
+    [Inject] private ISingerQueueService SingerQueueService { get; set; } = default!;
+    [Inject] private IDialogService DialogService { get; set; } = default!;
     [Inject] private IJSRuntime JS { get; set; } = default!;
     [Inject] private IMessageBroker Broker { get; set; } = default!;
-    [Inject] private INextSingerCardService? NextSingerCard { get; set; }
-    [Inject] private IFlashService? Flash { get; set; }
-    [Inject] private ITimedLyricsService? LyricsService { get; set; }
+    [Inject] private INextSingerCardService NextSingerCard { get; set; } = default!;
+    [Inject] private IFlashService Flash { get; set; } = default!;
+    [Inject] private ITimedLyricsService LyricsService { get; set; } = default!;
 
     private readonly SubscriptionSet _subscriptions = new();
 
     /// <summary>Whether there is anybody to name. Read off the queue rather than asked of the
     /// card service on every render, which would reach the database to paint a button.</summary>
-    private bool _canAnnounce => SingerQueueService?.Users.Count > 0;
+    private bool _canAnnounce => SingerQueueService.Users.Count > 0;
 
     private ElementReference _trackRef;
     private IJSObjectReference? _seekBar;
@@ -38,13 +38,14 @@ public partial class NowPlayingPanel : IDisposable
 
     protected override void OnInitialized()
     {
-        if (PlaybackService is null) return;
-
         _subscriptions.Add(Broker.Subscribe<PlaybackChanged>(changed =>
         {
             _ = InvokeAsync(RefreshLanesAsync);
             OnStateChanged(null, EventArgs.Empty);
         }));
+
+        // The lanes take the words' own colours, which the adjustments can move mid-song.
+        _subscriptions.Add(Broker.Subscribe<TimedLyricsSettingsChanged>(_ => InvokeAsync(() => RefreshLanesAsync(reread: true))));
 
         // The only panel that takes the position clock: it draws the playhead, and a redraw is all
         // it does with either event.
@@ -55,9 +56,9 @@ public partial class NowPlayingPanel : IDisposable
 
     private async Task PlayAsync()
     {
-        if (!await PlaybackService!.HasConnectedScreenAsync())
+        if (!await PlaybackService.HasConnectedScreenAsync())
         {
-            await DialogService!.ShowNoScreensAsync();
+            await DialogService.ShowNoScreensAsync();
             return;
         }
 
@@ -68,16 +69,13 @@ public partial class NowPlayingPanel : IDisposable
     /// until the next thing is drawn, so nothing here has to take it down again.</summary>
     private async Task AnnounceNextSingerAsync()
     {
-        if (NextSingerCard is null)
-            return;
-
         if (!await NextSingerCard.AnnounceAsync())
-            Flash?.Show("Nobody is queued to announce.", FlashType.Warning);
+            Flash.Show("Nobody is queued to announce.", FlashType.Warning);
     }
 
     private async Task SeekToClickAsync(MouseEventArgs e)
     {
-        if (PlaybackService?.CurrentMedia?.Duration is not { } duration)
+        if (PlaybackService.CurrentMedia?.Duration is not { } duration)
             return;
 
         _seekBar ??= await JS.InvokeAsync<IJSObjectReference>("import", "/js/seek-bar.js");
@@ -87,17 +85,24 @@ public partial class NowPlayingPanel : IDisposable
         await PlaybackService.SeekAsync(duration * fraction);
     }
 
-    /// <summary>Works out who sings where when the song changes, and at no other time.</summary>
-    private async Task RefreshLanesAsync()
+    /// <summary>Works out who sings where when the song changes, or when its words are adjusted.</summary>
+    private Task RefreshLanesAsync() => RefreshLanesAsync(reread: false);
+
+    private async Task RefreshLanesAsync(bool reread)
     {
-        var media = PlaybackService?.CurrentMedia;
-        if (media?.Id == _lanesMediaId) return;
+        var media = PlaybackService.CurrentMedia;
+        var sameSong = media?.Id == _lanesMediaId;
+        if (sameSong && !reread) return;
 
-        _lanesMediaId = media?.Id;
-        _lanes = [];
-        _oneLane = null;
+        // A re-read keeps the old lanes up until the new ones are in, rather than blinking them out.
+        if (!sameSong)
+        {
+            _lanesMediaId = media?.Id;
+            _lanes = [];
+            _oneLane = null;
+        }
 
-        if (media is null || LyricsService is null) return;
+        if (media is null) return;
 
         TimedLyrics? lyrics;
         try { lyrics = await LyricsService.GetTimedLyricsAsync(media.FilePath); }
@@ -142,8 +147,6 @@ public partial class NowPlayingPanel : IDisposable
     public void Dispose()
     {
         _subscriptions.Dispose();
-
-        if (PlaybackService is null) return;
 
         PlaybackService.PositionChanged -= OnStateChanged;
     }

@@ -11,8 +11,6 @@ public partial class ShowLyricsDialog
 
     [Parameter] public bool IsOpen { get; set; }
     [Parameter] public string Query { get; set; } = "";
-    [Parameter] public string Class { get; set; } = "";
-    [Parameter] public bool CloseOnScrimClick { get; set; }
 
     [Parameter] public EventCallback OnClose { get; set; }
 
@@ -20,19 +18,16 @@ public partial class ShowLyricsDialog
 
     private Lyrics? _lyrics;
     private bool _loading;
-    private bool _prevIsOpen;
 
-    protected override async Task OnParametersSetAsync()
+    // DialogHost keys every dialog by request id, so a fresh instance is created per open; this
+    // runs exactly once with Query already bound.
+    protected override async Task OnInitializedAsync()
     {
-        if (IsOpen && !_prevIsOpen)
-        {
-            _loading = true;
-            StateHasChanged();
+        _loading = true;
+        StateHasChanged();
 
-            _lyrics = await LyricsService.SearchAsync(Query);
-            _loading = false;
-        }
-        _prevIsOpen = IsOpen;
+        _lyrics = await LyricsService.SearchAsync(Query);
+        _loading = false;
     }
 
     public async Task CloseAsync()

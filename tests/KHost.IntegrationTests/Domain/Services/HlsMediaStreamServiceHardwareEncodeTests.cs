@@ -24,14 +24,14 @@ public class HlsMediaStreamServiceHardwareEncodeTests : IDisposable
                 WorkingDirectory = _workingDirectory,
             }),
             new PlayableMediaSourceService(NullLogger<PlayableMediaSourceService>.Instance, []),
-            _selector);
+            encoders: _selector);
 
     /// <summary>The real probe picks it, and a six-second song comes out as three two-second
     /// segments each opening on its only keyframe, which is what lets a player start on any of them.</summary>
     [RequiresVideoToolboxFact]
     public async Task OpenAsync_OnVideoToolbox_CutsTwoSecondSegmentsOpeningOnKeyframes()
     {
-        var probe = new VideoEncoderSelector(NullLogger<VideoEncoderSelector>.Instance, new FfmpegProcessRunner());
+        var probe = new VideoEncoderSelector(NullLogger<VideoEncoderSelector>.Instance, new FfmpegProcessRunner(() => "ffmpeg"));
         Assert.Equal(VideoEncoderProfile.VideoToolbox, await probe.SelectAsync(VideoEncoderPreference.Hardware));
 
         _selector.Answer = VideoEncoderProfile.VideoToolbox;

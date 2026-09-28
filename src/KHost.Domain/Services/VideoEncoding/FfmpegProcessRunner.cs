@@ -1,5 +1,6 @@
 using System.Diagnostics;
-using FFMpegCore;
+using KHost.Abstractions.Models;
+using KHost.Abstractions.Services;
 
 namespace KHost.Domain.Services.VideoEncoding;
 
@@ -9,15 +10,31 @@ internal sealed record FfmpegRun(int ExitCode, string Output, string Error);
 /// <summary>Runs ffmpeg to completion in a directory; the seam the encoder probe is tested through.</summary>
 internal interface IFfmpegProcessRunner
 {
-    Task<FfmpegRun> RunAsync(string arguments, string workingDirectory, TimeSpan timeout, CancellationToken cancellationToken);
+    /// <summary>The ffmpeg a song would be encoded with now, or null when there is none.</summary>
+    string? Locate();
+
+    Task<FfmpegRun> RunAsync(
+        string ffmpegPath, string arguments, string workingDirectory, TimeSpan timeout, CancellationToken cancellationToken);
 }
 
 internal sealed class FfmpegProcessRunner : IFfmpegProcessRunner
 {
-    public async Task<FfmpegRun> RunAsync(
-        string arguments, string workingDirectory, TimeSpan timeout, CancellationToken cancellationToken)
+    private readonly Func<string?> _locate;
+
+    /// <summary>Through the host's own lookup, so the probe tests the copy a song then runs.</summary>
+    public FfmpegProcessRunner(IFFmpegService ffmpeg)
+        : this(() => ffmpeg.Locate(FFmpegTool.FFmpeg))
     {
-        using var process = Process.Start(new ProcessStartInfo(ResolvePath(), arguments)
+    }
+
+    internal FfmpegProcessRunner(Func<string?> locate) => _locate = locate;
+
+    public string? Locate() => _locate();
+
+    public async Task<FfmpegRun> RunAsync(
+        string ffmpegPath, string arguments, string workingDirectory, TimeSpan timeout, CancellationToken cancellationToken)
+    {
+        using var process = Process.Start(new ProcessStartInfo(ffmpegPath, arguments)
         {
             WorkingDirectory = workingDirectory,
             UseShellExecute = false,
@@ -46,20 +63,5 @@ internal sealed class FfmpegProcessRunner : IFfmpegProcessRunner
         }
 
         return new FfmpegRun(process.ExitCode, await output, await error);
-    }
-
-    /// <summary>The configured ffmpeg folder when it holds one, else PATH.</summary>
-    internal static string ResolvePath()
-    {
-        var exeName = OperatingSystem.IsWindows() ? "ffmpeg.exe" : "ffmpeg";
-
-        var folder = GlobalFFOptions.Current.BinaryFolder;
-        if (!string.IsNullOrEmpty(folder))
-        {
-            var candidate = Path.Combine(folder, exeName);
-            if (File.Exists(candidate)) return candidate;
-        }
-
-        return exeName;
     }
 }

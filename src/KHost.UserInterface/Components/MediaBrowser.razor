@@ -40,11 +40,6 @@
                                 <Icon Name="@(_hideImported ? "eye-slash" : "eye")" /> @(_hideImported ? "Show in-library" : "Hide in-library")
                             </button>
                         }
-                        @{
-                            var _importParts = new List<string>();
-                            if (_selectedPaths.Count > 0) _importParts.Add($"{_selectedPaths.Count} file{(_selectedPaths.Count == 1 ? "" : "s")}");
-                            if (_selectedFolderPaths.Count > 0) _importParts.Add($"{_selectedFolderPaths.Count} folder{(_selectedFolderPaths.Count == 1 ? "" : "s")}");
-                        }
                         @* Lives on the action it qualifies: a folder of stills has nothing ambiguous,
                            so the toggle half is not drawn. *@
                         <SplitButton Class="kh-media-importer__import"
@@ -52,7 +47,7 @@
                                      Title="@(SelectionMayHoldVideo ? $"Video files are: {DescribeVideoKind(_videoKind)}" : null)"
                                      OnClick="@(_ => StartImportAsync())">
                             <Text>
-                                <Icon Name="download" /> Import@(_importParts.Count > 0 ? $" ({string.Join(", ", _importParts)})" : "")
+                                <Icon Name="download" /> Import@ImportSelectionSummary
                             </Text>
                             <Buttons>
                                 @if (SelectionMayHoldVideo)

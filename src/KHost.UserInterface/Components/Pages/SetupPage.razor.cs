@@ -14,11 +14,11 @@ public partial class SetupPage
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
     [Inject] private IJSRuntime JS { get; set; } = default!;
 
-    internal enum SetupStep { Security, Admin, Venue, Media }
+    internal enum SetupStep { Security, Admin, Venue, FFmpeg, Media }
 
     // The list, not a count: whether Admin appears at all depends on the security choice, so
     // every other step finds its place by membership rather than by a hardcoded number.
-    private List<SetupStep> _steps = [SetupStep.Security, SetupStep.Admin, SetupStep.Venue, SetupStep.Media];
+    private List<SetupStep> _steps = [SetupStep.Security, SetupStep.Admin, SetupStep.Venue, SetupStep.FFmpeg, SetupStep.Media];
 
     private int _currentStep;
     private int _renderedStep = -1;
@@ -35,8 +35,10 @@ public partial class SetupPage
         var adminExists = await UsersService.HasAdminUserAsync();
         var venueExists = await VenuesService.HasAnyAsync();
 
+        // FFmpeg rather than Media: it proves nothing on disk, so a resumed setup checks again,
+        // and a machine that has it just moves on.
         if ((!requireLogin || adminExists) && venueExists)
-            _currentStep = _steps.IndexOf(SetupStep.Media);
+            _currentStep = _steps.IndexOf(SetupStep.FFmpeg);
         else if (!requireLogin || adminExists)
             _currentStep = _steps.IndexOf(SetupStep.Venue);
     }
@@ -52,8 +54,8 @@ public partial class SetupPage
 
     private void BuildSteps(bool requireLogin)
         => _steps = requireLogin
-            ? [SetupStep.Security, SetupStep.Admin, SetupStep.Venue, SetupStep.Media]
-            : [SetupStep.Security, SetupStep.Venue, SetupStep.Media];
+            ? [SetupStep.Security, SetupStep.Admin, SetupStep.Venue, SetupStep.FFmpeg, SetupStep.Media]
+            : [SetupStep.Security, SetupStep.Venue, SetupStep.FFmpeg, SetupStep.Media];
 
     private async Task OnSecurityCompletedAsync(bool requireLogin)
     {

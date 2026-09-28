@@ -1152,6 +1152,7 @@ public class LocalScreenDisplayProviderTests
     [Theory]
     [InlineData("/songs/africa.cdg", true)]
     [InlineData("/songs/AFRICA.CDG", true)]
+    [InlineData("/songs/africa.zip", true)]
     [InlineData("/songs/africa.mp4", false)]
     public async Task LoadAsync_TellsTheScreenWhetherThePictureIsGraphicsOnly(string path, bool graphicsOnly)
     {
@@ -1231,6 +1232,24 @@ public class LocalScreenDisplayProviderTests
         var sent = _screenServer.ReceivedCalls().Select(call => call.GetArguments()[0]).ToList();
         Assert.True(sent.FindIndex(c => c is HideImageCommand) is >= 0 and var hide
             && hide < sent.FindIndex(c => c is LoadMediaCommand));
+    }
+
+    /// <summary>Black behind the words: the venue's card and its song backgrounds are for idle.</summary>
+    [Fact]
+    public async Task LoadAsync_ATimedLyricSongWithNoPicture_PutsNothingBehindTheWords()
+    {
+        Branding();
+        (await _venues.ReadSelectedVenueAsync())!.Settings.SongBackgrounds = ["a.mp4"];
+        var song = new PlaybackProgram.Playing(new Media { Title = "Africa", FilePath = "/songs/africa.song" }, new Performance());
+        WordsFor(song);
+        _playback.CurrentProgram.Returns(song);
+        using var provider = DrawingProvider();
+
+        await provider.LoadAsync(new DisplayLoad { Stems = [new(0, AudioTrackRole.Music, "http://host/m.ogg", 100)] });
+
+        Assert.Single(Sent<HideImageCommand>());
+        Assert.Empty(Sent<ShowImageCommand>());
+        Assert.Null(Assert.Single(Sent<LoadMediaCommand>()).StreamUrl);
     }
 
     /// <summary>A rebuild at a new key reloads the same program; the picture is already right.</summary>

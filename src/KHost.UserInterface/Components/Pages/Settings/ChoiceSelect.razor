@@ -1,0 +1,8 @@
+@typeparam TValue
+
+<select id="@Id" class="@Class" value="@Value" @onchange="OnChangeAsync">
+    @foreach (var choice in Choices)
+    {
+        <option value="@choice">@Label(choice)</option>
+    }
+</select>

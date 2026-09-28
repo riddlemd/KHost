@@ -1,7 +1,7 @@
 @using KHost.UserInterface.Models
 @using KHost.UserInterface.Services
 
-<Dialog IsOpen="IsOpen" Class="@($"{_rootClassName} {Class?.Trim()}".Trim())" OnClose="OnClose" CloseOnScrimClick="CloseOnScrimClick">
+<Dialog IsOpen="IsOpen" Class="@_rootClassName" OnClose="OnClose">
     <Header>
         <Icon Name="palette-fill" /> @(Theme is null ? "Add Theme" : "Edit Theme")
     </Header>
@@ -65,7 +65,7 @@
         </EditForm>
     </Body>
     <Footer>
-        <button class="@(_rootClassName)__cancel-btn kh-button kh-button--secondary" @onclick="CancelAsync">Cancel</button>
+        <button class="@(_rootClassName)__cancel-btn kh-button kh-button--secondary" @onclick="CloseAsync">Cancel</button>
         <button class="@(_rootClassName)__save-btn kh-button kh-button--primary" @onclick="SaveAsync">Save</button>
     </Footer>
 </Dialog>

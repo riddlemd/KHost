@@ -37,7 +37,7 @@ public class HlsMediaStreamServiceBurnInTests : IDisposable
     {
         var source = await CreateToneAsync(seconds: 6);
 
-        var session = await _service.OpenBurningInAsync(source, TimeSpan.Zero, 0, 0, null, Words(6), null);
+        var session = await _service.OpenBurningInAsync(source, TimeSpan.Zero, 0, 0, null, Words(6));
 
         Assert.NotNull(_service.ResolveArtifact(session.Id, "seg_00000.ts"));
         var playlist = await WaitForCompletePlaylistAsync(session.Id);
@@ -61,7 +61,7 @@ public class HlsMediaStreamServiceBurnInTests : IDisposable
     {
         var source = await CreateToneAsync(seconds: 120);
 
-        var session = await _service.OpenBurningInAsync(source, TimeSpan.Zero, 0, 0, null, Words(120), null);
+        var session = await _service.OpenBurningInAsync(source, TimeSpan.Zero, 0, 0, null, Words(120));
         var encoder = await _service.EncoderProcessIdAsync(session.Id);
         Assert.True(encoder is { } running && IsRunning(running), "no encode was running to stop");
 
@@ -70,6 +70,94 @@ public class HlsMediaStreamServiceBurnInTests : IDisposable
         for (var i = 0; i < 40 && IsRunning(encoder!.Value); i++) await Task.Delay(50);
         Assert.False(IsRunning(encoder!.Value), "the encode outlived its session");
         Assert.False(Directory.Exists(Path.Combine(_workingDirectory, session.Id)));
+    }
+
+    /// <summary>An MP3's cover art never goes under the words: the burn-in paints over black.</summary>
+    [RequiresFfmpegFact]
+    public async Task OpenBurningInAsync_AnAudioFileWithCoverArt_PaintsOverBlack()
+    {
+        var source = await CreateToneWithCoverAsync(seconds: 4);
+
+        var session = await _service.OpenBurningInAsync(source, TimeSpan.Zero, 0, 0, null, Words(4));
+        var playlist = await WaitForCompletePlaylistAsync(session.Id);
+        var frame = await ExtractFrameAsync(playlist, 1.0, "cover-burned-in.png");
+
+        // The cover is solid red; any of it would fill the frame around the words' band.
+        var region = new SKRectI(80, 240, 1200, 480);
+        Assert.Equal(0, Count(frame, Outside(region), c => c.Red > 40 || c.Green > 40 || c.Blue > 40));
+    }
+
+    /// <summary>Even a genuine moving picture inside an audio file stays out from under the words.</summary>
+    [RequiresFfmpegFact]
+    public async Task OpenBurningInAsync_AnAudioFileWithAMovingPicture_PaintsOverBlack()
+    {
+        var source = await CreateToneWithRedVideoAsync(seconds: 4, extension: ".m4a");
+
+        var session = await _service.OpenBurningInAsync(source, TimeSpan.Zero, 0, 0, null, Words(4));
+        var playlist = await WaitForCompletePlaylistAsync(session.Id);
+        var frame = await ExtractFrameAsync(playlist, 1.0, "audio-video-burned-in.png");
+
+        var region = new SKRectI(80, 240, 1200, 480);
+        Assert.Equal(0, Count(frame, Outside(region), c => c.Red > 40 || c.Green > 40 || c.Blue > 40));
+    }
+
+    /// <summary>The same file named as a video keeps its picture, so the file's name is what decided.</summary>
+    [RequiresFfmpegFact]
+    public async Task OpenBurningInAsync_AVideoWithAMovingPicture_PaintsOverIt()
+    {
+        var source = await CreateToneWithRedVideoAsync(seconds: 4, extension: ".mp4");
+
+        var session = await _service.OpenBurningInAsync(source, TimeSpan.Zero, 0, 0, null, Words(4));
+        var playlist = await WaitForCompletePlaylistAsync(session.Id);
+        var frame = await ExtractFrameAsync(playlist, 1.0, "video-burned-in.png");
+
+        Assert.True(Count(frame, new SKRectI(0, 0, 1280, 200), c => c.Red > 200 && c.Green < 70) > 100_000,
+            "the video's own red picture is not under the words");
+    }
+
+    /// <summary>A display drawing the words itself is sent the MP3's sound and no picture at all.</summary>
+    [RequiresFfmpegFact]
+    public async Task OpenUnderDrawnWordsAsync_AnAudioFileWithCoverArt_CarriesNoPicture()
+    {
+        var source = await CreateToneWithCoverAsync(seconds: 4);
+
+        var session = await _service.OpenUnderDrawnWordsAsync(source, TimeSpan.Zero, 0, 0, null);
+        var playlist = await WaitForCompletePlaylistAsync(session.Id);
+
+        Assert.Equal(["audio"], await StreamTypesAsync(playlist));
+    }
+
+    [RequiresFfmpegFact]
+    public async Task OpenUnderDrawnWordsAsync_AnAudioFileWithAMovingPicture_CarriesNoPicture()
+    {
+        var source = await CreateToneWithRedVideoAsync(seconds: 4, extension: ".m4a");
+
+        var session = await _service.OpenUnderDrawnWordsAsync(source, TimeSpan.Zero, 0, 0, null);
+
+        Assert.Equal(["audio"], await StreamTypesAsync(await WaitForCompletePlaylistAsync(session.Id)));
+    }
+
+    [RequiresFfmpegFact]
+    public async Task OpenUnderDrawnWordsAsync_AVideo_KeepsItsPicture()
+    {
+        var source = await CreateToneWithRedVideoAsync(seconds: 4, extension: ".mp4");
+
+        var session = await _service.OpenUnderDrawnWordsAsync(source, TimeSpan.Zero, 0, 0, null);
+
+        Assert.Equal(["audio", "video"], await StreamTypesAsync(await WaitForCompletePlaylistAsync(session.Id)));
+    }
+
+    /// <summary>Unchanged for a song with no timed words: ffmpeg's own pick encodes the cover as a
+    /// picture, as it always has.</summary>
+    [RequiresFfmpegFact]
+    public async Task OpenAsync_AnAudioFileWithCoverArtAndNoTimedWords_StillCarriesTheCover()
+    {
+        var source = await CreateToneWithCoverAsync(seconds: 4);
+
+        var session = await _service.OpenAsync(source);
+        var playlist = await WaitForCompletePlaylistAsync(session.Id);
+
+        Assert.Equal(["audio", "video"], await StreamTypesAsync(playlist));
     }
 
     public void Dispose()
@@ -179,6 +267,72 @@ public class HlsMediaStreamServiceBurnInTests : IDisposable
         {
             return false;
         }
+    }
+
+    /// <summary>The distinct stream types in the encode's first segment, sorted.</summary>
+    /// <remarks>Distinct because ffprobe lists a TS stream twice, once under its program.</remarks>
+    private static async Task<string[]> StreamTypesAsync(string playlist)
+    {
+        var segment = Path.Combine(Path.GetDirectoryName(playlist)!, "seg_00000.ts");
+        using var process = Process.Start(new ProcessStartInfo("ffprobe",
+            $"-v error -show_entries stream=codec_type -of csv=p=0 \"{segment}\"")
+        {
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+        })!;
+
+        var output = await process.StandardOutput.ReadToEndAsync();
+        await process.WaitForExitAsync();
+
+        return [.. output.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Distinct().Order()];
+    }
+
+    /// <summary>A tone with an ordinary solid red video stream, not an attached picture.</summary>
+    private async Task<string> CreateToneWithRedVideoAsync(int seconds, string extension)
+    {
+        Directory.CreateDirectory(_workingDirectory);
+        var path = Path.Combine(_workingDirectory, $"moving-{Guid.NewGuid():n}{extension}");
+
+        using var process = Process.Start(new ProcessStartInfo("ffmpeg",
+            "-hide_banner -loglevel error -y"
+            + $" -f lavfi -t {seconds} -i sine=frequency=440:sample_rate=44100"
+            + $" -f lavfi -t {seconds} -i color=c=red:s=320x240:r=25"
+            + " -map 0:a -map 1:v -c:a aac -c:v libx264 -pix_fmt yuv420p -f mp4"
+            + $" \"{path}\"")
+        {
+            UseShellExecute = false,
+            RedirectStandardError = true,
+        })!;
+
+        var errors = await process.StandardError.ReadToEndAsync();
+        await process.WaitForExitAsync();
+        Assert.True(File.Exists(path), $"ffmpeg did not produce the file: {errors}");
+
+        return path;
+    }
+
+    /// <summary>An MP3 carrying a solid red cover as an attached picture.</summary>
+    private async Task<string> CreateToneWithCoverAsync(int seconds)
+    {
+        Directory.CreateDirectory(_workingDirectory);
+        var path = Path.Combine(_workingDirectory, $"cover-{Guid.NewGuid():n}.mp3");
+
+        using var process = Process.Start(new ProcessStartInfo("ffmpeg",
+            "-hide_banner -loglevel error -y"
+            + $" -f lavfi -t {seconds} -i sine=frequency=440:sample_rate=44100"
+            + " -f lavfi -i color=c=red:s=320x320 -frames:v 1"
+            + " -map 0:a -map 1:v -c:a libmp3lame -c:v png -disposition:v attached_pic -id3v2_version 3"
+            + $" \"{path}\"")
+        {
+            UseShellExecute = false,
+            RedirectStandardError = true,
+        })!;
+
+        var errors = await process.StandardError.ReadToEndAsync();
+        await process.WaitForExitAsync();
+        Assert.True(File.Exists(path), $"ffmpeg did not produce the MP3: {errors}");
+
+        return path;
     }
 
     private async Task<string> CreateToneAsync(int seconds)

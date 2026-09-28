@@ -78,31 +78,33 @@
         display: flex;
         align-items: center;
         gap: 8px;
-    }
 
-    // Height/radius/gradient match the Now Playing seek bar's track and fill so every progress
-    // indicator in the app reads the same, even though scoped component CSS keeps the two rules apart.
-    &__progress-track {
-        flex: 1;
-        min-width: 0;
-        height: 4px;
-        border-radius: 2px;
-        background: var(--kh-track-bg);
-        overflow: hidden;
-    }
+        // ProgressBar carries no scoped CSS of its own, so the track/fill/percent it renders have
+        // none of this page's scope attribute; ::deep reaches them from the wrapper rendered here.
+        // Height/radius/gradient match the Now Playing seek bar's track and fill so every progress
+        // indicator in the app reads the same, even though scoped component CSS keeps the two rules apart.
+        ::deep .kh-downloads-manager__progress-track {
+            flex: 1;
+            min-width: 0;
+            height: 4px;
+            border-radius: 2px;
+            background: var(--kh-track-bg);
+            overflow: hidden;
+        }
 
-    &__progress-fill {
-        height: 100%;
-        background: linear-gradient(90deg, var(--kh-primary), var(--kh-primary-bright));
-        border-radius: 2px;
-        min-width: 4px;
-    }
+        ::deep .kh-downloads-manager__progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--kh-primary), var(--kh-primary-bright));
+            border-radius: 2px;
+            min-width: 4px;
+        }
 
-    &__progress-percent {
-        font-size: 0.8em;
-        color: var(--kh-text-muted);
-        min-width: 2.5em;
-        text-align: right;
-        flex-shrink: 0;
+        ::deep .kh-downloads-manager__progress-percent {
+            font-size: 0.8em;
+            color: var(--kh-text-muted);
+            min-width: 2.5em;
+            text-align: right;
+            flex-shrink: 0;
+        }
     }
 }

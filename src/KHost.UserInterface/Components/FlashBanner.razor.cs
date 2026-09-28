@@ -19,7 +19,7 @@ public partial class FlashBanner : IDisposable
     /// that resolves at once, rather than waiting out the real duration.</summary>
     internal Func<int, Task> Delay { get; set; } = ms => Task.Delay(ms);
 
-    [Inject] private IFlashService? Flash { get; set; }
+    [Inject] private IFlashService Flash { get; set; } = default!;
     [Inject] private IMessageBroker Broker { get; set; } = default!;
 
     private readonly SubscriptionSet _subscriptions = new();
@@ -32,7 +32,7 @@ public partial class FlashBanner : IDisposable
 
     private void OnFlashChanged(FlashChanged flashChanged)
     {
-        foreach (var message in Flash?.Messages ?? [])
+        foreach (var message in Flash.Messages)
         {
             // One countdown per message: a second Show while the first is still up must not reset
             // or duplicate the timer already running for it.
@@ -52,7 +52,7 @@ public partial class FlashBanner : IDisposable
         await Delay(visibleMilliseconds);
 
         _counting.Remove(message.Id);
-        Flash?.Dismiss(message);
+        Flash.Dismiss(message);
     }
 
     public void Dispose() => _subscriptions.Dispose();

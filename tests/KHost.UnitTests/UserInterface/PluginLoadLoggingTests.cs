@@ -1,6 +1,6 @@
 using KHost.Abstractions.Models.Plugins;
 using KHost.Abstractions.Services;
-using KHost.UserInterface;
+using KHost.UserInterface.Startup;
 using NSubstitute;
 using Serilog;
 using Serilog.Core;
@@ -126,7 +126,7 @@ public class PluginLoadLoggingTests
 
         try
         {
-            Program.LogDiscoveredPlugins(registry);
+            HostInitialization.LogDiscoveredPlugins(registry);
         }
         finally
         {

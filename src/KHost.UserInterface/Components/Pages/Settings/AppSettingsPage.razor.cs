@@ -1,3 +1,5 @@
+using KHost.Abstractions.Messaging;
+using KHost.Abstractions.Messaging.Messages;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using KHost.Domain.Services;
@@ -10,10 +12,15 @@ namespace KHost.UserInterface.Components.Pages.Settings;
 
 public partial class AppSettingsPage : IDisposable
 {
-    [Inject] private IAppSettingsService? AppSettings { get; set; }
-    [Inject] private IFlashService? Flash { get; set; }
-    [Inject] private IDialogService? Dialog { get; set; }
+    [Inject] private IAppSettingsService AppSettings { get; set; } = default!;
+    [Inject] private IFlashService Flash { get; set; } = default!;
+    [Inject] private IDialogService Dialog { get; set; } = default!;
     [Inject] private NavigationManager Navigation { get; set; } = default!;
+    [Inject] private IFFmpegService FFmpeg { get; set; } = default!;
+    [Inject] private IHostDirectories HostDirectories { get; set; } = default!;
+    [Inject] private IMessageBroker Broker { get; set; } = default!;
+
+    private readonly SubscriptionSet _subscriptions = new();
 
     private IDisposable? _navigationGuard;
 
@@ -25,14 +32,22 @@ public partial class AppSettingsPage : IDisposable
     private bool _saving;
     private string? _error;
     private string? _defaultMediaDirectory;
+    private FFmpegStatus _ffmpegStatus = default!;
+    private string _binDirectory = "";
 
     protected override void OnInitialized()
     {
-        if (AppSettings is null) return;
-
         _model = AppSettings.Current;
         _restartRequired = AppSettings.RestartRequired;
         _defaultMediaDirectory = AppSettings.DefaultMediaDirectory;
+        _ffmpegStatus = FFmpeg.Status;
+        _binDirectory = HostDirectories.BinDirectory;
+
+        _subscriptions.Add(Broker.Subscribe<FFmpegChanged>(changed =>
+        {
+            _ffmpegStatus = FFmpeg.Status;
+            _ = InvokeAsync(StateHasChanged);
+        }));
 
         // Registered here rather than on first render: a navigation can be asked for before the
         // page has painted, and an unguarded one loses the edits without a word.
@@ -40,11 +55,11 @@ public partial class AppSettingsPage : IDisposable
     }
 
     /// <summary>Compares to what is stored, so a field edited and put back reads as not dirty.</summary>
-    private bool HasUnsavedChanges => AppSettings is not null && _model != AppSettings.Current;
+    private bool HasUnsavedChanges => _model != AppSettings.Current;
 
     private async ValueTask OnLocationChangingAsync(LocationChangingContext context)
     {
-        if (_leaving || !HasUnsavedChanges || Dialog is null) return;
+        if (_leaving || !HasUnsavedChanges) return;
 
         // Held rather than cancelled: the host has not chosen yet, and the target has to survive
         // long enough to be navigated to once they do.
@@ -74,12 +89,30 @@ public partial class AppSettingsPage : IDisposable
         Navigation.NavigateTo(target);
     }
 
-    public void Dispose() => _navigationGuard?.Dispose();
+    public void Dispose()
+    {
+        _navigationGuard?.Dispose();
+        _subscriptions.Dispose();
+    }
+
+    private async Task InstallFFmpegAsync()
+    {
+        _ffmpegStatus = await FFmpeg.InstallAsync();
+
+        if (_ffmpegStatus.Install.State == FFmpegInstallState.Succeeded)
+            Flash.Show("FFmpeg installed. The next song uses it.");
+    }
+
+    private async Task CheckFFmpegAsync() => _ffmpegStatus = await FFmpeg.CheckAsync();
 
     // Qualified: the injected service is also called AppSettings on this page.
     private static IReadOnlyList<int> LeadInGraceChoices => KHost.UserInterface.Services.AppSettings.LeadInGraceChoices;
 
     private static string LeadInGraceLabel(int seconds) => seconds == 0 ? "Off" : $"{seconds} seconds";
+
+    private static IReadOnlyList<int> DynamicLeadInPauseChoices => KHost.UserInterface.Services.AppSettings.DynamicLeadInPauseChoices;
+
+    private static string DynamicLeadInPauseLabel(int seconds) => seconds == 1 ? "1 second" : $"{seconds} seconds";
 
     private static IReadOnlyList<int> GraphicsScaleChoices => GraphicsScaling.Heights;
 
@@ -92,8 +125,6 @@ public partial class AppSettingsPage : IDisposable
 
     private async Task SaveAsync()
     {
-        if (AppSettings is null) return;
-
         _saving = true;
         _error = null;
 
@@ -101,12 +132,12 @@ public partial class AppSettingsPage : IDisposable
 
         if (result.Saved)
         {
-            Flash?.Show("App settings saved.");
+            Flash.Show("App settings saved.");
         }
         else
         {
             _error = result.Error;
-            Flash?.Show(_error ?? "App settings were not saved.", FlashType.Warning);
+            Flash.Show(_error ?? "App settings were not saved.", FlashType.Warning);
             // The refused toggle must not keep looking flipped.
             _model = AppSettings.Current;
         }

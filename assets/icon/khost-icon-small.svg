@@ -1,11 +1,15 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
-<!-- 16-32px: no grille, heavier strokes and a bigger head, so the mic still reads at two pixels a stroke. -->
+<!-- 16-32px: heavier, simplified kH than the master so it still reads solid at two pixels a stroke. -->
 <defs><linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#A86AD4"/><stop offset="1" stop-color="#5D2B90"/></linearGradient></defs>
 <rect id="plate" width="1024" height="1024" rx="160" fill="url(#bg)"/>
-<g fill="#fff">
-<rect x="190" y="180" width="200" height="664" rx="30"/>
-<path d="M390 470 L580 470 L860 844 L670 844 Z"/>
-<circle cx="700" cy="290" r="160"/>
+<g transform="rotate(-45 512 512)" fill="#fff">
+<g transform="translate(139.1 0)">
+<rect x="0.0" y="322.0" width="122.0" height="380.0" rx="14.6"/>
+<path d="M61,560 L164,451 L331,451 L94,702 L61,702 Z"/>
+<path d="M141,572 L250,538 L335,702 L205,702 Z"/>
+<rect x="433.8" y="322.0" width="122.0" height="380.0" rx="14.6"/>
+<rect x="623.8" y="322.0" width="122.0" height="380.0" rx="14.6"/>
+<rect x="433.8" y="466.2" width="312.0" height="122.0" rx="7.3"/>
 </g>
-<path d="M360 590 L610 370" stroke="#fff" stroke-width="140" stroke-linecap="round"/>
+</g>
 </svg>

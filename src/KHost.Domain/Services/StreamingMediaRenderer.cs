@@ -13,7 +13,8 @@ namespace KHost.Domain.Services;
 ///
 /// <para>Honours <see cref="RenderTarget.BurnLyrics"/> for any song with timed words, whoever
 /// supplied them: the words are painted into the same encode, so key, tempo and the mix still
-/// apply. A song with none gets the ordinary encode.</para></remarks>
+/// apply. A song with none gets the ordinary encode. A timed-lyric song for a display that draws
+/// its own words takes no cover art and no picture from an audio file.</para></remarks>
 /// <remarks>Open rather than sealed so a format with rules of its own can inherit the encode while
 /// owning its own claim — see <c>CompactDiscPlusGraphicsRenderer</c>. A subclass that later grows a way to
 /// play its format without ffmpeg replaces the body and nothing above it changes.</remarks>
@@ -30,9 +31,9 @@ public class StreamingMediaRenderer(IMediaStreamService streams, LyricBurnIn? bu
         MediaRenderRequest request,
         CancellationToken cancellationToken = default)
     {
-        var session = request.Target.BurnLyrics && burnIn is not null
-            ? await burnIn.OpenAsync(request, cancellationToken)
-            : null;
+        var session = burnIn is null ? null
+            : request.Target.BurnLyrics ? await burnIn.OpenAsync(request, cancellationToken)
+            : await burnIn.OpenUnderDrawnWordsAsync(request, cancellationToken);
 
         session ??= await Streams.OpenAsync(
             request.FilePath,

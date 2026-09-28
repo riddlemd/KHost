@@ -18,8 +18,8 @@ public partial class SongControls : IDisposable
     /// <summary>Coarser than tempo: a level is judged by ear, not read off a number.</summary>
     private const int VolumeStep = 5;
 
-    [Inject] private IPlaybackService? PlaybackService { get; set; }
-    [Inject] private IAppSettingsService? AppSettings { get; set; }
+    [Inject] private IPlaybackService PlaybackService { get; set; } = default!;
+    [Inject] private IAppSettingsService AppSettings { get; set; } = default!;
     [Inject] private IMessageBroker Broker { get; set; } = default!;
 
     private readonly SubscriptionSet _subscriptions = new();
@@ -36,18 +36,18 @@ public partial class SongControls : IDisposable
     // setting on every song, so counting them would leave the trigger marked all night.
     private bool IsChanged => _pitch != 0 || _tempo != 0;
 
-    private SongControlStyle Style => AppSettings?.Current.SongControlStyle ?? SongControlStyle.Sliders;
+    private SongControlStyle Style => AppSettings.Current.SongControlStyle;
 
     /// <summary>The panel as data: one list rendered twice, not copies that could drift apart.</summary>
     private IEnumerable<SongControl> Controls()
     {
         yield return new SongControl(this, "Key", "Key, in semitones from the recording",
             _pitch, IPlaybackService.MinPitch, IPlaybackService.MaxPitch, 1,
-            FormatPitch, v => _pitch = v, CommitPitchAsync);
+            SongAdjustmentDisplay.FormatPitch, v => _pitch = v, CommitPitchAsync);
 
         yield return new SongControl(this, "Tempo", "Tempo, as a percentage of the recording",
             _tempo, IPlaybackService.MinTempo, IPlaybackService.MaxTempo, TempoStep,
-            FormatTempo, v => _tempo = v, CommitTempoAsync);
+            SongAdjustmentDisplay.FormatTempo, v => _tempo = v, CommitTempoAsync);
 
         // Only a file that ships its voices apart has anything here to balance, and the music
         // never gets a fader: it is the reference the voices are set against. Laid out the way
@@ -58,7 +58,7 @@ public partial class SongControls : IDisposable
                 _backing, AudioMix.MinVolume, AudioMix.MaxVolume, VolumeStep,
                 FormatVolume, v => _backing = v, CommitBackingAsync);
 
-        var leads = PlaybackService?.AudioTracks.Where(t => t.Role == AudioTrackRole.Lead).ToList() ?? [];
+        var leads = PlaybackService.AudioTracks.Where(t => t.Role == AudioTrackRole.Lead).ToList();
 
         if (leads.Any(t => t.Voice is null))
             yield return new SongControl(this, "Lead Vocal", "Lead vocal volume, as a percentage",
@@ -92,11 +92,11 @@ public partial class SongControls : IDisposable
     }
 
     private bool HasTrack(AudioTrackRole role) =>
-        PlaybackService?.AudioTracks.Any(t => t.Role == role) ?? false;
+        PlaybackService.AudioTracks.Any(t => t.Role == role);
 
     /// <summary>Says so on the closed trigger, or a transposed song is invisible until it plays.</summary>
     private string TriggerTitle => IsChanged
-        ? $"Key {FormatPitch(_pitch)}, tempo {FormatTempo(_tempo)}"
+        ? $"Key {SongAdjustmentDisplay.FormatPitch(_pitch)}, tempo {SongAdjustmentDisplay.FormatTempo(_tempo)}"
         : "Key and tempo";
 
     protected override void OnInitialized()
@@ -112,11 +112,11 @@ public partial class SongControls : IDisposable
 
     private void SyncFromService()
     {
-        _pitch = PlaybackService?.Pitch ?? 0;
-        _tempo = PlaybackService?.Tempo ?? 0;
-        _lead = PlaybackService?.LeadVolume ?? AudioMix.DefaultLeadVolume;
-        _backing = PlaybackService?.BackingVolume ?? AudioMix.DefaultBackingVolume;
-        _voices = PlaybackService?.VoiceVolumes is { } voices ? new Dictionary<string, int>(voices) : [];
+        _pitch = PlaybackService.Pitch;
+        _tempo = PlaybackService.Tempo;
+        _lead = PlaybackService.LeadVolume;
+        _backing = PlaybackService.BackingVolume;
+        _voices = new Dictionary<string, int>(PlaybackService.VoiceVolumes);
     }
 
     private bool _open;
@@ -141,45 +141,39 @@ public partial class SongControls : IDisposable
     {
         _pitch = value;
 
-        return PlaybackService?.SetPitchAsync(value) ?? Task.CompletedTask;
+        return PlaybackService.SetPitchAsync(value);
     }
 
     private Task CommitTempoAsync(int value)
     {
         _tempo = value;
 
-        return PlaybackService?.SetTempoAsync(value) ?? Task.CompletedTask;
+        return PlaybackService.SetTempoAsync(value);
     }
 
     private Task CommitLeadAsync(int value)
     {
         _lead = value;
 
-        return PlaybackService?.SetLeadVolumeAsync(value) ?? Task.CompletedTask;
+        return PlaybackService.SetLeadVolumeAsync(value);
     }
 
     private Task CommitVoiceAsync(string voice, int value)
     {
         _voices[voice] = value;
 
-        return PlaybackService?.SetVoiceVolumeAsync(voice, value) ?? Task.CompletedTask;
+        return PlaybackService.SetVoiceVolumeAsync(voice, value);
     }
 
     private Task CommitBackingAsync(int value)
     {
         _backing = value;
 
-        return PlaybackService?.SetBackingVolumeAsync(value) ?? Task.CompletedTask;
+        return PlaybackService.SetBackingVolumeAsync(value);
     }
 
     private static string FormatVolume(int volume) =>
         volume.ToString(CultureInfo.InvariantCulture) + "%";
-
-    private static string FormatPitch(int semitones) =>
-        semitones.ToString("+#;−#;0", CultureInfo.InvariantCulture);
-
-    private static string FormatTempo(int tempo) =>
-        tempo.ToString("+#;−#;0", CultureInfo.InvariantCulture) + "%";
 
     public void Dispose() => _subscriptions.Dispose();
 }

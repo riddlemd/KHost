@@ -97,6 +97,17 @@ public class TimedLyricsPainterTests
         Assert.Equal(0, Covered(PaintAt(lyrics, 3.0)));
     }
 
+    /// <summary>A bar that ends on its page leaves with the handover alone: 0.6s out, before the
+    /// handover starts, it is still at full strength, where a step-long ease had it at 60%.</summary>
+    [Fact]
+    public void Paint_ACountInEndingOnItsPage_HoldsFullStrengthUntilTheHandover()
+    {
+        var lyrics = CountIn(pageArrivesAt: 4.0);
+
+        Assert.True(Read(PaintAt(lyrics, 3.4), IsGreen)[0].Count > 0, "the bar dimmed before its handover");
+        Assert.Equal(0, Read(PaintAt(lyrics, 3.9), IsGreen)[0].Count);
+    }
+
     /// <summary>With a page arriving inside the window the bar fills to that page, not to the first
     /// word: 2.4s into a 3s run to the page is 80% of 100..500.</summary>
     [Fact]
@@ -137,10 +148,71 @@ public class TimedLyricsPainterTests
     public void Paint_ALeadIn_IsGoneOnceTheLineStarts()
         => Assert.Equal(0, Read(PaintAt(LeadIn(rightToLeft: false), 3.0), IsGreen)[0].Count);
 
+    /// <summary>Arriving, the block overlaps the first letter; the letter stays whole over it.</summary>
+    [Fact]
+    public void Paint_ALeadInArriving_SitsUnderTheWords()
+    {
+        var led = LeadIn(rightToLeft: false);
+        var unled = led with { Pages = [led.Pages[0] with { Lines = [led.Pages[0].Lines[0] with { LeadIn = null }] }] };
+
+        var withBlock = WhiteMask(PaintAt(led, 2.99));
+        var without = WhiteMask(PaintAt(unled, 2.99));
+
+        Assert.Equal(0, without.Zip(withBlock).Count(pair => pair.First && !pair.Second));
+    }
+
     /// <summary>Right to left, the same run is made into the line's right edge from outside it.</summary>
     [Fact]
     public void Paint_ALeadInRightToLeft_TravelsInToTheRightEdge()
         => Assert.InRange(Read(PaintAt(LeadIn(rightToLeft: true), 2.0), IsGreen)[0].MeanX, 578.5, 581.5);
+
+    /// <summary>The dots sit centred over the target syllable's own ink — read here off where that
+    /// syllable's wipe sits once it is fully sung — from the lead-in's own start, not before.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Paint_AMidLineLeadIn_ShowsDotsCentredOnItsSyllableFromTheStart(bool rightToLeft)
+    {
+        var lyrics = MidLineLeadIn(rightToLeft);
+        var sung = Read(PaintAt(lyrics, 4.5), IsGreen)[0];
+
+        var atStart = Read(PaintAt(lyrics, 1.0), IsGreen)[0];
+        var justBefore = Read(PaintAt(lyrics, 0.99), IsGreen)[0];
+
+        Assert.Equal(0, justBefore.Count);
+        Assert.True(atStart.Count > 0, "no dots painted at the lead-in's own start");
+        Assert.InRange(atStart.MeanX, sung.MeanX - 10, sung.MeanX + 10);
+        // Nowhere near the line's own edges, which is where a line-start lead-in would go.
+        Assert.True(rightToLeft ? sung.MeanX < 540 : sung.MeanX > 260, $"the target sits at the line's end ({sung.MeanX})");
+    }
+
+    /// <summary>A third of the way through the wait one dot has gone out — the first in reading
+    /// order, so physically leftmost, mirrored to the rightmost right to left.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Paint_AMidLineLeadIn_LosesItsFirstDotAfterOneThird(bool rightToLeft)
+    {
+        var lyrics = MidLineLeadIn(rightToLeft);
+        var all = Read(PaintAt(lyrics, 1.0), IsGreen)[0];
+        var afterFirstThird = Read(PaintAt(lyrics, 2.0), IsGreen)[0];
+
+        Assert.True(afterFirstThird.Count > 0 && afterFirstThird.Count < all.Count,
+            $"expected fewer lit dots a third into the wait: all {all.Count}, after {afterFirstThird.Count}");
+
+        if (rightToLeft) Assert.True(afterFirstThird.MaxX < all.MaxX - 5, $"the rightmost dot did not go first: {all.MaxX} -> {afterFirstThird.MaxX}");
+        else Assert.True(afterFirstThird.MinX > all.MinX + 5, $"the leftmost dot did not go first: {all.MinX} -> {afterFirstThird.MinX}");
+    }
+
+    [Theory]
+    [InlineData(0.9)]
+    [InlineData(3.0)]
+    public void Paint_AMidLineLeadIn_OutsideItsRun_PaintsNothing(double t)
+        => Assert.Equal(0, Read(PaintAt(MidLineLeadIn(rightToLeft: false), t), IsGreen)[0].Count);
+
+    [Fact]
+    public void Paint_ALeadInNamingNoSyllableOfTheLine_PaintsNothing()
+        => Assert.Equal(0, Read(PaintAt(MidLineLeadIn(rightToLeft: false, arriveAt: 2), 2.0), IsGreen)[0].Count);
 
     /// <summary>Right to left the first syllable sits rightmost and each wipes in from its right.</summary>
     [Fact]
@@ -315,6 +387,28 @@ public class TimedLyricsPainterTests
                     Position = new LyricBox(200, 100, 300, 60),
                     Syllables = [new(3, 4, "HHH")],
                     LeadIn = new LyricLeadIn(1, 40),
+                },
+            ],
+        },
+    ], rightToLeft);
+
+    /// <summary>A lead-in from 1s into the second syllable, lit at 3s, with a 40-unit run. The first
+    /// syllable is sung last, so until then the only thing in the active colour is the block.</summary>
+    private static TimedLyrics MidLineLeadIn(bool rightToLeft, int arriveAt = 1) => Song(
+    [
+        new LyricPage
+        {
+            ShowFromSeconds = 0,
+            ShowUntilSeconds = 12,
+            Active = Green,
+            Inactive = White,
+            Lines =
+            [
+                new LyricLine
+                {
+                    Position = new LyricBox(200, 100, 400, 60),
+                    Syllables = [new(9, 10, "HHH "), new(3, 4, "MMM")],
+                    LeadIn = new LyricLeadIn(1, 160) { ArriveAtSyllable = arriveAt },
                 },
             ],
         },

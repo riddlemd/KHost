@@ -8,6 +8,7 @@ using KHost.Domain.Services.AuthProviders;
 using KHost.Domain.Services.Ads;
 using KHost.Domain.Services.BreakMusic;
 using KHost.Domain.Services.Displays;
+using KHost.Domain.Services.FFmpeg;
 using KHost.Domain.Services.Displays.LocalScreen;
 using KHost.Domain.Services.QrCodes;
 using KHost.Domain.Services.MediaPools;
@@ -80,7 +81,16 @@ namespace KHost.Domain
                 http.DefaultRequestHeaders.UserAgent.ParseAdd("KHost/2.0 (+https://github.com/riddlemd/KHost)");
             });
 
+            serviceCollection.AddHttpClient(FFmpegService.HttpClientName, http =>
+            {
+                // No overall timeout, as for plugins: the Windows build is over 100 MB on a venue's wifi.
+                http.Timeout = Timeout.InfiniteTimeSpan;
+                http.DefaultRequestHeaders.UserAgent.ParseAdd("KHost/2.0 (+https://github.com/riddlemd/KHost)");
+            });
+
             serviceCollection.AddSingleton(TimeProvider.System);
+            serviceCollection.AddSingleton<IHostDirectories>(new HostDirectories());
+            serviceCollection.AddSingleton<IFFmpegService, FFmpegService>();
             serviceCollection.AddSingleton<IMessageBroker, MessageBroker>();
             serviceCollection.AddSingleton<IFlashService, FlashService>();
         serviceCollection.AddSingleton<IMediaFileParsingService, MediaFileParsingService>();
@@ -110,7 +120,14 @@ namespace KHost.Domain
             serviceCollection.AddKeyedSingleton<IMediaRenderer, StreamingMediaRenderer>(MediaRendererService.FallbackKey);
             serviceCollection.AddSingleton<IMediaRendererService, MediaRendererService>();
             serviceCollection.AddSingleton<IPlayableMediaSourceService, PlayableMediaSourceService>();
+            // Here, ahead of AddPlugins, so a zipped CD+G is always the host's to unpack; the
+            // sources are asked in registration order and the first to answer wins.
+            serviceCollection.AddSingleton<IPlayableMediaSource, ZippedKaraokeSource>();
             serviceCollection.AddSingleton<ITimedLyricsService, TimedLyricsService>();
+
+            // It hears the options in its constructor, so it must exist before a setting is saved.
+            serviceCollection.AddSingleton<IStartsWithTheHost>(
+                sp => (IStartsWithTheHost)sp.GetRequiredService<ITimedLyricsService>());
             serviceCollection.AddSingleton<IAudioTrackService, AudioTrackService>();
             serviceCollection.AddSingleton<IMediaTagReader, MediaTagReader>();
             serviceCollection.AddSingleton<IMediaGateService, MediaGateService>();
