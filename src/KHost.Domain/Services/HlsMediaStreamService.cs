@@ -403,6 +403,8 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
                 Logger.LogWarning("ffmpeg for {SessionId}: {Error}", id, text.Trim());
         }, CancellationToken.None);
 
+        _ = CompletePlaylistOnExitAsync(process, directory, id);
+
         try
         {
             // A URL handed out early 404s, which a media element reports as "source not supported"
@@ -531,6 +533,53 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
         }
 
         return false;
+    }
+
+    /// <summary>Finishes ffmpeg's last playlist rename when something else held the file just then.</summary>
+    /// <remarks>ffmpeg writes each update to a .tmp and renames it into place without retrying. On
+    /// Windows a virus scanner or indexer opening the playlist at that moment fails the rename, and the
+    /// song's last segments and end marker never appear, so a player stalls short of the end.</remarks>
+    private async Task CompletePlaylistOnExitAsync(Process process, string directory, string id)
+    {
+        try
+        {
+            var processId = process.Id;
+            await process.WaitForExitAsync(CancellationToken.None);
+
+            // Only for the encode still behind the session: a closed one's folder is going, and a
+            // failed hardware attempt's retry is writing its own .tmp into the same folder.
+            if (await EncoderProcessIdAsync(id) != processId) return;
+
+            if (await CompletePlaylistAsync(directory))
+                Logger.LogWarning("ffmpeg could not put the last playlist for {SessionId} in place; the host moved it", id);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
+        {
+            Logger.LogWarning(ex, "Could not finish the playlist for {SessionId}", id);
+        }
+    }
+
+    /// <summary>Moves a playlist .tmp ffmpeg left behind over the playlist; true when one was moved.</summary>
+    /// <remarks>Retried, as whatever blocked ffmpeg's rename may still hold the file for a moment.</remarks>
+    internal static async Task<bool> CompletePlaylistAsync(string directory, int attempts = 20, int retryMilliseconds = 100)
+    {
+        var playlist = Path.Combine(directory, PlaylistFileName);
+        var pending = playlist + ".tmp";
+
+        for (var attempt = 1; ; attempt++)
+        {
+            if (!File.Exists(pending)) return false;
+
+            try
+            {
+                File.Move(pending, playlist, overwrite: true);
+                return true;
+            }
+            catch (Exception ex) when ((ex is IOException or UnauthorizedAccessException) && attempt < attempts)
+            {
+                await Task.Delay(retryMilliseconds);
+            }
+        }
     }
 
     /// <summary>The id of the ffmpeg behind a session, or null for none: lets a test watch the
