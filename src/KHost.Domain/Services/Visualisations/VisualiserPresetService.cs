@@ -38,6 +38,10 @@ public sealed class VisualiserPresetService : IVisualiserPresetService
         "Unchained & Rovastar - Wormhole Pillars (Hall of Shadows mix)",
     ];
 
+    /// <summary>What a built-in's name starts with when it is a calm scene rather than an analyser;
+    /// the page lists those under a heading of their own.</summary>
+    public const string AmbientPrefix = "ambient-";
+
     /// <summary>The host's own drawings, by the names <c>screen-ui/eq-visualisers.js</c> holds them
     /// under, with what a host is shown. Change one and change the other; a test holds them together.</summary>
     internal static readonly IReadOnlyList<(string Name, string Title)> BuiltIns =
@@ -46,7 +50,16 @@ public sealed class VisualiserPresetService : IVisualiserPresetService
         ("mirrored-bars", "Mirrored bars"),
         ("oscilloscope", "Oscilloscope"),
         ("vu-meters", "Twin VU meters"),
+        ("ambient-gradient", "Drifting colour"),
+        ("ambient-bokeh", "Floating lights"),
+        ("ambient-embers", "Rising embers"),
+        ("ambient-rings", "Pulse rings"),
+        ("ambient-beams", "Sweeping beams"),
     ];
+
+    /// <summary>Whether a built-in is one of the calm scenes.</summary>
+    public static bool IsAmbient(VisualiserPresetSource source, string name)
+        => source == VisualiserPresetSource.BuiltIn && name.StartsWith(AmbientPrefix, StringComparison.Ordinal);
 
     private static readonly string[] EquationFields =
         ["init_eqs_str", "frame_eqs_str", "pixel_eqs_str", "warp", "comp"];

@@ -378,6 +378,11 @@ public partial class VisualisationsManagerPage : IDisposable
                })
            + (entry.DarkenBehindWords ? " · Words on dark bands" : "");
 
+    /// <summary>Whether the entry is a calm scene, whose classic palette is a mix of colours rather
+    /// than a meter's green to red.</summary>
+    private static bool IsAmbient(VisualisationEntry entry)
+        => VisualiserPresetService.IsAmbient(entry.PresetSource, entry.PresetName);
+
     /// <summary>Whether the entry draws bars, and so has a bar count to choose.</summary>
     private static bool HasBars(VisualisationEntry entry)
         => entry.PresetSource == VisualiserPresetSource.BuiltIn && entry.PresetName is "spectrum-bars" or "mirrored-bars";

@@ -1,11 +1,18 @@
 using KHost.Abstractions.Models;
+using KHost.Domain.Services.Visualisations;
 using Microsoft.AspNetCore.Components;
 
 namespace KHost.UserInterface.Components.Pages.Settings;
 
-/// <summary>A select's options for every preset, built-in then shipped then imported, valued by
-/// <see cref="VisualisationsManagerPage.PresetKey"/>.</summary>
+/// <summary>A select's options for every preset, the built-in analysers then the ambient scenes then
+/// shipped then imported, valued by <see cref="VisualisationsManagerPage.PresetKey"/>.</summary>
 public partial class VisualiserPresetOptions
 {
     [Parameter, EditorRequired] public IReadOnlyList<VisualiserPreset> Presets { get; set; } = [];
+
+    private IEnumerable<VisualiserPreset> Analysers
+        => Presets.Where(p => p.Source == VisualiserPresetSource.BuiltIn && !VisualiserPresetService.IsAmbient(p.Source, p.Name));
+
+    private IEnumerable<VisualiserPreset> Ambient
+        => Presets.Where(p => VisualiserPresetService.IsAmbient(p.Source, p.Name));
 }

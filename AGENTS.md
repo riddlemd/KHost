@@ -558,6 +558,16 @@ stay on black, and a song with its own picture keeps it.
   and meters read the same samples butterchurn gets, which on host levels are the synthesised
   tones, not the song's waveform. The sensitivity's swing gain reaches the bars as a dB shift.
   Everything but the mirrored bars sits in the lower part of the screen, under the words.
+  - **The ambient scenes are the same renderer, not another one.** A built-in named `ambient-*`
+    (drifting colour, floating lights, rising embers, pulse rings, sweeping beams) is a calm
+    full-screen scene the page lists under "Ambient"; the prefix is the grouping
+    (`VisualiserPresetService.IsAmbient`). They take the palette (classic is a soft mix of
+    colours) and ignore the bar count. The music only nudges them: loudness and bass are read
+    off the same bars (so sensitivity lands the same way), then eased so they rise at most
+    `AMBIENT_RISE` and fall `AMBIENT_FALL` a frame, and no shape is painted past
+    `AMBIENT_MAX_ALPHA` — a scene can brighten with a chorus but cannot flash. All motion is
+    frame-counted from a seed, so a pause holds and resumes the frame it stopped on, and a still
+    is repeatable.
 - **The look is applied cheaply.** Brightness and colour are a CSS filter on the visualiser's
   canvas. Sensitivity scales each frame's swing from its own running loudness (a plain gain would
   cancel out: butterchurn reads every band against its own average), applied after the samples are

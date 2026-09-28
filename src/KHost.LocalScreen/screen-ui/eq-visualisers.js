@@ -1,18 +1,50 @@
 // The host's own drawings under the words: a spectrum analyser, the same mirrored, an
-// oscilloscope and a pair of VU meters. Canvas 2D, no third-party code. visualiser.js decides when
-// one is up and hands each frame what it heard; this only turns that into a picture.
+// oscilloscope and a pair of VU meters, and a set of calm ambient scenes. Canvas 2D, no third-party
+// code. visualiser.js decides when one is up and hands each frame what it heard; this only turns
+// that into a picture.
 //
-// Everything sits low on the screen, under where the words usually are, so the picture behind a
-// line stays dark. Frame-counted motion (peak holds, falls) assumes visualiser.js's 30fps cap.
+// The analysers sit low on the screen, under where the words usually are, so the picture behind a
+// line stays dark. The ambient scenes fill the screen but stay dim, and the music only nudges them.
+// Frame-counted motion (peak holds, falls, every ambient movement) assumes visualiser.js's 30fps
+// cap, and is why a frozen picture resumes where it stopped.
 
 /// The styles a playlist entry can name, by the name the host sends. VisualiserPresetService
-/// mirrors this list; a test holds them together.
+/// mirrors this list; a test holds them together. A name starting 'ambient-' is a calm scene, and
+/// the Visualisations page groups by that prefix.
 const EQ_VISUALISER_STYLES = [
     { name: 'spectrum-bars', title: 'Spectrum bars' },
     { name: 'mirrored-bars', title: 'Mirrored bars' },
     { name: 'oscilloscope', title: 'Oscilloscope' },
     { name: 'vu-meters', title: 'Twin VU meters' },
+    { name: 'ambient-gradient', title: 'Drifting colour' },
+    { name: 'ambient-bokeh', title: 'Floating lights' },
+    { name: 'ambient-embers', title: 'Rising embers' },
+    { name: 'ambient-rings', title: 'Pulse rings' },
+    { name: 'ambient-beams', title: 'Sweeping beams' },
 ];
+
+/// The most any one ambient shape is painted at. Shapes lay over black, so no pixel is ever brighter
+/// than this share of its colour from one shape, which keeps the loudest moment a glow.
+const AMBIENT_MAX_ALPHA = 0.4;
+
+/// How far the smoothed loudness may move in one frame: a hit swells over several frames and dies
+/// away over a couple of seconds, so a scene can brighten with the music but never flash.
+const AMBIENT_RISE = 0.04;
+const AMBIENT_FALL = 0.012;
+
+/// A beat is the bass jumping this far clear of its own recent average, at most one per gap.
+const AMBIENT_BEAT_JUMP = 0.12;
+const AMBIENT_BEAT_GAP = 12;
+
+/// Pulse rings: how long one lives, and the longest wait for one in a passage with no beat.
+const AMBIENT_RING_LIFE = 90;
+const AMBIENT_RING_IDLE = 75;
+
+/// The seed a scene's layout starts from unless the caller names one, so a still is repeatable.
+const AMBIENT_SEED = 0x4b486f73;
+
+/// Classic, for a scene: a soft spread of colours rather than a meter's green to red.
+const AMBIENT_CLASSIC = ['#2ec4b6', '#6c63ff', '#d6589b', '#f0a04b', '#3a86ff'];
 
 /// The bar counts an entry may ask for; anything else is taken as the nearest.
 const EQ_BAR_COUNTS = [16, 32, 64];
@@ -213,9 +245,75 @@ function eqColourStops(scheme, colour) {
     return [[0, '#00b400'], [0.55, '#28dc00'], [0.75, '#f0e000'], [0.9, '#ff7800'], [1, '#ff1e00']];
 }
 
+/// Whether a style is one of the calm scenes rather than an analyser.
+function isAmbientStyle(name) {
+    return typeof name === 'string' && name.startsWith('ambient-') && isEqVisualiserStyle(name);
+}
+
+/// The colours a scene draws with, as [r, g, b]: the classic spread, or the accent or the single
+/// colour with a lighter and a darker shade of it, so a one-colour scene still has depth.
+function ambientPalette(scheme, colour) {
+    if (scheme === 'theme' || scheme === 'single') {
+        const rgb = eqParseColour(scheme === 'theme' ? EQ_THEME_COLOUR : colour) || eqParseColour(EQ_SINGLE_COLOUR);
+        const shade = (f) => rgb.map((c) => Math.round(f >= 0 ? c + (255 - c) * f : c * (1 + f)));
+        return [rgb, shade(0.3), shade(-0.35)];
+    }
+
+    return AMBIENT_CLASSIC.map(eqParseColour);
+}
+
+/// A colour `at` of the way round the palette (wrapping), blended between neighbours so a scene's
+/// colours drift rather than jump.
+function ambientColourAt(palette, at) {
+    const n = palette.length;
+    const x = ((at % n) + n) % n;
+    const i = Math.floor(x), t = x - i;
+    const a = palette[i], b = palette[(i + 1) % n];
+    return [0, 1, 2].map((k) => Math.round(a[k] + (b[k] - a[k]) * t));
+}
+
+/// An opacity held under AMBIENT_MAX_ALPHA.
+function ambientAlpha(value) {
+    return Math.min(AMBIENT_MAX_ALPHA, Math.max(0, value));
+}
+
+/// A repeatable stream of numbers in [0, 1) from a seed (mulberry32).
+function ambientRandom(seed) {
+    let a = seed >>> 0;
+    return () => {
+        a = (a + 0x6d2b79f5) >>> 0;
+        let t = a;
+        t = Math.imul(t ^ (t >>> 15), t | 1);
+        t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+}
+
+/// Moves a scene's sense of the music one frame on from this frame's loudness and bass (0 to 1):
+/// `level` and `bass` follow them at most AMBIENT_RISE up and AMBIENT_FALL down a frame, and
+/// `beat` is set for the one frame a bass hit stands clear of its recent average.
+function ambientStepEnergy(state, loudness, bass) {
+    if (state.level === undefined) Object.assign(state, { level: 0, bass: 0, average: 0, cooldown: 0, beat: false });
+
+    const ease = (from, to) => (to > from ? Math.min(to, from + AMBIENT_RISE) : Math.max(to, from - AMBIENT_FALL));
+    const heard = eqClamp01(loudness), low = eqClamp01(bass);
+    state.level = ease(state.level, heard);
+    state.bass = ease(state.bass, low);
+
+    state.beat = false;
+    if (state.cooldown > 0) state.cooldown--;
+    else if (low - state.average > AMBIENT_BEAT_JUMP) {
+        state.beat = true;
+        state.cooldown = AMBIENT_BEAT_GAP;
+    }
+    state.average += (low - state.average) * 0.2;
+
+    return state;
+}
+
 /// One style drawn on `canvas`'s 2D context. `canvas.width`/`height` are the drawing buffer, sized
-/// by the caller.
-function createEqVisualiser(canvas) {
+/// by the caller. `seed` lays out the ambient scenes; the same seed draws the same frames.
+function createEqVisualiser(canvas, { seed = AMBIENT_SEED } = {}) {
     const ctx = canvas.getContext('2d');
     let style = null;
     let barCount = EQ_DEFAULT_BAR_COUNT;
@@ -223,11 +321,14 @@ function createEqVisualiser(canvas) {
     let colour = EQ_SINGLE_COLOUR;
     let bars = {};
     let meters = {};
+    let scene = {};
     let heights = new Float32Array(barCount);
+    let senseHeights = new Float32Array(16);
 
     function reset() {
         bars = {};
         meters = {};
+        scene = {};
     }
 
     function gradient(x0, y0, x1, y1) {
@@ -236,31 +337,33 @@ function createEqVisualiser(canvas) {
         return g;
     }
 
-    /// Bar heights for this frame from whichever feed there is, shifted by the sensitivity's gain.
-    function barHeights(feed) {
-        if (heights.length !== barCount) heights = new Float32Array(barCount);
+    /// Bar heights for this frame from whichever feed there is, shifted by the sensitivity's gain,
+    /// into `out` (its length is the bar count).
+    function barHeights(feed, out) {
+        const count = out.length;
 
         if (feed.spectrum) {
             const s = feed.spectrum;
-            eqBarsFromSpectrum(s.bytes, s.binHz, s.minDb, s.maxDb, barCount, heights);
+            eqBarsFromSpectrum(s.bytes, s.binHz, s.minDb, s.maxDb, count, out);
             const shift = (feed.gainDb || 0) / (EQ_FFT_TOP_DB - EQ_FFT_FLOOR_DB);
-            for (let i = 0; i < barCount; i++) heights[i] = eqClamp01(heights[i] + (heights[i] > 0 ? shift : 0));
+            for (let i = 0; i < count; i++) out[i] = eqClamp01(out[i] + (out[i] > 0 ? shift : 0));
         } else if (feed.bands) {
             const { left, right, edges } = feed.bands;
             const bandHeights = Array.from(left, (byte, i) => (eqHeightFromBandByte(byte) + eqHeightFromBandByte(right[i])) / 2);
-            eqBarsFromBands(bandHeights, edges, barCount, heights);
+            eqBarsFromBands(bandHeights, edges, count, out);
             const shift = (feed.gainDb || 0) / EQ_BAND_RANGE_DB;
-            for (let i = 0; i < barCount; i++) heights[i] = eqClamp01(heights[i] + (heights[i] > 0 ? shift : 0));
+            for (let i = 0; i < count; i++) out[i] = eqClamp01(out[i] + (out[i] > 0 ? shift : 0));
         } else {
-            heights.fill(0);
+            out.fill(0);
         }
 
-        return heights;
+        return out;
     }
 
     function drawBars(feed, mirrored) {
         const w = canvas.width, h = canvas.height;
-        const state = eqStepBars(bars, barHeights(feed));
+        if (heights.length !== barCount) heights = new Float32Array(barCount);
+        const state = eqStepBars(bars, barHeights(feed, heights));
         const span = w * 0.9;
         const left = (w - span) / 2;
         const pitch = span / barCount;
@@ -362,6 +465,184 @@ function createEqVisualiser(canvas) {
         }
     }
 
+    const rgba = (rgb, a) => `rgba(${rgb[0]},${rgb[1]},${rgb[2]},${Math.round(a * 1000) / 1000})`;
+
+    /// A soft disc of light: `alpha` at the centre, `alpha` * 0.55 at `core` of the way out, clear at
+    /// the rim.
+    function glow(x, y, r, rgb, alpha, core) {
+        if (!(alpha > 0) || !(r > 0)) return;
+        const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+        g.addColorStop(0, rgba(rgb, alpha));
+        g.addColorStop(core, rgba(rgb, alpha * 0.55));
+        g.addColorStop(1, rgba(rgb, 0));
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(x, y, r, 0, Math.PI * 2);
+        ctx.fill();
+    }
+
+    /// A scene's moving parts, laid out from the seed the first time it is drawn after a reset.
+    function buildScene() {
+        const random = ambientRandom(seed ^ Math.imul(EQ_VISUALISER_STYLES.findIndex((s) => s.name === style) + 1, 0x9e3779b1));
+        const make = (count, one) => Array.from({ length: count }, one);
+        scene = { frame: 0, energy: {}, random, hue: random() * 5, rings: [], lastRing: -AMBIENT_RING_IDLE, ringCount: 0 };
+
+        if (style === 'ambient-gradient') scene.items = make(3, () => ({ phase: random() * Math.PI * 2 }));
+        else if (style === 'ambient-bokeh') {
+            scene.items = make(22, () => ({
+                x: random(), y: random(), size: 0.025 + 0.06 * random() * random(), rise: 0.0005 + 0.0012 * random(),
+                sway: random() * Math.PI * 2, twinkle: random() * Math.PI * 2, hue: random() * 5,
+            }));
+        } else if (style === 'ambient-embers') {
+            scene.items = make(64, () => ({
+                x: random(), y: random(), size: 0.0025 + 0.004 * random(), rise: 0.0015 + 0.003 * random(),
+                sway: random() * Math.PI * 2, hue: random() * 5,
+            }));
+        } else if (style === 'ambient-beams') {
+            scene.items = make(5, () => ({ phase: random() * Math.PI * 2, speed: 0.12 + 0.1 * random(), reach: 0.35 + 0.1 * random() }));
+        } else scene.items = [];
+    }
+
+    /// This frame's loudness and bass as the scene hears them: a coarse spectrum from the same feed
+    /// the bars read (so the sensitivity lands the same way), smoothed so nothing jumps.
+    function sense(feed) {
+        barHeights(feed, senseHeights);
+        let all = 0, low = 0;
+        for (let i = 0; i < senseHeights.length; i++) all += senseHeights[i];
+        for (let i = 0; i < 4; i++) low += senseHeights[i];
+        return ambientStepEnergy(scene.energy, all / senseHeights.length, low / 4);
+    }
+
+    /// Three wide pools of colour wandering slowly, their hues turning round the palette.
+    function drawDrift(e, t, palette) {
+        const w = canvas.width, h = canvas.height;
+        const reach = Math.hypot(w, h) * (0.42 + 0.04 * e.bass);
+        scene.items.forEach((pool, i) => {
+            const x = w * (0.5 + 0.4 * Math.sin(t * (0.05 + i * 0.017) + pool.phase));
+            const y = h * (0.5 + 0.32 * Math.cos(t * (0.043 + i * 0.011) + pool.phase * 1.7));
+            glow(x, y, reach, ambientColourAt(palette, (i * palette.length) / 3 + t / 25), ambientAlpha(0.16 + 0.12 * e.level), 0.4);
+        });
+    }
+
+    /// Out-of-focus lights rising slowly and twinkling; the music lifts them a little faster and
+    /// brighter, and a bass note swells them slightly.
+    function drawBokeh(e, t, palette) {
+        const w = canvas.width, h = canvas.height;
+        for (const orb of scene.items) {
+            orb.y -= orb.rise * (1 + 0.8 * e.level);
+            if (orb.y < -orb.size * 2) { orb.y = 1 + orb.size * 2; orb.x = scene.random(); }
+
+            const twinkle = 0.5 + 0.5 * Math.sin(t * 0.6 + orb.twinkle);
+            const x = (orb.x + 0.03 * Math.sin(t * 0.2 + orb.sway)) * w;
+            glow(x, orb.y * h, orb.size * h * (1 + 0.1 * e.bass), ambientColourAt(palette, orb.hue),
+                ambientAlpha(0.1 + 0.08 * twinkle + 0.15 * e.level), 0.75);
+        }
+    }
+
+    /// Sparks rising from a faint glow along the bottom, fading out before they reach the top.
+    function drawEmbers(e, t, palette) {
+        const w = canvas.width, h = canvas.height;
+        const warm = ctx.createLinearGradient(0, h * 0.7, 0, h);
+        const base = ambientColourAt(palette, t / 30);
+        warm.addColorStop(0, rgba(base, 0));
+        warm.addColorStop(1, rgba(base, ambientAlpha(0.08 + 0.12 * e.bass)));
+        ctx.fillStyle = warm;
+        ctx.fillRect(0, h * 0.7, w, h * 0.3);
+
+        for (const spark of scene.items) {
+            spark.y -= spark.rise * (1 + 0.9 * e.level);
+            if (spark.y < -0.02) { spark.y = 1.02; spark.x = scene.random(); }
+
+            const fade = eqClamp01(spark.y * 1.3);
+            const alpha = ambientAlpha((0.22 + 0.18 * e.level) * fade);
+            const x = (spark.x + 0.015 * Math.sin(t * 0.8 + spark.sway)) * w;
+            const rgb = ambientColourAt(palette, spark.hue);
+            glow(x, spark.y * h, spark.size * h * 5, rgb, alpha * 0.35, 0.2);
+            glow(x, spark.y * h, spark.size * h * 1.5, rgb, alpha, 0.6);
+        }
+    }
+
+    /// Thin rings widening from the middle and fading: one on each beat, and a slower one when
+    /// there is none, so a quiet passage still breathes.
+    function drawRings(e, t, palette) {
+        const w = canvas.width, h = canvas.height;
+        const cx = w / 2, cy = h / 2;
+
+        if (e.beat || scene.frame - scene.lastRing >= AMBIENT_RING_IDLE) {
+            scene.rings.push({ born: scene.frame, strength: e.beat ? 1 : 0.8, rgb: ambientColourAt(palette, scene.hue + scene.ringCount * 1.3) });
+            scene.lastRing = scene.frame;
+            scene.ringCount++;
+        }
+        scene.rings = scene.rings.filter((ring) => scene.frame - ring.born < AMBIENT_RING_LIFE);
+
+        glow(cx, cy, h * (0.18 + 0.06 * e.bass), ambientColourAt(palette, scene.hue + t / 20), ambientAlpha(0.06 + 0.12 * e.bass), 0.3);
+
+        for (const ring of scene.rings) {
+            const age = (scene.frame - ring.born) / AMBIENT_RING_LIFE;
+            const radius = h * (0.05 + 0.6 * (1 - (1 - age) * (1 - age)));
+            const alpha = ambientAlpha(0.34 * ring.strength * Math.pow(1 - age, 1.5));
+            const width = Math.max(1.5, h * 0.006 * (1.6 - age));
+
+            ctx.beginPath();
+            ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+            ctx.strokeStyle = rgba(ring.rgb, alpha * 0.25);
+            ctx.lineWidth = width * 4;
+            ctx.stroke();
+            ctx.strokeStyle = rgba(ring.rgb, alpha);
+            ctx.lineWidth = width;
+            ctx.stroke();
+        }
+    }
+
+    /// Stage lights along the bottom edge, their beams sweeping slowly; the music quickens the sweep
+    /// and lifts the light a little.
+    function drawBeams(e, t, palette) {
+        const w = canvas.width, h = canvas.height;
+        const length = h * 1.4;
+        const alpha = ambientAlpha(0.13 + 0.12 * e.level + 0.06 * e.bass);
+
+        scene.items.forEach((beam, i) => {
+            beam.phase += (beam.speed * (1 + 0.6 * e.level)) / 30;
+            const angle = Math.sin(beam.phase) * beam.reach;
+            const ox = w * (0.1 + (0.8 * i) / (scene.items.length - 1)), oy = h * 1.02;
+            const dx = Math.sin(angle), dy = -Math.cos(angle);
+            const tipX = ox + dx * length, tipY = oy + dy * length;
+            const spread = length * 0.1, foot = h * 0.01;
+            const rgb = ambientColourAt(palette, i + t / 30);
+
+            const g = ctx.createLinearGradient(ox, oy, tipX, tipY);
+            g.addColorStop(0, rgba(rgb, alpha));
+            g.addColorStop(1, rgba(rgb, 0));
+            ctx.fillStyle = g;
+            ctx.beginPath();
+            ctx.moveTo(ox - dy * foot, oy + dx * foot);
+            ctx.lineTo(tipX - dy * spread, tipY + dx * spread);
+            ctx.lineTo(tipX + dy * spread, tipY - dx * spread);
+            ctx.lineTo(ox + dy * foot, oy - dx * foot);
+            ctx.closePath();
+            ctx.fill();
+
+            glow(ox, oy, h * 0.08, rgb, alpha, 0.3);
+        });
+    }
+
+    /// One frame of a calm scene: its motion steps one frame whatever the music, and the music only
+    /// nudges how fast and how bright.
+    function drawScene(feed) {
+        if (!scene.items) buildScene();
+        const e = sense(feed);
+        const t = scene.frame / 30;
+        const palette = ambientPalette(scheme, colour);
+
+        if (style === 'ambient-gradient') drawDrift(e, t, palette);
+        else if (style === 'ambient-bokeh') drawBokeh(e, t, palette);
+        else if (style === 'ambient-embers') drawEmbers(e, t, palette);
+        else if (style === 'ambient-rings') drawRings(e, t, palette);
+        else if (style === 'ambient-beams') drawBeams(e, t, palette);
+
+        scene.frame++;
+    }
+
     return {
         /// Answers whether the style exists; a new one starts its bars and meters from rest.
         setStyle(name) {
@@ -391,6 +672,7 @@ function createEqVisualiser(canvas) {
             else if (style === 'mirrored-bars') drawBars(feed, true);
             else if (style === 'oscilloscope') drawScope(feed);
             else if (style === 'vu-meters') drawMeters(feed);
+            else if (isAmbientStyle(style)) drawScene(feed);
         },
 
         reset,
@@ -398,7 +680,7 @@ function createEqVisualiser(canvas) {
         get style() { return style; },
         get barCount() { return barCount; },
         get colourScheme() { return scheme; },
-        get state() { return { bars, meters }; },
+        get state() { return { bars, meters, scene }; },
     };
 }
 

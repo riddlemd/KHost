@@ -174,6 +174,23 @@ public class VisualiserPresetServiceTests : IDisposable
         Assert.Equal(styles, VisualiserPresetService.BuiltIns);
     }
 
+    [Theory]
+    [InlineData(VisualiserPresetSource.BuiltIn, "ambient-bokeh", true)]
+    [InlineData(VisualiserPresetSource.BuiltIn, "spectrum-bars", false)]
+    [InlineData(VisualiserPresetSource.Imported, "ambient-bokeh", false)]
+    [InlineData(VisualiserPresetSource.Bundled, "ambient-bokeh", false)]
+    public void IsAmbient_OnlyABuiltInNamedAsAScene(VisualiserPresetSource source, string name, bool expected)
+        => Assert.Equal(expected, VisualiserPresetService.IsAmbient(source, name));
+
+    [Fact]
+    public void BuiltIns_OfferCalmScenesBesideTheAnalysers()
+    {
+        var ambient = VisualiserPresetService.BuiltIns.Where(b => VisualiserPresetService.IsAmbient(VisualiserPresetSource.BuiltIn, b.Name)).ToList();
+
+        Assert.InRange(ambient.Count, 4, 5);
+        Assert.Contains(VisualiserPresetService.BuiltIns, b => !VisualiserPresetService.IsAmbient(VisualiserPresetSource.BuiltIn, b.Name));
+    }
+
     [Fact]
     public async Task DeleteImported_RemovesItAndAnnounces()
     {
