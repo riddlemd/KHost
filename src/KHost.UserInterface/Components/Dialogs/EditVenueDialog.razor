@@ -26,19 +26,28 @@
             <EditVenueQrCodes Model="_model" />
 
             <div class="kh-venue-settings__section">
-                <span class="kh-venue-settings__section-title">Song backgrounds</span>
+                <span class="kh-venue-settings__section-title">Visualisations</span>
 
-                <label class="kh-venue-settings__row kh-form-check">
-                    <span class="kh-form-check-label">
-                        Show a visualiser behind songs with timed lyrics
+                <div class="kh-venue-settings__row">
+                    <span class="kh-venue-settings__labelled">
+                        <label class="kh-form-label">Visualisation playlist</label>
                         <span class="kh-note">
-                            Only for a song with no picture of its own, and only on the local
-                            screen. Off, such a song plays over black.
+                            Drawn under a song with timed lyrics and no picture of its own, one
+                            entry per song, on the local screen only. Set them up under
+                            Settings &rsaquo; Visualisations Manager.
                         </span>
                     </span>
-                    <input id="venue-song-visualiser" type="checkbox" class="kh-form-check-input"
-                           @bind="_model.SongVisualiserEnabled" />
-                </label>
+                    <ComboBox TItem="VisualisationPlaylist"
+                              Class="kh-venue-settings__picker"
+                              Value="_visualisationPlaylist"
+                              ValueChanged="OnVisualisationPlaylistChanged"
+                              @bind-Text="_visualisationPlaylistText"
+                              Search="SearchVisualisationPlaylistsAsync"
+                              DisplayName="@(playlist => playlist.Name)"
+                              MinimumSearchLength="0"
+                              OpenWhenEmpty="true"
+                              Placeholder="None: black under the words" />
+                </div>
             </div>
 
             <EditVenueBetweenSingers Model="_model" />

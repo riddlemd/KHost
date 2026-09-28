@@ -4,6 +4,7 @@ using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using KHost.Common.Display;
 using KHost.Common.Media;
+using KHost.Domain.Services.Visualisations;
 using KHost.IPC.SignalR.Contracts;
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
@@ -48,10 +49,6 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
     /// <summary>Bottom-left, away from the code's default corner, so the two stack when unset.</summary>
     private const OverlayCorner DefaultBreakMusicCardCorner = OverlayCorner.BottomLeft;
 
-    /// <summary>Whether the screen darkens the band under a song's words. Off until a visualisation's
-    /// own settings supply it per song; nothing a venue sets reaches it yet.</summary>
-    private const bool DarkenLyricBands = false;
-
     /// <summary>A screen takes seconds to register once launched; this is how long ConnectAsync
     /// waits for it before reporting a launch that never came back rather than a refusal.</summary>
     private static readonly TimeSpan DefaultRegistrationTimeout = TimeSpan.FromSeconds(10);
@@ -91,12 +88,11 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
 
     // Serialises visualiser sends: a load and a venue edit can both decide it at once.
     private readonly SemaphoreSlim _visualiserLock = new(1, 1);
-    private readonly Func<int> _pickPreset;
 
-    /// <summary>The song the visualiser was decided for, by identity, and what was picked for it:
-    /// a rebuild or a rejoin reloads the same program and must keep the same picture.</summary>
+    /// <summary>The song the visualiser was decided for, by identity, and the playlist entry picked
+    /// for it: a rebuild or a rejoin reloads the same program and must keep the same picture.</summary>
     private PlaybackProgram.Playing? _visualiserFor;
-    private int _visualiserPreset;
+    private (Guid PlaylistId, Guid EntryId)? _visualiserPick;
     private DisplayLoad? _visualiserLoad;
 
     /// <summary>The probe's answer for <see cref="_visualiserFor"/>, asked once per song.</summary>
@@ -153,8 +149,7 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
         IVenuesService? venuesService = null,
         TimeSpan? registrationTimeout = null,
         IServiceProvider? services = null,
-        TimeSpan? redrawSettle = null,
-        Func<int>? pickPreset = null)
+        TimeSpan? redrawSettle = null)
     {
         _logger = logger;
         _screenServer = screenServer;
@@ -164,7 +159,6 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
         _registrationTimeout = registrationTimeout ?? DefaultRegistrationTimeout;
         _services = services;
         _redrawSettle = redrawSettle ?? DefaultRedrawSettle;
-        _pickPreset = pickPreset ?? Random.Shared.Next;
 
         _screenServer.ScreenConnected += OnScreenConnected;
         _screenServer.ScreenDisconnected += OnScreenDisconnected;
@@ -177,6 +171,10 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
 
         // Who is next is the marquee's content, however the queue, the turns or the mic moved it.
         _subscriptions.Add(broker.Subscribe<UpNextChanged>(_ => Redraw(Overlay.Marquee)));
+
+        // An edit to the venue's playlist, or to a preset it names, applies to the song under way.
+        _subscriptions.Add(broker.Subscribe<VisualisationPlaylistsChanged>(_ => Redraw(Overlay.Visualiser)));
+        _subscriptions.Add(broker.Subscribe<VisualiserPresetsChanged>(_ => Redraw(Overlay.Visualiser)));
 
         // Who is at the mic decides whether a venue hides its codes; what is on the main channel
         // decides the picture.
@@ -634,7 +632,7 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
                 if (load is null) return;
 
                 _visualiserFor = song;
-                _visualiserPreset = _pickPreset();
+                _visualiserPick = null;
                 _visualiserSourceHasPicture = null;
                 _visualiserLevelsUrl = null;
             }
@@ -655,28 +653,84 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
     }
 
     /// <summary>On only for a performance with timed words and nothing of its own to show under them
-    /// (<see cref="SongBackdrops.ForPlaying"/> answering black), at a venue that asked for it.</summary>
-    /// <remarks>Any preset the timing names is ignored: the host's pick applies. An ad reads no words
-    /// (<see cref="SendTimedLyricsAsync"/>), so it never gets one.</remarks>
+    /// (<see cref="SongBackdrops.ForPlaying"/> answering black), at a venue whose visualisation
+    /// playlist has an entry to draw.</summary>
+    /// <remarks>Any preset the timing names is ignored: the playlist's entry applies. An ad reads no
+    /// words (<see cref="SendTimedLyricsAsync"/>), so it never gets one.</remarks>
     private async Task<SetVisualiserCommand> DecideVisualiserAsync(PlaybackProgram.Playing song, DisplayLoad load)
     {
-        if ((await ReadVenueSettingsAsync())?.SongVisualiserEnabled != true) return VisualiserOff;
+        if ((await ReadVenueSettingsAsync())?.VisualisationPlaylistId is not { } playlistId) return VisualiserOff;
+        if (_services?.GetService<IVisualisationPlaylistService>() is not { } playlists) return VisualiserOff;
 
         var lyrics = ReferenceEquals(song, _lyricsFor) ? _lyrics : null;
         if (lyrics is not { Pages.Count: > 0 }) return VisualiserOff;
 
         var path = song.Media.FilePath;
         var backdrop = SongBackdrops.ForPlaying(hasTimedLyrics: true, path, await PlaysOwnPictureAsync(path, load));
+        if (backdrop != SongBackdrop.Black) return VisualiserOff;
 
-        return backdrop == SongBackdrop.Black
-            ? new SetVisualiserCommand
+        // Picked only once the song is known to draw one, so a video does not use up a turn.
+        if (await EntryForSongAsync(playlists, playlistId) is not { } entry) return VisualiserOff;
+
+        string? name = null, url = null;
+        if (entry.PresetSource == VisualiserPresetSource.Imported)
+        {
+            if (ImportedPresetUrl(entry.PresetName) is not { } imported)
             {
-                Enabled = true,
-                Preset = _visualiserPreset,
-                LevelsUrl = LevelsUrlFor(path, load),
-                DarkenLyricBands = DarkenLyricBands,
+                _logger.LogWarning("The visualisation's imported preset '{Preset}' is not there any more; '{Title}' plays over black",
+                    entry.PresetName, song.Media.Title);
+                return VisualiserOff;
             }
-            : VisualiserOff;
+
+            url = imported;
+        }
+        else
+        {
+            name = entry.PresetName;
+        }
+
+        return new SetVisualiserCommand
+        {
+            Enabled = true,
+            PresetName = name,
+            PresetUrl = url,
+            Brightness = entry.Brightness,
+            Saturation = entry.Saturation,
+            Sensitivity = entry.Sensitivity,
+            LevelsUrl = LevelsUrlFor(path, load),
+            DarkenLyricBands = entry.DarkenBehindWords,
+        };
+    }
+
+    /// <summary>The song's entry: the one already picked while it is still in the venue's playlist,
+    /// read afresh so an edit to its settings shows mid-song; else the playlist's next.</summary>
+    private async Task<VisualisationEntry?> EntryForSongAsync(IVisualisationPlaylistService playlists, Guid playlistId)
+    {
+        // An empty or missing playlist falls through to SelectNextAsync, which answers null.
+        var playlist = await playlists.ReadWithEntriesAsync(playlistId);
+
+        if (_visualiserPick is { } pick && pick.PlaylistId == playlistId
+            && playlist?.Entries.FirstOrDefault(entry => entry.Id == pick.EntryId) is { } kept)
+            return kept;
+
+        var next = await playlists.SelectNextAsync(playlistId);
+        _visualiserPick = next is null ? null : (playlistId, next.Id);
+
+        return next;
+    }
+
+    /// <summary>Where the screen fetches an imported preset, versioned by when it was written so a
+    /// re-import reaches a screen already drawing it; null when no such preset is stored.</summary>
+    private string? ImportedPresetUrl(string name)
+    {
+        if (_services?.GetService<IVisualiserPresetService>() is not { } presets) return null;
+        if (_services.GetService<IOptionsMonitor<HlsMediaStreamService.ServiceOptions>>() is not { } options) return null;
+
+        var preset = presets.ReadAll().FirstOrDefault(p => p.Source == VisualiserPresetSource.Imported && p.Name == name);
+        if (preset is null) return null;
+
+        return $"{options.CurrentValue.BaseAddress.TrimEnd('/')}{VisualiserPresetService.RoutePrefix}"
+            + $"{Uri.EscapeDataString(name)}?v={preset.ImportedUtc?.Ticks ?? 0}";
     }
 
     /// <summary>Starts reading the song's levels the first time its visualiser is on, and answers

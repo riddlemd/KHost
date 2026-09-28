@@ -1,0 +1,274 @@
+@page "/settings/visualisations-manager"
+@attribute [Authorize(Policy = nameof(KHostPermission.ManageMedia))]
+@using KHost.Abstractions.Models
+
+<PageTitle>KHost: Visualisations</PageTitle>
+
+<div class="kh-app__body">
+    <div class="kh-settings-page">
+        <div class="kh-card kh-visualisations">
+            <div class="kh-card__header">
+                <span class="kh-card__title"><Icon Name="stars" /> Visualisations Manager</span>
+                <button id="visualisation-add-playlist" class="kh-button kh-button--primary" type="button"
+                        @onclick="AddPlaylistAsync">
+                    <Icon Name="plus-lg" /> Add Playlist
+                </button>
+            </div>
+
+            <div class="kh-card__body kh-visualisations__body">
+                @if (_playlists.Count == 0)
+                {
+                    <div class="kh-panel--empty kh-panel--empty-lg">
+                        <Icon Name="stars" />
+                        <span>No visualisation playlists yet. Add one using the button above.</span>
+                    </div>
+                }
+                else
+                {
+                    <div class="kh-visualisations__layout">
+                        <table class="kh-table kh-visualisations__playlists">
+                            <thead>
+                                <tr>
+                                    <th>Playlist</th>
+                                    <th>Entries</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var playlist in _playlists)
+                                {
+                                    <tr class="kh-visualisations__playlist @(playlist.Id == _selectedId ? "kh-visualisations__playlist--selected" : "")"
+                                        @onclick="() => SelectPlaylist(playlist.Id)">
+                                        <td class="kh-table__cell--fill">
+                                            <span class="kh-visualisations__name">
+                                                @playlist.Name
+                                                @if (playlist.Id == _activePlaylistId)
+                                                {
+                                                    <span class="kh-badge kh-badge--secondary">In use</span>
+                                                }
+                                            </span>
+                                        </td>
+                                        <td>@playlist.Entries.Count</td>
+                                        <td class="kh-table__cell--actions">
+                                            <button class="kh-button--icon-minimal kh-visualisations__delete-playlist" title="Delete playlist" type="button"
+                                                    @onclick="() => StartDeletePlaylistAsync(playlist)" @onclick:stopPropagation="true">
+                                                <Icon Name="trash" />
+                                            </button>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+
+                        @if (Selected is { } selected)
+                        {
+                            <div class="kh-visualisations__editor kh-venue-settings">
+                                <div class="kh-venue-settings__section kh-venue-settings__section--head">
+                                    <div class="kh-venue-settings__field">
+                                        <label for="visualisation-playlist-name" class="kh-form-label">Name</label>
+                                        <input id="visualisation-playlist-name" class="kh-form-control" autocomplete="off"
+                                               value="@selected.Name" @onchange="RenamePlaylistAsync" />
+                                    </div>
+
+                                    <label class="kh-venue-settings__row kh-form-check">
+                                        <span class="kh-form-check-label">
+                                            Shuffle
+                                            <span class="kh-note">
+                                                One entry per song, picked at random but never the one
+                                                just shown. Off, they take turns in the order below.
+                                            </span>
+                                        </span>
+                                        <input id="visualisation-shuffle" type="checkbox" class="kh-form-check-input"
+                                               checked="@selected.Shuffle" @onchange="SetShuffleAsync" />
+                                    </label>
+                                </div>
+
+                                <div class="kh-venue-settings__section">
+                                    <span class="kh-venue-settings__section-title">Entries</span>
+
+                                    @if (selected.Entries.Count == 0)
+                                    {
+                                        <div class="kh-panel--empty">
+                                            <Icon Name="stars" />
+                                            <span>Nothing in this playlist yet, so a venue using it shows black.</span>
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <table class="kh-table kh-visualisations__entries">
+                                            <tbody>
+                                                @for (var i = 0; i < selected.Entries.Count; i++)
+                                                {
+                                                    var index = i;
+                                                    var entry = selected.Entries[index];
+
+                                                    <tr class="kh-visualisations__entry @(index == _selectedEntry ? "kh-visualisations__entry--selected" : "")"
+                                                        @onclick="() => SelectEntry(index)">
+                                                        <td class="kh-table__cell--fill">
+                                                            <span class="kh-visualisations__entry-name">@DescribePreset(entry)</span>
+                                                            <span class="kh-visualisations__entry-look">@DescribeLook(entry)</span>
+                                                        </td>
+                                                        <td class="kh-table__cell--actions">
+                                                            <button class="kh-button--icon-minimal" title="Move up" type="button"
+                                                                    disabled="@(index == 0)" @onclick="() => MoveEntryAsync(index, -1)" @onclick:stopPropagation="true">
+                                                                <Icon Name="arrow-up" />
+                                                            </button>
+                                                            <button class="kh-button--icon-minimal" title="Move down" type="button"
+                                                                    disabled="@(index == selected.Entries.Count - 1)" @onclick="() => MoveEntryAsync(index, 1)" @onclick:stopPropagation="true">
+                                                                <Icon Name="arrow-down" />
+                                                            </button>
+                                                            <button class="kh-button--icon-minimal kh-visualisations__remove-entry" title="Remove" type="button"
+                                                                    @onclick="() => RemoveEntryAsync(index)" @onclick:stopPropagation="true">
+                                                                <Icon Name="trash" />
+                                                            </button>
+                                                        </td>
+                                                    </tr>
+                                                }
+                                            </tbody>
+                                        </table>
+                                    }
+
+                                    <div class="kh-visualisations__add">
+                                        <select id="visualisation-add-preset" class="kh-form-select" @bind="_addPresetKey">
+                                            <VisualiserPresetOptions Presets="_presets" />
+                                        </select>
+                                        <button id="visualisation-add-entry" class="kh-button kh-button--secondary" type="button"
+                                                @onclick="AddEntryAsync">
+                                            <Icon Name="plus-lg" /> Add entry
+                                        </button>
+                                    </div>
+                                </div>
+
+                                @if (SelectedEntry is { } editing)
+                                {
+                                    <div class="kh-venue-settings__section kh-visualisations__entry-editor">
+                                        <span class="kh-venue-settings__section-title">This entry</span>
+
+                                        <div class="kh-venue-settings__field">
+                                            <label for="visualisation-preset" class="kh-form-label">Preset</label>
+                                            <select id="visualisation-preset" class="kh-form-select"
+                                                    value="@PresetKey(editing)" @onchange="SetPresetAsync">
+                                                @if (!IsAvailable(editing))
+                                                {
+                                                    <option value="@PresetKey(editing)">@editing.PresetName: not there any more</option>
+                                                }
+                                                <VisualiserPresetOptions Presets="_presets" />
+                                            </select>
+                                        </div>
+
+                                        <div class="kh-venue-settings__row">
+                                            <label for="visualisation-brightness" class="kh-form-label">Brightness</label>
+                                            <span class="kh-visualisations__slider">
+                                                <input id="visualisation-brightness" type="range" class="kh-visualisations__range"
+                                                       min="@VisualisationEntry.MinBrightness" max="@VisualisationEntry.MaxBrightness" step="5"
+                                                       value="@editing.Brightness"
+                                                       @oninput="e => Adjust(Setting.Brightness, e.Value)"
+                                                       @onchange="e => CommitAsync(Setting.Brightness, e.Value)" />
+                                                <span class="kh-visualisations__value">@editing.Brightness%</span>
+                                            </span>
+                                        </div>
+
+                                        <div class="kh-venue-settings__row">
+                                            <label for="visualisation-saturation" class="kh-form-label">Colour</label>
+                                            <span class="kh-visualisations__slider">
+                                                <input id="visualisation-saturation" type="range" class="kh-visualisations__range"
+                                                       min="@VisualisationEntry.MinSaturation" max="@VisualisationEntry.MaxSaturation" step="5"
+                                                       value="@editing.Saturation"
+                                                       @oninput="e => Adjust(Setting.Saturation, e.Value)"
+                                                       @onchange="e => CommitAsync(Setting.Saturation, e.Value)" />
+                                                <span class="kh-visualisations__value">@editing.Saturation%</span>
+                                            </span>
+                                        </div>
+
+                                        <div class="kh-venue-settings__row">
+                                            <span class="kh-venue-settings__labelled">
+                                                <label for="visualisation-sensitivity" class="kh-form-label">Audio sensitivity</label>
+                                                <span class="kh-note">How hard it moves to the music. 100% is as the preset was made.</span>
+                                            </span>
+                                            <span class="kh-visualisations__slider">
+                                                <input id="visualisation-sensitivity" type="range" class="kh-visualisations__range"
+                                                       min="@VisualisationEntry.MinSensitivity" max="@VisualisationEntry.MaxSensitivity" step="10"
+                                                       value="@editing.Sensitivity"
+                                                       @oninput="e => Adjust(Setting.Sensitivity, e.Value)"
+                                                       @onchange="e => CommitAsync(Setting.Sensitivity, e.Value)" />
+                                                <span class="kh-visualisations__value">@editing.Sensitivity%</span>
+                                            </span>
+                                        </div>
+
+                                        <label class="kh-venue-settings__row kh-form-check">
+                                            <span class="kh-form-check-label">
+                                                Darken behind the words
+                                                <span class="kh-note">A dark band behind each line while it is on screen.</span>
+                                            </span>
+                                            <input id="visualisation-darken" type="checkbox" class="kh-form-check-input"
+                                                   checked="@editing.DarkenBehindWords" @onchange="SetDarkenAsync" />
+                                        </label>
+
+                                        <iframe @ref="_preview" class="kh-visualisations__preview" title="Preview of this entry"
+                                                src="visualiser-preview.html" sandbox="allow-scripts"
+                                                data-kh-visualiser-preview></iframe>
+                                        <p class="kh-note">
+                                            The preview plays a made-up beat under two sample lines, and shows every
+                                            change as you make it. A song on the screen reacts to its own music.
+                                        </p>
+                                    </div>
+                                }
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+
+        <div class="kh-card kh-visualisations">
+            <div class="kh-card__header">
+                <span class="kh-card__title"><Icon Name="box-arrow-in-down" /> Imported presets</span>
+                <label class="kh-button kh-button--secondary kh-visualisations__import">
+                    <Icon Name="upload" /> Import presets
+                    <InputFile id="visualisation-import" class="kh-hidden" accept=".json" multiple OnChange="ImportAsync" />
+                </label>
+            </div>
+
+            <div class="kh-card__body kh-visualisations__body">
+                @if (Imported.Count == 0)
+                {
+                    <p class="kh-note">
+                        None yet. Import butterchurn preset files (.json) to add to the ten the host ships.
+                    </p>
+                }
+                else
+                {
+                    <table class="kh-table kh-visualisations__imported">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Imported</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var preset in Imported)
+                            {
+                                <tr>
+                                    <td class="kh-table__cell--fill">@preset.Name</td>
+                                    <td>@preset.ImportedUtc?.ToLocalTime().ToString("g")</td>
+                                    <td class="kh-table__cell--actions">
+                                        <button class="kh-button--icon-minimal" title="Delete preset" type="button"
+                                                @onclick="() => StartDeletePresetAsync(preset)">
+                                            <Icon Name="trash" />
+                                        </button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+                <p class="kh-note">
+                    A preset is code the screen runs, so import only files you trust. Kept in the host's
+                    <span class="kh-visualisations__path">cache/visualiser-presets</span> folder, not in the
+                    library. A MilkDrop .milk file has to be converted to butterchurn's .json first.
+                </p>
+            </div>
+        </div>
+    </div>
+</div>

@@ -228,13 +228,19 @@ internal sealed class StreamMediaPlayer : IMediaPlayer
     public void SetVisualiser(SetVisualiserCommand command)
     {
         _logger.LogInformation("Visualiser {State}{Bands}",
-            command.Enabled ? $"on, preset {command.Preset}{(command.LevelsUrl is null ? "" : ", with host levels")}" : "off",
-            command.DarkenLyricBands ? ", words on a dark band" : "");
+            command.Enabled
+                ? $"on, {(command.PresetUrl is null ? $"preset '{command.PresetName}'" : "an imported preset")}"
+                  + $" at {command.Brightness}% brightness, {command.Saturation}% colour, {command.Sensitivity}% sensitivity"
+                  + (command.LevelsUrl is null ? "" : ", with host levels")
+                : "off",
+            command.DarkenLyricBands ? ", words on dark bands" : "");
 
         Send(new
         {
-            type = "visualiser", enabled = command.Enabled, preset = command.Preset, levels = command.LevelsUrl,
-            darken = command.DarkenLyricBands,
+            type = "visualiser", enabled = command.Enabled,
+            presetName = command.PresetName, presetUrl = command.PresetUrl,
+            brightness = command.Brightness, saturation = command.Saturation, sensitivity = command.Sensitivity,
+            levels = command.LevelsUrl, darken = command.DarkenLyricBands,
         });
     }
 

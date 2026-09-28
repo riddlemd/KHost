@@ -243,20 +243,61 @@ public class TimedLyricsPainterTests
         Assert.Equal(boxes[1].Y + boxes[1].Height, boxes[2].Y);
     }
 
-    /// <summary>Words over a picture nobody made with them in mind: the band they sit in is darkened
-    /// and the picture above it left alone.</summary>
+    // --- the band behind each line, for words over a picture nobody made with them in mind ---
+
+    /// <summary>A line in the middle of the frame gets its band where it sits, not along the bottom.</summary>
     [Fact]
-    public void Paint_OverAPicture_DarkensOnlyTheBandTheWordsSitIn()
+    public void Paint_OverAPicture_DarkensBehindAMidScreenLine()
     {
-        var painter = new TimedLyricsPainter(OneSyllable(), Width, Height, scrim: true);
-        using var worker = painter.CreateWorker();
-        using var frame = painter.CreateFrame();
-        worker.Paint(frame, 0);
+        var pixels = PaintWithBandsAt(Lines(new LyricBox(40, 150, 300, 40)), 1);
 
-        static int AlphaAt(byte[] pixels, int y) => pixels[(y * Width + 4) * 4 + 3];
+        // Inside the band's padding, left of the box, where no letter reaches.
+        Assert.Equal((0, 0, 0, (int)TimedLyricsPainter.BandAlpha), Pixel(pixels, 34, 170));
+    }
 
-        Assert.Equal(0, AlphaAt(frame.Pixels, Height / 2));
-        Assert.True(AlphaAt(frame.Pixels, Height - 1) > 150, "the band under the words was left clear");
+    [Theory]
+    [InlineData(20, 170)]   // left of the band
+    [InlineData(360, 170)]  // right of the band
+    [InlineData(100, 135)]  // above it
+    [InlineData(100, 205)]  // below it
+    [InlineData(100, 350)]  // where the old full-width band lay, along the bottom
+    public void Paint_OverAPicture_LeavesThePictureClearAwayFromTheLine(int x, int y)
+        => Assert.Equal(0, Pixel(PaintWithBandsAt(Lines(new LyricBox(40, 150, 300, 40)), 1), x, y).A);
+
+    /// <summary>One path, filled once: two lines' bands overlap and are no darker together.</summary>
+    [Fact]
+    public void Paint_OverAPicture_TwoStackedLines_AreNoDarkerWhereTheirBandsMeet()
+    {
+        var pixels = PaintWithBandsAt(Lines(new LyricBox(40, 150, 300, 40), new LyricBox(40, 190, 300, 40)), 1);
+
+        Assert.Equal((int)TimedLyricsPainter.BandAlpha, Pixel(pixels, 34, 190).A);
+    }
+
+    [Fact]
+    public void Paint_OverAPicture_ALineWithNoWords_GetsNoBand()
+    {
+        var lyrics = Song([new LyricPage { ShowFromSeconds = 0, ShowUntilSeconds = 10, Lines = [new LyricLine { Position = new LyricBox(40, 150, 300, 40), Syllables = [new(1, 2, " ")] }] }]);
+
+        Assert.Equal(0, Pixel(PaintWithBandsAt(lyrics, 1), 34, 170).A);
+    }
+
+    [Fact]
+    public void Paint_OverAPicture_BeforeThePageShows_LeavesTheFrameClear()
+    {
+        var lyrics = Song([new LyricPage { ShowFromSeconds = 2, ShowUntilSeconds = 10, Lines = [new LyricLine { Position = new LyricBox(40, 150, 300, 40), Syllables = [new(5, 6, "Hello")] }] }]);
+
+        Assert.Equal(0, Covered(PaintWithBandsAt(lyrics, 1)));
+    }
+
+    /// <summary>The band is the line's box grown by a quarter of its height, as the screen draws it.</summary>
+    [Fact]
+    public void LyricBand_GrowsTheBoxByAQuarterOfItsHeight()
+    {
+        using var band = TimedLyricsPainter.LyricBand(new LyricBox(40, 150, 300, 40), 2, 10, 20);
+
+        // 80px tall at scale 2, so 20px of padding round a box at (90, 320) that is 600 by 80.
+        Assert.Equal(new SkiaSharp.SKRect(70, 300, 710, 420), band.Rect);
+        Assert.Equal(20, band.Radii[0].X);
     }
 
     [Fact]
@@ -266,6 +307,31 @@ public class TimedLyricsPainterTests
     [Fact]
     public void Frames_CarryStraightAlpha_BecauseFfmpegReadsRgbaAsStraight()
         => Assert.Equal(SkiaSharp.SKAlphaType.Unpremul, TimedLyricsPainter.FrameAlphaType);
+
+    /// <summary>One page shown 0..10s with a line in each box, its words not sung until 5s.</summary>
+    private static TimedLyrics Lines(params LyricBox[] boxes)
+        => Song([new LyricPage
+        {
+            ShowFromSeconds = 0,
+            ShowUntilSeconds = 10,
+            Inactive = White,
+            Lines = [.. boxes.Select(box => new LyricLine { Position = box, Syllables = [new(5, 6, "Hi")] })],
+        }]);
+
+    private static byte[] PaintWithBandsAt(TimedLyrics lyrics, double t)
+    {
+        var painter = new TimedLyricsPainter(lyrics, Width, Height, scrim: true);
+        using var worker = painter.CreateWorker();
+        using var frame = painter.CreateFrame();
+        worker.Paint(frame, t);
+        return [.. frame.Pixels];
+    }
+
+    private static (int R, int G, int B, int A) Pixel(byte[] pixels, int x, int y)
+    {
+        var i = (y * Width + x) * 4;
+        return (pixels[i], pixels[i + 1], pixels[i + 2], pixels[i + 3]);
+    }
 
     private static byte[] PaintAt(TimedLyrics lyrics, double t)
     {

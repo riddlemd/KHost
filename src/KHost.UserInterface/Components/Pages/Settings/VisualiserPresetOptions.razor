@@ -1,0 +1,17 @@
+@using KHost.Abstractions.Models
+
+<optgroup label="Shipped with KHost">
+    @foreach (var preset in Presets.Where(p => p.Source == VisualiserPresetSource.Bundled))
+    {
+        <option value="@VisualisationsManagerPage.PresetKey(preset.Source, preset.Name)">@preset.Name</option>
+    }
+</optgroup>
+@if (Presets.Any(p => p.Source == VisualiserPresetSource.Imported))
+{
+    <optgroup label="Imported">
+        @foreach (var preset in Presets.Where(p => p.Source == VisualiserPresetSource.Imported))
+        {
+            <option value="@VisualisationsManagerPage.PresetKey(preset.Source, preset.Name)">@preset.Name</option>
+        }
+    </optgroup>
+}

@@ -13,17 +13,31 @@ public class StreamMediaPlayerVisualiserTests
     public StreamMediaPlayerVisualiserTests() => _player.SendToBrowser = _sentToPage.Add;
 
     [Theory]
-    [InlineData(true, 12)]
-    [InlineData(false, 0)]
-    public void SetVisualiser_TellsThePageWhetherAndWhichPreset(bool enabled, int preset)
+    [InlineData(true, "Rovastar - Oozing Resistance", null)]
+    [InlineData(true, null, "http://host/media/visualiser-presets/Mine?v=1")]
+    [InlineData(false, null, null)]
+    public void SetVisualiser_TellsThePageWhetherAndWhichPreset(bool enabled, string? name, string? url)
     {
-        _player.SetVisualiser(new SetVisualiserCommand { Enabled = enabled, Preset = preset });
+        _player.SetVisualiser(new SetVisualiserCommand { Enabled = enabled, PresetName = name, PresetUrl = url });
 
         var message = JsonDocument.Parse(Assert.Single(_sentToPage)).RootElement;
 
         Assert.Equal("visualiser", message.GetProperty("type").GetString());
         Assert.Equal(enabled, message.GetProperty("enabled").GetBoolean());
-        Assert.Equal(preset, message.GetProperty("preset").GetInt32());
+        Assert.Equal(name, message.GetProperty("presetName").GetString());
+        Assert.Equal(url, message.GetProperty("presetUrl").GetString());
+    }
+
+    [Fact]
+    public void SetVisualiser_PassesOnHowToDrawIt()
+    {
+        _player.SetVisualiser(new SetVisualiserCommand { Enabled = true, PresetName = "x", Brightness = 80, Saturation = 150, Sensitivity = 250 });
+
+        var message = JsonDocument.Parse(Assert.Single(_sentToPage)).RootElement;
+
+        Assert.Equal(80, message.GetProperty("brightness").GetInt32());
+        Assert.Equal(150, message.GetProperty("saturation").GetInt32());
+        Assert.Equal(250, message.GetProperty("sensitivity").GetInt32());
     }
 
     [Theory]
@@ -31,7 +45,7 @@ public class StreamMediaPlayerVisualiserTests
     [InlineData(null)]
     public void SetVisualiser_PassesOnWhereTheHostsLevelsAre(string? url)
     {
-        _player.SetVisualiser(new SetVisualiserCommand { Enabled = true, Preset = 3, LevelsUrl = url });
+        _player.SetVisualiser(new SetVisualiserCommand { Enabled = true, PresetName = "x", LevelsUrl = url });
 
         var message = JsonDocument.Parse(Assert.Single(_sentToPage)).RootElement;
 

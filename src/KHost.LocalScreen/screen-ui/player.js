@@ -944,7 +944,10 @@ function handleCommand(raw) {
         case 'visualiser':
             overlay.setDarkenBands(message.darken === true);
             if (message.enabled === true) {
-                visualiser.show(message.preset);
+                visualiser.setLook(message);
+                // Tapped once it is up: an imported preset arrives after a fetch, and a tap is
+                // asked for only while the visualiser is active.
+                visualiser.show(message).then((up) => { if (up) retapVisualiser(); });
                 loadVisualiserLevels(message.levels);
                 retapVisualiser();
             } else {

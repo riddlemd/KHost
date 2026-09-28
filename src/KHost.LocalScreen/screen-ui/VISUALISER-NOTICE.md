@@ -20,6 +20,10 @@ both ways: alive with no input, since an encoded song on WebKit reaches the visu
 (see AGENTS.md), and dark enough that the words over it stay the brightest thing on screen. Many
 presets in the pack fail the first test and fade to black in silence. The set measured 18-83.
 
-To change the set, re-extract with the pack's `getPresets()` rather than editing the file by hand:
-the host sends a number, and the screen takes the preset at that number modulo the list's length,
-so the order is what a number means.
+To change the set, re-extract with the pack's `getPresets()` rather than editing the file by hand.
+The host names a shipped preset by its `name`, and holds the same names in
+`VisualiserPresetService.BundledNames`, which a test keeps in step with this file. A playlist entry
+naming a preset that is no longer here plays over black, so drop one only knowing that.
+
+Hosts can add their own presets by importing butterchurn `.json` files on the Visualisations page;
+those are the host's files, kept under its `cache/visualiser-presets` folder, and none ship here.

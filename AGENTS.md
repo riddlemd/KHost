@@ -273,9 +273,9 @@ cannot name another's: its secrets, and the QR code it offers the screens.
       timed-lyric song through `IBurnInStreamService.OpenUnderDrawnWordsAsync`, whose encode maps
       `0:V` (no attached pictures) from a video and no picture at all from an audio file — left to
       itself ffmpeg turns an MP3's cover into a one-frame video. A song with no timed words is left
-      alone and still shows its cover. Over a picture, the band the words sit in is darkened
-      (`PaintScrim`) — always, for burned-in words; the local screen's band is its own switch
-      (`SetVisualiserCommand.DarkenLyricBands`).
+      alone and still shows its cover. Over a picture, a band behind each line is darkened
+      (`PaintBands`) — always, for burned-in words; the local screen draws the same bands on the
+      playing entry's own switch (`SetVisualiserCommand.DarkenLyricBands`).
     - **Fonts are the system's**, in the order a web view's `sans-serif` resolves them per OS:
       Helvetica, Arial, DejaVu Sans, Liberation Sans, Noto Sans, then Skia's default; a character the
       face lacks falls back per line through the OS. Nothing is bundled.
@@ -515,15 +515,38 @@ A MilkDrop preset (butterchurn, WebGL 2) drawn by the **local screen** under a s
 place of black. Nothing else gets one: burned-in words (Cast and any display that cannot draw)
 stay on black, and a song with its own picture keeps it.
 
-- **The rule is `SongBackdrops.ForPlaying` answering `Black`**, plus the venue's
-  `SongVisualiserEnabled` (off when unset, no backfill). `LocalScreenDisplayProvider` decides it
-  after every load and on a venue edit, and sends `SetVisualiserCommand` — IPC only, not a
-  contract. A stems load has no picture; a stream from a non-audio file asks `ISourcePictureProbe`
-  once per song. Idle and an ad still send it off, and the screen takes it down itself once a stop
-  has faded out.
-- **The host picks a number per song; the screen maps it onto its own set** (`number mod length`).
-  The host never carries the preset list, and a rebuild or a rejoin keeps the same picture. Any
-  preset a song's timing names is ignored.
+- **The rule is `SongBackdrops.ForPlaying` answering `Black`**, plus a venue that names a
+  visualisation playlist (`VisualisationPlaylistId`, null when unset, no backfill) with at least one
+  entry. `LocalScreenDisplayProvider` decides it after every load, on a venue edit, and on
+  `VisualisationPlaylistsChanged` / `VisualiserPresetsChanged`, and sends `SetVisualiserCommand` —
+  IPC only, not a contract. A stems load has no picture; a stream from a non-audio file asks
+  `ISourcePictureProbe` once per song. Idle and an ad still send it off, and the screen takes it
+  down itself once a stop has faded out.
+- **Playlists, one entry per song.** `IVisualisationPlaylistService` (SQL, `VisualisationPlaylists`
+  / `VisualisationEntries`) holds ordered entries; each is a preset plus its own brightness,
+  colour, audio sensitivity and "darken behind the words", so one preset may appear several times
+  tuned differently. `SelectNextAsync` advances in order or shuffles without an immediate repeat;
+  the rotation lives in memory and starts over on a restart or an entry edit. The provider picks
+  only once a song is known to draw one (a video does not use up a turn), keeps the song's entry
+  by id across a rebuild or rejoin, and re-reads it on an edit, so a setting moved on the page
+  reaches the song on screen; an entry removed mid-song moves to the next.
+- **Presets are named, never numbered.** A shipped one goes by its name in
+  `screen-ui/visualiser-presets.js`, which `VisualiserPresetService.BundledNames` mirrors (a test
+  holds them together). An imported one is a butterchurn `.json` the host brought, validated for
+  shape and size (256 KB) and kept under `cache/visualiser-presets/<name>.json` — beside the
+  database, not in the library — and served from `/media/visualiser-presets/{name}?v=<write
+  time>`, so a re-import is a new URL. A preset's equations are code run by whatever draws it:
+  importing one is trusting it. `.milk` files are not read. A name that no longer resolves draws
+  black. Any preset a song's timing names is ignored.
+- **The look is applied cheaply.** Brightness and colour are a CSS filter on the visualiser's
+  canvas. Sensitivity scales each frame's swing from its own running loudness (a plain gain would
+  cancel out: butterchurn reads every band against its own average), applied after the samples are
+  filled, so a live tap and the host's levels get the same treatment.
+- **The Visualisations page previews honestly.** It runs the screen's own `visualiser.js` and
+  `lyrics-overlay.js`, copied unchanged into `wwwroot/js/visualiser/` by `copy:vendors` (a test
+  fails on drift), in a `sandbox="allow-scripts"` frame with no origin, fed a synthetic beat and two
+  sample lines mid-screen. Sandboxed because an imported preset is code and the console holds the
+  host's session.
 - **It listens, it never re-routes.** A stem song is tapped off the mixer's master gain (after the
   venue level and the fade), a fan-out to analysers that lead nowhere. An encoded song is tapped
   through `captureStream()` where the engine has it. Do not reach for `createMediaElementSource`:
@@ -555,10 +578,13 @@ stay on black, and a song with its own picture keeps it.
 - **A preset must stay alive in silence.** Several MilkDrop presets fade to black with no input,
   and a song whose levels have not arrived, or cannot be read, has none;
   `screen-ui/VISUALISER-NOTICE.md` says how the set was chosen.
-- **The words' dark band** is a per-song value on `SetVisualiserCommand.DarkenLyricBands`, IPC
-  only. `lyrics-overlay.js` draws the painter's `PaintScrim` gradient stop for stop, under the
-  words, so the two agree; change one and change the other. The provider sends it off for now
-  (`LocalScreenDisplayProvider.DarkenLyricBands`): a visualisation's own settings are to supply it.
+- **The words' dark bands** are per song, the entry's own switch, sent as
+  `SetVisualiserCommand.DarkenLyricBands`. One band behind each line on screen: its box grown by a
+  quarter of its height on every side, rounded by the same, black at 140/255, all lines in one path
+  filled once so where two meet is no darker. `lyrics-overlay.js` (`lyricBandRect`) and
+  `TimedLyricsPainter` (`LyricBand`, `PaintBands`) draw the same bands; change one and change the
+  other. The painter lays them whenever its words go over a picture — its default for a burn-in
+  (Cast), which has no entry to ask.
 - Capped at 30fps and a 1280x720 drawing buffer, frozen on pause (the last frame holds), and drawn
   only while shown. The engine is built on first use and never with an audio context of its own:
   samples are read here and handed to each frame, since every stem song brings a new context.

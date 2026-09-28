@@ -118,11 +118,48 @@ function synthesiseVisualiserLevels(track, songSeconds, levels) {
     return true;
 }
 
-/// Which preset a number names. Any integer, negative included, lands inside the set.
-function visualiserPresetIndex(number, count) {
-    if (!(count > 0)) return -1;
-    const n = Math.trunc(Number(number) || 0);
-    return ((n % count) + count) % count;
+/// A shipped preset by the name the host sends, or null. Exact: the host holds the same list.
+function findVisualiserPreset(presets, name) {
+    const found = typeof name === 'string' ? (presets || []).find((p) => p.name === name) : null;
+    return found ? found.preset : null;
+}
+
+/// The CSS filter for a look's brightness and colour, in percent; empty when both are as made.
+/// A filter on the canvas rather than a pass in the engine: the compositor applies it for free.
+function visualiserFilter(brightness, saturation) {
+    const b = Number.isFinite(brightness) ? brightness : 100;
+    const s = Number.isFinite(saturation) ? saturation : 100;
+    return b === 100 && s === 100 ? '' : `brightness(${b / 100}) saturate(${s / 100})`;
+}
+
+/// How far a frame's loudness may be pushed either way: past this the picture only clips or stalls.
+const VISUALISER_MAX_SWING = 8;
+
+/// Scales how far each frame's loudness strays from its own recent average: 1 leaves the sound as
+/// heard, 2 doubles every swing in decibels, 0 flattens it to its average. Butterchurn reads each
+/// band against its own running average, so a plain gain would cancel out; the swing is what it
+/// reacts to. Applied to whatever filled the samples, a live tap or the host's levels alike.
+/// `state` carries the running average between frames. Returns the gain applied.
+function applyVisualiserSensitivity(levels, sensitivity, state) {
+    const all = levels.timeByteArray;
+    let sum = 0;
+    for (let k = 0; k < all.length; k++) { const d = all[k] - 128; sum += d * d; }
+    const rms = Math.sqrt(sum / (all.length || 1));
+
+    // Tracked whatever the setting, so a change mid-song starts from where the song is.
+    state.average = state.average === undefined || state.average === null ? rms : state.average * 0.95 + rms * 0.05;
+
+    // Silence has no swing to scale, and an average of nothing would divide by zero.
+    if (sensitivity === 1 || !(rms >= 0.5) || !(state.average >= 0.5)) return 1;
+
+    const gain = Math.min(VISUALISER_MAX_SWING, Math.max(1 / VISUALISER_MAX_SWING, Math.pow(rms / state.average, sensitivity - 1)));
+    for (const array of [levels.timeByteArray, levels.timeByteArrayL, levels.timeByteArrayR]) {
+        for (let k = 0; k < array.length; k++) {
+            array[k] = Math.max(0, Math.min(255, Math.round(128 + (array[k] - 128) * gain)));
+        }
+    }
+
+    return gain;
 }
 
 /// The drawing buffer for a canvas shown at this size: its shape, no bigger than the ceiling.
@@ -173,15 +210,21 @@ function createVisualiserTap(context, node) {
 /// `engine` is butterchurn and `presets` the curated list; both are passed in so the logic here
 /// can be exercised without WebGL.
 /// `clock` answers the song position in seconds (null when nothing holds the song), for the host
-/// levels to be read at.
-function createVisualiser(canvas, { engine, presets, reportError, frame, cancelFrame, now, clock: songClock }) {
+/// levels to be read at. `fetchPreset` answers an imported preset's URL with its parsed file.
+function createVisualiser(canvas, { engine, presets, reportError, frame, cancelFrame, now, clock: songClock, fetchPreset }) {
     const requestFrame = frame || ((cb) => window.requestAnimationFrame(cb));
     const cancel = cancelFrame || ((id) => window.cancelAnimationFrame(id));
     const clock = now || (() => performance.now());
+    const fetchJson = fetchPreset || ((url) => fetch(url).then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`)))));
 
     let viz = null;
     let broken = false;
-    let presetIndex = -1;
+    // What is drawn (the preset's name or URL) and what was last asked for, which a slow fetch
+    // must not overtake.
+    let shownKey = null;
+    let wantedKey = null;
+    let sensitivity = 1;
+    const swing = {};
     let frozen = false;
     let handle = null;
     let lastFrameAt = -Infinity;
@@ -227,7 +270,7 @@ function createVisualiser(canvas, { engine, presets, reportError, frame, cancelF
     }
 
     function running() {
-        return viz !== null && presetIndex >= 0 && !frozen;
+        return viz !== null && shownKey !== null && !frozen;
     }
 
     function schedule() {
@@ -255,6 +298,7 @@ function createVisualiser(canvas, { engine, presets, reportError, frame, cancelF
         try {
             if (tap) tap.read(levels);
             else if (track) synthesiseVisualiserLevels(track, songClock ? songClock() : null, levels);
+            applyVisualiserSensitivity(levels, sensitivity, swing);
             viz.render({ audioLevels: levels });
         } catch (e) {
             reportError(`visualiser frame: ${e}`);
@@ -263,25 +307,53 @@ function createVisualiser(canvas, { engine, presets, reportError, frame, cancelF
     }
 
     function hide() {
-        presetIndex = -1;
+        shownKey = null;
+        wantedKey = null;
         unschedule();
         canvas.hidden = true;
     }
 
-    const api = {
-        /// Shows the preset a number names. The same number again leaves the picture running, so a
-        /// rebuild at a new key does not restart it.
-        show(number) {
-            const index = visualiserPresetIndex(number, presets.length);
-            if (index < 0 || !ensureEngine()) { hide(); return; }
+    function showPreset(key, preset) {
+        if (key !== shownKey) {
+            try { viz.loadPreset(preset, 0); } catch (e) { reportError(`visualiser preset: ${e}`); hide(); return false; }
+        }
 
-            if (index !== presetIndex) {
-                try { viz.loadPreset(presets[index].preset, 0); } catch (e) { reportError(`visualiser preset: ${e}`); hide(); return; }
+        shownKey = key;
+        canvas.hidden = false;
+        schedule();
+        return true;
+    }
+
+    const api = {
+        /// Shows a shipped preset by `presetName` or an imported one from `presetUrl`, answering
+        /// whether it is up. The same one again leaves the picture running, so a rebuild at a new
+        /// key does not restart it. One that cannot be found or read leaves black.
+        show({ presetName, presetUrl } = {}) {
+            const key = presetUrl || presetName || null;
+            wantedKey = key;
+            if (!key || !ensureEngine()) { hide(); return Promise.resolve(false); }
+
+            if (key === shownKey) return Promise.resolve(showPreset(key, null));
+
+            if (!presetUrl) {
+                const preset = findVisualiserPreset(presets, presetName);
+                if (!preset) { reportError(`visualiser preset: none called ${presetName}`); hide(); return Promise.resolve(false); }
+                return Promise.resolve(showPreset(key, preset));
             }
 
-            presetIndex = index;
-            canvas.hidden = false;
-            schedule();
+            return Promise.resolve()
+                .then(() => fetchJson(presetUrl))
+                .then((preset) => (wantedKey === key ? showPreset(key, preset) : false))
+                .catch((e) => {
+                    if (wantedKey === key) { reportError(`visualiser preset ${presetUrl}: ${e}`); hide(); }
+                    return false;
+                });
+        },
+
+        /// How it is drawn: brightness and colour in percent, sensitivity in percent of the swing.
+        setLook({ brightness, saturation, sensitivity: react } = {}) {
+            canvas.style.filter = visualiserFilter(brightness, saturation);
+            sensitivity = Number.isFinite(react) ? Math.max(0, react) / 100 : 1;
         },
 
         hide,
@@ -320,9 +392,10 @@ function createVisualiser(canvas, { engine, presets, reportError, frame, cancelF
             if (size) viz.setRendererSize(size.width, size.height, { pixelRatio: 1, textureRatio: 1 });
         },
 
-        get active() { return presetIndex >= 0; },
+        get active() { return shownKey !== null; },
         get running() { return running(); },
-        get presetName() { return presetIndex >= 0 ? presets[presetIndex].name : null; },
+        get presetName() { return shownKey; },
+        get sensitivity() { return sensitivity; },
         get listening() { return tap !== null; },
         get hostLevels() { return track !== null; },
     };

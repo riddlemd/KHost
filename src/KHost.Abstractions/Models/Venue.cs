@@ -160,7 +160,7 @@ public class Venue : RepositoryModel
 
         /// <summary>Background clips a venue once picked for its songs, by file name. Nothing reads
         /// or offers it any more: a song with no picture of its own plays over black, or the
-        /// visualiser (<see cref="SongVisualiserEnabled"/>).</summary>
+        /// visualiser (<see cref="VisualisationPlaylistId"/>).</summary>
         /// <remarks>Kept, and still stored, so a plugin that reads it keeps loading; it holds
         /// whatever a venue saved before the picker went. Never null, however it arrives.</remarks>
         [Obsolete("Nothing reads or offers song backgrounds any more; a song with no picture plays over black or the visualiser.")]
@@ -172,11 +172,11 @@ public class Venue : RepositoryModel
 
         private List<string> _songBackgrounds = [];
 
-        /// <summary>Whether a playing song with timed words and no picture of its own gets a
-        /// music-reactive visualiser under its words instead of black.</summary>
-        /// <remarks>Off when unset, so a venue that has never been asked needs no backfill. Only a
+        /// <summary>The visualisation playlist drawn under a playing song's words when the song has
+        /// no picture of its own. Null, or a playlist with no entries, leaves black.</summary>
+        /// <remarks>Null when unset, so a venue that has never been asked needs no backfill. Only a
         /// display that draws the words itself shows one; burned-in words stay on black.</remarks>
-        public bool SongVisualiserEnabled { get; set; }
+        public Guid? VisualisationPlaylistId { get; set; }
 
         /// <summary>Which plugin's QR code shows; null (default) means none shown until chosen.</summary>
         public string? QrCodeSource { get; set; }
