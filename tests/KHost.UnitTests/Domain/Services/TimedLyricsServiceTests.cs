@@ -1,6 +1,9 @@
+using KHost.Abstractions.Messaging;
+using KHost.Abstractions.Messaging.Messages;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using KHost.Domain.Services;
+using KHost.Domain.Services.Messaging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using NSubstitute;
@@ -33,7 +36,7 @@ public class TimedLyricsServiceTests
     {
         var monitor = Substitute.For<IOptionsMonitor<PlaybackService.ServiceOptions>>();
         monitor.CurrentValue.Returns(_ => _options);
-        return new(NullLogger<TimedLyricsService>.Instance, providers, monitor);
+        return new(NullLogger<TimedLyricsService>.Instance, providers, monitor, Substitute.For<IMessageBroker>());
     }
 
     /// <summary>One opener, sung after a 2.5s silence, on a page up long enough for a full run.</summary>
@@ -124,6 +127,54 @@ public class TimedLyricsServiceTests
         Assert.Equal(expected, lyrics!.Pages[0].Lines[1].LeadIn is not null);
     }
 
+    /// <summary>A duet whose unsung tints a protanope and a deuteranope take for one another.</summary>
+    private static TimedLyrics ConfusableDuet() => SomeLyrics() with
+    {
+        Pages =
+        [
+            new LyricPage { ShowFromSeconds = 0, ShowUntilSeconds = 10, Voice = "Kid Rock", Active = new LyricColor(0x0B, 0x96, 0xCA), Inactive = new LyricColor(0xD7, 0xF2, 0xFD) },
+            new LyricPage { ShowFromSeconds = 5, ShowUntilSeconds = 15, Voice = "Sherly Crow", Active = new LyricColor(0xF5, 0x2C, 0x77), Inactive = new LyricColor(0xFD, 0xD7, 0xE6) },
+        ],
+    };
+
+    [Fact]
+    public async Task GetTimedLyricsAsync_ColorBlindFriendlyOff_LeavesConfusableColoursAlone()
+    {
+        var answer = ConfusableDuet();
+
+        var lyrics = await Service(Provider(claims: true, answer: answer)).GetTimedLyricsAsync(SourceFile);
+
+        Assert.Same(answer, lyrics);
+    }
+
+    [Fact]
+    public async Task GetTimedLyricsAsync_ColorBlindFriendlyOn_SeparatesConfusableColours()
+    {
+        _options.ColorBlindFriendlyLyrics = true;
+
+        var lyrics = await Service(Provider(claims: true, answer: ConfusableDuet())).GetTimedLyricsAsync(SourceFile);
+
+        // Both the screen and the burn-in read through here, so both draw the moved colours.
+        Assert.Equal(new LyricColor(0xFB, 0xFE, 0xFF), lyrics!.Pages[0].Inactive);
+        Assert.Equal(new LyricColor(0xE2, 0xBD, 0xCC), lyrics.Pages[1].Inactive);
+    }
+
+    /// <summary>Timing no adjustment can make sense of still reaches the screen, as the provider gave it.</summary>
+    [Theory]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    public async Task GetTimedLyricsAsync_AnAdjustmentThatThrows_KeepsTheWords(bool colorBlind, bool leadIns)
+    {
+        _options.ColorBlindFriendlyLyrics = colorBlind;
+        _options.DynamicLeadIns = leadIns;
+        var unreadable = SomeLyrics() with { Pages = null! };
+
+        var lyrics = await Service(Provider(claims: true, answer: unreadable)).GetTimedLyricsAsync(SourceFile);
+
+        Assert.Same(unreadable, lyrics);
+    }
+
     [Fact]
     public async Task GetTimedLyricsAsync_AnswersNull_WhenNobodyClaimsTheFile()
     {
@@ -177,5 +228,137 @@ public class TimedLyricsServiceTests
         // for a song that was simply abandoned.
         await Assert.ThrowsAsync<OperationCanceledException>(
             () => Service(provider).GetTimedLyricsAsync(SourceFile));
+    }
+
+    // --- announcing a change to the adjustments ---
+
+    /// <summary>An options monitor a test can reload, as the overlay's file watcher does.</summary>
+    private sealed class ReloadingMonitor(PlaybackService.ServiceOptions value) : IOptionsMonitor<PlaybackService.ServiceOptions>
+    {
+        private readonly List<Action<PlaybackService.ServiceOptions, string?>> _listeners = [];
+
+        public PlaybackService.ServiceOptions CurrentValue { get; set; } = value;
+
+        public PlaybackService.ServiceOptions Get(string? name) => CurrentValue;
+
+        public IDisposable OnChange(Action<PlaybackService.ServiceOptions, string?> listener)
+        {
+            _listeners.Add(listener);
+            return new Unsubscriber(() => _listeners.Remove(listener));
+        }
+
+        public void Reload(PlaybackService.ServiceOptions next)
+        {
+            CurrentValue = next;
+            foreach (var listener in _listeners.ToList()) listener(next, null);
+        }
+
+        private sealed class Unsubscriber(Action dispose) : IDisposable
+        {
+            public void Dispose() => dispose();
+        }
+    }
+
+    private readonly MessageBroker _broker = new(NullLogger<MessageBroker>.Instance);
+
+    /// <summary>Builds the service over a reloadable monitor and counts what it announces.</summary>
+    private (ReloadingMonitor Monitor, Func<int> Announced, IDisposable Lifetime) Watched()
+    {
+        var monitor = new ReloadingMonitor(new PlaybackService.ServiceOptions());
+        var service = new TimedLyricsService(
+            NullLogger<TimedLyricsService>.Instance, [], monitor, _broker, TimeSpan.FromMilliseconds(20));
+
+        var raised = 0;
+        var subscription = _broker.Subscribe<TimedLyricsSettingsChanged>(_ => Interlocked.Increment(ref raised));
+
+        return (monitor, () => Volatile.Read(ref raised), new CompositeLifetime(service, subscription));
+    }
+
+    private sealed class CompositeLifetime(params IDisposable[] parts) : IDisposable
+    {
+        public void Dispose() { foreach (var part in parts) part.Dispose(); }
+    }
+
+    /// <summary>Waits out the settle and the broker's own hand-off, long past either.</summary>
+    private static async Task SettledAsync(Func<int> announced, int atLeast)
+    {
+        for (var i = 0; i < 100 && announced() < atLeast; i++) await Task.Delay(20);
+        await Task.Delay(150);
+    }
+
+    public static TheoryData<string> Adjustments => ["ColorBlind", "LeadIns", "Pause"];
+
+    [Theory]
+    [MemberData(nameof(Adjustments))]
+    public async Task OptionsReloaded_AnAdjustmentMoved_AnnouncesOnce(string which)
+    {
+        var (monitor, announced, lifetime) = Watched();
+        using var _ = lifetime;
+
+        // The pause counts only while lead-ins are on, so that case starts from on.
+        if (which == "Pause")
+        {
+            monitor.Reload(new PlaybackService.ServiceOptions { DynamicLeadIns = true });
+            await SettledAsync(announced, 1);
+        }
+
+        var before = announced();
+        var next = new PlaybackService.ServiceOptions
+        {
+            ColorBlindFriendlyLyrics = which == "ColorBlind",
+            DynamicLeadIns = which is "LeadIns" or "Pause",
+            DynamicLeadInPauseSeconds = which == "Pause" ? 5 : LeadInGenerator.DefaultLongPauseSeconds,
+        };
+
+        // A file watcher raises a save more than once.
+        monitor.Reload(next);
+        monitor.Reload(next);
+        await SettledAsync(announced, before + 1);
+
+        Assert.Equal(before + 1, announced());
+    }
+
+    [Fact]
+    public async Task OptionsReloaded_SeveralMovedInOneSave_AnnouncesOnce()
+    {
+        var (monitor, announced, lifetime) = Watched();
+        using var _ = lifetime;
+
+        // Read part-written first, as a reload can: defaults, then the whole save.
+        monitor.Reload(new PlaybackService.ServiceOptions { ColorBlindFriendlyLyrics = true });
+        monitor.Reload(new PlaybackService.ServiceOptions
+        {
+            ColorBlindFriendlyLyrics = true,
+            DynamicLeadIns = true,
+            DynamicLeadInPauseSeconds = 2,
+        });
+        await SettledAsync(announced, 1);
+
+        Assert.Equal(1, announced());
+    }
+
+    [Fact]
+    public async Task OptionsReloaded_OnlyAnUnrelatedSettingMoved_AnnouncesNothing()
+    {
+        var (monitor, announced, lifetime) = Watched();
+        using var _ = lifetime;
+
+        monitor.Reload(new PlaybackService.ServiceOptions { StopFadeDuration = TimeSpan.FromSeconds(1), LeadInGraceSeconds = 5 });
+        await SettledAsync(announced, 1);
+
+        Assert.Equal(0, announced());
+    }
+
+    [Fact]
+    public async Task OptionsReloaded_ThePauseMovedWithLeadInsOff_AnnouncesNothing()
+    {
+        var (monitor, announced, lifetime) = Watched();
+        using var _ = lifetime;
+
+        // No word changes: with lead-ins off, the pause is never read.
+        monitor.Reload(new PlaybackService.ServiceOptions { DynamicLeadInPauseSeconds = 5 });
+        await SettledAsync(announced, 1);
+
+        Assert.Equal(0, announced());
     }
 }

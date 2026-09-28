@@ -208,6 +208,7 @@ public class LocalScreenDisplayProviderBurstTests : IDisposable
             Substitute.For<IAudioTrackService>(),
             _gate,
             Substitute.For<IFlashService>(),
+            Substitute.For<ITimedLyricsService>(),
             _broker);
         _built.Add(playback);
 

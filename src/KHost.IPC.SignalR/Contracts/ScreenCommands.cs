@@ -318,6 +318,12 @@ public sealed class SetTimedLyricsCommand : ScreenCommandBase
     /// <remarks>Held only on a play from the very start: a resume, or a play after a seek, starts
     /// where it is. The song's position stays at zero throughout.</remarks>
     public double LeadInSeconds { get; init; }
+
+    /// <summary>These words replace the ones already sent for the song that is loaded, rather than
+    /// arriving with a load.</summary>
+    /// <remarks>The song carries on under them: a hold already running or already spent stays as it
+    /// is, so a replacement never starts the lead-in again or brings the intro card back.</remarks>
+    public bool Replacing { get; init; }
 }
 
 /// <summary>What the intro card says, as finished strings: the screen holds no library or queue.</summary>

@@ -71,7 +71,7 @@
                                       Label="LeadInGraceLabel" />
                     </ChildContent>
                 </SettingRow>
-                <SettingRow Label="Add lead-ins" Applies="applies from the next song" IsCheckbox="true">
+                <SettingRow Label="Add lead-ins" Applies="applies immediately" IsCheckbox="true">
                     <Note>
                         <span class="kh-note">
                             Runs a marker into the first line of a page and into a line after a long
@@ -83,7 +83,7 @@
                         <InputCheckbox id="dynamic-lead-ins" class="kh-form-check-input" @bind-Value="_model.DynamicLeadIns" />
                     </ChildContent>
                 </SettingRow>
-                <SettingRow Label="Lead-in after a pause of" Applies="applies from the next song">
+                <SettingRow Label="Lead-in after a pause of" Applies="applies immediately">
                     <Note>
                         <span class="kh-note">
                             How long the singing has to stop before the next line gets a lead-in.
@@ -93,6 +93,18 @@
                         <ChoiceSelect TValue="int" Id="dynamic-lead-in-pause" Choices="DynamicLeadInPauseChoices"
                                       Value="_model.DynamicLeadInPauseSeconds" ValueChanged="v => _model.DynamicLeadInPauseSeconds = v"
                                       Label="DynamicLeadInPauseLabel" />
+                    </ChildContent>
+                </SettingRow>
+                <SettingRow Label="Colour-blind friendly lyrics" Applies="applies immediately" IsCheckbox="true">
+                    <Note>
+                        <span class="kh-note">
+                            Makes duet singers and sung and unsung words easier to tell apart for
+                            colour-blind viewers, by separating colours that would look alike. Only
+                            for timed lyrics, not CD+G or video.
+                        </span>
+                    </Note>
+                    <ChildContent>
+                        <InputCheckbox id="colour-blind-lyrics" class="kh-form-check-input" @bind-Value="_model.ColorBlindFriendlyLyrics" />
                     </ChildContent>
                 </SettingRow>
 

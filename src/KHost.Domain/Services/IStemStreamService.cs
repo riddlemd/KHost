@@ -9,10 +9,8 @@ namespace KHost.Domain.Services;
 public interface IStemStreamService
 {
     /// <summary>Mixes <paramref name="stems"/> at their own levels into one stream, keyed and retimed,
-    /// with <paramref name="words"/> burned in when there are any.</summary>
+    /// with <paramref name="words"/> burned in over black when there are any.</summary>
     /// <param name="sourcePath">The library file the stems came from; named in logs only.</param>
-    /// <param name="backgroundPath">A clip to play under burned-in words; null, or a path that is not
-    /// there, puts them over black.</param>
     /// <param name="adopt">The session the stems were written into. Closed with the new one, and also
     /// if this throws, since the caller is then left holding nothing to close it by.</param>
     Task<MediaStreamSession> OpenStemsAsync(
@@ -22,7 +20,6 @@ public interface IStemStreamService
         int pitch,
         int tempo,
         TimedLyrics? words,
-        string? backgroundPath,
         MediaStreamSession? adopt,
         CancellationToken cancellationToken = default);
 }

@@ -237,8 +237,8 @@ cannot name another's: its secrets, and the QR code it offers the screens.
     only to a target that `MixesStems` with no key or tempo change and no `BurnLyrics`; anything
     else goes to `StemMixdown`, which has `HlsMediaStreamService.OpenStemsAsync` read every stem
     as an input — off disk when it sits in one of the host's sessions — and run them through the
-    same per-voice mix graph, key/tempo chain and burn-in overlay as any other encode, over the
-    venue's background or black. The encode **adopts** the renderer's session, so closing it
+    same per-voice mix graph, key/tempo chain and burn-in overlay as any other encode, over
+    black. The encode **adopts** the renderer's session, so closing it
     sweeps the stems as well. Such a plugin needs no `IPlayableMediaSource` and should not
     implement one; that contract stays for a format the host's encoder cannot open at all. A
     rendition that carries its own `Url` is never re-encoded.
@@ -261,9 +261,11 @@ cannot name another's: its secrets, and the QR code it offers the screens.
       through HarfBuzz, so a joined script joins and a right-to-left line is laid from its box's
       right edge.
     - **The picture under the words** is the source's own video when it has one (fitted into
-      1280x720), else one of the venue's ticked song backgrounds (looped, cropped to cover), else
-      black — what the screen shows behind a song with no picture. A cover image stored as a video
-      stream does not count as a picture. Over a picture, the band the words sit in is darkened.
+      1280x720), else black — never the venue's card or its song backgrounds, which nothing
+      playing uses. `SongBackdrops.ForPlaying` is that rule, asked by the burn-in, and it is where a
+      visualiser goes in place of black; the screen already draws nothing under a playing song. A
+      cover image stored as a video stream does not count as a picture. Over a picture, the band the
+      words sit in is darkened.
     - **Fonts are the system's**, in the order a web view's `sans-serif` resolves them per OS:
       Helvetica, Arial, DejaVu Sans, Liberation Sans, Noto Sans, then Skia's default; a character the
       face lacks falls back per line through the OS. Nothing is bundled.

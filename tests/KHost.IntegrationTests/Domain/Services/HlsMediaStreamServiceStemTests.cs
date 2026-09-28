@@ -45,7 +45,7 @@ public partial class HlsMediaStreamServiceStemTests : IDisposable
     {
         var (stemSession, stems) = await WriteStemsAsync(100, 100, 100);
 
-        var session = await _service.OpenStemsAsync("/songs/a.song", stems, TimeSpan.Zero, 0, 0, null, null, stemSession);
+        var session = await _service.OpenStemsAsync("/songs/a.song", stems, TimeSpan.Zero, 0, 0, null, stemSession);
         await _service.CloseAsync(session.Id);
 
         Assert.Null(_service.ResolveArtifact(stemSession.Id, "music.ogg"));
@@ -60,7 +60,7 @@ public partial class HlsMediaStreamServiceStemTests : IDisposable
         var (stemSession, stems) = await WriteStemsAsync(100, 100, 100);
 
         var session = await _service.OpenStemsAsync(
-            "/songs/a.song", stems, TimeSpan.Zero, 0, 0, Words(4), backgroundPath: null, stemSession);
+            "/songs/a.song", stems, TimeSpan.Zero, 0, 0, Words(4), stemSession);
         var playlist = await WaitForCompletePlaylistAsync(session.Id);
 
         var output = await RunFfmpegAsync($"-hide_banner -i \"{playlist}\" -f null -");
@@ -79,7 +79,7 @@ public partial class HlsMediaStreamServiceStemTests : IDisposable
     {
         var (stemSession, stems) = await WriteStemsAsync(music, lead, backing);
 
-        var session = await _service.OpenStemsAsync("/songs/a.song", stems, TimeSpan.Zero, 0, 0, null, null, stemSession);
+        var session = await _service.OpenStemsAsync("/songs/a.song", stems, TimeSpan.Zero, 0, 0, null, stemSession);
         var playlist = await WaitForCompletePlaylistAsync(session.Id);
 
         var output = await RunFfmpegAsync($"-hide_banner -i \"{playlist}\" -af volumedetect -f null -");
