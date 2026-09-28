@@ -97,6 +97,17 @@ public class TimedLyricsPainterTests
         Assert.Equal(0, Covered(PaintAt(lyrics, 3.0)));
     }
 
+    /// <summary>A bar that ends on its page leaves with the handover alone: 0.6s out, before the
+    /// handover starts, it is still at full strength, where a step-long ease had it at 60%.</summary>
+    [Fact]
+    public void Paint_ACountInEndingOnItsPage_HoldsFullStrengthUntilTheHandover()
+    {
+        var lyrics = CountIn(pageArrivesAt: 4.0);
+
+        Assert.True(Read(PaintAt(lyrics, 3.4), IsGreen)[0].Count > 0, "the bar dimmed before its handover");
+        Assert.Equal(0, Read(PaintAt(lyrics, 3.9), IsGreen)[0].Count);
+    }
+
     /// <summary>With a page arriving inside the window the bar fills to that page, not to the first
     /// word: 2.4s into a 3s run to the page is 80% of 100..500.</summary>
     [Fact]

@@ -13,6 +13,10 @@ public sealed class LocalScreenProvider : IScreenProvider, IDisposable
         public const string SectionName = "LocalScreen";
         public string? ExePath { get; set; }
         public string ServerUri { get; set; } = "http://localhost:5000/ipc/screen";
+
+        /// <summary>The screen's minimum log level, a Microsoft.Extensions.Logging name; the
+        /// host fills it with its own when unset.</summary>
+        public string? LogLevel { get; set; }
     }
 
     private const int ExitGraceMilliseconds = 2000;
@@ -53,7 +57,7 @@ public sealed class LocalScreenProvider : IScreenProvider, IDisposable
             CreateNoWindow = false,
         };
 
-        foreach (var argument in BuildArguments(_options.ServerUri, screenId, keyFile))
+        foreach (var argument in BuildArguments(_options.ServerUri, screenId, keyFile, _options.LogLevel))
             psi.ArgumentList.Add(argument);
 
         var process = Process.Start(psi)
@@ -119,8 +123,10 @@ public sealed class LocalScreenProvider : IScreenProvider, IDisposable
 
     // Must stay one element per argument: screen ids are generated as "Screen 1", and a single
     // concatenated argument string would split that in two, leaving every screen named "Screen".
-    internal static string[] BuildArguments(string serverUri, string screenId, string keyFile)
-        => ["--server-uri", serverUri, "--screen-id", screenId, "--key-file", keyFile];
+    internal static string[] BuildArguments(string serverUri, string screenId, string keyFile, string? logLevel = null)
+        => string.IsNullOrWhiteSpace(logLevel)
+            ? ["--server-uri", serverUri, "--screen-id", screenId, "--key-file", keyFile]
+            : ["--server-uri", serverUri, "--screen-id", screenId, "--key-file", keyFile, "--log-level", logLevel];
 
     private string ResolvedExePath =>
         ResolveExePath(_options.ExePath, AppContext.BaseDirectory, OperatingSystem.IsWindows());

@@ -119,6 +119,11 @@ dotnet run --project src/KHost.UserInterface -- --headless   # console at http:/
 The first run walks through setup at `/setup`. Only one instance runs at a time: port 5251 is held
 by a lock, so stop one before starting another.
 
+Logging is at Information by default. Raise it with the standard `Logging:LogLevel:Default` key, in
+`appsettings.json`, as `Logging__LogLevel__Default=Debug` in the environment, or on the command line
+(`-- --Logging:LogLevel:Default=Debug`). A screen the host launches inherits the level;
+`LocalScreen:LogLevel` sets the screen's on its own.
+
 ## Building and testing
 
 ```bash

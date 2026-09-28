@@ -20,6 +20,10 @@
 
     @if (_isOpen)
     {
+        @* Takes the click that dismisses the menu, so it never lands on whatever is under it.
+           Keeps focus in the field too, or the blur closes the menu before this click arrives. *@
+        <div class="kh-combobox__overlay" @onmousedown:preventDefault @onclick="Close"></div>
+
         <ul class="kh-combobox__menu" role="listbox">
             @if (_isSearching && _results.Count == 0)
             {

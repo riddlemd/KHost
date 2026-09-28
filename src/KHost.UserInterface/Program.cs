@@ -103,10 +103,13 @@ internal static class Program
         Directory.CreateDirectory(logDirectory);
         KHostLogFiles.SweepStaleLogs(logDirectory);
 
+        var logLevel = HostLogLevel.Read(builder.Configuration);
+        var frameworkLogLevel = HostLogLevel.ToSerilog(HostLogLevel.ForFramework(logLevel));
+
         builder.Host.UseSerilog((_, _, cfg) => cfg
-            .MinimumLevel.Information()
-            .MinimumLevel.Override("Microsoft", LogEventLevel.Warning)
-            .MinimumLevel.Override("Microsoft.AspNetCore", LogEventLevel.Warning)
+            .MinimumLevel.Is(HostLogLevel.ToSerilog(logLevel))
+            .MinimumLevel.Override("Microsoft", frameworkLogLevel)
+            .MinimumLevel.Override("Microsoft.AspNetCore", frameworkLogLevel)
             .WriteTo.Console()
             .WriteTo.File(
                 path: Path.Combine(logDirectory, KHostLogFiles.HostFileName()),
@@ -120,6 +123,9 @@ internal static class Program
 
         // A sweep at launch never fires again for a host left running for weeks.
         builder.Services.AddHostedService(_ => new LogRetentionHostedService(logDirectory));
+
+        // A screen launched while the host is raised is raised with it, unless LocalScreen:LogLevel says otherwise.
+        builder.Services.PostConfigure<LocalScreenProvider.ServiceOptions>(options => options.LogLevel ??= logLevel.ToString());
 
         builder.AddServiceDefaults();
 
