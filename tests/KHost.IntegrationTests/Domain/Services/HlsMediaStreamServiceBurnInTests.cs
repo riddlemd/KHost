@@ -37,7 +37,7 @@ public class HlsMediaStreamServiceBurnInTests : IDisposable
     {
         var source = await CreateToneAsync(seconds: 6);
 
-        var session = await _service.OpenBurningInAsync(source, TimeSpan.Zero, 0, 0, null, Words(6), null);
+        var session = await _service.OpenBurningInAsync(source, TimeSpan.Zero, 0, 0, null, Words(6));
 
         Assert.NotNull(_service.ResolveArtifact(session.Id, "seg_00000.ts"));
         var playlist = await WaitForCompletePlaylistAsync(session.Id);
@@ -61,7 +61,7 @@ public class HlsMediaStreamServiceBurnInTests : IDisposable
     {
         var source = await CreateToneAsync(seconds: 120);
 
-        var session = await _service.OpenBurningInAsync(source, TimeSpan.Zero, 0, 0, null, Words(120), null);
+        var session = await _service.OpenBurningInAsync(source, TimeSpan.Zero, 0, 0, null, Words(120));
         var encoder = await _service.EncoderProcessIdAsync(session.Id);
         Assert.True(encoder is { } running && IsRunning(running), "no encode was running to stop");
 
