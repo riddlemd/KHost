@@ -32,7 +32,7 @@ public sealed class TimedLyricsService(
 
             // Answering null once it has claimed the file ends the search: nobody else can read a
             // container its owner could not.
-            try { return WithLeadIns(await provider.GetTimedLyricsAsync(filePath, cancellationToken)); }
+            try { return Adjusted(await provider.GetTimedLyricsAsync(filePath, cancellationToken)); }
             catch (OperationCanceledException) { throw; }
             catch (Exception ex)
             {
@@ -44,12 +44,15 @@ public sealed class TimedLyricsService(
         return null;
     }
 
-    /// <summary>Filled here, the one door both the screen and the burn-in read through, so they agree.</summary>
-    private TimedLyrics? WithLeadIns(TimedLyrics? lyrics)
+    /// <summary>Adjusted here, the one door both the screen and the burn-in read through, so they agree.</summary>
+    private TimedLyrics? Adjusted(TimedLyrics? lyrics)
     {
-        var settings = options.CurrentValue;
+        if (lyrics is null) return null;
 
-        return lyrics is not null && settings.DynamicLeadIns
+        var settings = options.CurrentValue;
+        if (settings.ColorBlindFriendlyLyrics) lyrics = ColorBlindSafeLyrics.Separate(lyrics);
+
+        return settings.DynamicLeadIns
             ? LeadInGenerator.AddMissing(lyrics, settings.DynamicLeadInPauseSeconds)
             : lyrics;
     }
