@@ -26,6 +26,8 @@ public class StreamingMediaRendererTests
             .ReturnsForAnyArgs(Session("plain"));
         _burnInStreams.OpenBurningInAsync(default!, default, default, default, default, default!, default)
             .ReturnsForAnyArgs(Session("burned"));
+        _burnInStreams.OpenUnderDrawnWordsAsync(default!, default, default, default, default, default)
+            .ReturnsForAnyArgs(Session("drawn"));
     }
 
     [Fact]
@@ -62,17 +64,31 @@ public class StreamingMediaRendererTests
         Assert.Equal("http://host/media/plain/stream.m3u8", rendition!.Url);
     }
 
-    /// <summary>A display that draws its own words is not sent a picture with them in it, and the
-    /// lyrics are not even read for it.</summary>
+    /// <summary>A display that draws its own words is not sent a picture with them in it, nor the
+    /// cover art or anything else from an audio file under them.</summary>
     [Fact]
-    public async Task RenderAsync_ADisplayNotAskingForWords_GetsThePlainEncode()
+    public async Task RenderAsync_ADisplayNotAskingForWords_GetsTheEncodeForDrawnWords_WhenTheSongHasThem()
     {
-        _lyrics.GetTimedLyricsAsync(default!, default).ReturnsForAnyArgs(Words);
+        _lyrics.GetTimedLyricsAsync("/songs/a.mka", Arg.Any<CancellationToken>()).Returns(Words);
+
+        var rendition = await Renderer().RenderAsync(Request(burnLyrics: false));
+
+        Assert.Equal("http://host/media/drawn/stream.m3u8", rendition!.Url);
+        await _burnInStreams.Received(1).OpenUnderDrawnWordsAsync(
+            "/songs/a.mka", TimeSpan.FromSeconds(12), 2, -5, null, Arg.Any<CancellationToken>());
+        await _burnInStreams.DidNotReceiveWithAnyArgs().OpenBurningInAsync(default!, default, default, default, default, default!);
+        await _streams.DidNotReceiveWithAnyArgs().OpenAsync(default!);
+    }
+
+    [Fact]
+    public async Task RenderAsync_ADisplayNotAskingForWords_GetsThePlainEncode_WhenTheSongHasNone()
+    {
+        _lyrics.GetTimedLyricsAsync(default!, default).ReturnsForAnyArgs((TimedLyrics?)null);
 
         var rendition = await Renderer().RenderAsync(Request(burnLyrics: false));
 
         Assert.Equal("http://host/media/plain/stream.m3u8", rendition!.Url);
-        await _lyrics.DidNotReceiveWithAnyArgs().GetTimedLyricsAsync(default!);
+        await _burnInStreams.DidNotReceiveWithAnyArgs().OpenUnderDrawnWordsAsync(default!, default, default, default, default);
     }
 
 
