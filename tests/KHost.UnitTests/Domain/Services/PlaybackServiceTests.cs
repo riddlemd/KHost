@@ -182,6 +182,7 @@ public class PlaybackServiceTests : IDisposable
         _audioTracks,
         _mediaGate,
         _flash,
+        _timedLyrics,
         _broker);
     }
 
@@ -4817,4 +4818,175 @@ public class PlaybackServiceTests : IDisposable
         => _venuesService.ReadSelectedVenueAsync().Returns(
             new Venue { Name = "The Bar", Settings = new Venue.VenueSettings { AllowAliases = allowAliases } });
 
+    // --- the lyric adjustments changing mid-song ---
+
+    private static TimedLyrics WordsOnAPage() => new()
+    {
+        DurationSeconds = 90,
+        Bounds = new LyricBox(0, 0, 640, 360),
+        Pages = [new LyricPage { ShowFromSeconds = 1, ShowUntilSeconds = 5 }],
+    };
+
+    /// <summary>A television that wants the words in the picture, and nothing else connected.</summary>
+    private void ConnectABurningDisplay(bool burnsLyrics)
+    {
+        ConnectScreens(0);
+        _display.ConnectedDeviceId.Returns("Living Room TV");
+        _display.DescribeTarget().Returns(new RenderTarget { BurnLyrics = burnsLyrics });
+    }
+
+    [Fact]
+    public async Task LyricSettingsChanged_ABurningDisplayPlayingWords_RebuildsTheStreamAtThePlayhead()
+    {
+        ConnectABurningDisplay(burnsLyrics: true);
+        var (performance, media) = CreatePerformance();
+        _timedLyrics.GetTimedLyricsAsync(media.FilePath, Arg.Any<CancellationToken>()).Returns(WordsOnAPage());
+        await _service.LoadAsync(performance, media);
+        await _service.PlayAsync();
+        await _service.SeekAsync(TimeSpan.FromSeconds(45));
+
+        await _broker.PublishAsync(new TimedLyricsSettingsChanged());
+
+        // The same rebuild a key change makes: a new encode opened where the song is, handed over.
+        Assert.True(await WaitForStreamsOpenedAsync(2));
+        Assert.True(await WaitForDisplayLoadsAsync(2));
+        await _mediaStreams.Received(1).OpenAsync(
+            media.FilePath, TimeSpan.FromSeconds(45), Arg.Any<int>(), Arg.Any<int>(), Arg.Any<AudioMix?>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task LyricSettingsChanged_ADisplayThatDrawsItsOwnWords_DoesNotRebuild()
+    {
+        ConnectABurningDisplay(burnsLyrics: false);
+        var (performance, media) = CreatePerformance();
+        _timedLyrics.GetTimedLyricsAsync(media.FilePath, Arg.Any<CancellationToken>()).Returns(WordsOnAPage());
+        await _service.LoadAsync(performance, media);
+        await _service.PlayAsync();
+
+        await _broker.PublishAsync(new TimedLyricsSettingsChanged());
+
+        // Its encode carries no words, so a rebuild would be a hole in the song for nothing.
+        Assert.False(await WaitForStreamsOpenedAsync(2, attempts: 30));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task LyricSettingsChanged_ASongWithNoWordsToBurn_DoesNotRebuild(bool pagesButEmpty)
+    {
+        ConnectABurningDisplay(burnsLyrics: true);
+        var (performance, media) = CreatePerformance();
+        _timedLyrics.GetTimedLyricsAsync(media.FilePath, Arg.Any<CancellationToken>())
+            .Returns(pagesButEmpty ? WordsOnAPage() with { Pages = [] } : null);
+        await _service.LoadAsync(performance, media);
+        await _service.PlayAsync();
+
+        await _broker.PublishAsync(new TimedLyricsSettingsChanged());
+
+        Assert.False(await WaitForStreamsOpenedAsync(2, attempts: 30));
+    }
+
+    [Fact]
+    public async Task LyricSettingsChanged_NothingLoaded_DoesNotRebuild()
+    {
+        ConnectABurningDisplay(burnsLyrics: true);
+        _timedLyrics.GetTimedLyricsAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(WordsOnAPage());
+
+        await _broker.PublishAsync(new TimedLyricsSettingsChanged());
+
+        Assert.False(await WaitForStreamsOpenedAsync(1, attempts: 30));
+    }
+
+    [Fact]
+    public async Task LyricSettingsChanged_ASongWithWordsOnTheScreen_ResendsThemReadAgain_AsAReplacement()
+    {
+        var (performance, media) = CreatePerformance();
+        var first = WordsOnAPage();
+        var adjusted = WordsOnAPage();
+        _timedLyrics.GetTimedLyricsAsync(media.FilePath, Arg.Any<CancellationToken>()).Returns(first, adjusted);
+        await _service.LoadAsync(performance, media);
+        await _service.PlayAsync();
+        _screenServer.ClearReceivedCalls();
+
+        await _broker.PublishAsync(new TimedLyricsSettingsChanged());
+
+        await _screenServer.Received(1).BroadcastCommandAsync(
+            Arg.Is<SetTimedLyricsCommand>(command => command.Replacing && ReferenceEquals(command.Lyrics, adjusted)));
+
+        // Words swapped in under the song: no reload, no restart, no new encode.
+        await _screenServer.DidNotReceive().BroadcastCommandAsync(Arg.Any<LoadMediaCommand>());
+        await _screenServer.DidNotReceive().BroadcastCommandAsync(Arg.Any<PlayCommand>());
+        Assert.Equal(1, Volatile.Read(ref _streamsOpened));
+    }
+
+    [Fact]
+    public async Task LyricSettingsChanged_ASongWithNoWords_SendsTheScreenNothing()
+    {
+        var (performance, media) = CreatePerformance();
+        _timedLyrics.GetTimedLyricsAsync(media.FilePath, Arg.Any<CancellationToken>()).Returns((TimedLyrics?)null);
+        await _service.LoadAsync(performance, media);
+        await _service.PlayAsync();
+        _screenServer.ClearReceivedCalls();
+
+        await _broker.PublishAsync(new TimedLyricsSettingsChanged());
+
+        // An adjustment works on words, so a song with none still has none to send.
+        await _screenServer.DidNotReceive().BroadcastCommandAsync(Arg.Any<SetTimedLyricsCommand>());
+    }
+
+    [Fact]
+    public async Task LyricSettingsChanged_TheScreenHasGone_ReadsNoWordsForIt()
+    {
+        var (performance, media) = CreatePerformance();
+        _timedLyrics.GetTimedLyricsAsync(media.FilePath, Arg.Any<CancellationToken>()).Returns(WordsOnAPage());
+        await _service.LoadAsync(performance, media);
+        await _service.PlayAsync();
+        ConnectScreens(0);
+
+        await _broker.PublishAsync(new TimedLyricsSettingsChanged());
+
+        // A screen that comes back gets the words whole with its replay; nothing is owed now.
+        await _timedLyrics.Received(1).GetTimedLyricsAsync(media.FilePath, Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>Between a song's program moving and its words being read, the screen still holds
+    /// the last song's; a replacement then would light the new words over the old song.</summary>
+    [Fact]
+    public async Task LyricSettingsChanged_WhileTheNextSongIsStillLoading_SendsTheScreenNothing()
+    {
+        var (first, firstMedia) = CreatePerformance();
+        _timedLyrics.GetTimedLyricsAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(WordsOnAPage());
+        await _service.LoadAsync(first, firstMedia);
+        await _service.PlayAsync();
+
+        var probing = new TaskCompletionSource<IReadOnlyList<AudioTrack>>();
+        _audioTracks.ReadTracksAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(probing.Task);
+        var (next, nextMedia) = CreatePerformance();
+        var loading = _service.LoadAsync(next, nextMedia);
+        _screenServer.ClearReceivedCalls();
+
+        await _broker.PublishAsync(new TimedLyricsSettingsChanged());
+
+        await _screenServer.DidNotReceive().BroadcastCommandAsync(Arg.Is<SetTimedLyricsCommand>(command => command.Replacing));
+
+        probing.SetResult([]);
+        await loading;
+    }
+
+    [Fact]
+    public async Task LyricSettingsChanged_AfterTheSongEnded_SendsTheScreenNothing()
+    {
+        var (performance, media) = CreatePerformance();
+        _timedLyrics.GetTimedLyricsAsync(media.FilePath, Arg.Any<CancellationToken>()).Returns(WordsOnAPage());
+        await _service.LoadAsync(performance, media);
+        await _service.PlayAsync();
+        await _service.StopAsync();
+        _screenServer.ClearReceivedCalls();
+
+        await _broker.PublishAsync(new TimedLyricsSettingsChanged());
+
+        // Words sent now would light over the venue's card.
+        await _screenServer.DidNotReceive().BroadcastCommandAsync(Arg.Any<SetTimedLyricsCommand>());
+    }
 }
+

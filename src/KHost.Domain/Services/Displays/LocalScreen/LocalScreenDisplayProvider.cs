@@ -165,6 +165,8 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
 
         // Awaited rather than detached: the owner registering a code is waiting on this publish.
         _subscriptions.Add(broker.Subscribe<QrCodeOfferChanged>((_, _) => RedrawAsync(Overlay.QrCodes)));
+        // How the words are adjusted moved, so the song on screen gets them again, mid-song.
+        _subscriptions.Add(broker.Subscribe<TimedLyricsSettingsChanged>((_, _) => ReplaceTimedLyricsAsync()));
         _subscriptions.Add(broker.Subscribe<NextSingerAnnounced>((announced, _) => SendAsync(new ShowNextSingerCommand
         {
             Singer = announced.Card.Singer,
@@ -524,6 +526,41 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
                 Lyrics = _lyrics,
                 Intro = BuildIntroCard(song.Media, _lyrics),
                 LeadInSeconds = LeadInGrace.PreRollSeconds(_lyrics, LeadInGraceSeconds()),
+            });
+        }
+        finally
+        {
+            _lyricsLock.Release();
+        }
+    }
+
+    /// <summary>Reads the loaded song's words again and hands them to a screen already holding the
+    /// last read, which swaps them in without restarting anything.</summary>
+    /// <remarks>Only for a song that had words: the adjustments work on words, so a song with none
+    /// still has none. A screen that has not had this song's words yet gets them whole on its own
+    /// load, which reads through the same service.</remarks>
+    private async Task ReplaceTimedLyricsAsync()
+    {
+        if (_services?.GetService<IPlaybackService>()?.CurrentProgram is not PlaybackProgram.Playing { Performance: not null } song)
+            return;
+
+        await _lyricsLock.WaitAsync();
+        try
+        {
+            // A screen that has not had this song's words yet is sent them whole by its replay.
+            var session = _connected?.Id;
+            if (!ReferenceEquals(song, _lyricsFor) || session is null || session != _lyricsSentOn) return;
+
+            if (await ReadTimedLyricsAsync(song.Media) is not { } lyrics) return;
+
+            _lyrics = lyrics;
+
+            await SendAsync(new SetTimedLyricsCommand
+            {
+                Lyrics = lyrics,
+                Intro = BuildIntroCard(song.Media, lyrics),
+                LeadInSeconds = LeadInGrace.PreRollSeconds(lyrics, LeadInGraceSeconds()),
+                Replacing = true,
             });
         }
         finally
