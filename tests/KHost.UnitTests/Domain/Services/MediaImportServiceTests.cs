@@ -18,11 +18,14 @@ public class MediaImportServiceTests
     private readonly IAnalyticsService _analytics = Substitute.For<IAnalyticsService>();
     private readonly IPluginRegistry _plugins = Substitute.For<IPluginRegistry>();
     private readonly MessageBroker _broker = new(NullLogger<MessageBroker>.Instance);
+    private readonly IFFmpegService _ffmpeg = Substitute.For<IFFmpegService>();
+    private readonly IFlashService _flash = Substitute.For<IFlashService>();
     private readonly MediaImportService _service;
 
     public MediaImportServiceTests()
     {
         _plugins.Plugins.Returns((IReadOnlyList<DiscoveredPlugin>)[]);
+        _ffmpeg.Locate(FFmpegTool.FFprobe).Returns("/tools/ffprobe");
 
         _repository.GetExistingFilePathsAsync(Arg.Any<IEnumerable<string>>())
             .Returns(new HashSet<string>());
@@ -40,7 +43,28 @@ public class MediaImportServiceTests
             _fingerprints,
             _analytics,
             _plugins,
+            _ffmpeg,
+            _flash,
             _broker);
+    }
+
+    /// <summary>Without ffprobe every row imports with no length or tags; the host hears it once.</summary>
+    [Fact]
+    public async Task StartAsync_FfprobeMissing_SaysSoOncePerRun()
+    {
+        _ffmpeg.Locate(FFmpegTool.FFprobe).Returns((string?)null);
+
+        await _service.StartAsync(["/room/a.mp3", "/room/b.mp3"]);
+
+        _flash.Received(1).Show(Arg.Is<string>(text => text.Contains("FFprobe is missing")), FlashType.Warning);
+    }
+
+    [Fact]
+    public async Task StartAsync_FfprobeFound_SaysNothing()
+    {
+        await _service.StartAsync(["/room/a.mp3"]);
+
+        _flash.DidNotReceive().Show(Arg.Any<string>(), Arg.Any<FlashType>());
     }
 
     [Fact]
@@ -447,7 +471,7 @@ public class MediaImportServiceTests
         registry.Plugins.Returns(plugins);
         return new MediaImportService(
             NullLogger<MediaImportService>.Instance, _parser, _repository, _mediaService,
-            _fingerprints, _analytics, registry, _broker);
+            _fingerprints, _analytics, registry, _ffmpeg, _flash, _broker);
     }
 
     private static DiscoveredPlugin Plugin(PluginStatus status, params string[] importFormats) => new()

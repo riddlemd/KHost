@@ -29,6 +29,8 @@ public class MediaImportService : BaseService, IMediaImportService
     private readonly IMediaService _mediaService;
     private readonly IMediaFingerprintService _fingerprints;
     private readonly IAnalyticsService _analytics;
+    private readonly IFFmpegService _ffmpeg;
+    private readonly IFlashService _flash;
 
     private CancellationTokenSource? _cts;
     private readonly Lock _startLock = new();
@@ -59,9 +61,13 @@ public class MediaImportService : BaseService, IMediaImportService
         IMediaFingerprintService fingerprints,
         IAnalyticsService analytics,
         IPluginRegistry plugins,
+        IFFmpegService ffmpeg,
+        IFlashService flash,
         IMessageBroker broker)
         : base(logger)
     {
+        _ffmpeg = ffmpeg;
+        _flash = flash;
         _broker = broker;
         _parser = parser;
         _repository = repository;
@@ -106,6 +112,7 @@ public class MediaImportService : BaseService, IMediaImportService
         }
 
         _broker.Announce(new MediaImportChanged());
+        WarnIfFfprobeIsMissing();
         var cts = _cts!;
         _ = Task.Run(() => RunImportAsync(paths, cts));
 
@@ -121,6 +128,19 @@ public class MediaImportService : BaseService, IMediaImportService
         => filePaths.Where(path =>
             !MediaFormats.AudioExtensions.Contains(Path.GetExtension(path).ToLowerInvariant())
             || MediaFormats.FindKaraokeGraphics(path) is null);
+
+    /// <summary>Said once per run: without ffprobe every row imports with no length or tags, and a
+    /// warning per file in a log nobody reads is how that went unnoticed.</summary>
+    private void WarnIfFfprobeIsMissing()
+    {
+        if (_ffmpeg.Locate(FFmpegTool.FFprobe) is not null)
+            return;
+
+        Logger.LogWarning("ffprobe not found; this import's rows will have no length, tracks or tags");
+        _flash.Show(
+            "FFprobe is missing, so these files import without their length or tags. Install FFmpeg from App Settings.",
+            FlashType.Warning);
+    }
 
     private static KHostException? ZipRefusal(string zipPath)
     {

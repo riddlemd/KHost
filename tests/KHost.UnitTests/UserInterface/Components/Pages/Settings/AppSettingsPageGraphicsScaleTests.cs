@@ -23,6 +23,7 @@ public class AppSettingsPageGraphicsScaleTests : BunitContext
         Services.AddSingleton(Substitute.For<IDialogService>());
         Services.AddSingleton(Substitute.For<IFlashService>());
         Services.AddSingleton(Substitute.For<IUsersService>());
+        Services.AddFFmpegSection();
     }
 
     [Fact]

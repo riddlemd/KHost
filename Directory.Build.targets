@@ -3,6 +3,8 @@
     The app keeps its runtime state beside the binary (AppContext.BaseDirectory): the library db,
     queue, settings and screen keys in cache/, installed and staged plugins, and logs. A clean takes
     every build file and spares those, so a no-incremental build cannot wipe a host's library.
+    The host's own bin/ (installed ffmpeg, plugins' executables) is a nested bin under the build
+    output, so **/bin/** matches it and never the build's own root.
     Both roots are swept the same way: a redirected build (BaseOutputPath under obj/) runs from obj.
   -->
   <Target Name="DeepClean" AfterTargets="Clean">
@@ -11,8 +13,8 @@
       <_DeepCleanIntermediate>$([MSBuild]::NormalizeDirectory('$(MSBuildProjectDirectory)', '$(BaseIntermediateOutputPath)'))</_DeepCleanIntermediate>
     </PropertyGroup>
     <ItemGroup>
-      <_DeepCleanKeptInOutput Include="$(_DeepCleanOutput)**/cache/**;$(_DeepCleanOutput)**/plugins/**;$(_DeepCleanOutput)**/plugins-staging/**;$(_DeepCleanOutput)**/logs/**" />
-      <_DeepCleanKeptInIntermediate Include="$(_DeepCleanIntermediate)**/cache/**;$(_DeepCleanIntermediate)**/plugins/**;$(_DeepCleanIntermediate)**/plugins-staging/**;$(_DeepCleanIntermediate)**/logs/**" />
+      <_DeepCleanKeptInOutput Include="$(_DeepCleanOutput)**/cache/**;$(_DeepCleanOutput)**/plugins/**;$(_DeepCleanOutput)**/plugins-staging/**;$(_DeepCleanOutput)**/logs/**;$(_DeepCleanOutput)**/bin/**" />
+      <_DeepCleanKeptInIntermediate Include="$(_DeepCleanIntermediate)**/cache/**;$(_DeepCleanIntermediate)**/plugins/**;$(_DeepCleanIntermediate)**/plugins-staging/**;$(_DeepCleanIntermediate)**/logs/**;$(_DeepCleanIntermediate)**/bin/**" />
       <_DeepCleanFile Include="$(_DeepCleanOutput)**;$(_DeepCleanIntermediate)**" Exclude="@(_DeepCleanKeptInOutput);@(_DeepCleanKeptInIntermediate)" />
     </ItemGroup>
     <Delete Files="@(_DeepCleanFile)" />

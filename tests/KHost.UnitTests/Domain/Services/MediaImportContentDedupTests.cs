@@ -54,6 +54,8 @@ public class MediaImportContentDedupTests : IDisposable
             new MediaFingerprintService(NullLogger<MediaFingerprintService>.Instance),
             analytics,
             EmptyRegistry(),
+            Substitute.For<IFFmpegService>(),
+            Substitute.For<IFlashService>(),
             new MessageBroker(NullLogger<MessageBroker>.Instance));
     }
 

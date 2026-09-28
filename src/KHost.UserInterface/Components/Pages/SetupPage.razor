@@ -28,6 +28,9 @@
             case SetupStep.Venue:
                 <WizardStep2VenueSetup OnComplete="@(async () => await MoveToNextStepAsync())" />
                 break;
+            case SetupStep.FFmpeg:
+                <WizardStepFFmpeg OnComplete="@(async () => await MoveToNextStepAsync())" />
+                break;
             case SetupStep.Media:
                 <WizardStep3MediaImport OnComplete="@OnSetupCompleteAsync" />
                 break;

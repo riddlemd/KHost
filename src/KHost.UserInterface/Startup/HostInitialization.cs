@@ -1,3 +1,4 @@
+using KHost.Abstractions.Models;
 using KHost.Abstractions.Models.Plugins;
 using KHost.Abstractions.Services;
 using KHost.UserInterface.Services;
@@ -86,6 +87,8 @@ internal static class HostInitialization
             throw;
         }
 
+        CheckForFFmpeg(app.Services);
+
         // After the plugins, so a provider one of them registered can be the venue's chosen one.
         // Not fatal: a venue with no break music set up is a venue that runs without it.
         InitializeOrWarn("Break music initialization",
@@ -93,6 +96,52 @@ internal static class HostInitialization
 
         InitializeOrWarn("Ad scheduling initialization",
             () => app.Services.GetRequiredService<IAdService>().InitializeAsync());
+    }
+
+    /// <summary>Finds ffmpeg and ffprobe in the background, and warns the console when either is
+    /// missing, so a host learns before the first song rather than at it.</summary>
+    /// <remarks>Not awaited: asking a program for its version can take seconds on a slow machine
+    /// with a virus scanner, and nothing about starting up needs the answer. The ffprobe folder is
+    /// applied before the check's first await, so a probe that races it still finds the program.</remarks>
+    internal static void CheckForFFmpeg(IServiceProvider services)
+    {
+        var ffmpeg = services.GetRequiredService<IFFmpegService>();
+        var flash = services.GetRequiredService<IFlashService>();
+
+        try
+        {
+            // Created here so a plugin can rely on the folder existing once the host is up.
+            Directory.CreateDirectory(services.GetRequiredService<IHostDirectories>().BinDirectory);
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "Could not create the host's bin folder");
+        }
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                var status = await ffmpeg.CheckAsync();
+
+                if (!status.IsReady)
+                    flash.Show(FFmpegMissingNotice(status), FlashType.Warning);
+            }
+            catch (Exception ex)
+            {
+                Log.Warning(ex, "Checking for FFmpeg failed");
+            }
+        });
+    }
+
+    internal static string FFmpegMissingNotice(FFmpegStatus status)
+    {
+        if (status.FFmpeg.IsUsable)
+            return "FFprobe could not be found, so imported files will have no length or tags. Install FFmpeg from App Settings.";
+
+        var missing = status.FFprobe.IsUsable ? "FFmpeg" : "FFmpeg and FFprobe";
+
+        return $"{missing} could not be found, so songs will not play. Install FFmpeg from App Settings.";
     }
 
     /// <summary>Replays what the plugin loader found, once there is somewhere to say it.</summary>
