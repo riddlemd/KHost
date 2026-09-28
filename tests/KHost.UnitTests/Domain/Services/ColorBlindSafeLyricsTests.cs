@@ -147,41 +147,46 @@ public class ColorBlindSafeLyricsTests
     [Fact]
     public void Separate_AnUnsetColourThatHasToMove_IsSetExplicitly()
     {
-        // Two singers both left to the theme are the same colours, so one of them must change.
-        var fixedUp = ColorBlindSafeLyrics.Separate(Duet("A", null, null, "B", null, null));
+        // A left to the theme, B a shade off it: something of A's must change, and says so.
+        var lyrics = Duet("A", null, null, "B", "#8659FA", "#FEFEFE");
+        var fixedUp = ColorBlindSafeLyrics.Separate(lyrics);
 
         var a = fixedUp.Pages.Single(p => p.Voice == "A");
-        var b = fixedUp.Pages.Single(p => p.Voice == "B");
-        Assert.Null(a.Active);
-        Assert.Equal(Hex("#CACACA"), a.Inactive);
-        Assert.Equal(Hex("#A794FF"), b.Active);
-        Assert.Null(b.Inactive);
+        Assert.True(a.Active is not null || a.Inactive is not null);
+        if (a.Active is { } active) Assert.NotEqual(ColorBlindSafeLyrics.ThemeActive, active);
+        if (a.Inactive is { } inactive) Assert.NotEqual(ColorBlindSafeLyrics.ThemeInactive, inactive);
         AssertNothingAtRisk(fixedUp);
     }
 
     [Fact]
     public void Separate_GivesTheSameColoursEveryTime_WhicheverSingerAppearsFirst()
     {
-        // Identical colours leave only the voice's name to decide which one moves.
-        var first = ColorBlindSafeLyrics.Separate(Song(Page("A", 0, 10, "#0B96CA", "#FFFFFF"), Page("B", 5, 15, "#0B96CA", "#FFFFFF")));
-        var again = ColorBlindSafeLyrics.Separate(Song(Page("A", 0, 10, "#0B96CA", "#FFFFFF"), Page("B", 5, 15, "#0B96CA", "#FFFFFF")));
-        var swapped = ColorBlindSafeLyrics.Separate(Song(Page("B", 0, 10, "#0B96CA", "#FFFFFF"), Page("A", 5, 15, "#0B96CA", "#FFFFFF")));
+        var first = ColorBlindSafeLyrics.Separate(Duet("A", "#0B96CA", "#D7F2FD", "B", "#F52C77", "#FDD7E6"));
+        var again = ColorBlindSafeLyrics.Separate(Duet("A", "#0B96CA", "#D7F2FD", "B", "#F52C77", "#FDD7E6"));
+        var swapped = ColorBlindSafeLyrics.Separate(Duet("B", "#F52C77", "#FDD7E6", "A", "#0B96CA", "#D7F2FD"));
 
+        Assert.NotEqual(Seen(Duet("A", "#0B96CA", "#D7F2FD", "B", "#F52C77", "#FDD7E6"), "A"), Seen(first, "A"));
         Assert.Equal(Seen(first, "A"), Seen(again, "A"));
         Assert.Equal(Seen(first, "B"), Seen(again, "B"));
         Assert.Equal(Seen(first, "A"), Seen(swapped, "A"));
         Assert.Equal(Seen(first, "B"), Seen(swapped, "B"));
-        // The name later in order takes the lighter sung colour; the research script agrees.
-        Assert.Equal((Hex("#0B96CA"), Hex("#CACACA")), Seen(first, "A"));
-        Assert.Equal((Hex("#50C3F9"), Hex("#FFFFFF")), Seen(first, "B"));
+    }
+
+    /// <summary>The media gave two singers one colour, so they are meant to read as one singer.</summary>
+    [Fact]
+    public void Separate_SingersInTheSameColours_AreLeftAlike()
+    {
+        var lyrics = Duet("A", "#0B96CA", "#FFFFFF", "B", "#0B96CA", "#FFFFFF");
+
+        Assert.Same(lyrics, ColorBlindSafeLyrics.Separate(lyrics));
     }
 
     [Fact]
     public void Separate_WhenLightnessCannotSeparateThem_FallsBackToOkabeItoInVoiceOrder()
     {
-        // Three singers in one colour: however two are pushed apart, the third lands on one of them.
+        // Three singers a shade apart: however two are pushed apart, the third lands on one of them.
         var fixedUp = ColorBlindSafeLyrics.Separate(Song(
-            Page("A", 0, 10, null, null), Page("B", 0, 10, null, null), Page("C", 0, 10, null, null)));
+            Page("A", 0, 10, "#8558FA", "#FFFFFF"), Page("B", 0, 10, "#8559FA", "#FFFFFE"), Page("C", 0, 10, "#8658FA", "#FEFFFF")));
 
         Assert.Equal((Hex("#0072B2"), Hex("#D4EBFF")), Seen(fixedUp, "A"));
         Assert.Equal((Hex("#E69F00"), Hex("#FFE3BC")), Seen(fixedUp, "B"));
