@@ -2,12 +2,15 @@ using System.Diagnostics;
 using System.Globalization;
 using KHost.Domain.Services;
 using KHost.Domain.Services.VideoEncoding;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace KHost.IntegrationTests.Domain.Services;
 
-/// <summary>A hardware encoder cutting a real stream, and the fall back to libx264 when one cannot.</summary>
-public class HlsMediaStreamServiceHardwareEncodeTests : IDisposable
+/// <summary>One hardware encoder cutting a real stream, and the fall back to libx264 when it cannot
+/// start. Each encoder derives its own class.</summary>
+/// <remarks>An encoder this machine's GPU cannot run reports Skipped with the reason, never a failure.</remarks>
+public abstract class HlsMediaStreamServiceHardwareEncodeTests : IDisposable
 {
     private readonly string _workingDirectory =
         Path.Combine(Path.GetTempPath(), $"khost-hwencode-tests-{Guid.NewGuid():n}");
@@ -15,8 +18,10 @@ public class HlsMediaStreamServiceHardwareEncodeTests : IDisposable
     private readonly StubSelector _selector = new();
     private readonly HlsMediaStreamService _service;
 
-    public HlsMediaStreamServiceHardwareEncodeTests()
-        => _service = new HlsMediaStreamService(
+    protected HlsMediaStreamServiceHardwareEncodeTests(VideoEncoderProfile encoder)
+    {
+        Encoder = encoder;
+        _service = new HlsMediaStreamService(
             NullLogger<HlsMediaStreamService>.Instance,
             new TestOptionsMonitor<HlsMediaStreamService.ServiceOptions>(new HlsMediaStreamService.ServiceOptions
             {
@@ -25,16 +30,30 @@ public class HlsMediaStreamServiceHardwareEncodeTests : IDisposable
             }),
             new PlayableMediaSourceService(NullLogger<PlayableMediaSourceService>.Instance, []),
             encoders: _selector);
+    }
 
-    /// <summary>The real probe picks it, and a six-second song comes out as three two-second
+    protected VideoEncoderProfile Encoder { get; }
+
+    /// <summary>The host's probe accepts it, and a six-second song comes out as three two-second
     /// segments each opening on its only keyframe, which is what lets a player start on any of them.</summary>
-    [RequiresVideoToolboxFact]
-    public async Task OpenAsync_OnVideoToolbox_CutsTwoSecondSegmentsOpeningOnKeyframes()
+    /// <remarks>Gated on starting, not on the probe: broken keyframe arguments make the probe reject
+    /// the encoder, which would read as "not supported" on every machine instead of failing.</remarks>
+    [SkippableFact]
+    public async Task OpenAsync_WhereSupported_CutsTwoSecondSegmentsOpeningOnKeyframes()
     {
-        var probe = new VideoEncoderSelector(NullLogger<VideoEncoderSelector>.Instance, new FfmpegProcessRunner(() => "ffmpeg"));
-        Assert.Equal(VideoEncoderProfile.VideoToolbox, await probe.SelectAsync(VideoEncoderPreference.Hardware));
+        Skip.IfNot(FfmpegIsInstalled(), "ffmpeg is not installed");
 
-        _selector.Answer = VideoEncoderProfile.VideoToolbox;
+        var (opens, whyNot) = await OpensHereAsync();
+        Skip.IfNot(opens, $"{Encoder.Codec} is not supported on this machine: {whyNot}");
+
+        var probeLog = new RecordingLogger();
+        var probe = new VideoEncoderSelector(probeLog, new FfmpegProcessRunner(() => "ffmpeg"), [Encoder]);
+        var chosen = await probe.SelectAsync(VideoEncoderPreference.Auto);
+
+        Assert.True(chosen == Encoder,
+            $"{Encoder.Codec} starts on this machine, but the host's probe rejects it: {probeLog.ReasonFor(Encoder.Codec)}");
+
+        _selector.Answer = Encoder;
         var source = await CreateSampleAsync(seconds: 6);
 
         var session = await _service.OpenAsync(source);
@@ -52,7 +71,7 @@ public class HlsMediaStreamServiceHardwareEncodeTests : IDisposable
         foreach (var segment in Enumerable.Range(0, 3).Select(i => _service.ResolveArtifact(session.Id, $"seg_{i:00000}.ts")!))
         {
             var frames = (await RunAsync("ffprobe",
-                $"-v error -select_streams v -show_entries frame=key_frame -of csv=p=0 \"{segment}\""))
+                $"-v error -select_streams v -show_entries frame=key_frame -of csv=p=0 \"{segment}\"")).Output
                 .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
                 .Select(f => f.TrimEnd(','))
                 .ToList();
@@ -63,27 +82,59 @@ public class HlsMediaStreamServiceHardwareEncodeTests : IDisposable
         }
     }
 
-    /// <summary>A hardware encoder that cannot open costs the song nothing: it plays on libx264,
-    /// and the encoder is reported so the next song does not try it again.</summary>
-    [RequiresFfmpegFact]
-    public async Task OpenAsync_HardwareEncoderThatCannotStart_PlaysOnSoftwareAndIsReported()
+    /// <summary>An encoder that cannot open costs the song nothing: it plays on libx264, and the
+    /// encoder is reported so the next song does not try it again.</summary>
+    [SkippableFact]
+    public async Task OpenAsync_WhereItCannotStart_PlaysOnSoftwareAndIsReported()
     {
-        var listing = await RunAsync("ffmpeg", "-hide_banner -encoders");
-        var absent = new[]
-            {
-                VideoEncoderProfile.Nvenc, VideoEncoderProfile.Amf, VideoEncoderProfile.QuickSync,
-                VideoEncoderProfile.MediaFoundation,
-            }
-            .FirstOrDefault(p => !listing.Contains($" {p.Codec} ", StringComparison.Ordinal));
-        Assert.NotNull(absent);
+        Skip.IfNot(FfmpegIsInstalled(), "ffmpeg is not installed");
+        Skip.If((await OpensHereAsync()).Opens,
+            $"{Encoder.Codec} works on this machine, so it cannot stand in for an encoder that fails");
 
-        _selector.Answer = absent;
+        _selector.Answer = Encoder;
         var source = await CreateSampleAsync(seconds: 4);
 
         var session = await _service.OpenAsync(source);
 
         Assert.NotNull(_service.ResolveArtifact(session.Id, "seg_00000.ts"));
-        Assert.Equal([absent], _selector.Failed);
+        Assert.Equal([Encoder], _selector.Failed);
+    }
+
+    /// <summary>Whether it starts with the arguments a song uses, and ffmpeg's first word on why not.</summary>
+    /// <remarks>Asked of the machine, not of <c>ffmpeg -encoders</c>: a build lists every encoder it
+    /// was compiled with (gyan.dev's Windows build lists all four vendors) whatever the GPU.</remarks>
+    private async Task<(bool Opens, string WhyNot)> OpensHereAsync()
+    {
+        var run = await RunAsync("ffmpeg",
+            "-hide_banner -loglevel error -f lavfi -i testsrc2=size=1280x720:rate=30 -t 1"
+            + Encoder.Arguments(720, 1) + " -f null -");
+
+        var firstLine = run.Error
+            .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .FirstOrDefault() ?? $"ffmpeg exited {run.ExitCode}";
+
+        return (run.ExitCode == 0, firstLine);
+    }
+
+    private static bool FfmpegIsInstalled()
+    {
+        try
+        {
+            using var process = Process.Start(new ProcessStartInfo("ffmpeg", "-version")
+            {
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+            })!;
+
+            process.StandardOutput.ReadToEnd();
+            process.WaitForExit();
+            return process.ExitCode == 0;
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     private async Task<string> WaitForCompletePlaylistAsync(string sessionId)
@@ -124,7 +175,7 @@ public class HlsMediaStreamServiceHardwareEncodeTests : IDisposable
         return path;
     }
 
-    private static async Task<string> RunAsync(string executable, string arguments)
+    private static async Task<(string Output, string Error, int ExitCode)> RunAsync(string executable, string arguments)
     {
         using var process = Process.Start(new ProcessStartInfo(executable, arguments)
         {
@@ -136,8 +187,7 @@ public class HlsMediaStreamServiceHardwareEncodeTests : IDisposable
         var error = process.StandardError.ReadToEndAsync();
         var output = await process.StandardOutput.ReadToEndAsync();
         await process.WaitForExitAsync();
-        await error;
-        return output;
+        return (output, await error, process.ExitCode);
     }
 
     public void Dispose()
@@ -157,36 +207,24 @@ public class HlsMediaStreamServiceHardwareEncodeTests : IDisposable
 
         public void ReportFailure(VideoEncoderProfile encoder) => Failed.Add(encoder);
     }
-}
 
-/// <summary>Runs only on macOS with an ffmpeg that has VideoToolbox; skipped everywhere else.</summary>
-public sealed class RequiresVideoToolboxFactAttribute : FactAttribute
-{
-    public RequiresVideoToolboxFactAttribute()
+    /// <summary>Keeps the probe's own account of why it passed an encoder over.</summary>
+    private sealed class RecordingLogger : ILogger<VideoEncoderSelector>
     {
-        if (!Available.Value) Skip = "VideoToolbox needs macOS and an ffmpeg built with it";
+        private readonly List<string> _messages = [];
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
+            Func<TState, Exception?, string> formatter)
+            => _messages.Add(formatter(state, exception));
+
+        public string ReasonFor(string codec)
+            => _messages.LastOrDefault(m => m.StartsWith($"Video encoder {codec}:", StringComparison.Ordinal))
+                   ?[$"Video encoder {codec}:".Length..].Trim()
+               ?? _messages.LastOrDefault()
+               ?? "the probe gave no reason";
     }
-
-    private static readonly Lazy<bool> Available = new(() =>
-    {
-        if (!OperatingSystem.IsMacOS()) return false;
-
-        try
-        {
-            using var process = Process.Start(new ProcessStartInfo("ffmpeg", "-hide_banner -encoders")
-            {
-                UseShellExecute = false,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-            })!;
-
-            var output = process.StandardOutput.ReadToEnd();
-            process.WaitForExit();
-            return output.Contains(" h264_videotoolbox ", StringComparison.Ordinal);
-        }
-        catch
-        {
-            return false;
-        }
-    });
 }
