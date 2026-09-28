@@ -184,6 +184,41 @@ public class LocalScreenVisualiserTests
     }
 
     [Fact]
+    public async Task LoadAsync_ABuiltIn_SendsItsNameAndStyleAndNoPreset()
+    {
+        var entry = _playlist.Entries[0];
+        entry.PresetSource = VisualiserPresetSource.BuiltIn;
+        entry.PresetName = "mirrored-bars";
+        entry.BarCount = 64;
+        entry.ColourScheme = VisualiserColourScheme.Single;
+        entry.Colour = "#ff0000";
+        Playing("/songs/africa.song");
+        using var provider = Provider();
+
+        await provider.LoadAsync(Stems);
+
+        var sent = Last();
+        Assert.True(sent.Enabled);
+        Assert.Equal(("mirrored-bars", null, null), (sent.BuiltIn, sent.PresetName, sent.PresetUrl));
+        Assert.Equal((64, VisualiserColourScheme.Single, "#ff0000"), (sent.BarCount, sent.ColourScheme, sent.Colour));
+        Assert.Equal((80, 150, 200, true), (sent.Brightness, sent.Saturation, sent.Sensitivity, sent.DarkenLyricBands));
+        Assert.NotNull(sent.LevelsUrl);
+    }
+
+    [Fact]
+    public async Task LoadAsync_ABuiltInTheHostDoesNotHave_LeavesBlack()
+    {
+        _playlist.Entries[0].PresetSource = VisualiserPresetSource.BuiltIn;
+        _playlist.Entries[0].PresetName = "lava-lamp";
+        Playing("/songs/africa.song");
+        using var provider = Provider();
+
+        await provider.LoadAsync(Stems);
+
+        Assert.False(Last().Enabled);
+    }
+
+    [Fact]
     public async Task LoadAsync_AnImportedPresetSinceDeleted_LeavesBlack()
     {
         _playlist.Entries[0].PresetSource = VisualiserPresetSource.Imported;

@@ -1,5 +1,6 @@
-// A MilkDrop preset (butterchurn, WebGL 2) drawn under the words of a song that has nothing of its
-// own to show there. The host decides whether and which; this only draws.
+// A MilkDrop preset (butterchurn, WebGL 2), or one of the host's own drawings (eq-visualisers.js),
+// drawn under the words of a song that has nothing of its own to show there. The host decides
+// whether and which; this only draws.
 //
 // One engine for the page's life, built with no audio context of its own: butterchurn binds the
 // context it is built with, and every stem song brings a fresh one. The samples are read here from
@@ -199,6 +200,11 @@ function createVisualiserTap(context, node) {
             left.getByteTimeDomainData(levels.timeByteArrayL);
             right.getByteTimeDomainData(levels.timeByteArrayR);
         },
+        /// The mix's spectrum into `bytes` (half the sample count long), for the built-in bars.
+        readSpectrum(bytes) {
+            both.getByteFrequencyData(bytes);
+            return { bytes, binHz: context.sampleRate / VISUALISER_SAMPLES, minDb: both.minDecibels, maxDb: both.maxDecibels };
+        },
         disconnect() {
             // Only this tap's own branches: the node's route to the speakers stays.
             try { node.disconnect(both); } catch { /* context already closed */ }
@@ -208,10 +214,11 @@ function createVisualiserTap(context, node) {
 }
 
 /// `engine` is butterchurn and `presets` the curated list; both are passed in so the logic here
-/// can be exercised without WebGL.
+/// can be exercised without WebGL. `eqCanvas` is a second canvas for the host's own drawings
+/// (eq-visualisers.js): a canvas holds one kind of context for life, and butterchurn's is WebGL.
 /// `clock` answers the song position in seconds (null when nothing holds the song), for the host
 /// levels to be read at. `fetchPreset` answers an imported preset's URL with its parsed file.
-function createVisualiser(canvas, { engine, presets, reportError, frame, cancelFrame, now, clock: songClock, fetchPreset }) {
+function createVisualiser(canvas, { engine, presets, reportError, frame, cancelFrame, now, clock: songClock, fetchPreset, eqCanvas, createEq }) {
     const requestFrame = frame || ((cb) => window.requestAnimationFrame(cb));
     const cancel = cancelFrame || ((id) => window.cancelAnimationFrame(id));
     const clock = now || (() => performance.now());
@@ -219,11 +226,16 @@ function createVisualiser(canvas, { engine, presets, reportError, frame, cancelF
 
     let viz = null;
     let broken = false;
+    // The built-in renderer, and whether what is shown is one of its styles rather than a preset.
+    let eq = null;
+    let builtIn = false;
+    let spectrum = null;
     // What is drawn (the preset's name or URL) and what was last asked for, which a slow fetch
     // must not overtake.
     let shownKey = null;
     let wantedKey = null;
     let sensitivity = 1;
+    let look = {};
     const swing = {};
     let frozen = false;
     let handle = null;
@@ -244,13 +256,28 @@ function createVisualiser(canvas, { engine, presets, reportError, frame, cancelF
         levels.timeByteArrayR.fill(128);
     }
 
-    function sizeBuffer() {
-        const size = visualiserBufferSize(canvas.clientWidth || window.innerWidth, canvas.clientHeight || window.innerHeight);
-        if (canvas.width === size.width && canvas.height === size.height) return null;
+    function sizeBuffer(target = canvas) {
+        const size = visualiserBufferSize(target.clientWidth || window.innerWidth, target.clientHeight || window.innerHeight);
+        if (target.width === size.width && target.height === size.height) return null;
 
-        canvas.width = size.width;
-        canvas.height = size.height;
+        target.width = size.width;
+        target.height = size.height;
         return size;
+    }
+
+    /// Built on first use like the engine; needs no WebGL, so it draws where butterchurn cannot.
+    function ensureEq() {
+        if (eq || !eqCanvas) return eq;
+
+        try {
+            sizeBuffer(eqCanvas);
+            eq = (createEq || createEqVisualiser)(eqCanvas);
+            eq.setOptions(look);
+        } catch (e) {
+            reportError(`visualiser built-in: ${e}`);
+        }
+
+        return eq;
     }
 
     /// Built on first use, never at page load: a venue that never turns it on pays nothing.
@@ -270,7 +297,7 @@ function createVisualiser(canvas, { engine, presets, reportError, frame, cancelF
     }
 
     function running() {
-        return viz !== null && shownKey !== null && !frozen;
+        return (builtIn ? eq !== null : viz !== null) && shownKey !== null && !frozen;
     }
 
     function schedule() {
@@ -296,30 +323,81 @@ function createVisualiser(canvas, { engine, presets, reportError, frame, cancelF
         lastFrameAt = at;
 
         try {
+            const at = songClock ? songClock() : null;
             if (tap) tap.read(levels);
-            else if (track) synthesiseVisualiserLevels(track, songClock ? songClock() : null, levels);
-            applyVisualiserSensitivity(levels, sensitivity, swing);
-            viz.render({ audioLevels: levels });
+            else if (track) synthesiseVisualiserLevels(track, at, levels);
+            const gain = applyVisualiserSensitivity(levels, sensitivity, swing);
+
+            if (builtIn) eq.draw(eqFeed(at, gain));
+            else viz.render({ audioLevels: levels });
         } catch (e) {
             reportError(`visualiser frame: ${e}`);
             hide();
         }
     }
 
+    /// What the built-in styles draw from this frame: the samples as filled, and the spectrum from
+    /// a tap or, without one, the host's bands at the song's frame. The sensitivity's gain on the
+    /// samples is passed on in dB, since the bars are drawn on a dB scale.
+    function eqFeed(at, gain) {
+        const feed = {
+            timeDomain: levels.timeByteArray, left: levels.timeByteArrayL, right: levels.timeByteArrayR,
+            gainDb: gain > 0 ? 20 * Math.log10(gain) : 0, spectrum: null, bands: null,
+        };
+
+        if (tap && tap.readSpectrum) {
+            if (!spectrum) spectrum = new Uint8Array(VISUALISER_SAMPLES / 2);
+            feed.spectrum = tap.readSpectrum(spectrum);
+        } else if (!tap && track) {
+            const frameAt = visualiserLevelsFrame(track, at);
+            if (frameAt >= 0) {
+                const row = frameAt * track.channels * track.bands;
+                const second = Math.min(1, track.channels - 1) * track.bands;
+                feed.bands = {
+                    left: track.data.subarray(row, row + track.bands),
+                    right: track.data.subarray(row + second, row + second + track.bands),
+                    edges: VISUALISER_BAND_EDGES,
+                };
+            }
+        }
+
+        return feed;
+    }
+
     function hide() {
         shownKey = null;
         wantedKey = null;
+        builtIn = false;
         unschedule();
         canvas.hidden = true;
+        if (eqCanvas) eqCanvas.hidden = true;
     }
 
     function showPreset(key, preset) {
-        if (key !== shownKey) {
+        if (key !== shownKey || builtIn) {
             try { viz.loadPreset(preset, 0); } catch (e) { reportError(`visualiser preset: ${e}`); hide(); return false; }
         }
 
         shownKey = key;
+        builtIn = false;
+        if (eqCanvas) eqCanvas.hidden = true;
         canvas.hidden = false;
+        schedule();
+        return true;
+    }
+
+    function showBuiltIn(name) {
+        const key = `builtin:${name}`;
+        if (!ensureEq() || !eq.setStyle(name)) {
+            reportError(`visualiser built-in: none called ${name}`);
+            hide();
+            return false;
+        }
+
+        shownKey = key;
+        builtIn = true;
+        canvas.hidden = true;
+        eqCanvas.hidden = false;
         schedule();
         return true;
     }
@@ -328,12 +406,17 @@ function createVisualiser(canvas, { engine, presets, reportError, frame, cancelF
         /// Shows a shipped preset by `presetName` or an imported one from `presetUrl`, answering
         /// whether it is up. The same one again leaves the picture running, so a rebuild at a new
         /// key does not restart it. One that cannot be found or read leaves black.
-        show({ presetName, presetUrl } = {}) {
+        show({ presetName, presetUrl, builtIn: style } = {}) {
+            if (style) {
+                wantedKey = `builtin:${style}`;
+                return Promise.resolve(showBuiltIn(style));
+            }
+
             const key = presetUrl || presetName || null;
             wantedKey = key;
             if (!key || !ensureEngine()) { hide(); return Promise.resolve(false); }
 
-            if (key === shownKey) return Promise.resolve(showPreset(key, null));
+            if (key === shownKey && !builtIn) return Promise.resolve(showPreset(key, null));
 
             if (!presetUrl) {
                 const preset = findVisualiserPreset(presets, presetName);
@@ -351,9 +434,13 @@ function createVisualiser(canvas, { engine, presets, reportError, frame, cancelF
         },
 
         /// How it is drawn: brightness and colour in percent, sensitivity in percent of the swing.
-        setLook({ brightness, saturation, sensitivity: react } = {}) {
+        /// The built-in styles also take a bar count and a colour scheme; a preset ignores them.
+        setLook({ brightness, saturation, sensitivity: react, barCount, colourScheme, colour } = {}) {
             canvas.style.filter = visualiserFilter(brightness, saturation);
+            if (eqCanvas) eqCanvas.style.filter = canvas.style.filter;
             sensitivity = Number.isFinite(react) ? Math.max(0, react) / 100 : 1;
+            look = { barCount, colourScheme, colour };
+            if (eq) eq.setOptions(look);
         },
 
         hide,
@@ -386,6 +473,7 @@ function createVisualiser(canvas, { engine, presets, reportError, frame, cancelF
 
         /// Re-sizes the drawing buffer to the window; a no-op until something is drawn.
         resize() {
+            if (eq) sizeBuffer(eqCanvas);
             if (!viz) return;
 
             const size = sizeBuffer();
@@ -398,6 +486,7 @@ function createVisualiser(canvas, { engine, presets, reportError, frame, cancelF
         get sensitivity() { return sensitivity; },
         get listening() { return tap !== null; },
         get hostLevels() { return track !== null; },
+        get builtIn() { return builtIn; },
     };
 
     return api;

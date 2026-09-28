@@ -66,6 +66,7 @@ function buildPreviewLyrics() {
     const report = (message) => console.warn(message);
 
     const visualiser = createVisualiser(document.getElementById('visualiser'), {
+        eqCanvas: document.getElementById('visualiser-eq'),
         engine: window.butterchurn && window.butterchurn.default,
         presets: VISUALISER_PRESETS,
         reportError: report,

@@ -79,7 +79,9 @@ function atSongStart() {
 
 // Under the words, for a song with nothing of its own to show there; the host says when.
 const visualiserCanvas = document.getElementById('visualiser');
+const visualiserEqCanvas = document.getElementById('visualiser-eq');
 const visualiser = createVisualiser(visualiserCanvas, {
+    eqCanvas: visualiserEqCanvas,
     engine: window.butterchurn && window.butterchurn.default,
     presets: VISUALISER_PRESETS,
     reportError,
@@ -113,7 +115,7 @@ function loadVisualiserLevels(url) {
 }
 
 // Everything drawn over the song rather than streamed: a stop dims these with the sound.
-const songLayers = [visualiserCanvas, lyricsCanvas, introLayer];
+const songLayers = [visualiserCanvas, visualiserEqCanvas, lyricsCanvas, introLayer];
 const background = document.getElementById('background');
 const still = document.getElementById('still');
 

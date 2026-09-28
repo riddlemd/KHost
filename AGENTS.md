@@ -545,6 +545,19 @@ stay on black, and a song with its own picture keeps it.
   time>`, so a re-import is a new URL. A preset's equations are code run by whatever draws it:
   importing one is trusting it. `.milk` files are not read. A name that no longer resolves draws
   black. Any preset a song's timing names is ignored.
+- **Built-ins are the host's own drawings, not presets.** `VisualiserPresetSource.BuiltIn` names
+  one of `screen-ui/eq-visualisers.js`'s styles (spectrum bars, mirrored bars, oscilloscope, twin
+  VU meters) by a stable id that `VisualiserPresetService.BuiltIns` mirrors with its title (a test
+  holds them together); they list first on the page. Canvas 2D on a canvas of their own
+  (`#visualiser-eq`) — a canvas keeps one kind of context for life and butterchurn's is WebGL — so
+  they draw where WebGL 2 is missing. Per entry they add a bar count (16/32/64, snapped on save)
+  and a palette (classic green-to-red, the screen's `#8558fa` accent, or one `#rrggbb` colour);
+  a MilkDrop entry ignores both. Fed as butterchurn is: a live tap's spectrum, else the host's
+  eight bands mapped straight onto the bars, straight-line between band centres on a log scale —
+  so on host levels neighbouring bars ramp together rather than moving apart. The oscilloscope
+  and meters read the same samples butterchurn gets, which on host levels are the synthesised
+  tones, not the song's waveform. The sensitivity's swing gain reaches the bars as a dB shift.
+  Everything but the mirrored bars sits in the lower part of the screen, under the words.
 - **The look is applied cheaply.** Brightness and colour are a CSS filter on the visualiser's
   canvas. Sensitivity scales each frame's swing from its own running loudness (a plain gain would
   cancel out: butterchurn reads every band against its own average), applied after the samples are

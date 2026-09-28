@@ -142,21 +142,37 @@ public class VisualiserPresetServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task ReadAll_ListsTheShippedPresetsThenTheImportedOnesByName()
+    public async Task ReadAll_ListsTheBuiltInsThenTheShippedPresetsThenTheImportedOnesByName()
     {
         await ImportAsync("zebra.json", Preset);
         await ImportAsync("Aurora.json", Preset);
 
         var all = _service.ReadAll();
+        var builtIns = VisualiserPresetService.BuiltIns.Count;
+        var bundled = VisualiserPresetService.BundledNames.Count;
 
-        Assert.Equal(VisualiserPresetService.BundledNames, all.Take(VisualiserPresetService.BundledNames.Count).Select(p => p.Name));
-        Assert.All(all.Take(VisualiserPresetService.BundledNames.Count), p => Assert.Equal(VisualiserPresetSource.Bundled, p.Source));
-        Assert.Equal(["Aurora", "zebra"], all.Skip(VisualiserPresetService.BundledNames.Count).Select(p => p.Name));
+        Assert.Equal(VisualiserPresetService.BuiltIns, all.Take(builtIns).Select(p => (p.Name, p.Title!)));
+        Assert.All(all.Take(builtIns), p => Assert.Equal(VisualiserPresetSource.BuiltIn, p.Source));
+        Assert.Equal(VisualiserPresetService.BundledNames, all.Skip(builtIns).Take(bundled).Select(p => p.Name));
+        Assert.All(all.Skip(builtIns).Take(bundled), p => Assert.Equal(VisualiserPresetSource.Bundled, p.Source));
+        Assert.Equal(["Aurora", "zebra"], all.Skip(builtIns + bundled).Select(p => p.Name));
     }
 
     [Fact]
-    public void ReadAll_NoFolderYet_ListsOnlyTheShippedOnes()
-        => Assert.Equal(VisualiserPresetService.BundledNames.Count, _service.ReadAll().Count);
+    public void ReadAll_NoFolderYet_ListsOnlyWhatTheHostShips()
+        => Assert.Equal(VisualiserPresetService.BuiltIns.Count + VisualiserPresetService.BundledNames.Count, _service.ReadAll().Count);
+
+    /// <summary>The host sends a built-in by name and the screen draws it from its own list, so the
+    /// two must name the same styles.</summary>
+    [Fact]
+    public void BuiltIns_AreTheDrawingsTheScreenShips()
+    {
+        var script = File.ReadAllText(Path.Combine(RepositoryRoot(), "src", "KHost.LocalScreen", "screen-ui", "eq-visualisers.js"));
+        var styles = Regex.Matches(script, @"\{ name: '([^']+)', title: '([^']+)' \}")
+            .Select(m => (m.Groups[1].Value, m.Groups[2].Value));
+
+        Assert.Equal(styles, VisualiserPresetService.BuiltIns);
+    }
 
     [Fact]
     public async Task DeleteImported_RemovesItAndAnnounces()

@@ -10,6 +10,7 @@ public class VisualiserPreviewAssetsTests
     [Theory]
     [InlineData("butterchurn.min.js")]
     [InlineData("visualiser-presets.js")]
+    [InlineData("eq-visualisers.js")]
     [InlineData("visualiser.js")]
     [InlineData("lyrics-overlay.js")]
     [InlineData("VISUALISER-NOTICE.md")]

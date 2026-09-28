@@ -37,7 +37,7 @@
         /* Stands in for the black under a song's words when the song has no picture of its own.
            Over the video elements, which have nothing to show then, and under the words. The
            drawing buffer is smaller than the window and stretched to it. */
-        #visualiser {
+        #visualiser, #visualiser-eq {
             position: absolute;
             inset: 0;
             width: 100%;
@@ -46,7 +46,7 @@
             pointer-events: none;
         }
 
-        #visualiser[hidden] { display: none; }
+        #visualiser[hidden], #visualiser-eq[hidden] { display: none; }
 
         /* The intro card's own layer, so a stop's fade can dim it while the card's timing sets
            the card. Over the song's picture and under a still, like the words. */
@@ -460,6 +460,8 @@
     <video id="video-b" class="video" playsinline></video>
     <!-- A visualiser under the words, for a song with no picture; filled by visualiser.js. -->
     <canvas id="visualiser" hidden></canvas>
+    <!-- The host's own drawings take a canvas of their own: butterchurn holds the one above as WebGL. -->
+    <canvas id="visualiser-eq" hidden></canvas>
     <!-- The native path's picture. Sits with the video elements because it stands in their place:
          a song is drawn here or streamed there, never both. -->
     <canvas id="lyrics" class="video" hidden></canvas>
@@ -499,6 +501,7 @@
     <script src="wake-watch.js"></script>
     <script src="butterchurn.min.js"></script>
     <script src="visualiser-presets.js"></script>
+    <script src="eq-visualisers.js"></script>
     <script src="visualiser.js"></script>
     <script src="player.js"></script>
 </body>

@@ -77,6 +77,10 @@ public partial class VisualisationsManagerPage : IDisposable
         {
             presetName = entry.PresetSource == VisualiserPresetSource.Bundled ? entry.PresetName : null,
             presetUrl = entry.PresetSource == VisualiserPresetSource.Imported ? ImportedUrl(entry.PresetName) : null,
+            builtIn = entry.PresetSource == VisualiserPresetSource.BuiltIn ? entry.PresetName : null,
+            barCount = entry.BarCount,
+            colourScheme = entry.ColourScheme.ToString().ToLowerInvariant(),
+            colour = entry.Colour,
             brightness = entry.Brightness,
             saturation = entry.Saturation,
             sensitivity = entry.Sensitivity,
@@ -254,6 +258,31 @@ public partial class VisualisationsManagerPage : IDisposable
         await SaveEntriesAsync(playlist);
     }
 
+    private async Task SetBarCountAsync(ChangeEventArgs e)
+    {
+        if (Selected is not { } playlist || SelectedEntry is not { } entry || !int.TryParse(e.Value?.ToString(), out var count)) return;
+
+        entry.BarCount = count;
+        await SaveEntriesAsync(playlist);
+    }
+
+    private async Task SetColourSchemeAsync(ChangeEventArgs e)
+    {
+        if (Selected is not { } playlist || SelectedEntry is not { } entry
+            || !Enum.TryParse<VisualiserColourScheme>(e.Value?.ToString(), out var scheme) || !Enum.IsDefined(scheme)) return;
+
+        entry.ColourScheme = scheme;
+        await SaveEntriesAsync(playlist);
+    }
+
+    private async Task SetColourAsync(ChangeEventArgs e)
+    {
+        if (Selected is not { } playlist || SelectedEntry is not { } entry || e.Value?.ToString() is not { } colour) return;
+
+        entry.Colour = colour;
+        await SaveEntriesAsync(playlist);
+    }
+
     private static void Apply(VisualisationEntry entry, Setting setting, int percent)
     {
         switch (setting)
@@ -334,11 +363,24 @@ public partial class VisualisationsManagerPage : IDisposable
     }
 
     private string DescribePreset(VisualisationEntry entry)
-        => IsAvailable(entry) ? entry.PresetName : $"{entry.PresetName} (not there any more)";
+        => _presets.FirstOrDefault(p => p.Source == entry.PresetSource && p.Name == entry.PresetName) is { } preset
+            ? preset.Title ?? preset.Name
+            : $"{entry.PresetName} (not there any more)";
 
     private static string DescribeLook(VisualisationEntry entry)
         => $"Brightness {entry.Brightness}% · Colour {entry.Saturation}% · Sensitivity {entry.Sensitivity}%"
+           + (entry.PresetSource != VisualiserPresetSource.BuiltIn ? ""
+               : (HasBars(entry) ? $" · {entry.BarCount} bars" : "") + entry.ColourScheme switch
+               {
+                   VisualiserColourScheme.Theme => " · Accent colour",
+                   VisualiserColourScheme.Single => $" · {entry.Colour}",
+                   _ => " · Classic colours",
+               })
            + (entry.DarkenBehindWords ? " · Words on dark bands" : "");
+
+    /// <summary>Whether the entry draws bars, and so has a bar count to choose.</summary>
+    private static bool HasBars(VisualisationEntry entry)
+        => entry.PresetSource == VisualiserPresetSource.BuiltIn && entry.PresetName is "spectrum-bars" or "mirrored-bars";
 
     /// <summary>The imported preset for the preview, versioned so a re-import reloads it.</summary>
     private string? ImportedUrl(string name)
