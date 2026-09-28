@@ -1,13 +1,15 @@
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace KHost.Domain.Services;
 
 /// <inheritdoc cref="ITimedLyricsService"/>
 public sealed class TimedLyricsService(
     ILogger<TimedLyricsService> logger,
-    IEnumerable<ITimedLyricsProvider> providers) : ITimedLyricsService
+    IEnumerable<ITimedLyricsProvider> providers,
+    IOptionsMonitor<PlaybackService.ServiceOptions> options) : ITimedLyricsService
 {
     private readonly IReadOnlyList<ITimedLyricsProvider> _providers = [.. providers];
 
@@ -30,7 +32,7 @@ public sealed class TimedLyricsService(
 
             // Answering null once it has claimed the file ends the search: nobody else can read a
             // container its owner could not.
-            try { return await provider.GetTimedLyricsAsync(filePath, cancellationToken); }
+            try { return WithLeadIns(await provider.GetTimedLyricsAsync(filePath, cancellationToken)); }
             catch (OperationCanceledException) { throw; }
             catch (Exception ex)
             {
@@ -40,5 +42,15 @@ public sealed class TimedLyricsService(
         }
 
         return null;
+    }
+
+    /// <summary>Filled here, the one door both the screen and the burn-in read through, so they agree.</summary>
+    private TimedLyrics? WithLeadIns(TimedLyrics? lyrics)
+    {
+        var settings = options.CurrentValue;
+
+        return lyrics is not null && settings.DynamicLeadIns
+            ? LeadInGenerator.AddMissing(lyrics, settings.DynamicLeadInPauseSeconds)
+            : lyrics;
     }
 }
