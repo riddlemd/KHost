@@ -401,6 +401,13 @@ cannot name another's: its secrets, and the QR code it offers the screens.
   `PluginExtensionInterfaceTests` fails on any Abstractions interface the domain collects that is
   not listed, so the list maintains itself.
 
+- **The host's `bin/` folder is shared, and `IHostDirectories.BinDirectory` is how a plugin finds
+  it.** A plugin that ships or downloads a program of its own (a downloader, say) puts it there under
+  a name distinctly its own, and never writes, replaces or deletes `ffmpeg`/`ffprobe` — those are the
+  host's. The host looks there before PATH. A plugin that runs ffmpeg itself asks
+  `IFFmpegService.Locate` rather than naming it bare, so it runs the same copy the host does. See
+  **Finding and installing FFmpeg**.
+
 ## The published contracts
 
 `KHost.Abstractions` and `KHost.Common` are **NuGet packages**, and a plugin takes a
@@ -529,6 +536,50 @@ against a render the host had already made, and making those renders cost more t
   words vanish from an encode that still runs. The base is brought to the painted 30fps. Inputs all
   precede the output seek, or that `-ss` binds to the pipe. The session owns the painter: closing
   it cancels the painting and kills ffmpeg, which releases a write blocked in the pipe.
+
+## Finding and installing FFmpeg
+
+**KHost never ships FFmpeg.** Every song encodes through ffmpeg and every import is described by
+ffprobe, so a machine without them used to fail the first song with a bare `Win32Exception` and import
+rows with no length. `IFFmpegService` (`Domain/Services/FFmpeg/`) finds them and, when asked, installs
+a pinned third-party build.
+
+- **Resolution order: the App Settings folder (`FFmpegPath`) → the host's `bin/` → PATH**, first
+  file that exists wins, per program. A configured folder without the program falls through rather
+  than failing. `Locate` is a file check and is asked per song, so an install or a new setting applies
+  from the next song with no restart; `CheckAsync` also runs `-version` and is what the status row
+  shows. It runs at startup in the background (one log line per program, and a console flash when
+  either is missing), on "Check again", after a settings save that moves the folder, and after an
+  install. It announces `FFmpegChanged`.
+- **FFMpegCore reads one global folder** (`GlobalFFOptions.BinaryFolder`) for ffprobe; every check
+  points it at the ffprobe it found, before its first await. The encode does not use it.
+- **Installs go into `<AppContext.BaseDirectory>/bin/`**, beside `cache/` and `plugins/`: the two
+  programs sit directly there so they resolve by name, with `ffmpeg-build.json` beside them naming the
+  build. In a dev run that is a nested `bin/` inside the build output; DeepClean keeps any nested
+  `**/bin/**` for that reason, and a published layout has no `bin/` of its own to collide with.
+  Scratch is `bin/.ffmpeg-install/`, so the final move never crosses a volume.
+- **`ffmpeg-builds.json` is the trust root**, the same role the plugin catalog plays, and is embedded
+  in `KHost.Domain` so it changes only with a KHost release. One build per `<platform>-<arch>`
+  (exact: an x64 build is not offered to arm64), each download an https URL with a pinned `sha256`
+  and exact `size`. The download stops past the size, the hash is compared **before the archive is
+  opened**, every entry is checked for escapes (`ZipEntryGuard`, shared with the plugin installer),
+  only the two named entries are written, under names the host chooses, and each staged program must
+  answer `-version` **before** it replaces anything in `bin/`. A failure leaves the old copy in place.
+- **Pinned today:** win-x64 (gyan.dev 9.0.2 essentials, via its GitHub release), osx-arm64
+  (OSXExperts 9.0, code-signed), osx-x64 (evermeet.cx 9.0.2). **Linux has none**: johnvansickle's
+  current release URL moves with every release and its versioned archive stops at 4.0.3. A platform
+  with no stable versioned URL is left out rather than pinned to a moving "latest".
+- **Adding or bumping a build:** download each archive, `shasum -a 256` it and take its byte size,
+  confirm the archive holds both programs (note the entry paths), run both from it on that platform,
+  and cross-check the publisher's own digest where one exists (GitHub publishes one per asset) —
+  cross-checked, never copied. Then edit the manifest; `FFmpegBuildManifestTests` checks the shape and
+  `FFmpegInstallTests` (integration) installs this machine's build for real.
+- **A missing ffmpeg at play is `KH-FFMPEG-MISSING`**, thrown from `HlsMediaStreamService` whether
+  nothing was found or what was found would not start. **A missing ffprobe at import** is one flash
+  per run from `MediaImportService`, not a silent row per file.
+- macOS: an `HttpClient` download carries no quarantine attribute, so Gatekeeper does not assess it,
+  but an unsigned arm64 binary is killed on launch (exit 137, nothing on stderr); the staged run check
+  catches that and says so.
 
 ## Components
 

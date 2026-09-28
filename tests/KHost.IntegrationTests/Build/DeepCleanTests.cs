@@ -13,6 +13,8 @@ public sealed class DeepCleanTests : IDisposable
         "plugins/some-plugin/manifest.json",
         "plugins-staging/some-plugin/manifest.json",
         "logs/khost.log",
+        "bin/ffmpeg",
+        "bin/some-plugin-tool",
     ];
 
     private static readonly string[] BuildFiles = ["KHost.dll", "wwwroot/app.css", "backgrounds/amber.jpg"];
