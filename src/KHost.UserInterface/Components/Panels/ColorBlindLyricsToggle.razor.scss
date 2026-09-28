@@ -3,7 +3,9 @@
 .kh-lyric-colours-toggle {
     display: flex;
     align-items: center;
-    margin-left: 2px;
+    // First of the header's end controls, so it claims the right edge for itself and the song
+    // controls after it; otherwise it sits against the title.
+    margin-left: auto;
     padding: 1px 3px;
     background: transparent;
     border: 1px solid transparent;
