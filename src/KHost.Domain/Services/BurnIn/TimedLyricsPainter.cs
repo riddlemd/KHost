@@ -136,6 +136,7 @@ public sealed class TimedLyricsPainter
     }
 
     /// <summary>When the first page to arrive inside a count-in's window shows, or null.</summary>
+    /// <remarks>A page landing exactly as the bar ends counts; the screen's overlay agrees.</remarks>
     private double? HandoverAt(LyricCountIn countIn)
     {
         double? at = null;
@@ -143,7 +144,7 @@ public sealed class TimedLyricsPainter
         foreach (var page in _lyrics.Pages)
         {
             var from = page.ShowFromSeconds;
-            if (from > countIn.StartSeconds && from < countIn.EndSeconds && (at is null || from < at)) at = from;
+            if (from > countIn.StartSeconds && from <= countIn.EndSeconds && (at is null || from < at)) at = from;
         }
 
         return at;
@@ -203,8 +204,10 @@ public sealed class TimedLyricsPainter
         if (leaving <= 0) return;
 
         var step = countIn.StepSeconds;
+        // A handover is the bar's exit; a step-long ease on top dims the last of the fill.
+        var easeOut = handover is null ? (countIn.EndSeconds - t) / step : 1;
         var alpha = Math.Min(leaving, step > 0
-            ? Math.Min(1, Math.Min((t - countIn.StartSeconds) / step, (countIn.EndSeconds - t) / step))
+            ? Math.Min(1, Math.Min((t - countIn.StartSeconds) / step, easeOut))
             : 1);
 
         var box = countIn.Position;

@@ -105,7 +105,7 @@ public partial class ComboBox<TItem> : IAsyncDisposable
         if (!OpenWhenEmpty || _query.Trim().Length > 0)
             return;
 
-        await SearchAsync("");
+        await SearchAsync("", BeginSearch());
     }
 
     private async Task OnQueryChangedAsync(ChangeEventArgs e)
@@ -116,11 +116,7 @@ public partial class ComboBox<TItem> : IAsyncDisposable
         // chosen before the name was edited.
         await SetValueAsync(default);
 
-        _debounce?.Cancel();
-        _debounce?.Dispose();
-        // Cleared, not just disposed: the path below returns without replacing it, and cancelling
-        // a disposed source throws out of DisposeAsync, which kills the circuit.
-        _debounce = null;
+        CancelPendingSearch();
 
         if (!CanSearch)
         {
@@ -130,8 +126,7 @@ public partial class ComboBox<TItem> : IAsyncDisposable
             return;
         }
 
-        _debounce = new CancellationTokenSource();
-        var token = _debounce.Token;
+        var token = BeginSearch();
 
         _isSearching = true;
         _isOpen = true;
@@ -186,7 +181,7 @@ public partial class ComboBox<TItem> : IAsyncDisposable
                 break;
 
             case "ArrowDown" when !_isOpen && CanSearch:
-                await SearchAsync(_query);
+                await SearchAsync(_query, BeginSearch());
                 break;
         }
     }
@@ -233,8 +228,27 @@ public partial class ComboBox<TItem> : IAsyncDisposable
 
     private void Close()
     {
+        // A search still in flight would reopen the menu after a blur or Escape, with no focusout
+        // left to close it again, and the next stray click would land on one of its rows.
+        CancelPendingSearch();
         _isOpen = false;
         _isSearching = false;
+    }
+
+    private CancellationToken BeginSearch()
+    {
+        CancelPendingSearch();
+        _debounce = new CancellationTokenSource();
+        return _debounce.Token;
+    }
+
+    private void CancelPendingSearch()
+    {
+        _debounce?.Cancel();
+        _debounce?.Dispose();
+        // Cleared, not just disposed: cancelling a disposed source throws out of DisposeAsync,
+        // which kills the circuit.
+        _debounce = null;
     }
 
     public async ValueTask DisposeAsync()

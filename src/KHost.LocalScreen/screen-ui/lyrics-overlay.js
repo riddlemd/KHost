@@ -51,11 +51,12 @@ function createLyricsOverlay(canvas, clock) {
     }
 
     /// When the first page to arrive inside a count-in's window shows, or null when none does.
+    /// A page landing exactly as the bar ends counts: a lead-in's bar is built to end on its page.
     function handoverAt(countIn) {
         let at = null;
         for (const page of lyrics.pages || []) {
             const from = page.showFromSeconds;
-            if (from > countIn.startSeconds && from < countIn.endSeconds && (at === null || from < at)) at = from;
+            if (from > countIn.startSeconds && from <= countIn.endSeconds && (at === null || from < at)) at = from;
         }
         return at;
     }
@@ -76,8 +77,11 @@ function createLyricsOverlay(canvas, clock) {
         if (leaving <= 0) return;
 
         const step = countIn.stepSeconds || 0;
+        // Eased out over a step only when no page takes over: a handover is its own exit, and a
+        // step-long ease on top dims the last of the fill the room is counting down to.
+        const easeOut = handover === null ? (countIn.endSeconds - t) / step : 1;
         const alpha = Math.min(leaving, step > 0
-            ? Math.min(1, (t - countIn.startSeconds) / step, (countIn.endSeconds - t) / step)
+            ? Math.min(1, (t - countIn.startSeconds) / step, easeOut)
             : 1);
         const x = offsetX + box.x * scale;
         const y = offsetY + box.y * scale;

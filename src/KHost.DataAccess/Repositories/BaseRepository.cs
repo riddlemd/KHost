@@ -104,7 +104,7 @@ internal abstract class BaseRepository<T> : IRepository<T> where T : RepositoryM
         return true;
     }
 
-    public virtual async Task<PaginatedResult<T>> ReadAllAsync(int pageNumber = 0, int pageSize = 0)
+    public virtual async Task<PaginatedResult<T>> ReadAllAsync(int pageNumber = 1, int pageSize = 0)
     {
         return await ReadAllAsync(pageNumber, pageSize, sort: null);
     }
@@ -137,7 +137,7 @@ internal abstract class BaseRepository<T> : IRepository<T> where T : RepositoryM
         return $"%{folded}%";
     }
 
-    public virtual async Task<PaginatedResult<T>> SearchAsync<TOptions>(string query, int pageNumber = 0, int pageSize = 0, TOptions? options = null)
+    public virtual async Task<PaginatedResult<T>> SearchAsync<TOptions>(string query, int pageNumber = 1, int pageSize = 50, TOptions? options = null)
         where TOptions : class
     {
         var sw = Stopwatch.StartNew();
@@ -157,7 +157,7 @@ internal abstract class BaseRepository<T> : IRepository<T> where T : RepositoryM
         }
     }
 
-    public virtual Task<PaginatedResult<T>> SearchAsync(string query, int pageNumber = 0, int pageSize = 0)
+    public virtual Task<PaginatedResult<T>> SearchAsync(string query, int pageNumber = 1, int pageSize = 50)
         => SearchAsync(query, pageNumber, pageSize, sort: null);
 
     public virtual async Task<PaginatedResult<T>> SearchAsync(string query, int pageNumber, int pageSize, SortDescriptor? sort)

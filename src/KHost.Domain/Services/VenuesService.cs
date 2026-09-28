@@ -31,7 +31,7 @@ public class VenuesService : BaseRepositoryService<Venue, IVenuesRepository>, IV
         if (cached is not { } id)
         {
             Logger.LogInformation("No previously selected venue; falling back to the first enabled venue");
-            await SelectFirstAvailableVenueAsync();
+            await SelectFirstAvailableVenueAsync(staleSelectionCached: false);
             return;
         }
 
@@ -39,7 +39,7 @@ public class VenuesService : BaseRepositoryService<Venue, IVenuesRepository>, IV
         if (await ReadAsync(id) is null)
         {
             Logger.LogWarning("Cached venue {VenueId} no longer exists; falling back", id);
-            await SelectFirstAvailableVenueAsync();
+            await SelectFirstAvailableVenueAsync(staleSelectionCached: true);
             return;
         }
 
@@ -65,7 +65,11 @@ public class VenuesService : BaseRepositoryService<Venue, IVenuesRepository>, IV
     public async Task SelectVenueAsync(Guid? venueId)
     {
         SelectedVenueId = venueId;
-        Logger.LogInformation("Venue selected: {VenueId}", venueId);
+
+        if (venueId is { } id)
+            Logger.LogInformation("Venue selected: {VenueId}", id);
+        else
+            Logger.LogInformation("Venue selection cleared");
 
         await _cacheService.SaveAsync(_cacheKey, venueId);
 
@@ -93,12 +97,23 @@ public class VenuesService : BaseRepositoryService<Venue, IVenuesRepository>, IV
         return await base.DeleteAsync(id);
     }
 
-    private async Task SelectFirstAvailableVenueAsync()
+    private async Task SelectFirstAvailableVenueAsync(bool staleSelectionCached)
     {
         var venues = await ReadAllAsync(pageNumber: 1, pageSize: 1000);
         var first = venues.Items.FirstOrDefault(v => v.Enabled) ?? venues.Items.FirstOrDefault();
 
-        await SelectVenueAsync(first?.Id);
+        if (first is not null)
+        {
+            await SelectVenueAsync(first.Id);
+            return;
+        }
+
+        // A fresh install has none until the setup wizard creates the first, which selects it.
+        Logger.LogInformation("No venue selected yet; none exists");
+
+        // A deleted venue's id stays cached otherwise, and every start warns about it again.
+        if (staleSelectionCached)
+            await SelectVenueAsync(null);
     }
 
 }

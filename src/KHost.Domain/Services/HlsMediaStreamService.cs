@@ -62,6 +62,12 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
         _root = working;
 
         Directory.CreateDirectory(_root);
+
+        // Before this host opens any session of its own, so only another process's folders are judged.
+        var swept = HlsSessionSweeper.Sweep(_root, DateTime.UtcNow, HlsSessionSweeper.IsRunning);
+        if (swept.Count > 0)
+            Logger.LogInformation("Swept {Count} orphaned stream session(s) from {Root}: {Sessions}",
+                swept.Count, _root, string.Join(", ", swept));
     }
 
     /// <summary>Read per use, never snapshotted: a host changing the segment length in App
@@ -74,6 +80,7 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
         var id = Guid.NewGuid().ToString("n");
         var directory = Path.Combine(_root, id);
         Directory.CreateDirectory(directory);
+        HlsSessionSweeper.WriteOwner(directory);
 
         return (id, directory);
     }
