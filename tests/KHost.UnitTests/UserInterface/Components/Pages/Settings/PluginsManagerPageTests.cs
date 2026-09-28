@@ -6,6 +6,7 @@ using KHost.Domain.Services.Messaging;
 using KHost.Abstractions.Messaging;
 using KHost.Abstractions.Models;
 using KHost.UserInterface.Components.Pages.Settings;
+using KHost.UserInterface.Models;
 using KHost.UserInterface.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -765,7 +766,7 @@ public class PluginsManagerPageTests : BunitContext
     [Fact]
     public void SettingsNamingNoSection_AreOneUnheadedRun()
     {
-        var sections = PluginsManagerPage.SectionsOf([Field("a"), Field("b")]);
+        var sections = PluginSettingsDraft.SectionsOf([Field("a"), Field("b")]);
 
         var only = Assert.Single(sections);
         Assert.Null(only.Name);
@@ -777,7 +778,7 @@ public class PluginsManagerPageTests : BunitContext
     [Fact]
     public void SectionsComeOutInTheOrderTheyAreFirstNamed()
     {
-        var sections = PluginsManagerPage.SectionsOf(
+        var sections = PluginSettingsDraft.SectionsOf(
             [Field("a", "Playback"), Field("b", "Bridge"), Field("c", "Playback")]);
 
         Assert.Equal(["Playback", "Bridge"], sections.Select(s => s.Name));
@@ -792,7 +793,7 @@ public class PluginsManagerPageTests : BunitContext
     [Fact]
     public void AnUngroupedSettingAfterAHeading_StaysWithTheUnheadedRun()
     {
-        var sections = PluginsManagerPage.SectionsOf([Field("a", "Bridge"), Field("b")]);
+        var sections = PluginSettingsDraft.SectionsOf([Field("a", "Bridge"), Field("b")]);
 
         Assert.Equal([null, "Bridge"], sections.Select(s => s.Name));
         Assert.Equal(["b"], sections[0].Fields.Select(f => f.Definition.Key));
@@ -804,14 +805,14 @@ public class PluginsManagerPageTests : BunitContext
     [InlineData("")]
     [InlineData("   ")]
     public void ABlankSectionName_IsNoSectionAtAll(string blank)
-        => Assert.Null(Assert.Single(PluginsManagerPage.SectionsOf([Field("a", blank)])).Name);
+        => Assert.Null(Assert.Single(PluginSettingsDraft.SectionsOf([Field("a", blank)])).Name);
 
     /// <summary>Matched the way every other name in this app is: a manifest spelling one heading
     /// two ways meant it once.</summary>
     [Fact]
     public void ASectionNamedInTwoCases_IsOneHeading()
     {
-        var sections = PluginsManagerPage.SectionsOf([Field("a", "Bridge"), Field("b", "bridge")]);
+        var sections = PluginSettingsDraft.SectionsOf([Field("a", "Bridge"), Field("b", "bridge")]);
 
         Assert.Single(sections);
         Assert.Equal(2, sections[0].Fields.Count);
@@ -847,7 +848,7 @@ public class PluginsManagerPageTests : BunitContext
         Assert.Single(cut.FindAll(SettingInputSelector));
     }
 
-    private static PluginsManagerPage.SettingField Field(string key, string? section = null)
+    private static SettingField Field(string key, string? section = null)
         => new() { Definition = Setting(key, PluginSettingType.Int, key, section: section) };
 
 

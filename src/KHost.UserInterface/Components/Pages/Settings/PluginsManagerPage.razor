@@ -241,7 +241,7 @@
                         var enabled = IsEnabled(plugin.Id);
                         var open = IsOpen(plugin);
                         var dirty = IsDirty(plugin.Id);
-                        _settingFields.TryGetValue(plugin.Id, out var fields);
+                        _drafts.TryGetValue(plugin.Id, out var draft);
 
                         <div class="kh-plugins-manager__row @(open ? "kh-plugins-manager__row--open" : null)" @key="plugin.Directory">
                             <div class="kh-plugins-manager__head">
@@ -320,10 +320,10 @@
                                         </div>
                                     }
 
-                                    @if (fields is not null)
+                                    @if (draft is not null)
                                     {
                                         <div class="kh-plugins-manager__settings">
-                                            @foreach (var section in SectionsOf(fields))
+                                            @foreach (var section in draft.Sections)
                                             {
                                             @if (section.Name is { } heading)
                                             {
@@ -430,7 +430,7 @@
                                                 </button>
                                             }
                                         }
-                                        @if (fields is not null && dirty)
+                                        @if (draft is not null && dirty)
                                         {
                                             <button type="button" class="kh-button kh-button--secondary" @onclick="() => Revert(plugin.Id)">Revert</button>
                                             <button type="submit" class="kh-button">
