@@ -55,7 +55,7 @@
                         <option value="@SongControlStyle.Dials">Dials</option>
                     </select>
                 </SettingRow>
-                <SettingRow Label="Backing vocals (%)" Applies="applies immediately">
+                <SettingRow Label="Default backing vocals volume (%)" Applies="applies immediately">
                     <InputNumber class="kh-form-control kh-app-settings__number" @bind-Value="_model.BackingVocalVolume" min="0" max="100" step="5" />
                 </SettingRow>
                 <SettingRow Label="Lead-in grace" Applies="applies from the next song">
@@ -63,6 +63,8 @@
                         <span class="kh-note">
                             Holds the start of a song whose words begin almost at once, so the singer
                             is led in. Songs with their own intro are not delayed beyond it.
+                            Only affects lyrics the screen draws itself; CD+G and video files
+                            carry their words in the picture and are never held.
                         </span>
                     </Note>
                     <ChildContent>
@@ -71,7 +73,7 @@
                                       Label="LeadInGraceLabel" />
                     </ChildContent>
                 </SettingRow>
-                <SettingRow Label="Add lead-ins" Applies="applies immediately" IsCheckbox="true">
+                <SettingRow Label="Enable dynamic lead-ins" Applies="applies immediately" IsCheckbox="true">
                     <Note>
                         <span class="kh-note">
                             Runs a marker into the first line of a page and into a line after a long
