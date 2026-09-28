@@ -58,7 +58,7 @@ public class HlsMediaStreamServiceBurnInTests
     [Fact]
     public void PlanBurnIn_ASourceWithNoPicture_PaintsOverBlack()
     {
-        var plan = HlsMediaStreamService.PlanBurnIn(false, 10, false, Words, TimeSpan.Zero, 0, 720);
+        var plan = HlsMediaStreamService.PlanBurnIn("/songs/a.mp4", false, 10, false, Words, TimeSpan.Zero, 0, 720);
 
         Assert.Equal(BurnInBase.Fill, plan.Overlay.Base);
     }
@@ -66,9 +66,18 @@ public class HlsMediaStreamServiceBurnInTests
     [Fact]
     public void PlanBurnIn_ASourceWithItsOwnPicture_PaintsOverIt()
     {
-        var plan = HlsMediaStreamService.PlanBurnIn(true, 10, false, Words, TimeSpan.Zero, 0, 720);
+        var plan = HlsMediaStreamService.PlanBurnIn("/songs/a.mp4", true, 10, false, Words, TimeSpan.Zero, 0, 720);
 
         Assert.Equal(BurnInBase.SourceVideo, plan.Overlay.Base);
+    }
+
+    /// <summary>An audio file's video stream is at most its cover art, and never goes under the words.</summary>
+    [Fact]
+    public void PlanBurnIn_AnAudioSourceWithAPictureInIt_PaintsOverBlack()
+    {
+        var plan = HlsMediaStreamService.PlanBurnIn("/songs/a.mp3", true, 10, false, Words, TimeSpan.Zero, 0, 720);
+
+        Assert.Equal(BurnInBase.Fill, plan.Overlay.Base);
     }
 
     private static readonly TimedLyrics Words = new()
