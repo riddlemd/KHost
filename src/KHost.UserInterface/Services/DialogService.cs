@@ -37,6 +37,9 @@ public class DialogService : IDialogService
         return Task.FromResult(false);
     }
 
+    public Task ConfirmIfAsync(bool ask, Func<Task> action, string message, string title = "Confirm", string confirmText = "Confirm")
+        => ask ? ShowConfirmationAsync(message, action, title, confirmText) : action();
+
     public Task ShowSingerPerformanceHistoryAsync(Guid userId, Action? onClose = null)
     {
         _logger.LogDebug("Dialog requested: {DialogType} userId={UserId}", nameof(SingerPerformanceHistoryDialog), userId);

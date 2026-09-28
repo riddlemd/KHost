@@ -39,6 +39,7 @@ public partial class SelectedSingerInfoPanel : IAsyncDisposable
 
     /// <summary>Off for a venue never asked, so an alias stays out of sight until one is wanted.</summary>
     private bool _allowAliases;
+    private bool _promptBeforeRemovingPerformance;
     private bool _canRemoveFromQueue;
     private bool _canReorderQueue;
     private bool _canViewHistory;
@@ -82,32 +83,23 @@ public partial class SelectedSingerInfoPanel : IAsyncDisposable
         await PerformanceService.MoveToIndexAsync(singer.Id, performanceId, newIndex);
     }
 
-    private async Task OnKeyDownAsync(KeyboardEventArgs e)
+    private Task OnKeyDownAsync(KeyboardEventArgs e)
     {
-        if (SingerQueueService.SelectedUser is not { } singer) return;
+        if (SingerQueueService.SelectedUser is not { } singer) return Task.CompletedTask;
 
         var currentIdx = _performances.FindIndex(p => p.Id == _selectedPerformanceId);
         var action = ListKeyboardShortcuts.Resolve(e.Key, e.ShiftKey, currentIdx, _performances.Count);
 
-        // Reordering is a permission of its own; the arrows that do it are hidden without it.
-        if (action is ListKeyAction.MovePrevious or ListKeyAction.MoveNext && !_canReorderQueue)
-            return;
-
-        switch (action)
-        {
-            case ListKeyAction.SelectPrevious:
-                SelectPerformance(_performances[currentIdx - 1].Id);
-                break;
-            case ListKeyAction.SelectNext:
-                SelectPerformance(_performances[currentIdx + 1].Id);
-                break;
-            case ListKeyAction.MovePrevious:
-                await PerformanceService.MoveUpInQueueAsync(singer.Id, _performances[currentIdx].Id);
-                break;
-            case ListKeyAction.MoveNext:
-                await PerformanceService.MoveDownInQueueAsync(singer.Id, _performances[currentIdx].Id);
-                break;
-        }
+        return ListKeyboardShortcuts.DispatchAsync(
+            action, currentIdx, _canReorderQueue,
+            select: idx =>
+            {
+                SelectPerformance(_performances[idx].Id);
+                return Task.CompletedTask;
+            },
+            move: up => up
+                ? PerformanceService.MoveUpInQueueAsync(singer.Id, _performances[currentIdx].Id)
+                : PerformanceService.MoveDownInQueueAsync(singer.Id, _performances[currentIdx].Id));
     }
 
     private async Task LoadAndPlayAsync(Performance performance)
@@ -181,23 +173,13 @@ public partial class SelectedSingerInfoPanel : IAsyncDisposable
         });
     }
 
-    private async Task RemoveWithConfirmAsync(Performance performance)
-    {
-        var venue = await VenuesService.ReadSelectedVenueAsync();
-        if (venue?.Settings.PromptBeforeRemovingPerformance == true)
-        {
-            await DialogService.ShowConfirmationAsync(
-                $"Are you sure you want to remove this song from the queue?",
-                () => PerformanceService.DeleteAsync(performance.Id),
-                title: "Remove Song",
-                confirmText: "Remove"
-            );
-        }
-        else
-        {
-            await PerformanceService.DeleteAsync(performance.Id);
-        }
-    }
+    private Task RemoveWithConfirmAsync(Performance performance)
+        => DialogService.ConfirmIfAsync(
+            _promptBeforeRemovingPerformance,
+            () => PerformanceService.DeleteAsync(performance.Id),
+            "Are you sure you want to remove this song from the queue?",
+            "Remove Song",
+            "Remove");
 
     private async Task OpenMediaEditDialogAsync(Media? media)
     {
@@ -252,6 +234,7 @@ public partial class SelectedSingerInfoPanel : IAsyncDisposable
 
         _tippingEnabled = venue?.Settings.TippingEnabled ?? true;
         _allowAliases = venue?.Settings.AllowAliases ?? false;
+        _promptBeforeRemovingPerformance = venue?.Settings.PromptBeforeRemovingPerformance ?? false;
     }
 
     private async Task RefreshPerformancesAsync()
@@ -262,17 +245,9 @@ public partial class SelectedSingerInfoPanel : IAsyncDisposable
             if (!_performances.Any(p => p.Id == _selectedPerformanceId))
                 _selectedPerformanceId = null;
 
-            if (_performances.Count > 0)
-            {
-                var mediaIds = _performances.Select(p => p.MediaId).Distinct().ToList();
-                var mediaTasks = mediaIds.Select(id => MediaService.ReadAsync(id)).ToList();
-                var mediaResults = await Task.WhenAll(mediaTasks);
-                _mediaCache = mediaIds.Zip(mediaResults).ToDictionary(x => x.First, x => x.Second);
-            }
-            else
-            {
-                _mediaCache = [];
-            }
+            _mediaCache = _performances.Count > 0
+                ? await MediaCacheLoader.ReadByIdAsync(MediaService, _performances.Select(p => p.MediaId))
+                : [];
 
             if (_tippingEnabled)
             {

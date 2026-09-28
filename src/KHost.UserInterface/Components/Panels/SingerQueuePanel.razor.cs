@@ -44,6 +44,7 @@ public partial class SingerQueuePanel : IAsyncDisposable
     private Dictionary<Guid, RecentVenueVisit> _lastVenues = [];
     private Dictionary<Guid, string> _venueNames = [];
     private bool _showEwt = true;
+    private bool _promptBeforeRemovingSinger;
     private bool _canAddToQueue;
     private bool _canRemoveFromQueue;
     private bool _canReorderQueue;
@@ -182,25 +183,12 @@ public partial class SingerQueuePanel : IAsyncDisposable
         var currentIdx = users.ToList().FindIndex(u => u.Id == SingerQueueService.SelectedUserId);
         var action = ListKeyboardShortcuts.Resolve(e.Key, e.ShiftKey, currentIdx, users.Count);
 
-        // Reordering is a permission of its own; the arrows that do it are hidden without it.
-        if (action is ListKeyAction.MovePrevious or ListKeyAction.MoveNext && !_canReorderQueue)
-            return;
-
-        switch (action)
-        {
-            case ListKeyAction.SelectPrevious:
-                await SingerQueueService.SelectUserAsync(users[currentIdx - 1].Id);
-                break;
-            case ListKeyAction.SelectNext:
-                await SingerQueueService.SelectUserAsync(users[currentIdx + 1].Id);
-                break;
-            case ListKeyAction.MovePrevious:
-                await SingerQueueService.MoveUserUpAsync(users[currentIdx].Id);
-                break;
-            case ListKeyAction.MoveNext:
-                await SingerQueueService.MoveUserDownAsync(users[currentIdx].Id);
-                break;
-        }
+        await ListKeyboardShortcuts.DispatchAsync(
+            action, currentIdx, _canReorderQueue,
+            select: idx => SingerQueueService.SelectUserAsync(users[idx].Id),
+            move: up => up
+                ? SingerQueueService.MoveUserUpAsync(users[currentIdx].Id)
+                : SingerQueueService.MoveUserDownAsync(users[currentIdx].Id));
     }
 
     private TimeSpan CalculateEwt(int userIndex)
@@ -233,23 +221,13 @@ public partial class SingerQueuePanel : IAsyncDisposable
         catch { }
     }
 
-    private async Task ConfirmRemoveUserAsync(KHostUser user)
-    {
-        var venue = await VenuesService.ReadSelectedVenueAsync();
-        if (venue?.Settings.PromptBeforeRemovingSinger == true)
-        {
-            await DialogService.ShowConfirmationAsync(
-                $"Are you sure you want to remove <span class=\"kh-emphasis\">{user.Name}</span> from the queue?",
-                async () => await SingerQueueService.RemoveUserAsync(user.Id),
-                "Remove Singer From Queue",
-                "Remove"
-            );
-        }
-        else
-        {
-            await SingerQueueService.RemoveUserAsync(user.Id);
-        }
-    }
+    private Task ConfirmRemoveUserAsync(KHostUser user)
+        => DialogService.ConfirmIfAsync(
+            _promptBeforeRemovingSinger,
+            () => SingerQueueService.RemoveUserAsync(user.Id),
+            $"Are you sure you want to remove <span class=\"kh-emphasis\">{user.Name}</span> from the queue?",
+            "Remove Singer From Queue",
+            "Remove");
 
     private void OnStateChanged() => InvokeAsync(async () =>
     {
@@ -266,6 +244,7 @@ public partial class SingerQueuePanel : IAsyncDisposable
         var venue = await VenuesService.ReadSelectedVenueAsync();
 
         _showEwt = venue?.Settings.ShowEstimatedWaitTime ?? true;
+        _promptBeforeRemovingSinger = venue?.Settings.PromptBeforeRemovingSinger ?? false;
     }
 
     private string GetSingerRowClasses(Guid userId, bool isFirst)
@@ -292,15 +271,9 @@ public partial class SingerQueuePanel : IAsyncDisposable
         var nextMediaIds = SingerQueueService.Users
             .Select(u => _allQueuedPerformances.FirstOrDefault(p => p.SingerId == u.Id)?.MediaId)
             .Where(id => id.HasValue)
-            .Select(id => id!.Value)
-            .Distinct()
-            .ToList();
+            .Select(id => id!.Value);
 
-        var mediaResults = await Task.WhenAll(nextMediaIds.Select(id => MediaService.ReadAsync(id)));
-
-        _mediaCache = mediaResults
-            .Where(m => m is not null)
-            .ToDictionary(m => m!.Id);
+        _mediaCache = await MediaCacheLoader.ReadByIdAsync(MediaService, nextMediaIds);
     }
 
     public async ValueTask DisposeAsync()
