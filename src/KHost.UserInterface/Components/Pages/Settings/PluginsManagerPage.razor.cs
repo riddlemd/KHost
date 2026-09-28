@@ -296,8 +296,6 @@ public partial class PluginsManagerPage : IDisposable
         }
     }
 
-    private static int Percent(double fraction) => (int)Math.Round(fraction * 100);
-
     private async Task SelectTabAsync(Tab tab)
     {
         _tab = tab;

@@ -194,10 +194,9 @@
                                     <div class="kh-plugins-manager__progress">
                                         @if (install.Progress is { } fraction)
                                         {
-                                            <div class="kh-plugins-manager__progress-track">
-                                                <div class="kh-plugins-manager__progress-fill" style="width:@(Percent(fraction))%"></div>
-                                            </div>
-                                            <span class="kh-plugins-manager__progress-label">@(Percent(fraction))%</span>
+                                            <ProgressBar Fraction="fraction" TrackClass="kh-plugins-manager__progress-track"
+                                                         FillClass="kh-plugins-manager__progress-fill"
+                                                         PercentClass="kh-plugins-manager__progress-label" />
                                         }
                                         else
                                         {
