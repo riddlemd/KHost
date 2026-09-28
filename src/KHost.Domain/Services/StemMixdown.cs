@@ -40,11 +40,11 @@ public sealed class StemMixdown(IStemStreamService streams, IMediaStreamService 
         MediaRenderRequest request,
         CancellationToken cancellationToken = default)
     {
-        (TimedLyrics Words, string? BackgroundPath)? found;
+        TimedLyrics? words;
 
         try
         {
-            found = request.Target.BurnLyrics ? await burnIn.FindAsync(request.FilePath, cancellationToken) : null;
+            words = request.Target.BurnLyrics ? await burnIn.FindAsync(request.FilePath, cancellationToken) : null;
         }
         catch when (stems.Session is not null)
         {
@@ -59,8 +59,7 @@ public sealed class StemMixdown(IStemStreamService streams, IMediaStreamService 
             request.StartOffset,
             request.Pitch,
             request.Tempo,
-            found?.Words,
-            found?.BackgroundPath,
+            words,
             stems.Session,
             cancellationToken);
 

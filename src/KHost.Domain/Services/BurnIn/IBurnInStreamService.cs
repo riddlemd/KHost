@@ -10,9 +10,7 @@ namespace KHost.Domain.Services.BurnIn;
 public interface IBurnInStreamService
 {
     /// <summary>As <see cref="Abstractions.Services.IMediaStreamService.OpenAsync"/>, with
-    /// <paramref name="words"/> painted over the picture.</summary>
-    /// <param name="backgroundPath">A clip to play under the words when the source has no picture of
-    /// its own; null, or a path that is not there, puts them over black.</param>
+    /// <paramref name="words"/> painted over the picture, or over black when the source has none.</summary>
     Task<MediaStreamSession> OpenBurningInAsync(
         string filePath,
         TimeSpan startOffset,
@@ -20,6 +18,5 @@ public interface IBurnInStreamService
         int tempo,
         AudioMix? mix,
         TimedLyrics words,
-        string? backgroundPath,
         CancellationToken cancellationToken = default);
 }

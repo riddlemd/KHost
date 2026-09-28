@@ -1,9 +1,7 @@
 using KHost.Abstractions.Models;
-using KHost.Abstractions.Models.Backgrounds;
 using KHost.Abstractions.Services;
 using KHost.Domain.Services;
 using KHost.Domain.Services.BurnIn;
-using Microsoft.Extensions.Logging.Abstractions;
 
 namespace KHost.UnitTests.Domain.Services;
 
@@ -15,8 +13,6 @@ public class StemMixdownTests
     private readonly IMediaStreamService _streams = Substitute.For<IMediaStreamService>();
     private readonly IBurnInStreamService _burnInStreams = Substitute.For<IBurnInStreamService>();
     private readonly ITimedLyricsService _lyrics = Substitute.For<ITimedLyricsService>();
-    private readonly IVenuesService _venues = Substitute.For<IVenuesService>();
-    private readonly IBackgroundPackService _backgrounds = Substitute.For<IBackgroundPackService>();
 
     private static readonly TimedLyrics Words = new()
     {
@@ -43,7 +39,7 @@ public class StemMixdownTests
 
     public StemMixdownTests()
     {
-        _stemStreams.OpenStemsAsync(default!, default!, default, default, default, default, default, default)
+        _stemStreams.OpenStemsAsync(default!, default!, default, default, default, default, default)
             .ReturnsForAnyArgs(new MediaStreamSession
             {
                 Id = "mix",
@@ -53,7 +49,6 @@ public class StemMixdownTests
                 Pitch = 2,
                 Tempo = -5,
             });
-        _venues.ReadSelectedVenueAsync().Returns((Venue?)null);
         _lyrics.GetTimedLyricsAsync("/songs/a.song", Arg.Any<CancellationToken>()).Returns(Words);
     }
 
@@ -63,7 +58,7 @@ public class StemMixdownTests
         var rendition = await Mixdown().EncodeAsync(Stems, Request(burnLyrics: false));
 
         await _stemStreams.Received(1).OpenStemsAsync(
-            "/songs/a.song", Stems.Stems, TimeSpan.FromSeconds(30), 2, -5, null, null, StemSession,
+            "/songs/a.song", Stems.Stems, TimeSpan.FromSeconds(30), 2, -5, null, StemSession,
             Arg.Any<CancellationToken>());
         Assert.Equal("http://host/media/mix/stream.m3u8", rendition.Url);
         Assert.Empty(rendition.Stems);
@@ -79,7 +74,7 @@ public class StemMixdownTests
         await Mixdown().EncodeAsync(Stems, Request(burnLyrics: true));
 
         await _stemStreams.Received(1).OpenStemsAsync(
-            "/songs/a.song", Stems.Stems, TimeSpan.FromSeconds(30), 2, -5, Words, null, StemSession,
+            "/songs/a.song", Stems.Stems, TimeSpan.FromSeconds(30), 2, -5, Words, StemSession,
             Arg.Any<CancellationToken>());
     }
 
@@ -94,7 +89,7 @@ public class StemMixdownTests
     private StemMixdown Mixdown() => new(
         _stemStreams,
         _streams,
-        new LyricBurnIn(_lyrics, _venues, _backgrounds, _burnInStreams, NullLogger<LyricBurnIn>.Instance));
+        new LyricBurnIn(_lyrics, _burnInStreams));
 
     private static MediaRenderRequest Request(bool burnLyrics) => new()
     {
