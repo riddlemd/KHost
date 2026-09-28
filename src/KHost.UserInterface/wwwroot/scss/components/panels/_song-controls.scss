@@ -5,9 +5,8 @@
     display: flex;
     align-items: center;
 
-    // Claims the end of the header row. With the break music bar gone to a band of its own, the
-    // trigger has to hold the right edge itself or it sits against the title.
-    margin-left: auto;
+    // The last of the header's end controls; the colour-blind toggle before it holds the right edge.
+    margin-left: 2px;
 
     &__trigger {
         display: flex;
