@@ -1,5 +1,4 @@
 using KHost.Abstractions.Models;
-using KHost.Abstractions.Models.Backgrounds;
 using KHost.Abstractions.Services;
 using KHost.UserInterface.Models;
 using Microsoft.AspNetCore.Components;
@@ -20,11 +19,15 @@ public partial class EditVenueDialog
     // Only for the fallback on a new venue's break music mode; every other break-music, QR,
     // marquee and queue-rotation concern lives on the section component that draws it.
     [Inject] private IBreakMusicService BreakMusic { get; set; } = default!;
-    [Inject] private IBackgroundPackService BackgroundPacks { get; set; } = default!;
+    [Inject] private IVisualisationPlaylistService VisualisationPlaylists { get; set; } = default!;
 
     private bool _isNew;
     private EditVenueModel _model = new();
     private EditContext _editContext = default!;
+
+    private IReadOnlyList<VisualisationPlaylist> _visualisationPlaylists = [];
+    private VisualisationPlaylist? _visualisationPlaylist;
+    private string _visualisationPlaylistText = "";
 
     // DialogHost keys every dialog by request id, so a fresh instance is created per open; this
     // runs exactly once with Venue already bound.
@@ -34,58 +37,27 @@ public partial class EditVenueDialog
         _model = EditVenueModel.From(Venue, BreakMusic.ActiveProvider?.SourceName);
         _editContext = new EditContext(_model);
 
-        await ReloadBackgroundPackAsync();
+        // Read when the dialog opens, not held, since a new playlist would be missing.
+        _visualisationPlaylists = await VisualisationPlaylists.ReadAllWithEntriesAsync();
+        // The picker shows the chosen playlist's name itself, so the text needs no seeding.
+        _visualisationPlaylist = _visualisationPlaylists.FirstOrDefault(p => p.Id == _model.VisualisationPlaylistId);
     }
+
+    /// <summary>Clearing the field is how a venue goes back to black under the words.</summary>
+    private void OnVisualisationPlaylistChanged(VisualisationPlaylist? playlist)
+    {
+        _visualisationPlaylist = playlist;
+        _model.VisualisationPlaylistId = playlist?.Id;
+    }
+
+    private Task<IReadOnlyList<VisualisationPlaylist>> SearchVisualisationPlaylistsAsync(string term)
+        => Task.FromResult<IReadOnlyList<VisualisationPlaylist>>(
+            [.. _visualisationPlaylists.Where(p => p.Name.Contains(term, StringComparison.OrdinalIgnoreCase))]);
 
     private async Task SubmitAsync()
     {
         if (_editContext.Validate())
             await SaveAsync();
-    }
-
-    private BackgroundPack _backgroundPack = new();
-
-    /// <summary>Read when the dialog opens: the folders are machine settings, not this venue's.
-    /// </summary>
-    private async Task ReloadBackgroundPackAsync()
-        => _backgroundPack = await BackgroundPacks.ReadAsync();
-
-    /// <summary>A stable DOM id for a background's checkbox.</summary>
-    /// <remarks>Derived from the file name, which may hold spaces and dots — both legal in an id
-    /// attribute but not in the selector a test or a stylesheet would reach it with.</remarks>
-    private static string BackgroundInputId(BackgroundPackEntry entry)
-        => "venue-background-" + string.Concat(entry.File.Select(c => char.IsLetterOrDigit(c) ? c : '-'));
-
-    private bool IsBackgroundEnabled(BackgroundPackEntry entry)
-        => _model.SongBackgrounds.Contains(entry.File, StringComparer.OrdinalIgnoreCase);
-
-    /// <summary>Ticking a background adds it to the pool a song is picked from.</summary>
-    /// <remarks>Names of clips no longer in the folder are left alone rather than tidied away: a
-    /// folder that is temporarily unreachable would otherwise silently empty a venue's choices, and
-    /// a name nothing matches costs nothing at render time.</remarks>
-    private void ToggleBackground(BackgroundPackEntry entry, bool enabled)
-    {
-        _model.SongBackgrounds.RemoveAll(name => string.Equals(name, entry.File, StringComparison.OrdinalIgnoreCase));
-
-        if (enabled) _model.SongBackgrounds.Add(entry.File);
-    }
-
-    /// <summary>The still is asked for by name, never by path — the browser cannot reach the
-    /// folder, and does not need to know where it is.</summary>
-    private static string BackgroundStillUrl(BackgroundPackEntry entry)
-        => $"/venue/background-still?file={Uri.EscapeDataString(entry.File)}";
-
-    /// <summary>What the venue is about to get, said back to them.</summary>
-    private string BackgroundSummary()
-    {
-        var enabled = _backgroundPack.Entries.Count(IsBackgroundEnabled);
-
-        return enabled switch
-        {
-            0 => "Songs render on plain black.",
-            1 => $"Every song uses {_backgroundPack.Entries.First(IsBackgroundEnabled).Name}.",
-            _ => $"A different one of these {enabled} for each song, picked as it renders.",
-        };
     }
 
     private async Task SaveAsync()

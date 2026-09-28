@@ -81,7 +81,8 @@ internal static class Program
         app.MapAuthEndpoints();
         app.MapMediaStream();
         app.MapMediaImages();
-        app.MapBackgroundStills();
+        app.MapSongLevels();
+        app.MapVisualiserPresets();
         app.MapThemeStylesheets();
         app.MapPluginIcons();
 
