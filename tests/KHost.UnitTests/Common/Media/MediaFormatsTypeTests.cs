@@ -54,6 +54,14 @@ public class MediaFormatsTypeTests : IDisposable
         Assert.Equal(MediaType.Karaoke, MediaFormats.TypeForFile(File("paired.mp3")));
     }
 
+    /// <summary>A zip is a CD+G pair, whatever the host said its video is.</summary>
+    [Theory]
+    [InlineData("song.zip", true)]
+    [InlineData("song.zip", false)]
+    [InlineData("SONG.ZIP", false)]
+    public void AZippedPair_IsKaraoke_UnderEitherVideoAnswer(string name, bool videoIsKaraoke)
+        => Assert.Equal(MediaType.Karaoke, MediaFormats.TypeForFile(File(name), videoIsKaraoke));
+
     /// <summary>A library is mostly karaoke, so that is what an unqualified folder of video is.</summary>
     [Theory]
     [InlineData("song.mp4")]

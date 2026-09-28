@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Globalization;
+using System.IO.Compression;
 using KHost.Domain.Services;
 using KHost.Abstractions.Services;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -134,6 +135,41 @@ public class HlsMediaStreamServiceEncodeTests : IDisposable
         Assert.NotNull(segment);
 
         // A .cdg carries only graphics, so without the companion the song plays silent.
+        Assert.Contains("audio", await ProbeStreamTypesAsync(segment));
+        Assert.Contains("video", await ProbeStreamTypesAsync(segment));
+    }
+
+    /// <summary>ffmpeg cannot read inside a deflated zip, so the pair is written out and encoded
+    /// exactly as a loose one would be.</summary>
+    [RequiresFfmpegFact]
+    public async Task OpenAsync_AZippedPair_EncodesWithItsPictureAndItsAudio()
+    {
+        var cdg = await CreateCdgPairAsync(seconds: 4);
+        var zip = Path.Combine(_workingDirectory, "Zipped Song.zip");
+
+        using (var archive = ZipFile.Open(zip, ZipArchiveMode.Create))
+        {
+            archive.CreateEntryFromFile(cdg, "Zipped Song.CDG");
+            archive.CreateEntryFromFile(Path.ChangeExtension(cdg, ".mp3"), "zipped song.mp3");
+        }
+
+        File.Delete(cdg);
+        File.Delete(Path.ChangeExtension(cdg, ".mp3"));
+
+        using var service = new HlsMediaStreamService(
+            NullLogger<HlsMediaStreamService>.Instance,
+            _options,
+            new PlayableMediaSourceService(NullLogger<PlayableMediaSourceService>.Instance, [new ZippedKaraokeSource()]));
+
+        var session = await service.OpenAsync(zip);
+        string? segment = null;
+        for (var i = 0; i < 200 && segment is null; i++)
+        {
+            segment = service.ResolveArtifact(session.Id, "seg_00000.ts");
+            if (segment is null) await Task.Delay(50);
+        }
+
+        Assert.NotNull(segment);
         Assert.Contains("audio", await ProbeStreamTypesAsync(segment));
         Assert.Contains("video", await ProbeStreamTypesAsync(segment));
     }

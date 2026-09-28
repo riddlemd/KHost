@@ -1152,6 +1152,7 @@ public class LocalScreenDisplayProviderTests
     [Theory]
     [InlineData("/songs/africa.cdg", true)]
     [InlineData("/songs/AFRICA.CDG", true)]
+    [InlineData("/songs/africa.zip", true)]
     [InlineData("/songs/africa.mp4", false)]
     public async Task LoadAsync_TellsTheScreenWhetherThePictureIsGraphicsOnly(string path, bool graphicsOnly)
     {
