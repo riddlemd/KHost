@@ -1,0 +1,71 @@
+.kh-ffmpeg-status {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+
+    &__tool {
+        display: flex;
+        gap: 1rem;
+        align-items: baseline;
+        min-width: 0;
+    }
+
+    &__name {
+        flex-shrink: 0;
+        width: 5rem;
+        font-weight: 600;
+    }
+
+    // A path has no length it can be trusted to keep; the title attribute carries the whole of it.
+    &__detail {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        color: var(--kh-text-secondary);
+    }
+
+    &__tool--missing &__detail {
+        color: var(--kh-danger-bright);
+    }
+
+    &__progress {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+
+        ::deep .kh-ffmpeg-status__track {
+            flex: 1;
+            min-width: 0;
+            height: 4px;
+            border-radius: 2px;
+            background: var(--kh-track-bg);
+            overflow: hidden;
+        }
+
+        ::deep .kh-ffmpeg-status__fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--kh-primary), var(--kh-primary-bright));
+            border-radius: 2px;
+            min-width: 4px;
+        }
+
+        ::deep .kh-ffmpeg-status__percent {
+            font-size: 0.8em;
+            color: var(--kh-text-muted);
+            min-width: 2.5em;
+            text-align: right;
+            flex-shrink: 0;
+        }
+    }
+
+    &__stage {
+        flex-shrink: 0;
+        color: var(--kh-text-secondary);
+    }
+
+    &__error {
+        margin: 0;
+        color: var(--kh-danger-bright);
+    }
+}
