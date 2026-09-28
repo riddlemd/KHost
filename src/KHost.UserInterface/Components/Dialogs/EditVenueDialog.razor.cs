@@ -11,26 +11,6 @@ public partial class EditVenueDialog
 {
     private const string _rootClassName = "kh-venue-edit-dialog";
 
-    private static readonly int[] DuplicateWindowOptions = [1, 2, 4, 8, 12];
-
-    // What the colour inputs show a venue that has never chosen: a native colour picker has no
-    // empty state, so it would otherwise open on black and read as a deliberate choice.
-    private const string DefaultMarqueeBackground = "#000000";
-    private const string DefaultMarqueeText = "#f2f2f5";
-
-    // The screen's own default look: today's opacity, and the singer/song colour with nothing
-    // chosen, which is the same one colour as the band's own text.
-    private const int DefaultMarqueeBackgroundOpacity = 82;
-
-    /// <summary>What a venue turning the marquee on for the first time is offered.</summary>
-    private const int DefaultMarqueeSingerCount = 3;
-
-    /// <summary>Matches the screen's own default, so the dialog opens on what the room is seeing.</summary>
-    private const int DefaultMarqueeFontSizePixels = 28;
-
-    /// <summary>Also the screen's own, for the same reason.</summary>
-    private const int DefaultMarqueeScrollSpeed = 90;
-
     [Parameter] public bool IsOpen { get; set; }
     [Parameter] public Venue? Venue { get; set; }
 
@@ -100,79 +80,7 @@ public partial class EditVenueDialog
     protected override async Task OnInitializedAsync()
     {
         _isNew = Venue is null;
-        _model = Venue is null
-                ? new EditVenueModel { BreakMusicProvider = BreakMusic.ActiveProvider?.SourceName }
-                : new EditVenueModel
-                {
-                    Id = Venue.Id,
-                    Name = Venue.Name,
-                    Notes = Venue.Notes,
-                    Enabled = Venue.Enabled,
-                    DefaultVolume = Venue.Settings.DefaultVolume,
-                    ShowEstimatedWaitTime = Venue.Settings.ShowEstimatedWaitTime,
-                    SongBackgrounds = [.. Venue.Settings.SongBackgrounds ?? []],
-                    TippingEnabled = Venue.Settings.TippingEnabled,
-                    WarnOnDuplicateSong = Venue.Settings.WarnOnDuplicateSong,
-                    // Venues saved before this setting existed read back 0, which is not an option.
-                    DuplicateSongWindowHours = DuplicateWindowOptions.Contains(Venue.Settings.DuplicateSongWindowHours)
-                        ? Venue.Settings.DuplicateSongWindowHours
-                        : 4,
-                    PromptBeforeRemovingSinger = Venue.Settings.PromptBeforeRemovingSinger,
-                    PromptBeforeRemovingPerformance = Venue.Settings.PromptBeforeRemovingPerformance,
-                    ClearQueueOnClose = Venue.Settings.ClearQueueOnClose,
-                    AllowAliases = Venue.Settings.AllowAliases,
-                    AllowGuestRemote = Venue.Settings.AllowGuestRemote,
-                    ShowQueueToGuests = Venue.Settings.ShowQueueToGuests,
-                    // Clone so Cancel discards rotation edits along with the rest of the model.
-                    QueueRotation = Venue.Settings.QueueRotation?.Clone() ?? new(),
-                    BreakMusicPoolId = Venue.Settings.BreakMusicPoolId,
-                    AdPoolId = Venue.Settings.AdPoolId,
-                    BrandingImageMediaId = Venue.Settings.BrandingImageMediaId,
-                    // Blank, not null: a cleared setting holds "", which no option carries either.
-                    // This is the same empty-select trap as a missing provider.
-                    BreakMusicProvider = string.IsNullOrWhiteSpace(Venue.Settings.BreakMusicProvider)
-                        ? BreakMusic.ActiveProvider?.SourceName
-                        : Venue.Settings.BreakMusicProvider,
-
-                    MarqueeEnabled = Venue.Settings.MarqueeEnabled,
-                    // Zero is ambiguous (never set vs. a deliberate message-only band) except while
-                    // the marquee is off, so the suggestion stands until the venue enables it once.
-                    MarqueeSingerCount = Venue.Settings.MarqueeEnabled
-                        ? Venue.Settings.MarqueeSingerCount
-                        : DefaultMarqueeSingerCount,
-                    MarqueeMessage = Venue.Settings.MarqueeMessage,
-                    MarqueeEntryFormat = Venue.Settings.MarqueeEntryFormat,
-                    MarqueePosition = Venue.Settings.MarqueePosition,
-                    MarqueeBackgroundColor = Venue.Settings.MarqueeBackgroundColor ?? DefaultMarqueeBackground,
-                    MarqueeTextColor = Venue.Settings.MarqueeTextColor ?? DefaultMarqueeText,
-                    // Zero is "the screen decides", which a number input cannot say. It shows the
-                    // size the screen would pick instead, and saving it back changes nothing.
-                    MarqueeFontSizePixels = Venue.Settings.MarqueeFontSizePixels > 0
-                        ? Venue.Settings.MarqueeFontSizePixels
-                        : DefaultMarqueeFontSizePixels,
-                    MarqueeScrollSpeed = Venue.Settings.MarqueeScrollSpeed > 0
-                        ? Venue.Settings.MarqueeScrollSpeed
-                        : DefaultMarqueeScrollSpeed,
-                    MarqueePinLabel = Venue.Settings.MarqueePinLabel,
-                    // Null is "the screen decides", which a number input cannot say either.
-                    MarqueeBackgroundOpacity = Venue.Settings.MarqueeBackgroundOpacity ?? DefaultMarqueeBackgroundOpacity,
-                    MarqueeSingerColor = Venue.Settings.MarqueeSingerColor ?? DefaultMarqueeText,
-                    MarqueeSongColor = Venue.Settings.MarqueeSongColor ?? DefaultMarqueeText,
-                    MarqueeDividerColor = Venue.Settings.MarqueeDividerColor ?? DefaultMarqueeText,
-                    MarqueeDividerShape = Venue.Settings.MarqueeDividerShape,
-
-                    // Null is "no preference", which a select cannot show. It offers what a code
-                    // would take anyway, and saving that back changes nothing.
-                    QrCodeSource = Venue.Settings.QrCodeSource,
-                    BrandingImageScaling = Venue.Settings.BrandingImageScaling,
-                    BreakMusicCardEnabled = Venue.Settings.BreakMusicCardEnabled,
-                    BreakMusicCardCorner = Venue.Settings.BreakMusicCardCorner ?? OverlayCorner.BottomLeft,
-                    QrCodeCorner = Venue.Settings.QrCodeCorner ?? OverlayCorner.BottomRight,
-                    QrCodeSize = Venue.Settings.QrCodeSize ?? QrCodeSize.Medium,
-                    QrCodeHideDuringSong = Venue.Settings.QrCodeHideDuringSong,
-                    QrCodeSafeZone = Venue.Settings.QrCodeSafeZone,
-                    QrCodeOffset = Venue.Settings.QrCodeOffset,
-                };
+        _model = EditVenueModel.From(Venue, BreakMusic.ActiveProvider?.SourceName);
         _editContext = new EditContext(_model);
 
         await LoadChoicesAsync();
@@ -287,51 +195,23 @@ public partial class EditVenueDialog
 
     private async Task SaveAsync()
     {
-        var venue = Venue ?? new Venue { Id = _model.Id, Name = _model.Name };
-        venue.Name = _model.Name;
-        venue.Notes = _model.Notes;
-        venue.Enabled = _model.Enabled;
-        venue.Settings.DefaultVolume = _model.DefaultVolume;
-        venue.Settings.ShowEstimatedWaitTime = _model.ShowEstimatedWaitTime;
-        venue.Settings.SongBackgrounds = [.. _model.SongBackgrounds];
-        venue.Settings.TippingEnabled = _model.TippingEnabled;
-        venue.Settings.WarnOnDuplicateSong = _model.WarnOnDuplicateSong;
-        venue.Settings.DuplicateSongWindowHours = _model.DuplicateSongWindowHours;
-        venue.Settings.PromptBeforeRemovingSinger = _model.PromptBeforeRemovingSinger;
-        venue.Settings.PromptBeforeRemovingPerformance = _model.PromptBeforeRemovingPerformance;
-        venue.Settings.ClearQueueOnClose = _model.ClearQueueOnClose;
-        venue.Settings.AllowAliases = _model.AllowAliases;
-        venue.Settings.AllowGuestRemote = _model.AllowGuestRemote;
-        venue.Settings.ShowQueueToGuests = _model.ShowQueueToGuests;
-        venue.Settings.QueueRotation = _model.QueueRotation;
-        venue.Settings.BreakMusicPoolId = _model.BreakMusicPoolId;
-        venue.Settings.AdPoolId = _model.AdPoolId;
-        venue.Settings.BrandingImageMediaId = _model.BrandingImageMediaId;
-        venue.Settings.BreakMusicProvider = _model.BreakMusicProvider;
-        venue.Settings.MarqueeEnabled = _model.MarqueeEnabled;
-        venue.Settings.MarqueeSingerCount = Math.Clamp(_model.MarqueeSingerCount, 0, 20);
-        venue.Settings.MarqueeMessage = _model.MarqueeMessage;
-        venue.Settings.MarqueeEntryFormat = _model.MarqueeEntryFormat;
-        venue.Settings.MarqueePosition = _model.MarqueePosition;
-        venue.Settings.MarqueeBackgroundColor = _model.MarqueeBackgroundColor;
-        venue.Settings.MarqueeTextColor = _model.MarqueeTextColor;
-        venue.Settings.MarqueeFontSizePixels = Math.Clamp(_model.MarqueeFontSizePixels, 12, 96);
-        venue.Settings.MarqueeScrollSpeed = Math.Clamp(_model.MarqueeScrollSpeed, 15, 400);
-        venue.Settings.MarqueePinLabel = _model.MarqueePinLabel;
-        venue.Settings.MarqueeBackgroundOpacity = Math.Clamp(_model.MarqueeBackgroundOpacity, 0, 100);
-        venue.Settings.MarqueeSingerColor = _model.MarqueeSingerColor;
-        venue.Settings.MarqueeSongColor = _model.MarqueeSongColor;
-        venue.Settings.MarqueeDividerColor = _model.MarqueeDividerColor;
-        venue.Settings.MarqueeDividerShape = _model.MarqueeDividerShape;
-        venue.Settings.QrCodeSource = _model.QrCodeSource;
-        venue.Settings.BrandingImageScaling = _model.BrandingImageScaling;
-        venue.Settings.BreakMusicCardEnabled = _model.BreakMusicCardEnabled;
-        venue.Settings.BreakMusicCardCorner = _model.BreakMusicCardCorner;
-        venue.Settings.QrCodeCorner = _model.QrCodeCorner;
-        venue.Settings.QrCodeSize = _model.QrCodeSize;
-        venue.Settings.QrCodeHideDuringSong = _model.QrCodeHideDuringSong;
-        venue.Settings.QrCodeSafeZone = _model.QrCodeSafeZone;
-        venue.Settings.QrCodeOffset = _model.QrCodeOffset;
+        // Applied to a copy, never to Venue itself: a save the caller ends up refusing must leave
+        // nothing half-edited on the instance the rest of the app is still showing.
+        var venue = Venue is null
+            ? new Venue { Id = _model.Id, Name = _model.Name }
+            : new Venue
+            {
+                Id = Venue.Id,
+                Name = Venue.Name,
+                NameFolded = Venue.NameFolded,
+                Notes = Venue.Notes,
+                Address = Venue.Address,
+                Phone = Venue.Phone,
+                Enabled = Venue.Enabled,
+                Settings = Venue.Settings.Clone(),
+            };
+
+        _model.ApplyTo(venue);
 
         // DialogHost closes after awaiting this itself; closing again here would also fire
         // OnClose's onCancel, marking a successful save as a cancel.
