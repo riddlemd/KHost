@@ -1,3 +1,4 @@
+using KHost.Abstractions.Exceptions;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Models.Plugins;
 using KHost.Abstractions.Repositories;
@@ -16,6 +17,7 @@ public class MediaImportService : BaseService, IMediaImportService
     private static readonly string[] _supportedExtensions =
     [
         MediaFormats.KaraokeGraphicsExtension,
+        MediaFormats.KaraokeArchiveExtension,
         .. MediaFormats.VideoExtensions,
         .. MediaFormats.AudioExtensions,
         .. MediaFormats.ImageExtensions,
@@ -113,11 +115,25 @@ public class MediaImportService : BaseService, IMediaImportService
     /// <summary>Drops the audio half of a karaoke pair, keeping the .cdg as the row.</summary>
     /// <remarks>A .cdg proves the pair is karaoke; an .mp3 alone proves nothing, which is why the
     /// graphics file is the one that becomes the row. Imported on its own the .mp3 is a second row
-    /// for the same song that plays the backing track against a blank screen.</remarks>
+    /// for the same song that plays the backing track against a blank screen. A zipped pair carries
+    /// its audio inside, so it is never an audio file here and always passes.</remarks>
     internal static IEnumerable<string> WithoutPairedAudio(IEnumerable<string> filePaths)
         => filePaths.Where(path =>
             !MediaFormats.AudioExtensions.Contains(Path.GetExtension(path).ToLowerInvariant())
             || MediaFormats.FindKaraokeGraphics(path) is null);
+
+    private static KHostException? ZipRefusal(string zipPath)
+    {
+        try
+        {
+            KaraokeZip.Validate(zipPath);
+            return null;
+        }
+        catch (KHostException ex)
+        {
+            return ex;
+        }
+    }
 
     public void Cancel()
     {
@@ -160,6 +176,16 @@ public class MediaImportService : BaseService, IMediaImportService
                 Logger.LogWarning(
                     "Skipping {FilePath}: no audio file beside it, so the pair is incomplete",
                     candidate.Path);
+                return;
+            }
+
+            // A zip is a song only when it holds one flat pair; anything else is skipped the same way.
+            if (MediaFormats.IsKaraokeArchive(candidate.Path)
+                && ZipRefusal(candidate.Path) is { } refusal)
+            {
+                FailedCount++;
+                _analytics.RecordImportFilesProcessed(1, "failed");
+                Logger.LogWarning("Skipping {FilePath}: {Reason} ({Code})", candidate.Path, refusal.WhatHappened, refusal.ReferenceCode);
                 return;
             }
 

@@ -342,6 +342,63 @@ public class MediaImportServiceTests
         await WaitForIdleAsync();
     }
 
+    /// <summary>The zip is the row, so a rescan finds its path already taken and skips it.</summary>
+    [Fact]
+    public async Task StartAsync_AZippedPair_IsOneKaraokeRowNamingTheZip_AndIsSkippedOnReimport()
+    {
+        var directory = Directory.CreateTempSubdirectory("khost-zipimport").FullName;
+
+        try
+        {
+            var zip = KaraokeZipFixture.Write(directory, "Song.zip",
+                ("Song.cdg", KaraokeZipFixture.Graphics), ("Song.mp3", KaraokeZipFixture.Audio));
+            _parser.LoadAndParseAsync(Arg.Any<string>(), Arg.Any<MediaType>())
+                .Returns(call => new Media { FilePath = call.Arg<string>(), Title = "Song" });
+            _service.VideoIsKaraoke = false;
+
+            await _service.StartAsync([zip]);
+            await WaitForIdleAsync();
+
+            await _parser.Received(1).LoadAndParseAsync(zip, MediaType.Karaoke);
+            await _mediaService.Received(1).CreateAsync(Arg.Is<Media>(m => m.FilePath == zip));
+            Assert.Equal((1, 0), (_service.ImportedCount, _service.FailedCount));
+
+            _repository.GetExistingFilePathsAsync(Arg.Any<IEnumerable<string>>())
+                .Returns(new HashSet<string> { zip });
+            _parser.ClearReceivedCalls();
+
+            await _service.StartAsync([zip]);
+            await WaitForIdleAsync();
+
+            await _parser.DidNotReceiveWithAnyArgs().LoadAndParseAsync(default!, default);
+        }
+        finally { Directory.Delete(directory, recursive: true); }
+    }
+
+    /// <summary>A zip that is not one song is half a song's cousin: skipped and counted failed.</summary>
+    [Fact]
+    public async Task StartAsync_AZipThatIsNotOneSong_IsCountedFailedAndNotParsed()
+    {
+        var directory = Directory.CreateTempSubdirectory("khost-zipimport").FullName;
+
+        try
+        {
+            var zip = KaraokeZipFixture.Write(directory, "Song.zip",
+                ("Song/Song.cdg", KaraokeZipFixture.Graphics), ("Song/Song.mp3", KaraokeZipFixture.Audio));
+
+            await _service.StartAsync([zip]);
+            await WaitForIdleAsync();
+
+            Assert.Equal((0, 1), (_service.ImportedCount, _service.FailedCount));
+            await _parser.DidNotReceiveWithAnyArgs().LoadAndParseAsync(default!, default);
+        }
+        finally { Directory.Delete(directory, recursive: true); }
+    }
+
+    [Fact]
+    public void SupportedExtensions_IncludeTheZippedPair()
+        => Assert.Contains(".zip", Build().SupportedExtensions);
+
     private async Task WaitForIdleAsync()
     {
         var deadline = DateTime.UtcNow.AddSeconds(5);

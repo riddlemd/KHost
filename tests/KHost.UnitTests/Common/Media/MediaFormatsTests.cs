@@ -167,6 +167,41 @@ public class MediaFormatsTests
         finally { folder.Delete(recursive: true); }
     }
 
+    // --- the same rule over names alone ---
+
+    [Theory]
+    [InlineData("song.cdg", "song.mp3")]
+    [InlineData("SONG.CDG", "song.mp3")]
+    [InlineData("song.cdg", "SONG.MP3")]
+    [InlineData("song.cdg", "song.wav")]
+    [InlineData("song.cdg", "song.ogg")]
+    public void FindKaraokeAudioAmong_PairsTheSameStemWithAnyAudio(string graphics, string audio)
+        => Assert.Equal(audio, MediaFormats.FindKaraokeAudioAmong(graphics, ["other.mp3", audio, "song.txt"]));
+
+    [Theory]
+    [InlineData("other.mp3")]
+    [InlineData("song.txt")]
+    [InlineData("song.mp4")]
+    [InlineData("song.cdg")]
+    public void FindKaraokeAudioAmong_RefusesAnotherStemOrANonAudioExtension(string candidate)
+        => Assert.Null(MediaFormats.FindKaraokeAudioAmong("song.cdg", [candidate]));
+
+    /// <summary>Where two would do, the answer must not rest on the order a disk lists them.</summary>
+    [Fact]
+    public void FindKaraokeAudioAmong_PrefersTheEarlierAudioExtension_WhateverTheOrder()
+    {
+        Assert.Equal("song.mp3", MediaFormats.FindKaraokeAudioAmong("song.cdg", ["song.wav", "song.mp3"]));
+        Assert.Equal("song.mp3", MediaFormats.FindKaraokeAudioAmong("song.cdg", ["song.mp3", "song.wav"]));
+    }
+
+    [Theory]
+    [InlineData("/songs/a.cdg", true)]
+    [InlineData("/songs/a.ZIP", true)]
+    [InlineData("/songs/a.mp3", false)]
+    [InlineData("/songs/a.mp4", false)]
+    public void IsCompactDiscGraphics_IsTheLooseOrZippedPair(string path, bool expected)
+        => Assert.Equal(expected, MediaFormats.IsCompactDiscGraphics(path));
+
     // --- finding the graphics half of a pair (the mirror direction) ---
 
     /// <summary>IsKaraokeTrack and WithoutPairedAudio each used to run their own exact-case
