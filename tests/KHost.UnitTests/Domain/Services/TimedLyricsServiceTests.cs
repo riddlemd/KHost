@@ -156,6 +156,22 @@ public class TimedLyricsServiceTests
         Assert.Equal(new LyricColor(0xE2, 0xBD, 0xCC), lyrics.Pages[1].Inactive);
     }
 
+    /// <summary>Timing no adjustment can make sense of still reaches the screen, as the provider gave it.</summary>
+    [Theory]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    public async Task GetTimedLyricsAsync_AnAdjustmentThatThrows_KeepsTheWords(bool colorBlind, bool leadIns)
+    {
+        _options.ColorBlindFriendlyLyrics = colorBlind;
+        _options.DynamicLeadIns = leadIns;
+        var unreadable = SomeLyrics() with { Pages = null! };
+
+        var lyrics = await Service(Provider(claims: true, answer: unreadable)).GetTimedLyricsAsync(SourceFile);
+
+        Assert.Same(unreadable, lyrics);
+    }
+
     [Fact]
     public async Task GetTimedLyricsAsync_AnswersNull_WhenNobodyClaimsTheFile()
     {
