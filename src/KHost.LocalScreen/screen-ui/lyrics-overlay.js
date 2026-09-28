@@ -129,18 +129,37 @@ function createLyricsOverlay(canvas, clock) {
         ctx2d.restore();
     }
 
-    /// A small block that travels in to the line's leading edge, arriving as its first syllable lights.
+    /// Where a syllable part way along the line starts, in the timing's units: its left edge, or its
+    /// right edge right to left, as drawLine lays it. Null when it draws nothing to arrive at.
+    function syllableLeadingEdge(line, index) {
+        const syllables = line.syllables || [];
+        const target = syllables[index];
+        if (!target || !target.text) return null;
+
+        let penX = offsetX + line.position.x * scale;
+        for (let i = 0; i < index; i++) if (syllables[i].text) penX += ctx2d.measureText(syllables[i].text).width;
+        if (lyrics.isRightToLeft) penX += ctx2d.measureText(target.text).width;
+        return (penX - offsetX) / scale;
+    }
+
+    /// A small block that travels in to the leading edge of the syllable it is for — the line's start
+    /// unless it names one further along — arriving as that syllable lights. The host's painter
+    /// draws it by the same rule.
     function drawLeadIn(page, line, t, baseline, fontSize) {
         const leadIn = line.leadIn;
         const box = line.position;
-        const first = (line.syllables || [])[0];
-        if (!leadIn || !box || !first || t < leadIn.startSeconds || t >= first.startSeconds) return;
+        const index = (leadIn && leadIn.arriveAtSyllable) || 0;
+        const target = (line.syllables || [])[index];
+        if (!leadIn || !box || !target || index < 0 || t < leadIn.startSeconds || t >= target.startSeconds) return;
 
         const run = box.x - leadIn.x;
-        // Mirrored for right to left: the same run, made into the right edge from outside it.
-        const from = lyrics.isRightToLeft ? box.x + box.width + run : leadIn.x;
-        const to = lyrics.isRightToLeft ? box.x + box.width : box.x;
-        const head = from + (to - from) * progress(t, leadIn.startSeconds, first.startSeconds);
+        const edge = index === 0 ? null : syllableLeadingEdge(line, index);
+        if (index > 0 && edge === null) return;
+
+        // Mirrored for right to left: the same run, made into the leading edge from outside it.
+        const to = edge !== null ? edge : lyrics.isRightToLeft ? box.x + box.width : box.x;
+        const from = lyrics.isRightToLeft ? to + run : to - run;
+        const head = from + (to - from) * progress(t, leadIn.startSeconds, target.startSeconds);
 
         const w = 10 * scale;
         const h = box.height * 0.3 * scale;
@@ -189,8 +208,6 @@ function createLyricsOverlay(canvas, clock) {
             ctx2d.font = `600 ${fontSize.toFixed(2)}px sans-serif`;
         }
 
-        drawLeadIn(page, line, t, baseline, fontSize);
-
         for (const syl of line.syllables || []) {
             if (!syl.text) continue;
 
@@ -228,6 +245,9 @@ function createLyricsOverlay(canvas, clock) {
 
             penX += w;
         }
+
+        // Over the words, not under: a lead-in for a pause inside the line runs across words already sung.
+        drawLeadIn(page, line, t, baseline, fontSize);
     }
 
     function draw() {

@@ -153,6 +153,35 @@ public class TimedLyricsPainterTests
     public void Paint_ALeadInRightToLeft_TravelsInToTheRightEdge()
         => Assert.InRange(Read(PaintAt(LeadIn(rightToLeft: true), 2.0), IsGreen)[0].MeanX, 578.5, 581.5);
 
+    /// <summary>Arriving part way along, the block makes the same run into the named syllable's
+    /// leading edge, read here off where that syllable's own wipe starts once it is sung.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Paint_AMidLineLeadIn_ArrivesAtItsSyllablesLeadingEdge(bool rightToLeft)
+    {
+        var sung = Read(PaintAt(MidLineLeadIn(rightToLeft), 4.5), IsGreen)[0];
+        var edge = rightToLeft ? sung.MaxX : sung.MinX;
+
+        var arriving = Read(PaintAt(MidLineLeadIn(rightToLeft), 2.99), IsGreen)[0].MeanX;
+        var setting = Read(PaintAt(MidLineLeadIn(rightToLeft), 1.0), IsGreen)[0].MeanX;
+
+        Assert.InRange(arriving, edge - 6, edge + 6);
+        Assert.InRange(setting, (rightToLeft ? edge + 40 : edge - 40) - 6, (rightToLeft ? edge + 40 : edge - 40) + 6);
+        // Nowhere near the line's own edges, which is where a line-start lead-in would go.
+        Assert.True(rightToLeft ? edge < 540 : edge > 260, $"the target edge {edge} is at the line's end");
+    }
+
+    [Theory]
+    [InlineData(0.9)]
+    [InlineData(3.0)]
+    public void Paint_AMidLineLeadIn_OutsideItsRun_PaintsNoBlock(double t)
+        => Assert.Equal(0, Read(PaintAt(MidLineLeadIn(rightToLeft: false), t), IsGreen)[0].Count);
+
+    [Fact]
+    public void Paint_ALeadInNamingNoSyllableOfTheLine_PaintsNoBlock()
+        => Assert.Equal(0, Read(PaintAt(MidLineLeadIn(rightToLeft: false, arriveAt: 2), 2.0), IsGreen)[0].Count);
+
     /// <summary>Right to left the first syllable sits rightmost and each wipes in from its right.</summary>
     [Fact]
     public void Paint_RightToLeft_MirrorsTheOrderAndTheWipe()
@@ -326,6 +355,28 @@ public class TimedLyricsPainterTests
                     Position = new LyricBox(200, 100, 300, 60),
                     Syllables = [new(3, 4, "HHH")],
                     LeadIn = new LyricLeadIn(1, 40),
+                },
+            ],
+        },
+    ], rightToLeft);
+
+    /// <summary>A lead-in from 1s into the second syllable, lit at 3s, with a 40-unit run. The first
+    /// syllable is sung last, so until then the only thing in the active colour is the block.</summary>
+    private static TimedLyrics MidLineLeadIn(bool rightToLeft, int arriveAt = 1) => Song(
+    [
+        new LyricPage
+        {
+            ShowFromSeconds = 0,
+            ShowUntilSeconds = 12,
+            Active = Green,
+            Inactive = White,
+            Lines =
+            [
+                new LyricLine
+                {
+                    Position = new LyricBox(200, 100, 400, 60),
+                    Syllables = [new(9, 10, "HHH "), new(3, 4, "MMM")],
+                    LeadIn = new LyricLeadIn(1, 160) { ArriveAtSyllable = arriveAt },
                 },
             ],
         },
