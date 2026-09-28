@@ -107,6 +107,9 @@ namespace KHost.Domain
             serviceCollection.AddKeyedSingleton<IMediaRenderer, StreamingMediaRenderer>(MediaRendererService.FallbackKey);
             serviceCollection.AddSingleton<IMediaRendererService, MediaRendererService>();
             serviceCollection.AddSingleton<IPlayableMediaSourceService, PlayableMediaSourceService>();
+            // Here, ahead of AddPlugins, so a zipped CD+G is always the host's to unpack; the
+            // sources are asked in registration order and the first to answer wins.
+            serviceCollection.AddSingleton<IPlayableMediaSource, ZippedKaraokeSource>();
             serviceCollection.AddSingleton<ITimedLyricsService, TimedLyricsService>();
 
             // It hears the options in its constructor, so it must exist before a setting is saved.

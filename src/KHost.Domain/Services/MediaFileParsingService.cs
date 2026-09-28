@@ -10,6 +10,9 @@ namespace KHost.Domain.Services
 {
     public class MediaFileParsingService : IMediaFileParsingService
     {
+        /// <summary>The format a zipped CD+G pair is listed as.</summary>
+        public const string ZippedCdgFormat = "CDGZIP";
+
         private static readonly Regex _trailingParenthetical = new(
             @"^(.+?)\s*[\(\[](.*?)[\)\]]\s*$",
             RegexOptions.Compiled);
@@ -54,7 +57,8 @@ namespace KHost.Domain.Services
                 // unknown, and inventing one would put "Unknown Artist" beside every still in the pickers.
                 Artist = probe?.Artist ?? parsedArtist ?? (HasArtist(type) ? opts.FallbackArtistName : string.Empty),
                 Duration = probe?.Duration ?? (isStill ? MediaFormats.DefaultImageDuration : null),
-                Format = Path.GetExtension(filePath).TrimStart('.').ToUpperInvariant(),
+                // "ZIP" would say nothing about what the zip holds.
+                Format = MediaFormats.IsKaraokeArchive(filePath) ? ZippedCdgFormat : Path.GetExtension(filePath).TrimStart('.').ToUpperInvariant(),
                 Status = MediaStatus.Ready,
                 DateAdded = DateTime.UtcNow,
             };

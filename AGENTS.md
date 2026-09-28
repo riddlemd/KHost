@@ -589,6 +589,26 @@ clips and the card it puts up between singers are ordinary library rows.
     about no other format and should not have known about this one. It answers **empty, not null**
     when the audio is missing — "I looked and there is nothing", which is what lets the importer
     tell that apart from "I could not tell".
+- **A zipped pair is one song, and the zip is the row.** A `.zip` holding exactly one `.cdg` and
+  its audio of the same name, flat, imports as Karaoke under either video answer, with `FilePath`
+  naming the zip — so re-import is idempotent by path and nothing is unpacked into the library.
+  Pairing inside it is `MediaFormats.FindKaraokeAudioAmong`, the names-only half of
+  `FindKaraokeAudio`, which the browser's pair rows use too; where several audio files qualify,
+  the earliest in `AudioExtensions` wins, so the answer never rests on listing order. Only
+  `__MACOSX/` entries and dot-files are passed over; anything else (a folder, two pairs, one half,
+  an extra file) is not a song — the importer skips it and counts it failed with the reason, and
+  `CompactDiscPlusGraphicsRenderer` fails the play with a `KH-CDG-ZIP-*` code (`SHAPE`, `CORRUPT`,
+  `ENCRYPTED`, `TOO-LARGE`).
+  - At play `ZippedKaraokeSource` (a host `IPlayableMediaSource`, registered in `AddDomain` so it
+    precedes any plugin's) writes the pair into the stream session's directory under **fixed**
+    names (`karaoke.cdg` + `karaoke.<audio ext>`), so an entry's name is never a path and a
+    `../` entry cannot steer a write. Expansion is capped and counted as written. `FindKaraokeAudio`
+    then finds the audio beside the written `.cdg` by the loose-pair rule, unchanged.
+  - `CdgMediaProbe` claims the zip and probes the inner audio from a temp file — ffprobe on a pipe
+    gives tags but no duration.
+  - **Ask `MediaFormats.IsCompactDiscGraphics` of a library row**, never the `.cdg` extension: the
+    zipped pair's row names the zip, and a `.cdg` check on it silently loses the unsmoothed CD+G
+    scaling. `IsGraphicsOnlyKaraoke` is for what ffmpeg actually opens.
 - **`MediaFormats` owns the extension lists and the question.** `TypeForFile(path, videoIsKaraoke)`
   decides what a file is, and the scanner, the row icon and the import itself all ask it — so none
   of them can disagree with the other two.

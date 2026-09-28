@@ -44,6 +44,17 @@ public class MediaFileParsingServiceTests
         Assert.Equal("Bruno Mars", media.Artist);
     }
 
+    [Theory]
+    [InlineData("Wild Cherry - Play That Funky Music.zip", "CDGZIP")]
+    [InlineData("Wild Cherry - Play That Funky Music.ZIP", "CDGZIP")]
+    [InlineData("Wild Cherry - Play That Funky Music.cdg", "CDG")]
+    public async Task LoadAndParseAsync_ListsAZippedPairByWhatItHolds(string fileName, string expected)
+    {
+        var media = await CreateService().LoadAndParseAsync(MediaPath(fileName));
+
+        Assert.Equal(expected, media.Format);
+    }
+
     [Fact]
     public void ArtistFirst_DefaultFormat_SplitsCorrectly()
     {
