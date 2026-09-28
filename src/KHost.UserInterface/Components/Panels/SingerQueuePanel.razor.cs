@@ -43,16 +43,21 @@ public partial class SingerQueuePanel : IAsyncDisposable
     private Dictionary<Guid, int> _performanceCounts = [];
     private Dictionary<Guid, RecentVenueVisit> _lastVenues = [];
     private Dictionary<Guid, string> _venueNames = [];
-    private DotNetObjectReference<SingerQueuePanel>? _dotNetRef;
     private bool _showEwt = true;
     private bool _canAddToQueue;
     private bool _canRemoveFromQueue;
     private bool _canReorderQueue;
-    private bool _sortableAttached;
     private Guid? _lastScrolledSingerId;
+    private SortableBinding _sortable = default!;
 
     protected override async Task OnInitializedAsync()
     {
+        // The row itself drags. Its buttons are filtered out so a press on remove or an arrow
+        // does what it says, and the locked row still refuses to move.
+        _sortable = new SortableBinding(
+            JS, "singers", ".kh-singer-queue-panel__singer-queue",
+            "button, .kh-singer-queue-panel__singer-queue__singer--locked", "singerId", nameof(OnSortEndAsync));
+
         _subscriptions.Add(Broker.Subscribe<SingerQueueChanged>(_ => OnStateChanged()));
         _subscriptions.Add(Broker.Subscribe<PerformancesChanged>(_ => OnStateChanged()));
         _subscriptions.Add(Broker.Subscribe<PlaybackChanged>(_ => OnStateChanged()));
@@ -76,32 +81,7 @@ public partial class SingerQueuePanel : IAsyncDisposable
     {
         // A truly-async first await in OnInitializedAsync leaves _canReorderQueue still false on
         // firstRender, so attaching has to follow the permission in rather than fire once on it.
-        if (_canReorderQueue != _sortableAttached)
-        {
-            if (_canReorderQueue)
-            {
-                _dotNetRef ??= DotNetObjectReference.Create(this);
-                // The name reaches JS as a string; nameof turns a missed rename into a compile
-                // error instead of a callback that silently stops firing.
-                await JS.InvokeVoidAsync(
-                    "khSortable.init",
-                    "singers",
-                    ".kh-singer-queue-panel__singer-queue",
-                    // The row itself drags. Its buttons are filtered out so a press on remove or an
-                    // arrow does what it says, and the locked row still refuses to move.
-                    null,
-                    "button, .kh-singer-queue-panel__singer-queue__singer--locked",
-                    _dotNetRef,
-                    nameof(OnSortEndAsync),
-                    "singerId");
-            }
-            else
-            {
-                await JS.InvokeVoidAsync("khSortable.destroy", "singers");
-            }
-
-            _sortableAttached = _canReorderQueue;
-        }
+        await _sortable.SyncAsync(_canReorderQueue, this);
 
         // Only on an actual selection change: scrolling on every render yanks the list while
         // the host is scrolling it by hand.
@@ -323,20 +303,9 @@ public partial class SingerQueuePanel : IAsyncDisposable
             .ToDictionary(m => m!.Id);
     }
 
-    /// <summary>Async: tearing the sortable down is a JS call, and the circuit is usually gone.</summary>
     public async ValueTask DisposeAsync()
     {
         _subscriptions.Dispose();
-        _dotNetRef?.Dispose();
-
-        try
-        {
-            // The key this panel registered under, since the two queues were keyed apart.
-            // Destroying an undefined name throws out of DisposeAsync, killing the circuit.
-            await JS.InvokeVoidAsync("khSortable.destroy", "singers");
-        }
-        catch (JSDisconnectedException)
-        {
-        }
+        await _sortable.DisposeAsync();
     }
 }

@@ -32,8 +32,7 @@ public partial class SelectedSingerInfoPanel : IAsyncDisposable
     private List<Performance> _performances = [];
     private Dictionary<Guid, Media?> _mediaCache = [];
     private Guid? _selectedPerformanceId;
-    private DotNetObjectReference<SelectedSingerInfoPanel>? _dotNetRef;
-    private bool _sortableAttached;
+    private SortableBinding _sortable = default!;
     private int _tonightTotalInCents;
     private int _lifetimeTotalInCents;
     private bool _tippingEnabled = true;
@@ -48,6 +47,11 @@ public partial class SelectedSingerInfoPanel : IAsyncDisposable
 
     protected override async Task OnInitializedAsync()
     {
+        // The row itself drags. Its buttons are filtered out, or a press on play or remove would
+        // start a drag instead of doing what it says.
+        _sortable = new SortableBinding(
+            JS, "songs", ".kh-selected-singer-info-panel__rows", "button", "performanceId", nameof(OnSortEndAsync));
+
         _subscriptions.Add(Broker.Subscribe<SingerQueueChanged>(_ => OnStateChanged()));
         _subscriptions.Add(Broker.Subscribe<PerformancesChanged>(_ => OnStateChanged()));
         _subscriptions.Add(Broker.Subscribe<PlaybackChanged>(_ => OnStateChanged()));
@@ -66,34 +70,7 @@ public partial class SelectedSingerInfoPanel : IAsyncDisposable
     {
         // Unlike the singer queue's, this table is absent until the singer has a song, so the
         // hook-up cannot be a first-render one-shot: it has to follow the table in and out.
-        var sortable = _canReorderQueue && _performances.Count > 0;
-
-        if (sortable == _sortableAttached) return;
-
-        if (sortable)
-        {
-            _dotNetRef ??= DotNetObjectReference.Create(this);
-
-            // The method name reaches JS as a string; nameof turns a missed rename into a compile
-            // error instead of a callback that silently stops firing.
-            await JS.InvokeVoidAsync(
-                "khSortable.init",
-                "songs",
-                ".kh-selected-singer-info-panel__rows",
-                // The row itself drags. Its buttons are filtered out, or a press on play or
-                // remove would start a drag instead of doing what it says.
-                null,
-                "button",
-                _dotNetRef,
-                nameof(OnSortEndAsync),
-                "performanceId");
-        }
-        else
-        {
-            await JS.InvokeVoidAsync("khSortable.destroy", "songs");
-        }
-
-        _sortableAttached = sortable;
+        await _sortable.SyncAsync(_canReorderQueue && _performances.Count > 0, this);
     }
 
     [JSInvokable]
@@ -342,18 +319,9 @@ public partial class SelectedSingerInfoPanel : IAsyncDisposable
             ? "This song is at the microphone. Its name was announced when it started."
             : "Change the name this song is announced under";
 
-    /// <summary>Async: tearing the sortable down is a JS call, and the circuit is usually gone.</summary>
     public async ValueTask DisposeAsync()
     {
         _subscriptions.Dispose();
-        _dotNetRef?.Dispose();
-
-        try
-        {
-            await JS.InvokeVoidAsync("khSortable.destroy", "songs");
-        }
-        catch (JSDisconnectedException)
-        {
-        }
+        await _sortable.DisposeAsync();
     }
 }
