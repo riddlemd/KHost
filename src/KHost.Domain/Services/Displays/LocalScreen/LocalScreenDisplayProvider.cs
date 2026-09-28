@@ -713,7 +713,6 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
             Saturation = entry.Saturation,
             Sensitivity = entry.Sensitivity,
             LevelsUrl = LevelsUrlFor(path, load),
-            DarkenLyricBands = entry.DarkenBehindWords,
         };
     }
 

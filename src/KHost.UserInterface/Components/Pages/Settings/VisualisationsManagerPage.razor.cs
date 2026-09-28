@@ -83,7 +83,6 @@ public partial class VisualisationsManagerPage : IDisposable
             brightness = entry.Brightness,
             saturation = entry.Saturation,
             sensitivity = entry.Sensitivity,
-            darken = entry.DarkenBehindWords,
         };
 
         var sent = System.Text.Json.JsonSerializer.Serialize(message);
@@ -250,14 +249,6 @@ public partial class VisualisationsManagerPage : IDisposable
         await SaveEntriesAsync(playlist);
     }
 
-    private async Task SetDarkenAsync(ChangeEventArgs e)
-    {
-        if (Selected is not { } playlist || SelectedEntry is not { } entry) return;
-
-        entry.DarkenBehindWords = e.Value is true || string.Equals(e.Value?.ToString(), "true", StringComparison.OrdinalIgnoreCase);
-        await SaveEntriesAsync(playlist);
-    }
-
     private async Task SetBarCountAsync(ChangeEventArgs e)
     {
         if (Selected is not { } playlist || SelectedEntry is not { } entry || !int.TryParse(e.Value?.ToString(), out var count)) return;
@@ -375,8 +366,7 @@ public partial class VisualisationsManagerPage : IDisposable
                    VisualiserColourScheme.Theme => " · Accent colour",
                    VisualiserColourScheme.Single => $" · {entry.Colour}",
                    _ => " · Classic colours",
-               })
-           + (entry.DarkenBehindWords ? " · Words on dark bands" : "");
+               });
 
     /// <summary>Whether the entry is a calm scene, whose classic palette is a mix of colours rather
     /// than a meter's green to red.</summary>

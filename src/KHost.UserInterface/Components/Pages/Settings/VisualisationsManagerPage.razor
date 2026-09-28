@@ -231,15 +231,6 @@
                                             }
                                         }
 
-                                        <label class="kh-venue-settings__row kh-form-check">
-                                            <span class="kh-form-check-label">
-                                                Darken behind the words
-                                                <span class="kh-note">A dark band behind each line while it is on screen.</span>
-                                            </span>
-                                            <input id="visualisation-darken" type="checkbox" class="kh-form-check-input"
-                                                   checked="@editing.DarkenBehindWords" @onchange="SetDarkenAsync" />
-                                        </label>
-
                                         <iframe @ref="_preview" class="kh-visualisations__preview" title="Preview of this entry"
                                                 src="visualiser-preview.html" sandbox="allow-scripts"
                                                 data-kh-visualiser-preview></iframe>

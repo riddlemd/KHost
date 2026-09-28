@@ -273,9 +273,8 @@ cannot name another's: its secrets, and the QR code it offers the screens.
       timed-lyric song through `IBurnInStreamService.OpenUnderDrawnWordsAsync`, whose encode maps
       `0:V` (no attached pictures) from a video and no picture at all from an audio file — left to
       itself ffmpeg turns an MP3's cover into a one-frame video. A song with no timed words is left
-      alone and still shows its cover. Over a picture, a band behind each line is darkened
-      (`PaintBands`) — always, for burned-in words; the local screen draws the same bands on the
-      playing entry's own switch (`SetVisualiserCommand.DarkenLyricBands`).
+      alone and still shows its cover. The outline under every word is what keeps them legible over
+      whatever picture is behind them — there is no darkened band, on either drawer.
     - **Fonts are the system's**, in the order a web view's `sans-serif` resolves them per OS:
       Helvetica, Arial, DejaVu Sans, Liberation Sans, Noto Sans, then Skia's default; a character the
       face lacks falls back per line through the OS. Nothing is bundled.
@@ -531,8 +530,8 @@ stay on black, and a song with its own picture keeps it.
   down itself once a stop has faded out.
 - **Playlists, one entry per song.** `IVisualisationPlaylistService` (SQL, `VisualisationPlaylists`
   / `VisualisationEntries`) holds ordered entries; each is a preset plus its own brightness,
-  colour, audio sensitivity and "darken behind the words", so one preset may appear several times
-  tuned differently. `SelectNextAsync` advances in order or shuffles without an immediate repeat;
+  colour and audio sensitivity, so one preset may appear several times tuned differently.
+  `SelectNextAsync` advances in order or shuffles without an immediate repeat;
   the rotation lives in memory and starts over on a restart or an entry edit. The provider picks
   only once a song is known to draw one (a video does not use up a turn), keeps the song's entry
   by id across a rebuild or rejoin, and re-reads it on an edit, so a setting moved on the page
@@ -616,13 +615,9 @@ stay on black, and a song with its own picture keeps it.
 - **A preset must stay alive in silence.** Several MilkDrop presets fade to black with no input,
   and a song whose levels have not arrived, or cannot be read, has none;
   `screen-ui/VISUALISER-NOTICE.md` says how the set was chosen.
-- **The words' dark bands** are per song, the entry's own switch, sent as
-  `SetVisualiserCommand.DarkenLyricBands`. One band behind each line on screen: its box grown by a
-  quarter of its height on every side, rounded by the same, black at 140/255, all lines in one path
-  filled once so where two meet is no darker. `lyrics-overlay.js` (`lyricBandRect`) and
-  `TimedLyricsPainter` (`LyricBand`, `PaintBands`) draw the same bands; change one and change the
-  other. The painter lays them whenever its words go over a picture — its default for a burn-in
-  (Cast), which has no entry to ask.
+- **The words carry no darkened band behind them, on either drawer.** The lyrics already outline in
+  black, which is what keeps them legible over whatever is playing; `lyrics-overlay.js` and
+  `TimedLyricsPainter` draw only the words themselves (and their chase, count-ins and lead-ins).
 - Capped at 30fps and a 1280x720 drawing buffer, frozen on pause (the last frame holds), and drawn
   only while shown. The engine is built on first use and never with an audio context of its own:
   samples are read here and handed to each frame, since every stem song brings a new context.

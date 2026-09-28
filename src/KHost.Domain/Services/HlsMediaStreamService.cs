@@ -420,8 +420,7 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
         var (width, height) = BurnInOverlay.FrameFor(graphicsHeight);
         var overlay = new BurnInOverlay(width, height, BurnInOverlay.DefaultFramesPerSecond, basePicture);
 
-        // Laid over a picture nobody made with the words in mind, so the band they sit in is darkened.
-        var painter = new TimedLyricsPainter(words, overlay.Width, overlay.Height, scrim: basePicture != BurnInBase.Fill);
+        var painter = new TimedLyricsPainter(words, overlay.Width, overlay.Height);
 
         var start = isGraphicsOnly ? 0 : startOffset.TotalSeconds;
         var rate = StreamRate.FromTempo(tempo);

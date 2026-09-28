@@ -118,7 +118,6 @@ public class VisualisationPlaylistService : BaseRepositoryService<VisualisationP
         Brightness = Math.Clamp(entry.Brightness, VisualisationEntry.MinBrightness, VisualisationEntry.MaxBrightness),
         Saturation = Math.Clamp(entry.Saturation, VisualisationEntry.MinSaturation, VisualisationEntry.MaxSaturation),
         Sensitivity = Math.Clamp(entry.Sensitivity, VisualisationEntry.MinSensitivity, VisualisationEntry.MaxSensitivity),
-        DarkenBehindWords = entry.DarkenBehindWords,
         BarCount = VisualisationEntry.BarCounts.MinBy(count => Math.Abs(count - entry.BarCount)),
         ColourScheme = Enum.IsDefined(entry.ColourScheme) ? entry.ColourScheme : VisualiserColourScheme.Classic,
         Colour = IsColour(entry.Colour) ? entry.Colour.ToLowerInvariant() : VisualisationEntry.DefaultColour,

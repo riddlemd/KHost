@@ -111,7 +111,7 @@ public class VisualisationPlaylistRepositoryTests : IDisposable
 
         await _repository.ReplaceEntriesAsync(playlist.Id,
         [
-            new() { Id = keptId, PresetName = "Second", PresetSource = VisualiserPresetSource.Imported, Brightness = 80, Saturation = 150, Sensitivity = 250, DarkenBehindWords = false, Position = 9 },
+            new() { Id = keptId, PresetName = "Second", PresetSource = VisualiserPresetSource.Imported, Brightness = 80, Saturation = 150, Sensitivity = 250, Position = 9 },
             new() { Id = Guid.Empty, PresetName = "First" },
         ]);
 
@@ -120,8 +120,8 @@ public class VisualisationPlaylistRepositoryTests : IDisposable
         Assert.Equal(["Second", "First"], loaded!.Entries.Select(e => e.PresetName));
         Assert.Equal([0, 1], loaded.Entries.Select(e => e.Position));
         var first = loaded.Entries[0];
-        Assert.Equal((keptId, VisualiserPresetSource.Imported, 80, 150, 250, false),
-            (first.Id, first.PresetSource, first.Brightness, first.Saturation, first.Sensitivity, first.DarkenBehindWords));
+        Assert.Equal((keptId, VisualiserPresetSource.Imported, 80, 150, 250),
+            (first.Id, first.PresetSource, first.Brightness, first.Saturation, first.Sensitivity));
         Assert.NotEqual(Guid.Empty, loaded.Entries[1].Id);
     }
 
@@ -165,6 +165,39 @@ public class VisualisationPlaylistRepositoryTests : IDisposable
                 var entry = await context.VisualisationEntries.SingleAsync(e => e.VisualisationPlaylistId == Guid.Parse(playlistId));
                 Assert.Equal((VisualisationEntry.DefaultBarCount, VisualiserColourScheme.Classic, VisualisationEntry.DefaultColour),
                     (entry.BarCount, entry.ColourScheme, entry.Colour));
+            }
+        }
+        finally
+        {
+            Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+            try { File.Delete(path); } catch (IOException) { }
+        }
+    }
+
+    /// <summary>The dropped column takes nothing with it: a row written while it still existed
+    /// survives the migration, PresetName and all.</summary>
+    [Fact]
+    public async Task Migrate_DropsDarkenBehindWords_AndKeepsTheRowThatHadIt()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"khost-visualisations-darken-{Guid.NewGuid():N}.db");
+        var options = new DbContextOptionsBuilder<DefaultContext>().UseSqlite($"Data Source={path}").Options;
+        try
+        {
+            await using (var context = new DefaultContext(options))
+            {
+                // The last migration to still carry the column.
+                await context.GetService<Microsoft.EntityFrameworkCore.Migrations.IMigrator>().MigrateAsync("20260928183750_AddDefaultVisualisationPlaylist");
+                var playlistId = Guid.NewGuid().ToString().ToUpperInvariant();
+                await context.Database.ExecuteSqlRawAsync(
+                    "INSERT INTO VisualisationPlaylists (Id, Name, NameFolded, Shuffle) VALUES ({0}, 'Old', 'old', 0)", playlistId);
+                await context.Database.ExecuteSqlRawAsync(
+                    "INSERT INTO VisualisationEntries (Id, VisualisationPlaylistId, Position, PresetSource, PresetName, Brightness, Saturation, Sensitivity, DarkenBehindWords) VALUES ({0}, {1}, 0, 0, 'KeptAcrossTheDrop', 100, 100, 100, 1)",
+                    Guid.NewGuid().ToString().ToUpperInvariant(), playlistId);
+
+                await context.Database.MigrateAsync();
+
+                var entry = await context.VisualisationEntries.SingleAsync(e => e.VisualisationPlaylistId == Guid.Parse(playlistId));
+                Assert.Equal("KeptAcrossTheDrop", entry.PresetName);
             }
         }
         finally

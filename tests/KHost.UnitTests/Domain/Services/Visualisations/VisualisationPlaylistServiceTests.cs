@@ -92,16 +92,16 @@ public class VisualisationPlaylistServiceTests
         [
             new() { PresetName = "Low", Brightness = -5, Saturation = -1, Sensitivity = -10 },
             new() { PresetName = "High", Brightness = 999, Saturation = 999, Sensitivity = 999 },
-            new() { PresetName = "Inside", Brightness = 90, Saturation = 110, Sensitivity = 150, DarkenBehindWords = false },
+            new() { PresetName = "Inside", Brightness = 90, Saturation = 110, Sensitivity = 150 },
         ]);
 
         Assert.Equal(
             [
-                (VisualisationEntry.MinBrightness, VisualisationEntry.MinSaturation, VisualisationEntry.MinSensitivity, true),
-                (VisualisationEntry.MaxBrightness, VisualisationEntry.MaxSaturation, VisualisationEntry.MaxSensitivity, true),
-                (90, 110, 150, false),
+                (VisualisationEntry.MinBrightness, VisualisationEntry.MinSaturation, VisualisationEntry.MinSensitivity),
+                (VisualisationEntry.MaxBrightness, VisualisationEntry.MaxSaturation, VisualisationEntry.MaxSensitivity),
+                (90, 110, 150),
             ],
-            saved!.Select(e => (e.Brightness, e.Saturation, e.Sensitivity, e.DarkenBehindWords)));
+            saved!.Select(e => (e.Brightness, e.Saturation, e.Sensitivity)));
         Assert.Equal(["Low", "High", "Inside"], saved!.Select(e => e.PresetName));
     }
 

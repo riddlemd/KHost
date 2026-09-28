@@ -99,9 +99,6 @@ public class VisualisationEntry : RepositoryModel
     /// made to, 0 not at all.</summary>
     public int Sensitivity { get; set; } = 100;
 
-    /// <summary>Whether each line of words is drawn on a dark band so it reads over the picture.</summary>
-    public bool DarkenBehindWords { get; set; } = true;
-
     /// <summary>How many bars a built-in bar style draws, one of <see cref="BarCounts"/>.</summary>
     public int BarCount { get; set; } = DefaultBarCount;
 

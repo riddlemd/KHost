@@ -83,7 +83,6 @@ function buildPreviewLyrics() {
         const message = event.data;
         if (event.source !== window.parent || !message || message.type !== 'visualisation') return;
 
-        overlay.setDarkenBands(message.darken === true);
         visualiser.setLook(message);
         visualiser.show(message);
     });
