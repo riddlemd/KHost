@@ -418,7 +418,7 @@
                     <div class="kh-venue-settings__row">
                         <label for="duplicate-window" class="kh-form-label">Consider a song recently sung within</label>
                         <InputSelect id="duplicate-window" class="kh-form-select" @bind-Value="_model.DuplicateSongWindowHours">
-                            @foreach (var hours in DuplicateWindowOptions)
+                            @foreach (var hours in EditVenueModel.DuplicateWindowOptions)
                             {
                                 <option value="@hours">@hours @(hours == 1 ? "hour" : "hours")</option>
                             }

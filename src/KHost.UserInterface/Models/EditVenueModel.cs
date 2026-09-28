@@ -6,6 +6,26 @@ namespace KHost.UserInterface.Models;
 
 public class EditVenueModel
 {
+    public static readonly int[] DuplicateWindowOptions = [1, 2, 4, 8, 12];
+
+    // What the colour inputs show a venue that has never chosen: a native colour picker has no
+    // empty state, so it would otherwise open on black and read as a deliberate choice.
+    private const string DefaultMarqueeBackground = "#000000";
+    private const string DefaultMarqueeText = "#f2f2f5";
+
+    // The screen's own default look: today's opacity, and the singer/song colour with nothing
+    // chosen, which is the same one colour as the band's own text.
+    private const int DefaultMarqueeBackgroundOpacity = 82;
+
+    /// <summary>What a venue turning the marquee on for the first time is offered.</summary>
+    private const int DefaultMarqueeSingerCount = 3;
+
+    /// <summary>Matches the screen's own default, so the dialog opens on what the room is seeing.</summary>
+    private const int DefaultMarqueeFontSizePixels = 28;
+
+    /// <summary>Also the screen's own, for the same reason.</summary>
+    private const int DefaultMarqueeScrollSpeed = 90;
+
     public Guid Id { get; set; } = Guid.NewGuid();
 
     [Required(ErrorMessage = "Name is required.")]
@@ -107,4 +127,136 @@ public class EditVenueModel
 
     /// <summary>Inset from the two edges it sits against, as a percentage of the shorter side.</summary>
     public double QrCodeOffset { get; set; }
+
+    /// <summary>What the dialog opens on. Null <paramref name="venue"/> is Add, which starts from
+    /// every default above plus <paramref name="activeBreakMusicProviderSource"/> — the one field
+    /// a fresh venue still needs a fallback for.</summary>
+    public static EditVenueModel From(Venue? venue, string? activeBreakMusicProviderSource)
+    {
+        if (venue is null)
+            return new EditVenueModel { BreakMusicProvider = activeBreakMusicProviderSource };
+
+        var settings = venue.Settings;
+
+        return new EditVenueModel
+        {
+            Id = venue.Id,
+            Name = venue.Name,
+            Notes = venue.Notes,
+            Enabled = venue.Enabled,
+            DefaultVolume = settings.DefaultVolume,
+            ShowEstimatedWaitTime = settings.ShowEstimatedWaitTime,
+            SongBackgrounds = [.. settings.SongBackgrounds ?? []],
+            TippingEnabled = settings.TippingEnabled,
+            WarnOnDuplicateSong = settings.WarnOnDuplicateSong,
+            // Venues saved before this setting existed read back 0, which is not an option.
+            DuplicateSongWindowHours = DuplicateWindowOptions.Contains(settings.DuplicateSongWindowHours)
+                ? settings.DuplicateSongWindowHours
+                : 4,
+            PromptBeforeRemovingSinger = settings.PromptBeforeRemovingSinger,
+            PromptBeforeRemovingPerformance = settings.PromptBeforeRemovingPerformance,
+            ClearQueueOnClose = settings.ClearQueueOnClose,
+            AllowAliases = settings.AllowAliases,
+            AllowGuestRemote = settings.AllowGuestRemote,
+            ShowQueueToGuests = settings.ShowQueueToGuests,
+            // Clone so Cancel discards rotation edits along with the rest of the model.
+            QueueRotation = settings.QueueRotation?.Clone() ?? new(),
+            BreakMusicPoolId = settings.BreakMusicPoolId,
+            AdPoolId = settings.AdPoolId,
+            BrandingImageMediaId = settings.BrandingImageMediaId,
+            // Blank, not null: a cleared setting holds "", which no option carries either. This is
+            // the same empty-select trap as a missing provider.
+            BreakMusicProvider = string.IsNullOrWhiteSpace(settings.BreakMusicProvider)
+                ? activeBreakMusicProviderSource
+                : settings.BreakMusicProvider,
+
+            MarqueeEnabled = settings.MarqueeEnabled,
+            // Zero is ambiguous (never set vs. a deliberate message-only band) except while the
+            // marquee is off, so the suggestion stands until the venue enables it once.
+            MarqueeSingerCount = settings.MarqueeEnabled ? settings.MarqueeSingerCount : DefaultMarqueeSingerCount,
+            MarqueeMessage = settings.MarqueeMessage,
+            MarqueeEntryFormat = settings.MarqueeEntryFormat,
+            MarqueePosition = settings.MarqueePosition,
+            MarqueeBackgroundColor = settings.MarqueeBackgroundColor ?? DefaultMarqueeBackground,
+            MarqueeTextColor = settings.MarqueeTextColor ?? DefaultMarqueeText,
+            // Zero is "the screen decides", which a number input cannot say. It shows the size the
+            // screen would pick instead, and saving it back changes nothing.
+            MarqueeFontSizePixels = settings.MarqueeFontSizePixels > 0
+                ? settings.MarqueeFontSizePixels
+                : DefaultMarqueeFontSizePixels,
+            MarqueeScrollSpeed = settings.MarqueeScrollSpeed > 0
+                ? settings.MarqueeScrollSpeed
+                : DefaultMarqueeScrollSpeed,
+            MarqueePinLabel = settings.MarqueePinLabel,
+            // Null is "the screen decides", which a number input cannot say either.
+            MarqueeBackgroundOpacity = settings.MarqueeBackgroundOpacity ?? DefaultMarqueeBackgroundOpacity,
+            MarqueeSingerColor = settings.MarqueeSingerColor ?? DefaultMarqueeText,
+            MarqueeSongColor = settings.MarqueeSongColor ?? DefaultMarqueeText,
+            MarqueeDividerColor = settings.MarqueeDividerColor ?? DefaultMarqueeText,
+            MarqueeDividerShape = settings.MarqueeDividerShape,
+
+            // Null is "no preference", which a select cannot show. It offers what a code would take
+            // anyway, and saving that back changes nothing.
+            QrCodeSource = settings.QrCodeSource,
+            BrandingImageScaling = settings.BrandingImageScaling,
+            BreakMusicCardEnabled = settings.BreakMusicCardEnabled,
+            BreakMusicCardCorner = settings.BreakMusicCardCorner ?? OverlayCorner.BottomLeft,
+            QrCodeCorner = settings.QrCodeCorner ?? OverlayCorner.BottomRight,
+            QrCodeSize = settings.QrCodeSize ?? QrCodeSize.Medium,
+            QrCodeHideDuringSong = settings.QrCodeHideDuringSong,
+            QrCodeSafeZone = settings.QrCodeSafeZone,
+            QrCodeOffset = settings.QrCodeOffset,
+        };
+    }
+
+    /// <summary>Writes every field back onto <paramref name="venue"/>. Applied to a copy by the
+    /// caller, not the caller's own instance, so a save the host backs out of has touched nothing.
+    /// </summary>
+    public void ApplyTo(Venue venue)
+    {
+        venue.Name = Name;
+        venue.Notes = Notes;
+        venue.Enabled = Enabled;
+        venue.Settings.DefaultVolume = DefaultVolume;
+        venue.Settings.ShowEstimatedWaitTime = ShowEstimatedWaitTime;
+        venue.Settings.SongBackgrounds = [.. SongBackgrounds];
+        venue.Settings.TippingEnabled = TippingEnabled;
+        venue.Settings.WarnOnDuplicateSong = WarnOnDuplicateSong;
+        venue.Settings.DuplicateSongWindowHours = DuplicateSongWindowHours;
+        venue.Settings.PromptBeforeRemovingSinger = PromptBeforeRemovingSinger;
+        venue.Settings.PromptBeforeRemovingPerformance = PromptBeforeRemovingPerformance;
+        venue.Settings.ClearQueueOnClose = ClearQueueOnClose;
+        venue.Settings.AllowAliases = AllowAliases;
+        venue.Settings.AllowGuestRemote = AllowGuestRemote;
+        venue.Settings.ShowQueueToGuests = ShowQueueToGuests;
+        venue.Settings.QueueRotation = QueueRotation;
+        venue.Settings.BreakMusicPoolId = BreakMusicPoolId;
+        venue.Settings.AdPoolId = AdPoolId;
+        venue.Settings.BrandingImageMediaId = BrandingImageMediaId;
+        venue.Settings.BreakMusicProvider = BreakMusicProvider;
+        venue.Settings.MarqueeEnabled = MarqueeEnabled;
+        venue.Settings.MarqueeSingerCount = Math.Clamp(MarqueeSingerCount, 0, 20);
+        venue.Settings.MarqueeMessage = MarqueeMessage;
+        venue.Settings.MarqueeEntryFormat = MarqueeEntryFormat;
+        venue.Settings.MarqueePosition = MarqueePosition;
+        venue.Settings.MarqueeBackgroundColor = MarqueeBackgroundColor;
+        venue.Settings.MarqueeTextColor = MarqueeTextColor;
+        venue.Settings.MarqueeFontSizePixels = Math.Clamp(MarqueeFontSizePixels, 12, 96);
+        venue.Settings.MarqueeScrollSpeed = Math.Clamp(MarqueeScrollSpeed, 15, 400);
+        venue.Settings.MarqueePinLabel = MarqueePinLabel;
+        venue.Settings.MarqueeBackgroundOpacity = Math.Clamp(MarqueeBackgroundOpacity, 0, 100);
+        venue.Settings.MarqueeSingerColor = MarqueeSingerColor;
+        venue.Settings.MarqueeSongColor = MarqueeSongColor;
+        venue.Settings.MarqueeDividerColor = MarqueeDividerColor;
+        venue.Settings.MarqueeDividerShape = MarqueeDividerShape;
+        venue.Settings.QrCodeSource = QrCodeSource;
+        venue.Settings.BrandingImageScaling = BrandingImageScaling;
+        venue.Settings.BreakMusicCardEnabled = BreakMusicCardEnabled;
+        venue.Settings.BreakMusicCardCorner = BreakMusicCardCorner;
+        venue.Settings.QrCodeCorner = QrCodeCorner;
+        venue.Settings.QrCodeSize = QrCodeSize;
+        venue.Settings.QrCodeHideDuringSong = QrCodeHideDuringSong;
+        venue.Settings.QrCodeSafeZone = QrCodeSafeZone;
+        venue.Settings.QrCodeOffset = QrCodeOffset;
+    }
 }
