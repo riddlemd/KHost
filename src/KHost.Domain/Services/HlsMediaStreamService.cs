@@ -708,8 +708,8 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
                segment)
            + $" {PlaylistFileName}";
 
-    internal static bool IsGraphicsOnly(string filePath)
-        => Path.GetExtension(filePath).Equals(".cdg", StringComparison.OrdinalIgnoreCase);
+    /// <summary>A loose .cdg: this is asked of what ffmpeg opens, after a zipped pair is written out.</summary>
+    internal static bool IsGraphicsOnly(string filePath) => MediaFormats.IsGraphicsOnlyKaraoke(filePath);
 
     /// <summary>A .cdg holds only graphics; its audio is the same-named .mp3 beside it.</summary>
     /// <remarks>Through <see cref="MediaFormats.FindKaraokeAudio"/>, so the importer, the probe and

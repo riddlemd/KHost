@@ -275,22 +275,24 @@ public partial class MediaBrowser : IDisposable
         {
             var groupFiles = group.ToList();
 
-            var cdgFile = groupFiles.FirstOrDefault(f => f.Extension.Equals("cdg", StringComparison.OrdinalIgnoreCase));
+            var cdgFile = groupFiles.FirstOrDefault(f => MediaFormats.IsGraphicsOnlyKaraoke(f.FullPath));
 
-            // .mp3 only: CD+G rips have always shipped that way, so a same-named file in another
-            // format is a different track and keeps its own row rather than joining the pair.
-            var mp3File = groupFiles.FirstOrDefault(f => f.Extension.Equals("mp3", StringComparison.OrdinalIgnoreCase));
+            // The rule the importer and the player use, so a row shown as a pair is one they play.
+            var audioPath = cdgFile is null
+                ? null
+                : MediaFormats.FindKaraokeAudioAmong(cdgFile.FullPath, groupFiles.Select(f => f.FullPath));
+            var audioFile = groupFiles.FirstOrDefault(f => f.FullPath == audioPath);
 
-            if (cdgFile is not null && mp3File is not null)
+            if (cdgFile is not null && audioFile is not null)
             {
                 result.Add(cdgFile with
                 {
-                    Name = $"{group.Key} (CDG + MP3)",
-                    PairedPaths = [cdgFile.FullPath, mp3File.FullPath],
+                    Name = $"{group.Key} (CDG + {audioFile.Extension.ToUpperInvariant()})",
+                    PairedPaths = [cdgFile.FullPath, audioFile.FullPath],
                 });
 
                 processedPaths.Add(cdgFile.FullPath);
-                processedPaths.Add(mp3File.FullPath);
+                processedPaths.Add(audioFile.FullPath);
             }
 
             foreach (var file in groupFiles)
