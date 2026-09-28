@@ -124,6 +124,38 @@ public class TimedLyricsServiceTests
         Assert.Equal(expected, lyrics!.Pages[0].Lines[1].LeadIn is not null);
     }
 
+    /// <summary>A duet whose unsung tints a protanope and a deuteranope take for one another.</summary>
+    private static TimedLyrics ConfusableDuet() => SomeLyrics() with
+    {
+        Pages =
+        [
+            new LyricPage { ShowFromSeconds = 0, ShowUntilSeconds = 10, Voice = "Kid Rock", Active = new LyricColor(0x0B, 0x96, 0xCA), Inactive = new LyricColor(0xD7, 0xF2, 0xFD) },
+            new LyricPage { ShowFromSeconds = 5, ShowUntilSeconds = 15, Voice = "Sherly Crow", Active = new LyricColor(0xF5, 0x2C, 0x77), Inactive = new LyricColor(0xFD, 0xD7, 0xE6) },
+        ],
+    };
+
+    [Fact]
+    public async Task GetTimedLyricsAsync_ColorBlindFriendlyOff_LeavesConfusableColoursAlone()
+    {
+        var answer = ConfusableDuet();
+
+        var lyrics = await Service(Provider(claims: true, answer: answer)).GetTimedLyricsAsync(SourceFile);
+
+        Assert.Same(answer, lyrics);
+    }
+
+    [Fact]
+    public async Task GetTimedLyricsAsync_ColorBlindFriendlyOn_SeparatesConfusableColours()
+    {
+        _options.ColorBlindFriendlyLyrics = true;
+
+        var lyrics = await Service(Provider(claims: true, answer: ConfusableDuet())).GetTimedLyricsAsync(SourceFile);
+
+        // Both the screen and the burn-in read through here, so both draw the moved colours.
+        Assert.Equal(new LyricColor(0xFB, 0xFE, 0xFF), lyrics!.Pages[0].Inactive);
+        Assert.Equal(new LyricColor(0xE2, 0xBD, 0xCC), lyrics.Pages[1].Inactive);
+    }
+
     [Fact]
     public async Task GetTimedLyricsAsync_AnswersNull_WhenNobodyClaimsTheFile()
     {
