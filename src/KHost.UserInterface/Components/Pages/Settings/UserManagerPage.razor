@@ -19,14 +19,14 @@
             <div class="kh-card__body">
                 <form class="kh-panel__form-row" @onsubmit:preventDefault>
                     <input type="text" class="kh-form-control kh-panel__form-grow" placeholder="Search Users..."
-                            autocomplete="off" @bind="_searchQuery" @bind:event="oninput" @onchange="OnSearchChangedAsync" />
+                            autocomplete="off" @bind="_search.Query" @bind:event="oninput" @onchange="_search.SearchChangedAsync" />
                 </form>
             </div>
             <div class="kh-card__body">
-                @if (_paginatedResult?.Items.Count == 0)
+                @if (_search.Result?.Items.Count == 0)
                 {
                     <div class="kh-panel--empty kh-panel--empty-lg">
-                        @if (string.IsNullOrWhiteSpace(_searchQuery))
+                        @if (string.IsNullOrWhiteSpace(_search.Query))
                         {
                             <Icon Name="person" />
                             <span>No Users yet. Add one using the button above to get started.</span>
@@ -43,8 +43,8 @@
                     <table class="kh-table">
                         <thead>
                             <tr>
-                                <th class="kh-table__col--sortable" @onclick='() => OnSortColumnClickedAsync("name")'>
-                                    Name @if (_sortColumn == "name") { <Icon Name="@(_sortDescending ? "sort-down" : "sort-up")" class="kh-table__sort-indicator" /> }
+                                <th class="kh-table__col--sortable" @onclick='() => _search.SortByAsync("name")'>
+                                    Name @if (_search.SortColumn == "name") { <Icon Name="@(_search.Descending ? "sort-down" : "sort-up")" class="kh-table__sort-indicator" /> }
                                 </th>
                                 <th>Notes</th>
                                 <th>Groups</th>
@@ -53,7 +53,7 @@
                             </tr>
                         </thead>
                         <tbody>
-                            @foreach (var user in _paginatedResult!.Items)
+                            @foreach (var user in _search.Result!.Items)
                             {
                                 <tr>
                                     <td class="kh-table__cell--fill">@user.Name</td>
@@ -91,10 +91,10 @@
                     </table>
 
                     <Pagination
-                        CurrentPage="_currentPage"
-                        TotalPages="@(_paginatedResult?.TotalPages ?? 0)"
-                        OnPreviousPage="PreviousPageAsync"
-                        OnNextPage="NextPageAsync" />
+                        CurrentPage="_search.Page"
+                        TotalPages="@(_search.Result?.TotalPages ?? 0)"
+                        OnPreviousPage="_search.PreviousAsync"
+                        OnNextPage="_search.NextAsync" />
                 }
             </div>
         </div>
