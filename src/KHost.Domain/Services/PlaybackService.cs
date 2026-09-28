@@ -40,6 +40,11 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         /// <summary>The silence before a line that earns it a host-added lead-in.</summary>
         public int DynamicLeadInPauseSeconds { get; set; } = LeadInGenerator.DefaultLongPauseSeconds;
 
+        /// <summary>Whether the host moves apart timed-lyric colours a colour-blind viewer would
+        /// confuse.</summary>
+        /// <remarks>Read when a song's words are read, so a change applies from the next song.</remarks>
+        public bool ColorBlindFriendlyLyrics { get; set; }
+
         /// <summary>How long a replaced encode stays before deletion.</summary>
         /// <remarks>No second player exists mid-fetch, and a receiver reads a 404 body as media.</remarks>
         public TimeSpan StreamRetireGrace { get; set; } = TimeSpan.FromSeconds(8);
