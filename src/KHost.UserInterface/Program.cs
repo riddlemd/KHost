@@ -1,11 +1,8 @@
 using FFMpegCore;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
-using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
-using KHost.Abstractions.Repositories;
 using KHost.Domain.Services;
-using KHost.Domain.Services.PasswordHashers;
 using KHost.Abstractions.Interactions;
 using KHost.Abstractions.Interactions.Requests;
 using KHost.Abstractions.Models;
@@ -28,11 +25,11 @@ using KHost.UserInterface.Http;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Mvc;
-using Photino.NET;
 using Serilog;
 using Serilog.Events;
 using KHost.UserInterface.Services.RedirectProviders;
 using KHost.Domain.Services.Displays.LocalScreen;
+using KHost.UserInterface.Startup;
 
 namespace KHost.UserInterface;
 
@@ -50,14 +47,7 @@ internal static class Program
     internal const bool IsDebugBuild = false;
 #endif
 
-    /// <summary>Prints a freshly generated password for the named user, then exits.</summary>
-    private const string ResetPasswordFlag = "--reset-password";
-
-    private const string InstanceLockFileName = ".instance.lock";
-
     internal const string LastLoginCacheKey = "last-login";
-
-    private const int AlreadyRunningExitCode = 1;
 
     // Top-level statements cannot carry [STAThread], which Photino needs on Windows, and the
     // attribute only holds on a synchronous Main: an async one resumes off the STA thread.
@@ -65,18 +55,18 @@ internal static class Program
     private static int Main(string[] args)
     {
         var headless = args.Contains(HeadlessFlag);
-        var resetIndex = Array.IndexOf(args, ResetPasswordFlag);
+        var resetIndex = Array.IndexOf(args, PasswordResetCommand.Flag);
 
-        using var instanceLock = AcquireInstanceLock();
+        using var instanceLock = InstanceLock.TryAcquire();
         if (instanceLock is null)
         {
             // A reset run is a terminal operation, since a native dialog would block a script forever.
-            ReportAlreadyRunning(headless || resetIndex >= 0);
-            return AlreadyRunningExitCode;
+            InstanceLock.ReportAlreadyRunning(headless || resetIndex >= 0);
+            return InstanceLock.AlreadyRunningExitCode;
         }
 
         if (resetIndex >= 0)
-            return ResetPassword(resetIndex + 1 < args.Length ? args[resetIndex + 1] : null);
+            return PasswordResetCommand.Run(resetIndex + 1 < args.Length ? args[resetIndex + 1] : null);
 
         var builder = WebApplication.CreateBuilder(new WebApplicationOptions
         {
@@ -434,158 +424,8 @@ internal static class Program
             return 0;
         }
 
-        RunWithNativeShell(app);
+        app.RunWithNativeShell();
         return 0;
-    }
-
-    private static int ResetPassword(string? name)
-    {
-        if (string.IsNullOrWhiteSpace(name))
-        {
-            Console.WriteLine($"Usage: KHost.UserInterface {ResetPasswordFlag} <username>");
-            return 1;
-        }
-
-        var services = new ServiceCollection()
-            .AddLogging()
-            .AddDataAccess()
-            .AddSingleton<IPasswordHasher, Argon2PasswordHasher>()
-            .BuildServiceProvider();
-
-        var exitCode = PasswordReset.RunAsync(
-            name,
-            services.GetRequiredService<IUsersRepository>(),
-            services.GetRequiredService<IPasswordHasher>(),
-            Console.Out).GetAwaiter().GetResult();
-
-        if (exitCode == 0)
-        {
-            // The reset must not be silent: whoever reads the logs sees recovery was used.
-            var logDirectory = Path.Combine(AppContext.BaseDirectory, "logs");
-            Directory.CreateDirectory(logDirectory);
-            KHostLogFiles.SweepStaleLogs(logDirectory);
-
-            var line = $"{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff zzz} [WRN] Password reset via {ResetPasswordFlag} for '{name}'";
-            File.AppendAllText(
-                Path.Combine(logDirectory, KHostLogFiles.HostFileName()),
-                line + Environment.NewLine);
-        }
-
-        return exitCode;
-    }
-
-    /// <summary>Tells the user why this launch is stopping.</summary>
-    /// <remarks>A shell launch has no console to read, so it gets a native dialog instead.</remarks>
-    private static void ReportAlreadyRunning(bool headless)
-    {
-        const string Message = "Only one instance of KHost can run at a time.";
-
-        if (headless)
-        {
-            Console.Error.WriteLine(Message);
-            return;
-        }
-
-        // ShowMessage crashes on a window the native layer has not built yet, so the dialog has to
-        // be raised from inside the created handler, which is why a throwaway window hosts it.
-        PhotinoWindow? window = null;
-        window = new PhotinoWindow()
-            .SetTitle("KHost")
-            .SetAppIcon(NullLogger.Instance)
-            .SetUseOsDefaultSize(false)
-            .SetSize(1, 1)
-            .RegisterWindowCreatedHandler((_, _) =>
-            {
-                MacDockIcon.TrySet(NullLogger.Instance);
-                window!.ShowMessage("KHost", Message, PhotinoDialogButtons.Ok, PhotinoDialogIcon.Warning);
-
-                // Close() here does not break out of WaitForClose, which would leave the process
-                // pumping an invisible window forever. Showing the dialog is all this process does.
-                Environment.Exit(AlreadyRunningExitCode);
-            })
-            .LoadRawString("<html><body></body></html>");
-
-        window.WaitForClose();
-    }
-
-    /// <summary>Holds an exclusive handle on the lock file, or null when another instance has it.</summary>
-    /// <remarks>Scoped to the install directory, so separate installs may coexist.</remarks>
-    private static FileStream? AcquireInstanceLock()
-    {
-        try
-        {
-            // FileShare.None, and the OS drops the handle even on a kill, so the lock cannot go stale.
-            return new FileStream(
-                Path.Combine(AppContext.BaseDirectory, InstanceLockFileName),
-                FileMode.OpenOrCreate,
-                FileAccess.ReadWrite,
-                FileShare.None);
-        }
-        catch (IOException)
-        {
-            return null;
-        }
-    }
-
-    /// <summary>Serves the UI to a Photino window on this thread.</summary>
-    /// <remarks>Kestrel keeps listening, so screens and network clients reach the same host.</remarks>
-    private static void RunWithNativeShell(WebApplication app)
-    {
-        app.StartAsync().GetAwaiter().GetResult();
-
-        var baseUri = ResolveBaseAddress(app);
-        if (baseUri is null)
-        {
-            Log.Fatal("Could not resolve a listening address to open the window on");
-            Log.CloseAndFlush();
-            app.StopAsync().GetAwaiter().GetResult();
-            return;
-        }
-
-        Log.Information("Opening native shell at {BaseUri}", baseUri);
-
-        // Either side can initiate the close; whichever gets there first owns it.
-        var closing = 0;
-
-        var window = new PhotinoWindow()
-            .SetTitle("KHost")
-            .SetAppIcon(app.Logger)
-            .SetUseOsDefaultSize(false)
-            .SetSize(1440, 900)
-            .RegisterWindowCreatedHandler((_, _) => MacDockIcon.TrySet(app.Logger))
-            // Blocks both "Inspect Element" in the native text-field menu and F12/Cmd-Opt-I. It is
-            // the only switch that closes both, while leaving cut/copy/paste on that menu alone.
-            .SetDevToolsEnabled(IsDebugBuild)
-            // On macOS closing the window tears the process down inside Photino, so the code after
-            // WaitForClose never runs there. Shutdown must finish before the close is allowed.
-            .RegisterWindowClosingHandler((_, _) =>
-            {
-                if (Interlocked.Exchange(ref closing, 1) == 0)
-                    app.StopAsync().GetAwaiter().GetResult();
-                return false;
-            })
-            .Load(baseUri);
-
-        // On Stopping, not Stopped: with no Run/WaitForShutdown here, nothing performs the stop so
-        // Stopped never comes, and on macOS closing the window kills the process before it could.
-        app.Lifetime.ApplicationStopping.Register(() =>
-        {
-            if (Interlocked.CompareExchange(ref closing, 1, 0) != 0) return;
-
-            _ = Task.Run(async () =>
-            {
-                await app.StopAsync();
-                window.Invoke(window.Close);
-            });
-        });
-
-        window.WaitForClose();
-
-        // Unconditional: stopping an already-stopped host is a no-op, and on the paths that get
-        // here without one this is the only stop there is.
-        app.StopAsync().GetAwaiter().GetResult();
-
-        Log.CloseAndFlush();
     }
 
     /// <summary>Replays what the plugin loader found, once there is somewhere to say it.</summary>
@@ -697,7 +537,9 @@ internal static class Program
     }
 
     /// <summary>The host's live base address, or null if Kestrel reported none.</summary>
-    private static string? ResolveBaseAddress(WebApplication app)
+    /// <remarks>Internal for now: <see cref="Startup.NativeShell"/> also opens the window on it,
+    /// pending W14c moving this beside <c>ApplyResolvedAddresses</c>.</remarks>
+    internal static string? ResolveBaseAddress(WebApplication app)
     {
         var addresses = app.Services.GetRequiredService<IServer>()
             .Features.Get<IServerAddressesFeature>()?.Addresses;
