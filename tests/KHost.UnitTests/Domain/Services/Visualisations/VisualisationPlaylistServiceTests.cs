@@ -160,6 +160,30 @@ public class VisualisationPlaylistServiceTests
         Assert.Equal(1, raised);
     }
 
+    [Fact]
+    public async Task DeleteAsync_TheDefaultPlaylist_IsRefusedAndAnnouncesNothing()
+    {
+        var raised = 0;
+        using var subscription = _broker.Subscribe<VisualisationPlaylistsChanged>(_ => raised++);
+
+        Assert.False(await Service().DeleteAsync(VisualisationPlaylist.DefaultId));
+
+        await _repository.DidNotReceiveWithAnyArgs().DeleteAsync(default);
+        Assert.Equal(0, raised);
+    }
+
+    /// <summary>The guard is the built-in id prefix (RepositoryModels.IsBuiltIn), not an equality
+    /// check against DefaultId specifically — any seeded row is refused the same way.</summary>
+    [Fact]
+    public async Task DeleteAsync_AnyBuiltInId_IsRefused()
+    {
+        var anotherBuiltIn = new Guid("00000000-0000-0000-0000-000000000099");
+
+        Assert.False(await Service().DeleteAsync(anotherBuiltIn));
+
+        await _repository.DidNotReceiveWithAnyArgs().DeleteAsync(default);
+    }
+
     /// <summary>Hands out queued values, so a shuffle's picks are known in advance.</summary>
     private sealed class QueuedRandom : Random
     {

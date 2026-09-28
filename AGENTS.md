@@ -537,6 +537,14 @@ stay on black, and a song with its own picture keeps it.
   only once a song is known to draw one (a video does not use up a turn), keeps the song's entry
   by id across a rebuild or rejoin, and re-reads it on an edit, so a setting moved on the page
   reaches the song on screen; an entry removed mid-song moves to the next.
+- **`VisualisationPlaylist.DefaultId` is the "Default Visualizations" playlist every install ships
+  with**: every ambient scene, in the page's own order. A migration seeds it (data only, no
+  `HasData` — that would also seed an `EnsureCreated()` test database); `DatabaseInitializer`
+  restores it at startup if the row is ever gone. `VisualisationPlaylistService.DeleteAsync` refuses
+  it and the page disables its Delete button; rename, shuffle and entry edits stay open like any
+  other playlist. Every venue-creation path (setup wizard, Add Venue, `EditVenueModel.From(null,
+  …)`) starts a new venue pointed at it; duplicating a venue keeps whatever the source had, and an
+  existing venue's unset `VisualisationPlaylistId` is left alone (still no backfill).
 - **Presets are named, never numbered.** A shipped one goes by its name in
   `screen-ui/visualiser-presets.js`, which `VisualiserPresetService.BundledNames` mirrors (a test
   holds them together). An imported one is a butterchurn `.json` the host brought, validated for

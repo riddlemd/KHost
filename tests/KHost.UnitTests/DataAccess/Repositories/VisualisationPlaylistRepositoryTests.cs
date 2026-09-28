@@ -46,6 +46,52 @@ public class VisualisationPlaylistRepositoryTests : IDisposable
         Assert.False(context.Database.HasPendingModelChanges());
     }
 
+    /// <summary>A fresh install: migrating from nothing seeds the built-in playlist, which is what
+    /// every install (including this test's own database) goes through.</summary>
+    [Fact]
+    public async Task Migrate_AFreshDatabase_SeedsTheDefaultPlaylistWithTheAmbientScenesInOrder()
+    {
+        var playlist = await _repository.ReadWithEntriesAsync(VisualisationPlaylist.DefaultId);
+
+        Assert.NotNull(playlist);
+        Assert.Equal(("Default Visualizations", false), (playlist!.Name, playlist.Shuffle));
+        Assert.Equal(
+            ["ambient-gradient", "ambient-bokeh", "ambient-embers", "ambient-rings", "ambient-beams"],
+            playlist.Entries.Select(e => e.PresetName));
+        Assert.Equal([0, 1, 2, 3, 4], playlist.Entries.Select(e => e.Position));
+        Assert.All(playlist.Entries, e => Assert.Equal(VisualiserPresetSource.BuiltIn, e.PresetSource));
+    }
+
+    /// <summary>A database that predates this migration gets the row on its next upgrade, same as a
+    /// fresh install — the case an existing, already-in-use host hits.</summary>
+    [Fact]
+    public async Task Migrate_ADatabaseFromBeforeTheDefaultPlaylist_GetsItOnUpgrade()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"khost-visualisations-preexisting-{Guid.NewGuid():N}.db");
+        var options = new DbContextOptionsBuilder<DefaultContext>().UseSqlite($"Data Source={path}").Options;
+        try
+        {
+            await using var context = new DefaultContext(options);
+            await context.GetService<Microsoft.EntityFrameworkCore.Migrations.IMigrator>().MigrateAsync("20260928172930_AddBuiltInVisualisations");
+
+            Assert.Empty(context.VisualisationPlaylists);
+
+            await context.Database.MigrateAsync();
+
+            var playlist = await context.VisualisationPlaylists
+                .Include(p => p.Entries.OrderBy(e => e.Position))
+                .SingleAsync(p => p.Id == VisualisationPlaylist.DefaultId);
+            Assert.Equal(
+                ["ambient-gradient", "ambient-bokeh", "ambient-embers", "ambient-rings", "ambient-beams"],
+                playlist.Entries.Select(e => e.PresetName));
+        }
+        finally
+        {
+            Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+            try { File.Delete(path); } catch (IOException) { }
+        }
+    }
+
     [Fact]
     public async Task CreateAsync_FoldsTheName()
     {
@@ -115,7 +161,8 @@ public class VisualisationPlaylistRepositoryTests : IDisposable
 
                 await context.Database.MigrateAsync();
 
-                var entry = await context.VisualisationEntries.SingleAsync();
+                // Not .SingleAsync(): the same run also seeds the default playlist's five entries.
+                var entry = await context.VisualisationEntries.SingleAsync(e => e.VisualisationPlaylistId == Guid.Parse(playlistId));
                 Assert.Equal((VisualisationEntry.DefaultBarCount, VisualiserColourScheme.Classic, VisualisationEntry.DefaultColour),
                     (entry.BarCount, entry.ColourScheme, entry.Colour));
             }
@@ -148,9 +195,10 @@ public class VisualisationPlaylistRepositoryTests : IDisposable
 
         var all = await _repository.ReadAllWithEntriesAsync();
 
-        Assert.Equal(["alpha", "Zed"], all.Select(p => p.Name));
-        Assert.Equal(["Z1", "Z2"], all[1].Entries.Select(e => e.PresetName));
-        Assert.Empty(all[0].Entries);
+        // "Default Visualizations" is the migration-seeded playlist, folding between the two.
+        Assert.Equal(["alpha", "Default Visualizations", "Zed"], all.Select(p => p.Name));
+        Assert.Equal(["Z1", "Z2"], all.Single(p => p.Name == "Zed").Entries.Select(e => e.PresetName));
+        Assert.Empty(all.Single(p => p.Name == "alpha").Entries);
     }
 
     [Fact]
@@ -162,7 +210,8 @@ public class VisualisationPlaylistRepositoryTests : IDisposable
         Assert.True(await _repository.DeleteAsync(playlist.Id));
 
         using var context = _factory.CreateDbContext();
-        Assert.Empty(context.VisualisationEntries);
+        // Not Assert.Empty(): the seeded default playlist's own entries are still there.
+        Assert.DoesNotContain(context.VisualisationEntries, e => e.VisualisationPlaylistId == playlist.Id);
     }
 
     [Fact]
