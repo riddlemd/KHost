@@ -18,8 +18,9 @@ internal static class KaraokeZip
     /// <summary>What an extracted pair is called, whatever the entries were called.</summary>
     public const string ExtractedStem = "karaoke";
 
-    /// <summary>The most the pair may expand to. A long song as <c>.wav</c> is well under it.</summary>
-    public const long DefaultMaxExpandedBytes = 512L * 1024 * 1024;
+    /// <summary>The most the pair may expand to. A CD+G and its MP3 run to about 10 MB; a zip claiming
+    /// far more is not one song.</summary>
+    public const long DefaultMaxExpandedBytes = 20L * 1024 * 1024;
 
     public const string CorruptCode = "KH-CDG-ZIP-CORRUPT";
     public const string EncryptedCode = "KH-CDG-ZIP-ENCRYPTED";
