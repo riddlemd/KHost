@@ -131,4 +131,32 @@ public class PagedSearchTests
 
         Assert.Equal(1, search.Page);
     }
+
+    [Fact]
+    public async Task OnSearched_RunsAfterEveryReadThatReachesTheService()
+    {
+        var seen = new List<int>();
+        var search = new PagedSearch<string>((q, p, s, sort) => Task.FromResult(TwoPagesOf(p)))
+        {
+            OnSearched = result => { seen.Add(result.Items.Count); return Task.CompletedTask; },
+        };
+
+        await search.SearchAsync();
+
+        Assert.Single(seen);
+    }
+
+    [Fact]
+    public async Task OnSearched_DoesNotRun_WhenPreviousOrNextStoppedAtAnEnd()
+    {
+        var runs = 0;
+        var search = new PagedSearch<string>((q, p, s, sort) => Task.FromResult(TwoPagesOf(p)))
+        {
+            OnSearched = _ => { runs++; return Task.CompletedTask; },
+        };
+
+        await search.PreviousAsync(); // already on page 1: no read, so no hook run
+
+        Assert.Equal(0, runs);
+    }
 }

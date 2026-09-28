@@ -10,22 +10,17 @@ namespace KHost.UserInterface.Components.Pages.Settings;
 
 public partial class UserManagerPage : IDisposable
 {
-    [Inject] private IUsersService? UsersService { get; set; }
-    [Inject] private ITipsService? TipsService { get; set; }
+    [Inject] private IUsersService UsersService { get; set; } = default!;
+    [Inject] private ITipsService TipsService { get; set; } = default!;
     [Inject] private IFlashService? Flash { get; set; }
-    [Inject] private IDialogService? DialogService { get; set; }
-    [Inject] private IVenuesService? VenuesService { get; set; }
-    [Inject] private IAppSettingsService? AppSettingsService { get; set; }
+    [Inject] private IDialogService DialogService { get; set; } = default!;
+    [Inject] private IVenuesService VenuesService { get; set; } = default!;
+    [Inject] private IAppSettingsService AppSettingsService { get; set; } = default!;
     [Inject] private IMessageBroker Broker { get; set; } = default!;
 
     private readonly SubscriptionSet _subscriptions = new();
 
-    private int _pageSize = AppSettings.DefaultPageSize;
-    private int _currentPage = 1;
-    private string _searchQuery = "";
-    private string? _sortColumn;
-    private bool _sortDescending;
-    private PaginatedResult<KHostUser>? _paginatedResult;
+    private PagedSearch<KHostUser> _search = default!;
     private Dictionary<Guid, int> _tipTotals = [];
 
     protected override async Task OnInitializedAsync()
@@ -33,64 +28,40 @@ public partial class UserManagerPage : IDisposable
         _subscriptions.Add(Broker.Subscribe<UsersChanged>(_ => OnStateChanged()));
         _subscriptions.Add(Broker.Subscribe<TipsChanged>(_ => OnStateChanged()));
 
-        _pageSize = AppSettingsService!.Current.UsersPageSize;
+        _search = new PagedSearch<KHostUser>(UsersService.SearchAsync)
+        {
+            Size = AppSettingsService.Current.UsersPageSize,
+            OnSearched = RefreshTipTotalsAsync,
+        };
 
-        await SearchAsync();
+        await _search.SearchAsync();
     }
 
-    private async Task SearchAsync()
+    private async Task RefreshTipTotalsAsync(PaginatedResult<KHostUser> result)
     {
-        if (UsersService is null || TipsService is null)
-            return;
-
-        var sort = _sortColumn is not null ? new SortDescriptor(_sortColumn, _sortDescending) : null;
-        _paginatedResult = await UsersService.SearchAsync(_searchQuery, _currentPage, _pageSize, sort);
-
         _tipTotals = [];
-        foreach (var user in _paginatedResult?.Items ?? [])
-        {
+        foreach (var user in result.Items)
             _tipTotals[user.Id] = await TipsService.GetTotalInCentsByUserIdAsync(user.Id);
-        }
-    }
-
-    private async Task OnSortColumnClickedAsync(string column)
-    {
-        if (_sortColumn == column)
-            _sortDescending = !_sortDescending;
-        else
-        {
-            _sortColumn = column;
-            _sortDescending = false;
-        }
-        _currentPage = 1;
-        await SearchAsync();
-    }
-
-    private async Task OnSearchChangedAsync()
-    {
-        _currentPage = 1;
-
-        await SearchAsync();
     }
 
     private async Task OpenAddDialogAsync()
     {
-        await DialogService!.RequestEditAsync(new KHostUser { Name = "" }, async user => await SaveAsync(user));
+        await DialogService.RequestEditAsync(new KHostUser { Name = "" }, async user => await SaveAsync(user));
     }
 
     private async Task OpenEditDialogAsync(KHostUser user)
     {
-        await DialogService!.RequestEditAsync(user, async updated => await SaveAsync(updated));
+        await DialogService.RequestEditAsync(user, async updated => await SaveAsync(updated));
     }
 
     private async Task OpenPerformanceHistoryAsync(KHostUser user)
     {
-        await DialogService!.ShowSingerPerformanceHistoryAsync(user.Id);
+        await DialogService.ShowSingerPerformanceHistoryAsync(user.Id);
     }
 
     private async Task SaveAsync(KHostUser? user)
     {
-        if (UsersService is null || user is null)
+        if (user is null)
             return;
 
         try
@@ -112,8 +83,6 @@ public partial class UserManagerPage : IDisposable
     // Unconditional: a destructive action must not hinge on which venue is selected.
     private async Task StartDeleteAsync(KHostUser user)
     {
-        if (UsersService is null || DialogService is null) return;
-
         await DialogService.ShowConfirmationAsync(
             $"Are you sure you want to delete <span class=\"kh-emphasis\">{user.Name}</span>?",
             async () => await UsersService.DeleteAsync(user.Id),
@@ -122,40 +91,10 @@ public partial class UserManagerPage : IDisposable
         );
     }
 
-    private async Task PreviousPageAsync()
-    {
-        if (_currentPage > 1)
-        {
-            _currentPage--;
-
-            await SearchAsync();
-        }
-    }
-
-    private async Task NextPageAsync()
-    {
-        if (_currentPage < (_paginatedResult?.TotalPages ?? 0))
-        {
-            _currentPage++;
-
-            await SearchAsync();
-        }
-    }
-
     private void OnStateChanged()
         => _ = InvokeAsync(async () =>
         {
-            await SearchAsync();
-
-            var totalPages = _paginatedResult?.TotalPages ?? 0;
-
-            if (_paginatedResult?.Items.Count == 0 && _currentPage > 1)
-            {
-                _currentPage = Math.Max(1, totalPages);
-
-                await SearchAsync();
-            }
-
+            await _search.ReloadClampedAsync();
             StateHasChanged();
         });
 

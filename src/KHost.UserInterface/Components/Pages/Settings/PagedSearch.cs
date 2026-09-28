@@ -18,6 +18,11 @@ public sealed class PagedSearch<T>(Func<string, int, int, SortDescriptor?, Task<
     public bool Descending { get; private set; }
     public PaginatedResult<T>? Result { get; private set; }
 
+    /// <summary>Run after every read that actually reaches the service — never on a Previous/Next
+    /// that stopped at an end — for a page that has to fetch something alongside each row, such as
+    /// a tip total per user.</summary>
+    public Func<PaginatedResult<T>, Task>? OnSearched { get; set; }
+
     public Task SearchAsync() => RunAsync();
 
     public Task SortByAsync(string column)
@@ -74,5 +79,8 @@ public sealed class PagedSearch<T>(Func<string, int, int, SortDescriptor?, Task<
     {
         var sort = SortColumn is not null ? new SortDescriptor(SortColumn, Descending) : null;
         Result = await search(Query, Page, Size, sort);
+
+        if (OnSearched is not null)
+            await OnSearched(Result);
     }
 }
