@@ -76,14 +76,30 @@ public class VisualisationsManagerPageTests : BunitContext
         cut.WaitForAssertion(() => Assert.Equal("New playlist", cut.Find("#visualisation-playlist-name").GetAttribute("value")));
     }
 
+    /// <summary>The preset is chosen in the editor the new entry opens in, not beside the button.</summary>
     [Fact]
-    public async Task AddEntry_SavesThePresetPicked()
+    public async Task AddEntry_OffersNoPickerOfItsOwn_AndStartsOnTheFirstPreset()
     {
         var cut = Render<VisualisationsManagerPage>();
         cut.Find("#visualisation-add-playlist").Click();
 
-        cut.Find("#visualisation-add-preset").Change("0:_Mig_049");
+        Assert.Empty(cut.FindAll("#visualisation-add-preset"));
         cut.Find("#visualisation-add-entry").Click();
+
+        var entry = Assert.Single((await StoredAsync()).Entries);
+        var first = _presets.ReadAll()[0];
+        Assert.Equal((first.Name, first.Source), (entry.PresetName, entry.PresetSource));
+        Assert.Equal(VisualisationsManagerPage.PresetKey(first.Source, first.Name), cut.Find("#visualisation-preset").GetAttribute("value"));
+    }
+
+    [Fact]
+    public async Task AddEntry_ThenTheEditor_SavesThePresetPicked()
+    {
+        var cut = Render<VisualisationsManagerPage>();
+        cut.Find("#visualisation-add-playlist").Click();
+
+        cut.Find("#visualisation-add-entry").Click();
+        cut.Find("#visualisation-preset").Change("0:_Mig_049");
 
         var entry = Assert.Single((await StoredAsync()).Entries);
         Assert.Equal(("_Mig_049", VisualiserPresetSource.Bundled), (entry.PresetName, entry.PresetSource));
@@ -96,8 +112,8 @@ public class VisualisationsManagerPageTests : BunitContext
         var cut = Render<VisualisationsManagerPage>();
         cut.Find("#visualisation-add-playlist").Click();
 
-        cut.Find("#visualisation-add-preset").Change("1:My Swirl");
         cut.Find("#visualisation-add-entry").Click();
+        cut.Find("#visualisation-preset").Change("1:My Swirl");
 
         var entry = Assert.Single((await StoredAsync()).Entries);
         Assert.Equal(("My Swirl", VisualiserPresetSource.Imported), (entry.PresetName, entry.PresetSource));
@@ -132,8 +148,9 @@ public class VisualisationsManagerPageTests : BunitContext
     {
         var cut = Render<VisualisationsManagerPage>();
         cut.Find("#visualisation-add-playlist").Click();
+        cut.Find("#visualisation-add-entry").Click();
 
-        var groups = cut.FindAll("#visualisation-add-preset optgroup");
+        var groups = cut.FindAll("#visualisation-preset optgroup");
 
         Assert.Equal(["Built-in", "Ambient", "MilkDrop presets", "Imported"], groups.Select(g => g.GetAttribute("label")));
         Assert.Equal(["Spectrum bars", "Oscilloscope"], groups[0].QuerySelectorAll("option").Select(o => o.TextContent));
@@ -177,8 +194,8 @@ public class VisualisationsManagerPageTests : BunitContext
     {
         var cut = Render<VisualisationsManagerPage>();
         cut.Find("#visualisation-add-playlist").Click();
-        cut.Find("#visualisation-add-preset").Change($"2:{name}");
         cut.Find("#visualisation-add-entry").Click();
+        cut.Find("#visualisation-preset").Change($"2:{name}");
 
         var entry = Assert.Single((await StoredAsync()).Entries);
         Assert.Equal((VisualiserPresetSource.BuiltIn, name), (entry.PresetSource, entry.PresetName));
@@ -308,8 +325,8 @@ public class VisualisationsManagerPageTests : BunitContext
         var cut = Render<VisualisationsManagerPage>();
         cut.Find("#visualisation-add-playlist").Click();
         cut.Find("#visualisation-add-entry").Click();
-        cut.Find("#visualisation-add-preset").Change("0:_Mig_049");
         cut.Find("#visualisation-add-entry").Click();
+        cut.Find("#visualisation-preset").Change("0:_Mig_049");
 
         cut.FindAll(".kh-visualisations__remove-entry")[0].Click();
 

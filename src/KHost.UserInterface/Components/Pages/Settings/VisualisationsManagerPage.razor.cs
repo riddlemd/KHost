@@ -29,7 +29,6 @@ public partial class VisualisationsManagerPage : IDisposable
     private Guid? _selectedId;
     private int _selectedEntry = -1;
     private Guid? _activePlaylistId;
-    private string _addPresetKey = "";
 
     private ElementReference _preview;
 
@@ -117,7 +116,6 @@ public partial class VisualisationsManagerPage : IDisposable
 
         if (_selectedId is not null && Selected is null) _selectedId = _playlists.FirstOrDefault()?.Id;
         if (SelectedEntry is null) _selectedEntry = Selected is { Entries.Count: > 0 } s ? Math.Min(Math.Max(_selectedEntry, 0), s.Entries.Count - 1) : -1;
-        if (_addPresetKey.Length == 0 && _presets.Count > 0) _addPresetKey = PresetKey(_presets[0].Source, _presets[0].Name);
     }
 
     // --- playlists ---
@@ -193,7 +191,9 @@ public partial class VisualisationsManagerPage : IDisposable
 
     private async Task AddEntryAsync()
     {
-        if (Selected is not { } playlist || ParseKey(_addPresetKey) is not { } preset) return;
+        // Starts on the first preset and opens in the editor below, where its preset is chosen:
+        // a second picker beside the button read as the editor's own.
+        if (Selected is not { } playlist || _presets.FirstOrDefault() is not { } preset) return;
 
         playlist.Entries.Add(new VisualisationEntry { PresetSource = preset.Source, PresetName = preset.Name });
         _selectedEntry = playlist.Entries.Count - 1;
