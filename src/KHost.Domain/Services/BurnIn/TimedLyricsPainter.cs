@@ -10,8 +10,9 @@ namespace KHost.Domain.Services.BurnIn;
 /// <remarks>The same rules the local screen draws by (<c>screen-ui/lyrics-overlay.js</c>), so a song
 /// reads alike whichever display it reaches: the page fitted and centred in the frame, colours the
 /// timing leaves unset taken from the same theme, the wipe linear with no easing, a count-in that
-/// eases over one step and clears as the next page arrives, and a lead-in running to the leading
-/// edge of the line or of the syllable it names. Where the two part company it is because a web view cannot do better: this shapes
+/// eases over one step and clears as the next page arrives, a line-start lead-in running to the
+/// leading edge of the line, a lead-in part way along it shown as a dot count over its own syllable
+/// instead. Where the two part company it is because a web view cannot do better: this shapes
 /// each line through HarfBuzz, so a joined script joins, and a right-to-left line is laid from the
 /// right edge of its box.
 ///
@@ -322,9 +323,15 @@ public sealed class TimedLyricsPainter
 
                 foreach (var (start, end, syllable) in ranges)
                 {
+                    // A lead-in's dot count centres on the syllable's own ink, a leading space excluded —
+                    // the space is a real glyph with an advance, and including it would pull the count
+                    // toward the word before.
+                    var inkStart = start + syllable.Text.Length - syllable.Text.TrimStart().Length;
+
                     var ids = new List<ushort>();
                     var points = new List<SKPoint>();
                     float lo = float.MaxValue, hi = float.MinValue;
+                    float inkLo = float.MaxValue, inkHi = float.MinValue;
 
                     foreach (var glyph in shaped.Glyphs)
                     {
@@ -333,6 +340,10 @@ public sealed class TimedLyricsPainter
                         points.Add(new SKPoint(penX + glyph.X, baseline + glyph.Y));
                         lo = Math.Min(lo, penX + glyph.X);
                         hi = Math.Max(hi, penX + glyph.X + glyph.Advance);
+
+                        if (glyph.Cluster < inkStart) continue;
+                        inkLo = Math.Min(inkLo, penX + glyph.X);
+                        inkHi = Math.Max(inkHi, penX + glyph.X + glyph.Advance);
                     }
 
                     if (ids.Count == 0) continue;
@@ -342,7 +353,10 @@ public sealed class TimedLyricsPainter
                     ids.ToArray().AsSpan().CopyTo(run.Glyphs);
                     points.ToArray().AsSpan().CopyTo(run.Positions);
 
-                    if (builder.Build() is { } blob) syllables.Add(new SyllableLayout(syllable, blob, lo, hi));
+                    if (builder.Build() is { } blob)
+                        syllables.Add(new SyllableLayout(
+                            syllable, blob, lo, hi,
+                            inkHi > inkLo ? inkLo : lo, inkHi > inkLo ? inkHi : hi));
                 }
             }
 
@@ -383,12 +397,15 @@ public sealed class TimedLyricsPainter
             canvas.Restore();
         }
 
-        // Over the words, not under: a lead-in for a pause inside the line runs across words already sung.
+        // Painted after the words: a line-start block draws over them, and a mid-line dot count sits
+        // clear above them, but either way it must not be drawn first and then covered.
         PaintLeadIn(canvas, page, line, t);
     }
 
-    /// <summary>A small block that travels in to the leading edge of the syllable it is for — the
-    /// line's start unless it names one further along — arriving as that syllable lights.</summary>
+    /// <summary>At the line's start, a small block that travels in to arrive as the first syllable
+    /// lights. Part way along the line, the run would cross words already sung in the same colour,
+    /// so a count of dots sits over the target syllable instead — see <see cref="PaintLeadInDots"/>.
+    /// </summary>
     private void PaintLeadIn(SKCanvas canvas, PageLayout page, LineLayout line, double t)
     {
         var leadIn = line.Source.LeadIn;
@@ -400,20 +417,14 @@ public sealed class TimedLyricsPainter
         var target = syllables[index];
         if (t < leadIn.StartSeconds || t >= target.StartSeconds) return;
 
-        var run = box.X - leadIn.X;
-        double to;
+        if (index > 0)
+        {
+            PaintLeadInDots(canvas, page, line, target, leadIn, t);
+            return;
+        }
 
-        if (index == 0)
-        {
-            to = _lyrics.IsRightToLeft ? box.X + box.Width : box.X;
-        }
-        else
-        {
-            // By reference: a syllable with no text has no layout, so the two lists do not line up by index.
-            var laid = line.Syllables.FirstOrDefault(syllable => ReferenceEquals(syllable.Syllable, target));
-            if (laid is null) return;
-            to = ((_lyrics.IsRightToLeft ? laid.Right : laid.Left) - _offsetX) / _scale;
-        }
+        var run = box.X - leadIn.X;
+        var to = _lyrics.IsRightToLeft ? box.X + box.Width : box.X;
 
         // Mirrored for right to left: the same run, made into the leading edge from outside it.
         var from = _lyrics.IsRightToLeft ? to + run : to - run;
@@ -431,7 +442,48 @@ public sealed class TimedLyricsPainter
         canvas.DrawRect(rect, edge);
     }
 
-    internal sealed record SyllableLayout(LyricSyllable Syllable, SKTextBlob Blob, float Left, float Right);
+    /// <summary>Three dots sitting just above a syllable part way along the line, counting down to it
+    /// going out one per third — first in reading order, so left to right, mirrored right to left —
+    /// the last going as the syllable lights. The screen's overlay draws the same count by the same
+    /// rule.</summary>
+    private void PaintLeadInDots(SKCanvas canvas, PageLayout page, LineLayout line, LyricSyllable target, LyricLeadIn leadIn, double t)
+    {
+        // By reference: a syllable with no text has no layout, so the two lists do not line up by index.
+        var laid = line.Syllables.FirstOrDefault(syllable => ReferenceEquals(syllable.Syllable, target));
+        if (laid is null) return;
+
+        var cx = (laid.InkLeft + laid.InkRight) / 2;
+        var r = Math.Max(3f, line.FontSize * 0.09f);
+        var gap = r * 3.4f;
+        var y = line.Baseline - line.FontSize * 1.12f;
+        var p = (float)Progress(t, leadIn.StartSeconds, target.StartSeconds);
+        var goneOut = Math.Min(3, (int)(p * 3));
+
+        using var lit = new SKPaint { Color = page.Active, IsAntialias = true };
+        using var spent = new SKPaint { Color = new SKColor(255, 255, 255, 31), IsAntialias = true };
+        using var edge = new SKPaint
+        {
+            Color = OutlineColor,
+            IsAntialias = true,
+            Style = SKPaintStyle.Stroke,
+            StrokeWidth = Math.Max(1.5f, r * 0.45f),
+        };
+
+        for (var physical = 0; physical < 3; physical++)
+        {
+            var order = _lyrics.IsRightToLeft ? 2 - physical : physical;
+            var x = cx + (physical - 1) * gap;
+            canvas.DrawCircle(x, y, r, order >= goneOut ? lit : spent);
+            canvas.DrawCircle(x, y, r, edge);
+        }
+    }
+
+    /// <param name="Left">The glyph advance box's left edge, a leading space included — what the wipe
+    /// clips against.</param>
+    /// <param name="InkLeft">The same edge with a leading space excluded — where a lead-in's dot count
+    /// centres, so the count sits over the word and not the gap before it.</param>
+    internal sealed record SyllableLayout(
+        LyricSyllable Syllable, SKTextBlob Blob, float Left, float Right, float InkLeft, float InkRight);
 
     /// <param name="Position">The line's own position; null for a stacked line, which has no lead-in.</param>
     internal sealed record LineLayout(
