@@ -13,6 +13,43 @@
 /// Enough for every stem to be scheduled before the first is due to sound.
 const START_LEAD_SECONDS = 0.12;
 
+/// How long the mix takes to come up from silence when sources start, and to go back to it
+/// before they stop. A source started or stopped mid-waveform is a step in the signal, which is
+/// a click; this is short enough to hear as instant and long enough not to be one.
+const EDGE_FADE_SECONDS = 0.015;
+
+/// How long a level change takes to land. A step in a playing mix clicks the same way a start does.
+const LEVEL_RAMP_SECONDS = 0.015;
+
+// One output for the screen's whole life. Opening an AudioContext opens an output stream, and on
+// Windows that wakes the audio endpoint, which many laptop codecs answer with an audible pop — so
+// a context per song popped at the top of every song.
+let sharedStemContext = null;
+
+/// The screen's context, opened on first use and again only once closed. A suspended or
+/// interrupted one is asked to resume rather than replaced, since replacing it is the pop.
+function stemAudioContext() {
+    if (!sharedStemContext || sharedStemContext.state === 'closed') {
+        sharedStemContext = new (window.AudioContext || window.webkitAudioContext)();
+    }
+
+    if (sharedStemContext.state !== 'running') {
+        try { Promise.resolve(sharedStemContext.resume()).catch(() => {}); } catch { /* retried on play */ }
+    }
+
+    return sharedStemContext;
+}
+
+/// Lets go of `context` as the shared one, so the next mixer opens a fresh context. Only for a
+/// wake: a context that lived through a sleep can read 'running' and play nothing, so resuming
+/// it is no help. Returns whether it was the shared one.
+function retireStemAudioContext(context) {
+    if (!context || sharedStemContext !== context) return false;
+
+    sharedStemContext = null;
+    return true;
+}
+
 /// Whether a stem-volume message is for this stem. Voices compare exactly, and a missing voice
 /// on either side is the same as null — the host omits it for a stem no singer is named on.
 function stemMatches(stem, role, voice) {
@@ -36,15 +73,23 @@ function clampLevel(value) {
 /// `volume` is the room's level. The venue sends it only on connect and on an edit, so a mix
 /// that started at unity would play every song after the first at full level.
 function createStemMixer(stems, startOffsetSeconds, reportError, volume = 1) {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const ctx = stemAudioContext();
+
+    // The room's level and the stop fade. What the visualiser taps, so it hears what the room does.
     const master = ctx.createGain();
-    master.gain.value = clampLevel(volume);
+    master.gain.setValueAtTime(clampLevel(volume), ctx.currentTime);
     master.connect(ctx.destination);
+
+    // The start and stop envelope, in series before the master rather than on it: the two then
+    // multiply, so neither a level change nor the stop fade can cancel an edge or be cancelled by one.
+    const edge = ctx.createGain();
+    edge.gain.setValueAtTime(0, ctx.currentTime);
+    edge.connect(master);
 
     const parts = stems.map((stem) => {
         const gain = ctx.createGain();
         gain.gain.value = levelOf(stem);
-        gain.connect(master);
+        gain.connect(edge);
 
         // The level as the host last set it, kept so a rebuilt mix can start where this one is.
         return { stem, gain, buffer: null, source: null, volume: stem.volume };
@@ -110,17 +155,34 @@ function createStemMixer(stems, startOffsetSeconds, reportError, volume = 1) {
             part.source = source;
         }
 
+        // From `when` on only: a seek has just scheduled the old sources' fade-out before it.
+        edge.gain.cancelScheduledValues(when);
+        edge.gain.setValueAtTime(0, when);
+        edge.gain.linearRampToValueAtTime(1, when + EDGE_FADE_SECONDS);
+
         position = from;
         startedAt = when;
     }
 
+    /// Rides the envelope to silence and stops every source once it is there. Returns at once:
+    /// the mix reads as stopped now, and the sound ends a few milliseconds later on the audio clock.
     function stopSources() {
+        const now = ctx.currentTime;
+        const silentAt = now + EDGE_FADE_SECONDS;
+
+        edge.gain.cancelScheduledValues(now);
+        edge.gain.setValueAtTime(edge.gain.value, now);
+        edge.gain.linearRampToValueAtTime(0, silentAt);
+
         for (const part of parts) {
             if (!part.source) continue;
 
-            try { part.source.stop(); } catch { /* never started, or already done */ }
-            try { part.source.disconnect(); } catch { /* already gone */ }
+            const source = part.source;
             part.source = null;
+
+            // Disconnected once it has finished: cut loose now, it would stop mid-waveform after all.
+            source.onended = () => { try { source.disconnect(); } catch { /* already gone */ } };
+            try { source.stop(silentAt); } catch { try { source.disconnect(); } catch { /* already gone */ } }
         }
     }
 
@@ -168,7 +230,8 @@ function createStemMixer(stems, startOffsetSeconds, reportError, volume = 1) {
             // A fade still scheduled would win over a bare `.value`, pulling a resumed song down.
             const now = ctx.currentTime;
             master.gain.cancelScheduledValues(now);
-            master.gain.setValueAtTime(clampLevel(value), now);
+            master.gain.setValueAtTime(master.gain.value, now);
+            master.gain.linearRampToValueAtTime(clampLevel(value), now + LEVEL_RAMP_SECONDS);
         },
 
         /// Rides the whole mix down to silence on the context clock, from wherever it is now.
@@ -234,7 +297,9 @@ function createStemMixer(stems, startOffsetSeconds, reportError, volume = 1) {
             };
         },
 
-        /// Resolves once the context has closed, for a caller that must not open the next one sooner.
+        /// Lets go of this mix's own nodes, never the context: that is the screen's, and closing it
+        /// is the pop this exists to avoid. Resolves once the nodes are off the graph, which is
+        /// after the stop edge has run, so a caller closing a retired context cannot cut it short.
         destroy() {
             stopSources();
             startedAt = null;
@@ -243,7 +308,15 @@ function createStemMixer(stems, startOffsetSeconds, reportError, volume = 1) {
             // here rather than left for the collector to notice.
             for (const part of parts) part.buffer = null;
 
-            try { return Promise.resolve(ctx.close()).catch(() => {}); } catch { return Promise.resolve(); }
+            return new Promise((resolve) => {
+                // A margin past the edge: the timer and the audio clock are not the same clock.
+                setTimeout(() => {
+                    for (const part of parts) { try { part.gain.disconnect(); } catch { /* already gone */ } }
+                    try { edge.disconnect(); } catch { /* already gone */ }
+                    try { master.disconnect(); } catch { /* already gone */ }
+                    resolve();
+                }, EDGE_FADE_SECONDS * 1000 + 50);
+            });
         },
     };
 }
@@ -252,11 +325,19 @@ function createStemMixer(stems, startOffsetSeconds, reportError, volume = 1) {
 /// slept under it. Resolves null when `stillWanted()` says a load or stop replaced it meanwhile.
 ///
 /// The old context is closed before the new one opens: a context opened while another is still
-/// open may be handed that one's output, and a wake is what leaves an output dead.
+/// open may be handed that one's output, and a wake is what leaves an output dead. This is the one
+/// place the screen's context is replaced while still open.
 async function rebuildStemMixer(mixer, create, stillWanted) {
     const state = mixer.snapshot();
+    const dead = mixer.analysisSource().context;
 
+    // Retired before the wait, so a load landing during it cannot open onto the dead context.
+    const owned = retireStemAudioContext(dead);
     await mixer.destroy();
+    if (owned) {
+        try { await Promise.resolve(dead.close()).catch(() => {}); } catch { /* already closed */ }
+    }
+
     if (!stillWanted()) return null;
 
     const next = create(state.stems);
