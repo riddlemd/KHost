@@ -27,8 +27,9 @@
                 <button class="kh-button kh-button--secondary kh-now-playing__announce"
                         disabled="@(!_canAnnounce)"
                         title="@(_canAnnounce
-                            ? "Put who is up on the screens"
-                            : "Nobody is queued to announce")"
+                            ? "Put who is up on the screens (Ctrl+Shift+Enter)"
+                            : "Nobody is queued to announce (Ctrl+Shift+Enter)")"
+                        data-kh-shortcut="announce-next-singer"
                         @onclick="AnnounceNextSingerAsync">
                     <Icon Name="megaphone" /> Announce Next Singer
                 </button>

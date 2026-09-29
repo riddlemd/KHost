@@ -14,4 +14,24 @@ public class KeyboardShortcutsTests
 
         Assert.Contains(keys, k => k.Length == 1 && k[0] == "?");
     }
+
+    [Fact]
+    public void All_ListsThePlayNextChord()
+    {
+        var keys = KeyboardShortcuts.All
+            .SelectMany(group => group.Shortcuts)
+            .Select(shortcut => shortcut.Keys);
+
+        Assert.Contains(keys, k => k.Length == 2 && k[0] == "ctrl" && k[1] == "enter");
+    }
+
+    [Fact]
+    public void All_ListsTheAnnounceNextSingerChord()
+    {
+        var keys = KeyboardShortcuts.All
+            .SelectMany(group => group.Shortcuts)
+            .Select(shortcut => shortcut.Keys);
+
+        Assert.Contains(keys, k => k.Length == 3 && k[0] == "ctrl" && k[1] == "shift" && k[2] == "enter");
+    }
 }

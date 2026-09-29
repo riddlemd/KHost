@@ -25,6 +25,13 @@ public static class KeyboardShortcuts
         ],
         "Cmd works as well as Ctrl."),
 
+        new("Now playing",
+        [
+            new([Accel, "enter"], "Play the next queued song"),
+            new([Accel, "shift", "enter"], "Announce the next singer"),
+        ],
+        "Cmd works as well as Ctrl. Does nothing while its button would be disabled or hidden."),
+
         new("Singer queue",
         [
             new(["↑"], "Select the singer above"),

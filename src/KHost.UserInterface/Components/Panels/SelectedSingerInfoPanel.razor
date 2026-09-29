@@ -111,6 +111,14 @@
                         var isBroken = rowMedia?.Status == MediaStatus.Broken;
                         var isAcquiring = rowMedia?.Status.IsAcquiring() == true;
                         var isReady = rowMedia?.Status == MediaStatus.Ready;
+                        // Only the top row is "the next queued song" the hotkey means; a lower
+                        // row played out of order is still a deliberate click, not the chord.
+                        var isNextQueued = idx == 0;
+                        var playTitle = (isBroken
+                            ? "This song is marked broken and can't be played"
+                            : isAcquiring ? "This song is still downloading"
+                            : disablePlay ? "Cannot Load and Play while another Song is loaded" : "Load and Play Song")
+                            + (isNextQueued ? " (Ctrl+Enter)" : "");
 
                         <tr class="kh-selected-singer-info-panel__row @rowClass @(isCurrent && PlaybackService?.State == PlaybackState.Playing ? "kh-selected-singer-info-panel__row--playing" : "")"
                             @key="performance.Id"
@@ -167,10 +175,8 @@
                             </td>
                             <td class="kh-table__cell--actions">
                                 <SplitButton
-                                        Title="@(isBroken
-                                            ? "This song is marked broken and can't be played"
-                                            : isAcquiring ? "This song is still downloading"
-                                            : disablePlay ? "Cannot Load and Play while another Song is loaded" : "Load and Play Song")"
+                                        Title="@playTitle"
+                                        ShortcutId="@(isNextQueued ? "play-next" : null)"
                                         PrimaryDisabled="@(disablePlay || !isReady)"
                                         @onclick="() => LoadAndPlayAsync(performance)">
                                      <Text>
