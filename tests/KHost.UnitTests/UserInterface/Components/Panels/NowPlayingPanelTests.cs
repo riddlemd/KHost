@@ -50,6 +50,8 @@ public class NowPlayingPanelTests : BunitContext
         Services.AddSingleton<IMessageBroker>(_broker);
         Services.AddSingleton(Substitute.For<ISingerQueueService>());
         Services.AddSingleton(Substitute.For<IDialogService>());
+        Services.AddSingleton(Substitute.For<IPerformanceService>());
+        Services.AddSingleton(Substitute.For<IMediaService>());
         Services.AddSingleton(_lyrics);
 
         // The break music controls ride this panel's header, so their services have to resolve
