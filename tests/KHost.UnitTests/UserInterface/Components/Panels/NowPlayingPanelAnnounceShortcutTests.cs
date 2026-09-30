@@ -20,6 +20,8 @@ public class NowPlayingPanelAnnounceShortcutTests : BunitContext
     private readonly ISingerQueueService _queue = Substitute.For<ISingerQueueService>();
     private readonly INextSingerCardService _nextSingerCard = Substitute.For<INextSingerCardService>();
     private readonly MessageBroker _broker = new(NullLogger<MessageBroker>.Instance);
+    private readonly IPerformanceService _performances = Substitute.For<IPerformanceService>();
+    private readonly IMediaService _mediaService = Substitute.For<IMediaService>();
 
     public NowPlayingPanelAnnounceShortcutTests()
     {
@@ -43,6 +45,8 @@ public class NowPlayingPanelAnnounceShortcutTests : BunitContext
         Services.AddSingleton(appSettings);
         Services.AddSingleton<IMessageBroker>(_broker);
         Services.AddSingleton(_queue);
+        Services.AddSingleton(_performances);
+        Services.AddSingleton(_mediaService);
         Services.AddSingleton(Substitute.For<IDialogService>());
         Services.AddSingleton(Substitute.For<ITimedLyricsService>());
         Services.AddSingleton(Substitute.For<IBreakMusicService>());

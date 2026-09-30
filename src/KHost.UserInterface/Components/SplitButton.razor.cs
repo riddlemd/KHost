@@ -19,10 +19,6 @@ public partial class SplitButton : IAsyncDisposable
     [Parameter] public string Class { get; set; } = "";
     [Parameter] public string? Title { get; set; }
 
-    /// <summary>The global chord's target name, the same convention <c>ComboBox.ShortcutId</c> uses:
-    /// stamped onto the primary button as <c>data-kh-shortcut</c> so <c>shortcuts.js</c> can find it.</summary>
-    [Parameter] public string? ShortcutId { get; set; }
-
     private ElementReference _rootRef;
     private ElementReference _menuRef;
     private IJSObjectReference? _module;
