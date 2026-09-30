@@ -96,4 +96,45 @@ public class HelpDialogTests : BunitContext
         Assert.True(sections[0].HasAttribute("open"));
         Assert.False(sections[1].HasAttribute("open"));
     }
+
+    /// <summary>
+    /// Reproduces TODO 53: a fresh mount with a persisted "expanded" restores open=true on a brand-new
+    /// &lt;details&gt;, which a real browser treats as a state change and fires its own toggle for —
+    /// exactly the event a plain "reopen the dialog" click delivers here. Left unswallowed, that one
+    /// event inverts the just-restored state (and each inversion fires another), which is the flicker
+    /// this test guards against.
+    /// </summary>
+    [Fact]
+    public void ReopeningWithBothSectionsExpanded_SwallowsEachMountTimeToggleAndStaysExpanded()
+    {
+        _controlState.HelpQuickGuideExpanded = true;
+        _controlState.HelpShortcutsExpanded = true;
+
+        var dialog = Render<HelpDialog>(p => p.Add(d => d.IsOpen, true));
+        var sections = dialog.FindAll(SectionSelector);
+
+        sections[0].TriggerEvent("ontoggle", new EventArgs());
+        sections[1].TriggerEvent("ontoggle", new EventArgs());
+
+        Assert.True(_controlState.HelpQuickGuideExpanded);
+        Assert.True(_controlState.HelpShortcutsExpanded);
+        Assert.True(dialog.FindAll(SectionSelector)[0].HasAttribute("open"));
+        Assert.True(dialog.FindAll(SectionSelector)[1].HasAttribute("open"));
+    }
+
+    /// <summary>The swallow is one-shot: a genuine user click right after reopening still collapses it.</summary>
+    [Fact]
+    public void AfterTheMountTimeToggleIsSwallowed_ANextToggleCollapsesNormally()
+    {
+        _controlState.HelpQuickGuideExpanded = true;
+
+        var dialog = Render<HelpDialog>(p => p.Add(d => d.IsOpen, true));
+        var section = dialog.FindAll(SectionSelector)[0];
+
+        section.TriggerEvent("ontoggle", new EventArgs()); // swallowed mount-time toggle
+        Assert.True(_controlState.HelpQuickGuideExpanded);
+
+        dialog.FindAll(SectionSelector)[0].TriggerEvent("ontoggle", new EventArgs()); // genuine click
+        Assert.False(_controlState.HelpQuickGuideExpanded);
+    }
 }
