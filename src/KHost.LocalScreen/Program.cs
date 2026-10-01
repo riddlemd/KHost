@@ -12,6 +12,10 @@ internal static class Program
     private static ScreenIpcController? _ipc;
     private static WindowPlacementStore? _placement;
     private static WindowChrome? _chrome;
+    private static PhotinoScreenWindow? _screenWindow;
+
+    /// <summary>A first run's window: small enough to fit any monitor rather than fill whatever it landed on.</summary>
+    private static readonly WindowBounds DefaultBounds = new(80, 80, 1280, 720);
     private static readonly CancellationTokenSource _closing = new();
 
     private static bool _isFullScreen;
@@ -41,11 +45,9 @@ internal static class Program
 
         _placement = new WindowPlacementStore(screenId, AppContext.BaseDirectory, logger);
 
-        // Where this screen was last left. A first run has none, so it opens at a size that fits
-        // any monitor rather than filling whatever it landed on.
+        // Where this screen was last left; checked against the monitors once the window exists.
         var stored = _placement.Read();
-        var (left, top) = (stored?.Left ?? 80, stored?.Top ?? 80);
-        var (width, height) = (stored?.Width ?? 1280, stored?.Height ?? 720);
+        var (left, top, width, height) = stored?.Bounds ?? DefaultBounds;
 
         // Seeded so leaving full screen returns to the remembered window, not to 0x0.
         (_restoreLeft, _restoreTop, _restoreWidth, _restoreHeight) = (left, top, width, height);
@@ -53,8 +55,8 @@ internal static class Program
         logger.LogInformation(
             stored is null
                 ? "No stored window placement; opening at {Left},{Top} {Width}x{Height}"
-                : "Restoring window placement {Left},{Top} {Width}x{Height} (full screen {FullScreen})",
-            left, top, width, height, stored?.FullScreen ?? false);
+                : "Restoring window placement {Left},{Top} {Width}x{Height} (full screen {FullScreen}, maximised {Maximised})",
+            left, top, width, height, stored?.FullScreen ?? false, stored?.Maximised ?? false);
 
         PhotinoWindow? window = null;
         var ready = false;
@@ -104,7 +106,11 @@ internal static class Program
 
                     // Before full screen, and here rather than at construction because both need a
                     // window that exists — the page being ready is the first moment that is true.
-                    EnsureReachable(window!, logger);
+                    FitOntoMonitors(_screenWindow!, logger);
+
+                    // After the fit, so un-maximising returns to a rect that is on a monitor now.
+                    if (stored?.Maximised == true)
+                        _chrome!.Maximise();
 
                     if (stored?.FullScreen == true)
                         SetFullScreen(window!, true, logger);
@@ -129,7 +135,8 @@ internal static class Program
             // gated API. The file is the same page, written once per run.
             .Load(new Uri(WritePlayerPage()));
 
-        _chrome = new WindowChrome(new PhotinoScreenWindow(window), logger);
+        _screenWindow = new PhotinoScreenWindow(window);
+        _chrome = new WindowChrome(_screenWindow, logger);
 
         logger.LogInformation("LocalScreen starting: server={ServerUri} screen={ScreenId}", serverUri, screenId);
 
@@ -173,45 +180,19 @@ internal static class Program
         }
     }
 
-    /// <summary>Puts the window back on a monitor when the one it was left on is not there.</summary>
-    /// <remarks>The stored placement can be perfectly sensible and still land nowhere: a venue runs
-    /// the screen on a projector, unplugs it, and the next launch restores onto coordinates that no
-    /// longer exist. The window then has no title bar on screen to drag and no way back, so this
-    /// costs the remembered position rather than the window.</remarks>
-    private static void EnsureReachable(PhotinoWindow window, Microsoft.Extensions.Logging.ILogger logger)
+    /// <summary>Moves a remembered window onto the monitors there are now; see <see cref="MonitorSpace.Fit"/>.</summary>
+    private static void FitOntoMonitors(PhotinoScreenWindow window, Microsoft.Extensions.Logging.ILogger logger)
     {
         try
         {
-            var monitors = window.Monitors.ToList();
+            var current = window.Bounds;
+            var fitted = MonitorSpace.Fit(current, window.Monitors, DefaultBounds);
+            if (fitted == current) return;
 
-            // Nothing to measure against: leave the window where it is rather than moving it on a
-            // guess.
-            if (monitors.Count == 0) return;
+            logger.LogWarning("The stored placement {Stored} does not fit the monitors there are now; opening at {Fitted}",
+                current, fitted);
 
-            var left = window.Left;
-            var top = window.Top;
-            var right = left + window.Width;
-            var bottom = top + window.Height;
-
-            // Any overlap at all is enough — a window half off the side is still draggable.
-            foreach (var monitor in monitors)
-            {
-                var area = monitor.WorkArea;
-                if (left < area.X + area.Width && right > area.X
-                    && top < area.Y + area.Height && bottom > area.Y)
-                    return;
-            }
-
-            var main = window.MainMonitor.WorkArea;
-            var x = main.X + Math.Max(0, (main.Width - window.Width) / 2);
-            var y = main.Y + Math.Max(0, (main.Height - window.Height) / 2);
-
-            logger.LogWarning(
-                "The stored placement {Left},{Top} is on no monitor; centring on the main one at {X},{Y}",
-                left, top, x, y);
-
-            window.SetLeft(x);
-            window.SetTop(y);
+            window.SetBounds(fitted);
         }
         catch (Exception ex)
         {
@@ -304,17 +285,19 @@ internal static class Program
         return reader.ReadToEnd();
     }
 
-    /// <summary>Full screen is remembered as a flag, not the monitor's own bounds.</summary>
-    /// <remarks>A screen may return on a different monitor, where old pixels leave it part-way off.</remarks>
+    /// <summary>Full screen and maximised are remembered as flags over the windowed rect; see <see cref="WindowPlacement"/>.</summary>
     private static void Remember(PhotinoWindow window)
     {
         if (_placement is null) return;
 
         try
         {
-            _placement.Schedule(_isFullScreen
-                ? new WindowPlacement(_restoreLeft, _restoreTop, _restoreWidth, _restoreHeight, true)
-                : new WindowPlacement(window.Left, window.Top, window.Width, window.Height, false));
+            _placement.Schedule(WindowPlacement.Capture(
+                new WindowBounds(window.Left, window.Top, window.Width, window.Height),
+                _isFullScreen,
+                new WindowBounds(_restoreLeft, _restoreTop, _restoreWidth, _restoreHeight),
+                _chrome?.IsMaximised ?? false,
+                _chrome?.RestoreBounds ?? default));
         }
         catch
         {
@@ -336,28 +319,6 @@ internal static class Program
                 if (_isFullScreen) SetFullScreen(window, false, logger);
                 break;
         }
-    }
-
-    /// <summary>The monitor the window is actually on, rather than the first one listed.</summary>
-    /// <remarks>A venue drives the console on one display and the screen on a television; taking
-    /// the first monitor would drag the screen off the television and onto the console mid-show.
-    /// Matched on the window's centre, so a window straddling an edge lands where most of it is.
-    /// </remarks>
-    internal static Photino.NET.Monitor MonitorUnder(PhotinoWindow window)
-    {
-        var centreX = window.Left + (window.Width / 2);
-        var centreY = window.Top + (window.Height / 2);
-
-        foreach (var monitor in window.Monitors)
-        {
-            var area = monitor.MonitorArea;
-
-            if (centreX >= area.X && centreX < area.X + area.Width
-                && centreY >= area.Y && centreY < area.Y + area.Height)
-                return monitor;
-        }
-
-        return window.MainMonitor;
     }
 
     /// <summary>Photino's own full screen where it behaves, and growing the window to cover the
@@ -392,15 +353,17 @@ internal static class Program
 
             if (fullScreen)
             {
-                var area = MonitorUnder(window).MonitorArea;
+                var area = MonitorSpace.FullScreenArea(
+                    MonitorSpace.MonitorUnder(_screenWindow!.Bounds, _screenWindow.Monitors), OperatingSystem.IsMacOS());
 
                 // Not SetTopMost: a floating window on macOS never becomes key, so Escape stops
                 // reaching the page.
-                window.SetLeft(area.X);
-                window.SetTop(area.Y);
+                window.SetLeft(area.Left);
+                window.SetTop(area.Top);
                 window.SetSize(area.Width, area.Height);
 
-                logger.LogInformation("Full screen on monitor {X},{Y} {Width}x{Height}", area.X, area.Y, area.Width, area.Height);
+                logger.LogInformation("Full screen on monitor {Area}; window now {Left},{Top} {Width}x{Height}",
+                    area, window.Left, window.Top, window.Width, window.Height);
             }
             else
             {

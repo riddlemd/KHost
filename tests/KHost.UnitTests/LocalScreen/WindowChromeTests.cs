@@ -68,6 +68,84 @@ public class WindowChromeTests
         Assert.False(LastState().GetProperty("maximised").GetBoolean());
     }
 
+    /// <summary>The OS reports the resize while SetBounds runs, and the placement store reads the
+    /// flag then: set late, a maximised rect is remembered as the window's own size.</summary>
+    [Fact]
+    public void Handle_MaximiseAndRestore_FlagMovesBeforeTheWindowDoes()
+    {
+        var seen = new List<bool>();
+        _window.When(w => w.SetBounds(Arg.Any<WindowBounds>())).Do(_ => seen.Add(_chrome.IsMaximised));
+
+        Send(new { type = "window-maximise" });
+        Send(new { type = "window-maximise" });
+
+        Assert.Equal([true, false], seen);
+    }
+
+    [Fact]
+    public void Handle_DragAMaximisedWindow_FlagClearsBeforeTheWindowMoves()
+    {
+        Send(new { type = "window-maximise" });
+        _window.Bounds.Returns(WorkArea);
+
+        var seen = new List<bool>();
+        _window.When(w => w.SetBounds(Arg.Any<WindowBounds>())).Do(_ => seen.Add(_chrome.IsMaximised));
+
+        Send(new { type = "window-drag", phase = "start", screenX = 1440, screenY = 40, clientX = 1440, innerWidth = 1920 });
+
+        Assert.Equal([false], seen);
+    }
+
+    [Fact]
+    public void Maximise_FromCode_FillsTheWorkAreaAndKeepsTheWindowToRestore()
+    {
+        _chrome.Maximise();
+
+        _window.Received(1).SetBounds(WorkArea);
+        Assert.True(_chrome.IsMaximised);
+        Assert.Equal(Windowed, _chrome.RestoreBounds);
+        Assert.True(LastState().GetProperty("maximised").GetBoolean());
+    }
+
+    [Fact]
+    public void Maximise_AlreadyMaximised_KeepsTheFirstRestoreRect()
+    {
+        _chrome.Maximise();
+        _window.Bounds.Returns(WorkArea);
+
+        _chrome.Maximise();
+
+        _window.Received(1).SetBounds(Arg.Any<WindowBounds>());
+        Assert.Equal(Windowed, _chrome.RestoreBounds);
+    }
+
+    [Fact]
+    public void Maximise_InFullScreen_LeavesTheWindowAlone()
+    {
+        _chrome.FullScreen = true;
+
+        _chrome.Maximise();
+
+        _window.DidNotReceive().SetBounds(Arg.Any<WindowBounds>());
+        Assert.False(_chrome.IsMaximised);
+    }
+
+    /// <summary>Windows at 150%: the window and the work area are in device pixels and the page in
+    /// CSS pixels, so the grab point is scaled while the restored size is not.</summary>
+    [Fact]
+    public void Handle_DragAMaximisedWindowAt150Percent_RestoresItUnderThePointerInDevicePixels()
+    {
+        var workArea = new WindowBounds(0, 0, 2880, 1680);
+        _window.WorkArea.Returns(workArea);
+        Send(new { type = "window-maximise" });
+        _window.Bounds.Returns(workArea);
+
+        // Grabbed half way along a bar 1920 CSS pixels wide.
+        Send(new { type = "window-drag", phase = "start", screenX = 960, screenY = 10, clientX = 960, innerWidth = 1920 });
+
+        _window.Received(1).SetBounds(new WindowBounds(1440 - 600, 0, 1200, 700));
+    }
+
     [Fact]
     public void Handle_MaximiseInFullScreen_LeavesTheWindowAlone()
     {

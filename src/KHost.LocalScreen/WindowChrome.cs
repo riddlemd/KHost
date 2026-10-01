@@ -29,6 +29,9 @@ internal sealed class WindowChrome(IScreenWindow window, ILogger logger)
 
     public bool IsMaximised { get { lock (_gate) return _maximised; } }
 
+    /// <summary>Where the window goes back to when it stops being maximised.</summary>
+    public WindowBounds RestoreBounds { get { lock (_gate) return _restore; } }
+
     /// <summary>Set by whoever drives full screen; the page hides the buttons, strip and edges while it is.</summary>
     public bool FullScreen
     {
@@ -88,6 +91,18 @@ internal sealed class WindowChrome(IScreenWindow window, ILogger logger)
         }
     }
 
+    /// <summary>Fills the work area, as the button does; for opening maximised as the window was left.</summary>
+    public void Maximise()
+    {
+        lock (_gate)
+        {
+            if (_fullScreen || _maximised) return;
+            SetMaximised(true);
+        }
+
+        PublishState();
+    }
+
     private void ToggleMaximised()
     {
         lock (_gate)
@@ -95,20 +110,30 @@ internal sealed class WindowChrome(IScreenWindow window, ILogger logger)
             // The buttons are hidden in full screen; a stale click must not resize a window that fills a monitor.
             if (_fullScreen) return;
 
-            if (_maximised)
-            {
-                window.SetBounds(_restore);
-                _maximised = false;
-            }
-            else
-            {
-                _restore = window.Bounds;
-                window.SetBounds(window.WorkArea);
-                _maximised = true;
-            }
+            SetMaximised(!_maximised);
         }
 
         PublishState();
+    }
+
+    // The flag moves before the window does: the OS reports the resize synchronously, and whoever
+    // remembers the window reads the flag to tell a maximise from the host resizing it.
+    private void SetMaximised(bool maximised)
+    {
+        if (maximised)
+        {
+            _restore = window.Bounds;
+            _maximised = true;
+
+            var area = window.WorkArea;
+            window.SetBounds(area);
+            logger.LogInformation("Maximised to the work area {WorkArea}", area);
+        }
+        else
+        {
+            _maximised = false;
+            window.SetBounds(_restore);
+        }
     }
 
     private void Drag(JsonElement root)
@@ -172,8 +197,8 @@ internal sealed class WindowChrome(IScreenWindow window, ILogger logger)
         var left = (int)Math.Round(pointerX - (share * _restore.Width));
 
         var restored = _restore with { Left = left, Top = current.Top };
-        window.SetBounds(restored);
         _maximised = false;
+        window.SetBounds(restored);
 
         return restored;
     }

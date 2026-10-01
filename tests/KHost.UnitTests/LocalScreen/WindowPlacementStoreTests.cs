@@ -136,6 +136,80 @@ public class WindowPlacementStoreTests : IDisposable
         Assert.Equal(new WindowPlacement(3, 3, 300, 300, false), Store("Screen 1").Read());
     }
 
+    private static readonly WindowBounds Current = new(1470, 31, 1920, 1049);
+    private static readonly WindowBounds BeforeFullScreen = new(200, 150, 1280, 720);
+    private static readonly WindowBounds BeforeMaximise = new(1600, 100, 1280, 720);
+
+    [Fact]
+    public void Capture_Windowed_RemembersTheWindowAsItIs()
+        => Assert.Equal(
+            new WindowPlacement(1470, 31, 1920, 1049, false, false),
+            WindowPlacement.Capture(Current, false, BeforeFullScreen, false, BeforeMaximise));
+
+    /// <summary>Remembering the work area as the window's size is how a restore came back as large
+    /// as the monitor with no way to un-maximise.</summary>
+    [Fact]
+    public void Capture_Maximised_RemembersTheWindowUnderneathAndTheFlag()
+        => Assert.Equal(
+            new WindowPlacement(1600, 100, 1280, 720, false, true),
+            WindowPlacement.Capture(Current, false, BeforeFullScreen, true, BeforeMaximise));
+
+    [Fact]
+    public void Capture_FullScreen_RemembersTheWindowItLeavesTo()
+        => Assert.Equal(
+            new WindowPlacement(200, 150, 1280, 720, true, false),
+            WindowPlacement.Capture(Current, true, BeforeFullScreen, false, BeforeMaximise));
+
+    /// <summary>Full screen entered from maximised leaves back to maximised, whose window is the one to keep.</summary>
+    [Fact]
+    public void Capture_FullScreenFromMaximised_RemembersTheWindowBeneathBoth()
+        => Assert.Equal(
+            new WindowPlacement(1600, 100, 1280, 720, true, true),
+            WindowPlacement.Capture(Current, true, Current, true, BeforeMaximise));
+
+    [Fact]
+    public void Schedule_Maximised_ReadsBackMaximised()
+    {
+        using (var store = Store("Screen 1"))
+            store.Schedule(new WindowPlacement(1600, 100, 1280, 720, false, true));
+
+        Assert.True(Store("Screen 1").Read()!.Maximised);
+    }
+
+    /// <summary>A file written before the flag existed opens windowed.</summary>
+    [Fact]
+    public void Read_FileWithoutTheMaximisedFlag_IsNotMaximised()
+    {
+        var path = Path.Combine(_root, "cache", "screens", "Screen 1.window.json");
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        File.WriteAllText(path, """{"Left":80,"Top":80,"Width":1280,"Height":720,"FullScreen":false}""");
+
+        var placement = Store("Screen 1").Read();
+
+        Assert.Equal(new WindowPlacement(80, 80, 1280, 720, false, false), placement);
+    }
+
+    /// <summary>A drag reports every frame; the write waits for the window to settle, then lands
+    /// without the store being disposed, since the host closes screens by killing them.</summary>
+    [Fact]
+    public async Task Schedule_WritesOnlyOnceTheWindowSettles()
+    {
+        var path = Path.Combine(_root, "cache", "screens", "Screen 1.window.json");
+        using var store = Store("Screen 1");
+
+        store.Schedule(new WindowPlacement(120, 80, 1600, 900, false));
+        Assert.False(File.Exists(path));
+
+        var deadline = DateTime.UtcNow.AddSeconds(5);
+        while (!File.Exists(path) && DateTime.UtcNow < deadline)
+            await Task.Delay(50);
+
+        // The file can be seen before the write into it has finished.
+        await Task.Delay(200);
+
+        Assert.Equal(new WindowPlacement(120, 80, 1600, 900, false), Store("Screen 1").Read());
+    }
+
     /// <summary>A host names screens, so the name reaches a file path as whatever they typed.</summary>
     [Theory]
     [InlineData("Screen 1", "Screen 1")]
