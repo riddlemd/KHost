@@ -165,6 +165,14 @@ public sealed class ShowNextSingerCommand : ScreenCommandBase
 
     /// <summary>Null where the queued song has no artist recorded.</summary>
     public string? Artist { get; init; }
+
+    /// <summary>What the card is drawn over: the venue's picture, black, or a visualisation.</summary>
+    public NextSingerBackground Background { get; init; }
+
+    /// <summary>The visualisation behind the card, set only with <see cref="NextSingerBackground.Visualisation"/>.</summary>
+    /// <remarks>Shaped as a song's would be sent, with no levels: nothing is playing to read them
+    /// from. The screen stops it when the card clears.</remarks>
+    public SetVisualiserCommand? Visualiser { get; init; }
 }
 
 /// <summary>Every QR code on screen, sent whole on change, like <see cref="SetMarqueeCommand"/>.</summary>

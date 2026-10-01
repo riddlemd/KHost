@@ -106,6 +106,40 @@ public class AppSettingsServiceTests : IDisposable
         Assert.Equal(expected, overlay.RootElement.GetProperty("Playback").GetProperty("DefaultBackingVolume").GetInt32());
     }
 
+    [Theory]
+    [InlineData(-3, 0)]
+    [InlineData(45, 30)]
+    [InlineData(2.5, 2.5)]
+    public async Task StopFadeSeconds_IsClampedOnReadAsWellAsOnSave(double typed, double expected)
+    {
+        var service = Service(new KeyValuePair<string, string?>(
+            "Playback:StopFadeDuration", TimeSpan.FromSeconds(typed).ToString()));
+
+        Assert.Equal(expected, service.Current.StopFadeSeconds);
+
+        await service.SaveAsync(new AppSettings { StopFadeSeconds = typed });
+        using var overlay = JsonDocument.Parse(
+            await File.ReadAllTextAsync(Path.Combine(_directory, AppSettingsService.OverlayFileName)));
+        Assert.Equal(TimeSpan.FromSeconds(expected),
+            TimeSpan.Parse(overlay.RootElement.GetProperty("Playback").GetProperty("StopFadeDuration").GetString()!));
+    }
+
+    [Theory]
+    [InlineData(0, 1)]
+    [InlineData(20, 10)]
+    [InlineData(4, 4)]
+    public async Task SegmentSeconds_IsClampedOnReadAsWellAsOnSave(int typed, int expected)
+    {
+        var service = Service(new KeyValuePair<string, string?>("MediaStream:SegmentSeconds", typed.ToString()));
+
+        Assert.Equal(expected, service.Current.SegmentSeconds);
+
+        await service.SaveAsync(new AppSettings { SegmentSeconds = typed });
+        using var overlay = JsonDocument.Parse(
+            await File.ReadAllTextAsync(Path.Combine(_directory, AppSettingsService.OverlayFileName)));
+        Assert.Equal(expected, overlay.RootElement.GetProperty("MediaStream").GetProperty("SegmentSeconds").GetInt32());
+    }
+
     [Fact]
     public async Task LeadInGraceSeconds_DefaultsToOff_AndRoundTripsThroughTheOverlay()
     {

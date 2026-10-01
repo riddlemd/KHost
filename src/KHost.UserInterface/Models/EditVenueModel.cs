@@ -97,12 +97,15 @@ public class EditVenueModel
     public string? MarqueeSongColor { get; set; }
     public string? MarqueeDividerColor { get; set; }
     public MarqueeDividerShape MarqueeDividerShape { get; set; }
+    public bool MarqueeHideDuringSong { get; set; }
 
     /// <summary>The plugin whose code this venue shows, or null for none. Null is the default.</summary>
     public string? QrCodeSource { get; set; }
 
     /// <summary>The visualisation playlist under a song's words; null leaves black.</summary>
     public Guid? VisualisationPlaylistId { get; set; }
+
+    public NextSingerBackground NextSingerBackground { get; set; }
 
     /// <summary>Null takes the image's own answer, which is what a venue that never asks gets.</summary>
     public ImageScaling? BrandingImageScaling { get; set; }
@@ -195,11 +198,13 @@ public class EditVenueModel
             MarqueeSongColor = settings.MarqueeSongColor ?? DefaultMarqueeText,
             MarqueeDividerColor = settings.MarqueeDividerColor ?? DefaultMarqueeText,
             MarqueeDividerShape = settings.MarqueeDividerShape,
+            MarqueeHideDuringSong = settings.MarqueeHideDuringSong,
 
             // Null is "no preference", which a select cannot show. It offers what a code would take
             // anyway, and saving that back changes nothing.
             QrCodeSource = settings.QrCodeSource,
             BrandingImageScaling = settings.BrandingImageScaling,
+            NextSingerBackground = settings.NextSingerBackground,
             BreakMusicCardEnabled = settings.BreakMusicCardEnabled,
             BreakMusicCardCorner = settings.BreakMusicCardCorner ?? OverlayCorner.BottomLeft,
             QrCodeCorner = settings.QrCodeCorner ?? OverlayCorner.BottomRight,
@@ -250,8 +255,10 @@ public class EditVenueModel
         venue.Settings.MarqueeSongColor = MarqueeSongColor;
         venue.Settings.MarqueeDividerColor = MarqueeDividerColor;
         venue.Settings.MarqueeDividerShape = MarqueeDividerShape;
+        venue.Settings.MarqueeHideDuringSong = MarqueeHideDuringSong;
         venue.Settings.QrCodeSource = QrCodeSource;
         venue.Settings.BrandingImageScaling = BrandingImageScaling;
+        venue.Settings.NextSingerBackground = NextSingerBackground;
         venue.Settings.BreakMusicCardEnabled = BreakMusicCardEnabled;
         venue.Settings.BreakMusicCardCorner = BreakMusicCardCorner;
         venue.Settings.QrCodeCorner = QrCodeCorner;

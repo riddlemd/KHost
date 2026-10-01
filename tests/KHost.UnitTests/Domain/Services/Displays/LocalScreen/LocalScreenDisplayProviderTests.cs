@@ -562,6 +562,73 @@ public class LocalScreenDisplayProviderTests
         Assert.True(await WaitForSentAsync<SetMarqueeCommand>(marquee => marquee.DividerGlyph == "★"));
     }
 
+    [Fact]
+    public async Task PlaybackChanged_PerformanceStarts_HideDuringSongOn_TakesTheMarqueeDown()
+    {
+        _settings.MarqueeHideDuringSong = true;
+        using var provider = DrawingProvider();
+
+        _playback.CurrentPerformance.Returns(new Performance());
+        _realBroker.Announce(new PlaybackChanged());
+
+        Assert.True(await WaitForSentAsync<SetMarqueeCommand>(marquee => !marquee.Enabled));
+        Assert.DoesNotContain(Sent<SetMarqueeCommand>(), marquee => marquee.Enabled);
+    }
+
+    [Fact]
+    public async Task SelectedVenueChanged_PerformanceUnderWay_HideDuringSongOff_KeepsTheMarquee()
+    {
+        _playback.CurrentPerformance.Returns(new Performance());
+        using var provider = DrawingProvider();
+
+        _realBroker.Announce(new SelectedVenueChanged());
+
+        Assert.True(await WaitForSentAsync<SetMarqueeCommand>(marquee => marquee.Enabled && marquee.Message == "Tonight"));
+    }
+
+    /// <summary>Paused mid-song is still somebody's performance; only its end brings the band back.</summary>
+    [Fact]
+    public async Task PlaybackChanged_PerformanceEnds_HideDuringSongOn_PutsTheMarqueeBack()
+    {
+        _settings.MarqueeHideDuringSong = true;
+        using var provider = DrawingProvider();
+        _playback.CurrentPerformance.Returns(new Performance());
+        _realBroker.Announce(new PlaybackChanged());
+        Assert.True(await WaitForSentAsync<SetMarqueeCommand>(marquee => !marquee.Enabled));
+        _screenServer.ClearReceivedCalls();
+
+        _playback.CurrentPerformance.Returns((Performance?)null);
+        _realBroker.Announce(new PlaybackChanged());
+
+        Assert.True(await WaitForSentAsync<SetMarqueeCommand>(marquee => marquee.Enabled && marquee.Message == "Tonight"));
+    }
+
+    [Fact]
+    public async Task SelectedVenueChanged_HideDuringSongTurnedOnMidSong_TakesTheMarqueeDownNow()
+    {
+        _playback.CurrentPerformance.Returns(new Performance());
+        using var provider = DrawingProvider();
+        _realBroker.Announce(new SelectedVenueChanged());
+        Assert.True(await WaitForSentAsync<SetMarqueeCommand>(marquee => marquee.Enabled));
+        _screenServer.ClearReceivedCalls();
+
+        _settings.MarqueeHideDuringSong = true;
+        _realBroker.Announce(new SelectedVenueChanged());
+
+        Assert.True(await WaitForSentAsync<SetMarqueeCommand>(marquee => !marquee.Enabled));
+    }
+
+    /// <summary>An ad plays with no performance behind it, so the band stays for it.</summary>
+    [Fact]
+    public async Task BuildMarqueeAsync_HideDuringSongOn_NoPerformance_DrawsTheMarquee()
+    {
+        _settings.MarqueeHideDuringSong = true;
+
+        var marquee = await LocalScreenDisplayProvider.BuildMarqueeAsync(_settings, _upNext, performanceUnderWay: false);
+
+        Assert.True(marquee.Enabled);
+    }
+
     public static TheoryData<object, bool, bool, bool> WhatEachChangeRedraws() => new()
     {
         // message,                                   marquee, codes, card

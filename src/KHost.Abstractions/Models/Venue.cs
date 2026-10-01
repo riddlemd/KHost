@@ -158,6 +158,10 @@ public class Venue : RepositoryModel
         /// <summary>Dot is the zero value, so an old row defaults there — today's look.</summary>
         public MarqueeDividerShape MarqueeDividerShape { get; set; }
 
+        /// <summary>Takes the marquee down while someone is singing, paused mid-song included, and
+        /// puts it back between singers. An ad or an idle screen keeps it. Off when unset.</summary>
+        public bool MarqueeHideDuringSong { get; set; }
+
         /// <summary>Background clips a venue once picked for its songs, by file name. Nothing reads
         /// or offers it any more: a song with no picture of its own plays over black, or the
         /// visualiser (<see cref="VisualisationPlaylistId"/>).</summary>
@@ -177,6 +181,9 @@ public class Venue : RepositoryModel
         /// <remarks>Null when unset, so a venue that has never been asked needs no backfill. Only a
         /// display that draws the words itself shows one; burned-in words stay on black.</remarks>
         public Guid? VisualisationPlaylistId { get; set; }
+
+        /// <summary>What the "Up next" card is drawn over. Over when unset.</summary>
+        public NextSingerBackground NextSingerBackground { get; set; }
 
         /// <summary>Which plugin's QR code shows; null (default) means none shown until chosen.</summary>
         public string? QrCodeSource { get; set; }
