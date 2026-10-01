@@ -16,15 +16,12 @@ internal sealed class AppSettingsService : IAppSettingsService
     internal const string OverlayFileName = "settings.json";
 
     private readonly IConfiguration _configuration;
-    private readonly IUsersService _usersService;
     private readonly IFFmpegService _ffmpeg;
     private readonly string _overlayPath;
 
-    public AppSettingsService(
-        IConfiguration configuration, IUsersService usersService, IFFmpegService ffmpeg, string? overlayDirectory = null)
+    public AppSettingsService(IConfiguration configuration, IFFmpegService ffmpeg, string? overlayDirectory = null)
     {
         _configuration = configuration;
-        _usersService = usersService;
         _ffmpeg = ffmpeg;
         _overlayPath = Path.Combine(overlayDirectory ?? Path.Combine(AppContext.BaseDirectory, "cache"), OverlayFileName);
     }
@@ -36,7 +33,9 @@ internal sealed class AppSettingsService : IAppSettingsService
 
     public AppSettings Current => new()
     {
-        RequireLogin = _configuration.GetValue<bool?>("Auth:RequireLogin") ?? true,
+        // RequireLogin is config-only now: no App Settings checkbox writes it, so this is the
+        // one place it is ever read from the layered configuration (appsettings.json/env/overlay).
+        RequireLogin = _configuration.GetValue<bool?>("Auth:RequireLogin") ?? false,
         LaunchScreenOnStartup = _configuration.GetValue<bool?>("LocalScreen:LaunchOnStartup") ?? false,
         FFmpegPath = Blank(_configuration[FFmpegService.ConfigurationKey]),
         MediaDirectory = NormalizeMediaDirectory(_configuration["Plugins:MediaDirectory"]),
@@ -115,16 +114,8 @@ internal sealed class AppSettingsService : IAppSettingsService
     {
         var before = Current;
 
-        if (settings.RequireLogin && !before.RequireLogin && !await _usersService.HasAdminWithPasswordAsync())
-        {
-            return new AppSettingsSaveResult(false,
-                "No admin user has a password yet. Requiring sign-in now would lock everyone out. "
-                + "Set a password on an admin in the Users Manager first.");
-        }
-
         var overlay = new Dictionary<string, object?>
         {
-            ["Auth"] = new Dictionary<string, object?> { ["RequireLogin"] = settings.RequireLogin },
             ["Playback"] = new Dictionary<string, object?>
             {
                 ["StopFadeDuration"] = TimeSpan.FromSeconds(StopFadeClamp(settings.StopFadeSeconds)).ToString(),

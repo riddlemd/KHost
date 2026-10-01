@@ -27,8 +27,11 @@ public class SetupRedirectProvider : IStartupRedirectProvider
 
         _logger.LogDebug("Checking setup status for path {Path}", path);
         // A no-login console needs no admin account to be usable; a venue is enough.
-        var requireLogin = _configuration.GetValue<bool?>("Auth:RequireLogin") ?? true;
-        var hasAdminUser = !requireLogin || await _usersService.HasAdminUserAsync();
+        var requireLogin = _configuration.GetValue<bool?>("Auth:RequireLogin") ?? false;
+        // HasAdminWithPasswordAsync, not HasAdminUserAsync: a host who flips the flag on by hand
+        // after setup, with no admin that can actually sign in, must land back in the wizard
+        // rather than be sent to a login page nothing can satisfy.
+        var hasAdminUser = !requireLogin || await _usersService.HasAdminWithPasswordAsync();
         var hasVenue = await _venuesService.HasAnyAsync();
         var setupComplete = hasAdminUser && hasVenue;
         _logger.LogDebug("Setup complete: {SetupComplete}", setupComplete);
