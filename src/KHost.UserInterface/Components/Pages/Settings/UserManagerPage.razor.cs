@@ -49,9 +49,12 @@ public partial class UserManagerPage : IDisposable
         await DialogService.RequestEditAsync(new KHostUser { Name = "" }, async user => await SaveAsync(user));
     }
 
+    // Re-read rather than the row: a save replaces group memberships with what the dialog holds,
+    // so it must open on the stored groups, not on whatever the page last searched.
     private async Task OpenEditDialogAsync(KHostUser user)
     {
-        await DialogService.RequestEditAsync(user, async updated => await SaveAsync(updated));
+        if (await UsersService.ReadAsync(user.Id) is not { } fresh) return;
+        await DialogService.RequestEditAsync(fresh, async updated => await SaveAsync(updated));
     }
 
     private async Task OpenPerformanceHistoryAsync(KHostUser user)

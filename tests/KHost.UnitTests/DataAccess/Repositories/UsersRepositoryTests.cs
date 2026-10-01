@@ -321,7 +321,7 @@ public class UsersRepositoryTests : IDisposable
         Assert.True(key.IsEphemeral);
     }
 
-    /// <summary>Search results save through UpdateAsync, which deletes keys missing from the write.</summary>
+    /// <summary>A search row is a whole singer, the same as ReadAsync returns.</summary>
     [Fact]
     public async Task Search_BringsTheForeignKeysWithIt()
     {

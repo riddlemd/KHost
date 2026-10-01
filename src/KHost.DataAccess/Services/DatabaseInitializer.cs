@@ -63,7 +63,6 @@ internal class DatabaseInitializer : IDatabaseInitializer
         await context.Database.MigrateAsync();
 
         await SweepStalledDownloadsAsync();
-        await SweepEphemeralForeignKeysAsync();
         await RefoldStoredTextAsync();
         await SeedDefaultAdminUserAsync();
         await SeedDefaultVenueAsync();
@@ -100,18 +99,6 @@ internal class DatabaseInitializer : IDatabaseInitializer
             // write. Nothing is lost: the rows stay as they are, one still reachable by its exact spelling.
             _logger.LogError(ex, "Could not refold stored text: two rows fold to the same value");
         }
-    }
-
-    /// <summary>Drops every ephemeral foreign key; none can have outlived its process.</summary>
-    /// <remarks>Doing it host-side, not in the plugin, stops a plugin's rows outliving the plugin.</remarks>
-    internal async Task SweepEphemeralForeignKeysAsync()
-    {
-        using var context = await _contextFactory.CreateDbContextAsync();
-
-        var dropped = await context.UserForeignKeys.Where(k => k.IsEphemeral).ExecuteDeleteAsync();
-
-        if (dropped > 0)
-            _logger.LogInformation("Dropped {Count} ephemeral singer foreign key(s) left by the last run", dropped);
     }
 
     internal async Task SweepStalledDownloadsAsync()

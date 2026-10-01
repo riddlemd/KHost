@@ -150,8 +150,11 @@ public partial class SelectedSingerInfoPanel : IAsyncDisposable
 
     private async Task OpenUserEditDialogAsync()
     {
-        if (SingerQueueService.SelectedUser is null) return;
-        await DialogService.RequestEditAsync(SingerQueueService.SelectedUser, async user => await SaveUserAsync(user));
+        // Re-read rather than the queue's cached copy: a save replaces group memberships with what
+        // the dialog holds, and the dialog edits the object it is handed in place.
+        if (SingerQueueService.SelectedUser is not { } selected) return;
+        if (await UsersService.ReadAsync(selected.Id) is not { } fresh) return;
+        await DialogService.RequestEditAsync(fresh, async user => await SaveUserAsync(user));
     }
 
     private async Task SaveUserAsync(KHostUser? user)
