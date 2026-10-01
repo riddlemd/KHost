@@ -18,6 +18,15 @@
         }
     </optgroup>
 }
+@if (Retro.Any())
+{
+    <optgroup label="Retro">
+        @foreach (var preset in Retro)
+        {
+            <option value="@VisualisationsManagerPage.PresetKey(preset.Source, preset.Name)">@(preset.Title ?? preset.Name)</option>
+        }
+    </optgroup>
+}
 <optgroup label="MilkDrop presets">
     @foreach (var preset in Presets.Where(p => p.Source == VisualiserPresetSource.Bundled))
     {

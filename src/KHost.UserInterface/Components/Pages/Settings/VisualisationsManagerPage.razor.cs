@@ -368,10 +368,12 @@ public partial class VisualisationsManagerPage : IDisposable
                    _ => " · Classic colours",
                });
 
-    /// <summary>Whether the entry is a calm scene, whose classic palette is a mix of colours rather
-    /// than a meter's green to red.</summary>
-    private static bool IsAmbient(VisualisationEntry entry)
-        => VisualiserPresetService.IsAmbient(entry.PresetSource, entry.PresetName);
+    /// <summary>What the classic palette is for this entry: a calm scene's mix of colours, a retro
+    /// effect's own look, or a meter's green to red.</summary>
+    private static string ClassicWording(VisualisationEntry entry)
+        => VisualiserPresetService.IsAmbient(entry.PresetSource, entry.PresetName) ? "Classic, a soft mix of colours"
+           : VisualiserPresetService.IsRetro(entry.PresetSource, entry.PresetName) ? "Classic, the effect's own colours"
+           : "Classic, green to red";
 
     /// <summary>Whether the entry draws bars, and so has a bar count to choose.</summary>
     private static bool HasBars(VisualisationEntry entry)

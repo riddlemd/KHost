@@ -1,16 +1,16 @@
 // The host's own drawings under the words: a spectrum analyser, the same mirrored, an
-// oscilloscope and a pair of VU meters, and a set of calm ambient scenes. Canvas 2D, no third-party
-// code. visualiser.js decides when one is up and hands each frame what it heard; this only turns
-// that into a picture.
+// oscilloscope and a pair of VU meters, a set of calm ambient scenes and a set of old-screen (retro)
+// effects. Canvas 2D, no third-party code. visualiser.js decides when one is up and hands each frame
+// what it heard; this only turns that into a picture.
 //
 // The analysers sit low on the screen, under where the words usually are, so the picture behind a
-// line stays dark. The ambient scenes fill the screen but stay dim, and the music only nudges them.
-// Frame-counted motion (peak holds, falls, every ambient movement) assumes visualiser.js's 30fps
-// cap, and is why a frozen picture resumes where it stopped.
+// line stays dark. The ambient and retro scenes fill the screen but stay dim, and the music only
+// nudges them. Frame-counted motion (peak holds, falls, every scene's movement) assumes
+// visualiser.js's 30fps cap, and is why a frozen picture resumes where it stopped.
 
 /// The styles a playlist entry can name, by the name the host sends. VisualiserPresetService
-/// mirrors this list; a test holds them together. A name starting 'ambient-' is a calm scene, and
-/// the Visualisations page groups by that prefix.
+/// mirrors this list; a test holds them together. A name starting 'ambient-' is a calm scene and
+/// one starting 'retro-' an old-screen effect; the Visualisations page groups by those prefixes.
 const EQ_VISUALISER_STYLES = [
     { name: 'spectrum-bars', title: 'Spectrum bars' },
     { name: 'mirrored-bars', title: 'Mirrored bars' },
@@ -21,7 +21,33 @@ const EQ_VISUALISER_STYLES = [
     { name: 'ambient-embers', title: 'Rising embers' },
     { name: 'ambient-rings', title: 'Pulse rings' },
     { name: 'ambient-beams', title: 'Sweeping beams' },
+    { name: 'retro-static', title: 'TV static' },
+    { name: 'retro-vhs', title: 'VHS tracking' },
+    { name: 'retro-crt', title: 'CRT glow' },
+    { name: 'retro-glitch', title: 'Glitch blocks' },
+    { name: 'retro-bars', title: 'Rolling colour bars' },
 ];
+
+/// Retro scenes: the grain is drawn at this size and scaled up, never generated per screen pixel,
+/// and only RETRO_GRAIN_TILES frames of it are made, once, then cycled.
+const RETRO_GRAIN_WIDTH = 320;
+const RETRO_GRAIN_HEIGHT = 180;
+const RETRO_GRAIN_TILES = 6;
+
+/// A glitch holds RETRO_GLITCH_HOLD frames; a beat may start one at most every RETRO_GLITCH_GAP,
+/// and a passage with no beat gets one every RETRO_GLITCH_IDLE.
+const RETRO_GLITCH_GAP = 24;
+const RETRO_GLITCH_IDLE = 150;
+const RETRO_GLITCH_HOLD = 6;
+
+/// Classic, for a retro scene: each effect's own look rather than a meter's green to red.
+const RETRO_CLASSIC = {
+    'retro-static': { main: ['#c8ccd6', '#9aa3b5'], grain: '#c8ccd6' },
+    'retro-vhs': { main: ['#1f3c9c', '#3a2a7a'], grain: '#c8ccd6', red: '#ff2850', cyan: '#28dcff' },
+    'retro-crt': { main: ['#33ff99', '#ffb347', '#4da6ff', '#c77dff'], grain: '#c8ccd6' },
+    'retro-glitch': { main: ['#ff2e88', '#22e0ff', '#7b5cff', '#1fd17a'], grain: '#c8ccd6', red: '#ff2850', cyan: '#28dcff' },
+    'retro-bars': { main: ['#c0c0c0', '#c0c000', '#00c0c0', '#00c000', '#c000c0', '#c00000', '#0000c0'], grain: '#c8ccd6' },
+};
 
 /// The most any one ambient shape is painted at. Shapes lay over black, so no pixel is ever brighter
 /// than this share of its colour from one shape, which keeps the loudest moment a glow.
@@ -272,6 +298,55 @@ function ambientColourAt(palette, at) {
     return [0, 1, 2].map((k) => Math.round(a[k] + (b[k] - a[k]) * t));
 }
 
+/// Whether a style is one of the old-screen effects. They follow the ambient scenes' rules: the same
+/// eased loudness, the same AMBIENT_MAX_ALPHA ceiling on anything that adds light.
+function isRetroStyle(name) {
+    return typeof name === 'string' && name.startsWith('retro-') && isEqVisualiserStyle(name);
+}
+
+/// A retro scene's colours as [r, g, b]: `main` (its picture), `grain` (the snow), and `red` and
+/// `cyan` (a chroma fringe). Classic is the effect's own look; the accent or a single colour turns
+/// every one of them into a shade of that colour, the fringes included.
+function retroColours(style, scheme, colour) {
+    if (scheme === 'theme' || scheme === 'single') {
+        const [base, light, dark] = ambientPalette(scheme, colour);
+        return { main: [base, light, dark], grain: light, red: light, cyan: dark };
+    }
+
+    const look = RETRO_CLASSIC[style] || RETRO_CLASSIC['retro-static'];
+    const grain = eqParseColour(look.grain);
+    return {
+        main: look.main.map(eqParseColour),
+        grain,
+        red: eqParseColour(look.red || look.grain),
+        cyan: eqParseColour(look.cyan || look.grain),
+    };
+}
+
+/// A canvas off the page to hold the grain, or null where there is none to make.
+function retroCanvas(width, height) {
+    let made = null;
+    if (typeof document !== 'undefined' && document.createElement) made = document.createElement('canvas');
+    else if (typeof OffscreenCanvas === 'function') made = new OffscreenCanvas(width, height);
+    if (made) { made.width = width; made.height = height; }
+    return made;
+}
+
+/// Fills `image` (an ImageData) with one frame of snow in `rgb`: mostly dark specks, a few bright,
+/// so the grain reads as snow rather than a grey haze.
+function retroFillGrain(image, rgb, random) {
+    const data = image.data;
+    for (let i = 0; i < data.length; i += 4) {
+        const v = random();
+        const lit = v * v;
+        data[i] = rgb[0] * lit;
+        data[i + 1] = rgb[1] * lit;
+        data[i + 2] = rgb[2] * lit;
+        data[i + 3] = 255;
+    }
+    return image;
+}
+
 /// An opacity held under AMBIENT_MAX_ALPHA.
 function ambientAlpha(value) {
     return Math.min(AMBIENT_MAX_ALPHA, Math.max(0, value));
@@ -312,9 +387,13 @@ function ambientStepEnergy(state, loudness, bass) {
 }
 
 /// One style drawn on `canvas`'s 2D context. `canvas.width`/`height` are the drawing buffer, sized
-/// by the caller. `seed` lays out the ambient scenes; the same seed draws the same frames.
-function createEqVisualiser(canvas, { seed = AMBIENT_SEED } = {}) {
+/// by the caller. `seed` lays out the ambient and retro scenes; the same seed draws the same frames.
+/// `createCanvas(width, height)` makes the off-page canvas the retro grain is held on.
+function createEqVisualiser(canvas, { seed = AMBIENT_SEED, createCanvas = retroCanvas } = {}) {
     const ctx = canvas.getContext('2d');
+    // Outlives a style switch: making the grain is the one costly step, and it depends only on the
+    // seed and the colour.
+    let grain = null;
     let style = null;
     let barCount = EQ_DEFAULT_BAR_COUNT;
     let scheme = 'classic';
@@ -500,7 +579,225 @@ function createEqVisualiser(canvas, { seed = AMBIENT_SEED } = {}) {
             }));
         } else if (style === 'ambient-beams') {
             scene.items = make(5, () => ({ phase: random() * Math.PI * 2, speed: 0.12 + 0.1 * random(), reach: 0.35 + 0.1 * random() }));
+        } else if (style === 'retro-vhs') {
+            scene.items = make(2, (_, i) => ({ phase: random() + i * 0.5, speed: 0.045 + 0.02 * random() }));
+        } else if (style === 'retro-glitch') {
+            scene.items = make(16, () => ({
+                x: random() * 0.92, y: random() * 0.92, w: 0.08 + 0.18 * random(), h: 0.04 + 0.1 * random(),
+                hue: random() * 4, twinkle: random() * Math.PI * 2,
+            }));
+            Object.assign(scene, { glitch: null, lastGlitch: -RETRO_GLITCH_IDLE, glitchCount: 0 });
         } else scene.items = [];
+        scene.lastTile = 0;
+    }
+
+    /// RETRO_GRAIN_TILES frames of snow in `rgb`, made once per colour from the seed; null where no
+    /// canvas can be made, and the scene then draws without its grain.
+    function grainTiles(rgb) {
+        const key = rgb.join(',');
+        if (grain && grain.key === key) return grain.tiles;
+
+        const random = ambientRandom(seed ^ 0x67726e);
+        const tiles = [];
+        for (let i = 0; i < RETRO_GRAIN_TILES; i++) {
+            const tile = createCanvas(RETRO_GRAIN_WIDTH, RETRO_GRAIN_HEIGHT);
+            const tileCtx = tile && tile.getContext('2d');
+            if (!tileCtx) { grain = { key, tiles: null }; return null; }
+            tileCtx.putImageData(retroFillGrain(tileCtx.createImageData(RETRO_GRAIN_WIDTH, RETRO_GRAIN_HEIGHT), rgb, random), 0, 0);
+            tiles.push(tile);
+        }
+        grain = { key, tiles };
+        return tiles;
+    }
+
+    /// The next frame of snow: never the one just shown, chosen from the scene's own seeded stream.
+    function nextTile(tiles) {
+        scene.lastTile = (scene.lastTile + 1 + Math.floor(scene.random() * (tiles.length - 1))) % tiles.length;
+        return tiles[scene.lastTile];
+    }
+
+    /// Grain stretched over a region, crisp rather than smeared, at an opacity under the ceiling.
+    function drawGrain(tile, alpha, sy, sh, dx, dy, dw, dh) {
+        if (!tile || !(alpha > 0)) return;
+        ctx.imageSmoothingEnabled = false;
+        ctx.globalAlpha = ambientAlpha(alpha);
+        ctx.drawImage(tile, 0, sy, RETRO_GRAIN_WIDTH, sh, dx, dy, dw, dh);
+        ctx.globalAlpha = 1;
+        ctx.imageSmoothingEnabled = true;
+    }
+
+    /// A tube's dark lines between rows of light. Black only takes light away.
+    function scanlines(alpha) {
+        const w = canvas.width, h = canvas.height;
+        const pitch = Math.max(2, Math.round(h / 240));
+        const line = Math.max(1, Math.round(pitch / 3));
+        ctx.fillStyle = `rgba(0,0,0,${alpha})`;
+        for (let y = 0; y < h; y += pitch) ctx.fillRect(0, y, w, line);
+    }
+
+    /// The corners fall off into black, as a curved tube's do.
+    function vignette(alpha) {
+        const w = canvas.width, h = canvas.height;
+        const g = ctx.createRadialGradient(w / 2, h / 2, h * 0.3, w / 2, h / 2, Math.hypot(w, h) / 2);
+        g.addColorStop(0, 'rgba(0,0,0,0)');
+        g.addColorStop(1, `rgba(0,0,0,${alpha})`);
+        ctx.fillStyle = g;
+        ctx.fillRect(0, 0, w, h);
+    }
+
+    /// A soft horizontal band of light `tall` high centred on `y`, as a detuned set's hum bar.
+    function humBar(y, tall, rgb, alpha) {
+        const w = canvas.width;
+        const g = ctx.createLinearGradient(0, y - tall / 2, 0, y + tall / 2);
+        g.addColorStop(0, rgba(rgb, 0));
+        g.addColorStop(0.5, rgba(rgb, ambientAlpha(alpha)));
+        g.addColorStop(1, rgba(rgb, 0));
+        ctx.fillStyle = g;
+        ctx.fillRect(0, y - tall / 2, w, tall);
+    }
+
+    /// Snow on a dead channel: a fresh frame of grain each frame, a hum bar drifting down. Loudness
+    /// thickens the snow, a second layer fading in over the first.
+    function drawStatic(e, t, colours) {
+        const w = canvas.width, h = canvas.height;
+        const tiles = grainTiles(colours.grain);
+        if (tiles) {
+            drawGrain(nextTile(tiles), 0.16 + 0.1 * e.level, 0, RETRO_GRAIN_HEIGHT, 0, 0, w, h);
+            const thicker = tiles[(scene.lastTile + (tiles.length >> 1)) % tiles.length];
+            drawGrain(thicker, 0.12 * e.level, 0, RETRO_GRAIN_HEIGHT, 0, 0, w, h);
+        }
+        humBar(h * (((t * 0.06) % 1.4) - 0.2), h * 0.22, colours.main[0], 0.04 + 0.04 * e.bass);
+        scanlines(0.3);
+    }
+
+    /// A worn tape: a dim blue wash, and tracking bands of snow rolling slowly up the screen, each
+    /// torn sideways with a red and a cyan fringe. Head-switching noise along the bottom edge.
+    function drawVhs(e, t, colours) {
+        const w = canvas.width, h = canvas.height;
+        const wash = ctx.createLinearGradient(0, 0, 0, h);
+        wash.addColorStop(0, rgba(colours.main[0], ambientAlpha(0.1 + 0.06 * e.level)));
+        wash.addColorStop(1, rgba(colours.main[1] || colours.main[0], ambientAlpha(0.16 + 0.08 * e.level)));
+        ctx.fillStyle = wash;
+        ctx.fillRect(0, 0, w, h);
+
+        const tiles = grainTiles(colours.grain);
+        const tile = tiles && nextTile(tiles);
+        drawGrain(tile, 0.05, 0, RETRO_GRAIN_HEIGHT, 0, 0, w, h);
+
+        for (const band of scene.items) {
+            const tall = h * (0.03 + 0.02 * e.bass);
+            const y = h * (1.15 - ((band.phase + t * band.speed) % 1.3));
+            const tear = w * (0.006 + 0.01 * e.level) * Math.sin(t * 3.1 + band.phase * 7);
+
+            // The band's own picture, pulled sideways: the tear a misaligned head leaves.
+            ctx.drawImage(canvas, 0, y, w, tall, tear, y, w, tall);
+            const sh = Math.max(1, Math.round(RETRO_GRAIN_HEIGHT * (tall / h)));
+            drawGrain(tile, 0.24 + 0.1 * e.level, (Math.floor(scene.random() * (RETRO_GRAIN_HEIGHT - sh))), sh, tear, y, w, tall);
+
+            const fringe = Math.max(1, h * 0.005);
+            ctx.fillStyle = rgba(colours.red, ambientAlpha(0.18 + 0.08 * e.level));
+            ctx.fillRect(tear + w * 0.004, y - fringe, w, fringe);
+            ctx.fillStyle = rgba(colours.cyan, ambientAlpha(0.18 + 0.08 * e.level));
+            ctx.fillRect(tear - w * 0.004, y + tall, w, fringe);
+        }
+
+        drawGrain(tile, 0.2, 0, Math.round(RETRO_GRAIN_HEIGHT * 0.04), w * 0.01 * Math.sin(t * 5), h * 0.965, w, h * 0.035);
+        scanlines(0.25);
+    }
+
+    /// A calm tube left on: colour rolling slowly down the glass, a warm glow in the middle, a hum
+    /// bar drifting through, scanlines and dark corners.
+    function drawCrt(e, t, colours) {
+        const w = canvas.width, h = canvas.height;
+        const hue = scene.hue + t / 14;
+        const wash = ctx.createLinearGradient(0, 0, 0, h);
+        wash.addColorStop(0, rgba(ambientColourAt(colours.main, hue), ambientAlpha(0.1 + 0.08 * e.level)));
+        wash.addColorStop(1, rgba(ambientColourAt(colours.main, hue + 1), ambientAlpha(0.1 + 0.08 * e.level)));
+        ctx.fillStyle = wash;
+        ctx.fillRect(0, 0, w, h);
+
+        glow(w / 2, h / 2, h * 0.75, ambientColourAt(colours.main, hue + 0.5), ambientAlpha(0.06 + 0.1 * e.bass), 0.35);
+        humBar(h * (((t * 0.05) % 1.4) - 0.2), h * 0.3, ambientColourAt(colours.main, hue + 2), 0.05 + 0.04 * e.level);
+        scanlines(0.35);
+        vignette(0.85);
+    }
+
+    /// Dim blocks of colour; now and then a few rows of the picture jump sideways for a moment with
+    /// a red and a cyan fringe. A beat may start one, but never sooner than RETRO_GLITCH_GAP after
+    /// the last, and each holds still for RETRO_GLITCH_HOLD frames rather than flickering.
+    function drawGlitch(e, t, colours) {
+        const w = canvas.width, h = canvas.height;
+        for (const block of scene.items) {
+            const twinkle = 0.5 + 0.5 * Math.sin(t * 0.5 + block.twinkle);
+            ctx.fillStyle = rgba(ambientColourAt(colours.main, block.hue + t / 25), ambientAlpha(0.06 + 0.06 * twinkle + 0.1 * e.level));
+            ctx.fillRect(block.x * w, block.y * h, block.w * w, block.h * h);
+        }
+
+        const since = scene.frame - scene.lastGlitch;
+        if ((e.beat && since >= RETRO_GLITCH_GAP) || since >= RETRO_GLITCH_IDLE) {
+            const random = scene.random;
+            scene.glitch = {
+                born: scene.frame,
+                slices: Array.from({ length: 2 + Math.floor(random() * 2) }, () => ({
+                    y: random() * 0.9, tall: 0.02 + 0.05 * random(), shift: (random() < 0.5 ? -1 : 1) * (0.03 + 0.06 * random()),
+                })),
+            };
+            scene.lastGlitch = scene.frame;
+            scene.glitchCount++;
+        }
+
+        const glitch = scene.glitch;
+        const age = glitch ? scene.frame - glitch.born : RETRO_GLITCH_HOLD;
+        if (age < RETRO_GLITCH_HOLD) {
+            // In over two frames and out over the rest, so even the fringes never arrive at once.
+            const fade = Math.min(1, (age + 1) / 2) * (1 - age / RETRO_GLITCH_HOLD);
+            for (const slice of glitch.slices) {
+                const y = slice.y * h, tall = slice.tall * h, shift = slice.shift * w;
+                ctx.drawImage(canvas, 0, y, w, tall, shift, y, w, tall);
+                const fringe = Math.max(1, tall * 0.15);
+                ctx.fillStyle = rgba(colours.red, ambientAlpha(0.3 * fade));
+                ctx.fillRect(shift - w * 0.006, y, w, fringe);
+                ctx.fillStyle = rgba(colours.cyan, ambientAlpha(0.3 * fade));
+                ctx.fillRect(shift + w * 0.006, y + tall - fringe, w, fringe);
+            }
+        } else scene.glitch = null;
+
+        scanlines(0.2);
+    }
+
+    /// A test card's colour bars, dim, drifting sideways and rolling slowly up as a set that has
+    /// lost its vertical hold, a dark sync bar riding the seam.
+    function drawColourBars(e, t, colours) {
+        const w = canvas.width, h = canvas.height;
+        const bars = colours.main.length >= 7 ? colours.main : Array.from({ length: 7 }, (_, k) => ambientColourAt(colours.main, (k * colours.main.length) / 7));
+        const count = bars.length;
+        const roll = (scene.hue / 5 + t * 0.03) % 1;
+        const drift = (scene.hue / 7 + t * 0.008) % 1;
+        const alpha = ambientAlpha(0.12 + 0.1 * e.level);
+        const pitch = w / count;
+
+        for (const top of [roll * h - h, roll * h]) {
+            for (let k = 0; k < count; k++) {
+                const x = (((k / count + drift) % 1) * w);
+                for (const at of [x, x - w]) {
+                    ctx.fillStyle = rgba(bars[k], alpha);
+                    ctx.fillRect(at, top, pitch + 1, h * 0.68);
+                    ctx.fillStyle = rgba(bars[count - 1 - k], alpha * 0.7);
+                    ctx.fillRect(at, top + h * 0.7, pitch + 1, h * 0.08);
+                }
+            }
+        }
+
+        const seam = roll * h;
+        const sync = ctx.createLinearGradient(0, seam - h * 0.05, 0, seam + h * 0.02);
+        sync.addColorStop(0, 'rgba(0,0,0,0)');
+        sync.addColorStop(0.7, 'rgba(0,0,0,0.75)');
+        sync.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = sync;
+        ctx.fillRect(0, seam - h * 0.05, w, h * 0.07);
+
+        scanlines(0.25);
+        vignette(0.6);
     }
 
     /// This frame's loudness and bass as the scene hears them: a coarse spectrum from the same feed
@@ -632,13 +929,18 @@ function createEqVisualiser(canvas, { seed = AMBIENT_SEED } = {}) {
         if (!scene.items) buildScene();
         const e = sense(feed);
         const t = scene.frame / 30;
-        const palette = ambientPalette(scheme, colour);
+        const palette = isRetroStyle(style) ? retroColours(style, scheme, colour) : ambientPalette(scheme, colour);
 
         if (style === 'ambient-gradient') drawDrift(e, t, palette);
         else if (style === 'ambient-bokeh') drawBokeh(e, t, palette);
         else if (style === 'ambient-embers') drawEmbers(e, t, palette);
         else if (style === 'ambient-rings') drawRings(e, t, palette);
         else if (style === 'ambient-beams') drawBeams(e, t, palette);
+        else if (style === 'retro-static') drawStatic(e, t, palette);
+        else if (style === 'retro-vhs') drawVhs(e, t, palette);
+        else if (style === 'retro-crt') drawCrt(e, t, palette);
+        else if (style === 'retro-glitch') drawGlitch(e, t, palette);
+        else if (style === 'retro-bars') drawColourBars(e, t, palette);
 
         scene.frame++;
     }
@@ -672,7 +974,7 @@ function createEqVisualiser(canvas, { seed = AMBIENT_SEED } = {}) {
             else if (style === 'mirrored-bars') drawBars(feed, true);
             else if (style === 'oscilloscope') drawScope(feed);
             else if (style === 'vu-meters') drawMeters(feed);
-            else if (isAmbientStyle(style)) drawScene(feed);
+            else if (isAmbientStyle(style) || isRetroStyle(style)) drawScene(feed);
         },
 
         reset,

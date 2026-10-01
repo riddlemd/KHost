@@ -215,7 +215,7 @@
                                                 <label for="visualisation-palette" class="kh-form-label">Palette</label>
                                                 <select id="visualisation-palette" class="kh-form-select kh-visualisations__choice"
                                                         value="@editing.ColourScheme" @onchange="SetColourSchemeAsync">
-                                                    <option value="@VisualiserColourScheme.Classic">@(IsAmbient(editing) ? "Classic, a soft mix of colours" : "Classic, green to red")</option>
+                                                    <option value="@VisualiserColourScheme.Classic">@ClassicWording(editing)</option>
                                                     <option value="@VisualiserColourScheme.Theme">The screen's accent</option>
                                                     <option value="@VisualiserColourScheme.Single">One colour</option>
                                                 </select>
