@@ -67,8 +67,8 @@ internal static class Program
 #endif
             // Photino logs every SendWebMessage into the host's inherited stdout.
             .SetLogVerbosity(0)
-            // The page draws the title bar and edges (title-bar.js), the same on every OS, and
-            // hides them in full screen. Chromeless cannot change after creation, which is why
+            // The page draws the window buttons, a drag strip along the top and the edges
+            // (title-bar.js), the same on every OS, and hides them in full screen. Chromeless cannot change after creation, which is why
             // full screen is a resize rather than a switch of frame.
             .SetChromeless(true)
             .SetUseOsDefaultSize(false)

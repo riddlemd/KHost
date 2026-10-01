@@ -1,23 +1,34 @@
-// The window is chromeless on every OS, so its title bar, its buttons and its resize edges are
-// drawn here and carried out by WindowChrome in .NET. Dragging is driven from the pointer rather
+// The window is chromeless on every OS, so its buttons, the invisible strip it is dragged by and
+// its resize edges are drawn here and carried out by WindowChrome in .NET. Dragging is driven from the pointer rather
 // than CSS app-region: WKWebView and WebKitGTK have no such region, and WebView2 honours it only
 // with a setting Photino does not expose.
 
-/// Pointer travel before a press on the bar becomes a drag. Without it, the first press of a
+/// Pointer travel before a press on the strip becomes a drag. Without it, the first press of a
 /// double-click on a maximised window would restore it before the second press arrives.
 const TITLE_BAR_DRAG_THRESHOLD = 3;
 
-function createTitleBar({ doc, send, requestFrame }) {
+/// How long the pointer rests before the buttons fade off the picture.
+const TITLE_BAR_IDLE_MS = 3000;
+
+function createTitleBar({ doc, send, requestFrame, setTimer = setTimeout, clearTimer = clearTimeout }) {
     const root = doc.documentElement;
     const bar = doc.getElementById('titlebar');
-    const title = bar.querySelector('.kh-titlebar__title');
     const maximiseButton = bar.querySelector('[data-window-action="maximise"]');
 
     let fullScreen = false;
     let gesture = null;
     let frameQueued = false;
+    let idleTimer = null;
 
-    title.textContent = doc.title;
+    // Shown on any movement and faded after a rest; CSS keeps them up while hovered.
+    function wake() {
+        root.dataset.pointerIdle = 'false';
+        clearTimer(idleTimer);
+        idleTimer = setTimer(() => { root.dataset.pointerIdle = 'true'; }, TITLE_BAR_IDLE_MS);
+    }
+
+    doc.addEventListener('pointermove', wake);
+    wake();
 
     for (const button of bar.querySelectorAll('[data-window-action]')) {
         button.addEventListener('click', () => send({ type: `window-${button.dataset.windowAction}` }));
@@ -62,7 +73,7 @@ function createTitleBar({ doc, send, requestFrame }) {
             latest: null,
         };
 
-        // An edge is a resize from the first pixel; the bar waits to tell a drag from a click.
+        // An edge is a resize from the first pixel; the strip waits to tell a drag from a click.
         if (edge) start();
 
         element.addEventListener('pointermove', onMove);
@@ -127,9 +138,8 @@ function createTitleBar({ doc, send, requestFrame }) {
     return {
         get isFullScreen() { return fullScreen; },
 
-        /// From WindowChrome: no bar or edges in full screen, which is how a room runs.
+        /// From WindowChrome: nothing of the window in full screen, which is how a room runs.
         applyState(message) {
-            const wasFullScreen = fullScreen;
             fullScreen = message.fullScreen === true;
 
             root.dataset.fullscreen = String(fullScreen);
@@ -140,10 +150,6 @@ function createTitleBar({ doc, send, requestFrame }) {
             maximiseButton.setAttribute('aria-label', label);
 
             if (fullScreen && gesture) finish();
-
-            // The stage grows by the bar's height without the window necessarily changing size, and
-            // the canvases only re-measure on a resize.
-            if (wasFullScreen !== fullScreen) doc.defaultView?.dispatchEvent(new doc.defaultView.Event('resize'));
         },
     };
 }
