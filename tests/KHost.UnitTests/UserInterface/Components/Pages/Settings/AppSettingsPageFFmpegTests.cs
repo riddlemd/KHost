@@ -111,6 +111,16 @@ public class AppSettingsPageFFmpegTests : BunitContext
     }
 
     [Fact]
+    public void InstallButton_CanInstall_NoBuildNoteIsNotShown()
+    {
+        Services.AddFFmpegSection(AppSettingsPageServices.Missing());
+
+        var page = Render<AppSettingsPage>();
+
+        Assert.DoesNotContain("install FFmpeg yourself", page.Markup);
+    }
+
+    [Fact]
     public async Task CheckAgain_Clicked_ChecksAgain()
     {
         var ffmpeg = Services.AddFFmpegSection(AppSettingsPageServices.Missing());
@@ -122,15 +132,5 @@ public class AppSettingsPageFFmpegTests : BunitContext
 
         await ffmpeg.Received(1).CheckAsync(Arg.Any<CancellationToken>());
         Assert.Contains("9.0", page.Find("[data-tool='FFmpeg'] .kh-ffmpeg-status__detail").TextContent);
-    }
-
-    [Fact]
-    public void LicenceNote_SaysTheBuildIsNotPartOfKHost()
-        => Assert.Contains("FFmpeg is not part of KHost", RenderWith(AppSettingsPageServices.Found()).Find(".kh-app-settings__ffmpeg-licence").TextContent);
-
-    private IRenderedComponent<AppSettingsPage> RenderWith(FFmpegStatus status)
-    {
-        Services.AddFFmpegSection(status);
-        return Render<AppSettingsPage>();
     }
 }
