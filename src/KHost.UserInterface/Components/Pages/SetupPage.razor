@@ -19,9 +19,6 @@
     <div class="kh-setup-wizard__content">
         @switch (_steps[_currentStep])
         {
-            case SetupStep.Security:
-                <WizardStepSecurity OnComplete="@OnSecurityCompletedAsync" />
-                break;
             case SetupStep.Admin:
                 <WizardStep1AdminUser OnComplete="@(async () => await MoveToNextStepAsync())" />
                 break;
