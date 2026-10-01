@@ -77,6 +77,15 @@ public sealed record AppSettings
     public const int DefaultPerformanceHistoryPageSize = 10;
     public const int MinPageSize = 1;
     public const int MaxPageSize = 500;
+
+    // The stop waits out the whole fade before the queue moves on, so a long one is dead air.
+    public const double MinStopFadeSeconds = 0;
+    public const double MaxStopFadeSeconds = 30;
+
+    // Below one second is no segment at all; past ten, a seek or a key change waits a whole
+    // segment before the screen has anything to play.
+    public const int MinSegmentSeconds = 1;
+    public const int MaxSegmentSeconds = 10;
 }
 
 public interface IAppSettingsService

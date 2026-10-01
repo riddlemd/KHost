@@ -3,6 +3,7 @@ using KHost.Abstractions.Repositories;
 using KHost.Abstractions.Services;
 using KHost.Abstractions.Messaging;
 using KHost.Abstractions.Messaging.Messages;
+using KHost.Common.Media;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -76,8 +77,17 @@ public class VenuesService : BaseRepositoryService<Venue, IVenuesRepository>, IV
         _broker.Announce(new SelectedVenueChanged());
     }
 
+    public override Task<Venue> CreateAsync(Venue entity)
+    {
+        ClampToRange(entity);
+
+        return base.CreateAsync(entity);
+    }
+
     public override async Task UpdateAsync(Venue entity)
     {
+        ClampToRange(entity);
+
         await base.UpdateAsync(entity);
 
         // The room's audio baseline lives on the selected venue, so only an edit to that one has
@@ -95,6 +105,27 @@ public class VenuesService : BaseRepositoryService<Venue, IVenuesRepository>, IV
         }
 
         return await base.DeleteAsync(id);
+    }
+
+    /// <summary>Every caller saves through here — the dialog, the setup wizard, a plugin — and the
+    /// number input's own min/max is only advice to a browser.</summary>
+    private static void ClampToRange(Venue venue)
+    {
+        var settings = venue.Settings;
+
+        settings.DefaultVolume = AudioLevels.ClampVolume(settings.DefaultVolume);
+        settings.QrCodeSafeZone = Math.Clamp(settings.QrCodeSafeZone, 0, 8);
+        settings.QrCodeOffset = Math.Clamp(settings.QrCodeOffset, 0, 20);
+
+        if (settings.QueueRotation is { } rotation)
+        {
+            // A negative weight would invert what the weighted-fair mode rewards.
+            rotation.DropFixedIndex = Math.Clamp(rotation.DropFixedIndex, 0, 100);
+            rotation.FirstTimeBoostSlots = Math.Clamp(rotation.FirstTimeBoostSlots, 1, 20);
+            rotation.CoolDownSlots = Math.Clamp(rotation.CoolDownSlots, 0, 20);
+            rotation.WeightedFairWaitWeight = Math.Clamp(rotation.WeightedFairWaitWeight, 0, 10);
+            rotation.WeightedFairSongCountWeight = Math.Clamp(rotation.WeightedFairSongCountWeight, 0, 10);
+        }
     }
 
     private async Task SelectFirstAvailableVenueAsync(bool staleSelectionCached)
