@@ -6,7 +6,7 @@ namespace KHost.LocalScreen;
 /// <summary>A window's place and size, in the window system's own units.</summary>
 internal readonly record struct WindowBounds(int Left, int Top, int Width, int Height);
 
-/// <summary>What the title bar drives, so its rules run without a native window.</summary>
+/// <summary>What the window controls drive, so its rules run without a native window.</summary>
 internal interface IScreenWindow
 {
     WindowBounds Bounds { get; }

@@ -1166,8 +1166,8 @@ function handleCommand(raw) {
     }
 }
 
-// Full screen has no bar to reach, so the picture itself takes these. The bar stops its own
-// double-click, which maximises instead.
+// Full screen has no window controls to reach, so the picture itself takes these. The drag strip
+// along the top stops its own double-click, which maximises instead.
 document.addEventListener('dblclick', () => send({ type: 'toggle-fullscreen' }));
 window.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') send({ type: 'exit-fullscreen' });

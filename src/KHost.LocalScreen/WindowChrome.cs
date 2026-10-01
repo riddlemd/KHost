@@ -3,14 +3,14 @@ using Microsoft.Extensions.Logging;
 
 namespace KHost.LocalScreen;
 
-/// <summary>The window's own title bar and edges, which the page draws and this carries out.</summary>
+/// <summary>The window's own buttons, drag strip and edges, which the page draws and this carries out.</summary>
 /// <remarks>The window is chromeless on every OS, so moving, sizing, maximising and closing all
 /// arrive as page messages. Maximise is a fill of the monitor's work area rather than the OS's own:
 /// a borderless window has no zoom on macOS and covers the taskbar when Windows maximises it.
 /// </remarks>
 internal sealed class WindowChrome(IScreenWindow window, ILogger logger)
 {
-    /// <summary>Small enough for a corner of a laptop, large enough that the bar's buttons still fit.</summary>
+    /// <summary>Small enough for a corner of a laptop, large enough that the window buttons still fit.</summary>
     internal const int MinimumWidth = 320;
 
     internal const int MinimumHeight = 200;
@@ -29,7 +29,7 @@ internal sealed class WindowChrome(IScreenWindow window, ILogger logger)
 
     public bool IsMaximised { get { lock (_gate) return _maximised; } }
 
-    /// <summary>Set by whoever drives full screen; the page hides the bar and edges while it is.</summary>
+    /// <summary>Set by whoever drives full screen; the page hides the buttons, strip and edges while it is.</summary>
     public bool FullScreen
     {
         get { lock (_gate) return _fullScreen; }
@@ -54,7 +54,7 @@ internal sealed class WindowChrome(IScreenWindow window, ILogger logger)
         SendToPage?.Invoke(JsonSerializer.Serialize(new { type = "window-state", fullScreen, maximised }));
     }
 
-    /// <returns>False for a message that is not the title bar's.</returns>
+    /// <returns>False for a message that is not the window controls'.</returns>
     public bool Handle(JsonElement root)
     {
         var type = root.TryGetProperty("type", out var p) && p.ValueKind == JsonValueKind.String ? p.GetString() : null;
@@ -70,7 +70,7 @@ internal sealed class WindowChrome(IScreenWindow window, ILogger logger)
                     ToggleMaximised();
                     return true;
                 case "window-close":
-                    logger.LogInformation("Closed from the title bar");
+                    logger.LogInformation("Closed from the window's close button");
                     window.Close();
                     return true;
                 case "window-drag":
@@ -92,7 +92,7 @@ internal sealed class WindowChrome(IScreenWindow window, ILogger logger)
     {
         lock (_gate)
         {
-            // The bar is hidden in full screen; a stale click must not resize a window that fills a monitor.
+            // The buttons are hidden in full screen; a stale click must not resize a window that fills a monitor.
             if (_fullScreen) return;
 
             if (_maximised)
@@ -164,7 +164,7 @@ internal sealed class WindowChrome(IScreenWindow window, ILogger logger)
         if (unmaximised) PublishState();
     }
 
-    /// <summary>Back to the size it had, with the pointer over the same share of the bar it grabbed.</summary>
+    /// <summary>Back to the size it had, with the pointer over the same share of the strip it grabbed.</summary>
     private WindowBounds Unmaximise(WindowBounds current, double clientX, double innerWidth, double scale)
     {
         var share = innerWidth > 0 ? Math.Clamp(clientX / innerWidth, 0, 1) : 0.5;
