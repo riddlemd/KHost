@@ -19,6 +19,7 @@ public partial class AppSettingsPage : IDisposable
     [Inject] private IFFmpegService FFmpeg { get; set; } = default!;
     [Inject] private IHostDirectories HostDirectories { get; set; } = default!;
     [Inject] private IMessageBroker Broker { get; set; } = default!;
+    [Inject] private IMediaSearchService MediaSearchService { get; set; } = default!;
 
     private readonly SubscriptionSet _subscriptions = new();
 
@@ -124,6 +125,18 @@ public partial class AppSettingsPage : IDisposable
     private static IReadOnlyList<int> DynamicLeadInPauseChoices => KHost.UserInterface.Services.AppSettings.DynamicLeadInPauseChoices;
 
     private static string DynamicLeadInPauseLabel(int seconds) => seconds == 1 ? "1 second" : $"{seconds} seconds";
+
+    /// <summary>"Remember" plus every mode the search panel itself offers — Local included — so the
+    /// setting never disagrees with what the panel's own dropdown shows.</summary>
+    private IReadOnlyList<string> SearchModeChoices => [
+        KHost.UserInterface.Services.AppSettings.RememberLastSearchMode,
+        .. MediaSearchService.Providers.Select(provider => provider.SourceName),
+    ];
+
+    private string SearchModeLabel(string mode) =>
+        mode == KHost.UserInterface.Services.AppSettings.RememberLastSearchMode
+            ? "Remember the last one used"
+            : MediaSearchService.Providers.FirstOrDefault(provider => provider.SourceName == mode)?.DisplayName ?? mode;
 
     private static IReadOnlyList<int> GraphicsScaleChoices => GraphicsScaling.Heights;
 
