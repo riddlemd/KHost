@@ -69,6 +69,7 @@ internal sealed class AppSettingsService : IAppSettingsService
             _configuration["Console:SongControlStyle"], ignoreCase: true, out var style)
             ? style
             : SongControlStyle.Sliders,
+        DefaultSearchMode = SearchModeOrDefault(_configuration["Search:DefaultMode"]),
     };
 
     private int PageSize(string key, int fallback = AppSettings.DefaultPageSize) =>
@@ -102,6 +103,10 @@ internal sealed class AppSettingsService : IAppSettingsService
     /// <summary>Whitespace and empty both read as unset, which is what a cleared field sends.
     /// </summary>
     private static string? Blank(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    // Read as well as save: a hand-cleared value must not reach the panel as an empty mode name.
+    private static string SearchModeOrDefault(string? mode) =>
+        string.IsNullOrWhiteSpace(mode) ? AppSettings.LocalSearchMode : mode.Trim();
 
     private static string? NormalizeMediaDirectory(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();
@@ -152,6 +157,11 @@ internal sealed class AppSettingsService : IAppSettingsService
         overlay["Console"] = new Dictionary<string, object?>
         {
             ["SongControlStyle"] = settings.SongControlStyle.ToString(),
+        };
+
+        overlay["Search"] = new Dictionary<string, object?>
+        {
+            ["DefaultMode"] = SearchModeOrDefault(settings.DefaultSearchMode),
         };
 
         overlay["LocalScreen"] = new Dictionary<string, object?>

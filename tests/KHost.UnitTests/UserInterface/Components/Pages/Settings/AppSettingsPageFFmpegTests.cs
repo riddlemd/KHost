@@ -23,6 +23,7 @@ public class AppSettingsPageFFmpegTests : BunitContext
         Services.AddSingleton(Substitute.For<IDialogService>());
         Services.AddSingleton(_flash);
         Services.AddSingleton(Substitute.For<IUsersService>());
+        Services.AddSearchSection();
     }
 
     [Fact]

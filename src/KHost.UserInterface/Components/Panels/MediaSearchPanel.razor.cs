@@ -18,6 +18,12 @@ public partial class MediaSearchPanel : IDisposable
     [Inject] private IPermissionService Permissions { get; set; } = default!;
     [Inject] private IMessageBroker Broker { get; set; } = default!;
     [Inject] private IControlState ControlState { get; set; } = default!;
+    [Inject] private IAppSettingsService AppSettings { get; set; } = default!;
+    [Inject] private ICacheService CacheService { get; set; } = default!;
+
+    /// <summary>Where "Remember the last one used" keeps its pick: per machine, like the theme and
+    /// the selected venue, not per venue.</summary>
+    private const string LastSearchModeCacheKey = "search-mode-last-used";
 
     private readonly SubscriptionSet _subscriptions = new();
 
@@ -52,8 +58,26 @@ public partial class MediaSearchPanel : IDisposable
 
         _canAddToQueue = await Permissions.HasAsync(KHostPermission.AddToQueue);
 
+        await SeedSearchModeAsync();
+
         // Without this the badges stay empty until some unrelated state change fires.
         await UpdateQueuedMediaAsync();
+    }
+
+    /// <summary>Starts the panel in App Settings' configured mode, or — with "Remember" — in
+    /// whatever mode was last picked on this machine.</summary>
+    /// <remarks>Only the first time this circuit builds the panel: a later rebuild (the selected
+    /// singer changing, say) must not override a pick already made this session.</remarks>
+    private async Task SeedSearchModeAsync()
+    {
+        if (ControlState.MediaSearchSource is not null)
+            return;
+
+        var configured = AppSettings.Current.DefaultSearchMode;
+
+        ControlState.MediaSearchSource = configured == KHost.UserInterface.Services.AppSettings.RememberLastSearchMode
+            ? await CacheService.LoadAsync<string>(LastSearchModeCacheKey)
+            : configured;
     }
 
     /// <summary>Column classes: width columns keep their width, text columns split what's left.</summary>
@@ -99,8 +123,16 @@ public partial class MediaSearchPanel : IDisposable
             ? RunSearchCoreAsync(provider.DisplayName, service => service.SearchAsync(_query, provider.SourceName))
             : RunSearchCoreAsync("the library", service => service.SearchAsync(_query));
 
-    /// <summary>Picking a source only aims the button, since a remote provider is a metered call.</summary>
-    private void SelectSource(string source) => ControlState.MediaSearchSource = source;
+    /// <summary>Picking a source only aims the button, since a remote provider is a metered call.
+    /// With "Remember the last one used" configured, the pick also becomes next time's start;
+    /// with a fixed default, the pick is just for now.</summary>
+    private async Task SelectSourceAsync(string source)
+    {
+        ControlState.MediaSearchSource = source;
+
+        if (AppSettings.Current.DefaultSearchMode == KHost.UserInterface.Services.AppSettings.RememberLastSearchMode)
+            await CacheService.SaveAsync(LastSearchModeCacheKey, source);
+    }
 
     /// <summary>Abandons the wait, not the work. The provider has no token to cancel by.</summary>
     private void CancelSearch() => _searchCts?.Cancel();

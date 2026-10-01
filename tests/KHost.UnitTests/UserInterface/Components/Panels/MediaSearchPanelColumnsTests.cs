@@ -47,6 +47,11 @@ public class MediaSearchPanelColumnsTests : BunitContext
         Services.AddSingleton(_performances);
         Services.AddSingleton(Substitute.For<IDialogService>());
         Services.AddSingleton<IControlState>(new ControlState());
+
+        var appSettings = Substitute.For<IAppSettingsService>();
+        appSettings.Current.Returns(new AppSettings());
+        Services.AddSingleton(appSettings);
+        Services.AddSingleton(Substitute.For<ICacheService>());
     }
 
     private static MediaSearchEntity Result(Dictionary<string, string>? fields = null) => new()
