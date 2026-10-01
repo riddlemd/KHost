@@ -703,6 +703,7 @@ a pinned third-party build.
 - `ComboBox<TItem>` is the type-to-search replacement for a native select. It binds the chosen item (not a key), takes every row from a `Search` delegate, and labels runs via `GroupName` without reordering them — the caller groups by sorting. Bind `Text` when the field must also accept a value the list does not contain.
 
 - The console says **song**; the media manager and the importer say **media**. A host puts on songs, and those two pages handle files, formats and paths. `Media` stays the name of the row in code either way.
+- Sign-in is off by default and switched on only by `Auth:RequireLogin` in `appsettings.json` (or an env/overlay override) — there is no wizard step or App Settings checkbox for it.
 
 ## CSS/SCSS
 
