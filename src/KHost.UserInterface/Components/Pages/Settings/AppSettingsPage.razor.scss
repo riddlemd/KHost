@@ -15,13 +15,20 @@
     }
 
     // One panel per settings section, flowing into as many columns as the page is wide enough
-    // for; align-items: start keeps a short panel (Ads) from stretching to match a tall
-    // neighbour (Playback), and auto-fill collapses to one column once nothing fits beside it.
+    // for. A grid row is as tall as its tallest card, which left short panels (Ads) stranded
+    // beside gaps under a tall neighbour (Playback); multicol instead packs each column top to
+    // bottom on its own, and column-width (an optimum, not a fixed track) collapses to one column
+    // once nothing fits beside it, same as the grid's auto-fill did.
     &__grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(26rem, 1fr));
-        align-items: start;
-        gap: 1em;
+        column-width: 26rem;
+        column-gap: 1em;
+    }
+
+    // break-inside keeps a panel from being split across the column break; multicol's gap only
+    // ever spaces columns apart, never the cards stacked within one, so that spacing is a margin.
+    &__panel {
+        break-inside: avoid-column;
+        margin-bottom: 1em;
     }
 
     // SettingRow and ChoiceSelect carry no scoped CSS of their own, so everything they render
