@@ -196,18 +196,23 @@
                                 </button>
                             </div>
                         </div>
-                        <p class="kh-note kh-app-settings__ffmpeg-licence">
-                            FFmpeg is not part of KHost and does not ship with it. Install FFmpeg downloads a
-                            GPL-licensed build from its own publisher into @_binDirectory, only because you
-                            asked, and that build stays under its publisher's licence.
-                            @if (!FFmpeg.CanInstall)
-                            {
-                                @(" KHost has no download for this computer: install FFmpeg yourself and set its folder below.")
-                            }
-                        </p>
-                        <SettingRow Label="FFmpeg directory (blank = KHost's bin folder, then PATH)" Applies="applies when saved">
-                            <InputText class="kh-form-control kh-app-settings__path" @bind-Value="_model.FFmpegPath" placeholder="/usr/local/bin" />
-                        </SettingRow>
+                        @if (FFmpeg.CanInstall)
+                        {
+                            <SettingRow Label="FFmpeg directory (blank = KHost's bin folder, then PATH)" Applies="applies when saved">
+                                <InputText class="kh-form-control kh-app-settings__path" @bind-Value="_model.FFmpegPath" placeholder="/usr/local/bin" />
+                            </SettingRow>
+                        }
+                        else
+                        {
+                            <SettingRow Label="FFmpeg directory (blank = KHost's bin folder, then PATH)" Applies="applies when saved">
+                                <Note>
+                                    <span class="kh-note">KHost has no download for this computer: install FFmpeg yourself and set this to its folder.</span>
+                                </Note>
+                                <ChildContent>
+                                    <InputText class="kh-form-control kh-app-settings__path" @bind-Value="_model.FFmpegPath" placeholder="/usr/local/bin" />
+                                </ChildContent>
+                            </SettingRow>
+                        }
                     </div>
                 </section>
 
