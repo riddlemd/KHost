@@ -41,6 +41,7 @@ public class VisualisationsManagerPageTests : BunitContext
             new VisualiserPreset { Name = "My Swirl", Source = VisualiserPresetSource.Imported, ImportedUtc = DateTime.UtcNow },
             // Last here, so a select that lists them first does so by grouping, not by input order.
             new VisualiserPreset { Name = "spectrum-bars", Title = "Spectrum bars", Source = VisualiserPresetSource.BuiltIn },
+            new VisualiserPreset { Name = "retro-vhs", Title = "VHS tracking", Source = VisualiserPresetSource.BuiltIn },
             new VisualiserPreset { Name = "ambient-embers", Title = "Rising embers", Source = VisualiserPresetSource.BuiltIn },
             new VisualiserPreset { Name = "oscilloscope", Title = "Oscilloscope", Source = VisualiserPresetSource.BuiltIn },
         ]);
@@ -152,11 +153,35 @@ public class VisualisationsManagerPageTests : BunitContext
 
         var groups = cut.FindAll("#visualisation-preset optgroup");
 
-        Assert.Equal(["Built-in", "Ambient", "MilkDrop presets", "Imported"], groups.Select(g => g.GetAttribute("label")));
+        Assert.Equal(["Built-in", "Ambient", "Retro", "MilkDrop presets", "Imported"], groups.Select(g => g.GetAttribute("label")));
         Assert.Equal(["Spectrum bars", "Oscilloscope"], groups[0].QuerySelectorAll("option").Select(o => o.TextContent));
         Assert.Equal(["2:spectrum-bars", "2:oscilloscope"], groups[0].QuerySelectorAll("option").Select(o => o.GetAttribute("value")));
         Assert.Equal(["Rising embers"], groups[1].QuerySelectorAll("option").Select(o => o.TextContent));
         Assert.Equal(["2:ambient-embers"], groups[1].QuerySelectorAll("option").Select(o => o.GetAttribute("value")));
+        Assert.Equal(["VHS tracking"], groups[2].QuerySelectorAll("option").Select(o => o.TextContent));
+        Assert.Equal(["2:retro-vhs"], groups[2].QuerySelectorAll("option").Select(o => o.GetAttribute("value")));
+    }
+
+    /// <summary>A retro effect has no bars either, and its classic palette is its own look.</summary>
+    [Fact]
+    public async Task ARetroEffect_OffersAPaletteButNoBarCount()
+    {
+        var cut = await WithBuiltInAsync("retro-vhs");
+
+        Assert.Empty(cut.FindAll("#visualisation-bars"));
+        Assert.Contains("effect's own colours", cut.Find($"#visualisation-palette option[value={VisualiserColourScheme.Classic}]").TextContent);
+
+        cut.Find("#visualisation-palette").Change("Single");
+        Assert.Equal(VisualiserColourScheme.Single, Assert.Single((await StoredAsync()).Entries).ColourScheme);
+    }
+
+    [Fact]
+    public async Task ThePreview_IsToldToDrawARetroEffect()
+    {
+        await WithBuiltInAsync("retro-vhs");
+
+        Assert.Contains(JSInterop.Invocations, call =>
+            call.Identifier == "khVisualiserPreview.show" && call.Arguments[1]!.ToString()!.Contains("builtIn = retro-vhs"));
     }
 
     /// <summary>A scene has no bars, and its classic palette is a mix of colours, not a meter's.</summary>

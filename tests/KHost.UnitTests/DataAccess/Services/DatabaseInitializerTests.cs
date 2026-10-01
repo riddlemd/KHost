@@ -149,6 +149,7 @@ public class DatabaseInitializerTests
             new VisualiserPreset { Name = "spectrum-bars", Source = VisualiserPresetSource.BuiltIn },
             new VisualiserPreset { Name = "ambient-gradient", Source = VisualiserPresetSource.BuiltIn },
             new VisualiserPreset { Name = "ambient-bokeh", Source = VisualiserPresetSource.BuiltIn },
+            new VisualiserPreset { Name = "retro-static", Source = VisualiserPresetSource.BuiltIn },
             new VisualiserPreset { Name = "Rovastar - Oozing Resistance", Source = VisualiserPresetSource.Bundled },
         ]);
         _visualisationPlaylistService.CreateAsync(Arg.Any<VisualisationPlaylist>()).Returns(c => c.Arg<VisualisationPlaylist>());

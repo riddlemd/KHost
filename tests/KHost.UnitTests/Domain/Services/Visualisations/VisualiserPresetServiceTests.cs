@@ -182,6 +182,24 @@ public class VisualiserPresetServiceTests : IDisposable
     public void IsAmbient_OnlyABuiltInNamedAsAScene(VisualiserPresetSource source, string name, bool expected)
         => Assert.Equal(expected, VisualiserPresetService.IsAmbient(source, name));
 
+    [Theory]
+    [InlineData(VisualiserPresetSource.BuiltIn, "retro-static", true)]
+    [InlineData(VisualiserPresetSource.BuiltIn, "ambient-bokeh", false)]
+    [InlineData(VisualiserPresetSource.BuiltIn, "spectrum-bars", false)]
+    [InlineData(VisualiserPresetSource.Imported, "retro-static", false)]
+    [InlineData(VisualiserPresetSource.Bundled, "retro-static", false)]
+    public void IsRetro_OnlyABuiltInNamedAsAnOldScreenEffect(VisualiserPresetSource source, string name, bool expected)
+        => Assert.Equal(expected, VisualiserPresetService.IsRetro(source, name));
+
+    [Fact]
+    public void BuiltIns_OfferRetroEffectsApartFromTheAmbientScenes()
+    {
+        var retro = VisualiserPresetService.BuiltIns.Where(b => VisualiserPresetService.IsRetro(VisualiserPresetSource.BuiltIn, b.Name)).ToList();
+
+        Assert.InRange(retro.Count, 4, 5);
+        Assert.DoesNotContain(retro, b => VisualiserPresetService.IsAmbient(VisualiserPresetSource.BuiltIn, b.Name));
+    }
+
     [Fact]
     public void BuiltIns_OfferCalmScenesBesideTheAnalysers()
     {
