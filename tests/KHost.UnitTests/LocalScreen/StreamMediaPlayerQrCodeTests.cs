@@ -26,12 +26,12 @@ public class StreamMediaPlayerQrCodeTests
     private void Send(ScreenQrCodePlacement placement)
         => _player.SetQrCodes(new SetScreenQrCodesCommand { Codes = [placement] });
 
-    private static ScreenQrCodePlacement Placement(int safeZone = 3, double offset = 4.5) => new()
+    private static ScreenQrCodePlacement Placement(int safeZone = 3, double offset = 4.5, QrCodeSize size = QrCodeSize.Large) => new()
     {
         ImageUrl = "data:image/svg+xml;base64,AAAA",
         Modules = 29,
         Corner = OverlayCorner.TopLeft,
-        Size = QrCodeSize.Large,
+        Size = size,
         SafeZone = safeZone,
         Offset = offset,
     };
@@ -64,6 +64,16 @@ public class StreamMediaPlayerQrCodeTests
 
         Assert.Equal("topleft", code.GetProperty("corner").GetString());
         Assert.Equal("large", code.GetProperty("size").GetString());
+    }
+
+    /// <summary>ExtraLarge has to spell the same single CSS word the screen-ui's QR_SIZES list and
+    /// stylesheet selector key off, or it falls back to medium on screen.</summary>
+    [Fact]
+    public void SetQrCodes_LowercasesExtraLargeToOneCssWord()
+    {
+        Send(Placement(size: QrCodeSize.ExtraLarge));
+
+        Assert.Equal("extralarge", FirstCode().GetProperty("size").GetString());
     }
 
     /// <summary>The card's corner has the codes' same trap: a CSS-word match, silent fallback.</summary>
