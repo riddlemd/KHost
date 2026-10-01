@@ -541,7 +541,7 @@ async function fadeOutAndStop(fadeMs) {
     // Cleared before it is shown again, or the frame the fade hid comes back for a moment.
     overlay.clear();
     showWords();
-    placeholder.hidden = false;
+    showIdlePicture();
     send({ type: 'state', position: 0, duration: 0, playing: false });
 }
 
@@ -622,6 +622,13 @@ function clearNextSinger() {
     if (nextSinger.hidden) return;
 
     nextSinger.hidden = true;
+    showIdlePicture();
+}
+
+/// The venue's still if it set one, else the placeholder. Asked of the still's source, not its
+/// visibility: the card hid the still, and the host does not resend a picture it never took down.
+function showIdlePicture() {
+    still.hidden = !still.getAttribute('src');
     placeholder.hidden = !still.hidden;
 }
 
