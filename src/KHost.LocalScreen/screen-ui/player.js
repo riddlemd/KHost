@@ -46,6 +46,8 @@ function songClock() {
 
 const overlay = createLyricsOverlay(lyricsCanvas, songClock);
 
+const titleBar = createTitleBar({ doc: document, send, requestFrame: (f) => requestAnimationFrame(f) });
+
 // The card heading the words, on the words' own clock. Its layer is what a stop fades, since the
 // card sets its own opacity from the clock.
 const introLayer = document.getElementById('intro-layer');
@@ -1116,6 +1118,9 @@ function handleCommand(raw) {
             still.src = message.url;
             still.hidden = false;
             break;
+        case 'window-state':
+            titleBar.applyState(message);
+            break;
         case 'hide-image':
             still.hidden = true;
             still.removeAttribute('src');
@@ -1161,7 +1166,8 @@ function handleCommand(raw) {
     }
 }
 
-// The window has no controls, so the page is the only place for these gestures.
+// Full screen has no window controls to reach, so the picture itself takes these. The drag strip
+// along the top stops its own double-click, which maximises instead.
 document.addEventListener('dblclick', () => send({ type: 'toggle-fullscreen' }));
 window.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') send({ type: 'exit-fullscreen' });
