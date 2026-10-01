@@ -1,3 +1,4 @@
+using KHost.Abstractions.Exceptions;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using KHost.Abstractions.Messaging;
@@ -44,30 +45,47 @@ public partial class BreakMusicBar : IDisposable
 
     private async Task PlayAsync()
     {
-        // Resume rather than restart when it was paused, or the host loses their place in the
-        // playlist every time they take the room down for an announcement.
-        if (BreakMusic.State == BreakMusicState.Paused)
+        try
         {
-            await BreakMusic.ResumeAsync();
+            // Resume rather than restart when it was paused, or the host loses their place in the
+            // playlist every time they take the room down for an announcement.
+            if (BreakMusic.State == BreakMusicState.Paused)
+            {
+                await BreakMusic.ResumeAsync();
 
-            // Resume reports nothing, so the refusal is read off the state it did not reach.
-            if (BreakMusic.State != BreakMusicState.Playing)
-                WarnItDidNotStart();
+                // Resume reports nothing, so the refusal is read off the state it did not reach.
+                if (BreakMusic.State != BreakMusicState.Playing)
+                    WarnItDidNotStart(reason: null);
 
-            return;
+                return;
+            }
+
+            if (!await BreakMusic.StartAsync())
+                WarnItDidNotStart(reason: null);
         }
-
-        if (!await BreakMusic.StartAsync())
-            WarnItDidNotStart();
+        catch (KHostException ex)
+        {
+            // The one way a provider can tell the host why, same channel every other extension
+            // point reports a failure through; a plugin stuck logging it locally otherwise reads
+            // as the library provider's own playlist/screen advice, which may not even apply.
+            WarnItDidNotStart(ex.WhatHappened);
+        }
     }
 
-    /// <summary>A loaded song is the only cause this can name; the rest look identical here.</summary>
-    private void WarnItDidNotStart()
-        => Flash.Show(
-            Playback.CurrentPerformance is not null
-                ? "Break music did not start: a song is loaded. It comes back on its own after the song."
-                : "Break music did not start: check this venue has a playlist and a screen is connected.",
-            FlashType.Warning);
+    /// <summary>A loaded song is the only cause this can name without the provider's own reason;
+    /// the rest look identical here.</summary>
+    private void WarnItDidNotStart(string? reason)
+    {
+        var message = Playback.CurrentPerformance is not null
+            ? "Break music did not start: a song is loaded. It comes back on its own after the song."
+            : reason is not null
+                ? $"Break music did not start: {reason}"
+                : ReferenceEquals(BreakMusic.ActiveProvider, BreakMusic.LibraryProvider)
+                    ? "Break music did not start: check this venue has a playlist and a screen is connected."
+                    : $"Break music did not start ({BreakMusic.ActiveProvider?.DisplayName ?? "no provider"}).";
+
+        Flash.Show(message, FlashType.Warning);
+    }
 
     private Task PauseAsync() => BreakMusic.PauseAsync();
 

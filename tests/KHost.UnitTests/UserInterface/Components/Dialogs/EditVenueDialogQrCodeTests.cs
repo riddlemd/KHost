@@ -146,6 +146,30 @@ public class EditVenueDialogQrCodeTests : BunitContext
             note => note.TextContent.Contains("No installed plugin provides this code"));
     }
 
+    /// <summary>Switching the source away and back used to lose the missing plugin's own option,
+    /// so picking it back up saved an empty source rather than the venue's stored one.</summary>
+    [Fact]
+    public void AnUninstalledSource_SwitchedAwayAndBack_StillSavesTheStoredName()
+    {
+        var id = Guid.NewGuid();
+        const string missing = "6f1d1f6e-0000-0000-0000-000000000000";
+        _plugins.Plugins.Returns([Source(id, "Example", "Guest sign-up")]);
+        Venue? saved = null;
+        var cut = Render(new Venue.VenueSettings { QrCodeSource = missing }, venue => saved = venue);
+
+        cut.Find(SourceSelector).Change(id.ToString());
+
+        // The placeholder must still be offered after switching away, or there is no way back.
+        Assert.Contains(cut.FindAll($"{SourceSelector} option"),
+            option => option.GetAttribute("value") == missing);
+
+        cut.Find(SourceSelector).Change(missing);
+        cut.Find("form").Submit();
+
+        Assert.NotNull(saved);
+        Assert.Equal(missing, saved!.Settings.QrCodeSource);
+    }
+
     /// <summary>A select can't show null "no preference", so it offers what a code would take.</summary>
     [Fact]
     public void AVenueThatHasNeverBeenAsked_ShowsWhatACodeWouldTakeAnyway()

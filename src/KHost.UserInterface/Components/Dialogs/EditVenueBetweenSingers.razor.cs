@@ -27,15 +27,23 @@ public partial class EditVenueBetweenSingers
     private MediaPool? _adPool;
     private string _adPoolText = "";
 
+    /// <summary>The venue's stored mode, captured once at open, when it names no loaded provider.
+    /// Reading <see cref="Model"/>'s live value here instead loses the option the moment the host
+    /// picks something else — the placeholder would vanish from the select along with it, so
+    /// switching back to it saved an empty value rather than the mode the venue actually had.</summary>
+    private string? _unavailableProviderSource;
+
     /// <summary>Kept selected for an unloaded provider: an unmatched select value renders blank.</summary>
-    private string? UnavailableProviderSource
-        => BreakMusic.Providers.Any(p => string.Equals(p.SourceName, Model.BreakMusicProvider, StringComparison.OrdinalIgnoreCase))
-            ? null
-            : Model.BreakMusicProvider;
+    private string? UnavailableProviderSource => _unavailableProviderSource;
+
+    /// <summary>Whether the select is currently sitting on that unloaded mode.</summary>
+    private bool IsOnUnavailableProvider
+        => _unavailableProviderSource is not null
+           && string.Equals(Model.BreakMusicProvider, _unavailableProviderSource, StringComparison.OrdinalIgnoreCase);
 
     /// <summary>Whether the mode is fed by this host's own playlists, loaded or not.</summary>
     private bool UsesLocalPlaylists
-        => UnavailableProviderSource is not null
+        => IsOnUnavailableProvider
            || (BreakMusic.LibraryProvider is { } library
                && string.Equals(Model.BreakMusicProvider, library.SourceName, StringComparison.OrdinalIgnoreCase));
 
@@ -48,6 +56,15 @@ public partial class EditVenueBetweenSingers
     /// <summary>Read when the dialog opens, not held, since a new playlist would be missing.</summary>
     protected override async Task OnInitializedAsync()
     {
+        // Snapshot before anything can change it: whether this mode is unloaded is a fact about
+        // what the venue had on open, not about whatever the select currently shows.
+        _unavailableProviderSource =
+            !string.IsNullOrWhiteSpace(Model.BreakMusicProvider)
+            && !BreakMusic.Providers.Any(p =>
+                string.Equals(p.SourceName, Model.BreakMusicProvider, StringComparison.OrdinalIgnoreCase))
+                ? Model.BreakMusicProvider
+                : null;
+
         // Stills only: anything else handed to the screen as a card is a URL that serves nothing.
         // Read by type rather than paged, or a card past the first page would never be offered.
         _images = await Media.ReadAllByTypesAsync(MediaType.Image);

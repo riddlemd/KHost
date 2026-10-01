@@ -1,3 +1,4 @@
+using KHost.Abstractions.Exceptions;
 using KHost.Abstractions.Models;
 
 namespace KHost.Abstractions.Services;
@@ -52,13 +53,21 @@ public interface IBreakMusicProvider
     /// <returns>False when there was nothing to play, or nowhere to play it; the host then stays
     /// stopped.</returns>
     /// <remarks>Also how the host brings music back after a song: it stops the provider outright
-    /// to suspend, then calls this rather than <see cref="ResumeAsync"/>.</remarks>
+    /// to suspend, then calls this rather than <see cref="ResumeAsync"/>.
+    ///
+    /// <para>Throw <see cref="KHostException"/> instead of returning false when there is a reason
+    /// a host should see — the console flashes <see cref="KHostException.WhatHappened"/>. A plain
+    /// false reads as the host's own library provider: no playlist chosen, or no screen connected.
+    /// Use it only when the refusal truly looks like that one; anything else needs the exception,
+    /// or a host spends the night chasing advice that does not apply to this provider.</para></remarks>
     Task<bool> StartAsync(CancellationToken cancellationToken = default);
 
     /// <summary>Holds the current track where it is. Asked only while playing.</summary>
     Task PauseAsync(CancellationToken cancellationToken = default);
 
     /// <summary>Continues a paused track. Asked only while paused.</summary>
+    /// <remarks>May throw <see cref="KHostException"/> for the same reason <see cref="StartAsync"/>
+    /// can: the console reads <see cref="KHostException.WhatHappened"/> back to the host.</remarks>
     Task ResumeAsync(CancellationToken cancellationToken = default);
 
     /// <summary>Ends the session. <paramref name="fadeDuration"/> is a hint a provider may ignore.</summary>
