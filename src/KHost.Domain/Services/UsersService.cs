@@ -49,6 +49,9 @@ public class UsersService : BaseRepositoryService<KHostUser, IUsersRepository>, 
         return saved;
     }
 
+    // Foreign keys are detached and never reconciled: they move only through their own calls. An
+    // editor holds a snapshot, and a key a provider added or dropped while it was open would
+    // otherwise be deleted or resurrected by the save.
     public override async Task UpdateAsync(KHostUser entity)
     {
         var groups = entity.Groups.ToArray();
@@ -57,8 +60,6 @@ public class UsersService : BaseRepositoryService<KHostUser, IUsersRepository>, 
         var stored = await Repository.ReadAsync(entity.Id);
         var desiredGroupIds = groups.Select(g => g.Id).ToHashSet();
         var currentGroupIds = stored?.Groups.Select(g => g.Id).ToHashSet() ?? [];
-        var desiredKeys = foreignKeys.Select(Pair).ToHashSet();
-        var currentKeys = stored?.ForeignKeys.Select(Pair).ToHashSet() ?? [];
 
         entity.Groups = [];
         entity.ForeignKeys = [];
@@ -72,20 +73,8 @@ public class UsersService : BaseRepositoryService<KHostUser, IUsersRepository>, 
         foreach (var groupId in currentGroupIds.Except(desiredGroupIds))
             await _userGroupsRepository.RemoveUserFromGroupAsync(entity.Id, groupId);
 
-        // Diffed on the pair rather than the row id: a caller building a key by hand has no id to
-        // give it, so comparing ids would delete and re-add every key on every save.
-        foreach (var (source, key) in desiredKeys.Except(currentKeys))
-            await Repository.AddForeignKeyAsync(entity.Id, source, key,
-                foreignKeys.First(k => Pair(k) == (source, key)).IsEphemeral);
-
-        foreach (var (source, key) in currentKeys.Except(desiredKeys))
-            await Repository.RemoveForeignKeyAsync(entity.Id, source, key);
-
         _broker.Announce(new UsersChanged());
     }
-
-    private static (string Source, string Key) Pair(KHostUserForeignKey foreignKey)
-        => (foreignKey.Source, foreignKey.Key);
 
     public override async Task<bool> DeleteAsync(Guid id)
     {

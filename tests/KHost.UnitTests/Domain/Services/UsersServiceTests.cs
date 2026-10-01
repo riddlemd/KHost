@@ -242,8 +242,10 @@ public class UsersServiceTests
         Assert.Single(saved.ForeignKeys);
     }
 
+    /// <summary>An editor saves a snapshot; a provider may have added or dropped a key since, and
+    /// the save must neither delete the one nor bring back the other.</summary>
     [Fact]
-    public async Task UpdateAsync_AddsNewKeysAndRemovesDroppedOnes()
+    public async Task UpdateAsync_NeverAddsOrRemovesAForeignKey()
     {
         var id = Guid.NewGuid();
         _repository.ReadAsync(id).Returns(new KHostUser
@@ -253,7 +255,7 @@ public class UsersServiceTests
             ForeignKeys =
             [
                 new() { Source = "Example", Key = "keep", IsEphemeral = false },
-                new() { Source = "Example", Key = "drop", IsEphemeral = false },
+                new() { Source = "Example", Key = "added-since", IsEphemeral = true },
             ],
         });
 
@@ -264,37 +266,10 @@ public class UsersServiceTests
             ForeignKeys =
             [
                 new() { Source = "Example", Key = "keep", IsEphemeral = false },
-                new() { Source = "Example", Key = "add", IsEphemeral = true },
+                new() { Source = "Example", Key = "dropped-since", IsEphemeral = true },
             ],
         });
 
-        await _repository.Received(1).AddForeignKeyAsync(id, "Example", "add", true);
-        await _repository.Received(1).RemoveForeignKeyAsync(id, "Example", "drop");
-        await _repository.DidNotReceive().AddForeignKeyAsync(id, "Example", "keep", Arg.Any<bool>());
-        await _repository.DidNotReceive().RemoveForeignKeyAsync(id, "Example", "keep");
-    }
-
-    /// <summary>Diffed on the pair, not the row id, because a hand-built key has none.</summary>
-    [Fact]
-    public async Task UpdateAsync_LeavesAnUnchangedKeyAloneEvenWithoutItsRowId()
-    {
-        var id = Guid.NewGuid();
-        _repository.ReadAsync(id).Returns(new KHostUser
-        {
-            Id = id,
-            Name = "Ada",
-            ForeignKeys = [new() { Id = Guid.NewGuid(), Source = "Example", Key = "keep", IsEphemeral = false }],
-        });
-
-        await _service.UpdateAsync(new KHostUser
-        {
-            Id = id,
-            Name = "Ada",
-            ForeignKeys = [new() { Source = "Example", Key = "keep", IsEphemeral = false }],
-        });
-
-        // Any call at all, not "no call naming this key": a diff keyed on the wrong field writes
-        // the same rows under a different source, which a narrower matcher walks straight past.
         await _repository.DidNotReceive().RemoveForeignKeyAsync(
             Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<string>());
         await _repository.DidNotReceive().AddForeignKeyAsync(
