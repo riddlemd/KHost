@@ -1,10 +1,12 @@
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
+using Microsoft.JSInterop;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using KHost.Domain.Services.MediaProviders;
 using KHost.Abstractions.Messaging;
 using KHost.Abstractions.Messaging.Messages;
+using KHost.UserInterface.Models;
 using KHost.UserInterface.Services;
 
 namespace KHost.UserInterface.Components.Panels;
@@ -20,10 +22,14 @@ public partial class MediaSearchPanel : IDisposable
     [Inject] private IControlState ControlState { get; set; } = default!;
     [Inject] private IAppSettingsService AppSettings { get; set; } = default!;
     [Inject] private ICacheService CacheService { get; set; } = default!;
+    [Inject] private IJSRuntime JS { get; set; } = default!;
 
     /// <summary>Where "Remember the last one used" keeps its pick: per machine, like the theme and
     /// the selected venue, not per venue.</summary>
     private const string LastSearchModeCacheKey = "search-mode-last-used";
+
+    /// <summary>Rows drawn at most; a longer list is cut here, and the keyboard walks only these.</summary>
+    private const int MaxVisibleResults = 300;
 
     private readonly SubscriptionSet _subscriptions = new();
 
@@ -45,6 +51,12 @@ public partial class MediaSearchPanel : IDisposable
     private CancellationTokenSource? _searchCts;
 
     private ElementReference _queryInputRef;
+    private ElementReference _resultsRef;
+
+    /// <summary>The row the keyboard is on, or -1. Reset by every search: an index into the old
+    /// results would land on a different song.</summary>
+    private int _selectedResultIndex = -1;
+    private int _lastScrolledResultIndex = -1;
 
     /// <summary>Puts the caret in the query field, so typing after adding a singer needs no mouse.</summary>
     public ValueTask FocusQueryAsync() => _queryInputRef.FocusAsync();
@@ -79,6 +91,24 @@ public partial class MediaSearchPanel : IDisposable
             ? await CacheService.LoadAsync<string>(LastSearchModeCacheKey)
             : configured;
     }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // Only on a change: scrolling every render would yank a list the host is scrolling by hand.
+        if (_selectedResultIndex == _lastScrolledResultIndex) return;
+
+        _lastScrolledResultIndex = _selectedResultIndex;
+        if (_selectedResultIndex < 0) return;
+
+        try
+        {
+            await JS.InvokeVoidAsync("scrollIntoViewSmooth", ".kh-media-search-panel__results__result--selected");
+        }
+        catch (JSDisconnectedException) { }
+    }
+
+    private IReadOnlyList<MediaSearchEntity> VisibleResults
+        => _results is null || _searching ? [] : _results.Take(MaxVisibleResults).ToList();
 
     /// <summary>Column classes: width columns keep their width, text columns split what's left.</summary>
     private static string ColumnClass(IReadOnlyList<MediaResultColumn> columns, int index)
@@ -155,6 +185,7 @@ public partial class MediaSearchPanel : IDisposable
         _searching = true;
         _searchingSource = sourceLabel;
         _results = null;
+        _selectedResultIndex = -1;
 
         StateHasChanged();
 
@@ -179,8 +210,85 @@ public partial class MediaSearchPanel : IDisposable
 
     private async Task OnFilterKeyDownAsync(KeyboardEventArgs e)
     {
+        var modified = e.CtrlKey || e.MetaKey || e.ShiftKey;
+
         if (e.Key == "Enter" && !_searching)
+        {
             await RunSearchAsync();
+            return;
+        }
+
+        // shortcuts.js cancels the default (back on Windows, a word jump on a Mac) for this box.
+        if (e.AltKey && !modified && e.Key is "ArrowLeft" or "ArrowRight")
+        {
+            await CycleSearchModeAsync(forward: e.Key == "ArrowRight");
+            return;
+        }
+
+        if (e.Key == "ArrowDown" && !modified && !e.AltKey && VisibleResults.Count > 0)
+        {
+            _selectedResultIndex = 0;
+            await _resultsRef.FocusAsync();
+        }
+    }
+
+    /// <summary>Steps the source the way picking one from the button's list does, wrapping, and
+    /// likewise runs no search: a remote provider is a metered call.</summary>
+    private async Task CycleSearchModeAsync(bool forward)
+    {
+        var providers = MediaSearchService.Providers.ToList();
+        if (providers.Count < 2) return;
+
+        var current = SearchTarget is { } target ? providers.IndexOf(target) : -1;
+        var next = current < 0
+            ? (forward ? 0 : providers.Count - 1)
+            : (current + (forward ? 1 : -1) + providers.Count) % providers.Count;
+
+        await SelectSourceAsync(providers[next].SourceName);
+    }
+
+    private async Task OnResultsKeyDownAsync(KeyboardEventArgs e)
+    {
+        var rows = VisibleResults;
+        if (rows.Count == 0 || e.CtrlKey || e.MetaKey || e.AltKey) return;
+
+        if (e.Key == "Enter")
+        {
+            if (_selectedResultIndex >= 0 && _selectedResultIndex < rows.Count)
+                await EnqueueFromKeyboardAsync(rows[_selectedResultIndex]);
+            return;
+        }
+
+        // Up off the first row is back to the box, so typing a new search needs no mouse.
+        if (e.Key == "ArrowUp" && !e.ShiftKey && _selectedResultIndex <= 0)
+        {
+            _selectedResultIndex = -1;
+            await _queryInputRef.FocusAsync();
+            return;
+        }
+
+        // Shift would reorder, which results cannot; plain arrows walk the rows.
+        var action = ListKeyboardShortcuts.Resolve(e.Key, e.ShiftKey, _selectedResultIndex, rows.Count);
+
+        await ListKeyboardShortcuts.DispatchAsync(
+            action, _selectedResultIndex, canReorder: false,
+            select: idx =>
+            {
+                _selectedResultIndex = idx;
+                return Task.CompletedTask;
+            },
+            move: _ => Task.CompletedTask);
+    }
+
+    /// <summary>The row's first action button, under the same conditions that leave it enabled.</summary>
+    private Task EnqueueFromKeyboardAsync(MediaSearchEntity entity)
+    {
+        if (!_canAddToQueue || SingerQueueService.SelectedUserId is null)
+            return Task.CompletedTask;
+
+        return CombineWithGlobalActions(entity.SupportedActions).FirstOrDefault() is { } action
+            ? PerformActionAsync(action, entity)
+            : Task.CompletedTask;
     }
 
     private async Task PerformActionAsync(MediaProviderAction action, MediaSearchEntity mediaSearchEntity)

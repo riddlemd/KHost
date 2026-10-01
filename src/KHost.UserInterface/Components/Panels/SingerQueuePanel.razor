@@ -36,7 +36,9 @@
     </div>
     }
     <div class="kh-singer-queue-panel__singer-queue kh-card__body"
-         tabindex="0" data-kh-keylist @onkeydown="OnKeyDownAsync">
+         tabindex="0" data-kh-keylist
+         data-kh-shortcut="@(SingerQueueService.Users.Count > 0 ? "singer-queue" : null)"
+         @onkeydown="OnKeyDownAsync">
         @if (!SingerQueueService.Users.Any())
         {
             <div class="kh-panel--empty kh-panel--empty-lg">

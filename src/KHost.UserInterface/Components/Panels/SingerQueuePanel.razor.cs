@@ -181,14 +181,25 @@ public partial class SingerQueuePanel : IAsyncDisposable
     {
         var users = SingerQueueService.Users;
         var currentIdx = users.ToList().FindIndex(u => u.Id == SingerQueueService.SelectedUserId);
-        var action = ListKeyboardShortcuts.Resolve(e.Key, e.ShiftKey, currentIdx, users.Count);
+        var action = ListKeyboardShortcuts.Resolve(
+            e.Key, e.ShiftKey, currentIdx, users.Count, modified: e.CtrlKey || e.MetaKey || e.AltKey);
 
         await ListKeyboardShortcuts.DispatchAsync(
             action, currentIdx, _canReorderQueue,
             select: idx => SingerQueueService.SelectUserAsync(users[idx].Id),
             move: up => up
                 ? SingerQueueService.MoveUserUpAsync(users[currentIdx].Id)
-                : SingerQueueService.MoveUserDownAsync(users[currentIdx].Id));
+                : SingerQueueService.MoveUserDownAsync(users[currentIdx].Id),
+            remove: () => RemoveSelectedFromKeyboardAsync(users[currentIdx]));
+    }
+
+    /// <summary>The row's remove button with its refusals: no permission, or the singer at the mic.</summary>
+    private Task RemoveSelectedFromKeyboardAsync(KHostUser user)
+    {
+        if (!_canRemoveFromQueue || PlaybackService.CurrentlyPerformingUserId == user.Id)
+            return Task.CompletedTask;
+
+        return ConfirmRemoveUserAsync(user, selectNeighbour: true);
     }
 
     private TimeSpan CalculateEwt(int userIndex)
@@ -221,10 +232,24 @@ public partial class SingerQueuePanel : IAsyncDisposable
         catch { }
     }
 
-    private Task ConfirmRemoveUserAsync(KHostUser user)
+    /// <param name="selectNeighbour">Keyboard removal keeps a row selected so the next key press
+    /// still has something to act on; the queue clears the selection of a removed singer.</param>
+    private Task ConfirmRemoveUserAsync(KHostUser user, bool selectNeighbour = false)
         => DialogService.ConfirmIfAsync(
             _promptBeforeRemovingSinger,
-            () => SingerQueueService.RemoveUserAsync(user.Id),
+            async () =>
+            {
+                // Read at confirm time: the queue can move while the dialog is open.
+                var users = SingerQueueService.Users;
+                var index = users.ToList().FindIndex(u => u.Id == user.Id);
+                var neighbour = ListKeyboardShortcuts.NeighbourAfterRemoval(index, users.Count);
+                Guid? neighbourId = neighbour >= 0 ? users[neighbour].Id : null;
+
+                await SingerQueueService.RemoveUserAsync(user.Id);
+
+                if (selectNeighbour && neighbourId is { } id)
+                    await SingerQueueService.SelectUserAsync(id);
+            },
             $"Are you sure you want to remove <span class=\"kh-emphasis\">{user.Name}</span> from the queue?",
             "Remove Singer From Queue",
             "Remove");
