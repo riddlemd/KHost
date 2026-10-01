@@ -42,6 +42,10 @@ public sealed class VisualiserPresetService : IVisualiserPresetService
     /// the page lists those under a heading of their own.</summary>
     public const string AmbientPrefix = "ambient-";
 
+    /// <summary>What a built-in's name starts with when it is an old-screen effect (static, tape,
+    /// tube); the page lists those under a heading of their own.</summary>
+    public const string RetroPrefix = "retro-";
+
     /// <summary>The host's own drawings, by the names <c>screen-ui/eq-visualisers.js</c> holds them
     /// under, with what a host is shown. Change one and change the other; a test holds them together.</summary>
     internal static readonly IReadOnlyList<(string Name, string Title)> BuiltIns =
@@ -55,11 +59,20 @@ public sealed class VisualiserPresetService : IVisualiserPresetService
         ("ambient-embers", "Rising embers"),
         ("ambient-rings", "Pulse rings"),
         ("ambient-beams", "Sweeping beams"),
+        ("retro-static", "TV static"),
+        ("retro-vhs", "VHS tracking"),
+        ("retro-crt", "CRT glow"),
+        ("retro-glitch", "Glitch blocks"),
+        ("retro-bars", "Rolling colour bars"),
     ];
 
     /// <summary>Whether a built-in is one of the calm scenes.</summary>
     public static bool IsAmbient(VisualiserPresetSource source, string name)
         => source == VisualiserPresetSource.BuiltIn && name.StartsWith(AmbientPrefix, StringComparison.Ordinal);
+
+    /// <summary>Whether a built-in is one of the old-screen effects.</summary>
+    public static bool IsRetro(VisualiserPresetSource source, string name)
+        => source == VisualiserPresetSource.BuiltIn && name.StartsWith(RetroPrefix, StringComparison.Ordinal);
 
     private static readonly string[] EquationFields =
         ["init_eqs_str", "frame_eqs_str", "pixel_eqs_str", "warp", "comp"];

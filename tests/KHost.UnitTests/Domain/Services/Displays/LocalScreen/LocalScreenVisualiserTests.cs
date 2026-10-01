@@ -223,6 +223,25 @@ public class LocalScreenVisualiserTests
     }
 
     [Fact]
+    public async Task LoadAsync_ARetroEffect_SendsItByNameWithItsPalette()
+    {
+        var entry = _playlist.Entries[0];
+        entry.PresetSource = VisualiserPresetSource.BuiltIn;
+        entry.PresetName = "retro-vhs";
+        entry.ColourScheme = VisualiserColourScheme.Single;
+        entry.Colour = "#00ff00";
+        Playing("/songs/africa.song");
+        using var provider = Provider();
+
+        await provider.LoadAsync(Stems);
+
+        var sent = Last();
+        Assert.True(sent.Enabled);
+        Assert.Equal(("retro-vhs", null, null, VisualiserColourScheme.Single, "#00ff00"),
+            (sent.BuiltIn, sent.PresetName, sent.PresetUrl, sent.ColourScheme, sent.Colour));
+    }
+
+    [Fact]
     public async Task LoadAsync_ABuiltInTheHostDoesNotHave_LeavesBlack()
     {
         _playlist.Entries[0].PresetSource = VisualiserPresetSource.BuiltIn;
