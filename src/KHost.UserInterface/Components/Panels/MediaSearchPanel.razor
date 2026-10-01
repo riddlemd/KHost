@@ -17,6 +17,7 @@
             <input type="text" class="kh-form-control" placeholder="Type a Title or Artist"
                     autocomplete="off"
                     data-kh-shortcut="media-search"
+                    data-kh-alt-arrows
                     @ref="_queryInputRef"
                     @bind="_query"
                     @bind:event="oninput"
@@ -46,7 +47,10 @@
         </SplitButton>
     </div>
 
-    <div class="kh-card__body kh-media-search-panel__results">
+    <div class="kh-card__body kh-media-search-panel__results"
+         tabindex="0" data-kh-keylist
+         @ref="_resultsRef"
+         @onkeydown="OnResultsKeyDownAsync">
         @if (_errorMessage is not null)
         {
             <div class="kh-alert--warning">
@@ -127,13 +131,15 @@
                             </tr>
                         </thead>
                         <tbody>
-                            @foreach (var mediaSearchEntity in _results.Take(300))
+                            @foreach (var (mediaSearchEntity, rowIndex) in VisibleResults.Select((r, i) => (r, i)))
                             {
+                                var selectedClass = rowIndex == _selectedResultIndex
+                                    ? "kh-media-search-panel__results__result--selected" : "";
                                 var queuedBy = GetSingersWithMediaQueued(mediaSearchEntity.ForeignKey, mediaSearchEntity.Source);
 
                                 if (mediaSearchEntity.SpansAllColumns)
                                 {
-                                    <tr class="kh-media-search-panel__results__result kh-media-search-panel__offer">
+                                    <tr class="kh-media-search-panel__results__result kh-media-search-panel__offer @selectedClass">
                                         @* Spans the whole table. This row is not a song, so the header
                                            columns above do not describe it. *@
                                         <td colspan="@(columns.Count + 1)">
@@ -158,7 +164,7 @@
                                 }
                                 else
                                 {
-                                    <tr class="kh-media-search-panel__results__result @(queuedBy.Count > 0 ? "kh-media-search-panel__results__result--queued" : "")">
+                                    <tr class="kh-media-search-panel__results__result @(queuedBy.Count > 0 ? "kh-media-search-panel__results__result--queued" : "") @selectedClass">
                                     @for (var i = 0; i < columns.Count; i++)
                                     {
                                         var column = columns[i];

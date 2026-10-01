@@ -69,6 +69,8 @@
     <EmbeddedResource Include="screen-ui\visualiser.js" LogicalName="screen-ui/visualiser.js" />
     <EmbeddedResource Include="screen-ui\eq-visualisers.js" LogicalName="screen-ui/eq-visualisers.js" />
     <EmbeddedResource Include="screen-ui\player.js" LogicalName="screen-ui/player.js" />
+    <!-- Not copied into screen-ui: the console's file is the one source of truth for both windows. -->
+    <EmbeddedResource Include="..\KHost.UserInterface\wwwroot\js\browser-keys.js" LogicalName="screen-ui/browser-keys.js" />
   </ItemGroup>
 
   <ItemGroup>
