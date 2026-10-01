@@ -46,4 +46,22 @@ public class ScreenPageLayoutTests
         Assert.DoesNotMatch(new Regex(@"\.kh-qr\s*\{[^}]*?z-index", RegexOptions.Singleline), Page);
         Assert.DoesNotMatch(new Regex(@"\.kh-break-music\s*\{[^}]*?z-index", RegexOptions.Singleline), Page);
     }
+
+    /// <summary>Full screen is how a room runs; a window's bar left over the picture is in every song.</summary>
+    [Fact]
+    public void TheTitleBarAndEdgesHideInFullScreen()
+    {
+        Assert.Matches(new Regex(@":root\[data-fullscreen=""true""\] \.kh-titlebar\s*,[^{]*:root\[data-fullscreen=""true""\] \.kh-resize-edge[^{]*\{\s*display:\s*none;", RegexOptions.Singleline), Page);
+    }
+
+    /// <summary>The bar sits above the picture rather than over it, so nothing the room sees is under it.</summary>
+    [Fact]
+    public void TheTitleBarIsOutsideTheStage()
+    {
+        var bar = Page.IndexOf("id=\"titlebar\"", StringComparison.Ordinal);
+        var stage = Page.IndexOf("<div id=\"stage\">", StringComparison.Ordinal);
+        var video = Page.IndexOf("<video id=\"video\"", StringComparison.Ordinal);
+
+        Assert.True(bar >= 0 && stage > bar && video > stage, "The bar must come before the stage, and the picture inside it.");
+    }
 }

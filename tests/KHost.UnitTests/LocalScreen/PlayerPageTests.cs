@@ -303,4 +303,14 @@ public class PlayerPageTests
         Assert.True(videoB >= 0 && visualiser > videoB && lyrics > visualiser,
             "the visualiser must sit after the video elements and before the words in the page");
     }
+
+    // The window is chromeless, so a page shipped without the bar has no way to move or close it.
+    [Fact]
+    public void BuildPlayerPage_Always_InlinesTheTitleBar()
+    {
+        var page = Program.BuildPlayerPage();
+
+        Assert.Contains("function createTitleBar", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("<script src=\"title-bar.js\"></script>", page, StringComparison.Ordinal);
+    }
 }
