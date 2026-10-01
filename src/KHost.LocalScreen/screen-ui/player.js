@@ -598,7 +598,7 @@ const MARQUEE_COPIES_MAX = 12;
 let marqueeSignature = null;
 
 const QR_CORNERS = ['bottomright', 'bottomleft', 'topright', 'topleft'];
-const QR_SIZES = ['small', 'medium', 'large'];
+const QR_SIZES = ['small', 'medium', 'large', 'extralarge'];
 
 // What the next-singer card may be drawn over, as the host spells it.
 const CARD_BACKGROUNDS = ['over', 'blackout', 'visualisation'];

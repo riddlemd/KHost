@@ -403,12 +403,14 @@
             --kh-qr-size: 9.5vmin;
         }
 
-        /* The largest is about as big as a code should ever get: it only has to be scannable from
-           a table, and every vmin it takes is one the words are drawn around. The steps below are
-           for a room close enough that even that is more than it needs. */
+        /* Extra large is for a room wide enough that a table-scale code is unreadable from the far
+           wall; every vmin it takes is one the words are drawn around, so it stops well short of
+           crowding the corner. The steps below are for a room close enough that even large is more
+           than it needs. */
         .kh-qr[data-size="small"] { --kh-qr-size: 7.5vmin; }
         .kh-qr[data-size="medium"] { --kh-qr-size: 9.5vmin; }
         .kh-qr[data-size="large"] { --kh-qr-size: 12vmin; }
+        .kh-qr[data-size="extralarge"] { --kh-qr-size: 18vmin; }
 
         /* Three pixels a module is about where a phone camera stops reading one, so a long payload
            holds the code above the venue's requested size rather than shrinking past scannable. */

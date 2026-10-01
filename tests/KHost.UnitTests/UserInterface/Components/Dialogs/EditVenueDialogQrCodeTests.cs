@@ -190,6 +190,23 @@ public class EditVenueDialogQrCodeTests : BunitContext
         Assert.True(saved.Settings.QrCodeHideDuringSong);
     }
 
+    /// <summary>The step appended after Large has to be offered, and chosen, like any other.</summary>
+    [Fact]
+    public void ExtraLargeIsOfferedAndSaved()
+    {
+        Venue? saved = null;
+        var cut = Render(new Venue.VenueSettings { QrCodeSource = "any" }, venue => saved = venue);
+
+        var options = cut.FindAll($"{SizeSelector} option").Select(o => o.GetAttribute("value"));
+        Assert.Contains(nameof(QrCodeSize.ExtraLarge), options);
+
+        cut.Find(SizeSelector).Change(nameof(QrCodeSize.ExtraLarge));
+        cut.Find("form").Submit();
+
+        Assert.NotNull(saved);
+        Assert.Equal(QrCodeSize.ExtraLarge, saved!.Settings.QrCodeSize);
+    }
+
     /// <summary>Saving without a choice must write the values shown, not a placement it ignores.</summary>
     [Fact]
     public void SavingWithoutTouchingThem_WritesWhatWasOffered()
