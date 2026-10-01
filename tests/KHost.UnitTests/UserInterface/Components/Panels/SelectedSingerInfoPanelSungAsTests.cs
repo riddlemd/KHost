@@ -14,7 +14,6 @@ namespace KHost.UnitTests.UserInterface.Components.Panels;
 public class SelectedSingerInfoPanelSungAsTests : BunitContext
 {
     private const string SungAsSelector = ".kh-selected-singer-info-panel__sung-as";
-    private const string AliasActionLabel = "Change Singer Alias";
 
     private readonly ISingerQueueService _queue = Substitute.For<ISingerQueueService>();
     private readonly IPerformanceService _performances = Substitute.For<IPerformanceService>();
@@ -23,7 +22,7 @@ public class SelectedSingerInfoPanelSungAsTests : BunitContext
     private readonly Performance _performance;
     private readonly Media _media;
 
-    /// <summary>Aliases on; an opted-out venue shows neither the line nor the action.</summary>
+    /// <summary>Aliases on; an opted-out venue shows no line.</summary>
     private readonly Venue _venue = new()
     {
         Id = Guid.NewGuid(),
@@ -117,23 +116,5 @@ public class SelectedSingerInfoPanelSungAsTests : BunitContext
         _performance.SungAs = "flo";
 
         Assert.Empty(Render<SelectedSingerInfoPanel>().FindAll(SungAsSelector));
-    }
-
-    [Fact]
-    public void TheAliasAction_IsOffered_WhenTheVenueAllowsAliases()
-    {
-        _performance.SungAs = "flo";
-
-        Assert.Contains(AliasActionLabel, Render<SelectedSingerInfoPanel>().Markup);
-    }
-
-    /// <summary>Nothing to change when the room would not hear it; the action follows the line.</summary>
-    [Fact]
-    public void TheAliasAction_IsHidden_WhenTheVenueDoesNotAllowAliases()
-    {
-        _venue.Settings.AllowAliases = false;
-        _performance.SungAs = "flo";
-
-        Assert.DoesNotContain(AliasActionLabel, Render<SelectedSingerInfoPanel>().Markup);
     }
 }

@@ -20,6 +20,9 @@ public partial class SongControlSlider
     /// <summary>Only the value it was let go of on, for the service.</summary>
     [Parameter] public EventCallback<int> ValueCommitted { get; set; }
 
+    /// <summary>Shown but not movable, for values somebody else owns right now.</summary>
+    [Parameter] public bool Disabled { get; set; }
+
     private SongControlSpan Span => SongControlSpan.For(Value, Min, Max);
 
     /// <summary>Painted from custom properties, since the span is a value, not a stylesheet state.</summary>
