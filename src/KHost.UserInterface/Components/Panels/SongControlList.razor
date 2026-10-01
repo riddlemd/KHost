@@ -1,0 +1,23 @@
+@using KHost.UserInterface.Models
+
+<div class="kh-song-control-list kh-song-control-list--@(Style.ToString().ToLowerInvariant())">
+    @foreach (var control in Controls())
+    {
+        @if (Style == SongControlStyle.Dials)
+        {
+            <SongControlDial Label="@control.Label" AriaLabel="@control.AriaLabel"
+                             Value="@control.Value" Min="@control.Min" Max="@control.Max"
+                             Step="@control.Step" Format="@control.Format"
+                             ValueInput="@control.OnInput" ValueCommitted="@control.OnCommit"
+                             Disabled="@Disabled" />
+        }
+        else
+        {
+            <SongControlSlider Label="@control.Label" AriaLabel="@control.AriaLabel"
+                               Value="@control.Value" Min="@control.Min" Max="@control.Max"
+                               Step="@control.Step" Format="@control.Format"
+                               ValueInput="@control.OnInput" ValueCommitted="@control.OnCommit"
+                             Disabled="@Disabled" />
+        }
+    }
+</div>

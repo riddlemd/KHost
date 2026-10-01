@@ -75,6 +75,11 @@
                                                     title="Edit song associated with this performance">
                                                 <Icon Name="pencil-fill" /> Edit
                                             </button>
+                                            <button class="@(_rootClassName)__edit-performance-btn kh-button"
+                                                    @onclick="() => EditPerformanceAsync(perf, media)"
+                                                    title="Change the name, key, tempo and levels recorded for this performance">
+                                                <Icon Name="pencil-square" /> Edit Performance
+                                            </button>
                                             <button class="@(_rootClassName)__enqueue-btn kh-button"
                                                     @onclick="() => ConfirmDeleteAsync(perf.Id)"
                                                     title="Delete this performance">
