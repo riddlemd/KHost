@@ -20,6 +20,12 @@ public partial class EditPlaylistDialog
     [Parameter] public EventCallback<MediaPool> OnSave { get; set; }
     [Parameter] public EventCallback OnClose { get; set; }
 
+    // The inputs carry the same bounds; these are what a typed or pasted value is held to.
+    private const int MaxWeight = 100;
+    private const int MaxAdTriggerInterval = 240;
+    private const double MinAdDurationSeconds = KHost.UserInterface.Services.AppSettings.MinAdDurationSeconds;
+    private const double MaxAdDurationSeconds = KHost.UserInterface.Services.AppSettings.MaxAdDurationSeconds;
+
     private bool _isNew;
     private bool _prevIsOpen;
 
@@ -141,12 +147,13 @@ public partial class EditPlaylistDialog
     }
 
     private void SetEntryWeight(int index, string? value)
-        => _entries[index].Weight = int.TryParse(value, out var weight) && weight >= 0 ? weight : 1;
+        => _entries[index].Weight = int.TryParse(value, out var weight) && weight >= 0 ? Math.Min(weight, MaxWeight) : 1;
 
     /// <summary>Blank hands the entry back to the default, which is the point of showing it as one.</summary>
+    /// <remarks>Held to the same bounds as the App Settings default it stands in for.</remarks>
     private void SetEntryDuration(int index, string? value)
         => _entries[index].Duration = double.TryParse(value, out var seconds) && seconds > 0
-            ? TimeSpan.FromSeconds(seconds)
+            ? TimeSpan.FromSeconds(Math.Clamp(seconds, MinAdDurationSeconds, MaxAdDurationSeconds))
             : null;
 
     /// <summary>Shown as the placeholder, not the rule: mirrors what AdService resolves.</summary>
@@ -265,7 +272,7 @@ public partial class EditPlaylistDialog
             SelectionMode = _selectionMode,
             NoRepeatCount = Math.Clamp(_noRepeatCount, 0, 50),
             AdTrigger = _adTrigger,
-            AdTriggerInterval = Math.Max(_adTriggerInterval, 1),
+            AdTriggerInterval = Math.Clamp(_adTriggerInterval, 1, MaxAdTriggerInterval),
             Entries = _entries,
         });
     }

@@ -101,10 +101,12 @@ public class EditVenueModelTests
         MarqueeSongColor = "#222222",
         MarqueeDividerColor = "#333333",
         MarqueeDividerShape = MarqueeDividerShape.Diamond,
+        MarqueeHideDuringSong = true,
 #pragma warning disable CS0618 // stored by venues saved before the picker went
         SongBackgrounds = ["one.mp4", "two.mp4"],
 #pragma warning restore CS0618
         VisualisationPlaylistId = Guid.NewGuid(),
+        NextSingerBackground = NextSingerBackground.Visualisation,
         QrCodeSource = "khost.plugins.karafun",
         QrCodeCorner = OverlayCorner.TopLeft,
         QrCodeSize = QrCodeSize.Large,

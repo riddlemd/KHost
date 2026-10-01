@@ -3,6 +3,7 @@ using System;
 using KHost.DataAccess.Contexts;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -10,9 +11,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace KHost.DataAccess.Migrations
 {
     [DbContext(typeof(DefaultContext))]
-    partial class DefaultContextModelSnapshot : ModelSnapshot
+    [Migration("20261001025241_AddMarqueeHideDuringSong")]
+    partial class AddMarqueeHideDuringSong
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.7");
@@ -648,8 +651,6 @@ namespace KHost.DataAccess.Migrations
                             b1.Property<string>("MarqueeSongColor");
 
                             b1.Property<string>("MarqueeTextColor");
-
-                            b1.Property<int>("NextSingerBackground");
 
                             b1.Property<bool>("PromptBeforeRemovingPerformance");
 

@@ -244,22 +244,37 @@
 
         .kh-break-music__artist { display: block; opacity: 0.75; font-size: 0.82em; }
 
-        /* Who is up. Fills the picture rather than taking a corner: it replaces the venue's card
-           for a moment, so it is the thing being looked at, not an annotation on something else. */
+        /* Who is up. Fills the picture rather than taking a corner: it is the thing being looked
+           at, not an annotation on something else. Clear, over the venue's picture or a
+           visualisation, unless the venue asked for black. */
         #nextSinger {
             position: absolute;
             inset: 0;
             display: flex;
-            flex-direction: column;
             align-items: center;
             justify-content: center;
-            gap: 2vmin;
-            background: #000;
             color: #fff;
             font: 400 4vmin/1.2 system-ui, -apple-system, "Segoe UI", sans-serif;
             text-align: center;
             padding: 6vmin;
         }
+
+        #nextSinger[data-background="blackout"] { background: #000; }
+
+        /* Translucent so the picture still reads behind it, dark enough that the words do not
+           depend on what that picture is. */
+        #nextSinger .kh-next__panel {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 2vmin;
+            padding: 4vmin 7vmin;
+            border-radius: 2vmin;
+            background: rgba(0, 0, 0, 0.62);
+        }
+
+        /* On black a panel would only draw a faint box. */
+        #nextSinger[data-background="blackout"] .kh-next__panel { background: none; }
 
         /* Sized off the shorter side like everything else here, so the words hold their
            proportions from a laptop lid to a projector. */
@@ -473,10 +488,12 @@
     <!-- Image ads and the venue card. Above the video so a still covers it, and hidden until asked for. -->
     <img id="still" hidden alt="" />
     <div id="placeholder">KHost</div>
-    <div id="nextSinger" hidden>
-        <span class="kh-next__label">Up next</span>
-        <span class="kh-next__singer"></span>
-        <span class="kh-next__song"></span>
+    <div id="nextSinger" hidden data-background="blackout">
+        <div class="kh-next__panel">
+            <span class="kh-next__label">Up next</span>
+            <span class="kh-next__singer"></span>
+            <span class="kh-next__song"></span>
+        </div>
     </div>
     <div id="blanked" hidden>Video off</div>
     <div id="hostlost" hidden>Lost the host<small>Paused until KHost comes back</small></div>

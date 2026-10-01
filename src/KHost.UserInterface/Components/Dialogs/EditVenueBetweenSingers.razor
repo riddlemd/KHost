@@ -106,4 +106,20 @@
             </InputSelect>
         </div>
     }
+
+    <div class="kh-venue-settings__row">
+        <span class="kh-venue-settings__labelled">
+            <label for="venue-next-singer-background" class="kh-form-label">Behind the &ldquo;Up next&rdquo; card</label>
+            <span class="kh-note">
+                A visualisation comes from this venue's visualisation playlist; with none, the card
+                sits over the placeholder image.
+            </span>
+        </span>
+        <InputSelect id="venue-next-singer-background" class="kh-form-select"
+                     @bind-Value="Model.NextSingerBackground">
+            <option value="@NextSingerBackground.Over">Placeholder image</option>
+            <option value="@NextSingerBackground.Blackout">Black</option>
+            <option value="@NextSingerBackground.Visualisation">A visualisation</option>
+        </InputSelect>
+    </div>
 </div>
