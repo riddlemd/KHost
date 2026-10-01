@@ -124,14 +124,47 @@ public class EditVenueDialogBreakMusicTests : BunitContext
         Assert.Empty(Render("JukeboxProvider").FindAll(PlaylistSelector));
     }
 
-    private IRenderedComponent<EditVenueDialog> Render(string? providerSource)
+    /// <summary>The placeholder must still carry the venue's own stored name, not a blank
+    /// sentinel, or picking it back up writes nothing back.</summary>
+    [Fact]
+    public void VenuesModeIsNotLoaded_PlaceholderCarriesTheStoredName()
+    {
+        var option = Render("SpotifyBreakMusicProvider").Find($"{ModeSelectSelector} option[value='SpotifyBreakMusicProvider']");
+
+        Assert.Contains("SpotifyBreakMusicProvider", option.TextContent);
+        Assert.Contains("not loaded", option.TextContent);
+    }
+
+    /// <summary>Switching the mode away and back used to lose the unloaded provider's own option,
+    /// so picking it back up saved an empty mode rather than the venue's stored one.</summary>
+    [Fact]
+    public void UnloadedMode_SwitchedAwayAndBack_StillSavesTheStoredName()
+    {
+        Venue? saved = null;
+        var cut = Render("SpotifyBreakMusicProvider", v => saved = v);
+
+        cut.Find(ModeSelectSelector).Change(nameof(LibraryBreakMusicProviderStub));
+
+        // The placeholder must still be offered after switching away, or there is no way back.
+        Assert.Contains(cut.FindAll($"{ModeSelectSelector} option"),
+            option => option.GetAttribute("value") == "SpotifyBreakMusicProvider");
+
+        cut.Find(ModeSelectSelector).Change("SpotifyBreakMusicProvider");
+        cut.Find("form").Submit();
+
+        Assert.NotNull(saved);
+        Assert.Equal("SpotifyBreakMusicProvider", saved!.Settings.BreakMusicProvider);
+    }
+
+    private IRenderedComponent<EditVenueDialog> Render(string? providerSource, Action<Venue>? onSave = null)
     {
         var venue = new Venue { Name = "Test Venue" };
         venue.Settings.BreakMusicProvider = providerSource;
 
         return Render<EditVenueDialog>(ps => ps
             .Add(p => p.IsOpen, true)
-            .Add(p => p.Venue, venue));
+            .Add(p => p.Venue, venue)
+            .Add(p => p.OnSave, (Venue v) => onSave?.Invoke(v)));
     }
 
     private static IBreakMusicProvider Provider(string displayName, string sourceName, bool rendersThroughHost)
