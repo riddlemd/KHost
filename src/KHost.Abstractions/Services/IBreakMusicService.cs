@@ -61,12 +61,17 @@ public interface IBreakMusicService
     /// <summary>Starts the active provider and applies the venue's volume.</summary>
     /// <returns>False when there is no provider, the provider had nothing to play, or a song or an
     /// ad with its own audio holds the room.</returns>
+    /// <remarks>Propagates a <see cref="KHost.Abstractions.Exceptions.KHostException"/> the active
+    /// provider throws from its own <see cref="IBreakMusicProvider.StartAsync"/>, unhandled — the
+    /// caller is what shows it to a host.</remarks>
     Task<bool> StartAsync(CancellationToken cancellationToken = default);
 
     /// <summary>Pauses the bed. Does nothing unless it is playing.</summary>
     Task PauseAsync(CancellationToken cancellationToken = default);
 
     /// <summary>Resumes a paused bed. Does nothing unless paused, or while a song holds the room.</summary>
+    /// <remarks>Propagates a <see cref="KHost.Abstractions.Exceptions.KHostException"/> the active
+    /// provider throws from its own <see cref="IBreakMusicProvider.ResumeAsync"/>, unhandled.</remarks>
     Task ResumeAsync(CancellationToken cancellationToken = default);
 
     /// <summary>Stops the bed outright, from any state.</summary>
