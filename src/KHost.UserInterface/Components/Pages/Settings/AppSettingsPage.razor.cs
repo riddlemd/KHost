@@ -17,7 +17,6 @@ public partial class AppSettingsPage : IDisposable
     [Inject] private IDialogService Dialog { get; set; } = default!;
     [Inject] private NavigationManager Navigation { get; set; } = default!;
     [Inject] private IFFmpegService FFmpeg { get; set; } = default!;
-    [Inject] private IHostDirectories HostDirectories { get; set; } = default!;
     [Inject] private IMessageBroker Broker { get; set; } = default!;
     [Inject] private IMediaSearchService MediaSearchService { get; set; } = default!;
 
@@ -34,7 +33,6 @@ public partial class AppSettingsPage : IDisposable
     private string? _error;
     private string? _defaultMediaDirectory;
     private FFmpegStatus _ffmpegStatus = default!;
-    private string _binDirectory = "";
 
     // The bounds the service clamps to on save, so the control and the store cannot disagree.
     // Qualified: the injected service is also called AppSettings on this page.
@@ -53,7 +51,6 @@ public partial class AppSettingsPage : IDisposable
         _restartRequired = AppSettings.RestartRequired;
         _defaultMediaDirectory = AppSettings.DefaultMediaDirectory;
         _ffmpegStatus = FFmpeg.Status;
-        _binDirectory = HostDirectories.BinDirectory;
 
         _subscriptions.Add(Broker.Subscribe<FFmpegChanged>(changed =>
         {
