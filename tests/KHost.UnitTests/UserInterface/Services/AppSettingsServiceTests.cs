@@ -264,6 +264,48 @@ public class AppSettingsServiceTests : IDisposable
     }
 
     [Fact]
+    public void DefaultSearchMode_DefaultsToLocal_TodaysBehaviour()
+        => Assert.Equal(AppSettings.LocalSearchMode, Service().Current.DefaultSearchMode);
+
+    [Fact]
+    public async Task DefaultSearchMode_RoundTripsThroughTheOverlay()
+    {
+        var service = Service();
+
+        await service.SaveAsync(new AppSettings { DefaultSearchMode = "KaraFunMediaProvider" });
+
+        using var overlay = JsonDocument.Parse(
+            await File.ReadAllTextAsync(Path.Combine(_directory, AppSettingsService.OverlayFileName)));
+        Assert.Equal("KaraFunMediaProvider", overlay.RootElement.GetProperty("Search").GetProperty("DefaultMode").GetString());
+
+        Assert.Equal("KaraFunMediaProvider",
+            Service(new KeyValuePair<string, string?>("Search:DefaultMode", "KaraFunMediaProvider")).Current.DefaultSearchMode);
+    }
+
+    [Fact]
+    public async Task DefaultSearchMode_RoundTripsTheRememberSentinel()
+    {
+        var service = Service();
+
+        await service.SaveAsync(new AppSettings { DefaultSearchMode = AppSettings.RememberLastSearchMode });
+
+        using var overlay = JsonDocument.Parse(
+            await File.ReadAllTextAsync(Path.Combine(_directory, AppSettingsService.OverlayFileName)));
+        Assert.Equal(AppSettings.RememberLastSearchMode, overlay.RootElement.GetProperty("Search").GetProperty("DefaultMode").GetString());
+
+        Assert.Equal(AppSettings.RememberLastSearchMode,
+            Service(new KeyValuePair<string, string?>("Search:DefaultMode", AppSettings.RememberLastSearchMode)).Current.DefaultSearchMode);
+    }
+
+    /// <summary>A hand-cleared value must not reach the panel as an empty mode name.</summary>
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void DefaultSearchMode_BlankOverlay_FallsBackToLocal(string stored)
+        => Assert.Equal(AppSettings.LocalSearchMode,
+            Service(new KeyValuePair<string, string?>("Search:DefaultMode", stored)).Current.DefaultSearchMode);
+
+    [Fact]
     public async Task SaveAsync_RefusesRequiringLogin_WhileNoAdminHasAPassword()
     {
         _users.HasAdminWithPasswordAsync().Returns(false);
