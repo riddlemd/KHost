@@ -141,6 +141,9 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
     /// screen's reports spell it. An end reported against any other is the old stream's.</summary>
     private volatile string _loadedStreamUrl = string.Empty;
 
+    /// <summary>Whether a performance was under way at the last PlaybackChanged.</summary>
+    private bool _performanceUnderWay;
+
     public LocalScreenDisplayProvider(
         ILogger<LocalScreenDisplayProvider> logger,
         IScreenServer screenServer,
@@ -176,9 +179,10 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
         _subscriptions.Add(broker.Subscribe<VisualisationPlaylistsChanged>(_ => Redraw(Overlay.Visualiser)));
         _subscriptions.Add(broker.Subscribe<VisualiserPresetsChanged>(_ => Redraw(Overlay.Visualiser)));
 
-        // Who is at the mic decides whether a venue hides its codes; what is on the main channel
-        // decides the picture.
-        _subscriptions.Add(broker.Subscribe<PlaybackChanged>(_ => Redraw(Overlay.QrCodes | Overlay.Picture)));
+        // Who is at the mic decides whether a venue hides its codes and its marquee; what is on the
+        // main channel decides the picture.
+        _subscriptions.Add(broker.Subscribe<PlaybackChanged>(
+            _ => Redraw(Overlay.QrCodes | Overlay.Picture | MarqueeIfPerformanceMoved())));
 
         // A provider moving to the next track says so apart from a start, pause or hand-off.
         _subscriptions.Add(broker.Subscribe<BreakMusicChanged>(_ => Redraw(Overlay.BreakMusicCard)));
@@ -424,12 +428,17 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
         => program is PlaybackProgram.Playing { Media.FilePath: { } path } && MediaFormats.IsCompactDiscGraphics(path);
 
     /// <summary>The marquee as the screen draws it, whole, from the venue's settings and who is next.</summary>
-    /// <remarks>Disabled with no venue selected, or one that has the marquee off. The singers are
+    /// <remarks>Disabled with no venue selected, one that has the marquee off, or one that hides it
+    /// while <paramref name="performanceUnderWay"/>. The singers are
     /// exactly what <see cref="IUpNextService"/> answers for the venue's count, so the band and
     /// anything else naming who is next cannot disagree.</remarks>
-    internal static async Task<SetMarqueeCommand> BuildMarqueeAsync(Venue.VenueSettings? settings, IUpNextService upNext)
+    internal static async Task<SetMarqueeCommand> BuildMarqueeAsync(
+        Venue.VenueSettings? settings, IUpNextService upNext, bool performanceUnderWay = false)
     {
         if (settings is null || !settings.MarqueeEnabled)
+            return new SetMarqueeCommand { Enabled = false };
+
+        if (settings.MarqueeHideDuringSong && performanceUnderWay)
             return new SetMarqueeCommand { Enabled = false };
 
         var upcoming = await upNext.ReadAsync(settings.MarqueeSingerCount);
@@ -865,7 +874,8 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
             await SendVisualiserAsync(load: null);
 
         if (overlays.HasFlag(Overlay.Marquee))
-            await DrawAsync<IUpNextService>("marquee", async upNext => await BuildMarqueeAsync(await ReadVenueSettingsAsync(), upNext));
+            await DrawAsync<IUpNextService>("marquee", async upNext =>
+                await BuildMarqueeAsync(await ReadVenueSettingsAsync(), upNext, PerformanceUnderWay()));
 
         // Sent even when there is nothing up: it is the whole state, so it also clears a code left
         // on a screen that dropped and came back.
@@ -932,6 +942,22 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
         }
 
         return encoded;
+    }
+
+    /// <summary>Someone is at the mic, playing or paused; an ad or an idle screen is not a song.</summary>
+    private bool PerformanceUnderWay()
+        => _services?.GetService<IPlaybackService>()?.CurrentPerformance is not null;
+
+    /// <summary>The marquee only when a performance started or ended since the last PlaybackChanged.</summary>
+    /// <remarks>PlaybackChanged is also every pause and seek, and the marquee reads the queue, so it
+    /// is not rebuilt on those. Broker handlers run one at a time, so the field needs no lock.</remarks>
+    private Overlay MarqueeIfPerformanceMoved()
+    {
+        var underWay = PerformanceUnderWay();
+        if (underWay == _performanceUnderWay) return default;
+
+        _performanceUnderWay = underWay;
+        return Overlay.Marquee;
     }
 
     private async Task<Venue.VenueSettings?> ReadVenueSettingsAsync()
