@@ -194,33 +194,18 @@ public partial class SelectedSingerInfoPanel : IAsyncDisposable
         });
     }
 
-    /// <summary>The turn's name, not the singer's: saves the performance, not the account.</summary>
-    private async Task OpenSingingAsDialogAsync(Performance performance, KHostUser singer)
+    /// <summary>Opens for the loaded turn too, read-only: the dialog itself says why nothing in it
+    /// can change, which a disabled menu item could only put in a tooltip.</summary>
+    private async Task OpenEditPerformanceDialogAsync(Performance performance, Media? media, KHostUser singer)
     {
-        await DialogService.RequestSingingAsAsync(performance, singer.Name, async updated =>
-        {
-            if (updated is not null)
-                await PerformanceService.UpdateAsync(updated);
-        });
+        await DialogService.RequestEditPerformanceAsync(performance, media, singer.Name,
+            edit => edit.SaveAsync(PerformanceService, performance.Id));
     }
 
-    private async Task OpenSettingsDialogAsync(Performance performance, Media? media)
-    {
-        if (SettingsLocked(performance)) return;
-
-        await DialogService.RequestPerformanceSettingsAsync(performance, media,
-            settings => PerformanceService.UpdateSettingsAsync(performance.Id, settings));
-    }
-
-    /// <summary>Loaded, not merely playing: playback holds the loaded turn's values and writes them
-    /// back over the row on its next change, so an edit here would be undone unheard.</summary>
-    private bool SettingsLocked(Performance performance)
-        => PlaybackService.CurrentPerformance?.Id == performance.Id;
-
-    private string SettingsTooltip(Performance performance)
-        => SettingsLocked(performance)
+    private string EditPerformanceTooltip(Performance performance)
+        => PlaybackService.CurrentPerformance?.Id == performance.Id
             ? "This song is loaded. Change it with the song controls while it plays."
-            : "Set the key, tempo and levels this song will be sung at";
+            : "Change the name, key, tempo and levels this song will be sung at";
 
     private async Task ToggleIsRegularAsync()
     {
@@ -302,18 +287,6 @@ public partial class SelectedSingerInfoPanel : IAsyncDisposable
         return !string.IsNullOrEmpty(recorded)
             && !string.Equals(recorded, singer.Name?.Trim(), StringComparison.OrdinalIgnoreCase);
     }
-
-    /// <summary>Loaded, not merely playing: playback resolves the name once at load, so renaming a
-    /// paused song changes nothing on screen while still telling a host it did.</summary>
-    private bool AliasLocked(Performance performance)
-        => PlaybackService.CurrentPerformance?.Id == performance.Id;
-
-    /// <summary>Disabled alone reads as broken, so the button has to say which of the two it is.
-    /// </summary>
-    private string AliasTooltip(Performance performance)
-        => AliasLocked(performance)
-            ? "This song is at the microphone. Its name was announced when it started."
-            : "Change the name this song is announced under";
 
     public async ValueTask DisposeAsync()
     {

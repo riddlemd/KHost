@@ -147,25 +147,13 @@ public class DialogService : IDialogService
         return Task.CompletedTask;
     }
 
-    public Task RequestSingingAsAsync(
-        Performance performance, string? singerName, Func<Performance?, Task> onSave,
+    public Task RequestEditPerformanceAsync(
+        Performance performance, Media? media, string? singerName, Func<PerformanceEdit, Task> onSave,
         Action? onCancel = null, Action? onClose = null)
     {
-        var request = new SingingAsDialog.DialogRequest(performance, singerName, onSave, onCancel, onClose);
+        var request = new EditPerformanceDialog.DialogRequest(performance, media, singerName, onSave, onCancel, onClose);
         _logger.LogDebug("Dialog requested: {DialogType} performance={PerformanceId}",
-            nameof(SingingAsDialog), performance.Id);
-        Show(request, onClose ?? onCancel);
-
-        return Task.CompletedTask;
-    }
-
-    public Task RequestPerformanceSettingsAsync(
-        Performance performance, Media? media, Func<PerformanceSettings, Task> onSave,
-        Action? onCancel = null, Action? onClose = null)
-    {
-        var request = new EditPerformanceSettingsDialog.DialogRequest(performance, media, onSave, onCancel, onClose);
-        _logger.LogDebug("Dialog requested: {DialogType} performance={PerformanceId}",
-            nameof(EditPerformanceSettingsDialog), performance.Id);
+            nameof(EditPerformanceDialog), performance.Id);
         Show(request, onClose ?? onCancel);
 
         return Task.CompletedTask;

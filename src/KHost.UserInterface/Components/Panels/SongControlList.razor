@@ -8,14 +8,16 @@
             <SongControlDial Label="@control.Label" AriaLabel="@control.AriaLabel"
                              Value="@control.Value" Min="@control.Min" Max="@control.Max"
                              Step="@control.Step" Format="@control.Format"
-                             ValueInput="@control.OnInput" ValueCommitted="@control.OnCommit" />
+                             ValueInput="@control.OnInput" ValueCommitted="@control.OnCommit"
+                             Disabled="@Disabled" />
         }
         else
         {
             <SongControlSlider Label="@control.Label" AriaLabel="@control.AriaLabel"
                                Value="@control.Value" Min="@control.Min" Max="@control.Max"
                                Step="@control.Step" Format="@control.Format"
-                               ValueInput="@control.OnInput" ValueCommitted="@control.OnCommit" />
+                               ValueInput="@control.OnInput" ValueCommitted="@control.OnCommit"
+                             Disabled="@Disabled" />
         }
     }
 </div>

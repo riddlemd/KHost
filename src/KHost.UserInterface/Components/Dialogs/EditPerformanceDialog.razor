@@ -1,0 +1,54 @@
+@using KHost.UserInterface.Components.Panels
+
+<Dialog IsOpen="IsOpen" Class="@_rootClassName" OnClose="CloseAsync">
+    <Header>
+        <Icon Name="pencil-square" /> Edit Performance
+    </Header>
+    <Body>
+        @if (!string.IsNullOrWhiteSpace(Media?.Title))
+        {
+            <p class="@(_rootClassName)__title">@Media!.Title</p>
+        }
+
+        @if (_allowAliases)
+        {
+            <EditForm EditContext="_editContext" OnValidSubmit="SaveAsync" class="@($"{_rootClassName}__alias")">
+                <DataAnnotationsValidator />
+
+                <label for="edit-performance-sung-as" class="kh-form-label">Singing As</label>
+                <InputText id="edit-performance-sung-as" class="kh-form-control" @bind-Value="_alias.SungAs"
+                           placeholder="@SingerName" disabled="@_loaded" />
+                @if (_loaded)
+                {
+                    <span class="kh-note @(_rootClassName)__alias-locked">
+                        This song is at the microphone. Its name was announced when it started.
+                    </span>
+                }
+                else
+                {
+                    <span class="kh-note">
+                        Blank uses @_fallbackName. Only announced where the venue allows aliases.
+                    </span>
+                }
+                <ValidationMessage For="() => _alias.SungAs" />
+
+                <button type="submit" class="kh-hidden"></button>
+            </EditForm>
+        }
+
+        <SongControlList Style="@AppSettings.Current.SongControlStyle" Tracks="@_tracks" Values="@_values"
+                         Disabled="@_loaded" />
+
+        @if (_loaded)
+        {
+            <p class="kh-note @(_rootClassName)__locked">
+                This song is loaded now. Change it with the song controls while it plays.
+            </p>
+        }
+    </Body>
+    <Footer>
+        <button class="@(_rootClassName)__cancel-btn kh-button kh-button--secondary" @onclick="CloseAsync" type="button">Cancel</button>
+        <button class="@(_rootClassName)__save-btn kh-button kh-button--primary" @onclick="SubmitAsync" type="button"
+                disabled="@_loaded">Save</button>
+    </Footer>
+</Dialog>
