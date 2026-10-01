@@ -136,6 +136,12 @@ cannot name another's: its secrets, and the QR code it offers the screens.
   a host can act on, never a stack trace. `DiscardImportAsync` reads `FilePath` itself: it deletes
   the row only when nothing is on disk and keeps it as `Broken` when a file outlived the cancel, so
   a partial is never left with no row pointing at it.
+- A plugin that needs to **tell the host something** injects `IFlashService` and calls
+  `Show(text, FlashType)`: the console's pop-up message, stacked and withdrawn on its own. It is for
+  a line the host reads and moves on from (why an action was refused, a sign-in that lapsed), never
+  a decision — that is `IInteractionDispatcher`. The message does not say who sent it, so name the
+  plugin in the text, and flash only what a host can act on; the log takes everything else. A
+  failure the host caused, say pressing play, deserves a flash; a background retry does not.
 - A plugin that needs to **ask the host for a value** injects `IInteractionDispatcher` and sends a
   `TextPromptRequest`. The line is **settings versus secrets**: nothing from that round trip reaches
   `plugins.json`; a plugin that keeps what it collected uses `IPluginContext.SetSecretAsync`. Never
