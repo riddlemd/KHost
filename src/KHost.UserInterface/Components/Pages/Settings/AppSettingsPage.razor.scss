@@ -1,11 +1,32 @@
 .kh-app-settings {
-    max-width: 720px;
     width: 100%;
-    margin-inline: auto;
+
+    &__header {
+        display: flex;
+        align-items: center;
+        gap: 0.5em;
+        margin-bottom: 1em;
+        font-size: 1.1rem;
+        font-weight: 600;
+    }
+
+    .kh-alert--warning {
+        margin-bottom: 1em;
+    }
+
+    // One panel per settings section, flowing into as many columns as the page is wide enough
+    // for; align-items: start keeps a short panel (Ads) from stretching to match a tall
+    // neighbour (Playback), and auto-fill collapses to one column once nothing fits beside it.
+    &__grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(26rem, 1fr));
+        align-items: start;
+        gap: 1em;
+    }
 
     // SettingRow and ChoiceSelect carry no scoped CSS of their own, so everything they render
     // (the row, its label column and the apply note) has none of this page's scope attribute;
-    // ::deep reaches it from kh-card__body, the ancestor this page still renders directly.
+    // ::deep reaches it from kh-card__body, the ancestor every panel still renders directly.
     .kh-card__body {
         padding: 0 1em 1em;
 
@@ -45,17 +66,6 @@
         }
     }
 
-    &__section {
-        margin: 20px 0 8px;
-        padding-bottom: 6px;
-        border-bottom: 1px solid var(--kh-border);
-        font-weight: 600;
-        text-transform: uppercase;
-        font-size: 0.8rem;
-        letter-spacing: 0.06em;
-        color: var(--kh-text-secondary);
-    }
-
     &__ffmpeg {
         display: flex;
         flex-direction: column;
@@ -69,6 +79,8 @@
         justify-content: flex-end;
     }
 
+    // The one Save button for the whole grid, kept under it rather than inside any one panel
+    // so it stays reachable regardless of which column runs longest.
     &__actions {
         margin-top: 24px;
         display: flex;
