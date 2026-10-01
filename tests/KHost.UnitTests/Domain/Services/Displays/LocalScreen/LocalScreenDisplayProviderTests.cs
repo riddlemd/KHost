@@ -830,6 +830,21 @@ public class LocalScreenDisplayProviderTests
         Assert.Equal(3.5, placed.Offset);
     }
 
+    /// <summary>ExtraLarge is the step appended after Large, and must reach the screen unmapped to
+    /// anything smaller.</summary>
+    [Fact]
+    public async Task AnOfferWithExtraLarge_IsDrawnAtExtraLarge()
+    {
+        using var provider = DrawingProvider();
+
+        var placed = Assert.IsType<ScreenQrCodePlacement>(await DrawnCodeAsync(provider, Offer() with
+        {
+            Size = QrCodeSize.ExtraLarge,
+        }));
+
+        Assert.Equal(QrCodeSize.ExtraLarge, placed.Size);
+    }
+
     /// <summary>SVG, not pixels: in a corner a few centimetres across, module edges decide whether a phone reads it.</summary>
     [Fact]
     public async Task AnOffer_IsDrawnAsAVector()

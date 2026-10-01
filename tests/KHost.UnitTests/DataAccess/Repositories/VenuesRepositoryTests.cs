@@ -74,5 +74,31 @@ public class VenuesRepositoryTests : IDisposable
         Assert.Equal("integer:1,0", stored);
     }
 
+    /// <summary>ExtraLarge was appended after Large, so it has to persist and read back as 3, not
+    /// collide with an earlier step.</summary>
+    [Fact]
+    public async Task CreateAsync_StoresAndReadsBackExtraLarge()
+    {
+        var venue = await _repository.CreateAsync(new Venue
+        {
+            Name = "The Alley",
+            Settings = new Venue.VenueSettings { QrCodeSize = QrCodeSize.ExtraLarge },
+        });
+
+        using (var context = _database.CreateDbContext())
+        {
+            var stored = await context.Database
+                .SqlQueryRaw<int>(
+                    "SELECT json_extract(Settings, '$.QrCodeSize') AS Value FROM Venues WHERE Id = {0}",
+                    venue.Id)
+                .SingleAsync();
+
+            Assert.Equal(3, stored);
+        }
+
+        var settings = (await _repository.ReadAsync(venue.Id))!.Settings;
+        Assert.Equal(QrCodeSize.ExtraLarge, settings.QrCodeSize);
+    }
+
     public void Dispose() => _database.Dispose();
 }
