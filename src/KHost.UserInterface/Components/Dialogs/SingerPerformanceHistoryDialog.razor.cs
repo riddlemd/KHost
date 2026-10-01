@@ -100,6 +100,18 @@ public partial class SingerPerformanceHistoryDialog
         await DialogService.RequestEditAsync(media, async (media) => await SaveMediaAsync(media));
     }
 
+    /// <summary>Rewrites the record of how it was sung, which is what Add to Queue copies its key,
+    /// tempo and levels from. The alias is kept on the record only: a re-queued turn takes the
+    /// singer's own name.</summary>
+    private async Task EditPerformanceAsync(Performance performance, Media? media)
+    {
+        await DialogService.RequestEditPerformanceAsync(performance, media, singerName: null, async edit =>
+        {
+            await edit.SaveAsync(PerformanceService, performance.Id);
+            await LoadPageAsync();
+        });
+    }
+
     // Always confirmed: history is not recoverable from anywhere else in the app.
     private async Task ConfirmDeleteAsync(Guid performanceId)
     {

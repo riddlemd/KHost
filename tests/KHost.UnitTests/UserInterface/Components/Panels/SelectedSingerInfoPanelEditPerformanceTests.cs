@@ -4,17 +4,18 @@ using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using KHost.Domain.Services.Messaging;
 using KHost.UserInterface.Components.Panels;
+using KHost.UserInterface.Models;
 using KHost.UserInterface.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace KHost.UnitTests.UserInterface.Components.Panels;
 
-/// <summary>Each waiting turn's row menu opens its key, tempo and levels; the turn at the microphone
-/// is the song controls' to change instead.</summary>
-public class SelectedSingerInfoPanelSettingsTests : BunitContext
+/// <summary>Each queued row's menu has one Edit Performance action for the turn's name, key, tempo
+/// and levels, in place of separate alias and song-control actions.</summary>
+public class SelectedSingerInfoPanelEditPerformanceTests : BunitContext
 {
-    private const string SettingsAction = ".kh-selected-singer-info-panel__settings-btn";
+    private const string EditAction = ".kh-selected-singer-info-panel__edit-performance-btn";
 
     private readonly ISingerQueueService _queue = Substitute.For<ISingerQueueService>();
     private readonly IPerformanceService _performances = Substitute.For<IPerformanceService>();
@@ -26,9 +27,15 @@ public class SelectedSingerInfoPanelSettingsTests : BunitContext
     private readonly Performance _first;
     private readonly Performance _second;
 
-    public SelectedSingerInfoPanelSettingsTests()
+    private readonly Venue _venue = new()
     {
-        _first = new Performance { Id = Guid.NewGuid(), SingerId = _singer.Id, MediaId = Guid.NewGuid(), Pitch = 1 };
+        Name = "Bar",
+        Settings = new() { TippingEnabled = false, AllowAliases = true },
+    };
+
+    public SelectedSingerInfoPanelEditPerformanceTests()
+    {
+        _first = new Performance { Id = Guid.NewGuid(), SingerId = _singer.Id, MediaId = Guid.NewGuid(), Pitch = 1, SungAs = "flo" };
         _second = new Performance { Id = Guid.NewGuid(), SingerId = _singer.Id, MediaId = Guid.NewGuid() };
 
         _queue.SelectedUser.Returns(_singer);
@@ -48,14 +55,15 @@ public class SelectedSingerInfoPanelSettingsTests : BunitContext
         var permissions = Substitute.For<IPermissionService>();
         permissions.HasAsync(Arg.Any<KHostPermission>()).Returns(true);
 
+        // Tipping off: an unstubbed tips read is a null list the panel would sum.
+        var venues = Substitute.For<IVenuesService>();
+        venues.ReadSelectedVenueAsync().Returns(_ => _venue);
+
         Services.AddSingleton(_queue);
         Services.AddSingleton(_performances);
         Services.AddSingleton(_mediaService);
         Services.AddSingleton(_playback);
         Services.AddSingleton(permissions);
-        // Tipping off: an unstubbed tips read is a null list the panel would sum.
-        var venues = Substitute.For<IVenuesService>();
-        venues.ReadSelectedVenueAsync().Returns(new Venue { Name = "Bar", Settings = new() { TippingEnabled = false } });
         Services.AddSingleton(venues);
         Services.AddSingleton(Substitute.For<IMediaSearchService>());
         Services.AddSingleton(Substitute.For<IUsersService>());
@@ -66,23 +74,36 @@ public class SelectedSingerInfoPanelSettingsTests : BunitContext
     }
 
     [Fact]
-    public void EveryQueuedRow_OffersTheAction()
+    public void EveryQueuedRow_OffersEditPerformance_AndNoSeparateAliasOrControlsAction()
     {
-        var actions = Render<SelectedSingerInfoPanel>().FindAll(SettingsAction);
+        var panel = Render<SelectedSingerInfoPanel>();
 
+        var actions = panel.FindAll(EditAction);
         Assert.Equal(2, actions.Count);
-        Assert.All(actions, action => Assert.False(action.HasAttribute("disabled")));
+        Assert.All(actions, action => Assert.Contains("Edit Performance", action.TextContent));
+        Assert.DoesNotContain("Change Singer Alias", panel.Markup);
+        Assert.DoesNotContain("Edit Song Controls", panel.Markup);
+    }
+
+    /// <summary>Key and tempo are worth editing whatever the venue thinks of aliases.</summary>
+    [Fact]
+    public void AVenueWithoutAliases_StillOffersEditPerformance()
+    {
+        _venue.Settings.AllowAliases = false;
+
+        Assert.Equal(2, Render<SelectedSingerInfoPanel>().FindAll(EditAction).Count);
     }
 
     [Fact]
-    public void Clicking_OpensTheEditorOnThatTurnAndItsSong()
+    public void Clicking_OpensTheEditorOnThatTurnItsSongAndTheSingersName()
     {
-        Render<SelectedSingerInfoPanel>().FindAll(SettingsAction)[1].Click();
+        Render<SelectedSingerInfoPanel>().FindAll(EditAction)[1].Click();
 
-        _dialogs.Received(1).RequestPerformanceSettingsAsync(
+        _dialogs.Received(1).RequestEditPerformanceAsync(
             _second,
             Arg.Is<Media?>(m => m != null && m.Id == _second.MediaId),
-            Arg.Any<Func<PerformanceSettings, Task>>(),
+            "Ann",
+            Arg.Any<Func<PerformanceEdit, Task>>(),
             Arg.Any<Action?>(),
             Arg.Any<Action?>());
     }
@@ -91,41 +112,38 @@ public class SelectedSingerInfoPanelSettingsTests : BunitContext
     [Fact]
     public async Task SavingTheEditor_WritesThroughThePerformanceService()
     {
-        Func<PerformanceSettings, Task>? onSave = null;
-        _dialogs.RequestPerformanceSettingsAsync(
-                Arg.Any<Performance>(), Arg.Any<Media?>(), Arg.Do<Func<PerformanceSettings, Task>>(f => onSave = f),
-                Arg.Any<Action?>(), Arg.Any<Action?>())
+        Func<PerformanceEdit, Task>? onSave = null;
+        _dialogs.RequestEditPerformanceAsync(
+                Arg.Any<Performance>(), Arg.Any<Media?>(), Arg.Any<string?>(),
+                Arg.Do<Func<PerformanceEdit, Task>>(f => onSave = f), Arg.Any<Action?>(), Arg.Any<Action?>())
             .Returns(Task.CompletedTask);
+        _performances.ReadAsync(_first.Id).Returns(_ => new Performance { Id = _first.Id, SungAs = "flo" });
 
-        Render<SelectedSingerInfoPanel>().FindAll(SettingsAction)[0].Click();
+        Render<SelectedSingerInfoPanel>().FindAll(EditAction)[0].Click();
         var settings = new PerformanceSettings(-3, 10, 20, null);
-        await onSave!(settings);
+        await onSave!(new PerformanceEdit { SungAsChanged = true, SungAs = "DJ P", Settings = settings });
 
+        await _performances.Received(1).UpdateAsync(Arg.Is<Performance>(p => p.Id == _first.Id && p.SungAs == "DJ P"));
         await _performances.Received(1).UpdateSettingsAsync(_first.Id, settings);
     }
 
+    /// <summary>The loaded turn still opens, read-only, so the host can see what it is set to and is
+    /// told where to change it.</summary>
     [Fact]
-    public void TheLoadedTurn_HasTheActionDisabledWithTheReason()
+    public void TheLoadedTurn_StillOpensWithTheReasonInItsTooltip()
     {
         _playback.CurrentPerformance.Returns(_first);
 
-        var actions = Render<SelectedSingerInfoPanel>().FindAll(SettingsAction);
+        var actions = Render<SelectedSingerInfoPanel>().FindAll(EditAction);
 
-        Assert.True(actions[0].HasAttribute("disabled"));
+        Assert.False(actions[0].HasAttribute("disabled"));
         Assert.Contains("song controls", actions[0].GetAttribute("title"), StringComparison.OrdinalIgnoreCase);
-        Assert.False(actions[1].HasAttribute("disabled"));
         Assert.DoesNotContain("song controls", actions[1].GetAttribute("title"), StringComparison.OrdinalIgnoreCase);
-    }
-
-    /// <summary>The button's disabled state can be a render behind a load; the handler re-checks.</summary>
-    [Fact]
-    public void TheLoadedTurn_ClickedAnyway_OpensNothing()
-    {
-        var actions = Render<SelectedSingerInfoPanel>().FindAll(SettingsAction);
-        _playback.CurrentPerformance.Returns(_first);
 
         actions[0].Click();
 
-        _dialogs.DidNotReceiveWithAnyArgs().RequestPerformanceSettingsAsync(default!, default, default!);
+        _dialogs.Received(1).RequestEditPerformanceAsync(
+            _first, Arg.Any<Media?>(), Arg.Any<string?>(), Arg.Any<Func<PerformanceEdit, Task>>(),
+            Arg.Any<Action?>(), Arg.Any<Action?>());
     }
 }

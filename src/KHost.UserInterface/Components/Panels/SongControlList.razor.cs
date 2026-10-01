@@ -31,6 +31,9 @@ public partial class SongControlList
     /// <summary>Only the value a control was let go of on.</summary>
     [Parameter] public EventCallback<SongControlChange> Committed { get; set; }
 
+    /// <summary>Every control shown at its value and none movable.</summary>
+    [Parameter] public bool Disabled { get; set; }
+
     /// <summary>The panel as data: one list rendered twice, not copies that could drift apart.</summary>
     private IEnumerable<SongControl> Controls()
     {

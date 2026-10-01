@@ -1,7 +1,11 @@
-.kh-edit-performance-settings-dialog {
+.kh-edit-performance-dialog {
     &__title {
         margin: 0 0 0.5rem;
         color: var(--kh-text-secondary);
+    }
+
+    &__alias {
+        margin-bottom: 1rem;
     }
 
     &__locked {

@@ -44,15 +44,12 @@ public interface IDialogService
     Task RequestEditAsync(Tip? item, Guid userId, Func<Tip?, Task> onSave, Action? onCancel = null, Action? onClose = null, bool showDate = true);
     Task RequestBulkEditAsync(IReadOnlyList<Media> items, Func<BulkEditMediaModel, Task> onSave, Action? onCancel = null, Action? onClose = null);
 
-    /// <summary>Changes a turn's announced name; blank falls back to <paramref name="singerName"/>.</summary>
-    Task RequestSingingAsAsync(
-        Performance performance, string? singerName, Func<Performance?, Task> onSave,
-        Action? onCancel = null, Action? onClose = null);
-
-    /// <summary>Sets a waiting turn's key, tempo and levels with the song controls.</summary>
+    /// <summary>Edits one turn, waiting or sung: the name it is announced under and the key,
+    /// tempo and levels it is sung at.</summary>
     /// <param name="media">The song, for its title and its voices; null shows key and tempo only.</param>
-    Task RequestPerformanceSettingsAsync(
-        Performance performance, Media? media, Func<PerformanceSettings, Task> onSave,
+    /// <param name="singerName">What a blank alias falls back to.</param>
+    Task RequestEditPerformanceAsync(
+        Performance performance, Media? media, string? singerName, Func<PerformanceEdit, Task> onSave,
         Action? onCancel = null, Action? onClose = null);
 
     /// <summary>Collects values a caller has no setting for.</summary>
