@@ -11,9 +11,9 @@ public class SetupRedirectProviderTests
     private readonly IUsersService _usersService = Substitute.For<IUsersService>();
     private readonly IVenuesService _venuesService = Substitute.For<IVenuesService>();
 
-    private SetupRedirectProvider MakeProvider(bool hasAdminUser, bool hasVenue, bool requireLogin = true)
+    private SetupRedirectProvider MakeProvider(bool hasAdminWithPassword, bool hasVenue, bool requireLogin = true)
     {
-        _usersService.HasAdminUserAsync().Returns(hasAdminUser);
+        _usersService.HasAdminWithPasswordAsync().Returns(hasAdminWithPassword);
         _venuesService.HasAnyAsync().Returns(hasVenue);
 
         var configuration = new ConfigurationBuilder().AddInMemoryCollection(
@@ -25,7 +25,7 @@ public class SetupRedirectProviderTests
     [Fact]
     public async Task ShouldRedirect_IsSatisfiedWithoutAnAdmin_WhenLoginIsNotRequired()
     {
-        var provider = MakeProvider(hasAdminUser: false, hasVenue: true, requireLogin: false);
+        var provider = MakeProvider(hasAdminWithPassword: false, hasVenue: true, requireLogin: false);
 
         Assert.False(await provider.ShouldRedirectAsync(MakeContext("/")));
     }
@@ -33,7 +33,21 @@ public class SetupRedirectProviderTests
     [Fact]
     public async Task ShouldRedirect_StillWantsAVenue_WhenLoginIsNotRequired()
     {
-        var provider = MakeProvider(hasAdminUser: false, hasVenue: false, requireLogin: false);
+        var provider = MakeProvider(hasAdminWithPassword: false, hasVenue: false, requireLogin: false);
+
+        Assert.True(await provider.ShouldRedirectAsync(MakeContext("/")));
+    }
+
+    /// <summary>The lock-out case: a host flips Auth:RequireLogin on by hand after setup with an
+    /// admin row that has no password (or none at all). The host must land back in the wizard's
+    /// admin step, not behind a login page nothing can satisfy. An admin row existing is not
+    /// enough on its own — <see cref="IUsersService.HasAdminUserAsync"/> would say yes here, which
+    /// is exactly the question this provider must not ask.</summary>
+    [Fact]
+    public async Task ShouldRedirect_SendsBackToSetup_WhenLoginIsRequiredButNoAdminCanSignIn()
+    {
+        _usersService.HasAdminUserAsync().Returns(true);
+        var provider = MakeProvider(hasAdminWithPassword: false, hasVenue: true, requireLogin: true);
 
         Assert.True(await provider.ShouldRedirectAsync(MakeContext("/")));
     }
@@ -50,9 +64,9 @@ public class SetupRedirectProviderTests
     [InlineData(true, false, true)]
     [InlineData(false, true, true)]
     [InlineData(true, true, false)]
-    public async Task ShouldRedirectAsync_RequiresBothAdminUserAndVenue(bool hasAdminUser, bool hasVenue, bool expected)
+    public async Task ShouldRedirectAsync_RequiresBothAnAdminWithAPasswordAndAVenue(bool hasAdminWithPassword, bool hasVenue, bool expected)
     {
-        var provider = MakeProvider(hasAdminUser, hasVenue);
+        var provider = MakeProvider(hasAdminWithPassword, hasVenue);
 
         var result = await provider.ShouldRedirectAsync(MakeContext("/"));
 
@@ -65,7 +79,7 @@ public class SetupRedirectProviderTests
     [InlineData("/SETUP")]
     public async Task ShouldRedirectAsync_NeverRedirectsAwayFromSetupItself(string path)
     {
-        var provider = MakeProvider(hasAdminUser: false, hasVenue: false);
+        var provider = MakeProvider(hasAdminWithPassword: false, hasVenue: false);
 
         var result = await provider.ShouldRedirectAsync(MakeContext(path));
 
@@ -75,18 +89,18 @@ public class SetupRedirectProviderTests
     [Fact]
     public async Task ShouldRedirectAsync_DoesNotQueryServices_ForSetupPaths()
     {
-        var provider = MakeProvider(hasAdminUser: false, hasVenue: false);
+        var provider = MakeProvider(hasAdminWithPassword: false, hasVenue: false);
 
         await provider.ShouldRedirectAsync(MakeContext("/setup"));
 
-        await _usersService.DidNotReceive().HasAdminUserAsync();
+        await _usersService.DidNotReceive().HasAdminWithPasswordAsync();
         await _venuesService.DidNotReceive().HasAnyAsync();
     }
 
     [Fact]
     public async Task ShouldRedirectAsync_TreatsSetupPrefixedPathsAsSetup()
     {
-        var provider = MakeProvider(hasAdminUser: false, hasVenue: false);
+        var provider = MakeProvider(hasAdminWithPassword: false, hasVenue: false);
 
         // "/setupsomething" shares the "/setup" prefix, so it is treated as exempt too.
         var result = await provider.ShouldRedirectAsync(MakeContext("/setupsomething"));
@@ -97,7 +111,7 @@ public class SetupRedirectProviderTests
     [Fact]
     public async Task GetRedirectPathAsync_ReturnsSetup()
     {
-        var provider = MakeProvider(hasAdminUser: false, hasVenue: false);
+        var provider = MakeProvider(hasAdminWithPassword: false, hasVenue: false);
 
         Assert.Equal("/setup", await provider.GetRedirectPathAsync());
     }

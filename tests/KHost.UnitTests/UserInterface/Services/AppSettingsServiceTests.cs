@@ -10,23 +10,23 @@ namespace KHost.UnitTests.UserInterface.Services;
 public class AppSettingsServiceTests : IDisposable
 {
     private readonly string _directory = Path.Combine(Path.GetTempPath(), $"khost-settings-{Guid.NewGuid():n}");
-    private readonly IUsersService _users = Substitute.For<IUsersService>();
     private readonly IFFmpegService _ffmpeg = Substitute.For<IFFmpegService>();
 
     private AppSettingsService Service(params KeyValuePair<string, string?>[] config)
-        => new(new ConfigurationBuilder().AddInMemoryCollection(config).Build(), _users, _ffmpeg, _directory);
+        => new(new ConfigurationBuilder().AddInMemoryCollection(config).Build(), _ffmpeg, _directory);
 
     [Fact]
     public async Task SaveAsync_WritesAConfigShapedOverlay()
     {
         var service = Service();
 
-        var result = await service.SaveAsync(new AppSettings { RequireLogin = false, SegmentSeconds = 4 });
+        var result = await service.SaveAsync(new AppSettings { SegmentSeconds = 4 });
 
         Assert.True(result.Saved);
         using var overlay = JsonDocument.Parse(
             await File.ReadAllTextAsync(Path.Combine(_directory, AppSettingsService.OverlayFileName)));
-        Assert.False(overlay.RootElement.GetProperty("Auth").GetProperty("RequireLogin").GetBoolean());
+        // RequireLogin is config-only now: SaveAsync never writes an Auth section.
+        Assert.False(overlay.RootElement.TryGetProperty("Auth", out _));
         Assert.Equal(4, overlay.RootElement.GetProperty("MediaStream").GetProperty("SegmentSeconds").GetInt32());
         Assert.Equal("00:00:05", overlay.RootElement.GetProperty("Playback").GetProperty("StopFadeDuration").GetString());
     }
@@ -305,29 +305,15 @@ public class AppSettingsServiceTests : IDisposable
         => Assert.Equal(AppSettings.LocalSearchMode,
             Service(new KeyValuePair<string, string?>("Search:DefaultMode", stored)).Current.DefaultSearchMode);
 
+    /// <summary>Off on install unless a host opts in through appsettings.json: nothing in the App
+    /// Settings page writes this key any more.</summary>
     [Fact]
-    public async Task SaveAsync_RefusesRequiringLogin_WhileNoAdminHasAPassword()
-    {
-        _users.HasAdminWithPasswordAsync().Returns(false);
-        var service = Service(new KeyValuePair<string, string?>("Auth:RequireLogin", "false"));
-
-        var result = await service.SaveAsync(new AppSettings { RequireLogin = true });
-
-        Assert.False(result.Saved);
-        Assert.Contains("lock everyone out", result.Error);
-        Assert.False(File.Exists(Path.Combine(_directory, AppSettingsService.OverlayFileName)));
-    }
+    public void RequireLogin_DefaultsToFalse_WhenUnset()
+        => Assert.False(Service().Current.RequireLogin);
 
     [Fact]
-    public async Task SaveAsync_AllowsRequiringLogin_OnceAnAdminHasAPassword()
-    {
-        _users.HasAdminWithPasswordAsync().Returns(true);
-        var service = Service(new KeyValuePair<string, string?>("Auth:RequireLogin", "false"));
-
-        var result = await service.SaveAsync(new AppSettings { RequireLogin = true });
-
-        Assert.True(result.Saved);
-    }
+    public void RequireLogin_ReadsWhatConfigurationHolds()
+        => Assert.True(Service(new KeyValuePair<string, string?>("Auth:RequireLogin", "true")).Current.RequireLogin);
 
     /// <summary>The folder applies live: the next song and probe look there, so no restart.</summary>
     [Fact]
