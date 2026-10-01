@@ -45,6 +45,7 @@ public class HomePageTests : BunitContext
         Services.AddSingleton(_breakMusic);
         Services.AddSingleton(media);
         Services.AddSingleton(appSettings);
+        Services.AddSingleton(Substitute.For<ICacheService>());
         Services.AddSingleton<IMessageBroker>(new MessageBroker(NullLogger<MessageBroker>.Instance));
         Services.AddSingleton(Substitute.For<IDialogService>());
         // The Now Playing panel reads a song's timing to draw who sings where.

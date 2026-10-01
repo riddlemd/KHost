@@ -1,5 +1,6 @@
 using KHost.Abstractions.Models;
 using KHost.Domain.Services;
+using KHost.Domain.Services.MediaProviders;
 using KHost.UserInterface.Models;
 
 namespace KHost.UserInterface.Services;
@@ -57,8 +58,25 @@ public sealed record AppSettings
     /// <remarks>Off by default: a machine with no second display puts the screen over the console.</remarks>
     public bool LaunchScreenOnStartup { get; set; }
 
+    /// <summary>Which mode Song Search starts in: a loaded provider's <c>SourceName</c> (Local
+    /// included, via <see cref="LocalSearchMode"/>), or <see cref="RememberLastSearchMode"/> to
+    /// start in whatever mode was last picked.</summary>
+    /// <remarks>A mode naming a provider no longer loaded falls back to Local — the search panel's
+    /// call, since only it knows which providers are loaded right now.</remarks>
+    public string DefaultSearchMode { get; set; } = LocalSearchMode;
+
     /// <summary>The screen launched at startup is named this, so it reclaims its own window.</summary>
     public const string StartupScreenName = "Screen 1";
+
+    /// <summary>The <see cref="DefaultSearchMode"/> value meaning "always start in the local
+    /// library" — today's behaviour.</summary>
+    /// <remarks>Equal to <see cref="LocalMediaProvider"/>'s own SourceName, so the search panel
+    /// treats a configured default exactly like any other provider pick.</remarks>
+    public const string LocalSearchMode = nameof(LocalMediaProvider);
+
+    /// <summary>The <see cref="DefaultSearchMode"/> value meaning "start in whatever mode was last
+    /// picked", persisted per machine rather than per venue.</summary>
+    public const string RememberLastSearchMode = "Remember";
 
     /// <summary>The graces the page offers, off first.</summary>
     public static readonly IReadOnlyList<int> LeadInGraceChoices = [0, 5, 10];

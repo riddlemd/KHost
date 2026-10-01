@@ -24,6 +24,7 @@ public class AppSettingsPageColorBlindLyricsTests : BunitContext
         Services.AddSingleton(Substitute.For<IFlashService>());
         Services.AddSingleton(Substitute.For<IUsersService>());
         Services.AddFFmpegSection();
+        Services.AddSearchSection();
     }
 
     [Fact]

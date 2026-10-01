@@ -40,7 +40,7 @@
                 <Buttons>
                     @foreach (var provider in UnselectedProviders)
                     {
-                        <button @onclick="() => SelectSource(provider.SourceName)">@provider.DisplayName</button>
+                        <button @onclick="() => SelectSourceAsync(provider.SourceName)">@provider.DisplayName</button>
                     }
                 </Buttons>
         </SplitButton>
