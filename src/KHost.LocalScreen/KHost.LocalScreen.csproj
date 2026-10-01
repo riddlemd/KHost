@@ -58,6 +58,7 @@
   <ItemGroup>
     <EmbeddedResource Include="screen-ui\index.html" LogicalName="screen-ui/index.html" />
     <EmbeddedResource Include="screen-ui\hls.light.min.js" LogicalName="screen-ui/hls.light.min.js" />
+    <EmbeddedResource Include="screen-ui\title-bar.js" LogicalName="screen-ui/title-bar.js" />
     <EmbeddedResource Include="screen-ui\lyrics-overlay.js" LogicalName="screen-ui/lyrics-overlay.js" />
     <EmbeddedResource Include="screen-ui\intro-card.js" LogicalName="screen-ui/intro-card.js" />
     <EmbeddedResource Include="screen-ui\lead-in.js" LogicalName="screen-ui/lead-in.js" />
@@ -72,6 +73,8 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="KHost.UnitTests" />
+    <!-- NSubstitute builds its proxies here, so it can stand in for IScreenWindow. -->
+    <InternalsVisibleTo Include="DynamicProxyGenAssembly2" />
   </ItemGroup>
 
 </Project>

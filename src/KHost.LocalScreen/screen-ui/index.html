@@ -15,6 +15,93 @@
             -webkit-user-select: none;
         }
 
+        body {
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Everything the room sees. The bar sits above it rather than over it, so the picture is
+           letterboxed into what is left and never has a strip of itself hidden. */
+        #stage {
+            position: relative;
+            flex: 1 1 auto;
+            min-height: 0;
+            overflow: hidden;
+        }
+
+        /* The window's own title bar, drawn the same on every OS; title-bar.js wires it. */
+        .kh-titlebar {
+            flex: 0 0 30px;
+            display: flex;
+            align-items: stretch;
+            background: #1c1c21;
+            border-bottom: 1px solid #2a2a31;
+            color: #c8c8ce;
+            font: 400 12px/30px system-ui, -apple-system, "Segoe UI", sans-serif;
+            cursor: default;
+        }
+
+        .kh-titlebar__title {
+            flex: 1 1 auto;
+            min-width: 0;
+            padding-left: 12px;
+            overflow: hidden;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+        }
+
+        .kh-titlebar__buttons { display: flex; flex: 0 0 auto; }
+
+        .kh-titlebar__button {
+            width: 46px;
+            padding: 0;
+            border: 0;
+            background: transparent;
+            color: inherit;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .kh-titlebar__button:hover { background: #2e2e35; color: #fff; }
+        .kh-titlebar__button:active { background: #3a3a42; }
+        .kh-titlebar__button--close:hover { background: #c42b1c; }
+        .kh-titlebar__button--close:active { background: #a52618; }
+
+        .kh-titlebar__button svg {
+            width: 10px;
+            height: 10px;
+            fill: none;
+            stroke: currentColor;
+            stroke-width: 1;
+            shape-rendering: crispEdges;
+        }
+
+        /* One button, two glyphs: which shows is the window's state, set by WindowChrome. */
+        .kh-titlebar__glyph--restore { display: none; }
+        :root[data-maximised="true"] .kh-titlebar__glyph--maximise { display: none; }
+        :root[data-maximised="true"] .kh-titlebar__glyph--restore { display: block; }
+
+        /* Thin strips along the window's edges, since a chromeless window has no frame to pull. */
+        .kh-resize-edge {
+            position: fixed;
+            z-index: 100;
+        }
+
+        .kh-resize-edge[data-edge="n"]  { top: 0; left: 6px; right: 6px; height: 4px; cursor: ns-resize; }
+        .kh-resize-edge[data-edge="s"]  { bottom: 0; left: 6px; right: 6px; height: 5px; cursor: ns-resize; }
+        .kh-resize-edge[data-edge="w"]  { left: 0; top: 6px; bottom: 6px; width: 5px; cursor: ew-resize; }
+        .kh-resize-edge[data-edge="e"]  { right: 0; top: 6px; bottom: 6px; width: 5px; cursor: ew-resize; }
+        .kh-resize-edge[data-edge="nw"] { top: 0; left: 0; width: 6px; height: 6px; cursor: nwse-resize; }
+        .kh-resize-edge[data-edge="se"] { bottom: 0; right: 0; width: 8px; height: 8px; cursor: nwse-resize; }
+        .kh-resize-edge[data-edge="ne"] { top: 0; right: 0; width: 6px; height: 6px; cursor: nesw-resize; }
+        .kh-resize-edge[data-edge="sw"] { bottom: 0; left: 0; width: 8px; height: 8px; cursor: nesw-resize; }
+
+        /* Full screen is how a room runs: nothing of the window shows. Maximised has no edges to pull. */
+        :root[data-fullscreen="true"] .kh-titlebar,
+        :root[data-fullscreen="true"] .kh-resize-edge,
+        :root[data-maximised="true"] .kh-resize-edge { display: none; }
+
         .video {
             position: absolute;
             inset: 0;
@@ -471,46 +558,72 @@
     </style>
 </head>
 <body>
-    <video id="video" class="video" playsinline></video>
-    <video id="video-b" class="video" playsinline></video>
-    <!-- A visualiser under the words, for a song with no picture; filled by visualiser.js. -->
-    <canvas id="visualiser" hidden></canvas>
-    <!-- The host's own drawings take a canvas of their own: butterchurn holds the one above as WebGL. -->
-    <canvas id="visualiser-eq" hidden></canvas>
-    <!-- The native path's picture. Sits with the video elements because it stands in their place:
-         a song is drawn here or streamed there, never both. -->
-    <canvas id="lyrics" class="video" hidden></canvas>
-    <!-- The song's title and singer until its words start; filled by intro-card.js. -->
-    <div id="intro-layer"></div>
-    <!-- Break music and an ad's own bed. Audio-only and plays across the gap
-         between songs, so it is a separate element rather than a second source on the video above. -->
-    <audio id="background"></audio>
-    <!-- Image ads and the venue card. Above the video so a still covers it, and hidden until asked for. -->
-    <img id="still" hidden alt="" />
-    <div id="placeholder">KHost</div>
-    <div id="nextSinger" hidden data-background="blackout">
-        <div class="kh-next__panel">
-            <span class="kh-next__label">Up next</span>
-            <span class="kh-next__singer"></span>
-            <span class="kh-next__song"></span>
+    <div id="titlebar" class="kh-titlebar">
+        <span class="kh-titlebar__title"></span>
+        <div class="kh-titlebar__buttons">
+            <button type="button" class="kh-titlebar__button" data-window-action="minimise" title="Minimise" aria-label="Minimise">
+                <svg viewBox="0 0 10 10" aria-hidden="true"><path d="M0 5.5h10" /></svg>
+            </button>
+            <button type="button" class="kh-titlebar__button" data-window-action="maximise" title="Maximise" aria-label="Maximise">
+                <svg class="kh-titlebar__glyph--maximise" viewBox="0 0 10 10" aria-hidden="true"><rect x="0.5" y="0.5" width="9" height="9" /></svg>
+                <svg class="kh-titlebar__glyph--restore" viewBox="0 0 10 10" aria-hidden="true"><rect x="0.5" y="2.5" width="7" height="7" /><path d="M2.5 2.5v-2h7v7h-2" /></svg>
+            </button>
+            <button type="button" class="kh-titlebar__button kh-titlebar__button--close" data-window-action="close" title="Close" aria-label="Close">
+                <svg viewBox="0 0 10 10" aria-hidden="true"><path d="M0.5 0.5l9 9M9.5 0.5l-9 9" /></svg>
+            </button>
         </div>
     </div>
-    <div id="blanked" hidden>Video off</div>
-    <div id="hostlost" hidden>Lost the host<small>Paused until KHost comes back</small></div>
-    <!-- Next singers and the venue's own line. Hidden until a venue turns it on. -->
-    <div id="marquee" hidden data-position="bottom">
-        <div id="marquee-pin">Up next</div>
-        <div id="marquee-viewport">
-            <div id="marquee-track"><span></span><span></span></div>
+    <div class="kh-resize-edge" data-edge="n"></div>
+    <div class="kh-resize-edge" data-edge="s"></div>
+    <div class="kh-resize-edge" data-edge="w"></div>
+    <div class="kh-resize-edge" data-edge="e"></div>
+    <div class="kh-resize-edge" data-edge="nw"></div>
+    <div class="kh-resize-edge" data-edge="ne"></div>
+    <div class="kh-resize-edge" data-edge="sw"></div>
+    <div class="kh-resize-edge" data-edge="se"></div>
+    <div id="stage">
+        <video id="video" class="video" playsinline></video>
+        <video id="video-b" class="video" playsinline></video>
+        <!-- A visualiser under the words, for a song with no picture; filled by visualiser.js. -->
+        <canvas id="visualiser" hidden></canvas>
+        <!-- The host's own drawings take a canvas of their own: butterchurn holds the one above as WebGL. -->
+        <canvas id="visualiser-eq" hidden></canvas>
+        <!-- The native path's picture. Sits with the video elements because it stands in their place:
+             a song is drawn here or streamed there, never both. -->
+        <canvas id="lyrics" class="video" hidden></canvas>
+        <!-- The song's title and singer until its words start; filled by intro-card.js. -->
+        <div id="intro-layer"></div>
+        <!-- Break music and an ad's own bed. Audio-only and plays across the gap
+             between songs, so it is a separate element rather than a second source on the video above. -->
+        <audio id="background"></audio>
+        <!-- Image ads and the venue card. Above the video so a still covers it, and hidden until asked for. -->
+        <img id="still" hidden alt="" />
+        <div id="placeholder">KHost</div>
+        <div id="nextSinger" hidden data-background="blackout">
+            <div class="kh-next__panel">
+                <span class="kh-next__label">Up next</span>
+                <span class="kh-next__singer"></span>
+                <span class="kh-next__song"></span>
+            </div>
         </div>
+        <div id="blanked" hidden>Video off</div>
+        <div id="hostlost" hidden>Lost the host<small>Paused until KHost comes back</small></div>
+        <!-- Next singers and the venue's own line. Hidden until a venue turns it on. -->
+        <div id="marquee" hidden data-position="bottom">
+            <div id="marquee-pin">Up next</div>
+            <div id="marquee-viewport">
+                <div id="marquee-track"><span></span><span></span></div>
+            </div>
+        </div>
+        <!-- One stack per corner, filled by the host with whatever the venue put there; stays out of
+             the picture while empty. -->
+        <div class="kh-corner" data-corner="topleft"></div>
+        <div class="kh-corner" data-corner="topright"></div>
+        <div class="kh-corner" data-corner="bottomleft"></div>
+        <div class="kh-corner" data-corner="bottomright"></div>
     </div>
-    <!-- One stack per corner, filled by the host with whatever the venue put there; stays out of
-         the picture while empty. -->
-    <div class="kh-corner" data-corner="topleft"></div>
-    <div class="kh-corner" data-corner="topright"></div>
-    <div class="kh-corner" data-corner="bottomleft"></div>
-    <div class="kh-corner" data-corner="bottomright"></div>
     <script src="hls.light.min.js"></script>
+    <script src="title-bar.js"></script>
     <script src="lyrics-overlay.js"></script>
     <script src="intro-card.js"></script>
     <script src="lead-in.js"></script>
