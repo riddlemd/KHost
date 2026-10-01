@@ -4,7 +4,24 @@ using Microsoft.Extensions.Logging;
 namespace KHost.LocalScreen;
 
 /// <summary>Where a screen's window was last left, so it comes back there.</summary>
-internal sealed record WindowPlacement(int Left, int Top, int Width, int Height, bool FullScreen);
+/// <remarks>The rect is always the windowed one. Maximised and full screen are flags over it, not
+/// the monitor's own bounds: a screen may come back on a different monitor, and un-maximising has
+/// to return to a window rather than to a copy of the last monitor it filled.</remarks>
+internal sealed record WindowPlacement(int Left, int Top, int Width, int Height, bool FullScreen, bool Maximised = false)
+{
+    [System.Text.Json.Serialization.JsonIgnore]
+    public WindowBounds Bounds => new(Left, Top, Width, Height);
+
+    /// <summary>What to remember of the window as it is now.</summary>
+    /// <param name="fullScreenRestore">The rect leaving full screen returns to, which is the
+    /// maximised one when full screen was entered from maximised.</param>
+    internal static WindowPlacement Capture(
+        WindowBounds current, bool fullScreen, WindowBounds fullScreenRestore, bool maximised, WindowBounds maximisedRestore)
+    {
+        var windowed = maximised ? maximisedRestore : fullScreen ? fullScreenRestore : current;
+        return new WindowPlacement(windowed.Left, windowed.Top, windowed.Width, windowed.Height, fullScreen, maximised);
+    }
+}
 
 /// <summary>Keeps a screen's window placement on the machine the window is on, not the host.</summary>
 /// <remarks>A screen elsewhere, or one started by hand, keeps its own place.</remarks>
