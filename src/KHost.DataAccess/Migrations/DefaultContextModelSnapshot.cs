@@ -631,6 +631,8 @@ namespace KHost.DataAccess.Migrations
 
                             b1.Property<int>("MarqueeFontSizePixels");
 
+                            b1.Property<bool>("MarqueeHideDuringSong");
+
                             b1.Property<string>("MarqueeMessage");
 
                             b1.Property<bool>("MarqueePinLabel");

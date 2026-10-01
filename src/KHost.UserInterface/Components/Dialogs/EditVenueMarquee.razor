@@ -67,6 +67,17 @@
         </div>
 
         <label class="kh-venue-settings__row kh-form-check">
+            <span class="kh-form-check-label">
+                Hide while a song is playing
+                <span class="kh-note">
+                    Taken down for the whole performance, paused included, and back between singers.
+                </span>
+            </span>
+            <input id="venue-marquee-hide-during-song" type="checkbox" class="kh-form-check-input"
+                   @bind="Model.MarqueeHideDuringSong" />
+        </label>
+
+        <label class="kh-venue-settings__row kh-form-check">
             <span class="kh-form-check-label">Hold &ldquo;Up next&rdquo; at the edge instead of scrolling it</span>
             <input id="venue-marquee-pin-label" type="checkbox" class="kh-form-check-input"
                    @bind="Model.MarqueePinLabel" />

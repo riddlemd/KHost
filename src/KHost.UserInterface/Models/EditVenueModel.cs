@@ -97,6 +97,7 @@ public class EditVenueModel
     public string? MarqueeSongColor { get; set; }
     public string? MarqueeDividerColor { get; set; }
     public MarqueeDividerShape MarqueeDividerShape { get; set; }
+    public bool MarqueeHideDuringSong { get; set; }
 
     /// <summary>The plugin whose code this venue shows, or null for none. Null is the default.</summary>
     public string? QrCodeSource { get; set; }
@@ -195,6 +196,7 @@ public class EditVenueModel
             MarqueeSongColor = settings.MarqueeSongColor ?? DefaultMarqueeText,
             MarqueeDividerColor = settings.MarqueeDividerColor ?? DefaultMarqueeText,
             MarqueeDividerShape = settings.MarqueeDividerShape,
+            MarqueeHideDuringSong = settings.MarqueeHideDuringSong,
 
             // Null is "no preference", which a select cannot show. It offers what a code would take
             // anyway, and saving that back changes nothing.
@@ -250,6 +252,7 @@ public class EditVenueModel
         venue.Settings.MarqueeSongColor = MarqueeSongColor;
         venue.Settings.MarqueeDividerColor = MarqueeDividerColor;
         venue.Settings.MarqueeDividerShape = MarqueeDividerShape;
+        venue.Settings.MarqueeHideDuringSong = MarqueeHideDuringSong;
         venue.Settings.QrCodeSource = QrCodeSource;
         venue.Settings.BrandingImageScaling = BrandingImageScaling;
         venue.Settings.BreakMusicCardEnabled = BreakMusicCardEnabled;
