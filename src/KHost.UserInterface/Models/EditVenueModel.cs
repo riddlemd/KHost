@@ -105,6 +105,8 @@ public class EditVenueModel
     /// <summary>The visualisation playlist under a song's words; null leaves black.</summary>
     public Guid? VisualisationPlaylistId { get; set; }
 
+    public NextSingerBackground NextSingerBackground { get; set; }
+
     /// <summary>Null takes the image's own answer, which is what a venue that never asks gets.</summary>
     public ImageScaling? BrandingImageScaling { get; set; }
 
@@ -202,6 +204,7 @@ public class EditVenueModel
             // anyway, and saving that back changes nothing.
             QrCodeSource = settings.QrCodeSource,
             BrandingImageScaling = settings.BrandingImageScaling,
+            NextSingerBackground = settings.NextSingerBackground,
             BreakMusicCardEnabled = settings.BreakMusicCardEnabled,
             BreakMusicCardCorner = settings.BreakMusicCardCorner ?? OverlayCorner.BottomLeft,
             QrCodeCorner = settings.QrCodeCorner ?? OverlayCorner.BottomRight,
@@ -255,6 +258,7 @@ public class EditVenueModel
         venue.Settings.MarqueeHideDuringSong = MarqueeHideDuringSong;
         venue.Settings.QrCodeSource = QrCodeSource;
         venue.Settings.BrandingImageScaling = BrandingImageScaling;
+        venue.Settings.NextSingerBackground = NextSingerBackground;
         venue.Settings.BreakMusicCardEnabled = BreakMusicCardEnabled;
         venue.Settings.BreakMusicCardCorner = BreakMusicCardCorner;
         venue.Settings.QrCodeCorner = QrCodeCorner;

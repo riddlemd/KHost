@@ -182,6 +182,9 @@ public class Venue : RepositoryModel
         /// display that draws the words itself shows one; burned-in words stay on black.</remarks>
         public Guid? VisualisationPlaylistId { get; set; }
 
+        /// <summary>What the "Up next" card is drawn over. Over when unset.</summary>
+        public NextSingerBackground NextSingerBackground { get; set; }
+
         /// <summary>Which plugin's QR code shows; null (default) means none shown until chosen.</summary>
         public string? QrCodeSource { get; set; }
 

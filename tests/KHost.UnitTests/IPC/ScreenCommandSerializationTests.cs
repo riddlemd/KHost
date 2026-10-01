@@ -102,6 +102,8 @@ public class ScreenCommandSerializationTests
             Singer = "Ada",
             Song = "Total Eclipse of the Heart",
             Artist = "Bonnie Tyler",
+            Background = NextSingerBackground.Visualisation,
+            Visualiser = new SetVisualiserCommand { Enabled = true, BuiltIn = "ambient-embers", Brightness = 90 },
         },
         [nameof(SetScreenQrCodesCommand)] = new SetScreenQrCodesCommand
         {

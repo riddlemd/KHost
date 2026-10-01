@@ -598,6 +598,12 @@ let marqueeSignature = null;
 const QR_CORNERS = ['bottomright', 'bottomleft', 'topright', 'topleft'];
 const QR_SIZES = ['small', 'medium', 'large'];
 
+// What the next-singer card may be drawn over, as the host spells it.
+const CARD_BACKGROUNDS = ['over', 'blackout', 'visualisation'];
+
+// Whether the visualiser on screen is the card's rather than a song's.
+let cardVisualiser = false;
+
 // What is playing between singers. Text only: a title and an artist off a provider, which is
 // exactly why it is built as nodes rather than markup.
 /// Names who is up, over the whole picture. Nothing here takes it down: the next thing drawn does.
@@ -609,11 +615,60 @@ function showNextSinger(message) {
     song.textContent = message.artist ? `${message.song} - ${message.artist}` : (message.song || '');
     song.hidden = !message.song;
 
-    // The venue's card and any still are what this replaces, so both go while it is up.
+    const background = CARD_BACKGROUNDS.includes(message.background) ? message.background : 'over';
+    // Another announcement over this one may ask for something else behind it.
+    if (background !== 'visualisation') stopCardVisualiser();
+
+    nextSinger.dataset.background = background;
+    nextSinger.hidden = false;
+
+    if (background === 'over') {
+        showIdlePicture();
+        return;
+    }
+
+    // Black, or a visualisation, replaces the venue's picture, so it goes while the card is up.
     still.hidden = true;
     placeholder.hidden = true;
-    nextSinger.hidden = false;
+    if (background === 'visualisation') startCardVisualiser(message.visualiser);
 }
+
+/// Puts the card's visualisation up, unless a song's is already drawing: the card sits over that
+/// one and leaves it to the song. One that cannot be drawn leaves the card over the venue's picture.
+function startCardVisualiser(look) {
+    if (!look || (visualiser.active && !cardVisualiser)) return;
+
+    cardVisualiser = true;
+    visualiser.setLook(look);
+    // No song to read levels from. It hears the break music where the page can tap it (not in
+    // WebKit, which has no captureStream, nor a provider playing outside the page); else it draws
+    // its idle motion.
+    loadVisualiserLevels(null);
+    visualiser.freeze(false);
+    visualiser.setAudio(elementAudioSource(background));
+    visualiser.show(look).then((up) => {
+        if (up || !cardVisualiser || nextSinger.hidden) return;
+
+        cardVisualiser = false;
+        nextSinger.dataset.background = 'over';
+        showIdlePicture();
+    });
+}
+
+/// Takes down only what the card put up.
+function stopCardVisualiser() {
+    if (!cardVisualiser) return;
+
+    cardVisualiser = false;
+    visualiser.hide();
+    visualiser.setAudio(null);
+    releaseElementTap();
+}
+
+// The next break-music track is a new source, so the card's tap follows it.
+background.addEventListener('playing', () => {
+    if (cardVisualiser) visualiser.setAudio(elementAudioSource(background));
+});
 
 /// Anything that redraws the picture clears the card. Deliberately not every command: a marquee or
 /// a code update is not somebody taking the screen back, and would cancel an announcement the host
@@ -622,6 +677,7 @@ function clearNextSinger() {
     if (nextSinger.hidden) return;
 
     nextSinger.hidden = true;
+    stopCardVisualiser();
     showIdlePicture();
 }
 

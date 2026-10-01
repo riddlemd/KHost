@@ -649,6 +649,8 @@ namespace KHost.DataAccess.Migrations
 
                             b1.Property<string>("MarqueeTextColor");
 
+                            b1.Property<int>("NextSingerBackground");
+
                             b1.Property<bool>("PromptBeforeRemovingPerformance");
 
                             b1.Property<bool>("PromptBeforeRemovingSinger");
