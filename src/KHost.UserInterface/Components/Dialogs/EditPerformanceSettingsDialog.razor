@@ -1,0 +1,27 @@
+@using KHost.UserInterface.Components.Panels
+
+<Dialog IsOpen="IsOpen" Class="@_rootClassName" OnClose="CloseAsync">
+    <Header>
+        <Icon Name="sliders" /> Song Controls
+    </Header>
+    <Body>
+        @if (!string.IsNullOrWhiteSpace(Media?.Title))
+        {
+            <p class="@(_rootClassName)__title">@Media!.Title</p>
+        }
+
+        <SongControlList Style="@AppSettings.Current.SongControlStyle" Tracks="@_tracks" Values="@_values" />
+
+        @if (_loaded)
+        {
+            <p class="kh-note @(_rootClassName)__locked">
+                This song is loaded now. Change it with the song controls while it plays.
+            </p>
+        }
+    </Body>
+    <Footer>
+        <button class="@(_rootClassName)__cancel-btn kh-button kh-button--secondary" @onclick="CloseAsync" type="button">Cancel</button>
+        <button class="@(_rootClassName)__save-btn kh-button kh-button--primary" @onclick="SaveAsync" type="button"
+                disabled="@_loaded">Save</button>
+    </Footer>
+</Dialog>

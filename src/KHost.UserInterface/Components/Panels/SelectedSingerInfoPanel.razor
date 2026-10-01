@@ -190,6 +190,12 @@
                                                 title="Edit Song">
                                             <Icon Name="pencil-fill" /> Edit Song
                                         </button>
+                                        <button class="kh-selected-singer-info-panel__settings-btn kh-button kh-button--primary"
+                                                disabled="@SettingsLocked(performance)"
+                                                @onclick="() => OpenSettingsDialogAsync(performance, rowMedia)"
+                                                title="@SettingsTooltip(performance)">
+                                            <Icon Name="sliders" /> Edit Song Controls
+                                        </button>
                                         @if (_allowAliases)
                                         {
                                             <button class="kh-button kh-button--primary"

@@ -15,24 +15,9 @@
     {
         <div class="kh-song-controls__scrim" @onclick="Close"></div>
 
-        <div class="kh-song-controls__panel kh-song-controls__panel--@(Style.ToString().ToLowerInvariant())">
-            @foreach (var control in Controls())
-            {
-                @if (Style == SongControlStyle.Dials)
-                {
-                    <SongControlDial Label="@control.Label" AriaLabel="@control.AriaLabel"
-                                     Value="@control.Value" Min="@control.Min" Max="@control.Max"
-                                     Step="@control.Step" Format="@control.Format"
-                                     ValueInput="@control.OnInput" ValueCommitted="@control.OnCommit" />
-                }
-                else
-                {
-                    <SongControlSlider Label="@control.Label" AriaLabel="@control.AriaLabel"
-                                       Value="@control.Value" Min="@control.Min" Max="@control.Max"
-                                       Step="@control.Step" Format="@control.Format"
-                                       ValueInput="@control.OnInput" ValueCommitted="@control.OnCommit" />
-                }
-            }
+        <div class="kh-song-controls__panel">
+            <SongControlList Style="@Style" Tracks="@PlaybackService.AudioTracks" Values="@_values"
+                             Input="@OnInput" Committed="@CommitAsync" />
         </div>
     }
 </div>

@@ -159,6 +159,18 @@ public class DialogService : IDialogService
         return Task.CompletedTask;
     }
 
+    public Task RequestPerformanceSettingsAsync(
+        Performance performance, Media? media, Func<PerformanceSettings, Task> onSave,
+        Action? onCancel = null, Action? onClose = null)
+    {
+        var request = new EditPerformanceSettingsDialog.DialogRequest(performance, media, onSave, onCancel, onClose);
+        _logger.LogDebug("Dialog requested: {DialogType} performance={PerformanceId}",
+            nameof(EditPerformanceSettingsDialog), performance.Id);
+        Show(request, onClose ?? onCancel);
+
+        return Task.CompletedTask;
+    }
+
     /// <remarks>Confirming does what picking Local Display off the Display menu does, so there is
     /// one way a screen opens and the provider's refusal of a second one covers both.</remarks>
     public Task ShowNoScreensAsync()

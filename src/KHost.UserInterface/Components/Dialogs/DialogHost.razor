@@ -64,6 +64,12 @@
                 OnClose="@(() => { r.OnCancel?.Invoke(); Close(r); })" />
             break;
 
+        case EditPerformanceSettingsDialog.DialogRequest r:
+            <EditPerformanceSettingsDialog @key="r.Id" IsOpen="true" Performance="@r.Performance" Media="@r.Media"
+                OnSave="@(async (settings) => { await r.OnSave(settings); Close(r); })"
+                OnClose="@(() => { r.OnCancel?.Invoke(); Close(r); })" />
+            break;
+
         case SingerPerformanceHistoryDialog.DialogRequest r:
             <SingerPerformanceHistoryDialog @key="r.Id" IsOpen="true" UserId="@r.UserId"
                 OnClose="@(() => { r.OnClose?.Invoke(); Close(r); })" />

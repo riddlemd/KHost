@@ -4384,6 +4384,28 @@ public class PlaybackServiceTests : IDisposable
         Assert.Equal(30, _renderer.LastRequest?.Mix?.VoiceVolumes?["♂"]);
     }
 
+    /// <summary>A turn edited while it waited plays as it was set: every saved value reaches the
+    /// encode, not only the key the queue shows.</summary>
+    [Fact]
+    public async Task Load_ATurnEditedWhileQueued_OpensAtEverySavedValue()
+    {
+        var (performance, media) = CreatePerformance();
+        performance.Pitch = 2;
+        performance.Tempo = -10;
+        performance.BackingVolume = 35;
+        performance.VoiceVolumes = new() { ["♀"] = 70 };
+        GiveADuet(media);
+
+        await _service.LoadAsync(performance, media);
+
+        var request = _renderer.LastRequest!;
+        Assert.Equal(2, request.Pitch);
+        Assert.Equal(-10, request.Tempo);
+        Assert.Equal(35, request.Mix?.BackingVolume);
+        Assert.Equal(70, request.Mix?.VoiceVolumes?["♀"]);
+        Assert.Equal(0, request.Mix?.VoiceVolumes?["♂"]);
+    }
+
     [Fact]
     public async Task SetVoiceVolume_MovesOnlyThatSingersStem()
     {
