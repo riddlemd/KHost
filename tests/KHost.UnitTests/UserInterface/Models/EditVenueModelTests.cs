@@ -106,6 +106,7 @@ public class EditVenueModelTests
         SongBackgrounds = ["one.mp4", "two.mp4"],
 #pragma warning restore CS0618
         VisualisationPlaylistId = Guid.NewGuid(),
+        NextSingerBackground = NextSingerBackground.Visualisation,
         QrCodeSource = "khost.plugins.karafun",
         QrCodeCorner = OverlayCorner.TopLeft,
         QrCodeSize = QrCodeSize.Large,

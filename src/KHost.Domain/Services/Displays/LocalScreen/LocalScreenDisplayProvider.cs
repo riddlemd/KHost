@@ -192,12 +192,7 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
         _subscriptions.Add(broker.Subscribe<QrCodeOfferChanged>((_, _) => RedrawAsync(Overlay.QrCodes)));
         // How the words are adjusted moved, so the song on screen gets them again, mid-song.
         _subscriptions.Add(broker.Subscribe<TimedLyricsSettingsChanged>((_, _) => ReplaceTimedLyricsAsync()));
-        _subscriptions.Add(broker.Subscribe<NextSingerAnnounced>((announced, _) => SendAsync(new ShowNextSingerCommand
-        {
-            Singer = announced.Card.Singer,
-            Song = announced.Card.Song,
-            Artist = announced.Card.Artist,
-        })));
+        _subscriptions.Add(broker.Subscribe<NextSingerAnnounced>((announced, _) => ShowNextSingerAsync(announced.Card)));
     }
 
     /// <summary>What it is, not where it is. "This computer" read as a location a host might be
@@ -681,14 +676,23 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
         // Picked only once the song is known to draw one, so a video does not use up a turn.
         if (await EntryForSongAsync(playlists, playlistId) is not { } entry) return VisualiserOff;
 
+        return VisualiserFor(entry, song.Media.Title, () => LevelsUrlFor(path, load)) ?? VisualiserOff;
+    }
+
+    /// <summary>The command that draws <paramref name="entry"/>; null when its preset cannot be
+    /// found, which leaves whatever was under it.</summary>
+    /// <remarks><paramref name="levelsUrl"/> is asked only once the preset resolves: it may start a
+    /// read of the song's levels.</remarks>
+    private SetVisualiserCommand? VisualiserFor(VisualisationEntry entry, string drawnFor, Func<string?> levelsUrl)
+    {
         string? name = null, url = null, builtIn = null;
         if (entry.PresetSource == VisualiserPresetSource.BuiltIn)
         {
             if (!VisualiserPresetService.BuiltIns.Any(b => b.Name == entry.PresetName))
             {
-                _logger.LogWarning("The visualisation names a built-in drawing '{Preset}' the host does not have; '{Title}' plays over black",
-                    entry.PresetName, song.Media.Title);
-                return VisualiserOff;
+                _logger.LogWarning("The visualisation names a built-in drawing '{Preset}' the host does not have; '{Title}' draws without it",
+                    entry.PresetName, drawnFor);
+                return null;
             }
 
             builtIn = entry.PresetName;
@@ -697,9 +701,9 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
         {
             if (ImportedPresetUrl(entry.PresetName) is not { } imported)
             {
-                _logger.LogWarning("The visualisation's imported preset '{Preset}' is not there any more; '{Title}' plays over black",
-                    entry.PresetName, song.Media.Title);
-                return VisualiserOff;
+                _logger.LogWarning("The visualisation's imported preset '{Preset}' is not there any more; '{Title}' draws without it",
+                    entry.PresetName, drawnFor);
+                return null;
             }
 
             url = imported;
@@ -721,8 +725,55 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
             Brightness = entry.Brightness,
             Saturation = entry.Saturation,
             Sensitivity = entry.Sensitivity,
-            LevelsUrl = LevelsUrlFor(path, load),
+            LevelsUrl = levelsUrl(),
         };
+    }
+
+    /// <summary>Hands the screen the "Up next" card with what the venue wants behind it.</summary>
+    /// <remarks>A one-shot: a venue edit while it is up reaches the next announcement, not this one.
+    /// A visualisation the venue cannot draw (no playlist, an empty one, a preset gone) falls back
+    /// to <see cref="NextSingerBackground.Over"/>, what a venue that never chose gets.</remarks>
+    private async Task ShowNextSingerAsync(NextSingerCard card)
+    {
+        var background = (await ReadVenueSettingsAsync())?.NextSingerBackground ?? NextSingerBackground.Over;
+        SetVisualiserCommand? visualiser = null;
+
+        if (background == NextSingerBackground.Visualisation)
+        {
+            visualiser = await CardVisualiserAsync(card);
+            if (visualiser is null) background = NextSingerBackground.Over;
+        }
+
+        await SendAsync(new ShowNextSingerCommand
+        {
+            Singer = card.Singer,
+            Song = card.Song,
+            Artist = card.Artist,
+            Background = background,
+            Visualiser = visualiser,
+        });
+    }
+
+    /// <summary>The venue playlist's next entry, taken the way a song takes one, with no levels:
+    /// between singers there is no song for the host to read them from.</summary>
+    /// <remarks>Never throws: the card matters more than what is behind it.</remarks>
+    private async Task<SetVisualiserCommand?> CardVisualiserAsync(NextSingerCard card)
+    {
+        try
+        {
+            if ((await ReadVenueSettingsAsync())?.VisualisationPlaylistId is not { } playlistId) return null;
+            if (_services?.GetService<IVisualisationPlaylistService>() is not { } playlists) return null;
+
+            // An empty or missing playlist answers null.
+            if (await playlists.SelectNextAsync(playlistId) is not { } entry) return null;
+
+            return VisualiserFor(entry, "the next-singer card", () => null);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Could not pick a visualisation for the card naming {Singer}", card.Singer);
+            return null;
+        }
     }
 
     /// <summary>The song's entry: the one already picked while it is still in the venue's playlist,
