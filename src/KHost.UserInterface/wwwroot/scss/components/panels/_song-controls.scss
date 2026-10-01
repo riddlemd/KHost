@@ -51,7 +51,6 @@
     right: 0;
     z-index: 2;
 
-    display: flex;
     background: var(--kh-bg-elevated);
     border: 1px solid var(--kh-border-bright);
     border-radius: var(--kh-radius);
@@ -62,7 +61,7 @@
 // 900px window, and the last of them fell off the bottom.
 // A grid rather than a column of rows: the label column takes the longest name, so a singer's name
 // stays on one line and every track still starts at the same x.
-.kh-song-controls__panel--sliders {
+.kh-song-control-list--sliders {
     display: grid;
     grid-template-columns: minmax(46px, max-content) minmax(150px, 1fr) 40px;
     align-items: center;
@@ -74,7 +73,8 @@
 }
 
 // Four across, which is shorter than the trigger row and clears the card's width with room over.
-.kh-song-controls__panel--dials {
+.kh-song-control-list--dials {
+    display: flex;
     gap: 6px;
     padding: 8px 9px 6px;
 }

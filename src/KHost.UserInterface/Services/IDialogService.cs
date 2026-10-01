@@ -49,6 +49,12 @@ public interface IDialogService
         Performance performance, string? singerName, Func<Performance?, Task> onSave,
         Action? onCancel = null, Action? onClose = null);
 
+    /// <summary>Sets a waiting turn's key, tempo and levels with the song controls.</summary>
+    /// <param name="media">The song, for its title and its voices; null shows key and tempo only.</param>
+    Task RequestPerformanceSettingsAsync(
+        Performance performance, Media? media, Func<PerformanceSettings, Task> onSave,
+        Action? onCancel = null, Action? onClose = null);
+
     /// <summary>Collects values a caller has no setting for.</summary>
     /// <remarks>See <see cref="TextPromptRequest"/>.</remarks>
     Task RequestTextPromptAsync(

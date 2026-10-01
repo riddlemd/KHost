@@ -204,6 +204,24 @@ public partial class SelectedSingerInfoPanel : IAsyncDisposable
         });
     }
 
+    private async Task OpenSettingsDialogAsync(Performance performance, Media? media)
+    {
+        if (SettingsLocked(performance)) return;
+
+        await DialogService.RequestPerformanceSettingsAsync(performance, media,
+            settings => PerformanceService.UpdateSettingsAsync(performance.Id, settings));
+    }
+
+    /// <summary>Loaded, not merely playing: playback holds the loaded turn's values and writes them
+    /// back over the row on its next change, so an edit here would be undone unheard.</summary>
+    private bool SettingsLocked(Performance performance)
+        => PlaybackService.CurrentPerformance?.Id == performance.Id;
+
+    private string SettingsTooltip(Performance performance)
+        => SettingsLocked(performance)
+            ? "This song is loaded. Change it with the song controls while it plays."
+            : "Set the key, tempo and levels this song will be sung at";
+
     private async Task ToggleIsRegularAsync()
     {
         if (SingerQueueService.SelectedUser is not { } user) return;
