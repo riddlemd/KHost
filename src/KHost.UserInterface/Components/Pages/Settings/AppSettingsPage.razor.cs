@@ -35,6 +35,17 @@ public partial class AppSettingsPage : IDisposable
     private FFmpegStatus _ffmpegStatus = default!;
     private string _binDirectory = "";
 
+    // The bounds the service clamps to on save, so the control and the store cannot disagree.
+    // Qualified: the injected service is also called AppSettings on this page.
+    private const double MinStopFadeSeconds = KHost.UserInterface.Services.AppSettings.MinStopFadeSeconds;
+    private const double MaxStopFadeSeconds = KHost.UserInterface.Services.AppSettings.MaxStopFadeSeconds;
+    private const int MinSegmentSeconds = KHost.UserInterface.Services.AppSettings.MinSegmentSeconds;
+    private const int MaxSegmentSeconds = KHost.UserInterface.Services.AppSettings.MaxSegmentSeconds;
+    private const double MinAdDurationSeconds = KHost.UserInterface.Services.AppSettings.MinAdDurationSeconds;
+    private const double MaxAdDurationSeconds = KHost.UserInterface.Services.AppSettings.MaxAdDurationSeconds;
+    private const int MinPageSize = KHost.UserInterface.Services.AppSettings.MinPageSize;
+    private const int MaxPageSize = KHost.UserInterface.Services.AppSettings.MaxPageSize;
+
     protected override void OnInitialized()
     {
         _model = AppSettings.Current;

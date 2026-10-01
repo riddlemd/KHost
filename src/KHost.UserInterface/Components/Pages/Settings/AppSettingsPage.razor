@@ -30,10 +30,12 @@
 
                 <div class="kh-app-settings__section">Playback</div>
                 <SettingRow Label="Stop fade (seconds)" Applies="applies immediately">
-                    <InputNumber class="kh-form-control kh-app-settings__number" @bind-Value="_model.StopFadeSeconds" min="0" step="0.5" />
+                    <InputNumber class="kh-form-control kh-app-settings__number" @bind-Value="_model.StopFadeSeconds"
+                                 min="@MinStopFadeSeconds" max="@MaxStopFadeSeconds" step="0.5" />
                 </SettingRow>
                 <SettingRow Label="HLS segment length (seconds)" Applies="applies immediately">
-                    <InputNumber class="kh-form-control kh-app-settings__number" @bind-Value="_model.SegmentSeconds" min="1" step="1" />
+                    <InputNumber class="kh-form-control kh-app-settings__number" @bind-Value="_model.SegmentSeconds"
+                                 min="@MinSegmentSeconds" max="@MaxSegmentSeconds" step="1" />
                 </SettingRow>
                 <SettingRow Label="CD+G scaling" Applies="applies from the next song">
                     <Note>
@@ -112,27 +114,28 @@
 
                 <div class="kh-app-settings__section">Ads</div>
                 <SettingRow Label="Default ad duration (seconds)" Applies="applies immediately">
-                    <InputNumber class="kh-form-control kh-app-settings__number" @bind-Value="_model.AdDefaultDurationSeconds" min="1" step="1" />
+                    <InputNumber class="kh-form-control kh-app-settings__number" @bind-Value="_model.AdDefaultDurationSeconds"
+                                 min="@MinAdDurationSeconds" max="@MaxAdDurationSeconds" step="1" />
                 </SettingRow>
 
                 <div class="kh-app-settings__section">Pagination</div>
                 <SettingRow Label="Media library rows per page" Applies="applies when the list next loads">
-                    <InputNumber class="kh-form-control kh-app-settings__number" @bind-Value="_model.MediaPageSize" min="1" step="1" />
+                    <InputNumber class="kh-form-control kh-app-settings__number" @bind-Value="_model.MediaPageSize" min="@MinPageSize" max="@MaxPageSize" step="1" />
                 </SettingRow>
                 <SettingRow Label="Users rows per page" Applies="applies when the list next loads">
-                    <InputNumber class="kh-form-control kh-app-settings__number" @bind-Value="_model.UsersPageSize" min="1" step="1" />
+                    <InputNumber class="kh-form-control kh-app-settings__number" @bind-Value="_model.UsersPageSize" min="@MinPageSize" max="@MaxPageSize" step="1" />
                 </SettingRow>
                 <SettingRow Label="User groups rows per page" Applies="applies when the list next loads">
-                    <InputNumber class="kh-form-control kh-app-settings__number" @bind-Value="_model.UserGroupsPageSize" min="1" step="1" />
+                    <InputNumber class="kh-form-control kh-app-settings__number" @bind-Value="_model.UserGroupsPageSize" min="@MinPageSize" max="@MaxPageSize" step="1" />
                 </SettingRow>
                 <SettingRow Label="Tips rows per page" Applies="applies when the list next loads">
-                    <InputNumber class="kh-form-control kh-app-settings__number" @bind-Value="_model.TipsPageSize" min="1" step="1" />
+                    <InputNumber class="kh-form-control kh-app-settings__number" @bind-Value="_model.TipsPageSize" min="@MinPageSize" max="@MaxPageSize" step="1" />
                 </SettingRow>
                 <SettingRow Label="Venues rows per page" Applies="applies when the list next loads">
-                    <InputNumber class="kh-form-control kh-app-settings__number" @bind-Value="_model.VenuesPageSize" min="1" step="1" />
+                    <InputNumber class="kh-form-control kh-app-settings__number" @bind-Value="_model.VenuesPageSize" min="@MinPageSize" max="@MaxPageSize" step="1" />
                 </SettingRow>
                 <SettingRow Label="Performance history rows per page" Applies="applies when the dialog next opens">
-                    <InputNumber class="kh-form-control kh-app-settings__number" @bind-Value="_model.PerformanceHistoryPageSize" min="1" step="1" />
+                    <InputNumber class="kh-form-control kh-app-settings__number" @bind-Value="_model.PerformanceHistoryPageSize" min="@MinPageSize" max="@MaxPageSize" step="1" />
                 </SettingRow>
 
                 <div class="kh-app-settings__section">FFmpeg</div>

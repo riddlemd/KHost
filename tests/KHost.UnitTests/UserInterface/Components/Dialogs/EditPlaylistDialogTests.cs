@@ -316,6 +316,64 @@ public class EditPlaylistDialogTests : BunitContext
         Assert.Equal([0, 1], saved!.Entries.Select(e => e.Position));
     }
 
+    [Theory]
+    [InlineData("0", 1)]
+    [InlineData("500", 240)]
+    [InlineData("12", 12)]
+    public void Save_ClampsTheAdInterval(string typed, int expected)
+    {
+        MediaPool? saved = null;
+        var rendered = RenderDialog(new MediaPool { Name = "Spots", AdTrigger = AdTriggerMode.EveryNMinutes },
+            PoolPurpose.Ads, pool => saved = pool);
+
+        Assert.Equal("240", rendered.Find("#playlist-interval").GetAttribute("max"));
+        rendered.Find("#playlist-interval").Change(typed);
+        rendered.Find(".kh-button--primary").Click();
+
+        Assert.Equal(expected, saved!.AdTriggerInterval);
+    }
+
+    [Theory]
+    [InlineData("150", 100)]
+    [InlineData("100", 100)]
+    [InlineData("40", 40)]
+    public void Save_ClampsAnEntrysWeight(string typed, int expected)
+    {
+        MediaPool? saved = null;
+        var rendered = RenderDialog(new MediaPool
+        {
+            Name = "Beds",
+            SelectionMode = PoolSelectionMode.Weighted,
+            Entries = [new MediaPoolEntry { Id = Guid.NewGuid(), MediaId = Guid.NewGuid() }],
+        }, PoolPurpose.BreakMusic, pool => saved = pool);
+
+        Assert.Equal("100", rendered.Find(".kh-playlist-dialog__weight").GetAttribute("max"));
+        rendered.Find(".kh-playlist-dialog__weight").Change(typed);
+        rendered.Find(".kh-button--primary").Click();
+
+        Assert.Equal(expected, Assert.Single(saved!.Entries).Weight);
+    }
+
+    [Theory]
+    [InlineData("0.5", 1)]
+    [InlineData("1000", 300)]
+    [InlineData("45", 45)]
+    public void Save_ClampsAnAdEntrysDuration(string typed, double expectedSeconds)
+    {
+        MediaPool? saved = null;
+        var rendered = RenderDialog(new MediaPool
+        {
+            Name = "Spots",
+            Entries = [new MediaPoolEntry { Id = Guid.NewGuid(), MediaId = Guid.NewGuid() }],
+        }, PoolPurpose.Ads, pool => saved = pool);
+
+        Assert.Equal("300", rendered.Find(".kh-playlist-dialog__duration").GetAttribute("max"));
+        rendered.Find(".kh-playlist-dialog__duration").Change(typed);
+        rendered.Find(".kh-button--primary").Click();
+
+        Assert.Equal(TimeSpan.FromSeconds(expectedSeconds), Assert.Single(saved!.Entries).Duration);
+    }
+
     // Cancel has to leave the stored playlist alone, so the dialog edits a copy.
     [Fact]
     public void Editing_DoesNotMutateTheStoredPlaylist()
