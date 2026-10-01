@@ -83,21 +83,26 @@
                 </div>
 
                 <div class="kh-now-playing__controls">
+                    @* Ctrl/Cmd+Alt+Enter clicks whichever of the pair is drawn and Ctrl/Cmd+Backspace
+                       the stop (shortcuts.js), so each keeps the button's own guards. *@
                     @if (isPlaying)
                     {
-                        <button class="kh-now-playing__btn--play" @onclick="PlaybackService.PauseAsync" title="Pause">
+                        <button class="kh-now-playing__btn--play" @onclick="PlaybackService.PauseAsync" title="Pause (Ctrl+Alt+Enter)"
+                                data-kh-shortcut="pause-resume">
                             <Icon Name="pause-fill" />
                         </button>
                     }
                     else
                     {
                         <button class="kh-now-playing__btn--play" @onclick="PlayAsync"
-                                title="@(isStopping ? "Resume: cancels the fade out" : "Play")">
+                                title="@(isStopping ? "Resume: cancels the fade out (Ctrl+Alt+Enter)" : "Play (Ctrl+Alt+Enter)")"
+                                data-kh-shortcut="pause-resume">
                             <Icon Name="play-fill" Class="kh-now-playing__icon-nudge" />
                         </button>
                     }
                     <button class="kh-now-playing__btn--stop" @onclick="PlaybackService.StopAsync"
-                            title="@(isStopping ? "Fading out…" : "Stop")"
+                            title="@(isStopping ? "Fading out…" : "Stop (Ctrl+Backspace)")"
+                            data-kh-shortcut="stop"
                             disabled="@(PlaybackService.State is PlaybackState.Stopped or PlaybackState.Stopping)">
                         <Icon Name="stop-fill" />
                     </button>

@@ -30,9 +30,29 @@
         background: var(--kh-bg-card);
         width: 100%;
 
+        // Off the keyboard only, so the results answer focus the way the queues do.
+        &:focus-visible {
+            outline: none;
+        }
+
         &__result {
             &--queued td {
                 background: var(--kh-primary-dim);
+            }
+
+            // The queues' selected row, so the keyboard's place reads the same in every list.
+            &--selected td {
+                background: var(--kh-primary-active) !important;
+                color: var(--kh-primary-bright);
+                font-weight: 600;
+            }
+
+            &--selected:hover td {
+                color: var(--kh-primary-bright);
+            }
+
+            &--selected td:first-child {
+                border-left: 2px solid var(--kh-primary);
             }
         }
     }

@@ -14,6 +14,18 @@ public class PlayerPageTests
         Assert.DoesNotContain("<script src=\"player.js\"></script>", page);
     }
 
+    // The screen is a page like the console: F5 reloads it, and the reloaded player never
+    // reconnects. The console's own module is embedded, so both windows cancel the same keys.
+    [Fact]
+    public void BuildPlayerPage_Always_InlinesTheBrowserKeyBlocks()
+    {
+        var page = Program.BuildPlayerPage();
+
+        Assert.Contains("KHostBrowserKeys", page, StringComparison.Ordinal);
+        Assert.Contains("data-kh-surface=\"native\"", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("<script src=\"browser-keys.js\"></script>", page);
+    }
+
     // Chromium has no native HLS, so a page that ships without the library plays nothing on
     // Windows. The failure is a black screen, not a build error.
     [Fact]

@@ -88,7 +88,8 @@ public partial class SelectedSingerInfoPanel : IAsyncDisposable
         if (SingerQueueService.SelectedUser is not { } singer) return Task.CompletedTask;
 
         var currentIdx = _performances.FindIndex(p => p.Id == _selectedPerformanceId);
-        var action = ListKeyboardShortcuts.Resolve(e.Key, e.ShiftKey, currentIdx, _performances.Count);
+        var action = ListKeyboardShortcuts.Resolve(
+            e.Key, e.ShiftKey, currentIdx, _performances.Count, modified: e.CtrlKey || e.MetaKey || e.AltKey);
 
         return ListKeyboardShortcuts.DispatchAsync(
             action, currentIdx, _canReorderQueue,
@@ -99,7 +100,17 @@ public partial class SelectedSingerInfoPanel : IAsyncDisposable
             },
             move: up => up
                 ? PerformanceService.MoveUpInQueueAsync(singer.Id, _performances[currentIdx].Id)
-                : PerformanceService.MoveDownInQueueAsync(singer.Id, _performances[currentIdx].Id));
+                : PerformanceService.MoveDownInQueueAsync(singer.Id, _performances[currentIdx].Id),
+            remove: () => RemoveSelectedFromKeyboardAsync(_performances[currentIdx]));
+    }
+
+    /// <summary>The row's remove button with its refusals: no permission, or the loaded song.</summary>
+    private Task RemoveSelectedFromKeyboardAsync(Performance performance)
+    {
+        if (!_canRemoveFromQueue || PlaybackService.CurrentPerformance?.Id == performance.Id)
+            return Task.CompletedTask;
+
+        return RemoveWithConfirmAsync(performance, selectNeighbour: true);
     }
 
     private async Task LoadAndPlayAsync(Performance performance)
@@ -176,10 +187,23 @@ public partial class SelectedSingerInfoPanel : IAsyncDisposable
         });
     }
 
-    private Task RemoveWithConfirmAsync(Performance performance)
+    /// <param name="selectNeighbour">Keyboard removal keeps a row selected so the next key press
+    /// still has something to act on.</param>
+    private Task RemoveWithConfirmAsync(Performance performance, bool selectNeighbour = false)
         => DialogService.ConfirmIfAsync(
             _promptBeforeRemovingPerformance,
-            () => PerformanceService.DeleteAsync(performance.Id),
+            async () =>
+            {
+                // Read at confirm time: the list can refresh while the dialog is open.
+                var index = _performances.FindIndex(p => p.Id == performance.Id);
+                var neighbour = ListKeyboardShortcuts.NeighbourAfterRemoval(index, _performances.Count);
+                Guid? neighbourId = neighbour >= 0 ? _performances[neighbour].Id : null;
+
+                await PerformanceService.DeleteAsync(performance.Id);
+
+                if (selectNeighbour && neighbourId is { } id)
+                    await InvokeAsync(() => SelectPerformance(id));
+            },
             "Are you sure you want to remove this song from the queue?",
             "Remove Song",
             "Remove");

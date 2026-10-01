@@ -246,7 +246,9 @@ internal static class Program
     {
         var html = ReadResource("screen-ui/index.html");
 
-        // hls.js first: player.js reads Hls at load time to pick its playback path.
+        // The console's own module: one list of browser keys cancelled, for every KHost window.
+        html = Inline(html, "browser-keys.js");
+        // hls.js before player.js, which reads Hls at load time to pick its playback path.
         html = Inline(html, "hls.light.min.js");
         html = Inline(html, "title-bar.js");
         // Order here is immaterial: each call swaps a tag for its script where the tag already
