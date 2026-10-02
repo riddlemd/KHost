@@ -48,7 +48,7 @@
                         <label for="playlist-interval" class="kh-form-label">
                             @(_adTrigger == AdTriggerMode.EveryNPerformances ? "Songs between ads" : "Minutes between ads")
                         </label>
-                        <input id="playlist-interval" type="number" class="kh-form-control" min="1" max="240" @bind="_adTriggerInterval" />
+                        <input id="playlist-interval" type="number" class="kh-form-control" min="1" max="@MaxAdTriggerInterval" @bind="_adTriggerInterval" />
                     </div>
                 }
 
@@ -97,7 +97,7 @@
                                 @if (_selectionMode == PoolSelectionMode.Weighted)
                                 {
                                     <td>
-                                        <input type="number" class="kh-form-control kh-playlist-dialog__weight" min="0" max="100"
+                                        <input type="number" class="kh-form-control kh-playlist-dialog__weight" min="0" max="@MaxWeight"
                                                value="@entry.Weight"
                                                @onchange="e => SetEntryWeight(index, e.Value?.ToString())" />
                                     </td>
@@ -105,7 +105,8 @@
                                 @if (Purpose == PoolPurpose.Ads)
                                 {
                                     <td>
-                                        <input type="number" class="kh-form-control kh-playlist-dialog__duration" min="1" step="1"
+                                        <input type="number" class="kh-form-control kh-playlist-dialog__duration"
+                                               min="@MinAdDurationSeconds" max="@MaxAdDurationSeconds" step="1"
                                                placeholder="@DescribeDefaultDuration(entry)"
                                                value="@(entry.Duration?.TotalSeconds)"
                                                @onchange="e => SetEntryDuration(index, e.Value?.ToString())" />

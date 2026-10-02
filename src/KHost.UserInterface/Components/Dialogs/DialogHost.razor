@@ -58,9 +58,10 @@
                 OnClose="@(() => { r.OnCancel?.Invoke(); Close(r); })" />
             break;
 
-        case SingingAsDialog.DialogRequest r:
-            <SingingAsDialog @key="r.Id" IsOpen="true" Performance="@r.Value" SingerName="@r.SingerName"
-                OnSave="@(async (performance) => { if (r.OnSave is not null) await r.OnSave(performance); Close(r); })"
+        case EditPerformanceDialog.DialogRequest r:
+            <EditPerformanceDialog @key="r.Id" IsOpen="true" Performance="@r.Performance" Media="@r.Media"
+                SingerName="@r.SingerName"
+                OnSave="@(async (edit) => { await r.OnSave(edit); Close(r); })"
                 OnClose="@(() => { r.OnCancel?.Invoke(); Close(r); })" />
             break;
 

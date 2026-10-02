@@ -78,8 +78,12 @@ internal class UsersRepository : BaseRepository<KHostUser>, IUsersRepository
 
         // Exact spelling first: a pre-upgrade database may hold two names the fold now considers
         // equal, of which only one could be refolded. That one must still sign in by exact spelling.
-        return await context.Set<KHostUser>().FirstOrDefaultAsync(u => u.Name == name)
-            ?? await context.Set<KHostUser>().FirstOrDefaultAsync(u => u.NameFolded == folded);
+        var id = await context.Set<KHostUser>().Where(u => u.Name == name).Select(u => (Guid?)u.Id).FirstOrDefaultAsync()
+            ?? await context.Set<KHostUser>().Where(u => u.NameFolded == folded).Select(u => (Guid?)u.Id).FirstOrDefaultAsync();
+
+        // Loaded whole, as ReadAsync does: a caller that saves what this returns would otherwise
+        // replace the singer's group memberships with none.
+        return id is { } found ? await ReadAsync(found) : null;
     }
 
     public async Task<bool> HasAdminUserAsync()

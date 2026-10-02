@@ -22,16 +22,29 @@
                     No song loaded. Click <Icon Name="play-fill" /> in the queue
                 </span>
 
-                @* Only between songs: the card replaces the picture, so announcing over somebody's
-                   performance would take their words off the screen. *@
-                <button class="kh-button kh-button--secondary kh-now-playing__announce"
-                        disabled="@(!_canAnnounce)"
-                        title="@(_canAnnounce
-                            ? "Put who is up on the screens"
-                            : "Nobody is queued to announce")"
-                        @onclick="AnnounceNextSingerAsync">
-                    <Icon Name="megaphone" /> Announce Next Singer
-                </button>
+                <div class="kh-now-playing__empty-actions">
+                    @* Only between songs: the card replaces the picture, so announcing over somebody's
+                       performance would take their words off the screen. *@
+                    <button class="kh-button kh-button--secondary kh-now-playing__announce"
+                            disabled="@(!_canAnnounce)"
+                            title="@(_canAnnounce
+                                ? "Put who is up on the screens (Ctrl+Shift+Enter)"
+                                : "Nobody is queued to announce (Ctrl+Shift+Enter)")"
+                            data-kh-shortcut="announce-next-singer"
+                            @onclick="AnnounceNextSingerAsync">
+                        <Icon Name="megaphone" /> Announce Next Singer
+                    </button>
+
+                    @* The rotation's own head, not whoever the console has selected — same target
+                       Ctrl/Cmd+Enter clicks (shortcuts.js). *@
+                    <button class="kh-button kh-button--secondary kh-now-playing__play-next"
+                            disabled="@(!_canPlayNext)"
+                            title="@PlayNextTitle"
+                            data-kh-shortcut="play-next"
+                            @onclick="PlayNextAsync">
+                        <Icon Name="play-fill" /> @PlayNextLabel
+                    </button>
+                </div>
             </div>
         }
         else
@@ -70,21 +83,26 @@
                 </div>
 
                 <div class="kh-now-playing__controls">
+                    @* Ctrl/Cmd+Alt+Enter clicks whichever of the pair is drawn and Ctrl/Cmd+Backspace
+                       the stop (shortcuts.js), so each keeps the button's own guards. *@
                     @if (isPlaying)
                     {
-                        <button class="kh-now-playing__btn--play" @onclick="PlaybackService.PauseAsync" title="Pause">
+                        <button class="kh-now-playing__btn--play" @onclick="PlaybackService.PauseAsync" title="Pause (Ctrl+Alt+Enter)"
+                                data-kh-shortcut="pause-resume">
                             <Icon Name="pause-fill" />
                         </button>
                     }
                     else
                     {
                         <button class="kh-now-playing__btn--play" @onclick="PlayAsync"
-                                title="@(isStopping ? "Resume: cancels the fade out" : "Play")">
+                                title="@(isStopping ? "Resume: cancels the fade out (Ctrl+Alt+Enter)" : "Play (Ctrl+Alt+Enter)")"
+                                data-kh-shortcut="pause-resume">
                             <Icon Name="play-fill" Class="kh-now-playing__icon-nudge" />
                         </button>
                     }
                     <button class="kh-now-playing__btn--stop" @onclick="PlaybackService.StopAsync"
-                            title="@(isStopping ? "Fading out…" : "Stop")"
+                            title="@(isStopping ? "Fading out…" : "Stop (Ctrl+Backspace)")"
+                            data-kh-shortcut="stop"
                             disabled="@(PlaybackService.State is PlaybackState.Stopped or PlaybackState.Stopping)">
                         <Icon Name="stop-fill" />
                     </button>

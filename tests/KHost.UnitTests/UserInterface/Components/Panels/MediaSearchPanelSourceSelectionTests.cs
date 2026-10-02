@@ -59,6 +59,16 @@ public class MediaSearchPanelSourceSelectionTests : BunitContext
         Services.AddSingleton(performances);
         Services.AddSingleton(Substitute.For<IDialogService>());
         Services.AddSingleton<IControlState>(_controlState);
+        AddDefaultSearchModeServices();
+    }
+
+    /// <summary>Today's behaviour, unchanged: a fixed default of Local, nothing to remember.</summary>
+    private void AddDefaultSearchModeServices()
+    {
+        var appSettings = Substitute.For<IAppSettingsService>();
+        appSettings.Current.Returns(new AppSettings());
+        Services.AddSingleton(appSettings);
+        Services.AddSingleton(Substitute.For<ICacheService>());
     }
 
     [Fact]

@@ -46,6 +46,8 @@ function songClock() {
 
 const overlay = createLyricsOverlay(lyricsCanvas, songClock);
 
+const titleBar = createTitleBar({ doc: document, send, requestFrame: (f) => requestAnimationFrame(f) });
+
 // The card heading the words, on the words' own clock. Its layer is what a stop fades, since the
 // card sets its own opacity from the clock.
 const introLayer = document.getElementById('intro-layer');
@@ -457,7 +459,7 @@ function destroyHls(instance) {
 function detachStems() {
     if (!stemMixer) return;
 
-    // Before the context closes under the tap.
+    // Before the mix's nodes leave the graph under the tap.
     visualiser.setAudio(null);
 
     try { stemMixer.destroy(); } catch (e) { reportError(`stems: ${e}`); }
@@ -541,7 +543,7 @@ async function fadeOutAndStop(fadeMs) {
     // Cleared before it is shown again, or the frame the fade hid comes back for a moment.
     overlay.clear();
     showWords();
-    placeholder.hidden = false;
+    showIdlePicture();
     send({ type: 'state', position: 0, duration: 0, playing: false });
 }
 
@@ -596,7 +598,13 @@ const MARQUEE_COPIES_MAX = 12;
 let marqueeSignature = null;
 
 const QR_CORNERS = ['bottomright', 'bottomleft', 'topright', 'topleft'];
-const QR_SIZES = ['small', 'medium', 'large'];
+const QR_SIZES = ['small', 'medium', 'large', 'extralarge'];
+
+// What the next-singer card may be drawn over, as the host spells it.
+const CARD_BACKGROUNDS = ['over', 'blackout', 'visualisation'];
+
+// Whether the visualiser on screen is the card's rather than a song's.
+let cardVisualiser = false;
 
 // What is playing between singers. Text only: a title and an artist off a provider, which is
 // exactly why it is built as nodes rather than markup.
@@ -609,11 +617,60 @@ function showNextSinger(message) {
     song.textContent = message.artist ? `${message.song} - ${message.artist}` : (message.song || '');
     song.hidden = !message.song;
 
-    // The venue's card and any still are what this replaces, so both go while it is up.
+    const background = CARD_BACKGROUNDS.includes(message.background) ? message.background : 'over';
+    // Another announcement over this one may ask for something else behind it.
+    if (background !== 'visualisation') stopCardVisualiser();
+
+    nextSinger.dataset.background = background;
+    nextSinger.hidden = false;
+
+    if (background === 'over') {
+        showIdlePicture();
+        return;
+    }
+
+    // Black, or a visualisation, replaces the venue's picture, so it goes while the card is up.
     still.hidden = true;
     placeholder.hidden = true;
-    nextSinger.hidden = false;
+    if (background === 'visualisation') startCardVisualiser(message.visualiser);
 }
+
+/// Puts the card's visualisation up, unless a song's is already drawing: the card sits over that
+/// one and leaves it to the song. One that cannot be drawn leaves the card over the venue's picture.
+function startCardVisualiser(look) {
+    if (!look || (visualiser.active && !cardVisualiser)) return;
+
+    cardVisualiser = true;
+    visualiser.setLook(look);
+    // No song to read levels from. It hears the break music where the page can tap it (not in
+    // WebKit, which has no captureStream, nor a provider playing outside the page); else it draws
+    // its idle motion.
+    loadVisualiserLevels(null);
+    visualiser.freeze(false);
+    visualiser.setAudio(elementAudioSource(background));
+    visualiser.show(look).then((up) => {
+        if (up || !cardVisualiser || nextSinger.hidden) return;
+
+        cardVisualiser = false;
+        nextSinger.dataset.background = 'over';
+        showIdlePicture();
+    });
+}
+
+/// Takes down only what the card put up.
+function stopCardVisualiser() {
+    if (!cardVisualiser) return;
+
+    cardVisualiser = false;
+    visualiser.hide();
+    visualiser.setAudio(null);
+    releaseElementTap();
+}
+
+// The next break-music track is a new source, so the card's tap follows it.
+background.addEventListener('playing', () => {
+    if (cardVisualiser) visualiser.setAudio(elementAudioSource(background));
+});
 
 /// Anything that redraws the picture clears the card. Deliberately not every command: a marquee or
 /// a code update is not somebody taking the screen back, and would cancel an announcement the host
@@ -622,6 +679,14 @@ function clearNextSinger() {
     if (nextSinger.hidden) return;
 
     nextSinger.hidden = true;
+    stopCardVisualiser();
+    showIdlePicture();
+}
+
+/// The venue's still if it set one, else the placeholder. Asked of the still's source, not its
+/// visibility: the card hid the still, and the host does not resend a picture it never took down.
+function showIdlePicture() {
+    still.hidden = !still.getAttribute('src');
     placeholder.hidden = !still.hidden;
 }
 
@@ -1039,7 +1104,7 @@ function handleCommand(raw) {
             break;
         case 'volume':
             currentVolume = Math.max(0, Math.min(1, message.value));
-            // The venue's level rides the whole mix, not one stem: it is the room's volume, and
+            // The level rides the whole mix, not one stem: it is the room's volume, and
             // the stems' own levels are what the host set them to against each other.
             if (stemMixer) stemMixer.volume = currentVolume;
             if (!incoming) current.el.volume = currentVolume;
@@ -1052,6 +1117,12 @@ function handleCommand(raw) {
             still.style.objectFit = SCALING[message.scaling] || 'contain';
             still.src = message.url;
             still.hidden = false;
+            break;
+        case 'window-drag-native':
+            titleBar.nativeDragStarted();
+            break;
+        case 'window-state':
+            titleBar.applyState(message);
             break;
         case 'hide-image':
             still.hidden = true;
@@ -1098,7 +1169,8 @@ function handleCommand(raw) {
     }
 }
 
-// The window has no controls, so the page is the only place for these gestures.
+// Full screen has no window controls to reach, so the picture itself takes these. The drag strip
+// along the top stops its own double-click, which maximises instead.
 document.addEventListener('dblclick', () => send({ type: 'toggle-fullscreen' }));
 window.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') send({ type: 'exit-fullscreen' });

@@ -136,6 +136,12 @@ cannot name another's: its secrets, and the QR code it offers the screens.
   a host can act on, never a stack trace. `DiscardImportAsync` reads `FilePath` itself: it deletes
   the row only when nothing is on disk and keeps it as `Broken` when a file outlived the cancel, so
   a partial is never left with no row pointing at it.
+- A plugin that needs to **tell the host something** injects `IFlashService` and calls
+  `Show(text, FlashType)`: the console's pop-up message, stacked and withdrawn on its own. It is for
+  a line the host reads and moves on from (why an action was refused, a sign-in that lapsed), never
+  a decision — that is `IInteractionDispatcher`. The message does not say who sent it, so name the
+  plugin in the text, and flash only what a host can act on; the log takes everything else. A
+  failure the host caused, say pressing play, deserves a flash; a background retry does not.
 - A plugin that needs to **ask the host for a value** injects `IInteractionDispatcher` and sends a
   `TextPromptRequest`. The line is **settings versus secrets**: nothing from that round trip reaches
   `plugins.json`; a plugin that keeps what it collected uses `IPluginContext.SetSecretAsync`. Never
@@ -216,8 +222,7 @@ cannot name another's: its secrets, and the QR code it offers the screens.
 - **`IMediaRenderer` is not that, and will be mistaken for it.** It turns one file into something a
   display can play, and it is asked **once, when a song starts**. It produces nothing the stream
   session does not sweep, caches nothing, reports no progress, and holds no state that outlives the
-  song — which is every property that made the pre-render worth deleting. The full shape and its
-  reasoning live in `docs/media-renderer.md`; this is the short form.
+  song — which is every property that made the pre-render worth deleting.
   - **It answers with what to play, not always with a stream.** A `MediaRendition` carries a URL to
     play end to end, or the separate `Stems` a display mixes for itself, or both. `StreamUrl` on
     `DisplayLoad` is nullable for exactly this: a stems-only format on a screen that mixes runs
@@ -289,8 +294,7 @@ cannot name another's: its secrets, and the QR code it offers the screens.
     its ffmpeg argument building was never the problem — being the only answer was.
 - **`IDisplayProvider` is a transport to somewhere the song comes out: transport and control,
   nothing drawn.** It finds such places, connects to one, hands it what to play and drives transport
-  on it. It does not decide what the show is — it is told. The full shape and its reasoning
-  live in `docs/display-provider.md`; this is the short form.
+  on it. It does not decide what the show is — it is told.
   - **The screens provider is core logic, not a plugin.** LocalScreen reaches the host through a
     provider the host itself registers, travelling the same path a plugin's display travels.
     `PluginLoader` must not bind it and it must never appear on the Plugins page. Chromecast is the
@@ -367,8 +371,10 @@ cannot name another's: its secrets, and the QR code it offers the screens.
     raises `PlaybackStatusChanged` with its own timestamped position, and the host trusts only the
     report from whichever one is connected — a screen's own state reports reach `PlaybackService`
     the same way a receiver's do, through `LocalScreenDisplayProvider` translating them, not a side
-    channel. Nothing is ever corrected towards anything. The venue's volume is applied by
-    `LocalScreenDisplayProvider` on connect and on a venue edit.
+    channel. Nothing is ever corrected towards anything. There is no venue volume: every output
+    runs through the room's mixer, so `LocalScreenDisplayProvider` sends the screen full level on each connect
+    and the break music providers play at their own. `VenueSettings.DefaultVolume` is `[Obsolete]`, kept so
+    a plugin naming it compiles; `IBreakMusicProvider.SetVolumeAsync` stays on the contract and the host never calls it.
   - **Covering a rebuild is the transport's business, not the host's.** Changing key, tempo or the
     mix reopens the stream at the playhead, and the host resumes there and skips nothing. It used
     to skip forward by however long the rebuild took, since the room heard on from the old stream
@@ -585,7 +591,7 @@ stay on black, and a song with its own picture keeps it.
   sample lines mid-screen. Sandboxed because an imported preset is code and the console holds the
   host's session.
 - **It listens, it never re-routes.** A stem song is tapped off the mixer's master gain (after the
-  venue level and the fade), a fan-out to analysers that lead nowhere. An encoded song is tapped
+  fade), a fan-out to analysers that lead nowhere. An encoded song is tapped
   through `captureStream()` where the engine has it. Do not reach for `createMediaElementSource`:
   it takes the element's sound off the speakers for good, binds it to one context a sleep can
   kill, and puts the fades behind a second volume.
@@ -703,6 +709,7 @@ a pinned third-party build.
 - `ComboBox<TItem>` is the type-to-search replacement for a native select. It binds the chosen item (not a key), takes every row from a `Search` delegate, and labels runs via `GroupName` without reordering them — the caller groups by sorting. Bind `Text` when the field must also accept a value the list does not contain.
 
 - The console says **song**; the media manager and the importer say **media**. A host puts on songs, and those two pages handle files, formats and paths. `Media` stays the name of the row in code either way.
+- Sign-in is off by default and switched on only by `Auth:RequireLogin` in `appsettings.json` (or an env/overlay override) — there is no wizard step or App Settings checkbox for it.
 
 ## CSS/SCSS
 

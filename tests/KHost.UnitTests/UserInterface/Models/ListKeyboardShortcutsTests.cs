@@ -112,4 +112,56 @@ public class ListKeyboardShortcutsTests
             select: _ => throw new InvalidOperationException("None must not select."),
             move: _ => throw new InvalidOperationException("None must not move."));
     }
+    [Theory]
+    [InlineData("Delete")]
+    [InlineData("Backspace")]
+    public void Resolve_RemovesTheSelectedRow_OnDeleteOrBackspace(string key)
+        => Assert.Equal(ListKeyAction.Remove, ListKeyboardShortcuts.Resolve(key, shift: false, currentIndex: 4, count: 5));
+
+    // Mod+Backspace is the stop chord, and Alt+Backspace deletes a word: neither removes a row.
+    [Theory]
+    [InlineData("Backspace", false, true)]
+    [InlineData("Delete", false, true)]
+    [InlineData("Backspace", true, false)]
+    public void Resolve_DoesNotRemove_WithAModifierHeld(string key, bool shift, bool modified)
+        => Assert.Equal(ListKeyAction.None, ListKeyboardShortcuts.Resolve(key, shift, currentIndex: 2, count: 5, modified));
+
+    [Fact]
+    public void Resolve_DoesNotRemove_WhenNothingIsSelected()
+        => Assert.Equal(ListKeyAction.None, ListKeyboardShortcuts.Resolve("Delete", shift: false, currentIndex: -1, count: 5));
+
+    [Fact]
+    public void Resolve_DoesNotRemove_FromAnEmptyList()
+        => Assert.Equal(ListKeyAction.None, ListKeyboardShortcuts.Resolve("Delete", shift: false, currentIndex: 0, count: 0));
+
+    [Theory]
+    [InlineData(0, 3, 1)]
+    [InlineData(1, 3, 2)]
+    [InlineData(2, 3, 1)]
+    [InlineData(0, 1, -1)]
+    [InlineData(-1, 3, -1)]
+    [InlineData(3, 3, -1)]
+    public void NeighbourAfterRemoval_PrefersTheRowBelow(int removed, int count, int expected)
+        => Assert.Equal(expected, ListKeyboardShortcuts.NeighbourAfterRemoval(removed, count));
+
+    [Fact]
+    public async Task DispatchAsync_Remove_CallsRemove()
+    {
+        var removed = false;
+
+        await ListKeyboardShortcuts.DispatchAsync(
+            ListKeyAction.Remove, currentIndex: 2, canReorder: false,
+            select: _ => throw new InvalidOperationException("Remove must not select."),
+            move: _ => throw new InvalidOperationException("Remove must not move."),
+            remove: () => { removed = true; return Task.CompletedTask; });
+
+        Assert.True(removed);
+    }
+
+    [Fact]
+    public async Task DispatchAsync_Remove_WithNoRemover_DoesNothing()
+        => await ListKeyboardShortcuts.DispatchAsync(
+            ListKeyAction.Remove, currentIndex: 2, canReorder: true,
+            select: _ => throw new InvalidOperationException("Remove must not select."),
+            move: _ => throw new InvalidOperationException("Remove must not move."));
 }

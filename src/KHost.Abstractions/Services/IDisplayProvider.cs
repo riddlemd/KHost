@@ -5,8 +5,7 @@ namespace KHost.Abstractions.Services;
 /// <summary>A transport to somewhere the song comes out.</summary>
 /// <remarks>It finds such places, connects to one, hands it what to play and drives transport on
 /// it. It does not decide what the show is — it is told. The screens reach the host through one of
-/// these too; that one is core rather than a plugin. See <c>docs/display-provider.md</c> for the
-/// shape's reasoning.
+/// these too; that one is core rather than a plugin.
 ///
 /// <para>An extension point: a plugin IMPLEMENTS it and the host discovers it, listing it as
 /// "Display provider" on the Plugins page. The plugin's object is one singleton shared across every
@@ -143,8 +142,8 @@ public interface IDisplayProvider
     Task SeekAsync(TimeSpan position, CancellationToken cancellationToken = default);
 
     /// <summary>Sets the song's level on the device, 0 to 1.</summary>
-    /// <remarks>The host does not call this: the venue's volume is the provider's to apply, on
-    /// connect and when the selected venue changes. Has a default body that does nothing.</remarks>
+    /// <remarks>The host does not call this: a provider plays at the level it chooses, and the
+    /// room's mixer does the rest. Has a default body that does nothing.</remarks>
     Task SetVolumeAsync(float volume, CancellationToken cancellationToken = default)
         => Task.CompletedTask;
 
@@ -181,8 +180,8 @@ public interface IDisplayProvider
         => Task.CompletedTask;
 
     /// <summary>Sets the second channel's level, 0 to 1.</summary>
-    /// <remarks>The host does not call this: like <see cref="SetVolumeAsync"/>, the venue's level is
-    /// the provider's to apply. Has a default body that does nothing.</remarks>
+    /// <remarks>The host does not call this: like <see cref="SetVolumeAsync"/>, a provider
+    /// plays at the level it chooses. Has a default body that does nothing.</remarks>
     Task SetBackgroundVolumeAsync(float volume, CancellationToken cancellationToken = default)
         => Task.CompletedTask;
 }

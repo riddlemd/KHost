@@ -234,17 +234,21 @@ internal sealed class StreamMediaPlayer : IMediaPlayer
                   + (command.LevelsUrl is null ? "" : ", with host levels")
                 : "off");
 
-        Send(new
-        {
-            type = "visualiser", enabled = command.Enabled,
-            presetName = command.PresetName, presetUrl = command.PresetUrl,
-            // Lowercased here, as show-image's scaling is: the page knows its own words, not this enum.
-            builtIn = command.BuiltIn, barCount = command.BarCount,
-            colourScheme = command.ColourScheme.ToString().ToLowerInvariant(), colour = command.Colour,
-            brightness = command.Brightness, saturation = command.Saturation, sensitivity = command.Sensitivity,
-            levels = command.LevelsUrl,
-        });
+        Send(VisualiserMessage(command));
     }
+
+    /// <summary>The page's own shape for a visualiser, sent alone for a song and inside the card for
+    /// one behind it.</summary>
+    private static object VisualiserMessage(SetVisualiserCommand command) => new
+    {
+        type = "visualiser", enabled = command.Enabled,
+        presetName = command.PresetName, presetUrl = command.PresetUrl,
+        // Lowercased here, as show-image's scaling is: the page knows its own words, not this enum.
+        builtIn = command.BuiltIn, barCount = command.BarCount,
+        colourScheme = command.ColourScheme.ToString().ToLowerInvariant(), colour = command.Colour,
+        brightness = command.Brightness, saturation = command.Saturation, sensitivity = command.Sensitivity,
+        levels = command.LevelsUrl,
+    };
 
     public void SetMarquee(SetMarqueeCommand command)
     {
@@ -297,7 +301,7 @@ internal sealed class StreamMediaPlayer : IMediaPlayer
     /// a host who announces and then waits.</remarks>
     public void ShowNextSinger(ShowNextSingerCommand command)
     {
-        _logger.LogInformation("Next singer card: {Singer}", command.Singer);
+        _logger.LogInformation("Next singer card: {Singer}, over {Background}", command.Singer, command.Background);
 
         Send(new
         {
@@ -305,6 +309,8 @@ internal sealed class StreamMediaPlayer : IMediaPlayer
             singer = command.Singer,
             song = command.Song,
             artist = command.Artist,
+            background = command.Background.ToString().ToLowerInvariant(),
+            visualiser = command.Visualiser is null ? null : VisualiserMessage(command.Visualiser),
         });
     }
 

@@ -8,6 +8,14 @@ public partial class HelpDialog
 {
     private const string _rootClassName = "kh-help-dialog";
 
+    // A reopen remounts <details> from nothing (Scrim's @if tears the whole body down), so restoring
+    // an already-expanded section means setting open=true on a brand-new element — which the browser
+    // treats as a real state change and fires its own toggle for. Left unswallowed, that toggle flips
+    // the state straight back off, which flips the attribute, which fires another toggle: a flicker
+    // loop, not a one-time glitch. Each flag eats exactly that one synthetic toggle per mount.
+    private bool _suppressQuickGuideToggle;
+    private bool _suppressShortcutsToggle;
+
     [Inject] private IControlState ControlState { get; set; } = default!;
 
     [Parameter] public bool IsOpen { get; set; }
@@ -16,11 +24,25 @@ public partial class HelpDialog
 
     [Parameter] public EventCallback OnClose { get; set; }
 
-    private static KeyboardShortcutGroup[] Shortcuts => KeyboardShortcuts.All;
+    private static IReadOnlyList<KeyboardShortcutGroup> Shortcuts => KeyboardShortcuts.All;
 
-    // <details open> is one-way from state; toggle only ever flips it, so the two never fight.
-    private void ToggleQuickGuide() => ControlState.HelpQuickGuideExpanded = !ControlState.HelpQuickGuideExpanded;
-    private void ToggleShortcuts() => ControlState.HelpShortcutsExpanded = !ControlState.HelpShortcutsExpanded;
+    protected override void OnInitialized()
+    {
+        _suppressQuickGuideToggle = ControlState.HelpQuickGuideExpanded;
+        _suppressShortcutsToggle = ControlState.HelpShortcutsExpanded;
+    }
+
+    private void ToggleQuickGuide()
+    {
+        if (_suppressQuickGuideToggle) { _suppressQuickGuideToggle = false; return; }
+        ControlState.HelpQuickGuideExpanded = !ControlState.HelpQuickGuideExpanded;
+    }
+
+    private void ToggleShortcuts()
+    {
+        if (_suppressShortcutsToggle) { _suppressShortcutsToggle = false; return; }
+        ControlState.HelpShortcutsExpanded = !ControlState.HelpShortcutsExpanded;
+    }
 
     // Operational only: what running a night looks like, not what the app is or how it is licensed
     // — that stays in the About page. Checked against the actual panels rather than aspired-to ones.

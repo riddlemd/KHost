@@ -14,11 +14,11 @@ public partial class SetupPage
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
     [Inject] private IJSRuntime JS { get; set; } = default!;
 
-    internal enum SetupStep { Security, Admin, Venue, FFmpeg, Media }
+    internal enum SetupStep { Admin, Venue, FFmpeg, Media }
 
-    // The list, not a count: whether Admin appears at all depends on the security choice, so
-    // every other step finds its place by membership rather than by a hardcoded number.
-    private List<SetupStep> _steps = [SetupStep.Security, SetupStep.Admin, SetupStep.Venue, SetupStep.FFmpeg, SetupStep.Media];
+    // The list, not a count: whether Admin appears at all depends on Auth:RequireLogin, so every
+    // other step finds its place by membership rather than by a hardcoded number.
+    private List<SetupStep> _steps = [SetupStep.Admin, SetupStep.Venue, SetupStep.FFmpeg, SetupStep.Media];
 
     private int _currentStep;
     private int _renderedStep = -1;
@@ -27,12 +27,15 @@ public partial class SetupPage
 
     protected override async Task OnInitializedAsync()
     {
-        BuildSteps(AppSettings.Current.RequireLogin);
-
-        // Resume where a half-finished setup left off. An overlay saying login is off proves
-        // the security step ran; an existing admin proves the credential step ran.
+        // Sign-in is a config flag now, not a wizard choice: BuildSteps reads what the host
+        // already set in appsettings.json rather than asking.
         var requireLogin = AppSettings.Current.RequireLogin;
-        var adminExists = await UsersService.HasAdminUserAsync();
+        BuildSteps(requireLogin);
+
+        // Resume where a half-finished setup left off. HasAdminWithPasswordAsync, not
+        // HasAdminUserAsync: an admin row with no password has not actually cleared this step,
+        // and must not be read as having done so.
+        var adminExists = await UsersService.HasAdminWithPasswordAsync();
         var venueExists = await VenuesService.HasAnyAsync();
 
         // FFmpeg rather than Media: it proves nothing on disk, so a resumed setup checks again,
@@ -54,18 +57,8 @@ public partial class SetupPage
 
     private void BuildSteps(bool requireLogin)
         => _steps = requireLogin
-            ? [SetupStep.Security, SetupStep.Admin, SetupStep.Venue, SetupStep.FFmpeg, SetupStep.Media]
-            : [SetupStep.Security, SetupStep.Venue, SetupStep.FFmpeg, SetupStep.Media];
-
-    private async Task OnSecurityCompletedAsync(bool requireLogin)
-    {
-        var current = AppSettings.Current;
-        current.RequireLogin = requireLogin;
-        await AppSettings.SaveAsync(current);
-
-        BuildSteps(requireLogin);
-        await MoveToNextStepAsync();
-    }
+            ? [SetupStep.Admin, SetupStep.Venue, SetupStep.FFmpeg, SetupStep.Media]
+            : [SetupStep.Venue, SetupStep.FFmpeg, SetupStep.Media];
 
     private async Task MoveToNextStepAsync()
     {
@@ -78,8 +71,9 @@ public partial class SetupPage
 
     private void OnSetupCompleteAsync()
     {
-        // A full load, not a circuit navigation: the security choice takes effect per HTTP
-        // request, and this circuit still carries the pre-setup anonymous identity.
+        // A full load, not a circuit navigation: whether a request is signed in as the console
+        // admin is decided per HTTP request, and this circuit still carries the pre-setup
+        // anonymous identity.
         NavigationManager.NavigateTo("/", forceLoad: true);
     }
 }

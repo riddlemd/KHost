@@ -22,7 +22,7 @@ namespace KHost.Domain.Services.Displays.LocalScreen;
 ///
 /// <para>It owns everything the screen shows, not only the song: the marquee (composed here from the
 /// venue's settings and <c>IUpNextService</c>), the QR codes, the break music card, the venue's card
-/// or an ad's still, the song's timed words and the intro card ahead of them, and the venue's level. None of that is on
+/// or an ad's still, the song's timed words and the intro card ahead of them. None of that is on
 /// <c>IDisplayProvider</c>, which is transport only. The host announces what moved and this pulls the whole current state of whatever that
 /// message drives, so a screen that connects is sent everything afresh rather than a replay of what
 /// it missed. It reads only what a plugin's display could read; encoding and the screen's commands
@@ -36,7 +36,7 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
     /// <summary>The id a launched screen is given. One at a time, so one name is enough.</summary>
     internal const string LocalScreenId = "Screen 1";
 
-    /// <summary>Full volume before any venue exists, so a screen is never silently mute.</summary>
+    /// <summary>Full level, what a screen is sent on connect; the room's mixer sets the real one.</summary>
     private const float FullVolume = 1.0f;
 
     /// <summary>One module of white: the standard four-module border reads as a slab over video.</summary>
@@ -68,6 +68,9 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
     // Resolved on use, never in the constructor: playback, and the services behind the marquee and
     // break music, take every IDisplayProvider, this one included.
     private readonly IServiceProvider? _services;
+
+    // Held as the monitor, not a value: App Settings applies without a restart.
+    private readonly IOptionsMonitor<PlaybackService.ServiceOptions>? _playbackOptions;
 
     // Serialises picture draws, which arrive from the load path and from several detached redraws.
     private readonly SemaphoreSlim _pictureLock = new(1, 1);
@@ -141,6 +144,9 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
     /// screen's reports spell it. An end reported against any other is the old stream's.</summary>
     private volatile string _loadedStreamUrl = string.Empty;
 
+    /// <summary>Whether a performance was under way at the last PlaybackChanged.</summary>
+    private bool _performanceUnderWay;
+
     public LocalScreenDisplayProvider(
         ILogger<LocalScreenDisplayProvider> logger,
         IScreenServer screenServer,
@@ -149,7 +155,8 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
         IVenuesService? venuesService = null,
         TimeSpan? registrationTimeout = null,
         IServiceProvider? services = null,
-        TimeSpan? redrawSettle = null)
+        TimeSpan? redrawSettle = null,
+        IOptionsMonitor<PlaybackService.ServiceOptions>? playbackOptions = null)
     {
         _logger = logger;
         _screenServer = screenServer;
@@ -159,15 +166,16 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
         _registrationTimeout = registrationTimeout ?? DefaultRegistrationTimeout;
         _services = services;
         _redrawSettle = redrawSettle ?? DefaultRedrawSettle;
+        _playbackOptions = playbackOptions;
 
         _screenServer.ScreenConnected += OnScreenConnected;
         _screenServer.ScreenDisconnected += OnScreenDisconnected;
         _screenServer.StateReceived += OnStateReceived;
 
-        // The venue owns the level, and everything about how the marquee, the codes and the card
-        // look, including whether each is there at all.
+        // The venue owns how the marquee, the codes and the card look, including whether each is there
+        // at all.
         _subscriptions.Add(broker.Subscribe<SelectedVenueChanged>(
-            _ => Redraw(Overlay.Volume | Overlay.Marquee | Overlay.QrCodes | Overlay.BreakMusicCard | Overlay.IdleCard | Overlay.Visualiser)));
+            _ => Redraw(Overlay.Marquee | Overlay.QrCodes | Overlay.BreakMusicCard | Overlay.IdleCard | Overlay.Visualiser)));
 
         // Who is next is the marquee's content, however the queue, the turns or the mic moved it.
         _subscriptions.Add(broker.Subscribe<UpNextChanged>(_ => Redraw(Overlay.Marquee)));
@@ -176,9 +184,10 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
         _subscriptions.Add(broker.Subscribe<VisualisationPlaylistsChanged>(_ => Redraw(Overlay.Visualiser)));
         _subscriptions.Add(broker.Subscribe<VisualiserPresetsChanged>(_ => Redraw(Overlay.Visualiser)));
 
-        // Who is at the mic decides whether a venue hides its codes; what is on the main channel
-        // decides the picture.
-        _subscriptions.Add(broker.Subscribe<PlaybackChanged>(_ => Redraw(Overlay.QrCodes | Overlay.Picture)));
+        // Who is at the mic decides whether a venue hides its codes and its marquee; what is on the
+        // main channel decides the picture.
+        _subscriptions.Add(broker.Subscribe<PlaybackChanged>(
+            _ => Redraw(Overlay.QrCodes | Overlay.Picture | MarqueeIfPerformanceMoved())));
 
         // A provider moving to the next track says so apart from a start, pause or hand-off.
         _subscriptions.Add(broker.Subscribe<BreakMusicChanged>(_ => Redraw(Overlay.BreakMusicCard)));
@@ -188,12 +197,7 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
         _subscriptions.Add(broker.Subscribe<QrCodeOfferChanged>((_, _) => RedrawAsync(Overlay.QrCodes)));
         // How the words are adjusted moved, so the song on screen gets them again, mid-song.
         _subscriptions.Add(broker.Subscribe<TimedLyricsSettingsChanged>((_, _) => ReplaceTimedLyricsAsync()));
-        _subscriptions.Add(broker.Subscribe<NextSingerAnnounced>((announced, _) => SendAsync(new ShowNextSingerCommand
-        {
-            Singer = announced.Card.Singer,
-            Song = announced.Card.Song,
-            Artist = announced.Card.Artist,
-        })));
+        _subscriptions.Add(broker.Subscribe<NextSingerAnnounced>((announced, _) => ShowNextSingerAsync(announced.Card)));
     }
 
     /// <summary>What it is, not where it is. "This computer" read as a location a host might be
@@ -424,12 +428,17 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
         => program is PlaybackProgram.Playing { Media.FilePath: { } path } && MediaFormats.IsCompactDiscGraphics(path);
 
     /// <summary>The marquee as the screen draws it, whole, from the venue's settings and who is next.</summary>
-    /// <remarks>Disabled with no venue selected, or one that has the marquee off. The singers are
+    /// <remarks>Disabled with no venue selected, one that has the marquee off, or one that hides it
+    /// while <paramref name="performanceUnderWay"/>. The singers are
     /// exactly what <see cref="IUpNextService"/> answers for the venue's count, so the band and
     /// anything else naming who is next cannot disagree.</remarks>
-    internal static async Task<SetMarqueeCommand> BuildMarqueeAsync(Venue.VenueSettings? settings, IUpNextService upNext)
+    internal static async Task<SetMarqueeCommand> BuildMarqueeAsync(
+        Venue.VenueSettings? settings, IUpNextService upNext, bool performanceUnderWay = false)
     {
         if (settings is null || !settings.MarqueeEnabled)
+            return new SetMarqueeCommand { Enabled = false };
+
+        if (settings.MarqueeHideDuringSong && performanceUnderWay)
             return new SetMarqueeCommand { Enabled = false };
 
         var upcoming = await upNext.ReadAsync(settings.MarqueeSingerCount);
@@ -672,14 +681,23 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
         // Picked only once the song is known to draw one, so a video does not use up a turn.
         if (await EntryForSongAsync(playlists, playlistId) is not { } entry) return VisualiserOff;
 
+        return VisualiserFor(entry, song.Media.Title, () => LevelsUrlFor(path, load)) ?? VisualiserOff;
+    }
+
+    /// <summary>The command that draws <paramref name="entry"/>; null when its preset cannot be
+    /// found, which leaves whatever was under it.</summary>
+    /// <remarks><paramref name="levelsUrl"/> is asked only once the preset resolves: it may start a
+    /// read of the song's levels.</remarks>
+    private SetVisualiserCommand? VisualiserFor(VisualisationEntry entry, string drawnFor, Func<string?> levelsUrl)
+    {
         string? name = null, url = null, builtIn = null;
         if (entry.PresetSource == VisualiserPresetSource.BuiltIn)
         {
             if (!VisualiserPresetService.BuiltIns.Any(b => b.Name == entry.PresetName))
             {
-                _logger.LogWarning("The visualisation names a built-in drawing '{Preset}' the host does not have; '{Title}' plays over black",
-                    entry.PresetName, song.Media.Title);
-                return VisualiserOff;
+                _logger.LogWarning("The visualisation names a built-in drawing '{Preset}' the host does not have; '{Title}' draws without it",
+                    entry.PresetName, drawnFor);
+                return null;
             }
 
             builtIn = entry.PresetName;
@@ -688,9 +706,9 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
         {
             if (ImportedPresetUrl(entry.PresetName) is not { } imported)
             {
-                _logger.LogWarning("The visualisation's imported preset '{Preset}' is not there any more; '{Title}' plays over black",
-                    entry.PresetName, song.Media.Title);
-                return VisualiserOff;
+                _logger.LogWarning("The visualisation's imported preset '{Preset}' is not there any more; '{Title}' draws without it",
+                    entry.PresetName, drawnFor);
+                return null;
             }
 
             url = imported;
@@ -712,8 +730,55 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
             Brightness = entry.Brightness,
             Saturation = entry.Saturation,
             Sensitivity = entry.Sensitivity,
-            LevelsUrl = LevelsUrlFor(path, load),
+            LevelsUrl = levelsUrl(),
         };
+    }
+
+    /// <summary>Hands the screen the "Up next" card with what the venue wants behind it.</summary>
+    /// <remarks>A one-shot: a venue edit while it is up reaches the next announcement, not this one.
+    /// A visualisation the venue cannot draw (no playlist, an empty one, a preset gone) falls back
+    /// to <see cref="NextSingerBackground.Over"/>, what a venue that never chose gets.</remarks>
+    private async Task ShowNextSingerAsync(NextSingerCard card)
+    {
+        var background = (await ReadVenueSettingsAsync())?.NextSingerBackground ?? NextSingerBackground.Over;
+        SetVisualiserCommand? visualiser = null;
+
+        if (background == NextSingerBackground.Visualisation)
+        {
+            visualiser = await CardVisualiserAsync(card);
+            if (visualiser is null) background = NextSingerBackground.Over;
+        }
+
+        await SendAsync(new ShowNextSingerCommand
+        {
+            Singer = card.Singer,
+            Song = card.Song,
+            Artist = card.Artist,
+            Background = background,
+            Visualiser = visualiser,
+        });
+    }
+
+    /// <summary>The venue playlist's next entry, taken the way a song takes one, with no levels:
+    /// between singers there is no song for the host to read them from.</summary>
+    /// <remarks>Never throws: the card matters more than what is behind it.</remarks>
+    private async Task<SetVisualiserCommand?> CardVisualiserAsync(NextSingerCard card)
+    {
+        try
+        {
+            if ((await ReadVenueSettingsAsync())?.VisualisationPlaylistId is not { } playlistId) return null;
+            if (_services?.GetService<IVisualisationPlaylistService>() is not { } playlists) return null;
+
+            // An empty or missing playlist answers null.
+            if (await playlists.SelectNextAsync(playlistId) is not { } entry) return null;
+
+            return VisualiserFor(entry, "the next-singer card", () => null);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Could not pick a visualisation for the card naming {Singer}", card.Singer);
+            return null;
+        }
     }
 
     /// <summary>The song's entry: the one already picked while it is still in the venue's playlist,
@@ -802,7 +867,7 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
 
     /// <summary>The machine's grace, read on every send so an App Settings change needs no restart.</summary>
     private int LeadInGraceSeconds()
-        => _services?.GetService<IOptionsMonitor<PlaybackService.ServiceOptions>>()?.CurrentValue.LeadInGraceSeconds ?? 0;
+        => _playbackOptions?.CurrentValue.LeadInGraceSeconds ?? 0;
 
     private async Task<TimedLyrics?> ReadTimedLyricsAsync(Media media)
     {
@@ -816,31 +881,14 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
         }
     }
 
-    /// <summary>The venue's level, or full volume before any venue exists.</summary>
-    /// <remarks>The song and the second channel share one venue level: the bed and an ad's own
-    /// voiceover ride that channel through one mixer, so one setting covers both.</remarks>
+    /// <summary>Puts both channels at full level; the room's mixer sets the real one.</summary>
+    /// <remarks>Sent on every connect so a screen never keeps a level from an earlier run.</remarks>
     private async Task ApplyVolumeAsync()
     {
         if (ConnectedScreen() is null) return;
 
-        var volume = FullVolume;
-
-        if (_venuesService is not null)
-        {
-            try
-            {
-                var venue = await _venuesService.ReadSelectedVenueAsync();
-                if (venue is not null)
-                    volume = VenueVolume.ToGain(venue.Settings.DefaultVolume);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Could not read the venue's volume; leaving the screen at full");
-            }
-        }
-
-        await SendAsync(new SetVolumeCommand { Volume = volume });
-        await SendAsync(new SetBackgroundVolumeCommand { Volume = volume });
+        await SendAsync(new SetVolumeCommand { Volume = FullVolume });
+        await SendAsync(new SetBackgroundVolumeCommand { Volume = FullVolume });
     }
 
     /// <summary>Pulls the current state of each overlay asked for and sends it whole.</summary>
@@ -850,7 +898,7 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
         if (overlays.HasFlag(Overlay.Volume))
         {
             try { await ApplyVolumeAsync(); }
-            catch (Exception ex) { _logger.LogWarning(ex, "Could not apply the venue's volume to the screen"); }
+            catch (Exception ex) { _logger.LogWarning(ex, "Could not set the screen's volume"); }
         }
 
         // Ahead of the overlays, which read the database: the picture is what the room notices late.
@@ -865,7 +913,8 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
             await SendVisualiserAsync(load: null);
 
         if (overlays.HasFlag(Overlay.Marquee))
-            await DrawAsync<IUpNextService>("marquee", async upNext => await BuildMarqueeAsync(await ReadVenueSettingsAsync(), upNext));
+            await DrawAsync<IUpNextService>("marquee", async upNext =>
+                await BuildMarqueeAsync(await ReadVenueSettingsAsync(), upNext, PerformanceUnderWay()));
 
         // Sent even when there is nothing up: it is the whole state, so it also clears a code left
         // on a screen that dropped and came back.
@@ -932,6 +981,22 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
         }
 
         return encoded;
+    }
+
+    /// <summary>Someone is at the mic, playing or paused; an ad or an idle screen is not a song.</summary>
+    private bool PerformanceUnderWay()
+        => _services?.GetService<IPlaybackService>()?.CurrentPerformance is not null;
+
+    /// <summary>The marquee only when a performance started or ended since the last PlaybackChanged.</summary>
+    /// <remarks>PlaybackChanged is also every pause and seek, and the marquee reads the queue, so it
+    /// is not rebuilt on those. Broker handlers run one at a time, so the field needs no lock.</remarks>
+    private Overlay MarqueeIfPerformanceMoved()
+    {
+        var underWay = PerformanceUnderWay();
+        if (underWay == _performanceUnderWay) return default;
+
+        _performanceUnderWay = underWay;
+        return Overlay.Marquee;
     }
 
     private async Task<Venue.VenueSettings?> ReadVenueSettingsAsync()

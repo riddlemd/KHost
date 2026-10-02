@@ -224,6 +224,38 @@ public class PerformanceService : BaseRepositoryService<Performance, IPerformanc
         AnnounceChange();
     }
 
+    public async Task<Performance?> UpdateSettingsAsync(Guid performanceId, PerformanceSettings settings)
+    {
+        if (await Repository.ReadAsync(performanceId) is not { } performance)
+        {
+            Logger.LogWarning("Performance {PerformanceId} not found; settings left unsaved", performanceId);
+            return null;
+        }
+
+        // The ranges PlaybackService holds a live change to, so a saved value is one it can play.
+        performance.Pitch = Math.Clamp(settings.Pitch, IPlaybackService.MinPitch, IPlaybackService.MaxPitch);
+        performance.Tempo = Math.Clamp(settings.Tempo, IPlaybackService.MinTempo, IPlaybackService.MaxTempo);
+        performance.LeadVolume = AudioLevels.ClampVolume(settings.LeadVolume);
+        performance.BackingVolume = settings.BackingVolume is { } backing ? AudioLevels.ClampVolume(backing) : null;
+
+        // Merged, as playback merges: a voice the editor never saw keeps the level it was sung at.
+        if (settings.VoiceVolumes is { Count: > 0 } edited)
+        {
+            var voices = performance.VoiceVolumes is null ? [] : new Dictionary<string, int>(performance.VoiceVolumes);
+            foreach (var (voice, level) in edited) voices[voice] = AudioLevels.ClampVolume(level);
+            performance.VoiceVolumes = voices;
+        }
+
+        await Repository.UpdateAsync(performance);
+
+        Logger.LogInformation("Settings saved on performance {PerformanceId}: key {Pitch:+#;-#;0}, tempo {Tempo:+#;-#;0}%",
+            performanceId, performance.Pitch, performance.Tempo);
+
+        AnnounceChange();
+
+        return performance;
+    }
+
     public async Task DeleteAllQueuedAsync()
     {
         await Repository.DeleteAllQueuedAsync();

@@ -17,15 +17,12 @@ internal sealed class AppSettingsService : IAppSettingsService
     internal const string OverlayFileName = "settings.json";
 
     private readonly IConfiguration _configuration;
-    private readonly IUsersService _usersService;
     private readonly IFFmpegService _ffmpeg;
     private readonly string _overlayPath;
 
-    public AppSettingsService(
-        IConfiguration configuration, IUsersService usersService, IFFmpegService ffmpeg, string? overlayDirectory = null)
+    public AppSettingsService(IConfiguration configuration, IFFmpegService ffmpeg, string? overlayDirectory = null)
     {
         _configuration = configuration;
-        _usersService = usersService;
         _ffmpeg = ffmpeg;
         _overlayPath = Path.Combine(overlayDirectory ?? Path.Combine(AppContext.BaseDirectory, "cache"), OverlayFileName);
     }
@@ -37,12 +34,15 @@ internal sealed class AppSettingsService : IAppSettingsService
 
     public AppSettings Current => new()
     {
-        RequireLogin = _configuration.GetValue<bool?>("Auth:RequireLogin") ?? true,
+        // RequireLogin is config-only now: no App Settings checkbox writes it, so this is the
+        // one place it is ever read from the layered configuration (appsettings.json/env/overlay).
+        RequireLogin = _configuration.GetValue<bool?>("Auth:RequireLogin") ?? false,
         LaunchScreenOnStartup = _configuration.GetValue<bool?>("LocalScreen:LaunchOnStartup") ?? false,
         FFmpegPath = Blank(_configuration[FFmpegService.ConfigurationKey]),
         MediaDirectory = NormalizeMediaDirectory(_configuration["Plugins:MediaDirectory"]),
-        StopFadeSeconds = (_configuration.GetValue<TimeSpan?>("Playback:StopFadeDuration") ?? TimeSpan.FromSeconds(5)).TotalSeconds,
-        SegmentSeconds = _configuration.GetValue<int?>("MediaStream:SegmentSeconds") ?? 2,
+        StopFadeSeconds = StopFadeClamp(
+            (_configuration.GetValue<TimeSpan?>("Playback:StopFadeDuration") ?? TimeSpan.FromSeconds(5)).TotalSeconds),
+        SegmentSeconds = SegmentClamp(_configuration.GetValue<int?>("MediaStream:SegmentSeconds") ?? 2),
         GraphicsScaleHeight = GraphicsScaling.SnapToOffered(
             _configuration.GetValue<int?>("MediaStream:GraphicsScaleHeight") ?? GraphicsScaling.DefaultHeight),
         // Parsed rather than bound: a hand-edited word that names no choice reads as Auto.
@@ -75,6 +75,7 @@ internal sealed class AppSettingsService : IAppSettingsService
             _configuration["Console:SongControlStyle"], ignoreCase: true, out var style)
             ? style
             : SongControlStyle.Sliders,
+        DefaultSearchMode = SearchModeOrDefault(_configuration["Search:DefaultMode"]),
     };
 
     private int PageSize(string key, int fallback = AppSettings.DefaultPageSize) =>
@@ -84,6 +85,13 @@ internal sealed class AppSettingsService : IAppSettingsService
     // started, and a hand-edited hour would hold the room until someone restarted the console.
     private static double AdDurationClamp(double seconds) =>
         Math.Clamp(seconds, AppSettings.MinAdDurationSeconds, AppSettings.MaxAdDurationSeconds);
+
+    // Read as well as save, for the same reason as the ad duration.
+    private static double StopFadeClamp(double seconds) =>
+        Math.Clamp(seconds, AppSettings.MinStopFadeSeconds, AppSettings.MaxStopFadeSeconds);
+
+    private static int SegmentClamp(int seconds) =>
+        Math.Clamp(seconds, AppSettings.MinSegmentSeconds, AppSettings.MaxSegmentSeconds);
 
     // Read as well as save: a hand-edited value the select does not offer would show as none of them.
     private static int LeadInGraceChoice(int seconds) =>
@@ -102,6 +110,10 @@ internal sealed class AppSettingsService : IAppSettingsService
     /// </summary>
     private static string? Blank(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
+    // Read as well as save: a hand-cleared value must not reach the panel as an empty mode name.
+    private static string SearchModeOrDefault(string? mode) =>
+        string.IsNullOrWhiteSpace(mode) ? AppSettings.LocalSearchMode : mode.Trim();
+
     private static string? NormalizeMediaDirectory(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
@@ -109,19 +121,11 @@ internal sealed class AppSettingsService : IAppSettingsService
     {
         var before = Current;
 
-        if (settings.RequireLogin && !before.RequireLogin && !await _usersService.HasAdminWithPasswordAsync())
-        {
-            return new AppSettingsSaveResult(false,
-                "No admin user has a password yet. Requiring sign-in now would lock everyone out. "
-                + "Set a password on an admin in the Users Manager first.");
-        }
-
         var overlay = new Dictionary<string, object?>
         {
-            ["Auth"] = new Dictionary<string, object?> { ["RequireLogin"] = settings.RequireLogin },
             ["Playback"] = new Dictionary<string, object?>
             {
-                ["StopFadeDuration"] = TimeSpan.FromSeconds(settings.StopFadeSeconds).ToString(),
+                ["StopFadeDuration"] = TimeSpan.FromSeconds(StopFadeClamp(settings.StopFadeSeconds)).ToString(),
                 ["DefaultBackingVolume"] = AudioLevels.ClampVolume(settings.BackingVocalVolume),
                 ["LeadInGraceSeconds"] = LeadInGraceChoice(settings.LeadInGraceSeconds),
                 ["DynamicLeadIns"] = settings.DynamicLeadIns,
@@ -130,7 +134,7 @@ internal sealed class AppSettingsService : IAppSettingsService
             },
             ["MediaStream"] = new Dictionary<string, object?>
             {
-                ["SegmentSeconds"] = settings.SegmentSeconds,
+                ["SegmentSeconds"] = SegmentClamp(settings.SegmentSeconds),
                 ["GraphicsScaleHeight"] = GraphicsScaling.SnapToOffered(settings.GraphicsScaleHeight),
                 ["Encoder"] = settings.VideoEncoder.ToString(),
             },
@@ -152,6 +156,11 @@ internal sealed class AppSettingsService : IAppSettingsService
         overlay["Console"] = new Dictionary<string, object?>
         {
             ["SongControlStyle"] = settings.SongControlStyle.ToString(),
+        };
+
+        overlay["Search"] = new Dictionary<string, object?>
+        {
+            ["DefaultMode"] = SearchModeOrDefault(settings.DefaultSearchMode),
         };
 
         overlay["LocalScreen"] = new Dictionary<string, object?>

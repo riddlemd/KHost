@@ -1,4 +1,5 @@
 using KHost.Abstractions.Models;
+using KHost.Abstractions.Models.QueueRotation;
 using KHost.Abstractions.Repositories;
 using KHost.Abstractions.Services;
 using Microsoft.Extensions.Logging;
@@ -192,6 +193,76 @@ public class VenuesServiceTests : IDisposable
         var updated = await _service.ReadAsync(created.Id);
         Assert.NotNull(updated);
         Assert.Equal("Updated", updated!.Name);
+    }
+
+    [Theory]
+    [InlineData(-1, 0)]
+    [InlineData(9, 8)]
+    [InlineData(3, 3)]
+    public async Task UpdateAsync_ClampsTheQrSafeZone(int typed, int expected)
+    {
+        var venue = await _service.CreateAsync(new Venue { Name = "Room" });
+
+        venue.Settings.QrCodeSafeZone = typed;
+        await _service.UpdateAsync(venue);
+
+        await _repository.Received(1).UpdateAsync(Arg.Is<Venue>(v => v.Settings.QrCodeSafeZone == expected));
+    }
+
+    [Theory]
+    [InlineData(-1, 0)]
+    [InlineData(25, 20)]
+    [InlineData(5.5, 5.5)]
+    public async Task UpdateAsync_ClampsTheQrOffset(double typed, double expected)
+    {
+        var venue = await _service.CreateAsync(new Venue { Name = "Room" });
+
+        venue.Settings.QrCodeOffset = typed;
+        await _service.UpdateAsync(venue);
+
+        await _repository.Received(1).UpdateAsync(Arg.Is<Venue>(v => v.Settings.QrCodeOffset == expected));
+    }
+
+    public static TheoryData<Action<QueueRotationConfig>, Func<QueueRotationConfig, bool>> RotationBoundaries() => new()
+    {
+        { c => c.DropFixedIndex = -1, c => c.DropFixedIndex == 0 },
+        { c => c.DropFixedIndex = 101, c => c.DropFixedIndex == 100 },
+        { c => c.DropFixedIndex = 7, c => c.DropFixedIndex == 7 },
+        { c => c.FirstTimeBoostSlots = 0, c => c.FirstTimeBoostSlots == 1 },
+        { c => c.FirstTimeBoostSlots = 21, c => c.FirstTimeBoostSlots == 20 },
+        { c => c.FirstTimeBoostSlots = 3, c => c.FirstTimeBoostSlots == 3 },
+        { c => c.CoolDownSlots = -1, c => c.CoolDownSlots == 0 },
+        { c => c.CoolDownSlots = 21, c => c.CoolDownSlots == 20 },
+        { c => c.CoolDownSlots = 2, c => c.CoolDownSlots == 2 },
+        { c => c.WeightedFairWaitWeight = -0.5, c => c.WeightedFairWaitWeight == 0 },
+        { c => c.WeightedFairWaitWeight = 11, c => c.WeightedFairWaitWeight == 10 },
+        { c => c.WeightedFairWaitWeight = 1.5, c => c.WeightedFairWaitWeight == 1.5 },
+        { c => c.WeightedFairSongCountWeight = -0.5, c => c.WeightedFairSongCountWeight == 0 },
+        { c => c.WeightedFairSongCountWeight = 11, c => c.WeightedFairSongCountWeight == 10 },
+        { c => c.WeightedFairSongCountWeight = 2.5, c => c.WeightedFairSongCountWeight == 2.5 },
+    };
+
+    [Theory]
+    [MemberData(nameof(RotationBoundaries))]
+    public async Task UpdateAsync_ClampsTheRotationNumbers(Action<QueueRotationConfig> type, Func<QueueRotationConfig, bool> clamped)
+    {
+        var venue = await _service.CreateAsync(new Venue { Name = "Room" });
+
+        venue.Settings.QueueRotation = new QueueRotationConfig();
+        type(venue.Settings.QueueRotation);
+        await _service.UpdateAsync(venue);
+
+        await _repository.Received(1).UpdateAsync(Arg.Is<Venue>(v => clamped(v.Settings.QueueRotation!)));
+    }
+
+    [Fact]
+    public async Task UpdateAsync_NoRotationStored_LeavesItUnset()
+    {
+        var venue = await _service.CreateAsync(new Venue { Name = "Room" });
+
+        await _service.UpdateAsync(venue);
+
+        await _repository.Received(1).UpdateAsync(Arg.Is<Venue>(v => v.Settings.QueueRotation == null));
     }
 
     [Fact]

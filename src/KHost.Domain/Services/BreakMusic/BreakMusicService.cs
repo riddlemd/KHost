@@ -32,8 +32,6 @@ public class BreakMusicService : BaseService, IBreakMusicService, IDisposable
 
         _subscriptions.Add(broker.Subscribe<BreakMusicTrackChanged>(OnProviderTrackChanged));
 
-        // Only for a provider the host cannot reach: LocalScreenDisplayProvider already re-applies the
-        // venue level to the screen when a venue is edited.
         _subscriptions.Add(broker.Subscribe<SelectedVenueChanged>(OnVenueChanged));
     }
 
@@ -133,8 +131,6 @@ public class BreakMusicService : BaseService, IBreakMusicService, IDisposable
             if (!await provider.StartAsync(cancellationToken))
                 return false;
 
-            await ApplyVenueVolumeAsync(provider, cancellationToken);
-
             State = BreakMusicState.Playing;
             return true;
         }, cancellationToken);
@@ -212,26 +208,6 @@ public class BreakMusicService : BaseService, IBreakMusicService, IDisposable
         }, cancellationToken);
 
         _broker.Announce(new BreakMusicChanged());
-    }
-
-    /// <summary>Pushes the venue's level at a provider the host cannot reach directly.</summary>
-    /// <remarks>One rendering through the host is set by LocalScreenDisplayProvider instead.</remarks>
-    private async Task ApplyVenueVolumeAsync(IBreakMusicProvider provider, CancellationToken cancellationToken)
-    {
-        if (provider.RendersThroughHost)
-            return;
-
-        try
-        {
-            var venue = await _venues.ReadSelectedVenueAsync();
-            var volume = VenueVolume.ToGain(venue?.Settings.DefaultVolume ?? 100);
-
-            await provider.SetVolumeAsync(volume, cancellationToken);
-        }
-        catch (Exception ex)
-        {
-            Logger.LogWarning(ex, "Could not apply the venue volume to {Provider}", provider.SourceName);
-        }
     }
 
     /// <summary>Every state transition serializes through here, so two calls in flight cannot each
@@ -352,7 +328,7 @@ public class BreakMusicService : BaseService, IBreakMusicService, IDisposable
         return LibraryProvider ?? _providers.FirstOrDefault();
     }
 
-    // The mode is part of the venue's audio baseline like its volume: this message means the console is
+    // The mode is part of the venue's audio baseline: this message means the console is
     // running a different venue (or the current one was edited), and its named mode should play.
     private void OnVenueChanged(SelectedVenueChanged message)
         => _ = ReapplyVenueAsync(CancellationToken.None);
@@ -363,9 +339,6 @@ public class BreakMusicService : BaseService, IBreakMusicService, IDisposable
 
         if (venue?.Settings.BreakMusicProvider is { } source && !string.IsNullOrWhiteSpace(source))
             await SetActiveProviderAsync(source, cancellationToken);
-
-        if (_activeProvider is { } provider)
-            await ApplyVenueVolumeAsync(provider, cancellationToken);
     }
 
     private void OnProviderTrackChanged(BreakMusicTrackChanged message)

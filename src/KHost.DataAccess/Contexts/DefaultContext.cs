@@ -244,7 +244,7 @@ internal class DefaultContext : DbContext
             // the point of the constraint is that one provider's id reaches one singer.
             entity.HasIndex(e => new { e.Source, e.Key }).IsUnique();
 
-            // The sweep on the way up reads this, and nothing else selects on it.
+            // A source dropping its own ephemeral keys in bulk reads this.
             entity.HasIndex(e => e.IsEphemeral);
         });
 

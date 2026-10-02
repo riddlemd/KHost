@@ -1,3 +1,4 @@
+using KHost.Abstractions.Messaging;
 using System.Buffers.Binary;
 using KHost.Abstractions.Models.Plugins;
 using KHost.Abstractions.Models;
@@ -221,7 +222,8 @@ public static class PluginLoader
 
         PluginContext CreateContext(IServiceProvider serviceProvider) => new(manifest, storedValues, plugin,
             serviceProvider.GetRequiredService<Secrets.IPluginSecretStore>(),
-            serviceProvider.GetRequiredService<QrCodes.IQrCodeService>());
+            serviceProvider.GetRequiredService<QrCodes.IQrCodeService>(),
+            serviceProvider.GetRequiredService<IMessageBroker>());
 
         var concreteTypes = types.Where(t => t.IsClass && !t.IsAbstract).ToList();
 

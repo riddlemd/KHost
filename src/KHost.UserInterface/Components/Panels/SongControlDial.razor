@@ -23,7 +23,7 @@
         <input type="range" class="kh-song-control__grip"
                min="@Min" max="@Max" step="@Step" value="@Value"
                @oninput="OnInputAsync" @onchange="OnChangeAsync"
-               aria-label="@(AriaLabel ?? Label)" />
+               aria-label="@(AriaLabel ?? Label)" disabled="@Disabled" />
     </div>
 
     <span class="kh-song-control__label">@Label</span>

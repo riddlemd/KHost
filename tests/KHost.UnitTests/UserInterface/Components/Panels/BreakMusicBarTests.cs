@@ -1,4 +1,5 @@
 using Bunit;
+using KHost.Abstractions.Exceptions;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using KHost.Domain.Services.Messaging;
@@ -25,6 +26,9 @@ public class BreakMusicBarTests : BunitContext
         JSInterop.Mode = JSRuntimeMode.Loose;
 
         _breakMusic.ActiveProvider.Returns(_provider);
+        // Stands in for the host's own library provider by default, which is what every existing
+        // test here exercises; tests for a plugin provider substitute a second, distinct instance.
+        _breakMusic.LibraryProvider.Returns(_provider);
         _breakMusic.Providers.Returns([_provider]);
         _breakMusic.State.Returns(BreakMusicState.Stopped);
         _breakMusic.StartAsync(Arg.Any<CancellationToken>()).Returns(Task.FromResult(true));
@@ -193,7 +197,7 @@ public class BreakMusicBarTests : BunitContext
         Assert.True(skip.HasAttribute("disabled"));
     }
 
-    // One venue level covers every channel, so the bar carries no fader of its own.
+    // The room's mixer sets the level, so the bar carries no fader of its own.
     [Fact]
     public void TheBar_HasNoVolumeControl()
         => Assert.Empty(Render().FindAll("input[type=range]"));
@@ -237,8 +241,44 @@ public class BreakMusicBarTests : BunitContext
         Render().Find("[title='Play break music']").Click();
 
         // Both causes named: a missing playlist and a missing screen are indistinguishable here.
+        // _provider doubles as the library provider by default (see the constructor).
         _flash.Received(1).Show(
             Arg.Is<string>(m => m.Contains("playlist") && m.Contains("screen")), FlashType.Warning);
+    }
+
+    // A plugin provider that throws KHostException is the one channel a provider has to explain
+    // a refusal that looks nothing like the library provider's own advice.
+    [Fact]
+    public void PlayButton_WhenTheProviderThrowsWithAReason_ShowsThatReason()
+    {
+        _breakMusic.StartAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.FromException<bool>(
+                new KHostException("Spotify Connect runs on Windows only for now.", "", "KH-SPOTIFY-OS")));
+
+        Render().Find("[title='Play break music']").Click();
+
+        _flash.Received(1).Show(
+            Arg.Is<string>(m => m.Contains("Spotify Connect runs on Windows only for now.")),
+            FlashType.Warning);
+    }
+
+    // A plugin provider that returns false with no exception gets a generic message naming
+    // itself, not the library provider's playlist/screen advice, which may not apply to it at all.
+    [Fact]
+    public void PlayButton_WithAPluginProviderAndNoReason_NamesTheProviderGenerically()
+    {
+        var plugin = Substitute.For<IBreakMusicProvider>();
+        plugin.DisplayName.Returns("Spotify");
+
+        _breakMusic.ActiveProvider.Returns(plugin);
+        _breakMusic.StartAsync(Arg.Any<CancellationToken>()).Returns(Task.FromResult(false));
+
+        Render().Find("[title='Play break music']").Click();
+
+        _flash.Received(1).Show(
+            Arg.Is<string>(m => m.Contains("Spotify") && m.Contains("did not start")
+                && !m.Contains("playlist")),
+            FlashType.Warning);
     }
 
     [Fact]

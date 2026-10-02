@@ -51,11 +51,18 @@
         gap: 10px;
     }
 
-    // Pushed to the far end of the empty row, so it reads as the one thing to do here rather than
-    // as part of the sentence explaining that nothing is loaded.
-    &__announce {
+    // Pushed to the far end of the empty row and stacked, so the two read as the things to do here
+    // rather than as part of the sentence explaining that nothing is loaded.
+    &__empty-actions {
         margin-left: auto;
         flex-shrink: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    &__announce,
+    &__play-next {
         white-space: nowrap;
     }
 

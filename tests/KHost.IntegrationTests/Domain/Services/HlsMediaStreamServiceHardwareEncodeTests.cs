@@ -29,6 +29,7 @@ public abstract class HlsMediaStreamServiceHardwareEncodeTests : IDisposable
                 WorkingDirectory = _workingDirectory,
             }),
             new PlayableMediaSourceService(NullLogger<PlayableMediaSourceService>.Instance, []),
+            TimeProvider.System,
             encoders: _selector);
     }
 

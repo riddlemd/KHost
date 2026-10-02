@@ -11,23 +11,23 @@ namespace KHost.UnitTests.UserInterface.Services;
 public class AppSettingsServiceTests : IDisposable
 {
     private readonly string _directory = Path.Combine(Path.GetTempPath(), $"khost-settings-{Guid.NewGuid():n}");
-    private readonly IUsersService _users = Substitute.For<IUsersService>();
     private readonly IFFmpegService _ffmpeg = Substitute.For<IFFmpegService>();
 
     private AppSettingsService Service(params KeyValuePair<string, string?>[] config)
-        => new(new ConfigurationBuilder().AddInMemoryCollection(config).Build(), _users, _ffmpeg, _directory);
+        => new(new ConfigurationBuilder().AddInMemoryCollection(config).Build(), _ffmpeg, _directory);
 
     [Fact]
     public async Task SaveAsync_WritesAConfigShapedOverlay()
     {
         var service = Service();
 
-        var result = await service.SaveAsync(new AppSettings { RequireLogin = false, SegmentSeconds = 4 });
+        var result = await service.SaveAsync(new AppSettings { SegmentSeconds = 4 });
 
         Assert.True(result.Saved);
         using var overlay = JsonDocument.Parse(
             await File.ReadAllTextAsync(Path.Combine(_directory, AppSettingsService.OverlayFileName)));
-        Assert.False(overlay.RootElement.GetProperty("Auth").GetProperty("RequireLogin").GetBoolean());
+        // RequireLogin is config-only now: SaveAsync never writes an Auth section.
+        Assert.False(overlay.RootElement.TryGetProperty("Auth", out _));
         Assert.Equal(4, overlay.RootElement.GetProperty("MediaStream").GetProperty("SegmentSeconds").GetInt32());
         Assert.Equal("00:00:05", overlay.RootElement.GetProperty("Playback").GetProperty("StopFadeDuration").GetString());
     }
@@ -105,6 +105,40 @@ public class AppSettingsServiceTests : IDisposable
         using var overlay = JsonDocument.Parse(
             await File.ReadAllTextAsync(Path.Combine(_directory, AppSettingsService.OverlayFileName)));
         Assert.Equal(expected, overlay.RootElement.GetProperty("Playback").GetProperty("DefaultBackingVolume").GetInt32());
+    }
+
+    [Theory]
+    [InlineData(-3, 0)]
+    [InlineData(45, 30)]
+    [InlineData(2.5, 2.5)]
+    public async Task StopFadeSeconds_IsClampedOnReadAsWellAsOnSave(double typed, double expected)
+    {
+        var service = Service(new KeyValuePair<string, string?>(
+            "Playback:StopFadeDuration", TimeSpan.FromSeconds(typed).ToString()));
+
+        Assert.Equal(expected, service.Current.StopFadeSeconds);
+
+        await service.SaveAsync(new AppSettings { StopFadeSeconds = typed });
+        using var overlay = JsonDocument.Parse(
+            await File.ReadAllTextAsync(Path.Combine(_directory, AppSettingsService.OverlayFileName)));
+        Assert.Equal(TimeSpan.FromSeconds(expected),
+            TimeSpan.Parse(overlay.RootElement.GetProperty("Playback").GetProperty("StopFadeDuration").GetString()!));
+    }
+
+    [Theory]
+    [InlineData(0, 1)]
+    [InlineData(20, 10)]
+    [InlineData(4, 4)]
+    public async Task SegmentSeconds_IsClampedOnReadAsWellAsOnSave(int typed, int expected)
+    {
+        var service = Service(new KeyValuePair<string, string?>("MediaStream:SegmentSeconds", typed.ToString()));
+
+        Assert.Equal(expected, service.Current.SegmentSeconds);
+
+        await service.SaveAsync(new AppSettings { SegmentSeconds = typed });
+        using var overlay = JsonDocument.Parse(
+            await File.ReadAllTextAsync(Path.Combine(_directory, AppSettingsService.OverlayFileName)));
+        Assert.Equal(expected, overlay.RootElement.GetProperty("MediaStream").GetProperty("SegmentSeconds").GetInt32());
     }
 
     [Fact]
@@ -216,7 +250,7 @@ public class AppSettingsServiceTests : IDisposable
         var saved = new ConfigurationBuilder()
             .AddJsonFile(Path.Combine(_directory, AppSettingsService.OverlayFileName))
             .Build();
-        Assert.Equal(chosen, new AppSettingsService(saved, _users, _ffmpeg, _directory).Current.VideoEncoder);
+        Assert.Equal(chosen, new AppSettingsService(saved, _ffmpeg, _directory).Current.VideoEncoder);
         Assert.Equal(
             chosen,
             saved.GetSection(HlsMediaStreamService.ServiceOptions.SectionName).Get<HlsMediaStreamService.ServiceOptions>()!.Encoder);
@@ -260,28 +294,56 @@ public class AppSettingsServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task SaveAsync_RefusesRequiringLogin_WhileNoAdminHasAPassword()
+    public void DefaultSearchMode_DefaultsToLocal_TodaysBehaviour()
+        => Assert.Equal(AppSettings.LocalSearchMode, Service().Current.DefaultSearchMode);
+
+    [Fact]
+    public async Task DefaultSearchMode_RoundTripsThroughTheOverlay()
     {
-        _users.HasAdminWithPasswordAsync().Returns(false);
-        var service = Service(new KeyValuePair<string, string?>("Auth:RequireLogin", "false"));
+        var service = Service();
 
-        var result = await service.SaveAsync(new AppSettings { RequireLogin = true });
+        await service.SaveAsync(new AppSettings { DefaultSearchMode = "KaraFunMediaProvider" });
 
-        Assert.False(result.Saved);
-        Assert.Contains("lock everyone out", result.Error);
-        Assert.False(File.Exists(Path.Combine(_directory, AppSettingsService.OverlayFileName)));
+        using var overlay = JsonDocument.Parse(
+            await File.ReadAllTextAsync(Path.Combine(_directory, AppSettingsService.OverlayFileName)));
+        Assert.Equal("KaraFunMediaProvider", overlay.RootElement.GetProperty("Search").GetProperty("DefaultMode").GetString());
+
+        Assert.Equal("KaraFunMediaProvider",
+            Service(new KeyValuePair<string, string?>("Search:DefaultMode", "KaraFunMediaProvider")).Current.DefaultSearchMode);
     }
 
     [Fact]
-    public async Task SaveAsync_AllowsRequiringLogin_OnceAnAdminHasAPassword()
+    public async Task DefaultSearchMode_RoundTripsTheRememberSentinel()
     {
-        _users.HasAdminWithPasswordAsync().Returns(true);
-        var service = Service(new KeyValuePair<string, string?>("Auth:RequireLogin", "false"));
+        var service = Service();
 
-        var result = await service.SaveAsync(new AppSettings { RequireLogin = true });
+        await service.SaveAsync(new AppSettings { DefaultSearchMode = AppSettings.RememberLastSearchMode });
 
-        Assert.True(result.Saved);
+        using var overlay = JsonDocument.Parse(
+            await File.ReadAllTextAsync(Path.Combine(_directory, AppSettingsService.OverlayFileName)));
+        Assert.Equal(AppSettings.RememberLastSearchMode, overlay.RootElement.GetProperty("Search").GetProperty("DefaultMode").GetString());
+
+        Assert.Equal(AppSettings.RememberLastSearchMode,
+            Service(new KeyValuePair<string, string?>("Search:DefaultMode", AppSettings.RememberLastSearchMode)).Current.DefaultSearchMode);
     }
+
+    /// <summary>A hand-cleared value must not reach the panel as an empty mode name.</summary>
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void DefaultSearchMode_BlankOverlay_FallsBackToLocal(string stored)
+        => Assert.Equal(AppSettings.LocalSearchMode,
+            Service(new KeyValuePair<string, string?>("Search:DefaultMode", stored)).Current.DefaultSearchMode);
+
+    /// <summary>Off on install unless a host opts in through appsettings.json: nothing in the App
+    /// Settings page writes this key any more.</summary>
+    [Fact]
+    public void RequireLogin_DefaultsToFalse_WhenUnset()
+        => Assert.False(Service().Current.RequireLogin);
+
+    [Fact]
+    public void RequireLogin_ReadsWhatConfigurationHolds()
+        => Assert.True(Service(new KeyValuePair<string, string?>("Auth:RequireLogin", "true")).Current.RequireLogin);
 
     /// <summary>The folder applies live: the next song and probe look there, so no restart.</summary>
     [Fact]

@@ -4,6 +4,6 @@
            style="@FillStyle"
            min="@Min" max="@Max" step="@Step" value="@Value"
            @oninput="OnInputAsync" @onchange="OnChangeAsync"
-           aria-label="@(AriaLabel ?? Label)" />
+           aria-label="@(AriaLabel ?? Label)" disabled="@Disabled" />
     <span class="kh-song-control__value @Span.ValueClass">@Format(Value)</span>
 </div>
