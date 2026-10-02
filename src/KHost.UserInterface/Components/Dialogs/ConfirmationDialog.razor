@@ -2,7 +2,7 @@
 @using KHost.UserInterface.Models
 @using KHost.UserInterface.Services
 
-<Dialog IsOpen="IsOpen" Class="@($"{_rootClassName} {Class.Trim()}".Trim())" OnClose="OnClose">
+<Dialog IsOpen="IsOpen" CloseOnEscape="true" Class="@($"{_rootClassName} {Class.Trim()}".Trim())" OnClose="OnClose">
     <Header>
         @if(!string.IsNullOrWhiteSpace(TitleIcon)) {
              <Icon Name="TitleIcon" />
@@ -15,7 +15,8 @@
         </div>
     </Body>
     <Footer>
-        <button class="kh-confirmation-dialog__cancel-btn kh-button kh-button--primary" @onclick="CancelAsync">Cancel</button>
+        @* Focused on open (focusFirstInput takes [autofocus]): the safe answer is the one Enter gives. *@
+        <button class="kh-confirmation-dialog__cancel-btn kh-button kh-button--primary" autofocus @onclick="CancelAsync">Cancel</button>
         <button class="kh-confirmation-dialog__cancel-btn kh-button kh-button--primary kh-button--@(GetConfirmButtonClassName())" @onclick="ConfirmAsync">@ConfirmText</button>
     </Footer>
 </Dialog>
