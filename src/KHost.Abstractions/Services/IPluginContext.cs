@@ -32,17 +32,10 @@ public interface IPluginContext
     /// only what this plugin added: the host's own warnings about the plugin are never removed.</remarks>
     void ClearWarning(int id);
 
-    /// <summary>Takes back every warning this plugin added, including any added with
-    /// <see cref="ReportWarning"/>.</summary>
+    /// <summary>Takes back every warning this plugin added.</summary>
     /// <remarks>The host's own warnings about the plugin are never removed, even one with the same
     /// text as a warning this plugin added.</remarks>
     void ClearWarnings();
-
-    /// <summary>Shows a line against this plugin on the Plugins page.</summary>
-    /// <remarks>Behaves as <see cref="AddWarning"/> with the id discarded, so
-    /// <see cref="ClearWarnings"/> removes it.</remarks>
-    [Obsolete("Use AddWarning, which returns an id for ClearWarning.")]
-    void ReportWarning(string message);
 
     /// <summary>Reads back a secret this plugin stored, filed under a name the host supplies.</summary>
     /// <returns>Null when nothing is stored under <paramref name="key"/>.</returns>

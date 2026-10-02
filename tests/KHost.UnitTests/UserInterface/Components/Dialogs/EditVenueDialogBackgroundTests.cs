@@ -42,47 +42,16 @@ public class EditVenueDialogBackgroundTests : BunitContext
         Services.AddSingleton(plugins);
     }
 
-    /// <summary>A venue stored before the retired list existed deserialises without it; the dialog
-    /// must still open.</summary>
-    [Fact]
-    public void AVenueStoredBeforeTheSettingExisted_OpensRatherThanThrowing()
-    {
-#pragma warning disable CS0618 // the retired setting's null handling is what this checks
-        var settings = new Venue.VenueSettings { SongBackgrounds = null! };
-
-        var cut = Render(settings);
-
-        Assert.Empty(settings.SongBackgrounds);
-#pragma warning restore CS0618
-        Assert.NotNull(cut.Find("form"));
-    }
-
     [Fact]
     public void TheSection_OffersNoBackgroundClips()
     {
-#pragma warning disable CS0618 // a venue that picked clips before the picker went
-        var cut = Render(new Venue.VenueSettings { SongBackgrounds = ["amber.mp4"] });
-#pragma warning restore CS0618
+        var cut = Render(new Venue.VenueSettings());
 
         Assert.Empty(cut.FindAll(".kh-background-tile"));
         Assert.Empty(cut.FindAll("[id^='venue-background-']"));
         Assert.DoesNotContain("plain black", cut.Markup);
         Assert.DoesNotContain("background-still", cut.Markup);
         Assert.NotNull(VisualisationPicker(cut));
-    }
-
-    /// <summary>Nothing edits them now, so whatever a venue stored is saved back untouched.</summary>
-    [Fact]
-    public void TheRetiredBackgrounds_SurviveASave()
-    {
-        Venue? saved = null;
-#pragma warning disable CS0618 // the retired setting is what this checks
-        var cut = Render(new Venue.VenueSettings { SongBackgrounds = ["amber.mp4"] }, venue => saved = venue);
-
-        cut.Find("form").Submit();
-
-        Assert.Equal(["amber.mp4"], saved!.Settings.SongBackgrounds);
-#pragma warning restore CS0618
     }
 
     [Fact]

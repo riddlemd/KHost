@@ -107,9 +107,6 @@ public class PluginContext : IPluginContext
     public Task UnregisterQrCodeAsync(CancellationToken cancellationToken = default)
         => _qrCodes.UnregisterAsync(_pluginId);
 
-    [Obsolete("Use AddWarning, which returns an id for ClearWarning.")]
-    public void ReportWarning(string message) => AddWarning(message);
-
     /// <remarks>Logged and flashed as well as listed: startup's dump of the list has already run by
     /// the time a sign-in fails, and the Plugins page is not where the host is looking.</remarks>
     public int AddWarning(string message)

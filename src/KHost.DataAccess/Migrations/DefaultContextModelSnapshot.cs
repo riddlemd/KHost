@@ -613,8 +613,6 @@ namespace KHost.DataAccess.Migrations
 
                             b1.Property<bool>("ClearQueueOnClose");
 
-                            b1.Property<int>("DefaultVolume");
-
                             b1.Property<int>("DuplicateSongWindowHours");
 
                             b1.Property<string>("MarqueeBackgroundColor");
@@ -670,9 +668,6 @@ namespace KHost.DataAccess.Migrations
                             b1.Property<bool>("ShowEstimatedWaitTime");
 
                             b1.Property<bool>("ShowQueueToGuests");
-
-                            b1.PrimitiveCollection<string>("SongBackgrounds")
-                                .IsRequired();
 
                             b1.Property<bool>("TippingEnabled");
 
