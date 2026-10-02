@@ -32,6 +32,9 @@ public class PlaybackServiceTests : IDisposable
     private readonly ITimedLyricsService _timedLyrics = Substitute.For<ITimedLyricsService>();
 
     private readonly StubRenderer _renderer = new();
+    // Every service the fixture builds reads this clock, so a test moves time by advancing it.
+    private readonly FakeTimeProvider _clock = new();
+    private readonly List<Task> _conclusions = [];
     private readonly PlaybackService _service;
     private int _streamsOpened;
 
@@ -154,7 +157,7 @@ public class PlaybackServiceTests : IDisposable
         services.GetService(typeof(IMediaStreamService)).Returns(_mediaStreams);
         services.GetService(typeof(ITimedLyricsService)).Returns(_timedLyrics);
 
-        return built = new(
+        built = new(
         _logger,
         _queueService,
         _performanceService,
@@ -186,8 +189,29 @@ public class PlaybackServiceTests : IDisposable
         _flash,
         _timedLyrics,
         _broker,
-        time ?? TimeProvider.System);
+        time ?? _clock);
+
+        // Kept rather than detached, so a test awaits the conclusion instead of sleeping for it.
+        built.DeferConclusion = work =>
+        {
+            var run = Task.Run(work);
+            lock (_conclusions) _conclusions.Add(run);
+        };
+
+        return built;
     }
+
+    private Task ConclusionsAsync()
+    {
+        lock (_conclusions) return Task.WhenAll(_conclusions);
+    }
+
+    private int ConclusionsDeferred()
+    {
+        lock (_conclusions) return _conclusions.Count;
+    }
+
+    private DateTime Now => _clock.GetUtcNow().UtcDateTime;
 
     /// <summary>The service reads options per use, so a test's values have to answer every read.</summary>
     private static IOptionsMonitor<T> Monitor<T>(T value) where T : class
@@ -922,6 +946,7 @@ public class PlaybackServiceTests : IDisposable
         var (performance, media) = CreatePerformance();
         await _service.LoadAsync(performance, media);
         await _service.PlayAsync();
+        _clock.Advance(TimeSpan.FromMilliseconds(10));
         await _service.TickAsync();
         _screenServer.ClearReceivedCalls();
 
@@ -938,6 +963,7 @@ public class PlaybackServiceTests : IDisposable
         var (performance, media) = CreatePerformance();
         await _service.LoadAsync(performance, media);
         await _service.PlayAsync();
+        _clock.Advance(TimeSpan.FromMilliseconds(10));
         await _service.TickAsync();
         _screenServer.ClearReceivedCalls();
 
@@ -1023,7 +1049,7 @@ public class PlaybackServiceTests : IDisposable
         RaiseScreenState(TimeSpan.FromSeconds(40));
         RaiseScreenState(TimeSpan.FromSeconds(41));
 
-        Assert.InRange(_service.Position, TimeSpan.FromSeconds(40.5), TimeSpan.FromSeconds(41.5));
+        Assert.Equal(TimeSpan.FromSeconds(41), _service.Position);
     }
 
     [Fact]
@@ -1097,10 +1123,10 @@ public class PlaybackServiceTests : IDisposable
             {
                 Position = TimeSpan.FromSeconds(12),
                 IsPlaying = true,
-                SampledAtUtc = DateTime.UtcNow,
+                SampledAtUtc = Now,
             });
 
-        Assert.InRange(_service.Position, TimeSpan.FromSeconds(11.5), TimeSpan.FromSeconds(12.5));
+        Assert.Equal(TimeSpan.FromSeconds(12), _service.Position);
     }
 
     [Fact]
@@ -1117,12 +1143,12 @@ public class PlaybackServiceTests : IDisposable
             {
                 Position = TimeSpan.FromMinutes(3),
                 IsPlaying = true,
-                SampledAtUtc = DateTime.UtcNow,
+                SampledAtUtc = Now,
             });
 
         // One display carries the song, and it alone defines the clock: a receiver reporting after
         // the host switched to the screen is describing a song it no longer plays.
-        Assert.True(_service.Position < TimeSpan.FromSeconds(5), $"position jumped to {_service.Position}");
+        Assert.Equal(TimeSpan.Zero, _service.Position);
     }
 
     [Fact]
@@ -1399,6 +1425,7 @@ public class PlaybackServiceTests : IDisposable
         var (performance, media) = CreatePerformance();
         await _service.LoadAsync(performance, media);
         await _service.PlayAsync();
+        _clock.Advance(TimeSpan.FromMilliseconds(10));
         await _service.TickAsync();
 
         var loading = new TaskCompletionSource();
@@ -1411,10 +1438,10 @@ public class PlaybackServiceTests : IDisposable
         // The load is still in flight. A clock left running here is what makes the screen resume
         // behind the UI, because the seek was aimed at where the song was when it started loading.
         var held = _service.Position;
+        Assert.Equal(TimeSpan.FromMilliseconds(10), held);
 
-        // Waited out rather than polled: the assertion is that the clock does *not* advance, and
-        // there is no state to wait for. Comfortably longer than the tick it must outlive.
-        await Task.Delay(700);
+        // Past a clock interval, so a clock left running would have ticked.
+        _clock.Advance(TimeSpan.FromMilliseconds(700));
         Assert.Equal(held, _service.Position);
 
         loading.SetResult();
@@ -1526,7 +1553,10 @@ public class PlaybackServiceTests : IDisposable
         await _service.PlayAsync();
 
         if (tick)
+        {
+            _clock.Advance(TimeSpan.FromMilliseconds(10));
             await _service.TickAsync();
+        }
 
         ConnectScreens(0);
         RaiseScreenDisconnected();
@@ -1800,7 +1830,7 @@ public class PlaybackServiceTests : IDisposable
         var play = sent.FindIndex(c => c is PlayCommand);
 
         Assert.True(load >= 0 && seek > load && play > seek, $"sent {string.Join(", ", sent.Select(c => c.GetType().Name))}");
-        Assert.InRange(((SeekCommand)sent[seek]).Position, TimeSpan.FromSeconds(66), TimeSpan.FromSeconds(67));
+        Assert.Equal(TimeSpan.FromSeconds(66), ((SeekCommand)sent[seek]).Position);
     }
 
     /// <summary>Paused, the screen still has to sit at the playhead for the play that follows.</summary>
@@ -1813,7 +1843,7 @@ public class PlaybackServiceTests : IDisposable
 
         await _service.SetPitchAsync(0);
 
-        Assert.True(await WaitForBroadcastAsync<SeekCommand>(seek => seek.Position >= TimeSpan.FromSeconds(66) && seek.Position < TimeSpan.FromSeconds(67)));
+        Assert.True(await WaitForBroadcastAsync<SeekCommand>(seek => seek.Position == TimeSpan.FromSeconds(66)));
         Assert.Null(LastBroadcast<PlayCommand>());
     }
 
@@ -1872,8 +1902,7 @@ public class PlaybackServiceTests : IDisposable
         Assert.True(await WaitForDisplayLoadsAsync(1));
         for (var i = 0; i < 100 && !_display.ReceivedCalls().Any(c => c.GetMethodInfo().Name == nameof(IDisplayProvider.PlayAsync)); i++)
             await Task.Delay(10);
-        await _display.Received(1).SeekAsync(
-            Arg.Is<TimeSpan>(at => at >= TimeSpan.FromSeconds(66) && at < TimeSpan.FromSeconds(67)), Arg.Any<CancellationToken>());
+        await _display.Received(1).SeekAsync(TimeSpan.FromSeconds(66), Arg.Any<CancellationToken>());
     }
 
     private List<IScreenCommand> Broadcasts()
@@ -1924,7 +1953,7 @@ public class PlaybackServiceTests : IDisposable
                 IsPlaying = true,
                 Position = position,
                 Duration = TimeSpan.FromMinutes(4),
-                SampledAtUtc = DateTime.UtcNow - (sampledAgo ?? TimeSpan.Zero),
+                SampledAtUtc = Now - (sampledAgo ?? TimeSpan.Zero),
             },
         });
 
@@ -2246,11 +2275,28 @@ public class PlaybackServiceTests : IDisposable
 
         await _service.LoadAsync(performance, media);
         await _service.PlayAsync();
-        await Task.Delay(10);
+        _clock.Advance(TimeSpan.FromMilliseconds(10));
 
         await _service.TickAsync();
 
-        Assert.True(_service.Position > TimeSpan.Zero);
+        Assert.Equal(TimeSpan.FromMilliseconds(10), _service.Position);
+    }
+
+    [Fact]
+    public async Task TickAsync_AtAnotherTempo_AdvancesBySongTime()
+    {
+        var (performance, media) = CreatePerformance();
+        performance.Tempo = 50;
+        media.Duration = TimeSpan.FromHours(1);
+
+        await _service.LoadAsync(performance, media);
+        await _service.PlayAsync();
+        _clock.Advance(TimeSpan.FromMilliseconds(100));
+
+        await _service.TickAsync();
+
+        // 100ms of wall time at 1.5x is 150ms of song.
+        Assert.Equal(TimeSpan.FromMilliseconds(150), _service.Position);
     }
 
     [Fact]
@@ -2261,7 +2307,7 @@ public class PlaybackServiceTests : IDisposable
 
         await _service.LoadAsync(performance, media);
         await _service.PlayAsync();
-        await Task.Delay(10);
+        _clock.Advance(TimeSpan.FromMilliseconds(10));
 
         await _service.TickAsync();
 
@@ -2294,7 +2340,7 @@ public class PlaybackServiceTests : IDisposable
     public async Task TickAsync_RunningTheSongOut_StopsTheScreenWithoutAFade()
     {
         await PlayingAsync(TimeSpan.FromMilliseconds(1));
-        await Task.Delay(5);
+        _clock.Advance(TimeSpan.FromMilliseconds(5));
         _screenServer.ClearReceivedCalls();
 
         await _service.TickAsync();
@@ -2421,7 +2467,7 @@ public class PlaybackServiceTests : IDisposable
 
     /// <summary>A song the screen says it finished, reported well after the play that started it.</summary>
     private void RaiseScreenEnded(TimeSpan? sampledAfterNow = null, string? streamUrl = null)
-        => RaiseScreenReport(hasEnded: true, sampledAtUtc: DateTime.UtcNow + (sampledAfterNow ?? TimeSpan.FromSeconds(2)), streamUrl: streamUrl);
+        => RaiseScreenReport(hasEnded: true, sampledAtUtc: Now + (sampledAfterNow ?? TimeSpan.FromSeconds(2)), streamUrl: streamUrl);
 
     private void RaiseScreenReport(
         bool hasEnded = false, bool isHolding = false, TimeSpan? position = null, DateTime? sampledAtUtc = null, string? streamUrl = null)
@@ -2435,7 +2481,7 @@ public class PlaybackServiceTests : IDisposable
                 IsPlaying = !hasEnded,
                 Position = position ?? TimeSpan.Zero,
                 Duration = TimeSpan.FromMinutes(4),
-                SampledAtUtc = sampledAtUtc ?? DateTime.UtcNow,
+                SampledAtUtc = sampledAtUtc ?? Now,
                 HasEnded = hasEnded,
                 IsHolding = isHolding,
             },
@@ -2460,8 +2506,7 @@ public class PlaybackServiceTests : IDisposable
         var (performance, _) = await PlayingAsync();
 
         RaiseScreenEnded();
-        // The last step of a conclusion, not State: that flips first, before the song is cleared.
-        await WaitForAsync(() => _service.CurrentPerformance is null);
+        await ConclusionsAsync();
 
         Assert.Equal(PlaybackState.Stopped, _service.State);
         Assert.Null(_service.CurrentPerformance);
@@ -2476,9 +2521,9 @@ public class PlaybackServiceTests : IDisposable
 
         RaiseScreenEnded();
         RaiseScreenEnded();
-        await WaitForAsync(() => _service.State == PlaybackState.Stopped);
-        await Task.Delay(50);
+        await ConclusionsAsync();
 
+        Assert.Single(_logger.Entries.ToArray(), e => e.Message.StartsWith("Playback concluded", StringComparison.Ordinal));
         await _performanceService.Received(1).DequeueAsync(performance.SingerId, performance.Id);
         await _queueService.Received(1).RotateQueueAsync(performance.SingerId);
     }
@@ -2498,7 +2543,7 @@ public class PlaybackServiceTests : IDisposable
         _service.DeferConclusion = work => deferred = work;
 
         var (performance, _) = await PlayingAsync(TimeSpan.FromMilliseconds(1));
-        await Task.Delay(5);
+        _clock.Advance(TimeSpan.FromMilliseconds(5));
 
         RaiseScreenEnded();
         var tick = _service.TickAsync();
@@ -2521,8 +2566,8 @@ public class PlaybackServiceTests : IDisposable
         await PlayingAsync();
 
         RaiseScreenEnded(streamUrl: "http://host/media/an-old-stream/stream.m3u8");
-        await Task.Delay(100);
 
+        Assert.Equal(0, ConclusionsDeferred());
         Assert.Equal(PlaybackState.Playing, _service.State);
         await _performanceService.DidNotReceive().DequeueAsync(Arg.Any<Guid>(), Arg.Any<Guid>());
     }
@@ -2533,12 +2578,12 @@ public class PlaybackServiceTests : IDisposable
     public async Task SongEnded_SampledBeforeTheLastSeek_IsIgnored()
     {
         await PlayingAsync();
-        await Task.Delay(1300);
+        _clock.Advance(TimeSpan.FromMilliseconds(1300));
         await _service.SeekAsync(TimeSpan.FromSeconds(30));
 
         RaiseScreenEnded(sampledAfterNow: TimeSpan.FromMilliseconds(-100));
-        await Task.Delay(100);
 
+        Assert.Equal(0, ConclusionsDeferred());
         Assert.Equal(PlaybackState.Playing, _service.State);
         await _performanceService.DidNotReceive().DequeueAsync(Arg.Any<Guid>(), Arg.Any<Guid>());
     }
@@ -2548,12 +2593,12 @@ public class PlaybackServiceTests : IDisposable
     public async Task SongEnded_JustAfterASeek_IsIgnored()
     {
         await PlayingAsync();
-        await Task.Delay(1300);
+        _clock.Advance(TimeSpan.FromMilliseconds(1300));
         await _service.SeekAsync(TimeSpan.FromSeconds(30));
 
         RaiseScreenEnded(sampledAfterNow: TimeSpan.FromMilliseconds(300));
-        await Task.Delay(100);
 
+        Assert.Equal(0, ConclusionsDeferred());
         Assert.Equal(PlaybackState.Playing, _service.State);
     }
 
@@ -2564,8 +2609,8 @@ public class PlaybackServiceTests : IDisposable
         await _service.PauseAsync();
 
         RaiseScreenEnded();
-        await Task.Delay(100);
 
+        Assert.Equal(0, ConclusionsDeferred());
         Assert.Equal(PlaybackState.Paused, _service.State);
         Assert.Same(performance, _service.CurrentPerformance);
         await _performanceService.DidNotReceive().DequeueAsync(Arg.Any<Guid>(), Arg.Any<Guid>());
@@ -2578,8 +2623,8 @@ public class PlaybackServiceTests : IDisposable
         RaiseScreenReport(isHolding: true);
 
         RaiseScreenEnded();
-        await Task.Delay(100);
 
+        Assert.Equal(0, ConclusionsDeferred());
         Assert.Equal(PlaybackState.Playing, _service.State);
         await _performanceService.DidNotReceive().DequeueAsync(Arg.Any<Guid>(), Arg.Any<Guid>());
     }
@@ -2592,12 +2637,12 @@ public class PlaybackServiceTests : IDisposable
         await PlayingAsync();
 
         // The clock ran on from the play before the screen said it was holding.
-        await Task.Delay(30);
+        _clock.Advance(TimeSpan.FromMilliseconds(30));
         await _service.TickAsync();
-        Assert.True(_service.Position > TimeSpan.Zero);
+        Assert.Equal(TimeSpan.FromMilliseconds(30), _service.Position);
 
-        RaiseScreenReport(isHolding: true, sampledAtUtc: DateTime.UtcNow.AddMilliseconds(-400));
-        await Task.Delay(30);
+        RaiseScreenReport(isHolding: true, sampledAtUtc: Now.AddMilliseconds(-400));
+        _clock.Advance(TimeSpan.FromMilliseconds(30));
         await _service.TickAsync();
         await _service.TickAsync();
 
@@ -2646,10 +2691,10 @@ public class PlaybackServiceTests : IDisposable
         RaiseScreenReport(isHolding: true);
 
         await _service.SeekAsync(TimeSpan.FromSeconds(30));
-        await Task.Delay(30);
+        _clock.Advance(TimeSpan.FromMilliseconds(30));
         await _service.TickAsync();
 
-        Assert.True(_service.Position > TimeSpan.FromSeconds(30));
+        Assert.Equal(TimeSpan.FromSeconds(30) + TimeSpan.FromMilliseconds(30), _service.Position);
     }
 
     /// <summary>Timer.Dispose does not wait out a callback already running, so a tick can arrive
@@ -2663,10 +2708,11 @@ public class PlaybackServiceTests : IDisposable
         await _service.LoadAsync(performance, media);
         await _service.PlayAsync();
         await _service.PauseAsync();
-        await Task.Delay(10);
+        _clock.Advance(TimeSpan.FromMilliseconds(10));
 
         await _service.TickAsync();
 
+        Assert.Equal(TimeSpan.Zero, _service.Position);
         Assert.Equal(PlaybackState.Paused, _service.State);
         Assert.Same(performance, _service.CurrentPerformance);
         await _performanceService.DidNotReceive().DequeueAsync(Arg.Any<Guid>(), Arg.Any<Guid>());
@@ -2680,10 +2726,11 @@ public class PlaybackServiceTests : IDisposable
 
         await _service.LoadAsync(performance, media);
         await _service.PlayAsync();
-        await Task.Delay(10);
+        _clock.Advance(TimeSpan.FromMilliseconds(10));
 
         await _service.TickAsync();
 
+        Assert.Equal(TimeSpan.FromMilliseconds(10), _service.Position);
         Assert.Equal(PlaybackState.Playing, _service.State);
     }
 
@@ -2696,6 +2743,8 @@ public class PlaybackServiceTests : IDisposable
         await _service.LoadAsync(performance, media);
         await _service.PlayAsync();
 
+        // The clock's own timer, not a hand-called tick, is what runs the song out.
+        _clock.Advance(TimeSpan.FromMilliseconds(500));
         await WaitForAsync(() => _service.State == PlaybackState.Stopped);
 
         Assert.Equal(PlaybackState.Stopped, _service.State);
@@ -2810,6 +2859,7 @@ public class PlaybackServiceTests : IDisposable
         await _service.PlayAsync();
 
         // Off zero, so the reconnect sync sends the seek this waits on.
+        _clock.Advance(TimeSpan.FromMilliseconds(10));
         await _service.TickAsync();
         _screenServer.ClearReceivedCalls();
 
@@ -2821,8 +2871,12 @@ public class PlaybackServiceTests : IDisposable
         var ticks = 0;
         _service.PositionChanged += (_, _) => Interlocked.Increment(ref ticks);
 
+        // The sync restarts the clock after its seek goes out, so a tick is fired until one lands.
         for (var i = 0; i < 200 && Volatile.Read(ref ticks) == 0; i++)
+        {
+            _clock.Advance(TimeSpan.FromMilliseconds(500));
             await Task.Delay(10);
+        }
 
         Assert.True(ticks > 0, "the clock never ticked again after the screen reconnected");
     }
@@ -2841,14 +2895,11 @@ public class PlaybackServiceTests : IDisposable
 
         await _service.StopAsync();
 
-        // Let any tick already in flight when the clock stopped finish before counting.
-        await Task.Delay(150);
-
         var ticks = 0;
         _service.PositionChanged += (_, _) => Interlocked.Increment(ref ticks);
 
         // Two clock intervals: an orphan ticking at 500ms cannot hide inside this window.
-        await Task.Delay(1200);
+        _clock.Advance(TimeSpan.FromMilliseconds(1200));
 
         Assert.Equal(0, ticks);
     }
@@ -2894,7 +2945,7 @@ public class PlaybackServiceTests : IDisposable
 
         await _service.LoadAsync(performance, media);
         await _service.PlayAsync();
-        await Task.Delay(20);
+        _clock.Advance(TimeSpan.FromMilliseconds(20));
         await _service.TickAsync();
 
         await _breakMusic.Received(1).RestoreAsync(Arg.Any<CancellationToken>());
@@ -2939,7 +2990,7 @@ public class PlaybackServiceTests : IDisposable
 
         await _service.LoadAsync(performance, media);
         await _service.PlayAsync();
-        await Task.Delay(20);
+        _clock.Advance(TimeSpan.FromMilliseconds(20));
         await _service.TickAsync();
 
         Received.InOrder(() =>
@@ -3054,9 +3105,11 @@ public class PlaybackServiceTests : IDisposable
     public async Task AnAdEnding_DoesNotDequeueOrRotate()
     {
         await _service.PlayAdAsync(CreateAd(TimeSpan.FromMilliseconds(1)));
-        await Task.Delay(20);
+        _clock.Advance(TimeSpan.FromMilliseconds(20));
         await _service.TickAsync();
 
+        // Ended, or the two assertions below would hold of an ad that never finished.
+        Assert.False(_service.IsPlayingAd);
         await _performanceService.DidNotReceive().DequeueAsync(Arg.Any<Guid>(), Arg.Any<Guid>());
         await _queueService.DidNotReceive().RotateQueueAsync(Arg.Any<Guid>());
     }
@@ -3065,7 +3118,7 @@ public class PlaybackServiceTests : IDisposable
     public async Task AnAdEnding_RestoresBreakMusic()
     {
         await _service.PlayAdAsync(CreateAd(TimeSpan.FromMilliseconds(1)));
-        await Task.Delay(20);
+        _clock.Advance(TimeSpan.FromMilliseconds(20));
         await _service.TickAsync();
 
         await _breakMusic.Received(1).RestoreAsync(Arg.Any<CancellationToken>());
@@ -3075,7 +3128,7 @@ public class PlaybackServiceTests : IDisposable
     public async Task AnAdEnding_ClearsTheAdFlag()
     {
         await _service.PlayAdAsync(CreateAd(TimeSpan.FromMilliseconds(1)));
-        await Task.Delay(20);
+        _clock.Advance(TimeSpan.FromMilliseconds(20));
         await _service.TickAsync();
 
         Assert.False(_service.IsPlayingAd);
@@ -3119,7 +3172,7 @@ public class PlaybackServiceTests : IDisposable
 
         await _service.LoadAsync(performance, media);
         await _service.PlayAsync();
-        await Task.Delay(20);
+        _clock.Advance(TimeSpan.FromMilliseconds(20));
         await _service.TickAsync();
 
         await _performanceService.Received(1).DequeueAsync(performance.SingerId, performance.Id);
@@ -3210,7 +3263,7 @@ public class PlaybackServiceTests : IDisposable
         await _service.PlayAdAsync(still);
         Assert.Equal(PlaybackState.Playing, _service.State);
 
-        await Task.Delay(20);
+        _clock.Advance(TimeSpan.FromMilliseconds(20));
         await _service.TickAsync();
 
         Assert.False(_service.IsPlayingAd);
@@ -3312,7 +3365,7 @@ public class PlaybackServiceTests : IDisposable
 
         await _service.LoadAsync(performance, media);
         await _service.PlayAsync();
-        await Task.Delay(20);
+        _clock.Advance(TimeSpan.FromMilliseconds(20));
         await _service.TickAsync();
 
         Assert.True(await WaitForBroadcastAsync<ShowImageCommand>(c => c.Url.Contains(brandingId.ToString())));
@@ -3333,7 +3386,7 @@ public class PlaybackServiceTests : IDisposable
         // that call and passes even when the end of a song leaves the last still on screen.
         _screenServer.ClearReceivedCalls();
 
-        await Task.Delay(20);
+        _clock.Advance(TimeSpan.FromMilliseconds(20));
         await _service.TickAsync();
 
         Assert.True(await WaitForBroadcastAsync<HideImageCommand>());
@@ -3353,7 +3406,7 @@ public class PlaybackServiceTests : IDisposable
         await _service.PlayAsync();
         _screenServer.ClearReceivedCalls();
 
-        await Task.Delay(20);
+        _clock.Advance(TimeSpan.FromMilliseconds(20));
         await _service.TickAsync();
 
         Assert.True(await WaitForBroadcastAsync<HideImageCommand>());
@@ -3453,7 +3506,7 @@ public class PlaybackServiceTests : IDisposable
         _screenServer.ClearReceivedCalls();
         _breakMusic.ClearReceivedCalls();
 
-        await Task.Delay(20);
+        _clock.Advance(TimeSpan.FromMilliseconds(20));
         await _service.TickAsync();
     }
 
@@ -3478,9 +3531,10 @@ public class PlaybackServiceTests : IDisposable
         var raised = 0;
         _service.PerformanceEnded += (_, _) => raised++;
 
-        await Task.Delay(20);
+        _clock.Advance(TimeSpan.FromMilliseconds(20));
         await _service.TickAsync();
 
+        Assert.False(_service.IsPlayingAd);
         Assert.Equal(0, raised);
     }
 
@@ -3600,7 +3654,7 @@ public class PlaybackServiceTests : IDisposable
         };
 
         await _service.PlayAdAsync(ad);
-        await Task.Delay(20);
+        _clock.Advance(TimeSpan.FromMilliseconds(20));
         await _service.TickAsync();
 
         Assert.False(_service.IsPlayingAd);
@@ -3614,7 +3668,7 @@ public class PlaybackServiceTests : IDisposable
         await _service.PlayAdAsync(ad);
         _screenServer.ClearReceivedCalls();
 
-        await Task.Delay(20);
+        _clock.Advance(TimeSpan.FromMilliseconds(20));
         await _service.TickAsync();
 
         // Stopped before break music reclaims the channel, or the bed would come up over a
@@ -3680,7 +3734,7 @@ public class PlaybackServiceTests : IDisposable
         await _service.LoadAsync(performance, media);
         await _service.PlayAsync();
 
-        await Task.Delay(20);
+        _clock.Advance(TimeSpan.FromMilliseconds(20));
         await _service.TickAsync();
 
         Assert.Equal(PlaybackState.Playing, _service.State);
@@ -3798,7 +3852,7 @@ public class PlaybackServiceTests : IDisposable
 
         await _service.LoadAsync(performance, media);
         await _service.PlayAsync();
-        await Task.Delay(20);
+        _clock.Advance(TimeSpan.FromMilliseconds(20));
         await _service.TickAsync();
 
         Assert.True(await WaitForBroadcastAsync<ShowImageCommand>(c => c.Scaling == ImageScaling.Stretch));
@@ -4138,10 +4192,7 @@ public class PlaybackServiceTests : IDisposable
 
         // The report is two seconds old in wall time, and at 1.5x the song moved three seconds in
         // it. Extrapolating one-to-one would leave the host's playhead a second behind the room.
-        Assert.InRange(
-            _service.Position,
-            TimeSpan.FromSeconds(62.9),
-            TimeSpan.FromSeconds(63.3));
+        Assert.Equal(TimeSpan.FromSeconds(63), _service.Position);
     }
 
     [Fact]
@@ -4659,13 +4710,21 @@ public class PlaybackServiceTests : IDisposable
     {
         _display.ConnectedDeviceId.Returns("Living Room TV");
 
-        // A slow rebuild, so any compensation would be larger than the clock's own resolution.
+        // A rebuild held open until the test has let time pass, so any compensation would show.
+        var rebuildStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var rebuildMayFinish = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var holdRebuild = false;
         _mediaStreams
             .OpenAsync(Arg.Any<string>(), Arg.Any<TimeSpan>(), Arg.Any<int>(), Arg.Any<int>(),
                        Arg.Any<AudioMix?>(), Arg.Any<CancellationToken>())
             .Returns(async call =>
             {
-                await Task.Delay(250);
+                if (Volatile.Read(ref holdRebuild))
+                {
+                    rebuildStarted.TrySetResult();
+                    await rebuildMayFinish.Task;
+                }
+
                 return new MediaStreamSession
                 {
                     Id = $"stream-{Interlocked.Increment(ref _streamsOpened)}",
@@ -4687,9 +4746,13 @@ public class PlaybackServiceTests : IDisposable
         await service.SeekAsync(TimeSpan.FromSeconds(60));
         _display.ClearReceivedCalls();
 
+        Volatile.Write(ref holdRebuild, true);
         await service.SetPitchAsync(2);
+        await rebuildStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        _clock.Advance(TimeSpan.FromMilliseconds(250));
+        rebuildMayFinish.SetResult();
         Assert.True(await WaitForStreamsOpenedAsync(2));
-        await Task.Delay(100);
+        await WaitForAsync(() => _display.ReceivedCalls().Any(c => c.GetMethodInfo().Name == nameof(IDisplayProvider.PlayAsync)));
 
         // Opened at the playhead, and the clock says the same: the stream's zero is where the song is.
         Assert.Equal(TimeSpan.FromSeconds(60), LastOpenedAt());
