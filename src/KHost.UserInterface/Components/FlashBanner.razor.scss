@@ -38,11 +38,10 @@
         color: var(--kh-warning);
     }
 
+    // Wraps rather than truncating: a warning's second half is usually what to do about it.
     &__text {
         min-width: 0;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
+        overflow-wrap: anywhere;
     }
 
     &__dismiss {
