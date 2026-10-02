@@ -110,6 +110,9 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
 
     private CancellationTokenSource? _reopenSettle;
 
+    // Which stop's fade is the live one; see StopAsync.
+    private int _stopGeneration;
+
     // The ad on the main channel. Its Duration, not any one file's, is what the clock runs out.
     private AdPlayback? _ad;
 
@@ -806,6 +809,10 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         State = PlaybackState.Stopping;
         StopFadeDuration = fade > TimeSpan.Zero ? fade : null;
 
+        // State alone cannot tell this stop from a later one: resume then stop again inside the
+        // fade puts it back in Stopping, and this wait would end the later stop's fade early.
+        var stop = Interlocked.Increment(ref _stopGeneration);
+
         Logger.LogInformation("Playback stopping (fade={Fade})", fade);
 
         _broker.Announce(new PlaybackChanged());
@@ -813,10 +820,10 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         await ToDisplayAsync(display => display.StopAsync(fade));
 
         if (fade > TimeSpan.Zero)
-            await Task.Delay(fade);
+            await Task.Delay(fade, _time);
 
-        // Play or Load during the fade supersedes this stop.
-        if (State != PlaybackState.Stopping)
+        // Play or Load during the fade supersedes this stop, and so does a later stop.
+        if (State != PlaybackState.Stopping || Volatile.Read(ref _stopGeneration) != stop)
             return;
 
         _analytics.RecordPlaybackStateTransition(PlaybackState.Stopped);
