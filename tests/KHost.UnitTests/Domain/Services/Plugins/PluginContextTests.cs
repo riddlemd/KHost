@@ -11,6 +11,7 @@ using KHost.Domain.Services.Plugins.Secrets;
 using KHost.Secrets;
 using KHost.UnitTests.Secrets;
 using KHost.Domain.Services.QrCodes;
+using Microsoft.Extensions.Logging;
 
 namespace KHost.UnitTests.Domain.Services.Plugins;
 
@@ -295,7 +296,8 @@ public class PluginContextTests
         var broker = new MessageBroker(NullLogger<MessageBroker>.Instance);
 
         return (new PluginContext(manifest, null, plugin, new PluginSecretStore(new InMemorySecretStore()),
-            Substitute.For<IQrCodeService>(), broker), plugin, broker);
+            Substitute.For<IQrCodeService>(), broker, Substitute.For<IFlashService>(), NullLogger<PluginContext>.Instance),
+            plugin, broker);
     }
 
     private static PluginContext CreatePlugin(Dictionary<string, JsonElement>? stored = null, JsonElement? defaultValue = null)
@@ -320,7 +322,9 @@ public class PluginContextTests
         };
 
         return new PluginContext(manifest, stored, new DiscoveredPlugin { Directory = "/plugins/test", Manifest = manifest },
-            new PluginSecretStore(new InMemorySecretStore()), Substitute.For<IQrCodeService>(), new MessageBroker(NullLogger<MessageBroker>.Instance));
+            new PluginSecretStore(new InMemorySecretStore()), Substitute.For<IQrCodeService>(),
+            new MessageBroker(NullLogger<MessageBroker>.Instance), Substitute.For<IFlashService>(),
+            NullLogger<PluginContext>.Instance);
     }
 
     /// <summary>A secret's name comes from the manifest, so two plugins can both use "session".</summary>
@@ -394,20 +398,119 @@ public class PluginContextTests
         await qrCodes.Received(1).UnregisterAsync(id.ToString());
     }
 
+    /// <summary>A warning raised after startup reaches no one through the list alone: the startup
+    /// dump has run, and the Plugins page is not open.</summary>
+    [Fact]
+    public void AddWarning_FlashesItOnTheConsole_NamingThePlugin()
+    {
+        var flash = Substitute.For<IFlashService>();
+        var discovered = DiscoveredFor(Guid.NewGuid());
+        var context = ContextFor(discovered, flash, new RecordingLogger());
+
+        context.AddWarning("Could not sign in: no keyring");
+
+        flash.Received(1).Show("Test: Could not sign in: no keyring", FlashType.Warning);
+        Assert.Contains("Could not sign in: no keyring", discovered.Warnings);
+    }
+
+    [Fact]
+    public void AddWarning_LogsItAtWarning()
+    {
+        var logger = new RecordingLogger();
+        var context = ContextFor(DiscoveredFor(Guid.NewGuid()), Substitute.For<IFlashService>(), logger);
+
+        context.AddWarning("Could not sign in: no keyring");
+
+        var entry = Assert.Single(logger.Entries);
+        Assert.Equal(LogLevel.Warning, entry.Level);
+        Assert.Contains("Could not sign in: no keyring", entry.Message);
+    }
+
+    /// <summary>A plugin retrying in the background reports the same line each time; the console
+    /// must not stack a banner per attempt.</summary>
+    [Fact]
+    public void AddWarning_SameWarningAgain_FlashesAndLogsOnce()
+    {
+        var flash = Substitute.For<IFlashService>();
+        var logger = new RecordingLogger();
+        var discovered = DiscoveredFor(Guid.NewGuid());
+        var context = ContextFor(discovered, flash, logger);
+
+        context.AddWarning("Could not sign in: no keyring");
+        context.AddWarning("Could not sign in: no keyring");
+
+        flash.ReceivedWithAnyArgs(1).Show(default!, default);
+        Assert.Single(logger.Entries);
+        Assert.Single(discovered.Warnings);
+    }
+
+    /// <summary>The host already shows that line, so nothing new reached the Plugins page.</summary>
+    [Fact]
+    public void AddWarning_HostAlreadyShowsTheLine_DoesNotFlash()
+    {
+        var flash = Substitute.For<IFlashService>();
+        var discovered = DiscoveredFor(Guid.NewGuid());
+        discovered.Warnings.Add("Could not sign in: no keyring");
+        var context = ContextFor(discovered, flash, new RecordingLogger());
+
+        context.AddWarning("Could not sign in: no keyring");
+
+        flash.DidNotReceiveWithAnyArgs().Show(default!, default);
+    }
+
+    /// <summary>A cleared warning that comes back is a new failure the host has not seen.</summary>
+    [Fact]
+    public void AddWarning_AfterItWasCleared_FlashesAgain()
+    {
+        var flash = Substitute.For<IFlashService>();
+        var context = ContextFor(DiscoveredFor(Guid.NewGuid()), flash, new RecordingLogger());
+
+        context.ClearWarning(context.AddWarning("Could not sign in: no keyring"));
+        context.AddWarning("Could not sign in: no keyring");
+
+        flash.Received(2).Show("Test: Could not sign in: no keyring", FlashType.Warning);
+    }
+
+    private static DiscoveredPlugin DiscoveredFor(Guid id)
+    {
+        var manifest = ManifestFor(id);
+        return new DiscoveredPlugin { Directory = "/plugins/test", Manifest = manifest };
+    }
+
+    private static PluginManifest ManifestFor(Guid id) => new()
+    {
+        Id = id,
+        Name = "Test",
+        Version = "1.0.0",
+        EntryAssembly = "Test.dll",
+        ApiVersion = PluginApi.CurrentVersion,
+    };
+
+    private static PluginContext ContextFor(DiscoveredPlugin discovered, IFlashService flash, ILogger<PluginContext> logger)
+        => new(discovered.Manifest!, null, discovered, new PluginSecretStore(new InMemorySecretStore()),
+            Substitute.For<IQrCodeService>(), new MessageBroker(NullLogger<MessageBroker>.Instance), flash, logger);
+
     private static PluginContext ContextFor(Guid id, IPluginSecretStore store, IQrCodeService? qrCodes = null)
     {
-        var manifest = new PluginManifest
-        {
-            Id = id,
-            Name = "Test",
-            Version = "1.0.0",
-            EntryAssembly = "Test.dll",
-            ApiVersion = PluginApi.CurrentVersion,
-        };
+        var manifest = ManifestFor(id);
 
         return new PluginContext(manifest, null,
             new DiscoveredPlugin { Directory = "/plugins/test", Manifest = manifest }, store,
-            qrCodes ?? Substitute.For<IQrCodeService>(), new MessageBroker(NullLogger<MessageBroker>.Instance));
+            qrCodes ?? Substitute.For<IQrCodeService>(), new MessageBroker(NullLogger<MessageBroker>.Instance),
+            Substitute.For<IFlashService>(), NullLogger<PluginContext>.Instance);
+    }
+
+    private sealed class RecordingLogger : ILogger<PluginContext>
+    {
+        public List<(LogLevel Level, string Message)> Entries { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
+            Func<TState, Exception?, string> formatter)
+            => Entries.Add((logLevel, formatter(state, exception)));
     }
 
     private class TestSettings

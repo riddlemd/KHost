@@ -261,6 +261,8 @@ public class PluginLoaderTests : IDisposable
         services.AddSingleton<IPluginSecretStore>(new PluginSecretStore(new InMemorySecretStore()));
         services.AddSingleton(Substitute.For<KHost.Domain.Services.QrCodes.IQrCodeService>());
         services.AddSingleton(Substitute.For<KHost.Abstractions.Messaging.IMessageBroker>());
+        services.AddSingleton(Substitute.For<IFlashService>());
+        services.AddLogging();
 
         PluginLoader.LoadAndRegister(services, plugins, state);
 
