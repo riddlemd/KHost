@@ -151,5 +151,12 @@ function createTitleBar({ doc, send, requestFrame, setTimer = setTimeout, clearT
 
             if (fullScreen && gesture) finish();
         },
+
+        /// From WindowChrome: the OS has taken the drag, and holds the pointer until it is let go.
+        nativeDragStarted() {
+            if (!gesture) return;
+            gesture.started = false;
+            finish();
+        },
     };
 }
