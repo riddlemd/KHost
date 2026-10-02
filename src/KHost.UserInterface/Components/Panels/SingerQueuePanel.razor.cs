@@ -1,3 +1,4 @@
+using System.Net;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.JSInterop;
@@ -50,6 +51,10 @@ public partial class SingerQueuePanel : IAsyncDisposable
     private bool _canReorderQueue;
     private Guid? _lastScrolledSingerId;
     private SortableBinding _sortable = default!;
+
+    // The confirm removes the singer it was opened for, so the list must not move or open a second
+    // one meanwhile: a highlight on another row would name what Remove does not delete.
+    private bool _removePending;
 
     protected override async Task OnInitializedAsync()
     {
@@ -179,6 +184,8 @@ public partial class SingerQueuePanel : IAsyncDisposable
 
     private async Task OnKeyDownAsync(KeyboardEventArgs e)
     {
+        if (_removePending) return;
+
         var users = SingerQueueService.Users;
         var currentIdx = users.ToList().FindIndex(u => u.Id == SingerQueueService.SelectedUserId);
         var action = ListKeyboardShortcuts.Resolve(
@@ -235,24 +242,39 @@ public partial class SingerQueuePanel : IAsyncDisposable
     /// <param name="selectNeighbour">Keyboard removal keeps a row selected so the next key press
     /// still has something to act on; the queue clears the selection of a removed singer.</param>
     private Task ConfirmRemoveUserAsync(KHostUser user, bool selectNeighbour = false)
-        => DialogService.ConfirmIfAsync(
+    {
+        if (_removePending) return Task.CompletedTask;
+
+        _removePending = _promptBeforeRemovingSinger;
+
+        return DialogService.ConfirmIfAsync(
             _promptBeforeRemovingSinger,
             async () =>
             {
-                // Read at confirm time: the queue can move while the dialog is open.
-                var users = SingerQueueService.Users;
-                var index = users.ToList().FindIndex(u => u.Id == user.Id);
-                var neighbour = ListKeyboardShortcuts.NeighbourAfterRemoval(index, users.Count);
-                Guid? neighbourId = neighbour >= 0 ? users[neighbour].Id : null;
+                try
+                {
+                    // Read at confirm time: the queue can move while the dialog is open.
+                    var users = SingerQueueService.Users;
+                    var index = users.ToList().FindIndex(u => u.Id == user.Id);
+                    var neighbour = ListKeyboardShortcuts.NeighbourAfterRemoval(index, users.Count);
+                    Guid? neighbourId = neighbour >= 0 ? users[neighbour].Id : null;
 
-                await SingerQueueService.RemoveUserAsync(user.Id);
+                    await SingerQueueService.RemoveUserAsync(user.Id);
 
-                if (selectNeighbour && neighbourId is { } id)
-                    await SingerQueueService.SelectUserAsync(id);
+                    if (selectNeighbour && neighbourId is { } id)
+                        await SingerQueueService.SelectUserAsync(id);
+                }
+                finally
+                {
+                    _removePending = false;
+                }
             },
-            $"Are you sure you want to remove <span class=\"kh-emphasis\">{user.Name}</span> from the queue?",
+            // The message is markup, and a singer's name is whatever was typed into the add box.
+            $"Are you sure you want to remove <span class=\"kh-emphasis\">{WebUtility.HtmlEncode(user.Name)}</span> from the queue?",
             "Remove Singer From Queue",
-            "Remove");
+            "Remove",
+            onCancel: () => _removePending = false);
+    }
 
     private void OnStateChanged() => InvokeAsync(async () =>
     {

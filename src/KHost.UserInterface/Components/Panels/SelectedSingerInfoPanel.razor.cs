@@ -1,3 +1,4 @@
+using System.Net;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.JSInterop;
@@ -44,6 +45,10 @@ public partial class SelectedSingerInfoPanel : IAsyncDisposable
     private bool _canReorderQueue;
     private bool _canViewHistory;
 
+    // The confirm removes the song it was opened for, so the list must not move or open a second
+    // one meanwhile: a highlight on another row would name what Remove does not delete.
+    private bool _removePending;
+
     private int _performanceCount => _performances.Count;
 
     protected override async Task OnInitializedAsync()
@@ -85,7 +90,7 @@ public partial class SelectedSingerInfoPanel : IAsyncDisposable
 
     private Task OnKeyDownAsync(KeyboardEventArgs e)
     {
-        if (SingerQueueService.SelectedUser is not { } singer) return Task.CompletedTask;
+        if (_removePending || SingerQueueService.SelectedUser is not { } singer) return Task.CompletedTask;
 
         var currentIdx = _performances.FindIndex(p => p.Id == _selectedPerformanceId);
         var action = ListKeyboardShortcuts.Resolve(
@@ -190,23 +195,41 @@ public partial class SelectedSingerInfoPanel : IAsyncDisposable
     /// <param name="selectNeighbour">Keyboard removal keeps a row selected so the next key press
     /// still has something to act on.</param>
     private Task RemoveWithConfirmAsync(Performance performance, bool selectNeighbour = false)
-        => DialogService.ConfirmIfAsync(
+    {
+        if (_removePending) return Task.CompletedTask;
+
+        _removePending = _promptBeforeRemovingPerformance;
+
+        _mediaCache.TryGetValue(performance.MediaId, out var media);
+        var song = WebUtility.HtmlEncode(media?.Title ?? "this song");
+        var singer = WebUtility.HtmlEncode(SingerQueueService.SelectedUser?.Name ?? "the singer");
+
+        return DialogService.ConfirmIfAsync(
             _promptBeforeRemovingPerformance,
             async () =>
             {
-                // Read at confirm time: the list can refresh while the dialog is open.
-                var index = _performances.FindIndex(p => p.Id == performance.Id);
-                var neighbour = ListKeyboardShortcuts.NeighbourAfterRemoval(index, _performances.Count);
-                Guid? neighbourId = neighbour >= 0 ? _performances[neighbour].Id : null;
+                try
+                {
+                    // Read at confirm time: the list can refresh while the dialog is open.
+                    var index = _performances.FindIndex(p => p.Id == performance.Id);
+                    var neighbour = ListKeyboardShortcuts.NeighbourAfterRemoval(index, _performances.Count);
+                    Guid? neighbourId = neighbour >= 0 ? _performances[neighbour].Id : null;
 
-                await PerformanceService.DeleteAsync(performance.Id);
+                    await PerformanceService.DeleteAsync(performance.Id);
 
-                if (selectNeighbour && neighbourId is { } id)
-                    await InvokeAsync(() => SelectPerformance(id));
+                    if (selectNeighbour && neighbourId is { } id)
+                        await InvokeAsync(() => SelectPerformance(id));
+                }
+                finally
+                {
+                    _removePending = false;
+                }
             },
-            "Are you sure you want to remove this song from the queue?",
+            $"Remove <span class=\"kh-emphasis\">{song}</span> from <span class=\"kh-emphasis\">{singer}</span>'s queue?",
             "Remove Song",
-            "Remove");
+            "Remove",
+            onCancel: () => _removePending = false);
+    }
 
     private async Task OpenMediaEditDialogAsync(Media? media)
     {
