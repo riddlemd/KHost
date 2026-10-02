@@ -22,7 +22,8 @@ public interface IDialogService
 
     /// <summary>Confirms first when <paramref name="ask"/>, else runs <paramref name="action"/>
     /// straight away. What a venue's "prompt before removing" settings each answer.</summary>
-    Task ConfirmIfAsync(bool ask, Func<Task> action, string message, string title = "Confirm", string confirmText = "Confirm");
+    /// <param name="onCancel">Called when the host backs out, so a caller can tell the ask is over.</param>
+    Task ConfirmIfAsync(bool ask, Func<Task> action, string message, string title = "Confirm", string confirmText = "Confirm", Action? onCancel = null);
 
     /// <summary>Offers the two ways out of a page holding edits, plus a third: closing it, staying.</summary>
     /// <remarks>A host who reached the crossroads by accident loses nothing.</remarks>
