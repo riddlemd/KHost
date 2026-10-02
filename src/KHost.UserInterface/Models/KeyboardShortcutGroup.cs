@@ -11,7 +11,7 @@ public static class KeyboardShortcuts
     // Ctrl reads better in a hint than a platform switch would, and shortcuts.js takes either.
     private const string Accel = "ctrl";
 
-    public static readonly KeyboardShortcutGroup[] All =
+    public static readonly IReadOnlyList<KeyboardShortcutGroup> All =
     [
         new("General",
         [

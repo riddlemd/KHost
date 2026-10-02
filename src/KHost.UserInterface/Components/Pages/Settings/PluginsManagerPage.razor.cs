@@ -22,12 +22,12 @@ public partial class PluginsManagerPage : IDisposable
     [Inject] private IDialogService Dialogs { get; set; } = default!;
     [Inject] private IExternalLinkService ExternalLinks { get; set; } = default!;
     [Inject] private IMessageBroker Broker { get; set; } = default!;
+    [Inject] private IPluginDirectories PluginDirectories { get; set; } = default!;
     // Installer only for ClearRemovalAsync; the catalog/install flow lives in AvailablePluginsTab.
     [Inject] private ILogger<PluginsManagerPage> Logger { get; set; } = default!;
 
     private readonly SubscriptionSet _subscriptions = new();
 
-    private readonly string _pluginsDirectory = PluginPaths.Plugins;
     private readonly Dictionary<string, PluginSettingsDraft> _drafts = new(StringComparer.OrdinalIgnoreCase);
     /// <summary>Which rows are expanded, by folder rather than by plugin id: two rows may carry one
     /// id, and opening either would otherwise open both.</summary>

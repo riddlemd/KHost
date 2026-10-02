@@ -26,6 +26,7 @@ public sealed class HlsMediaStreamServiceFfmpegMissingTests : IDisposable
                 WorkingDirectory = Path.Combine(_root.FullName, "streams"),
             }),
             new PlayableMediaSourceService(NullLogger<PlayableMediaSourceService>.Instance, []),
+            TimeProvider.System,
             _ffmpeg);
     }
 

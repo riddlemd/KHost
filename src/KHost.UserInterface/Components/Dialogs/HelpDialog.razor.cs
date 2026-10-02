@@ -24,7 +24,7 @@ public partial class HelpDialog
 
     [Parameter] public EventCallback OnClose { get; set; }
 
-    private static KeyboardShortcutGroup[] Shortcuts => KeyboardShortcuts.All;
+    private static IReadOnlyList<KeyboardShortcutGroup> Shortcuts => KeyboardShortcuts.All;
 
     protected override void OnInitialized()
     {
