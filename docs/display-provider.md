@@ -146,9 +146,9 @@ draw them simply does not.
   anything tracking its own "searching" state says so for one sweep and then lies. Stopping has to
   be reachable: a console runs all night on whatever wifi the room has.
 - **There are no roles and no sync.** No coordination service, no sync capability, no timeline
-  command and no start lead. The one thing that was never about roles is the venue's volume,
-  applied on every connect and venue edit by `LocalScreenDisplayProvider`, which is where the screens'
-  own housekeeping belongs.
+  command and no start lead. The one thing that was never about roles is the screen's level:
+  there is no venue volume, and `LocalScreenDisplayProvider` sends full level on every connect, which
+  is where the screens' own housekeeping belongs.
 - **`LibraryBreakMusicProvider` routes to the displays**, not to an audio screen. A display that
   cannot take a second channel keeps the no-op defaults and still counts as somewhere the track
   played, or a television that simply cannot carry the bed would suppress the card naming it.

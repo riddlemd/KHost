@@ -36,7 +36,6 @@ public partial class WizardStep2VenueSetup
                 Enabled = true,
                 Settings = new()
                 {
-                    DefaultVolume = _model.DefaultVolume,
                     PromptBeforeRemovingSinger = _model.PromptBeforeRemovingSinger,
                     PromptBeforeRemovingPerformance = _model.PromptBeforeRemovingPerformance,
                     ClearQueueOnClose = _model.ClearQueueOnClose,

@@ -200,58 +200,39 @@ public class BreakMusicServiceTests : IDisposable
         Assert.Equal(BreakMusicState.Stopped, _service.State);
     }
 
-    // One venue level covers every channel, so a provider the host cannot reach is told it and
-    // one that renders through the host is not, because the display already sets that channel.
     [Fact]
-    public async Task StartAsync_AnExternalProvider_IsGivenTheVenueVolume()
+    public async Task StartAsync_NeverSetsAVolume()
     {
-        _provider.RendersThroughHost.Returns(false);
-        _venues.ReadSelectedVenueAsync().Returns(Task.FromResult<Venue?>(new Venue
+        foreach (var throughHost in new[] { false, true })
         {
-            Name = "The Bar",
-            Settings = new Venue.VenueSettings { DefaultVolume = 40 },
-        }));
+            _provider.RendersThroughHost.Returns(throughHost);
+            _venues.ReadSelectedVenueAsync().Returns(Task.FromResult<Venue?>(new Venue { Name = "The Bar" }));
 
-        await _service.InitializeAsync();
-        _provider.ClearReceivedCalls();
+            await _service.InitializeAsync();
+            _provider.ClearReceivedCalls();
 
-        await _service.StartAsync();
+            await _service.StartAsync();
 
-        await _provider.Received(1).SetVolumeAsync(0.4f, Arg.Any<CancellationToken>());
+            await _provider.DidNotReceive().SetVolumeAsync(Arg.Any<float>(), Arg.Any<CancellationToken>());
+        }
     }
 
     [Fact]
-    public async Task StartAsync_AHostRenderedProvider_IsNotGivenAVolume()
-    {
-        _provider.RendersThroughHost.Returns(true);
-
-        await _service.InitializeAsync();
-        _provider.ClearReceivedCalls();
-
-        await _service.StartAsync();
-
-        await _provider.DidNotReceive().SetVolumeAsync(Arg.Any<float>(), Arg.Any<CancellationToken>());
-    }
-
-    [Fact]
-    public async Task AVenueEdit_PushesTheNewLevelAtAnExternalProvider()
+    public async Task AVenueEdit_NeverSetsAVolumeOnAnExternalProvider()
     {
         _provider.RendersThroughHost.Returns(false);
-        _venues.ReadSelectedVenueAsync().Returns(Task.FromResult<Venue?>(new Venue
-        {
-            Name = "The Bar",
-            Settings = new Venue.VenueSettings { DefaultVolume = 25 },
-        }));
+        _venues.ReadSelectedVenueAsync().Returns(Task.FromResult<Venue?>(new Venue { Name = "The Bar" }));
 
         await _service.InitializeAsync();
+        await _service.StartAsync();
         _provider.ClearReceivedCalls();
 
         await _broker.PublishAsync(new SelectedVenueChanged());
 
-        await _provider.Received().SetVolumeAsync(0.25f, Arg.Any<CancellationToken>());
+        await _provider.DidNotReceive().SetVolumeAsync(Arg.Any<float>(), Arg.Any<CancellationToken>());
     }
 
-    /// <summary>The mode is part of the venue's audio baseline like its volume.</summary>
+    /// <summary>The mode is part of the venue's audio baseline.</summary>
     [Fact]
     public async Task AVenueEdit_SwitchesToTheModeTheVenueNames()
     {
@@ -324,21 +305,6 @@ public class BreakMusicServiceTests : IDisposable
         using var service = new BreakMusicService(NullLogger<BreakMusicService>.Instance, [other], _venues, _broker);
 
         Assert.Null(service.LibraryProvider);
-    }
-
-    // Editing some other venue's details is not the room's business: pushing the level at an
-    // external provider on every venue edit is a volume change the host never asked for.
-    [Fact]
-    public async Task AnEditToADifferentVenue_LeavesTheLevelAlone()
-    {
-        _provider.RendersThroughHost.Returns(false);
-
-        await _service.InitializeAsync();
-        _provider.ClearReceivedCalls();
-
-        await _broker.PublishAsync(new VenuesChanged());
-
-        await _provider.DidNotReceive().SetVolumeAsync(Arg.Any<float>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]

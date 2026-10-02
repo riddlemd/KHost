@@ -373,8 +373,10 @@ cannot name another's: its secrets, and the QR code it offers the screens.
     raises `PlaybackStatusChanged` with its own timestamped position, and the host trusts only the
     report from whichever one is connected — a screen's own state reports reach `PlaybackService`
     the same way a receiver's do, through `LocalScreenDisplayProvider` translating them, not a side
-    channel. Nothing is ever corrected towards anything. The venue's volume is applied by
-    `LocalScreenDisplayProvider` on connect and on a venue edit.
+    channel. Nothing is ever corrected towards anything. There is no venue volume: every output
+    runs through the room's mixer, so `LocalScreenDisplayProvider` sends the screen full level on each connect
+    and the break music providers play at their own. `VenueSettings.DefaultVolume` is `[Obsolete]`, kept so
+    a plugin naming it compiles; `IBreakMusicProvider.SetVolumeAsync` stays on the contract and the host never calls it.
   - **Covering a rebuild is the transport's business, not the host's.** Changing key, tempo or the
     mix reopens the stream at the playhead, and the host resumes there and skips nothing. It used
     to skip forward by however long the rebuild took, since the room heard on from the old stream
@@ -591,7 +593,7 @@ stay on black, and a song with its own picture keeps it.
   sample lines mid-screen. Sandboxed because an imported preset is code and the console holds the
   host's session.
 - **It listens, it never re-routes.** A stem song is tapped off the mixer's master gain (after the
-  venue level and the fade), a fan-out to analysers that lead nowhere. An encoded song is tapped
+  fade), a fan-out to analysers that lead nowhere. An encoded song is tapped
   through `captureStream()` where the engine has it. Do not reach for `createMediaElementSource`:
   it takes the element's sound off the speakers for good, binds it to one context a sleep can
   kill, and puts the fades behind a second volume.
