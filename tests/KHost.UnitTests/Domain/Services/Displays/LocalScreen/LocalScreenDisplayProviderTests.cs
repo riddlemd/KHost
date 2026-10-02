@@ -59,8 +59,8 @@ public class LocalScreenDisplayProviderTests
                 .AddSingleton(_library)
                 .AddSingleton(_streams)
                 .AddSingleton(_timedLyrics)
-                .AddSingleton<IOptionsMonitor<PlaybackService.ServiceOptions>>(_playbackOptions)
-                .BuildServiceProvider());
+                .BuildServiceProvider(),
+            playbackOptions: _playbackOptions);
 
     private static IScreenConnection Connection(string screenId, string connectionId)
     {

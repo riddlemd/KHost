@@ -1,5 +1,6 @@
 using KHost.Abstractions.Models;
 using KHost.Domain.Services;
+using KHost.Domain.Services.Displays.LocalScreen;
 using KHost.Domain.Services.MediaProviders;
 using KHost.UserInterface.Models;
 
@@ -80,8 +81,8 @@ public sealed record AppSettings
     /// picked", persisted per machine rather than per venue.</summary>
     public const string RememberLastSearchMode = "Remember";
 
-    /// <summary>The graces the page offers, off first.</summary>
-    public static readonly IReadOnlyList<int> LeadInGraceChoices = [0, 5, 10];
+    /// <summary>The graces the page offers, off first, ending at the longest the screen honours.</summary>
+    public static readonly IReadOnlyList<int> LeadInGraceChoices = [0, 5, (int)LeadInGrace.MaxSeconds];
 
     /// <summary>The pauses the page offers, shortest first.</summary>
     public static readonly IReadOnlyList<int> DynamicLeadInPauseChoices = [1, 2, 3, 4, 5];

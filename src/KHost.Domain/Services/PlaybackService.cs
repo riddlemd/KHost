@@ -55,7 +55,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         public TimeSpan DisplayStartTimeout { get; set; } = TimeSpan.FromSeconds(15);
     }
 
-    private const int ClockIntervalMs = 500;
+    private static readonly TimeSpan ClockInterval = TimeSpan.FromMilliseconds(500);
 
     /// <summary>How long after a load, seek or play an end the display reports is still taken to
     /// belong to what came before it.</summary>
@@ -65,7 +65,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
     // unguarded, the loser's Timer becomes unreachable but keeps ticking, driving a second clock forever.
     private readonly Lock _clockLock = new();
     private readonly IMessageBroker _broker;
-    private Timer? _timer;
+    private ITimer? _timer;
 
     // A tick that outruns the interval must not overlap the next: two in flight both see the song
     // ended and rotate the singer away twice.
@@ -131,6 +131,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
     private readonly IMediaGateService _mediaGate;
     private readonly IFlashService _flash;
     private readonly ITimedLyricsService _timedLyrics;
+    private readonly TimeProvider _time;
 
     // Read per use rather than captured: the App Settings page writes the overlay live, and a
     // value snapshotted at startup would leave the console needing a restart to honour it.
@@ -167,6 +168,8 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
     /// <remarks>The room is still on the old rate until the stream reopens.</remarks>
     private double Rate => _rendition is { } rendition ? StreamRate.FromTempo(rendition.Tempo) : 1.0;
 
+    private DateTime UtcNow => _time.GetUtcNow().UtcDateTime;
+
     public PlaybackService(
         ILogger<PlaybackService> logger,
         ISingerQueueService singerQueueService,
@@ -182,9 +185,11 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         IMediaGateService mediaGate,
         IFlashService flash,
         ITimedLyricsService timedLyrics,
-        IMessageBroker broker)
+        IMessageBroker broker,
+        TimeProvider time)
         : base(logger)
     {
+        _time = time;
         _broker = broker;
         _singerQueueService = singerQueueService;
         _performanceService = performanceService;
@@ -961,9 +966,9 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         {
             if (!restart && _timer is not null) return;
 
-            _lastTick = DateTime.UtcNow;
+            _lastTick = UtcNow;
             _timer?.Dispose();
-            _timer = new Timer(OnTick, null, ClockIntervalMs, ClockIntervalMs);
+            _timer = _time.CreateTimer(OnTick, null, ClockInterval, ClockInterval);
         }
     }
 
@@ -1336,7 +1341,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
 
     private void MarkTransportMoved()
     {
-        lock (_clockLock) _transportMovedAtUtc = DateTime.UtcNow;
+        lock (_clockLock) _transportMovedAtUtc = UtcNow;
     }
 
     /// <summary>Makes one call on whatever the song is coming out of.</summary>
@@ -1374,7 +1379,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         // The display carrying the song defines its clock; a report from any other is stale.
         if (ConnectedDisplay.Find(_displays)?.Provider is not { } carrying || !ReferenceEquals(sender, carrying)) return;
 
-        var now = DateTime.UtcNow;
+        var now = UtcNow;
 
         lock (_clockLock)
         {
@@ -1392,7 +1397,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
     {
         if (Options.DisplayStartTimeout <= TimeSpan.Zero) return;
 
-        lock (_clockLock) _awaitingDisplaySince = DateTime.UtcNow;
+        lock (_clockLock) _awaitingDisplaySince = UtcNow;
     }
 
     /// <summary>The screen is holding the song back before its start: the playhead stays at the
@@ -1407,7 +1412,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         {
             _holding = true;
             Position = status.Position;
-            _lastTick = DateTime.UtcNow;
+            _lastTick = UtcNow;
         }
     }
 
@@ -1500,7 +1505,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
             // a pause or stop, and would otherwise run a parked song to its end.
             if (_timer is null) return;
 
-            var now = DateTime.UtcNow;
+            var now = UtcNow;
 
             // Position is song time and the clock is wall time, so a retimed song covers more or
             // less of itself per tick. A hold is the song not yet started, so it covers none.

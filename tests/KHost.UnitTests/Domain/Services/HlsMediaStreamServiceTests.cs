@@ -25,7 +25,8 @@ public class HlsMediaStreamServiceTests : IDisposable
             }),
             // The real router with nothing registered: every path resolves to itself, which is
             // what the host does for all but a provider's own container.
-            new PlayableMediaSourceService(NullLogger<PlayableMediaSourceService>.Instance, []));
+            new PlayableMediaSourceService(NullLogger<PlayableMediaSourceService>.Instance, []),
+            TimeProvider.System);
 
     [Fact]
     public void BuildArguments_TargetsCodecsEveryConsumerDecodes()

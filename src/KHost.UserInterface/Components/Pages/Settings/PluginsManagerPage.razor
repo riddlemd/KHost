@@ -11,7 +11,7 @@
             <div class="kh-card__header">
                 <span class="kh-card__title"><Icon Name="plug-fill" /> Plugins Manager</span>
                 <button type="button" class="kh-button kh-button--secondary" title="Open the plugins folder"
-                        @onclick="() => OpenFolder(_pluginsDirectory)">
+                        @onclick="() => OpenFolder(PluginDirectories.PluginsDirectory)">
                     <Icon Name="folder2-open" />
                 </button>
             </div>
@@ -36,13 +36,13 @@
             <div class="kh-card__body">
                 @if (_tab == Tab.Available)
                 {
-                    <AvailablePluginsTab Staging="_staging" PluginsDirectory="_pluginsDirectory" SetEnabledAsync="SetEnabledAsync" />
+                    <AvailablePluginsTab Staging="_staging" PluginsDirectory="PluginDirectories.PluginsDirectory" SetEnabledAsync="SetEnabledAsync" />
                 }
                 else if (Plugins.Count == 0)
                 {
                     <div class="kh-panel--empty kh-panel--empty-lg">
                         <Icon Name="plug" />
-                        <span>No plugins installed. Drop a plugin folder into <span class="kh-emphasis">@_pluginsDirectory</span> and restart KHost.</span>
+                        <span>No plugins installed. Drop a plugin folder into <span class="kh-emphasis">@PluginDirectories.PluginsDirectory</span> and restart KHost.</span>
                     </div>
                 }
                 else
