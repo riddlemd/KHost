@@ -46,6 +46,7 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
     private readonly SemaphoreSlim _lock = new(1, 1);
     private readonly IPlayableMediaSourceService _playableSources;
     private readonly IFFmpegService? _ffmpeg;
+    private readonly TimeProvider _time;
     private readonly string _root;
     private int _disposed;
 
@@ -53,11 +54,13 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
         ILogger<HlsMediaStreamService> logger,
         IOptionsMonitor<ServiceOptions> options,
         IPlayableMediaSourceService playableSources,
+        TimeProvider time,
         IFFmpegService? ffmpeg = null)
         : base(logger)
     {
         _options = options;
         _playableSources = playableSources;
+        _time = time;
 
         // Optional so an encode test can run whatever ffmpeg is on PATH without the whole service.
         _ffmpeg = ffmpeg;
@@ -74,7 +77,7 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
         Directory.CreateDirectory(_root);
 
         // Before this host opens any session of its own, so only another process's folders are judged.
-        var swept = HlsSessionSweeper.Sweep(_root, DateTime.UtcNow, HlsSessionSweeper.IsRunning);
+        var swept = HlsSessionSweeper.Sweep(_root, _time.GetUtcNow().UtcDateTime, HlsSessionSweeper.IsRunning);
         if (swept.Count > 0)
             Logger.LogInformation("Swept {Count} orphaned stream session(s) from {Root}: {Sessions}",
                 swept.Count, _root, string.Join(", ", swept));
@@ -453,12 +456,12 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
     }
 
     /// <summary>The file appears before a segment is listed in it, so existing is not playable.</summary>
-    private static async Task<bool> WaitForPlaylistAsync(string directory, CancellationToken cancellationToken)
+    private async Task<bool> WaitForPlaylistAsync(string directory, CancellationToken cancellationToken)
     {
         var playlist = Path.Combine(directory, PlaylistFileName);
-        var deadline = DateTime.UtcNow + PlaylistTimeout;
+        var deadline = _time.GetUtcNow() + PlaylistTimeout;
 
-        while (DateTime.UtcNow < deadline)
+        while (_time.GetUtcNow() < deadline)
         {
             if (File.Exists(playlist))
             {

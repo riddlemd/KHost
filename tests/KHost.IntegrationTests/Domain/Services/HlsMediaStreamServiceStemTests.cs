@@ -24,7 +24,8 @@ public partial class HlsMediaStreamServiceStemTests : IDisposable
                 BaseAddress = "http://host:5251",
                 WorkingDirectory = _workingDirectory,
             }),
-            new PlayableMediaSourceService(NullLogger<PlayableMediaSourceService>.Instance, []));
+            new PlayableMediaSourceService(NullLogger<PlayableMediaSourceService>.Instance, []),
+            TimeProvider.System);
 
     /// <summary>Three tones at different pitches, so their powers add: muting one voice drops the mix
     /// by the share that voice carried, and a voice at zero contributes nothing.</summary>

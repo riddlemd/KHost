@@ -190,6 +190,7 @@ namespace KHost.Domain
             // depends on IDownloadsService, so this must stay its own dependency-free singleton.
             serviceCollection.AddSingleton<IDownloadsService, DownloadsService>();
             serviceCollection.AddSingleton<IPluginStagingArea>(new PluginStagingArea(PluginPaths.Plugins, PluginPaths.Staging));
+            serviceCollection.AddSingleton<IPluginDirectories, PluginDirectories>();
             // Chosen for the machine, honest when it has nowhere safe: a venue that cannot protect a
             // secret is asked instead. Registered here since a plugin context builds during discovery.
             serviceCollection.AddSingleton(_ => KHost.Secrets.SecretStores.ForThisMachine());

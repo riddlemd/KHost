@@ -69,6 +69,9 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
     // break music, take every IDisplayProvider, this one included.
     private readonly IServiceProvider? _services;
 
+    // Held as the monitor, not a value: App Settings applies without a restart.
+    private readonly IOptionsMonitor<PlaybackService.ServiceOptions>? _playbackOptions;
+
     // Serialises picture draws, which arrive from the load path and from several detached redraws.
     private readonly SemaphoreSlim _pictureLock = new(1, 1);
 
@@ -152,7 +155,8 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
         IVenuesService? venuesService = null,
         TimeSpan? registrationTimeout = null,
         IServiceProvider? services = null,
-        TimeSpan? redrawSettle = null)
+        TimeSpan? redrawSettle = null,
+        IOptionsMonitor<PlaybackService.ServiceOptions>? playbackOptions = null)
     {
         _logger = logger;
         _screenServer = screenServer;
@@ -162,6 +166,7 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
         _registrationTimeout = registrationTimeout ?? DefaultRegistrationTimeout;
         _services = services;
         _redrawSettle = redrawSettle ?? DefaultRedrawSettle;
+        _playbackOptions = playbackOptions;
 
         _screenServer.ScreenConnected += OnScreenConnected;
         _screenServer.ScreenDisconnected += OnScreenDisconnected;
@@ -862,7 +867,7 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
 
     /// <summary>The machine's grace, read on every send so an App Settings change needs no restart.</summary>
     private int LeadInGraceSeconds()
-        => _services?.GetService<IOptionsMonitor<PlaybackService.ServiceOptions>>()?.CurrentValue.LeadInGraceSeconds ?? 0;
+        => _playbackOptions?.CurrentValue.LeadInGraceSeconds ?? 0;
 
     private async Task<TimedLyrics?> ReadTimedLyricsAsync(Media media)
     {
