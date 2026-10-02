@@ -3,6 +3,7 @@ using KHost.Abstractions.Messaging.Messages;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using KHost.Domain.Services;
+using KHost.Domain.Services.VideoEncoding;
 using KHost.UserInterface.Services;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Routing;
@@ -136,6 +137,11 @@ public partial class AppSettingsPage : IDisposable
             : MediaSearchService.Providers.FirstOrDefault(provider => provider.SourceName == mode)?.DisplayName ?? mode;
 
     private static IReadOnlyList<int> GraphicsScaleChoices => GraphicsScaling.Heights;
+
+    private static IReadOnlyList<VideoEncoderPreference> VideoEncoderChoices =>
+        [VideoEncoderPreference.Auto, VideoEncoderPreference.Hardware, VideoEncoderPreference.Software];
+
+    private static string VideoEncoderLabel(VideoEncoderPreference preference) => preference.ToString();
 
     private static string GraphicsScaleLabel(int height) => height switch
     {

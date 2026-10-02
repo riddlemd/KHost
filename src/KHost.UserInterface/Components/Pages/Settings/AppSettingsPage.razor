@@ -1,4 +1,5 @@
 @using KHost.UserInterface.Models
+@using KHost.Domain.Services.VideoEncoding
 @page "/settings/app-settings"
 @attribute [Authorize(Roles = KHost.UserInterface.Auth.KHostClaimsFactory.AdminRole)]
 
@@ -59,6 +60,19 @@
                             </ChildContent>
                         </SettingRow>
 
+                        <SettingRow Label="Video encoder" Applies="applies from the next song">
+                            <Note>
+                                <span class="kh-note">
+                                    Hardware encoding uses the graphics chip and frees the processor. Auto
+                                    uses it when this machine has one that works.
+                                </span>
+                            </Note>
+                            <ChildContent>
+                                <ChoiceSelect TValue="VideoEncoderPreference" Id="video-encoder" Choices="VideoEncoderChoices"
+                                              Value="_model.VideoEncoder" ValueChanged="v => _model.VideoEncoder = v"
+                                              Label="VideoEncoderLabel" />
+                            </ChildContent>
+                        </SettingRow>
                         <SettingRow Label="Song controls" Applies="applies immediately">
                             <select class="kh-form-select kh-app-settings__number" @bind="_model.SongControlStyle">
                                 <option value="@SongControlStyle.Sliders">Sliders</option>

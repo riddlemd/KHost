@@ -14,9 +14,14 @@ public partial class ChoiceSelect<TValue>
     [Parameter, EditorRequired] public Func<TValue, string> Label { get; set; } = default!;
 
     // Every option comes from Choices, so a direct convert is safe without pulling in a generic parser.
+    // Convert.ChangeType cannot make an enum from its name, so an enum is parsed.
     private Task OnChangeAsync(ChangeEventArgs e)
     {
-        var value = (TValue)Convert.ChangeType(e.Value ?? "", typeof(TValue));
+        var text = e.Value?.ToString() ?? "";
+        var value = typeof(TValue).IsEnum
+            ? (TValue)Enum.Parse(typeof(TValue), text)
+            : (TValue)Convert.ChangeType(text, typeof(TValue));
+
         return ValueChanged.InvokeAsync(value);
     }
 }
