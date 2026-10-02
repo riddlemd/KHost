@@ -1,3 +1,7 @@
+using KHost.Domain.Services.Messaging;
+using Microsoft.Extensions.Logging.Abstractions;
+using KHost.Abstractions.Messaging;
+using KHost.Abstractions.Messaging.Messages;
 using KHost.Abstractions.Models.Plugins;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
@@ -105,6 +109,195 @@ public class PluginContextTests
         Assert.Equal(10, plugin.BindSettings<TestSettings>().PageSize);
     }
 
+
+    [Fact]
+    public void AddWarning_Message_ShowsItAndReturnsAnId()
+    {
+        var (context, plugin, _) = WarningFixture();
+
+        var id = context.AddWarning("a");
+
+        Assert.NotEqual(0, id);
+        Assert.Equal(["a"], plugin.Warnings);
+    }
+
+    [Fact]
+    public void AddWarning_AfterAnotherIsCleared_IdsStayStableAndAreNotReused()
+    {
+        var (context, plugin, _) = WarningFixture();
+        var first = context.AddWarning("a");
+        var second = context.AddWarning("b");
+
+        context.ClearWarning(first);
+        var third = context.AddWarning("c");
+        context.ClearWarning(second);
+
+        Assert.Equal(["c"], plugin.Warnings);
+        Assert.NotEqual(first, third);
+        Assert.NotEqual(second, third);
+        context.ClearWarning(third);
+        Assert.Empty(plugin.Warnings);
+    }
+
+    [Fact]
+    public void AddWarning_IdenticalText_ReturnsSameIdWithOneLine()
+    {
+        var (context, plugin, _) = WarningFixture();
+
+        var first = context.AddWarning("a");
+        var again = context.AddWarning("a");
+
+        Assert.Equal(first, again);
+        Assert.Equal(["a"], plugin.Warnings);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void AddWarning_Blank_ReturnsZeroAndAddsNothing(string blank)
+    {
+        var (context, plugin, broker) = WarningFixture();
+        var announced = 0;
+        using var subscription = broker.Subscribe<PluginsChanged>(_ => announced++);
+
+        var id = context.AddWarning(blank);
+
+        Assert.Equal(0, id);
+        Assert.Empty(plugin.Warnings);
+        Assert.Equal(0, announced);
+    }
+
+    [Fact]
+    public void ClearWarning_Id_RemovesOnlyThatLine()
+    {
+        var (context, plugin, _) = WarningFixture();
+        var a = context.AddWarning("a");
+        context.AddWarning("b");
+
+        context.ClearWarning(a);
+
+        Assert.Equal(["b"], plugin.Warnings);
+    }
+
+    [Fact]
+    public void ClearWarning_UnknownZeroOrClearedId_IsNoOpAndSilent()
+    {
+        var (context, plugin, broker) = WarningFixture();
+        var a = context.AddWarning("a");
+        var b = context.AddWarning("b");
+        context.ClearWarning(b);
+        var announced = 0;
+        using var subscription = broker.Subscribe<PluginsChanged>(_ => announced++);
+
+        context.ClearWarning(0);
+        context.ClearWarning(999);
+        context.ClearWarning(b);
+        context.ClearWarning(-1);
+
+        Assert.Equal(["a"], plugin.Warnings);
+        Assert.Equal(0, announced);
+        Assert.NotEqual(0, a);
+    }
+
+    [Fact]
+    public void ClearWarning_HostWarningWithSameText_IsNotRemoved()
+    {
+        var (context, plugin, _) = WarningFixture();
+        plugin.Warnings.Add("shared");
+        var id = context.AddWarning("shared");
+
+        context.ClearWarning(id);
+
+        Assert.Equal(["shared"], plugin.Warnings);
+    }
+
+    [Fact]
+    public void ClearWarnings_RemovesEveryPluginLineAndNoHostLine()
+    {
+        var (context, plugin, _) = WarningFixture();
+        plugin.Warnings.Add("Icon could not be read.");
+        plugin.Warnings.Add("shared");
+        context.AddWarning("a");
+        context.AddWarning("shared");
+#pragma warning disable CS0618 // the obsolete member must still be covered by ClearWarnings
+        context.ReportWarning("old style");
+#pragma warning restore CS0618
+        Assert.Contains("old style", plugin.Warnings);
+
+        context.ClearWarnings();
+
+        Assert.Equal(["Icon could not be read.", "shared"], plugin.Warnings);
+    }
+
+    [Fact]
+    public void AddWarning_AfterClear_ShowsItAgain()
+    {
+        var (context, plugin, _) = WarningFixture();
+        var first = context.AddWarning("a");
+        context.ClearWarning(first);
+
+        var second = context.AddWarning("a");
+
+        Assert.Equal(["a"], plugin.Warnings);
+        Assert.NotEqual(0, second);
+        context.ClearWarnings();
+        context.AddWarning("a");
+        Assert.Equal(["a"], plugin.Warnings);
+    }
+
+    [Fact]
+    public void Warnings_ActualChanges_AnnouncePluginsChangedEachTime()
+    {
+        var (context, _, broker) = WarningFixture();
+        var announced = 0;
+        using var subscription = broker.Subscribe<PluginsChanged>(_ => announced++);
+
+        var id = context.AddWarning("a");
+        Assert.Equal(1, announced);
+        context.ClearWarning(id);
+        Assert.Equal(2, announced);
+        context.AddWarning("a");
+        Assert.Equal(3, announced);
+        context.ClearWarnings();
+        Assert.Equal(4, announced);
+    }
+
+    [Fact]
+    public void Warnings_NoChange_AnnounceNothing()
+    {
+        var (context, plugin, broker) = WarningFixture();
+        plugin.Warnings.Add("shared");
+        context.AddWarning("a");
+        var announced = 0;
+        using var subscription = broker.Subscribe<PluginsChanged>(_ => announced++);
+
+        context.AddWarning("a");
+        context.AddWarning("shared");
+        context.ClearWarning(12345);
+        context.ClearWarnings();
+        Assert.Equal(1, announced);
+
+        context.ClearWarnings();
+        Assert.Equal(1, announced);
+    }
+
+    private static (PluginContext Context, DiscoveredPlugin Plugin, IMessageBroker Broker) WarningFixture()
+    {
+        var manifest = new PluginManifest
+        {
+            Id = Guid.Parse("00700000-0000-4000-8000-000000000702"),
+            Name = "Test",
+            Version = "1.0.0",
+            EntryAssembly = "Test.dll",
+            ApiVersion = PluginApi.CurrentVersion,
+        };
+        var plugin = new DiscoveredPlugin { Directory = "/plugins/test", Manifest = manifest };
+        var broker = new MessageBroker(NullLogger<MessageBroker>.Instance);
+
+        return (new PluginContext(manifest, null, plugin, new PluginSecretStore(new InMemorySecretStore()),
+            Substitute.For<IQrCodeService>(), broker), plugin, broker);
+    }
+
     private static PluginContext CreatePlugin(Dictionary<string, JsonElement>? stored = null, JsonElement? defaultValue = null)
     {
         var manifest = new PluginManifest
@@ -127,7 +320,7 @@ public class PluginContextTests
         };
 
         return new PluginContext(manifest, stored, new DiscoveredPlugin { Directory = "/plugins/test", Manifest = manifest },
-            new PluginSecretStore(new InMemorySecretStore()), Substitute.For<IQrCodeService>());
+            new PluginSecretStore(new InMemorySecretStore()), Substitute.For<IQrCodeService>(), new MessageBroker(NullLogger<MessageBroker>.Instance));
     }
 
     /// <summary>A secret's name comes from the manifest, so two plugins can both use "session".</summary>
@@ -214,7 +407,7 @@ public class PluginContextTests
 
         return new PluginContext(manifest, null,
             new DiscoveredPlugin { Directory = "/plugins/test", Manifest = manifest }, store,
-            qrCodes ?? Substitute.For<IQrCodeService>());
+            qrCodes ?? Substitute.For<IQrCodeService>(), new MessageBroker(NullLogger<MessageBroker>.Instance));
     }
 
     private class TestSettings
