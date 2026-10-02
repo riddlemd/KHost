@@ -10,6 +10,32 @@ namespace KHost.UnitTests.UserInterface.Components.Pages.Settings;
 /// <summary>What the page's FFmpeg section injects, for fixtures testing something else on it.</summary>
 internal static class AppSettingsPageServices
 {
+    /// <summary>What the page's Search section injects, for fixtures testing something else on it.
+    /// Defaults to just Local, matching a host with no media provider plugins loaded.</summary>
+    public static IMediaSearchService AddSearchSection(this IServiceCollection services, params IMediaProvider[] providers)
+    {
+        // Built ahead of Returns(): configuring FakeLocalProvider's own substitute inside that
+        // call's argument list would consume the "last call" Returns() needs for Providers itself.
+        IReadOnlyList<IMediaProvider> effective = providers.Length > 0 ? providers : [FakeLocalProvider()];
+
+        var search = Substitute.For<IMediaSearchService>();
+        search.Providers.Returns(effective);
+
+        services.AddSingleton(search);
+
+        return search;
+    }
+
+    public static IMediaProvider FakeProvider(string sourceName, string displayName)
+    {
+        var provider = Substitute.For<IMediaProvider>();
+        provider.SourceName.Returns(sourceName);
+        provider.DisplayName.Returns(displayName);
+        return provider;
+    }
+
+    public static IMediaProvider FakeLocalProvider() => FakeProvider(KHost.UserInterface.Services.AppSettings.LocalSearchMode, "Local");
+
     public static IFFmpegService AddFFmpegSection(this IServiceCollection services, FFmpegStatus? status = null)
     {
         var ffmpeg = Substitute.For<IFFmpegService>();

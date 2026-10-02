@@ -631,6 +631,8 @@ namespace KHost.DataAccess.Migrations
 
                             b1.Property<int>("MarqueeFontSizePixels");
 
+                            b1.Property<bool>("MarqueeHideDuringSong");
+
                             b1.Property<string>("MarqueeMessage");
 
                             b1.Property<bool>("MarqueePinLabel");
@@ -646,6 +648,8 @@ namespace KHost.DataAccess.Migrations
                             b1.Property<string>("MarqueeSongColor");
 
                             b1.Property<string>("MarqueeTextColor");
+
+                            b1.Property<int>("NextSingerBackground");
 
                             b1.Property<bool>("PromptBeforeRemovingPerformance");
 

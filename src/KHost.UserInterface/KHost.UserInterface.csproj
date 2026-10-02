@@ -117,7 +117,9 @@
       <LocalScreenOutputDir>@(_LocalScreenExe->'%(RootDir)%(Directory)')</LocalScreenOutputDir>
     </PropertyGroup>
     <ItemGroup>
-      <LocalScreenFiles Include="$(LocalScreenOutputDir)**\*" />
+      <!-- A screen run straight from its own project leaves cache/ and logs/ beside its binary;
+           copied, they overwrite the host's live state (a screen's remembered placement) on every build. -->
+      <LocalScreenFiles Include="$(LocalScreenOutputDir)**\*" Exclude="$(LocalScreenOutputDir)cache\**;$(LocalScreenOutputDir)logs\**" />
     </ItemGroup>
     <Copy SourceFiles="@(LocalScreenFiles)" DestinationFiles="@(LocalScreenFiles->'$(OutputPath)%(RecursiveDir)%(Filename)%(Extension)')" />
   </Target>

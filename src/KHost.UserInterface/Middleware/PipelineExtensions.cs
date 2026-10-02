@@ -33,7 +33,7 @@ internal static class PipelineExtensions
         // rather than a second code path. Read per request, so the toggle applies on the next page load.
         app.Use((context, next) =>
         {
-            if (!(app.Configuration.GetValue<bool?>("Auth:RequireLogin") ?? true))
+            if (!(app.Configuration.GetValue<bool?>("Auth:RequireLogin") ?? false))
                 context.User = KHostClaimsFactory.CreateConsolePrincipal();
 
             return next(context);

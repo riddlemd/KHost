@@ -156,7 +156,8 @@ public sealed class HlsSessionSweeperTests : IDisposable
         {
             WorkingDirectory = _root,
         }),
-        new PlayableMediaSourceService(NullLogger<PlayableMediaSourceService>.Instance, []));
+        new PlayableMediaSourceService(NullLogger<PlayableMediaSourceService>.Instance, []),
+        TimeProvider.System);
 
     private IReadOnlyList<string> Sweep() => HlsSessionSweeper.Sweep(_root, Now, pid => pid == LiveOwner);
 

@@ -76,6 +76,13 @@ public interface IPerformanceService : IRepositoryService<Performance>
     /// alone.</remarks>
     Task MoveToIndexAsync(Guid singerId, Guid performanceId, int newIndex);
 
+    /// <summary>Replaces how a turn will be sung, each value held to the range the song controls
+    /// accept. Announces like any other update.</summary>
+    /// <returns>The saved performance, or null when there is no such performance.</returns>
+    /// <remarks>Meant for a turn not loaded for playback: the loaded one is the playback service's
+    /// to change, and it writes its own values back over the row on the next adjustment.</remarks>
+    Task<Performance?> UpdateSettingsAsync(Guid performanceId, PerformanceSettings settings);
+
     /// <summary>Deletes every queued performance, for every singer. History is kept.</summary>
     Task DeleteAllQueuedAsync();
 }

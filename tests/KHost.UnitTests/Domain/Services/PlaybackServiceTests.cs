@@ -6,6 +6,7 @@ using KHost.IPC.SignalR.Contracts;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Time.Testing;
 using KHost.Domain.Services;
 using KHost.Domain.Services.Displays.LocalScreen;
 using KHost.Domain.Services.Messaging;
@@ -142,7 +143,8 @@ public class PlaybackServiceTests : IDisposable
         TimeSpan? pitchSettleDelay = null,
         int defaultBackingVolume = AudioMix.DefaultBackingVolume,
         TimeSpan? retireGrace = null,
-        TimeSpan? displayStartTimeout = null)
+        TimeSpan? displayStartTimeout = null,
+        TimeProvider? time = null)
     {
         PlaybackService? built = null;
 
@@ -183,7 +185,8 @@ public class PlaybackServiceTests : IDisposable
         _mediaGate,
         _flash,
         _timedLyrics,
-        _broker);
+        _broker,
+        time ?? TimeProvider.System);
     }
 
     /// <summary>The service reads options per use, so a test's values have to answer every read.</summary>
@@ -2323,13 +2326,14 @@ public class PlaybackServiceTests : IDisposable
     [Fact]
     public async Task PlayAsync_BeforeTheDisplayReportsPlaying_HoldsTheClock()
     {
-        using var service = MakeService(TimeSpan.Zero, displayStartTimeout: TimeSpan.FromSeconds(15));
+        var time = new FakeTimeProvider();
+        using var service = MakeService(TimeSpan.Zero, displayStartTimeout: TimeSpan.FromSeconds(15), time: time);
         var (performance, media) = CreatePerformance();
         media.Duration = TimeSpan.FromHours(1);
         await service.LoadAsync(performance, media);
         await service.PlayAsync();
 
-        await Task.Delay(30);
+        time.Advance(TimeSpan.FromMilliseconds(30));
         await service.TickAsync();
 
         Assert.Equal(TimeSpan.Zero, service.Position);
@@ -2339,33 +2343,35 @@ public class PlaybackServiceTests : IDisposable
     [Fact]
     public async Task PlayAsync_OnceTheDisplayReportsPlaying_RunsTheClock()
     {
-        using var service = MakeService(TimeSpan.Zero, displayStartTimeout: TimeSpan.FromSeconds(15));
+        var time = new FakeTimeProvider();
+        using var service = MakeService(TimeSpan.Zero, displayStartTimeout: TimeSpan.FromSeconds(15), time: time);
         var (performance, media) = CreatePerformance();
         media.Duration = TimeSpan.FromHours(1);
         await service.LoadAsync(performance, media);
         await service.PlayAsync();
+        time.Advance(TimeSpan.FromMilliseconds(20));
 
-        RaiseScreenReport(position: TimeSpan.Zero, sampledAtUtc: DateTime.UtcNow);
-        var reported = service.Position;
-        await Task.Delay(50);
+        RaiseScreenReport(position: TimeSpan.Zero, sampledAtUtc: time.GetUtcNow().UtcDateTime);
+        time.Advance(TimeSpan.FromMilliseconds(50));
         await service.TickAsync();
 
-        // Measured from the report, which itself lands a moment on: the tick is what must move it.
-        Assert.InRange(service.Position - reported, TimeSpan.FromMilliseconds(30), TimeSpan.FromSeconds(1));
+        // The 20ms before the report were held; only the 50ms after it run.
+        Assert.Equal(TimeSpan.FromMilliseconds(50), service.Position);
     }
 
     /// <summary>A report sampled before the play is the old stream still sounding, not this start.</summary>
     [Fact]
     public async Task PlayAsync_AReportSampledBeforeThePlay_KeepsHolding()
     {
-        using var service = MakeService(TimeSpan.Zero, displayStartTimeout: TimeSpan.FromSeconds(15));
+        var time = new FakeTimeProvider();
+        using var service = MakeService(TimeSpan.Zero, displayStartTimeout: TimeSpan.FromSeconds(15), time: time);
         var (performance, media) = CreatePerformance();
         media.Duration = TimeSpan.FromHours(1);
         await service.LoadAsync(performance, media);
         await service.PlayAsync();
 
-        RaiseScreenReport(position: TimeSpan.FromSeconds(40), sampledAtUtc: DateTime.UtcNow.AddSeconds(-1));
-        await Task.Delay(30);
+        RaiseScreenReport(position: TimeSpan.FromSeconds(40), sampledAtUtc: time.GetUtcNow().UtcDateTime.AddSeconds(-1));
+        time.Advance(TimeSpan.FromMilliseconds(30));
         await service.TickAsync();
 
         Assert.Equal(TimeSpan.Zero, service.Position);
@@ -2375,38 +2381,40 @@ public class PlaybackServiceTests : IDisposable
     [Fact]
     public async Task Reopen_HoldsTheClockUntilTheDisplayReportsPlayingAgain()
     {
-        using var service = MakeService(TimeSpan.Zero, displayStartTimeout: TimeSpan.FromSeconds(15));
+        var time = new FakeTimeProvider();
+        using var service = MakeService(TimeSpan.Zero, displayStartTimeout: TimeSpan.FromSeconds(15), time: time);
         var (performance, media) = CreatePerformance();
         media.Duration = TimeSpan.FromHours(1);
         await service.LoadAsync(performance, media);
         await service.PlayAsync();
         await service.SeekAsync(TimeSpan.FromSeconds(60));
-        RaiseScreenReport(position: TimeSpan.FromSeconds(60), sampledAtUtc: DateTime.UtcNow);
+        RaiseScreenReport(position: TimeSpan.FromSeconds(60), sampledAtUtc: time.GetUtcNow().UtcDateTime);
 
         await service.SetPitchAsync(1);
         Assert.True(await WaitForStreamsOpenedAsync(2));
         Assert.True(await WaitForBroadcastAsync<PlayCommand>(_ => Broadcasts().OfType<PlayCommand>().Count() >= 2));
-        await Task.Delay(50);
+        time.Advance(TimeSpan.FromMilliseconds(50));
         await service.TickAsync();
 
-        // The report itself lands a few microseconds on; a clock let run would be 50ms on.
-        Assert.InRange(service.Position, TimeSpan.FromSeconds(60), TimeSpan.FromSeconds(60.01));
+        Assert.Equal(TimeSpan.FromSeconds(60), service.Position);
     }
 
     /// <summary>A display that never reports must not freeze the song forever.</summary>
     [Fact]
     public async Task PlayAsync_TheDisplayNeverReports_RunsTheClockAfterTheTimeout()
     {
-        using var service = MakeService(TimeSpan.Zero, displayStartTimeout: TimeSpan.FromMilliseconds(20));
+        var time = new FakeTimeProvider();
+        using var service = MakeService(TimeSpan.Zero, displayStartTimeout: TimeSpan.FromMilliseconds(20), time: time);
         var (performance, media) = CreatePerformance();
         media.Duration = TimeSpan.FromHours(1);
         await service.LoadAsync(performance, media);
         await service.PlayAsync();
 
-        await Task.Delay(40);
+        time.Advance(TimeSpan.FromMilliseconds(40));
         await service.TickAsync();
 
-        Assert.True(service.Position > TimeSpan.Zero);
+        // Run from the play, not from the timeout: the room has been hearing it all along.
+        Assert.Equal(TimeSpan.FromMilliseconds(40), service.Position);
     }
 
     // --- the display's own end, and a lead-in hold ---
@@ -2600,16 +2608,21 @@ public class PlaybackServiceTests : IDisposable
     [Fact]
     public async Task AfterTheHold_TheClockRunsOnFromTheStart()
     {
-        await PlayingAsync();
-        RaiseScreenReport(isHolding: true);
-        await Task.Delay(30);
-        await _service.TickAsync();
+        var time = new FakeTimeProvider();
+        using var service = MakeService(TimeSpan.Zero, time: time);
+        var (performance, media) = CreatePerformance();
+        media.Duration = TimeSpan.FromHours(1);
+        await service.LoadAsync(performance, media);
+        await service.PlayAsync();
+        RaiseScreenReport(isHolding: true, sampledAtUtc: time.GetUtcNow().UtcDateTime);
+        time.Advance(TimeSpan.FromMilliseconds(30));
+        await service.TickAsync();
 
-        RaiseScreenReport(position: TimeSpan.Zero);
-        await Task.Delay(30);
-        await _service.TickAsync();
+        RaiseScreenReport(position: TimeSpan.Zero, sampledAtUtc: time.GetUtcNow().UtcDateTime);
+        time.Advance(TimeSpan.FromMilliseconds(30));
+        await service.TickAsync();
 
-        Assert.InRange(_service.Position, TimeSpan.FromMilliseconds(1), TimeSpan.FromSeconds(1));
+        Assert.Equal(TimeSpan.FromMilliseconds(30), service.Position);
     }
 
     /// <summary>A hold reported while the host has the song paused does not move anything.</summary>
@@ -4382,6 +4395,28 @@ public class PlaybackServiceTests : IDisposable
         await _service.LoadAsync(performance, media);
 
         Assert.Equal(30, _renderer.LastRequest?.Mix?.VoiceVolumes?["♂"]);
+    }
+
+    /// <summary>A turn edited while it waited plays as it was set: every saved value reaches the
+    /// encode, not only the key the queue shows.</summary>
+    [Fact]
+    public async Task Load_ATurnEditedWhileQueued_OpensAtEverySavedValue()
+    {
+        var (performance, media) = CreatePerformance();
+        performance.Pitch = 2;
+        performance.Tempo = -10;
+        performance.BackingVolume = 35;
+        performance.VoiceVolumes = new() { ["♀"] = 70 };
+        GiveADuet(media);
+
+        await _service.LoadAsync(performance, media);
+
+        var request = _renderer.LastRequest!;
+        Assert.Equal(2, request.Pitch);
+        Assert.Equal(-10, request.Tempo);
+        Assert.Equal(35, request.Mix?.BackingVolume);
+        Assert.Equal(70, request.Mix?.VoiceVolumes?["♀"]);
+        Assert.Equal(0, request.Mix?.VoiceVolumes?["♂"]);
     }
 
     [Fact]

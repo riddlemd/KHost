@@ -24,7 +24,7 @@ public class LocalScreenDisplayProviderTests
     // What the screen is drawn from, for the tests that follow a change message to the screen.
     private readonly MessageBroker _realBroker = new(NullLogger<MessageBroker>.Instance);
     private readonly IUpNextService _upNext = Substitute.For<IUpNextService>();
-    private readonly Venue.VenueSettings _settings = new() { DefaultVolume = 50, MarqueeEnabled = true, MarqueeMessage = "Tonight" };
+    private readonly Venue.VenueSettings _settings = new() { MarqueeEnabled = true, MarqueeMessage = "Tonight" };
     private readonly IQrCodeOfferService _qrCodes = Substitute.For<IQrCodeOfferService>();
     private readonly IBreakMusicService _breakMusic = Substitute.For<IBreakMusicService>();
     private readonly IVenuesService _venues = Substitute.For<IVenuesService>();
@@ -59,8 +59,8 @@ public class LocalScreenDisplayProviderTests
                 .AddSingleton(_library)
                 .AddSingleton(_streams)
                 .AddSingleton(_timedLyrics)
-                .AddSingleton<IOptionsMonitor<PlaybackService.ServiceOptions>>(_playbackOptions)
-                .BuildServiceProvider());
+                .BuildServiceProvider(),
+            playbackOptions: _playbackOptions);
 
     private static IScreenConnection Connection(string screenId, string connectionId)
     {
@@ -505,7 +505,7 @@ public class LocalScreenDisplayProviderTests
         Assert.True(await WaitForSentAsync<SetMarqueeCommand>());
         Assert.True(await WaitForSentAsync<SetScreenQrCodesCommand>());
         Assert.True(await WaitForSentAsync<SetBreakMusicCardCommand>());
-        Assert.True(await WaitForSentAsync<SetVolumeCommand>(volume => volume.Volume < 1.0f));
+        Assert.True(await WaitForSentAsync<SetVolumeCommand>(volume => volume.Volume == 1.0f));
         Assert.True(await WaitForSentAsync<SetBackgroundVolumeCommand>());
     }
 
@@ -562,6 +562,73 @@ public class LocalScreenDisplayProviderTests
         Assert.True(await WaitForSentAsync<SetMarqueeCommand>(marquee => marquee.DividerGlyph == "★"));
     }
 
+    [Fact]
+    public async Task PlaybackChanged_PerformanceStarts_HideDuringSongOn_TakesTheMarqueeDown()
+    {
+        _settings.MarqueeHideDuringSong = true;
+        using var provider = DrawingProvider();
+
+        _playback.CurrentPerformance.Returns(new Performance());
+        _realBroker.Announce(new PlaybackChanged());
+
+        Assert.True(await WaitForSentAsync<SetMarqueeCommand>(marquee => !marquee.Enabled));
+        Assert.DoesNotContain(Sent<SetMarqueeCommand>(), marquee => marquee.Enabled);
+    }
+
+    [Fact]
+    public async Task SelectedVenueChanged_PerformanceUnderWay_HideDuringSongOff_KeepsTheMarquee()
+    {
+        _playback.CurrentPerformance.Returns(new Performance());
+        using var provider = DrawingProvider();
+
+        _realBroker.Announce(new SelectedVenueChanged());
+
+        Assert.True(await WaitForSentAsync<SetMarqueeCommand>(marquee => marquee.Enabled && marquee.Message == "Tonight"));
+    }
+
+    /// <summary>Paused mid-song is still somebody's performance; only its end brings the band back.</summary>
+    [Fact]
+    public async Task PlaybackChanged_PerformanceEnds_HideDuringSongOn_PutsTheMarqueeBack()
+    {
+        _settings.MarqueeHideDuringSong = true;
+        using var provider = DrawingProvider();
+        _playback.CurrentPerformance.Returns(new Performance());
+        _realBroker.Announce(new PlaybackChanged());
+        Assert.True(await WaitForSentAsync<SetMarqueeCommand>(marquee => !marquee.Enabled));
+        _screenServer.ClearReceivedCalls();
+
+        _playback.CurrentPerformance.Returns((Performance?)null);
+        _realBroker.Announce(new PlaybackChanged());
+
+        Assert.True(await WaitForSentAsync<SetMarqueeCommand>(marquee => marquee.Enabled && marquee.Message == "Tonight"));
+    }
+
+    [Fact]
+    public async Task SelectedVenueChanged_HideDuringSongTurnedOnMidSong_TakesTheMarqueeDownNow()
+    {
+        _playback.CurrentPerformance.Returns(new Performance());
+        using var provider = DrawingProvider();
+        _realBroker.Announce(new SelectedVenueChanged());
+        Assert.True(await WaitForSentAsync<SetMarqueeCommand>(marquee => marquee.Enabled));
+        _screenServer.ClearReceivedCalls();
+
+        _settings.MarqueeHideDuringSong = true;
+        _realBroker.Announce(new SelectedVenueChanged());
+
+        Assert.True(await WaitForSentAsync<SetMarqueeCommand>(marquee => !marquee.Enabled));
+    }
+
+    /// <summary>An ad plays with no performance behind it, so the band stays for it.</summary>
+    [Fact]
+    public async Task BuildMarqueeAsync_HideDuringSongOn_NoPerformance_DrawsTheMarquee()
+    {
+        _settings.MarqueeHideDuringSong = true;
+
+        var marquee = await LocalScreenDisplayProvider.BuildMarqueeAsync(_settings, _upNext, performanceUnderWay: false);
+
+        Assert.True(marquee.Enabled);
+    }
+
     public static TheoryData<object, bool, bool, bool> WhatEachChangeRedraws() => new()
     {
         // message,                                   marquee, codes, card
@@ -598,19 +665,35 @@ public class LocalScreenDisplayProviderTests
         Assert.Equal(card, Sent<SetBreakMusicCardCommand>().Any());
     }
 
-    /// <summary>Selecting or editing a venue changes what "audible" means, now rather than on the next connect.</summary>
+    /// <summary>The mixer in the room sets the level, so a venue's stored level never reaches the screen.</summary>
     [Fact]
-    public async Task SelectedVenueChanged_WithAScreenUp_AppliesTheVenuesLevel()
+    public async Task ScreenConnected_SendsFullVolumeWhateverTheVenueStored()
+    {
+#pragma warning disable CS0618 // the retired setting is what this proves is ignored
+        _settings.DefaultVolume = 30;
+#pragma warning restore CS0618
+        using var provider = DrawingProvider();
+
+        RaiseConnected(Connection("Screen 1", "conn-a"));
+
+        Assert.True(await WaitForSentAsync<SetVolumeCommand>(volume => volume.Volume == 1.0f));
+        Assert.True(await WaitForSentAsync<SetBackgroundVolumeCommand>(volume => volume.Volume == 1.0f));
+    }
+
+    [Fact]
+    public async Task SelectedVenueChanged_WithAScreenUp_SendsNoVolume()
     {
         using var provider = DrawingProvider();
         RaiseConnected(Connection("Screen 1", "conn-a"));
         Assert.True(await WaitForSentAsync<SetBackgroundVolumeCommand>());
+        _settings.MarqueeMessage = "Last call";
         _screenServer.ClearReceivedCalls();
 
-        _venues.ReadSelectedVenueAsync().Returns(new Venue { Name = "The Bar", Settings = new Venue.VenueSettings { DefaultVolume = 100 } });
         _realBroker.Announce(new SelectedVenueChanged());
+        Assert.True(await WaitForSentAsync<SetMarqueeCommand>(marquee => marquee.Message == "Last call"));
 
-        Assert.True(await WaitForSentAsync<SetVolumeCommand>(volume => volume.Volume == 1.0f));
+        Assert.Empty(Sent<SetVolumeCommand>());
+        Assert.Empty(Sent<SetBackgroundVolumeCommand>());
     }
 
     /// <summary>An owner registering a code awaits the publish, so the code is on screen when it returns.</summary>
@@ -761,6 +844,21 @@ public class LocalScreenDisplayProviderTests
         Assert.Equal(QrCodeSize.Large, placed.Size);
         Assert.Equal(4, placed.SafeZone);
         Assert.Equal(3.5, placed.Offset);
+    }
+
+    /// <summary>ExtraLarge is the step appended after Large, and must reach the screen unmapped to
+    /// anything smaller.</summary>
+    [Fact]
+    public async Task AnOfferWithExtraLarge_IsDrawnAtExtraLarge()
+    {
+        using var provider = DrawingProvider();
+
+        var placed = Assert.IsType<ScreenQrCodePlacement>(await DrawnCodeAsync(provider, Offer() with
+        {
+            Size = QrCodeSize.ExtraLarge,
+        }));
+
+        Assert.Equal(QrCodeSize.ExtraLarge, placed.Size);
     }
 
     /// <summary>SVG, not pixels: in a corner a few centimetres across, module edges decide whether a phone reads it.</summary>

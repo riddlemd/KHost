@@ -88,7 +88,8 @@ public partial class SelectedSingerInfoPanel : IAsyncDisposable
         if (SingerQueueService.SelectedUser is not { } singer) return Task.CompletedTask;
 
         var currentIdx = _performances.FindIndex(p => p.Id == _selectedPerformanceId);
-        var action = ListKeyboardShortcuts.Resolve(e.Key, e.ShiftKey, currentIdx, _performances.Count);
+        var action = ListKeyboardShortcuts.Resolve(
+            e.Key, e.ShiftKey, currentIdx, _performances.Count, modified: e.CtrlKey || e.MetaKey || e.AltKey);
 
         return ListKeyboardShortcuts.DispatchAsync(
             action, currentIdx, _canReorderQueue,
@@ -99,7 +100,17 @@ public partial class SelectedSingerInfoPanel : IAsyncDisposable
             },
             move: up => up
                 ? PerformanceService.MoveUpInQueueAsync(singer.Id, _performances[currentIdx].Id)
-                : PerformanceService.MoveDownInQueueAsync(singer.Id, _performances[currentIdx].Id));
+                : PerformanceService.MoveDownInQueueAsync(singer.Id, _performances[currentIdx].Id),
+            remove: () => RemoveSelectedFromKeyboardAsync(_performances[currentIdx]));
+    }
+
+    /// <summary>The row's remove button with its refusals: no permission, or the loaded song.</summary>
+    private Task RemoveSelectedFromKeyboardAsync(Performance performance)
+    {
+        if (!_canRemoveFromQueue || PlaybackService.CurrentPerformance?.Id == performance.Id)
+            return Task.CompletedTask;
+
+        return RemoveWithConfirmAsync(performance, selectNeighbour: true);
     }
 
     private async Task LoadAndPlayAsync(Performance performance)
@@ -150,8 +161,11 @@ public partial class SelectedSingerInfoPanel : IAsyncDisposable
 
     private async Task OpenUserEditDialogAsync()
     {
-        if (SingerQueueService.SelectedUser is null) return;
-        await DialogService.RequestEditAsync(SingerQueueService.SelectedUser, async user => await SaveUserAsync(user));
+        // Re-read rather than the queue's cached copy: a save replaces group memberships with what
+        // the dialog holds, and the dialog edits the object it is handed in place.
+        if (SingerQueueService.SelectedUser is not { } selected) return;
+        if (await UsersService.ReadAsync(selected.Id) is not { } fresh) return;
+        await DialogService.RequestEditAsync(fresh, async user => await SaveUserAsync(user));
     }
 
     private async Task SaveUserAsync(KHostUser? user)
@@ -173,10 +187,23 @@ public partial class SelectedSingerInfoPanel : IAsyncDisposable
         });
     }
 
-    private Task RemoveWithConfirmAsync(Performance performance)
+    /// <param name="selectNeighbour">Keyboard removal keeps a row selected so the next key press
+    /// still has something to act on.</param>
+    private Task RemoveWithConfirmAsync(Performance performance, bool selectNeighbour = false)
         => DialogService.ConfirmIfAsync(
             _promptBeforeRemovingPerformance,
-            () => PerformanceService.DeleteAsync(performance.Id),
+            async () =>
+            {
+                // Read at confirm time: the list can refresh while the dialog is open.
+                var index = _performances.FindIndex(p => p.Id == performance.Id);
+                var neighbour = ListKeyboardShortcuts.NeighbourAfterRemoval(index, _performances.Count);
+                Guid? neighbourId = neighbour >= 0 ? _performances[neighbour].Id : null;
+
+                await PerformanceService.DeleteAsync(performance.Id);
+
+                if (selectNeighbour && neighbourId is { } id)
+                    await InvokeAsync(() => SelectPerformance(id));
+            },
             "Are you sure you want to remove this song from the queue?",
             "Remove Song",
             "Remove");
@@ -191,15 +218,18 @@ public partial class SelectedSingerInfoPanel : IAsyncDisposable
         });
     }
 
-    /// <summary>The turn's name, not the singer's: saves the performance, not the account.</summary>
-    private async Task OpenSingingAsDialogAsync(Performance performance, KHostUser singer)
+    /// <summary>Opens for the loaded turn too, read-only: the dialog itself says why nothing in it
+    /// can change, which a disabled menu item could only put in a tooltip.</summary>
+    private async Task OpenEditPerformanceDialogAsync(Performance performance, Media? media, KHostUser singer)
     {
-        await DialogService.RequestSingingAsAsync(performance, singer.Name, async updated =>
-        {
-            if (updated is not null)
-                await PerformanceService.UpdateAsync(updated);
-        });
+        await DialogService.RequestEditPerformanceAsync(performance, media, singer.Name,
+            edit => edit.SaveAsync(PerformanceService, performance.Id));
     }
+
+    private string EditPerformanceTooltip(Performance performance)
+        => PlaybackService.CurrentPerformance?.Id == performance.Id
+            ? "This song is loaded. Change it with the song controls while it plays."
+            : "Change the name, key, tempo and levels this song will be sung at";
 
     private async Task ToggleIsRegularAsync()
     {
@@ -281,18 +311,6 @@ public partial class SelectedSingerInfoPanel : IAsyncDisposable
         return !string.IsNullOrEmpty(recorded)
             && !string.Equals(recorded, singer.Name?.Trim(), StringComparison.OrdinalIgnoreCase);
     }
-
-    /// <summary>Loaded, not merely playing: playback resolves the name once at load, so renaming a
-    /// paused song changes nothing on screen while still telling a host it did.</summary>
-    private bool AliasLocked(Performance performance)
-        => PlaybackService.CurrentPerformance?.Id == performance.Id;
-
-    /// <summary>Disabled alone reads as broken, so the button has to say which of the two it is.
-    /// </summary>
-    private string AliasTooltip(Performance performance)
-        => AliasLocked(performance)
-            ? "This song is at the microphone. Its name was announced when it started."
-            : "Change the name this song is announced under";
 
     public async ValueTask DisposeAsync()
     {

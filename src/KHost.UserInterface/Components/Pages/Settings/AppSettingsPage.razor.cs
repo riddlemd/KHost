@@ -17,8 +17,8 @@ public partial class AppSettingsPage : IDisposable
     [Inject] private IDialogService Dialog { get; set; } = default!;
     [Inject] private NavigationManager Navigation { get; set; } = default!;
     [Inject] private IFFmpegService FFmpeg { get; set; } = default!;
-    [Inject] private IHostDirectories HostDirectories { get; set; } = default!;
     [Inject] private IMessageBroker Broker { get; set; } = default!;
+    [Inject] private IMediaSearchService MediaSearchService { get; set; } = default!;
 
     private readonly SubscriptionSet _subscriptions = new();
 
@@ -33,7 +33,17 @@ public partial class AppSettingsPage : IDisposable
     private string? _error;
     private string? _defaultMediaDirectory;
     private FFmpegStatus _ffmpegStatus = default!;
-    private string _binDirectory = "";
+
+    // The bounds the service clamps to on save, so the control and the store cannot disagree.
+    // Qualified: the injected service is also called AppSettings on this page.
+    private const double MinStopFadeSeconds = KHost.UserInterface.Services.AppSettings.MinStopFadeSeconds;
+    private const double MaxStopFadeSeconds = KHost.UserInterface.Services.AppSettings.MaxStopFadeSeconds;
+    private const int MinSegmentSeconds = KHost.UserInterface.Services.AppSettings.MinSegmentSeconds;
+    private const int MaxSegmentSeconds = KHost.UserInterface.Services.AppSettings.MaxSegmentSeconds;
+    private const double MinAdDurationSeconds = KHost.UserInterface.Services.AppSettings.MinAdDurationSeconds;
+    private const double MaxAdDurationSeconds = KHost.UserInterface.Services.AppSettings.MaxAdDurationSeconds;
+    private const int MinPageSize = KHost.UserInterface.Services.AppSettings.MinPageSize;
+    private const int MaxPageSize = KHost.UserInterface.Services.AppSettings.MaxPageSize;
 
     protected override void OnInitialized()
     {
@@ -41,7 +51,6 @@ public partial class AppSettingsPage : IDisposable
         _restartRequired = AppSettings.RestartRequired;
         _defaultMediaDirectory = AppSettings.DefaultMediaDirectory;
         _ffmpegStatus = FFmpeg.Status;
-        _binDirectory = HostDirectories.BinDirectory;
 
         _subscriptions.Add(Broker.Subscribe<FFmpegChanged>(changed =>
         {
@@ -113,6 +122,18 @@ public partial class AppSettingsPage : IDisposable
     private static IReadOnlyList<int> DynamicLeadInPauseChoices => KHost.UserInterface.Services.AppSettings.DynamicLeadInPauseChoices;
 
     private static string DynamicLeadInPauseLabel(int seconds) => seconds == 1 ? "1 second" : $"{seconds} seconds";
+
+    /// <summary>"Remember" plus every mode the search panel itself offers — Local included — so the
+    /// setting never disagrees with what the panel's own dropdown shows.</summary>
+    private IReadOnlyList<string> SearchModeChoices => [
+        KHost.UserInterface.Services.AppSettings.RememberLastSearchMode,
+        .. MediaSearchService.Providers.Select(provider => provider.SourceName),
+    ];
+
+    private string SearchModeLabel(string mode) =>
+        mode == KHost.UserInterface.Services.AppSettings.RememberLastSearchMode
+            ? "Remember the last one used"
+            : MediaSearchService.Providers.FirstOrDefault(provider => provider.SourceName == mode)?.DisplayName ?? mode;
 
     private static IReadOnlyList<int> GraphicsScaleChoices => GraphicsScaling.Heights;
 

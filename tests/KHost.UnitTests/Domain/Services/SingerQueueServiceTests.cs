@@ -1074,7 +1074,7 @@ public class SingerQueueServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task PruneDeletedSingersAsync_AnnouncesExactlyOnce_WhenASingerWasDeleted()
+    public async Task ReconcileSingersAsync_AnnouncesExactlyOnce_WhenASingerWasDeleted()
     {
         var bob = await EnqueueAsync("Bob");
 
@@ -1093,18 +1093,57 @@ public class SingerQueueServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task PruneDeletedSingersAsync_AnnouncesNothing_WhenNobodyWasDeleted()
+    public async Task ReconcileSingersAsync_AnnouncesNothing_WhenNothingAboutASingerMoved()
     {
-        await EnqueueAsync("Alice");
+        var alice = await EnqueueAsync("Alice");
 
         var announceCount = 0;
         using var subscription = _broker.Subscribe<SingerQueueChanged>(_ => announceCount++);
 
+        // An equal copy, as every real read returns: compared by value, or every user edit
+        // anywhere redraws the queue.
+        _userDb[alice.Id] = Reread(alice);
         _broker.Announce(new UsersChanged());
         await Task.Delay(80);
 
         Assert.Equal(0, announceCount);
     }
+
+    /// <summary>A guest's key lands on a queued singer; the room mark reads it off Users.</summary>
+    [Fact]
+    public async Task ReconcileSingersAsync_AKeyAddedToAQueuedSinger_ReachesUsersAndAnnouncesOnce()
+    {
+        var bob = await EnqueueAsync("Bob");
+
+        var announceCount = 0;
+        using var subscription = _broker.Subscribe<SingerQueueChanged>(_ => announceCount++);
+
+        _userDb[bob.Id] = Reread(bob, new KHostUserForeignKey { Source = "Example", Key = "guest-7", IsEphemeral = true });
+        _broker.Announce(new UsersChanged());
+
+        await WaitForQueueAsync(() => _service.Users.Single().ForeignKeys.Count == 1);
+        await Task.Delay(50);
+
+        Assert.Equal(1, announceCount);
+    }
+
+    [Fact]
+    public async Task ReconcileSingersAsync_AKeyRemovedFromAQueuedSinger_LeavesUsers()
+    {
+        var bob = new KHostUser { Name = "Bob" };
+        bob.ForeignKeys.Add(new KHostUserForeignKey { Source = "Example", Key = "guest-7", IsEphemeral = true });
+        _userDb[bob.Id] = bob;
+        await _service.AddUserAsync(bob.Id);
+
+        _userDb[bob.Id] = Reread(bob);
+        _broker.Announce(new UsersChanged());
+
+        await WaitForQueueAsync(() => _service.Users.Single().ForeignKeys.Count == 0);
+    }
+
+    // A fresh object, as a real read returns: mutating the cached one would pass without a re-read.
+    private static KHostUser Reread(KHostUser user, params KHostUserForeignKey[] keys)
+        => new() { Id = user.Id, Name = user.Name, Notes = user.Notes, ForeignKeys = [.. keys] };
 
     private static async Task WaitForQueueAsync(Func<bool> settled)
     {

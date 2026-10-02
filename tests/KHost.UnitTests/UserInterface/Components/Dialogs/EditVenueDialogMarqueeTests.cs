@@ -25,6 +25,7 @@ public class EditVenueDialogMarqueeTests : BunitContext
     private const string SongColorSelector = "#marquee-song-color";
     private const string DividerColorSelector = "#marquee-divider-color";
     private const string DividerShapeSelector = "#marquee-divider-shape";
+    private const string HideDuringSongSelector = "#venue-marquee-hide-during-song";
 
     private readonly IBreakMusicService _breakMusic = Substitute.For<IBreakMusicService>();
     private readonly IMediaPoolService _mediaPools = Substitute.For<IMediaPoolService>();
@@ -264,6 +265,41 @@ public class EditVenueDialogMarqueeTests : BunitContext
         Assert.Equal("#00ffaa", saved.Settings.MarqueeSongColor);
         Assert.Equal("#8888ff", saved.Settings.MarqueeDividerColor);
         Assert.Equal(MarqueeDividerShape.Star, saved.Settings.MarqueeDividerShape);
+    }
+
+    [Fact]
+    public void MarqueeOn_HideDuringSongUnset_StartsUnchecked()
+    {
+        var cut = Render(new Venue.VenueSettings { MarqueeEnabled = true });
+
+        Assert.False(cut.Find(HideDuringSongSelector).HasAttribute("checked"));
+    }
+
+    [Fact]
+    public void CheckingHideDuringSong_ReachesTheSavedVenue()
+    {
+        Venue? saved = null;
+        var cut = Render(new Venue.VenueSettings { MarqueeEnabled = true }, venue => saved = venue);
+
+        cut.Find(HideDuringSongSelector).Change(true);
+        cut.Find("form").Submit();
+
+        Assert.NotNull(saved);
+        Assert.True(saved!.Settings.MarqueeHideDuringSong);
+    }
+
+    [Fact]
+    public void UncheckingHideDuringSong_ReachesTheSavedVenue()
+    {
+        Venue? saved = null;
+        var cut = Render(new Venue.VenueSettings { MarqueeEnabled = true, MarqueeHideDuringSong = true }, venue => saved = venue);
+
+        Assert.True(cut.Find(HideDuringSongSelector).HasAttribute("checked"));
+        cut.Find(HideDuringSongSelector).Change(false);
+        cut.Find("form").Submit();
+
+        Assert.NotNull(saved);
+        Assert.False(saved!.Settings.MarqueeHideDuringSong);
     }
 
     private IRenderedComponent<EditVenueDialog> Render(Venue.VenueSettings settings, Action<Venue>? onSave = null)

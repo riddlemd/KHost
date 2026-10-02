@@ -6,8 +6,8 @@ using Microsoft.AspNetCore.Components;
 
 namespace KHost.UserInterface.Components.Setup;
 
-/// <summary>Finds FFmpeg, and installs it without being asked when it is missing: a first run has
-/// no songs to play without it, so offering a button would only add a click.</summary>
+/// <summary>Finds FFmpeg, and waits for the host to ask before downloading it: the download is a
+/// GPL-licensed third-party build, so starting it unasked would not be consent.</summary>
 public partial class WizardStepFFmpeg : IDisposable
 {
     [Inject] private IFFmpegService FFmpeg { get; set; } = default!;
@@ -20,12 +20,14 @@ public partial class WizardStepFFmpeg : IDisposable
     private FFmpegStatus _status = default!;
 
     // Set from the moment an install is decided on, so the gap before the service reports it
-    // running never shows Retry.
+    // running never shows Download/Retry.
     private bool _installing;
 
     private bool Busy => !_status.HasChecked || _installing || _status.Install.IsRunning;
 
-    private bool Failed => !_status.IsReady && !Busy;
+    private bool Failed => !_status.IsReady && !Busy && _status.Install.State == FFmpegInstallState.Failed;
+
+    private bool NotStarted => !_status.IsReady && !Busy && _status.Install.State != FFmpegInstallState.Failed;
 
     protected override async Task OnInitializedAsync()
     {
@@ -38,13 +40,6 @@ public partial class WizardStepFFmpeg : IDisposable
         }));
 
         _status = await FFmpeg.CheckAsync();
-
-        // Not awaited: the page has to paint the progress while the download runs.
-        if (!_status.IsReady && FFmpeg.CanInstall)
-        {
-            _installing = true;
-            _ = InvokeAsync(InstallAsync);
-        }
     }
 
     public void Dispose() => _subscriptions.Dispose();

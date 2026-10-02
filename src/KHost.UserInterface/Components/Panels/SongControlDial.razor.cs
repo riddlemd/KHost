@@ -20,6 +20,9 @@ public partial class SongControlDial
     /// <summary>Only the value it was let go of on, for the service.</summary>
     [Parameter] public EventCallback<int> ValueCommitted { get; set; }
 
+    /// <summary>Shown but not movable, for values somebody else owns right now.</summary>
+    [Parameter] public bool Disabled { get; set; }
+
     private const double Radius = 26;
     private const double Size = 66;
     private const double Centre = Size / 2;

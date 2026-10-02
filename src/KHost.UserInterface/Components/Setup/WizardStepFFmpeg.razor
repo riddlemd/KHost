@@ -25,11 +25,19 @@
                 App Settings.
             </p>
         }
+        else if (NotStarted)
+        {
+            <p class="kh-wizard-ffmpeg__note">
+                FFmpeg plays every song. Download it now, or carry on and install it later from App Settings.
+            </p>
+        }
 
-        <p class="kh-wizard-ffmpeg__licence">
-            FFmpeg is not part of KHost. It is a GPL-licensed build downloaded from its own publisher
-            because you are setting KHost up, and stays under that publisher's licence.
-        </p>
+        @if (!_status.IsReady)
+        {
+            <p class="kh-wizard-ffmpeg__licence">
+                FFmpeg is a GPL-licensed build from its own publisher, downloaded only when you ask, under that publisher's licence.
+            </p>
+        }
 
         <div class="kh-setup-wizard__actions">
             @if (_status.IsReady)
@@ -48,9 +56,18 @@
             {
                 @if (FFmpeg.CanInstall)
                 {
-                    <button type="button" class="kh-button kh-button--primary kh-wizard-ffmpeg__retry" @onclick="InstallAsync">
-                        <Icon Name="arrow-clockwise" /> Retry
-                    </button>
+                    @if (Failed)
+                    {
+                        <button type="button" class="kh-button kh-button--primary kh-wizard-ffmpeg__retry" @onclick="InstallAsync">
+                            <Icon Name="arrow-clockwise" /> Retry
+                        </button>
+                    }
+                    else
+                    {
+                        <button type="button" class="kh-button kh-button--primary kh-wizard-ffmpeg__download" @onclick="InstallAsync">
+                            <Icon Name="download" /> Download FFmpeg
+                        </button>
+                    }
                 }
                 <button type="button" class="kh-button kh-wizard-ffmpeg__skip" @onclick="OnNextAsync">
                     Continue without

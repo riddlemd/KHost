@@ -21,7 +21,7 @@ public class SingerQueueService : ISingerQueueService, IDisposable
     private readonly IQueueRotationStrategyFactory _rotationStrategyFactory;
     private readonly IMessageBroker _broker;
     private readonly List<Guid> _userIds = [];
-    // A singleton with no other synchronization: PruneDeletedSingersAsync runs on its own
+    // A singleton with no other synchronization: ReconcileSingersAsync runs on its own
     // Task.Run off a broker subscription and would otherwise mutate _userIds while a UI call
     // is enumerating it.
     private readonly SemaphoreSlim _lock = new(1, 1);
@@ -59,14 +59,16 @@ public class SingerQueueService : ISingerQueueService, IDisposable
         _rotationStrategyFactory = rotationStrategyFactory;
         _broker = broker;
 
-        // The queue holds ids only and nothing tells it a singer was deleted, so pruning has to be
-        // driven off this announcement rather than left to whoever deletes a user.
-        _subscriptions.Add(broker.Subscribe<UsersChanged>(message => { _ = Task.Run(PruneDeletedSingersAsync); }));
+        // The queue holds ids only and caches what they resolve to, so deletes and edits (a foreign
+        // key included) reach it off this announcement rather than via whoever changed the user.
+        _subscriptions.Add(broker.Subscribe<UsersChanged>(message => { _ = Task.Run(ReconcileSingersAsync); }));
     }
 
-    /// <summary>Drops singers who no longer exist, and the songs they had waiting.</summary>
-    /// <remarks>Queued songs are deleted, not unqueued; nobody sang them yet.</remarks>
-    private async Task PruneDeletedSingersAsync()
+    /// <summary>Drops singers who no longer exist, and the songs they had waiting, and re-reads the
+    /// rest so <see cref="Users"/> carries their current details.</summary>
+    /// <remarks>Queued songs are deleted, not unqueued; nobody sang them yet. Announces only when a
+    /// singer left or a cached one changed, since every user edit anywhere lands here.</remarks>
+    private async Task ReconcileSingersAsync()
     {
         try
         {
@@ -76,32 +78,44 @@ public class SingerQueueService : ISingerQueueService, IDisposable
                 if (_disposed) return;
 
                 List<Guid> missing = [];
+                var resolved = new List<KHostUser>(_userIds.Count);
 
                 foreach (var id in _userIds.ToList())
-                    if (await _usersService.ReadAsync(id) is null)
-                        missing.Add(id);
-
-                if (missing.Count == 0)
-                    return;
-
-                foreach (var id in missing)
                 {
-                    _userIds.Remove(id);
-
-                    if (SelectedUserId == id)
-                        SelectedUserId = null;
-
-                    var queued = await _performanceService.ReadBySingerIdAsync(id, pageSize: 0, filter: PerformanceFilter.Queued);
-
-                    foreach (var performance in queued.Items)
-                        await _performanceService.DeleteAsync(performance.Id);
-
-                    _logger.LogInformation(
-                        "Took deleted singer {UserId} out of the queue with {Count} song(s) waiting",
-                        id, queued.Items.Count);
+                    if (await _usersService.ReadAsync(id) is { } user)
+                        resolved.Add(user);
+                    else
+                        missing.Add(id);
                 }
 
-                await NotifyLockedAsync();
+                if (missing.Count == 0)
+                {
+                    if (SameDetails(_cachedUsers, resolved))
+                        return;
+
+                    _cachedUsers = resolved;
+                }
+                else
+                {
+                    foreach (var id in missing)
+                    {
+                        _userIds.Remove(id);
+
+                        if (SelectedUserId == id)
+                            SelectedUserId = null;
+
+                        var queued = await _performanceService.ReadBySingerIdAsync(id, pageSize: 0, filter: PerformanceFilter.Queued);
+
+                        foreach (var performance in queued.Items)
+                            await _performanceService.DeleteAsync(performance.Id);
+
+                        _logger.LogInformation(
+                            "Took deleted singer {UserId} out of the queue with {Count} song(s) waiting",
+                            id, queued.Items.Count);
+                    }
+
+                    await NotifyLockedAsync();
+                }
             }
             finally
             {
@@ -114,8 +128,32 @@ public class SingerQueueService : ISingerQueueService, IDisposable
         {
             // A queue that fails to tidy itself must not take the announcement down with it; the
             // next user change tries again.
-            _logger.LogWarning(ex, "Could not take deleted singers out of the queue");
+            _logger.LogWarning(ex, "Could not reconcile the queue's singers with the users they name");
         }
+    }
+
+    // Covers what a queue row draws from a singer; a field left out here goes stale on screen
+    // until the queue itself next moves.
+    private static bool SameDetails(IReadOnlyList<KHostUser> cached, IReadOnlyList<KHostUser> fresh)
+    {
+        if (cached.Count != fresh.Count) return false;
+
+        for (var i = 0; i < cached.Count; i++)
+        {
+            var (a, b) = (cached[i], fresh[i]);
+
+            if (a.Id != b.Id || a.Name != b.Name || a.Notes != b.Notes || a.PasswordHash != b.PasswordHash)
+                return false;
+
+            if (!a.Groups.Select(g => g.Id).ToHashSet().SetEquals(b.Groups.Select(g => g.Id)))
+                return false;
+
+            if (!a.ForeignKeys.Select(k => (k.Source, k.Key, k.IsEphemeral)).ToHashSet()
+                    .SetEquals(b.ForeignKeys.Select(k => (k.Source, k.Key, k.IsEphemeral))))
+                return false;
+        }
+
+        return true;
     }
 
     /// <remarks>Waits out a prune mid-save: it runs detached off the broker, and a save landing

@@ -1,3 +1,4 @@
+using KHost.Abstractions.Exceptions;
 using KHost.Abstractions.Models;
 
 namespace KHost.Abstractions.Services;
@@ -22,9 +23,8 @@ public interface IBreakMusicProvider
     string SourceName { get; }
 
     /// <summary>True when the host carries the sound (needs a screen); false for another app.</summary>
-    /// <remarks>Decides who sets the level. True: the display provider applies the venue's volume
-    /// to the channel, and <see cref="SetVolumeAsync"/> is never called. False: the host pushes
-    /// the venue's volume through <see cref="SetVolumeAsync"/> on start and on a venue change.</remarks>
+    /// <remarks>The host sets no level either way: a provider plays at its own level, and the room's
+    /// mixer does the rest.</remarks>
     bool RendersThroughHost { get; }
 
     /// <summary>What is playing now, or null when nothing is. Named on the console and, when the
@@ -52,13 +52,21 @@ public interface IBreakMusicProvider
     /// <returns>False when there was nothing to play, or nowhere to play it; the host then stays
     /// stopped.</returns>
     /// <remarks>Also how the host brings music back after a song: it stops the provider outright
-    /// to suspend, then calls this rather than <see cref="ResumeAsync"/>.</remarks>
+    /// to suspend, then calls this rather than <see cref="ResumeAsync"/>.
+    ///
+    /// <para>Throw <see cref="KHostException"/> instead of returning false when there is a reason
+    /// a host should see — the console flashes <see cref="KHostException.WhatHappened"/>. A plain
+    /// false reads as the host's own library provider: no playlist chosen, or no screen connected.
+    /// Use it only when the refusal truly looks like that one; anything else needs the exception,
+    /// or a host spends the night chasing advice that does not apply to this provider.</para></remarks>
     Task<bool> StartAsync(CancellationToken cancellationToken = default);
 
     /// <summary>Holds the current track where it is. Asked only while playing.</summary>
     Task PauseAsync(CancellationToken cancellationToken = default);
 
     /// <summary>Continues a paused track. Asked only while paused.</summary>
+    /// <remarks>May throw <see cref="KHostException"/> for the same reason <see cref="StartAsync"/>
+    /// can: the console reads <see cref="KHostException.WhatHappened"/> back to the host.</remarks>
     Task ResumeAsync(CancellationToken cancellationToken = default);
 
     /// <summary>Ends the session. <paramref name="fadeDuration"/> is a hint a provider may ignore.</summary>
@@ -71,7 +79,8 @@ public interface IBreakMusicProvider
     /// <remarks>The host treats a skip from pause as playing afterwards.</remarks>
     Task SkipAsync(CancellationToken cancellationToken = default);
 
-    /// <summary>0 to 1. An external provider may only be able to approximate it.</summary>
-    /// <remarks>Only called when <see cref="RendersThroughHost"/> is false.</remarks>
+    /// <summary>Sets the provider's level, 0 to 1.</summary>
+    /// <remarks>The host does not call this; a provider plays at its own level. It stays on the
+    /// contract so a provider built against it keeps loading.</remarks>
     Task SetVolumeAsync(float volume, CancellationToken cancellationToken = default);
 }

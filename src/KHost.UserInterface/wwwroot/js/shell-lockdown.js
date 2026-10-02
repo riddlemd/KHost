@@ -23,32 +23,7 @@
         if (!isTextEntry(event.target)) event.preventDefault();
     });
 
-    // Reload throws away the Blazor circuit mid-show; back leaves the console entirely.
-    const blockedKeys = new Set(['F5', 'F12']);
-
-    document.addEventListener('keydown', function (event) {
-        const key = event.key;
-        const lower = typeof key === 'string' ? key.toLowerCase() : '';
-        const accel = event.ctrlKey || event.metaKey;
-
-        if (blockedKeys.has(key)) return stop(event);
-
-        // Reload: Ctrl/Cmd+R, and the hard variants.
-        if (accel && lower === 'r') return stop(event);
-
-        // Developer tools: Cmd+Opt+I/J/C on macOS, Ctrl+Shift+I/J/C elsewhere.
-        if (accel && (event.altKey || event.shiftKey) && ['i', 'j', 'c'].includes(lower)) return stop(event);
-
-        // Page source: Ctrl/Cmd+U.
-        if (accel && lower === 'u') return stop(event);
-
-        // Back and forward: Cmd+[ / Cmd+] and Cmd+Arrow on macOS, Alt+Arrow elsewhere.
-        if (accel && (key === '[' || key === ']')) return stop(event);
-        if ((accel || event.altKey) && (key === 'ArrowLeft' || key === 'ArrowRight')) return stop(event);
-
-        // Backspace navigates back in some hosts unless it is being typed into something.
-        if (key === 'Backspace' && !isTextEntry(event.target)) return stop(event);
-    }, { capture: true });
+    // Keys are browser-keys.js's, which every surface loads; this file is the pointer half.
 
     // Mouse thumb buttons are back and forward.
     for (const type of ['mousedown', 'mouseup', 'auxclick']) {

@@ -27,7 +27,8 @@ public class HlsMediaStreamServiceEncodeTests : IDisposable
             }),
             // The real router with nothing registered: every path resolves to itself, which is
             // what the host does for all but a provider's own container.
-            new PlayableMediaSourceService(NullLogger<PlayableMediaSourceService>.Instance, []));
+            new PlayableMediaSourceService(NullLogger<PlayableMediaSourceService>.Instance, []),
+            TimeProvider.System);
 
     [RequiresFfmpegFact]
     public async Task OpenAsync_ProducesAPlaylistAndSegmentsTheHostCanServe()
@@ -191,7 +192,8 @@ public class HlsMediaStreamServiceEncodeTests : IDisposable
         using var service = new HlsMediaStreamService(
             NullLogger<HlsMediaStreamService>.Instance,
             _options,
-            new PlayableMediaSourceService(NullLogger<PlayableMediaSourceService>.Instance, [new ZippedKaraokeSource()]));
+            new PlayableMediaSourceService(NullLogger<PlayableMediaSourceService>.Instance, [new ZippedKaraokeSource()]),
+            TimeProvider.System);
 
         var session = await service.OpenAsync(zip);
         string? segment = null;

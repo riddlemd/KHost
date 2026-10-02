@@ -1,5 +1,7 @@
 using KHost.Abstractions.Models;
 using KHost.Domain.Services;
+using KHost.Domain.Services.Displays.LocalScreen;
+using KHost.Domain.Services.MediaProviders;
 using KHost.Domain.Services.VideoEncoding;
 using KHost.UserInterface.Models;
 
@@ -8,7 +10,9 @@ namespace KHost.UserInterface.Services;
 /// <summary>The machine-level settings the App Settings page edits, as one snapshot.</summary>
 public sealed record AppSettings
 {
-    public bool RequireLogin { get; set; } = true;
+    /// <summary>Read-only here: it comes from <c>Auth:RequireLogin</c> in configuration, not from a
+    /// save through this page — see <see cref="IAppSettingsService.SaveAsync"/>.</summary>
+    public bool RequireLogin { get; init; }
     public string? FFmpegPath { get; set; }
     public string? MediaDirectory { get; set; }
 
@@ -62,11 +66,28 @@ public sealed record AppSettings
     /// <remarks>Off by default: a machine with no second display puts the screen over the console.</remarks>
     public bool LaunchScreenOnStartup { get; set; }
 
+    /// <summary>Which mode Song Search starts in: a loaded provider's <c>SourceName</c> (Local
+    /// included, via <see cref="LocalSearchMode"/>), or <see cref="RememberLastSearchMode"/> to
+    /// start in whatever mode was last picked.</summary>
+    /// <remarks>A mode naming a provider no longer loaded falls back to Local — the search panel's
+    /// call, since only it knows which providers are loaded right now.</remarks>
+    public string DefaultSearchMode { get; set; } = LocalSearchMode;
+
     /// <summary>The screen launched at startup is named this, so it reclaims its own window.</summary>
     public const string StartupScreenName = "Screen 1";
 
-    /// <summary>The graces the page offers, off first.</summary>
-    public static readonly IReadOnlyList<int> LeadInGraceChoices = [0, 5, 10];
+    /// <summary>The <see cref="DefaultSearchMode"/> value meaning "always start in the local
+    /// library" — today's behaviour.</summary>
+    /// <remarks>Equal to <see cref="LocalMediaProvider"/>'s own SourceName, so the search panel
+    /// treats a configured default exactly like any other provider pick.</remarks>
+    public const string LocalSearchMode = nameof(LocalMediaProvider);
+
+    /// <summary>The <see cref="DefaultSearchMode"/> value meaning "start in whatever mode was last
+    /// picked", persisted per machine rather than per venue.</summary>
+    public const string RememberLastSearchMode = "Remember";
+
+    /// <summary>The graces the page offers, off first, ending at the longest the screen honours.</summary>
+    public static readonly IReadOnlyList<int> LeadInGraceChoices = [0, 5, (int)LeadInGrace.MaxSeconds];
 
     /// <summary>The pauses the page offers, shortest first.</summary>
     public static readonly IReadOnlyList<int> DynamicLeadInPauseChoices = [1, 2, 3, 4, 5];
@@ -82,6 +103,15 @@ public sealed record AppSettings
     public const int DefaultPerformanceHistoryPageSize = 10;
     public const int MinPageSize = 1;
     public const int MaxPageSize = 500;
+
+    // The stop waits out the whole fade before the queue moves on, so a long one is dead air.
+    public const double MinStopFadeSeconds = 0;
+    public const double MaxStopFadeSeconds = 30;
+
+    // Below one second is no segment at all; past ten, a seek or a key change waits a whole
+    // segment before the screen has anything to play.
+    public const int MinSegmentSeconds = 1;
+    public const int MaxSegmentSeconds = 10;
 }
 
 public interface IAppSettingsService
@@ -95,8 +125,8 @@ public interface IAppSettingsService
     /// <summary>The directory used in place of a blank <see cref="AppSettings.MediaDirectory"/>.</summary>
     string DefaultMediaDirectory { get; }
 
-    /// <summary>Writes the overlay; turning login on is refused while no admin has a password.</summary>
-    /// <remarks>That would lock every operator out.</remarks>
+    /// <summary>Writes the overlay. Does not touch <see cref="AppSettings.RequireLogin"/> — that
+    /// is a configuration-only flag, not something this page saves.</summary>
     Task<AppSettingsSaveResult> SaveAsync(AppSettings settings);
 }
 

@@ -3,6 +3,7 @@ using Bunit;
 using KHost.Abstractions.Models.Plugins;
 using KHost.Abstractions.Services;
 using KHost.Domain.Services.Messaging;
+using KHost.Domain.Services.Plugins;
 using KHost.Abstractions.Messaging;
 using KHost.Abstractions.Models;
 using KHost.UserInterface.Components.Pages.Settings;
@@ -40,6 +41,8 @@ public class PluginsManagerPageTests : BunitContext
     private readonly IPluginInstallerService _installer = Substitute.For<IPluginInstallerService>();
     private readonly IDialogService _dialogs = Substitute.For<IDialogService>();
     private readonly IPluginButtonService _buttons = Substitute.For<IPluginButtonService>();
+    private readonly IPluginDirectories _directories = Substitute.For<IPluginDirectories>();
+    private readonly string _pluginsDirectory = Path.Combine(Path.GetTempPath(), "khost-plugins-" + Guid.NewGuid().ToString("N"));
 
     public PluginsManagerPageTests()
     {
@@ -55,8 +58,33 @@ public class PluginsManagerPageTests : BunitContext
         Services.AddSingleton(_dialogs);
         Services.AddSingleton(_buttons);
 
+        Directory.CreateDirectory(_pluginsDirectory);
+        _directories.PluginsDirectory.Returns(_pluginsDirectory);
+        Services.AddSingleton(_directories);
+
         _installer.Snapshot().Returns([]);
         _installer.Staged().Returns(PluginStagingState.Empty);
+    }
+
+    [Fact]
+    public void OpenFolderButton_OpensTheInjectedPluginsDirectory()
+    {
+        _pluginsService.Plugins.Returns([]);
+
+        var cut = Render<PluginsManagerPage>();
+        cut.Find("button[title='Open the plugins folder']").Click();
+
+        _externalLinks.Received(1).Open(_pluginsDirectory);
+    }
+
+    [Fact]
+    public void EmptyState_NamesTheInjectedPluginsDirectory()
+    {
+        _pluginsService.Plugins.Returns([]);
+
+        var cut = Render<PluginsManagerPage>();
+
+        Assert.Contains(_pluginsDirectory, cut.Markup);
     }
 
     [Fact]
@@ -945,4 +973,10 @@ public class PluginsManagerPageTests : BunitContext
         Assert.NotNull(cut.Find(".kh-plugins-manager__foot .kh-plugins-manager__path"));
     }
 
+
+    protected override void Dispose(bool disposing)
+    {
+        base.Dispose(disposing);
+        if (disposing && Directory.Exists(_pluginsDirectory)) Directory.Delete(_pluginsDirectory, true);
+    }
 }

@@ -27,6 +27,7 @@ public class AppSettingsPageFlashTests : BunitContext
         Services.AddSingleton(_flash);
         Services.AddSingleton(Substitute.For<IUsersService>());
         Services.AddFFmpegSection();
+        Services.AddSearchSection();
     }
 
     [Fact]

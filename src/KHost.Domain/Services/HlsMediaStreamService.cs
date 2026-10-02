@@ -50,6 +50,7 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
     private readonly SemaphoreSlim _lock = new(1, 1);
     private readonly IPlayableMediaSourceService _playableSources;
     private readonly IFFmpegService? _ffmpeg;
+    private readonly TimeProvider _time;
     private readonly IVideoEncoderSelector? _encoders;
     private readonly string _root;
     private int _disposed;
@@ -58,12 +59,14 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
         ILogger<HlsMediaStreamService> logger,
         IOptionsMonitor<ServiceOptions> options,
         IPlayableMediaSourceService playableSources,
+        TimeProvider time,
         IFFmpegService? ffmpeg = null,
         IVideoEncoderSelector? encoders = null)
         : base(logger)
     {
         _options = options;
         _playableSources = playableSources;
+        _time = time;
 
         // Optional so an encode test can run whatever ffmpeg is on PATH without the whole service.
         _ffmpeg = ffmpeg;
@@ -83,7 +86,7 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
         Directory.CreateDirectory(_root);
 
         // Before this host opens any session of its own, so only another process's folders are judged.
-        var swept = HlsSessionSweeper.Sweep(_root, DateTime.UtcNow, HlsSessionSweeper.IsRunning);
+        var swept = HlsSessionSweeper.Sweep(_root, _time.GetUtcNow().UtcDateTime, HlsSessionSweeper.IsRunning);
         if (swept.Count > 0)
             Logger.LogInformation("Swept {Count} orphaned stream session(s) from {Root}: {Sessions}",
                 swept.Count, _root, string.Join(", ", swept));
@@ -518,12 +521,12 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
 
     /// <summary>The file appears before a segment is listed in it, so existing is not playable.</summary>
     /// <remarks>Gives up as soon as ffmpeg has exited without one, so a failed start costs no timeout.</remarks>
-    private static async Task<bool> WaitForPlaylistAsync(string directory, Process process, CancellationToken cancellationToken)
+    private async Task<bool> WaitForPlaylistAsync(string directory, Process process, CancellationToken cancellationToken)
     {
         var playlist = Path.Combine(directory, PlaylistFileName);
-        var deadline = DateTime.UtcNow + PlaylistTimeout;
+        var deadline = _time.GetUtcNow() + PlaylistTimeout;
 
-        while (DateTime.UtcNow < deadline)
+        while (_time.GetUtcNow() < deadline)
         {
             // Read before the file, so a short song that finished between the two still counts.
             var exited = process.HasExited;
@@ -560,7 +563,8 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
             await process.WaitForExitAsync(CancellationToken.None);
 
             // Only for the encode still behind the session: a closed one's folder is going, and a
-            // failed hardware attempt's retry is writing its own .tmp into the same folder.
+            // later encode in the same folder (a failed hardware attempt's software retry) is writing
+            // its own .tmp there.
             if (await EncoderProcessIdAsync(id) != processId) return;
 
             if (await CompletePlaylistAsync(directory))

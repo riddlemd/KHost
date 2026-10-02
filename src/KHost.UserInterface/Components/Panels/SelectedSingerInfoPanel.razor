@@ -67,7 +67,9 @@
     </div>
 
     <div class="kh-card__body kh-selected-singer-info-panel__body"
-         tabindex="0" data-kh-keylist @onkeydown="OnKeyDownAsync">
+         tabindex="0" data-kh-keylist
+         data-kh-shortcut="@(SingerQueueService?.SelectedUser is null ? null : "singer-songs")"
+         @onkeydown="OnKeyDownAsync">
         @if (SingerQueueService?.SelectedUser is null)
         {
         }
@@ -111,6 +113,10 @@
                         var isBroken = rowMedia?.Status == MediaStatus.Broken;
                         var isAcquiring = rowMedia?.Status.IsAcquiring() == true;
                         var isReady = rowMedia?.Status == MediaStatus.Ready;
+                        var playTitle = isBroken
+                            ? "This song is marked broken and can't be played"
+                            : isAcquiring ? "This song is still downloading"
+                            : disablePlay ? "Cannot Load and Play while another Song is loaded" : "Load and Play Song";
 
                         <tr class="kh-selected-singer-info-panel__row @rowClass @(isCurrent && PlaybackService?.State == PlaybackState.Playing ? "kh-selected-singer-info-panel__row--playing" : "")"
                             @key="performance.Id"
@@ -167,10 +173,7 @@
                             </td>
                             <td class="kh-table__cell--actions">
                                 <SplitButton
-                                        Title="@(isBroken
-                                            ? "This song is marked broken and can't be played"
-                                            : isAcquiring ? "This song is still downloading"
-                                            : disablePlay ? "Cannot Load and Play while another Song is loaded" : "Load and Play Song")"
+                                        Title="@playTitle"
                                         PrimaryDisabled="@(disablePlay || !isReady)"
                                         @onclick="() => LoadAndPlayAsync(performance)">
                                      <Text>
@@ -189,15 +192,11 @@
                                                 title="Edit Song">
                                             <Icon Name="pencil-fill" /> Edit Song
                                         </button>
-                                        @if (_allowAliases)
-                                        {
-                                            <button class="kh-button kh-button--primary"
-                                                    disabled="@AliasLocked(performance)"
-                                                    @onclick="() => OpenSingingAsDialogAsync(performance, selected)"
-                                                    title="@AliasTooltip(performance)">
-                                                <Icon Name="person" /> Change Singer Alias
-                                            </button>
-                                        }
+                                        <button class="kh-selected-singer-info-panel__edit-performance-btn kh-button kh-button--primary"
+                                                @onclick="() => OpenEditPerformanceDialogAsync(performance, rowMedia, selected)"
+                                                title="@EditPerformanceTooltip(performance)">
+                                            <Icon Name="pencil-square" /> Edit Performance
+                                        </button>
                                     </Buttons>
                                 </SplitButton>
                                 @if (_canReorderQueue)

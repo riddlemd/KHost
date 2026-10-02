@@ -260,6 +260,7 @@ public class PluginLoaderTests : IDisposable
         // register it would otherwise lose every plugin's secrets silently.
         services.AddSingleton<IPluginSecretStore>(new PluginSecretStore(new InMemorySecretStore()));
         services.AddSingleton(Substitute.For<KHost.Domain.Services.QrCodes.IQrCodeService>());
+        services.AddSingleton(Substitute.For<KHost.Abstractions.Messaging.IMessageBroker>());
 
         PluginLoader.LoadAndRegister(services, plugins, state);
 

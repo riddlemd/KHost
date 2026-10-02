@@ -30,7 +30,8 @@ public class HlsMediaStreamServiceStemTests : IDisposable
                 BaseAddress = "http://host:5251",
                 WorkingDirectory = _workingDirectory,
             }),
-            new PlayableMediaSourceService(NullLogger<PlayableMediaSourceService>.Instance, []));
+            new PlayableMediaSourceService(NullLogger<PlayableMediaSourceService>.Instance, []),
+            TimeProvider.System);
 
     [Fact]
     public void BuildStemArguments_MixesEveryStemAtItsOwnLevel_AsAudioAlone()

@@ -149,6 +149,7 @@ public class DatabaseInitializerTests
             new VisualiserPreset { Name = "spectrum-bars", Source = VisualiserPresetSource.BuiltIn },
             new VisualiserPreset { Name = "ambient-gradient", Source = VisualiserPresetSource.BuiltIn },
             new VisualiserPreset { Name = "ambient-bokeh", Source = VisualiserPresetSource.BuiltIn },
+            new VisualiserPreset { Name = "retro-static", Source = VisualiserPresetSource.BuiltIn },
             new VisualiserPreset { Name = "Rovastar - Oozing Resistance", Source = VisualiserPresetSource.Bundled },
         ]);
         _visualisationPlaylistService.CreateAsync(Arg.Any<VisualisationPlaylist>()).Returns(c => c.Arg<VisualisationPlaylist>());
@@ -491,9 +492,10 @@ public class DatabaseInitializerTests
             Guid.NewGuid().ToString().ToUpperInvariant(), name, folded, DateTime.UtcNow);
     }
 
-    /// <summary>An ephemeral key must not outlive the process that issued it.</summary>
+    /// <summary>A provider's remote room can outlive the host, so a restart must not cut every guest
+    /// loose from their singer; the source that wrote a key is the one that clears it.</summary>
     [Fact]
-    public async Task SweepEphemeralForeignKeysAsync_DropsEphemeralKeysAndKeepsDurableOnes()
+    public async Task InitializeAsync_KeepsEphemeralForeignKeys()
     {
         var (factory, dbPath) = NewDatabase();
         try
@@ -508,38 +510,14 @@ public class DatabaseInitializerTests
                 await seed.SaveChangesAsync();
             }
 
+            _visualisationPlaylistService.ReadWithEntriesAsync(VisualisationPlaylist.DefaultId)
+                .Returns(new VisualisationPlaylist { Id = VisualisationPlaylist.DefaultId, Name = "Default Visualizations" });
             var sut = CreateSut(new ServiceOptions(), factory);
 
-            await sut.SweepEphemeralForeignKeysAsync();
+            await sut.InitializeAsync();
 
             using var context = factory.CreateDbContext();
-            Assert.Equal(["account-1"], context.UserForeignKeys.Select(k => k.Key).ToArray());
-        }
-        finally { Delete(dbPath); }
-    }
-
-    /// <summary>The singer stays; only the key naming their old connection goes.</summary>
-    [Fact]
-    public async Task SweepEphemeralForeignKeysAsync_NeverDeletesTheSinger()
-    {
-        var (factory, dbPath) = NewDatabase();
-        try
-        {
-            var ada = new KHostUser { Name = "Ada" };
-            using (var seed = factory.CreateDbContext())
-            {
-                seed.Users.Add(ada);
-                seed.UserForeignKeys.Add(
-                    new KHostUserForeignKey { UserId = ada.Id, Source = "Example", Key = "remote-1", IsEphemeral = true });
-                await seed.SaveChangesAsync();
-            }
-
-            var sut = CreateSut(new ServiceOptions(), factory);
-
-            await sut.SweepEphemeralForeignKeysAsync();
-
-            using var context = factory.CreateDbContext();
-            Assert.Equal(1, context.Users.Count(u => u.Name == "Ada"));
+            Assert.Equal(["account-1", "remote-1"], context.UserForeignKeys.Select(k => k.Key).OrderBy(k => k).ToArray());
         }
         finally { Delete(dbPath); }
     }

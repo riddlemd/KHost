@@ -6,7 +6,7 @@ namespace KHost.Abstractions.Services;
 public interface IDatabaseInitializer
 {
     /// <summary>Brings the schema up to date, settles what a previous run left unfinished (downloads
-    /// that never completed, ephemeral foreign keys), and seeds the defaults a fresh install needs.
+    /// that never completed), and seeds the defaults a fresh install needs.
     /// </summary>
     Task InitializeAsync();
 }
