@@ -5,8 +5,7 @@ namespace KHost.Abstractions.Services;
 /// <summary>Turns one file into something a display can actually play.</summary>
 /// <remarks>Asked once, when a song starts, and it answers with what to play: a stream the host
 /// encodes, a file the display reads directly, or the separate parts a display mixes for itself.
-/// It does not decide what the show is, or where it comes out — it is told. See
-/// <c>docs/media-renderer.md</c> for the shape's reasoning.
+/// It does not decide what the show is, or where it comes out — it is told.
 ///
 /// <para>A per-play router, not a preparation step: it produces nothing that outlives the song,
 /// caches nothing and reports no progress. Files it writes belong in a session from
