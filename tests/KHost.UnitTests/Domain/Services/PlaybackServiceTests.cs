@@ -1075,7 +1075,13 @@ public class PlaybackServiceTests : IDisposable
                  && c.GetArguments().FirstOrDefault() is LoadMediaCommand);
 
         Assert.Equal(PlaybackState.Playing, service.State);
-        await stopping;
+
+        // The stop's own deadline passing must not take the resumed song down after all.
+        _clock.Advance(TimeSpan.FromSeconds(5));
+        await stopping.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal(PlaybackState.Playing, service.State);
+        Assert.Same(media, service.CurrentMedia);
+        await _performanceService.DidNotReceive().DequeueAsync(Arg.Any<Guid>(), Arg.Any<Guid>());
         service.Dispose();
     }
 
@@ -2035,10 +2041,25 @@ public class PlaybackServiceTests : IDisposable
         await service.LoadAsync(performance, media);
         await service.PlayAsync();
 
-        await service.StopAsync();
+        await StopThroughFadeAsync(service, TimeSpan.FromMilliseconds(80));
 
         await _screenServer.Received(1).BroadcastCommandAsync(
             Arg.Is<StopCommand>(c => c.FadeDuration == TimeSpan.FromMilliseconds(80)));
+    }
+
+    /// <summary>Stops, then runs the fixture's clock through the fade the stop waits out.</summary>
+    /// <remarks>Checked a tick short of the fade first, so a stop that ends early fails here.</remarks>
+    private async Task StopThroughFadeAsync(PlaybackService service, TimeSpan fade)
+    {
+        var stop = service.StopAsync();
+
+        _clock.Advance(fade - TimeSpan.FromTicks(1));
+        Assert.False(stop.IsCompleted, "the stop finished before its fade ran out");
+        Assert.Equal(PlaybackState.Stopping, service.State);
+
+        _clock.Advance(TimeSpan.FromTicks(1));
+        await stop.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal(PlaybackState.Stopped, service.State);
     }
 
     // The host waits out the fade it asks for, so a receiver that cuts dead would otherwise buy
@@ -2064,15 +2085,12 @@ public class PlaybackServiceTests : IDisposable
         await service.LoadAsync(performance, media);
         await service.PlayAsync();
 
-        // A thirty-second fade: if it were waited out, this call could not return in time.
-        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
-        await service.StopAsync();
-        stopwatch.Stop();
+        // The fade waits on the fixture's clock, which never moves here: a stop that waited any
+        // of the thirty seconds could not finish at all.
+        await service.StopAsync().WaitAsync(TimeSpan.FromSeconds(5));
 
         await _display.Received(1).StopAsync(TimeSpan.Zero, Arg.Any<CancellationToken>());
-        Assert.True(
-            stopwatch.Elapsed < TimeSpan.FromSeconds(5),
-            $"the stop waited {stopwatch.Elapsed} on a device that cannot fade");
+        Assert.Equal(PlaybackState.Stopped, service.State);
     }
 
     /// <summary>A provider can report a connection before it has listed the device behind it.
@@ -2089,7 +2107,7 @@ public class PlaybackServiceTests : IDisposable
 
         await service.LoadAsync(performance, media);
         await service.PlayAsync();
-        await service.StopAsync();
+        await StopThroughFadeAsync(service, TimeSpan.FromMilliseconds(80));
 
         await _display.Received(1).StopAsync(TimeSpan.FromMilliseconds(80), Arg.Any<CancellationToken>());
     }
@@ -2103,7 +2121,7 @@ public class PlaybackServiceTests : IDisposable
 
         await service.LoadAsync(performance, media);
         await service.PlayAsync();
-        await service.StopAsync();
+        await StopThroughFadeAsync(service, TimeSpan.FromMilliseconds(80));
 
         await _screenServer.Received(1).BroadcastCommandAsync(
             Arg.Is<StopCommand>(c => c.FadeDuration == TimeSpan.FromMilliseconds(80)));
@@ -2188,7 +2206,14 @@ public class PlaybackServiceTests : IDisposable
         Assert.Same(performance, service.CurrentPerformance);
         Assert.Equal(TimeSpan.FromMilliseconds(400), service.StopFadeDuration);
 
-        await stop;
+        // Still fading a tick before the end, then gone at it.
+        _clock.Advance(TimeSpan.FromMilliseconds(400) - TimeSpan.FromTicks(1));
+        Assert.Equal(PlaybackState.Stopping, service.State);
+        Assert.Same(media, service.CurrentMedia);
+        Assert.False(stop.IsCompleted);
+
+        _clock.Advance(TimeSpan.FromTicks(1));
+        await stop.WaitAsync(TimeSpan.FromSeconds(5));
 
         Assert.Equal(PlaybackState.Stopped, service.State);
         Assert.Null(service.CurrentMedia);
@@ -2210,11 +2235,12 @@ public class PlaybackServiceTests : IDisposable
         var stop = service.StopAsync();
 
         // The UI needs a render before the fade finishes, not just after.
-        Assert.True(changes >= 1);
+        Assert.Equal(1, changes);
 
-        await stop;
+        _clock.Advance(TimeSpan.FromMilliseconds(200));
+        await stop.WaitAsync(TimeSpan.FromSeconds(5));
 
-        Assert.True(changes >= 2);
+        Assert.Equal(2, changes);
     }
 
     [Fact]
@@ -2227,9 +2253,11 @@ public class PlaybackServiceTests : IDisposable
         await service.PlayAsync();
 
         var first = service.StopAsync();
-        await service.StopAsync();
+        // Not awaited before the clock moves: a second stop that was not ignored would wait too.
+        var second = service.StopAsync();
 
-        await first;
+        _clock.Advance(TimeSpan.FromMilliseconds(200));
+        await Task.WhenAll(first, second).WaitAsync(TimeSpan.FromSeconds(5));
 
         await _screenServer.Received(1).BroadcastCommandAsync(Arg.Any<StopCommand>());
     }
@@ -2247,40 +2275,48 @@ public class PlaybackServiceTests : IDisposable
         Assert.Equal(PlaybackState.Stopping, service.State);
 
         await service.PlayAsync();
-        await stop;
+        _clock.Advance(TimeSpan.FromMilliseconds(300));
+        await stop.WaitAsync(TimeSpan.FromSeconds(5));
 
         // Resuming mid-fade must not let the pending stop tear the performance down afterwards.
         Assert.Equal(PlaybackState.Playing, service.State);
         Assert.Same(media, service.CurrentMedia);
         Assert.Null(service.StopFadeDuration);
+        await _performanceService.DidNotReceive().DequeueAsync(Arg.Any<Guid>(), Arg.Any<Guid>());
+        await _queueService.DidNotReceive().RotateQueueAsync(Arg.Any<Guid>());
     }
 
     /// <summary>Stop, resume, stop again: the first stop's deadline passing must not end the second's fade.</summary>
     [Fact]
     public async Task StopAsync_AfterAResumedStop_RunsItsOwnFadeOut()
     {
-        var time = new FakeTimeProvider();
-        using var service = MakeService(TimeSpan.FromSeconds(5), time: time);
+        using var service = MakeService(TimeSpan.FromSeconds(5));
         var (performance, media) = CreatePerformance();
         media.Duration = TimeSpan.FromHours(1);
         await service.LoadAsync(performance, media);
         await service.PlayAsync();
 
         var first = service.StopAsync();
-        time.Advance(TimeSpan.FromSeconds(1));
+        _clock.Advance(TimeSpan.FromSeconds(1));
         await service.PlayAsync();
-        time.Advance(TimeSpan.FromSeconds(2));
+        _clock.Advance(TimeSpan.FromSeconds(2));
         var second = service.StopAsync();
 
-        // The first stop's deadline: three seconds into the second fade.
-        time.Advance(TimeSpan.FromSeconds(2));
+        // The first stop's deadline: two seconds into the second fade.
+        _clock.Advance(TimeSpan.FromSeconds(2));
         await first.WaitAsync(TimeSpan.FromSeconds(5));
 
         Assert.Equal(PlaybackState.Stopping, service.State);
         Assert.Same(media, service.CurrentMedia);
         await _performanceService.DidNotReceive().DequeueAsync(Arg.Any<Guid>(), Arg.Any<Guid>());
+        await _queueService.DidNotReceive().RotateQueueAsync(Arg.Any<Guid>());
 
-        time.Advance(TimeSpan.FromSeconds(3));
+        // The second fade runs its full five seconds, not a tick less.
+        _clock.Advance(TimeSpan.FromSeconds(3) - TimeSpan.FromTicks(1));
+        Assert.False(second.IsCompleted);
+        Assert.Equal(PlaybackState.Stopping, service.State);
+
+        _clock.Advance(TimeSpan.FromTicks(1));
         await second.WaitAsync(TimeSpan.FromSeconds(5));
 
         Assert.Equal(PlaybackState.Stopped, service.State);
@@ -2917,24 +2953,56 @@ public class PlaybackServiceTests : IDisposable
     [Fact]
     public async Task PositionClock_GoesSilentOnStop_EvenWhenSeeksRacedEachOther()
     {
+        var clock = new TimerCountingClock();
+        using var service = MakeService(TimeSpan.Zero, time: clock);
         var (performance, media) = CreatePerformance();
-        await _service.LoadAsync(performance, media);
-        await _service.PlayAsync();
+        await service.LoadAsync(performance, media);
+        await service.PlayAsync();
 
         // Seek stops and restarts the clock, so concurrent seeks race that swap: unsynchronised,
         // one assigns a Timer the other has already replaced, orphaned and never disposed.
         await Task.WhenAll(Enumerable.Range(0, 64).Select(i =>
-            Task.Run(() => _service.SeekAsync(TimeSpan.FromSeconds(i % 5)))));
+            Task.Run(() => service.SeekAsync(TimeSpan.FromSeconds(i % 5)))));
 
-        await _service.StopAsync();
+        await service.StopAsync();
 
-        var ticks = 0;
-        _service.PositionChanged += (_, _) => Interlocked.Increment(ref ticks);
+        // Counted rather than listened for: an orphan's tick finds no current timer and returns
+        // without a PositionChanged, so silence alone would pass with one still running.
+        Assert.Equal(0, clock.LiveTimers);
+    }
 
-        // Two clock intervals: an orphan ticking at 500ms cannot hide inside this window.
-        _clock.Advance(TimeSpan.FromMilliseconds(1200));
+    /// <summary>A fake clock that knows how many of its timers are still undisposed.</summary>
+    private sealed class TimerCountingClock : FakeTimeProvider
+    {
+        private int _live;
 
-        Assert.Equal(0, ticks);
+        public int LiveTimers => Volatile.Read(ref _live);
+
+        public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period)
+        {
+            Interlocked.Increment(ref _live);
+            return new CountedTimer(base.CreateTimer(callback, state, dueTime, period), this);
+        }
+
+        private sealed class CountedTimer(ITimer inner, TimerCountingClock clock) : ITimer
+        {
+            private int _disposed;
+
+            public bool Change(TimeSpan dueTime, TimeSpan period) => inner.Change(dueTime, period);
+
+            public void Dispose()
+            {
+                if (Interlocked.Exchange(ref _disposed, 1) == 0)
+                    Interlocked.Decrement(ref clock._live);
+                inner.Dispose();
+            }
+
+            public ValueTask DisposeAsync()
+            {
+                Dispose();
+                return ValueTask.CompletedTask;
+            }
+        }
     }
 
     // The bed yields to the song and comes back after it. Both live here because
