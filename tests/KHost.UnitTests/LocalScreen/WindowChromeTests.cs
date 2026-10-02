@@ -188,6 +188,73 @@ public class WindowChromeTests
     }
 
     [Fact]
+    public void Handle_DragOnTheBar_NativeMoveTaken_TellsThePageAndLeavesTheMovesToTheOs()
+    {
+        _window.TryBeginNativeMove(out Arg.Any<string>()).Returns(true);
+
+        Send(new { type = "window-drag", phase = "start", screenX = 500, screenY = 90, clientX = 400, innerWidth = 1200 });
+        Send(new { type = "window-drag", phase = "move", screenX = 530.4, screenY = 70 });
+
+        _window.DidNotReceive().SetLocation(Arg.Any<int>(), Arg.Any<int>());
+        Assert.Equal("window-drag-native", JsonDocument.Parse(_sent[^1]).RootElement.GetProperty("type").GetString());
+    }
+
+    [Fact]
+    public void Handle_DragOnTheBar_NativeMoveRefused_MovesTheWindowByHand()
+    {
+        _window.TryBeginNativeMove(out Arg.Any<string>()).Returns(false);
+
+        Send(new { type = "window-drag", phase = "start", screenX = 500, screenY = 90, clientX = 400, innerWidth = 1200 });
+        Send(new { type = "window-drag", phase = "move", screenX = 530.4, screenY = 70 });
+
+        _window.Received(1).SetLocation(130, 60);
+        Assert.DoesNotContain(_sent, message => message.Contains("window-drag-native"));
+    }
+
+    // A page that lost its pointerup never sent an end; the OS drag must not leave that gesture live.
+    [Fact]
+    public void Handle_DragOnTheBar_NativeMoveTaken_DropsAnUnfinishedHandDrag()
+    {
+        _window.TryBeginNativeMove(out Arg.Any<string>()).Returns(false, true);
+
+        Send(new { type = "window-drag", phase = "start", screenX = 500, screenY = 90, clientX = 400, innerWidth = 1200 });
+        Send(new { type = "window-drag", phase = "start", screenX = 500, screenY = 90, clientX = 400, innerWidth = 1200 });
+        Send(new { type = "window-drag", phase = "move", screenX = 530.4, screenY = 70 });
+
+        _window.DidNotReceive().SetLocation(Arg.Any<int>(), Arg.Any<int>());
+    }
+
+    // An edge is a resize, which the OS drag cannot do.
+    [Fact]
+    public void Handle_DragAnEdge_IsNeverHandedToTheOs()
+    {
+        _window.TryBeginNativeMove(out Arg.Any<string>()).Returns(true);
+
+        Send(new { type = "window-drag", phase = "start", edge = "se", screenX = 1300, screenY = 780, innerWidth = 1200 });
+        Send(new { type = "window-drag", phase = "move", screenX = 1350, screenY = 800 });
+
+        _window.DidNotReceive().TryBeginNativeMove(out Arg.Any<string>());
+        _window.Received(1).SetBounds(new WindowBounds(100, 80, 1250, 720));
+    }
+
+    [Fact]
+    public void Handle_DragAMaximisedWindow_NativeMoveTaken_RestoresBeforeHandingOver()
+    {
+        Send(new { type = "window-maximise" });
+        _window.Bounds.Returns(WorkArea);
+
+        var order = new List<string>();
+        _window.When(w => w.SetBounds(Arg.Any<WindowBounds>())).Do(_ => order.Add("restore"));
+        _window.TryBeginNativeMove(out Arg.Any<string>()).Returns(_ => { order.Add("native"); return true; });
+
+        Send(new { type = "window-drag", phase = "start", screenX = 1440, screenY = 40, clientX = 1440, innerWidth = 1920 });
+
+        Assert.Equal(["restore", "native"], order);
+        Assert.False(_chrome.IsMaximised);
+        Assert.Contains(_sent, message => message.Contains("\"maximised\":false"));
+    }
+
+    [Fact]
     public void Handle_DragOnAScaledDisplay_ConvertsThePagesPixels()
     {
         // A window placed in device pixels at 200%: the page is half as wide as the window.

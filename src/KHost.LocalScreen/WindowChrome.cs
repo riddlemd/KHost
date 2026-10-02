@@ -143,6 +143,7 @@ internal sealed class WindowChrome(IScreenWindow window, ILogger logger)
         var screenY = Number(root, "screenY");
 
         var unmaximised = false;
+        var native = false;
 
         lock (_gate)
         {
@@ -167,7 +168,19 @@ internal sealed class WindowChrome(IScreenWindow window, ILogger logger)
                         unmaximised = true;
                     }
 
+                    // The OS drag carries the window across displays; moved by hand it gets pulled back.
+                    if (edge == Edges.None && window.TryBeginNativeMove(out var detail))
+                    {
+                        _gesture = null;
+                        native = true;
+                        logger.LogDebug("Drag start: handed to the OS, {Detail}; unmaximised {Unmaximised}", detail, unmaximised);
+                        break;
+                    }
+
                     _gesture = new Gesture(edge, bounds, screenX, screenY, scale);
+                    logger.LogDebug(
+                        "Drag start: edge {Edge}, pointer {ScreenX},{ScreenY} (client {ClientX}, inner width {InnerWidth}), scale {Scale}, from {Bounds}, unmaximised {Unmaximised}",
+                        edge, screenX, screenY, Number(root, "clientX"), Number(root, "innerWidth"), scale, bounds, unmaximised);
                     break;
 
                 case "move" when _gesture is { } g:
@@ -181,12 +194,16 @@ internal sealed class WindowChrome(IScreenWindow window, ILogger logger)
                     break;
 
                 case "end":
+                    logger.LogDebug("Drag end: pointer {ScreenX},{ScreenY}, window {Bounds}", screenX, screenY, window.Bounds);
                     _gesture = null;
                     break;
             }
         }
 
         if (unmaximised) PublishState();
+
+        // The OS holds the pointer until release, so the page may never see its pointerup.
+        if (native) SendToPage?.Invoke(JsonSerializer.Serialize(new { type = "window-drag-native" }));
     }
 
     /// <summary>Back to the size it had, with the pointer over the same share of the strip it grabbed.</summary>
