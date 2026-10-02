@@ -22,6 +22,7 @@ public partial class SetupPage
 
     private int _currentStep;
     private int _renderedStep = -1;
+    private bool _venueExists;
 
     private int CurrentStepProgress => ((_currentStep + 1) * 100) / _steps.Count;
 
@@ -30,20 +31,19 @@ public partial class SetupPage
         // Sign-in is a config flag now, not a wizard choice: BuildSteps reads what the host
         // already set in appsettings.json rather than asking.
         var requireLogin = AppSettings.Current.RequireLogin;
-        BuildSteps(requireLogin);
 
         // Resume where a half-finished setup left off. HasAdminWithPasswordAsync, not
         // HasAdminUserAsync: an admin row with no password has not actually cleared this step,
         // and must not be read as having done so.
         var adminExists = await UsersService.HasAdminWithPasswordAsync();
-        var venueExists = await VenuesService.HasAnyAsync();
+        _venueExists = await VenuesService.HasAnyAsync();
+
+        BuildSteps(requireLogin);
 
         // FFmpeg rather than Media: it proves nothing on disk, so a resumed setup checks again,
         // and a machine that has it just moves on.
-        if ((!requireLogin || adminExists) && venueExists)
-            _currentStep = _steps.IndexOf(SetupStep.FFmpeg);
-        else if (!requireLogin || adminExists)
-            _currentStep = _steps.IndexOf(SetupStep.Venue);
+        if (!requireLogin || adminExists)
+            _currentStep = _steps.IndexOf(_venueExists ? SetupStep.FFmpeg : SetupStep.Venue);
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -55,10 +55,16 @@ public partial class SetupPage
         }
     }
 
+    // A venue left by an earlier run drops its step: setup restarts at Admin whenever no admin
+    // has a password, and re-running the venue step would create a second venue of the same name.
     private void BuildSteps(bool requireLogin)
-        => _steps = requireLogin
-            ? [SetupStep.Admin, SetupStep.Venue, SetupStep.FFmpeg, SetupStep.Media]
-            : [SetupStep.Venue, SetupStep.FFmpeg, SetupStep.Media];
+    {
+        _steps = [];
+        if (requireLogin) _steps.Add(SetupStep.Admin);
+        if (!_venueExists) _steps.Add(SetupStep.Venue);
+        _steps.Add(SetupStep.FFmpeg);
+        _steps.Add(SetupStep.Media);
+    }
 
     private async Task MoveToNextStepAsync()
     {

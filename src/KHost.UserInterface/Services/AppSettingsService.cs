@@ -180,6 +180,10 @@ internal sealed class AppSettingsService : IAppSettingsService
             _overlayPath,
             JsonSerializer.Serialize(overlay, new JsonSerializerOptions { WriteIndented = true }));
 
+        // Not left to reloadOnChange: its watcher never fires on some filesystems (WSL's /mnt/c,
+        // network shares), and Current would read the old file until a restart.
+        (_configuration as IConfigurationRoot)?.Reload();
+
         // Read once, on the way up: turning it on now would not open a screen, and turning it
         // off would not close the one already running.
         if (settings.LaunchScreenOnStartup != before.LaunchScreenOnStartup)
