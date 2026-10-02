@@ -1,3 +1,5 @@
+using KHost.Abstractions.Messaging;
+using KHost.Abstractions.Messaging.Messages;
 using KHost.Abstractions.Models.Plugins;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
@@ -14,6 +16,9 @@ public class PluginContext : IPluginContext
     private readonly DiscoveredPlugin _plugin;
     private readonly IPluginSecretStore _secrets;
     private readonly IQrCodeService _qrCodes;
+    private readonly IMessageBroker _broker;
+    private readonly Dictionary<int, AddedWarning> _added = [];
+    private int _lastWarningId;
     private readonly string _pluginId;
 
     public PluginContext(
@@ -21,8 +26,10 @@ public class PluginContext : IPluginContext
         Dictionary<string, JsonElement>? storedValues,
         DiscoveredPlugin plugin,
         IPluginSecretStore secrets,
-        IQrCodeService qrCodes)
+        IQrCodeService qrCodes,
+        IMessageBroker broker)
     {
+        _broker = broker;
         _plugin = plugin;
         _secrets = secrets;
         _qrCodes = qrCodes;
@@ -93,15 +100,76 @@ public class PluginContext : IPluginContext
     public Task UnregisterQrCodeAsync(CancellationToken cancellationToken = default)
         => _qrCodes.UnregisterAsync(_pluginId);
 
-    /// <summary>Reported from a plugin's own background work, so the list is not appended to bare.</summary>
-    public void ReportWarning(string message)
+    [Obsolete("Use AddWarning, which returns an id for ClearWarning.")]
+    public void ReportWarning(string message) => AddWarning(message);
+
+    public int AddWarning(string message)
     {
-        if (string.IsNullOrWhiteSpace(message)) return;
+        if (string.IsNullOrWhiteSpace(message)) return 0;
+
+        int id;
+        var changed = false;
 
         lock (_plugin.Warnings)
         {
-            if (!_plugin.Warnings.Contains(message))
+            var existing = _added.FirstOrDefault(pair => pair.Value.Message == message);
+
+            if (existing.Key != 0)
+                return existing.Key;
+
+            id = ++_lastWarningId;
+
+            // A line the host already shows is not shown twice, and stays the host's to keep:
+            // clearing this id must not take it.
+            var owned = !_plugin.Warnings.Contains(message);
+
+            if (owned)
+            {
                 _plugin.Warnings.Add(message);
+                changed = true;
+            }
+
+            _added[id] = new AddedWarning(message, owned);
         }
+
+        if (changed)
+            _broker.Announce(new PluginsChanged());
+
+        return id;
     }
+
+    public void ClearWarning(int id)
+    {
+        bool changed;
+
+        lock (_plugin.Warnings)
+            changed = Remove(id);
+
+        if (changed)
+            _broker.Announce(new PluginsChanged());
+    }
+
+    public void ClearWarnings()
+    {
+        var changed = false;
+
+        lock (_plugin.Warnings)
+        {
+            foreach (var id in _added.Keys.ToList())
+                changed |= Remove(id);
+        }
+
+        if (changed)
+            _broker.Announce(new PluginsChanged());
+    }
+
+    // Caller holds the lock. True when a line left the list.
+    private bool Remove(int id)
+    {
+        if (!_added.Remove(id, out var warning)) return false;
+
+        return warning.Owned && _plugin.Warnings.Remove(warning.Message);
+    }
+
+    private readonly record struct AddedWarning(string Message, bool Owned);
 }

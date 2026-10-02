@@ -20,8 +20,28 @@ public interface IPluginContext
     TSettings BindSettings<TSettings>() where TSettings : new();
 
     /// <summary>Shows a line against this plugin on the Plugins page; for setup, not failures.</summary>
-    /// <remarks>Each distinct message shows once, however often it is reported, and stays until
-    /// restart. Blank messages are ignored.</remarks>
+    /// <returns>An id for <see cref="ClearWarning"/>, or 0 when <paramref name="message"/> is blank
+    /// and nothing was shown. Ids are never reused within a plugin.</returns>
+    /// <remarks>Adding text this plugin already shows adds no second line and returns the id of the
+    /// first. A warning stays until cleared, or until restart. The Plugins page shows each change
+    /// without a reload.</remarks>
+    int AddWarning(string message);
+
+    /// <summary>Takes back one warning this plugin added, once the condition behind it has cleared.</summary>
+    /// <remarks>A no-op for 0, an id this plugin was never given, or one already cleared. It reaches
+    /// only what this plugin added: the host's own warnings about the plugin are never removed.</remarks>
+    void ClearWarning(int id);
+
+    /// <summary>Takes back every warning this plugin added, including any added with
+    /// <see cref="ReportWarning"/>.</summary>
+    /// <remarks>The host's own warnings about the plugin are never removed, even one with the same
+    /// text as a warning this plugin added.</remarks>
+    void ClearWarnings();
+
+    /// <summary>Shows a line against this plugin on the Plugins page.</summary>
+    /// <remarks>Behaves as <see cref="AddWarning"/> with the id discarded, so
+    /// <see cref="ClearWarnings"/> removes it.</remarks>
+    [Obsolete("Use AddWarning, which returns an id for ClearWarning.")]
     void ReportWarning(string message);
 
     /// <summary>Reads back a secret this plugin stored, filed under a name the host supplies.</summary>
