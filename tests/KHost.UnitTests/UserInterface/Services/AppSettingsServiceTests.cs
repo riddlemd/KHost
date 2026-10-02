@@ -1,6 +1,7 @@
 using System.Text.Json;
 using KHost.Abstractions.Services;
 using KHost.Domain.Services;
+using KHost.Domain.Services.VideoEncoding;
 using KHost.UserInterface.Models;
 using KHost.UserInterface.Services;
 using Microsoft.Extensions.Configuration;
@@ -234,6 +235,35 @@ public class AppSettingsServiceTests : IDisposable
     [InlineData("-1", 0)]
     public void GraphicsScaleHeight_ReadsAsOneOfTheChoices(string stored, int expected)
         => Assert.Equal(expected, Service(new KeyValuePair<string, string?>("MediaStream:GraphicsScaleHeight", stored)).Current.GraphicsScaleHeight);
+
+    /// <summary>Saved where the stream service's options bind from, so the choice reaches the next song.</summary>
+    [Theory]
+    [InlineData(VideoEncoderPreference.Hardware)]
+    [InlineData(VideoEncoderPreference.Software)]
+    public async Task VideoEncoder_DefaultsToAuto_AndRoundTripsToTheStreamOptions(VideoEncoderPreference chosen)
+    {
+        var service = Service();
+        Assert.Equal(VideoEncoderPreference.Auto, service.Current.VideoEncoder);
+
+        await service.SaveAsync(new AppSettings { VideoEncoder = chosen });
+
+        var saved = new ConfigurationBuilder()
+            .AddJsonFile(Path.Combine(_directory, AppSettingsService.OverlayFileName))
+            .Build();
+        Assert.Equal(chosen, new AppSettingsService(saved, _ffmpeg, _directory).Current.VideoEncoder);
+        Assert.Equal(
+            chosen,
+            saved.GetSection(HlsMediaStreamService.ServiceOptions.SectionName).Get<HlsMediaStreamService.ServiceOptions>()!.Encoder);
+    }
+
+    [Theory]
+    [InlineData("hardware", VideoEncoderPreference.Hardware)]
+    [InlineData("Software", VideoEncoderPreference.Software)]
+    [InlineData("gpu", VideoEncoderPreference.Auto)]
+    [InlineData("7", VideoEncoderPreference.Auto)]
+    [InlineData("", VideoEncoderPreference.Auto)]
+    public void VideoEncoder_ReadsAnythingItCannotNameAsAuto(string stored, VideoEncoderPreference expected)
+        => Assert.Equal(expected, Service(new KeyValuePair<string, string?>("MediaStream:Encoder", stored)).Current.VideoEncoder);
 
     [Fact]
     public async Task SongControlStyle_DefaultsToSliders_AndRoundTrips()

@@ -82,6 +82,30 @@ public class HlsMediaStreamServiceEncodeTests : IDisposable
         Assert.Contains("#EXT-X-ENDLIST", await WaitForCompletePlaylistAsync(session.Id));
     }
 
+    /// <summary>Only a hardware encode is carried on: libx264 dying is not something another libx264
+    /// run would get past.</summary>
+    [RequiresFfmpegFact]
+    public async Task OpenAsync_Libx264DiesMidSong_IsNotCarriedOn()
+    {
+        var source = await CreateSampleAsync(seconds: 600);
+
+        var session = await _service.OpenAsync(source);
+        var encoder = (await _service.EncoderProcessIdAsync(session.Id))!.Value;
+        var playlist = _service.ResolveArtifact(session.Id, "stream.m3u8")!;
+
+        using (var process = Process.GetProcessById(encoder))
+        {
+            process.Kill();
+            await process.WaitForExitAsync();
+        }
+
+        Assert.DoesNotContain("#EXT-X-ENDLIST", await File.ReadAllTextAsync(playlist));
+        await Task.Delay(500);
+
+        Assert.Equal(encoder, await _service.EncoderProcessIdAsync(session.Id));
+        Assert.DoesNotContain("#EXT-X-DISCONTINUITY", await File.ReadAllTextAsync(playlist));
+    }
+
     private static bool IsRunning(int processId)
     {
         try

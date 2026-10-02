@@ -2,7 +2,7 @@
 
 **KHost** — karaoke host app. .NET 10 + Blazor Server UI, Photino screen app. Solution: `KHost.slnx` (no `.sln`).
 
-Projects (`src/`): `Abstractions` (every interface, the shared models, and what a plugin is built against — MIT, no project refs, the bottom layer) ← `Common` (helpers over those contracts, MIT) ← `Domain` (services) / `DataAccess` (EF Core 10 + SQLite) ← `UserInterface` (Blazor Server) and `LocalScreen` (Photino video output), plus `IPC.SignalR` (UI↔Screen), `Secrets` (per-OS secret store behind `ISecretStore`; `Interop/` is ported from Git Credential Manager and kept textually close to upstream), `LrcLib`, `Telemetry`, `ServiceDefaults`/`AppHost` (Aspire), `tools/` (`KHost.CatalogSync`, the CLI that writes `plugin-catalog.json` entries), `build/` (`KHost.Analyzers`, a netstandard2.0 Roslyn analyzer referenced only at build time), and `tests/` (`KHost.UnitTests` — hermetic, no skips; `KHost.IntegrationTests` — needs ffmpeg/ffprobe, and the OS secret-store tests skip on any other platform).
+Projects (`src/`): `Abstractions` (every interface, the shared models, and what a plugin is built against — MIT, no project refs, the bottom layer) ← `Common` (helpers over those contracts, MIT) ← `Domain` (services) / `DataAccess` (EF Core 10 + SQLite) ← `UserInterface` (Blazor Server) and `LocalScreen` (Photino video output), plus `IPC.SignalR` (UI↔Screen), `Secrets` (per-OS secret store behind `ISecretStore`; `Interop/` is ported from Git Credential Manager and kept textually close to upstream), `LrcLib`, `Telemetry`, `ServiceDefaults`/`AppHost` (Aspire), `tools/` (`KHost.CatalogSync`, the CLI that writes `plugin-catalog.json` entries), `build/` (`KHost.Analyzers`, a netstandard2.0 Roslyn analyzer referenced only at build time), and `tests/` (`KHost.UnitTests` — hermetic, no skips; `KHost.IntegrationTests` — needs ffmpeg/ffprobe; the OS secret-store tests skip on any other platform, and each hardware video encoder's tests skip on a machine that cannot run that encoder).
 
 ## Commands
 
@@ -645,6 +645,25 @@ against a render the host had already made, and making those renders cost more t
   it. App Settings says they apply immediately, and that has to be true.
 - `BuildArguments` is static and is where every codec, filter and muxer decision lives, so the unit
   tests can assert the command line without running ffmpeg.
+- **The video encoder is chosen per song: setting, then probe, then libx264.** `MediaStream:Encoder`
+  (`Auto`, `Hardware`, `Software`; App Settings' "Video encoder") is read live. `Software` never
+  probes. Otherwise `IVideoEncoderSelector` (Domain, not Abstractions: host machinery a plugin must
+  not reach) runs each of the platform's candidates through a short real encode and takes the first
+  whose segments land on the clock — `ffmpeg -encoders` lists what a build was compiled with, not
+  what the GPU can do. The answer is cached per ffmpeg path and write time. The probe starts in the
+  background at startup (`HostInitialization`), a song opening meanwhile waits for that same probe,
+  and `FFmpegChanged` re-probes once the ffmpeg on disk is a different file; it is announced for
+  every install percent too, so an unchanged ffmpeg finds its answer cached. Audio alone names no
+  encoder and always runs as software.
+- **A hardware encoder that fails is caught twice.** One that produces no playlist is retried on
+  libx264 before the URL is handed out. One that dies after it is handed out is carried on in
+  libx264 in the **same playlist**: a hardware run is started with `omit_endlist`, so on a non-zero
+  exit the host starts libx264 at the song time of the listed output with `append_list` and
+  `-output_ts_offset`, which numbers on from the last segment, keeps the timestamps running and marks
+  the join `#EXT-X-DISCONTINUITY`; a burn-in is planned again from that time and fed down the new
+  pipe. On a clean exit the host writes `#EXT-X-ENDLIST` itself. Either way the encoder is blamed
+  (`ReportFailure`) only once libx264 then succeeds, and is not chosen again until a restart. A
+  software run is never carried on, and is cut exactly as it always was.
 - **A burn-in is one more input, not another encode.** The painted frames arrive as
   `-f rawvideo -pix_fmt rgba … -i pipe:0` in straight alpha, and one `filter_complex` lays them
   over the picture and carries the audio mix beside it, so every map is explicit. The picture is
