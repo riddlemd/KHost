@@ -222,8 +222,7 @@ cannot name another's: its secrets, and the QR code it offers the screens.
 - **`IMediaRenderer` is not that, and will be mistaken for it.** It turns one file into something a
   display can play, and it is asked **once, when a song starts**. It produces nothing the stream
   session does not sweep, caches nothing, reports no progress, and holds no state that outlives the
-  song — which is every property that made the pre-render worth deleting. The full shape and its
-  reasoning live in `docs/media-renderer.md`; this is the short form.
+  song — which is every property that made the pre-render worth deleting.
   - **It answers with what to play, not always with a stream.** A `MediaRendition` carries a URL to
     play end to end, or the separate `Stems` a display mixes for itself, or both. `StreamUrl` on
     `DisplayLoad` is nullable for exactly this: a stems-only format on a screen that mixes runs
@@ -295,8 +294,7 @@ cannot name another's: its secrets, and the QR code it offers the screens.
     its ffmpeg argument building was never the problem — being the only answer was.
 - **`IDisplayProvider` is a transport to somewhere the song comes out: transport and control,
   nothing drawn.** It finds such places, connects to one, hands it what to play and drives transport
-  on it. It does not decide what the show is — it is told. The full shape and its reasoning
-  live in `docs/display-provider.md`; this is the short form.
+  on it. It does not decide what the show is — it is told.
   - **The screens provider is core logic, not a plugin.** LocalScreen reaches the host through a
     provider the host itself registers, travelling the same path a plugin's display travels.
     `PluginLoader` must not bind it and it must never appear on the Plugins page. Chromecast is the
