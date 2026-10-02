@@ -31,6 +31,22 @@ public class AppSettingsServiceTests : IDisposable
         Assert.Equal("00:00:05", overlay.RootElement.GetProperty("Playback").GetProperty("StopFadeDuration").GetString());
     }
 
+    /// <summary>The setup redirect reads Current on the very next request, before any file watcher
+    /// could have fired — and on some filesystems none ever does.</summary>
+    [Fact]
+    public async Task SaveAsync_AppliesToCurrent_WithoutAFileWatcher()
+    {
+        Directory.CreateDirectory(_directory);
+        var configuration = new ConfigurationBuilder()
+            .AddJsonFile(Path.Combine(_directory, AppSettingsService.OverlayFileName), optional: true, reloadOnChange: false)
+            .Build();
+        var service = new AppSettingsService(configuration, _ffmpeg, _directory);
+
+        await service.SaveAsync(new AppSettings { LaunchScreenOnStartup = true });
+
+        Assert.True(service.Current.LaunchScreenOnStartup);
+    }
+
     /// <summary>Off unless asked: a machine with one display would put the screen over the console.</summary>
     [Fact]
     public void LaunchScreenOnStartup_DefaultsToOff()
