@@ -45,12 +45,6 @@ public class Venue : RepositoryModel
     /// it.</summary>
     public class VenueSettings
     {
-        /// <summary>Master volume this venue's displays used to start at, 0-100.</summary>
-        /// <remarks>Kept, and still stored, so a plugin that reads it keeps loading. The host neither
-        /// reads nor writes it.</remarks>
-        [Obsolete("Nothing reads this any more; the room's mixer sets the level and a display plays at full.")]
-        public int DefaultVolume { get; set; } = 100;
-
         /// <summary>Whether a singer's estimated wait is shown on the queue.</summary>
         public bool ShowEstimatedWaitTime { get; set; } = true;
 
@@ -164,20 +158,6 @@ public class Venue : RepositoryModel
         /// <summary>Takes the marquee down while someone is singing, paused mid-song included, and
         /// puts it back between singers. An ad or an idle screen keeps it. Off when unset.</summary>
         public bool MarqueeHideDuringSong { get; set; }
-
-        /// <summary>Background clips a venue once picked for its songs, by file name. Nothing reads
-        /// or offers it any more: a song with no picture of its own plays over black, or the
-        /// visualiser (<see cref="VisualisationPlaylistId"/>).</summary>
-        /// <remarks>Kept, and still stored, so a plugin that reads it keeps loading; it holds
-        /// whatever a venue saved before the picker went. Never null, however it arrives.</remarks>
-        [Obsolete("Nothing reads or offers song backgrounds any more; a song with no picture plays over black or the visualiser.")]
-        public List<string> SongBackgrounds
-        {
-            get => _songBackgrounds;
-            set => _songBackgrounds = value ?? [];
-        }
-
-        private List<string> _songBackgrounds = [];
 
         /// <summary>The visualisation playlist drawn under a playing song's words when the song has
         /// no picture of its own. Null, or a playlist with no entries, leaves black.</summary>

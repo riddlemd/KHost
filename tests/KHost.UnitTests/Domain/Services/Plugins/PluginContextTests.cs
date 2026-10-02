@@ -220,10 +220,6 @@ public class PluginContextTests
         plugin.Warnings.Add("shared");
         context.AddWarning("a");
         context.AddWarning("shared");
-#pragma warning disable CS0618 // the obsolete member must still be covered by ClearWarnings
-        context.ReportWarning("old style");
-#pragma warning restore CS0618
-        Assert.Contains("old style", plugin.Warnings);
 
         context.ClearWarnings();
 

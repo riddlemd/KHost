@@ -266,10 +266,8 @@ cannot name another's: its secrets, and the QR code it offers the screens.
       through HarfBuzz, so a joined script joins and a right-to-left line is laid from its box's
       right edge.
     - **The picture under the words** is the source's own video when it has one (fitted into
-      1280x720), else black — never the venue's card, which nothing playing uses. The venue's
-      old song-background picker is gone; `Venue.VenueSettings.SongBackgrounds` and
-      `IBackgroundPackService` stay in `Abstractions` as `[Obsolete]` so a plugin naming them
-      still compiles, but nothing reads the one and nothing implements the other. `SongBackdrops.ForPlaying` is that rule, asked by the burn-in, and it is where a
+      1280x720), else black — never the venue's card, which nothing playing uses. There is no
+      song-background picker and no setting behind one. `SongBackdrops.ForPlaying` is that rule, asked by the burn-in, and it is where a
       visualiser goes in place of black; the screen already draws nothing under a playing song.
       **A timed-lyric song never takes a picture from an audio source** (an extension in
       `MediaFormats.AudioExtensions`), whatever the file carries, and a cover image (an
@@ -373,8 +371,7 @@ cannot name another's: its secrets, and the QR code it offers the screens.
     the same way a receiver's do, through `LocalScreenDisplayProvider` translating them, not a side
     channel. Nothing is ever corrected towards anything. There is no venue volume: every output
     runs through the room's mixer, so `LocalScreenDisplayProvider` sends the screen full level on each connect
-    and the break music providers play at their own. `VenueSettings.DefaultVolume` is `[Obsolete]`, kept so
-    a plugin naming it compiles; `IBreakMusicProvider.SetVolumeAsync` stays on the contract and the host never calls it.
+    and the break music providers play at their own. `IBreakMusicProvider.SetVolumeAsync` stays on the contract and the host never calls it.
   - **Covering a rebuild is the transport's business, not the host's.** Changing key, tempo or the
     mix reopens the stream at the playhead, and the host resumes there and skips nothing. It used
     to skip forward by however long the rebuild took, since the room heard on from the old stream
@@ -425,7 +422,7 @@ cannot name another's: its secrets, and the QR code it offers the screens.
 - `<ContractsVersion>` in `Directory.Build.props` is the version of both. It moves whenever the
   shape an author compiles against changes at all, additions included; 0.x while the contracts
   still move.
-- `PluginApi.CurrentVersion` (at **5**) is the runtime gate the host checks a manifest against, and
+- `PluginApi.CurrentVersion` (at **6**) is the runtime gate the host checks a manifest against, and
   it moves only on a break. Changing a method a plugin **calls or implements** is a break, including
   adding an optional parameter: the default compiles into the call site, and a changed implemented
   signature is a `TypeLoadException` at load. A new interface member with a **default body** is not.
