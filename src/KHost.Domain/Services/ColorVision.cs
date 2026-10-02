@@ -15,7 +15,7 @@ internal static class ColorVision
     internal static readonly Sight[] EverySight = Enum.GetValues<Sight>();
 
     // Anomalies at severity 0.6: a typical anomalous trichromat, well short of the full dichromat.
-    private static readonly double[][][] Machado =
+    private static readonly IReadOnlyList<IReadOnlyList<IReadOnlyList<double>>> Machado =
     [
         [[1, 0, 0], [0, 1, 0], [0, 0, 1]],
         [[0.152286, 1.052583, -0.204868], [0.114503, 0.786281, 0.099216], [-0.003882, -0.048116, 1.051998]],

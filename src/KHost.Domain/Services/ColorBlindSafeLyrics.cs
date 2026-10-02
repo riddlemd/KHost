@@ -34,7 +34,7 @@ public static class ColorBlindSafeLyrics
     internal static readonly LyricColor ThemeInactive = new(0xFF, 0xFF, 0xFF);
 
     // Okabe–Ito: the categorical palette that stays distinct under every common deficiency.
-    internal static readonly LyricColor[] OkabeIto =
+    internal static readonly IReadOnlyList<LyricColor> OkabeIto =
     [
         new(0x00, 0x72, 0xB2), new(0xE6, 0x9F, 0x00), new(0xCC, 0x79, 0xA7), new(0x00, 0x9E, 0x73),
         new(0x56, 0xB4, 0xE9), new(0xD5, 0x5E, 0x00), new(0xF0, 0xE4, 0x42),
@@ -138,7 +138,7 @@ public static class ColorBlindSafeLyrics
     /// <summary>Okabe–Ito by voice order, each with a pale tint of its own hue for unsung words.</summary>
     internal static Dictionary<string, LyricColor[]> Fallback(IReadOnlyList<string> voices) =>
         voices
-            .Select((voice, n) => (voice, color: OkabeIto[n % OkabeIto.Length]))
+            .Select((voice, n) => (voice, color: OkabeIto[n % OkabeIto.Count]))
             .ToDictionary(v => v.voice, v => new[] { v.color, ColorVision.WithLightness(v.color, FallbackTintLightness) }, StringComparer.Ordinal);
 
     /// <summary>Each voice's [Active, Inactive] after the fix, or null when nothing was at risk.</summary>

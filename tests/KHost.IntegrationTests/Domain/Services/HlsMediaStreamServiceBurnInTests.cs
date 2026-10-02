@@ -29,7 +29,8 @@ public class HlsMediaStreamServiceBurnInTests : IDisposable
                 BaseAddress = "http://host:5251/",
                 WorkingDirectory = _workingDirectory,
             }),
-            new PlayableMediaSourceService(NullLogger<PlayableMediaSourceService>.Instance, []));
+            new PlayableMediaSourceService(NullLogger<PlayableMediaSourceService>.Instance, []),
+            TimeProvider.System);
 
     /// <summary>A song with no picture of its own: the words go over black, lit as they are sung.</summary>
     [RequiresFfmpegFact]

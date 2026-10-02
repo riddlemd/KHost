@@ -80,7 +80,8 @@ public class ScreenDisconnectPausesPlaybackTests : IDisposable
             AllowingGate(),
             Substitute.For<IFlashService>(),
             Substitute.For<ITimedLyricsService>(),
-            _broker);
+            _broker,
+            TimeProvider.System);
     }
 
     private static IMediaGateService AllowingGate()
