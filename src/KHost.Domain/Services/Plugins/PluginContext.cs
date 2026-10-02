@@ -6,6 +6,7 @@ using KHost.Abstractions.Services;
 using KHost.Domain.Services.Plugins.Secrets;
 using System.Text.Json;
 using KHost.Domain.Services.QrCodes;
+using Microsoft.Extensions.Logging;
 
 namespace KHost.Domain.Services.Plugins;
 
@@ -17,6 +18,8 @@ public class PluginContext : IPluginContext
     private readonly IPluginSecretStore _secrets;
     private readonly IQrCodeService _qrCodes;
     private readonly IMessageBroker _broker;
+    private readonly IFlashService _flash;
+    private readonly ILogger<PluginContext> _logger;
     private readonly Dictionary<int, AddedWarning> _added = [];
     private int _lastWarningId;
     private readonly string _pluginId;
@@ -27,12 +30,16 @@ public class PluginContext : IPluginContext
         DiscoveredPlugin plugin,
         IPluginSecretStore secrets,
         IQrCodeService qrCodes,
-        IMessageBroker broker)
+        IMessageBroker broker,
+        IFlashService flash,
+        ILogger<PluginContext> logger)
     {
         _broker = broker;
         _plugin = plugin;
         _secrets = secrets;
         _qrCodes = qrCodes;
+        _flash = flash;
+        _logger = logger;
 
         // Taken from the manifest the host read, never from the plugin. It is what keeps one
         // plugin's secrets out of another's reach, so a caller must have no say in it.
@@ -103,6 +110,8 @@ public class PluginContext : IPluginContext
     [Obsolete("Use AddWarning, which returns an id for ClearWarning.")]
     public void ReportWarning(string message) => AddWarning(message);
 
+    /// <remarks>Logged and flashed as well as listed: startup's dump of the list has already run by
+    /// the time a sign-in fails, and the Plugins page is not where the host is looking.</remarks>
     public int AddWarning(string message)
     {
         if (string.IsNullOrWhiteSpace(message)) return 0;
@@ -133,7 +142,11 @@ public class PluginContext : IPluginContext
         }
 
         if (changed)
+        {
+            _logger.LogWarning("Plugin {Name}: {Warning}", _plugin.DisplayName, message);
+            _flash.Show($"{_plugin.DisplayName}: {message}", FlashType.Warning);
             _broker.Announce(new PluginsChanged());
+        }
 
         return id;
     }
