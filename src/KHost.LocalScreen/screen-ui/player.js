@@ -1104,7 +1104,7 @@ function handleCommand(raw) {
             break;
         case 'volume':
             currentVolume = Math.max(0, Math.min(1, message.value));
-            // The venue's level rides the whole mix, not one stem: it is the room's volume, and
+            // The level rides the whole mix, not one stem: it is the room's volume, and
             // the stems' own levels are what the host set them to against each other.
             if (stemMixer) stemMixer.volume = currentVolume;
             if (!incoming) current.el.volume = currentVolume;

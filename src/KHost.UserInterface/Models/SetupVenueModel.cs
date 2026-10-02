@@ -8,7 +8,6 @@ public class SetupVenueModel
     [MaxLength(32, ErrorMessage = "Venue name cannot exceed 32 characters.")]
     public string Name { get; set; } = "Default Venue";
 
-    public int DefaultVolume { get; set; } = 100;
     public bool PromptBeforeRemovingSinger { get; set; } = true;
     public bool PromptBeforeRemovingPerformance { get; set; } = true;
     public bool ClearQueueOnClose { get; set; } = true;

@@ -196,32 +196,6 @@ public class VenuesServiceTests : IDisposable
     }
 
     [Theory]
-    [InlineData(-5, 0)]
-    [InlineData(150, 100)]
-    [InlineData(50, 50)]
-    public async Task UpdateAsync_ClampsTheDefaultVolumeTo0Through100(int typed, int expected)
-    {
-        var venue = await _service.CreateAsync(new Venue { Name = "Loud Room" });
-
-        venue.Settings.DefaultVolume = typed;
-        await _service.UpdateAsync(venue);
-
-        await _repository.Received(1).UpdateAsync(Arg.Is<Venue>(v => v.Settings.DefaultVolume == expected));
-    }
-
-    /// <summary>The setup wizard creates the first venue, and its number input is only advice.</summary>
-    [Theory]
-    [InlineData(-5, 0)]
-    [InlineData(150, 100)]
-    [InlineData(50, 50)]
-    public async Task CreateAsync_ClampsTheDefaultVolumeTo0Through100(int typed, int expected)
-    {
-        await _service.CreateAsync(new Venue { Name = "Loud Room", Settings = new() { DefaultVolume = typed } });
-
-        await _repository.Received(1).CreateAsync(Arg.Is<Venue>(v => v.Settings.DefaultVolume == expected));
-    }
-
-    [Theory]
     [InlineData(-1, 0)]
     [InlineData(9, 8)]
     [InlineData(3, 3)]
