@@ -3,7 +3,10 @@ using KHost.Abstractions.Messaging.Messages;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Models.Plugins;
 using KHost.Abstractions.Services;
+using KHost.Domain.Services;
+using KHost.Domain.Services.VideoEncoding;
 using KHost.UserInterface.Services;
+using Microsoft.Extensions.Options;
 using Serilog;
 
 namespace KHost.UserInterface.Startup;
@@ -90,6 +93,7 @@ internal static class HostInitialization
         }
 
         CheckForFFmpeg(app.Services);
+        WarmVideoEncoderProbe(app.Services);
 
         // After the plugins, so a provider one of them registered can be the venue's chosen one.
         // Not fatal: a venue with no break music set up is a venue that runs without it.
@@ -136,6 +140,28 @@ internal static class HostInitialization
             catch (Exception ex)
             {
                 Log.Warning(ex, "Checking for FFmpeg failed");
+            }
+        });
+    }
+
+    /// <summary>Probes for a hardware video encoder in the background, so the first song does not
+    /// wait on it.</summary>
+    /// <remarks>Not awaited: on Windows a hung driver can hold the probe for over a minute.</remarks>
+    internal static void WarmVideoEncoderProbe(IServiceProvider services)
+    {
+        var selector = services.GetRequiredService<IVideoEncoderSelector>();
+        var preference = services.GetRequiredService<IOptionsMonitor<HlsMediaStreamService.ServiceOptions>>()
+            .CurrentValue.Encoder;
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await selector.WarmAsync(preference);
+            }
+            catch (Exception ex)
+            {
+                Log.Warning(ex, "Probing for a hardware video encoder failed");
             }
         });
     }

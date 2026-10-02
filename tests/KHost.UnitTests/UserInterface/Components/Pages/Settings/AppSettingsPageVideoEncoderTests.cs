@@ -36,6 +36,7 @@ public class AppSettingsPageVideoEncoderTests : BunitContext
         var options = page.FindAll("select#video-encoder option");
 
         Assert.Equal(["Auto", "Hardware", "Software"], options.Select(o => o.GetAttribute("value")));
+        Assert.Equal(["Auto", "Hardware", "Software"], options.Select(o => o.TextContent));
         Assert.Equal("Software", page.Find("select#video-encoder").GetAttribute("value"));
     }
 

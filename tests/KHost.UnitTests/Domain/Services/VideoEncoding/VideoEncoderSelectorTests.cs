@@ -1,6 +1,9 @@
 using System.Runtime.InteropServices;
+using KHost.Abstractions.Messaging.Messages;
+using KHost.Domain.Services.Messaging;
 using KHost.Domain.Services.VideoEncoding;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace KHost.UnitTests.Domain.Services.VideoEncoding;
 
@@ -10,6 +13,7 @@ public class VideoEncoderSelectorTests
 {
     private readonly FakeRunner _runner = new();
     private readonly RecordingLogger _logger = new();
+    private readonly MessageBroker _broker = new(NullLogger<MessageBroker>.Instance);
 
     [Fact]
     public void CandidatesFor_TriesEachPlatformsEncodersInOrder()
@@ -150,9 +154,130 @@ public class VideoEncoderSelectorTests
         Assert.True(_logger.Has(LogLevel.Warning, "h264_videotoolbox failed a song"));
     }
 
+    /// <summary>A song that opens while the startup probe is still running waits for it rather than
+    /// starting a second one beside it.</summary>
+    [Fact]
+    public async Task WarmAsync_ASongOpensMidProbe_WaitsForTheSameProbe()
+    {
+        _runner.Listed("h264_videotoolbox");
+        _runner.Outcomes["h264_videotoolbox"] = Outcome.Works;
+        _runner.ListingGate = new TaskCompletionSource();
+        var selector = Selector([VideoEncoderProfile.VideoToolbox]);
+
+        var warm = selector.WarmAsync(VideoEncoderPreference.Auto);
+        var song = selector.SelectAsync(VideoEncoderPreference.Auto);
+
+        Assert.False(song.IsCompleted);
+        _runner.ListingGate.SetResult();
+        await warm;
+
+        Assert.Equal(VideoEncoderProfile.VideoToolbox, await song);
+        Assert.Equal(1, _runner.Listings);
+        Assert.Equal(["h264_videotoolbox"], _runner.Probed);
+    }
+
+    [Fact]
+    public async Task SelectAsync_ConcurrentOpens_ShareOneProbe()
+    {
+        _runner.Listed("h264_videotoolbox");
+        _runner.Outcomes["h264_videotoolbox"] = Outcome.Works;
+        _runner.ListingGate = new TaskCompletionSource();
+        var selector = Selector([VideoEncoderProfile.VideoToolbox]);
+
+        var songs = Enumerable.Range(0, 4).Select(_ => selector.SelectAsync(VideoEncoderPreference.Auto)).ToList();
+        _runner.ListingGate.SetResult();
+
+        Assert.All(await Task.WhenAll(songs), chosen => Assert.Equal(VideoEncoderProfile.VideoToolbox, chosen));
+        Assert.Equal(1, _runner.Listings);
+        Assert.Equal(["h264_videotoolbox"], _runner.Probed);
+    }
+
+    /// <summary>A new FFmpeg directory or an install is probed in the background, not by the next song.</summary>
+    [Fact]
+    public async Task FFmpegChanged_ToAnotherFfmpeg_ProbesItBeforeASongAsks()
+    {
+        _runner.Listed("h264_videotoolbox");
+        _runner.Outcomes["h264_videotoolbox"] = Outcome.Works;
+        var selector = Selector([VideoEncoderProfile.VideoToolbox]);
+        await selector.SelectAsync(VideoEncoderPreference.Auto);
+
+        _runner.Located = "/host/bin/ffmpeg";
+        await _broker.PublishAsync(new FFmpegChanged());
+        await WaitUntilAsync(() => _runner.Probed.Count == 2);
+        var runs = _runner.Runs;
+
+        Assert.Equal(VideoEncoderProfile.VideoToolbox, await selector.SelectAsync(VideoEncoderPreference.Auto));
+        Assert.Equal(runs, _runner.Runs);
+        Assert.Contains("/host/bin/ffmpeg", _runner.RanWith);
+    }
+
+    /// <summary>The same path is not the same program once an install has replaced the file.</summary>
+    [Fact]
+    public async Task FFmpegChanged_ReinstalledOverTheSamePath_ProbesAgain()
+    {
+        var ffmpeg = Path.Combine(Path.GetTempPath(), $"khost-selector-{Guid.NewGuid():n}");
+        await File.WriteAllTextAsync(ffmpeg, "old build");
+        File.SetLastWriteTimeUtc(ffmpeg, new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc));
+
+        try
+        {
+            _runner.Located = ffmpeg;
+            _runner.Listed("h264_videotoolbox");
+            _runner.Outcomes["h264_videotoolbox"] = Outcome.Works;
+            var selector = Selector([VideoEncoderProfile.VideoToolbox]);
+            await selector.SelectAsync(VideoEncoderPreference.Auto);
+
+            File.SetLastWriteTimeUtc(ffmpeg, new DateTime(2026, 2, 1, 0, 0, 0, DateTimeKind.Utc));
+            await _broker.PublishAsync(new FFmpegChanged());
+
+            await WaitUntilAsync(() => _runner.Listings == 2);
+        }
+        finally
+        {
+            File.Delete(ffmpeg);
+        }
+    }
+
+    /// <summary>Announced for every percent of an install's download; none of those is a new program.</summary>
+    [Fact]
+    public async Task FFmpegChanged_SameFfmpeg_ProbesNothingMore()
+    {
+        _runner.Listed("h264_videotoolbox");
+        _runner.Outcomes["h264_videotoolbox"] = Outcome.Works;
+        var selector = Selector([VideoEncoderProfile.VideoToolbox]);
+        await selector.SelectAsync(VideoEncoderPreference.Auto);
+
+        await _broker.PublishAsync(new FFmpegChanged());
+        await Task.Delay(50);
+
+        Assert.Equal(2, _runner.Runs);
+    }
+
+    /// <summary>A host who chose libx264 never has a GPU driver opened behind their back.</summary>
+    [Fact]
+    public async Task FFmpegChanged_BeforeHardwareWasEverWanted_ProbesNothing()
+    {
+        _runner.Listed("h264_videotoolbox");
+        var selector = Selector([VideoEncoderProfile.VideoToolbox]);
+        await selector.WarmAsync(VideoEncoderPreference.Software);
+
+        await _broker.PublishAsync(new FFmpegChanged());
+        await Task.Delay(50);
+
+        Assert.Equal(0, _runner.Runs);
+    }
+
+    private static async Task WaitUntilAsync(Func<bool> condition)
+    {
+        for (var i = 0; i < 200 && !condition(); i++) await Task.Delay(10);
+
+        Assert.True(condition(), "the condition never held");
+    }
+
     private static readonly IReadOnlyList<VideoEncoderProfile> Windows = VideoEncoderSelector.CandidatesFor(OSPlatform.Windows);
 
-    private VideoEncoderSelector Selector(IReadOnlyList<VideoEncoderProfile> candidates) => new(_logger, _runner, candidates);
+    private VideoEncoderSelector Selector(IReadOnlyList<VideoEncoderProfile> candidates)
+        => new(_logger, _runner, _broker, candidates);
 
     private static string[] Codecs(IEnumerable<VideoEncoderProfile> profiles) => [.. profiles.Select(p => p.Codec)];
 
@@ -163,9 +288,16 @@ public class VideoEncoderSelectorTests
     {
         private string _listing = "";
 
+        private int _runs;
+        private int _listings;
+
         public Dictionary<string, Outcome> Outcomes { get; } = [];
         public List<string> Probed { get; } = [];
-        public int Runs { get; private set; }
+        public int Runs => Volatile.Read(ref _runs);
+        public int Listings => Volatile.Read(ref _listings);
+
+        /// <summary>Holds the encoder listing until released, so a probe can be caught mid-run.</summary>
+        public TaskCompletionSource? ListingGate { get; set; }
 
         /// <summary>The ffmpeg the host would run; null while none is installed.</summary>
         public string? Located { get; set; } = "/opt/ffmpeg/ffmpeg";
@@ -183,13 +315,18 @@ public class VideoEncoderSelectorTests
         public async Task<FfmpegRun> RunAsync(
             string ffmpegPath, string arguments, string workingDirectory, TimeSpan timeout, CancellationToken cancellationToken)
         {
-            Runs++;
-            RanWith.Add(ffmpegPath);
+            Interlocked.Increment(ref _runs);
+            lock (RanWith) RanWith.Add(ffmpegPath);
 
-            if (arguments.Contains("-encoders")) return new FfmpegRun(0, _listing, "");
+            if (arguments.Contains("-encoders"))
+            {
+                Interlocked.Increment(ref _listings);
+                if (ListingGate is { } gate) await gate.Task;
+                return new FfmpegRun(0, _listing, "");
+            }
 
             var codec = arguments.Split(' ').SkipWhile(a => a != "-c:v").Skip(1).First();
-            Probed.Add(codec);
+            lock (Probed) Probed.Add(codec);
 
             switch (Outcomes.GetValueOrDefault(codec, Outcome.Fails))
             {

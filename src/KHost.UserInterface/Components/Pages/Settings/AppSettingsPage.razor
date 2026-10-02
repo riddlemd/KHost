@@ -68,11 +68,9 @@
                                 </span>
                             </Note>
                             <ChildContent>
-                                <select id="video-encoder" class="kh-form-select kh-app-settings__number" @bind="_model.VideoEncoder">
-                                    <option value="@VideoEncoderPreference.Auto">Auto</option>
-                                    <option value="@VideoEncoderPreference.Hardware">Hardware</option>
-                                    <option value="@VideoEncoderPreference.Software">Software</option>
-                                </select>
+                                <ChoiceSelect TValue="VideoEncoderPreference" Id="video-encoder" Choices="VideoEncoderChoices"
+                                              Value="_model.VideoEncoder" ValueChanged="v => _model.VideoEncoder = v"
+                                              Label="VideoEncoderLabel" />
                             </ChildContent>
                         </SettingRow>
                         <SettingRow Label="Song controls" Applies="applies immediately">
