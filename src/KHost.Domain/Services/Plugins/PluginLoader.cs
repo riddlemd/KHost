@@ -5,6 +5,7 @@ using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using KHost.Abstractions.Services.QueueRotation;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using System.Reflection;
 using System.Text.Json;
 
@@ -223,7 +224,9 @@ public static class PluginLoader
         PluginContext CreateContext(IServiceProvider serviceProvider) => new(manifest, storedValues, plugin,
             serviceProvider.GetRequiredService<Secrets.IPluginSecretStore>(),
             serviceProvider.GetRequiredService<QrCodes.IQrCodeService>(),
-            serviceProvider.GetRequiredService<IMessageBroker>());
+            serviceProvider.GetRequiredService<IMessageBroker>(),
+            serviceProvider.GetRequiredService<IFlashService>(),
+            serviceProvider.GetRequiredService<ILogger<PluginContext>>());
 
         var concreteTypes = types.Where(t => t.IsClass && !t.IsAbstract).ToList();
 

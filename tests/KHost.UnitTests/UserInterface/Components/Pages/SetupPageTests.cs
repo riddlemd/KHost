@@ -1,5 +1,6 @@
 using Bunit;
 using KHost.Abstractions.Services;
+using KHost.UnitTests.UserInterface.Components.Pages.Settings;
 using KHost.UserInterface.Components.Pages;
 using KHost.UserInterface.Services;
 using Microsoft.Extensions.DependencyInjection;
@@ -81,5 +82,35 @@ public class SetupPageTests : BunitContext
         var cut = Render<SetupPage>();
 
         Assert.NotEmpty(cut.FindAll("#venue-name"));
+    }
+
+    [Fact]
+    public void RequireLoginIsOn_WithAVenueButNoAdminPassword_LeavesOutTheVenueStep()
+    {
+        _appSettings.Current.Returns(new AppSettings { RequireLogin = true });
+        _usersService.HasAdminWithPasswordAsync().Returns(false);
+        _venuesService.HasAnyAsync().Returns(true);
+
+        var cut = Render<SetupPage>();
+
+        // Three steps (Admin, FFmpeg, Media): the venue already made is not offered again.
+        Assert.Contains("Step 1 of 3", cut.Markup);
+        Assert.NotEmpty(cut.FindAll("#admin-username"));
+    }
+
+    [Fact]
+    public void RequireLoginIsOff_WithAVenue_ResumesAtFFmpeg()
+    {
+        _appSettings.Current.Returns(new AppSettings { RequireLogin = false });
+        _venuesService.HasAnyAsync().Returns(true);
+        // Only this test lands on the FFmpeg step, the one that needs these.
+        var ffmpeg = Services.AddFFmpegSection();
+        ffmpeg.CheckAsync().Returns(AppSettingsPageServices.Found());
+
+        var cut = Render<SetupPage>();
+
+        // Two steps (FFmpeg, Media), starting on the first.
+        Assert.Contains("Step 1 of 2", cut.Markup);
+        Assert.Empty(cut.FindAll("#venue-name"));
     }
 }
