@@ -40,9 +40,6 @@ song carries stems, the **vocal level**. A display that can ride a level itself 
 the host rebuilds the stream at the playhead with the new mix. The local screen covers that rebuild
 by keeping the old stream playing until the new one has sound.
 
-Design notes: [docs/media-renderer.md](docs/media-renderer.md) and
-[docs/display-provider.md](docs/display-provider.md).
-
 ## Plugins
 
 A plugin runs in-process and can add:
@@ -140,7 +137,6 @@ and never skip. The integration tests need ffmpeg and fail without it; set
 ## Further reading
 
 - [AGENTS.md](AGENTS.md): architecture, rules and conventions, for contributors and coding agents.
-- [docs/](docs): design notes on renderers, display providers and generated backgrounds.
 - The [KHost wiki](https://github.com/riddlemd/KHost/wiki): setup, configuration and plugin guides.
 - [CONTRIBUTING.md](CONTRIBUTING.md): the terms contributions are accepted under.
 

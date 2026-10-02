@@ -5,8 +5,7 @@ namespace KHost.Abstractions.Services;
 /// <summary>A transport to somewhere the song comes out.</summary>
 /// <remarks>It finds such places, connects to one, hands it what to play and drives transport on
 /// it. It does not decide what the show is — it is told. The screens reach the host through one of
-/// these too; that one is core rather than a plugin. See <c>docs/display-provider.md</c> for the
-/// shape's reasoning.
+/// these too; that one is core rather than a plugin.
 ///
 /// <para>An extension point: a plugin IMPLEMENTS it and the host discovers it, listing it as
 /// "Display provider" on the Plugins page. The plugin's object is one singleton shared across every

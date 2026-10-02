@@ -1,6 +1,5 @@
 // The one place that decides which browser and webview shortcuts a KHost page cancels, for the
-// console (native window or a browser tab) and the LocalScreen window alike. docs/browser-shortcuts.md
-// is the table of what each one would do to a running show and why it is or is not blocked here.
+// console (native window or a browser tab) and the LocalScreen window alike.
 //
 // <html data-kh-surface="native"> is the Photino window; anything else is a browser tab, where the
 // browser keeps what is its own (new/close tab and window are never touched). data-kh-devtools="block"
