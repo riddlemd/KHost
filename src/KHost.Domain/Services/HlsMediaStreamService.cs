@@ -495,7 +495,7 @@ public sealed class HlsMediaStreamService : BaseService, IMediaStreamService, IB
             await process.WaitForExitAsync(CancellationToken.None);
 
             // Only for the encode still behind the session: a closed one's folder is going, and a
-            // failed hardware attempt's retry is writing its own .tmp into the same folder.
+            // later encode in the same folder is writing its own .tmp there.
             if (await EncoderProcessIdAsync(id) != processId) return;
 
             if (await CompletePlaylistAsync(directory))
