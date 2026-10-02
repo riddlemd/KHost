@@ -1,6 +1,8 @@
 using System.Diagnostics;
 using System.Globalization;
+using KHost.Abstractions.Models;
 using KHost.Domain.Services;
+using KHost.Domain.Services.Messaging;
 using KHost.Domain.Services.VideoEncoding;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -48,7 +50,8 @@ public abstract class HlsMediaStreamServiceHardwareEncodeTests : IDisposable
         Skip.IfNot(opens, $"{Encoder.Codec} is not supported on this machine: {whyNot}");
 
         var probeLog = new RecordingLogger();
-        var probe = new VideoEncoderSelector(probeLog, new FfmpegProcessRunner(() => "ffmpeg"), [Encoder]);
+        var probe = new VideoEncoderSelector(
+            probeLog, new FfmpegProcessRunner(() => "ffmpeg"), new MessageBroker(NullLogger<MessageBroker>.Instance), [Encoder]);
         var chosen = await probe.SelectAsync(VideoEncoderPreference.Auto);
 
         Assert.True(chosen == Encoder,
@@ -101,6 +104,126 @@ public abstract class HlsMediaStreamServiceHardwareEncodeTests : IDisposable
         Assert.Equal([Encoder], _selector.Failed);
     }
 
+    /// <summary>Words burned in through the RGBA pipe come out on the hardware encoder with the
+    /// segments still on the clock, and the stream decodes.</summary>
+    [SkippableFact]
+    public async Task OpenBurningInAsync_WhereSupported_KeepsTheSegmentsOnTheClockAndDecodes()
+    {
+        Skip.IfNot(FfmpegIsInstalled(), "ffmpeg is not installed");
+
+        var (opens, whyNot) = await OpensHereAsync();
+        Skip.IfNot(opens, $"{Encoder.Codec} is not supported on this machine: {whyNot}");
+
+        _selector.Answer = Encoder;
+        var source = await CreateSampleAsync(seconds: 8);
+
+        var session = await _service.OpenBurningInAsync(source, TimeSpan.Zero, 0, 0, null, Words(8));
+        var playlist = await WaitForCompletePlaylistAsync(session.Id);
+
+        // Nothing fell back, so the words really went through the hardware encoder.
+        Assert.Empty(_selector.Failed);
+        AssertOnTheClock(playlist);
+
+        var decode = await RunAsync("ffmpeg",
+            $"-v error -i \"{_service.ResolveArtifact(session.Id, "stream.m3u8")}\" -f null -");
+        Assert.True(decode.ExitCode == 0 && decode.Error.Length == 0, $"the stream does not decode: {decode.Error}");
+    }
+
+    /// <summary>A hardware encode that dies after the playlist is handed out is carried on in
+    /// libx264 in that same playlist, numbered on and on the clock, with the words painted on from
+    /// where it stopped; the display's URL never changes.</summary>
+    /// <remarks>Burned in over black, so the run ends with the painted frames: a continuation that
+    /// painted from the song's start would run long.</remarks>
+    [SkippableFact]
+    public async Task OpenBurningInAsync_HardwareDiesMidSong_CarriesOnInSoftwareInTheSamePlaylist()
+    {
+        Skip.IfNot(FfmpegIsInstalled(), "ffmpeg is not installed");
+
+        var (opens, whyNot) = await OpensHereAsync();
+        Skip.IfNot(opens, $"{Encoder.Codec} is not supported on this machine: {whyNot}");
+
+        const int seconds = 90;
+        _selector.Answer = Encoder;
+        var source = await CreateToneAsync(seconds);
+
+        var session = await _service.OpenBurningInAsync(source, TimeSpan.Zero, 0, 0, null, Words(seconds));
+        var killed = (await _service.EncoderProcessIdAsync(session.Id))!.Value;
+        var path = _service.ResolveArtifact(session.Id, "stream.m3u8")!;
+
+        using (var encode = Process.GetProcessById(killed))
+        {
+            encode.Kill();
+            await encode.WaitForExitAsync();
+        }
+
+        var atKill = await File.ReadAllTextAsync(path);
+        Assert.False(atKill.Contains("#EXT-X-ENDLIST", StringComparison.Ordinal),
+            "the encode finished before it could be killed; lengthen the song");
+        var before = SegmentDurations(atKill).Sum();
+
+        var playlist = await WaitForCompletePlaylistAsync(session.Id, TimeSpan.FromSeconds(120));
+
+        Assert.NotEqual(killed, await _service.EncoderProcessIdAsync(session.Id));
+        Assert.Single(playlist.Split('\n'), line => line.Trim() == "#EXT-X-DISCONTINUITY");
+        Assert.Single(playlist.Split('\n'), line => line.Trim() == "#EXT-X-ENDLIST");
+        AssertOnTheClock(playlist);
+        Assert.InRange(SegmentDurations(playlist).Sum(), seconds - 0.5, seconds + 0.5);
+
+        var names = playlist.Split('\n').Select(l => l.Trim()).Where(l => l.EndsWith(".ts", StringComparison.Ordinal)).ToList();
+        Assert.Equal(Enumerable.Range(0, names.Count).Select(i => $"seg_{i:00000}.ts"), names);
+
+        // The first software segment's timestamps follow on from the last hardware one's.
+        var joined = SegmentDurations(atKill).Count;
+        var gap = await StartTimeAsync(session.Id, joined) - await StartTimeAsync(session.Id, 0);
+        Assert.InRange(gap, before - 0.1, before + 0.1);
+
+        var decode = await RunAsync("ffmpeg", $"-v error -i \"{path}\" -f null -");
+        Assert.True(decode.ExitCode == 0, $"the stream does not decode: {decode.Error}");
+
+        // Blamed once software finished the song, so the next song does not try it.
+        for (var i = 0; i < 100 && _selector.Failed.Count == 0; i++) await Task.Delay(50);
+        Assert.Equal([Encoder], _selector.Failed);
+    }
+
+    /// <summary>The probe's own test: every segment but the last is the length asked for.</summary>
+    private static void AssertOnTheClock(string playlist)
+    {
+        var durations = SegmentDurations(playlist);
+
+        Assert.True(durations.Count >= 2, "fewer than two segments");
+        Assert.All(durations.SkipLast(1), d => Assert.InRange(d, 1.8, 2.2));
+    }
+
+    private static List<double> SegmentDurations(string playlist) => playlist.Split('\n')
+        .Where(line => line.StartsWith("#EXTINF:", StringComparison.Ordinal))
+        .Select(line => double.Parse(line["#EXTINF:".Length..].TrimEnd(',', '\r'), CultureInfo.InvariantCulture))
+        .ToList();
+
+    private async Task<double> StartTimeAsync(string sessionId, int segment)
+    {
+        var path = _service.ResolveArtifact(sessionId, $"seg_{segment:00000}.ts")!;
+        var run = await RunAsync("ffprobe", $"-v error -show_entries format=start_time -of csv=p=0 \"{path}\"");
+
+        return double.Parse(run.Output.Trim(), CultureInfo.InvariantCulture);
+    }
+
+    private static TimedLyrics Words(double seconds) => new()
+    {
+        DurationSeconds = seconds,
+        Bounds = new LyricBox(0, 0, 640, 360),
+        Pages =
+        [
+            new LyricPage
+            {
+                ShowFromSeconds = 0,
+                ShowUntilSeconds = seconds,
+                Active = new LyricColor(255, 0, 0),
+                Inactive = new LyricColor(255, 255, 255),
+                Lines = [new LyricLine { Position = new LyricBox(40, 120, 560, 120), Syllables = [new(1, 2, "WWWW")] }],
+            },
+        ],
+    };
+
     /// <summary>Whether it starts with the arguments a song uses, and ffmpeg's first word on why not.</summary>
     /// <remarks>Asked of the machine, not of <c>ffmpeg -encoders</c>: a build lists every encoder it
     /// was compiled with (gyan.dev's Windows build lists all four vendors) whatever the GPU.</remarks>
@@ -138,9 +261,11 @@ public abstract class HlsMediaStreamServiceHardwareEncodeTests : IDisposable
         }
     }
 
-    private async Task<string> WaitForCompletePlaylistAsync(string sessionId)
+    private async Task<string> WaitForCompletePlaylistAsync(string sessionId, TimeSpan? timeout = null)
     {
-        for (var i = 0; i < 300; i++)
+        var deadline = DateTime.UtcNow + (timeout ?? TimeSpan.FromSeconds(15));
+
+        while (DateTime.UtcNow < deadline)
         {
             if (_service.ResolveArtifact(sessionId, "stream.m3u8") is { } path)
             {
@@ -176,6 +301,19 @@ public abstract class HlsMediaStreamServiceHardwareEncodeTests : IDisposable
         return path;
     }
 
+    /// <summary>A tone with no picture, so burned-in words go over black.</summary>
+    private async Task<string> CreateToneAsync(int seconds)
+    {
+        Directory.CreateDirectory(_workingDirectory);
+        var path = Path.Combine(_workingDirectory, "tone.m4a");
+
+        await RunAsync("ffmpeg",
+            $"-hide_banner -loglevel error -y -f lavfi -i sine=frequency=440 -t {seconds} -c:a aac \"{path}\"");
+        Assert.True(File.Exists(path), "ffmpeg did not produce the tone");
+
+        return path;
+    }
+
     private static async Task<(string Output, string Error, int ExitCode)> RunAsync(string executable, string arguments)
     {
         using var process = Process.Start(new ProcessStartInfo(executable, arguments)
@@ -206,7 +344,12 @@ public abstract class HlsMediaStreamServiceHardwareEncodeTests : IDisposable
         public Task<VideoEncoderProfile> SelectAsync(VideoEncoderPreference preference, CancellationToken cancellationToken = default)
             => Task.FromResult(Answer);
 
-        public void ReportFailure(VideoEncoderProfile encoder) => Failed.Add(encoder);
+        public Task WarmAsync(VideoEncoderPreference preference) => Task.CompletedTask;
+
+        public void ReportFailure(VideoEncoderProfile encoder)
+        {
+            lock (Failed) Failed.Add(encoder);
+        }
     }
 
     /// <summary>Keeps the probe's own account of why it passed an encoder over.</summary>
