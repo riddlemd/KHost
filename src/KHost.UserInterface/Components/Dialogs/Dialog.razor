@@ -1,5 +1,6 @@
 <Scrim IsOpen="IsOpen" OnClick="OnScrimClickAsync">
-    <div class="@($"{_rootClassName} {Class?.Trim()}".Trim())" @ref="_dialogRef" @onclick:stopPropagation>
+    <div class="@($"{_rootClassName} {Class?.Trim()}".Trim())" @ref="_dialogRef" @onclick:stopPropagation
+         @onkeydown="EscapeHandler">
         <div class="@(_rootClassName)__header">
             <span>@Header</span>
             <button class="@(_rootClassName)__close-btn kh-button--icon-minimal" @onclick="CloseAsync" type="button"><Icon Name="x-lg" /></button>

@@ -2226,6 +2226,39 @@ public class PlaybackServiceTests : IDisposable
         Assert.Null(service.StopFadeDuration);
     }
 
+    /// <summary>Stop, resume, stop again: the first stop's deadline passing must not end the second's fade.</summary>
+    [Fact]
+    public async Task StopAsync_AfterAResumedStop_RunsItsOwnFadeOut()
+    {
+        var time = new FakeTimeProvider();
+        using var service = MakeService(TimeSpan.FromSeconds(5), time: time);
+        var (performance, media) = CreatePerformance();
+        media.Duration = TimeSpan.FromHours(1);
+        await service.LoadAsync(performance, media);
+        await service.PlayAsync();
+
+        var first = service.StopAsync();
+        time.Advance(TimeSpan.FromSeconds(1));
+        await service.PlayAsync();
+        time.Advance(TimeSpan.FromSeconds(2));
+        var second = service.StopAsync();
+
+        // The first stop's deadline: three seconds into the second fade.
+        time.Advance(TimeSpan.FromSeconds(2));
+        await first.WaitAsync(TimeSpan.FromSeconds(5));
+
+        Assert.Equal(PlaybackState.Stopping, service.State);
+        Assert.Same(media, service.CurrentMedia);
+        await _performanceService.DidNotReceive().DequeueAsync(Arg.Any<Guid>(), Arg.Any<Guid>());
+
+        time.Advance(TimeSpan.FromSeconds(3));
+        await second.WaitAsync(TimeSpan.FromSeconds(5));
+
+        Assert.Equal(PlaybackState.Stopped, service.State);
+        Assert.Null(service.CurrentMedia);
+        await _performanceService.Received(1).DequeueAsync(performance.SingerId, performance.Id);
+    }
+
     [Fact]
     public async Task PauseAsync_BroadcastsPauseCommand()
     {

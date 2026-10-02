@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Web;
 using Microsoft.JSInterop;
 
 namespace KHost.UserInterface.Components.Dialogs;
@@ -13,6 +14,10 @@ public partial class Dialog
 
     [Parameter] public bool IsOpen { get; set; }
     [Parameter] public bool CloseOnScrimClick { get; set; }
+
+    /// <summary>Esc closes it as the header X does. Off by default: a dialog holding a ComboBox
+    /// takes Esc to shut the menu, and the keydown would bubble on up and shut the dialog too.</summary>
+    [Parameter] public bool CloseOnEscape { get; set; }
     [Parameter] public string Class { get; set; } = "";
 
     [Parameter] public RenderFragment? Header { get; set; }
@@ -26,6 +31,16 @@ public partial class Dialog
         IsOpen = false;
 
         await OnClose.InvokeAsync();
+    }
+
+    // No handler at all unless asked for, so typing in an edit dialog never crosses the circuit.
+    private EventCallback<KeyboardEventArgs> EscapeHandler
+        => CloseOnEscape ? EventCallback.Factory.Create<KeyboardEventArgs>(this, OnKeyDownAsync) : default;
+
+    private async Task OnKeyDownAsync(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape")
+            await CloseAsync();
     }
 
     private async Task OnScrimClickAsync()
