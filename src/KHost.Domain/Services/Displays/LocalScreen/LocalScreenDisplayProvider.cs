@@ -22,7 +22,7 @@ namespace KHost.Domain.Services.Displays.LocalScreen;
 ///
 /// <para>It owns everything the screen shows, not only the song: the marquee (composed here from the
 /// venue's settings and <c>IUpNextService</c>), the QR codes, the break music card, the venue's card
-/// or an ad's still, the song's timed words and the intro card ahead of them, and the venue's level. None of that is on
+/// or an ad's still, the song's timed words and the intro card ahead of them. None of that is on
 /// <c>IDisplayProvider</c>, which is transport only. The host announces what moved and this pulls the whole current state of whatever that
 /// message drives, so a screen that connects is sent everything afresh rather than a replay of what
 /// it missed. It reads only what a plugin's display could read; encoding and the screen's commands
@@ -36,7 +36,7 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
     /// <summary>The id a launched screen is given. One at a time, so one name is enough.</summary>
     internal const string LocalScreenId = "Screen 1";
 
-    /// <summary>Full volume before any venue exists, so a screen is never silently mute.</summary>
+    /// <summary>Full level, what a screen is sent on connect; the room's mixer sets the real one.</summary>
     private const float FullVolume = 1.0f;
 
     /// <summary>One module of white: the standard four-module border reads as a slab over video.</summary>
@@ -167,10 +167,10 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
         _screenServer.ScreenDisconnected += OnScreenDisconnected;
         _screenServer.StateReceived += OnStateReceived;
 
-        // The venue owns the level, and everything about how the marquee, the codes and the card
-        // look, including whether each is there at all.
+        // The venue owns how the marquee, the codes and the card look, including whether each is there
+        // at all.
         _subscriptions.Add(broker.Subscribe<SelectedVenueChanged>(
-            _ => Redraw(Overlay.Volume | Overlay.Marquee | Overlay.QrCodes | Overlay.BreakMusicCard | Overlay.IdleCard | Overlay.Visualiser)));
+            _ => Redraw(Overlay.Marquee | Overlay.QrCodes | Overlay.BreakMusicCard | Overlay.IdleCard | Overlay.Visualiser)));
 
         // Who is next is the marquee's content, however the queue, the turns or the mic moved it.
         _subscriptions.Add(broker.Subscribe<UpNextChanged>(_ => Redraw(Overlay.Marquee)));
@@ -876,31 +876,14 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
         }
     }
 
-    /// <summary>The venue's level, or full volume before any venue exists.</summary>
-    /// <remarks>The song and the second channel share one venue level: the bed and an ad's own
-    /// voiceover ride that channel through one mixer, so one setting covers both.</remarks>
+    /// <summary>Puts both channels at full level; the room's mixer sets the real one.</summary>
+    /// <remarks>Sent on every connect so a screen never keeps a level from an earlier run.</remarks>
     private async Task ApplyVolumeAsync()
     {
         if (ConnectedScreen() is null) return;
 
-        var volume = FullVolume;
-
-        if (_venuesService is not null)
-        {
-            try
-            {
-                var venue = await _venuesService.ReadSelectedVenueAsync();
-                if (venue is not null)
-                    volume = VenueVolume.ToGain(venue.Settings.DefaultVolume);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Could not read the venue's volume; leaving the screen at full");
-            }
-        }
-
-        await SendAsync(new SetVolumeCommand { Volume = volume });
-        await SendAsync(new SetBackgroundVolumeCommand { Volume = volume });
+        await SendAsync(new SetVolumeCommand { Volume = FullVolume });
+        await SendAsync(new SetBackgroundVolumeCommand { Volume = FullVolume });
     }
 
     /// <summary>Pulls the current state of each overlay asked for and sends it whole.</summary>
@@ -910,7 +893,7 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
         if (overlays.HasFlag(Overlay.Volume))
         {
             try { await ApplyVolumeAsync(); }
-            catch (Exception ex) { _logger.LogWarning(ex, "Could not apply the venue's volume to the screen"); }
+            catch (Exception ex) { _logger.LogWarning(ex, "Could not set the screen's volume"); }
         }
 
         // Ahead of the overlays, which read the database: the picture is what the room notices late.

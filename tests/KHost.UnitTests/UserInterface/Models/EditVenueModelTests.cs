@@ -70,7 +70,6 @@ public class EditVenueModelTests
     /// values already inside every Math.Clamp range.</summary>
     private static Venue.VenueSettings DistinctSettings() => new()
     {
-        DefaultVolume = 55,
         ShowEstimatedWaitTime = false,
         TippingEnabled = false,
         WarnOnDuplicateSong = true,

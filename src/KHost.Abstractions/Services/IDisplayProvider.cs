@@ -143,8 +143,8 @@ public interface IDisplayProvider
     Task SeekAsync(TimeSpan position, CancellationToken cancellationToken = default);
 
     /// <summary>Sets the song's level on the device, 0 to 1.</summary>
-    /// <remarks>The host does not call this: the venue's volume is the provider's to apply, on
-    /// connect and when the selected venue changes. Has a default body that does nothing.</remarks>
+    /// <remarks>The host does not call this: a provider plays at the level it chooses, and the
+    /// room's mixer does the rest. Has a default body that does nothing.</remarks>
     Task SetVolumeAsync(float volume, CancellationToken cancellationToken = default)
         => Task.CompletedTask;
 
@@ -181,8 +181,8 @@ public interface IDisplayProvider
         => Task.CompletedTask;
 
     /// <summary>Sets the second channel's level, 0 to 1.</summary>
-    /// <remarks>The host does not call this: like <see cref="SetVolumeAsync"/>, the venue's level is
-    /// the provider's to apply. Has a default body that does nothing.</remarks>
+    /// <remarks>The host does not call this: like <see cref="SetVolumeAsync"/>, a provider
+    /// plays at the level it chooses. Has a default body that does nothing.</remarks>
     Task SetBackgroundVolumeAsync(float volume, CancellationToken cancellationToken = default)
         => Task.CompletedTask;
 }

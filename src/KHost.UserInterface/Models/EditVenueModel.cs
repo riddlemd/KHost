@@ -37,7 +37,6 @@ public class EditVenueModel
 
     public bool Enabled { get; set; } = true;
 
-    public int DefaultVolume { get; set; } = 100;
     public bool ShowEstimatedWaitTime { get; set; } = true;
     public bool TippingEnabled { get; set; } = true;
     public bool WarnOnDuplicateSong { get; set; }
@@ -148,7 +147,6 @@ public class EditVenueModel
             Name = venue.Name,
             Notes = venue.Notes,
             Enabled = venue.Enabled,
-            DefaultVolume = settings.DefaultVolume,
             ShowEstimatedWaitTime = settings.ShowEstimatedWaitTime,
             VisualisationPlaylistId = settings.VisualisationPlaylistId,
             TippingEnabled = settings.TippingEnabled,
@@ -223,7 +221,6 @@ public class EditVenueModel
         venue.Name = Name;
         venue.Notes = Notes;
         venue.Enabled = Enabled;
-        venue.Settings.DefaultVolume = DefaultVolume;
         venue.Settings.ShowEstimatedWaitTime = ShowEstimatedWaitTime;
         venue.Settings.VisualisationPlaylistId = VisualisationPlaylistId;
         venue.Settings.TippingEnabled = TippingEnabled;

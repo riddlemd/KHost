@@ -197,7 +197,7 @@ public class BreakMusicBarTests : BunitContext
         Assert.True(skip.HasAttribute("disabled"));
     }
 
-    // One venue level covers every channel, so the bar carries no fader of its own.
+    // The room's mixer sets the level, so the bar carries no fader of its own.
     [Fact]
     public void TheBar_HasNoVolumeControl()
         => Assert.Empty(Render().FindAll("input[type=range]"));

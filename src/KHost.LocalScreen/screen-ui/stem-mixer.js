@@ -205,7 +205,7 @@ function createStemMixer(stems, startOffsetSeconds, reportError, volume = 1) {
         /// so without this a finished mix reads as playing forever.
         get ended() { return startedAt !== null && songTime() >= longest(); },
 
-        /// What the room hears, after the venue's level and any fade, for a visualiser to listen to.
+        /// What the room hears, after the level and any fade, for a visualiser to listen to.
         /// A tap fans out from it; the route to the speakers is left as it is.
         analysisSource() { return { context: ctx, node: master }; },
 
