@@ -28,10 +28,6 @@ public class EditVenueModelTests
             if (property.Name is nameof(Venue.VenueSettings.QueueRotation))
                 continue;
 
-            // A retired setting is left as stored, which the dialog's clone carries (see below).
-            if (property.GetCustomAttribute<ObsoleteAttribute>() is not null)
-                continue;
-
             var expected = property.GetValue(source.Settings);
             var actual = property.GetValue(target.Settings);
 
@@ -50,19 +46,6 @@ public class EditVenueModelTests
         var model = EditVenueModel.From(null, activeBreakMusicProviderSource: null);
 
         Assert.Equal(VisualisationPlaylist.DefaultId, model.VisualisationPlaylistId);
-    }
-
-    /// <summary>Nothing edits the retired song backgrounds, so a save leaves what a venue stored.</summary>
-    [Fact]
-    public void ApplyTo_LeavesTheRetiredSongBackgroundsAsStored()
-    {
-        var venue = new Venue { Name = "Old Room", Settings = DistinctSettings() };
-
-        EditVenueModel.From(venue, activeBreakMusicProviderSource: null).ApplyTo(venue);
-
-#pragma warning disable CS0618 // the retired setting is exactly what this checks
-        Assert.Equal(["one.mp4", "two.mp4"], venue.Settings.SongBackgrounds);
-#pragma warning restore CS0618
     }
 
     /// <summary>Every VenueSettings field, given a value nothing in From/ApplyTo treats specially:
@@ -101,9 +84,6 @@ public class EditVenueModelTests
         MarqueeDividerColor = "#333333",
         MarqueeDividerShape = MarqueeDividerShape.Diamond,
         MarqueeHideDuringSong = true,
-#pragma warning disable CS0618 // stored by venues saved before the picker went
-        SongBackgrounds = ["one.mp4", "two.mp4"],
-#pragma warning restore CS0618
         VisualisationPlaylistId = Guid.NewGuid(),
         NextSingerBackground = NextSingerBackground.Visualisation,
         QrCodeSource = "khost.plugins.karafun",

@@ -11,7 +11,6 @@ using KHost.Domain.Services.Displays;
 using KHost.Domain.Services.FFmpeg;
 using KHost.Domain.Services.Displays.LocalScreen;
 using KHost.Domain.Services.QrCodes;
-using KHost.Domain.Services.Backgrounds;
 using KHost.Domain.Services.Visualisations;
 using KHost.Domain.Services.MediaPools;
 using KHost.Domain.Services.MediaProviders;
@@ -173,11 +172,6 @@ namespace KHost.Domain
             serviceCollection.AddSingleton<IAdService, AdService>();
             serviceCollection.AddSingleton<IVisualisationPlaylistService, VisualisationPlaylistService>();
             serviceCollection.AddSingleton<IVisualiserPresetService, VisualiserPresetService>();
-
-            // Retired, and answering empty, so a plugin that still takes it in a constructor loads.
-#pragma warning disable CS0618
-            serviceCollection.AddSingleton<IBackgroundPackService, NoBackgroundPackService>();
-#pragma warning restore CS0618
             serviceCollection.AddSingleton<ILyricsService, LyricsService>();
             serviceCollection.AddSingleton<IPasswordHasher, Argon2PasswordHasher>();
             serviceCollection.AddSingleton<IAuthService, AuthService>();

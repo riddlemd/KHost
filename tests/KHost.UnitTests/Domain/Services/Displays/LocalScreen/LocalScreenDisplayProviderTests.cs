@@ -665,13 +665,10 @@ public class LocalScreenDisplayProviderTests
         Assert.Equal(card, Sent<SetBreakMusicCardCommand>().Any());
     }
 
-    /// <summary>The mixer in the room sets the level, so a venue's stored level never reaches the screen.</summary>
+    /// <summary>The mixer in the room sets the level, so the screen always plays at full.</summary>
     [Fact]
-    public async Task ScreenConnected_SendsFullVolumeWhateverTheVenueStored()
+    public async Task ScreenConnected_SendsFullVolume()
     {
-#pragma warning disable CS0618 // the retired setting is what this proves is ignored
-        _settings.DefaultVolume = 30;
-#pragma warning restore CS0618
         using var provider = DrawingProvider();
 
         RaiseConnected(Connection("Screen 1", "conn-a"));
@@ -1332,14 +1329,11 @@ public class LocalScreenDisplayProviderTests
             && hide < sent.FindIndex(c => c is LoadMediaCommand));
     }
 
-    /// <summary>Black behind the words: the venue's card and its song backgrounds are for idle.</summary>
+    /// <summary>Black behind the words: the venue's card is for idle.</summary>
     [Fact]
     public async Task LoadAsync_ATimedLyricSongWithNoPicture_PutsNothingBehindTheWords()
     {
         Branding();
-#pragma warning disable CS0618 // a venue that picked clips before the picker went still gets black
-        (await _venues.ReadSelectedVenueAsync())!.Settings.SongBackgrounds = ["a.mp4"];
-#pragma warning restore CS0618
         var song = new PlaybackProgram.Playing(new Media { Title = "Africa", FilePath = "/songs/africa.song" }, new Performance());
         WordsFor(song);
         _playback.CurrentProgram.Returns(song);

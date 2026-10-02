@@ -53,6 +53,29 @@ public class VenuesRepositoryTests : IDisposable
         Assert.Equal(OverlayCorner.TopLeft, settings.BreakMusicCardCorner);
     }
 
+    /// <summary>DefaultVolume and SongBackgrounds were removed from the model but stay in every venue
+    /// an older host saved; those keys must be passed over, not refuse the row.</summary>
+    [Fact]
+    public async Task ReadAsync_SettingsHoldingRemovedKeys_LoadTheRest()
+    {
+        var venue = await _repository.CreateAsync(new Venue
+        {
+            Name = "The Alley",
+            Settings = new Venue.VenueSettings { MarqueeMessage = "Last call" },
+        });
+
+        using (var context = _database.CreateDbContext())
+        {
+            await context.Database.ExecuteSqlRawAsync(
+                "UPDATE Venues SET Settings = json_set(Settings, '$.DefaultVolume', 30, '$.SongBackgrounds', json('[\"a.mp4\",\"b.mp4\"]')) WHERE Id = {0}",
+                venue.Id);
+        }
+
+        var settings = (await _repository.ReadAsync(venue.Id))!.Settings;
+
+        Assert.Equal("Last call", settings.MarqueeMessage);
+    }
+
     /// <summary>By number, not by name, which is why the rename needed no migration and why the
     /// values must never be reordered.</summary>
     [Fact]
