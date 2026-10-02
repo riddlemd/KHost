@@ -1,3 +1,6 @@
+using KHost.Domain.Services.Messaging;
+using Microsoft.Extensions.Logging.Abstractions;
+using KHost.Abstractions.Messaging;
 using KHost.Abstractions.Models.Plugins;
 using KHost.Domain.Services.Plugins;
 using KHost.Domain.Services.Plugins.Secrets;
@@ -5,7 +8,6 @@ using KHost.Secrets;
 using KHost.UnitTests.Secrets;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
-using Microsoft.Extensions.Logging.Abstractions;
 using KHost.Domain.Services.QrCodes;
 
 namespace KHost.UnitTests.Domain.Services.Plugins;
@@ -47,7 +49,7 @@ public class PluginInitializerTests
         await Initializer(loaded).InitializeAsync();
 
         // The context is the only way back to the host, so the wrong one is silent misreporting.
-        plugin.Context!.ReportWarning("installed the slow way");
+        plugin.Context!.AddWarning("installed the slow way");
 
         Assert.Contains("installed the slow way", loaded.Discovered.Warnings);
     }
@@ -68,7 +70,7 @@ public class PluginInitializerTests
 
         var discovered = new DiscoveredPlugin { Directory = "/plugins/test", Manifest = manifest };
 
-        return new LoadedPlugin(discovered, entryPoint, new PluginContext(manifest, null, discovered, new PluginSecretStore(new InMemorySecretStore()), Substitute.For<IQrCodeService>()));
+        return new LoadedPlugin(discovered, entryPoint, new PluginContext(manifest, null, discovered, new PluginSecretStore(new InMemorySecretStore()), Substitute.For<IQrCodeService>(), new MessageBroker(NullLogger<MessageBroker>.Instance)));
     }
 
     private sealed class SpyPlugin : IPlugin
