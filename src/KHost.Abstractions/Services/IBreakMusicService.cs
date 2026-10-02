@@ -58,7 +58,7 @@ public interface IBreakMusicService
     /// <remarks>An unknown name, or the provider already active, does nothing.</remarks>
     Task SetActiveProviderAsync(string sourceName, CancellationToken cancellationToken = default);
 
-    /// <summary>Starts the active provider and applies the venue's volume.</summary>
+    /// <summary>Starts the active provider.</summary>
     /// <returns>False when there is no provider, the provider had nothing to play, or a song or an
     /// ad with its own audio holds the room.</returns>
     /// <remarks>Propagates a <see cref="KHost.Abstractions.Exceptions.KHostException"/> the active

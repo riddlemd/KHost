@@ -23,9 +23,8 @@ public interface IBreakMusicProvider
     string SourceName { get; }
 
     /// <summary>True when the host carries the sound (needs a screen); false for another app.</summary>
-    /// <remarks>Decides who sets the level. True: the display provider applies the venue's volume
-    /// to the channel, and <see cref="SetVolumeAsync"/> is never called. False: the host pushes
-    /// the venue's volume through <see cref="SetVolumeAsync"/> on start and on a venue change.</remarks>
+    /// <remarks>The host sets no level either way: a provider plays at its own level, and the room's
+    /// mixer does the rest.</remarks>
     bool RendersThroughHost { get; }
 
     /// <summary>What is playing now, or null when nothing is. Named on the console and, when the
@@ -80,7 +79,8 @@ public interface IBreakMusicProvider
     /// <remarks>The host treats a skip from pause as playing afterwards.</remarks>
     Task SkipAsync(CancellationToken cancellationToken = default);
 
-    /// <summary>0 to 1. An external provider may only be able to approximate it.</summary>
-    /// <remarks>Only called when <see cref="RendersThroughHost"/> is false.</remarks>
+    /// <summary>Sets the provider's level, 0 to 1.</summary>
+    /// <remarks>The host does not call this; a provider plays at its own level. It stays on the
+    /// contract so a provider built against it keeps loading.</remarks>
     Task SetVolumeAsync(float volume, CancellationToken cancellationToken = default);
 }

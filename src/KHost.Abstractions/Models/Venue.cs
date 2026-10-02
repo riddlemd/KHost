@@ -45,7 +45,10 @@ public class Venue : RepositoryModel
     /// it.</summary>
     public class VenueSettings
     {
-        /// <summary>Master volume this venue's displays start at, 0-100.</summary>
+        /// <summary>Master volume this venue's displays used to start at, 0-100.</summary>
+        /// <remarks>Kept, and still stored, so a plugin that reads it keeps loading. The host neither
+        /// reads nor writes it.</remarks>
+        [Obsolete("Nothing reads this any more; the room's mixer sets the level and a display plays at full.")]
         public int DefaultVolume { get; set; } = 100;
 
         /// <summary>Whether a singer's estimated wait is shown on the queue.</summary>

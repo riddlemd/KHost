@@ -24,7 +24,7 @@ public class LocalScreenDisplayProviderTests
     // What the screen is drawn from, for the tests that follow a change message to the screen.
     private readonly MessageBroker _realBroker = new(NullLogger<MessageBroker>.Instance);
     private readonly IUpNextService _upNext = Substitute.For<IUpNextService>();
-    private readonly Venue.VenueSettings _settings = new() { DefaultVolume = 50, MarqueeEnabled = true, MarqueeMessage = "Tonight" };
+    private readonly Venue.VenueSettings _settings = new() { MarqueeEnabled = true, MarqueeMessage = "Tonight" };
     private readonly IQrCodeOfferService _qrCodes = Substitute.For<IQrCodeOfferService>();
     private readonly IBreakMusicService _breakMusic = Substitute.For<IBreakMusicService>();
     private readonly IVenuesService _venues = Substitute.For<IVenuesService>();
@@ -505,7 +505,7 @@ public class LocalScreenDisplayProviderTests
         Assert.True(await WaitForSentAsync<SetMarqueeCommand>());
         Assert.True(await WaitForSentAsync<SetScreenQrCodesCommand>());
         Assert.True(await WaitForSentAsync<SetBreakMusicCardCommand>());
-        Assert.True(await WaitForSentAsync<SetVolumeCommand>(volume => volume.Volume < 1.0f));
+        Assert.True(await WaitForSentAsync<SetVolumeCommand>(volume => volume.Volume == 1.0f));
         Assert.True(await WaitForSentAsync<SetBackgroundVolumeCommand>());
     }
 
@@ -665,19 +665,35 @@ public class LocalScreenDisplayProviderTests
         Assert.Equal(card, Sent<SetBreakMusicCardCommand>().Any());
     }
 
-    /// <summary>Selecting or editing a venue changes what "audible" means, now rather than on the next connect.</summary>
+    /// <summary>The mixer in the room sets the level, so a venue's stored level never reaches the screen.</summary>
     [Fact]
-    public async Task SelectedVenueChanged_WithAScreenUp_AppliesTheVenuesLevel()
+    public async Task ScreenConnected_SendsFullVolumeWhateverTheVenueStored()
+    {
+#pragma warning disable CS0618 // the retired setting is what this proves is ignored
+        _settings.DefaultVolume = 30;
+#pragma warning restore CS0618
+        using var provider = DrawingProvider();
+
+        RaiseConnected(Connection("Screen 1", "conn-a"));
+
+        Assert.True(await WaitForSentAsync<SetVolumeCommand>(volume => volume.Volume == 1.0f));
+        Assert.True(await WaitForSentAsync<SetBackgroundVolumeCommand>(volume => volume.Volume == 1.0f));
+    }
+
+    [Fact]
+    public async Task SelectedVenueChanged_WithAScreenUp_SendsNoVolume()
     {
         using var provider = DrawingProvider();
         RaiseConnected(Connection("Screen 1", "conn-a"));
         Assert.True(await WaitForSentAsync<SetBackgroundVolumeCommand>());
+        _settings.MarqueeMessage = "Last call";
         _screenServer.ClearReceivedCalls();
 
-        _venues.ReadSelectedVenueAsync().Returns(new Venue { Name = "The Bar", Settings = new Venue.VenueSettings { DefaultVolume = 100 } });
         _realBroker.Announce(new SelectedVenueChanged());
+        Assert.True(await WaitForSentAsync<SetMarqueeCommand>(marquee => marquee.Message == "Last call"));
 
-        Assert.True(await WaitForSentAsync<SetVolumeCommand>(volume => volume.Volume == 1.0f));
+        Assert.Empty(Sent<SetVolumeCommand>());
+        Assert.Empty(Sent<SetBackgroundVolumeCommand>());
     }
 
     /// <summary>An owner registering a code awaits the publish, so the code is on screen when it returns.</summary>

@@ -113,7 +113,6 @@ public class VenuesService : BaseRepositoryService<Venue, IVenuesRepository>, IV
     {
         var settings = venue.Settings;
 
-        settings.DefaultVolume = AudioLevels.ClampVolume(settings.DefaultVolume);
         settings.QrCodeSafeZone = Math.Clamp(settings.QrCodeSafeZone, 0, 8);
         settings.QrCodeOffset = Math.Clamp(settings.QrCodeOffset, 0, 20);
 

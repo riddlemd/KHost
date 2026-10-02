@@ -25,19 +25,6 @@
 
             <div class="kh-form-group">
                 <div class="kh-venue-settings__section">
-                    <span class="kh-venue-settings__section-title">Playback</span>
-                    <div class="kh-venue-settings__row">
-                        <label for="default-volume" class="kh-form-label">Default Volume</label>
-                        <InputNumber id="default-volume"
-                                     class="kh-form-control"
-                                     @bind-Value="_model.DefaultVolume"
-                                     min="0"
-                                     max="100"
-                                     disabled="@_isLoading" />
-                    </div>
-                </div>
-
-                <div class="kh-venue-settings__section">
                     <span class="kh-venue-settings__section-title">Queue behavior</span>
 
                     <label class="kh-venue-settings__row kh-form-check">
