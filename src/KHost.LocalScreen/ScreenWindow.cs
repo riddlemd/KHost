@@ -27,6 +27,10 @@ internal interface IScreenWindow
 
     void SetLocation(int left, int top);
 
+    /// <summary>Hands a move of the whole window to the OS's own drag, where there is one to hand it to.</summary>
+    /// <returns>False, with why, when the window must be dragged by hand.</returns>
+    bool TryBeginNativeMove(out string detail);
+
     void Minimise();
 
     void Close();
@@ -159,6 +163,15 @@ internal sealed class PhotinoScreenWindow(PhotinoWindow window) : IScreenWindow
     }
 
     public void SetLocation(int left, int top) => window.SetLocation(new Point(left, top));
+
+    public bool TryBeginNativeMove(out string detail)
+    {
+        if (OperatingSystem.IsMacOS())
+            return MacWindowDrag.TryBegin(out detail);
+
+        detail = "no native drag on this OS";
+        return false;
+    }
 
     public void Minimise() => window.SetMinimized(true);
 

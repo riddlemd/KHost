@@ -1118,6 +1118,9 @@ function handleCommand(raw) {
             still.src = message.url;
             still.hidden = false;
             break;
+        case 'window-drag-native':
+            titleBar.nativeDragStarted();
+            break;
         case 'window-state':
             titleBar.applyState(message);
             break;
