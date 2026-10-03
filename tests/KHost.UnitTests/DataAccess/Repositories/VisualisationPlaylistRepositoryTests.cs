@@ -10,6 +10,8 @@ namespace KHost.UnitTests.DataAccess.Repositories;
 
 /// <summary>Against a database built by the migrations, not EnsureCreated, so a model change with no
 /// migration behind it fails here.</summary>
+// Unpooled so each file can be deleted once its context closes. Never SqliteConnection.ClearAllPools():
+// it disposes every pooled handle in the process, including ones other tests are using right now.
 public class VisualisationPlaylistRepositoryTests : IDisposable
 {
     private readonly string _dbPath = Path.Combine(Path.GetTempPath(), $"khost-visualisations-{Guid.NewGuid():N}.db");
@@ -20,7 +22,7 @@ public class VisualisationPlaylistRepositoryTests : IDisposable
     {
         var services = new ServiceCollection();
         services.AddDbContextFactory<DefaultContext>(options =>
-            options.UseSqlite($"Data Source={_dbPath}")
+            options.UseSqlite($"Data Source={_dbPath};Pooling=False")
                    .UseQueryTrackingBehavior(QueryTrackingBehavior.NoTracking));
 
         _factory = services.BuildServiceProvider().GetRequiredService<IDbContextFactory<DefaultContext>>();
@@ -33,7 +35,6 @@ public class VisualisationPlaylistRepositoryTests : IDisposable
 
     public void Dispose()
     {
-        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
         try { if (File.Exists(_dbPath)) File.Delete(_dbPath); } catch (IOException) { }
         GC.SuppressFinalize(this);
     }
@@ -68,7 +69,7 @@ public class VisualisationPlaylistRepositoryTests : IDisposable
     public async Task Migrate_ADatabaseFromBeforeTheDefaultPlaylist_GetsItOnUpgrade()
     {
         var path = Path.Combine(Path.GetTempPath(), $"khost-visualisations-preexisting-{Guid.NewGuid():N}.db");
-        var options = new DbContextOptionsBuilder<DefaultContext>().UseSqlite($"Data Source={path}").Options;
+        var options = new DbContextOptionsBuilder<DefaultContext>().UseSqlite($"Data Source={path};Pooling=False").Options;
         try
         {
             await using var context = new DefaultContext(options);
@@ -87,7 +88,6 @@ public class VisualisationPlaylistRepositoryTests : IDisposable
         }
         finally
         {
-            Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
             try { File.Delete(path); } catch (IOException) { }
         }
     }
@@ -145,7 +145,7 @@ public class VisualisationPlaylistRepositoryTests : IDisposable
     public async Task Migrate_AnEntryFromBeforeTheBuiltIns_TakesTheDefaults()
     {
         var path = Path.Combine(Path.GetTempPath(), $"khost-visualisations-old-{Guid.NewGuid():N}.db");
-        var options = new DbContextOptionsBuilder<DefaultContext>().UseSqlite($"Data Source={path}").Options;
+        var options = new DbContextOptionsBuilder<DefaultContext>().UseSqlite($"Data Source={path};Pooling=False").Options;
         try
         {
             await using (var context = new DefaultContext(options))
@@ -169,7 +169,6 @@ public class VisualisationPlaylistRepositoryTests : IDisposable
         }
         finally
         {
-            Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
             try { File.Delete(path); } catch (IOException) { }
         }
     }
@@ -180,7 +179,7 @@ public class VisualisationPlaylistRepositoryTests : IDisposable
     public async Task Migrate_DropsDarkenBehindWords_AndKeepsTheRowThatHadIt()
     {
         var path = Path.Combine(Path.GetTempPath(), $"khost-visualisations-darken-{Guid.NewGuid():N}.db");
-        var options = new DbContextOptionsBuilder<DefaultContext>().UseSqlite($"Data Source={path}").Options;
+        var options = new DbContextOptionsBuilder<DefaultContext>().UseSqlite($"Data Source={path};Pooling=False").Options;
         try
         {
             await using (var context = new DefaultContext(options))
@@ -202,7 +201,6 @@ public class VisualisationPlaylistRepositoryTests : IDisposable
         }
         finally
         {
-            Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
             try { File.Delete(path); } catch (IOException) { }
         }
     }
