@@ -161,7 +161,7 @@ internal static class Program
     /// <summary>Photino's own full screen.</summary>
     /// <returns>False when this build refuses it after the window exists, so the caller falls back
     /// to filling the monitor instead.</returns>
-    /// <remarks>Never reached on macOS; see <see cref="SetFullScreen"/> for why.</remarks>
+    /// <remarks>Reached only on Linux; see <see cref="SetFullScreen"/> for why.</remarks>
     private static bool TryNativeFullScreen(
         PhotinoWindow window, bool fullScreen, Microsoft.Extensions.Logging.ILogger logger)
     {
@@ -325,7 +325,9 @@ internal static class Program
 
     /// <summary>Photino's own full screen where it behaves, and growing the window to cover the
     /// monitor where it does not.</summary>
-    /// <remarks>macOS gets the grown window. Photino's SetFullScreen there enters a native
+    /// <remarks>macOS and Windows get the grown window. On Windows Photino's SetFullScreen returns
+    /// and leaves the chromeless window where it was, so the flag said full screen over a small
+    /// window and a relaunch restored the same. On macOS it enters a native
     /// full-screen Space, and two things follow that a venue cannot live with: every other display
     /// is blanked, so the host cannot see the console it drives the show from, and
     /// <c>SetFullScreen(false)</c> is a silent no-op — it neither throws nor leaves, so the flag
@@ -343,9 +345,9 @@ internal static class Program
             }
 
             // Photino's own. Several of its setters refuse to run once the window exists, so this
-            // asks rather than assumes, and the resize stands behind it unchanged. Asked only off
-            // macOS, where it cannot be left again.
-            if (!OperatingSystem.IsMacOS() && TryNativeFullScreen(window, fullScreen, logger))
+            // asks rather than assumes, and the resize stands behind it unchanged. Linux only: macOS
+            // cannot leave it again, and Windows does nothing to a chromeless window.
+            if (OperatingSystem.IsLinux() && TryNativeFullScreen(window, fullScreen, logger))
             {
                 _isFullScreen = fullScreen;
                 _chrome?.FullScreen = fullScreen;

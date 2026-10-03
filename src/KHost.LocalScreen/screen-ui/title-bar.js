@@ -1,5 +1,5 @@
-// The window is chromeless on every OS, so its buttons, the invisible strip it is dragged by and
-// its resize edges are drawn here and carried out by WindowChrome in .NET. Dragging is driven from the pointer rather
+// The window is chromeless on every OS, so its buttons, its drag (the strip along the top and the
+// whole picture) and its resize edges are drawn here and carried out by WindowChrome in .NET. Dragging is driven from the pointer rather
 // than CSS app-region: WKWebView and WebKitGTK have no such region, and WebView2 honours it only
 // with a setting Photino does not expose.
 
@@ -43,6 +43,13 @@ function createTitleBar({ doc, send, requestFrame, setTimer = setTimeout, clearT
     bar.addEventListener('pointerdown', (e) => {
         if (e.button !== 0 || e.target.closest('button')) return;
         begin(e, bar, null);
+    });
+
+    // The picture has nothing else to press, so it moves the window too. The drag threshold keeps a
+    // double-click, which toggles full screen, from nudging the window first.
+    doc.addEventListener('pointerdown', (e) => {
+        if (e.button !== 0 || gesture || e.target.closest('button, .kh-resize-edge, #titlebar')) return;
+        begin(e, root, null);
     });
 
     for (const edge of doc.querySelectorAll('.kh-resize-edge')) {
