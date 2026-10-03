@@ -7,7 +7,7 @@ namespace KHost.UnitTests.Domain.Services.FFmpeg;
 /// checked here the way the plugin catalog's is.</summary>
 public partial class FFmpegBuildManifestTests
 {
-    private static readonly string[] KnownRids = ["win-x64", "win-arm64", "osx-x64", "osx-arm64", "linux-x64", "linux-arm64"];
+    private static readonly string[] KnownRids = ["win-x64", "win-arm64", "macos-x64", "macos-arm64", "linux-x64", "linux-arm64"];
 
     public static TheoryData<string> Rids => [.. FFmpegBuildManifest.Embedded.Builds.Select(b => b.Rid)];
 
@@ -18,7 +18,7 @@ public partial class FFmpegBuildManifestTests
 
         Assert.Equal(FFmpegBuildManifest.SupportedSchemaVersion, manifest.SchemaVersion);
         Assert.NotNull(manifest.SelectFor("win", "x64"));
-        Assert.NotNull(manifest.SelectFor("osx", "arm64"));
+        Assert.NotNull(manifest.SelectFor("macos", "arm64"));
     }
 
     [Theory]
@@ -60,13 +60,15 @@ public partial class FFmpegBuildManifestTests
     }
 
     [Theory]
-    [InlineData("osx", "arm64", "osx-arm64")]
-    [InlineData("osx", "x64", "osx-x64")]
+    [InlineData("macos", "arm64", "macos-arm64")]
+    [InlineData("macos", "x64", "macos-x64")]
     [InlineData("win", "x64", "win-x64")]
     public void SelectFor_ReturnsTheBuildForExactlyThatPlatform(string platform, string architecture, string rid)
         => Assert.Equal(rid, FFmpegBuildManifest.Embedded.SelectFor(platform, architecture)?.Rid);
 
     [Theory]
+    [InlineData("osx", "arm64")]
+    [InlineData("osx", "x64")]
     [InlineData("win", "arm64")]
     [InlineData("linux", "x64")]
     [InlineData("", "")]

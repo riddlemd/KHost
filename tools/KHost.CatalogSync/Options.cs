@@ -11,7 +11,7 @@ public sealed record Options
           --asset <name.zip>      Which asset to publish, when a release carries more than one zip.
           --catalog <path>        Catalog file to update (default plugin-catalog.json).
           --capabilities <a,b>    What the plugin provides; the manifest does not carry this.
-          --rid <win|osx|linux>   Platform this build is for; omit for a build that runs anywhere.
+          --rid <win|macos|linux>   Platform this build is for; omit for a build that runs anywhere.
           --include-prerelease    Allow a release marked prerelease.
         """;
 
