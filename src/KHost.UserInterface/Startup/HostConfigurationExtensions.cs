@@ -32,6 +32,7 @@ internal static class HostConfigurationExtensions
         Directory.CreateDirectory(logDirectory);
         KHostLogFiles.SweepStaleLogs(logDirectory);
 
+        var logFilePath = Path.Combine(logDirectory, KHostLogFiles.HostFileName());
         var logLevel = HostLogLevel.Read(builder.Configuration);
         var frameworkLogLevel = HostLogLevel.ToSerilog(HostLogLevel.ForFramework(logLevel));
 
@@ -41,7 +42,7 @@ internal static class HostConfigurationExtensions
             .MinimumLevel.Override("Microsoft.AspNetCore", frameworkLogLevel)
             .WriteTo.Console()
             .WriteTo.File(
-                path: Path.Combine(logDirectory, KHostLogFiles.HostFileName()),
+                path: logFilePath,
                 // Infinite: the filename already carries the launch timestamp, so a date-rolled
                 // segment on top of it would just repeat today's date in the name.
                 rollingInterval: RollingInterval.Infinite,
@@ -49,6 +50,8 @@ internal static class HostConfigurationExtensions
                 fileSizeLimitBytes: 10_000_000,
                 retainedFileCountLimit: null,
                 outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] {Message:lj}{NewLine}{Exception}"));
+
+        builder.Services.AddSingleton<ILiveLogService>(new LiveLogService(logFilePath));
 
         // A sweep at launch never fires again for a host left running for weeks.
         builder.Services.AddHostedService(_ => new LogRetentionHostedService(logDirectory));
