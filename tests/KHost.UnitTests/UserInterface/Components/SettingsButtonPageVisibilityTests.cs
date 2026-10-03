@@ -36,6 +36,7 @@ public class SettingsButtonPageVisibilityTests : BunitContext
         Services.AddSingleton(_permissions);
         Services.AddSingleton(appSettings);
         Services.AddSingleton(Substitute.For<IDialogService>());
+        Services.AddSingleton(Substitute.For<IFlashService>());
         Services.AddSingleton(Substitute.For<IThemeService>());
         Services.AddSingleton<IMessageBroker>(_broker);
     }

@@ -16,6 +16,7 @@ public class MediaSearchPanelActionTests : BunitContext
 {
     private readonly IMediaSearchService _search = Substitute.For<IMediaSearchService>();
     private readonly MessageBroker _broker = new(NullLogger<MessageBroker>.Instance);
+    private readonly IFlashService _flash = Substitute.For<IFlashService>();
 
     public MediaSearchPanelActionTests()
     {
@@ -39,6 +40,7 @@ public class MediaSearchPanelActionTests : BunitContext
         Services.AddSingleton(permissions);
         Services.AddSingleton(performances);
         Services.AddSingleton(Substitute.For<IDialogService>());
+        Services.AddSingleton(_flash);
         Services.AddSingleton<IControlState>(new ControlState());
 
         var appSettings = Substitute.For<IAppSettingsService>();
@@ -58,6 +60,22 @@ public class MediaSearchPanelActionTests : BunitContext
 
         // Throwing here is the failure mode under test.
         await task;
+    }
+
+    /// <summary>The YouTube download rethrows after failing its import; escaping the click ends the circuit.</summary>
+    [Fact]
+    public async Task Action_ThatThrows_FlashesOnceAndKeepsThePanelWithoutSearchingAgain()
+    {
+        var action = Action("Download", _ => throw new HttpRequestException("Permission denied (youtube.com:443)"),
+            refreshesResults: true);
+        var panel = await SearchedPanelAsync(action);
+
+        await panel.Find(".kh-table__cell--actions button").ClickAsync(new());
+
+        _flash.Received(1).Show(
+            "Could not reach Provider. Check this computer is online, then try again.", FlashType.Warning);
+        Assert.NotNull(panel.Find(".kh-table__cell--actions button"));
+        await _search.Received(1).SearchAsync("neon moon");
     }
 
     /// <summary>Covers a sign-in row: leaving it up after success reads as a failed sign-in.</summary>
