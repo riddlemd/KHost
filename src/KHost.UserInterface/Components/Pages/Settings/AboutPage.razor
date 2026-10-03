@@ -38,6 +38,15 @@
                     </div>
                 }
 
+                @if (LiveLog.IsAvailable)
+                {
+                    <div class="kh-about__links">
+                        <button class="kh-about__link" @onclick="LiveLog.Show">
+                            <Icon Name="terminal" /> Show Live Log
+                        </button>
+                    </div>
+                }
+
                 <button class="kh-about__toggle" @onclick="() => _licenseExpanded = !_licenseExpanded">
                     <Icon Name="@(_licenseExpanded ? "chevron-down" : "chevron-right")" />
                     <span>License</span>
