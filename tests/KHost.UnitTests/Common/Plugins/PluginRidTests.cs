@@ -45,6 +45,13 @@ public class PluginRidTests
         => Assert.False(PluginRid.MatchesThisHost(rid));
 
     [Fact]
+    public void Current_OnMacOS_IsMacos()
+    {
+        if (OperatingSystem.IsMacOS())
+            Assert.Equal("macos", PluginRid.Current);
+    }
+
+    [Fact]
     public void Current_IsOneOfThePlatformsTheCatalogAllows()
         => Assert.True(PluginRid.IsKnown(PluginRid.Current));
 
@@ -52,16 +59,17 @@ public class PluginRidTests
     [InlineData(null)]
     [InlineData("")]
     [InlineData("win")]
-    [InlineData("osx")]
+    [InlineData("macos")]
     [InlineData("linux")]
     [InlineData("win-x64")]
-    [InlineData("osx-arm64")]
+    [InlineData("macos-arm64")]
     public void IsKnown_ASpellingTheCatalogAllows_IsTrue(string? rid)
         => Assert.True(PluginRid.IsKnown(rid));
 
     [Theory]
     [InlineData("windows")]
-    [InlineData("macos")]
+    [InlineData("osx")]
+    [InlineData("osx-arm64")]
     [InlineData("win10-x64")]
     [InlineData("linux-musl-arm64")]
     [InlineData("win-sparc")]

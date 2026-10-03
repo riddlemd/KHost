@@ -57,7 +57,7 @@ internal static class Program
             return Fail("That release is a prerelease. Pass --include-prerelease to list it anyway.");
 
         if (!PluginRid.IsKnown(options.Rid))
-            return Fail($"'{options.Rid}' is not a platform this host recognises; use win, osx or linux.");
+            return Fail($"'{options.Rid}' is not a platform this host recognises; use win, macos or linux.");
 
         if (SelectAsset(release, options.Asset) is not { } asset)
             return Fail("Could not choose an asset. Name one with --asset.");

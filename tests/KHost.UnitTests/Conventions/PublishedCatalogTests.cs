@@ -121,7 +121,7 @@ public class PublishedCatalogTests
             .Select(pair => $"{Describe(pair.entry)} v{pair.release.Version} — rid '{pair.release.Rid}'")
             .ToArray();
 
-        Assert.True(offenders.Length == 0, Message("Release platforms must be win, osx or linux", offenders));
+        Assert.True(offenders.Length == 0, Message("Release platforms must be win, macos or linux", offenders));
     }
 
     [Fact]

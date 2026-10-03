@@ -6,13 +6,13 @@ namespace KHost.Common.Plugins;
 /// <remarks>A plugin splits by what the OS gives it, not by distro.</remarks>
 public static class PluginRid
 {
-    private static readonly string[] KnownPlatforms = ["win", "osx", "linux"];
+    private static readonly string[] KnownPlatforms = ["win", "macos", "linux"];
     private static readonly string[] KnownArchitectures = ["x64", "arm64", "x86", "arm"];
 
-    /// <summary>"win", "osx", "linux", or empty where the host cannot say.</summary>
+    /// <summary>"win", "macos", "linux", or empty where the host cannot say.</summary>
     public static string Current
         => OperatingSystem.IsWindows() ? "win"
-         : OperatingSystem.IsMacOS() ? "osx"
+         : OperatingSystem.IsMacOS() ? "macos"
          : OperatingSystem.IsLinux() ? "linux"
          : string.Empty;
 
