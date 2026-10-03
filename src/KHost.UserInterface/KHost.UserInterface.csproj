@@ -32,10 +32,15 @@
     <RunWorkingDirectory>$(OutputPath)</RunWorkingDirectory>
   </PropertyGroup>
 
-  <!-- Windows-only: WinExe so no console window opens beside the app; ILiveLogService shows the log instead. -->
-  <PropertyGroup Condition="$([MSBuild]::IsOSPlatform('Windows'))">
-    <OutputType>WinExe</OutputType>
-  </PropertyGroup>
+  <!-- Windows: a GUI apphost so no console window opens beside the app; ILiveLogService shows the log instead.
+       Not OutputType=WinExe: the framework assets package adds blazor.web.js only for Exe, so a WinExe
+       publish serves a white page. The SDK reads this flag when it stamps the apphost. -->
+  <Target Name="KHostUseWindowsGuiAppHost" AfterTargets="_GetAppHostCreationConfiguration"
+          Condition="$(RuntimeIdentifier.StartsWith('win')) or $(DefaultAppHostRuntimeIdentifier.StartsWith('win'))">
+    <PropertyGroup>
+      <_UseWindowsGraphicalUserInterface>true</_UseWindowsGraphicalUserInterface>
+    </PropertyGroup>
+  </Target>
 
   <!-- The app icon: embedded in the exe for Explorer and the taskbar, and copied beside it for the
        window and the Dock, which read it at runtime. assets/icon/build-icons.py regenerates them. -->
