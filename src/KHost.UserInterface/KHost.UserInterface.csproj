@@ -32,6 +32,11 @@
     <RunWorkingDirectory>$(OutputPath)</RunWorkingDirectory>
   </PropertyGroup>
 
+  <!-- Windows-only: WinExe so no console window opens beside the app; ILiveLogService shows the log instead. -->
+  <PropertyGroup Condition="$([MSBuild]::IsOSPlatform('Windows'))">
+    <OutputType>WinExe</OutputType>
+  </PropertyGroup>
+
   <!-- The app icon: embedded in the exe for Explorer and the taskbar, and copied beside it for the
        window and the Dock, which read it at runtime. assets/icon/build-icons.py regenerates them. -->
   <PropertyGroup>
