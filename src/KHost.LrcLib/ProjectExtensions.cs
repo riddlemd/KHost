@@ -25,6 +25,9 @@ public static class ProjectExtensions
 
             http.BaseAddress = new Uri(options.BaseAddress, UriKind.Absolute);
             http.DefaultRequestHeaders.UserAgent.ParseAdd(options.UserAgent);
+
+            // The lyrics dialog spins until this answers; the default 100s reads as a hang.
+            http.Timeout = TimeSpan.FromSeconds(15);
         });
 
         return serviceCollection;

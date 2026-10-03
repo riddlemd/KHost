@@ -71,6 +71,18 @@ public class PluginInstallerServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task InstallAsync_Offline_SaysTheDownloadCouldNotBeReached()
+    {
+        var payload = BuildZip();
+        var service = BuildService(payload, failure: new HttpRequestException("Permission denied (example.test:443)"));
+
+        var result = await service.InstallAsync(Entry(), Release(Sha256(payload)));
+
+        Assert.Equal(PluginInstallState.Failed, result.State);
+        Assert.Equal("Could not reach example.test. Check this computer is online, then try again.", result.Error);
+    }
+
+    [Fact]
     public async Task InstallAsync_ReleaseWithoutAChecksum_IsRefused()
     {
         var service = BuildService(BuildZip());
@@ -407,9 +419,10 @@ public class PluginInstallerServiceTests : IDisposable
         return folderName;
     }
 
-    private PluginInstallerService BuildService(byte[] payload, HttpStatusCode status = HttpStatusCode.OK, SemaphoreSlim? gate = null)
+    private PluginInstallerService BuildService(
+        byte[] payload, HttpStatusCode status = HttpStatusCode.OK, SemaphoreSlim? gate = null, Exception? failure = null)
     {
-        var handler = new StubHandler(status, payload, gate);
+        var handler = new StubHandler(status, payload, gate, failure);
         var factory = Substitute.For<IHttpClientFactory>();
 
         factory.CreateClient(Arg.Any<string>()).Returns(_ => new HttpClient(handler, disposeHandler: false));
@@ -481,10 +494,13 @@ public class PluginInstallerServiceTests : IDisposable
         stream.Write(Encoding.UTF8.GetBytes(content));
     }
 
-    private sealed class StubHandler(HttpStatusCode status, byte[] payload, SemaphoreSlim? gate) : HttpMessageHandler
+    private sealed class StubHandler(HttpStatusCode status, byte[] payload, SemaphoreSlim? gate, Exception? failure) : HttpMessageHandler
     {
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
+            if (failure is not null)
+                throw failure;
+
             // Holds the response open so a test can observe or cancel a download mid-flight.
             if (gate is not null)
                 await gate.WaitAsync(cancellationToken);

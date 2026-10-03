@@ -1,8 +1,10 @@
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
+using Microsoft.Extensions.Logging;
 using Microsoft.JSInterop;
 using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
+using KHost.Domain.Services;
 using KHost.Domain.Services.MediaProviders;
 using KHost.Abstractions.Messaging;
 using KHost.Abstractions.Messaging.Messages;
@@ -23,6 +25,8 @@ public partial class MediaSearchPanel : IDisposable
     [Inject] private IAppSettingsService AppSettings { get; set; } = default!;
     [Inject] private ICacheService CacheService { get; set; } = default!;
     [Inject] private IJSRuntime JS { get; set; } = default!;
+    [Inject] private IFlashService Flash { get; set; } = default!;
+    [Inject] private ILogger<MediaSearchPanel> Logger { get; set; } = default!;
 
     /// <summary>Where "Remember the last one used" keeps its pick: per machine, like the theme and
     /// the selected venue, not per venue.</summary>
@@ -301,6 +305,13 @@ public partial class MediaSearchPanel : IDisposable
         {
             // The host dequeuing the Downloading row cancels the plugin's own download token.
             // This is that cancel unwinding through the action, not a failure to report.
+            return;
+        }
+        catch (Exception ex)
+        {
+            // Escaping an @onclick ends the circuit, and the show with it.
+            Logger.LogWarning(ex, "Action '{Action}' failed for '{Title}'", action.DisplayName, mediaSearchEntity.Title);
+            Flash.Show(NetworkFailureText.Describe(mediaSearchEntity.SourceDisplayName, ex), FlashType.Warning);
             return;
         }
 

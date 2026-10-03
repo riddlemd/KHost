@@ -9,6 +9,7 @@ public class MediaSearchServiceTests
 {
 
     private readonly ILogger<MediaSearchService> _logger = Substitute.For<ILogger<MediaSearchService>>();
+    private readonly IFlashService _flash = Substitute.For<IFlashService>();
     private readonly IMediaProvider _provider;
     private readonly MediaSearchService _service;
 
@@ -19,7 +20,7 @@ public class MediaSearchServiceTests
         _provider.DisplayName.Returns("File System");
         var analytics = Substitute.For<IAnalyticsService>();
         analytics.StartActivity(Arg.Any<string>()).Returns(Substitute.For<IAnalyticsActivity>());
-        _service = new MediaSearchService(_logger, [_provider], analytics);
+        _service = new MediaSearchService(_logger, [_provider], analytics, _flash);
     }
 
     [Fact]
@@ -36,7 +37,7 @@ public class MediaSearchServiceTests
         other.SourceName.Returns("YouTube");
         var analytics = Substitute.For<IAnalyticsService>();
         analytics.StartActivity(Arg.Any<string>()).Returns(Substitute.For<IAnalyticsActivity>());
-        var service = new MediaSearchService(_logger, [_provider, other], analytics);
+        var service = new MediaSearchService(_logger, [_provider, other], analytics, _flash);
 
         _provider.SearchAsync("song", 0, 0).Returns([Entity("FileSystem", "song")]);
 
@@ -85,7 +86,7 @@ public class MediaSearchServiceTests
     {
         var analytics = Substitute.For<IAnalyticsService>();
         analytics.StartActivity(Arg.Any<string>()).Returns(Substitute.For<IAnalyticsActivity>());
-        var emptyService = new MediaSearchService(_logger, [], analytics);
+        var emptyService = new MediaSearchService(_logger, [], analytics, _flash);
 
         var results = await emptyService.SearchAsync("test", "FileSystem");
 
@@ -101,6 +102,52 @@ public class MediaSearchServiceTests
         var results = await _service.SearchAsync("song", "FileSystem");
 
         Assert.Empty(results);
+    }
+
+    [Fact]
+    public async Task SearchAsync_ProviderCannotBeReached_FlashesThatItCouldNotBeReached()
+    {
+        _provider.SearchAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<int>())
+            .Returns(Task.FromException<List<MediaSearchEntity>>(new HttpRequestException("Permission denied (karafun.com:443)")));
+
+        await _service.SearchAsync("song", "FileSystem");
+
+        _flash.Received(1).Show(
+            "Could not reach File System. Check this computer is online, then try again.", FlashType.Warning);
+    }
+
+    [Fact]
+    public async Task SearchAsync_ProviderTimesOut_Flashes()
+    {
+        _provider.SearchAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<int>())
+            .Returns(Task.FromException<List<MediaSearchEntity>>(new TaskCanceledException("timed out", new TimeoutException())));
+
+        await _service.SearchAsync("song", "FileSystem");
+
+        _flash.Received(1).Show(Arg.Is<string>(t => t.StartsWith("Could not reach File System.")), FlashType.Warning);
+    }
+
+    [Fact]
+    public async Task SearchAsync_ProviderCancelsItsOwnSearch_FindsNothingWithoutAFlash()
+    {
+        _provider.SearchAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<int>())
+            .Returns(Task.FromException<List<MediaSearchEntity>>(new OperationCanceledException()));
+
+        var results = await _service.SearchAsync("song", "FileSystem");
+
+        Assert.Empty(results);
+        _flash.DidNotReceive().Show(Arg.Any<string>(), Arg.Any<FlashType>());
+    }
+
+    [Fact]
+    public async Task SearchAsync_ProviderAnswers_DoesNotFlash()
+    {
+        _provider.SearchAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<int>())
+            .Returns([Entity("FileSystem", "song")]);
+
+        await _service.SearchAsync("song", "FileSystem");
+
+        _flash.DidNotReceive().Show(Arg.Any<string>(), Arg.Any<FlashType>());
     }
 
     [Fact]
@@ -196,6 +243,6 @@ public class MediaSearchServiceTests
         var analytics = Substitute.For<IAnalyticsService>();
         analytics.StartActivity(Arg.Any<string>()).Returns(Substitute.For<IAnalyticsActivity>());
 
-        return (new MediaSearchService(_logger, [local, remote], analytics), local, remote);
+        return (new MediaSearchService(_logger, [local, remote], analytics, _flash), local, remote);
     }
 }

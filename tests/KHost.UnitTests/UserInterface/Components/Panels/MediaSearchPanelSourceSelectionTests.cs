@@ -58,6 +58,7 @@ public class MediaSearchPanelSourceSelectionTests : BunitContext
         Services.AddSingleton(permissions);
         Services.AddSingleton(performances);
         Services.AddSingleton(Substitute.For<IDialogService>());
+        Services.AddSingleton(Substitute.For<IFlashService>());
         Services.AddSingleton<IControlState>(_controlState);
         AddDefaultSearchModeServices();
     }

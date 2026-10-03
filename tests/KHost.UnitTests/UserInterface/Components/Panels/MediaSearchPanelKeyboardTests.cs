@@ -57,6 +57,7 @@ public class MediaSearchPanelKeyboardTests : BunitContext
         Services.AddSingleton(_permissions);
         Services.AddSingleton(performances);
         Services.AddSingleton(Substitute.For<IDialogService>());
+        Services.AddSingleton(Substitute.For<IFlashService>());
         Services.AddSingleton<IControlState>(_controlState);
         Services.AddSingleton(appSettings);
         Services.AddSingleton(Substitute.For<ICacheService>());
