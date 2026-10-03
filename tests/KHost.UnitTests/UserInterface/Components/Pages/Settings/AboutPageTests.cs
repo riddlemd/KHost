@@ -12,6 +12,7 @@ public class AboutPageTests : BunitContext
 
     private readonly IAppInfoService _appInfo = Substitute.For<IAppInfoService>();
     private readonly IExternalLinkService _externalLinks = Substitute.For<IExternalLinkService>();
+    private readonly ILiveLogService _liveLog = Substitute.For<ILiveLogService>();
 
     public AboutPageTests()
     {
@@ -31,6 +32,7 @@ public class AboutPageTests : BunitContext
 
         Services.AddSingleton(_appInfo);
         Services.AddSingleton(_externalLinks);
+        Services.AddSingleton(_liveLog);
     }
 
     [Fact]
@@ -97,5 +99,27 @@ public class AboutPageTests : BunitContext
             .Single(link => link.TextContent.Contains("Report an Issue")).Click());
 
         _externalLinks.Received(1).Open("https://github.com/riddlemd/KHost/issues");
+    }
+
+    [Fact]
+    public void LiveLogButton_Unavailable_IsNotOffered()
+    {
+        _liveLog.IsAvailable.Returns(false);
+
+        var cut = Render<AboutPage>();
+
+        Assert.DoesNotContain(cut.FindAll(LinkSelector), link => link.TextContent.Contains("Show Live Log"));
+    }
+
+    [Fact]
+    public async Task LiveLogButton_Clicked_ShowsTheLiveLog()
+    {
+        _liveLog.IsAvailable.Returns(true);
+        var cut = Render<AboutPage>();
+
+        await cut.InvokeAsync(() => cut.FindAll(LinkSelector)
+            .Single(link => link.TextContent.Contains("Show Live Log")).Click());
+
+        _liveLog.Received(1).Show();
     }
 }
