@@ -62,7 +62,8 @@
           "apiVersion": 6,
           "url": "https://github.com/riddlemd/KHost.Plugins.YouTubeMusic/releases/download/v0.1.1/KHost.Plugins.YouTubeMusic-0.1.1.zip",
           "sha256": "c7b2ad785474bfef9b9cb8e19a89e40073c01ba23339371441c8cfb7b4a3a216",
-          "sizeBytes": 210707
+          "sizeBytes": 210707,
+          "rid": "osx"
         }
       ]
     },
