@@ -147,14 +147,15 @@ public class PluginCatalogService : BaseService, IPluginCatalogService
 
             return true;
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
             throw;
         }
         catch (Exception ex)
         {
             // The cached catalog is kept on purpose: a bar's wifi should cost a stale list, not none.
-            LastError = ex.Message;
+            // HttpClient's own timeout lands here too, as a cancel nobody asked for.
+            LastError = NetworkFailureText.Describe("the plugin catalog", ex, cancellationToken);
 
             Logger.LogWarning(ex, "Could not fetch the plugin catalog from {Url}", uri);
 

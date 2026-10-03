@@ -12,12 +12,15 @@ public class MediaSearchService : BaseService, IMediaSearchService
 
     private readonly List<IMediaProvider> _providers;
     private readonly IAnalyticsService _analytics;
+    private readonly IFlashService _flash;
 
-    public MediaSearchService(ILogger<MediaSearchService> logger, IEnumerable<IMediaProvider> providers, IAnalyticsService analytics)
+    public MediaSearchService(
+        ILogger<MediaSearchService> logger, IEnumerable<IMediaProvider> providers, IAnalyticsService analytics, IFlashService flash)
         : base(logger)
     {
         _providers = providers.ToList();
         _analytics = analytics;
+        _flash = flash;
     }
 
     public IReadOnlyList<IMediaProvider> Providers => _providers;
@@ -63,6 +66,12 @@ public class MediaSearchService : BaseService, IMediaSearchService
             catch (Exception ex)
             {
                 Logger.LogWarning(ex, "Provider '{Provider}' failed for query '{Query}'", p.DisplayName, query);
+
+                // Without this an offline provider reads as "no songs match". A provider cancelling its
+                // own superseded search is no failure, but HttpClient reports a timeout as a cancel too.
+                if (ex is not OperationCanceledException { InnerException: not TimeoutException })
+                    _flash.Show(NetworkFailureText.Describe(p.DisplayName, ex), FlashType.Warning);
+
                 return [];
             }
         });

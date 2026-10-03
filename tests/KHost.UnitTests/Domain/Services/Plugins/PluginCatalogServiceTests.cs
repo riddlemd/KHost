@@ -194,11 +194,44 @@ public class PluginCatalogServiceTests
         Assert.Contains("larger", service.LastError);
     }
 
-    private PluginCatalogService BuildService(StubHandler handler, string? url = Url, TimeSpan? lifetime = null)
+    [Fact]
+    public async Task GetAsync_Offline_SaysTheCatalogCouldNotBeReached()
+    {
+        var handler = new StubHandler(CatalogJson) { Failure = new HttpRequestException("Permission denied (raw.githubusercontent.com:443)") };
+        var service = BuildService(handler);
+
+        Assert.Null(await service.GetAsync());
+        Assert.Equal("Could not reach the plugin catalog. Check this computer is online, then try again.", service.LastError);
+    }
+
+    [Fact]
+    public async Task GetAsync_HttpClientTimesOut_ReportsItWithoutThrowing()
+    {
+        var service = BuildService(new StubHandler(CatalogJson) { Hangs = true }, timeout: TimeSpan.FromMilliseconds(50));
+
+        Assert.Null(await service.GetAsync());
+        Assert.Equal("Could not reach the plugin catalog. Check this computer is online, then try again.", service.LastError);
+    }
+
+    [Fact]
+    public async Task GetAsync_CallerCancels_Throws()
+    {
+        var service = BuildService(new StubHandler(CatalogJson) { Hangs = true });
+        using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(50));
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => service.GetAsync(cts.Token));
+        Assert.Null(service.LastError);
+    }
+
+    private PluginCatalogService BuildService(
+        StubHandler handler, string? url = Url, TimeSpan? lifetime = null, TimeSpan? timeout = null)
     {
         var factory = Substitute.For<IHttpClientFactory>();
 
-        factory.CreateClient(Arg.Any<string>()).Returns(_ => new HttpClient(handler, disposeHandler: false));
+        factory.CreateClient(Arg.Any<string>()).Returns(_ => new HttpClient(handler, disposeHandler: false)
+        {
+            Timeout = timeout ?? TimeSpan.FromSeconds(100),
+        });
 
         var options = Substitute.For<IOptionsMonitor<PluginCatalogService.ServiceOptions>>();
 
@@ -258,14 +291,26 @@ public class PluginCatalogServiceTests
         /// <summary>Send the body with no Content-Length at all, as a chunked response does.</summary>
         public bool Chunked { get; set; }
 
+        /// <summary>Thrown from the send, as a refused or unresolvable connection is.</summary>
+        public Exception? Failure { get; set; }
+
+        /// <summary>Never answers, so only a timeout or the caller's cancel ends the send.</summary>
+        public bool Hangs { get; set; }
+
         public int Calls { get; private set; }
 
         public string? LastIfNoneMatch { get; private set; }
 
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             Calls++;
             LastIfNoneMatch = request.Headers.IfNoneMatch.FirstOrDefault()?.ToString();
+
+            if (Failure is not null)
+                throw Failure;
+
+            if (Hangs)
+                await Task.Delay(Timeout.Infinite, cancellationToken);
 
             var response = new HttpResponseMessage(Status)
             {
@@ -280,7 +325,7 @@ public class PluginCatalogServiceTests
             if (ETag is not null)
                 response.Headers.ETag = EntityTagHeaderValue.Parse(ETag);
 
-            return Task.FromResult(response);
+            return response;
         }
 
         // Non-seekable on purpose: StreamContent computes a Content-Length from any stream that

@@ -5,6 +5,7 @@ using KHost.Abstractions.Messaging;
 using KHost.Abstractions.Messaging.Messages;
 using KHost.UserInterface.Services;
 using Microsoft.AspNetCore.Components;
+using Microsoft.Extensions.Logging;
 using Microsoft.JSInterop;
 
 namespace KHost.UserInterface.Components;
@@ -34,6 +35,8 @@ public partial class SettingsButton : IDisposable
     [Inject] private IDialogService DialogService { get; set; } = default!;
     [Inject] private IJSRuntime JS { get; set; } = default!;
     [Inject] private IMessageBroker Broker { get; set; } = default!;
+    [Inject] private IFlashService Flash { get; set; } = default!;
+    [Inject] private ILogger<SettingsButton> Logger { get; set; } = default!;
 
     private readonly SubscriptionSet _subscriptions = new();
 
@@ -273,7 +276,24 @@ public partial class SettingsButton : IDisposable
         // Off first, and every other provider, or a press that fails below leaves the song on two.
         await DisconnectOthersAsync(except: provider);
 
-        await SafelyAsync(() => provider.ConnectAsync(device.Id));
+        var connected = false;
+
+        try
+        {
+            connected = await provider.ConnectAsync(device.Id);
+
+            if (!connected)
+                Logger.LogWarning("{Provider} could not connect to '{Device}'", provider.Name, device.Name);
+        }
+        catch (Exception ex)
+        {
+            // A transport that throws must not take the menu down with it.
+            Logger.LogWarning(ex, "{Provider} failed connecting to '{Device}'", provider.Name, device.Name);
+        }
+
+        // Otherwise an unreachable receiver looks like a press that did nothing.
+        if (!connected)
+            Flash.Show($"Could not connect to {device.Name}. Check it is on and on the same network.", FlashType.Warning);
 
         CloseMenu();
     }
@@ -294,7 +314,7 @@ public partial class SettingsButton : IDisposable
             if (display == except) continue;
             if (display.ConnectedDeviceId is not { Length: > 0 }) continue;
 
-            await SafelyAsync(() => display.DisconnectAsync());
+            await SafelyAsync(() => display.DisconnectAsync(), $"Disconnecting {display.Name}");
         }
     }
 
@@ -304,6 +324,7 @@ public partial class SettingsButton : IDisposable
     internal async Task ToggleSearchAsync()
     {
         var searching = IsSearching;
+        Exception? startFailure = null;
 
         foreach (var provider in Displays)
         {
@@ -311,10 +332,15 @@ public partial class SettingsButton : IDisposable
             // is not what pressing "search" asked for.
             if (!provider.SearchesForDevices) continue;
 
-            await SafelyAsync(() => searching
-                ? provider.StopDiscoveryAsync()
-                : provider.StartDiscoveryAsync());
+            if (searching)
+                await SafelyAsync(() => provider.StopDiscoveryAsync(), $"Stopping {provider.Name} discovery");
+            else
+                startFailure ??= await SafelyAsync(() => provider.StartDiscoveryAsync(), $"Starting {provider.Name} discovery");
         }
+
+        // One line however many transports failed; an empty list alone reads as an empty room.
+        if (startFailure is not null)
+            Flash.Show($"Could not search for devices: {startFailure.Message}", FlashType.Warning);
 
         // Deliberately left open: a sweep fills the list underneath, and closing the menu would
         // hide the very thing that was asked for.
@@ -322,10 +348,19 @@ public partial class SettingsButton : IDisposable
     }
 
     /// <summary>A transport that throws must not take the menu down with it.</summary>
-    private static async Task SafelyAsync(Func<Task> action)
+    /// <returns>What was thrown, or null.</returns>
+    private async Task<Exception?> SafelyAsync(Func<Task> action, string what)
     {
-        try { await action(); }
-        catch (Exception) { }
+        try
+        {
+            await action();
+            return null;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "{What} failed", what);
+            return ex;
+        }
     }
 
     private async Task EditVenueAsync()

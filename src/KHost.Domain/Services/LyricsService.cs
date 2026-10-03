@@ -9,11 +9,13 @@ namespace KHost.Domain.Services
     public class LyricsService : BaseService, ILyricsService
     {
         private readonly ILrcLibClient _lrcLibClient;
+        private readonly IFlashService _flash;
 
-        public LyricsService(ILogger<LyricsService> logger, ILrcLibClient lrcLibClient)
+        public LyricsService(ILogger<LyricsService> logger, ILrcLibClient lrcLibClient, IFlashService flash)
             : base(logger)
         {
             _lrcLibClient = lrcLibClient;
+            _flash = flash;
         }
 
         public async Task<Lyrics?> SearchAsync(string query, CancellationToken cancellationToken = default)
@@ -30,9 +32,15 @@ namespace KHost.Domain.Services
 
                 return MapLyricsResult(results[0]);
             }
-            catch (HttpRequestException ex)
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                // Null alone leaves the dialog saying no lyrics exist, when LRCLIB may never have answered.
                 Logger.LogWarning(ex, "Lyrics lookup failed for '{Query}'", query);
+                _flash.Show(NetworkFailureText.Describe("LRCLIB", ex, cancellationToken), FlashType.Warning);
                 return null;
             }
         }
