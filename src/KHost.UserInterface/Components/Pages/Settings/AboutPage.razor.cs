@@ -7,6 +7,7 @@ public partial class AboutPage
 {
     [Inject] private IAppInfoService AppInfo { get; set; } = default!;
     [Inject] private IExternalLinkService ExternalLinks { get; set; } = default!;
+    [Inject] private ILiveLogService LiveLog { get; set; } = default!;
 
     private bool _licenseExpanded;
     private bool _noticesExpanded;
