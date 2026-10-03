@@ -351,7 +351,7 @@ dotnet run --project tools/KHost.CatalogSync -- <owner/repo> # add a plugin's Gi
 - `Dialog` renders its footer only when one is supplied. A viewer (actions commit on click) supplies none and closes from the header X; no close-only footer button.
 - Keyboard shortcuts:
   - A list's arrow keys: Blazor `@onkeydown` on a focusable element *inside* the panel (`tabindex` + `data-kh-keylist`). A handler on the column around the panel never sees it.
-  - Global chords: `shortcuts.js`, focusing `[data-kh-shortcut]`, matched in JS so typing never crosses the circuit.
+  - Global chords: `shortcuts.js`, focusing `[data-kh-shortcut]`, matched in JS so typing never crosses the circuit. None of them act while a dialog is open (`.kh-scrim` in the DOM), and closing the last dialog hands focus back to what held it before (`scroll-utils.js`).
   - Both share `ListKeyboardShortcuts.Resolve`. Every new shortcut must also be added to `KeyboardShortcuts.All` (the menu's dialog is the only place a host discovers one).
 - Both queues reorder by dragging the row through `khSortable` (`sortable-interop.js`), keyed per list (one shared instance made two lists tear each other down). It must keep:
   - reverting the DOM to pre-drag order before telling .NET (Blazor diffs against its own tree);

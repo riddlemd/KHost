@@ -2,6 +2,8 @@
 // focuses or clicks a [data-kh-shortcut] element, so the element's own guards still decide.
 // Accel is Ctrl or Cmd: the hints read "ctrl", but a host on a Mac reaches for Cmd.
 // Which browser shortcuts are cancelled is browser-keys.js's business, not this file's.
+// None of them reach the page behind an open dialog: a chord there moves focus, or the queue, out
+// from under the question the dialog is asking.
 (function () {
     // Matched on the key's position, not its character: AZERTY's Ctrl+1 reports key "&".
     const focusTargets = {
@@ -15,7 +17,7 @@
         if (!(event.ctrlKey || event.metaKey) || event.altKey || event.shiftKey) return;
 
         const name = focusTargets[event.code];
-        if (!name) return;
+        if (!name || document.querySelector('.kh-scrim')) return;
 
         const target = document.querySelector('[data-kh-shortcut="' + name + '"]');
 
@@ -81,7 +83,7 @@
 
     document.addEventListener('keydown', function (event) {
         const name = chord(event);
-        if (!name) return;
+        if (!name || document.querySelector('.kh-scrim')) return;
 
         const target = event.target;
         if (target instanceof HTMLElement) {
@@ -117,8 +119,11 @@
                 return;
         }
 
-        // Already open: closing it is the toggle, not a second copy stacked on top.
+        // Already open: closing it is the toggle, not a second copy stacked on top. Over any other
+        // dialog it does nothing.
         const closeBtn = document.querySelector('.kh-help-dialog .kh-dialog__close-btn');
+        if (!closeBtn && document.querySelector('.kh-scrim')) return;
+
         const button = closeBtn ?? document.querySelector('[data-kh-shortcut="help"]');
         if (!button) return;
 
