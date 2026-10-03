@@ -191,8 +191,8 @@ function createStemMixer(stems, startOffsetSeconds, reportError, volume = 1) {
         /// source being present and a bare mixer has neither `src` nor `srcObject` of its own.
         src: 'stems:',
 
-        /// Nothing to play until the stems are decoded, and everything once they are. The lyrics
-        /// clock and the drift loop both read this before trusting the time below.
+        /// Nothing to play until the stems are decoded, and everything once they are. The drift
+        /// loop reads this before trusting the time below; the lyrics clock does not need to.
         get readyState() { return decoded ? 4 : 0; },
 
         /// The decoded length, which is exact — unlike a media element's, which this engine

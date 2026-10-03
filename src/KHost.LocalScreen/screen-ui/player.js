@@ -36,6 +36,10 @@ function songClock() {
 
     const player = target();
 
+    // A mix's time is arithmetic, valid before its stems decode. Waiting on readyState instead
+    // blanks the words and card for as long as a decode outlasts the lead-in.
+    if (player && player === stemMixer) return songOffsetSeconds + player.currentTime * songRate;
+
     // srcObject as well as src: WebKit refuses hls.js's blob: URL on this opaque-origin page, so
     // the stream is attached as a MediaSource and `src` stays empty. Asking only for `src` reads a
     // playing song as nothing holding it, and the words never draw on macOS at all.
