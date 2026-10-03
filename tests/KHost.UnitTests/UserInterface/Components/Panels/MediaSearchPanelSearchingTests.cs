@@ -52,6 +52,7 @@ public class MediaSearchPanelSearchingTests : BunitContext
         Services.AddSingleton(permissions);
         Services.AddSingleton(performances);
         Services.AddSingleton(Substitute.For<IDialogService>());
+        Services.AddSingleton(Substitute.For<IFlashService>());
         Services.AddSingleton<IControlState>(new ControlState());
 
         var appSettings = Substitute.For<IAppSettingsService>();

@@ -60,6 +60,7 @@ public class MediaSearchPanelDefaultSearchModeTests : BunitContext
         Services.AddSingleton(permissions);
         Services.AddSingleton(performances);
         Services.AddSingleton(Substitute.For<IDialogService>());
+        Services.AddSingleton(Substitute.For<IFlashService>());
         Services.AddSingleton<IControlState>(_controlState);
         Services.AddSingleton(_appSettings);
         Services.AddSingleton(_cache);

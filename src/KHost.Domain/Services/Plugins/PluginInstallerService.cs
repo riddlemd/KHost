@@ -117,7 +117,12 @@ public class PluginInstallerService : BaseService, IPluginInstallerService
         {
             Logger.LogWarning(ex, "Installing plugin '{Name}' failed", info.Name);
 
-            return Settle(entry.Id, PluginInstallState.Failed, ex.Message);
+            // Every other failure here already carries a line the host can read; a socket's does not.
+            var error = NetworkFailureText.IsNetworkFailure(ex)
+                ? NetworkFailureText.Describe(new Uri(release.Url).Host, ex)
+                : ex.Message;
+
+            return Settle(entry.Id, PluginInstallState.Failed, error);
         }
         finally
         {

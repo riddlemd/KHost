@@ -19,6 +19,7 @@ public class SettingsButtonDisplayTests : BunitContext
     private readonly IDisplayProvider _screens = Substitute.For<IDisplayProvider>();
     private readonly IDisplayProvider _cast = Substitute.For<IDisplayProvider>();
     private readonly MessageBroker _broker = new(NullLogger<MessageBroker>.Instance);
+    private readonly IFlashService _flash = Substitute.For<IFlashService>();
 
     private IDisplayProvider[] _providers;
 
@@ -58,6 +59,7 @@ public class SettingsButtonDisplayTests : BunitContext
         Services.AddSingleton(appSettings);
         Services.AddSingleton(Substitute.For<IBreakMusicService>());
         Services.AddSingleton(Substitute.For<IDialogService>());
+        Services.AddSingleton(_flash);
         Services.AddSingleton(Substitute.For<IThemeService>());
         Services.AddSingleton<IMessageBroker>(_broker);
         Services.AddSingleton<IEnumerable<IDisplayProvider>>(_ => _providers);
@@ -244,7 +246,70 @@ public class SettingsButtonDisplayTests : BunitContext
         Assert.NotEmpty(menu.FindAll(".kh-dropdown__trigger"));
     }
 
+    [Fact]
+    public async Task ChoosingADevice_ThatCannotBeReached_FlashesOnceNamingIt()
+    {
+        _cast.Devices.Returns([Device("tv-1", "Living Room TV")]);
+        _cast.ConnectAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(false);
+
+        var (_, rows) = OpenDisplaySection();
+        await Row(rows, "Living Room TV").ClickAsync(new());
+
+        _flash.Received(1).Show(
+            "Could not connect to Living Room TV. Check it is on and on the same network.", FlashType.Warning);
+    }
+
+    [Fact]
+    public async Task ChoosingADevice_ThatThrows_FlashesOnce()
+    {
+        _cast.Devices.Returns([Device("tv-1", "Living Room TV")]);
+        _cast.ConnectAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns<Task<bool>>(_ => throw new InvalidOperationException("receiver went away"));
+
+        var (menu, rows) = OpenDisplaySection();
+        await Row(rows, "Living Room TV").ClickAsync(new());
+
+        _flash.Received(1).Show(Arg.Is<string>(t => t.Contains("Living Room TV")), FlashType.Warning);
+        Assert.NotEmpty(menu.FindAll(".kh-dropdown__trigger"));
+    }
+
+    [Fact]
+    public async Task ChoosingADevice_ThatConnects_DoesNotFlash()
+    {
+        _cast.Devices.Returns([Device("tv-1", "Living Room TV")]);
+        _cast.ConnectAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(true);
+
+        var (_, rows) = OpenDisplaySection();
+        await Row(rows, "Living Room TV").ClickAsync(new());
+
+        await _cast.Received(1).ConnectAsync("tv-1", Arg.Any<CancellationToken>());
+        _flash.DidNotReceive().Show(Arg.Any<string>(), Arg.Any<FlashType>());
+    }
+
     // --- searching, and the two gaps it closes ---
+
+    [Fact]
+    public async Task Searching_WhenTheTransportThrows_FlashesOnce()
+    {
+        _cast.StartDiscoveryAsync(Arg.Any<CancellationToken>())
+            .Returns<Task>(_ => throw new InvalidOperationException("No route to host"));
+
+        var (menu, rows) = OpenDisplaySection();
+        await Row(rows, "Search for devices").ClickAsync(new());
+
+        _flash.Received(1).Show("Could not search for devices: No route to host", FlashType.Warning);
+        Assert.NotEmpty(menu.FindAll(".kh-settings-menu__flyout"));
+    }
+
+    [Fact]
+    public async Task Searching_WhenTheTransportStarts_DoesNotFlash()
+    {
+        var (_, rows) = OpenDisplaySection();
+        await Row(rows, "Search for devices").ClickAsync(new());
+
+        await _cast.Received(1).StartDiscoveryAsync(Arg.Any<CancellationToken>());
+        _flash.DidNotReceive().Show(Arg.Any<string>(), Arg.Any<FlashType>());
+    }
 
     /// <summary>Asking the screens to discover opens a screen, which is not what pressing
     /// "search" asked for.</summary>

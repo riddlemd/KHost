@@ -28,6 +28,7 @@ public class SettingsButtonMenuTests : BunitContext
         appSettings.Current.Returns(new AppSettings());
 
         Services.AddSingleton(Substitute.For<IDialogService>());
+        Services.AddSingleton(Substitute.For<IFlashService>());
         Services.AddSingleton<IMessageBroker>(_broker);
         Services.AddSingleton(_permissions);
         Services.AddSingleton(venues);

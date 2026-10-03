@@ -1,3 +1,4 @@
+using KHost.Abstractions.Models;
 using KHost.Abstractions.Services;
 using KHost.LrcLib;
 using KHost.LrcLib.Models;
@@ -8,12 +9,15 @@ namespace KHost.UnitTests.Domain.Services;
 
 public class LyricsServiceTests
 {
+    private const string Unreachable = "Could not reach LRCLIB. Check this computer is online, then try again.";
+
     private readonly ILrcLibClient _client = Substitute.For<ILrcLibClient>();
+    private readonly IFlashService _flash = Substitute.For<IFlashService>();
     private readonly LyricsService _service;
 
     public LyricsServiceTests()
     {
-        _service = new LyricsService(NullLogger<LyricsService>.Instance, _client);
+        _service = new LyricsService(NullLogger<LyricsService>.Instance, _client, _flash);
     }
 
     [Fact]
@@ -80,5 +84,43 @@ public class LyricsServiceTests
         var result = await _service.SearchAsync("hello");
 
         Assert.Null(result);
+        _flash.Received(1).Show(Unreachable, FlashType.Warning);
+    }
+
+    [Fact]
+    public async Task SearchAsync_HttpClientTimesOut_ReturnsNullAndFlashes()
+    {
+        _client.SearchAsync(Arg.Any<SearchLyricsRequest>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromException<IReadOnlyList<LyricsRecord>>(
+                new TaskCanceledException("The request was canceled due to the configured HttpClient.Timeout", new TimeoutException())));
+
+        var result = await _service.SearchAsync("hello");
+
+        Assert.Null(result);
+        _flash.Received(1).Show(Unreachable, FlashType.Warning);
+    }
+
+    [Fact]
+    public async Task SearchAsync_AnswerCannotBeRead_ReturnsNullAndFlashesWhy()
+    {
+        _client.SearchAsync(Arg.Any<SearchLyricsRequest>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromException<IReadOnlyList<LyricsRecord>>(new System.Text.Json.JsonException("Bad JSON")));
+
+        var result = await _service.SearchAsync("hello");
+
+        Assert.Null(result);
+        _flash.Received(1).Show("LRCLIB failed: Bad JSON", FlashType.Warning);
+    }
+
+    [Fact]
+    public async Task SearchAsync_CallerCancels_Throws()
+    {
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+        _client.SearchAsync(Arg.Any<SearchLyricsRequest>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromException<IReadOnlyList<LyricsRecord>>(new TaskCanceledException()));
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => _service.SearchAsync("hello", cts.Token));
+        _flash.DidNotReceive().Show(Arg.Any<string>(), Arg.Any<FlashType>());
     }
 }
