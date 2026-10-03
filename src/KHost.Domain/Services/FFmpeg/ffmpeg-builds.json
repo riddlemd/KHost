@@ -21,7 +21,7 @@
       ]
     },
     {
-      "rid": "osx-arm64",
+      "rid": "macos-arm64",
       "version": "9.0",
       "publisher": "OSXExperts.NET",
       "licence": "GPL-2.0-or-later",
@@ -42,7 +42,7 @@
       ]
     },
     {
-      "rid": "osx-x64",
+      "rid": "macos-x64",
       "version": "9.0.2",
       "publisher": "evermeet.cx (Helmut K. C. Tessarek)",
       "licence": "GPL-3.0-or-later",

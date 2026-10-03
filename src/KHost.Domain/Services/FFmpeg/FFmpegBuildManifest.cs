@@ -54,7 +54,7 @@ public sealed record FFmpegBuildManifest
 /// <summary>One platform's pinned build.</summary>
 public sealed record FFmpegBuild
 {
-    /// <summary>Platform and architecture, e.g. <c>osx-arm64</c>.</summary>
+    /// <summary>Platform and architecture, e.g. <c>macos-arm64</c>.</summary>
     public string Rid { get; init; } = "";
     public string Version { get; init; } = "";
     public string Publisher { get; init; } = "";

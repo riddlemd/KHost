@@ -245,7 +245,7 @@ public sealed class FFmpegServiceTests : IDisposable
 
         var environment = new FFmpegEnvironment
         {
-            Platform = "osx",
+            Platform = "macos",
             Architecture = architecture,
             IsWindows = false,
             PathVariable = () => OnPath,
@@ -275,7 +275,7 @@ public sealed class FFmpegServiceTests : IDisposable
     private static FFmpegBuild Build(
         byte[] zip, string? sha256 = null, long? size = null, string url = Url, Dictionary<string, string>? files = null) => new()
     {
-        Rid = "osx-arm64",
+        Rid = "macos-arm64",
         Version = "9.0",
         Publisher = "test",
         Licence = "GPL-2.0-or-later",
