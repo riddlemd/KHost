@@ -48,8 +48,13 @@ public class LocalScreenDisplayProviderTests
     }
 
     /// <summary>Wired to a real broker and to what each overlay is built from, as the host wires it.</summary>
+    /// <remarks>The only provider on the server, as in the host: <see cref="_provider"/> would answer
+    /// every connect too, and its sends land after a test has cleared what it counts.</remarks>
     private LocalScreenDisplayProvider DrawingProvider(IServiceProvider? services = null)
-        => new(
+    {
+        _provider.Dispose();
+
+        return new(
             NullLogger<LocalScreenDisplayProvider>.Instance, _screenServer, [], _realBroker, _venues,
             services: services ?? new ServiceCollection()
                 .AddSingleton(_upNext)
@@ -61,6 +66,7 @@ public class LocalScreenDisplayProviderTests
                 .AddSingleton(_timedLyrics)
                 .BuildServiceProvider(),
             playbackOptions: _playbackOptions);
+    }
 
     private static IScreenConnection Connection(string screenId, string connectionId)
     {
@@ -1217,6 +1223,33 @@ public class LocalScreenDisplayProviderTests
 
         Assert.Empty(Sent<HideImageCommand>());
         Assert.Empty(Sent<ShowImageCommand>());
+    }
+
+    /// <summary>A screen joining as the song loads still has the card taken down by the load.</summary>
+    [Fact]
+    public async Task LoadAsync_AfterAJoinDuringTheSong_TakesTheCardDown()
+    {
+        _playback.CurrentProgram.Returns(Song());
+        using var provider = DrawingProvider();
+        RaiseConnected(Connection("Screen 1", "conn-a"));
+        Assert.True(await WaitForSentAsync<SetBreakMusicCardCommand>());
+
+        await provider.LoadAsync(new DisplayLoad { StreamUrl = "http://host/s.m3u8" });
+
+        Assert.Single(Sent<HideImageCommand>());
+    }
+
+    /// <summary>One connect is one redraw: no other provider answers it on the same server.</summary>
+    [Fact]
+    public async Task DrawingProvider_ScreenConnected_SendsTheVolumeOnce()
+    {
+        using var provider = DrawingProvider();
+
+        RaiseConnected(Connection("Screen 1", "conn-a"));
+        Assert.True(await WaitForSentAsync<SetBreakMusicCardCommand>());
+        await Task.Delay(100);
+
+        Assert.Single(Sent<SetVolumeCommand>());
     }
 
     // --- the host's calls, as the screen's own commands ---
