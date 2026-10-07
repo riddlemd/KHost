@@ -144,6 +144,12 @@ public sealed class FFmpegService : BaseService, IFFmpegService, IDisposable
 
             SetInstall(FFmpegInstallState.Succeeded, null);
         }
+        // Ahead of the cancel: HttpClient reports its own timeout as one, which nobody asked for.
+        catch (Exception ex) when (!_shutdown.IsCancellationRequested && NetworkFailureText.IsNetworkFailure(ex, cancellationToken))
+        {
+            Logger.LogWarning(ex, "Downloading FFmpeg failed");
+            SetInstall(FFmpegInstallState.Failed, null, NetworkFailureText.Describe("the FFmpeg download site", ex, cancellationToken));
+        }
         catch (OperationCanceledException)
         {
             SetInstall(FFmpegInstallState.Failed, null, "The FFmpeg download was cancelled.");
