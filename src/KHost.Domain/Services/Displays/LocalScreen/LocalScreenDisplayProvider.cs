@@ -1056,6 +1056,10 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
                     return;
             }
 
+            // A joiner shows nothing until the song reloads onto it, so there is nothing to take down.
+            // Left unrecorded: a load racing the connect would find the song pictured and keep the card up.
+            if (cause == PictureCause.Connected && program is PlaybackProgram.Playing) return;
+
             _pictured = program;
 
             switch (program)
@@ -1063,10 +1067,6 @@ public sealed class LocalScreenDisplayProvider : IDisplayProvider, IStartsWithTh
                 case PlaybackProgram.AdStill still:
                     await TakeDownVisualiserAsync();
                     await SendAsync(new ShowImageCommand { Url = still.ImageUrl, Scaling = still.Scaling });
-                    break;
-
-                // A joiner shows nothing until the song reloads onto it, so there is nothing to take down.
-                case PlaybackProgram.Playing when cause == PictureCause.Connected:
                     break;
 
                 case PlaybackProgram.Playing:
