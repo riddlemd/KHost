@@ -235,10 +235,51 @@ public sealed class FFmpegServiceTests : IDisposable
         Assert.Contains("not an https address", status.Install.Error);
     }
 
-    private FFmpegService Service(byte[]? payload = null, FFmpegBuild? build = null, string architecture = "arm64")
+    private const string Unreachable = "Could not reach the FFmpeg download site. Check this computer is online, then try again.";
+
+    /// <summary>HttpClient's own timeout arrives as a cancellation nobody asked for.</summary>
+    [Fact]
+    public async Task InstallAsync_DownloadTimesOut_SaysTheSiteCouldNotBeReached()
+    {
+        var zip = Zip(("pkg/bin/ffmpeg", "runs:9.0"), ("pkg/bin/ffprobe", "runs:9.0"));
+        var timeout = new TaskCanceledException("The request was canceled due to the configured HttpClient.Timeout", new TimeoutException());
+        var service = Service(build: Build(zip), handler: () => new ThrowingHandler(timeout));
+
+        var status = await service.InstallAsync();
+
+        Assert.Equal(FFmpegInstallState.Failed, status.Install.State);
+        Assert.Equal(Unreachable, status.Install.Error);
+    }
+
+    [Fact]
+    public async Task InstallAsync_ConnectionDropsMidDownload_SaysTheSiteCouldNotBeReached()
+    {
+        var zip = Zip(("pkg/bin/ffmpeg", "runs:9.0"), ("pkg/bin/ffprobe", "runs:9.0"));
+        var service = Service(build: Build(zip), handler: () => new DroppingHandler());
+
+        var status = await service.InstallAsync();
+
+        Assert.Equal(FFmpegInstallState.Failed, status.Install.State);
+        Assert.Equal(Unreachable, status.Install.Error);
+    }
+
+    [Fact]
+    public async Task InstallAsync_CallerCancels_SaysItWasCancelled()
+    {
+        var zip = Zip(("pkg/bin/ffmpeg", "runs:9.0"), ("pkg/bin/ffprobe", "runs:9.0"));
+        var service = Service(build: Build(zip), handler: () => new ThrowingHandler(new InvalidOperationException("never reached")));
+
+        var status = await service.InstallAsync(new CancellationToken(canceled: true));
+
+        Assert.Equal(FFmpegInstallState.Failed, status.Install.State);
+        Assert.Equal("The FFmpeg download was cancelled.", status.Install.Error);
+    }
+
+    private FFmpegService Service(
+        byte[]? payload = null, FFmpegBuild? build = null, string architecture = "arm64", Func<HttpMessageHandler>? handler = null)
     {
         var http = Substitute.For<IHttpClientFactory>();
-        http.CreateClient(FFmpegService.HttpClientName).Returns(_ => new HttpClient(new StubHandler(payload ?? [])));
+        http.CreateClient(FFmpegService.HttpClientName).Returns(_ => new HttpClient(handler?.Invoke() ?? new StubHandler(payload ?? [])));
 
         var directories = Substitute.For<IHostDirectories>();
         directories.BinDirectory.Returns(Bin);
@@ -317,5 +358,35 @@ public sealed class FFmpegServiceTests : IDisposable
     {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
             => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(payload) });
+    }
+
+    private sealed class ThrowingHandler(Exception exception) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromException<HttpResponseMessage>(exception);
+        }
+    }
+
+    /// <summary>Answers, then loses the connection part way through the body.</summary>
+    private sealed class DroppingHandler : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+            => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StreamContent(new DroppingStream()) });
+    }
+
+    private sealed class DroppingStream : MemoryStream
+    {
+        private bool _sent;
+
+        public DroppingStream() : base([1, 2, 3, 4]) { }
+
+        public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            if (_sent) throw new HttpIOException(HttpRequestError.ResponseEnded, "The response ended prematurely.");
+            _sent = true;
+            return base.ReadAsync(buffer, cancellationToken);
+        }
     }
 }

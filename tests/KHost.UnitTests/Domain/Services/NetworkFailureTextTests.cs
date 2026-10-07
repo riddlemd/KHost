@@ -15,6 +15,8 @@ public class NetworkFailureTextTests
         new IOException("Unable to read data", new SocketException((int)SocketError.ConnectionReset)),
         new IOException("Unable to read data", new HttpRequestException("reset")),
         new TaskCanceledException("The request was canceled due to the configured HttpClient.Timeout", new TimeoutException()),
+        new HttpIOException(HttpRequestError.ResponseEnded, "The response ended prematurely."),
+        new HttpIOException(HttpRequestError.ConnectionError, "Connection reset."),
     };
 
     [Theory]
@@ -37,6 +39,13 @@ public class NetworkFailureTextTests
     public void Describe_IOExceptionWithNoNetworkCause_ReportsItsMessage()
     {
         Assert.Equal("LRCLIB failed: Disk full", NetworkFailureText.Describe("LRCLIB", new IOException("Disk full")));
+    }
+
+    [Fact]
+    public void Describe_MalformedResponse_IsNotCalledUnreachable()
+    {
+        Assert.Equal("LRCLIB failed: Bad chunk. (InvalidResponse)",
+            NetworkFailureText.Describe("LRCLIB", new HttpIOException(HttpRequestError.InvalidResponse, "Bad chunk.")));
     }
 
     [Fact]

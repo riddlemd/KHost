@@ -19,6 +19,8 @@ public static class NetworkFailureText
         HttpRequestException { StatusCode: not null } => false,
         HttpRequestException or SocketException => true,
         IOException { InnerException: HttpRequestException or SocketException } => true,
+        // The connection went mid-body; a malformed answer is the server's fault, not the network's.
+        HttpIOException { HttpRequestError: HttpRequestError.ResponseEnded or HttpRequestError.ConnectionError } => true,
         // HttpClient reports its own Timeout as a cancellation.
         TaskCanceledException => !callerToken.IsCancellationRequested,
         _ => false,
