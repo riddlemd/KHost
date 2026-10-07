@@ -2628,6 +2628,81 @@ public class PlaybackServiceTests : IDisposable
         await _queueService.Received(1).RotateQueueAsync(performance.SingerId);
     }
 
+    /// <summary>Holds a conclusion inside its display stop, where the song is claimed but still
+    /// reads as playing, and returns the release.</summary>
+    private TaskCompletionSource ParkConclusionsInTheStop()
+    {
+        var stopped = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        _screenServer.BroadcastCommandAsync(Arg.Any<StopCommand>()).Returns(_ => stopped.Task);
+        return stopped;
+    }
+
+    /// <summary>A screen keeps reporting its end, so one can land while the first is still taking
+    /// the song down: the same end, not a second song to retire.</summary>
+    [Fact]
+    public async Task SongEnded_AgainWhileConcluding_ConcludesOnce()
+    {
+        var (performance, _) = await PlayingAsync();
+        var stopped = ParkConclusionsInTheStop();
+        List<Func<Task>> deferred = [];
+        _service.DeferConclusion = deferred.Add;
+
+        RaiseScreenEnded();
+        var first = deferred[0]();
+
+        RaiseScreenEnded();
+        Assert.Equal(2, deferred.Count);
+        var second = deferred[1]();
+
+        stopped.SetResult();
+        await Task.WhenAll(first, second);
+
+        Assert.Single(_logger.Entries.ToArray(), e => e.Message.StartsWith("Playback concluded", StringComparison.Ordinal));
+        await _performanceService.Received(1).DequeueAsync(performance.SingerId, performance.Id);
+        await _queueService.Received(1).RotateQueueAsync(performance.SingerId);
+    }
+
+    /// <summary>A conclusion leaves nothing claimed behind it: the next song still concludes.</summary>
+    [Fact]
+    public async Task SongEnded_OnTheNextSong_ConcludesThatSongToo()
+    {
+        await PlayingAsync();
+        RaiseScreenEnded();
+        await ConclusionsAsync();
+
+        var (next, _) = await PlayingAsync();
+        RaiseScreenEnded();
+        await ConclusionsAsync();
+
+        Assert.Equal(PlaybackState.Stopped, _service.State);
+        await _performanceService.Received(1).DequeueAsync(next.SingerId, next.Id);
+    }
+
+    /// <summary>The clock running out while the display's end is still taking the song down
+    /// retires it once.</summary>
+    [Fact]
+    public async Task ClockRunsOut_WhileTheDisplaysEndConcludes_ConcludesOnce()
+    {
+        var (performance, _) = await PlayingAsync(TimeSpan.FromMilliseconds(1));
+        var stopped = ParkConclusionsInTheStop();
+        Func<Task>? deferred = null;
+        _service.DeferConclusion = work => deferred = work;
+
+        RaiseScreenEnded();
+        Assert.NotNull(deferred);
+        var ending = deferred();
+
+        _clock.Advance(TimeSpan.FromMilliseconds(5));
+        var tick = _service.TickAsync();
+
+        stopped.SetResult();
+        await Task.WhenAll(ending, tick);
+
+        Assert.Single(_logger.Entries.ToArray(), e => e.Message.StartsWith("Playback concluded", StringComparison.Ordinal));
+        await _performanceService.Received(1).DequeueAsync(performance.SingerId, performance.Id);
+        await _queueService.Received(1).RotateQueueAsync(performance.SingerId);
+    }
+
     /// <summary>After a rebuild the old stream can still play out; its end is not this song's.</summary>
     [Fact]
     public async Task SongEnded_ForAStreamNoLongerLoaded_IsIgnored()

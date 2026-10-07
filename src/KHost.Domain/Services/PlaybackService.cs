@@ -77,6 +77,10 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
     // was raised under, so the clock and the display's own end cannot both retire one song.
     private long _generation;
 
+    // Claimed but not yet reset: the song still reads as Playing while the display stops, so an end
+    // or tick landing then captures the claimed generation as live and would conclude it again.
+    private bool _concluding;
+
     // The screen is holding the song before its start: the playhead sits at zero, not running on.
     private bool _holding;
 
@@ -995,6 +999,7 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         lock (_clockLock)
         {
             _generation++;
+            _concluding = false;
             _holding = false;
             _awaitingDisplaySince = null;
         }
@@ -1466,8 +1471,9 @@ public class PlaybackService : BaseService, IPlaybackService, IStartsWithTheHost
         lock (_clockLock)
         {
             // Claimed by moving the generation on, so the other path finds it spent.
-            if (generation != _generation) return;
+            if (generation != _generation || _concluding) return;
             _generation++;
+            _concluding = true;
         }
 
         // As a stop does, so the song's last frame comes down; unfaded, the song being over.
