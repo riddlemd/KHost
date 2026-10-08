@@ -367,14 +367,14 @@ public class AppSettingsServiceTests : IDisposable
     {
         var service = Service();
 
-        await service.SaveAsync(new AppSettings { DefaultSearchMode = "LarkMediaProvider" });
+        await service.SaveAsync(new AppSettings { DefaultSearchMode = "ExampleMediaProvider" });
 
         using var overlay = JsonDocument.Parse(
             await File.ReadAllTextAsync(Path.Combine(_directory, AppSettingsService.OverlayFileName)));
-        Assert.Equal("LarkMediaProvider", overlay.RootElement.GetProperty("Search").GetProperty("DefaultMode").GetString());
+        Assert.Equal("ExampleMediaProvider", overlay.RootElement.GetProperty("Search").GetProperty("DefaultMode").GetString());
 
-        Assert.Equal("LarkMediaProvider",
-            Service(new KeyValuePair<string, string?>("Search:DefaultMode", "LarkMediaProvider")).Current.DefaultSearchMode);
+        Assert.Equal("ExampleMediaProvider",
+            Service(new KeyValuePair<string, string?>("Search:DefaultMode", "ExampleMediaProvider")).Current.DefaultSearchMode);
     }
 
     [Fact]

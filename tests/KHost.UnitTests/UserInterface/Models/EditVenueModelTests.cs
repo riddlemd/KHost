@@ -88,7 +88,7 @@ public class EditVenueModelTests
         MarqueeHideDuringSong = true,
         VisualisationPlaylistId = Guid.NewGuid(),
         NextSingerBackground = NextSingerBackground.Visualisation,
-        QrCodeSource = "khost.plugins.lark",
+        QrCodeSource = "khost.plugins.example",
         QrCodeCorner = OverlayCorner.TopLeft,
         QrCodeSize = QrCodeSize.Large,
         QrCodeHideDuringSong = true,
