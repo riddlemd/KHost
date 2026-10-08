@@ -338,6 +338,36 @@ public class PerformanceServiceTests
         await _downloadsService.Received(1).CancelAsync(performance.MediaId);
     }
 
+    /// <summary>Two guests' picks of a song still arriving share its row; taking one off must not
+    /// kill the download the other is waiting on.</summary>
+    [Fact]
+    public async Task DeleteAsync_ADownloadAnotherQueuedTurnShares_IsNotCancelled()
+    {
+        var mediaId = Guid.NewGuid();
+        var removed = Assert.IsType<Performance>(await EnqueueMediaAsync(Guid.NewGuid(), mediaId));
+        await EnqueueMediaAsync(Guid.NewGuid(), mediaId);
+        _mediaService.ReadAsync(mediaId).Returns(new Media { Id = mediaId, FilePath = "/downloads/song.mp4", Title = "Song", Status = MediaStatus.Downloading });
+
+        await _service.DeleteAsync(removed.Id);
+
+        await _downloadsService.DidNotReceive().CancelAsync(Arg.Any<Guid>());
+    }
+
+    /// <summary>A turn already sung does not hold a download open: only the queue is waiting.</summary>
+    [Fact]
+    public async Task DeleteAsync_ADownloadOnlyASungTurnShares_IsCancelled()
+    {
+        var mediaId = Guid.NewGuid();
+        var sung = Assert.IsType<Performance>(await EnqueueMediaAsync(Guid.NewGuid(), mediaId));
+        sung.QueuePosition = null;
+        var removed = Assert.IsType<Performance>(await EnqueueMediaAsync(Guid.NewGuid(), mediaId));
+        _mediaService.ReadAsync(mediaId).Returns(new Media { Id = mediaId, FilePath = "/downloads/song.mp4", Title = "Song", Status = MediaStatus.Downloading });
+
+        await _service.DeleteAsync(removed.Id);
+
+        await _downloadsService.Received(1).CancelAsync(mediaId);
+    }
+
     [Fact]
     public async Task DeleteAsync_RemovesAProcessingPerformancesMedia_CancelsThatMediasImport()
     {
@@ -579,13 +609,287 @@ public class PerformanceServiceTests
     {
         _venue.Settings.WarnOnDuplicateSong = true;
         var mediaId = Guid.NewGuid();
-        var singerId = Guid.NewGuid();
-        await EnqueueMediaAsync(singerId, mediaId);
+        await EnqueueMediaAsync(Guid.NewGuid(), mediaId);
 
         _interactions.RequestAsync(Arg.Any<ConfirmDuplicateSongRequest>()).Returns(false);
-        var declined = await EnqueueMediaAsync(singerId, mediaId);
+        var otherSinger = Guid.NewGuid();
+        var declined = await EnqueueMediaAsync(otherSinger, mediaId);
 
         Assert.Null(declined);
+        await _interactions.Received(1).RequestAsync(Arg.Any<ConfirmDuplicateSongRequest>());
+        Assert.Empty((await _service.ReadBySingerIdAsync(otherSinger, filter: PerformanceFilter.Queued)).Items);
+    }
+
+    [Fact]
+    public async Task CreateAndEnqueueAsync_SongTheSingerAlreadyHasQueued_IsRefused()
+    {
+        var singerId = Guid.NewGuid();
+        var mediaId = Guid.NewGuid();
+        await EnqueueMediaAsync(singerId, mediaId);
+
+        var second = await EnqueueMediaAsync(singerId, mediaId);
+
+        Assert.Null(second);
+        Assert.Single((await _service.ReadBySingerIdAsync(singerId, filter: PerformanceFilter.Queued)).Items);
+    }
+
+    [Fact]
+    public async Task TryCreateAndEnqueueAsync_Queued_CarriesTheSavedPerformance()
+    {
+        var performance = new Performance { Id = Guid.NewGuid(), SingerId = Guid.NewGuid(), MediaId = Guid.NewGuid() };
+
+        var result = await _service.TryCreateAndEnqueueAsync(performance);
+
+        Assert.Equal(EnqueueResultType.Queued, result.Type);
+        Assert.Same(performance, result.Performance);
+    }
+
+    [Fact]
+    public async Task TryCreateAndEnqueueAsync_SongTheSingerAlreadyHasQueued_SaysSo()
+    {
+        var singerId = Guid.NewGuid();
+        var mediaId = Guid.NewGuid();
+        await EnqueueMediaAsync(singerId, mediaId);
+
+        var result = await _service.TryCreateAndEnqueueAsync(
+            new Performance { Id = Guid.NewGuid(), SingerId = singerId, MediaId = mediaId });
+
+        Assert.Equal(EnqueueResultType.AlreadyQueued, result.Type);
+        Assert.Null(result.Performance);
+    }
+
+    [Fact]
+    public async Task TryCreateAndEnqueueAsync_TwoTapsWhileTheGateIsAsked_TheSecondSaysAlreadyQueued()
+    {
+        var singerId = Guid.NewGuid();
+        var mediaId = Guid.NewGuid();
+        var gateAsked = new TaskCompletionSource();
+        var releaseGate = new TaskCompletionSource<PlaybackGateResult>();
+        var asked = 0;
+        var gates = Substitute.For<IMediaGateService>();
+        gates.EvaluateAsync(MediaAction.Queue, Arg.Any<Media>(), Arg.Any<CancellationToken>()).Returns(_ =>
+        {
+            if (Interlocked.Increment(ref asked) == 2)
+                gateAsked.SetResult();
+            return releaseGate.Task;
+        });
+        _services.GetService(typeof(IMediaGateService)).Returns(gates);
+        _mediaService.ReadAsync(mediaId).Returns(new Media { Id = mediaId, FilePath = "/library/song.mp4", Title = "Song" });
+
+        var first = _service.TryCreateAndEnqueueAsync(new Performance { Id = Guid.NewGuid(), SingerId = singerId, MediaId = mediaId });
+        var second = _service.TryCreateAndEnqueueAsync(new Performance { Id = Guid.NewGuid(), SingerId = singerId, MediaId = mediaId });
+        await gateAsked.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        releaseGate.SetResult(PlaybackGateResult.Ok);
+        var results = await Task.WhenAll(first, second);
+
+        Assert.Equal(
+            [EnqueueResultType.Queued, EnqueueResultType.AlreadyQueued],
+            results.Select(r => r.Type).Order());
+    }
+
+    [Fact]
+    public async Task TryCreateAndEnqueueAsync_SongTheSingerAlreadyHasQueued_NamesTheirOwnTurnAsTheConflict()
+    {
+        var singerId = Guid.NewGuid();
+        var mediaId = Guid.NewGuid();
+        var own = Assert.IsType<Performance>(await EnqueueMediaAsync(singerId, mediaId));
+
+        var result = await _service.TryCreateAndEnqueueAsync(
+            new Performance { Id = Guid.NewGuid(), SingerId = singerId, MediaId = mediaId });
+
+        Assert.Same(own, result.Conflict);
+    }
+
+    /// <summary>The singer's own copy wins over another's: "you already have it" is the message a
+    /// remote should show, not who else does.</summary>
+    [Fact]
+    public async Task TryCreateAndEnqueueAsync_HeldByTheSingerAndAnother_SaysAlreadyQueued()
+    {
+        _venue.Settings.RefuseSongQueuedForAnotherSinger = true;
+        var singerId = Guid.NewGuid();
+        var mediaId = Guid.NewGuid();
+        _performanceDb.Add(new Performance { Id = Guid.NewGuid(), SingerId = Guid.NewGuid(), MediaId = mediaId, QueuePosition = 1 });
+        _performanceDb.Add(new Performance { Id = Guid.NewGuid(), SingerId = singerId, MediaId = mediaId, QueuePosition = 2 });
+
+        var result = await _service.TryCreateAndEnqueueAsync(
+            new Performance { Id = Guid.NewGuid(), SingerId = singerId, MediaId = mediaId });
+
+        Assert.Equal(EnqueueResultType.AlreadyQueued, result.Type);
+        Assert.Equal(singerId, result.Conflict?.SingerId);
+    }
+
+    [Fact]
+    public async Task TryCreateAndEnqueueAsync_SongAnotherSingerHasQueued_VenueRefusingThem_NamesWhoHasIt()
+    {
+        _venue.Settings.RefuseSongQueuedForAnotherSinger = true;
+        var holder = new KHostUser { Id = Guid.NewGuid(), Name = "Priya" };
+        _usersService.ReadAsync(holder.Id).Returns(holder);
+        var mediaId = Guid.NewGuid();
+        await EnqueueMediaAsync(holder.Id, mediaId);
+        var requester = Guid.NewGuid();
+
+        var result = await _service.TryCreateAndEnqueueAsync(
+            new Performance { Id = Guid.NewGuid(), SingerId = requester, MediaId = mediaId });
+
+        Assert.Equal(EnqueueResultType.QueuedForAnotherSinger, result.Type);
+        Assert.Equal(holder.Id, result.Conflict?.SingerId);
+        Assert.Equal("Priya", result.Conflict?.SungAs);
+        Assert.Null(result.Performance);
+        Assert.Empty((await _service.ReadBySingerIdAsync(requester, filter: PerformanceFilter.Queued)).Items);
+    }
+
+    /// <summary>The refusal is the venue's standing answer; a dialog on top of it would ask the host
+    /// a question the setting already settled.</summary>
+    [Fact]
+    public async Task TryCreateAndEnqueueAsync_SongAnotherSingerHasQueued_VenueRefusingThem_DoesNotWarnTheHost()
+    {
+        _venue.Settings.RefuseSongQueuedForAnotherSinger = true;
+        _venue.Settings.WarnOnDuplicateSong = true;
+        var mediaId = Guid.NewGuid();
+        await EnqueueMediaAsync(Guid.NewGuid(), mediaId);
+
+        await EnqueueMediaAsync(Guid.NewGuid(), mediaId);
+
+        await _interactions.DidNotReceive().RequestAsync(Arg.Any<ConfirmDuplicateSongRequest>());
+    }
+
+    [Fact]
+    public async Task TryCreateAndEnqueueAsync_SongAnotherSingerHasSung_VenueRefusingQueuedOnes_IsQueued()
+    {
+        _venue.Settings.RefuseSongQueuedForAnotherSinger = true;
+        var mediaId = Guid.NewGuid();
+        var sung = Assert.IsType<Performance>(await EnqueueMediaAsync(Guid.NewGuid(), mediaId));
+        sung.QueuePosition = null;
+
+        var result = await _service.TryCreateAndEnqueueAsync(
+            new Performance { Id = Guid.NewGuid(), SingerId = Guid.NewGuid(), MediaId = mediaId });
+
+        Assert.Equal(EnqueueResultType.Queued, result.Type);
+    }
+
+    [Fact]
+    public async Task TryCreateAndEnqueueAsync_TwoSingersAtOnce_VenueRefusingTheSecond_QueueItOnce()
+    {
+        _venue.Settings.RefuseSongQueuedForAnotherSinger = true;
+        var mediaId = Guid.NewGuid();
+        var gateAsked = new TaskCompletionSource();
+        var releaseGate = new TaskCompletionSource<PlaybackGateResult>();
+        var asked = 0;
+        var gates = Substitute.For<IMediaGateService>();
+        gates.EvaluateAsync(MediaAction.Queue, Arg.Any<Media>(), Arg.Any<CancellationToken>()).Returns(_ =>
+        {
+            if (Interlocked.Increment(ref asked) == 2)
+                gateAsked.SetResult();
+            return releaseGate.Task;
+        });
+        _services.GetService(typeof(IMediaGateService)).Returns(gates);
+        _mediaService.ReadAsync(mediaId).Returns(new Media { Id = mediaId, FilePath = "/library/song.mp4", Title = "Song" });
+
+        var first = _service.TryCreateAndEnqueueAsync(new Performance { Id = Guid.NewGuid(), SingerId = Guid.NewGuid(), MediaId = mediaId });
+        var second = _service.TryCreateAndEnqueueAsync(new Performance { Id = Guid.NewGuid(), SingerId = Guid.NewGuid(), MediaId = mediaId });
+        await gateAsked.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        releaseGate.SetResult(PlaybackGateResult.Ok);
+        var results = await Task.WhenAll(first, second);
+
+        Assert.Equal(
+            [EnqueueResultType.Queued, EnqueueResultType.QueuedForAnotherSinger],
+            results.Select(r => r.Type).Order());
+    }
+
+    [Fact]
+    public async Task TryCreateAndEnqueueAsync_WarningDeclined_SaysSo()
+    {
+        _venue.Settings.WarnOnDuplicateSong = true;
+        var mediaId = Guid.NewGuid();
+        await EnqueueMediaAsync(Guid.NewGuid(), mediaId);
+        _interactions.RequestAsync(Arg.Any<ConfirmDuplicateSongRequest>()).Returns(false);
+
+        var result = await _service.TryCreateAndEnqueueAsync(
+            new Performance { Id = Guid.NewGuid(), SingerId = Guid.NewGuid(), MediaId = mediaId });
+
+        Assert.Equal(EnqueueResultType.DeclinedAtWarning, result.Type);
+        Assert.Null(result.Performance);
+    }
+
+    [Fact]
+    public async Task TryCreateAndEnqueueAsync_MediaItsProviderRefuses_CarriesTheProvidersReason()
+    {
+        var mediaId = ArrangeGatedMedia(new PlaybackGateResult(false, "Sign in to the provider."));
+
+        var result = await _service.TryCreateAndEnqueueAsync(
+            new Performance { Id = Guid.NewGuid(), SingerId = Guid.NewGuid(), MediaId = mediaId });
+
+        Assert.Equal(EnqueueResultType.RefusedByProvider, result.Type);
+        Assert.Equal("Sign in to the provider.", result.Reason);
+        Assert.Null(result.Performance);
+    }
+
+    [Fact]
+    public async Task CreateAndEnqueueAsync_SongTheSingerAlreadyHasQueued_IsRefusedWithoutWarningTheHost()
+    {
+        _venue.Settings.WarnOnDuplicateSong = true;
+        var singerId = Guid.NewGuid();
+        var mediaId = Guid.NewGuid();
+        await EnqueueMediaAsync(singerId, mediaId);
+
+        await EnqueueMediaAsync(singerId, mediaId);
+
+        await _interactions.DidNotReceive().RequestAsync(Arg.Any<ConfirmDuplicateSongRequest>());
+    }
+
+    [Fact]
+    public async Task CreateAndEnqueueAsync_SameSongForADifferentSinger_IsQueued()
+    {
+        var mediaId = Guid.NewGuid();
+        await EnqueueMediaAsync(Guid.NewGuid(), mediaId);
+
+        Assert.NotNull(await EnqueueMediaAsync(Guid.NewGuid(), mediaId));
+    }
+
+    [Fact]
+    public async Task CreateAndEnqueueAsync_SongTheSingerHasAlreadySung_IsQueued()
+    {
+        var singerId = Guid.NewGuid();
+        var mediaId = Guid.NewGuid();
+        var sung = Assert.IsType<Performance>(await EnqueueMediaAsync(singerId, mediaId));
+        sung.QueuePosition = null;
+
+        Assert.NotNull(await EnqueueMediaAsync(singerId, mediaId));
+    }
+
+    [Fact]
+    public async Task CreateAndEnqueueAsync_TwoTapsWhileTheGateIsAsked_QueueOnce()
+    {
+        var singerId = Guid.NewGuid();
+        var mediaId = Guid.NewGuid();
+        var gateAsked = new TaskCompletionSource();
+        var releaseGate = new TaskCompletionSource<PlaybackGateResult>();
+        var asked = 0;
+        var gates = Substitute.For<IMediaGateService>();
+        gates.EvaluateAsync(MediaAction.Queue, Arg.Any<Media>(), Arg.Any<CancellationToken>()).Returns(_ =>
+        {
+            if (Interlocked.Increment(ref asked) == 2)
+                gateAsked.SetResult();
+            return releaseGate.Task;
+        });
+        _services.GetService(typeof(IMediaGateService)).Returns(gates);
+        _mediaService.ReadAsync(mediaId).Returns(new Media { Id = mediaId, FilePath = "/library/song.mp4", Title = "Song" });
+        // A database write yields; a synchronous one would run the two taps one after the other anyway.
+        _repository.CreateAsync(Arg.Any<Performance>()).Returns(async args =>
+        {
+            await Task.Yield();
+            var perf = (Performance)args[0];
+            lock (_performanceDb)
+                _performanceDb.Add(perf);
+            return perf;
+        });
+
+        var first = EnqueueMediaAsync(singerId, mediaId);
+        var second = EnqueueMediaAsync(singerId, mediaId);
+        await gateAsked.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        releaseGate.SetResult(PlaybackGateResult.Ok);
+        await Task.WhenAll(first, second);
+
         Assert.Single((await _service.ReadBySingerIdAsync(singerId, filter: PerformanceFilter.Queued)).Items);
     }
 

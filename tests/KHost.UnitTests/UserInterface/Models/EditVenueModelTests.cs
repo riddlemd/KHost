@@ -57,6 +57,7 @@ public class EditVenueModelTests
         TippingEnabled = false,
         WarnOnDuplicateSong = true,
         DuplicateSongWindowHours = 8,
+        RefuseSongQueuedForAnotherSinger = true,
         PromptBeforeRemovingSinger = false,
         PromptBeforeRemovingPerformance = false,
         ClearQueueOnClose = false,

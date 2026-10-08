@@ -21,6 +21,7 @@ public class PerformanceService : BaseRepositoryService<Performance, IPerformanc
     private readonly IVenuesService _venuesService;
     private readonly IInteractionDispatcher _interactions;
     private readonly IDownloadsService _downloadsService;
+    private readonly SemaphoreSlim _enqueueLock = new(1, 1);
 
     public PerformanceService(
         ILogger<PerformanceService> logger,
@@ -52,7 +53,10 @@ public class PerformanceService : BaseRepositoryService<Performance, IPerformanc
 
         var deleted = await base.DeleteAsync(id);
 
-        if (deleted && mediaId is { } removedMediaId)
+        // Another turn may still be waiting on the same download: two guests' picks of a song that
+        // is still arriving share one row.
+        if (deleted && mediaId is { } removedMediaId
+            && !(await ReadQueuedAsync()).Any(p => p.MediaId == removedMediaId))
         {
             var media = await _mediaService.ReadAsync(removedMediaId);
             if (media?.Status.IsAcquiring() == true)
@@ -87,11 +91,22 @@ public class PerformanceService : BaseRepositoryService<Performance, IPerformanc
         => await Repository.ReadAllAsync(pageNumber, pageSize, filter);
 
     public async Task<Performance?> CreateAndEnqueueAsync(Performance performance)
+        => (await TryCreateAndEnqueueAsync(performance)).Performance;
+
+    public async Task<EnqueueResult> TryCreateAndEnqueueAsync(Performance performance)
     {
-        if (!await ConfirmNotADuplicateAsync(performance.MediaId))
+        var settings = (await _venuesService.ReadSelectedVenueAsync())?.Settings;
+        var refuseOtherSingers = settings?.RefuseSongQueuedForAnotherSinger == true;
+
+        // Before the duplicate-song warning: a remote's double tap must not put a dialog in front of
+        // the host. The plugin that sent it reads the conflict off the result to tell the singer.
+        if (await RefusalForQueuedConflictAsync(performance, refuseOtherSingers) is { } conflict)
+            return conflict;
+
+        if (!await ConfirmNotADuplicateAsync(performance.MediaId, settings))
         {
             Logger.LogInformation("Enqueue of media {MediaId} declined at the duplicate warning", performance.MediaId);
-            return null;
+            return new EnqueueResult(EnqueueResultType.DeclinedAtWarning);
         }
 
         // Refused at the queue, not only at the microphone. A song whose provider will not let it
@@ -100,7 +115,7 @@ public class PerformanceService : BaseRepositoryService<Performance, IPerformanc
         if (await RefusedByItsProviderAsync(performance.MediaId) is { } refusal)
         {
             Logger.LogInformation("Enqueue of media {MediaId} refused: {Reason}", performance.MediaId, refusal);
-            return null;
+            return new EnqueueResult(EnqueueResultType.RefusedByProvider, Reason: refusal);
         }
 
         // Filled here, not by each of the five callers (two in plugins): a line each is what goes missing.
@@ -108,9 +123,6 @@ public class PerformanceService : BaseRepositoryService<Performance, IPerformanc
         if (string.IsNullOrWhiteSpace(performance.SungAs))
             performance.SungAs = (await _usersService.ReadAsync(performance.SingerId))?.Name;
 
-        var nextPosition = await Repository.ReadNextQueuePositionForSingerAsync(performance.SingerId);
-
-        performance.QueuePosition = nextPosition;
         // Stamped at enqueue: the performance belongs to the venue it was sung at, so it must not
         // follow the host to whatever venue is selected when the history is read back.
         performance.VenueId ??= _venuesService.SelectedVenueId;
@@ -120,13 +132,28 @@ public class PerformanceService : BaseRepositoryService<Performance, IPerformanc
         if (performance.CreatedDate == default)
             performance.CreatedDate = DateTime.UtcNow;
 
-        await Repository.CreateAsync(performance);
+        await _enqueueLock.WaitAsync();
+        try
+        {
+            // Asked again under the lock: two taps arriving together both pass the first check while
+            // the gate is awaited, and the lock is not held there because the warning waits on a person.
+            if (await RefusalForQueuedConflictAsync(performance, refuseOtherSingers) is { } lateConflict)
+                return lateConflict;
 
-        Logger.LogInformation("Enqueued media {MediaId} for singer {SingerId} at position {Position}", performance.MediaId, performance.SingerId, nextPosition);
+            performance.QueuePosition = await Repository.ReadNextQueuePositionForSingerAsync(performance.SingerId);
+
+            await Repository.CreateAsync(performance);
+        }
+        finally
+        {
+            _enqueueLock.Release();
+        }
+
+        Logger.LogInformation("Enqueued media {MediaId} for singer {SingerId} at position {Position}", performance.MediaId, performance.SingerId, performance.QueuePosition);
 
         AnnounceChange();
 
-        return performance;
+        return new EnqueueResult(EnqueueResultType.Queued, performance);
     }
 
     /// <summary>The reason a provider will not let this song play, or null when it will.</summary>
@@ -163,10 +190,29 @@ public class PerformanceService : BaseRepositoryService<Performance, IPerformanc
         }
     }
 
-    private async Task<bool> ConfirmNotADuplicateAsync(Guid mediaId)
+    /// <summary>The refusal a song already in the queue earns, or null when nothing queued stands in
+    /// its way.</summary>
+    private async Task<EnqueueResult?> RefusalForQueuedConflictAsync(Performance performance, bool refuseOtherSingers)
     {
-        var settings = (await _venuesService.ReadSelectedVenueAsync())?.Settings;
+        var holders = (await ReadQueuedAsync()).Where(p => p.MediaId == performance.MediaId).ToList();
 
+        if (holders.FirstOrDefault(p => p.SingerId == performance.SingerId) is { } own)
+        {
+            Logger.LogInformation("Enqueue of media {MediaId} refused: singer {SingerId} already has it queued", performance.MediaId, performance.SingerId);
+            return new EnqueueResult(EnqueueResultType.AlreadyQueued, Conflict: own);
+        }
+
+        if (refuseOtherSingers && holders.FirstOrDefault() is { } other)
+        {
+            Logger.LogInformation("Enqueue of media {MediaId} for singer {SingerId} refused: singer {HolderId} has it queued", performance.MediaId, performance.SingerId, other.SingerId);
+            return new EnqueueResult(EnqueueResultType.QueuedForAnotherSinger, Conflict: other);
+        }
+
+        return null;
+    }
+
+    private async Task<bool> ConfirmNotADuplicateAsync(Guid mediaId, Venue.VenueSettings? settings)
+    {
         if (settings?.WarnOnDuplicateSong != true)
             return true;
 
