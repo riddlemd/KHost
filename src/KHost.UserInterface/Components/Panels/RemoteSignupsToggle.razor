@@ -1,0 +1,12 @@
+@if (_venue is not null)
+{
+    <button type="button"
+            class="kh-remote-signups-toggle @(_open ? "kh-remote-signups-toggle--on" : "")"
+            title="@Title"
+            aria-label="Remote sign-ups"
+            aria-pressed="@(_open ? "true" : "false")"
+            disabled="@_saving"
+            @onclick="ToggleAsync">
+        <Icon Name="@(_open ? "unlock" : "lock-fill")" Class="kh-remote-signups-toggle__icon" />
+    </button>
+}

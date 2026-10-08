@@ -1,3 +1,5 @@
+using KHost.Abstractions.Models;
+
 namespace KHost.Abstractions.Services;
 
 /// <summary>What the host hands a plugin: settings, and a way to warn it. Fixed per process.</summary>
@@ -56,6 +58,18 @@ public interface IPluginContext
     /// so a switch mid-show is immediate. Placement is the venue's. Not kept across a restart;
     /// register again at startup, or declare a standing code in the manifest.</remarks>
     Task RegisterQrCodeAsync(string payload, string? caption = null, CancellationToken cancellationToken = default);
+
+    /// <summary>Offers the screens a QR code, saying what a guest can do with it.</summary>
+    /// <param name="payload">What the code says when scanned, usually a URL. The host draws it.</param>
+    /// <param name="caption">A line under it, worded for what is open now. Register again with
+    /// another when that changes.</param>
+    /// <param name="features">What scanning it offers. The code is drawn only while the venue has at
+    /// least one of them open; <see cref="QrCodeFeatures.None"/> is drawn as the overload without
+    /// features would.</param>
+    /// <param name="cancellationToken">Not observed: the registration is immediate.</param>
+    /// <remarks>Otherwise as <see cref="RegisterQrCodeAsync(string, string?, CancellationToken)"/>.
+    /// </remarks>
+    Task RegisterQrCodeAsync(string payload, string? caption, QrCodeFeatures features, CancellationToken cancellationToken = default);
 
     /// <summary>Withdraws this plugin's code; safe to call even if nothing was registered.</summary>
     Task UnregisterQrCodeAsync(CancellationToken cancellationToken = default);

@@ -95,6 +95,9 @@ public class PluginContext : IPluginContext
         => _secrets.WriteAsync(_pluginId, key, value, cancellationToken);
 
     public Task RegisterQrCodeAsync(string payload, string? caption = null, CancellationToken cancellationToken = default)
+        => RegisterQrCodeAsync(payload, caption, QrCodeFeatures.None, cancellationToken);
+
+    public Task RegisterQrCodeAsync(string payload, string? caption, QrCodeFeatures features, CancellationToken cancellationToken = default)
         // Same _pluginId the secrets are filed under, and for the same reason: the owner is the
         // host's to say. Whether this reaches a screen is the venue's call, made later.
         => _qrCodes.RegisterAsync(new QrCodeRegistration
@@ -102,6 +105,7 @@ public class PluginContext : IPluginContext
             OwnerId = _pluginId,
             Payload = payload,
             Caption = caption,
+            Features = features,
         });
 
     public Task UnregisterQrCodeAsync(CancellationToken cancellationToken = default)

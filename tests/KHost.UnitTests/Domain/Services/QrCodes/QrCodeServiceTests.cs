@@ -297,6 +297,74 @@ public class QrCodeServiceTests
         Assert.Null(await service.ReadOfferAsync());
     }
 
+    /// <summary>A sign-up code goes down with sign-ups: scanning it would lead nowhere.</summary>
+    [Fact]
+    public async Task ReadOfferAsync_ASignupCode_SignupsClosed_OffersNothing()
+    {
+        Arrange(new Venue.VenueSettings { AllowGuestRemote = false });
+        var service = Service();
+
+        await service.RegisterAsync(Code("example") with { Features = QrCodeFeatures.SongEnqueue });
+
+        Assert.Null(await service.ReadOfferAsync());
+    }
+
+    [Fact]
+    public async Task ReadOfferAsync_ASignupCode_SignupsOpen_OffersIt()
+    {
+        Arrange(new Venue.VenueSettings { AllowGuestRemote = true });
+        var service = Service();
+
+        await service.RegisterAsync(Code("example") with { Features = QrCodeFeatures.SongEnqueue });
+
+        Assert.NotNull(await service.ReadOfferAsync());
+    }
+
+    /// <summary>A code that does more than sign-ups stays up for the rest of what it offers.</summary>
+    [Fact]
+    public async Task ReadOfferAsync_SignupsClosed_ACodeThatAlsoTakesTips_StaysUp()
+    {
+        Arrange(new Venue.VenueSettings { AllowGuestRemote = false, TippingEnabled = true });
+        var service = Service();
+
+        await service.RegisterAsync(Code("example") with { Features = QrCodeFeatures.SongEnqueue | QrCodeFeatures.Tipping });
+
+        Assert.NotNull(await service.ReadOfferAsync());
+    }
+
+    /// <summary>A code that declares nothing is shown as it always was, so a plugin built before
+    /// features existed is not taken off the screen by a setting it never knew about.</summary>
+    [Fact]
+    public async Task ReadOfferAsync_ACodeDeclaringNothing_SignupsClosed_StaysUp()
+    {
+        Arrange(new Venue.VenueSettings { AllowGuestRemote = false, ShowQueueToGuests = false, TippingEnabled = false });
+        var service = Service();
+
+        await service.RegisterAsync(Code("example"));
+
+        Assert.NotNull(await service.ReadOfferAsync());
+    }
+
+    /// <summary>Each feature answers to its own venue setting and to nothing else.</summary>
+    [Theory]
+    [InlineData(QrCodeFeatures.SongEnqueue, true, false, false, true)]
+    [InlineData(QrCodeFeatures.SongEnqueue, false, true, true, false)]
+    [InlineData(QrCodeFeatures.QueueView, false, true, false, true)]
+    [InlineData(QrCodeFeatures.QueueView, true, false, true, false)]
+    [InlineData(QrCodeFeatures.Tipping, false, false, true, true)]
+    [InlineData(QrCodeFeatures.Tipping, true, true, false, false)]
+    [InlineData(QrCodeFeatures.QueueEdit, false, false, false, true)]
+    public async Task ReadOfferAsync_ADeclaredCode_IsUpOnlyWhileOneOfItsFeaturesIsOpen(
+        QrCodeFeatures features, bool signups, bool queueShown, bool tipping, bool offered)
+    {
+        Arrange(new Venue.VenueSettings { AllowGuestRemote = signups, ShowQueueToGuests = queueShown, TippingEnabled = tipping });
+        var service = Service();
+
+        await service.RegisterAsync(Code("example") with { Features = features });
+
+        Assert.Equal(offered, await service.ReadOfferAsync() is not null);
+    }
+
     /// <summary>And they come back between songs without the owner asking again.</summary>
     [Fact]
     public async Task ReadOfferAsync_HidingDuringSongs_OffersItAgainWhenNothingIsPlaying()
