@@ -1,7 +1,6 @@
 @using KHost.UserInterface.Models
 
-<div class="kh-venue-settings__section">
-    <span class="kh-venue-settings__section-title">Queue behavior</span>
+<VenueSettingsSection Title="Queue behavior">
 
     <label class="kh-venue-settings__row kh-form-check">
         <span class="kh-form-check-label">Clear queue when closing</span>
@@ -44,6 +43,7 @@
         </span>
         <InputNumber id="venue-remote-song-limit" class="kh-form-control" min="0" max="99"
                      @bind-Value="Model.RemoteSongLimit" />
+        <ValidationMessage For="() => Model.RemoteSongLimit" />
     </div>
     @if (Model.WarnOnDuplicateSong)
     {
@@ -64,6 +64,6 @@
             <Icon Name="people-fill" /> Edit Singer Queue Rotation Strategy
         </button>
     </div>
-</div>
+</VenueSettingsSection>
 
 <SingerQueueDialog IsOpen="_rotationDialogOpen" Config="Model.QueueRotation" OnClose="CloseRotationDialog" />

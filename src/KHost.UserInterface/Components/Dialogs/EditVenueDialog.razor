@@ -6,7 +6,7 @@
         <Icon Name="geo-alt-fill" /> @(_isNew ? "Add Venue" : "Edit Venue")
     </Header>
     <Body>
-        <EditForm EditContext="_editContext" OnValidSubmit="SaveAsync" class="kh-venue-settings">
+        <EditForm EditContext="_editContext" OnValidSubmit="SaveAsync" OnInvalidSubmit="RevealErrors" class="kh-venue-settings">
             <DataAnnotationsValidator />
             <div class="kh-venue-settings__section kh-venue-settings__section--head">
                 <div class="kh-venue-settings__field">
@@ -25,8 +25,7 @@
 
             <EditVenueQrCodes Model="_model" />
 
-            <div class="kh-venue-settings__section">
-                <span class="kh-venue-settings__section-title">Visualisations</span>
+            <VenueSettingsSection Title="Visualisations">
 
                 <div class="kh-venue-settings__row">
                     <span class="kh-venue-settings__labelled">
@@ -48,14 +47,13 @@
                               OpenWhenEmpty="true"
                               Placeholder="None: black under the words" />
                 </div>
-            </div>
+            </VenueSettingsSection>
 
             <EditVenueBetweenSingers Model="_model" />
 
             <EditVenueQueueBehaviour Model="_model" />
 
-            <div class="kh-venue-settings__section">
-                <span class="kh-venue-settings__section-title">Guests on their phones</span>
+            <VenueSettingsSection Title="Guests on their phones">
 
                 <label class="kh-venue-settings__row kh-form-check">
                     <span class="kh-form-check-label">
@@ -82,19 +80,17 @@
                                        @bind-Value="_model.ShowQueueToGuests" />
                     </label>
                 }
-            </div>
+            </VenueSettingsSection>
 
-            <div class="kh-venue-settings__section">
-                <span class="kh-venue-settings__section-title">Tipping</span>
+            <VenueSettingsSection Title="Tipping">
 
                 <label class="kh-venue-settings__row kh-form-check">
                     <span class="kh-form-check-label">Track tips for singers</span>
                     <InputCheckbox class="kh-form-check-input" @bind-Value="_model.TippingEnabled" />
                 </label>
-            </div>
+            </VenueSettingsSection>
 
-            <div class="kh-venue-settings__section">
-                <span class="kh-venue-settings__section-title">Require confirmation when removing</span>
+            <VenueSettingsSection Title="Require confirmation when removing">
 
                 <div class="kh-venue-settings__prompt-grid">
                     <label class="kh-venue-settings__prompt-item kh-form-check">
@@ -112,14 +108,13 @@
                         <InputCheckbox class="kh-form-check-input" @bind-Value="_model.PromptBeforeRemovingPerformance" />
                     </label>
                 </div>
-            </div>
+            </VenueSettingsSection>
 
-            <div class="kh-venue-settings__section">
-                <span class="kh-venue-settings__section-title">Notes</span>
+            <VenueSettingsSection Title="Notes">
                 <InputTextArea class="kh-form-control" @bind-Value="_model.Notes" rows="3"
                                placeholder="Anything worth remembering about this venue…" />
                 <ValidationMessage For="() => _model.Notes" />
-            </div>
+            </VenueSettingsSection>
 
             <button type="submit" class="kh-hidden"></button>
         </EditForm>

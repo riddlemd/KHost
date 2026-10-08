@@ -1,8 +1,7 @@
 @using KHost.Abstractions.Models
 @using KHost.UserInterface.Models
 
-<div class="kh-venue-settings__section">
-    <span class="kh-venue-settings__section-title">Screen QR codes</span>
+<VenueSettingsSection Title="Screen QR codes">
 
     <div class="kh-venue-settings__row">
         <label for="venue-qr-source" class="kh-form-label">Code shown</label>
@@ -83,4 +82,4 @@
                    @bind="Model.QrCodeHideDuringSong" />
         </label>
     }
-</div>
+</VenueSettingsSection>
