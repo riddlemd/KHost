@@ -136,60 +136,6 @@ public class SingerQueueServiceTests : IDisposable
         Assert.Equal("Bob", _service.SelectedUser!.Name);
     }
 
-    private static MediaSearchEntity SearchResult(string foreignKey) => new()
-    {
-        SourceDisplayName = "FileSystem",
-        Source = "FileSystem",
-        ForeignKey = foreignKey,
-        Title = "My Media",
-    };
-
-    [Fact]
-    public async Task AddMediaAsync_EnqueuesNothing_ForASingerNotInTheQueue()
-    {
-        await _service.AddMediaAsync(Guid.NewGuid(), SearchResult(Guid.NewGuid().ToString()));
-
-        await _performanceService.DidNotReceive().CreateAndEnqueueAsync(Arg.Any<Performance>());
-    }
-
-    [Fact]
-    public async Task AddMediaAsync_EnqueuesTheMediaTheResultNames()
-    {
-        var alice = await EnqueueAsync("Alice");
-        var mediaId = Guid.NewGuid();
-
-        await _service.AddMediaAsync(alice.Id, SearchResult(mediaId.ToString()));
-
-        await _performanceService.Received(1).CreateAndEnqueueAsync(
-            Arg.Is<Performance>(p => p.SingerId == alice.Id && p.MediaId == mediaId));
-    }
-
-    [Fact]
-    public async Task AddMediaAsync_StampsTheEnqueueTimeInUtc()
-    {
-        var alice = await EnqueueAsync("Alice");
-        var before = DateTime.UtcNow;
-
-        await _service.AddMediaAsync(alice.Id, SearchResult(Guid.NewGuid().ToString()));
-
-        await _performanceService.Received(1).CreateAndEnqueueAsync(
-            Arg.Is<Performance>(p => p.CreatedDate >= before && p.CreatedDate <= DateTime.UtcNow));
-    }
-
-    // A remote provider's key is its own (a video id, a URL) and names nothing in the library.
-    [Theory]
-    [InlineData("/music/media.mp4")]
-    [InlineData("dQw4w9WgXcQ")]
-    [InlineData("")]
-    public async Task AddMediaAsync_EnqueuesNothing_WhenTheKeyIsNotALibraryMediaId(string foreignKey)
-    {
-        var alice = await EnqueueAsync("Alice");
-
-        await _service.AddMediaAsync(alice.Id, SearchResult(foreignKey));
-
-        await _performanceService.DidNotReceive().CreateAndEnqueueAsync(Arg.Any<Performance>());
-    }
-
     [Fact]
     public async Task MoveUserUpAsync_SwapsWithPrevious()
     {
@@ -249,49 +195,6 @@ public class SingerQueueServiceTests : IDisposable
 
         Assert.Equal(c.Id, _service.Users[0].Id);
         Assert.Equal(3, _service.Users.Count);
-    }
-
-    [Fact]
-    public async Task MoveUserToEndAsync_MovesToLast()
-    {
-        var a = await EnqueueAsync("A");
-        await EnqueueAsync("B");
-        await EnqueueAsync("C");
-
-        await _service.MoveUserToEndAsync(a.Id);
-
-        Assert.Equal(a.Id, _service.Users[^1].Id);
-        Assert.Equal(3, _service.Users.Count);
-    }
-
-    [Fact]
-    public async Task SelectFirstUserInQueueAsync_DoesNothing_WhenEmpty()
-    {
-        await _service.SelectFirstUserInQueueAsync();
-
-        Assert.Null(_service.SelectedUserId);
-    }
-
-    [Fact]
-    public async Task SelectFirstUserInQueueAsync_SelectsFirst()
-    {
-        var a = await EnqueueAsync("A");
-        await EnqueueAsync("B");
-
-        await _service.SelectFirstUserInQueueAsync();
-
-        Assert.Equal(a.Id, _service.SelectedUserId);
-    }
-
-    [Fact]
-    public async Task SelectFirstUserInQueueAsync_SelectsFirst_WhenMultipleUsersExist()
-    {
-        var a = await EnqueueAsync("A");
-        var b = await EnqueueAsync("B");
-
-        await _service.SelectFirstUserInQueueAsync();
-
-        Assert.Equal(a.Id, _service.SelectedUserId);
     }
 
     [Fact]
@@ -618,7 +521,7 @@ public class SingerQueueServiceTests : IDisposable
         Assert.Equal([bob.Id], _service.Users.Select(u => u.Id));
     }
 
-    /// <summary>Regression: ApplyOrder emptying the queue used to make SelectFirstUserInQueueAsync
+    /// <summary>Regression: ApplyOrder emptying the queue used to make selecting the first singer
     /// return before NotifyAsync ran, so the singer leaving was never saved or announced.</summary>
     [Fact]
     public async Task RotateQueueAsync_LastSingerFinishes_AnnouncesAndPersistsEmptyQueue()
@@ -1020,20 +923,6 @@ public class SingerQueueServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task MoveUserToEndAsync_AnnouncesExactlyOnce()
-    {
-        var a = await EnqueueAsync("A");
-        await EnqueueAsync("B");
-
-        var announceCount = 0;
-        using var subscription = _broker.Subscribe<SingerQueueChanged>(_ => announceCount++);
-
-        await _service.MoveUserToEndAsync(a.Id);
-
-        Assert.Equal(1, announceCount);
-    }
-
-    [Fact]
     public async Task MoveUserToIndexAsync_AnnouncesExactlyOnce()
     {
         var a = await EnqueueAsync("A");
@@ -1043,19 +932,6 @@ public class SingerQueueServiceTests : IDisposable
         using var subscription = _broker.Subscribe<SingerQueueChanged>(_ => announceCount++);
 
         await _service.MoveUserToIndexAsync(a.Id, 1);
-
-        Assert.Equal(1, announceCount);
-    }
-
-    [Fact]
-    public async Task SelectFirstUserInQueueAsync_AnnouncesExactlyOnce()
-    {
-        await EnqueueAsync("A");
-
-        var announceCount = 0;
-        using var subscription = _broker.Subscribe<SingerQueueChanged>(_ => announceCount++);
-
-        await _service.SelectFirstUserInQueueAsync();
 
         Assert.Equal(1, announceCount);
     }

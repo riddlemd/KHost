@@ -34,11 +34,6 @@ public interface IPluginContext
     /// only what this plugin added: the host's own warnings about the plugin are never removed.</remarks>
     void ClearWarning(int id);
 
-    /// <summary>Takes back every warning this plugin added.</summary>
-    /// <remarks>The host's own warnings about the plugin are never removed, even one with the same
-    /// text as a warning this plugin added.</remarks>
-    void ClearWarnings();
-
     /// <summary>Reads back a secret this plugin stored, filed under a name the host supplies.</summary>
     /// <returns>Null when nothing is stored under <paramref name="key"/>.</returns>
     Task<string?> GetSecretAsync(string key, CancellationToken cancellationToken = default);

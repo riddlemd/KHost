@@ -207,24 +207,19 @@ public class BreakMusicServiceTests : IDisposable
     [Fact]
     public async Task StartAsync_NeverSetsAVolume()
     {
-        foreach (var throughHost in new[] { false, true })
-        {
-            _provider.RendersThroughHost.Returns(throughHost);
-            _venues.ReadSelectedVenueAsync().Returns(Task.FromResult<Venue?>(new Venue { Name = "The Bar" }));
+        _venues.ReadSelectedVenueAsync().Returns(Task.FromResult<Venue?>(new Venue { Name = "The Bar" }));
 
-            await _service.InitializeAsync();
-            _provider.ClearReceivedCalls();
+        await _service.InitializeAsync();
+        _provider.ClearReceivedCalls();
 
-            await _service.StartAsync();
+        await _service.StartAsync();
 
-            await _provider.DidNotReceive().SetVolumeAsync(Arg.Any<float>(), Arg.Any<CancellationToken>());
-        }
+        await _provider.DidNotReceive().SetVolumeAsync(Arg.Any<float>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
     public async Task AVenueEdit_NeverSetsAVolumeOnAnExternalProvider()
     {
-        _provider.RendersThroughHost.Returns(false);
         _venues.ReadSelectedVenueAsync().Returns(Task.FromResult<Venue?>(new Venue { Name = "The Bar" }));
 
         await _service.InitializeAsync();

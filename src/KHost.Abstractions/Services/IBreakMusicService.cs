@@ -25,20 +25,19 @@ public enum BreakMusicState
 /// not this; it may take this in its constructor to read the state or drive the transport. A host
 /// singleton, callable from any thread: state changes never interleave, and each announces
 /// <see cref="KHost.Abstractions.Messaging.Messages.BreakMusicChanged"/>.
-/// Follows the selected venue: a venue change switches to its chosen provider and re-applies its
-/// volume.</remarks>
+/// Plays the one provider App Settings names for the whole app.</remarks>
 public interface IBreakMusicService
 {
 
     /// <summary>Every provider the host knows, its own library provider and plugins' alike.</summary>
     IReadOnlyList<IBreakMusicProvider> Providers { get; }
 
-    /// <summary>The provider the venue chose, or the library provider when that one is not loaded.
+    /// <summary>The provider App Settings names, or the library provider when that one is not loaded.
     /// Null only before <see cref="InitializeAsync"/> or when no provider exists.</summary>
     IBreakMusicProvider? ActiveProvider { get; }
 
-    /// <summary>The provider fed by the host's own playlists, unlike RendersThroughHost.</summary>
-    /// <remarks>Also the fallback when a venue names a provider that is not loaded.</remarks>
+    /// <summary>The host's own provider, fed from the library's playlists.</summary>
+    /// <remarks>Also the fallback when the chosen provider is not loaded.</remarks>
     IBreakMusicProvider? LibraryProvider { get; }
 
     /// <summary>Where the bed stands, as the host sees it.</summary>
@@ -49,8 +48,7 @@ public interface IBreakMusicService
     /// <summary>The active provider's current track, or null.</summary>
     BreakMusicTrack? CurrentTrack { get; }
 
-    /// <summary>Restores the chosen provider: the one App Settings names for every venue, or the
-    /// selected venue's own until one is saved there. Call once at startup.</summary>
+    /// <summary>Restores the provider App Settings names. Call once at startup.</summary>
     /// <remarks>Host-called; a plugin should not call it.</remarks>
     Task InitializeAsync(CancellationToken cancellationToken = default);
 
